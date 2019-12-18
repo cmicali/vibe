@@ -3,17 +3,92 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 50;
+	objectVersion = 51;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		34FF41F5F64CA81A54C15EBC /* AudioTrack.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4F22665F4945EBFF675E /* AudioTrack.m */; };
+		34FF436EF02E710717AE6437 /* AudioWaveformView.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF49A3AB8C1B5F4A442BE7 /* AudioWaveformView.m */; };
+		34FF45B77FA9EDF4258289C1 /* AudioTrackMetadata.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF43F9CA9465FBDCC1823B /* AudioTrackMetadata.mm */; };
+		34FF47536F1E917EC42A88CB /* PlaylistManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4DCA6269DAF4737BEF98 /* PlaylistManager.m */; };
+		34FF48F86B392D5ADA514F57 /* AudioPlayer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF48521D57BA424773320B /* AudioPlayer.mm */; };
+		34FF4A3057CF1506B3DE7CCF /* MainWindow.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4980C587464F5CCB1366 /* MainWindow.m */; };
+		B64B6A1123A6C72400B91994 /* noun_first_839216.svg in Resources */ = {isa = PBXBuildFile; fileRef = B64B6A0A23A6C72400B91994 /* noun_first_839216.svg */; };
+		B64B6A1223A6C72400B91994 /* noun_first_839217.svg in Resources */ = {isa = PBXBuildFile; fileRef = B64B6A0B23A6C72400B91994 /* noun_first_839217.svg */; };
+		B64B6A1323A6C72400B91994 /* noun_next_839213.svg in Resources */ = {isa = PBXBuildFile; fileRef = B64B6A0C23A6C72400B91994 /* noun_next_839213.svg */; };
+		B64B6A1423A6C72400B91994 /* noun_next_839211.svg in Resources */ = {isa = PBXBuildFile; fileRef = B64B6A0D23A6C72400B91994 /* noun_next_839211.svg */; };
+		B64B6A1523A6C72400B91994 /* noun_play_839207.svg in Resources */ = {isa = PBXBuildFile; fileRef = B64B6A0E23A6C72400B91994 /* noun_play_839207.svg */; };
+		B64B6A1623A6C72400B91994 /* noun_play_839208.svg in Resources */ = {isa = PBXBuildFile; fileRef = B64B6A0F23A6C72400B91994 /* noun_play_839208.svg */; };
+		B64B6A1723A6C72400B91994 /* noun_pause_839209.svg in Resources */ = {isa = PBXBuildFile; fileRef = B64B6A1023A6C72400B91994 /* noun_pause_839209.svg */; };
+		B660F21A23A6B8C600BBD9C8 /* MainPlayerController.m in Sources */ = {isa = PBXBuildFile; fileRef = B660F21823A6B8C600BBD9C8 /* MainPlayerController.m */; };
+		B660F21B23A6B8C600BBD9C8 /* MainPlayerWindow.xib in Resources */ = {isa = PBXBuildFile; fileRef = B660F21923A6B8C600BBD9C8 /* MainPlayerWindow.xib */; };
+		B6C43BB123A9E114009B6536 /* WaveSampleProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C43BAF23A9E114009B6536 /* WaveSampleProvider.swift */; };
+		B6C43BB223A9E114009B6536 /* WaveFormViewOSX.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C43BB023A9E114009B6536 /* WaveFormViewOSX.swift */; };
 		B6E7883623A562360035BCD0 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = B6E7883523A562360035BCD0 /* AppDelegate.m */; };
 		B6E7883823A562380035BCD0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B6E7883723A562380035BCD0 /* Assets.xcassets */; };
 		B6E7883B23A562380035BCD0 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = B6E7883923A562380035BCD0 /* MainMenu.xib */; };
 		B6E7883E23A562380035BCD0 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B6E7883D23A562380035BCD0 /* main.m */; };
+		B6E7885923A563780035BCD0 /* SFBAudioEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6E7885523A5636E0035BCD0 /* SFBAudioEngine.framework */; };
+		B6E7885A23A563780035BCD0 /* SFBAudioEngine.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B6E7885523A5636E0035BCD0 /* SFBAudioEngine.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B6E7885D23A564A40035BCD0 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6E7885C23A564A40035BCD0 /* Accelerate.framework */; };
+		B6E7885F23A564AD0035BCD0 /* ApplicationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6E7885E23A564AD0035BCD0 /* ApplicationServices.framework */; };
+		B6E7886123A564C20035BCD0 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6E7886023A564C20035BCD0 /* QuartzCore.framework */; };
+		E685DCCCB1E10C9857B1C9EA /* Pods_Vibe.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0763E621179A31A3B489CCC2 /* Pods_Vibe.framework */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		B6E7885423A5636E0035BCD0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B6E7884F23A5636E0035BCD0 /* SFBAudioEngine.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 3210AB9017B9C05A00743639;
+			remoteInfo = SFBAudioEngine;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B6E7885B23A563780035BCD0 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				B6E7885A23A563780035BCD0 /* SFBAudioEngine.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		0763E621179A31A3B489CCC2 /* Pods_Vibe.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Vibe.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		25635E47A34F0C3EAEB23D01 /* Pods-Vibe.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Vibe.release.xcconfig"; path = "Target Support Files/Pods-Vibe/Pods-Vibe.release.xcconfig"; sourceTree = "<group>"; };
+		34FF439F34E32FFAE89B2668 /* PlaylistManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PlaylistManager.h; sourceTree = "<group>"; };
+		34FF43F9CA9465FBDCC1823B /* AudioTrackMetadata.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioTrackMetadata.mm; sourceTree = "<group>"; };
+		34FF46DD56FC08BB451009A0 /* AudioTrackMetadata.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioTrackMetadata.h; sourceTree = "<group>"; };
+		34FF48521D57BA424773320B /* AudioPlayer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioPlayer.mm; sourceTree = "<group>"; };
+		34FF495980860234FA093E3B /* AudioTrack.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioTrack.h; sourceTree = "<group>"; };
+		34FF4980C587464F5CCB1366 /* MainWindow.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MainWindow.m; sourceTree = "<group>"; };
+		34FF49A3AB8C1B5F4A442BE7 /* AudioWaveformView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioWaveformView.m; sourceTree = "<group>"; };
+		34FF4ABA4C095C07500EEDED /* AudioWaveformView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioWaveformView.h; sourceTree = "<group>"; };
+		34FF4B95CF3CDCE604FDC5A0 /* MainWindow.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MainWindow.h; sourceTree = "<group>"; };
+		34FF4DAE6C8209C010E3F313 /* AudioPlayer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioPlayer.h; sourceTree = "<group>"; };
+		34FF4DCA6269DAF4737BEF98 /* PlaylistManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = PlaylistManager.m; sourceTree = "<group>"; };
+		34FF4F22665F4945EBFF675E /* AudioTrack.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioTrack.m; sourceTree = "<group>"; };
+		41543533A70D357DE2562A6C /* Pods-Vibe.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Vibe.debug.xcconfig"; path = "Target Support Files/Pods-Vibe/Pods-Vibe.debug.xcconfig"; sourceTree = "<group>"; };
+		B64B6A0A23A6C72400B91994 /* noun_first_839216.svg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = noun_first_839216.svg; sourceTree = "<group>"; };
+		B64B6A0B23A6C72400B91994 /* noun_first_839217.svg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = noun_first_839217.svg; sourceTree = "<group>"; };
+		B64B6A0C23A6C72400B91994 /* noun_next_839213.svg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = noun_next_839213.svg; sourceTree = "<group>"; };
+		B64B6A0D23A6C72400B91994 /* noun_next_839211.svg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = noun_next_839211.svg; sourceTree = "<group>"; };
+		B64B6A0E23A6C72400B91994 /* noun_play_839207.svg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = noun_play_839207.svg; sourceTree = "<group>"; };
+		B64B6A0F23A6C72400B91994 /* noun_play_839208.svg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = noun_play_839208.svg; sourceTree = "<group>"; };
+		B64B6A1023A6C72400B91994 /* noun_pause_839209.svg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = noun_pause_839209.svg; sourceTree = "<group>"; };
+		B660F21723A6B8C600BBD9C8 /* MainPlayerController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MainPlayerController.h; sourceTree = "<group>"; };
+		B660F21823A6B8C600BBD9C8 /* MainPlayerController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MainPlayerController.m; sourceTree = "<group>"; };
+		B660F21923A6B8C600BBD9C8 /* MainPlayerWindow.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = MainPlayerWindow.xib; sourceTree = "<group>"; };
+		B6C43BAD23A9E113009B6536 /* Vibe-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Vibe-Bridging-Header.h"; sourceTree = "<group>"; };
+		B6C43BAF23A9E114009B6536 /* WaveSampleProvider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WaveSampleProvider.swift; sourceTree = "<group>"; };
+		B6C43BB023A9E114009B6536 /* WaveFormViewOSX.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WaveFormViewOSX.swift; sourceTree = "<group>"; };
 		B6E7883123A562360035BCD0 /* Vibe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vibe.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6E7883423A562360035BCD0 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		B6E7883523A562360035BCD0 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
@@ -22,6 +97,10 @@
 		B6E7883C23A562380035BCD0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B6E7883D23A562380035BCD0 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		B6E7883F23A562380035BCD0 /* Vibe.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Vibe.entitlements; sourceTree = "<group>"; };
+		B6E7884F23A5636E0035BCD0 /* SFBAudioEngine.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = SFBAudioEngine.xcodeproj; path = SFBAudioEngine/SFBAudioEngine.xcodeproj; sourceTree = "<group>"; };
+		B6E7885C23A564A40035BCD0 /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
+		B6E7885E23A564AD0035BCD0 /* ApplicationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ApplicationServices.framework; path = System/Library/Frameworks/ApplicationServices.framework; sourceTree = SDKROOT; };
+		B6E7886023A564C20035BCD0 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -29,17 +108,67 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B6E7886123A564C20035BCD0 /* QuartzCore.framework in Frameworks */,
+				B6E7885923A563780035BCD0 /* SFBAudioEngine.framework in Frameworks */,
+				B6E7885F23A564AD0035BCD0 /* ApplicationServices.framework in Frameworks */,
+				B6E7885D23A564A40035BCD0 /* Accelerate.framework in Frameworks */,
+				E685DCCCB1E10C9857B1C9EA /* Pods_Vibe.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		34FF48C886FF01D51470B6EE /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				34FF48521D57BA424773320B /* AudioPlayer.mm */,
+				34FF4DAE6C8209C010E3F313 /* AudioPlayer.h */,
+				34FF43F9CA9465FBDCC1823B /* AudioTrackMetadata.mm */,
+				34FF46DD56FC08BB451009A0 /* AudioTrackMetadata.h */,
+				34FF4F22665F4945EBFF675E /* AudioTrack.m */,
+				34FF495980860234FA093E3B /* AudioTrack.h */,
+				34FF49A3AB8C1B5F4A442BE7 /* AudioWaveformView.m */,
+				34FF4ABA4C095C07500EEDED /* AudioWaveformView.h */,
+				B6C43BAD23A9E113009B6536 /* Vibe-Bridging-Header.h */,
+				B6C43BB023A9E114009B6536 /* WaveFormViewOSX.swift */,
+				B6C43BAF23A9E114009B6536 /* WaveSampleProvider.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+		40E5B0E384E4D10E23140ADD /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				41543533A70D357DE2562A6C /* Pods-Vibe.debug.xcconfig */,
+				25635E47A34F0C3EAEB23D01 /* Pods-Vibe.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		B64B6A0923A6C72400B91994 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B64B6A0A23A6C72400B91994 /* noun_first_839216.svg */,
+				B64B6A0B23A6C72400B91994 /* noun_first_839217.svg */,
+				B64B6A0C23A6C72400B91994 /* noun_next_839213.svg */,
+				B64B6A0D23A6C72400B91994 /* noun_next_839211.svg */,
+				B64B6A0E23A6C72400B91994 /* noun_play_839207.svg */,
+				B64B6A0F23A6C72400B91994 /* noun_play_839208.svg */,
+				B64B6A1023A6C72400B91994 /* noun_pause_839209.svg */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		B6E7882823A562360035BCD0 = {
 			isa = PBXGroup;
 			children = (
 				B6E7883323A562360035BCD0 /* Vibe */,
+				B64B6A0923A6C72400B91994 /* Resources */,
+				B6E7884523A562820035BCD0 /* Libraries */,
 				B6E7883223A562360035BCD0 /* Products */,
+				B6E7885823A563780035BCD0 /* Frameworks */,
+				40E5B0E384E4D10E23140ADD /* Pods */,
 			);
 			sourceTree = "<group>";
 		};
@@ -54,15 +183,50 @@
 		B6E7883323A562360035BCD0 /* Vibe */ = {
 			isa = PBXGroup;
 			children = (
+				34FF48C886FF01D51470B6EE /* Audio */,
+				B6E7883723A562380035BCD0 /* Assets.xcassets */,
 				B6E7883423A562360035BCD0 /* AppDelegate.h */,
 				B6E7883523A562360035BCD0 /* AppDelegate.m */,
-				B6E7883723A562380035BCD0 /* Assets.xcassets */,
 				B6E7883923A562380035BCD0 /* MainMenu.xib */,
 				B6E7883C23A562380035BCD0 /* Info.plist */,
 				B6E7883D23A562380035BCD0 /* main.m */,
 				B6E7883F23A562380035BCD0 /* Vibe.entitlements */,
+				B660F21723A6B8C600BBD9C8 /* MainPlayerController.h */,
+				B660F21823A6B8C600BBD9C8 /* MainPlayerController.m */,
+				B660F21923A6B8C600BBD9C8 /* MainPlayerWindow.xib */,
+				34FF4DCA6269DAF4737BEF98 /* PlaylistManager.m */,
+				34FF439F34E32FFAE89B2668 /* PlaylistManager.h */,
+				34FF4980C587464F5CCB1366 /* MainWindow.m */,
+				34FF4B95CF3CDCE604FDC5A0 /* MainWindow.h */,
 			);
 			path = Vibe;
+			sourceTree = "<group>";
+		};
+		B6E7884523A562820035BCD0 /* Libraries */ = {
+			isa = PBXGroup;
+			children = (
+				B6E7884F23A5636E0035BCD0 /* SFBAudioEngine.xcodeproj */,
+			);
+			path = Libraries;
+			sourceTree = "<group>";
+		};
+		B6E7885023A5636E0035BCD0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B6E7885523A5636E0035BCD0 /* SFBAudioEngine.framework */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		B6E7885823A563780035BCD0 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				B6E7886023A564C20035BCD0 /* QuartzCore.framework */,
+				B6E7885E23A564AD0035BCD0 /* ApplicationServices.framework */,
+				B6E7885C23A564A40035BCD0 /* Accelerate.framework */,
+				0763E621179A31A3B489CCC2 /* Pods_Vibe.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -72,9 +236,12 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = B6E7884223A562380035BCD0 /* Build configuration list for PBXNativeTarget "Vibe" */;
 			buildPhases = (
+				F5AC340121AAD3E209747E6C /* [CP] Check Pods Manifest.lock */,
 				B6E7882D23A562360035BCD0 /* Sources */,
 				B6E7882E23A562360035BCD0 /* Frameworks */,
 				B6E7882F23A562360035BCD0 /* Resources */,
+				B6E7885B23A563780035BCD0 /* Embed Frameworks */,
+				3577F8F3C0F69C0E6CD8EB8A /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -96,6 +263,7 @@
 				TargetAttributes = {
 					B6E7883023A562360035BCD0 = {
 						CreatedOnToolsVersion = 11.3;
+						LastSwiftMigration = 1130;
 					};
 				};
 			};
@@ -110,6 +278,12 @@
 			mainGroup = B6E7882823A562360035BCD0;
 			productRefGroup = B6E7883223A562360035BCD0 /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = B6E7885023A5636E0035BCD0 /* Products */;
+					ProjectRef = B6E7884F23A5636E0035BCD0 /* SFBAudioEngine.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				B6E7883023A562360035BCD0 /* Vibe */,
@@ -117,17 +291,77 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXReferenceProxy section */
+		B6E7885523A5636E0035BCD0 /* SFBAudioEngine.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = SFBAudioEngine.framework;
+			remoteRef = B6E7885423A5636E0035BCD0 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+/* End PBXReferenceProxy section */
+
 /* Begin PBXResourcesBuildPhase section */
 		B6E7882F23A562360035BCD0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B64B6A1723A6C72400B91994 /* noun_pause_839209.svg in Resources */,
+				B64B6A1423A6C72400B91994 /* noun_next_839211.svg in Resources */,
 				B6E7883823A562380035BCD0 /* Assets.xcassets in Resources */,
+				B64B6A1223A6C72400B91994 /* noun_first_839217.svg in Resources */,
+				B64B6A1523A6C72400B91994 /* noun_play_839207.svg in Resources */,
 				B6E7883B23A562380035BCD0 /* MainMenu.xib in Resources */,
+				B64B6A1123A6C72400B91994 /* noun_first_839216.svg in Resources */,
+				B64B6A1623A6C72400B91994 /* noun_play_839208.svg in Resources */,
+				B660F21B23A6B8C600BBD9C8 /* MainPlayerWindow.xib in Resources */,
+				B64B6A1323A6C72400B91994 /* noun_next_839213.svg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		3577F8F3C0F69C0E6CD8EB8A /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Vibe/Pods-Vibe-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Vibe/Pods-Vibe-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Vibe/Pods-Vibe-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		F5AC340121AAD3E209747E6C /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-Vibe-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B6E7882D23A562360035BCD0 /* Sources */ = {
@@ -136,6 +370,15 @@
 			files = (
 				B6E7883E23A562380035BCD0 /* main.m in Sources */,
 				B6E7883623A562360035BCD0 /* AppDelegate.m in Sources */,
+				B660F21A23A6B8C600BBD9C8 /* MainPlayerController.m in Sources */,
+				B6C43BB123A9E114009B6536 /* WaveSampleProvider.swift in Sources */,
+				34FF47536F1E917EC42A88CB /* PlaylistManager.m in Sources */,
+				34FF4A3057CF1506B3DE7CCF /* MainWindow.m in Sources */,
+				34FF48F86B392D5ADA514F57 /* AudioPlayer.mm in Sources */,
+				34FF45B77FA9EDF4258289C1 /* AudioTrackMetadata.mm in Sources */,
+				B6C43BB223A9E114009B6536 /* WaveFormViewOSX.swift in Sources */,
+				34FF41F5F64CA81A54C15EBC /* AudioTrack.m in Sources */,
+				34FF436EF02E710717AE6437 /* AudioWaveformView.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -264,8 +507,10 @@
 		};
 		B6E7884323A562380035BCD0 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 41543533A70D357DE2562A6C /* Pods-Vibe.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Vibe/Vibe.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -276,13 +521,18 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.commonwealthrecordings.Vibe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "Vibe/Audio/Vibe-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
 		B6E7884423A562380035BCD0 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 25635E47A34F0C3EAEB23D01 /* Pods-Vibe.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Vibe/Vibe.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -293,6 +543,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.commonwealthrecordings.Vibe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "Vibe/Audio/Vibe-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};

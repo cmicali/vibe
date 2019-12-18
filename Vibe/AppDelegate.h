@@ -7,9 +7,11 @@
 //
 
 #import <Cocoa/Cocoa.h>
+#import "MainPlayerController.h"
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 
+@property (nonatomic, weak) IBOutlet MainPlayerController *mainPlayerController;
 
 @end
 
