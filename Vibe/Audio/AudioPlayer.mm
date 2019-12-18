@@ -120,18 +120,26 @@ enum ePlayerFlags : unsigned int {
         return;
     }
 
-    if(self->_player->GetPlaybackPositionAndTime(_currentFrame, _totalFrames, _currentTime, _totalTime)) {
-        self.fractionComplete = static_cast<float>(_currentFrame) / static_cast<float>(_totalFrames);
-    }
+    [self updateStats];
 
     [self.delegate audioPlayer:self didMakePlaybackProgress:url];
 
 }
 
+- (void)updateStats {
+    if(self->_player->GetPlaybackPositionAndTime(_currentFrame, _totalFrames, _currentTime, _totalTime)) {
+        self.fractionComplete = static_cast<float>(_currentFrame) / static_cast<float>(_totalFrames);
+    }
+}
+
 - (BOOL) playURL:(NSURL *)url {
      __block AudioPlayer *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        weakSelf->_player->Play((__bridge CFURLRef)url);
+        BOOL playing = weakSelf->_player->Play((__bridge CFURLRef)url);
+        [self updateStats];
+        dispatch_async(dispatch_get_main_queue(), ^(void) {
+            [weakSelf.delegate audioPlayer:weakSelf didStartPlayingURL:url didPlay:playing];
+        });
     });
     return YES;
 }

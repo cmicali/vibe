@@ -6,5 +6,6 @@ target 'Vibe' do
   platform :osx, '10.15'
 
   pod 'SVGKit'
+  pod 'taglib-pod', :git => 'https://github.com/cmicali/taglib-pod.git', :tag => '1.11.1'
 
 end

@@ -36,6 +36,8 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol AudioPlayerDelegate <NSObject>
 @optional
 
+- (void)audioPlayer:(AudioPlayer *)player didStartPlayingURL:(NSURL *)url didPlay:(BOOL)play;
+
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartRenderingURL:(NSURL *)url;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishRenderingURL:(NSURL *)url;
 
@@ -44,6 +46,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didMakePlaybackProgress:(NSURL *)url;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didLoadMetadata:(NSURL *)url;
+
 
 @end
 

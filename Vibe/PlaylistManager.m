@@ -12,7 +12,7 @@
     NSMutableArray<AudioTrack *> *_playlist;
 }
 
-- (id)initWithAudioPlayer:(AudioPlayer *)audioPlayer {
+- (id)initWithAudioPlayer:(BASSAudioPlayer *)audioPlayer {
     self = [super init];
     if (self) {
         _playlist = [NSMutableArray new];
@@ -47,13 +47,13 @@
         [_playlist addObject:[AudioTrack withURL:url]];
     }
     self.currentIndex = 0;
-    [self.audioPlayer loadMetadata:_playlist];
     [self play];
+    [self.audioPlayer loadMetadata:_playlist];
 }
 
 - (void)play {
     if (self.currentIndex < _playlist.count) {
-        [self.audioPlayer playURL:_playlist[self.currentIndex].url];
+        [self.audioPlayer play:_playlist[self.currentIndex]];
     }
 }
 
