@@ -10,6 +10,7 @@
 #import "PlaylistManager.h"
 #import "AudioPlayer.h"
 #import "AudioWaveformView.h"
+#import "BASSAudioPlayer.h"
 
 @interface MainPlayerController ()
 
@@ -19,7 +20,7 @@
 
 - (id) init {
     if((self = [super initWithWindowNibName:@"MainPlayerWindow"])) {
-        self.audioPlayer = [[AudioPlayer alloc] init];
+        self.audioPlayer = [[BASSAudioPlayer alloc] init];
         self.audioPlayer.delegate = self;
         self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
     }
@@ -67,10 +68,6 @@
 }
 
 - (void)reloadData {
-    if (self.playlistManager.currentTrack.url) {
-        [self.waveformView setDisabled:NO];
-        [self.waveformView openAudioURL:self.playlistManager.currentTrack.url startFrame:0 withLength:self.audioPlayer.totalFrames];
-    }
     self.titleTextField.stringValue = self.playlistManager.currentTrack.title;
     self.artistTextField.stringValue = self.playlistManager.currentTrack.artist;
     self.albumArtImageView.image = self.playlistManager.currentTrack.albumArt;
@@ -85,23 +82,7 @@
     [self.playlistManager reset:urls];
 }
 
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didStartRenderingURL:(NSURL *)url {
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishRenderingURL:(NSURL *)url {
-    audioPlayer.delegate;
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didStartDecodingURL:(NSURL *)url {
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishDecodingURL:(NSURL *)url {
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didMakePlaybackProgress:(NSURL *)url {
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didLoadMetadata:(NSURL *)url {
+- (void)audioPlayer:(BASSAudioPlayer *)audioPlayer didLoadMetadata:(NSURL *)url {
     [self reloadData];
 }
 

@@ -12,26 +12,25 @@
 #import "AudioPlayer.h"
 #import "AudioTrackMetadata.h"
 #import "MainWindow.h"
-
-#import "Vibe-Swift.h"
+#import "BASSAudioPlayer.h"
 
 @class AudioWaveformView;
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface MainPlayerController : NSWindowController <AudioPlayerDelegate, FileDropDelegate>
+@interface MainPlayerController : NSWindowController <FileDropDelegate, BASSAudioPlayerDelegate>
 
 @property (weak) IBOutlet NSButton *playButton;
 @property (weak) IBOutlet NSTableView *playlistTableView;
 @property (weak) IBOutlet NSTextField *artistTextField;
 @property (weak) IBOutlet NSTextField *titleTextField;
 @property (weak) IBOutlet NSImageView *albumArtImageView;
-@property (weak) IBOutlet WaveFormViewOSX *waveformView;
+@property (weak) IBOutlet AudioWaveformView *waveformView;
 
 @property (strong) AudioTrackMetadata *metadata;
 
 @property (strong) PlaylistManager *playlistManager;
-@property (strong) AudioPlayer *audioPlayer;
+@property (strong) BASSAudioPlayer *audioPlayer;
 
 @end
 

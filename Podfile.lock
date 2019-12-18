@@ -4,19 +4,32 @@ PODS:
   - CocoaLumberjack/Core (3.6.0)
   - SVGKit (2.1.1):
     - CocoaLumberjack (~> 3.0)
+  - taglib-pod (1.11.1)
 
 DEPENDENCIES:
   - SVGKit
+  - taglib-pod (from `https://github.com/cmicali/taglib-pod.git`, tag `1.11.1`)
 
 SPEC REPOS:
   trunk:
     - CocoaLumberjack
     - SVGKit
 
+EXTERNAL SOURCES:
+  taglib-pod:
+    :git: https://github.com/cmicali/taglib-pod.git
+    :tag: 1.11.1
+
+CHECKOUT OPTIONS:
+  taglib-pod:
+    :git: https://github.com/cmicali/taglib-pod.git
+    :tag: 1.11.1
+
 SPEC CHECKSUMS:
   CocoaLumberjack: 78b0c238666f4f58db069738ec176f4519557516
   SVGKit: 652cdf7bef8bec8564d04a8511d3ab50c7595fac
+  taglib-pod: 4184e5a6a193167478352d5f829397e8fddc203e
 
-PODFILE CHECKSUM: 2ac33d83d07a83ba4380b16f216d5e65b919d2a5
+PODFILE CHECKSUM: ee5717edd6d27a66767ebe65025cb5ed20d9a9d7
 
 COCOAPODS: 1.8.4
