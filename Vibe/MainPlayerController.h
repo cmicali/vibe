@@ -8,17 +8,18 @@
 
 #import <Cocoa/Cocoa.h>
 
-#import "PlaylistManager.h"
 #import "AudioPlayer.h"
 #import "AudioTrackMetadata.h"
-#import "MainWindow.h"
-#import "BASSAudioPlayer.h"
+#import "AudioWaveformView.h"
+#import "PlaylistManager.h"
 
-@class AudioWaveformView;
+#import "MainWindow.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface MainPlayerController : NSWindowController <FileDropDelegate, BASSAudioPlayerDelegate>
+@interface MainPlayerController : NSWindowController <FileDropDelegate,
+                                                      AudioPlayerDelegate,
+                                                      AudioWaveformViewDelegate>
 
 @property (weak) IBOutlet NSButton *playButton;
 @property (weak) IBOutlet NSTableView *playlistTableView;
@@ -26,11 +27,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (weak) IBOutlet NSTextField *titleTextField;
 @property (weak) IBOutlet NSImageView *albumArtImageView;
 @property (weak) IBOutlet AudioWaveformView *waveformView;
+@property (weak) IBOutlet NSTextField *totalTimeTextField;
+@property (weak) IBOutlet NSTextField *currentTimeTextField;
 
 @property (strong) AudioTrackMetadata *metadata;
 
 @property (strong) PlaylistManager *playlistManager;
-@property (strong) BASSAudioPlayer *audioPlayer;
+@property (strong) AudioPlayer *audioPlayer;
 
 @end
 

@@ -17,7 +17,6 @@
 #include <attachedpictureframe.h>
 
 @implementation AudioTrackMetadata {
-
 }
 
 + (AudioTrackMetadata *)getMetadataForURL:(NSURL *)url {

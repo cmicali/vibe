@@ -26,6 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)artist;
 - (NSImage *)albumArt;
 
+- (NSString *)singleLineTitle;
 @end
 
 NS_ASSUME_NONNULL_END
