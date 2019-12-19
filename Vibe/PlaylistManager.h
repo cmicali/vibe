@@ -7,7 +7,7 @@
 #import <AppKit/AppKit.h>
 
 #import "AudioTrack.h"
-#import "BASSAudioPlayer.h"
+#import "AudioPlayer.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -15,11 +15,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property NSUInteger currentIndex;
 
-@property (weak) BASSAudioPlayer *audioPlayer;
+@property (weak) AudioPlayer *audioPlayer;
+@property (weak) NSTableView *tableView;
 
-- (id)initWithAudioPlayer:(BASSAudioPlayer *)player;
+- (id)initWithAudioPlayer:(AudioPlayer *)player;
 
 - (void)reset:(NSArray<NSURL *> *)urls;
+- (void)next;
+
 - (AudioTrack *)currentTrack;
 
 @end

@@ -6,5 +6,19 @@
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 
+@protocol AudioWaveformViewDelegate;
+
 @interface AudioWaveformView : NSView
+
+@property (nullable, weak) id <AudioWaveformViewDelegate> delegate;
+
+@property CGFloat progress;
+
+@end
+
+@protocol AudioWaveformViewDelegate <NSObject>
+@optional
+
+- (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage;
+
 @end
