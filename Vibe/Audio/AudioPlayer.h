@@ -1,52 +1,61 @@
 //
-// Created by Christopher Micali on 12/17/19.
-// Copyright (c) 2019 Christopher Micali. All rights reserved.
+//  BASSAudioPlayer.h
+//  Vibe
+//
+//  Created by Christopher Micali on 12/18/19.
+//  Copyright © 2019 Christopher Micali. All rights reserved.
 //
 
 #import <Foundation/Foundation.h>
-#import <Cocoa/Cocoa.h>
+#import "bass.h"
+
+@class AudioTrack;
 
 NS_ASSUME_NONNULL_BEGIN
 
+typedef NS_ENUM(NSInteger, AudioPlayerError) {
+    AudioPlayerErrorInit = BASS_ERROR_INIT,
+    AudioPlayerErrorNotAvail = BASS_ERROR_NOTAVAIL,
+    AudioPlayerErrorNoInternet = BASS_ERROR_NONET,
+    AudioPlayerErrorInvalidUrl = BASS_ERROR_ILLPARAM,
+    AudioPlayerErrorSslUnsupported = BASS_ERROR_SSL,
+    AudioPlayerErrorServerTimeout = BASS_ERROR_TIMEOUT,
+    AudioPlayerErrorCouldNotOpenFile = BASS_ERROR_FILEOPEN,
+    AudioPlayerErrorFileInvalidFormat = BASS_ERROR_FILEFORM,
+    AudioPlayerErrorSupportedCodec = BASS_ERROR_CODEC,
+    AudioPlayerErrorUnsupportedSampleFormat = BASS_ERROR_SPEAKER,
+    AudioPlayerErrorInsufficientMemory = BASS_ERROR_MEM,
+    AudioPlayerErrorNo3D = BASS_ERROR_NO3D,
+    AudioPlayerErrorUnknown = BASS_ERROR_UNKNOWN
+};
+
 @protocol AudioPlayerDelegate;
-@class AudioTrack;
 
 @interface AudioPlayer : NSObject
 
-@property (nonatomic) CFTimeInterval currentTime;
-@property (nonatomic) CFTimeInterval totalTime;
-
-@property (nonatomic) SInt64 currentFrame;
-@property (nonatomic) SInt64 totalFrames;
-
-@property (nonatomic) float fractionComplete;
-
 @property (nullable, weak) id <AudioPlayerDelegate> delegate;
+@property NSTimeInterval position;
 
-- (BOOL)playURL:(NSURL *)url;
-- (void)loadMetadata:(NSArray<AudioTrack *> *)tracks;
+- (BOOL)play:(AudioTrack *)track;
 
-- (void)playPause;
-- (void)stop;
-- (void)seek:(float)position;
-- (bool)supportsSeeking;
+- (BOOL)isPlaying;
+- (NSTimeInterval)duration;
+
+- (void)loadMetadata:(NSArray<AudioTrack*>*)tracks;
+
+- (NSError * )errorForErrorCode:(AudioPlayerError)erro;
 
 @end
+
 
 @protocol AudioPlayerDelegate <NSObject>
 @optional
 
-- (void)audioPlayer:(AudioPlayer *)player didStartPlayingURL:(NSURL *)url didPlay:(BOOL)play;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didLoadMetadata:(AudioTrack *)track;
 
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didStartRenderingURL:(NSURL *)url;
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishRenderingURL:(NSURL *)url;
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didStartDecodingURL:(NSURL *)url;
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishDecodingURL:(NSURL *)url;
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didMakePlaybackProgress:(NSURL *)url;
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didLoadMetadata:(NSURL *)url;
-
+- (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error;
 
 @end
 

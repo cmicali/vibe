@@ -10,19 +10,30 @@
 #import "PlaylistManager.h"
 #import "AudioPlayer.h"
 #import "AudioWaveformView.h"
-#import "BASSAudioPlayer.h"
+#import "AudioPlayer.h"
+#import "NSDockTile+Util.h"
+
+#define UPDATE_HZ 3
 
 @interface MainPlayerController ()
 
 @end
 
-@implementation MainPlayerController
+@implementation MainPlayerController {
+    dispatch_source_t   _timer;
+    NSDateComponentsFormatter *_timeFormatter;
+}
 
 - (id) init {
     if((self = [super initWithWindowNibName:@"MainPlayerWindow"])) {
-        self.audioPlayer = [[BASSAudioPlayer alloc] init];
+        _timeFormatter = [[NSDateComponentsFormatter alloc] init];
+        _timeFormatter.allowedUnits = NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond;
+        _timeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorDropAll;
+        self.audioPlayer = [[AudioPlayer alloc] init];
+
         self.audioPlayer.delegate = self;
         self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
+
     }
     return self;
 }
@@ -30,48 +41,64 @@
 
 - (void)windowDidLoad {
 
-    [super windowDidLoad];
-
-    self.window.styleMask = NSWindowStyleMaskBorderless |
-                            NSWindowStyleMaskResizable |
-                            NSWindowStyleMaskFullSizeContentView
-    ;
-    [self.window setMovableByWindowBackground:YES];
-    self.window.backgroundColor = [NSColor clearColor];
-    self.window.opaque = NO;
-    self.window.contentView.wantsLayer = YES;
-    self.window.contentView.layer.cornerRadius = 5;
-    self.window.contentView.layer.borderColor = [NSColor.blackColor colorWithAlphaComponent:0.5].CGColor;
-    self.window.contentView.layer.borderWidth = 1;
-    [self.window invalidateShadow];
-
-    [self setup];
-
-    [NSApp activateIgnoringOtherApps:YES];
-}
-
-- (void)setup {
-
     self.artistTextField.wantsLayer = YES;
     self.artistTextField.layer.opacity = 0.35;
     self.titleTextField.wantsLayer = YES;
     self.titleTextField.layer.opacity = 0.8;
+    self.totalTimeTextField.wantsLayer = YES;
+    self.totalTimeTextField.layer.opacity = 0.6;
+
+    self.waveformView.delegate = self;
 
     self.playlistTableView.delegate = self.self.playlistManager;
     self.playlistTableView.dataSource = self.self.playlistManager;
+    self.playlistManager.tableView = self.playlistTableView;
 
     MainWindow *window = (MainWindow *)self.window;
     window.dropDelegate = self;
 
+    _timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    dispatch_source_set_timer(_timer, DISPATCH_TIME_NOW, NSEC_PER_SEC / UPDATE_HZ, NSEC_PER_SEC / 3);
+    dispatch_source_set_event_handler(_timer, ^{
+        [self timerHandler];
+    });
+    dispatch_resume(_timer);
+
     [self reloadData];
 
+    [NSApp activateIgnoringOtherApps:YES];
+}
+
+- (void)updatePlayingUI {
+    NSLog(@"update playing ui");
+    self.titleTextField.stringValue = self.playlistManager.currentTrack.title;
+    self.artistTextField.stringValue = self.playlistManager.currentTrack.artist;
+    self.totalTimeTextField.stringValue = [_timeFormatter stringFromTimeInterval:self.audioPlayer.duration];
+    if (self.playlistManager.currentTrack.albumArt) {
+        self.albumArtImageView.image = self.playlistManager.currentTrack.albumArt;
+        [NSDockTile setDockIcon:self.playlistManager.currentTrack.albumArt];
+    }
+    else {
+        self.albumArtImageView.image = [NSImage imageNamed:@"record-black-1024.png"];
+        [NSDockTile resetToAppIcon];
+    }
 }
 
 - (void)reloadData {
-    self.titleTextField.stringValue = self.playlistManager.currentTrack.title;
-    self.artistTextField.stringValue = self.playlistManager.currentTrack.artist;
-    self.albumArtImageView.image = self.playlistManager.currentTrack.albumArt;
+    NSLog(@"reload data");
+    [self updatePlayingUI];
     [self.playlistTableView reloadData];
+    __block MainPlayerController *weakSelf = (MainPlayerController *)self;
+    dispatch_async(dispatch_get_main_queue(), ^(void) {
+        [weakSelf.playlistTableView selectRowIndexes:[NSIndexSet indexSetWithIndex:self.playlistManager.currentIndex] byExtendingSelection:NO];
+    });
+}
+
+- (void)timerHandler {
+    NSTimeInterval duration = self.audioPlayer.duration;
+    NSTimeInterval position = self.audioPlayer.position;
+    self.waveformView.progress = (float)position / (float)duration;
+    self.currentTimeTextField.stringValue = [_timeFormatter stringFromTimeInterval:position];
 }
 
 - (void)play:(NSURL *)url {
@@ -82,8 +109,25 @@
     [self.playlistManager reset:urls];
 }
 
-- (void)audioPlayer:(BASSAudioPlayer *)audioPlayer didLoadMetadata:(NSURL *)url {
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
     [self reloadData];
+}
+
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track {
+    [self.playlistManager next];
+}
+
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didLoadMetadata:(AudioTrack *)track  {
+    [self reloadData];
+}
+
+- (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
+    [self.playlistManager next];
+}
+
+- (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage {
+    self.audioPlayer.position = self.audioPlayer.duration * percentage;
+    [self timerHandler];
 }
 
 @end

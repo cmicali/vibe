@@ -54,4 +54,13 @@
     return self.metadata.albumArt;
 }
 
+- (NSString *)singleLineTitle {
+    if (self.artist.length > 0 && self.metadata.title.length > 0) {
+        return [NSString stringWithFormat:@"%@ - %@", self.artist, self.title];
+    }
+    else {
+        return self.title;
+    }
+}
+
 @end

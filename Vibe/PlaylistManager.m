@@ -3,6 +3,7 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
+#import <QuartzCore/QuartzCore.h>
 #import "PlaylistManager.h"
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
@@ -10,9 +11,20 @@
 
 @implementation PlaylistManager {
     NSMutableArray<AudioTrack *> *_playlist;
+    __weak NSTableView *_tableView;
 }
 
-- (id)initWithAudioPlayer:(BASSAudioPlayer *)audioPlayer {
+- (NSTableView *)tableView {
+    return _tableView;
+}
+
+- (void)setTableView:(NSTableView *)tableView {
+    _tableView = tableView;
+    [_tableView setTarget:self];
+    [_tableView setDoubleAction:@selector(doubleClick:)];
+}
+
+- (id)initWithAudioPlayer:(AudioPlayer *)audioPlayer {
     self = [super init];
     if (self) {
         _playlist = [NSMutableArray new];
@@ -27,8 +39,38 @@
 }
 
 - (nullable NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row {
-    NSTableCellView *view = [tableView makeViewWithIdentifier:@"trackName" owner:self];
-    view.textField.stringValue = _playlist[row].title;
+    AudioTrack *track = _playlist[row];
+    NSTableCellView *view;
+    NSString *key = @"trackArt";
+    if ([tableColumn.identifier isEqualToString:@"artColumn"]) {
+        view = [tableView makeViewWithIdentifier:@"trackArt" owner:self];
+        NSImage *image = track.albumArt;
+        if (!image) {
+            image = [NSImage imageNamed:@"record-black-1024"];
+        }
+        if (!view.layer) {
+            view.wantsLayer = YES;
+            view.layer = [[CALayer alloc] init];
+            view.layer.contentsGravity = kCAGravityResizeAspectFill;
+            CAGradientLayer *gradient = [CAGradientLayer layer];
+            gradient.frame = view.frame;
+            gradient.colors = @[(id)[[NSColor blackColor] colorWithAlphaComponent:0.75].CGColor,
+                                (id)[[NSColor blackColor] colorWithAlphaComponent:0.2].CGColor];
+            [view.layer insertSublayer:gradient atIndex:0];
+        }
+        view.layer.contents = image;
+//        view.imageView.image = track.albumArt;
+    }
+    else if ([tableColumn.identifier isEqualToString:@"titleColumn"]) {
+        view = [tableView makeViewWithIdentifier:@"trackName" owner:self];
+        view.textField.stringValue = track.singleLineTitle;
+        view.textField.wantsLayer = YES;
+        view.textField.layer.opacity = 0.6;
+    }
+    else if ([tableColumn.identifier isEqualToString:@"lengthColumn"]) {
+        view = [tableView makeViewWithIdentifier:@"trackLength" owner:self];
+        view.textField.stringValue = @"";
+    }
     return view;
 }
 
@@ -62,6 +104,11 @@
         self.currentIndex += 1;
         [self play];
     }
+}
+
+- (void)doubleClick:(id)doubleClick {
+    self.currentIndex =  [_tableView clickedRow];
+    [self play];
 }
 
 @end
