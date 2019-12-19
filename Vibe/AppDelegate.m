@@ -15,7 +15,12 @@
 @implementation AppDelegate
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
-    
+
+    id<DDLogger> osLogger = [DDOSLogger sharedInstance];
+    [DDLog addLogger:osLogger withLevel:ddLogLevel];
+
+    LogInfo(@"Vibe started");
+
     [self.mainPlayerController showWindow:self];
     [self.mainPlayerController setSmallSize:NO];
 
