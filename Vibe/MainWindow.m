@@ -3,6 +3,7 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
+#import <pop/POPAnimatableProperty.h>
 #import "MainWindow.h"
 #import "NSURLUtil.h"
 
@@ -11,6 +12,7 @@
 }
 
 - (void)awakeFromNib {
+
     [self registerForDraggedTypes:@[
             NSPasteboardTypeFileURL,
             NSPasteboardTypeURL,
@@ -30,6 +32,18 @@
 
     [self invalidateShadow];
 
+    [self setSmallSize:NO];
+//
+//    POPAnimatableProperty *windowHeightProperty = [POPAnimatableProperty propertyWithName:@"com.commonwealthrecordings.Vibe.windowHeight" initializer:^(POPMutableAnimatableProperty *prop) {
+//        prop.readBlock = ^(NSWindow *window, CGFloat values[]) {
+//            values[0] = window.frame.size.height;
+//        };
+//
+//        prop.writeBlock = ^(NSWindow *window, const CGFloat values[]) {
+//            [self setFrame:<#(NSRect)frameRect#> display:<#(BOOL)flag#>];
+//            self.frame.size.height = values[0];
+//        };
+//    }];
 }
 
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
@@ -60,5 +74,24 @@
     [self.dropDelegate mainWindow:self filesDropped:urls];
     return urls.count > 0;
 }
+
+- (void)setHeight:(CGFloat)height animate:(BOOL)animate {
+    CGFloat delta = height - self.frame.size.height;
+    if (delta != 0) {
+        NSRect frame = self.frame;
+        frame.origin.y -= delta;
+        frame.size.height += delta;
+        [self setFrame:frame display:YES animate:animate];
+    }
+}
+
+- (IBAction)setSmallSize:(BOOL)animate {
+    [self setHeight:150 animate:YES];
+}
+
+- (IBAction)setLargeSize:(BOOL)animate {
+    [self setHeight:400 animate:YES];
+}
+
 
 @end

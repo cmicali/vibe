@@ -14,6 +14,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nullable, weak) id <FileDropDelegate> dropDelegate;
 
+- (IBAction)setSmallSize:(BOOL)animate;
+- (IBAction)setLargeSize:(BOOL)animate;
+
 @end
 
 

@@ -6,4 +6,5 @@
 #import "NSImage+Util.h"
 
 
-@implementation NSImage(Util) @end
+@implementation NSImage (Util)
+@end

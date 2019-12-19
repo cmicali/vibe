@@ -17,6 +17,7 @@
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
     
     [self.mainPlayerController showWindow:self];
+    [self.mainPlayerController setSmallSize:NO];
 
 }
 

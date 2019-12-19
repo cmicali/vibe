@@ -17,7 +17,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface MainPlayerController : NSWindowController <FileDropDelegate,
+@interface MainPlayerController : NSWindowController <NSMenuDelegate,
+                                                      FileDropDelegate,
                                                       AudioPlayerDelegate,
                                                       AudioWaveformViewDelegate>
 
@@ -29,12 +30,16 @@ NS_ASSUME_NONNULL_BEGIN
 @property (weak) IBOutlet AudioWaveformView *waveformView;
 @property (weak) IBOutlet NSTextField *totalTimeTextField;
 @property (weak) IBOutlet NSTextField *currentTimeTextField;
+@property (weak) IBOutlet NSView *playlistBackgroundView;
 
 @property (strong) AudioTrackMetadata *metadata;
 
 @property (strong) PlaylistManager *playlistManager;
 @property (strong) AudioPlayer *audioPlayer;
 
+- (IBAction)setSmallSize:(id)sender;
+
+- (IBAction)setLargeSize:(id)sender;
 @end
 
 NS_ASSUME_NONNULL_END
