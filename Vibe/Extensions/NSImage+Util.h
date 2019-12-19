@@ -4,6 +4,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
 
-@interface NSImage(Util)
+@interface NSImage (Util)
 @end

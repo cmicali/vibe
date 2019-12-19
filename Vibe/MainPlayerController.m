@@ -39,6 +39,7 @@
 }
 
 
+
 - (void)windowDidLoad {
 
     self.artistTextField.wantsLayer = YES;
@@ -48,6 +49,9 @@
     self.totalTimeTextField.wantsLayer = YES;
     self.totalTimeTextField.layer.opacity = 0.6;
 
+    self.playlistBackgroundView.wantsLayer = YES;
+    self.playlistBackgroundView.layer.opacity = 0.6;
+    self.playlistBackgroundView.layer.backgroundColor = [[NSColor blackColor] colorWithAlphaComponent:0.5].CGColor;
     self.waveformView.delegate = self;
 
     self.playlistTableView.delegate = self.self.playlistManager;
@@ -128,6 +132,16 @@
 - (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage {
     self.audioPlayer.position = self.audioPlayer.duration * percentage;
     [self timerHandler];
+}
+
+- (IBAction) setSmallSize:(id)sender {
+    MainWindow *window = (MainWindow *)self.window;
+    [window setSmallSize:YES];
+}
+
+- (IBAction) setLargeSize:(id)sender {
+    MainWindow *window = (MainWindow *)self.window;
+    [window setLargeSize:YES];
 }
 
 @end
