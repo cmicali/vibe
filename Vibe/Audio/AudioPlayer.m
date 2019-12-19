@@ -23,8 +23,6 @@
     AudioTrack *_currentTrack;
 }
 
-static const void * const objectiveBASSQueueKey = "BASSQueue";
-
 - (instancetype)init {
     self = [super init];
     if (self) {
@@ -41,16 +39,20 @@ static const void * const objectiveBASSQueueKey = "BASSQueue";
     BASS_PluginLoad("libbassflac.dylib", 0);
     BASS_PluginLoad("libtags.dylib", 0);
     if (!BASS_Init(-1, 44100, 0, NULL, NULL)) {
-        NSLog(@"Could not initialize BASS");
+        DDLogError(@"Error initializing BASS");
     }
     BASS_INFO info;
     BASS_GetInfo(&info);
-    NSLog(@"Bass init");
+
+    LogDebug(@"BASS init");
+    LogDebug(@"  freq: %d latency: %d minrate: %d maxrate: %d flags: %d", info.freq, info.latency, info.minrate, info.maxrate, info.flags);
 
 }
 
 - (void)dealloc  {
+    [self stop];
     BASS_Free();
+    DDLogDebug(@"Bass freed");
 }
 
 // the sync callback
@@ -74,7 +76,6 @@ void CALLBACK ChannelEndedCallback(HSYNC handle, DWORD channel, DWORD data, void
     if (_channel) {
 
         BASS_ChannelSetSync(_channel, BASS_SYNC_END, 0, ChannelEndedCallback, (__bridge void *)self);
-        BASS_ChannelSetAttribute(_channel, BASS_ATTRIB_VOL, 1.0);
         BOOL success = BASS_ChannelPlay(_channel, FALSE);
 
         if (success) {
@@ -82,14 +83,16 @@ void CALLBACK ChannelEndedCallback(HSYNC handle, DWORD channel, DWORD data, void
             dispatch_async(dispatch_get_main_queue(), ^(void) {
                 [weakSelf->_delegate audioPlayer:self didStartPlaying:track];
             });
+            return YES;
         }
 
-        return YES;
     }
     [self stop];
     int code = BASS_ErrorGetCode();
     dispatch_async(dispatch_get_main_queue(), ^(void) {
-        [weakSelf->_delegate audioPlayer:self error:[weakSelf errorForErrorCode:code]];
+        NSError *err = [weakSelf errorForErrorCode:code];
+        LogError(@"Bass error: %@", err.userInfo[NSLocalizedDescriptionKey]);
+        [weakSelf->_delegate audioPlayer:self error:err];
     });
     return NO;
 }

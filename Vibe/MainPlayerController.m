@@ -12,6 +12,7 @@
 #import "AudioWaveformView.h"
 #import "AudioPlayer.h"
 #import "NSDockTile+Util.h"
+#import <CocoaLumberjack/CocoaLumberjack.h>
 
 #define UPDATE_HZ 3
 
@@ -26,21 +27,19 @@
 
 - (id) init {
     if((self = [super initWithWindowNibName:@"MainPlayerWindow"])) {
-        _timeFormatter = [[NSDateComponentsFormatter alloc] init];
-        _timeFormatter.allowedUnits = NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond;
-        _timeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorDropAll;
-        self.audioPlayer = [[AudioPlayer alloc] init];
-
-        self.audioPlayer.delegate = self;
-        self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
-
     }
     return self;
 }
 
-
-
 - (void)windowDidLoad {
+
+    _timeFormatter = [[NSDateComponentsFormatter alloc] init];
+    _timeFormatter.allowedUnits = NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond;
+    _timeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorDropAll;
+    self.audioPlayer = [[AudioPlayer alloc] init];
+
+    self.audioPlayer.delegate = self;
+    self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
 
     self.artistTextField.wantsLayer = YES;
     self.artistTextField.layer.opacity = 0.35;
@@ -49,8 +48,14 @@
     self.totalTimeTextField.wantsLayer = YES;
     self.totalTimeTextField.layer.opacity = 0.6;
 
+    self.albumArtImageView.wantsLayer = YES;
+    self.albumArtImageView.shadow = [[NSShadow alloc] init];
+    self.albumArtImageView.layer.shadowRadius = 4;
+    self.albumArtImageView.layer.shadowOffset = CGSizeMake(4, 0);
+    self.albumArtImageView.layer.shadowOpacity = 1;
+
     self.playlistBackgroundView.wantsLayer = YES;
-    self.playlistBackgroundView.layer.opacity = 0.6;
+    self.playlistBackgroundView.layer.opacity = 1.0;
     self.playlistBackgroundView.layer.backgroundColor = [[NSColor blackColor] colorWithAlphaComponent:0.5].CGColor;
     self.waveformView.delegate = self;
 
@@ -74,7 +79,6 @@
 }
 
 - (void)updatePlayingUI {
-    NSLog(@"update playing ui");
     self.titleTextField.stringValue = self.playlistManager.currentTrack.title;
     self.artistTextField.stringValue = self.playlistManager.currentTrack.artist;
     self.totalTimeTextField.stringValue = [_timeFormatter stringFromTimeInterval:self.audioPlayer.duration];
@@ -89,7 +93,6 @@
 }
 
 - (void)reloadData {
-    NSLog(@"reload data");
     [self updatePlayingUI];
     [self.playlistTableView reloadData];
     __block MainPlayerController *weakSelf = (MainPlayerController *)self;

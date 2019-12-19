@@ -1,0 +1,24 @@
+//
+//  Vibe.pch
+//  Vibe
+//
+//  Created by Christopher Micali on 12/19/19.
+//  Copyright © 2019 Christopher Micali. All rights reserved.
+//
+
+#ifdef __OBJC__
+
+#import <Foundation/Foundation.h>
+#import <QuartzCore/QuartzCore.h>
+
+#import <CocoaLumberjack/CocoaLumberjack.h>
+
+static const DDLogLevel ddLogLevel = DDLogLevelVerbose;
+
+#define LogError(fmt, ...)  DDLogError(fmt, ##__VA_ARGS__)
+#define LogWarn(fmt, ...)   DDLogWarn(fmt, ##__VA_ARGS__)
+#define LogInfo(fmt, ...)   DDLogInfo(fmt, ##__VA_ARGS__)
+#define LogDebug(fmt, ...)  DDLogDebug(fmt, ##__VA_ARGS__)
+#define LogTrace(fmt, ...)  DDLogVerbose(fmt, ##__VA_ARGS__)
+
+#endif
