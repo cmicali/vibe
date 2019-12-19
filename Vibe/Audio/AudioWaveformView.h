@@ -3,7 +3,6 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
-#import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 
 @protocol AudioWaveformViewDelegate;

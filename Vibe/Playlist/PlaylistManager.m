@@ -7,7 +7,7 @@
 #import "PlaylistManager.h"
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
-
+#import "PlaylistTextCell.h"
 
 @implementation PlaylistManager {
     NSMutableArray<AudioTrack *> *_playlist;
@@ -53,9 +53,10 @@
     else if ([tableColumn.identifier isEqualToString:@"titleColumn"]) {
         view = [tableView makeViewWithIdentifier:@"trackName" owner:self];
         view.textField.stringValue = track.singleLineTitle;
-        view.textField.wantsLayer = YES;
-        view.textField.layer.opacity = 0.6;
-        view.textField.layer.backgroundColor = [NSColor clearColor].CGColor;
+
+//        view.textField.wantsLayer = YES;
+//        view.textField.layer.opacity = 0.6;
+//        view.textField.layer.backgroundColor = [NSColor clearColor].CGColor;
     }
     else if ([tableColumn.identifier isEqualToString:@"lengthColumn"]) {
         view = [tableView makeViewWithIdentifier:@"trackLength" owner:self];

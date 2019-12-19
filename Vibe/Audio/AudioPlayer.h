@@ -6,7 +6,6 @@
 //  Copyright © 2019 Christopher Micali. All rights reserved.
 //
 
-#import <Foundation/Foundation.h>
 #import "bass.h"
 
 @class AudioTrack;

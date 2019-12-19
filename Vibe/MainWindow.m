@@ -3,7 +3,7 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
-#import <pop/POPAnimatableProperty.h>
+//#import <pop/POPAnimatableProperty.h>
 #import "MainWindow.h"
 #import "NSURLUtil.h"
 
@@ -32,7 +32,7 @@
 
     [self invalidateShadow];
 
-    [self setSmallSize:NO];
+//    [self setSmallSize:NO];
 //
 //    POPAnimatableProperty *windowHeightProperty = [POPAnimatableProperty propertyWithName:@"com.commonwealthrecordings.Vibe.windowHeight" initializer:^(POPMutableAnimatableProperty *prop) {
 //        prop.readBlock = ^(NSWindow *window, CGFloat values[]) {
