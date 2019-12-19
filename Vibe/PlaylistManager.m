@@ -48,29 +48,20 @@
         if (!image) {
             image = [NSImage imageNamed:@"record-black-1024"];
         }
-        if (!view.layer) {
-            view.wantsLayer = YES;
-            view.layer = [[CALayer alloc] init];
-            view.layer.contentsGravity = kCAGravityResizeAspectFill;
-            CAGradientLayer *gradient = [CAGradientLayer layer];
-            gradient.frame = view.frame;
-            gradient.colors = @[(id)[[NSColor blackColor] colorWithAlphaComponent:0.75].CGColor,
-                                (id)[[NSColor blackColor] colorWithAlphaComponent:0.2].CGColor];
-            [view.layer insertSublayer:gradient atIndex:0];
-        }
-        view.layer.contents = image;
-//        view.imageView.image = track.albumArt;
+        view.imageView.image = image;
     }
     else if ([tableColumn.identifier isEqualToString:@"titleColumn"]) {
         view = [tableView makeViewWithIdentifier:@"trackName" owner:self];
         view.textField.stringValue = track.singleLineTitle;
         view.textField.wantsLayer = YES;
         view.textField.layer.opacity = 0.6;
+        view.textField.layer.backgroundColor = [NSColor clearColor].CGColor;
     }
     else if ([tableColumn.identifier isEqualToString:@"lengthColumn"]) {
         view = [tableView makeViewWithIdentifier:@"trackLength" owner:self];
         view.textField.stringValue = @"";
     }
+
     return view;
 }
 
