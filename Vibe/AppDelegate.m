@@ -22,7 +22,7 @@
     LogInfo(@"Vibe started");
 
     [self.mainPlayerController showWindow:self];
-    [self.mainPlayerController setSmallSize:NO];
+   // [self.mainPlayerController setSmallSize:NO];
 
 }
 

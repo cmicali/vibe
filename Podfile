@@ -5,7 +5,7 @@ target 'Vibe' do
   use_frameworks!
   platform :osx, '10.15'
 
-  # pod 'pop'
+  pod 'pop'
   pod 'CocoaLumberjack' 
   pod 'taglib-pod', :git => 'https://github.com/cmicali/taglib-pod.git', :tag => '1.11.1'
 

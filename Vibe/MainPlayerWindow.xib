@@ -7,9 +7,12 @@
     <objects>
         <customObject id="-2" userLabel="File's Owner" customClass="MainPlayerController">
             <connections>
+                <outlet property="albumArtGradientView" destination="f3F-dv-EUa" id="jiV-3V-uM1"/>
                 <outlet property="albumArtImageView" destination="tsY-dV-b1N" id="lNH-7w-yHy"/>
                 <outlet property="artistTextField" destination="mwy-gr-lMQ" id="Vks-HG-hvD"/>
                 <outlet property="currentTimeTextField" destination="Z6C-PG-0nQ" id="Gmp-6V-0g2"/>
+                <outlet property="nextButton" destination="Vn8-ZC-fFs" id="P9h-a5-zYs"/>
+                <outlet property="playButton" destination="we4-dm-Lgy" id="eS1-fb-PCm"/>
                 <outlet property="playlistBackgroundView" destination="07C-dL-6L4" id="GqQ-uA-Snq"/>
                 <outlet property="playlistTableView" destination="zHV-yh-XlN" id="Kaa-bt-vRH"/>
                 <outlet property="titleTextField" destination="WWp-WO-R66" id="KQ0-uj-CgM"/>
@@ -24,7 +27,7 @@
             <windowStyleMask key="styleMask" closable="YES" miniaturizable="YES" resizable="YES" fullSizeContentView="YES"/>
             <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
             <rect key="contentRect" x="206" y="444" width="700" height="350"/>
-            <rect key="screenRect" x="0.0" y="0.0" width="2560" height="1417"/>
+            <rect key="screenRect" x="0.0" y="0.0" width="1344" height="817"/>
             <value key="minSize" type="size" width="700" height="150"/>
             <value key="maxSize" type="size" width="700" height="600"/>
             <view key="contentView" id="se5-gp-TjO">
@@ -40,6 +43,10 @@
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="proportionallyUpOrDown" image="record-black-1024" id="V3M-ha-yqf"/>
                             </imageView>
+                            <customView fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="f3F-dv-EUa">
+                                <rect key="frame" x="0.0" y="200" width="150" height="150"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                            </customView>
                             <button horizontalHuggingPriority="750" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="vOu-I2-fjc">
                                 <rect key="frame" x="0.0" y="200" width="50" height="50"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
@@ -47,23 +54,20 @@
                                     <behavior key="behavior" pushIn="YES" changeContents="YES" lightByContents="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
+                                <connections>
+                                    <action selector="toggleSize:" target="-2" id="mkl-BQ-T9G"/>
+                                </connections>
                             </button>
-                            <button horizontalHuggingPriority="750" verticalHuggingPriority="750" fixedFrame="YES" springLoaded="YES" translatesAutoresizingMaskIntoConstraints="NO" id="tfx-Ws-FlS" customClass="AlphaButton">
+                            <imageView horizontalHuggingPriority="251" verticalHuggingPriority="251" ambiguous="YES" id="we4-dm-Lgy" customClass="AlphaButton">
                                 <rect key="frame" x="50" y="200" width="50" height="50"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="button-play" imagePosition="only" alignment="center" state="on" transparent="YES" imageScaling="proportionallyDown" inset="2" id="b1t-1F-3ng">
-                                    <behavior key="behavior" lightByContents="YES"/>
-                                    <font key="font" metaFont="system"/>
-                                </buttonCell>
-                            </button>
-                            <button horizontalHuggingPriority="750" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="aMb-Xs-Nqp" customClass="AlphaButton">
+                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="proportionallyDown" image="button-play" id="VJO-lQ-0eS"/>
+                            </imageView>
+                            <imageView horizontalHuggingPriority="251" verticalHuggingPriority="251" ambiguous="YES" id="Vn8-ZC-fFs" customClass="AlphaButton">
                                 <rect key="frame" x="100" y="200" width="50" height="50"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="button-skip-next" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="XQd-uX-M8f">
-                                    <behavior key="behavior" pushIn="YES" changeContents="YES" lightByContents="YES"/>
-                                    <font key="font" metaFont="system"/>
-                                </buttonCell>
-                            </button>
+                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="proportionallyDown" image="button-skip-next" id="bih-db-MDr"/>
+                            </imageView>
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mwy-gr-lMQ">
                                 <rect key="frame" x="158" y="293" width="532" height="48"/>
                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>

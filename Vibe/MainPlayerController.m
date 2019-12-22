@@ -33,6 +33,8 @@
 
 - (void)windowDidLoad {
 
+    LogInfo(@"Hello lydia!");
+
     _timeFormatter = [[NSDateComponentsFormatter alloc] init];
     _timeFormatter.allowedUnits = NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond;
     _timeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorDropAll;
@@ -40,6 +42,15 @@
 
     self.audioPlayer.delegate = self;
     self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
+
+    self.albumArtGradientView.wantsLayer = YES;
+    CAGradientLayer *g = [[CAGradientLayer alloc] init];
+    g.colors = @[
+            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.85].CGColor,
+            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.25].CGColor,
+            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0].CGColor
+    ];
+    self.albumArtGradientView.layer = g;
 
     self.artistTextField.wantsLayer = YES;
     self.artistTextField.layer.opacity = 0.35;
@@ -79,9 +90,15 @@
 }
 
 - (void)updatePlayingUI {
+
+    self.playButton.enabled = self.playlistManager.count > 0;
+    self.playButton.state = self.audioPlayer.isPlaying ? NSControlStateValueOn : NSControlStateValueOff;
+    self.nextButton.enabled = self.playlistManager.count > 0;
+
     self.titleTextField.stringValue = self.playlistManager.currentTrack.title;
     self.artistTextField.stringValue = self.playlistManager.currentTrack.artist;
     self.totalTimeTextField.stringValue = [_timeFormatter stringFromTimeInterval:self.audioPlayer.duration];
+
     if (self.playlistManager.currentTrack.albumArt) {
         self.albumArtImageView.image = self.playlistManager.currentTrack.albumArt;
         [NSDockTile setDockIcon:self.playlistManager.currentTrack.albumArt];
@@ -108,8 +125,16 @@
     self.currentTimeTextField.stringValue = [_timeFormatter stringFromTimeInterval:position];
 }
 
-- (void)play:(NSURL *)url {
+- (void)playURL:(NSURL *)url {
     [self.playlistManager reset:@[url]];
+}
+
+- (IBAction)playPause:(id)sender {
+    [self.audioPlayer playPause];
+}
+
+- (IBAction)next:(id)sender {
+    [self.playlistManager next];
 }
 
 - (void)mainWindow:(MainWindow *)mainWindow filesDropped:(NSArray<NSURL *> *)urls {
@@ -121,7 +146,7 @@
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track {
-    [self.playlistManager next];
+    [self next:nil];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didLoadMetadata:(AudioTrack *)track  {
@@ -145,6 +170,12 @@
 - (IBAction) setLargeSize:(id)sender {
     MainWindow *window = (MainWindow *)self.window;
     [window setLargeSize:YES];
+}
+
+- (IBAction) toggleSize:(id)sender {
+    MainWindow *window = (MainWindow *)self.window;
+    [window toggleSize:sender];
+
 }
 
 @end
