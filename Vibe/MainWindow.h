@@ -17,6 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)setSmallSize:(BOOL)animate;
 - (IBAction)setLargeSize:(BOOL)animate;
 
+- (IBAction)toggleSize:(id)sender;
 @end
 
 

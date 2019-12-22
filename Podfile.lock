@@ -2,15 +2,18 @@ PODS:
   - CocoaLumberjack (3.6.0):
     - CocoaLumberjack/Core (= 3.6.0)
   - CocoaLumberjack/Core (3.6.0)
+  - pop (1.0.12)
   - taglib-pod (1.11.1)
 
 DEPENDENCIES:
   - CocoaLumberjack
+  - pop
   - taglib-pod (from `https://github.com/cmicali/taglib-pod.git`, tag `1.11.1`)
 
 SPEC REPOS:
   trunk:
     - CocoaLumberjack
+    - pop
 
 EXTERNAL SOURCES:
   taglib-pod:
@@ -24,8 +27,9 @@ CHECKOUT OPTIONS:
 
 SPEC CHECKSUMS:
   CocoaLumberjack: 78b0c238666f4f58db069738ec176f4519557516
+  pop: d582054913807fd11fd50bfe6a539d91c7e1a55a
   taglib-pod: 4184e5a6a193167478352d5f829397e8fddc203e
 
-PODFILE CHECKSUM: 3857a4588f1f4020a41ffed3d9147d9c807b5bd8
+PODFILE CHECKSUM: 1cc88ee5970b7e974dbf01a085379d2399fab947
 
 COCOAPODS: 1.8.4

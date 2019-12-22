@@ -97,6 +97,15 @@ void CALLBACK ChannelEndedCallback(HSYNC handle, DWORD channel, DWORD data, void
     return NO;
 }
 
+- (void)playPause {
+    if ([self isPlaying]) {
+        [self pause];
+    }
+    else {
+        [self resume];
+    }
+}
+
 - (void)pause {
     BASS_ChannelPause(_channel);
 }

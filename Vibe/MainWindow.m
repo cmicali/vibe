@@ -3,13 +3,12 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
-//#import <pop/POPAnimatableProperty.h>
 #import "MainWindow.h"
 #import "NSURLUtil.h"
 
-@implementation MainWindow {
+#import <pop/POP.h>
 
-}
+@implementation MainWindow
 
 - (void)awakeFromNib {
 
@@ -32,18 +31,6 @@
 
     [self invalidateShadow];
 
-//    [self setSmallSize:NO];
-//
-//    POPAnimatableProperty *windowHeightProperty = [POPAnimatableProperty propertyWithName:@"com.commonwealthrecordings.Vibe.windowHeight" initializer:^(POPMutableAnimatableProperty *prop) {
-//        prop.readBlock = ^(NSWindow *window, CGFloat values[]) {
-//            values[0] = window.frame.size.height;
-//        };
-//
-//        prop.writeBlock = ^(NSWindow *window, const CGFloat values[]) {
-//            [self setFrame:<#(NSRect)frameRect#> display:<#(BOOL)flag#>];
-//            self.frame.size.height = values[0];
-//        };
-//    }];
 }
 
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
@@ -78,10 +65,24 @@
 - (void)setHeight:(CGFloat)height animate:(BOOL)animate {
     CGFloat delta = height - self.frame.size.height;
     if (delta != 0) {
-        NSRect frame = self.frame;
+
+        CGRect frame = self.frame;
         frame.origin.y -= delta;
         frame.size.height += delta;
-        [self setFrame:frame display:YES animate:animate];
+
+        if (animate) {
+            POPSpringAnimation *anim = [self pop_animationForKey:@"setHeight"];
+            if (!anim) {
+                anim = [POPSpringAnimation animationWithPropertyNamed:kPOPWindowFrame];
+            }
+            anim.springSpeed = 20;
+            anim.springBounciness = 1;
+            anim.toValue = [NSValue valueWithCGRect:frame];
+            [self pop_addAnimation:anim forKey:@"setHeight"];
+        }
+        else {
+            [self setFrame:frame display:NO animate:animate];
+        }
     }
 }
 
@@ -93,5 +94,13 @@
     [self setHeight:400 animate:YES];
 }
 
+- (IBAction)toggleSize:(id)sender {
+    if (self.frame.size.height > 150) {
+        [self setSmallSize:YES];
+    }
+    else {
+        [self setLargeSize:YES];
+    }
+}
 
 @end

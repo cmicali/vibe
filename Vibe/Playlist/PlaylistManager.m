@@ -103,4 +103,7 @@
     [self play];
 }
 
+- (NSUInteger)count {
+    return _playlist.count;
+}
 @end

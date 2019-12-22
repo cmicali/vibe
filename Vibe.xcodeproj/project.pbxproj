@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		34FF41BE3184E3C5506D4AE3 /* AlphaButton.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4E4E303E6C2E8464B3F0 /* AlphaButton.m */; };
 		34FF41F5F64CA81A54C15EBC /* AudioTrack.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4F22665F4945EBFF675E /* AudioTrack.m */; };
+		34FF42EB48C6F88B3E1B894F /* SYFlatButton.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4C192B65C1414E459443 /* SYFlatButton.m */; };
 		34FF436EF02E710717AE6437 /* AudioWaveformView.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF49A3AB8C1B5F4A442BE7 /* AudioWaveformView.m */; };
 		34FF4478E449DFA4CB901A2A /* PlaylistManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF420F46EEA64A522D8819 /* PlaylistManager.m */; };
 		34FF44C6E3C9B3377BED7C95 /* NSURLUtil.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF47AA07AEC3807ECCC08E /* NSURLUtil.m */; };
@@ -76,6 +77,7 @@
 		34FF4362BDC6132353A0962D /* NSString+CPPStrings.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = "NSString+CPPStrings.mm"; sourceTree = "<group>"; };
 		34FF43F9CA9465FBDCC1823B /* AudioTrackMetadata.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioTrackMetadata.mm; sourceTree = "<group>"; };
 		34FF44077EA6DE4A13AC10AF /* NSDockTile+Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSDockTile+Util.h"; sourceTree = "<group>"; };
+		34FF442EF54F5CCF1D90CA4C /* SYFlatButton.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SYFlatButton.h; sourceTree = "<group>"; };
 		34FF4439AAF27E72B2D9B89C /* PlaylistManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PlaylistManager.h; sourceTree = "<group>"; };
 		34FF457BCFE238F6FBE97F6A /* NSString+CPPStrings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSString+CPPStrings.h"; sourceTree = "<group>"; };
 		34FF45ADA8486C82A966DEAB /* record-black-1024.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "record-black-1024.png"; sourceTree = "<group>"; };
@@ -90,6 +92,7 @@
 		34FF4ABA4C095C07500EEDED /* AudioWaveformView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioWaveformView.h; sourceTree = "<group>"; };
 		34FF4B936B8091D6B7FB38A5 /* NSImage+Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSImage+Util.h"; sourceTree = "<group>"; };
 		34FF4B95CF3CDCE604FDC5A0 /* MainWindow.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MainWindow.h; sourceTree = "<group>"; };
+		34FF4C192B65C1414E459443 /* SYFlatButton.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SYFlatButton.m; sourceTree = "<group>"; };
 		34FF4C67357B0CA63EEAAE0A /* AlphaButton.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AlphaButton.h; sourceTree = "<group>"; };
 		34FF4E467FF809A131FCD95B /* ScaledImageView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScaledImageView.h; sourceTree = "<group>"; };
 		34FF4E4E303E6C2E8464B3F0 /* AlphaButton.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AlphaButton.m; sourceTree = "<group>"; };
@@ -179,6 +182,8 @@
 				34FF4E4FC9B88A92C58F15D6 /* RSVerticallyCenteredTextFieldCell.h */,
 				34FF4E4E303E6C2E8464B3F0 /* AlphaButton.m */,
 				34FF4C67357B0CA63EEAAE0A /* AlphaButton.h */,
+				34FF4C192B65C1414E459443 /* SYFlatButton.m */,
+				34FF442EF54F5CCF1D90CA4C /* SYFlatButton.h */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -468,6 +473,7 @@
 				34FF4478E449DFA4CB901A2A /* PlaylistManager.m in Sources */,
 				34FF44EE58D1AE8AD48B9279 /* PlaylistTextCell.m in Sources */,
 				34FF41BE3184E3C5506D4AE3 /* AlphaButton.m in Sources */,
+				34FF42EB48C6F88B3E1B894F /* SYFlatButton.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
