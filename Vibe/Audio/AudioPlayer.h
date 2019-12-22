@@ -44,6 +44,7 @@ typedef NS_ENUM(NSInteger, AudioPlayerError) {
 
 - (NSError * )errorForErrorCode:(AudioPlayerError)erro;
 
+- (void)playPause;
 @end
 
 

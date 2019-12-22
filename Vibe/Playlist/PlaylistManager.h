@@ -25,6 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (AudioTrack *)currentTrack;
 
+- (NSUInteger)count;
 @end
 
 NS_ASSUME_NONNULL_END

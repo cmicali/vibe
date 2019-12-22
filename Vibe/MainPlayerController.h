@@ -22,7 +22,9 @@ NS_ASSUME_NONNULL_BEGIN
                                                       AudioPlayerDelegate,
                                                       AudioWaveformViewDelegate>
 
-@property (weak) IBOutlet NSButton *playButton;
+@property (weak) IBOutlet NSImageView *nextButton;
+@property (weak) IBOutlet NSImageView *playButton;
+
 @property (weak) IBOutlet NSTableView *playlistTableView;
 @property (weak) IBOutlet NSTextField *artistTextField;
 @property (weak) IBOutlet NSTextField *titleTextField;
@@ -31,15 +33,21 @@ NS_ASSUME_NONNULL_BEGIN
 @property (weak) IBOutlet NSTextField *totalTimeTextField;
 @property (weak) IBOutlet NSTextField *currentTimeTextField;
 @property (weak) IBOutlet NSView *playlistBackgroundView;
+@property (weak) IBOutlet NSView *albumArtGradientView;
 
 @property (strong) AudioTrackMetadata *metadata;
 
 @property (strong) PlaylistManager *playlistManager;
 @property (strong) AudioPlayer *audioPlayer;
 
+- (IBAction)playPause:(id)sender;
+- (IBAction)next:(id)sender;
+
 - (IBAction)setSmallSize:(id)sender;
 
 - (IBAction)setLargeSize:(id)sender;
+
+- (IBAction)toggleSize:(id)sender;
 @end
 
 NS_ASSUME_NONNULL_END

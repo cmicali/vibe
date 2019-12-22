@@ -7,5 +7,5 @@
 #import <AppKit/AppKit.h>
 
 
-@interface AlphaButton : NSButton
+@interface AlphaButton : NSImageView
 @end
