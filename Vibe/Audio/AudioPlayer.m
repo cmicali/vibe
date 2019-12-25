@@ -11,6 +11,7 @@
 #import "AudioTrack.h"
 #import "tags.h"
 #import "AudioTrackMetadata.h"
+#import "AudioWaveform.h"
 
 @interface AudioPlayer () {
     HSTREAM _channel;
@@ -38,6 +39,9 @@
 
     BASS_PluginLoad("libbassflac.dylib", 0);
     BASS_PluginLoad("libtags.dylib", 0);
+
+    BASS_SetConfig(BASS_CONFIG_FLOATDSP, 1);
+
     if (!BASS_Init(-1, 44100, 0, NULL, NULL)) {
         DDLogError(@"Error initializing BASS");
     }
@@ -65,17 +69,60 @@ void CALLBACK ChannelEndedCallback(HSYNC handle, DWORD channel, DWORD data, void
     });
 }
 
+void CALLBACK DownloadFinishedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
+    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
+    LogDebug(@"Download finished");
+    dispatch_async(dispatch_get_main_queue(), ^(void) {
+    });
+}
+
+void CALLBACK DeviceFailedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
+    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
+    LogError(@"Device failed");
+    dispatch_async(dispatch_get_main_queue(), ^(void) {
+    });
+}
+
+void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
+    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
+    LogError(@"Device changed");
+    dispatch_async(dispatch_get_main_queue(), ^(void) {
+    });
+}
+
 - (BOOL)play:(AudioTrack *)track {
+
+    TIME_START
 
     [self stop];
 
     const char *filename = [track.url.path UTF8String];
 
-    _channel = BASS_StreamCreateFile(FALSE, filename, 0, 0, BASS_SAMPLE_FLOAT | BASS_ASYNCFILE) ;
+    _channel = BASS_StreamCreateFile(FALSE, filename, 0, 0, BASS_SAMPLE_FLOAT | BASS_STREAM_PRESCAN | BASS_ASYNCFILE) ;
     __block AudioPlayer *weakSelf = self;
     if (_channel) {
 
-        BASS_ChannelSetSync(_channel, BASS_SYNC_END, 0, ChannelEndedCallback, (__bridge void *)self);
+        if (!BASS_ChannelSetSync(_channel, BASS_SYNC_END, 0, ChannelEndedCallback, (__bridge void *)self)) {
+            int code = BASS_ErrorGetCode();
+            NSError *err = [self errorForErrorCode:code];
+            LogError(@"Bass error: %@", err.userInfo[NSLocalizedDescriptionKey]);
+        }
+        if (!BASS_ChannelSetSync(_channel, BASS_SYNC_DOWNLOAD, 0, DownloadFinishedCallback, (__bridge void *)self) ) {
+            int code = BASS_ErrorGetCode();
+            NSError *err = [self errorForErrorCode:code];
+            LogError(@"Bass error: %@", err.userInfo[NSLocalizedDescriptionKey]);
+        }
+        if (!BASS_ChannelSetSync(_channel, BASS_SYNC_DEV_FAIL, 0, DeviceFailedCallback, (__bridge void *)self) ) {
+            int code = BASS_ErrorGetCode();
+            NSError *err = [self errorForErrorCode:code];
+            LogError(@"Bass error: %@", err.userInfo[NSLocalizedDescriptionKey]);
+        }
+        if (!BASS_ChannelSetSync(_channel, BASS_SYNC_DEV_FORMAT, 0, DeviceChangedCallback, (__bridge void *)self) ) {
+            int code = BASS_ErrorGetCode();
+            NSError *err = [self errorForErrorCode:code];
+            LogError(@"Bass error: %@", err.userInfo[NSLocalizedDescriptionKey]);
+        }
+
         BOOL success = BASS_ChannelPlay(_channel, FALSE);
 
         if (success) {
@@ -83,6 +130,7 @@ void CALLBACK ChannelEndedCallback(HSYNC handle, DWORD channel, DWORD data, void
             dispatch_async(dispatch_get_main_queue(), ^(void) {
                 [weakSelf->_delegate audioPlayer:self didStartPlaying:track];
             });
+            TIME_END
             return YES;
         }
 
@@ -94,6 +142,9 @@ void CALLBACK ChannelEndedCallback(HSYNC handle, DWORD channel, DWORD data, void
         LogError(@"Bass error: %@", err.userInfo[NSLocalizedDescriptionKey]);
         [weakSelf->_delegate audioPlayer:self error:err];
     });
+
+    TIME_END
+
     return NO;
 }
 
@@ -134,6 +185,21 @@ void CALLBACK ChannelEndedCallback(HSYNC handle, DWORD channel, DWORD data, void
     return time;
 }
 
+- (NSUInteger)numChannels {
+    BASS_CHANNELINFO info;
+    BASS_ChannelGetInfo(_channel, &info);
+    return info.chans;
+}
+
+- (QWORD)numBytes {
+    if (_channel) {
+        return BASS_ChannelGetLength(_channel, BASS_POS_BYTE);
+    }
+    else {
+        return 0;
+    }
+}
+
 - (NSTimeInterval)position  {
     QWORD len = BASS_ChannelGetPosition(_channel, BASS_POS_BYTE);
     double position = BASS_ChannelBytes2Seconds(_channel, len);
@@ -145,6 +211,16 @@ void CALLBACK ChannelEndedCallback(HSYNC handle, DWORD channel, DWORD data, void
     BASS_ChannelSetPosition(_channel, seekTo, BASS_POS_BYTE);
 }
 
+- (DWORD)readAudioSamples:(void *)buffer length:(DWORD)length {
+    return BASS_ChannelGetData(_channel, buffer, length);
+}
+
+-(AudioWaveform *)audioWaveform {
+    if (_currentTrack) {
+        return [[AudioWaveform alloc] initWithFilename:_currentTrack.url.path];
+    }
+    return nil;
+}
 
 -(void)loadMetadata:(NSArray<AudioTrack*>*)tracks {
     __block AudioPlayer *weakSelf = self;
@@ -166,7 +242,7 @@ void CALLBACK ChannelEndedCallback(HSYNC handle, DWORD channel, DWORD data, void
 }
 
 - (NSError *)errorForErrorCode:(AudioPlayerError)erro {
-    NSString *str;
+    NSString *str = @"Unknown error";
 
     if(erro == AudioPlayerErrorInit)
         str = @"BASS_ERROR_INIT: BASS_Init has not been successfully called.";

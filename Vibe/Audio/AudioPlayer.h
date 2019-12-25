@@ -29,6 +29,7 @@ typedef NS_ENUM(NSInteger, AudioPlayerError) {
 };
 
 @protocol AudioPlayerDelegate;
+@class AudioWaveform;
 
 @interface AudioPlayer : NSObject
 
@@ -40,11 +41,19 @@ typedef NS_ENUM(NSInteger, AudioPlayerError) {
 - (BOOL)isPlaying;
 - (NSTimeInterval)duration;
 
+- (QWORD)numBytes;
+
+- (DWORD)readAudioSamples:(void *)buffer length:(DWORD)length;
+
+- (AudioWaveform *)audioWaveform;
+
 - (void)loadMetadata:(NSArray<AudioTrack*>*)tracks;
 
 - (NSError * )errorForErrorCode:(AudioPlayerError)erro;
 
 - (void)playPause;
+
+- (NSUInteger)numChannels;
 @end
 
 
