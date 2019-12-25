@@ -14,6 +14,7 @@
 #import "PlaylistManager.h"
 
 #import "MainWindow.h"
+#import "SYFlatButton.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -22,8 +23,8 @@ NS_ASSUME_NONNULL_BEGIN
                                                       AudioPlayerDelegate,
                                                       AudioWaveformViewDelegate>
 
-@property (weak) IBOutlet NSImageView *nextButton;
-@property (weak) IBOutlet NSImageView *playButton;
+@property (weak) IBOutlet SYFlatButton *nextButton;
+@property (weak) IBOutlet SYFlatButton *playButton;
 
 @property (weak) IBOutlet NSTableView *playlistTableView;
 @property (weak) IBOutlet NSTextField *artistTextField;
