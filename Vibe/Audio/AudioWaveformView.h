@@ -6,12 +6,15 @@
 #import <AppKit/AppKit.h>
 
 @protocol AudioWaveformViewDelegate;
+@class AudioWaveform;
 
 @interface AudioWaveformView : NSView
 
 @property (nullable, weak) id <AudioWaveformViewDelegate> delegate;
 
 @property CGFloat progress;
+
+- (void)setWaveform:(AudioWaveform *)waveform;
 
 @end
 

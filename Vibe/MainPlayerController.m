@@ -12,9 +12,10 @@
 #import "AudioWaveformView.h"
 #import "AudioPlayer.h"
 #import "NSDockTile+Util.h"
+#import "SYFlatButton.h"
 #import <CocoaLumberjack/CocoaLumberjack.h>
 
-#define UPDATE_HZ 3
+#define UPDATE_HZ 10
 
 @interface MainPlayerController ()
 
@@ -51,6 +52,9 @@
             (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0].CGColor
     ];
     self.albumArtGradientView.layer = g;
+
+    self.playButton.image = [NSImage imageNamed:@"button-play"];
+    self.nextButton.image = [NSImage imageNamed:@"button-skip-next"];
 
     self.artistTextField.wantsLayer = YES;
     self.artistTextField.layer.opacity = 0.35;
@@ -92,7 +96,6 @@
 - (void)updatePlayingUI {
 
     self.playButton.enabled = self.playlistManager.count > 0;
-    self.playButton.state = self.audioPlayer.isPlaying ? NSControlStateValueOn : NSControlStateValueOff;
     self.nextButton.enabled = self.playlistManager.count > 0;
 
     self.titleTextField.stringValue = self.playlistManager.currentTrack.title;
@@ -119,10 +122,13 @@
 }
 
 - (void)timerHandler {
+
     NSTimeInterval duration = self.audioPlayer.duration;
     NSTimeInterval position = self.audioPlayer.position;
+
     self.waveformView.progress = (float)position / (float)duration;
     self.currentTimeTextField.stringValue = [_timeFormatter stringFromTimeInterval:position];
+
 }
 
 - (void)playURL:(NSURL *)url {
@@ -142,6 +148,7 @@
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
+    self.waveformView.waveform = self.audioPlayer.audioWaveform;
     [self reloadData];
 }
 

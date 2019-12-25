@@ -24,6 +24,7 @@
 		34FF4A3057CF1506B3DE7CCF /* MainWindow.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4980C587464F5CCB1366 /* MainWindow.m */; };
 		34FF4D27197C1E52BD1AA878 /* RSVerticallyCenteredTextFieldCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF46A2B945CC4BA686BFA8 /* RSVerticallyCenteredTextFieldCell.m */; };
 		34FF4D4DC8BA8931F1C6B3E0 /* record-transparent-1024.png in Resources */ = {isa = PBXBuildFile; fileRef = 34FF4FDEFEF9486F4CBB5B1D /* record-transparent-1024.png */; };
+		34FF4E2D117470FD1A7BADA7 /* AudioWaveform.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4B7D771D555B51BA2B36 /* AudioWaveform.m */; };
 		B64B6A1123A6C72400B91994 /* noun_first_839216.svg in Resources */ = {isa = PBXBuildFile; fileRef = B64B6A0A23A6C72400B91994 /* noun_first_839216.svg */; };
 		B64B6A1223A6C72400B91994 /* noun_first_839217.svg in Resources */ = {isa = PBXBuildFile; fileRef = B64B6A0B23A6C72400B91994 /* noun_first_839217.svg */; };
 		B64B6A1323A6C72400B91994 /* noun_next_839213.svg in Resources */ = {isa = PBXBuildFile; fileRef = B64B6A0C23A6C72400B91994 /* noun_next_839213.svg */; };
@@ -74,6 +75,7 @@
 		34FF420F46EEA64A522D8819 /* PlaylistManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = PlaylistManager.m; sourceTree = "<group>"; };
 		34FF422B054BBF951A4D63CA /* NSDockTile+Util.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSDockTile+Util.m"; sourceTree = "<group>"; };
 		34FF42B28E14C5CA422064E4 /* Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Util.h; sourceTree = "<group>"; };
+		34FF434CEE721220DE7E13F2 /* AudioWaveform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioWaveform.h; sourceTree = "<group>"; };
 		34FF4362BDC6132353A0962D /* NSString+CPPStrings.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = "NSString+CPPStrings.mm"; sourceTree = "<group>"; };
 		34FF43F9CA9465FBDCC1823B /* AudioTrackMetadata.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioTrackMetadata.mm; sourceTree = "<group>"; };
 		34FF44077EA6DE4A13AC10AF /* NSDockTile+Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSDockTile+Util.h"; sourceTree = "<group>"; };
@@ -90,6 +92,7 @@
 		34FF4980C587464F5CCB1366 /* MainWindow.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MainWindow.m; sourceTree = "<group>"; };
 		34FF49A3AB8C1B5F4A442BE7 /* AudioWaveformView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioWaveformView.m; sourceTree = "<group>"; };
 		34FF4ABA4C095C07500EEDED /* AudioWaveformView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioWaveformView.h; sourceTree = "<group>"; };
+		34FF4B7D771D555B51BA2B36 /* AudioWaveform.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioWaveform.m; sourceTree = "<group>"; };
 		34FF4B936B8091D6B7FB38A5 /* NSImage+Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSImage+Util.h"; sourceTree = "<group>"; };
 		34FF4B95CF3CDCE604FDC5A0 /* MainWindow.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MainWindow.h; sourceTree = "<group>"; };
 		34FF4C192B65C1414E459443 /* SYFlatButton.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SYFlatButton.m; sourceTree = "<group>"; };
@@ -199,6 +202,8 @@
 				34FF4ABA4C095C07500EEDED /* AudioWaveformView.h */,
 				B6C43BC223AA5837009B6536 /* AudioPlayer.h */,
 				B6C43BC323AA5837009B6536 /* AudioPlayer.m */,
+				34FF4B7D771D555B51BA2B36 /* AudioWaveform.m */,
+				34FF434CEE721220DE7E13F2 /* AudioWaveform.h */,
 			);
 			path = Audio;
 			sourceTree = "<group>";
@@ -280,6 +285,7 @@
 			children = (
 				34FF48C886FF01D51470B6EE /* Audio */,
 				34FF4E1AB366F3BE86BE31DC /* Extensions */,
+				34FF40ED83E80996C59F5E22 /* Playlist */,
 				34FF40B806BAEDAB621E87C2 /* Util */,
 				34FF43FE449C4ED94E7D45B8 /* UI */,
 				B6E7883723A562380035BCD0 /* Assets.xcassets */,
@@ -295,7 +301,6 @@
 				34FF4980C587464F5CCB1366 /* MainWindow.m */,
 				34FF4B95CF3CDCE604FDC5A0 /* MainWindow.h */,
 				B6A7C07823ABD056007739BA /* Vibe.pch */,
-				34FF40ED83E80996C59F5E22 /* Playlist */,
 			);
 			path = Vibe;
 			sourceTree = "<group>";
@@ -474,6 +479,7 @@
 				34FF44EE58D1AE8AD48B9279 /* PlaylistTextCell.m in Sources */,
 				34FF41BE3184E3C5506D4AE3 /* AlphaButton.m in Sources */,
 				34FF42EB48C6F88B3E1B894F /* SYFlatButton.m in Sources */,
+				34FF4E2D117470FD1A7BADA7 /* AudioWaveform.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
