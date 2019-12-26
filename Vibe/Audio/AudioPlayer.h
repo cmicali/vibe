@@ -39,6 +39,11 @@ typedef NS_ENUM(NSInteger, AudioPlayerError) {
 - (BOOL)play:(AudioTrack *)track;
 
 - (BOOL)isPlaying;
+
+- (BOOL)isPaused;
+
+- (BOOL)isStopped;
+
 - (NSTimeInterval)duration;
 
 - (QWORD)numBytes;
@@ -61,8 +66,12 @@ typedef NS_ENUM(NSInteger, AudioPlayerError) {
 @optional
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track;
+
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didLoadMetadata:(AudioTrack *)track;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishLoadingMetadata:(NSUInteger)numTracks;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error;
 

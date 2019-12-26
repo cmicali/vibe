@@ -9,7 +9,6 @@
 #import "AudioPlayer.h"
 #import "bass.h"
 #import "AudioTrack.h"
-#import "tags.h"
 #import "AudioTrackMetadata.h"
 #import "AudioWaveform.h"
 
@@ -38,7 +37,6 @@
     _metadataCache = [[NSCache alloc] init];
 
     BASS_PluginLoad("libbassflac.dylib", 0);
-    BASS_PluginLoad("libtags.dylib", 0);
 
     BASS_SetConfig(BASS_CONFIG_FLOATDSP, 1);
 
@@ -92,13 +90,13 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
 
 - (BOOL)play:(AudioTrack *)track {
 
-    TIME_START
+    TIME_START(@"play")
 
     [self stop];
 
     const char *filename = [track.url.path UTF8String];
 
-    _channel = BASS_StreamCreateFile(FALSE, filename, 0, 0, BASS_SAMPLE_FLOAT | BASS_STREAM_PRESCAN | BASS_ASYNCFILE) ;
+    _channel = BASS_StreamCreateFile(FALSE, filename, 0, 0, BASS_ASYNCFILE) ;
     __block AudioPlayer *weakSelf = self;
     if (_channel) {
 
@@ -159,10 +157,18 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
 
 - (void)pause {
     BASS_ChannelPause(_channel);
+    __block AudioPlayer *weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^(void) {
+        [weakSelf->_delegate audioPlayer:weakSelf didPausePlaying:weakSelf->_currentTrack];
+    });
 }
 
 - (void)resume {
     BASS_ChannelPlay(_channel, NO);
+    __block AudioPlayer *weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^(void) {
+        [weakSelf->_delegate audioPlayer:weakSelf didResumePlaying:weakSelf->_currentTrack];
+    });
 }
 
 - (void)stop {
@@ -177,6 +183,14 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
 - (BOOL)isPlaying {
     DWORD isPlaying = BASS_ChannelIsActive(_channel);
     return isPlaying == BASS_ACTIVE_PLAYING;
+}
+
+- (BOOL)isPaused {
+    return _channel != nil && !self.isPlaying;
+}
+
+- (BOOL)isStopped {
+    return _channel == nil;
 }
 
 - (NSTimeInterval)duration {
@@ -238,6 +252,9 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
                 [weakSelf->_delegate audioPlayer:self didLoadMetadata:track];
             });
         }
+        dispatch_async(dispatch_get_main_queue(), ^(void) {
+            [weakSelf->_delegate audioPlayer:self didFinishLoadingMetadata:tracks.count];
+        });
     });
 }
 
