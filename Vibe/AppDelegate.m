@@ -26,6 +26,7 @@
 
 }
 
+
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
     return YES;
 }
@@ -36,15 +37,20 @@
 }
 
 - (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {
-
+    [self.mainPlayerController playURLs:urls];
 }
 
 - (BOOL)application:(NSApplication *)sender openFile:(NSString *)filename {
-    return NO;
+    [self.mainPlayerController playURL:[NSURL fileURLWithPath:filename]];
+    return YES;
 }
 
 - (void)application:(NSApplication *)sender openFiles:(NSArray<NSString *> *)filenames {
-
+    NSMutableArray *urls = [NSMutableArray arrayWithCapacity:filenames.count];
+    for(NSString *file in filenames) {
+        [urls addObject:[NSURL fileURLWithPath:file]];
+    }
+    [self.mainPlayerController playURLs:urls];
 }
 
 

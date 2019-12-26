@@ -91,11 +91,13 @@
     }
 }
 
-- (void)next {
+- (BOOL)next {
     if (self.currentIndex < _playlist.count - 1) {
         self.currentIndex += 1;
         [self play];
+        return YES;
     }
+    return NO;
 }
 
 - (void)doubleClick:(id)doubleClick {
@@ -106,4 +108,14 @@
 - (NSUInteger)count {
     return _playlist.count;
 }
+
+- (NSInteger)getIndexForTrack:(AudioTrack *)track {
+    for(NSUInteger i = 0; i < _playlist.count; i++) {
+        if (_playlist[i] == track) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 @end

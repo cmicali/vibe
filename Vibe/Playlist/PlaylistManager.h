@@ -21,11 +21,16 @@ NS_ASSUME_NONNULL_BEGIN
 - (id)initWithAudioPlayer:(AudioPlayer *)player;
 
 - (void)reset:(NSArray<NSURL *> *)urls;
+
+- (void)play;
+
 - (void)next;
 
 - (AudioTrack *)currentTrack;
 
 - (NSUInteger)count;
+
+- (NSInteger)getIndexForTrack:(AudioTrack *)track;
 @end
 
 NS_ASSUME_NONNULL_END
