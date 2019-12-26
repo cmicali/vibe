@@ -7,15 +7,9 @@
 //
 
 #import "MainPlayerController.h"
-#import "PlaylistManager.h"
-#import "AudioPlayer.h"
-#import "AudioWaveformView.h"
-#import "AudioPlayer.h"
 #import "NSDockTile+Util.h"
-#import "SYFlatButton.h"
-#import <CocoaLumberjack/CocoaLumberjack.h>
 
-#define UPDATE_HZ 10
+#define UPDATE_HZ 3
 
 @interface MainPlayerController ()
 
@@ -37,8 +31,8 @@
     LogInfo(@"Hello lydia!");
 
     _timeFormatter = [[NSDateComponentsFormatter alloc] init];
-    _timeFormatter.allowedUnits = NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond;
-    _timeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorDropAll;
+    _timeFormatter.allowedUnits = NSCalendarUnitMinute | NSCalendarUnitSecond;
+    _timeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorPad;
     self.audioPlayer = [[AudioPlayer alloc] init];
 
     self.audioPlayer.delegate = self;
@@ -60,8 +54,11 @@
     self.artistTextField.layer.opacity = 0.35;
     self.titleTextField.wantsLayer = YES;
     self.titleTextField.layer.opacity = 0.8;
+
     self.totalTimeTextField.wantsLayer = YES;
-    self.totalTimeTextField.layer.opacity = 0.6;
+    self.totalTimeTextField.layer.opacity = 0.35;
+    self.currentTimeTextField.wantsLayer = YES;
+    self.currentTimeTextField.layer.opacity = 0.35;
 
     self.albumArtImageView.wantsLayer = YES;
     self.albumArtImageView.shadow = [[NSShadow alloc] init];
@@ -72,11 +69,11 @@
     self.playlistBackgroundView.wantsLayer = YES;
     self.playlistBackgroundView.layer.opacity = 1.0;
     self.playlistBackgroundView.layer.backgroundColor = [[NSColor blackColor] colorWithAlphaComponent:0.5].CGColor;
-    self.waveformView.delegate = self;
-
     self.playlistTableView.delegate = self.self.playlistManager;
     self.playlistTableView.dataSource = self.self.playlistManager;
     self.playlistManager.tableView = self.playlistTableView;
+
+    self.waveformView.delegate = self;
 
     MainWindow *window = (MainWindow *)self.window;
     window.dropDelegate = self;
@@ -94,6 +91,13 @@
 }
 
 - (void)updatePlayingUI {
+
+    if (self.audioPlayer.isPlaying) {
+        self.playButton.image = [NSImage imageNamed:@"button-pause"];
+    }
+    else {
+        self.playButton.image = [NSImage imageNamed:@"button-play"];
+    }
 
     self.playButton.enabled = self.playlistManager.count > 0;
     self.nextButton.enabled = self.playlistManager.count > 0;
@@ -115,10 +119,6 @@
 - (void)reloadData {
     [self updatePlayingUI];
     [self.playlistTableView reloadData];
-    __block MainPlayerController *weakSelf = (MainPlayerController *)self;
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
-        [weakSelf.playlistTableView selectRowIndexes:[NSIndexSet indexSetWithIndex:self.playlistManager.currentIndex] byExtendingSelection:NO];
-    });
 }
 
 - (void)timerHandler {
@@ -127,6 +127,10 @@
     NSTimeInterval position = self.audioPlayer.position;
 
     self.waveformView.progress = (float)position / (float)duration;
+
+    self.totalTimeTextField.hidden = position < 0;
+    self.currentTimeTextField.hidden = position < 0;
+
     self.currentTimeTextField.stringValue = [_timeFormatter stringFromTimeInterval:position];
 
 }
@@ -135,12 +139,22 @@
     [self.playlistManager reset:@[url]];
 }
 
+- (void)playURLs:(NSArray<NSURL *> *)urls {
+    [self.playlistManager reset:urls];
+}
+
 - (IBAction)playPause:(id)sender {
-    [self.audioPlayer playPause];
+    if (self.audioPlayer.isStopped) {
+        [self.playlistManager play];
+    }
+    else {
+        [self.audioPlayer playPause];
+    }
 }
 
 - (IBAction)next:(id)sender {
     [self.playlistManager next];
+    [self updatePlayingUI];
 }
 
 - (void)mainWindow:(MainWindow *)mainWindow filesDropped:(NSArray<NSURL *> *)urls {
@@ -150,6 +164,18 @@
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
     self.waveformView.waveform = self.audioPlayer.audioWaveform;
     [self reloadData];
+    __block MainPlayerController *weakSelf = (MainPlayerController *)self;
+    dispatch_async(dispatch_get_main_queue(), ^(void) {
+        [weakSelf.playlistTableView selectRowIndexes:[NSIndexSet indexSetWithIndex:self.playlistManager.currentIndex] byExtendingSelection:NO];
+    });
+}
+
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track {
+    [self updatePlayingUI];
+}
+
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track {
+    [self updatePlayingUI];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track {
@@ -157,7 +183,17 @@
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didLoadMetadata:(AudioTrack *)track  {
-    [self reloadData];
+    if (self.playlistManager.currentTrack == track) {
+        [self reloadData];
+        [self.playlistTableView selectRowIndexes:[NSIndexSet indexSetWithIndex:self.playlistManager.currentIndex] byExtendingSelection:NO];
+    }
+    else {
+        [self.playlistTableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndex:[self.playlistManager getIndexForTrack:track]]
+                                          columnIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, 3)]];
+    }
+}
+
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishLoadingMetadata:(NSUInteger)numTracks {
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {

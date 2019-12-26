@@ -18,18 +18,24 @@
     ]];
 
     self.styleMask = NSWindowStyleMaskBorderless |
-            NSWindowStyleMaskResizable |
-            NSWindowStyleMaskFullSizeContentView
-            ;
+                     NSWindowStyleMaskResizable |
+                     NSWindowStyleMaskFullSizeContentView;
+
     [self setMovableByWindowBackground:YES];
+
     self.backgroundColor = [NSColor clearColor];
+
     self.opaque = NO;
+
     self.contentView.wantsLayer = YES;
     self.contentView.layer.cornerRadius = 5;
     self.contentView.layer.borderColor = [NSColor.blackColor colorWithAlphaComponent:0.5].CGColor;
     self.contentView.layer.borderWidth = 1;
 
+//    self.contentView.frame = CGRectMake(0, 24, self.contentView.frame.size.width, self.contentView.frame.size.height);
+
     [self invalidateShadow];
+
 
 }
 
@@ -102,5 +108,6 @@
         [self setLargeSize:YES];
     }
 }
+
 
 @end

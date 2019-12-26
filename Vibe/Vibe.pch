@@ -21,9 +21,9 @@ static const DDLogLevel ddLogLevel = DDLogLevelVerbose;
 #define LogDebug(fmt, ...)  DDLogDebug(fmt, ##__VA_ARGS__)
 #define LogTrace(fmt, ...)  DDLogVerbose(fmt, ##__VA_ARGS__)
 
-#define TIME_START CFTimeInterval startTime = CACurrentMediaTime(); CFTimeInterval endTime;
-#define TIME_RESTART startTime = CACurrentMediaTime();
-#define TIME_END endTime = CACurrentMediaTime(); LogDebug(@"timed: %1.2f", endTime - startTime);
+#define TIME_START(msg) CFTimeInterval startTime = CACurrentMediaTime(); CFTimeInterval endTime; NSString *timer_msg = msg;
+#define TIME_RESTART(msg) startTime = CACurrentMediaTime(); timer_msg = msg;
+#define TIME_END endTime = CACurrentMediaTime(); LogDebug(@"%@ time: %1.4f s", timer_msg, endTime - startTime);
 
 #define min(a, b) (b < a ? b : a)
 #define max(a, b) (a < b ? b : a)

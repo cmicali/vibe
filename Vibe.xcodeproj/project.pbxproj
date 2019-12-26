@@ -37,10 +37,8 @@
 		B6C43BC423AA5837009B6536 /* AudioPlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = B6C43BC323AA5837009B6536 /* AudioPlayer.m */; };
 		B6C43BD923AA7188009B6536 /* libbass.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = B6C43BD323AA7188009B6536 /* libbass.dylib */; };
 		B6C43BDA23AA7188009B6536 /* libbassflac.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = B6C43BD523AA7188009B6536 /* libbassflac.dylib */; };
-		B6C43BDB23AA7188009B6536 /* libtags.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = B6C43BD623AA7188009B6536 /* libtags.dylib */; };
 		B6C43BDC23AA7346009B6536 /* libbass.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B6C43BD323AA7188009B6536 /* libbass.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		B6C43BDD23AA7347009B6536 /* libbassflac.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B6C43BD523AA7188009B6536 /* libbassflac.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		B6C43BDE23AA7349009B6536 /* libtags.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B6C43BD623AA7188009B6536 /* libtags.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		B6E7883623A562360035BCD0 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = B6E7883523A562360035BCD0 /* AppDelegate.m */; };
 		B6E7883823A562380035BCD0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B6E7883723A562380035BCD0 /* Assets.xcassets */; };
 		B6E7883B23A562380035BCD0 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = B6E7883923A562380035BCD0 /* MainMenu.xib */; };
@@ -59,7 +57,6 @@
 			dstSubfolderSpec = 10;
 			files = (
 				B6C43BDC23AA7346009B6536 /* libbass.dylib in Embed Frameworks */,
-				B6C43BDE23AA7349009B6536 /* libtags.dylib in Embed Frameworks */,
 				B6C43BDD23AA7347009B6536 /* libbassflac.dylib in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
@@ -121,8 +118,6 @@
 		B6C43BD323AA7188009B6536 /* libbass.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libbass.dylib; sourceTree = "<group>"; };
 		B6C43BD423AA7188009B6536 /* bassflac.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = bassflac.h; sourceTree = "<group>"; };
 		B6C43BD523AA7188009B6536 /* libbassflac.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libbassflac.dylib; sourceTree = "<group>"; };
-		B6C43BD623AA7188009B6536 /* libtags.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libtags.dylib; sourceTree = "<group>"; };
-		B6C43BD723AA7188009B6536 /* tags.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = tags.h; sourceTree = "<group>"; };
 		B6C43BD823AA7188009B6536 /* bass.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = bass.h; sourceTree = "<group>"; };
 		B6E7883123A562360035BCD0 /* Vibe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vibe.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6E7883423A562360035BCD0 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -142,7 +137,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B6C43BDB23AA7188009B6536 /* libtags.dylib in Frameworks */,
 				B6E7886123A564C20035BCD0 /* QuartzCore.framework in Frameworks */,
 				B6E7885F23A564AD0035BCD0 /* ApplicationServices.framework in Frameworks */,
 				B6E7885D23A564A40035BCD0 /* Accelerate.framework in Frameworks */,
@@ -252,8 +246,6 @@
 				B6C43BD323AA7188009B6536 /* libbass.dylib */,
 				B6C43BD423AA7188009B6536 /* bassflac.h */,
 				B6C43BD523AA7188009B6536 /* libbassflac.dylib */,
-				B6C43BD623AA7188009B6536 /* libtags.dylib */,
-				B6C43BD723AA7188009B6536 /* tags.h */,
 				B6C43BD823AA7188009B6536 /* bass.h */,
 			);
 			name = bass;

@@ -41,6 +41,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (strong) PlaylistManager *playlistManager;
 @property (strong) AudioPlayer *audioPlayer;
 
+- (void)playURL:(NSURL *)url;
+
+- (void)playURLs:(NSArray<NSURL *> *)urls;
+
 - (IBAction)playPause:(id)sender;
 - (IBAction)next:(id)sender;
 
