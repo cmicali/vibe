@@ -29,8 +29,6 @@
 
 - (void)windowDidLoad {
 
-    LogInfo(@"Hello lydia!");
-
     _timeFormatter = [[NSDateComponentsFormatter alloc] init];
     _timeFormatter.allowedUnits = NSCalendarUnitMinute | NSCalendarUnitSecond;
     _timeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorPad;
