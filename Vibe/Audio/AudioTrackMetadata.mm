@@ -38,16 +38,13 @@
             m.artist = [NSString stringWithstring:tag->artist().to8Bit(true)];
             m.title = [NSString stringWithstring:tag->title().to8Bit(true)];
 
-            if (instanceof<TagLib::MPEG::File>(fileRef->file())) {
-                auto mp3 = (TagLib::MPEG::File *) fileRef->file();
+            if (auto mp3 = dynamic_cast<TagLib::MPEG::File*>(fileRef->file())) {
                 m.albumArt = [self getAlbumArtMP3:mp3];
             }
-            else if (instanceof<TagLib::FLAC::File>(fileRef->file())) {
-                auto flac = (TagLib::FLAC::File *)fileRef->file();
+            if (auto flac = dynamic_cast<TagLib::FLAC::File*>(fileRef->file())) {
                 m.albumArt = [self getAlbumArtFLAC:flac];
             }
-            else if (instanceof<TagLib::MP4::File>(fileRef->file())) {
-                auto mp4 = (TagLib::MP4::File *)fileRef->file();
+            if (auto mp4 = dynamic_cast<TagLib::MP4::File*>(fileRef->file())) {
                 m.albumArt = [self getAlbumArtMP4:mp4];
             }
         }

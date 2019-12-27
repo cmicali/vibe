@@ -14,6 +14,7 @@
 				<string>wav</string>
 				<string>flac</string>
 				<string>m4a</string>
+				<string>aif</string>
 			</array>
 			<key>CFBundleTypeIconFile</key>
 			<string>record-transparent-1024</string>

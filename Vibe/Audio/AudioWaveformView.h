@@ -5,7 +5,10 @@
 
 #import <AppKit/AppKit.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 @protocol AudioWaveformViewDelegate;
+
 @class AudioWaveform;
 
 @interface AudioWaveformView : NSView
@@ -24,3 +27,5 @@
 - (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage;
 
 @end
+
+NS_ASSUME_NONNULL_END

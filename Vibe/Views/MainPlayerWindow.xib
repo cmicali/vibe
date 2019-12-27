@@ -24,10 +24,10 @@
         <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
         <window title="Vibe" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" appearanceType="darkAqua" animationBehavior="default" titlebarAppearsTransparent="YES" titleVisibility="hidden" id="F0z-JX-Cv5" customClass="MainWindow">
-            <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" fullSizeContentView="YES"/>
+            <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES" fullSizeContentView="YES"/>
             <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
             <rect key="contentRect" x="206" y="444" width="680" height="350"/>
-            <rect key="screenRect" x="0.0" y="0.0" width="1344" height="817"/>
+            <rect key="screenRect" x="0.0" y="0.0" width="1536" height="937"/>
             <value key="minSize" type="size" width="680" height="150"/>
             <value key="maxSize" type="size" width="680" height="600"/>
             <view key="contentView" id="se5-gp-TjO">
@@ -45,7 +45,7 @@
                             <imageView horizontalHuggingPriority="251" verticalHuggingPriority="251" ambiguous="YES" id="tsY-dV-b1N">
                                 <rect key="frame" x="0.0" y="200" width="150" height="150"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="proportionallyUpOrDown" image="record-black-1024" id="V3M-ha-yqf"/>
+                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="proportionallyUpOrDown" image="record-transparent-1024" id="V3M-ha-yqf"/>
                             </imageView>
                             <customView fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="f3F-dv-EUa">
                                 <rect key="frame" x="0.0" y="200" width="150" height="150"/>
@@ -195,16 +195,16 @@
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mwy-gr-lMQ">
                                 <rect key="frame" x="158" y="293" width="512" height="48"/>
                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" drawsBackground="YES" id="U75-je-r0E">
-                                    <font key="font" size="16" name="HelveticaNeue"/>
-                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" title="Artist" drawsBackground="YES" id="U75-je-r0E">
+                                    <font key="font" metaFont="system" size="16"/>
+                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" red="0.11764705882352941" green="0.11764705882352941" blue="0.11764705882352941" alpha="0.0" colorSpace="custom" customColorSpace="sRGB"/>
                                 </textFieldCell>
                             </textField>
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="WWp-WO-R66">
                                 <rect key="frame" x="158" y="293" width="512" height="30"/>
                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" drawsBackground="YES" id="DOL-Me-2Pr">
+                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" title="Title" drawsBackground="YES" id="DOL-Me-2Pr">
                                     <font key="font" metaFont="system" size="20"/>
                                     <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" red="0.11764705882352941" green="0.11764705882352941" blue="0.11764705882352941" alpha="0.0" colorSpace="custom" customColorSpace="sRGB"/>
@@ -213,18 +213,18 @@
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Rhk-vD-yVc">
                                 <rect key="frame" x="611" y="205" width="59" height="16"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
-                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" drawsBackground="YES" id="BgZ-9V-mrn">
-                                    <font key="font" size="13" name="HelveticaNeue"/>
-                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="00:00" drawsBackground="YES" id="BgZ-9V-mrn">
+                                    <font key="font" metaFont="system"/>
+                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" red="1" green="1" blue="1" alpha="0.0" colorSpace="custom" customColorSpace="sRGB"/>
                                 </textFieldCell>
                             </textField>
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Z6C-PG-0nQ">
                                 <rect key="frame" x="158" y="205" width="59" height="16"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
-                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" drawsBackground="YES" id="SOJ-zZ-ueD">
-                                    <font key="font" size="13" name="HelveticaNeue"/>
-                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" title="00:00" drawsBackground="YES" id="SOJ-zZ-ueD">
+                                    <font key="font" metaFont="system"/>
+                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" red="1" green="1" blue="1" alpha="0.0" colorSpace="custom" customColorSpace="sRGB"/>
                                 </textFieldCell>
                             </textField>
@@ -296,7 +296,7 @@
                                                                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                                     <textFieldCell key="cell" lineBreakMode="truncatingTail" sendsActionOnEndEditing="YES" alignment="left" title="Table View Cell" drawsBackground="YES" id="k07-bB-ukM" customClass="PlaylistTextCell">
                                                                         <font key="font" metaFont="system"/>
-                                                                        <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                                                        <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
                                                                         <color key="backgroundColor" red="1" green="1" blue="1" alpha="0.0" colorSpace="custom" customColorSpace="displayP3"/>
                                                                     </textFieldCell>
                                                                 </textField>
@@ -329,7 +329,7 @@
                                                                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                                     <textFieldCell key="cell" lineBreakMode="truncatingTail" sendsActionOnEndEditing="YES" alignment="left" title="Table View Cell" drawsBackground="YES" id="NYZ-lz-oNB" customClass="PlaylistTextCell">
                                                                         <font key="font" metaFont="system"/>
-                                                                        <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                                                        <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
                                                                         <color key="backgroundColor" red="1" green="1" blue="1" alpha="0.0" colorSpace="custom" customColorSpace="displayP3"/>
                                                                     </textFieldCell>
                                                                 </textField>
@@ -368,6 +368,6 @@
         <image name="button-hamburger" width="50" height="50"/>
         <image name="button-play" width="50" height="50"/>
         <image name="button-skip-next" width="50" height="50"/>
-        <image name="record-black-1024" width="1024" height="1024"/>
+        <image name="record-transparent-1024" width="1024" height="1024"/>
     </resources>
 </document>
