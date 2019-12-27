@@ -7,6 +7,7 @@
 #import "AudioWaveform.h"
 #import "AudioPlayer.h"
 
+#import "BassWrapper.h"
 
 @implementation AudioWaveform {
 
@@ -41,13 +42,14 @@ QWORD CALLBACK MyFileLenProc(void *user) {
     AudioWaveform *waveform = (__bridge AudioWaveform *)user;
     struct stat s;
     fstat(fileno(waveform->_file), &s);
-    LogDebug(@"file: len: %d", s.st_size);
-    return s.st_size; // return the file length
+//    LogDebug(@"file: len: %d", s.st_size);
+    return (QWORD) s.st_size; // return the file length
 }
 
 DWORD CALLBACK MyFileReadProc(void *buffer, DWORD length, void *user) {
     AudioWaveform *waveform = (__bridge AudioWaveform *)user;
-    int64_t bytes = BASS_ChannelGetLength(waveform->_channel, BASS_POS_BYTE);
+//    int64_t bytes =
+//            BASS_ChannelGetLength(waveform->_channel, BASS_POS_BYTE);
 //    int32_t bytesRead = 0;
 //    if (bytes > 0) {
 //        waveform->_numBytes = bytes;
@@ -56,13 +58,13 @@ DWORD CALLBACK MyFileReadProc(void *buffer, DWORD length, void *user) {
 //        }
 //        bytesRead = BASS_ChannelGetData(waveform->_channel, waveform->_samples, BASS_DATA_AVAILABLE);
 //    }
-    LogDebug(@"file: read: %d\t\ttotal: %d", length, bytes);
-    return fread(buffer, 1, length, waveform->_file); // read from file
+//    LogDebug(@"file: read: %d\t\ttotal: %d", length, bytes);
+    return (DWORD) fread(buffer, 1, length, waveform->_file); // read from file
 }
 
 BOOL CALLBACK MyFileSeekProc(QWORD offset, void *user) {
     AudioWaveform *waveform = (__bridge AudioWaveform *)user;
-    LogDebug(@"file: seek: %d", offset);
+//    LogDebug(@"file: seek: %d", offset);
     return !fseek(waveform->_file, offset, SEEK_SET); // seek to offset
 }
 
@@ -102,11 +104,12 @@ BOOL CALLBACK MyFileSeekProc(QWORD offset, void *user) {
     }
     _numBytes = BASS_ChannelGetLength(_channel, BASS_POS_BYTE);
     _samples = malloc(_numBytes);
-    DWORD bytesRead = BASS_ChannelGetData(_channel, _samples, _numBytes);
+//    DWORD bytesRead =
+    BASS_ChannelGetData(_channel, _samples, (DWORD) _numBytes);
     BASS_CHANNELINFO info;
     BASS_ChannelGetInfo(_channel, &info);
     _numChannels = info.chans;
-    LogDebug(@"bytesRead: %d bytesTotal: %d", bytesRead, _numBytes);
+//    LogDebug(@"bytesRead: %d bytesTotal: %d", bytesRead, _numBytes);
     TIME_END
     TIME_RESTART(@"minmaxing")
     [self calculateMinMax];

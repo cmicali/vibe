@@ -8,6 +8,7 @@
 
 #import "MainPlayerController.h"
 #import "NSDockTile+Util.h"
+#import "MacOSUtil.h"
 
 #define UPDATE_HZ 3
 
@@ -50,15 +51,19 @@
     self.playButton.image = [NSImage imageNamed:@"button-play"];
     self.nextButton.image = [NSImage imageNamed:@"button-skip-next"];
 
+    self.artistTextField.stringValue = @"";
     self.artistTextField.wantsLayer = YES;
-    self.artistTextField.layer.opacity = 0.35;
+//    self.artistTextField.layer.opacity = 0.35;
+    self.titleTextField.stringValue = @"";
     self.titleTextField.wantsLayer = YES;
-    self.titleTextField.layer.opacity = 0.8;
+//    self.titleTextField.layer.opacity = 0.8;
 
+    self.totalTimeTextField.stringValue = @"";
     self.totalTimeTextField.wantsLayer = YES;
-    self.totalTimeTextField.layer.opacity = 0.35;
+//    self.totalTimeTextField.layer.opacity = 0.35;
+    self.currentTimeTextField.stringValue = @"";
     self.currentTimeTextField.wantsLayer = YES;
-    self.currentTimeTextField.layer.opacity = 0.35;
+//    self.currentTimeTextField.layer.opacity = 0.35;
 
     self.albumArtImageView.wantsLayer = YES;
     self.albumArtImageView.shadow = [[NSShadow alloc] init];
@@ -66,9 +71,14 @@
     self.albumArtImageView.layer.shadowOffset = CGSizeMake(4, 0);
     self.albumArtImageView.layer.shadowOpacity = 1;
 
-    self.playlistBackgroundView.wantsLayer = YES;
-    self.playlistBackgroundView.layer.opacity = 1.0;
-    self.playlistBackgroundView.layer.backgroundColor = [[NSColor blackColor] colorWithAlphaComponent:0.5].CGColor;
+    if ([MacOSUtil isDarkMode:self.window.appearance]) {
+        self.playlistBackgroundView.wantsLayer = YES;
+        self.playlistBackgroundView.layer.opacity = 1.0;
+        self.playlistBackgroundView.layer.backgroundColor = [[NSColor blackColor] colorWithAlphaComponent:0.5].CGColor;
+    }
+    else {
+        self.playlistBackgroundView.hidden = YES;
+    }
     self.playlistTableView.delegate = self.self.playlistManager;
     self.playlistTableView.dataSource = self.self.playlistManager;
     self.playlistManager.tableView = self.playlistTableView;
@@ -164,8 +174,8 @@
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
     self.waveformView.waveform = self.audioPlayer.audioWaveform;
     [self reloadData];
-    __block MainPlayerController *weakSelf = (MainPlayerController *)self;
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
+
+    WEAK_SELF dispatch_async(dispatch_get_main_queue(), ^(void) {
         [weakSelf.playlistTableView selectRowIndexes:[NSIndexSet indexSetWithIndex:self.playlistManager.currentIndex] byExtendingSelection:NO];
     });
 }
@@ -179,7 +189,7 @@
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track {
-    [self next:nil];
+    [self next:self];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didLoadMetadata:(AudioTrack *)track  {

@@ -8,6 +8,7 @@
 
 #ifdef __OBJC__
 
+#import <AppKit/AppKit.h>
 #import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
 
@@ -27,5 +28,7 @@ static const DDLogLevel ddLogLevel = DDLogLevelVerbose;
 
 #define min(a, b) (b < a ? b : a)
 #define max(a, b) (a < b ? b : a)
+
+#define WEAK_SELF typeof(self) __block weakSelf = self;
 
 #endif

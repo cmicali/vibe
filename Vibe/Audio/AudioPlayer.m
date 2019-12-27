@@ -7,10 +7,27 @@
 //
 
 #import "AudioPlayer.h"
-#import "bass.h"
+#import "BassWrapper.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioWaveform.h"
+#import "Util.h"
+
+typedef NS_ENUM(NSInteger, AudioPlayerError) {
+    AudioPlayerErrorInit = BASS_ERROR_INIT,
+    AudioPlayerErrorNotAvail = BASS_ERROR_NOTAVAIL,
+    AudioPlayerErrorNoInternet = BASS_ERROR_NONET,
+    AudioPlayerErrorInvalidUrl = BASS_ERROR_ILLPARAM,
+    AudioPlayerErrorSslUnsupported = BASS_ERROR_SSL,
+    AudioPlayerErrorServerTimeout = BASS_ERROR_TIMEOUT,
+    AudioPlayerErrorCouldNotOpenFile = BASS_ERROR_FILEOPEN,
+    AudioPlayerErrorFileInvalidFormat = BASS_ERROR_FILEFORM,
+    AudioPlayerErrorSupportedCodec = BASS_ERROR_CODEC,
+    AudioPlayerErrorUnsupportedSampleFormat = BASS_ERROR_SPEAKER,
+    AudioPlayerErrorInsufficientMemory = BASS_ERROR_MEM,
+    AudioPlayerErrorNo3D = BASS_ERROR_NO3D,
+    AudioPlayerErrorUnknown = BASS_ERROR_UNKNOWN
+};
 
 @interface AudioPlayer () {
     HSTREAM _channel;
@@ -33,7 +50,7 @@
 
 - (void)setup {
 
-    _channel = nil;
+    _channel = 0;
     _metadataCache = [[NSCache alloc] init];
 
     BASS_PluginLoad("libbassflac.dylib", 0);
@@ -49,6 +66,30 @@
     LogDebug(@"BASS init");
     LogDebug(@"  freq: %d latency: %d minrate: %d maxrate: %d flags: %d", info.freq, info.latency, info.minrate, info.maxrate, info.flags);
 
+}
+
+- (void)rampVolumeToZero:(BOOL)async {
+    if (_channel) {
+        BASS_ChannelSlideAttribute(_channel, BASS_ATTRIB_VOL | BASS_SLIDE_LOG, 0, 100);
+        if (!async) {
+            __block AudioPlayer *weakSelf  = self;
+            runWithTimeout(1, ^{
+               while(BASS_ChannelIsSliding(weakSelf->_channel, BASS_ATTRIB_VOL));
+            });
+        }
+    }
+}
+
+- (void)rampVolumeToNormal:(BOOL)async {
+    if (_channel) {
+        BASS_ChannelSlideAttribute(_channel, BASS_ATTRIB_VOL | BASS_SLIDE_LOG, 1, 100);
+        if (!async) {
+            __block AudioPlayer *weakSelf  = self;
+            runWithTimeout(1, ^{
+                while(BASS_ChannelIsSliding(weakSelf->_channel, BASS_ATTRIB_VOL));
+            });
+        }
+    }
 }
 
 - (void)dealloc  {
@@ -68,21 +109,21 @@ void CALLBACK ChannelEndedCallback(HSYNC handle, DWORD channel, DWORD data, void
 }
 
 void CALLBACK DownloadFinishedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
-    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
+//    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
     LogDebug(@"Download finished");
     dispatch_async(dispatch_get_main_queue(), ^(void) {
     });
 }
 
 void CALLBACK DeviceFailedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
-    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
+//    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
     LogError(@"Device failed");
     dispatch_async(dispatch_get_main_queue(), ^(void) {
     });
 }
 
 void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
-    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
+//    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
     LogError(@"Device changed");
     dispatch_async(dispatch_get_main_queue(), ^(void) {
     });
@@ -97,7 +138,9 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
     const char *filename = [track.url.path UTF8String];
 
     _channel = BASS_StreamCreateFile(FALSE, filename, 0, 0, BASS_ASYNCFILE) ;
-    __block AudioPlayer *weakSelf = self;
+
+    WEAK_SELF
+
     if (_channel) {
 
         if (!BASS_ChannelSetSync(_channel, BASS_SYNC_END, 0, ChannelEndedCallback, (__bridge void *)self)) {
@@ -175,7 +218,7 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
     if (_channel) {
         BASS_ChannelStop(_channel);
         BASS_StreamFree(_channel);
-        _channel = nil;
+        _channel = 0;
     }
     _currentTrack = nil;
 }
@@ -186,11 +229,11 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
 }
 
 - (BOOL)isPaused {
-    return _channel != nil && !self.isPlaying;
+    return _channel != 0 && !self.isPlaying;
 }
 
 - (BOOL)isStopped {
-    return _channel == nil;
+    return _channel == 0;
 }
 
 - (NSTimeInterval)duration {
@@ -225,7 +268,7 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
     BASS_ChannelSetPosition(_channel, seekTo, BASS_POS_BYTE);
 }
 
-- (DWORD)readAudioSamples:(void *)buffer length:(DWORD)length {
+- (uint32_t)readAudioSamples:(void *)buffer length:(uint32_t)length {
     return BASS_ChannelGetData(_channel, buffer, length);
 }
 

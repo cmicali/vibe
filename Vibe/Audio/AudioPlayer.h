@@ -6,27 +6,9 @@
 //  Copyright © 2019 Christopher Micali. All rights reserved.
 //
 
-#import "bass.h"
-
 @class AudioTrack;
 
 NS_ASSUME_NONNULL_BEGIN
-
-typedef NS_ENUM(NSInteger, AudioPlayerError) {
-    AudioPlayerErrorInit = BASS_ERROR_INIT,
-    AudioPlayerErrorNotAvail = BASS_ERROR_NOTAVAIL,
-    AudioPlayerErrorNoInternet = BASS_ERROR_NONET,
-    AudioPlayerErrorInvalidUrl = BASS_ERROR_ILLPARAM,
-    AudioPlayerErrorSslUnsupported = BASS_ERROR_SSL,
-    AudioPlayerErrorServerTimeout = BASS_ERROR_TIMEOUT,
-    AudioPlayerErrorCouldNotOpenFile = BASS_ERROR_FILEOPEN,
-    AudioPlayerErrorFileInvalidFormat = BASS_ERROR_FILEFORM,
-    AudioPlayerErrorSupportedCodec = BASS_ERROR_CODEC,
-    AudioPlayerErrorUnsupportedSampleFormat = BASS_ERROR_SPEAKER,
-    AudioPlayerErrorInsufficientMemory = BASS_ERROR_MEM,
-    AudioPlayerErrorNo3D = BASS_ERROR_NO3D,
-    AudioPlayerErrorUnknown = BASS_ERROR_UNKNOWN
-};
 
 @protocol AudioPlayerDelegate;
 @class AudioWaveform;
@@ -35,6 +17,10 @@ typedef NS_ENUM(NSInteger, AudioPlayerError) {
 
 @property (nullable, weak) id <AudioPlayerDelegate> delegate;
 @property NSTimeInterval position;
+
+- (void)rampVolumeToZero:(BOOL)async;
+
+- (void)rampVolumeToNormal:(BOOL)async;
 
 - (BOOL)play:(AudioTrack *)track;
 
@@ -46,15 +32,13 @@ typedef NS_ENUM(NSInteger, AudioPlayerError) {
 
 - (NSTimeInterval)duration;
 
-- (QWORD)numBytes;
+- (uint64_t)numBytes;
 
-- (DWORD)readAudioSamples:(void *)buffer length:(DWORD)length;
+- (uint32_t)readAudioSamples:(void *)buffer length:(uint32_t)length;
 
 - (AudioWaveform *)audioWaveform;
 
 - (void)loadMetadata:(NSArray<AudioTrack*>*)tracks;
-
-- (NSError * )errorForErrorCode:(AudioPlayerError)erro;
 
 - (void)playPause;
 

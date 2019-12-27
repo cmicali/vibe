@@ -224,12 +224,12 @@
 
 - (void)animateColorForCurrentState {
     [self removeAllAnimations];
-    CGFloat duration = (self.state == NSOnState) ? self.onAnimateDuration : self.offAnimateDuration;
+    CGFloat duration = (self.state == NSControlStateValueOn) ? self.onAnimateDuration : self.offAnimateDuration;
 
-    NSColor *borderColor = (self.isEnabled == NO) ? self.borderDisabledColor : (self.state == NSOnState) ? self.borderHighlightColor : self.borderNormalColor;
-    NSColor *backgroundColor = (self.isEnabled == NO) ? self.backgroundDisabledColor : (self.state == NSOnState) ? self.backgroundHighlightColor : self.backgroundNormalColor;
-    NSColor *titleColor = (self.isEnabled == NO) ? self.titleDisabledColor : (self.state == NSOnState) ? self.titleHighlightColor : self.titleNormalColor;
-    NSColor *imageColor = (self.isEnabled == NO) ? self.imageDisabledColor : (self.state == NSOnState) ? self.imageHighlightColor : self.imageNormalColor;
+    NSColor *borderColor = (self.isEnabled == NO) ? self.borderDisabledColor : (self.state == NSControlStateValueOn) ? self.borderHighlightColor : self.borderNormalColor;
+    NSColor *backgroundColor = (self.isEnabled == NO) ? self.backgroundDisabledColor : (self.state == NSControlStateValueOn) ? self.backgroundHighlightColor : self.backgroundNormalColor;
+    NSColor *titleColor = (self.isEnabled == NO) ? self.titleDisabledColor : (self.state == NSControlStateValueOn) ? self.titleHighlightColor : self.titleNormalColor;
+    NSColor *imageColor = (self.isEnabled == NO) ? self.imageDisabledColor : (self.state == NSControlStateValueOn) ? self.imageHighlightColor : self.imageNormalColor;
     [self animateLayer:self.layer color:borderColor keyPath:@"borderColor" duration:duration];
     [self animateLayer:self.layer color:backgroundColor keyPath:@"backgroundColor" duration:duration];
     [self animateLayer:self.imageLayer color:imageColor keyPath:@"backgroundColor" duration:duration];

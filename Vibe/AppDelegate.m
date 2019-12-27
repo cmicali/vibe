@@ -12,7 +12,19 @@
 
 @end
 
-@implementation AppDelegate
+@implementation AppDelegate {
+    BOOL _isLoaded;
+    NSMutableArray<NSURL *> *_urlsToOpen;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _urlsToOpen = [[NSMutableArray alloc] init];
+        _isLoaded = NO;
+    }
+    return self;
+}
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
 
@@ -22,37 +34,44 @@
     LogInfo(@"Vibe started");
 
     [self.mainPlayerController showWindow:self];
-   // [self.mainPlayerController setSmallSize:NO];
 
+    _isLoaded = YES;
+    [self playURLs];
 }
 
+- (void)playURLs {
+    if (_isLoaded && _urlsToOpen.count > 0) {
+        WEAK_SELF dispatch_async(dispatch_get_main_queue(), ^{
+            [self.mainPlayerController playURLs:weakSelf->_urlsToOpen];
+            [weakSelf->_urlsToOpen removeAllObjects];
+        });
+    }
+}
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
     return YES;
 }
 
-
 - (void)applicationWillTerminate:(NSNotification *)aNotification {
-    // Insert code here to tear down your application
+    [self.mainPlayerController.audioPlayer rampVolumeToZero:NO];
 }
 
 - (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {
-    [self.mainPlayerController playURLs:urls];
+    [_urlsToOpen addObjectsFromArray:urls];
+    [self playURLs];
 }
 
 - (BOOL)application:(NSApplication *)sender openFile:(NSString *)filename {
-    [self.mainPlayerController playURL:[NSURL fileURLWithPath:filename]];
+    [_urlsToOpen addObject:[NSURL fileURLWithPath:filename]];
+    [self playURLs];
     return YES;
 }
 
 - (void)application:(NSApplication *)sender openFiles:(NSArray<NSString *> *)filenames {
-    NSMutableArray *urls = [NSMutableArray arrayWithCapacity:filenames.count];
     for(NSString *file in filenames) {
-        [urls addObject:[NSURL fileURLWithPath:file]];
+        [_urlsToOpen addObject:[NSURL fileURLWithPath:file]];
     }
-    [self.mainPlayerController playURLs:urls];
+    [self playURLs];
 }
-
-
 
 @end

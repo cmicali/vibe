@@ -41,7 +41,7 @@
         CGFloat vscale = (height / 2) * 0.70;
         CGFloat midY = height / 2;
 
-        [[[NSColor whiteColor] colorWithAlphaComponent:0.75] set];
+        [[[NSColor controlTextColor] colorWithAlphaComponent:0.85] set];
 
         CGContextSetShouldAntialias(ctx, NO);
 
@@ -53,7 +53,7 @@
         for (int i = 0; i < count ; i++) {
 
             if (!switchedColor && i >= _progressWidth) {
-                [[[NSColor whiteColor] colorWithAlphaComponent:0.25] set];
+                [[[NSColor controlTextColor] colorWithAlphaComponent:0.50] set];
                 switchedColor = YES;
             }
 

@@ -41,7 +41,7 @@
 - (nullable NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row {
     AudioTrack *track = _playlist[row];
     NSTableCellView *view;
-    NSString *key = @"trackArt";
+//    NSString *key = @"trackArt";
     if ([tableColumn.identifier isEqualToString:@"artColumn"]) {
         view = [tableView makeViewWithIdentifier:@"trackArt" owner:self];
         NSImage *image = track.albumArt;
@@ -101,7 +101,7 @@
 }
 
 - (void)doubleClick:(id)doubleClick {
-    self.currentIndex =  [_tableView clickedRow];
+    self.currentIndex = (NSUInteger) [_tableView clickedRow];
     [self play];
 }
 
