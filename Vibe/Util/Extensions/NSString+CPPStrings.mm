@@ -11,7 +11,7 @@ const NSStringEncoding kEncoding_wchar_t = CFStringConvertEncodingToNSStringEnco
 +(NSString*) stringWithwstring:(const std::wstring&)ws
 {
     char* data = (char*)ws.data();
-    unsigned size = ws.size() * sizeof(wchar_t);
+    unsigned size = static_cast<unsigned int>(ws.size() * sizeof(wchar_t));
 
     NSString* result = [[NSString alloc] initWithBytes:data length:size encoding:kEncoding_wchar_t];
     return result;
