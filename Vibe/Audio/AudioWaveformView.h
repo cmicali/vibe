@@ -5,19 +5,20 @@
 
 #import <AppKit/AppKit.h>
 
+#include "AudioWaveform.h"
+
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioWaveformViewDelegate;
+@class AudioTrack;
 
-@class AudioWaveform;
-
-@interface AudioWaveformView : NSView
+@interface AudioWaveformView : NSView <AudioWaveformDelegate>
 
 @property (nullable, weak) id <AudioWaveformViewDelegate> delegate;
 
 @property CGFloat progress;
 
-- (void)setWaveform:(AudioWaveform *)waveform;
+- (void)loadWaveformForTrack:(AudioTrack *)track;
 
 @end
 

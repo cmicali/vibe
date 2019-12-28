@@ -5,12 +5,15 @@
 
 #import "AudioWaveformView.h"
 #import "AudioWaveform.h"
+#import "AudioTrack.h"
 
 
 @implementation AudioWaveformView {
     NSUInteger _progressWidth;
     AudioWaveform *_waveform;
+    dispatch_queue_t _loaderQueue;
 }
+
 
 - (void)mouseUp:(NSEvent *)event {
     NSPoint e = [event locationInWindow];
@@ -84,10 +87,24 @@
     return _progressWidth/self.bounds.size.width;
 }
 
-- (void)setWaveform:(AudioWaveform *)waveform {
-    _waveform = waveform;
-    [self setProgress:0];
+- (void)audioWaveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded {
     self.needsDisplay = YES;
+}
+
+- (void)loadWaveformForTrack:(AudioTrack *)track {
+    if (!_loaderQueue) {
+        _loaderQueue = dispatch_queue_create("AudioWaveformViewLoader", DISPATCH_QUEUE_SERIAL);
+    }
+    [_waveform cancel];
+    _waveform = [[AudioWaveform alloc] init];
+    _waveform.delegate = self;
+    _progressWidth = 0;
+    self.needsDisplay = YES;
+    if ([_waveform load:track.url.path]) {
+        WEAK_SELF dispatch_async(_loaderQueue, ^{
+            [weakSelf->_waveform scan];
+        });
+    }
 }
 
 @end

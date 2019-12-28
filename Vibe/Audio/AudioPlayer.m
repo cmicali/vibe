@@ -68,6 +68,10 @@ typedef NS_ENUM(NSInteger, AudioPlayerError) {
 
 }
 
+- (AudioTrack*)currentTrack {
+    return _currentTrack;
+}
+
 - (void)rampVolumeToZero:(BOOL)async {
     if (_channel) {
         BASS_ChannelSlideAttribute(_channel, BASS_ATTRIB_VOL | BASS_SLIDE_LOG, 0, 100);
@@ -272,16 +276,9 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
     return BASS_ChannelGetData(_channel, buffer, length);
 }
 
--(AudioWaveform *)audioWaveform {
-    if (_currentTrack) {
-        return [[AudioWaveform alloc] initWithFilename:_currentTrack.url.path];
-    }
-    return nil;
-}
-
 -(void)loadMetadata:(NSArray<AudioTrack*>*)tracks {
     __block AudioPlayer *weakSelf = self;
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
         for (AudioTrack *track in tracks) {
             if (!track.metadata) {
                 if ([weakSelf->_metadataCache objectForKey:track.url]) {
