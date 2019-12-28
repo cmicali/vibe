@@ -51,11 +51,12 @@
 //        CGContextScaleCTM(ctx, 0.5, 0.5); // Back out the default scale
 //        CGContextTranslateCTM(ctx, 0.5, 0.5); // Offset from edges of pixels to centers of pixels
 
-        CGContextSetLineWidth(ctx, 0.5f);
+        CGContextSetLineWidth(ctx, 1.0f);
 
-        for (int i = 0; i < count ; i++) {
+        int step = 2;
+        for (int i = 0; i < count ; i+=step) {
 
-            if (!switchedColor && i >= _progressWidth) {
+            if (!switchedColor && i >= _progressWidth+step) {
                 [[[NSColor controlTextColor] colorWithAlphaComponent:0.50] set];
                 switchedColor = YES;
             }

@@ -8,7 +8,9 @@
 
 #import "BassWrapper.h"
 
-#define SIZE    512
+#define SIZE            512
+#define UPDATE_RATE     8
+
 @implementation AudioWaveform {
 
     NSUInteger _numChunks;
@@ -57,25 +59,24 @@
     NSUInteger numChannels = info.chans;
 
     NSUInteger totalBytes = BASS_ChannelGetLength(_channel, BASS_POS_BYTE);
-    uint32_t chunkSize = uint32_t(totalBytes / sizeof(float) / _numChunks);
-    if (chunkSize % 2) {
-        chunkSize++;
-    }
+    uint32_t chunkSize = uint32_t(totalBytes / _numChunks);
 
-    float *buffer = (float*)malloc(chunkSize * sizeof(float) * 8);
+    // Align to float boundary
+    if (chunkSize % sizeof(float) != 0)
+        chunkSize += sizeof(float) - chunkSize % sizeof(float);
+
+    uint32_t readChunkSize = chunkSize + 2048;
+    float *buffer = (float*)malloc(readChunkSize);
 
     uint32_t bytesProcessed = 0;
 
     for (int i = 0; i < _numChunks && !self.isCancelled; i++) {
-
         BASS_ChannelSetPosition(_channel, bytesProcessed, BASS_POS_BYTE);
-
-        int bytesRead = BASS_ChannelGetData(_channel, buffer, chunkSize + (16 * 1024));
+        int bytesRead = BASS_ChannelGetData(_channel, buffer, readChunkSize);
         int len = min(chunkSize, bytesRead);
-        _waveform[i] = [self findMinMax:buffer length:len numChannels:numChannels];
-        bytesProcessed += len * sizeof(float);
-
-        if (i % 4 && !self.isCancelled) {
+        _waveform[i] = [self findMinMax:buffer length:len/sizeof(float) numChannels:numChannels];
+        bytesProcessed += len;
+        if (i % UPDATE_RATE && !self.isCancelled) {
             WEAK_SELF dispatch_async(dispatch_get_main_queue(), ^(void) {
                 [weakSelf.delegate audioWaveform:weakSelf didLoadData:((float) i / _numChunks)];
             });
