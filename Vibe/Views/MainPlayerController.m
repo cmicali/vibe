@@ -170,7 +170,9 @@
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
-    self.waveformView.waveform = self.audioPlayer.audioWaveform;
+
+    [self.waveformView loadWaveformForTrack:track];
+
     [self reloadData];
 
     WEAK_SELF dispatch_async(dispatch_get_main_queue(), ^(void) {
@@ -211,6 +213,7 @@
 - (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage {
     self.audioPlayer.position = self.audioPlayer.duration * percentage;
     [self timerHandler];
+    self.waveformView.needsDisplay = YES;
 }
 
 - (IBAction) setSmallSize:(id)sender {

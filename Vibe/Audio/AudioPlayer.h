@@ -11,12 +11,13 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioPlayerDelegate;
-@class AudioWaveform;
 
 @interface AudioPlayer : NSObject
 
 @property (nullable, weak) id <AudioPlayerDelegate> delegate;
 @property NSTimeInterval position;
+
+- (AudioTrack *)currentTrack;
 
 - (void)rampVolumeToZero:(BOOL)async;
 
@@ -36,13 +37,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (uint32_t)readAudioSamples:(void *)buffer length:(uint32_t)length;
 
-- (AudioWaveform *)audioWaveform;
-
 - (void)loadMetadata:(NSArray<AudioTrack*>*)tracks;
 
 - (void)playPause;
 
 - (NSUInteger)numChannels;
+
 @end
 
 

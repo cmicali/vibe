@@ -24,7 +24,7 @@
 		34FF4A1AFA6D5C200E75E184 /* MacOSUtil.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4FF6B8CA311EBAF85F78 /* MacOSUtil.m */; };
 		34FF4A3057CF1506B3DE7CCF /* MainWindow.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4980C587464F5CCB1366 /* MainWindow.m */; };
 		34FF4D4DC8BA8931F1C6B3E0 /* record-transparent-1024.png in Resources */ = {isa = PBXBuildFile; fileRef = 34FF4FDEFEF9486F4CBB5B1D /* record-transparent-1024.png */; };
-		34FF4E2D117470FD1A7BADA7 /* AudioWaveform.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4B7D771D555B51BA2B36 /* AudioWaveform.m */; };
+		34FF4E2D117470FD1A7BADA7 /* AudioWaveform.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4B7D771D555B51BA2B36 /* AudioWaveform.mm */; };
 		34FF4E608A8013A623779042 /* RSVerticallyCenteredTextFieldCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF47482DFB21C44F91C417 /* RSVerticallyCenteredTextFieldCell.m */; };
 		B64B6A1123A6C72400B91994 /* noun_first_839216.svg in Resources */ = {isa = PBXBuildFile; fileRef = B64B6A0A23A6C72400B91994 /* noun_first_839216.svg */; };
 		B64B6A1223A6C72400B91994 /* noun_first_839217.svg in Resources */ = {isa = PBXBuildFile; fileRef = B64B6A0B23A6C72400B91994 /* noun_first_839217.svg */; };
@@ -98,7 +98,7 @@
 		34FF49E4321B915207F727C9 /* RSVerticallyCenteredTextFieldCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RSVerticallyCenteredTextFieldCell.h; sourceTree = "<group>"; };
 		34FF4AA77C54EAA82C12DE35 /* ScaledImageView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ScaledImageView.m; sourceTree = "<group>"; };
 		34FF4ABA4C095C07500EEDED /* AudioWaveformView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioWaveformView.h; sourceTree = "<group>"; };
-		34FF4B7D771D555B51BA2B36 /* AudioWaveform.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioWaveform.m; sourceTree = "<group>"; };
+		34FF4B7D771D555B51BA2B36 /* AudioWaveform.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioWaveform.mm; sourceTree = "<group>"; };
 		34FF4B936B8091D6B7FB38A5 /* NSImage+Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSImage+Util.h"; sourceTree = "<group>"; };
 		34FF4B95CF3CDCE604FDC5A0 /* MainWindow.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MainWindow.h; sourceTree = "<group>"; };
 		34FF4F22665F4945EBFF675E /* AudioTrack.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioTrack.m; sourceTree = "<group>"; };
@@ -204,7 +204,7 @@
 				34FF4ABA4C095C07500EEDED /* AudioWaveformView.h */,
 				B6C43BC223AA5837009B6536 /* AudioPlayer.h */,
 				B6C43BC323AA5837009B6536 /* AudioPlayer.m */,
-				34FF4B7D771D555B51BA2B36 /* AudioWaveform.m */,
+				34FF4B7D771D555B51BA2B36 /* AudioWaveform.mm */,
 				34FF434CEE721220DE7E13F2 /* AudioWaveform.h */,
 				34FF4111588C440DB0DDE26C /* BassWrapper.h */,
 			);
@@ -490,7 +490,7 @@
 				34FF480939F28858AEDD48A9 /* NSImage+Util.m in Sources */,
 				34FF4478E449DFA4CB901A2A /* PlaylistManager.m in Sources */,
 				34FF44EE58D1AE8AD48B9279 /* PlaylistTextCell.m in Sources */,
-				34FF4E2D117470FD1A7BADA7 /* AudioWaveform.m in Sources */,
+				34FF4E2D117470FD1A7BADA7 /* AudioWaveform.mm in Sources */,
 				34FF4A1AFA6D5C200E75E184 /* MacOSUtil.m in Sources */,
 				34FF45BF3B91F3811A097228 /* ScaledImageView.m in Sources */,
 				34FF4E608A8013A623779042 /* RSVerticallyCenteredTextFieldCell.m in Sources */,

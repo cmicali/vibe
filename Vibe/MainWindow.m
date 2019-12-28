@@ -71,24 +71,10 @@
 - (void)setHeight:(CGFloat)height animate:(BOOL)animate {
     CGFloat delta = height - self.frame.size.height;
     if (delta != 0) {
-
         CGRect frame = self.frame;
         frame.origin.y -= delta;
         frame.size.height += delta;
-
-        if (animate) {
-            POPSpringAnimation *anim = [self pop_animationForKey:@"setHeight"];
-            if (!anim) {
-                anim = [POPSpringAnimation animationWithPropertyNamed:kPOPWindowFrame];
-            }
-            anim.springSpeed = 20;
-            anim.springBounciness = 1;
-            anim.toValue = [NSValue valueWithCGRect:frame];
-            [self pop_addAnimation:anim forKey:@"setHeight"];
-        }
-        else {
-            [self setFrame:frame display:NO animate:animate];
-        }
+        [self setFrame:frame display:NO animate:animate];
     }
 }
 
