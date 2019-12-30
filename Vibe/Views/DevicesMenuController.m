@@ -4,7 +4,6 @@
 //
 
 #import "DevicesMenuController.h"
-#import "BassWrapper.h"
 #import "AudioPlayer.h"
 #import "AudioDevice.h"
 
@@ -75,6 +74,5 @@
     menuItem.enabled = YES;
     return YES;
 }
-
 
 @end

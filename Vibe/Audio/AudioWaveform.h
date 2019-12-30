@@ -15,18 +15,16 @@ typedef struct CG_BOXABLE MinMax MinMax;
 
 @protocol AudioWaveformDelegate;
 
-@interface AudioWaveform : NSObject
+@interface AudioWaveform : NSObject <NSCoding>
+
+@property (copy) NSString *fileHash;
 
 @property (atomic) BOOL isFinished;
 @property (atomic) BOOL isCancelled;
 
-
 @property (nullable, weak) id <AudioWaveformDelegate> delegate;
 
 - (BOOL)load:(NSString *)filename;
-
-- (void)scan;
-
 - (void)cancel;
 
 - (MinMax)getMinMax:(NSUInteger)index;
