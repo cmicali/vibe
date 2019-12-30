@@ -3,17 +3,47 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
+#import <PINCache/PINCache.h>
+#import <Quartz/Quartz.h>
 #import "AudioWaveformView.h"
 #import "AudioWaveform.h"
 #import "AudioTrack.h"
+#import "NSURL+Hash.h"
 
 
 @implementation AudioWaveformView {
     NSUInteger _progressWidth;
     AudioWaveform *_waveform;
+    PINCache *_waveformCache;
     dispatch_queue_t _loaderQueue;
 }
 
+- (instancetype)initWithFrame:(NSRect)frameRect {
+    self = [super initWithFrame:frameRect];
+    if (self) {
+        [self setup];
+    }
+    return self;
+}
+
+- (instancetype)initWithCoder:(NSCoder *)coder {
+    self = [super initWithCoder:coder];
+    if (self) {
+        [self setup];
+    }
+    return self;
+}
+
+- (void)setup  {
+    _loaderQueue = dispatch_queue_create("AudioWaveformViewLoader", DISPATCH_QUEUE_SERIAL);
+    _waveformCache = [[PINCache alloc] initWithName:@"waveform_cache"];
+    _waveformCache.diskCache.byteLimit = 64 * 1024 * 1024; // 64mb disk cache limit
+    _waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
+}
+
+-(void)dealloc {
+
+}
 
 - (void)mouseUp:(NSEvent *)event {
     NSPoint e = [event locationInWindow];
@@ -31,12 +61,14 @@
 
 - (void)drawRect:(NSRect)dirtyRect {
     [super drawRect:dirtyRect];
+
     if (_waveform) {
+
         [NSGraphicsContext.currentContext saveGraphicsState];
 
         CGContextRef ctx = NSGraphicsContext.currentContext.CGContext;
 
-        size_t count = self.bounds.size.width;
+        size_t count = (size_t) self.bounds.size.width;
         CGFloat height = self.bounds.size.height;
 
         bool switchedColor = NO;
@@ -45,11 +77,6 @@
         CGFloat midY = height / 2;
 
         [[[NSColor controlTextColor] colorWithAlphaComponent:0.85] set];
-
-        CGContextSetShouldAntialias(ctx, NO);
-
-//        CGContextScaleCTM(ctx, 0.5, 0.5); // Back out the default scale
-//        CGContextTranslateCTM(ctx, 0.5, 0.5); // Offset from edges of pixels to centers of pixels
 
         CGContextSetLineWidth(ctx, 1.0f);
 
@@ -73,7 +100,9 @@
         }
 
         [NSGraphicsContext.currentContext restoreGraphicsState];
+
     }
+
 }
 
 - (void)setProgress:(CGFloat)progress {
@@ -89,23 +118,36 @@
 }
 
 - (void)audioWaveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded {
+    if (_waveform != waveform) {
+        _waveform = waveform;
+    }
     self.needsDisplay = YES;
 }
 
 - (void)loadWaveformForTrack:(AudioTrack *)track {
-    if (!_loaderQueue) {
-        _loaderQueue = dispatch_queue_create("AudioWaveformViewLoader", DISPATCH_QUEUE_SERIAL);
-    }
     [_waveform cancel];
-    _waveform = [[AudioWaveform alloc] init];
-    _waveform.delegate = self;
+    _waveform = nil;
     _progressWidth = 0;
     self.needsDisplay = YES;
-    if ([_waveform load:track.url.path]) {
-        WEAK_SELF dispatch_async(_loaderQueue, ^{
-            [weakSelf->_waveform scan];
-        });
-    }
+    WEAK_SELF dispatch_async(_loaderQueue, ^{
+        NSString *hash = [track.url sha1HashOfFile];
+        __block AudioWaveform *w = [weakSelf->_waveformCache objectForKey:hash];
+        if (w) {
+            w.fileHash = hash;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [weakSelf audioWaveform:w didLoadData:1];
+            });
+        }
+        else {
+            w = [[AudioWaveform alloc] init];
+            w.fileHash = hash;
+            w.delegate = self;
+            weakSelf->_waveform = w;
+            if ([w load:track.url.path]) {
+                [weakSelf->_waveformCache setObject:w forKey:hash];
+            }
+        }
+    });
 }
 
 @end

@@ -34,6 +34,7 @@
     LogInfo(@"Vibe started");
 
     [NSApplication sharedApplication].automaticCustomizeTouchBarMenuItemEnabled = YES;
+    [[AppSettings sharedInstance] applicationDidFinishLaunching];
 
     [self.mainPlayerController showWindow:self];
 

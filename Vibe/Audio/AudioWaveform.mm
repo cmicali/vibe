@@ -4,62 +4,70 @@
 //
 
 #import "AudioWaveform.h"
-#import "AudioPlayer.h"
-
 #import "BassWrapper.h"
 
 #define SIZE            512
 #define UPDATE_RATE     8
 
 @implementation AudioWaveform {
-
-    NSUInteger _numChunks;
-    HSTREAM _channel;
-
     MinMax _waveform[SIZE];
-    MinMax _defaultWaveform;
-
     dispatch_semaphore_t _loaderSemaphore;
-
 }
 
 - (id)init {
     self = [super init];
     if (self) {
-        _numChunks = SIZE;
-        _loaderSemaphore = dispatch_semaphore_create(0);
-        self.isCancelled = NO;
-        self.isFinished = NO;
-        for (int i = 0; i < _numChunks; ++i) {
-            _waveform[i].min = 0;
-            _waveform[i].max = 0;
-        }
-        _defaultWaveform.min = 0;
-        _defaultWaveform.max = 0;
+        [self setup];
     }
     return self;
 }
 
-- (BOOL)load:(NSString *)filename {
-    LogDebug(@"Loading %@", filename);
-    _channel = BASS_StreamCreateFile(NO, [filename cStringUsingEncoding:NSUTF8StringEncoding], 0, 0, BASS_SAMPLE_FLOAT | BASS_STREAM_DECODE);
-    if (!_channel) {
-        LogError(@"BASS_StreamCreateFile error: %d", BASS_ErrorGetCode());
+- (instancetype)initWithCoder:(NSCoder *)coder {
+    self = [super init];
+    if (self) {
+        [self setup];
+        NSUInteger length;
+        const uint8_t *bytes = [coder decodeBytesForKey:@"_waveform" returnedLength:&length];
+        memcpy(_waveform, bytes, length);
+        self.isFinished = YES;
     }
-    return _channel != 0;
+    return self;
 }
 
-- (void)scan {
+- (void)encodeWithCoder:(NSCoder *)coder {
+    NSUInteger numBytes = SIZE * sizeof(MinMax);
+    [coder encodeBytes:reinterpret_cast<const uint8_t *>(_waveform) length:numBytes forKey:@"_waveform"];
+}
+
+- (void)setup {
+    _loaderSemaphore = dispatch_semaphore_create(0);
+    self.isCancelled = NO;
+    self.isFinished = NO;
+    for (int i = 0; i < SIZE; ++i) {
+        _waveform[i].min = 0;
+        _waveform[i].max = 0;
+    }
+}
+
+- (BOOL)load:(NSString *)filename {
 
     self.isCancelled = NO;
     self.isFinished = NO;
 
+    LogDebug(@"Loading %@", filename);
+
+    HCHANNEL channel = BASS_StreamCreateFile(NO, [filename cStringUsingEncoding:NSUTF8StringEncoding], 0, 0, BASS_SAMPLE_FLOAT | BASS_STREAM_DECODE);
+    if (!channel) {
+        LogError(@"BASS_StreamCreateFile error: %d", BASS_ErrorGetCode());
+        return NO;
+    }
+
     BASS_CHANNELINFO info;
-    BASS_ChannelGetInfo(_channel, &info);
+    BASS_ChannelGetInfo(channel, &info);
     NSUInteger numChannels = info.chans;
 
-    NSUInteger totalBytes = BASS_ChannelGetLength(_channel, BASS_POS_BYTE);
-    uint32_t chunkSize = uint32_t(totalBytes / _numChunks);
+    NSUInteger totalBytes = BASS_ChannelGetLength(channel, BASS_POS_BYTE);
+    uint32_t chunkSize = uint32_t(totalBytes / SIZE);
 
     // Align to float boundary
     if (chunkSize % sizeof(float) != 0)
@@ -70,20 +78,21 @@
 
     uint32_t bytesProcessed = 0;
 
-    for (int i = 0; i < _numChunks && !self.isCancelled; i++) {
-        BASS_ChannelSetPosition(_channel, bytesProcessed, BASS_POS_BYTE);
-        int bytesRead = BASS_ChannelGetData(_channel, buffer, readChunkSize);
+    for (int i = 0; i < SIZE && !self.isCancelled; i++) {
+        BASS_ChannelSetPosition(channel, bytesProcessed, BASS_POS_BYTE);
+        int bytesRead = BASS_ChannelGetData(channel, buffer, readChunkSize);
         int len = min(chunkSize, bytesRead);
         _waveform[i] = [self findMinMax:buffer length:len/sizeof(float) numChannels:numChannels];
         bytesProcessed += len;
-        if (i % UPDATE_RATE && !self.isCancelled) {
+        float percentComplete = ((float) i / SIZE);
+        if (i % UPDATE_RATE && !self.isCancelled && percentComplete != 1.0) {
             WEAK_SELF dispatch_async(dispatch_get_main_queue(), ^(void) {
-                [weakSelf.delegate audioWaveform:weakSelf didLoadData:((float) i / _numChunks)];
+                [weakSelf.delegate audioWaveform:weakSelf didLoadData:percentComplete];
             });
         }
     }
 
-    BASS_StreamFree(_channel);
+    BASS_StreamFree(channel);
     free(buffer);
 
     //    [self normalizeMinMaxValues];
@@ -98,14 +107,16 @@
 
     dispatch_semaphore_signal(_loaderSemaphore);
 
+    return YES;
 }
 
 - (MinMax)getMinMax:(NSUInteger)index {
-    if (index < _numChunks) {
+    if (index < SIZE) {
         return _waveform[index];
     }
     else {
-        return _defaultWaveform;
+        MinMax m; m.min = 0; m.max = 0;
+        return m;
     }
 }
 
@@ -138,10 +149,9 @@
     return result;
 }
 
-
 - (void)normalizeMinMaxValues {
     MinMax total;
-    for (int i = 0; i < _numChunks && !self.isCancelled; i++) {
+    for (int i = 0; i < SIZE && !self.isCancelled; i++) {
         MinMax m = [self getMinMax:i];
         if (m.min < total.min) total.min = m.min;
         if (m.max > total.max) total.max = m.max;
@@ -152,7 +162,7 @@
     }
     factor = 1/factor;
     LogDebug(@"normalize: min: %.4f max: %.4f - adjustment factor: %.4f", total.min, total.max, factor);
-    for (int i = 0; i < _numChunks && !self.isCancelled; i++) {
+    for (int i = 0; i < SIZE && !self.isCancelled; i++) {
         _waveform[i].min = _waveform[i].min * factor;
         _waveform[i].max = _waveform[i].max * factor;
     }
@@ -166,5 +176,7 @@
     dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t) (2 * NSEC_PER_SEC));
     dispatch_semaphore_wait(_loaderSemaphore, timeout);
 }
+
+
 
 @end

@@ -1,5 +1,3 @@
-# Uncomment the next line to define a global platform for your project
-
 target 'Vibe' do
 
   use_frameworks!
@@ -7,8 +5,8 @@ target 'Vibe' do
 
   platform :osx, '10.15'
 
-  pod 'pop'
-  pod 'CocoaLumberjack' 
+  pod 'CocoaLumberjack'
   pod 'taglib-pod', :git => 'https://github.com/cmicali/taglib-pod.git', :tag => '1.11.1'
+  pod 'PINCache'
 
 end

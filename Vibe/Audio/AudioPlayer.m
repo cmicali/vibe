@@ -106,11 +106,12 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
 
 - (void)rampVolumeToZero:(BOOL)async {
     if (_channel) {
-        BASS_ChannelSlideAttribute(_channel, BASS_ATTRIB_VOL | BASS_SLIDE_LOG, 0, 100);
+        BASS_ChannelSlideAttribute(_channel, BASS_ATTRIB_VOL | BASS_SLIDE_LOG, 0, 200);
         if (!async) {
-            __block AudioPlayer *weakSelf  = self;
             runWithTimeout(1, ^{
-               while(BASS_ChannelIsSliding(weakSelf->_channel, BASS_ATTRIB_VOL));
+               while(BASS_ChannelIsSliding(_channel, BASS_ATTRIB_VOL)) {
+                   usleep(10000);
+               };
             });
         }
     }
@@ -167,8 +168,6 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
 
 - (BOOL)play:(AudioTrack *)track {
 
-    TIME_START(@"play")
-
     [self stop];
 
     const char *filename = [track.url.path UTF8String];
@@ -207,7 +206,6 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
             dispatch_async(dispatch_get_main_queue(), ^(void) {
                 [weakSelf->_delegate audioPlayer:self didStartPlaying:track];
             });
-            TIME_END
             return YES;
         }
 
@@ -219,8 +217,6 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
         LogError(@"Bass error: %@", err.userInfo[NSLocalizedDescriptionKey]);
         [weakSelf->_delegate audioPlayer:self error:err];
     });
-
-    TIME_END
 
     return NO;
 }
