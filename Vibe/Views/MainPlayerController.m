@@ -12,6 +12,8 @@
 #import "PlayerTouchBar.h"
 #import "DevicesMenuController.h"
 #import "AppDelegate.h"
+#import "Formatters.h"
+#import "Fonts.h"
 
 #define UPDATE_HZ 3
 
@@ -21,7 +23,7 @@
 
 @implementation MainPlayerController {
     dispatch_source_t   _timer;
-    NSDateComponentsFormatter *_timeFormatter;
+    NSTimeInterval      _lastPosition;
 }
 
 - (id) init {
@@ -31,10 +33,6 @@
 }
 
 - (void)windowDidLoad {
-
-    _timeFormatter = [[NSDateComponentsFormatter alloc] init];
-    _timeFormatter.allowedUnits = NSCalendarUnitMinute | NSCalendarUnitSecond;
-    _timeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorPad;
 
     self.audioPlayer = [[AudioPlayer alloc] initWithDevice:Settings.audioPlayerCurrentDevice];
 
@@ -54,18 +52,12 @@
     self.nextButton.image = [NSImage imageNamed:@"button-skip-next"];
 
     self.artistTextField.stringValue = @"";
-    self.artistTextField.wantsLayer = YES;
-//    self.artistTextField.layer.opacity = 0.35;
     self.titleTextField.stringValue = @"";
-    self.titleTextField.wantsLayer = YES;
-//    self.titleTextField.layer.opacity = 0.8;
 
     self.totalTimeTextField.stringValue = @"";
-    self.totalTimeTextField.wantsLayer = YES;
-//    self.totalTimeTextField.layer.opacity = 0.35;
+    self.totalTimeTextField.font = [Fonts fontForNumbers:self.currentTimeTextField.font.pointSize];
     self.currentTimeTextField.stringValue = @"";
-    self.currentTimeTextField.wantsLayer = YES;
-//    self.currentTimeTextField.layer.opacity = 0.35;
+    self.currentTimeTextField.font = [Fonts fontForNumbers:self.currentTimeTextField.font.pointSize];
 
     self.albumArtImageView.wantsLayer = YES;
     self.albumArtImageView.shadow = [[NSShadow alloc] init];
@@ -81,6 +73,7 @@
     else {
         self.playlistBackgroundView.hidden = YES;
     }
+
     self.playlistTableView.delegate = self.self.playlistManager;
     self.playlistTableView.dataSource = self.self.playlistManager;
     self.playlistManager.tableView = self.playlistTableView;
@@ -118,7 +111,7 @@
 
     self.titleTextField.stringValue = self.playlistManager.currentTrack.title;
     self.artistTextField.stringValue = self.playlistManager.currentTrack.artist;
-    self.totalTimeTextField.stringValue = [_timeFormatter stringFromTimeInterval:self.audioPlayer.duration];
+    self.totalTimeTextField.stringValue = [[Formatters sharedInstance] durationStringFromTimeInterval:self.audioPlayer.duration];
 
     if (self.playlistManager.currentTrack.albumArt) {
         self.albumArtImageView.image = self.playlistManager.currentTrack.albumArt;
@@ -145,7 +138,10 @@
     self.totalTimeTextField.hidden = position < 0;
     self.currentTimeTextField.hidden = position < 0;
 
-    self.currentTimeTextField.stringValue = [_timeFormatter stringFromTimeInterval:position];
+    if (round(position) != round(_lastPosition)) {
+        self.currentTimeTextField.stringValue = [[Formatters sharedInstance] durationStringFromTimeInterval:position];
+        _lastPosition = position;
+    }
 
 }
 

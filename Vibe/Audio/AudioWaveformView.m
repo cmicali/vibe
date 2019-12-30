@@ -121,6 +121,9 @@
     if (_waveform != waveform) {
         _waveform = waveform;
     }
+    if (percentLoaded == 1.0) {
+        [_waveformCache setObject:waveform forKey:waveform.fileHash];
+    }
     self.needsDisplay = YES;
 }
 
@@ -143,9 +146,7 @@
             w.fileHash = hash;
             w.delegate = self;
             weakSelf->_waveform = w;
-            if ([w load:track.url.path]) {
-                [weakSelf->_waveformCache setObject:w forKey:hash];
-            }
+            [w load:track.url.path];
         }
     });
 }

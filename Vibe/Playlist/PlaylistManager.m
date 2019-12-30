@@ -8,6 +8,9 @@
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
 #import "PlaylistTextCell.h"
+#import "NSMutableAttributedString+Util.h"
+#import "NSView+Util.h"
+#import "Fonts.h"
 
 @implementation PlaylistManager {
     NSMutableArray<AudioTrack *> *_playlist;
@@ -41,9 +44,18 @@
 - (nullable NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row {
     AudioTrack *track = _playlist[row];
     NSTableCellView *view;
-//    NSString *key = @"trackArt";
     if ([tableColumn.identifier isEqualToString:@"artColumn"]) {
         view = [tableView makeViewWithIdentifier:@"trackArt" owner:self];
+        NSView *gradientView = [view viewWithIdentifier:@"gradient_overlay"];
+        if (!gradientView.layer) {
+            gradientView.wantsLayer = YES;
+            CAGradientLayer *g = [[CAGradientLayer alloc] init];
+            g.colors = @[
+                    (id) [NSColor colorWithRed:0 green:0 blue:0 alpha:0.85].CGColor,
+                    (id) [NSColor colorWithRed:0 green:0 blue:0 alpha:0].CGColor
+            ];
+            gradientView.layer = g;
+        }
         NSImage *image = track.albumArt;
         if (!image) {
             image = [NSImage imageNamed:@"record-black-1024"];
@@ -52,17 +64,25 @@
     }
     else if ([tableColumn.identifier isEqualToString:@"titleColumn"]) {
         view = [tableView makeViewWithIdentifier:@"trackName" owner:self];
-        NSMutableAttributedString *s = [[NSMutableAttributedString alloc] init];
-//        view.textField.attributedStringValue = title;
-        view.textField.stringValue = track.singleLineTitle;
-
-//        view.textField.wantsLayer = YES;
-//        view.textField.layer.opacity = 0.6;
-//        view.textField.layer.backgroundColor = [NSColor clearColor].CGColor;
+        if (track.hasArtistAndTitle) {
+            NSMutableAttributedString *artist = [[NSMutableAttributedString alloc] initWithColor:NSColor.secondaryLabelColor];
+            [artist appendString:track.artist];
+            NSMutableAttributedString *title = [[NSMutableAttributedString alloc] initWithColor:NSColor.labelColor];
+            [title appendString:track.title];
+            NSMutableAttributedString *s = [[NSMutableAttributedString alloc] init];
+            [s appendAttributedString:title];
+            [s appendString:@" "];
+            [s appendAttributedString:artist];
+            view.textField.attributedStringValue = s;
+        }
+        else {
+            view.textField.stringValue = track.singleLineTitle;
+        }
     }
     else if ([tableColumn.identifier isEqualToString:@"lengthColumn"]) {
         view = [tableView makeViewWithIdentifier:@"trackLength" owner:self];
-        view.textField.stringValue = @"";
+        view.textField.stringValue = track.lengthString;
+        view.textField.font = [Fonts fontForNumbers:view.textField.font.pointSize];
     }
 
     return view;
