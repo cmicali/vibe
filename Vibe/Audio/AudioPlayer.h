@@ -11,6 +11,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioPlayerDelegate;
+@class AudioDevice;
 
 @interface AudioPlayer : NSObject
 
@@ -43,6 +44,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSUInteger)numChannels;
 
+- (NSInteger)numDevices;
+
+- (AudioDevice *)deviceForIndex:(NSUInteger)index;
+
+- (NSUInteger)currentDeviceIndex;
 @end
 
 
