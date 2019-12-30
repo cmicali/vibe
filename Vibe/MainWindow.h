@@ -14,6 +14,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nullable, weak) id <FileDropDelegate> dropDelegate;
 
+- (BOOL)isPlaylistShown;
+
 - (IBAction)setSmallSize:(BOOL)animate;
 - (IBAction)setLargeSize:(BOOL)animate;
 

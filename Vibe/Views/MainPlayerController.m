@@ -9,6 +9,8 @@
 #import "MainPlayerController.h"
 #import "NSDockTile+Util.h"
 #import "MacOSUtil.h"
+#import "PlayerTouchBar.h"
+#import "DevicesMenuController.h"
 
 #define UPDATE_HZ 3
 
@@ -82,6 +84,8 @@
     self.playlistManager.tableView = self.playlistTableView;
 
     self.waveformView.delegate = self;
+
+    self.devicesMenuController.audioPlayer = self.audioPlayer;
 
     MainWindow *window = (MainWindow *)self.window;
     window.dropDelegate = self;
@@ -231,5 +235,25 @@
     [window toggleSize:sender];
 
 }
+
+- (NSTouchBar *)makeTouchBar {
+    return [[PlayerTouchBar alloc] init];
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
+    MainWindow *window = (MainWindow *)self.window;
+    if ([menuItem.identifier isEqualToString:@"menu_show_playlist"]) {
+        menuItem.state = window.isPlaylistShown ? NSControlStateValueOn : NSControlStateValueOff;
+    }
+    else if ([menuItem.identifier isEqualToString:@"menu_next_track"]) {
+        return self.playlistManager.count > 1;
+    }
+    else if ([menuItem.identifier isEqualToString:@"menu_play"]) {
+        return self.playlistManager.count > 0;
+    }
+    return YES;
+}
+
+
 
 @end

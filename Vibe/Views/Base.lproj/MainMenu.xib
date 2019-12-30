@@ -17,7 +17,12 @@
             </connections>
         </customObject>
         <customObject id="YLy-65-1bz" customClass="NSFontManager"/>
-        <customObject id="j8i-XM-36F" customClass="MainPlayerController"/>
+        <customObject id="j8i-XM-36F" customClass="MainPlayerController">
+            <connections>
+                <outlet property="devicesMenuController" destination="d10-Bx-Cf0" id="gE6-6f-bpZ"/>
+            </connections>
+        </customObject>
+        <customObject id="d10-Bx-Cf0" customClass="DevicesMenuController"/>
         <menu title="Main Menu" systemMenu="main" id="AYu-sK-qS6">
             <items>
                 <menuItem title="Vibe" id="1Xt-HY-uBw">
@@ -95,76 +100,23 @@
                         </items>
                     </menu>
                 </menuItem>
-                <menuItem title="Edit" id="5QF-Oa-p0T">
-                    <modifierMask key="keyEquivalentModifierMask"/>
-                    <menu key="submenu" title="Edit" id="W48-6f-4Dl">
-                        <items>
-                            <menuItem title="Undo" keyEquivalent="z" id="dRJ-4n-Yzg">
-                                <connections>
-                                    <action selector="undo:" target="-1" id="M6e-cu-g7V"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem title="Redo" keyEquivalent="Z" id="6dh-zS-Vam">
-                                <connections>
-                                    <action selector="redo:" target="-1" id="oIA-Rs-6OD"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem isSeparatorItem="YES" id="WRV-NI-Exz"/>
-                            <menuItem title="Cut" keyEquivalent="x" id="uRl-iY-unG">
-                                <connections>
-                                    <action selector="cut:" target="-1" id="YJe-68-I9s"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem title="Copy" keyEquivalent="c" id="x3v-GG-iWU">
-                                <connections>
-                                    <action selector="copy:" target="-1" id="G1f-GL-Joy"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem title="Paste" keyEquivalent="v" id="gVA-U4-sdL">
-                                <connections>
-                                    <action selector="paste:" target="-1" id="UvS-8e-Qdg"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem title="Paste and Match Style" keyEquivalent="V" id="WeT-3V-zwk">
-                                <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
-                                <connections>
-                                    <action selector="pasteAsPlainText:" target="-1" id="cEh-KX-wJQ"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem title="Delete" id="pa3-QI-u2k">
-                                <modifierMask key="keyEquivalentModifierMask"/>
-                                <connections>
-                                    <action selector="delete:" target="-1" id="0Mk-Ml-PaM"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem title="Select All" keyEquivalent="a" id="Ruw-6m-B2m">
-                                <connections>
-                                    <action selector="selectAll:" target="-1" id="VNm-Mi-diN"/>
-                                </connections>
-                            </menuItem>
-                        </items>
-                    </menu>
-                </menuItem>
                 <menuItem title="Playback" id="H8h-7b-M4v">
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <menu key="submenu" title="Playback" id="HyV-fh-RgO">
                         <items>
-                            <menuItem title="Play" keyEquivalent=" " id="1UK-8n-QPP">
+                            <menuItem title="Play" keyEquivalent=" " identifier="menu_play" id="1UK-8n-QPP">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
-                                    <action selector="setLargeSize:" target="j8i-XM-36F" id="L8b-sN-14w"/>
+                                    <action selector="playPause:" target="j8i-XM-36F" id="f2G-aH-DwM"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="Previous Track" keyEquivalent="p" id="Lle-qZ-BNp">
+                            <menuItem title="Previous Track" hidden="YES" keyEquivalent="p" id="Lle-qZ-BNp">
                                 <modifierMask key="keyEquivalentModifierMask"/>
-                                <connections>
-                                    <action selector="setLargeSize:" target="j8i-XM-36F" id="2bf-Al-CqJ"/>
-                                </connections>
                             </menuItem>
-                            <menuItem title="Next Track" keyEquivalent="n" id="cK4-Rv-Q4U">
+                            <menuItem title="Next Track" keyEquivalent="n" identifier="menu_next_track" id="cK4-Rv-Q4U">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
-                                    <action selector="setLargeSize:" target="j8i-XM-36F" id="juE-sg-fg6"/>
+                                    <action selector="next:" target="j8i-XM-36F" id="kgc-AJ-DaJ"/>
                                 </connections>
                             </menuItem>
                         </items>
@@ -174,45 +126,25 @@
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <menu key="submenu" title="View" id="wdG-2t-F0p">
                         <items>
-                            <menuItem title="Small" id="TgY-qo-Sp5">
+                            <menuItem title="Show Playlist" identifier="menu_show_playlist" id="FG1-nr-3ok">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
-                                    <action selector="setSmallSize:" target="j8i-XM-36F" id="0Bq-Jf-mx0"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem title="Large" id="FG1-nr-3ok">
-                                <modifierMask key="keyEquivalentModifierMask"/>
-                                <connections>
-                                    <action selector="setLargeSize:" target="j8i-XM-36F" id="FeL-Ju-txL"/>
+                                    <action selector="toggleSize:" target="j8i-XM-36F" id="eKC-jJ-Nbo"/>
                                 </connections>
                             </menuItem>
                         </items>
                     </menu>
                 </menuItem>
-                <menuItem title="Window" id="aUF-d1-5bR">
+                <menuItem title="Devices" id="Vnm-2c-fQn">
                     <modifierMask key="keyEquivalentModifierMask"/>
-                    <menu key="submenu" title="Window" systemMenu="window" id="Td7-aD-5lo">
-                        <items>
-                            <menuItem title="Bring All to Front" id="LE2-aR-0XJ">
-                                <modifierMask key="keyEquivalentModifierMask"/>
-                                <connections>
-                                    <action selector="arrangeInFront:" target="-1" id="DRN-fu-gQh"/>
-                                </connections>
-                            </menuItem>
-                        </items>
+                    <menu key="submenu" title="Devices" autoenablesItems="NO" id="90f-yQ-xRg">
+                        <connections>
+                            <outlet property="delegate" destination="d10-Bx-Cf0" id="h7r-JC-d58"/>
+                        </connections>
                     </menu>
-                </menuItem>
-                <menuItem title="Help" id="wpr-3q-Mcd">
-                    <modifierMask key="keyEquivalentModifierMask"/>
-                    <menu key="submenu" title="Help" systemMenu="help" id="F2S-fz-NVQ">
-                        <items>
-                            <menuItem title="Vibe Help" keyEquivalent="?" id="FKE-Sm-Kum">
-                                <connections>
-                                    <action selector="showHelp:" target="-1" id="y7X-2Q-9no"/>
-                                </connections>
-                            </menuItem>
-                        </items>
-                    </menu>
+                    <connections>
+                        <action selector="changeOutputDevice:" target="d10-Bx-Cf0" id="Z9L-CJ-20J"/>
+                    </connections>
                 </menuItem>
             </items>
             <point key="canvasLocation" x="139" y="154"/>
