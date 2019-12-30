@@ -15,6 +15,8 @@
 #include <flacfile.h>
 #include <id3v2tag.h>
 #include <attachedpictureframe.h>
+#include <aifffile.h>
+#include <wavfile.h>
 
 @implementation AudioTrackMetadata {
 }
@@ -34,18 +36,26 @@
         if (fileRef->tag()) {
 
             TagLib::Tag *tag = fileRef->tag();
+            TagLib::File *file = fileRef->file();
 
             m.artist = [NSString stringWithstring:tag->artist().to8Bit(true)];
             m.title = [NSString stringWithstring:tag->title().to8Bit(true)];
+            m.length = static_cast<NSUInteger>(file->audioProperties()->lengthInSeconds());
 
-            if (auto mp3 = dynamic_cast<TagLib::MPEG::File*>(fileRef->file())) {
+            if (auto mp3 = dynamic_cast<TagLib::MPEG::File*>(file)) {
                 m.albumArt = [self getAlbumArtMP3:mp3];
             }
-            if (auto flac = dynamic_cast<TagLib::FLAC::File*>(fileRef->file())) {
+            else if (auto flac = dynamic_cast<TagLib::FLAC::File*>(file)) {
                 m.albumArt = [self getAlbumArtFLAC:flac];
             }
-            if (auto mp4 = dynamic_cast<TagLib::MP4::File*>(fileRef->file())) {
+            else if (auto mp4 = dynamic_cast<TagLib::MP4::File*>(file)) {
                 m.albumArt = [self getAlbumArtMP4:mp4];
+            }
+            else if (auto aiff = dynamic_cast<TagLib::RIFF::AIFF::File*>(file)) {
+                m.albumArt = [self getAlbumArtAIFF:aiff];
+            }
+            else if (auto wav = dynamic_cast<TagLib::RIFF::WAV::File*>(file)) {
+                m.albumArt = [self getAlbumArtWAV:wav];
             }
         }
     }
@@ -82,14 +92,32 @@
 
 + (NSImage *)getAlbumArtMP3:(TagLib::MPEG::File *)mp3File {
     if (mp3File->hasID3v2Tag()) {
-        TagLib::ID3v2::Tag *m_tag = mp3File->ID3v2Tag(false);
-        TagLib::ID3v2::FrameList frameList = m_tag->frameList("APIC");
-        if (!frameList.isEmpty()) {
-            TagLib::ID3v2::AttachedPictureFrame *frame = (TagLib::ID3v2::AttachedPictureFrame *) frameList.front();
-            auto bytes = frame->picture();
-            NSData *data = [[NSData alloc] initWithBytes:bytes.data() length:bytes.size()];
-            return [[NSImage alloc] initWithData:data];
-        }
+        return [self getAlbumArtID3v2:mp3File->ID3v2Tag(false)];
+    }
+    return nil;
+}
+
++ (NSImage *)getAlbumArtAIFF:(TagLib::RIFF::AIFF::File *)aiffFile {
+    if (aiffFile->hasID3v2Tag()) {
+        return [self getAlbumArtID3v2:aiffFile->tag()];
+    }
+    return nil;
+}
+
++ (NSImage *)getAlbumArtWAV:(TagLib::RIFF::WAV::File *)wavFile {
+    if (wavFile->hasID3v2Tag()) {
+        return [self getAlbumArtID3v2:wavFile->tag()];
+    }
+    return nil;
+}
+
++ (NSImage *)getAlbumArtID3v2:(TagLib::ID3v2::Tag *)id3v2Tag {
+    TagLib::ID3v2::FrameList frameList = id3v2Tag->frameList("APIC");
+    if (!frameList.isEmpty()) {
+        TagLib::ID3v2::AttachedPictureFrame *frame = (TagLib::ID3v2::AttachedPictureFrame *) frameList.front();
+        auto bytes = frame->picture();
+        NSData *data = [[NSData alloc] initWithBytes:bytes.data() length:bytes.size()];
+        return [[NSImage alloc] initWithData:data];
     }
     return nil;
 }
