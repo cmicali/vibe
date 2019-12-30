@@ -12,6 +12,7 @@
 #import "AudioTrackMetadata.h"
 #import "AudioWaveform.h"
 #import "Util.h"
+#import "AudioDevice.h"
 
 typedef NS_ENUM(NSInteger, AudioPlayerError) {
     AudioPlayerErrorInit = BASS_ERROR_INIT,
@@ -333,4 +334,43 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
                            userInfo:@{NSLocalizedDescriptionKey: str}];
 }
 
+- (NSInteger)numDevices {
+    int a, count = 0;
+    BASS_DEVICEINFO info;
+    for (a = 1; BASS_GetDeviceInfo(a, &info); a++)
+//        if (info.flags & BASS_DEVICE_ENABLED)
+            count++; // count it
+    for (a = 0; BASS_GetDeviceInfo(a | BASS_CONFIG_AIRPLAY, &info); a++)
+//        if (info.flags & BASS_DEVICE_ENABLED)
+            count++; // count it
+    return count;
+}
+
+- (AudioDevice *)deviceForIndex:(NSUInteger)index {
+    BASS_DEVICEINFO info;
+    if (!BASS_GetDeviceInfo(index, &info)) {
+        return nil;
+    }
+    AudioDevice *dev = [[AudioDevice alloc] init];
+    dev.name = [NSString stringWithCString:info.name encoding:NSUTF8StringEncoding];
+    dev.index = index;
+    return dev;
+}
+
+- (NSUInteger)currentDeviceIndex {
+    return BASS_GetDevice();
+}
+//
+//BASS_DEVICEINFO di;
+//for (int d=1; BASS_GetDeviceInfo(d, &di); d++) {
+//    if (di.flags&BASS_DEVICE_DEFAULT) { // found new default
+//        int od=BASS_GetDevice(); // get current device
+//        if (od==d) break; // just in case
+//        BASS_Init(d, 44100, 0, 0, 0); // initialize new device
+//        BASS_ChannelSetDevice(stream, d); // move the stream to it
+//        BASS_SetDevice(od);
+//        BASS_Free(); // free the old device
+//        break;
+//    }
+//}
 @end

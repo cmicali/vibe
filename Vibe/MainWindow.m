@@ -78,6 +78,10 @@
     }
 }
 
+- (BOOL)isPlaylistShown {
+    return self.frame.size.height > 150;
+}
+
 - (IBAction)setSmallSize:(BOOL)animate {
     [self setHeight:150 animate:YES];
 }
@@ -87,13 +91,14 @@
 }
 
 - (IBAction)toggleSize:(id)sender {
-    if (self.frame.size.height > 150) {
+    if (self.isPlaylistShown) {
         [self setSmallSize:YES];
     }
     else {
         [self setLargeSize:YES];
     }
 }
+
 
 
 @end

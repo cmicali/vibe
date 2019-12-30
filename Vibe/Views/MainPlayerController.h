@@ -16,9 +16,11 @@
 #import "MainWindow.h"
 #import "SYFlatButton.h"
 
+@class DevicesMenuController;
+
 NS_ASSUME_NONNULL_BEGIN
 
-@interface MainPlayerController : NSWindowController <NSMenuDelegate,
+@interface MainPlayerController : NSWindowController <NSMenuItemValidation,
                                                       FileDropDelegate,
                                                       AudioPlayerDelegate,
                                                       AudioWaveformViewDelegate>
@@ -35,6 +37,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (weak) IBOutlet NSTextField *currentTimeTextField;
 @property (weak) IBOutlet NSView *playlistBackgroundView;
 @property (weak) IBOutlet NSView *albumArtGradientView;
+
+@property (weak) IBOutlet DevicesMenuController *devicesMenuController;
 
 @property (strong) AudioTrackMetadata *metadata;
 
