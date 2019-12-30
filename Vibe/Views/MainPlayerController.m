@@ -34,7 +34,8 @@
     _timeFormatter = [[NSDateComponentsFormatter alloc] init];
     _timeFormatter.allowedUnits = NSCalendarUnitMinute | NSCalendarUnitSecond;
     _timeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorPad;
-    self.audioPlayer = [[AudioPlayer alloc] init];
+
+    self.audioPlayer = [[AudioPlayer alloc] initWithDevice:Settings.audioPlayerCurrentDevice];
 
     self.audioPlayer.delegate = self;
     self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		34FF418FFE6099C100699A34 /* AppSettings.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF43E95CE8767C24E6B252 /* AppSettings.m */; };
 		34FF41F5F64CA81A54C15EBC /* AudioTrack.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4F22665F4945EBFF675E /* AudioTrack.m */; };
 		34FF42A916FA0A4391E23D42 /* DevicesMenuController.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF482BFB65CD379F8499EB /* DevicesMenuController.m */; };
 		34FF42E49186916E522A9C4F /* AlphaButton.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF43188C3AAB2DCC4D7A20 /* AlphaButton.m */; };
@@ -83,6 +84,7 @@
 		34FF43188C3AAB2DCC4D7A20 /* AlphaButton.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AlphaButton.m; sourceTree = "<group>"; };
 		34FF434CEE721220DE7E13F2 /* AudioWaveform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioWaveform.h; sourceTree = "<group>"; };
 		34FF4362BDC6132353A0962D /* NSString+CPPStrings.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = "NSString+CPPStrings.mm"; sourceTree = "<group>"; };
+		34FF43E95CE8767C24E6B252 /* AppSettings.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AppSettings.m; sourceTree = "<group>"; };
 		34FF43F9CA9465FBDCC1823B /* AudioTrackMetadata.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioTrackMetadata.mm; sourceTree = "<group>"; };
 		34FF44077EA6DE4A13AC10AF /* NSDockTile+Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSDockTile+Util.h"; sourceTree = "<group>"; };
 		34FF4439AAF27E72B2D9B89C /* PlaylistManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PlaylistManager.h; sourceTree = "<group>"; };
@@ -97,6 +99,7 @@
 		34FF47AA07AEC3807ECCC08E /* NSURLUtil.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NSURLUtil.m; sourceTree = "<group>"; };
 		34FF47E18BBE829AD2958151 /* PlaylistTextCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = PlaylistTextCell.m; sourceTree = "<group>"; };
 		34FF47EB93534A24C0594283 /* SYFlatButton.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SYFlatButton.h; sourceTree = "<group>"; };
+		34FF47FC4698ED5693A8EA51 /* AppSettings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AppSettings.h; sourceTree = "<group>"; };
 		34FF482BFB65CD379F8499EB /* DevicesMenuController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DevicesMenuController.m; sourceTree = "<group>"; };
 		34FF4875D6CBDC7E349DF255 /* AudioDevice.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioDevice.m; sourceTree = "<group>"; };
 		34FF48E9F08E5E82D6C692BA /* SYFlatButton.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SYFlatButton.m; sourceTree = "<group>"; };
@@ -331,6 +334,8 @@
 				B6E7883D23A562380035BCD0 /* main.m */,
 				34FF4980C587464F5CCB1366 /* MainWindow.m */,
 				34FF4B95CF3CDCE604FDC5A0 /* MainWindow.h */,
+				34FF43E95CE8767C24E6B252 /* AppSettings.m */,
+				34FF47FC4698ED5693A8EA51 /* AppSettings.h */,
 			);
 			path = Vibe;
 			sourceTree = "<group>";
@@ -514,6 +519,7 @@
 				34FF4B548C528711111238DD /* PlayerTouchBar.m in Sources */,
 				34FF42A916FA0A4391E23D42 /* DevicesMenuController.m in Sources */,
 				34FF4D673AEDD903E6D4F623 /* AudioDevice.m in Sources */,
+				34FF418FFE6099C100699A34 /* AppSettings.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -20,35 +20,28 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (AudioTrack *)currentTrack;
 
-- (void)rampVolumeToZero:(BOOL)async;
-
-- (void)rampVolumeToNormal:(BOOL)async;
+- (id)initWithDevice:(NSInteger)deviceIndex;
 
 - (BOOL)play:(AudioTrack *)track;
+- (void)playPause;
+- (void)loadMetadata:(NSArray<AudioTrack*>*)tracks;
+- (void)rampVolumeToZero:(BOOL)async;
+- (void)rampVolumeToNormal:(BOOL)async;
 
 - (BOOL)isPlaying;
-
 - (BOOL)isPaused;
-
 - (BOOL)isStopped;
 
+- (NSUInteger)numChannels;
 - (NSTimeInterval)duration;
 
-- (uint64_t)numBytes;
+- (NSInteger)numOutputDevices;
+- (AudioDevice *)outputDeviceForIndex:(NSUInteger)index;
+- (NSInteger)currentOutputDeviceIndex;
 
-- (uint32_t)readAudioSamples:(void *)buffer length:(uint32_t)length;
+- (BOOL)setOutputDevice:(NSInteger)newIndex;
+- (BOOL)setDefaultOutputDevice;
 
-- (void)loadMetadata:(NSArray<AudioTrack*>*)tracks;
-
-- (void)playPause;
-
-- (NSUInteger)numChannels;
-
-- (NSInteger)numDevices;
-
-- (AudioDevice *)deviceForIndex:(NSUInteger)index;
-
-- (NSUInteger)currentDeviceIndex;
 @end
 
 
