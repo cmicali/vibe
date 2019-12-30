@@ -54,9 +54,7 @@
     self.isCancelled = NO;
     self.isFinished = NO;
 
-    LogDebug(@"Loading %@", filename);
-
-    HCHANNEL channel = BASS_StreamCreateFile(NO, [filename cStringUsingEncoding:NSUTF8StringEncoding], 0, 0, BASS_SAMPLE_FLOAT | BASS_STREAM_DECODE);
+    HCHANNEL channel = BASS_StreamCreateFile(NO, [filename cStringUsingEncoding:NSUTF8StringEncoding], 0, 0, BASS_SAMPLE_FLOAT | BASS_STREAM_DECODE | BASS_STREAM_PRESCAN);
     if (!channel) {
         LogError(@"BASS_StreamCreateFile error: %d", BASS_ErrorGetCode());
         return NO;

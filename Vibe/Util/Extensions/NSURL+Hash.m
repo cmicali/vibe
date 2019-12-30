@@ -5,30 +5,27 @@
 
 #import "NSURL+Hash.h"
 #include <CommonCrypto/CommonDigest.h>
-#include <CoreFoundation/CoreFoundation.h>
-#include <stdint.h>
-#include <stdio.h>
 
 @implementation NSURL (Hash)
 
 - (NSString *)md5HashOfFile {
-    TIME_START(@"md5")
+//    TIME_START(@"md5")
     NSString *result = [NSURL md5HashOfFileAtPath:self.path];
-    TIME_END
+//    TIME_END
     return result;
 }
 
 - (NSString *)sha1HashOfFile {
-    TIME_START(@"sha1")
+//    TIME_START(@"sha1")
     NSString *result =  [NSURL sha1HashOfFileAtPath:self.path];
-    TIME_END
+//    TIME_END
     return result;
 }
 
 - (NSString *)sha512HashOfFile {
-    TIME_START(@"sha512")
+//    TIME_START(@"sha512")
     NSString *result = [NSURL sha512HashOfFileAtPath:self.path];
-    TIME_END
+//    TIME_END
     return result;
 }
 

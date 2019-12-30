@@ -52,6 +52,8 @@
     }
     else if ([tableColumn.identifier isEqualToString:@"titleColumn"]) {
         view = [tableView makeViewWithIdentifier:@"trackName" owner:self];
+        NSMutableAttributedString *s = [[NSMutableAttributedString alloc] init];
+//        view.textField.attributedStringValue = title;
         view.textField.stringValue = track.singleLineTitle;
 
 //        view.textField.wantsLayer = YES;
