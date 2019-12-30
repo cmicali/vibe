@@ -5,6 +5,7 @@
 
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "Formatters.h"
 
 @implementation AudioTrack {
 
@@ -54,12 +55,31 @@
     return self.metadata.albumArt;
 }
 
+- (NSUInteger)length {
+    return self.metadata.length;
+}
+
+- (NSString *)lengthString {
+    if (self.length > 0) {
+        return [[Formatters sharedInstance] durationStringFromTimeInterval:self.length];
+    }
+    else {
+        return @"";
+    }
+}
+
+- (BOOL)hasArtistAndTitle {
+    return self.artist.length > 0 && self.metadata.title.length > 0;
+}
+
 - (NSString *)singleLineTitle {
-    if (self.artist.length > 0 && self.metadata.title.length > 0) {
+    if (self.hasArtistAndTitle) {
         return [NSString stringWithFormat:@"%@ - %@", self.artist, self.title];
     }
     else {
-        return self.title;
+        NSString *result = [self.title stringByDeletingPathExtension];
+        result = [result stringByReplacingOccurrencesOfString:@"_" withString:@" "];
+        return result;
     }
 }
 
