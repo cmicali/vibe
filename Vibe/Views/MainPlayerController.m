@@ -11,6 +11,7 @@
 #import "MacOSUtil.h"
 #import "PlayerTouchBar.h"
 #import "DevicesMenuController.h"
+#import "AppDelegate.h"
 
 #define UPDATE_HZ 3
 
@@ -255,6 +256,15 @@
     return YES;
 }
 
-
++ (void)restoreWindowWithIdentifier:(NSString *)identifier
+                              state:(NSCoder *)state
+                  completionHandler:(void (^)(NSWindow *, NSError *))completionHandler {
+    NSWindow *window = nil;
+    if ([identifier isEqualToString:@"main_window"]) {
+        AppDelegate *appDelegate = [NSApp delegate];
+        window = appDelegate.mainPlayerController.window;
+    }
+    completionHandler(window, nil);
+}
 
 @end

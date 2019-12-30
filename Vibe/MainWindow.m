@@ -5,8 +5,7 @@
 
 #import "MainWindow.h"
 #import "NSURLUtil.h"
-
-#import <pop/POP.h>
+#import "MainPlayerController.h"
 
 @implementation MainWindow
 
@@ -16,6 +15,9 @@
             NSPasteboardTypeFileURL,
             NSPasteboardTypeURL,
     ]];
+
+    self.restorable = YES;
+    self.restorationClass = [MainPlayerController class];
 
     self.styleMask = NSWindowStyleMaskBorderless |
                      NSWindowStyleMaskResizable |
@@ -32,12 +34,11 @@
     self.contentView.layer.borderColor = [NSColor.blackColor colorWithAlphaComponent:0.5].CGColor;
     self.contentView.layer.borderWidth = 1;
 
-//    self.contentView.frame = CGRectMake(0, 24, self.contentView.frame.size.width, self.contentView.frame.size.height);
-
     [self invalidateShadow];
-
+    [self loadSettings];
 
 }
+
 
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
     return NSDragOperationCopy;
@@ -83,11 +84,11 @@
 }
 
 - (IBAction)setSmallSize:(BOOL)animate {
-    [self setHeight:150 animate:YES];
+    [self setHeight:150 animate:animate];
 }
 
 - (IBAction)setLargeSize:(BOOL)animate {
-    [self setHeight:400 animate:YES];
+    [self setHeight:400 animate:animate];
 }
 
 - (IBAction)toggleSize:(id)sender {
@@ -99,6 +100,10 @@
     }
 }
 
-
+- (void)loadSettings {
+    if (Settings.isFirstLaunch) { // || !Settings.isPlaylistShown) {
+        [self setSmallSize:NO];
+    }
+}
 
 @end

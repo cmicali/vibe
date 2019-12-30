@@ -20,9 +20,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)setLargeSize:(BOOL)animate;
 
 - (IBAction)toggleSize:(id)sender;
+
+- (void)loadSettings;
+
 @end
-
-
 
 @protocol FileDropDelegate <NSObject>
 @optional

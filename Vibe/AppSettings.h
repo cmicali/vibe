@@ -12,4 +12,15 @@
 - (NSInteger)audioPlayerCurrentDevice;
 - (void)setAudioPlayerCurrentDevice:(NSInteger)deviceIndex;
 
+- (void)applicationDidFinishLaunching;
+
+- (BOOL)isFirstLaunch;
+
+- (CGPoint)windowPosition;
+
+- (void)setWindowPosition:(CGPoint)position;
+
+- (BOOL)isPlaylistShown;
+
+- (void)setIsPlaylistShown:(BOOL)isPlaylistShown;
 @end
