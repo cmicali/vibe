@@ -6,6 +6,7 @@
 //  Copyright © 2019 Christopher Micali. All rights reserved.
 //
 
+#import <CoreAudio/CoreAudio.h>
 #import "AudioPlayer.h"
 #import "BassWrapper.h"
 #import "AudioTrack.h"
@@ -30,6 +31,8 @@ typedef NS_ENUM(NSInteger, AudioPlayerError) {
     AudioPlayerErrorUnknown = BASS_ERROR_UNKNOWN
 };
 
+#define PLAYBACK_RATE   44100
+
 @interface AudioPlayer () {
     HSTREAM _channel;
 }
@@ -39,26 +42,40 @@ typedef NS_ENUM(NSInteger, AudioPlayerError) {
 @implementation AudioPlayer {
     NSCache *_metadataCache;
     AudioTrack *_currentTrack;
+    NSInteger _selectedAudioDevice;
 }
 
-- (instancetype)init {
+- (id)initWithDevice:(NSInteger)deviceIndex {
     self = [super init];
     if (self) {
+        _selectedAudioDevice = deviceIndex;
         [self setup];
     }
     return self;
 }
 
+OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
+                                     UInt32 inNumberAddresses,
+                                     const AudioObjectPropertyAddress *inAddresses,
+                                     void *inClientData) {
+    __block AudioPlayer *player = (__bridge AudioPlayer *)(inClientData);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [player systemOutputDeviceDidChange];
+    });
+    return kAudioHardwareNoError;
+}
+
 - (void)setup {
 
     _channel = 0;
+
     _metadataCache = [[NSCache alloc] init];
 
     BASS_PluginLoad("libbassflac.dylib", 0);
 
     BASS_SetConfig(BASS_CONFIG_FLOATDSP, 1);
 
-    if (!BASS_Init(-1, 44100, 0, NULL, NULL)) {
+    if (!BASS_Init(_selectedAudioDevice, PLAYBACK_RATE, 0, NULL, NULL)) {
         DDLogError(@"Error initializing BASS");
     }
     BASS_INFO info;
@@ -66,6 +83,20 @@ typedef NS_ENUM(NSInteger, AudioPlayerError) {
 
     LogDebug(@"BASS init");
     LogDebug(@"  freq: %d latency: %d minrate: %d maxrate: %d flags: %d", info.freq, info.latency, info.minrate, info.maxrate, info.flags);
+
+    CFRunLoopRef nullRunLoop =  NULL;
+    AudioObjectPropertyAddress runLoopProperty = {
+            kAudioHardwarePropertyRunLoop,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMaster
+    };
+    AudioObjectSetPropertyData(kAudioObjectSystemObject, &runLoopProperty, 0, NULL, sizeof(CFRunLoopRef), &nullRunLoop);
+    AudioObjectPropertyAddress outputDeviceAddress = {
+            kAudioHardwarePropertyDefaultOutputDevice,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMaster
+    };
+    AudioObjectAddPropertyListener(kAudioObjectSystemObject, &outputDeviceAddress, &outputDeviceChangedCallback, (__bridge void *)self);
 
 }
 
@@ -334,43 +365,83 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
                            userInfo:@{NSLocalizedDescriptionKey: str}];
 }
 
-- (NSInteger)numDevices {
+- (NSInteger)numOutputDevices {
     int a, count = 0;
     BASS_DEVICEINFO info;
     for (a = 1; BASS_GetDeviceInfo(a, &info); a++)
-//        if (info.flags & BASS_DEVICE_ENABLED)
-            count++; // count it
-    for (a = 0; BASS_GetDeviceInfo(a | BASS_CONFIG_AIRPLAY, &info); a++)
-//        if (info.flags & BASS_DEVICE_ENABLED)
+        if (info.flags & BASS_DEVICE_ENABLED)
             count++; // count it
     return count;
 }
 
-- (AudioDevice *)deviceForIndex:(NSUInteger)index {
-    BASS_DEVICEINFO info;
-    if (!BASS_GetDeviceInfo(index, &info)) {
-        return nil;
-    }
+- (AudioDevice *)outputDeviceForIndex:(NSUInteger)index {
     AudioDevice *dev = [[AudioDevice alloc] init];
-    dev.name = [NSString stringWithCString:info.name encoding:NSUTF8StringEncoding];
-    dev.index = index;
+    if (index == -1) {
+        dev.name = @"System Default";
+        dev.index = index;
+        return dev;
+    }
+    else {
+        BASS_DEVICEINFO info;
+        if (!BASS_GetDeviceInfo((DWORD)(index + 1), &info)) {
+            return nil;
+        }
+        dev.name = [NSString stringWithCString:info.name encoding:NSUTF8StringEncoding];
+        dev.index = index;
+    }
     return dev;
 }
 
-- (NSUInteger)currentDeviceIndex {
-    return BASS_GetDevice();
+- (NSInteger)currentOutputDeviceIndex {
+    return _selectedAudioDevice;
 }
-//
-//BASS_DEVICEINFO di;
-//for (int d=1; BASS_GetDeviceInfo(d, &di); d++) {
-//    if (di.flags&BASS_DEVICE_DEFAULT) { // found new default
-//        int od=BASS_GetDevice(); // get current device
-//        if (od==d) break; // just in case
-//        BASS_Init(d, 44100, 0, 0, 0); // initialize new device
-//        BASS_ChannelSetDevice(stream, d); // move the stream to it
-//        BASS_SetDevice(od);
-//        BASS_Free(); // free the old device
-//        break;
-//    }
-//}
+
+- (BOOL)setOutputDevice:(NSInteger)newIndex {
+
+    _selectedAudioDevice = newIndex;
+
+    if (_selectedAudioDevice == -1) {
+        return [self setDefaultOutputDevice];
+    }
+
+    // Skip nosound device
+    DWORD newDeviceIndex = (DWORD)(newIndex + 1);
+    BASS_DEVICEINFO info;
+    int currentDevice = BASS_GetDevice();
+    if (newDeviceIndex != currentDevice) {
+        BOOL isPlaying = self.isPlaying;
+        BASS_GetDeviceInfo((DWORD) newIndex, &info);
+        BASS_Init(newDeviceIndex, PLAYBACK_RATE, 0, 0, 0);
+        BASS_SetDevice(newDeviceIndex);
+        if (_channel) {
+            BASS_ChannelPause(_channel);
+            BASS_ChannelSetDevice(_channel, newDeviceIndex);
+            if (isPlaying) {
+                BASS_ChannelPlay(_channel, NO);
+            }
+        }
+    }
+    return YES;
+}
+
+- (BOOL)setDefaultOutputDevice {
+    BASS_DEVICEINFO info;
+    for (NSUInteger d = 1; BASS_GetDeviceInfo((DWORD)d, &info); d++) {
+        if (info.flags & BASS_DEVICE_DEFAULT) {
+            if ([self setOutputDevice:d - 1]) {
+                _selectedAudioDevice = -1;
+                return YES;
+            }
+        }
+    }
+    return NO;
+}
+
+- (void)systemOutputDeviceDidChange {
+    if (_selectedAudioDevice == -1) {
+        [self setDefaultOutputDevice];
+    }
+}
+
+
 @end
