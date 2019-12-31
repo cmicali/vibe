@@ -4,11 +4,9 @@
 //
 
 #import "AudioTrackMetadata.h"
-#import "Util.h"
 #import "NSString+CPPStrings.h"
 
 #include <fileref.h>
-#include <tag.h>
 #include <tpropertymap.h>
 #include <mpegfile.h>
 #include <mp4file.h>
@@ -30,7 +28,7 @@
     auto fileRef = std::unique_ptr<TagLib::FileRef>();
     fileRef.reset(new TagLib::FileRef(filename, true));
 
-    m.title = url.filePathURL.absoluteString.lastPathComponent;
+    m.title = [url.path.lastPathComponent stringByDeletingPathExtension];
 
     if (!fileRef->isNull()) {
         if (fileRef->tag()) {
@@ -40,7 +38,7 @@
 
             m.artist = [NSString stringWithstring:tag->artist().to8Bit(true)];
             m.title = [NSString stringWithstring:tag->title().to8Bit(true)];
-            m.length = static_cast<NSUInteger>(file->audioProperties()->lengthInSeconds());
+            m.duration = static_cast<NSTimeInterval>(file->audioProperties()->lengthInMilliseconds()) / 1000;
 
             if (auto mp3 = dynamic_cast<TagLib::MPEG::File*>(file)) {
                 m.albumArt = [self getAlbumArtMP3:mp3];

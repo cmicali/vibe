@@ -36,7 +36,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSTimeInterval)duration;
 
 - (NSInteger)numOutputDevices;
-- (AudioDevice *)outputDeviceForIndex:(NSUInteger)index;
+- (AudioDevice * _Nullable)outputDeviceForIndex:(NSUInteger)index;
 - (NSInteger)currentOutputDeviceIndex;
 
 - (BOOL)setOutputDevice:(NSInteger)newIndex;

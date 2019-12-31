@@ -4,11 +4,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "ScaledImageView.h"
 
-@interface NSURL (Hash)
-
-//- (NSString *)md5HashOfFile;
-- (NSString *)sha1HashOfFile;
-- (NSString *)sha512HashOfFile;
-
+@interface PlaylistCoverImageView : ScaledImageView
 @end
