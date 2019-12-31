@@ -38,6 +38,14 @@
     return results;
 }
 
++ (NSArray<NSURL*>*) expandAndFilterList:(NSArray<NSURL*>*)list {
+    list = [NSURLUtil expandFileList:list];
+    list = [list filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSURL *url, NSDictionary* bindings) {
+        return [ALLOWED_FILETYPES containsObject:[url.pathExtension lowercaseString]];
+    }]];
+    return list;
+}
+
 + (NSArray<NSURL*>*) expandFileList:(NSArray<NSURL*>*)list {
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] initWithCapacity:list.count];
     for (NSURL *url in list) {

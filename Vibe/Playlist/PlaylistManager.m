@@ -123,9 +123,12 @@
 }
 
 - (void)play {
-    if (self.currentIndex < _playlist.count) {
-        [self.audioPlayer play:_playlist[self.currentIndex]];
-        [self reloadTrackAtIndex:self.currentIndex];
+    AudioTrack *track = self.currentTrack;
+    if (track) {
+        if ([self.audioPlayer play:track]) {
+            [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
+        }
+        [self reloadCurrentTrack];
     }
 }
 

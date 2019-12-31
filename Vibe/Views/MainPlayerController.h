@@ -16,7 +16,8 @@
 #import "MainWindow.h"
 #import "SYFlatButton.h"
 
-@class DevicesMenuController;
+@class OutputDevicesMenuController;
+@class ArtworkImageView;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -31,14 +32,14 @@ NS_ASSUME_NONNULL_BEGIN
 @property (weak) IBOutlet NSTableView *playlistTableView;
 @property (weak) IBOutlet NSTextField *artistTextField;
 @property (weak) IBOutlet NSTextField *titleTextField;
-@property (weak) IBOutlet NSImageView *albumArtImageView;
+@property (weak) IBOutlet ArtworkImageView *albumArtImageView;
 @property (weak) IBOutlet AudioWaveformView *waveformView;
 @property (weak) IBOutlet NSTextField *totalTimeTextField;
 @property (weak) IBOutlet NSTextField *currentTimeTextField;
 @property (weak) IBOutlet NSView *playlistBackgroundView;
 @property (weak) IBOutlet NSView *albumArtGradientView;
 
-@property (weak) IBOutlet DevicesMenuController *devicesMenuController;
+@property (weak) IBOutlet OutputDevicesMenuController *devicesMenuController;
 
 @property (strong) AudioTrackMetadata *metadata;
 
@@ -46,17 +47,18 @@ NS_ASSUME_NONNULL_BEGIN
 @property (strong) AudioPlayer *audioPlayer;
 
 - (void)playURL:(NSURL *)url;
-
 - (void)playURLs:(NSArray<NSURL *> *)urls;
 
 - (IBAction)playPause:(id)sender;
 - (IBAction)next:(id)sender;
 
 - (IBAction)setSmallSize:(id)sender;
-
 - (IBAction)setLargeSize:(id)sender;
-
 - (IBAction)toggleSize:(id)sender;
+
+- (IBAction)showInFinder:(id)sender;
+
+- (IBAction)setAppearance:(id)sender;
 @end
 
 NS_ASSUME_NONNULL_END

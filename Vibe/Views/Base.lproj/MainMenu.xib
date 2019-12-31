@@ -22,7 +22,7 @@
                 <outlet property="devicesMenuController" destination="d10-Bx-Cf0" id="gE6-6f-bpZ"/>
             </connections>
         </customObject>
-        <customObject id="d10-Bx-Cf0" customClass="DevicesMenuController"/>
+        <customObject id="d10-Bx-Cf0" customClass="OutputDevicesMenuController"/>
         <menu title="Main Menu" systemMenu="main" id="AYu-sK-qS6">
             <items>
                 <menuItem title="Vibe" id="1Xt-HY-uBw">
@@ -126,6 +126,32 @@
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <menu key="submenu" title="View" id="wdG-2t-F0p">
                         <items>
+                            <menuItem title="Appearance" id="UuV-Kd-pik">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <menu key="submenu" title="Appearance" id="cP2-Yf-KUG">
+                                    <items>
+                                        <menuItem title="System default" identifier="view_appearance_system_default" id="r4p-si-dQp">
+                                            <modifierMask key="keyEquivalentModifierMask"/>
+                                            <connections>
+                                                <action selector="setAppearance:" target="j8i-XM-36F" id="xQL-H8-Nec"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Light" identifier="view_appearance_light" id="EPd-qc-0OM">
+                                            <modifierMask key="keyEquivalentModifierMask"/>
+                                            <connections>
+                                                <action selector="setAppearance:" target="j8i-XM-36F" id="aSk-BA-D30"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Dark" identifier="view_appearance_dark" id="Dfp-d1-Q39">
+                                            <modifierMask key="keyEquivalentModifierMask"/>
+                                            <connections>
+                                                <action selector="setAppearance:" target="j8i-XM-36F" id="jmO-sZ-tJL"/>
+                                            </connections>
+                                        </menuItem>
+                                    </items>
+                                </menu>
+                            </menuItem>
+                            <menuItem isSeparatorItem="YES" id="fDT-Q4-zVq"/>
                             <menuItem title="Show Playlist" identifier="menu_show_playlist" id="FG1-nr-3ok">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
@@ -135,9 +161,9 @@
                         </items>
                     </menu>
                 </menuItem>
-                <menuItem title="Devices" id="Vnm-2c-fQn">
+                <menuItem title="Output" id="Vnm-2c-fQn">
                     <modifierMask key="keyEquivalentModifierMask"/>
-                    <menu key="submenu" title="Devices" autoenablesItems="NO" id="90f-yQ-xRg">
+                    <menu key="submenu" title="Output" autoenablesItems="NO" id="90f-yQ-xRg">
                         <connections>
                             <outlet property="delegate" destination="d10-Bx-Cf0" id="h7r-JC-d58"/>
                         </connections>

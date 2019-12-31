@@ -12,5 +12,6 @@
 
 @property (nonatomic, weak) IBOutlet MainPlayerController *mainPlayerController;
 
+- (IBAction)openDocument:(id)sender;
 @end
 

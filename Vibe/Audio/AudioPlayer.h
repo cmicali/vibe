@@ -20,7 +20,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (AudioTrack *)currentTrack;
 
-- (id)initWithDevice:(NSInteger)deviceIndex;
+- (id)initWithDevice:(NSInteger)deviceIndex lockSampleRate:(BOOL)lockSampleRate;
+
+- (BOOL)lockSampleRate;
+
+- (void)setLockSampleRate:(BOOL)lockSampleRate;
 
 - (BOOL)play:(AudioTrack *)track;
 - (void)playPause;

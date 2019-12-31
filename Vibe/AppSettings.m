@@ -5,11 +5,10 @@
 
 #import "AppSettings.h"
 
-#define SETTING_HAS_LAUNCHED                    @"Settings.hasLaunched"
-#define SETTING_WINDOW_X                        @"Window.x"
-#define SETTING_WINDOW_Y                        @"Window.y"
-#define SETTING_WINDOW_IS_PLAYLIST_SHOWN        @"Window.isPlaylistShown"
-#define SETTING_AUDIO_PLAYER_CURRENT_DEVICE     @"AudioPlayer.currentDevice"
+#define SETTING_HAS_LAUNCHED                        @"Settings.hasLaunched"
+#define SETTING_WINDOW_APPEARANCE_STYLE             @"Settings.windowAppearance"
+#define SETTING_AUDIO_PLAYER_CURRENT_DEVICE         @"AudioPlayer.currentDevice"
+#define SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE       @"AudioPlayer.lockSampleRate"
 
 @implementation AppSettings {
     BOOL _firstLaunch;
@@ -38,10 +37,13 @@
         _firstLaunch = YES;
     }
     NSDictionary *appDefaults = @{
-            SETTING_AUDIO_PLAYER_CURRENT_DEVICE : @(-1)
+            SETTING_AUDIO_PLAYER_CURRENT_DEVICE:    @(-1),
+            SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE:  @(NO),
+            SETTING_WINDOW_APPEARANCE_STYLE:        SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT,
     };
     [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
     [[NSUserDefaults standardUserDefaults] setBool:YES forKey:SETTING_HAS_LAUNCHED];
+    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 - (NSInteger) audioPlayerCurrentDevice {
@@ -50,34 +52,49 @@
 
 -(void) setAudioPlayerCurrentDevice:(NSInteger)deviceIndex {
     [[NSUserDefaults standardUserDefaults] setInteger:deviceIndex forKey:SETTING_AUDIO_PLAYER_CURRENT_DEVICE];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
+- (BOOL) audioPlayerLockSampleRate {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE];
+}
+
+-(void) setAudioPlayerLockSampleRate:(BOOL)lockSampleRate {
+    [[NSUserDefaults standardUserDefaults] setBool:lockSampleRate forKey:SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE];
+    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 - (void)applicationDidFinishLaunching {
     [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"NSQuitAlwaysKeepsWindows"];
+    [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"NSFullScreenMenuItemEverywhere"];
+    [NSApplication sharedApplication].automaticCustomizeTouchBarMenuItemEnabled = NO;
 }
 
 - (BOOL)isFirstLaunch {
     return _firstLaunch;
 }
 
-- (CGPoint)windowPosition {
-    CGPoint p;
-    p.x = [[NSUserDefaults standardUserDefaults] doubleForKey:SETTING_WINDOW_X];
-    p.y = [[NSUserDefaults standardUserDefaults] doubleForKey:SETTING_WINDOW_Y];
-    return p;
+- (NSString *)windowAppearanceStyle {
+    return [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WINDOW_APPEARANCE_STYLE];
 }
 
-- (void)setWindowPosition:(CGPoint)position {
-    [[NSUserDefaults standardUserDefaults] setDouble:position.x forKey:SETTING_WINDOW_X];
-    [[NSUserDefaults standardUserDefaults] setDouble:position.y forKey:SETTING_WINDOW_Y];
+- (void)setWindowAppearanceStyle:(NSString *)name {
+    [[NSUserDefaults standardUserDefaults] setValue:name forKey:SETTING_WINDOW_APPEARANCE_STYLE];
+    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
-- (BOOL)isPlaylistShown {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_WINDOW_IS_PLAYLIST_SHOWN];
+- (NSAppearance *)windowAppearance {
+    return [self appearanceForSettingValue:self.windowAppearanceStyle];
 }
 
-- (void)setIsPlaylistShown:(BOOL)isPlaylistShown {
-    [[NSUserDefaults standardUserDefaults] setBool:isPlaylistShown forKey:SETTING_WINDOW_IS_PLAYLIST_SHOWN];
+- (NSAppearance *)appearanceForSettingValue:(NSString *)value {
+    if ([value isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT]) {
+        return [NSAppearance appearanceNamed:NSAppearanceNameAqua];
+    }
+    else if ([value isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK]) {
+        return [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+    }
+    return [NSAppearance currentAppearance];
 }
 
 @end

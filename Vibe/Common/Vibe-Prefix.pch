@@ -15,6 +15,7 @@
 #import <CocoaLumberjack/CocoaLumberjack.h>
 
 #import "AppSettings.h"
+#import "HelperMacros.h"
 
 static const DDLogLevel ddLogLevel = DDLogLevelVerbose;
 
@@ -24,15 +25,10 @@ static const DDLogLevel ddLogLevel = DDLogLevelVerbose;
 #define LogDebug(fmt, ...)  DDLogDebug(fmt, ##__VA_ARGS__)
 #define LogTrace(fmt, ...)  DDLogVerbose(fmt, ##__VA_ARGS__)
 
-#define TIME_START(msg) CFTimeInterval startTime = CACurrentMediaTime(); CFTimeInterval endTime; NSString *timer_msg = msg;
-#define TIME_RESTART(msg) startTime = CACurrentMediaTime(); timer_msg = msg;
-#define TIME_END endTime = CACurrentMediaTime(); LogDebug(@"%@ time: %1.4f s", timer_msg, endTime - startTime);
-
-#define min(a, b) (b < a ? b : a)
-#define max(a, b) (a < b ? b : a)
-
 #define WEAK_SELF typeof(self) __block weakSelf = self;
 
 #define Settings [AppSettings sharedInstance]
+
+#define ALLOWED_FILETYPES @[@"mp2", @"mp3", @"aif", @"aiff", @"wav", @"flac", @"m4a", @"ogg", @"mp4"]
 
 #endif

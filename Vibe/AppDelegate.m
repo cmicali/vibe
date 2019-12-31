@@ -7,6 +7,7 @@
 //
 
 #import "AppDelegate.h"
+#import "NSURLUtil.h"
 
 @interface AppDelegate ()
 
@@ -33,7 +34,6 @@
 
     LogInfo(@"Vibe started");
 
-    [NSApplication sharedApplication].automaticCustomizeTouchBarMenuItemEnabled = YES;
     [[AppSettings sharedInstance] applicationDidFinishLaunching];
 
     [self.mainPlayerController showWindow:self];
@@ -44,9 +44,11 @@
 
 - (void)playURLs {
     if (_isLoaded && _urlsToOpen.count > 0) {
+        NSArray<NSURL*>* urls = [self->_urlsToOpen copy];
+        [self->_urlsToOpen removeAllObjects];
+        urls = [NSURLUtil expandAndFilterList:urls];
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self.mainPlayerController playURLs:self->_urlsToOpen];
-            [self->_urlsToOpen removeAllObjects];
+            [self.mainPlayerController playURLs:urls];
         });
     }
 }
@@ -75,6 +77,20 @@
         [_urlsToOpen addObject:[NSURL fileURLWithPath:file]];
     }
     [self playURLs];
+}
+
+- (IBAction)openDocument:(id)sender {
+    NSOpenPanel* panel = [NSOpenPanel openPanel];
+    panel.allowsMultipleSelection = YES;
+    panel.canChooseFiles = YES;
+    panel.canChooseDirectories = YES;
+    panel.allowedFileTypes = ALLOWED_FILETYPES;
+    [panel beginWithCompletionHandler:^(NSInteger result){
+        if (result == NSModalResponseOK) {
+            [self->_urlsToOpen addObjectsFromArray:panel.URLs];
+            [self performSelectorInBackground:@selector(playURLs) withObject:nil];
+        }
+    }];
 }
 
 @end
