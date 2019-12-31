@@ -10,5 +10,7 @@
 
 + (NSArray<NSURL *> *)expandDirectory:(NSURL *)dir;
 
++ (NSArray<NSURL *> *)expandAndFilterList:(NSArray<NSURL *> *)list;
+
 + (NSArray<NSURL *> *)expandFileList:(NSArray<NSURL *> *)list;
 @end

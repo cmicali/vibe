@@ -35,6 +35,7 @@ typedef NS_ENUM(NSInteger, AudioPlayerError) {
 
 @interface AudioPlayer () {
     HSTREAM _channel;
+    BOOL _lockSampleRate;
 }
 
 @end
@@ -45,10 +46,11 @@ typedef NS_ENUM(NSInteger, AudioPlayerError) {
     NSInteger _selectedAudioDevice;
 }
 
-- (id)initWithDevice:(NSInteger)deviceIndex {
+- (id)initWithDevice:(NSInteger)deviceIndex lockSampleRate:(BOOL)lockSampleRate {
     self = [super init];
     if (self) {
         _selectedAudioDevice = deviceIndex;
+        _lockSampleRate = lockSampleRate;
         [self setup];
     }
     return self;
@@ -63,6 +65,63 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
         [player systemOutputDeviceDidChange];
     });
     return kAudioHardwareNoError;
+}
+
+- (void) osx {
+    BASS_DEVICEINFO info;
+    BASS_GetDeviceInfo(BASS_GetDevice(), &info); // get device info (can use BASS_GetDevice to get current device)
+    CFStringRef cs=CFStringCreateWithCString(0, info.driver, 0); // driver = device's UID
+    AudioDeviceID did;
+    AudioValueTranslation vt={&cs, sizeof(cs), &did, sizeof(did)};
+    UInt32 s = sizeof(vt);
+    AudioHardwareGetProperty(kAudioHardwarePropertyDeviceForUID, &s, &vt); // translate device's UID to AudioDeviceID
+    CFRelease(cs);
+    AudioObjectPropertyAddress pa={kAudioDevicePropertyAvailableNominalSampleRates, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster};
+    AudioObjectGetPropertyDataSize(did, &pa, 0, NULL, &s); // get size of available sample rates array
+    // AudioValueRange *vr= new AudioValueRange[s/sizeof(AudioValueRange)]; // allocate it
+    AudioValueRange vr[512];
+    AudioObjectGetPropertyData(did, &pa, 0, NULL, &s, vr); // get the available sample rates
+    for (int a=0; a<s/sizeof(AudioValueRange); a++)
+        printf("%g - %g\n", vr[a].mMinimum, vr[a].mMaximum);
+}
+
+
+- (Float64)getSampleRate {
+    BASS_DEVICEINFO info;
+    BASS_GetDeviceInfo(BASS_GetDevice(), &info); // get device info
+    CFStringRef cs=CFStringCreateWithCString(0, info.driver, 0); // driver = device's UID
+    AudioDeviceID did;
+    AudioValueTranslation vt={&cs, sizeof(cs), &did, sizeof(did)};
+    UInt32 s=sizeof(vt);
+    AudioHardwareGetProperty(kAudioHardwarePropertyDeviceForUID, &s, &vt); // translate device's UID to AudioDeviceID
+    CFRelease(cs);
+    AudioStreamBasicDescription sbd;
+    s=sizeof(sbd);
+    if (!AudioDeviceGetProperty(did, 0, false, kAudioDevicePropertyStreamFormat, &s, &sbd)) { // get current format
+        return sbd.mSampleRate;
+    }
+    return -1;
+}
+
+- (Float64)setSampleRate:(int)rate {
+    BASS_DEVICEINFO info;
+    BASS_GetDeviceInfo(BASS_GetDevice(), &info); // get device info
+    CFStringRef cs=CFStringCreateWithCString(0, info.driver, 0); // driver = device's UID
+    AudioDeviceID did;
+    AudioValueTranslation vt={&cs, sizeof(cs), &did, sizeof(did)};
+    UInt32 s=sizeof(vt);
+    AudioHardwareGetProperty(kAudioHardwarePropertyDeviceForUID, &s, &vt); // translate device's UID to AudioDeviceID
+    CFRelease(cs);
+    AudioStreamBasicDescription sbd;
+    s=sizeof(sbd);
+    if (!AudioDeviceGetProperty(did, 0, false, kAudioDevicePropertyStreamFormat, &s, &sbd)) { // get current format
+        sbd.mSampleRate=rate; // change rate
+        AudioDeviceSetProperty(did, NULL, 0, false, kAudioDevicePropertyStreamFormat, s, &sbd); // try to apply change
+    }
+    if (!AudioDeviceGetProperty(did, 0, false, kAudioDevicePropertyStreamFormat, &s, &sbd)) { // get current format
+        return sbd.mSampleRate;
+    }
+    return -1;
 }
 
 - (void)setup {
@@ -80,6 +139,8 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
     }
     BASS_INFO info;
     BASS_GetInfo(&info);
+
+    [self osx];
 
     LogDebug(@"BASS init");
     LogDebug(@"  freq: %d latency: %d minrate: %d maxrate: %d flags: %d", info.freq, info.latency, info.minrate, info.maxrate, info.flags);
@@ -160,10 +221,37 @@ void CALLBACK DeviceFailedCallback(HSYNC handle, DWORD channel, DWORD data, void
 }
 
 void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
-//    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
-    LogError(@"Device changed");
+    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
     dispatch_async(dispatch_get_main_queue(), ^(void) {
+        [player outputDeviceDidChange];
     });
+}
+
+- (BOOL)lockSampleRate {
+    return _lockSampleRate;
+}
+
+- (void)setLockSampleRate:(BOOL)lockSampleRate {
+    _lockSampleRate = lockSampleRate;
+    if (_lockSampleRate) {
+        [self changeSystemSampleRateToChannelRate];
+    }
+}
+
+- (void)changeSystemSampleRateToChannelRate {
+    if (!_channel) {
+        return;
+    }
+    BASS_INFO bassInfo;
+    BASS_CHANNELINFO channelInfo;
+    BASS_GetInfo(&bassInfo);
+    BASS_ChannelGetInfo(_channel, &channelInfo);
+    if (bassInfo.freq != channelInfo.freq) {
+        LogDebug(@"sample rate");
+        LogDebug(@"  bass: %d", bassInfo.freq);
+        LogDebug(@"  chan: %d", channelInfo.freq);
+        [self setSampleRate:channelInfo.freq];
+    }
 }
 
 - (BOOL)play:(AudioTrack *)track {
@@ -186,6 +274,10 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
         }
         if (!BASS_ChannelSetSync(_channel, BASS_SYNC_DEV_FORMAT, 0, DeviceChangedCallback, (__bridge void *)self) ) {
             LogError(@"Bass error: %@", [self stringForLastError]);
+        }
+
+        if (_lockSampleRate) {
+            [self changeSystemSampleRateToChannelRate];
         }
 
         BOOL success = BASS_ChannelPlay(_channel, FALSE);
@@ -316,7 +408,7 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
 }
 
 - (NSString *)stringForErrorCode:(AudioPlayerError)erro {
-    NSString *str = @"Unknown error";
+    NSString *str = [NSString stringWithFormat:@"Unknown error: %d", erro];
     if(erro == AudioPlayerErrorInit)
         str = @"BASS_ERROR_INIT: BASS_Init has not been successfully called.";
     else if(erro == AudioPlayerErrorNotAvail)
@@ -428,6 +520,16 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
     if (_selectedAudioDevice == -1) {
         [self setDefaultOutputDevice];
     }
+}
+
+- (void)outputDeviceDidChange {
+    LogDebug(@"Output device changed");
+    BASS_INFO bassInfo;
+    BASS_CHANNELINFO channelInfo;
+    BASS_GetInfo(&bassInfo);
+    BASS_ChannelGetInfo(_channel, &channelInfo);
+    LogDebug(@"  bass: %d", bassInfo.freq);
+    LogDebug(@"  chan: %d", channelInfo.freq);
 }
 
 

@@ -8,4 +8,5 @@
 @interface MacOSUtil : NSObject
 
 + (BOOL)isDarkMode:(NSAppearance *)appearance;
+
 @end
