@@ -85,14 +85,11 @@
 
                                             [weakSelf drawImageOverlayInRect:dstRect];
 
-                                            LogDebug(@"ScaledImageView: draw");
-
                                             return YES;
                                         }];
     [scaleToFillImage setCacheMode:NSImageCacheBySize];
     [super setImage:scaleToFillImage];
     _currentImage = image;
-    LogDebug(@"ScaledImageView: setImage");
 }
 
 - (void)drawImageOverlayInRect:(NSRect)rect {

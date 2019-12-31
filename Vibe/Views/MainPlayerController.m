@@ -10,10 +10,11 @@
 #import "NSDockTile+Util.h"
 #import "MacOSUtil.h"
 #import "PlayerTouchBar.h"
-#import "DevicesMenuController.h"
+#import "OutputDevicesMenuController.h"
 #import "AppDelegate.h"
 #import "Formatters.h"
 #import "Fonts.h"
+#import "ArtworkImageView.h"
 
 #define UPDATE_HZ 3
 
@@ -42,7 +43,11 @@
 
 - (void)windowDidLoad {
 
-    self.audioPlayer = [[AudioPlayer alloc] initWithDevice:Settings.audioPlayerCurrentDevice];
+    self.window.appearance = Settings.windowAppearance;
+
+    self.audioPlayer = [[AudioPlayer alloc] initWithDevice:Settings.audioPlayerCurrentDevice
+                                            lockSampleRate:Settings.audioPlayerLockSampleRate];
+
     self.audioPlayer.delegate = self;
 
     self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
@@ -151,6 +156,8 @@
         self.totalTimeTextField.stringValue = @"";
         self.currentTimeTextField.stringValue = @"";
     }
+
+    self.albumArtImageView.fileURL = track.url;
 
     if (track.albumArt) {
         if (_displayedArt != track.albumArt) {
@@ -268,23 +275,58 @@
 - (IBAction) toggleSize:(id)sender {
     MainWindow *window = (MainWindow *)self.window;
     [window toggleSize:sender];
-
 }
 
-- (NSTouchBar *)makeTouchBar {
-    return [[PlayerTouchBar alloc] init];
+- (IBAction) showInFinder:(id)sender {
+    NSURL *url = self.playlistManager.currentTrack.url;
+    if (url) {
+        [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[url]];
+    }
 }
+
+- (IBAction) setAppearance:(id)sender {
+    if([sender isKindOfClass:[NSMenuItem class]]) {
+        NSMenuItem *item = sender;
+        if ([item.identifier isEqualToString:@"view_appearance_light"]) {
+            Settings.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
+        }
+        else if ([item.identifier isEqualToString:@"view_appearance_dark"]) {
+            Settings.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK;
+        }
+        else {
+            Settings.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
+        }
+    }
+    self.window.appearance = Settings.windowAppearance;
+}
+
+//- (NSTouchBar *)makeTouchBar {
+//    return [[PlayerTouchBar alloc] init];
+//}
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     MainWindow *window = (MainWindow *)self.window;
     if ([menuItem.identifier isEqualToString:@"menu_show_playlist"]) {
-        menuItem.state = window.isPlaylistShown ? NSControlStateValueOn : NSControlStateValueOff;
+        menuItem.state = StateForBOOL(window.isPlaylistShown);
+        [menuItem setKeyEquivalent:[NSString stringWithFormat:@"%c", NSTabCharacter]];
+    }
+    else if ([menuItem.identifier isEqualToString:@"view_appearance_system_default"]) {
+        menuItem.state = StateForString(Settings.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT);
+    }
+    else if ([menuItem.identifier isEqualToString:@"view_appearance_light"]) {
+        menuItem.state = StateForString(Settings.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT);
+    }
+    else if ([menuItem.identifier isEqualToString:@"view_appearance_dark"]) {
+        menuItem.state = StateForString(Settings.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_next_track"]) {
         return self.playlistManager.count > 1;
     }
     else if ([menuItem.identifier isEqualToString:@"menu_play"]) {
         return self.playlistManager.count > 0;
+    }
+    else if ([menuItem.identifier isEqualToString:@"show_in_finder"]) {
+        return self.playlistManager.currentTrack.url != nil;
     }
     return YES;
 }

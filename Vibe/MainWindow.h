@@ -10,7 +10,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @protocol FileDropDelegate;
 
-@interface MainWindow : NSWindow
+@interface MainWindow : NSWindow <NSDraggingDestination>
 
 @property (nullable, weak) id <FileDropDelegate> dropDelegate;
 
