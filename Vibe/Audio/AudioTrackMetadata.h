@@ -11,7 +11,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (copy) NSString *title;
 @property (copy) NSString *artist;
-@property (assign) NSUInteger length;
+@property (assign) NSTimeInterval duration;
 
 @property (strong) NSImage *albumArt;
 

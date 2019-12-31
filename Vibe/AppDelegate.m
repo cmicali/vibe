@@ -44,9 +44,9 @@
 
 - (void)playURLs {
     if (_isLoaded && _urlsToOpen.count > 0) {
-        WEAK_SELF dispatch_async(dispatch_get_main_queue(), ^{
-            [self.mainPlayerController playURLs:weakSelf->_urlsToOpen];
-            [weakSelf->_urlsToOpen removeAllObjects];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.mainPlayerController playURLs:self->_urlsToOpen];
+            [self->_urlsToOpen removeAllObjects];
         });
     }
 }

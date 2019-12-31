@@ -8,12 +8,12 @@
 
 @implementation NSURL (Hash)
 
-- (NSString *)md5HashOfFile {
-//    TIME_START(@"md5")
-    NSString *result = [NSURL md5HashOfFileAtPath:self.path];
-//    TIME_END
-    return result;
-}
+//- (NSString *)md5HashOfFile {
+////    TIME_START(@"md5")
+//    NSString *result = [NSURL md5HashOfFileAtPath:self.path];
+////    TIME_END
+//    return result;
+//}
 
 - (NSString *)sha1HashOfFile {
 //    TIME_START(@"sha1")
@@ -105,11 +105,11 @@ typedef struct _FileHashComputationContext {
     return result;
 }
 
-+ (NSString *)md5HashOfFileAtPath:(NSString *)filePath {
-    FileHashComputationContext context;
-    FileHashComputationContextInitialize(context, MD5);
-    return [self hashOfFileAtPath:filePath withComputationContext:&context];
-}
+//+ (NSString *)md5HashOfFileAtPath:(NSString *)filePath {
+//    FileHashComputationContext context;
+//    FileHashComputationContextInitialize(context, MD5);
+//    return [self hashOfFileAtPath:filePath withComputationContext:&context];
+//}
 
 + (NSString *)sha1HashOfFileAtPath:(NSString *)filePath {
     FileHashComputationContext context;

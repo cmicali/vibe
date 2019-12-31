@@ -5,6 +5,8 @@
 
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 @class AudioPlayer;
 
 struct MinMax {
@@ -38,3 +40,5 @@ typedef struct CG_BOXABLE MinMax MinMax;
 - (void)audioWaveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded;
 
 @end
+
+NS_ASSUME_NONNULL_END

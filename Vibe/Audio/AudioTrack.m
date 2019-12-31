@@ -8,13 +8,14 @@
 #import "Formatters.h"
 
 @implementation AudioTrack {
-
+    NSTimeInterval _duration;
 }
 
 - (instancetype)initWithUrl:(NSURL *)url {
     self = [super init];
     if (self) {
         self.url = url;
+        _duration = -1;
     }
     return self;
 }
@@ -33,15 +34,6 @@
     return @"";
 }
 
-+ (AudioTrack *)empty {
-    static AudioTrack *empty = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        empty = [[self alloc] init];
-    });
-    return empty;
-}
-
 - (NSString *)artist {
     if (self.metadata.artist.length > 0) {
         return self.metadata.artist;
@@ -55,13 +47,20 @@
     return self.metadata.albumArt;
 }
 
-- (NSUInteger)length {
-    return self.metadata.length;
+- (NSTimeInterval)duration {
+    if (_duration >= 0) {
+        return _duration;
+    }
+    return self.metadata.duration;
 }
 
-- (NSString *)lengthString {
-    if (self.length > 0) {
-        return [[Formatters sharedInstance] durationStringFromTimeInterval:self.length];
+- (void)setDuration:(NSTimeInterval)len {
+    _duration = len;
+}
+
+- (NSString *)durationString {
+    if (self.duration > 0) {
+        return [[Formatters sharedInstance] durationStringFromTimeInterval:self.duration];
     }
     else {
         return @"";

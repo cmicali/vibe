@@ -9,7 +9,9 @@
 
 @property (nonatomic, strong) NSDictionary *textAttributes;
 
+- (id)initWithAttributes:(NSDictionary *)attributes;
 - (id)initWithColor:(NSColor *)color;
+- (id)initWithKerning:(CGFloat)kerning;
 
 - (void)appendString:(NSString *)string;
 

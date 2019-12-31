@@ -59,6 +59,20 @@
     return NO;
 }
 
++ (NSGradient*)gradient {
+    static NSGradient *instance = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        instance = [[NSGradient alloc] initWithColors:@[
+                [NSColor colorWithRed:0 green:0 blue:0 alpha:0.75],
+                [NSColor colorWithRed:0 green:0 blue:0 alpha:0.25],
+                [NSColor colorWithRed:0 green:0 blue:0 alpha:0.0],
+                [NSColor colorWithRed:0 green:0 blue:0 alpha:0.0]
+        ]];
+    });
+    return instance;
+}
+
 - (void)drawRect:(NSRect)dirtyRect {
     [super drawRect:dirtyRect];
 
@@ -71,33 +85,39 @@
         size_t count = (size_t) self.bounds.size.width;
         CGFloat height = self.bounds.size.height;
 
-        bool switchedColor = NO;
-
         CGFloat vscale = (height / 2) * 0.70;
         CGFloat midY = height / 2;
 
-        [[[NSColor controlTextColor] colorWithAlphaComponent:0.85] set];
+        [[[NSColor controlTextColor] colorWithAlphaComponent:0.95] set];
 
         CGContextSetLineWidth(ctx, 1.0f);
 
-        int step = 2;
+        int step = 1;
+
         for (int i = 0; i < count ; i+=step) {
 
-            if (!switchedColor && i >= _progressWidth+step) {
-                [[[NSColor controlTextColor] colorWithAlphaComponent:0.50] set];
-                switchedColor = YES;
+            CGFloat colorFactor = (i%2?1:0.5);
+            if (i >= _progressWidth+step) {
+                [[[NSColor controlTextColor] colorWithAlphaComponent:0.50 * colorFactor] set];
+            }
+            else {
+                [[[NSColor controlTextColor] colorWithAlphaComponent:0.95 * colorFactor] set];
             }
 
             MinMax m = [_waveform getMinMax:i];
 
-            CGFloat top     = midY - m.max * vscale;
-            CGFloat bottom  = midY - m.min * vscale;
+            CGFloat top     = round(midY - m.max * vscale);
+            CGFloat bottom  = round(midY - m.min * vscale);
 
-            CGContextMoveToPoint(ctx, i + 0.5, top);
-            CGContextAddLineToPoint(ctx, i + 0.5, bottom);
+            CGContextMoveToPoint(ctx, i + 0.5, top + 0.5);
+            CGContextAddLineToPoint(ctx, i + 0.5, bottom + 0.5);
             CGContextStrokePath(ctx);
 
         }
+
+        NSGraphicsContext.currentContext.compositingOperation = NSCompositingOperationSourceAtop;
+        NSGradient *g = [AudioWaveformView gradient];
+        [g drawInRect:self.bounds angle:90];
 
         [NSGraphicsContext.currentContext restoreGraphicsState];
 
@@ -132,20 +152,20 @@
     _waveform = nil;
     _progressWidth = 0;
     self.needsDisplay = YES;
-    WEAK_SELF dispatch_async(_loaderQueue, ^{
+    dispatch_async(_loaderQueue, ^{
         NSString *hash = [track.url sha1HashOfFile];
-        __block AudioWaveform *w = [weakSelf->_waveformCache objectForKey:hash];
+        __block AudioWaveform *w = [self->_waveformCache objectForKey:hash];
         if (w) {
             w.fileHash = hash;
             dispatch_async(dispatch_get_main_queue(), ^{
-                [weakSelf audioWaveform:w didLoadData:1];
+                [self audioWaveform:w didLoadData:1];
             });
         }
         else {
             w = [[AudioWaveform alloc] init];
             w.fileHash = hash;
             w.delegate = self;
-            weakSelf->_waveform = w;
+            self->_waveform = w;
             [w load:track.url.path];
         }
     });

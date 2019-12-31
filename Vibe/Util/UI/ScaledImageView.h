@@ -7,5 +7,6 @@
 
 @interface ScaledImageView : NSImageView
 
+- (void)drawImageOverlayInRect:(NSRect)rect;
 
 @end

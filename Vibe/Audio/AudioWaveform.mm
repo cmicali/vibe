@@ -149,6 +149,8 @@
 
 - (void)normalizeMinMaxValues {
     MinMax total;
+    total.min = 0;
+    total.max = 0;
     for (int i = 0; i < SIZE && !self.isCancelled; i++) {
         MinMax m = [self getMinMax:i];
         if (m.min < total.min) total.min = m.min;

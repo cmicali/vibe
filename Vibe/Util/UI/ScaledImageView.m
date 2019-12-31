@@ -7,11 +7,10 @@
 
 
 @implementation ScaledImageView {
-
+    __weak NSImage *_currentImage;
 }
 
-- (id)init
-{
+- (id)init {
     self = [super init];
     if (self) {
         [super setImageScaling:NSImageScaleAxesIndependently];
@@ -19,8 +18,7 @@
     return self;
 }
 
-- (id)initWithCoder:(NSCoder *)aDecoder
-{
+- (id)initWithCoder:(NSCoder *)aDecoder {
     self = [super initWithCoder:aDecoder];
     if (self) {
         [super setImageScaling:NSImageScaleAxesIndependently];
@@ -28,8 +26,7 @@
     return self;
 }
 
-- (id)initWithFrame:(NSRect)frameRect
-{
+- (id)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
         [super setImageScaling:NSImageScaleAxesIndependently];
@@ -43,10 +40,12 @@
     [super setImageScaling:NSImageScaleAxesIndependently];
 }
 
-- (void)setImage:(NSImage *)image
-{
+- (void)setImage:(NSImage *)image {
     if (image == nil) {
         [super setImage:image];
+        return;
+    }
+    if (_currentImage == image) {
         return;
     }
     __weak ScaledImageView *weakSelf = self;
@@ -71,10 +70,9 @@
                                                 newImageSize.height = imageSize.width * imageViewAspectRatio;
                                             }
 
-                                            NSRect srcRect = NSMakeRect(imageSize.width/2.0-newImageSize.width/2.0,
-                                                    imageSize.height/2.0-newImageSize.height/2.0,
-                                                    newImageSize.width,
-                                                    newImageSize.height);
+                                            CGFloat xpos = imageSize.width/2.0 - newImageSize.width/2.0;
+                                            CGFloat ypos = imageSize.height/2.0 - newImageSize.height/4;///2.0;
+                                            NSRect srcRect = NSMakeRect(xpos, ypos, newImageSize.width, newImageSize.height);
 
                                             [[NSGraphicsContext currentContext] setImageInterpolation:NSImageInterpolationHigh];
 
@@ -85,12 +83,20 @@
                                                respectFlipped:YES
                                                         hints:@{NSImageHintInterpolation: @(NSImageInterpolationHigh)}];
 
+                                            [weakSelf drawImageOverlayInRect:dstRect];
+
+                                            LogDebug(@"ScaledImageView: draw");
+
                                             return YES;
                                         }];
-
-    [scaleToFillImage setCacheMode:NSImageCacheNever]; // Hence it will automatically redraw with new frame size of the image view.
-
+    [scaleToFillImage setCacheMode:NSImageCacheBySize];
     [super setImage:scaleToFillImage];
+    _currentImage = image;
+    LogDebug(@"ScaledImageView: setImage");
+}
+
+- (void)drawImageOverlayInRect:(NSRect)rect {
+
 }
 
 @end

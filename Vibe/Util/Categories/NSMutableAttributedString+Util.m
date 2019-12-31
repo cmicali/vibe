@@ -16,6 +16,20 @@
     return self;
 }
 
+- (id)initWithKerning:(CGFloat)kerning {
+    self = [self init];
+    self.textAttributes = @{
+            NSKernAttributeName:@(kerning),
+    };
+    return self;
+}
+
+- (id)initWithAttributes:(NSDictionary *)attributes {
+    self = [self init];
+    self.textAttributes = attributes;
+    return self;
+}
+
 - (void)appendString:(NSString *)string {
     NSAttributedString *as = [[NSAttributedString alloc] initWithString:string attributes:self.textAttributes];
     [self appendAttributedString:as];
