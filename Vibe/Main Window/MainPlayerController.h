@@ -15,11 +15,11 @@
 
 #import "MainWindow.h"
 #import "SYFlatButton.h"
-#import "AudioTrackMetadataManager.h"
+#import "AudioTrackMetadataCache.h"
 
 @class OutputDevicesMenuController;
 @class ArtworkImageView;
-@class AudioTrackMetadataManager;
+@class AudioTrackMetadataCache;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -48,7 +48,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (strong) AudioPlayer *audioPlayer;
 @property (strong) PlaylistManager *playlistManager;
-@property (strong) AudioTrackMetadataManager *metadataManager;
+@property (strong) AudioTrackMetadataCache *metadataManager;
 
 - (void)play:(NSArray<NSURL *> *)urls;
 - (void)playURL:(NSURL *)url;
