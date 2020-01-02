@@ -1,44 +1,24 @@
 //
-// Created by Christopher Micali on 12/23/19.
-// Copyright (c) 2019 Christopher Micali. All rights reserved.
+// Created by Christopher Micali on 1/2/20.
+// Copyright (c) 2020 Christopher Micali. All rights reserved.
 //
 
 #import <Foundation/Foundation.h>
 
-NS_ASSUME_NONNULL_BEGIN
-
-@class AudioPlayer;
-
-struct MinMax {
+struct AudioWaveformCacheChunk {
     float min;
     float max;
 };
-typedef struct CG_BOXABLE MinMax MinMax;
+typedef struct CG_BOXABLE AudioWaveformCacheChunk AudioWaveformCacheChunk;
 
-@protocol AudioWaveformDelegate;
+#define ZeroAudioWaveformCacheChunk(chunk) chunk.min = 0; chunk.max = 0;
+#define ZeroedAudioWaveformCacheChunk(chunk) AudioWaveformCacheChunk chunk; chunk.min = 0; chunk.max = 0;
 
 @interface AudioWaveform : NSObject <NSCoding>
 
-@property (copy) NSString *fileHash;
+@property (assign) NSUInteger count;
 
-@property (atomic) BOOL isFinished;
-@property (atomic) BOOL isCancelled;
-
-@property (nullable, weak) id <AudioWaveformDelegate> delegate;
-
-- (BOOL)load:(NSString *)filename;
-- (void)cancel;
-
-- (MinMax)getMinMax:(NSUInteger)index;
+- (AudioWaveformCacheChunk *)chunkAtIndex:(NSUInteger)index;
+- (void)setChunk:(AudioWaveformCacheChunk)chunk atIndex:(NSInteger)idx;
 
 @end
-
-
-@protocol AudioWaveformDelegate <NSObject>
-@optional
-
-- (void)audioWaveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded;
-
-@end
-
-NS_ASSUME_NONNULL_END
