@@ -3,12 +3,12 @@
 // Copyright (c) 2020 Christopher Micali. All rights reserved.
 //
 
-#import "AudioTrackMetadataManager.h"
+#import "AudioTrackMetadataCache.h"
 #import "PINCache.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 
-@implementation AudioTrackMetadataManager {
+@implementation AudioTrackMetadataCache {
     PINCache *_metadataCache;
 }
 
@@ -18,15 +18,15 @@
         _metadataCache = [[PINCache alloc] initWithName:@"Audio Track Metadata"];
         _metadataCache.diskCache.byteLimit = 64 * 1024 * 1024;
         _metadataCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
-        [_metadataCache removeAllObjects];
+        // [_metadataCache removeAllObjects];
     }
     return self;
 }
 
 -(void)loadMetadata:(NSArray<AudioTrack*>*)tracks {
-
-    NSUInteger numTracks = tracks.count;
-
+    if (!tracks.count) {
+        return;
+    }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
         for (AudioTrack *track in tracks) {
             NSString *cacheKey = track.url.path;

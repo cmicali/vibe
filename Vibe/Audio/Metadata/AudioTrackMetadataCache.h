@@ -10,7 +10,7 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol AudioTrackMetadataManagerDelegate;
 @class AudioTrack;
 
-@interface AudioTrackMetadataManager : NSObject
+@interface AudioTrackMetadataCache : NSObject
 
 @property (nullable, weak) id <AudioTrackMetadataManagerDelegate> delegate;
 

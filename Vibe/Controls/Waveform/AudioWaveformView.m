@@ -20,8 +20,13 @@
 
 @implementation AudioWaveformView {
     NSUInteger          _progressWidth;
+    BOOL                _didClickInside;
     BOOL                _seekPreviewing;
     CGFloat             _seekPreviewLocation;
+
+    CGFloat             _waveformTopY;
+    CGFloat             _waveformBottomY;
+
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -41,8 +46,10 @@
 }
 
 - (void)setup  {
+    _didClickInside = NO;
     _waveformCache = [[AudioWaveformCache alloc] init];
     _waveformCache.delegate = self;
+/*
     NSTrackingArea* trackingArea = [[NSTrackingArea alloc]
                                                     initWithRect:[self bounds]
                                                          options:NSTrackingMouseEnteredAndExited |
@@ -50,9 +57,10 @@
                                                                  NSTrackingActiveAlways
                                                            owner:self userInfo:nil];
     [self addTrackingArea:trackingArea];
-
+*/
 }
 
+/*
 - (void)mouseEntered:(NSEvent *)event {
     [super mouseEntered:event];
     NSPoint e = [event locationInWindow];
@@ -81,14 +89,27 @@
         }
     }
 }
-
+*/
+- (void)mouseDown:(NSEvent *)event {
+    NSPoint e = [event locationInWindow];
+    NSPoint mouseLoc = [self convertPoint:e fromView:nil];
+    if ([self mouse:mouseLoc inRect:self.bounds]) {
+        if (mouseLoc.y >= _waveformBottomY && mouseLoc.y <= _waveformTopY) {
+            _didClickInside = YES;
+        }
+    }
+}
 
 - (void)mouseUp:(NSEvent *)event {
+    if (!_didClickInside) {
+        return;
+    }
+    _didClickInside = NO;
     NSPoint e = [event locationInWindow];
     NSPoint mouseLoc = [self convertPoint:e fromView:nil];
     if ([self mouse:mouseLoc inRect:[self bounds]]) {
         CGFloat x = mouseLoc.x - self.bounds.origin.x;
-        CGFloat p = x / self.bounds.size.width;
+        float p = (float) (x / self.bounds.size.width);
         [self.delegate audioWaveformView:self didSeek:p];
     }
 }
@@ -114,62 +135,68 @@
 - (void)drawRect:(NSRect)dirtyRect {
     [super drawRect:dirtyRect];
 
-    if (_waveform) {
+    ZeroedAudioWaveformCacheChunk(zeroedChunk);
 
-        [NSGraphicsContext.currentContext saveGraphicsState];
+    _waveformBottomY = self.bounds.size.height/2 - (self.bounds.size.height/2 * .5);
+    _waveformTopY = self.bounds.size.height/2 + (self.bounds.size.height/2 * .5);
 
-        CGContextRef ctx = NSGraphicsContext.currentContext.CGContext;
+    [NSGraphicsContext.currentContext saveGraphicsState];
 
-        size_t count = (size_t) self.bounds.size.width;
-        CGFloat height = self.bounds.size.height;
+    CGContextRef ctx = NSGraphicsContext.currentContext.CGContext;
 
-        CGFloat vscale = (height / 2) * 0.70;
-        CGFloat midY = height / 2;
+    size_t count = (size_t) self.bounds.size.width;
+    CGFloat height = self.bounds.size.height;
 
-        [[[NSColor controlTextColor] colorWithAlphaComponent:0.95] set];
+    CGFloat vscale = (height / 2) * 0.70;
+    CGFloat midY = height / 2;
 
-        CGContextSetLineWidth(ctx, 1.0f);
+    [[[NSColor controlTextColor] colorWithAlphaComponent:0.95] set];
 
-        NSUInteger step = 1;
+    CGContextSetLineWidth(ctx, 1.0f);
 
-        for (NSUInteger i = 0; i < count ; i+=step) {
+    NSUInteger step = 1;
 
-            CGFloat colorFactor = (i%2?1:0.5);
+    for (NSUInteger i = 0; i < count ; i+=step) {
 
-            BOOL isPastPlayhead = (i >= _progressWidth+step);
-            BOOL isSeekPreviewPastPlayhead = (_seekPreviewLocation >= _progressWidth+step);
-            if (isPastPlayhead) {
-                [[[NSColor controlTextColor] colorWithAlphaComponent:0.50 * colorFactor] set];
-                if (_seekPreviewing && isSeekPreviewPastPlayhead && i < _seekPreviewLocation) {
-                    [[[NSColor controlTextColor] colorWithAlphaComponent:0.65 * colorFactor] set];
-                }
-                else {
-                    [[[NSColor controlTextColor] colorWithAlphaComponent:0.50 * colorFactor] set];
-                }
-            }
-            else {
-                [[[NSColor controlTextColor] colorWithAlphaComponent:0.95 * colorFactor] set];
-            }
-//            }
+        CGFloat colorFactor = 1; //(i%2?1:0.5);
 
-            AudioWaveformCacheChunk* m = [_waveform chunkAtIndex:i];
-
-            CGFloat top     = round(midY - m->max * vscale);
-            CGFloat bottom  = round(midY - m->min * vscale);
-
-            CGContextMoveToPoint(ctx, i + 0.5, top + 0.5);
-            CGContextAddLineToPoint(ctx, i + 0.5, bottom + 0.5);
-            CGContextStrokePath(ctx);
-
+        BOOL isPastPlayhead = (i >= _progressWidth+step);
+        if (isPastPlayhead) {
+            [[[NSColor controlTextColor] colorWithAlphaComponent:0.50 * colorFactor] set];
+        }
+        else {
+            [[[NSColor controlTextColor] colorWithAlphaComponent:0.95 * colorFactor] set];
         }
 
-        NSGraphicsContext.currentContext.compositingOperation = NSCompositingOperationSourceAtop;
-        NSGradient *g = [AudioWaveformView gradient];
-        [g drawInRect:self.bounds angle:90];
+        AudioWaveformCacheChunk* m = [_waveform chunkAtIndex:i];
+        if (!m) m = &zeroedChunk;
 
-        [NSGraphicsContext.currentContext restoreGraphicsState];
+        CGFloat top     = round(midY - m->min * vscale);
+        CGFloat bottom  = round(midY - m->max * vscale);
+
+        if (top - bottom == 0) {
+            top += 0.5;
+            bottom -= 0.5;
+        }
+
+        if (top > _waveformTopY) {
+            _waveformTopY = top;
+        }
+        if (bottom < _waveformBottomY) {
+            _waveformBottomY = bottom;
+        }
+
+        CGContextMoveToPoint(ctx, i + 0.5, top + 0.5);
+        CGContextAddLineToPoint(ctx, i + 0.5, bottom + 0.5);
+        CGContextStrokePath(ctx);
 
     }
+
+    NSGraphicsContext.currentContext.compositingOperation = NSCompositingOperationSourceAtop;
+    NSGradient *g = [AudioWaveformView gradient];
+    [g drawInRect:self.bounds angle:90];
+
+    [NSGraphicsContext.currentContext restoreGraphicsState];
 
 }
 

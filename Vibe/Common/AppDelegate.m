@@ -58,7 +58,7 @@
 }
 
 - (void)applicationWillTerminate:(NSNotification *)aNotification {
-    [self.mainPlayerController.audioPlayer rampVolumeToZero:NO];
+    // [self.mainPlayerController.audioPlayer rampVolumeToZero:NO];
 }
 
 - (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {

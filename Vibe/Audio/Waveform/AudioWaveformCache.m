@@ -4,74 +4,11 @@
 //
 
 #import "AudioWaveformCache.h"
-#import "BassWrapper.h"
 #import "PINCache.h"
 #import "AudioTrack.h"
-#import "NSURL+Hash.h"
 #import "BASSAudioWaveformLoader.h"
 
 #pragma mark - Waveform Loader
-
-@implementation AudioWaveformLoader
-
-- (instancetype)initWithDelegate:(id <AudioWaveformLoaderDelegate>)delegate {
-    self = [super init];
-    if (self) {
-        self.isCancelled = NO;
-        self.isFinished = NO;
-        self.delegate = delegate;
-    }
-    return self;
-}
-
-- (BOOL)isDone {
-    return self.isFinished || self.isCancelled;
-}
-
-- (BOOL)cancel {
-    if (self.isDone) {
-        return YES;
-    }
-    self.isCancelled = YES;
-    return NO;
-}
-
-- (AudioWaveform *)load:(NSString *)filename {
-    @throw [NSException exceptionWithName:NSInternalInconsistencyException
-                                   reason:[NSString stringWithFormat:@"You must override %@ in a subclass", NSStringFromSelector(_cmd)]
-                                 userInfo:nil];
-}
-
-- (AudioWaveformCacheChunk)getChunkForAudioBuffer:(float *)buffer
-                                           length:(NSUInteger)length
-                                      numChannels:(NSUInteger)channels {
-    ZeroedAudioWaveformCacheChunk(result);
-    NSUInteger i = 0;
-    while (i < length && !self.isCancelled) {
-        float value = 0;
-        for (int j = 0; j < channels; j++) {
-            value = value + buffer[i];
-            i++;
-        }
-        value /= channels;
-        if (value > 2 || value < -2) {
-//            LogDebug(@"Value out of range: %.4f i: %d", value, i);
-        }
-        else {
-            if (value < result.min) result.min = value;
-            if (value > result.max) result.max = value;
-        }
-    }
-    if (isnan(result.min)) {
-        LogError(@"min is nan");
-    }
-    if (isnan(result.max)) {
-        LogError(@"max is nan");
-    }
-    return result;
-}
-
-@end
 
 #pragma mark - Waveform Cache
 
@@ -93,7 +30,7 @@
         _waveformCache.diskCache.byteLimit = 64 * 1024 * 1024; // 64mb disk cache limit
         _waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
         _currentLoader = nil;
-        [_waveformCache removeAllObjects];
+//        [_waveformCache removeAllObjects];
     }
     return self;
 }

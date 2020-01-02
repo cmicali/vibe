@@ -67,51 +67,47 @@
 
 // the sync callback
 void CALLBACK ChannelEndedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
-    __block id<BASSChannelDelegate> delegate = (__bridge id<BASSChannelDelegate>)(user);
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
-        [delegate channelDidEnd];
-    });
+    id<BASSChannelDelegate> delegate = (__bridge id<BASSChannelDelegate>)(user);
+    [delegate channelDidEnd];
 }
 
 void CALLBACK DownloadFinishedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
-    __block id<BASSChannelDelegate> delegate = (__bridge id<BASSChannelDelegate>)(user);
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
-        [delegate channelDownloadDidFinish];
-    });
+    id<BASSChannelDelegate> delegate = (__bridge id<BASSChannelDelegate>)(user);
+    [delegate channelDownloadDidFinish];
 }
 
 void CALLBACK DeviceFailedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
-    __block id<BASSChannelDelegate> delegate = (__bridge id<BASSChannelDelegate>)(user);
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
-        [delegate channelDeviceDidFail];
-    });
+    id<BASSChannelDelegate> delegate = (__bridge id<BASSChannelDelegate>)(user);
+    [delegate channelDeviceDidFail];
 }
 
 void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
     __block id<BASSChannelDelegate> delegate = (__bridge id<BASSChannelDelegate>)(user);
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
-        [delegate channelDeviceDidChange];
-    });
+    [delegate channelDeviceDidChange];
 }
 
 + (BOOL)setChannelDelegate:(id <BASSChannelDelegate>)delegate channel:(HCHANNEL)channel {
     void *user = (__bridge void *)delegate;
     BOOL success = YES;
-    if (!BASS_ChannelSetSync(channel, BASS_SYNC_END, 0, ChannelEndedCallback, user)) {
-        LogError(@"Bass error: %@", [self stringForLastError]);
-        success = NO;
+    if ([delegate respondsToSelector:@selector(channelDidEnd)]) {
+        if (!BASS_ChannelSetSync(channel, BASS_SYNC_END, 0, ChannelEndedCallback, user)) {
+            success = NO;
+        }
     }
-    if (!BASS_ChannelSetSync(channel, BASS_SYNC_DOWNLOAD, 0, DownloadFinishedCallback, user)) {
-        LogError(@"Bass error: %@", [self stringForLastError]);
-        success = NO;
+    if ([delegate respondsToSelector:@selector(channelDownloadDidFinish)]) {
+        if (!BASS_ChannelSetSync(channel, BASS_SYNC_DOWNLOAD, 0, DownloadFinishedCallback, user)) {
+            success = NO;
+        }
     }
-    if (!BASS_ChannelSetSync(channel, BASS_SYNC_DEV_FAIL, 0, DeviceFailedCallback, user)) {
-        LogError(@"Bass error: %@", [self stringForLastError]);
-        success = NO;
+    if ([delegate respondsToSelector:@selector(channelDeviceDidFail)]) {
+        if (!BASS_ChannelSetSync(channel, BASS_SYNC_DEV_FAIL, 0, DeviceFailedCallback, user)) {
+            success = NO;
+        }
     }
-    if (!BASS_ChannelSetSync(channel, BASS_SYNC_DEV_FORMAT, 0, DeviceChangedCallback, user)) {
-        LogError(@"Bass error: %@", [self stringForLastError]);
-        success = NO;
+    if ([delegate respondsToSelector:@selector(channelDeviceDidChange)]) {
+        if (!BASS_ChannelSetSync(channel, BASS_SYNC_DEV_FORMAT, 0, DeviceChangedCallback, user)) {
+            success = NO;
+        }
     }
     return success;
 }

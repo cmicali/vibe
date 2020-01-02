@@ -35,6 +35,10 @@
         return;
     }
 
+    CGPoint dragPosition = [self convertPoint:[event locationInWindow] fromView:nil];
+
+    LogDebug(@"drag: x: %.2f y: %.2f", dragPosition.x, dragPosition.y);
+
     [self.fileURL startAccessingSecurityScopedResource];
 
     CGFloat imageSize = 48;
@@ -54,7 +58,6 @@
         return @[image, label];
     }];
 
-    CGPoint dragPosition = [self convertPoint:[event locationInWindow] fromView:nil];
     dragPosition.x -= imageSize/2;
     dragPosition.y -= imageSize/2;
     draggingItem.draggingFrame = CGRectMake(dragPosition.x, dragPosition.y, imageSize, imageSize * 4);

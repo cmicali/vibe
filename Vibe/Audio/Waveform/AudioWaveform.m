@@ -13,15 +13,12 @@
 
 @end
 
-@implementation AudioWaveform {
-    AudioWaveformCacheChunk zeroedChunk;
-}
+@implementation AudioWaveform
 
 - (instancetype)init {
     self = [super init];
     if (self) {
         self.count = NUM_WAVEFORM_CHUNKS;
-        ZeroAudioWaveformCacheChunk(zeroedChunk);
         [self setup];
     }
     return self;
@@ -52,7 +49,7 @@
 
 - (AudioWaveformCacheChunk *)chunkAtIndex:(NSUInteger)index {
     if (index >= self.count) {
-        return &zeroedChunk;
+        return nil;
     }
     AudioWaveformCacheChunk* chunks = [self.chunks mutableBytes];
     return &chunks[index];

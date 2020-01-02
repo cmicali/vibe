@@ -75,9 +75,7 @@
     if([sender isKindOfClass:[NSMenuItem class]]) {
         NSMenuItem *item = sender;
         if (item.tag != self.audioPlayer.currentOutputDeviceIndex) {
-            if ([self.audioPlayer setOutputDevice:item.tag]) {
-                Settings.audioPlayerCurrentDevice = self.audioPlayer.currentOutputDeviceIndex;
-            }
+            [self.audioPlayer setOutputDevice:item.tag];
         }
     }
 }
