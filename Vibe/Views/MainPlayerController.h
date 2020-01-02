@@ -15,16 +15,19 @@
 
 #import "MainWindow.h"
 #import "SYFlatButton.h"
+#import "AudioTrackMetadataManager.h"
 
 @class OutputDevicesMenuController;
 @class ArtworkImageView;
+@class AudioTrackMetadataManager;
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface MainPlayerController : NSWindowController <NSMenuItemValidation,
                                                       FileDropDelegate,
                                                       AudioPlayerDelegate,
-                                                      AudioWaveformViewDelegate>
+                                                      AudioWaveformViewDelegate,
+                                                      AudioTrackMetadataManagerDelegate>
 
 @property (weak) IBOutlet SYFlatButton *nextButton;
 @property (weak) IBOutlet SYFlatButton *playButton;
@@ -43,11 +46,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (strong) AudioTrackMetadata *metadata;
 
-@property (strong) PlaylistManager *playlistManager;
 @property (strong) AudioPlayer *audioPlayer;
+@property (strong) PlaylistManager *playlistManager;
+@property (strong) AudioTrackMetadataManager *metadataManager;
 
+- (void)play:(NSArray<NSURL *> *)urls;
 - (void)playURL:(NSURL *)url;
-- (void)playURLs:(NSArray<NSURL *> *)urls;
+
 
 - (IBAction)playPause:(id)sender;
 - (IBAction)next:(id)sender;

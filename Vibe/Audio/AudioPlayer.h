@@ -6,14 +6,15 @@
 //  Copyright © 2019 Christopher Micali. All rights reserved.
 //
 
-@class AudioTrack;
+#import "CoreAudioUtil.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioPlayerDelegate;
+@class AudioTrack;
 @class AudioDevice;
 
-@interface AudioPlayer : NSObject
+@interface AudioPlayer : NSObject <CoreAudioSystemOutputDeviceDelegate>
 
 @property (nullable, weak) id <AudioPlayerDelegate> delegate;
 @property NSTimeInterval position;
@@ -23,12 +24,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (id)initWithDevice:(NSInteger)deviceIndex lockSampleRate:(BOOL)lockSampleRate;
 
 - (BOOL)lockSampleRate;
-
 - (void)setLockSampleRate:(BOOL)lockSampleRate;
 
 - (BOOL)play:(AudioTrack *)track;
 - (void)playPause;
-- (void)loadMetadata:(NSArray<AudioTrack*>*)tracks;
 - (void)rampVolumeToZero:(BOOL)async;
 - (void)rampVolumeToNormal:(BOOL)async;
 
@@ -39,15 +38,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSUInteger)numChannels;
 - (NSTimeInterval)duration;
 
-- (NSInteger)numOutputDevices;
-- (AudioDevice * _Nullable)outputDeviceForIndex:(NSUInteger)index;
 - (NSInteger)currentOutputDeviceIndex;
 
 - (BOOL)setOutputDevice:(NSInteger)newIndex;
 - (BOOL)setDefaultOutputDevice;
 
 @end
-
 
 @protocol AudioPlayerDelegate <NSObject>
 @optional
@@ -56,9 +52,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track;
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didLoadMetadata:(AudioTrack *)track;
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishLoadingMetadata:(NSUInteger)numTracks;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error;
 

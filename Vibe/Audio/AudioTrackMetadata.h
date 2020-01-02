@@ -7,7 +7,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface AudioTrackMetadata : NSObject
+@interface AudioTrackMetadata : NSObject <NSCoding>
 
 @property (copy) NSString *title;
 @property (copy) NSString *artist;
@@ -15,7 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (strong) NSImage *albumArt;
 
-+ (AudioTrackMetadata *)getMetadataForURL:(NSURL *)url;
++ (AudioTrackMetadata *)metadataWithURL:(NSURL *)url;
 
 @end
 
