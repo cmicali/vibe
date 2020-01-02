@@ -10,7 +10,7 @@
 #import "BassWrapper.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
-#import "AudioWaveform.h"
+#import "AudioWaveformCache.h"
 #import "Util.h"
 #import "AudioDevice.h"
 #import "CoreAudioUtil.h"
@@ -96,18 +96,19 @@
     _channel = BASS_StreamCreateFile(FALSE, filename, 0, 0, BASS_ASYNCFILE) ;
 
     if (_channel) {
+
         [BassUtil setChannelDelegate:self channel:_channel];
+
         if (_lockSampleRate) {
             [self changeSystemSampleRateToChannelRate];
         }
 
-        BASS_SetVolume(1.0);
         BOOL success = BASS_ChannelPlay(_channel, FALSE);
 
         if (success) {
             _currentTrack = track;
             track.duration = self.duration;
-            dispatch_async(dispatch_get_main_queue(), ^(void) {
+            run_on_main_thread({
                 [self->_delegate audioPlayer:self didStartPlaying:track];
             });
             return YES;
@@ -117,7 +118,7 @@
 
     [self stop];
 
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
+    run_on_main_thread({
         [self->_delegate audioPlayer:self error:[BassUtil errorForLastError]];
     });
 
@@ -139,17 +140,17 @@
 }
 
 - (void)pause {
-    [self rampVolumeToZero:NO];
+//    [self rampVolumeToZero:NO];
     BASS_ChannelPause(_channel);
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
+    run_on_main_thread({
         [self->_delegate audioPlayer:self didPausePlaying:self->_currentTrack];
     });
 }
 
 - (void)resume {
     BASS_ChannelPlay(_channel, NO);
-    [self rampVolumeToNormal:YES];
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
+//    [self rampVolumeToNormal:YES];
+    run_on_main_thread({
         [self->_delegate audioPlayer:self didResumePlaying:self->_currentTrack];
     });
 }

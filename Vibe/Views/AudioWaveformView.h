@@ -5,14 +5,14 @@
 
 #import <AppKit/AppKit.h>
 
-#include "AudioWaveform.h"
+#include "AudioWaveformCache.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioWaveformViewDelegate;
 @class AudioTrack;
 
-@interface AudioWaveformView : NSView <AudioWaveformDelegate>
+@interface AudioWaveformView : NSView
 
 @property (nullable, weak) id <AudioWaveformViewDelegate> delegate;
 

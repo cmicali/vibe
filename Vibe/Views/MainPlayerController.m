@@ -248,10 +248,6 @@
     }
 }
 
-- (void)didFinishLoadingMetadata:(NSUInteger)tracks {
-
-}
-
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
     [self.playlistManager next];
 }
