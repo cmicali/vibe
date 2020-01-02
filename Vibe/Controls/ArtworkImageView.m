@@ -37,7 +37,10 @@
 
     CGPoint dragPosition = [self convertPoint:[event locationInWindow] fromView:nil];
 
-    LogDebug(@"drag: x: %.2f y: %.2f", dragPosition.x, dragPosition.y);
+    // Don't allow drag near buttons
+    if (dragPosition.y < 42) {
+        return;
+    }
 
     [self.fileURL startAccessingSecurityScopedResource];
 
