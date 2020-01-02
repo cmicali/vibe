@@ -13,9 +13,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property(nonatomic, strong) AudioTrackMetadata *metadata;
 
+- (instancetype)initWithUrl:(NSURL *)url;
 + (AudioTrack *)withURL:(NSURL *)url;
 
-- (instancetype)initWithUrl:(NSURL *)url;
+- (NSString *)fileHash;
+- (NSString *)calculateFileHash;
 
 - (NSString *)title;
 - (NSString *)artist;

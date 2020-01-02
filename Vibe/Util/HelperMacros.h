@@ -15,3 +15,6 @@
 #define TIME_RESTART(msg) startTime = CACurrentMediaTime(); timer_msg = msg;
 #define TIME_END endTime = CACurrentMediaTime(); LogDebug(@"%@ time: %1.4f s", timer_msg, endTime - startTime);
 
+#define AlignSizeToTypeBoundary(size, type) { if (size % sizeof(type) != 0) { size += sizeof(type) - size % sizeof(type); } }
+
+#define run_on_main_thread(block) dispatch_async(dispatch_get_main_queue(), ^(void)block)
