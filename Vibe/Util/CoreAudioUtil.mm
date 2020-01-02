@@ -137,4 +137,59 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
 }
 
 
+/*
+bool setAudioOutput( string targetDevice ){
+    AudioObjectPropertyAddress  propertyAddress;
+    AudioObjectID               *deviceIDs;
+    UInt32                      propertySize;
+    NSInteger                   numDevices;
+    propertyAddress.mSelector = kAudioHardwarePropertyDevices;
+    propertyAddress.mScope = kAudioObjectPropertyScopeGlobal;
+    propertyAddress.mElement = kAudioObjectPropertyElementMaster;
+// enumerate all current/valid devices
+    if (AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &propertyAddress, 0, NULL, &propertySize) == noErr) {
+        numDevices = propertySize / sizeof(AudioDeviceID);
+        deviceIDs = (AudioDeviceID *)calloc(numDevices, sizeof(AudioDeviceID));
+        if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &propertyAddress, 0, NULL, &propertySize, deviceIDs) == noErr) {
+            AudioObjectPropertyAddress      deviceAddress;
+            char                            deviceName[64];
+            char                            manufacturerName[64];
+            for (NSInteger idx=0; idx<numDevices; idx++) {
+                propertySize = sizeof(deviceName);
+                deviceAddress.mSelector = kAudioDevicePropertyDeviceName;
+                deviceAddress.mScope = kAudioObjectPropertyScopeGlobal;
+                deviceAddress.mElement = kAudioObjectPropertyElementMaster;
+// get the deets!
+                if (AudioObjectGetPropertyData(deviceIDs[idx], &deviceAddress, 0, NULL, &propertySize, deviceName) == noErr) {
+                    propertySize = sizeof(manufacturerName);
+                    deviceAddress.mSelector = kAudioDevicePropertyDeviceManufacturer;
+                    deviceAddress.mScope = kAudioObjectPropertyScopeGlobal;
+                    deviceAddress.mElement = kAudioObjectPropertyElementMaster;
+                    if (AudioObjectGetPropertyData(deviceIDs[idx], &deviceAddress, 0, NULL, &propertySize, manufacturerName) == noErr) {
+                        CFStringRef     uidString;
+                        propertySize = sizeof(uidString);
+                        deviceAddress.mSelector = kAudioDevicePropertyDeviceUID;
+                        deviceAddress.mScope = kAudioObjectPropertyScopeGlobal;
+                        deviceAddress.mElement = kAudioObjectPropertyElementMaster;
+                        if (AudioObjectGetPropertyData(deviceIDs[idx], &deviceAddress, 0, NULL, &propertySize, &uidString) == noErr) {
+// comment this out if you don't want to log everything
+                            NSLog(@"device %s by %s id %@", deviceName, manufacturerName, uidString);
+                            CFRelease(uidString);
+                        }
+                        string name(deviceName);
+                        if ( name.find( targetDevice ) != string::npos ){
+                            propertyAddress.mSelector = kAudioHardwarePropertyDefaultOutputDevice;
+                            propertyAddress.mScope = kAudioDevicePropertyScopeOutput;
+                            propertyAddress.mElement = kAudioObjectPropertyElementMaster;
+                            return AudioObjectSetPropertyData(kAudioObjectSystemObject, &propertyAddress, 0, NULL, sizeof(AudioDeviceID), &deviceIDs[idx]) == noErr;
+                        }
+                    }
+                }
+            }
+        }
+        free(deviceIDs);
+    }
+    return false;
+}
+*/
 @end
