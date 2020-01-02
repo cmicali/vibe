@@ -38,8 +38,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSUInteger)numChannels;
 - (NSTimeInterval)duration;
 
-- (NSInteger)currentOutputDeviceIndex;
-
 - (void)setOutputDevice:(NSInteger)outputDeviceIndex;
 - (void)setDefaultOutputDevice;
 
