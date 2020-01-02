@@ -132,6 +132,8 @@
     return instance;
 }
 
+// https://github.com/rFlex/SCWaveformView/blob/master/Sources/SCWaveformCache.m
+
 - (void)drawRect:(NSRect)dirtyRect {
     [super drawRect:dirtyRect];
 
