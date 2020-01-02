@@ -81,7 +81,7 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
     AudioValueTranslation vt={&cs, sizeof(cs), &did, sizeof(did)};
     UInt32 s = sizeof(vt);
     AudioHardwareGetProperty(kAudioHardwarePropertyDeviceForUID, &s, &vt); // translate device's UID to AudioDeviceID
-    CFRelease(cs);
+//    CFRelease(cs);
     return did;
 }
 
@@ -122,14 +122,10 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
 }
 
 + (Float64)setSampleRate:(int)rate forDeviceUID:(NSString *)uid {
-    CFStringRef cs = (__bridge CFStringRef)uid; // CFStringCreateWithCString(0, info.driver, 0); // driver = device's UID
-    AudioDeviceID did;
-    AudioValueTranslation vt={&cs, sizeof(cs), &did, sizeof(did)};
-    UInt32 s=sizeof(vt);
-    AudioHardwareGetProperty(kAudioHardwarePropertyDeviceForUID, &s, &vt); // translate device's UID to AudioDeviceID
-    CFRelease(cs);
+
+    AudioDeviceID did = [self audioDeviceIDforUID:uid];
     AudioStreamBasicDescription sbd;
-    s=sizeof(sbd);
+    UInt32 s = sizeof(sbd);
     if (!AudioDeviceGetProperty(did, 0, false, kAudioDevicePropertyStreamFormat, &s, &sbd)) { // get current format
         sbd.mSampleRate=rate; // change rate
         AudioDeviceSetProperty(did, NULL, 0, false, kAudioDevicePropertyStreamFormat, s, &sbd); // try to apply change

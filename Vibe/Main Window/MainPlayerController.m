@@ -230,15 +230,18 @@
     [self.waveformView loadWaveformForTrack:track];
     [self.playlistManager reloadCurrentTrack];
     [self resumeUIUpdateTimer];
+    self.playButton.enabled = YES;
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track {
     [self pauseUIUpdateTimer];
     [self updateUI];
+    self.playButton.enabled = YES;
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track {
     [self resumeUIUpdateTimer];
+    self.playButton.enabled = YES;
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track {
@@ -255,7 +258,8 @@
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOuputDevice:(NSInteger)newDeviceIndex {
-    Settings.audioPlayerCurrentDevice = newDeviceIndex;
+    LogDebug(@"MainPlayerController: didChangeOutputDevice: %zd", newDeviceIndex);
+    Settings.audioPlayerOutputDevice = newDeviceIndex;
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {

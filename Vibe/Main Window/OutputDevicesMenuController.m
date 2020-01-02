@@ -49,23 +49,25 @@
 }
 
 - (BOOL)menu:(NSMenu *)menu updateItem:(NSMenuItem *)item atIndex:(NSInteger)index shouldCancel:(BOOL)shouldCancel {
+    if (item.isSeparatorItem) {
+        return YES;
+    }
+
     if (index == [self numberOfItemsInMenu:menu] - 1) {
         item.state = StateForBOOL(Settings.audioPlayerLockSampleRate);
         item.target = self;
     }
-    else if (index != 1 && index < [self numberOfItemsInMenu:menu] - 2) {
-        if (index == 0) {
-            index = -1;
+    else {
+        NSInteger deviceIndex = -1;
+        if (index > 0) {
+            deviceIndex = index - 2;
         }
-        else {
-            index -= 2;
-        }
-        AudioDevice *device = [AudioDeviceManager.sharedInstance outputDeviceForId:(NSUInteger)index];
+        AudioDevice *device = [AudioDeviceManager.sharedInstance outputDeviceForId:deviceIndex];
         item.title = device.name;
-        item.state = StateForBOOL(self.audioPlayer.currentOutputDeviceIndex == index);
+        item.tag = device.id;
+        item.state = StateForBOOL(Settings.audioPlayerCurrentDevice == deviceIndex);
         item.enabled = YES;
         item.target = self;
-        item.tag = index;
         item.action = @selector(changeOutputDevice:);
     }
     return YES;
@@ -74,9 +76,7 @@
 - (IBAction) changeOutputDevice:(id)sender {
     if([sender isKindOfClass:[NSMenuItem class]]) {
         NSMenuItem *item = sender;
-        if (item.tag != self.audioPlayer.currentOutputDeviceIndex) {
-            [self.audioPlayer setOutputDevice:item.tag];
-        }
+        [self.audioPlayer setOutputDevice:item.tag];
     }
 }
 
