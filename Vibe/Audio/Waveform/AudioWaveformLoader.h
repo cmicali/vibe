@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 12/23/19.
-// Copyright (c) 2019 Christopher Micali. All rights reserved.
+// Created by Christopher Micali on 1/2/20.
+// Copyright (c) 2020 Christopher Micali. All rights reserved.
 //
 
 #import <Foundation/Foundation.h>
@@ -8,12 +8,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class AudioPlayer;
-
 @protocol AudioWaveformLoaderDelegate;
-@class AudioTrack;
-
-#pragma mark - Waveform Loader
 
 @interface AudioWaveformLoader : NSObject
 
@@ -34,25 +29,6 @@ NS_ASSUME_NONNULL_BEGIN
 @optional
 
 - (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded;
-
-@end
-
-#pragma mark - Waveform Cache
-
-@protocol AudioWaveformCacheDelegate;
-
-@interface AudioWaveformCache : NSObject
-
-@property (nullable, weak) id <AudioWaveformCacheDelegate> delegate;
-
-- (void)loadWaveformForTrack:(AudioTrack *)track;
-
-@end
-
-@protocol AudioWaveformCacheDelegate <NSObject>
-@optional
-
-- (void)audioWaveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded;
 
 @end
 
