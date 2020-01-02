@@ -6,7 +6,14 @@
 #import "AudioDevice.h"
 
 
-@implementation AudioDevice {
+@implementation AudioDevice
 
+- (BOOL)isEqual:(AudioDevice*)object {
+    return self.id == object.id;
 }
+
+- (NSUInteger)hash {
+    return [[NSString stringWithFormat:@"%ld", (long)self.id] hash];
+}
+
 @end

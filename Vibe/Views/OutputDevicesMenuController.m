@@ -6,6 +6,7 @@
 #import "OutputDevicesMenuController.h"
 #import "AudioPlayer.h"
 #import "AudioDevice.h"
+#import "AudioDeviceManager.h"
 
 @implementation OutputDevicesMenuController {
 
@@ -40,7 +41,7 @@
 }
 
 - (NSInteger)numberOfItemsInMenu:(NSMenu *)menu {
-    return self.audioPlayer.numOutputDevices + 2 + 2;
+    return AudioDeviceManager.sharedInstance.numOutputDevices + 2 + 2;
 }
 
 - (BOOL)menuHasKeyEquivalent:(NSMenu *)menu forEvent:(NSEvent *)event target:(_Nullable id *_Nonnull)target action:(_Nullable SEL *_Nonnull)action {
@@ -59,7 +60,7 @@
         else {
             index -= 2;
         }
-        AudioDevice *device = [self.audioPlayer outputDeviceForIndex:(NSUInteger)index];
+        AudioDevice *device = [AudioDeviceManager.sharedInstance outputDeviceForId:(NSUInteger)index];
         item.title = device.name;
         item.state = StateForBOOL(self.audioPlayer.currentOutputDeviceIndex == index);
         item.enabled = YES;

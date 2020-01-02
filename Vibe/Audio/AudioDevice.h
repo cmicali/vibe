@@ -8,7 +8,8 @@
 
 @interface AudioDevice : NSObject
 
-@property (copy) NSString *name;
-@property (assign) NSUInteger index;
+@property (copy)    NSString *name;
+@property (assign)  NSInteger id;
+@property (assign)  BOOL isSystemDefault;
 
 @end

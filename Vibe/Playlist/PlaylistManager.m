@@ -11,10 +11,15 @@
 #import "NSMutableAttributedString+Util.h"
 #import "NSView+Util.h"
 #import "Fonts.h"
+#import "AudioTrackMetadataManager.h"
 
 @implementation PlaylistManager {
     NSMutableArray<AudioTrack *> *_playlist;
     __weak NSTableView *_tableView;
+}
+
+- (NSArray<AudioTrack *> *)playlist {
+    return _playlist;
 }
 
 - (NSTableView *)tableView {
@@ -119,7 +124,6 @@
     self.currentIndex = 0;
     [self.tableView reloadData];
     [self play];
-    [self.audioPlayer loadMetadata:_playlist];
 }
 
 - (void)play {

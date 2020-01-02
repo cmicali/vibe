@@ -18,6 +18,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (weak) AudioPlayer *audioPlayer;
 @property (weak) NSTableView *tableView;
 
+- (NSArray<AudioTrack *> *)playlist;
+
 - (id)initWithAudioPlayer:(AudioPlayer *)player;
 
 - (void)play;

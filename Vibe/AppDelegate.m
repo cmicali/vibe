@@ -48,7 +48,7 @@
         [self->_urlsToOpen removeAllObjects];
         urls = [NSURLUtil expandAndFilterList:urls];
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self.mainPlayerController playURLs:urls];
+            [self.mainPlayerController play:urls];
         });
     }
 }

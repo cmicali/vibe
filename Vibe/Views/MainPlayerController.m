@@ -15,18 +15,16 @@
 #import "Formatters.h"
 #import "Fonts.h"
 #import "ArtworkImageView.h"
+#import "AudioTrackMetadataManager.h"
 
 #define UPDATE_HZ 3
 
-@interface MainPlayerController ()
-
-@end
-
 @implementation MainPlayerController {
-    dispatch_source_t   _timer;
-    NSTimeInterval      _lastPosition;
-    BOOL                _timerRunning;
-    __weak NSImage*     _displayedArt;
+    dispatch_source_t           _timer;
+    NSTimeInterval              _lastPosition;
+    BOOL                        _timerRunning;
+    __weak NSImage*             _displayedArt;
+
 }
 
 - (id) init {
@@ -43,19 +41,20 @@
 
 - (void)windowDidLoad {
 
-    self.window.appearance = Settings.windowAppearance;
-
     self.audioPlayer = [[AudioPlayer alloc] initWithDevice:Settings.audioPlayerCurrentDevice
                                             lockSampleRate:Settings.audioPlayerLockSampleRate];
+    self.metadataManager = [[AudioTrackMetadataManager alloc] init];
+    self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
 
     self.audioPlayer.delegate = self;
+    self.metadataManager.delegate = self;
 
-    self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
     self.playlistManager.tableView = self.playlistTableView;
-
     self.devicesMenuController.audioPlayer = self.audioPlayer;
 
     // Setup Views
+
+    self.window.appearance = Settings.windowAppearance;
 
     self.albumArtGradientView.wantsLayer = YES;
     CAGradientLayer *g = [[CAGradientLayer alloc] init];
@@ -91,7 +90,6 @@
 
     self.playlistTableView.delegate = self.self.playlistManager;
     self.playlistTableView.dataSource = self.self.playlistManager;
-
 
     MainWindow *window = (MainWindow *)self.window;
     window.dropDelegate = self;
@@ -197,14 +195,6 @@
     }
 }
 
-- (void)playURL:(NSURL *)url {
-    [self.playlistManager play:@[url]];
-}
-
-- (void)playURLs:(NSArray<NSURL *> *)urls {
-    [self.playlistManager play:urls];
-}
-
 - (IBAction)playPause:(id)sender {
     if (self.audioPlayer.isStopped) {
         [self.playlistManager play];
@@ -214,13 +204,22 @@
     }
 }
 
+- (void)playURL:(NSURL *)url {
+    [self play:@[url]];
+}
+
+- (void)play:(NSArray<NSURL *> *)urls {
+    [self.playlistManager play:urls];
+    [self.metadataManager loadMetadata:self.playlistManager.playlist];
+}
+
 - (IBAction)next:(id)sender {
     [self.playlistManager next];
     [self updateUI];
 }
 
-- (void)mainWindow:(MainWindow *)mainWindow filesDropped:(NSArray<NSURL *> *)urls {
-    [self.playlistManager play:urls];
+- (void)mainWindow:(MainWindow *)mainWindow filesDropped:urls {
+    [self play:urls];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
@@ -242,14 +241,15 @@
     [self next:self];
 }
 
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didLoadMetadata:(AudioTrack *)track  {
+- (void)didLoadMetadata:(AudioTrack *)track {
     [self.playlistManager reloadTrack:track];
     if (self.playlistManager.currentTrack == track) {
         [self updateUI];
     }
 }
 
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishLoadingMetadata:(NSUInteger)numTracks {
+- (void)didFinishLoadingMetadata:(NSUInteger)tracks {
+
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {

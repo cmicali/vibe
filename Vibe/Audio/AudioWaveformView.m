@@ -12,10 +12,12 @@
 
 
 @implementation AudioWaveformView {
-    NSUInteger _progressWidth;
-    AudioWaveform *_waveform;
-    PINCache *_waveformCache;
-    dispatch_queue_t _loaderQueue;
+    NSUInteger          _progressWidth;
+    AudioWaveform*      _waveform;
+    PINCache*           _waveformCache;
+    dispatch_queue_t    _loaderQueue;
+    BOOL                _seekPreviewing;
+    CGFloat             _seekPreviewLocation;
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -39,11 +41,49 @@
     _waveformCache = [[PINCache alloc] initWithName:@"waveform_cache"];
     _waveformCache.diskCache.byteLimit = 64 * 1024 * 1024; // 64mb disk cache limit
     _waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
+    NSTrackingArea* trackingArea = [[NSTrackingArea alloc]
+                                                    initWithRect:[self bounds]
+                                                         options:NSTrackingMouseEnteredAndExited |
+                                                                 NSTrackingMouseMoved |
+                                                                 NSTrackingActiveAlways
+                                                           owner:self userInfo:nil];
+    [self addTrackingArea:trackingArea];
+
 }
 
 -(void)dealloc {
 
 }
+
+- (void)mouseEntered:(NSEvent *)event {
+    [super mouseEntered:event];
+    NSPoint e = [event locationInWindow];
+    NSPoint mouseLoc = [self convertPoint:e fromView:nil];
+    if ([self mouse:mouseLoc inRect:[self bounds]]) {
+//        _seekPreviewing = YES;
+    }
+}
+
+- (void)mouseExited:(NSEvent *)event {
+    [super mouseExited:event];
+    _seekPreviewing = NO;
+}
+
+- (void)mouseMoved:(NSEvent *)event {
+    if (!_seekPreviewing)
+        return;
+    NSPoint e = [event locationInWindow];
+    NSPoint mouseLoc = [self convertPoint:e fromView:nil];
+    if ([self mouse:mouseLoc inRect:CGRectInset(self.bounds, 0, 10)]) {
+        CGFloat x = mouseLoc.x - self.bounds.origin.x;
+        CGFloat p = round(x);
+        if (_seekPreviewLocation != p) {
+            _seekPreviewLocation = p;
+            self.needsDisplay = YES;
+        }
+    }
+}
+
 
 - (void)mouseUp:(NSEvent *)event {
     NSPoint e = [event locationInWindow];
@@ -97,12 +137,22 @@
         for (int i = 0; i < count ; i+=step) {
 
             CGFloat colorFactor = (i%2?1:0.5);
-            if (i >= _progressWidth+step) {
+
+            BOOL isPastPlayhead = (i >= _progressWidth+step);
+            BOOL isSeekPreviewPastPlayhead = (_seekPreviewLocation >= _progressWidth+step);
+            if (isPastPlayhead) {
                 [[[NSColor controlTextColor] colorWithAlphaComponent:0.50 * colorFactor] set];
+                if (_seekPreviewing && isSeekPreviewPastPlayhead && i < _seekPreviewLocation) {
+                    [[[NSColor controlTextColor] colorWithAlphaComponent:0.65 * colorFactor] set];
+                }
+                else {
+                    [[[NSColor controlTextColor] colorWithAlphaComponent:0.50 * colorFactor] set];
+                }
             }
             else {
                 [[[NSColor controlTextColor] colorWithAlphaComponent:0.95 * colorFactor] set];
             }
+//            }
 
             MinMax m = [_waveform getMinMax:i];
 

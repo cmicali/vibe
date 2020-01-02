@@ -6,7 +6,6 @@
 //  Copyright © 2019 Christopher Micali. All rights reserved.
 //
 
-#import <CoreAudio/CoreAudio.h>
 #import "AudioPlayer.h"
 #import "BassWrapper.h"
 #import "AudioTrack.h"
@@ -14,37 +13,22 @@
 #import "AudioWaveform.h"
 #import "Util.h"
 #import "AudioDevice.h"
-
-typedef NS_ENUM(NSInteger, AudioPlayerError) {
-    AudioPlayerErrorInit = BASS_ERROR_INIT,
-    AudioPlayerErrorNotAvail = BASS_ERROR_NOTAVAIL,
-    AudioPlayerErrorNoInternet = BASS_ERROR_NONET,
-    AudioPlayerErrorInvalidUrl = BASS_ERROR_ILLPARAM,
-    AudioPlayerErrorSslUnsupported = BASS_ERROR_SSL,
-    AudioPlayerErrorServerTimeout = BASS_ERROR_TIMEOUT,
-    AudioPlayerErrorCouldNotOpenFile = BASS_ERROR_FILEOPEN,
-    AudioPlayerErrorFileInvalidFormat = BASS_ERROR_FILEFORM,
-    AudioPlayerErrorSupportedCodec = BASS_ERROR_CODEC,
-    AudioPlayerErrorUnsupportedSampleFormat = BASS_ERROR_SPEAKER,
-    AudioPlayerErrorInsufficientMemory = BASS_ERROR_MEM,
-    AudioPlayerErrorNo3D = BASS_ERROR_NO3D,
-    AudioPlayerErrorUnknown = BASS_ERROR_UNKNOWN
-};
+#import "CoreAudioUtil.h"
+#import "BassUtil.h"
 
 #define PLAYBACK_RATE   44100
 
-@interface AudioPlayer () {
+@interface AudioPlayer () <BASSChannelDelegate>
+@end
+
+@implementation AudioPlayer {
+    AudioTrack *_currentTrack;
+    NSInteger _selectedAudioDevice;
     HSTREAM _channel;
     BOOL _lockSampleRate;
 }
 
-@end
-
-@implementation AudioPlayer {
-    NSCache *_metadataCache;
-    AudioTrack *_currentTrack;
-    NSInteger _selectedAudioDevice;
-}
+#pragma mark - Init
 
 - (id)initWithDevice:(NSInteger)deviceIndex lockSampleRate:(BOOL)lockSampleRate {
     self = [super init];
@@ -56,79 +40,9 @@ typedef NS_ENUM(NSInteger, AudioPlayerError) {
     return self;
 }
 
-OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
-                                     UInt32 inNumberAddresses,
-                                     const AudioObjectPropertyAddress *inAddresses,
-                                     void *inClientData) {
-    __block AudioPlayer *player = (__bridge AudioPlayer *)(inClientData);
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [player systemOutputDeviceDidChange];
-    });
-    return kAudioHardwareNoError;
-}
-
-- (void) osx {
-    BASS_DEVICEINFO info;
-    BASS_GetDeviceInfo(BASS_GetDevice(), &info); // get device info (can use BASS_GetDevice to get current device)
-    CFStringRef cs=CFStringCreateWithCString(0, info.driver, 0); // driver = device's UID
-    AudioDeviceID did;
-    AudioValueTranslation vt={&cs, sizeof(cs), &did, sizeof(did)};
-    UInt32 s = sizeof(vt);
-    AudioHardwareGetProperty(kAudioHardwarePropertyDeviceForUID, &s, &vt); // translate device's UID to AudioDeviceID
-    CFRelease(cs);
-    AudioObjectPropertyAddress pa={kAudioDevicePropertyAvailableNominalSampleRates, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster};
-    AudioObjectGetPropertyDataSize(did, &pa, 0, NULL, &s); // get size of available sample rates array
-    // AudioValueRange *vr= new AudioValueRange[s/sizeof(AudioValueRange)]; // allocate it
-    AudioValueRange vr[512];
-    AudioObjectGetPropertyData(did, &pa, 0, NULL, &s, vr); // get the available sample rates
-    for (int a=0; a<s/sizeof(AudioValueRange); a++)
-        printf("%g - %g\n", vr[a].mMinimum, vr[a].mMaximum);
-}
-
-
-- (Float64)getSampleRate {
-    BASS_DEVICEINFO info;
-    BASS_GetDeviceInfo(BASS_GetDevice(), &info); // get device info
-    CFStringRef cs=CFStringCreateWithCString(0, info.driver, 0); // driver = device's UID
-    AudioDeviceID did;
-    AudioValueTranslation vt={&cs, sizeof(cs), &did, sizeof(did)};
-    UInt32 s=sizeof(vt);
-    AudioHardwareGetProperty(kAudioHardwarePropertyDeviceForUID, &s, &vt); // translate device's UID to AudioDeviceID
-    CFRelease(cs);
-    AudioStreamBasicDescription sbd;
-    s=sizeof(sbd);
-    if (!AudioDeviceGetProperty(did, 0, false, kAudioDevicePropertyStreamFormat, &s, &sbd)) { // get current format
-        return sbd.mSampleRate;
-    }
-    return -1;
-}
-
-- (Float64)setSampleRate:(int)rate {
-    BASS_DEVICEINFO info;
-    BASS_GetDeviceInfo(BASS_GetDevice(), &info); // get device info
-    CFStringRef cs=CFStringCreateWithCString(0, info.driver, 0); // driver = device's UID
-    AudioDeviceID did;
-    AudioValueTranslation vt={&cs, sizeof(cs), &did, sizeof(did)};
-    UInt32 s=sizeof(vt);
-    AudioHardwareGetProperty(kAudioHardwarePropertyDeviceForUID, &s, &vt); // translate device's UID to AudioDeviceID
-    CFRelease(cs);
-    AudioStreamBasicDescription sbd;
-    s=sizeof(sbd);
-    if (!AudioDeviceGetProperty(did, 0, false, kAudioDevicePropertyStreamFormat, &s, &sbd)) { // get current format
-        sbd.mSampleRate=rate; // change rate
-        AudioDeviceSetProperty(did, NULL, 0, false, kAudioDevicePropertyStreamFormat, s, &sbd); // try to apply change
-    }
-    if (!AudioDeviceGetProperty(did, 0, false, kAudioDevicePropertyStreamFormat, &s, &sbd)) { // get current format
-        return sbd.mSampleRate;
-    }
-    return -1;
-}
-
 - (void)setup {
 
     _channel = 0;
-
-    _metadataCache = [[NSCache alloc] init];
 
     BASS_PluginLoad("libbassflac.dylib", 0);
 
@@ -140,54 +54,10 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
     BASS_INFO info;
     BASS_GetInfo(&info);
 
-    [self osx];
-
     LogDebug(@"BASS init");
     LogDebug(@"  freq: %d latency: %d minrate: %d maxrate: %d flags: %d", info.freq, info.latency, info.minrate, info.maxrate, info.flags);
 
-    CFRunLoopRef nullRunLoop =  NULL;
-    AudioObjectPropertyAddress runLoopProperty = {
-            kAudioHardwarePropertyRunLoop,
-            kAudioObjectPropertyScopeGlobal,
-            kAudioObjectPropertyElementMaster
-    };
-    AudioObjectSetPropertyData(kAudioObjectSystemObject, &runLoopProperty, 0, NULL, sizeof(CFRunLoopRef), &nullRunLoop);
-    AudioObjectPropertyAddress outputDeviceAddress = {
-            kAudioHardwarePropertyDefaultOutputDevice,
-            kAudioObjectPropertyScopeGlobal,
-            kAudioObjectPropertyElementMaster
-    };
-    AudioObjectAddPropertyListener(kAudioObjectSystemObject, &outputDeviceAddress, &outputDeviceChangedCallback, (__bridge void *)self);
-
-}
-
-- (AudioTrack*)currentTrack {
-    return _currentTrack;
-}
-
-- (void)rampVolumeToZero:(BOOL)async {
-    if (_channel) {
-        BASS_ChannelSlideAttribute(_channel, BASS_ATTRIB_VOL | BASS_SLIDE_LOG, 0, 200);
-        if (!async) {
-            runWithTimeout(1, ^{
-               while(BASS_ChannelIsSliding(self->_channel, BASS_ATTRIB_VOL)) {
-                   usleep(10000);
-               };
-            });
-        }
-    }
-}
-
-- (void)rampVolumeToNormal:(BOOL)async {
-    if (_channel) {
-        BASS_ChannelSlideAttribute(_channel, BASS_ATTRIB_VOL | BASS_SLIDE_LOG, 1, 100);
-        if (!async) {
-            __block AudioPlayer *weakSelf  = self;
-            runWithTimeout(1, ^{
-                while(BASS_ChannelIsSliding(weakSelf->_channel, BASS_ATTRIB_VOL));
-            });
-        }
-    }
+    [CoreAudioUtil listenForSystemOutputDeviceChanges:self];
 }
 
 - (void)dealloc  {
@@ -196,35 +66,14 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
     DDLogDebug(@"Bass freed");
 }
 
-// the sync callback
-void CALLBACK ChannelEndedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
-    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
-        AudioTrack *t = player->_currentTrack;
-        [player stop];
-        [player->_delegate audioPlayer:player didFinishPlaying:t];
-    });
+#pragma mark - Methods
+
+- (void)rampVolumeToZero:(BOOL)async {
+    [BassUtil rampVolumeToZero:_channel async:async];
 }
 
-void CALLBACK DownloadFinishedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
-//    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
-    LogDebug(@"Download finished");
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
-    });
-}
-
-void CALLBACK DeviceFailedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
-//    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
-    LogError(@"Device failed");
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
-    });
-}
-
-void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
-    __block AudioPlayer *player = (__bridge AudioPlayer *)(user);
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
-        [player outputDeviceDidChange];
-    });
+- (void)rampVolumeToNormal:(BOOL)async {
+    [BassUtil rampVolumeToNormal:_channel async:async];
 }
 
 - (BOOL)lockSampleRate {
@@ -238,22 +87,6 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
     }
 }
 
-- (void)changeSystemSampleRateToChannelRate {
-    if (!_channel) {
-        return;
-    }
-    BASS_INFO bassInfo;
-    BASS_CHANNELINFO channelInfo;
-    BASS_GetInfo(&bassInfo);
-    BASS_ChannelGetInfo(_channel, &channelInfo);
-    if (bassInfo.freq != channelInfo.freq) {
-        LogDebug(@"sample rate");
-        LogDebug(@"  bass: %d", bassInfo.freq);
-        LogDebug(@"  chan: %d", channelInfo.freq);
-        [self setSampleRate:channelInfo.freq];
-    }
-}
-
 - (BOOL)play:(AudioTrack *)track {
 
     [self stop];
@@ -263,23 +96,12 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
     _channel = BASS_StreamCreateFile(FALSE, filename, 0, 0, BASS_ASYNCFILE) ;
 
     if (_channel) {
-        if (!BASS_ChannelSetSync(_channel, BASS_SYNC_END, 0, ChannelEndedCallback, (__bridge void *)self)) {
-            LogError(@"Bass error: %@", [self stringForLastError]);
-        }
-        if (!BASS_ChannelSetSync(_channel, BASS_SYNC_DOWNLOAD, 0, DownloadFinishedCallback, (__bridge void *)self) ) {
-            LogError(@"Bass error: %@", [self stringForLastError]);
-        }
-        if (!BASS_ChannelSetSync(_channel, BASS_SYNC_DEV_FAIL, 0, DeviceFailedCallback, (__bridge void *)self) ) {
-            LogError(@"Bass error: %@", [self stringForLastError]);
-        }
-        if (!BASS_ChannelSetSync(_channel, BASS_SYNC_DEV_FORMAT, 0, DeviceChangedCallback, (__bridge void *)self) ) {
-            LogError(@"Bass error: %@", [self stringForLastError]);
-        }
-
+        [BassUtil setChannelDelegate:self channel:_channel];
         if (_lockSampleRate) {
             [self changeSystemSampleRateToChannelRate];
         }
 
+        BASS_SetVolume(1.0);
         BOOL success = BASS_ChannelPlay(_channel, FALSE);
 
         if (success) {
@@ -295,12 +117,16 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
 
     [self stop];
 
-    int code = BASS_ErrorGetCode();
     dispatch_async(dispatch_get_main_queue(), ^(void) {
-        [self->_delegate audioPlayer:self error:[self errorForErrorCode:code]];
+        [self->_delegate audioPlayer:self error:[BassUtil errorForLastError]];
     });
 
     return NO;
+}
+
+- (void)channelDidEnd {
+    [self stop];
+    [self->_delegate audioPlayer:self didFinishPlaying:_currentTrack];
 }
 
 - (void)playPause {
@@ -313,6 +139,7 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
 }
 
 - (void)pause {
+    [self rampVolumeToZero:NO];
     BASS_ChannelPause(_channel);
     dispatch_async(dispatch_get_main_queue(), ^(void) {
         [self->_delegate audioPlayer:self didPausePlaying:self->_currentTrack];
@@ -321,6 +148,7 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
 
 - (void)resume {
     BASS_ChannelPlay(_channel, NO);
+    [self rampVolumeToNormal:YES];
     dispatch_async(dispatch_get_main_queue(), ^(void) {
         [self->_delegate audioPlayer:self didResumePlaying:self->_currentTrack];
     });
@@ -335,9 +163,10 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
     _currentTrack = nil;
 }
 
+#pragma mark - Properties
+
 - (BOOL)isPlaying {
-    DWORD isPlaying = BASS_ChannelIsActive(_channel);
-    return isPlaying == BASS_ACTIVE_PLAYING;
+    return _channel != 0 && BASS_ChannelIsActive(_channel);
 }
 
 - (BOOL)isPaused {
@@ -349,126 +178,59 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
 }
 
 - (NSTimeInterval)duration {
-    QWORD len = BASS_ChannelGetLength(_channel, BASS_POS_BYTE);
-    NSTimeInterval time = BASS_ChannelBytes2Seconds(_channel, len);
-    return time;
+    if (_channel) {
+        QWORD len = BASS_ChannelGetLength(_channel, BASS_POS_BYTE);
+        NSTimeInterval time = BASS_ChannelBytes2Seconds(_channel, len);
+        return time;
+    }
+    return 0;
 }
 
 - (NSUInteger)numChannels {
-    BASS_CHANNELINFO info;
-    BASS_ChannelGetInfo(_channel, &info);
-    return info.chans;
-}
-
-- (QWORD)numBytes {
     if (_channel) {
-        return BASS_ChannelGetLength(_channel, BASS_POS_BYTE);
+        BASS_CHANNELINFO info;
+        BASS_ChannelGetInfo(_channel, &info);
+        return info.chans;
     }
-    else {
-        return 0;
-    }
+    return 0;
 }
 
 - (NSTimeInterval)position  {
-    QWORD len = BASS_ChannelGetPosition(_channel, BASS_POS_BYTE);
-    double position = BASS_ChannelBytes2Seconds(_channel, len);
-    return position;
+    return [BassUtil getChannelPosition:_channel];
 }
 
 - (void)setPosition:(NSTimeInterval)pos {
-    QWORD seekTo = BASS_ChannelSeconds2Bytes(_channel, pos);
-    BASS_ChannelSetPosition(_channel, seekTo, BASS_POS_BYTE);
+    return [BassUtil setChannelPosition:_channel position:pos];
 }
 
--(void)loadMetadata:(NSArray<AudioTrack*>*)tracks {
-    NSUInteger numTracks = tracks.count;
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
-        for (AudioTrack *track in tracks) {
-            if (!track.metadata) {
-                if ([self->_metadataCache objectForKey:track.url]) {
-                    track.metadata = [self->_metadataCache objectForKey:track.url];
-                }
-                else {
-                    track.metadata = [AudioTrackMetadata getMetadataForURL:track.url];
-                    [self->_metadataCache setObject:track.metadata forKey:track.url];
-                }
-            }
-            dispatch_async(dispatch_get_main_queue(), ^(void) {
-                [self->_delegate audioPlayer:self didLoadMetadata:track];
-            });
-        }
-        dispatch_async(dispatch_get_main_queue(), ^(void) {
-            [self->_delegate audioPlayer:self didFinishLoadingMetadata:numTracks];
-        });
-    });
+- (AudioTrack*)currentTrack {
+    return _currentTrack;
 }
 
-- (NSString *)stringForLastError {
-    return [self stringForErrorCode:(AudioPlayerError)BASS_ErrorGetCode()];
-}
+#pragma mark - Sample rates
 
-- (NSString *)stringForErrorCode:(AudioPlayerError)erro {
-    NSString *str = [NSString stringWithFormat:@"Unknown error: %d", erro];
-    if(erro == AudioPlayerErrorInit)
-        str = @"BASS_ERROR_INIT: BASS_Init has not been successfully called.";
-    else if(erro == AudioPlayerErrorNotAvail)
-        str = @"BASS_ERROR_NOTAVAIL: Only decoding channels (BASS_STREAM_DECODE) are allowed when using the \"no sound\" device. The BASS_STREAM_AUTOFREE flag is also unavailable to decoding channels.";
-    else if(erro == AudioPlayerErrorNoInternet)
-        str = @"BASS_ERROR_NONET: No internet connection could be opened. Can be caused by a bad proxy setting.";
-    else if(erro == AudioPlayerErrorInvalidUrl)
-        str = @"BASS_ERROR_ILLPARAM: url is not a valid URL.";
-    else if(erro == AudioPlayerErrorSslUnsupported)
-        str = @"BASS_ERROR_SSL: SSL/HTTPS support is not available.";
-    else if(erro == AudioPlayerErrorServerTimeout)
-        str = @"BASS_ERROR_TIMEOUT: The server did not respond to the request within the timeout period, as set with the BASS_CONFIG_NET_TIMEOUT config option.";
-    else if(erro == AudioPlayerErrorCouldNotOpenFile)
-        str = @"BASS_ERROR_FILEOPEN: The file could not be opened.";
-    else if(erro == AudioPlayerErrorFileInvalidFormat)
-        str = @"BASS_ERROR_FILEFORM: The file's format is not recognised/supported.";
-    else if(erro == AudioPlayerErrorSupportedCodec)
-        str = @"BASS_ERROR_CODEC: The file uses a codec that is not available/supported. This can apply to WAV and AIFF files, and also MP3 files when using the \"MP3-free\" BASS version.";
-    else if(erro == AudioPlayerErrorUnsupportedSampleFormat)
-        str = @"BASS_ERROR_SPEAKER: The sample format is not supported by the device/drivers. If the stream is more than stereo or the BASS_SAMPLE_FLOAT flag is used, it could be that they are not supported.";
-    else if(erro == AudioPlayerErrorInsufficientMemory)
-        str = @"BASS_ERROR_MEM: There is insufficient memory.";
-    else if(erro == AudioPlayerErrorNo3D)
-        str = @"BASS_ERROR_NO3D: Could not initialize 3D support.";
-    else if(erro == AudioPlayerErrorUnknown)
-        str = @"BASS_ERROR_UNKNOWN: Some other mystery problem! Usually this is when the Internet is available but the server/port at the specific URL isn't.";
-    return str;
-}
-
-- (NSError *)errorForErrorCode:(AudioPlayerError)erro {
-    return [NSError errorWithDomain:@"com.commonwealthrecordings.Vibe"
-                               code:erro
-                           userInfo:@{NSLocalizedDescriptionKey: [self stringForErrorCode:erro]}];
-}
-
-- (NSInteger)numOutputDevices {
-    int a, count = 0;
-    BASS_DEVICEINFO info;
-    for (a = 1; BASS_GetDeviceInfo(a, &info); a++)
-        if (info.flags & BASS_DEVICE_ENABLED)
-            count++; // count it
-    return count;
-}
-
-- (AudioDevice *)outputDeviceForIndex:(NSUInteger)index {
-    AudioDevice *dev = [[AudioDevice alloc] init];
-    if (index == -1) {
-        dev.name = @"System Default";
-        dev.index = index;
-        return dev;
+- (void)changeSystemSampleRateToChannelRate {
+    if (!_channel) {
+        return;
     }
-    else {
-        BASS_DEVICEINFO info;
-        if (!BASS_GetDeviceInfo((DWORD)(index + 1), &info)) {
-            return nil;
-        }
-        dev.name = [NSString stringWithCString:info.name encoding:NSUTF8StringEncoding];
-        dev.index = index;
+    BASS_INFO bassInfo;
+    BASS_CHANNELINFO channelInfo;
+    BASS_GetInfo(&bassInfo);
+    BASS_ChannelGetInfo(_channel, &channelInfo);
+    if (bassInfo.freq != channelInfo.freq) {
+        LogDebug(@"sample rate");
+        LogDebug(@"  bass: %d", bassInfo.freq);
+        LogDebug(@"  chan: %d", channelInfo.freq);
+        [CoreAudioUtil setSampleRate:channelInfo.freq forDeviceUID:BassUtil.driverForCurrentDevice];
     }
-    return dev;
+}
+
+#pragma mark - Output devices
+
+- (void)systemAudioOutputDeviceDidChange {
+    if (_selectedAudioDevice == -1) {
+        [self setDefaultOutputDevice];
+    }
 }
 
 - (NSInteger)currentOutputDeviceIndex {
@@ -515,22 +277,5 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
     }
     return NO;
 }
-
-- (void)systemOutputDeviceDidChange {
-    if (_selectedAudioDevice == -1) {
-        [self setDefaultOutputDevice];
-    }
-}
-
-- (void)outputDeviceDidChange {
-    LogDebug(@"Output device changed");
-    BASS_INFO bassInfo;
-    BASS_CHANNELINFO channelInfo;
-    BASS_GetInfo(&bassInfo);
-    BASS_ChannelGetInfo(_channel, &channelInfo);
-    LogDebug(@"  bass: %d", bassInfo.freq);
-    LogDebug(@"  chan: %d", channelInfo.freq);
-}
-
 
 @end
