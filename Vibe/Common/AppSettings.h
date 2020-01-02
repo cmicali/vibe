@@ -22,7 +22,7 @@
 - (BOOL)isFirstLaunch;
 
 - (NSInteger)audioPlayerCurrentDevice;
-- (void)setAudioPlayerCurrentDevice:(NSInteger)deviceIndex;
+- (void)setAudioPlayerOutputDevice:(NSInteger)deviceIndex;
 
 - (NSString *)windowAppearanceStyle;
 - (void)setWindowAppearanceStyle:(NSString *)name;

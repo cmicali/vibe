@@ -16,6 +16,7 @@
             NSPasteboardTypeURL,
     ]];
 
+    self.allowsConcurrentViewDrawing = YES;
     self.restorable = YES;
     self.restorationClass = [MainPlayerController class];
 

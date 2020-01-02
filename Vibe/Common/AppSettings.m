@@ -50,7 +50,7 @@
     return [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_AUDIO_PLAYER_CURRENT_DEVICE];
 }
 
--(void) setAudioPlayerCurrentDevice:(NSInteger)deviceIndex {
+-(void)setAudioPlayerOutputDevice:(NSInteger)deviceIndex {
     [[NSUserDefaults standardUserDefaults] setInteger:deviceIndex forKey:SETTING_AUDIO_PLAYER_CURRENT_DEVICE];
     [[NSUserDefaults standardUserDefaults] synchronize];
 }
