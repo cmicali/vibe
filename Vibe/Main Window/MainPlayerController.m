@@ -276,6 +276,8 @@
     self.audioPlayer.position = self.audioPlayer.duration * percentage;
 }
 
+#pragma mark - Actions
+
 - (IBAction) setSmallSize:(id)sender {
     MainWindow *window = (MainWindow *)self.window;
     [window setSmallSize:YES];
