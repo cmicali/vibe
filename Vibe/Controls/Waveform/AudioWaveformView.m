@@ -154,23 +154,24 @@
 
     [[[NSColor controlTextColor] colorWithAlphaComponent:0.95] set];
 
-    CGContextSetLineWidth(ctx, 1.0f);
+    CGContextSetLineWidth(ctx, 0.25f);
+//    CGContextSetAllowsAntialiasing(ctx, NO);
 
-    NSUInteger step = 1;
+    CGFloat step = 0.25;
 
-    for (NSUInteger i = 0; i < count ; i+=step) {
+    for (CGFloat i = 0; i < count ; i+=step) {
 
         CGFloat colorFactor = 1; //(i%2?1:0.5);
 
-        BOOL isPastPlayhead = (i >= _progressWidth+step);
+        BOOL isPastPlayhead = (i >= ((CGFloat)_progressWidth)+step);
         if (isPastPlayhead) {
-            [[[NSColor controlTextColor] colorWithAlphaComponent:0.50 * colorFactor] set];
+            [[[NSColor controlTextColor] colorWithAlphaComponent:0.35 * colorFactor] set];
         }
         else {
             [[[NSColor controlTextColor] colorWithAlphaComponent:0.95 * colorFactor] set];
         }
 
-        AudioWaveformCacheChunk* m = [_waveform chunkAtIndex:i];
+        AudioWaveformCacheChunk* m = [_waveform chunkAtIndex: (i / count * _waveform.count) ];
         if (!m) m = &zeroedChunk;
 
         CGFloat top     = round(midY - m->min * vscale);
@@ -188,8 +189,8 @@
             _waveformBottomY = bottom;
         }
 
-        CGContextMoveToPoint(ctx, i + 0.5, top + 0.5);
-        CGContextAddLineToPoint(ctx, i + 0.5, bottom + 0.5);
+        CGContextMoveToPoint(ctx, i+0.5 , top + 0.5);
+        CGContextAddLineToPoint(ctx, i+0.5 , bottom + 0.5);
         CGContextStrokePath(ctx);
 
     }

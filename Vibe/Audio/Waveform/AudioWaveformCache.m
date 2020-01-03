@@ -24,13 +24,13 @@
 - (id)init {
     self = [super init];
     if (self) {
-        dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_BACKGROUND, 0);
+        dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
         _loaderQueue = dispatch_queue_create("AudioWaveformCache", queueAttributes);
         _waveformCache = [[PINCache alloc] initWithName:@"audio_waveform_cache"];
         _waveformCache.diskCache.byteLimit = 64 * 1024 * 1024; // 64mb disk cache limit
         _waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
         _currentLoader = nil;
-//        [_waveformCache removeAllObjects];
+        [_waveformCache removeAllObjects];
     }
     return self;
 }

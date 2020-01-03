@@ -23,14 +23,14 @@
     if (self) {
         _urlsToOpen = [[NSMutableArray alloc] init];
         _isLoaded = NO;
+        id<DDLogger> osLogger = [DDOSLogger sharedInstance];
+        [DDLog addLogger:osLogger withLevel:ddLogLevel];
+        LogInfo(@"Vibe starting");
     }
     return self;
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
-
-    id<DDLogger> osLogger = [DDOSLogger sharedInstance];
-    [DDLog addLogger:osLogger withLevel:ddLogLevel];
 
     LogInfo(@"Vibe started");
 

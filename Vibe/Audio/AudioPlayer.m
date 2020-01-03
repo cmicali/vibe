@@ -11,14 +11,14 @@
 #import "AudioTrack.h"
 #import "BassUtil.h"
 #import "MainPlayerController.h"
-
-#define PLAYBACK_RATE   44100
+#import "AudioDeviceManager.h"
 
 @interface AudioPlayer () <BASSChannelDelegate>
 
 @property (atomic) HSTREAM      channel;
-@property (atomic) NSInteger    selectedAudioDevice;
 @property (atomic) BOOL         lockSampleRate;
+
+- (void)initWithDeviceIndexInternal:(int)newDeviceIndex;
 
 @end
 
@@ -30,36 +30,59 @@
 
 #pragma mark - Init
 
-- (id)initWithDevice:(NSInteger)deviceIndex lockSampleRate:(BOOL)shouldLockSampleRate delegate:(MainPlayerController *)delegate {
+- (id)initWithDevice:(NSString *)deviceName lockSampleRate:(BOOL)shouldLockSampleRate delegate:(MainPlayerController *)delegate {
     self = [super init];
     if (self) {
         self.channel = 0;
-        self.selectedAudioDevice = deviceIndex;
-        _lockSampleRate = shouldLockSampleRate;
+        self.lockSampleRate = shouldLockSampleRate;
         dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
         _playerQueue = dispatch_queue_create("AudioPlayer", queueAttributes);
         self.delegate = delegate;
         dispatch_async(_playerQueue, ^{
-            [self setup];
+            [self setup:deviceName];
         });
     }
     return self;
 }
 
-- (void)setup {
+- (void)setup:(NSString *)deviceName {
     LogDebug(@"AudioPlayer init");
     BASS_PluginLoad("libbassflac.dylib", 0);
     BASS_SetConfig(BASS_CONFIG_FLOATDSP, 1);
-    if (!BASS_Init((int)self.selectedAudioDevice, PLAYBACK_RATE, 0, NULL, NULL)) {
-        DDLogError(@"Error initializing BASS");
-    }
-    BASS_INFO info;
-    BASS_GetInfo(&info);
-    LogDebug(@"  freq: %d latency: %d minrate: %d maxrate: %d flags: %d", info.freq, info.latency, info.minrate, info.maxrate, info.flags);
+
+    AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForName:deviceName];
+    self.currentlyRequestedAudioDeviceId = device.deviceId;
+
+    [self initWithDeviceIndexInternal:(int) device.deviceId];
+
     [CoreAudioUtil listenForSystemOutputDeviceChanges:self];
+
     run_on_main_thread({
         [self.delegate audioPlayerDidInitialize:self];
     });
+
+}
+
+- (void)initWithDeviceIndexInternal:(int)newDeviceIndex {
+    BOOL wasPlaying = self.isPlaying;
+    if (wasPlaying) {
+        BASS_ChannelPause(self.channel);
+    }
+    if (!BASS_Init(newDeviceIndex, 44100, 0, NULL, NULL)) {
+        LogError(@"Error initializing BASS");
+    }
+    if (newDeviceIndex != -1) {
+        BASS_SetDevice((DWORD) newDeviceIndex);
+        if (self.channel) {
+            BASS_ChannelSetDevice(self.channel, (DWORD) newDeviceIndex);
+        }
+        if (wasPlaying) {
+            BASS_ChannelPlay(self.channel, NO);
+        }
+    }
+    if (self.channel) {
+        [self changeSystemSampleRateToChannelRate];
+    }
 }
 
 - (void)dealloc  {
@@ -87,7 +110,7 @@
 
 - (void)setLockSampleRate:(BOOL)lockSampleRate {
     _lockSampleRate = lockSampleRate;
-    if (_lockSampleRate) {
+    if (_lockSampleRate && _channel) {
         dispatch_async(_playerQueue, ^{
             [self changeSystemSampleRateToChannelRate];
         });
@@ -103,21 +126,18 @@
         LogDebug(@"AudioPlayer: play");
 
         if (self.channel) {
-            LogDebug(@"    stopping current channel");
             BASS_ChannelStop(self.channel);
             BASS_StreamFree(self.channel);
         }
 
         self.currentTrack = nil;
 
-        LogDebug(@"    opening: %@", track.url.path);
+        LogDebug(@"       file: %@", track.url.path);
         self.channel = BASS_StreamCreateFile(FALSE, filename, 0, 0, BASS_ASYNCFILE) ;
 
         if (self.channel) {
             [BassUtil setChannelDelegate:self channel:self.channel];
-            if (self.lockSampleRate) {
-                [self changeSystemSampleRateToChannelRate];
-            }
+            [self changeSystemSampleRateToChannelRate];
             BOOL success = BASS_ChannelPlay(self.channel, FALSE);
             if (success) {
                 self.currentTrack = track;
@@ -218,7 +238,7 @@
 #pragma mark - Sample rates
 
 - (void)changeSystemSampleRateToChannelRate {
-    if (!self.channel) {
+    if (!self.channel || !_lockSampleRate) {
         return;
     }
     BASS_INFO bassInfo;
@@ -229,15 +249,15 @@
         LogDebug(@"AudioPlayer: Changing system sample rate");
         LogDebug(@"  from: %d", bassInfo.freq);
         LogDebug(@"    to: %d", channelInfo.freq);
-        [CoreAudioUtil setSampleRate:channelInfo.freq forDeviceUID:BassUtil.driverForCurrentDevice];
+        [CoreAudioUtil setBestSampleRate:channelInfo.freq forDeviceUID:BassUtil.driverForCurrentDevice];
     }
 }
 
 #pragma mark - Output devices
 
 - (void)systemAudioOutputDeviceDidChange {
-    if (_selectedAudioDevice == -1) {
-        [self setDefaultOutputDevice];
+    if (self.currentlyRequestedAudioDeviceId == -1) {
+        [self setOutputDevice:self.currentlyRequestedAudioDeviceId];
     }
 }
 
@@ -245,11 +265,15 @@
 
     dispatch_async(_playerQueue, ^{
 
+        LogDebug(@"setOutputDevice: %@", @(outputDeviceIndex));
         BASS_DEVICEINFO info;
 
         DWORD newDeviceIndex = 0;
 
-        if (outputDeviceIndex == -1) {
+        if (outputDeviceIndex >= 0) {
+            newDeviceIndex = (DWORD) outputDeviceIndex;
+        }
+        else if (outputDeviceIndex == -1) {
             // Find default output device
             for (NSUInteger d = 1; BASS_GetDeviceInfo((DWORD)d, &info); d++) {
                 if (info.flags & BASS_DEVICE_DEFAULT) {
@@ -257,45 +281,32 @@
                     break;
                 }
             }
-            if (newDeviceIndex == 0) {
-                // We couldn't find the default device
-                LogError(@"Unable to find system default output device");
-                [self sendDelegateLastError];
-                return;
-            }
         }
-        else {
-            newDeviceIndex = (DWORD) (outputDeviceIndex + 1);
+
+        if (newDeviceIndex == 0) {
+            LogError(@"Unable to find system default output device, and no sound (0) is disallowed");
+            [self sendDelegateLastError];
+            return;
         }
 
         int currentDevice = BASS_GetDevice();
 
-        if (newDeviceIndex != currentDevice) {
+        LogDebug(@"current: %@ new: %@", @(currentDevice), @(newDeviceIndex));
 
-            BOOL isPlaying = self.isPlaying;
-            if (isPlaying) {
-                BASS_ChannelPause(self.channel);
-            }
-            BASS_Init(newDeviceIndex, PLAYBACK_RATE, 0, 0, 0);
-            BASS_SetDevice(newDeviceIndex);
-            if (self.channel) {
-                BASS_ChannelSetDevice(self.channel, newDeviceIndex);
-            }
-            if (isPlaying) {
-                BASS_ChannelPlay(self.channel, NO);
-            }
+        if (newDeviceIndex != currentDevice) {
+            [self initWithDeviceIndexInternal:newDeviceIndex];
         }
-        self.selectedAudioDevice = outputDeviceIndex;
+
+        self.currentlyRequestedAudioDeviceId = outputDeviceIndex;
+
+        LogDebug(@"currentlyRequestedAudioDeviceId: %@", @(self.currentlyRequestedAudioDeviceId));
+
         run_on_main_thread({
-            [self.delegate audioPlayer:self didChangeOuputDevice:self.selectedAudioDevice];
+            [self.delegate audioPlayer:self didChangeOuputDevice:self.currentlyRequestedAudioDeviceId];
         });
 
     });
 
-}
-
-- (void)setDefaultOutputDevice {
-    [self setOutputDevice:-1];
 }
 
 #pragma mark - Helpers
