@@ -13,21 +13,19 @@
 
 + (AppSettings*)sharedInstance;
 
-- (BOOL)audioPlayerLockSampleRate;
-
-- (void)setAudioPlayerLockSampleRate:(BOOL)lockSampleRate;
-
 - (void)applicationDidFinishLaunching;
 
 - (BOOL)isFirstLaunch;
 
-- (NSInteger)audioPlayerCurrentDevice;
-- (void)setAudioPlayerOutputDevice:(NSInteger)deviceIndex;
+- (NSString *)audioOutputDeviceName;
+- (void)setAudioOutputDeviceName:(NSString *)deviceName;
+
+- (BOOL)audioPlayerLockSampleRate;
+- (void)setAudioPlayerLockSampleRate:(BOOL)lockSampleRate;
 
 - (NSString *)windowAppearanceStyle;
 - (void)setWindowAppearanceStyle:(NSString *)name;
 
 - (NSAppearance *)windowAppearance;
-- (NSAppearance *)appearanceForSettingValue:(NSString *)value;
 
 @end
