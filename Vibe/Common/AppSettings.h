@@ -5,6 +5,8 @@
 
 #import <Foundation/Foundation.h>
 
+#define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"Vibe Default"
+
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT     @""
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT       @"light"
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK        @"dark"
@@ -27,5 +29,8 @@
 - (void)setWindowAppearanceStyle:(NSString *)name;
 
 - (NSAppearance *)windowAppearance;
+
+- (NSString *)waveformStyle;
+- (void)setWaveformStyle:(NSString *)name;
 
 @end

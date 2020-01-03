@@ -21,4 +21,6 @@ typedef struct CG_BOXABLE AudioWaveformCacheChunk AudioWaveformCacheChunk;
 - (AudioWaveformCacheChunk *)chunkAtIndex:(NSUInteger)index;
 - (void)setChunk:(AudioWaveformCacheChunk)chunk atIndex:(NSInteger)idx;
 
++ (AudioWaveformCacheChunk *)emptyChunk;
+
 @end

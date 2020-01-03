@@ -18,6 +18,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property CGFloat progress;
 
+- (NSString *)currentWaveformStyle;
+- (void)setWaveformStyle:(NSString*)name;
+- (NSArray<NSString *> *)availableWaveformStyles;
+
 - (void)loadWaveformForTrack:(AudioTrack *)track;
 
 @end
