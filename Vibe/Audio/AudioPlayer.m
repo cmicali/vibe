@@ -9,59 +9,83 @@
 #import "AudioPlayer.h"
 #import "BassWrapper.h"
 #import "AudioTrack.h"
-#import "AudioTrackMetadata.h"
-#import "AudioWaveform.h"
-#import "Util.h"
-#import "AudioDevice.h"
-#import "CoreAudioUtil.h"
 #import "BassUtil.h"
-
-#define PLAYBACK_RATE   44100
+#import "MainPlayerController.h"
+#import "AudioDeviceManager.h"
 
 @interface AudioPlayer () <BASSChannelDelegate>
+
+@property (atomic) HSTREAM      channel;
+@property (atomic) BOOL         lockSampleRate;
+
+- (void)initWithDeviceIndexInternal:(int)newDeviceIndex;
+
 @end
 
 @implementation AudioPlayer {
-    AudioTrack *_currentTrack;
-    NSInteger _selectedAudioDevice;
-    HSTREAM _channel;
-    BOOL _lockSampleRate;
+    dispatch_queue_t        _playerQueue;
+    BOOL                    _lockSampleRate;
 }
+
 
 #pragma mark - Init
 
-- (id)initWithDevice:(NSInteger)deviceIndex lockSampleRate:(BOOL)lockSampleRate {
+- (id)initWithDevice:(NSString *)deviceName lockSampleRate:(BOOL)shouldLockSampleRate delegate:(MainPlayerController *)delegate {
     self = [super init];
     if (self) {
-        _selectedAudioDevice = deviceIndex;
-        _lockSampleRate = lockSampleRate;
-        [self setup];
+        self.channel = 0;
+        self.lockSampleRate = shouldLockSampleRate;
+        dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
+        _playerQueue = dispatch_queue_create("AudioPlayer", queueAttributes);
+        self.delegate = delegate;
+        dispatch_async(_playerQueue, ^{
+            [self setup:deviceName];
+        });
     }
     return self;
 }
 
-- (void)setup {
-
-    _channel = 0;
-
+- (void)setup:(NSString *)deviceName {
+    LogDebug(@"AudioPlayer init");
     BASS_PluginLoad("libbassflac.dylib", 0);
-
     BASS_SetConfig(BASS_CONFIG_FLOATDSP, 1);
 
-    if (!BASS_Init((int)_selectedAudioDevice, PLAYBACK_RATE, 0, NULL, NULL)) {
-        DDLogError(@"Error initializing BASS");
-    }
-    BASS_INFO info;
-    BASS_GetInfo(&info);
+    AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForName:deviceName];
+    self.currentlyRequestedAudioDeviceId = device.deviceId;
 
-    LogDebug(@"BASS init");
-    LogDebug(@"  freq: %d latency: %d minrate: %d maxrate: %d flags: %d", info.freq, info.latency, info.minrate, info.maxrate, info.flags);
+    [self initWithDeviceIndexInternal:(int) device.deviceId];
 
     [CoreAudioUtil listenForSystemOutputDeviceChanges:self];
+
+    run_on_main_thread({
+        [self.delegate audioPlayerDidInitialize:self];
+    });
+
+}
+
+- (void)initWithDeviceIndexInternal:(int)newDeviceIndex {
+    BOOL wasPlaying = self.isPlaying;
+    if (wasPlaying) {
+        BASS_ChannelPause(self.channel);
+    }
+    if (!BASS_Init(newDeviceIndex, 44100, 0, NULL, NULL)) {
+        LogError(@"Error initializing BASS");
+    }
+    if (newDeviceIndex != -1) {
+        BASS_SetDevice((DWORD) newDeviceIndex);
+        if (self.channel) {
+            BASS_ChannelSetDevice(self.channel, (DWORD) newDeviceIndex);
+        }
+        if (wasPlaying) {
+            BASS_ChannelPlay(self.channel, NO);
+        }
+    }
+    if (self.channel) {
+        [self changeSystemSampleRateToChannelRate];
+    }
 }
 
 - (void)dealloc  {
-    [self stop];
     BASS_Free();
     DDLogDebug(@"Bass freed");
 }
@@ -69,11 +93,15 @@
 #pragma mark - Methods
 
 - (void)rampVolumeToZero:(BOOL)async {
-    [BassUtil rampVolumeToZero:_channel async:async];
+    dispatch_async(_playerQueue, ^{
+        [BassUtil rampVolumeToZero:self.channel async:async];
+    });
 }
 
 - (void)rampVolumeToNormal:(BOOL)async {
-    [BassUtil rampVolumeToNormal:_channel async:async];
+    dispatch_async(_playerQueue, ^{
+        [BassUtil rampVolumeToNormal:self.channel async:async];
+    });
 }
 
 - (BOOL)lockSampleRate {
@@ -82,200 +110,214 @@
 
 - (void)setLockSampleRate:(BOOL)lockSampleRate {
     _lockSampleRate = lockSampleRate;
-    if (_lockSampleRate) {
-        [self changeSystemSampleRateToChannelRate];
+    if (_lockSampleRate && _channel) {
+        dispatch_async(_playerQueue, ^{
+            [self changeSystemSampleRateToChannelRate];
+        });
     }
 }
 
-- (BOOL)play:(AudioTrack *)track {
-
-    [self stop];
+- (void)play:(AudioTrack *)track {
 
     const char *filename = [track.url.path UTF8String];
 
-    _channel = BASS_StreamCreateFile(FALSE, filename, 0, 0, BASS_ASYNCFILE) ;
+    dispatch_async(_playerQueue, ^{
 
-    if (_channel) {
-        [BassUtil setChannelDelegate:self channel:_channel];
-        if (_lockSampleRate) {
+        LogDebug(@"AudioPlayer: play");
+
+        if (self.channel) {
+            BASS_ChannelStop(self.channel);
+            BASS_StreamFree(self.channel);
+        }
+
+        self.currentTrack = nil;
+
+        LogDebug(@"       file: %@", track.url.path);
+        self.channel = BASS_StreamCreateFile(FALSE, filename, 0, 0, BASS_ASYNCFILE) ;
+
+        if (self.channel) {
+            [BassUtil setChannelDelegate:self channel:self.channel];
             [self changeSystemSampleRateToChannelRate];
+            BOOL success = BASS_ChannelPlay(self.channel, FALSE);
+            if (success) {
+                self.currentTrack = track;
+                track.duration = self.duration;
+                run_on_main_thread({
+                    [self.delegate audioPlayer:self didStartPlaying:track];
+                });
+                return;
+            }
+            BASS_StreamFree(self.channel);
+            self.channel = 0;
         }
-
-        BASS_SetVolume(1.0);
-        BOOL success = BASS_ChannelPlay(_channel, FALSE);
-
-        if (success) {
-            _currentTrack = track;
-            track.duration = self.duration;
-            dispatch_async(dispatch_get_main_queue(), ^(void) {
-                [self->_delegate audioPlayer:self didStartPlaying:track];
-            });
-            return YES;
-        }
-
-    }
-
-    [self stop];
-
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
-        [self->_delegate audioPlayer:self error:[BassUtil errorForLastError]];
+        [self sendDelegateLastError];
     });
 
-    return NO;
-}
-
-- (void)channelDidEnd {
-    [self stop];
-    [self->_delegate audioPlayer:self didFinishPlaying:_currentTrack];
 }
 
 - (void)playPause {
-    if ([self isPlaying]) {
-        [self pause];
-    }
-    else {
-        [self resume];
-    }
-}
-
-- (void)pause {
-    [self rampVolumeToZero:NO];
-    BASS_ChannelPause(_channel);
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
-        [self->_delegate audioPlayer:self didPausePlaying:self->_currentTrack];
+    dispatch_async(_playerQueue, ^{
+        if (self.isPlaying) {
+            [BassUtil rampVolumeToZero:self.channel async:NO];
+            if (BASS_ChannelPause(self.channel)) {
+                run_on_main_thread({
+                    [self.delegate audioPlayer:self didPausePlaying:self.currentTrack];
+                });
+                return;
+            }
+        }
+        else {
+            if (BASS_ChannelPlay(self.channel, NO)) {
+                [BassUtil rampVolumeToNormal:self.channel async:YES];
+                run_on_main_thread({
+                    [self.delegate audioPlayer:self didPausePlaying:self.currentTrack];
+                });
+                return;
+            }
+        }
+        [self sendDelegateLastError];
     });
-}
-
-- (void)resume {
-    BASS_ChannelPlay(_channel, NO);
-    [self rampVolumeToNormal:YES];
-    dispatch_async(dispatch_get_main_queue(), ^(void) {
-        [self->_delegate audioPlayer:self didResumePlaying:self->_currentTrack];
-    });
-}
-
-- (void)stop {
-    if (_channel) {
-        BASS_ChannelStop(_channel);
-        BASS_StreamFree(_channel);
-        _channel = 0;
-    }
-    _currentTrack = nil;
 }
 
 #pragma mark - Properties
 
 - (BOOL)isPlaying {
-    return _channel != 0 && BASS_ChannelIsActive(_channel);
+    return self.channel != 0 && BASS_ChannelIsActive(self.channel) == BASS_ACTIVE_PLAYING;
 }
 
 - (BOOL)isPaused {
-    return _channel != 0 && !self.isPlaying;
+    return self.channel != 0 && (
+            BASS_ChannelIsActive(self.channel) == BASS_ACTIVE_PAUSED ||
+            BASS_ChannelIsActive(self.channel) == BASS_ACTIVE_PAUSED_DEVICE
+    );
 }
 
 - (BOOL)isStopped {
-    return _channel == 0;
+    return self.channel == 0 || BASS_ChannelIsActive(self.channel) == BASS_ACTIVE_STOPPED;
 }
 
 - (NSTimeInterval)duration {
-    if (_channel) {
-        QWORD len = BASS_ChannelGetLength(_channel, BASS_POS_BYTE);
-        NSTimeInterval time = BASS_ChannelBytes2Seconds(_channel, len);
+    if (self.channel) {
+        QWORD len = BASS_ChannelGetLength(self.channel, BASS_POS_BYTE);
+        NSTimeInterval time = BASS_ChannelBytes2Seconds(self.channel, len);
         return time;
     }
     return 0;
 }
 
 - (NSUInteger)numChannels {
-    if (_channel) {
+    if (self.channel) {
         BASS_CHANNELINFO info;
-        BASS_ChannelGetInfo(_channel, &info);
+        BASS_ChannelGetInfo(self.channel, &info);
         return info.chans;
     }
     return 0;
 }
 
 - (NSTimeInterval)position  {
-    return [BassUtil getChannelPosition:_channel];
+    return [BassUtil getChannelPosition:self.channel];
 }
 
 - (void)setPosition:(NSTimeInterval)pos {
-    return [BassUtil setChannelPosition:_channel position:pos];
+    dispatch_async(_playerQueue, ^{
+        [BassUtil setChannelPosition:self.channel position:pos];
+        run_on_main_thread({
+            [self.delegate audioPlayer:self didFinishSeeking:self.currentTrack];
+        });
+    });
 }
 
-- (AudioTrack*)currentTrack {
-    return _currentTrack;
+#pragma mark - BASSChannelDelegate
+
+- (void)channelDidEnd {
+    run_on_main_thread({
+        [self.delegate audioPlayer:self didFinishPlaying:self.currentTrack];
+    });
 }
 
 #pragma mark - Sample rates
 
 - (void)changeSystemSampleRateToChannelRate {
-    if (!_channel) {
+    if (!self.channel || !_lockSampleRate) {
         return;
     }
     BASS_INFO bassInfo;
     BASS_CHANNELINFO channelInfo;
     BASS_GetInfo(&bassInfo);
-    BASS_ChannelGetInfo(_channel, &channelInfo);
+    BASS_ChannelGetInfo(self.channel, &channelInfo);
     if (bassInfo.freq != channelInfo.freq) {
-        LogDebug(@"sample rate");
-        LogDebug(@"  bass: %d", bassInfo.freq);
-        LogDebug(@"  chan: %d", channelInfo.freq);
-        [CoreAudioUtil setSampleRate:channelInfo.freq forDeviceUID:BassUtil.driverForCurrentDevice];
+        LogDebug(@"AudioPlayer: Changing system sample rate");
+        LogDebug(@"  from: %d", bassInfo.freq);
+        LogDebug(@"    to: %d", channelInfo.freq);
+        [CoreAudioUtil setBestSampleRate:channelInfo.freq forDeviceUID:BassUtil.driverForCurrentDevice];
     }
 }
 
 #pragma mark - Output devices
 
 - (void)systemAudioOutputDeviceDidChange {
-    if (_selectedAudioDevice == -1) {
-        [self setDefaultOutputDevice];
+    if (self.currentlyRequestedAudioDeviceId == -1) {
+        [self setOutputDevice:self.currentlyRequestedAudioDeviceId];
     }
 }
 
-- (NSInteger)currentOutputDeviceIndex {
-    return _selectedAudioDevice;
-}
+- (void)setOutputDevice:(NSInteger)outputDeviceIndex {
 
-- (BOOL)setOutputDevice:(NSInteger)newIndex {
+    dispatch_async(_playerQueue, ^{
 
-    _selectedAudioDevice = newIndex;
+        LogDebug(@"setOutputDevice: %@", @(outputDeviceIndex));
+        BASS_DEVICEINFO info;
 
-    if (_selectedAudioDevice == -1) {
-        return [self setDefaultOutputDevice];
-    }
+        DWORD newDeviceIndex = 0;
 
-    // Skip nosound device
-    DWORD newDeviceIndex = (DWORD)(newIndex + 1);
-    BASS_DEVICEINFO info;
-    int currentDevice = BASS_GetDevice();
-    if (newDeviceIndex != currentDevice) {
-        BOOL isPlaying = self.isPlaying;
-        BASS_GetDeviceInfo((DWORD) newIndex, &info);
-        BASS_Init(newDeviceIndex, PLAYBACK_RATE, 0, 0, 0);
-        BASS_SetDevice(newDeviceIndex);
-        if (_channel) {
-            BASS_ChannelPause(_channel);
-            BASS_ChannelSetDevice(_channel, newDeviceIndex);
-            if (isPlaying) {
-                BASS_ChannelPlay(_channel, NO);
+        if (outputDeviceIndex >= 0) {
+            newDeviceIndex = (DWORD) outputDeviceIndex;
+        }
+        else if (outputDeviceIndex == -1) {
+            // Find default output device
+            for (NSUInteger d = 1; BASS_GetDeviceInfo((DWORD)d, &info); d++) {
+                if (info.flags & BASS_DEVICE_DEFAULT) {
+                    newDeviceIndex = (DWORD)d;
+                    break;
+                }
             }
         }
-    }
-    return YES;
+
+        if (newDeviceIndex == 0) {
+            LogError(@"Unable to find system default output device, and no sound (0) is disallowed");
+            [self sendDelegateLastError];
+            return;
+        }
+
+        int currentDevice = BASS_GetDevice();
+
+        LogDebug(@"current: %@ new: %@", @(currentDevice), @(newDeviceIndex));
+
+        if (newDeviceIndex != currentDevice) {
+            [self initWithDeviceIndexInternal:newDeviceIndex];
+        }
+
+        self.currentlyRequestedAudioDeviceId = outputDeviceIndex;
+
+        LogDebug(@"currentlyRequestedAudioDeviceId: %@", @(self.currentlyRequestedAudioDeviceId));
+
+        run_on_main_thread({
+            [self.delegate audioPlayer:self didChangeOuputDevice:self.currentlyRequestedAudioDeviceId];
+        });
+
+    });
+
 }
 
-- (BOOL)setDefaultOutputDevice {
-    BASS_DEVICEINFO info;
-    for (NSUInteger d = 1; BASS_GetDeviceInfo((DWORD)d, &info); d++) {
-        if (info.flags & BASS_DEVICE_DEFAULT) {
-            if ([self setOutputDevice:d - 1]) {
-                _selectedAudioDevice = -1;
-                return YES;
-            }
-        }
-    }
-    return NO;
+#pragma mark - Helpers
+
+- (void)sendDelegateLastError {
+    int errorCode = BASS_ErrorGetCode();
+    LogError(@"AudioPlayer Error: %@", [BassUtil stringForErrorCode:errorCode]);
+    NSError *error = [BassUtil errorForErrorCode:errorCode];
+    run_on_main_thread({
+        [self.delegate audioPlayer:self error:error];
+    });
 }
 
 @end

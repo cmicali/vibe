@@ -15,5 +15,5 @@ bool runWithTimeout(int timeoutSec, void (^block)(void)) {
         dispatch_semaphore_signal(mySemaphore);
     });
     dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeoutSec * NSEC_PER_SEC));
-    return dispatch_semaphore_wait(mySemaphore, timeout);
+    return dispatch_semaphore_wait(mySemaphore, timeout) == 0;
 }

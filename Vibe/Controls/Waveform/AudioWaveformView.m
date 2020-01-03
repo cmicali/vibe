@@ -6,18 +6,27 @@
 #import <PINCache/PINCache.h>
 #import <Quartz/Quartz.h>
 #import "AudioWaveformView.h"
-#import "AudioWaveform.h"
+#import "AudioWaveformCache.h"
 #import "AudioTrack.h"
 #import "NSURL+Hash.h"
 
 
+@interface AudioWaveformView () <AudioWaveformCacheDelegate>
+
+@property (strong) AudioWaveform*       waveform;
+@property (strong) AudioWaveformCache*  waveformCache;
+
+@end
+
 @implementation AudioWaveformView {
     NSUInteger          _progressWidth;
-    AudioWaveform*      _waveform;
-    PINCache*           _waveformCache;
-    dispatch_queue_t    _loaderQueue;
+    BOOL                _didClickInside;
     BOOL                _seekPreviewing;
     CGFloat             _seekPreviewLocation;
+
+    CGFloat             _waveformTopY;
+    CGFloat             _waveformBottomY;
+
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -37,10 +46,10 @@
 }
 
 - (void)setup  {
-    _loaderQueue = dispatch_queue_create("AudioWaveformViewLoader", DISPATCH_QUEUE_SERIAL);
-    _waveformCache = [[PINCache alloc] initWithName:@"waveform_cache"];
-    _waveformCache.diskCache.byteLimit = 64 * 1024 * 1024; // 64mb disk cache limit
-    _waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
+    _didClickInside = NO;
+    _waveformCache = [[AudioWaveformCache alloc] init];
+    _waveformCache.delegate = self;
+/*
     NSTrackingArea* trackingArea = [[NSTrackingArea alloc]
                                                     initWithRect:[self bounds]
                                                          options:NSTrackingMouseEnteredAndExited |
@@ -48,13 +57,10 @@
                                                                  NSTrackingActiveAlways
                                                            owner:self userInfo:nil];
     [self addTrackingArea:trackingArea];
-
+*/
 }
 
--(void)dealloc {
-
-}
-
+/*
 - (void)mouseEntered:(NSEvent *)event {
     [super mouseEntered:event];
     NSPoint e = [event locationInWindow];
@@ -83,14 +89,27 @@
         }
     }
 }
-
+*/
+- (void)mouseDown:(NSEvent *)event {
+    NSPoint e = [event locationInWindow];
+    NSPoint mouseLoc = [self convertPoint:e fromView:nil];
+    if ([self mouse:mouseLoc inRect:self.bounds]) {
+        if (mouseLoc.y >= _waveformBottomY && mouseLoc.y <= _waveformTopY) {
+            _didClickInside = YES;
+        }
+    }
+}
 
 - (void)mouseUp:(NSEvent *)event {
+    if (!_didClickInside) {
+        return;
+    }
+    _didClickInside = NO;
     NSPoint e = [event locationInWindow];
     NSPoint mouseLoc = [self convertPoint:e fromView:nil];
     if ([self mouse:mouseLoc inRect:[self bounds]]) {
         CGFloat x = mouseLoc.x - self.bounds.origin.x;
-        CGFloat p = x / self.bounds.size.width;
+        float p = (float) (x / self.bounds.size.width);
         [self.delegate audioWaveformView:self didSeek:p];
     }
 }
@@ -113,65 +132,74 @@
     return instance;
 }
 
+// https://github.com/rFlex/SCWaveformView/blob/master/Sources/SCWaveformCache.m
+
 - (void)drawRect:(NSRect)dirtyRect {
     [super drawRect:dirtyRect];
 
-    if (_waveform) {
+    ZeroedAudioWaveformCacheChunk(zeroedChunk);
 
-        [NSGraphicsContext.currentContext saveGraphicsState];
+    _waveformBottomY = self.bounds.size.height/2 - (self.bounds.size.height/2 * .5);
+    _waveformTopY = self.bounds.size.height/2 + (self.bounds.size.height/2 * .5);
 
-        CGContextRef ctx = NSGraphicsContext.currentContext.CGContext;
+    [NSGraphicsContext.currentContext saveGraphicsState];
 
-        size_t count = (size_t) self.bounds.size.width;
-        CGFloat height = self.bounds.size.height;
+    CGContextRef ctx = NSGraphicsContext.currentContext.CGContext;
 
-        CGFloat vscale = (height / 2) * 0.70;
-        CGFloat midY = height / 2;
+    size_t count = (size_t) self.bounds.size.width;
+    CGFloat height = self.bounds.size.height;
 
-        [[[NSColor controlTextColor] colorWithAlphaComponent:0.95] set];
+    CGFloat vscale = (height / 2) * 0.70;
+    CGFloat midY = height / 2;
 
-        CGContextSetLineWidth(ctx, 1.0f);
+    [[[NSColor controlTextColor] colorWithAlphaComponent:0.95] set];
 
-        int step = 1;
+    CGContextSetLineWidth(ctx, 0.25f);
+//    CGContextSetAllowsAntialiasing(ctx, NO);
 
-        for (int i = 0; i < count ; i+=step) {
+    CGFloat step = 0.25;
 
-            CGFloat colorFactor = (i%2?1:0.5);
+    for (CGFloat i = 0; i < count ; i+=step) {
 
-            BOOL isPastPlayhead = (i >= _progressWidth+step);
-            BOOL isSeekPreviewPastPlayhead = (_seekPreviewLocation >= _progressWidth+step);
-            if (isPastPlayhead) {
-                [[[NSColor controlTextColor] colorWithAlphaComponent:0.50 * colorFactor] set];
-                if (_seekPreviewing && isSeekPreviewPastPlayhead && i < _seekPreviewLocation) {
-                    [[[NSColor controlTextColor] colorWithAlphaComponent:0.65 * colorFactor] set];
-                }
-                else {
-                    [[[NSColor controlTextColor] colorWithAlphaComponent:0.50 * colorFactor] set];
-                }
-            }
-            else {
-                [[[NSColor controlTextColor] colorWithAlphaComponent:0.95 * colorFactor] set];
-            }
-//            }
+        CGFloat colorFactor = 1; //(i%2?1:0.5);
 
-            MinMax m = [_waveform getMinMax:i];
-
-            CGFloat top     = round(midY - m.max * vscale);
-            CGFloat bottom  = round(midY - m.min * vscale);
-
-            CGContextMoveToPoint(ctx, i + 0.5, top + 0.5);
-            CGContextAddLineToPoint(ctx, i + 0.5, bottom + 0.5);
-            CGContextStrokePath(ctx);
-
+        BOOL isPastPlayhead = (i >= ((CGFloat)_progressWidth)+step);
+        if (isPastPlayhead) {
+            [[[NSColor controlTextColor] colorWithAlphaComponent:0.35 * colorFactor] set];
+        }
+        else {
+            [[[NSColor controlTextColor] colorWithAlphaComponent:0.95 * colorFactor] set];
         }
 
-        NSGraphicsContext.currentContext.compositingOperation = NSCompositingOperationSourceAtop;
-        NSGradient *g = [AudioWaveformView gradient];
-        [g drawInRect:self.bounds angle:90];
+        AudioWaveformCacheChunk* m = [_waveform chunkAtIndex: (i / count * _waveform.count) ];
+        if (!m) m = &zeroedChunk;
 
-        [NSGraphicsContext.currentContext restoreGraphicsState];
+        CGFloat top     = round(midY - m->min * vscale);
+        CGFloat bottom  = round(midY - m->max * vscale);
+
+        if (top - bottom == 0) {
+            top += 0.5;
+            bottom -= 0.5;
+        }
+
+        if (top > _waveformTopY) {
+            _waveformTopY = top;
+        }
+        if (bottom < _waveformBottomY) {
+            _waveformBottomY = bottom;
+        }
+
+        CGContextMoveToPoint(ctx, i+0.5 , top + 0.5);
+        CGContextAddLineToPoint(ctx, i+0.5 , bottom + 0.5);
+        CGContextStrokePath(ctx);
 
     }
+
+    NSGraphicsContext.currentContext.compositingOperation = NSCompositingOperationSourceAtop;
+    NSGradient *g = [AudioWaveformView gradient];
+    [g drawInRect:self.bounds angle:90];
+
+    [NSGraphicsContext.currentContext restoreGraphicsState];
 
 }
 
@@ -187,38 +215,18 @@
     return _progressWidth/self.bounds.size.width;
 }
 
+- (void)loadWaveformForTrack:(AudioTrack *)track {
+    _waveform = nil;
+    _progressWidth = 0;
+    self.needsDisplay = YES;
+    [_waveformCache loadWaveformForTrack:track];
+}
+
 - (void)audioWaveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded {
     if (_waveform != waveform) {
         _waveform = waveform;
     }
-    if (percentLoaded == 1.0) {
-        [_waveformCache setObject:waveform forKey:waveform.fileHash];
-    }
     self.needsDisplay = YES;
-}
-
-- (void)loadWaveformForTrack:(AudioTrack *)track {
-    [_waveform cancel];
-    _waveform = nil;
-    _progressWidth = 0;
-    self.needsDisplay = YES;
-    dispatch_async(_loaderQueue, ^{
-        NSString *hash = [track.url sha1HashOfFile];
-        __block AudioWaveform *w = [self->_waveformCache objectForKey:hash];
-        if (w) {
-            w.fileHash = hash;
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [self audioWaveform:w didLoadData:1];
-            });
-        }
-        else {
-            w = [[AudioWaveform alloc] init];
-            w.fileHash = hash;
-            w.delegate = self;
-            self->_waveform = w;
-            [w load:track.url.path];
-        }
-    });
 }
 
 @end

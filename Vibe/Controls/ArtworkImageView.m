@@ -35,6 +35,13 @@
         return;
     }
 
+    CGPoint dragPosition = [self convertPoint:[event locationInWindow] fromView:nil];
+
+    // Don't allow drag near buttons
+    if (dragPosition.y < 42) {
+        return;
+    }
+
     [self.fileURL startAccessingSecurityScopedResource];
 
     CGFloat imageSize = 48;
@@ -54,7 +61,6 @@
         return @[image, label];
     }];
 
-    CGPoint dragPosition = [self convertPoint:[event locationInWindow] fromView:nil];
     dragPosition.x -= imageSize/2;
     dragPosition.y -= imageSize/2;
     draggingItem.draggingFrame = CGRectMake(dragPosition.x, dragPosition.y, imageSize, imageSize * 4);
