@@ -40,6 +40,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSUInteger)numChannels;
 - (NSTimeInterval)duration;
 
+- (NSInteger)currentlyActiveAudioDeviceId;
+
 - (void)setOutputDevice:(NSInteger)outputDeviceIndex;
 
 @end

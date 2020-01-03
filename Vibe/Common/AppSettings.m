@@ -7,6 +7,7 @@
 
 #define SETTING_HAS_LAUNCHED                        @"Settings.hasLaunched"
 #define SETTING_WINDOW_APPEARANCE_STYLE             @"Settings.windowAppearance"
+#define SETTING_WAVEFORM_STYLE                      @"Settings.waveformStyle"
 #define SETTING_AUDIO_PLAYER_DEVICE_NAME            @"AudioPlayer.deviceName"
 #define SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE       @"AudioPlayer.lockSampleRate"
 
@@ -40,6 +41,7 @@
             SETTING_AUDIO_PLAYER_DEVICE_NAME:       @"",
             SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE:  @(NO),
             SETTING_WINDOW_APPEARANCE_STYLE:        SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT,
+            SETTING_WAVEFORM_STYLE:                 SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT
     };
     [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
     [[NSUserDefaults standardUserDefaults] setBool:YES forKey:SETTING_HAS_LAUNCHED];
@@ -95,6 +97,15 @@
         return [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
     }
     return [NSAppearance currentAppearance];
+}
+
+- (NSString *)waveformStyle {
+    return [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_STYLE];
+}
+
+- (void)setWaveformStyle:(NSString *)name {
+    [[NSUserDefaults standardUserDefaults] setValue:name forKey:SETTING_WAVEFORM_STYLE];
+    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 @end

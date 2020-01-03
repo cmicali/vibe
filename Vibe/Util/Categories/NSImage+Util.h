@@ -7,4 +7,6 @@
 #import <AppKit/AppKit.h>
 
 @interface NSImage (Util)
+
+- (NSImage *)resizedImage:(NSSize)newSize;
 @end

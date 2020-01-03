@@ -12,6 +12,8 @@
 
 - (AudioDevice *)defaultOutputDevice;
 
+- (NSInteger)defaultOutputDeviceId;
+
 - (NSInteger)numOutputDevices;
 
 - (NSArray<AudioDevice *> *)outputDevices;

@@ -42,6 +42,16 @@
     return self;
 }
 
+
++ (AudioWaveformCacheChunk *)emptyChunk {
+    static AudioWaveformCacheChunk zero;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        ZeroAudioWaveformCacheChunk(zero);
+    });
+    return &zero;
+}
+
 - (void)encodeWithCoder:(NSCoder *)coder {
     [coder encodeObject:@(self.count) forKey:@"numChunks"];
     [coder encodeObject:self.chunks forKey:@"chunks"];

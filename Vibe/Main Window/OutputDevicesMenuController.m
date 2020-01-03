@@ -50,9 +50,28 @@
 }
 
 - (void)configureMenuItem:(NSMenuItem *)item withDevice:(AudioDevice *)device {
-    item.title = [NSString stringWithFormat:@"%@ (%@)", device.name, @(device.deviceId)];
+
+    BOOL isRequestedDevice = self.audioPlayer.currentlyRequestedAudioDeviceId == device.deviceId;
+    BOOL isSystemDefaultDevice = AudioDeviceManager.sharedInstance.defaultOutputDeviceId == device.deviceId;
+
+    //    item.title = [NSString stringWithFormat:@"%@ (%@)", device.name, @(device.deviceId)];
+    item.title = [NSString stringWithFormat:@"%@", device.name];
     item.tag = device.deviceId;
-    item.state = StateForBOOL(self.audioPlayer.currentlyRequestedAudioDeviceId == device.deviceId);
+
+    item.state = StateForBOOL(isRequestedDevice);
+
+    if (isSystemDefaultDevice && !isRequestedDevice) {
+        if (self.audioPlayer.currentlyRequestedAudioDeviceId != -1) {
+            item.offStateImage = [NSImage imageNamed:@"icon-system-output"];
+        }
+        else {
+            item.offStateImage = [NSImage imageNamed:@"icon-current-output"];
+        }
+    }
+    else {
+        item.offStateImage = nil;
+    }
+
     item.enabled = YES;
     item.target = self;
     item.action = @selector(changeOutputDevice:);

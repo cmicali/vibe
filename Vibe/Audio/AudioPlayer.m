@@ -123,8 +123,6 @@
 
     dispatch_async(_playerQueue, ^{
 
-        LogDebug(@"AudioPlayer: play");
-
         if (self.channel) {
             BASS_ChannelStop(self.channel);
             BASS_StreamFree(self.channel);
@@ -132,7 +130,8 @@
 
         self.currentTrack = nil;
 
-        LogDebug(@"       file: %@", track.url.path);
+        LogDebug(@"play file: %@", track.url.path);
+
         self.channel = BASS_StreamCreateFile(FALSE, filename, 0, 0, BASS_ASYNCFILE) ;
 
         if (self.channel) {
@@ -259,6 +258,10 @@
     if (self.currentlyRequestedAudioDeviceId == -1) {
         [self setOutputDevice:self.currentlyRequestedAudioDeviceId];
     }
+}
+
+- (NSInteger)currentlyActiveAudioDeviceId {
+    return BASS_GetDevice();
 }
 
 - (void)setOutputDevice:(NSInteger)outputDeviceIndex {

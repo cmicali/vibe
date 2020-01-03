@@ -151,6 +151,14 @@
                                     </items>
                                 </menu>
                             </menuItem>
+                            <menuItem title="Style" id="z9Q-kL-hlH">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <menu key="submenu" title="Style" identifier="waveform_style" id="Gln-fe-h3M">
+                                    <connections>
+                                        <outlet property="delegate" destination="j8i-XM-36F" id="V36-38-CtG"/>
+                                    </connections>
+                                </menu>
+                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="fDT-Q4-zVq"/>
                             <menuItem title="Show Playlist" identifier="menu_show_playlist" id="FG1-nr-3ok">
                                 <modifierMask key="keyEquivalentModifierMask"/>

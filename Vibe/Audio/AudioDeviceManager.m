@@ -34,6 +34,14 @@
     return _defaultOutputDevice;
 }
 
+- (NSInteger)defaultOutputDeviceId {
+    BASS_DEVICEINFO info;
+    for (int i = 1; BASS_GetDeviceInfo((DWORD)i, &info); i++)
+        if (info.flags & BASS_DEVICE_DEFAULT)
+            return i;
+    return -1;
+}
+
 - (NSInteger)numOutputDevices {
     int a, count = 0;
     BASS_DEVICEINFO info;
