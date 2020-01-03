@@ -30,9 +30,32 @@
     while ([menu numberOfItems] > count)
         [menu removeItemAtIndex:2];
 
-    for (NSInteger index = 0; index < count; index++)
-        [self menu:menu updateItem:[menu itemAtIndex:index] atIndex:index shouldCancel:NO];
+    NSArray *devices = AudioDeviceManager.sharedInstance.outputDevices;
+    NSMenuItem *item;
 
+    [self configureMenuItem:[menu itemAtIndex:0] withDevice:AudioDeviceManager.sharedInstance.defaultOutputDevice];
+
+    int i = 2;
+    for (AudioDevice *device in devices) {
+        item = [menu itemAtIndex:i];
+        [self configureMenuItem:item withDevice:device];
+        i++;
+    }
+
+    // Lock sample rate item
+    item = [menu itemAtIndex:count - 1];
+    item.state = StateForBOOL(Settings.audioPlayerLockSampleRate);
+    item.target = self;
+
+}
+
+- (void)configureMenuItem:(NSMenuItem *)item withDevice:(AudioDevice *)device {
+    item.title = [NSString stringWithFormat:@"%@ (%@)", device.name, @(device.deviceId)];
+    item.tag = device.deviceId;
+    item.state = StateForBOOL(self.audioPlayer.currentlyRequestedAudioDeviceId == device.deviceId);
+    item.enabled = YES;
+    item.target = self;
+    item.action = @selector(changeOutputDevice:);
 }
 
 - (void)lockSampleRate:(id)lockSampleRate {
@@ -46,31 +69,6 @@
 
 - (BOOL)menuHasKeyEquivalent:(NSMenu *)menu forEvent:(NSEvent *)event target:(_Nullable id *_Nonnull)target action:(_Nullable SEL *_Nonnull)action {
     return NO;
-}
-
-- (BOOL)menu:(NSMenu *)menu updateItem:(NSMenuItem *)item atIndex:(NSInteger)index shouldCancel:(BOOL)shouldCancel {
-    if (item.isSeparatorItem) {
-        return YES;
-    }
-
-    if (index == [self numberOfItemsInMenu:menu] - 1) {
-        item.state = StateForBOOL(Settings.audioPlayerLockSampleRate);
-        item.target = self;
-    }
-    else {
-        NSInteger deviceIndex = -1;
-        if (index > 0) {
-            deviceIndex = index - 2;
-        }
-        AudioDevice *device = [AudioDeviceManager.sharedInstance outputDeviceForId:deviceIndex];
-        item.title = device.name;
-        item.tag = device.id;
-        item.state = StateForBOOL(Settings.audioPlayerCurrentDevice == deviceIndex);
-        item.enabled = YES;
-        item.target = self;
-        item.action = @selector(changeOutputDevice:);
-    }
-    return YES;
 }
 
 - (IBAction) changeOutputDevice:(id)sender {

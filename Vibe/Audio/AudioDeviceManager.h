@@ -4,15 +4,19 @@
 //
 
 #import <Foundation/Foundation.h>
-
-@class AudioDevice;
-
+#import "AudioDevice.h"
 
 @interface AudioDeviceManager : NSObject
 
 + (AudioDeviceManager *)sharedInstance;
 
+- (AudioDevice *)defaultOutputDevice;
+
 - (NSInteger)numOutputDevices;
-- (AudioDevice *)outputDeviceForId:(NSInteger)id;
+
+- (NSArray<AudioDevice *> *)outputDevices;
+
+- (AudioDevice *)outputDeviceForName:(NSString *)name;
+- (AudioDevice *)outputDeviceForId:(NSInteger)deviceId;
 
 @end

@@ -16,6 +16,7 @@
 #import "Fonts.h"
 #import "ArtworkImageView.h"
 #import "AudioTrackMetadataCache.h"
+#import "AudioDeviceManager.h"
 
 #define UPDATE_HZ 3
 
@@ -41,7 +42,7 @@
 
 - (void)windowDidLoad {
 
-    self.audioPlayer = [[AudioPlayer alloc] initWithDevice:Settings.audioPlayerCurrentDevice
+    self.audioPlayer = [[AudioPlayer alloc] initWithDevice:Settings.audioOutputDeviceName
                                             lockSampleRate:Settings.audioPlayerLockSampleRate
                                                   delegate:self
     ];
@@ -108,6 +109,7 @@
     [NSApp activateIgnoringOtherApps:YES];
 
 }
+
 
 - (void)pauseUIUpdateTimer {
     if (_timerRunning) {
@@ -259,7 +261,13 @@
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOuputDevice:(NSInteger)newDeviceIndex {
     LogDebug(@"MainPlayerController: didChangeOutputDevice: %zd", newDeviceIndex);
-    Settings.audioPlayerOutputDevice = newDeviceIndex;
+    if (newDeviceIndex == -1) {
+        Settings.audioOutputDeviceName = @"";
+    }
+    else {
+        AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:newDeviceIndex];
+        Settings.audioOutputDeviceName = device.name;
+    }
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {

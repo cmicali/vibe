@@ -5,7 +5,6 @@
 
 #import "CoreAudioUtil.h"
 #import <CoreAudio/CoreAudio.h>
-#import <AudioToolbox/AudioToolbox.h>
 
 @implementation CoreAudioUtil
 
@@ -28,168 +27,104 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
     AudioObjectAddPropertyListener(kAudioObjectSystemObject, &outputDeviceAddress, &outputDeviceChangedCallback, (__bridge void *)delegate);
 }
 
-+ (void) audioOutputDevices {
-    AudioObjectPropertyAddress  propertyAddress;
-    AudioObjectID               *deviceIDs;
-    UInt32                      propertySize;
-    NSInteger                   numDevices;
++ (AudioDeviceID) audioDeviceIDforUID:(NSString *)deviceUid {
+    CFStringRef uid = (__bridge CFStringRef)deviceUid;
 
-    propertyAddress.mSelector = kAudioHardwarePropertyDevices;
-    propertyAddress.mScope = kAudioObjectPropertyScopeGlobal;
-    propertyAddress.mElement = kAudioObjectPropertyElementMaster;
-    if (AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &propertyAddress, 0, NULL, &propertySize) == noErr) {
-        numDevices = propertySize / sizeof(AudioDeviceID);
-        deviceIDs = (AudioDeviceID *)calloc(numDevices, sizeof(AudioDeviceID));
+    AudioObjectPropertyAddress property_address = {
+            kAudioHardwarePropertyDevices,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMaster
+    };
+    AudioDeviceID audio_device_id = kAudioObjectUnknown;
+    UInt32 device_size = sizeof(audio_device_id);
+    OSStatus result = -1;
 
-        if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &propertyAddress, 0, NULL, &propertySize, deviceIDs) == noErr) {
-            AudioObjectPropertyAddress      deviceAddress;
-            char                            deviceName[64];
-            char                            manufacturerName[64];
+    AudioValueTranslation value;
+    value.mInputData = &uid;
+    value.mInputDataSize = sizeof(CFStringRef);
+    value.mOutputData = &audio_device_id;
+    value.mOutputDataSize = device_size;
+    UInt32 translation_size = sizeof(AudioValueTranslation);
 
-            for (NSInteger idx=0; idx<numDevices; idx++) {
-                propertySize = sizeof(deviceName);
-                deviceAddress.mSelector = kAudioDevicePropertyDeviceName;
-                deviceAddress.mScope = kAudioObjectPropertyScopeGlobal;
-                deviceAddress.mElement = kAudioObjectPropertyElementMaster;
-                if (AudioObjectGetPropertyData(deviceIDs[idx], &deviceAddress, 0, NULL, &propertySize, deviceName) == noErr) {
-                    propertySize = sizeof(manufacturerName);
-                    deviceAddress.mSelector = kAudioDevicePropertyDeviceManufacturer;
-                    deviceAddress.mScope = kAudioObjectPropertyScopeGlobal;
-                    deviceAddress.mElement = kAudioObjectPropertyElementMaster;
-                    if (AudioObjectGetPropertyData(deviceIDs[idx], &deviceAddress, 0, NULL, &propertySize, manufacturerName) == noErr) {
-                        CFStringRef     uidString;
+    property_address.mSelector = kAudioHardwarePropertyDeviceForUID;
+    result = AudioObjectGetPropertyData(kAudioObjectSystemObject,
+            &property_address,
+            0,
+            0,
+            &translation_size,
+            &value);
 
-                        propertySize = sizeof(uidString);
-                        deviceAddress.mSelector = kAudioDevicePropertyDeviceUID;
-                        deviceAddress.mScope = kAudioObjectPropertyScopeGlobal;
-                        deviceAddress.mElement = kAudioObjectPropertyElementMaster;
-                        if (AudioObjectGetPropertyData(deviceIDs[idx], &deviceAddress, 0, NULL, &propertySize, &uidString) == noErr) {
-                            LogDebug(@"device %s by %s id %@", deviceName, manufacturerName, uidString);
-                            CFRelease(uidString);
-                        }
-                    }
-                }
-            }
-        }
-        free(deviceIDs);
-    }
+    return audio_device_id;
 }
 
-+ (AudioDeviceID) audioDeviceIDforUID:(NSString *)uid {
-    CFStringRef cs = (__bridge CFStringRef)uid; // CFStringCreateWithCString(0, info.driver, 0); // driver = device's UID
-    AudioDeviceID did;
-    AudioValueTranslation vt={&cs, sizeof(cs), &did, sizeof(did)};
-    UInt32 s = sizeof(vt);
-    AudioHardwareGetProperty(kAudioHardwarePropertyDeviceForUID, &s, &vt); // translate device's UID to AudioDeviceID
-//    CFRelease(cs);
-    return did;
-}
-
-+ (void) supportedSampleRatesForOutputDevice:(NSString *)uid {
-//    BASS_DEVICEINFO info;
-//    BASS_GetDeviceInfo(BASS_GetDevice(), &info); // get device info (can use BASS_GetDevice to get current device)
-    CFStringRef cs = (__bridge CFStringRef)uid; // CFStringCreateWithCString(0, info.driver, 0); // driver = device's UID
-    AudioDeviceID did;
-    AudioValueTranslation vt={&cs, sizeof(cs), &did, sizeof(did)};
-    UInt32 s = sizeof(vt);
-    AudioHardwareGetProperty(kAudioHardwarePropertyDeviceForUID, &s, &vt); // translate device's UID to AudioDeviceID
-    CFRelease(cs);
++ (NSMutableArray<NSNumber *>*) supportedSampleRatesForAudioDeviceId:(AudioDeviceID)did {
+    UInt32 s;
     AudioObjectPropertyAddress pa={kAudioDevicePropertyAvailableNominalSampleRates, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster};
     AudioObjectGetPropertyDataSize(did, &pa, 0, NULL, &s); // get size of available sample rates array
-    // AudioValueRange *vr= new AudioValueRange[s/sizeof(AudioValueRange)]; // allocate it
-    AudioValueRange vr[512];
+    AudioValueRange *vr = new AudioValueRange[s/sizeof(AudioValueRange)]; // allocate it
     AudioObjectGetPropertyData(did, &pa, 0, NULL, &s, vr); // get the available sample rates
-    for (int a=0; a<s/sizeof(AudioValueRange); a++)
-        printf("%g - %g\n", vr[a].mMinimum, vr[a].mMaximum);
+    NSUInteger count = s / sizeof(AudioValueRange);
+    NSMutableArray *result = [[NSMutableArray alloc] initWithCapacity:count];
+    for (int i = 0; i < count; i++)
+        [result addObject:@(vr[i].mMinimum)];
+    free(vr);
+    return result;
+}
+
++ (NSArray<NSNumber *>*) supportedSampleRatesForOutputDevice:(NSString *)uid {
+    return [self supportedSampleRatesForAudioDeviceId:[self audioDeviceIDforUID:uid]];
 }
 
 
-- (Float64)getCurrentSampleRateForOutputDevice:(NSString *)uid {
-//    BASS_DEVICEINFO info;
-//    BASS_GetDeviceInfo(BASS_GetDevice(), &info); // get device info
-    CFStringRef cs = (__bridge CFStringRef)uid;
-    AudioDeviceID did;
-    AudioValueTranslation vt={&cs, sizeof(cs), &did, sizeof(did)};
-    UInt32 s=sizeof(vt);
-    AudioHardwareGetProperty(kAudioHardwarePropertyDeviceForUID, &s, &vt); // translate device's UID to AudioDeviceID
-    CFRelease(cs);
-    AudioStreamBasicDescription sbd;
-    s=sizeof(sbd);
-    if (!AudioDeviceGetProperty(did, 0, false, kAudioDevicePropertyStreamFormat, &s, &sbd)) { // get current format
-        return sbd.mSampleRate;
-    }
-    return -1;
-}
-
-+ (Float64)setSampleRate:(int)rate forDeviceUID:(NSString *)uid {
-
++ (Float64)getCurrentSampleRateForOutputDevice:(NSString *)uid {
     AudioDeviceID did = [self audioDeviceIDforUID:uid];
-    AudioStreamBasicDescription sbd;
-    UInt32 s = sizeof(sbd);
-    if (!AudioDeviceGetProperty(did, 0, false, kAudioDevicePropertyStreamFormat, &s, &sbd)) { // get current format
-        sbd.mSampleRate=rate; // change rate
-        AudioDeviceSetProperty(did, NULL, 0, false, kAudioDevicePropertyStreamFormat, s, &sbd); // try to apply change
-    }
-    if (!AudioDeviceGetProperty(did, 0, false, kAudioDevicePropertyStreamFormat, &s, &sbd)) { // get current format
-        return sbd.mSampleRate;
+    AudioStreamBasicDescription mFormat;
+    UInt32 size = sizeof(mFormat);
+    AudioObjectPropertyAddress addr = { kAudioDevicePropertyStreamFormat, kAudioDevicePropertyScopeOutput, 0 };
+    if (AudioObjectGetPropertyData(did, &addr, 0, NULL, &size, &mFormat) == noErr) {
+        return mFormat.mSampleRate;
     }
     return -1;
 }
 
++ (BOOL)setSampleRate:(double)rate forAudioDeviceID:(AudioDeviceID)did {
+    AudioStreamBasicDescription mFormat;
+    UInt32 size = sizeof(mFormat);
 
-/*
-bool setAudioOutput( string targetDevice ){
-    AudioObjectPropertyAddress  propertyAddress;
-    AudioObjectID               *deviceIDs;
-    UInt32                      propertySize;
-    NSInteger                   numDevices;
-    propertyAddress.mSelector = kAudioHardwarePropertyDevices;
-    propertyAddress.mScope = kAudioObjectPropertyScopeGlobal;
-    propertyAddress.mElement = kAudioObjectPropertyElementMaster;
-// enumerate all current/valid devices
-    if (AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &propertyAddress, 0, NULL, &propertySize) == noErr) {
-        numDevices = propertySize / sizeof(AudioDeviceID);
-        deviceIDs = (AudioDeviceID *)calloc(numDevices, sizeof(AudioDeviceID));
-        if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &propertyAddress, 0, NULL, &propertySize, deviceIDs) == noErr) {
-            AudioObjectPropertyAddress      deviceAddress;
-            char                            deviceName[64];
-            char                            manufacturerName[64];
-            for (NSInteger idx=0; idx<numDevices; idx++) {
-                propertySize = sizeof(deviceName);
-                deviceAddress.mSelector = kAudioDevicePropertyDeviceName;
-                deviceAddress.mScope = kAudioObjectPropertyScopeGlobal;
-                deviceAddress.mElement = kAudioObjectPropertyElementMaster;
-// get the deets!
-                if (AudioObjectGetPropertyData(deviceIDs[idx], &deviceAddress, 0, NULL, &propertySize, deviceName) == noErr) {
-                    propertySize = sizeof(manufacturerName);
-                    deviceAddress.mSelector = kAudioDevicePropertyDeviceManufacturer;
-                    deviceAddress.mScope = kAudioObjectPropertyScopeGlobal;
-                    deviceAddress.mElement = kAudioObjectPropertyElementMaster;
-                    if (AudioObjectGetPropertyData(deviceIDs[idx], &deviceAddress, 0, NULL, &propertySize, manufacturerName) == noErr) {
-                        CFStringRef     uidString;
-                        propertySize = sizeof(uidString);
-                        deviceAddress.mSelector = kAudioDevicePropertyDeviceUID;
-                        deviceAddress.mScope = kAudioObjectPropertyScopeGlobal;
-                        deviceAddress.mElement = kAudioObjectPropertyElementMaster;
-                        if (AudioObjectGetPropertyData(deviceIDs[idx], &deviceAddress, 0, NULL, &propertySize, &uidString) == noErr) {
-// comment this out if you don't want to log everything
-                            NSLog(@"device %s by %s id %@", deviceName, manufacturerName, uidString);
-                            CFRelease(uidString);
-                        }
-                        string name(deviceName);
-                        if ( name.find( targetDevice ) != string::npos ){
-                            propertyAddress.mSelector = kAudioHardwarePropertyDefaultOutputDevice;
-                            propertyAddress.mScope = kAudioDevicePropertyScopeOutput;
-                            propertyAddress.mElement = kAudioObjectPropertyElementMaster;
-                            return AudioObjectSetPropertyData(kAudioObjectSystemObject, &propertyAddress, 0, NULL, sizeof(AudioDeviceID), &deviceIDs[idx]) == noErr;
-                        }
-                    }
-                }
+    AudioObjectPropertyAddress addr = { kAudioDevicePropertyStreamFormat, kAudioDevicePropertyScopeOutput, 0 };
+    OSStatus err = AudioObjectGetPropertyData(did, &addr, 0, NULL, &size, &mFormat);
+    LogError(@"CoreAudioUtil: setSampleRate: %.0f -> %0.1f", mFormat.mSampleRate, rate);
+    mFormat.mSampleRate = rate;
+    mFormat.mBitsPerChannel = 32 ;
+    addr = { kAudioDevicePropertyStreamFormat, kAudioObjectPropertyScopeGlobal, 0 };
+    err = AudioObjectSetPropertyData(did, &addr, 0, NULL, size, &mFormat);
+    return err == noErr;
+}
+
++ (BOOL)setBestSampleRate:(double)rate forDeviceUID:(NSString *)uid {
+    AudioDeviceID did = [self audioDeviceIDforUID:uid];
+    NSArray<NSNumber *> *rates = [self supportedSampleRatesForAudioDeviceId:did];
+    if (![rates containsObject:@(rate)]) {
+        [rates sortedArrayUsingComparator:^NSComparisonResult(NSNumber* n1, NSNumber* n2) {
+            return [n1 compare:n2];
+        }];
+        LogError(@"CoreAudioUtil: setSampleRate: requested rate %.0f not in [%@]", rate, [rates componentsJoinedByString:@", "]);
+        double candidateRate = rate;
+        double minRate = 44100;
+        for (NSNumber *number in rates) {
+            double n = [number doubleValue];
+            if (n > minRate && n >= candidateRate) {
+                candidateRate = n;
+                break;
             }
         }
-        free(deviceIDs);
+        if (candidateRate == rate) {
+            LogError(@"could not find better rate");
+            return NO;
+        }
+        rate = candidateRate;
     }
-    return false;
+    return [self setSampleRate:rate forAudioDeviceID:did];
 }
-*/
+
 @end

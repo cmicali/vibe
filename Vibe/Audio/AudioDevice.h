@@ -8,8 +8,10 @@
 
 @interface AudioDevice : NSObject
 
-@property (copy)    NSString *name;
-@property (assign)  NSInteger id;
-@property (assign)  BOOL isSystemDefault;
+@property (nonatomic, copy)     NSString *name;
+@property (nonatomic, copy)     NSString *uid;
+@property (assign)              NSInteger deviceId;
+@property (assign)              BOOL isSystemDefault;
+@property (nonatomic, strong)   NSArray<NSNumber *>* supportedOutputSampleRates;
 
 @end

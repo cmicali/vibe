@@ -18,10 +18,12 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AudioPlayer : NSObject <CoreAudioSystemOutputDeviceDelegate>
 
 @property (nullable, weak) id <AudioPlayerDelegate> delegate;
-@property (assign) NSTimeInterval position;
-@property (nullable, strong) AudioTrack* currentTrack;
 
-- (id)initWithDevice:(NSInteger)deviceIndex lockSampleRate:(BOOL)lockSampleRate delegate:(MainPlayerController *)delegate;
+@property (assign)              NSTimeInterval position;
+@property (nullable, strong)    AudioTrack* currentTrack;
+@property (atomic) NSInteger    currentlyRequestedAudioDeviceId;
+
+- (id)initWithDevice:(NSString *)deviceName lockSampleRate:(BOOL)lockSampleRate delegate:(MainPlayerController *)delegate;
 
 - (BOOL)lockSampleRate;
 - (void)setLockSampleRate:(BOOL)lockSampleRate;
@@ -39,7 +41,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSTimeInterval)duration;
 
 - (void)setOutputDevice:(NSInteger)outputDeviceIndex;
-- (void)setDefaultOutputDevice;
 
 @end
 
