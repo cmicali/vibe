@@ -7,7 +7,7 @@
 
 #define SETTING_HAS_LAUNCHED                        @"Settings.hasLaunched"
 #define SETTING_WINDOW_APPEARANCE_STYLE             @"Settings.windowAppearance"
-#define SETTING_AUDIO_PLAYER_CURRENT_DEVICE         @"AudioPlayer.currentDevice"
+#define SETTING_AUDIO_PLAYER_DEVICE_NAME            @"AudioPlayer.deviceName"
 #define SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE       @"AudioPlayer.lockSampleRate"
 
 @implementation AppSettings {
@@ -37,7 +37,7 @@
         _firstLaunch = YES;
     }
     NSDictionary *appDefaults = @{
-            SETTING_AUDIO_PLAYER_CURRENT_DEVICE:    @(-1),
+            SETTING_AUDIO_PLAYER_DEVICE_NAME:       @"",
             SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE:  @(NO),
             SETTING_WINDOW_APPEARANCE_STYLE:        SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT,
     };
@@ -46,12 +46,12 @@
     [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
-- (NSInteger) audioPlayerCurrentDevice {
-    return [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_AUDIO_PLAYER_CURRENT_DEVICE];
+- (NSString *)audioOutputDeviceName {
+    return [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_AUDIO_PLAYER_DEVICE_NAME];
 }
 
--(void) setAudioPlayerCurrentDevice:(NSInteger)deviceIndex {
-    [[NSUserDefaults standardUserDefaults] setInteger:deviceIndex forKey:SETTING_AUDIO_PLAYER_CURRENT_DEVICE];
+-(void)setAudioOutputDeviceName:(NSString*)deviceName {
+    [[NSUserDefaults standardUserDefaults] setObject:deviceName forKey:SETTING_AUDIO_PLAYER_DEVICE_NAME];
     [[NSUserDefaults standardUserDefaults] synchronize];
 }
 

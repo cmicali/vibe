@@ -4,17 +4,15 @@
 //
 
 #import <Foundation/Foundation.h>
-#import <CoreAudio/CoreAudio.h>
 
 @protocol CoreAudioSystemOutputDeviceDelegate;
 
 @interface CoreAudioUtil : NSObject
 
 + (void)listenForSystemOutputDeviceChanges:(id <CoreAudioSystemOutputDeviceDelegate>)delegate;
-+ (void)audioOutputDevices;
-+ (AudioDeviceID)audioDeviceIDforUID:(NSString *)uid;
-+ (void)supportedSampleRatesForOutputDevice:(NSString *)uid;
-+ (Float64)setSampleRate:(int)rate forDeviceUID:(NSString *)uid;
++ (NSArray<NSNumber *> *)supportedSampleRatesForOutputDevice:(NSString *)uid;
+
++ (BOOL)setBestSampleRate:(double)rate forDeviceUID:(NSString *)uid;
 
 @end
 
