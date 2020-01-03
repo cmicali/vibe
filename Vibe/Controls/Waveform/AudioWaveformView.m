@@ -5,10 +5,13 @@
 
 #import <PINCache/PINCache.h>
 #import <Quartz/Quartz.h>
+#import <JavaScriptCore/JavaScriptCore.h>
 #import "AudioWaveformView.h"
 #import "AudioWaveformCache.h"
 #import "AudioTrack.h"
 #import "NSURL+Hash.h"
+#import "DetailedAudioWaveformRenderer.h"
+#import "VibeDefaultWaveformRenderer.h"
 
 
 @interface AudioWaveformView () <AudioWaveformCacheDelegate>
@@ -19,14 +22,16 @@
 @end
 
 @implementation AudioWaveformView {
-    NSUInteger          _progressWidth;
-    BOOL                _didClickInside;
-    BOOL                _seekPreviewing;
-    CGFloat             _seekPreviewLocation;
 
-    CGFloat             _waveformTopY;
-    CGFloat             _waveformBottomY;
+    CGFloat                     _progress;
+    NSUInteger                  _progressWidth;
 
+    BOOL                        _didClickInside;
+    BOOL                        _seekPreviewing;
+    CGFloat                     _seekPreviewLocation;
+
+    AudioWaveformRenderer*      _currentWaveformRenderer;
+    NSMutableDictionary*        _waveformRenderers;
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -46,18 +51,38 @@
 }
 
 - (void)setup  {
+
     _didClickInside = NO;
+
     _waveformCache = [[AudioWaveformCache alloc] init];
     _waveformCache.delegate = self;
-/*
-    NSTrackingArea* trackingArea = [[NSTrackingArea alloc]
-                                                    initWithRect:[self bounds]
-                                                         options:NSTrackingMouseEnteredAndExited |
-                                                                 NSTrackingMouseMoved |
-                                                                 NSTrackingActiveAlways
-                                                           owner:self userInfo:nil];
-    [self addTrackingArea:trackingArea];
-*/
+    _waveformRenderers = [NSMutableDictionary new];
+
+    [self addWaveformRenderer:[[VibeDefaultWaveformRenderer alloc] init]];
+    [self addWaveformRenderer:[[DetailedAudioWaveformRenderer alloc] init]];
+
+//    NSTrackingArea* trackingArea = [[NSTrackingArea alloc] initWithRect:[self bounds] options:NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved | NSTrackingActiveAlways owner:self userInfo:nil];
+//    [self addTrackingArea:trackingArea];
+
+}
+
+- (void)addWaveformRenderer:(AudioWaveformRenderer*)renderer {
+    _waveformRenderers[renderer.displayName] = renderer;
+}
+
+- (NSString *)currentWaveformStyle {
+    return _currentWaveformRenderer.displayName;
+}
+
+- (void)setWaveformStyle:(NSString*)name {
+    if (name.length && _waveformRenderers[name]) {
+        _currentWaveformRenderer = _waveformRenderers[name];
+        self.needsDisplay = YES;
+    }
+}
+
+- (NSArray<NSString*>*)availableWaveformStyles {
+    return _waveformRenderers.allKeys;
 }
 
 /*
@@ -94,7 +119,7 @@
     NSPoint e = [event locationInWindow];
     NSPoint mouseLoc = [self convertPoint:e fromView:nil];
     if ([self mouse:mouseLoc inRect:self.bounds]) {
-        if (mouseLoc.y >= _waveformBottomY && mouseLoc.y <= _waveformTopY) {
+        if (mouseLoc.y >= _currentWaveformRenderer.bottomY && mouseLoc.y <= _currentWaveformRenderer.topY) {
             _didClickInside = YES;
         }
     }
@@ -118,93 +143,16 @@
     return NO;
 }
 
-+ (NSGradient*)gradient {
-    static NSGradient *instance = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        instance = [[NSGradient alloc] initWithColors:@[
-                [NSColor colorWithRed:0 green:0 blue:0 alpha:0.75],
-                [NSColor colorWithRed:0 green:0 blue:0 alpha:0.25],
-                [NSColor colorWithRed:0 green:0 blue:0 alpha:0.0],
-                [NSColor colorWithRed:0 green:0 blue:0 alpha:0.0]
-        ]];
-    });
-    return instance;
-}
-
-// https://github.com/rFlex/SCWaveformView/blob/master/Sources/SCWaveformCache.m
-
 - (void)drawRect:(NSRect)dirtyRect {
     [super drawRect:dirtyRect];
-
-    ZeroedAudioWaveformCacheChunk(zeroedChunk);
-
-    _waveformBottomY = self.bounds.size.height/2 - (self.bounds.size.height/2 * .5);
-    _waveformTopY = self.bounds.size.height/2 + (self.bounds.size.height/2 * .5);
-
-    [NSGraphicsContext.currentContext saveGraphicsState];
-
-    CGContextRef ctx = NSGraphicsContext.currentContext.CGContext;
-
-    size_t count = (size_t) self.bounds.size.width;
-    CGFloat height = self.bounds.size.height;
-
-    CGFloat vscale = (height / 2) * 0.70;
-    CGFloat midY = height / 2;
-
-    [[[NSColor controlTextColor] colorWithAlphaComponent:0.95] set];
-
-    CGContextSetLineWidth(ctx, 0.25f);
-//    CGContextSetAllowsAntialiasing(ctx, NO);
-
-    CGFloat step = 0.25;
-
-    for (CGFloat i = 0; i < count ; i+=step) {
-
-        CGFloat colorFactor = 1; //(i%2?1:0.5);
-
-        BOOL isPastPlayhead = (i >= ((CGFloat)_progressWidth)+step);
-        if (isPastPlayhead) {
-            [[[NSColor controlTextColor] colorWithAlphaComponent:0.35 * colorFactor] set];
-        }
-        else {
-            [[[NSColor controlTextColor] colorWithAlphaComponent:0.95 * colorFactor] set];
-        }
-
-        AudioWaveformCacheChunk* m = [_waveform chunkAtIndex: (i / count * _waveform.count) ];
-        if (!m) m = &zeroedChunk;
-
-        CGFloat top     = round(midY - m->min * vscale);
-        CGFloat bottom  = round(midY - m->max * vscale);
-
-        if (top - bottom == 0) {
-            top += 0.5;
-            bottom -= 0.5;
-        }
-
-        if (top > _waveformTopY) {
-            _waveformTopY = top;
-        }
-        if (bottom < _waveformBottomY) {
-            _waveformBottomY = bottom;
-        }
-
-        CGContextMoveToPoint(ctx, i+0.5 , top + 0.5);
-        CGContextAddLineToPoint(ctx, i+0.5 , bottom + 0.5);
-        CGContextStrokePath(ctx);
-
-    }
-
-    NSGraphicsContext.currentContext.compositingOperation = NSCompositingOperationSourceAtop;
-    NSGradient *g = [AudioWaveformView gradient];
-    [g drawInRect:self.bounds angle:90];
-
-    [NSGraphicsContext.currentContext restoreGraphicsState];
-
+    [_currentWaveformRenderer willDrawRect:self.bounds progress:_progress waveform:_waveform];
+    [_currentWaveformRenderer drawRect:self.bounds progress:_progress waveform:_waveform];
+    [_currentWaveformRenderer didDrawRect:self.bounds progress:_progress waveform:_waveform];
 }
 
 - (void)setProgress:(CGFloat)progress {
     NSUInteger w = (NSUInteger)(self.bounds.size.width * progress);
+    _progress = progress;
     if (w != _progressWidth) {
         _progressWidth = w;
         self.needsDisplay = YES;
@@ -212,12 +160,16 @@
 }
 
 - (CGFloat)progress {
-    return _progressWidth/self.bounds.size.width;
+    return _progress;
 }
 
 - (void)loadWaveformForTrack:(AudioTrack *)track {
     _waveform = nil;
+    _progress = 0;
     _progressWidth = 0;
+    if (!_currentWaveformRenderer) {
+        [self setWaveformStyle:_waveformRenderers.allKeys[0]];
+    }
     self.needsDisplay = YES;
     [_waveformCache loadWaveformForTrack:track];
 }

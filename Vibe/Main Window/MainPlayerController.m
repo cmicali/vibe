@@ -89,6 +89,7 @@
     }
 
     self.waveformView.delegate = self;
+    self.waveformView.waveformStyle = Settings.waveformStyle;
 
     self.playlistTableView.delegate = self.self.playlistManager;
     self.playlistTableView.dataSource = self.self.playlistManager;
@@ -190,7 +191,9 @@
     if (trackLoaded) {
         NSTimeInterval duration = self.audioPlayer.duration;
         NSTimeInterval position = self.audioPlayer.position;
-        self.waveformView.progress = (float) position / (float) duration;
+        if (duration > 0) {
+            self.waveformView.progress = (float) position / (float) duration;
+        }
         if (round(position) != round(_lastPosition)) {
             self.currentTimeTextField.stringValue = [[Formatters sharedInstance] durationStringFromTimeInterval:position];
             _lastPosition = position;
@@ -332,6 +335,7 @@
 //    return [[PlayerTouchBar alloc] init];
 //}
 
+
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     MainWindow *window = (MainWindow *)self.window;
     if ([menuItem.identifier isEqualToString:@"menu_show_playlist"]) {
@@ -357,6 +361,39 @@
         return self.playlistManager.currentTrack.url != nil;
     }
     return YES;
+}
+
+- (NSInteger)numberOfItemsInMenu:(NSMenu *)menu {
+    if ([menu.identifier isEqualToString:@"waveform_style"]) {
+        return self.waveformView.availableWaveformStyles.count;
+    }
+    return 0;
+}
+
+- (void)menuNeedsUpdate:(NSMenu *)menu {
+    if ([menu.identifier isEqualToString:@"waveform_style"]) {
+        NSInteger count = [self numberOfItemsInMenu:menu];
+        while ([menu numberOfItems] < count)
+            [menu insertItem:[NSMenuItem new] atIndex:0];
+        while ([menu numberOfItems] > count)
+            [menu removeItemAtIndex:0];
+        for (NSUInteger i = 0; i < count; ++i) {
+            NSMenuItem *item = [menu itemAtIndex:i];
+            item.title = self.waveformView.availableWaveformStyles[i];
+            item.state = StateForBOOL([item.title isEqualToString:self.waveformView.currentWaveformStyle]);
+            item.enabled = YES;
+            item.target = self.waveformView;
+            item.action = @selector(setWaveformStyle:);
+        }
+    }
+}
+
+- (IBAction)setWaveformRenderer:(id)sender {
+    if ([sender isKindOfClass:NSMenuItem.class]) {
+        NSString *title = ((NSMenuItem *)sender).title;
+        self.waveformView.waveformStyle = title;
+        Settings.waveformStyle = title;
+    }
 }
 
 + (void)restoreWindowWithIdentifier:(NSString *)identifier
