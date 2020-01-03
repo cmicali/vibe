@@ -6,9 +6,11 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
+#import "NSURL+Hash.h"
 
 @implementation AudioTrack {
     NSTimeInterval _duration;
+    NSString *_fileHash;
 }
 
 - (instancetype)initWithUrl:(NSURL *)url {
@@ -16,12 +18,24 @@
     if (self) {
         self.url = url;
         _duration = -1;
+        _fileHash = nil;
     }
     return self;
 }
 
 + (AudioTrack *)withURL:(NSURL *)url {
     return [[AudioTrack alloc] initWithUrl:url];
+}
+
+- (NSString *)fileHash {
+    return _fileHash;
+}
+
+- (NSString *)calculateFileHash {
+    if (!_fileHash) {
+        _fileHash = [self.url sha1HashOfFile];
+    }
+    return _fileHash;
 }
 
 - (NSString *)title {

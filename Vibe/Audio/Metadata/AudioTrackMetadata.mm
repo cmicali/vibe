@@ -60,6 +60,7 @@
     fileRef.reset(new TagLib::FileRef(filename, true));
 
     self.title = [url.path.lastPathComponent stringByDeletingPathExtension];
+    self.title = [self.title stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 
     if (!fileRef->isNull()) {
         if (fileRef->tag()) {
@@ -68,7 +69,9 @@
             TagLib::File *file = fileRef->file();
 
             self.artist = [NSString stringWithstring:tag->artist().to8Bit(true)];
+            self.artist = [self.artist stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
             self.title = [NSString stringWithstring:tag->title().to8Bit(true)];
+            self.title = [self.title stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
             self.duration = static_cast<NSTimeInterval>(file->audioProperties()->lengthInMilliseconds()) / 1000;
 
             if (auto mp3 = dynamic_cast<TagLib::MPEG::File*>(file)) {

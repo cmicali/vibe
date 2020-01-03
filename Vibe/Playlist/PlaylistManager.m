@@ -11,7 +11,7 @@
 #import "NSMutableAttributedString+Util.h"
 #import "NSView+Util.h"
 #import "Fonts.h"
-#import "AudioTrackMetadataManager.h"
+#import "AudioTrackMetadataCache.h"
 
 @implementation PlaylistManager {
     NSMutableArray<AudioTrack *> *_playlist;
@@ -129,10 +129,7 @@
 - (void)play {
     AudioTrack *track = self.currentTrack;
     if (track) {
-        if ([self.audioPlayer play:track]) {
-            [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
-        }
-        [self reloadCurrentTrack];
+        [self.audioPlayer play:track];
     }
 }
 

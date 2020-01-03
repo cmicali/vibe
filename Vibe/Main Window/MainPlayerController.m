@@ -15,7 +15,8 @@
 #import "Formatters.h"
 #import "Fonts.h"
 #import "ArtworkImageView.h"
-#import "AudioTrackMetadataManager.h"
+#import "AudioTrackMetadataCache.h"
+#import "AudioDeviceManager.h"
 
 #define UPDATE_HZ 3
 
@@ -41,15 +42,16 @@
 
 - (void)windowDidLoad {
 
-    self.audioPlayer = [[AudioPlayer alloc] initWithDevice:Settings.audioPlayerCurrentDevice
-                                            lockSampleRate:Settings.audioPlayerLockSampleRate];
-    self.metadataManager = [[AudioTrackMetadataManager alloc] init];
-    self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
-
-    self.audioPlayer.delegate = self;
+    self.audioPlayer = [[AudioPlayer alloc] initWithDevice:Settings.audioOutputDeviceName
+                                            lockSampleRate:Settings.audioPlayerLockSampleRate
+                                                  delegate:self
+    ];
+    self.metadataManager = [[AudioTrackMetadataCache alloc] init];
     self.metadataManager.delegate = self;
 
+    self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
     self.playlistManager.tableView = self.playlistTableView;
+
     self.devicesMenuController.audioPlayer = self.audioPlayer;
 
     // Setup Views
@@ -107,6 +109,7 @@
     [NSApp activateIgnoringOtherApps:YES];
 
 }
+
 
 - (void)pauseUIUpdateTimer {
     if (_timerRunning) {
@@ -222,24 +225,57 @@
     [self play:urls];
 }
 
+#pragma mark - AudioPlayerDelegate Implementation
+
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
+    [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
     [self.waveformView loadWaveformForTrack:track];
+    [self.playlistManager reloadCurrentTrack];
     [self resumeUIUpdateTimer];
+    self.playButton.enabled = YES;
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track {
     [self pauseUIUpdateTimer];
     [self updateUI];
+    self.playButton.enabled = YES;
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track {
     [self resumeUIUpdateTimer];
+    self.playButton.enabled = YES;
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track {
     [self pauseUIUpdateTimer];
     [self next:self];
 }
+
+- (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
+    [self.playlistManager next];
+}
+
+- (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer {
+
+}
+
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOuputDevice:(NSInteger)newDeviceIndex {
+    LogDebug(@"MainPlayerController: didChangeOutputDevice: %zd", newDeviceIndex);
+    if (newDeviceIndex == -1) {
+        Settings.audioOutputDeviceName = @"";
+    }
+    else {
+        AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:newDeviceIndex];
+        Settings.audioOutputDeviceName = device.name;
+    }
+}
+
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {
+    [self updatePlaybackUI];
+    self.waveformView.needsDisplay = YES;
+}
+
+#pragma mark - Metadata and Waveform
 
 - (void)didLoadMetadata:(AudioTrack *)track {
     [self.playlistManager reloadTrack:track];
@@ -248,19 +284,11 @@
     }
 }
 
-- (void)didFinishLoadingMetadata:(NSUInteger)tracks {
-
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
-    [self.playlistManager next];
-}
-
 - (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage {
     self.audioPlayer.position = self.audioPlayer.duration * percentage;
-    [self updatePlaybackUI];
-    self.waveformView.needsDisplay = YES;
 }
+
+#pragma mark - Actions
 
 - (IBAction) setSmallSize:(id)sender {
     MainWindow *window = (MainWindow *)self.window;
