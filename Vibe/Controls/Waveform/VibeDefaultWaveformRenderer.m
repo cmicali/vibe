@@ -16,12 +16,14 @@
     static CGGradientRef gradient;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
+        CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
         CGFloat locations[2] = { 0.0, 1.0 };
         CGFloat colors[8] = {
                 1, 0.20, 0, 1,
                 1, 0.45, 0, 1,
         };
-        gradient = CGGradientCreateWithColorComponents(CGColorSpaceCreateDeviceRGB(), colors, locations, 2);
+        gradient = CGGradientCreateWithColorComponents(colorSpace, colors, locations, 2);
+        CGColorSpaceRelease(colorSpace);
     });
     return gradient;
 }
@@ -54,19 +56,24 @@
         AudioWaveformCacheChunk* m = [waveform chunkAtIndex:(NSUInteger)(i / count * waveform.count)];
         if (!m) m = [AudioWaveform emptyChunk];
 
-        CGFloat top     = fabs(m->max - m->min)/2;
+        CGFloat top     = fabs(m->max - m->min)/2 * vscale;
         CGFloat bottom  = 0;
 
         [self updateWaveformBounds:top bottom:bottom];
 
         if (isPastPlayhead) {
-            top *= vscale;
+//            top *= vscale;
             CGContextSetFillColorWithColor(ctx, unplayedColor);
             CGContextFillRect(ctx, CGRectMake(i+0.5, bottom, 2, top));
         }
         else {
-            CGContextDrawLinearGradient(ctx, [VibeDefaultWaveformRenderer gradient], CGPointMake(0, top), CGPointMake(0, bottom), 0);
+            CGContextSetFillColorWithColor(ctx, playedColor);
+            CGContextFillRect(ctx, CGRectMake(i + 0.5, bottom, 2, top));
         }
+//            top *= vscale;
+            CGContextAddRect(ctx, CGRectMake(i+0.5, bottom, 2, top));
+//            CGContextDrawLinearGradient(ctx, [VibeDefaultWaveformRenderer gradient], CGPointMake(0, 0), CGPointMake(0, 1), 0);
+//        }
 
 
 //        CGContextMoveToPoint(ctx, i+0.5 , top + 0.5);
@@ -74,6 +81,10 @@
 //        CGContextStrokePath(ctx);
 
     }
+
+//    CGContextClip(ctx);
+//    CGContextDrawLinearGradient(ctx, [VibeDefaultWaveformRenderer gradient], CGPointMake(0, 0), CGPointMake(0, 90), 0);
+
 //
 //    NSGraphicsContext.currentContext.compositingOperation = NSCompositingOperationSourceAtop;
 //    NSGradient *g = [DetailedAudioWaveformRenderer gradient];

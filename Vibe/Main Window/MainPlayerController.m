@@ -78,15 +78,13 @@
     self.albumArtImageView.layer.shadowRadius = 4;
     self.albumArtImageView.layer.shadowOffset = CGSizeMake(4, 0);
     self.albumArtImageView.layer.shadowOpacity = 1;
-
-    if ([MacOSUtil isDarkMode:self.window.appearance]) {
-        self.playlistBackgroundView.wantsLayer = YES;
-        self.playlistBackgroundView.layer.opacity = 1.0;
-        self.playlistBackgroundView.layer.backgroundColor = [[NSColor blackColor] colorWithAlphaComponent:0.5].CGColor;
-    }
-    else {
-        self.playlistBackgroundView.hidden = YES;
-    }
+//
+//    if ([MacOSUtil isDarkMode:self.window.appearance]) {
+//        self.playlistTableView.backgroundColor = [NSColor colorWithRed:0.1 green:0.1 blue:0.1 alpha:1];
+//    }
+//    else {
+//        self.playlistBackgroundView.hidden = YES;
+//    }
 
     self.waveformView.delegate = self;
     self.waveformView.waveformStyle = Settings.waveformStyle;
@@ -382,13 +380,13 @@
             item.title = self.waveformView.availableWaveformStyles[i];
             item.state = StateForBOOL([item.title isEqualToString:self.waveformView.currentWaveformStyle]);
             item.enabled = YES;
-            item.target = self.waveformView;
+            item.target = self;
             item.action = @selector(setWaveformStyle:);
         }
     }
 }
 
-- (IBAction)setWaveformRenderer:(id)sender {
+- (IBAction)setWaveformStyle:(id)sender {
     if ([sender isKindOfClass:NSMenuItem.class]) {
         NSString *title = ((NSMenuItem *)sender).title;
         self.waveformView.waveformStyle = title;
