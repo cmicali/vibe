@@ -15,13 +15,16 @@ NS_ASSUME_NONNULL_BEGIN
 @property (assign) CGFloat topY;
 @property (assign) CGFloat bottomY;
 
-- (NSString *)displayName;
+- (instancetype)initWithLayer:(CALayer*)layer bounds:(CGRect)bounds;
+
++ (NSString *)displayName;
 
 - (void)updateWaveformBounds:(CGFloat)top bottom:(CGFloat)bottom;
 
-- (void)willDrawRect:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform;
-- (void)drawRect:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform;
-- (void)didDrawRect:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform;
+- (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform * __nullable)waveform;
+- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
+- (void)didUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform * __nullable)waveform;
+- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 
 @end
 

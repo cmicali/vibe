@@ -28,11 +28,10 @@
     NSUInteger                  _progressWidth;
 
     BOOL                        _didClickInside;
-    BOOL                        _seekPreviewing;
-    CGFloat                     _seekPreviewLocation;
 
     AudioWaveformRenderer*      _currentWaveformRenderer;
     NSMutableDictionary*        _waveformRenderers;
+
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -54,6 +53,8 @@
 - (void)setup  {
 
     self.wantsLayer = YES;
+    self.layer = [[CALayer alloc] init];
+    self.layerUsesCoreImageFilters = YES;
 
     _didClickInside = NO;
 
@@ -61,64 +62,35 @@
     _waveformCache.delegate = self;
     _waveformRenderers = [NSMutableDictionary new];
 
-    [self addWaveformRenderer:[[VibeDefaultWaveformRenderer alloc] init]];
-    [self addWaveformRenderer:[[DetailedAudioWaveformRenderer alloc] init]];
-    [self addWaveformRenderer:[[BasicAudioWaveformRenderer alloc] init]];
-
-//    NSTrackingArea* trackingArea = [[NSTrackingArea alloc] initWithRect:[self bounds] options:NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved | NSTrackingActiveAlways owner:self userInfo:nil];
-//    [self addTrackingArea:trackingArea];
+    [self addWaveformRenderer:BasicAudioWaveformRenderer.class];
 
 }
 
-- (void)addWaveformRenderer:(AudioWaveformRenderer*)renderer {
-    _waveformRenderers[renderer.displayName] = renderer;
+- (void)addWaveformRenderer:(id)renderer {
+    _waveformRenderers[[renderer displayName]] = renderer;
 }
 
 - (NSString *)currentWaveformStyle {
-    return _currentWaveformRenderer.displayName;
+    return [_currentWaveformRenderer.class displayName];
 }
 
 - (void)setWaveformStyle:(NSString*)name {
     if (name.length && _waveformRenderers[name]) {
-        _currentWaveformRenderer = _waveformRenderers[name];
-        self.needsDisplay = YES;
+        _currentWaveformRenderer = [[_waveformRenderers[name] alloc] initWithLayer:self.layer bounds:self.bounds];
+        [self drawWaveform];
     }
+}
+
+- (void)drawWaveform {
+    [_currentWaveformRenderer willUpdateWaveform:self.bounds progress:self.progress waveform:self.waveform];
+    [_currentWaveformRenderer updateWaveform:self.bounds progress:self.progress waveform:self.waveform];
+    [_currentWaveformRenderer didUpdateWaveform:self.bounds progress:self.progress waveform:self.waveform];
 }
 
 - (NSArray<NSString*>*)availableWaveformStyles {
     return _waveformRenderers.allKeys;
 }
 
-/*
-- (void)mouseEntered:(NSEvent *)event {
-    [super mouseEntered:event];
-    NSPoint e = [event locationInWindow];
-    NSPoint mouseLoc = [self convertPoint:e fromView:nil];
-    if ([self mouse:mouseLoc inRect:[self bounds]]) {
-//        _seekPreviewing = YES;
-    }
-}
-
-- (void)mouseExited:(NSEvent *)event {
-    [super mouseExited:event];
-    _seekPreviewing = NO;
-}
-
-- (void)mouseMoved:(NSEvent *)event {
-    if (!_seekPreviewing)
-        return;
-    NSPoint e = [event locationInWindow];
-    NSPoint mouseLoc = [self convertPoint:e fromView:nil];
-    if ([self mouse:mouseLoc inRect:CGRectInset(self.bounds, 0, 10)]) {
-        CGFloat x = mouseLoc.x - self.bounds.origin.x;
-        CGFloat p = round(x);
-        if (_seekPreviewLocation != p) {
-            _seekPreviewLocation = p;
-            self.needsDisplay = YES;
-        }
-    }
-}
-*/
 - (void)mouseDown:(NSEvent *)event {
     NSPoint e = [event locationInWindow];
     NSPoint mouseLoc = [self convertPoint:e fromView:nil];
@@ -147,19 +119,12 @@
     return NO;
 }
 
-- (void)drawRect:(NSRect)dirtyRect {
-    [super drawRect:dirtyRect];
-    [_currentWaveformRenderer willDrawRect:self.bounds progress:_progress waveform:_waveform];
-    [_currentWaveformRenderer drawRect:self.bounds progress:_progress waveform:_waveform];
-    [_currentWaveformRenderer didDrawRect:self.bounds progress:_progress waveform:_waveform];
-}
-
 - (void)setProgress:(CGFloat)progress {
     NSUInteger w = (NSUInteger)(self.bounds.size.width * progress);
     _progress = progress;
     if (w != _progressWidth) {
         _progressWidth = w;
-        self.needsDisplay = YES;
+        [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform];
     }
 }
 
@@ -169,12 +134,11 @@
 
 - (void)loadWaveformForTrack:(AudioTrack *)track {
     _waveform = nil;
-    _progress = 0;
-    _progressWidth = 0;
     if (!_currentWaveformRenderer) {
         [self setWaveformStyle:_waveformRenderers.allKeys[0]];
     }
-    self.needsDisplay = YES;
+    self.progress = 0;
+    [self drawWaveform];
     [_waveformCache loadWaveformForTrack:track];
 }
 
@@ -182,7 +146,8 @@
     if (_waveform != waveform) {
         _waveform = waveform;
     }
-    self.needsDisplay = YES;
+    [self drawWaveform];
 }
+
 
 @end

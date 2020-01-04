@@ -8,4 +8,5 @@
 
 @interface BasicAudioWaveformRenderer : AudioWaveformRenderer
 
++ (NSString *)displayName;
 @end
