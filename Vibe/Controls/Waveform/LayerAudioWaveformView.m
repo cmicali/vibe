@@ -146,14 +146,14 @@
 - (BOOL)isOpaque {
     return NO;
 }
-
+/*
 - (void)drawRect:(NSRect)dirtyRect {
     [super drawRect:dirtyRect];
     [_currentWaveformRenderer willDrawRect:self.bounds progress:_progress waveform:_waveform];
     [_currentWaveformRenderer drawRect:self.bounds progress:_progress waveform:_waveform];
     [_currentWaveformRenderer didDrawRect:self.bounds progress:_progress waveform:_waveform];
 }
-
+*/
 - (void)setProgress:(CGFloat)progress {
     NSUInteger w = (NSUInteger)(self.bounds.size.width * progress);
     _progress = progress;
