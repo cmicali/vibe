@@ -12,6 +12,8 @@
 #import "BassUtil.h"
 #import "MainPlayerController.h"
 #import "AudioDeviceManager.h"
+#import "WorkQueueThread.h"
+#import "NSThread+Blocks.h"
 
 @interface AudioPlayer () <BASSChannelDelegate>
 
@@ -23,8 +25,8 @@
 @end
 
 @implementation AudioPlayer {
-    dispatch_queue_t        _playerQueue;
     BOOL                    _lockSampleRate;
+    WorkQueueThread*        _thread;
 }
 
 
@@ -35,12 +37,12 @@
     if (self) {
         self.channel = 0;
         self.lockSampleRate = shouldLockSampleRate;
-        dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
-        _playerQueue = dispatch_queue_create("AudioPlayer", queueAttributes);
+        _thread = [[WorkQueueThread alloc] init];
+        [_thread start];
         self.delegate = delegate;
-        dispatch_async(_playerQueue, ^{
+        [_thread run:^{
             [self setup:deviceName];
-        });
+        }];
     }
     return self;
 }
@@ -93,15 +95,15 @@
 #pragma mark - Methods
 
 - (void)rampVolumeToZero:(BOOL)async {
-    dispatch_async(_playerQueue, ^{
+    [_thread run:^{
         [BassUtil rampVolumeToZero:self.channel async:async];
-    });
+    }];
 }
 
 - (void)rampVolumeToNormal:(BOOL)async {
-    dispatch_async(_playerQueue, ^{
+    [_thread run:^{
         [BassUtil rampVolumeToNormal:self.channel async:async];
-    });
+    }];
 }
 
 - (BOOL)lockSampleRate {
@@ -111,9 +113,9 @@
 - (void)setLockSampleRate:(BOOL)lockSampleRate {
     _lockSampleRate = lockSampleRate;
     if (_lockSampleRate && _channel) {
-        dispatch_async(_playerQueue, ^{
+        [_thread run:^{
             [self changeSystemSampleRateToChannelRate];
-        });
+        }];
     }
 }
 
@@ -121,7 +123,7 @@
 
     const char *filename = [track.url.path UTF8String];
 
-    dispatch_async(_playerQueue, ^{
+    [_thread run:^{
 
         if (self.channel) {
             BASS_ChannelStop(self.channel);
@@ -150,12 +152,12 @@
             self.channel = 0;
         }
         [self sendDelegateLastError];
-    });
+    }];
 
 }
 
 - (void)playPause {
-    dispatch_async(_playerQueue, ^{
+    [_thread run:^{
         if (self.isPlaying) {
             [BassUtil rampVolumeToZero:self.channel async:NO];
             if (BASS_ChannelPause(self.channel)) {
@@ -175,7 +177,7 @@
             }
         }
         [self sendDelegateLastError];
-    });
+    }];
 }
 
 #pragma mark - Properties
@@ -218,12 +220,12 @@
 }
 
 - (void)setPosition:(NSTimeInterval)pos {
-    dispatch_async(_playerQueue, ^{
+    [_thread run:^{
         [BassUtil setChannelPosition:self.channel position:pos];
         run_on_main_thread({
             [self.delegate audioPlayer:self didFinishSeeking:self.currentTrack];
         });
-    });
+    }];
 }
 
 #pragma mark - BASSChannelDelegate
@@ -266,7 +268,7 @@
 
 - (void)setOutputDevice:(NSInteger)outputDeviceIndex {
 
-    dispatch_async(_playerQueue, ^{
+    [_thread run:^{
 
         LogDebug(@"setOutputDevice: %@", @(outputDeviceIndex));
         BASS_DEVICEINFO info;
@@ -308,7 +310,7 @@
             [self.delegate audioPlayer:self didChangeOuputDevice:self.currentlyRequestedAudioDeviceId];
         });
 
-    });
+    }];
 
 }
 
