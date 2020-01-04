@@ -11,7 +11,7 @@
     block();
 }
 
-- (void)performBlock:(void (^)(void))block {
+- (void)run:(void (^)(void))block {
     if ([[NSThread currentThread] isEqual:self]) {
         block();
     } else {
@@ -20,14 +20,14 @@
 }
 
 - (void)performWaitingUntilDone:(BOOL)waitDone block:(void (^)(void))block {
-    [NSThread performSelector:@selector(gtm_runBlockOnCurrentThread:)
+    [NSThread performSelector:@selector(runBlockOnCurrentThread:)
                      onThread:self
                    withObject:block
                 waitUntilDone:waitDone];
 }
 
-+ (void)performBlockInBackground:(void (^)(void))block {
-    [NSThread performSelectorInBackground:@selector(gtm_runBlockOnCurrentThread:)
++ (void)runInBackground:(void (^)(void))block {
+    [NSThread performSelectorInBackground:@selector(runBlockOnCurrentThread:)
                                withObject:block];
 }
 
