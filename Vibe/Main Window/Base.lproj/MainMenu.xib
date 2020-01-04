@@ -153,7 +153,7 @@
                             </menuItem>
                             <menuItem title="Style" id="z9Q-kL-hlH">
                                 <modifierMask key="keyEquivalentModifierMask"/>
-                                <menu key="submenu" title="Style" identifier="waveform_style" id="Gln-fe-h3M">
+                                <menu key="submenu" title="Style" autoenablesItems="NO" identifier="waveform_style" id="Gln-fe-h3M">
                                     <connections>
                                         <outlet property="delegate" destination="j8i-XM-36F" id="V36-38-CtG"/>
                                     </connections>
