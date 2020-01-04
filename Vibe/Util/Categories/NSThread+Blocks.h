@@ -7,7 +7,8 @@
 
 @interface NSThread (Blocks)
 
-- (void)performBlock:(void (^)(void))block;
-+ (void)performBlockInBackground:(void (^)(void))block;
++ (void)runBlockOnCurrentThread:(void (^)(void))block;
+
+- (void)run:(void (^)(void))block;
 
 @end
