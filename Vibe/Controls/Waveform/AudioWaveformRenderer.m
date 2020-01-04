@@ -8,7 +8,14 @@
 
 @implementation AudioWaveformRenderer
 
-- (NSString *)displayName {
+- (instancetype)initWithLayer:(CALayer*)layer bounds:(CGRect)bounds {
+    self = [super init];
+    if (self) {
+    }
+    return self;
+}
+
++ (NSString *)displayName {
     return nil;
 }
 
@@ -21,18 +28,16 @@
     }
 }
 
-- (void)willDrawRect:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
+- (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
     self.bottomY = bounds.size.height/2 - (bounds.size.height/2 * .5);
     self.topY = bounds.size.height/2 + (bounds.size.height/2 * .5);
-    [NSGraphicsContext.currentContext saveGraphicsState];
 }
 
-- (void)drawRect:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
+- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
 
 }
 
-- (void)didDrawRect:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
-    [NSGraphicsContext.currentContext restoreGraphicsState];
+- (void)didUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
 }
 
 @end

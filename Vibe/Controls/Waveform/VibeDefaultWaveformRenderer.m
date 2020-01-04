@@ -28,7 +28,7 @@
     return gradient;
 }
 
-- (void)drawRect:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
+- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
 
     CGContextRef ctx = NSGraphicsContext.currentContext.CGContext;
 

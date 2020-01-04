@@ -16,11 +16,13 @@
 		34FF42A8E740AB124F1D656F /* BassUtil.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF478BC64423D1E31591C4 /* BassUtil.mm */; };
 		34FF42A916FA0A4391E23D42 /* OutputDevicesMenuController.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF482BFB65CD379F8499EB /* OutputDevicesMenuController.m */; };
 		34FF42E49186916E522A9C4F /* AlphaButton.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF43188C3AAB2DCC4D7A20 /* AlphaButton.m */; };
+		34FF434BCCC6570EB3E8691F /* WorkQueueThread.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4253BAAC9DD1F0B577DC /* WorkQueueThread.m */; };
 		34FF434D64E08606D08DF142 /* NSDraggingImageComponent+Util.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4A6443F93E9026069737 /* NSDraggingImageComponent+Util.m */; };
 		34FF43BE351B41421B0A6460 /* AudioWaveformRenderer.h in Resources */ = {isa = PBXBuildFile; fileRef = 34FF42FFC006D0ADFE022848 /* AudioWaveformRenderer.h */; };
 		34FF4478E449DFA4CB901A2A /* PlaylistManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF420F46EEA64A522D8819 /* PlaylistManager.m */; };
 		34FF4484903DE5AD7A67B838 /* SYFlatButton.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF48E9F08E5E82D6C692BA /* SYFlatButton.m */; };
 		34FF44C6E3C9B3377BED7C95 /* NSURLUtil.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF47AA07AEC3807ECCC08E /* NSURLUtil.m */; };
+		34FF44D7D140BB7759653B35 /* NSThread+Blocks.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF46F4BA2B4A5C754104AE /* NSThread+Blocks.m */; };
 		34FF44EE58D1AE8AD48B9279 /* PlaylistTextCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF47E18BBE829AD2958151 /* PlaylistTextCell.m */; };
 		34FF45BF3B91F3811A097228 /* ScaledImageView.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4AA77C54EAA82C12DE35 /* ScaledImageView.m */; };
 		34FF4639B011F3B4C8D939E3 /* Podfile in Resources */ = {isa = PBXBuildFile; fileRef = 34FF4F4C0BCCC1A1CA0898A0 /* Podfile */; };
@@ -35,7 +37,6 @@
 		34FF48B6F0F3EAA35CE21546 /* AppSettings.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4E137BF339459C5E63C0 /* AppSettings.m */; };
 		34FF49C38743205A9B8A1BC8 /* NSView+Util.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF466808E0F10F15F2F213 /* NSView+Util.m */; };
 		34FF4A1AFA6D5C200E75E184 /* MacOSUtil.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4FF6B8CA311EBAF85F78 /* MacOSUtil.m */; };
-		34FF4A5FA7F63706F265F636 /* LayerAudioWaveformView.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4DE4092EE8C58ADF308E /* LayerAudioWaveformView.m */; };
 		34FF4A607C863108CECB187B /* VibeDefaultWaveformRenderer.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF465741427C92D158BB81 /* VibeDefaultWaveformRenderer.m */; };
 		34FF4A828E15FEB015564F9D /* NSMutableAttributedString+Util.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF433F9FE866FC4684CC25 /* NSMutableAttributedString+Util.m */; };
 		34FF4AE1ACE2E6673F149C3D /* Formatters.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF45FBACD93387E9706D41 /* Formatters.m */; };
@@ -95,6 +96,7 @@
 /* Begin PBXFileReference section */
 		0763E621179A31A3B489CCC2 /* Pods_Vibe.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Vibe.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		25635E47A34F0C3EAEB23D01 /* Pods-Vibe.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Vibe.release.xcconfig"; path = "Target Support Files/Pods-Vibe/Pods-Vibe.release.xcconfig"; sourceTree = "<group>"; };
+		34FF405A573E0AD3EA7042D3 /* NSThread+Blocks.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSThread+Blocks.h"; sourceTree = "<group>"; };
 		34FF4065120E705650E06694 /* AppDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		34FF408561F7DF7DA84C6EEA /* AudioTrackMetadataCache.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioTrackMetadataCache.h; sourceTree = "<group>"; };
 		34FF408589774269742C487B /* ScaledImageView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScaledImageView.h; sourceTree = "<group>"; };
@@ -107,6 +109,7 @@
 		34FF420F46EEA64A522D8819 /* PlaylistManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = PlaylistManager.m; sourceTree = "<group>"; };
 		34FF422B054BBF951A4D63CA /* NSDockTile+Util.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSDockTile+Util.m"; sourceTree = "<group>"; };
 		34FF422C6AC6CAB9B5A43725 /* AudioWaveformLoader.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioWaveformLoader.m; sourceTree = "<group>"; };
+		34FF4253BAAC9DD1F0B577DC /* WorkQueueThread.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = WorkQueueThread.m; sourceTree = "<group>"; };
 		34FF426EADB1FCC0BBAB2FF2 /* OutputDevicesMenuController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = OutputDevicesMenuController.h; sourceTree = "<group>"; };
 		34FF42979C0203E308C072C3 /* AudioTrackMetadataCache.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioTrackMetadataCache.m; sourceTree = "<group>"; };
 		34FF42A2D7CDC63BB2FB35A2 /* NSView+Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSView+Util.h"; sourceTree = "<group>"; };
@@ -134,6 +137,7 @@
 		34FF466808E0F10F15F2F213 /* NSView+Util.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSView+Util.m"; sourceTree = "<group>"; };
 		34FF46737EB46D4AF1BE31EE /* PlayerTouchBar.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PlayerTouchBar.h; sourceTree = "<group>"; };
 		34FF46C5DB656AAA171A5984 /* AudioWaveformRenderer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioWaveformRenderer.m; sourceTree = "<group>"; };
+		34FF46F4BA2B4A5C754104AE /* NSThread+Blocks.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSThread+Blocks.m"; sourceTree = "<group>"; };
 		34FF47482DFB21C44F91C417 /* RSVerticallyCenteredTextFieldCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = RSVerticallyCenteredTextFieldCell.m; sourceTree = "<group>"; };
 		34FF4786C6E776F32AFBD7A6 /* BassUtil.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BassUtil.h; sourceTree = "<group>"; };
 		34FF478BC64423D1E31591C4 /* BassUtil.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = BassUtil.mm; sourceTree = "<group>"; };
@@ -146,6 +150,7 @@
 		34FF488045D26D5DE8586367 /* AudioWaveform.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioWaveform.m; sourceTree = "<group>"; };
 		34FF488E2FA642F388F894AC /* AudioTrackMetadata.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioTrackMetadata.h; sourceTree = "<group>"; };
 		34FF48E9F08E5E82D6C692BA /* SYFlatButton.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SYFlatButton.m; sourceTree = "<group>"; };
+		34FF4925D8E92C760C43BAAC /* WorkQueueThread.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WorkQueueThread.h; sourceTree = "<group>"; };
 		34FF495980860234FA093E3B /* AudioTrack.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioTrack.h; sourceTree = "<group>"; };
 		34FF496B6C95423D417521F9 /* AudioWaveform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioWaveform.h; sourceTree = "<group>"; };
 		34FF496F9E64AD2135175796 /* CoreAudioUtil.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = CoreAudioUtil.mm; sourceTree = "<group>"; };
@@ -166,7 +171,6 @@
 		34FF4D1CD4E80FF877B99EC5 /* NSMutableAttributedString+Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSMutableAttributedString+Util.h"; sourceTree = "<group>"; };
 		34FF4D53CF024A2C7F1E1FD8 /* AudioWaveformCache.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioWaveformCache.m; sourceTree = "<group>"; };
 		34FF4D9C4071E7B6F8D083FF /* VibeDefaultWaveformRenderer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VibeDefaultWaveformRenderer.h; sourceTree = "<group>"; };
-		34FF4DE4092EE8C58ADF308E /* LayerAudioWaveformView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LayerAudioWaveformView.m; sourceTree = "<group>"; };
 		34FF4E137BF339459C5E63C0 /* AppSettings.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AppSettings.m; sourceTree = "<group>"; };
 		34FF4E1DD78AC461983E62F6 /* AppDelegate.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
 		34FF4E236764427B453CB692 /* BASSAudioWaveformLoader.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BASSAudioWaveformLoader.m; sourceTree = "<group>"; };
@@ -177,7 +181,6 @@
 		34FF4EEE2D41CC67215D8C88 /* MainWindow.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MainWindow.h; sourceTree = "<group>"; };
 		34FF4F207EE6DCB581AC1382 /* AudioWaveformView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioWaveformView.m; sourceTree = "<group>"; };
 		34FF4F22665F4945EBFF675E /* AudioTrack.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioTrack.m; sourceTree = "<group>"; };
-		34FF4F3DE6ABF718CB07FEDC /* LayerAudioWaveformView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LayerAudioWaveformView.h; sourceTree = "<group>"; };
 		34FF4F4C0BCCC1A1CA0898A0 /* Podfile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = Podfile; sourceTree = "<group>"; };
 		34FF4FA087C910402AE873A5 /* DetailedAudioWaveformRenderer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DetailedAudioWaveformRenderer.h; sourceTree = "<group>"; };
 		34FF4FDEFEF9486F4CBB5B1D /* record-transparent-1024.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "record-transparent-1024.png"; sourceTree = "<group>"; };
@@ -247,6 +250,8 @@
 				34FF40AF244ECCFCBF37142E /* NSURLUtil.h */,
 				34FF47AA07AEC3807ECCC08E /* NSURLUtil.m */,
 				34FF42B28E14C5CA422064E4 /* Util.h */,
+				34FF4253BAAC9DD1F0B577DC /* WorkQueueThread.m */,
+				34FF4925D8E92C760C43BAAC /* WorkQueueThread.h */,
 			);
 			path = Util;
 			sourceTree = "<group>";
@@ -348,8 +353,6 @@
 				34FF465741427C92D158BB81 /* VibeDefaultWaveformRenderer.m */,
 				34FF40C150803791290DADAE /* BasicAudioWaveformRenderer.m */,
 				34FF4E298A6204B96307E206 /* BasicAudioWaveformRenderer.h */,
-				34FF4F3DE6ABF718CB07FEDC /* LayerAudioWaveformView.h */,
-				34FF4DE4092EE8C58ADF308E /* LayerAudioWaveformView.m */,
 			);
 			path = Waveform;
 			sourceTree = "<group>";
@@ -371,6 +374,8 @@
 				34FF4332509EABC415A0A5EB /* NSURL+Hash.m */,
 				34FF42A2D7CDC63BB2FB35A2 /* NSView+Util.h */,
 				34FF466808E0F10F15F2F213 /* NSView+Util.m */,
+				34FF46F4BA2B4A5C754104AE /* NSThread+Blocks.m */,
+				34FF405A573E0AD3EA7042D3 /* NSThread+Blocks.h */,
 			);
 			path = Categories;
 			sourceTree = "<group>";
@@ -683,7 +688,8 @@
 				34FF40BCC1328A8EB4A4B753 /* AudioWaveformRenderer.m in Sources */,
 				34FF4A607C863108CECB187B /* VibeDefaultWaveformRenderer.m in Sources */,
 				34FF4113001518E37080A80F /* BasicAudioWaveformRenderer.m in Sources */,
-				34FF4A5FA7F63706F265F636 /* LayerAudioWaveformView.m in Sources */,
+				34FF44D7D140BB7759653B35 /* NSThread+Blocks.m in Sources */,
+				34FF434BCCC6570EB3E8691F /* WorkQueueThread.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

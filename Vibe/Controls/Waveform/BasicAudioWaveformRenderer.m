@@ -6,80 +6,89 @@
 #import "BasicAudioWaveformRenderer.h"
 #import "AudioWaveform.h"
 
-@implementation BasicAudioWaveformRenderer
+@implementation BasicAudioWaveformRenderer {
+    NSArray<CALayer*> * _layers;
+    NSColor* _playedColorTop;
+    NSColor* _unPlayedColorTop;
+    CAGradientLayer *_overlayGradient;
+}
 
-- (NSString *)displayName {
++ (NSString *)displayName {
     return @"Basic";
 }
 
-+ (NSGradient*)gradient {
-    static NSGradient *instance = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        instance = [[NSGradient alloc] initWithColors:@[
-                [NSColor colorWithRed:0 green:0 blue:0 alpha:0.75],
-                [NSColor colorWithRed:0 green:0 blue:0 alpha:0.25],
-                [NSColor colorWithRed:0 green:0 blue:0 alpha:0.0],
-                [NSColor colorWithRed:0 green:0 blue:0 alpha:0.0]
-        ]];
-    });
-    return instance;
-}
+- (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds{
+    self = [super initWithLayer:parentLayer bounds:bounds];
+    if (self) {
 
-- (void)drawRect:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
+        _playedColorTop = [[NSColor whiteColor] colorWithAlphaComponent:0.95];
+        _unPlayedColorTop = [[NSColor whiteColor] colorWithAlphaComponent:0.5];
 
-    CGContextRef ctx = NSGraphicsContext.currentContext.CGContext;
-
-    CGFloat width = bounds.size.width;
-    CGFloat height = bounds.size.height;
-    CGFloat progressWidth = width * progress;
-    size_t count = (size_t)width;
-
-    CGFloat vscale = (height / 2) * 0.70;
-    CGFloat midY = height / 2;
-
-    [[[NSColor controlTextColor] colorWithAlphaComponent:0.95] set];
-
-    CGContextSetLineWidth(ctx, 1);
-//    CGContextSetAllowsAntialiasing(ctx, NO);
-
-    CGFloat step = 2;
-
-    for (CGFloat i = 0; i < count ; i+=step) {
-
-        CGFloat colorFactor = 1; //(i%2?1:0.5);
-
-        BOOL isPastPlayhead = i >= (progressWidth + step);
-        if (isPastPlayhead) {
-            [[[NSColor controlTextColor] colorWithAlphaComponent:0.35 * colorFactor] set];
+        NSMutableArray *layers = [NSMutableArray new];
+        for (int i = 0; i < 512; ++i) {
+            CALayer *layer = [[CALayer alloc] init];
+            layer.backgroundColor = _unPlayedColorTop.CGColor;
+            [layers addObject:layer];
+            [parentLayer addSublayer:layer];
         }
-        else {
-            [[[NSColor controlTextColor] colorWithAlphaComponent:0.95 * colorFactor] set];
-        }
+        _layers = layers;
 
-        AudioWaveformCacheChunk* m = [waveform chunkAtIndex:(NSUInteger)(i / count * waveform.count)];
-        if (!m) m = [AudioWaveform emptyChunk];
+        _overlayGradient = [[CAGradientLayer alloc] init];
+        CIFilter *filter = [CIFilter filterWithName:@"CISourceInCompositing"];
+        [filter setDefaults];
+        _overlayGradient.compositingFilter = filter;
+        _overlayGradient.colors = @[
+                (id)[[NSColor whiteColor] colorWithAlphaComponent:0.1].CGColor,
+                (id)[[NSColor whiteColor] colorWithAlphaComponent:0.65].CGColor,
+                (id)[[NSColor whiteColor] colorWithAlphaComponent:1].CGColor,
+                (id)[[NSColor whiteColor] colorWithAlphaComponent:1].CGColor,
+        ];
+        [parentLayer addSublayer:_overlayGradient];
 
-        CGFloat top     = round(midY - m->min * vscale);
-        CGFloat bottom  = round(midY - m->max * vscale);
-
-        if (top - bottom == 0) {
-            top += 0.5;
-            bottom -= 0.5;
-        }
-
-        [self updateWaveformBounds:top bottom:bottom];
-
-        CGContextMoveToPoint(ctx, i+0.5 , top + 0.5);
-        CGContextAddLineToPoint(ctx, i+0.5 , bottom + 0.5);
-        CGContextStrokePath(ctx);
+        [self updateWaveform:bounds progress:0 waveform:nil];
 
     }
+    return self;
+}
 
-    NSGraphicsContext.currentContext.compositingOperation = NSCompositingOperationSourceAtop;
-    NSGradient *g = [BasicAudioWaveformRenderer gradient];
-    [g drawInRect:bounds angle:90];
+- (void) dealloc {
+    [_overlayGradient removeFromSuperlayer];
+    for (CALayer *layer in _layers) {
+        [layer removeFromSuperlayer];
+    }
+}
 
+- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
+    size_t count = 512;
+    for (NSUInteger i = 0; i < count; i++) {
+        BOOL isPlayed = ((CGFloat)i/(CGFloat)count <= progress);
+        [self setPlayedForIndex:isPlayed index:i];
+    }
+}
+
+- (void)setPlayedForIndex:(BOOL)played index:(NSUInteger)index {
+    if (played) {
+        _layers[index].backgroundColor = _playedColorTop.CGColor;
+    }
+    else {
+        _layers[index].backgroundColor = _unPlayedColorTop.CGColor;
+    }
+}
+
+- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
+    _overlayGradient.frame = bounds;
+    CGFloat height = bounds.size.height;
+    size_t count = 512;
+    CGFloat vscale = (height / 2) * 0.70;
+    CGFloat midY = height / 2;
+    for (NSUInteger i = 0; i < count; i++) {
+        AudioWaveformCacheChunk *m = [waveform chunkAtIndex:(NSUInteger) ((float) i * waveform.count / count)];
+        if (!m) m = [AudioWaveform emptyChunk];
+        CGFloat top = round(midY - m->min * vscale);
+        CGFloat bottom = round(midY - m->max * vscale);
+        CALayer *layer = _layers[i];
+        layer.frame = CGRectMake(i, bottom, 1, top - bottom);
+    }
 }
 
 @end
