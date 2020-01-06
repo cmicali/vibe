@@ -125,6 +125,7 @@
     if (w != _progressWidth) {
         _progressWidth = w;
         [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform];
+        _currentWaveformRenderer.progress = _progress;
     }
 }
 

@@ -7,7 +7,6 @@
 #import "AudioWaveform.h"
 
 @implementation BasicAudioWaveformRenderer {
-    NSArray<CALayer*> * _layers;
     NSColor* _playedColorTop;
     NSColor* _unPlayedColorTop;
     CAGradientLayer *_overlayGradient;
@@ -24,55 +23,52 @@
         _playedColorTop = [[NSColor whiteColor] colorWithAlphaComponent:0.95];
         _unPlayedColorTop = [[NSColor whiteColor] colorWithAlphaComponent:0.5];
 
-        NSMutableArray *layers = [NSMutableArray new];
-        for (int i = 0; i < 512; ++i) {
-            CALayer *layer = [[CALayer alloc] init];
-            layer.backgroundColor = _unPlayedColorTop.CGColor;
-            [layers addObject:layer];
-            [parentLayer addSublayer:layer];
-        }
-        _layers = layers;
+        [self addLayers:512 backgroundColor:_unPlayedColorTop.CGColor];
 
-        _overlayGradient = [[CAGradientLayer alloc] init];
-        CIFilter *filter = [CIFilter filterWithName:@"CISourceInCompositing"];
-        [filter setDefaults];
-        _overlayGradient.compositingFilter = filter;
-        _overlayGradient.colors = @[
-                (id)[[NSColor whiteColor] colorWithAlphaComponent:0.1].CGColor,
-                (id)[[NSColor whiteColor] colorWithAlphaComponent:0.65].CGColor,
-                (id)[[NSColor whiteColor] colorWithAlphaComponent:1].CGColor,
-                (id)[[NSColor whiteColor] colorWithAlphaComponent:1].CGColor,
+        NSArray *colors = @[
+            [[NSColor whiteColor] colorWithAlphaComponent:0.1],
+            [[NSColor whiteColor] colorWithAlphaComponent:0.65],
+            [[NSColor whiteColor] colorWithAlphaComponent:1],
+            [[NSColor whiteColor] colorWithAlphaComponent:1],
         ];
-        [parentLayer addSublayer:_overlayGradient];
-
+        _overlayGradient = [self createGradientLayer:colors filter:@"CISourceInCompositing"];
+        [self addOtherLayer:_overlayGradient];
         [self updateWaveform:bounds progress:0 waveform:nil];
-
     }
     return self;
 }
 
-- (void) dealloc {
-    [_overlayGradient removeFromSuperlayer];
-    for (CALayer *layer in _layers) {
-        [layer removeFromSuperlayer];
-    }
-}
-
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
     size_t count = 512;
-    for (NSUInteger i = 0; i < count; i++) {
-        BOOL isPlayed = ((CGFloat)i/(CGFloat)count <= progress);
-        [self setPlayedForIndex:isPlayed index:i];
+    [CATransaction begin];
+    CATransaction.animationDuration = 0.25;
+    if (progress > self.progress) {
+        for (NSUInteger i = 0; i < count; i++) {
+            [self setPlayedForIndex:((CGFloat)i/(CGFloat)count <= progress) index:i];
+        }
     }
+    else {
+        for (NSUInteger i = count; i > 0; i--) {
+            [self setPlayedForIndex:((CGFloat)i/(CGFloat)count <= progress) index:i-1];
+        }
+    }
+    [CATransaction commit];
 }
 
 - (void)setPlayedForIndex:(BOOL)played index:(NSUInteger)index {
-    if (played) {
-        _layers[index].backgroundColor = _playedColorTop.CGColor;
+    CGColorRef color = played ? _playedColorTop.CGColor : _unPlayedColorTop.CGColor;
+    CALayer *layer = self.layers[index];
+    if (CGColorEqualToColor(layer.backgroundColor, color)) {
+        return;
     }
-    else {
-        _layers[index].backgroundColor = _unPlayedColorTop.CGColor;
-    }
+//    CABasicAnimation *a = [CABasicAnimation new];
+//    a.keyPath = @"backgroundColor";
+//    a.fromValue = (id)layer.backgroundColor;
+//    a.toValue = (__bridge id)color;
+//    a.beginTime = CACurrentMediaTime() + ((CGFloat)index)/128;
+//    a.fillMode = kCAFillModeForwards;
+//    [layer addAnimation:a forKey:@"basic"];
+    layer.backgroundColor = color;
 }
 
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
@@ -86,8 +82,10 @@
         if (!m) m = [AudioWaveform emptyChunk];
         CGFloat top = round(midY - m->min * vscale);
         CGFloat bottom = round(midY - m->max * vscale);
-        CALayer *layer = _layers[i];
-        layer.frame = CGRectMake(i, bottom, 1, top - bottom);
+        height = top - bottom;
+        if (height < 1) height = 1;
+        CGRect frame = CGRectMake(i, bottom, 1, height);
+        [self setLayerFrame:frame atIndex:i];
     }
 }
 
