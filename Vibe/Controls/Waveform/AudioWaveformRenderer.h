@@ -14,12 +14,23 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (assign) CGFloat topY;
 @property (assign) CGFloat bottomY;
+@property (assign) CGFloat progress;
 
-- (instancetype)initWithLayer:(CALayer*)layer bounds:(CGRect)bounds;
+@property (strong) CALayer* parentLayer;
+@property (strong) NSArray<CALayer*>* layers;
 
 + (NSString *)displayName;
 
-- (void)updateWaveformBounds:(CGFloat)top bottom:(CGFloat)bottom;
+- (instancetype)initWithLayer:(CALayer*)layer bounds:(CGRect)bounds;
+
+- (void)addLayers:(NSUInteger)numLayers backgroundColor:(CGColorRef)color;
+- (void)addLayers:(NSUInteger)numLayers forClass:(Class)clazz backgroundColor:(CGColorRef)color;
+- (void)addOtherLayer:(CALayer *)layer;
+
+- (CAGradientLayer *)createGradientLayer:(NSArray<NSColor *> *)colors;
+- (CAGradientLayer *)createGradientLayer:(NSArray<NSColor *> *)colors filter:(NSString * __nullable)filterName;
+
+- (void)setLayerFrame:(CGRect)frame atIndex:(NSUInteger)index;
 
 - (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform * __nullable)waveform;
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;

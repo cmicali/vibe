@@ -59,7 +59,7 @@
         CGFloat top     = fabs(m->max - m->min)/2 * vscale;
         CGFloat bottom  = 0;
 
-        [self updateWaveformBounds:top bottom:bottom];
+//        [self updateWaveformBounds:top bottom:bottom];
 
         if (isPastPlayhead) {
 //            top *= vscale;

@@ -68,7 +68,7 @@
             bottom -= 0.5;
         }
 
-        [self updateWaveformBounds:top bottom:bottom];
+//        [self updateWaveformBounds:top bottom:bottom];
 
         CGContextMoveToPoint(ctx, i+0.5 , top + 0.5);
         CGContextAddLineToPoint(ctx, i+0.5 , bottom + 0.5);
