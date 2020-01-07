@@ -4,11 +4,10 @@
 //
 
 #import "BasicAudioWaveformRenderer.h"
-#import "AudioWaveform.h"
 
 @implementation BasicAudioWaveformRenderer {
-    NSColor* _playedColorTop;
-    NSColor* _unPlayedColorTop;
+    NSColor* _playedColor;
+    NSColor* _unPlayedColor;
     CAGradientLayer *_overlayGradient;
 }
 
@@ -20,10 +19,10 @@
     self = [super initWithLayer:parentLayer bounds:bounds];
     if (self) {
 
-        _playedColorTop = [[NSColor whiteColor] colorWithAlphaComponent:0.95];
-        _unPlayedColorTop = [[NSColor whiteColor] colorWithAlphaComponent:0.5];
+        _playedColor = [[NSColor whiteColor] colorWithAlphaComponent:0.95];
+        _unPlayedColor = [[NSColor whiteColor] colorWithAlphaComponent:0.5];
 
-        [self addLayers:512 backgroundColor:_unPlayedColorTop.CGColor];
+        [self addLayers:512 backgroundColor:_unPlayedColor.CGColor];
 
         NSArray *colors = @[
             [[NSColor whiteColor] colorWithAlphaComponent:0.1],
@@ -40,34 +39,17 @@
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
     size_t count = 512;
-    [CATransaction begin];
-    CATransaction.animationDuration = 0.25;
-    if (progress > self.progress) {
-        for (NSUInteger i = 0; i < count; i++) {
-            [self setPlayedForIndex:((CGFloat)i/(CGFloat)count <= progress) index:i];
-        }
+    for (NSUInteger i = 0; i < count; i++) {
+        [self setPlayedForIndex:((CGFloat)i/(CGFloat)count <= progress) index:i];
     }
-    else {
-        for (NSUInteger i = count; i > 0; i--) {
-            [self setPlayedForIndex:((CGFloat)i/(CGFloat)count <= progress) index:i-1];
-        }
-    }
-    [CATransaction commit];
 }
 
 - (void)setPlayedForIndex:(BOOL)played index:(NSUInteger)index {
-    CGColorRef color = played ? _playedColorTop.CGColor : _unPlayedColorTop.CGColor;
+    CGColorRef color = played ? _playedColor.CGColor : _unPlayedColor.CGColor;
     CALayer *layer = self.layers[index];
     if (CGColorEqualToColor(layer.backgroundColor, color)) {
         return;
     }
-//    CABasicAnimation *a = [CABasicAnimation new];
-//    a.keyPath = @"backgroundColor";
-//    a.fromValue = (id)layer.backgroundColor;
-//    a.toValue = (__bridge id)color;
-//    a.beginTime = CACurrentMediaTime() + ((CGFloat)index)/128;
-//    a.fillMode = kCAFillModeForwards;
-//    [layer addAnimation:a forKey:@"basic"];
     layer.backgroundColor = color;
 }
 
@@ -75,7 +57,7 @@
     _overlayGradient.frame = bounds;
     CGFloat height = bounds.size.height;
     size_t count = 512;
-    CGFloat vscale = (height / 2) * 0.70;
+    CGFloat vscale = (height / 2) * 0.75;
     CGFloat midY = height / 2;
     for (NSUInteger i = 0; i < count; i++) {
         AudioWaveformCacheChunk *m = [waveform chunkAtIndex:(NSUInteger) ((float) i * waveform.count / count)];
