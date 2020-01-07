@@ -8,14 +8,11 @@
 
 #import "MainPlayerController.h"
 #import "NSDockTile+Util.h"
-#import "MacOSUtil.h"
-#import "PlayerTouchBar.h"
 #import "OutputDevicesMenuController.h"
 #import "AppDelegate.h"
 #import "Formatters.h"
 #import "Fonts.h"
 #import "ArtworkImageView.h"
-#import "AudioTrackMetadataCache.h"
 #import "AudioDeviceManager.h"
 
 #define UPDATE_HZ 3
@@ -253,6 +250,12 @@
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
+    NSAlert *alert = [[NSAlert alloc] init];
+    [alert addButtonWithTitle:@"Ok"];
+    [alert setMessageText:@"AudioPlayer Error"];
+    [alert setInformativeText:error.userInfo[NSLocalizedDescriptionKey]];
+    [alert setAlertStyle:NSAlertStyleWarning];
+    [alert runModal];
     [self.playlistManager next];
 }
 
@@ -327,6 +330,7 @@
         }
     }
     self.window.appearance = Settings.windowAppearance;
+
 }
 
 //- (NSTouchBar *)makeTouchBar {

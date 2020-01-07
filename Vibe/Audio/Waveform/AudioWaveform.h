@@ -11,6 +11,7 @@ struct AudioWaveformCacheChunk {
 };
 typedef struct CG_BOXABLE AudioWaveformCacheChunk AudioWaveformCacheChunk;
 
+
 #define ZeroAudioWaveformCacheChunk(chunk) chunk.min = 0; chunk.max = 0;
 #define ZeroedAudioWaveformCacheChunk(chunk) AudioWaveformCacheChunk chunk; chunk.min = 0; chunk.max = 0;
 
@@ -19,6 +20,9 @@ typedef struct CG_BOXABLE AudioWaveformCacheChunk AudioWaveformCacheChunk;
 @property (assign) NSUInteger count;
 
 - (AudioWaveformCacheChunk *)chunkAtIndex:(NSUInteger)index;
+
+- (AudioWaveformCacheChunk)chunksAtIndex:(NSUInteger)index numChunks:(NSUInteger)size;
+
 - (void)setChunk:(AudioWaveformCacheChunk)chunk atIndex:(NSInteger)idx;
 
 + (AudioWaveformCacheChunk *)emptyChunk;

@@ -5,7 +5,7 @@
 
 #import "AudioWaveform.h"
 
-#define NUM_WAVEFORM_CHUNKS     512
+#define NUM_WAVEFORM_CHUNKS     1024
 
 @interface AudioWaveform ()
 
@@ -63,6 +63,26 @@
     }
     AudioWaveformCacheChunk* chunks = [self.chunks mutableBytes];
     return &chunks[index];
+}
+
+- (void)addChunk:(AudioWaveformCacheChunk*)src toChunk:(AudioWaveformCacheChunk*)dst {
+    if (!src) return;
+    dst->min = MIN(src->min, dst->min);
+    dst->max = MAX(src->max, dst->max);
+//    dst->min = (src->min + dst->min)/2;
+//    dst->max = (src->max + dst->max)/2;;
+}
+
+- (AudioWaveformCacheChunk)chunksAtIndex:(NSUInteger)index numChunks:(NSUInteger)size {
+    ZeroedAudioWaveformCacheChunk(result);
+    if (index >= self.count) {
+        return result;
+    }
+    AudioWaveformCacheChunk* chunks = [self.chunks mutableBytes];
+    for (int i = 0; i < size; ++i) {
+        [self addChunk:&chunks[index + i] toChunk:&result];
+    }
+    return result;
 }
 
 - (void)setChunk:(AudioWaveformCacheChunk)chunk atIndex:(NSInteger)idx {
