@@ -63,6 +63,7 @@
     _waveformRenderers = [NSMutableDictionary new];
 
     [self addWaveformRenderer:BasicAudioWaveformRenderer.class];
+    [self addWaveformRenderer:VibeDefaultWaveformRenderer.class];
 
 }
 
@@ -124,7 +125,10 @@
     _progress = progress;
     if (w != _progressWidth) {
         _progressWidth = w;
+        [CATransaction begin];
+        CATransaction.animationDuration = 0.2;
         [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform];
+        [CATransaction commit];
         _currentWaveformRenderer.progress = _progress;
     }
 }

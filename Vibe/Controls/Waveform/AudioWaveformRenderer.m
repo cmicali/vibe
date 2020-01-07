@@ -83,6 +83,15 @@
     }
 }
 
+- (void)setLayerColor:(NSColor*)color atIndex:(NSUInteger)index {
+    CGColorRef c = color.CGColor;
+    CALayer *layer = self.layers[index];
+    if (CGColorEqualToColor(layer.backgroundColor, c)) {
+        return;
+    }
+    layer.backgroundColor = c;
+}
+
 - (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
     self.bottomY = bounds.size.height/2 - (bounds.size.height/2 * .5);
     self.topY = bounds.size.height/2 + (bounds.size.height/2 * .5);

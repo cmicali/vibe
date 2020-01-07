@@ -5,119 +5,116 @@
 
 #import "VibeDefaultWaveformRenderer.h"
 
+@implementation VibeDefaultWaveformRenderer {
+    CAGradientLayer *_overlayGradient;
+    CGFloat _overlayGradientY;
+    CGFloat _overlayGradientHeight;
 
-@implementation VibeDefaultWaveformRenderer
+    NSColor* _playedColorTop;
+    NSColor* _unPlayedColorTop;
+    NSColor* _playedColorBottom;
+    NSColor* _unPlayedColorBottom;
+}
 
-- (NSString *)displayName {
++ (NSString *)displayName {
     return @"Vibe Default";
 }
 
-+ (CGGradientRef)gradient {
-    static CGGradientRef gradient;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-        CGFloat locations[2] = { 0.0, 1.0 };
-        CGFloat colors[8] = {
-                1, 0.20, 0, 1,
-                1, 0.45, 0, 1,
-        };
-        gradient = CGGradientCreateWithColorComponents(colorSpace, colors, locations, 2);
-        CGColorSpaceRelease(colorSpace);
-    });
-    return gradient;
+- (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds{
+    self = [super initWithLayer:parentLayer bounds:bounds];
+    if (self) {
+
+        _playedColorTop = [NSColor colorWithRed:1 green:0.45 blue:0 alpha:1];
+        _unPlayedColorTop = [[NSColor whiteColor] colorWithAlphaComponent:0.89];
+        _playedColorBottom = [NSColor colorWithRed:1 green:0.75 blue:0.585 alpha:0.8];
+        _unPlayedColorBottom = [[NSColor whiteColor] colorWithAlphaComponent:0.55];
+
+        [self addLayers:512 backgroundColor:_unPlayedColorTop.CGColor];
+
+        NSArray *colors = @[
+            [NSColor colorWithRed:1 green:0.2 blue:0 alpha:1],
+            [NSColor colorWithRed:1 green:0.45 blue:0 alpha:1],
+        ];
+//        _overlayGradient = [self createGradientLayer:colors filter:@"CISourceInCompositing"];
+//        [self addOtherLayer:_overlayGradient];
+        [self updateWaveform:bounds progress:0 waveform:nil];
+        [self updateProgress:0 waveform:nil];
+//        _overlayGradient.frame = CGRectMake(0, 0, 0, bounds.size.height);
+//        CALayer *maskLayer = [[CALayer alloc] init];
+//        maskLayer.frame = _overlayGradient.frame;
+//        maskLayer.backgroundColor = [NSColor whiteColor].CGColor;
+//        _overlayGradient.mask = maskLayer;
+    }
+    return self;
+}
+
+- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
+    size_t count = 512;
+//    CGFloat width = round(count * progress);
+//    if (_overlayGradient.frame.size.width != width) {
+////
+//        CGRect frame = CGRectMake(0, 10, width, _overlayGradientHeight);
+//        _overlayGradient.frame = frame;
+//        _overlayGradient.mask.frame = frame;
+//    }
+    for (NSUInteger i = 0; i < count; i+=4) {
+        [self setPlayedForIndex:((CGFloat)i/(CGFloat)count <= progress) index:i];
+    }
+}
+
+- (void)setPlayedForIndex:(BOOL)played index:(NSUInteger)index {
+    NSColor* colorTop = played ? _playedColorTop : _unPlayedColorTop;
+    NSColor* colorBottom = played ? _playedColorBottom : _unPlayedColorBottom;
+
+    [self setLayerColor:colorTop atIndex:index];
+    [self setLayerColor:[colorTop colorWithAlphaComponent:0.2] atIndex:index + 1];
+
+    [self setLayerColor:colorBottom atIndex:index + 2];
+    [self setLayerColor:[colorBottom colorWithAlphaComponent:0.2] atIndex:index + 3];
 }
 
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
+    CGFloat totalHeight = bounds.size.height;
+    size_t count = 512;
 
-    CGContextRef ctx = NSGraphicsContext.currentContext.CGContext;
+    CGFloat vscale = totalHeight * 0.75;
 
-    CGFloat width = bounds.size.width;
-    CGFloat height = bounds.size.height;
-    CGFloat progressWidth = width * progress;
-    size_t count = (size_t)width;
+    CGFloat blockWidth = 3;
 
-    CGFloat vscale = height * 0.70;// (height / 2) * 0.70;
-    CGFloat midY = height / 2;
+    CGFloat topLineRatio = 0.70;
+    CGFloat topLineY = round(totalHeight * (1-topLineRatio));
 
+    CGFloat bottomBarSpacing = 2;
+    CGFloat bottomLineY = topLineY - bottomBarSpacing;
 
-    CGColorRef playedColor = CGColorCreateGenericRGB(1, 0.45, 0, 1);
-    CGColorRef unplayedColor = CGColorCreateGenericRGB(1, 1, 1, 1);
+    _overlayGradientY = bottomLineY;
+    _overlayGradientHeight = bounds.size.height - _overlayGradientY;
 
-//    CGContextSetLineWidth(ctx, 0.25f);
-//    CGContextSetAllowsAntialiasing(ctx, NO);
+    for (NSUInteger i = 0; i < count; i+=4) {
 
-    CGFloat step = 4;
-
-    for (CGFloat i = 0; i < count ; i += step) {
-
-        BOOL isPastPlayhead = i >= (progressWidth + step);
-
-        AudioWaveformCacheChunk* m = [waveform chunkAtIndex:(NSUInteger)(i / count * waveform.count)];
+        AudioWaveformCacheChunk *m = [waveform chunkAtIndex:(NSUInteger) ((float) i * waveform.count / count)];
         if (!m) m = [AudioWaveform emptyChunk];
 
-        CGFloat top     = fabs(m->max - m->min)/2 * vscale;
-        CGFloat bottom  = 0;
+        // Top line
+        CGFloat height = fabs(m->max - m->min) / 2 * vscale;
+        CGFloat topBarHeight = clampMin(round(height * topLineRatio), 1);
+        CGRect frame = CGRectMake(i, topLineY, blockWidth, topBarHeight);
+        [self setLayerFrame:frame atIndex:i];
 
-//        [self updateWaveformBounds:top bottom:bottom];
+        // Top spacer line
+        frame = CGRectMake(i + blockWidth, topLineY, 1, topBarHeight);
+        [self setLayerFrame:frame atIndex:i + 1];
 
-        if (isPastPlayhead) {
-//            top *= vscale;
-            CGContextSetFillColorWithColor(ctx, unplayedColor);
-            CGContextFillRect(ctx, CGRectMake(i+0.5, bottom, 2, top));
-        }
-        else {
-            CGContextSetFillColorWithColor(ctx, playedColor);
-            CGContextFillRect(ctx, CGRectMake(i + 0.5, bottom, 2, top));
-        }
-//            top *= vscale;
-            CGContextAddRect(ctx, CGRectMake(i+0.5, bottom, 2, top));
-//            CGContextDrawLinearGradient(ctx, [VibeDefaultWaveformRenderer gradient], CGPointMake(0, 0), CGPointMake(0, 1), 0);
-//        }
+        // Mirror line
+        CGFloat bottomBarHeight = clampMin(round(topBarHeight * (1-topLineRatio)), 0);
+        frame = CGRectMake(i, bottomLineY - bottomBarHeight, blockWidth, bottomBarHeight);
+        [self setLayerFrame:frame atIndex:i + 2];
 
-
-//        CGContextMoveToPoint(ctx, i+0.5 , top + 0.5);
-//        CGContextAddLineToPoint(ctx, i+0.5 , bottom + 0.5);
-//        CGContextStrokePath(ctx);
+        // Mirror spacer line
+        frame = CGRectMake(i + blockWidth, bottomLineY - bottomBarHeight, 1, bottomBarHeight);
+        [self setLayerFrame:frame atIndex:i + 3];
 
     }
-
-//    CGContextClip(ctx);
-//    CGContextDrawLinearGradient(ctx, [VibeDefaultWaveformRenderer gradient], CGPointMake(0, 0), CGPointMake(0, 90), 0);
-
-//
-//    NSGraphicsContext.currentContext.compositingOperation = NSCompositingOperationSourceAtop;
-//    NSGradient *g = [DetailedAudioWaveformRenderer gradient];
-//    [g drawInRect:bounds angle:90];
-
 }
-//- (void) drawRect:(CGRect)rect
-//{
-//    // Create a gradient from white to red
-//    CGFloat colors [] = {
-//            1.0, 1.0, 1.0, 1.0,
-//            1.0, 0.0, 0.0, 1.0
-//    };
-
-//    CGColorSpaceRef baseSpace = CGColorSpaceCreateDeviceRGB();
-//    CGGradientRef gradient = CGGradientCreateWithColorComponents(baseSpace, colors, NULL, 2);
-//    CGColorSpaceRelease(baseSpace), baseSpace = NULL;
-//
-//    CGContextRef context = UIGraphicsGetCurrentContext();
-//
-//    CGContextSaveGState(context);
-//    CGContextAddEllipseInRect(context, rect);
-//    CGContextClip(context);
-//
-//    CGPoint startPoint = CGPointMake(CGRectGetMidX(rect), CGRectGetMinY(rect));
-//    CGPoint endPoint = CGPointMake(CGRectGetMidX(rect), CGRectGetMaxY(rect));
-//
-//    CGContextDrawLinearGradient(context, gradient, startPoint, endPoint, 0);
-//    CGGradientRelease(gradient), gradient = NULL;
-//
-//    CGContextRestoreGState(context);
-//
-//    CGContextAddEllipseInRect(context, rect);
-//    CGContextDrawPath(context, kCGPathStroke);
 
 @end
