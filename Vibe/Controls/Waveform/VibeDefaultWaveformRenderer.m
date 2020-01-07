@@ -67,10 +67,10 @@
     NSColor* colorBottom = played ? _playedColorBottom : _unPlayedColorBottom;
 
     [self setLayerColor:colorTop atIndex:index];
-    [self setLayerColor:[colorTop colorWithAlphaComponent:0.2] atIndex:index + 1];
+//    [self setLayerColor:[colorTop colorWithAlphaComponent:0.2] atIndex:index + 1];
 
     [self setLayerColor:colorBottom atIndex:index + 2];
-    [self setLayerColor:[colorBottom colorWithAlphaComponent:0.2] atIndex:index + 3];
+//    [self setLayerColor:[colorBottom colorWithAlphaComponent:0.2] atIndex:index + 3];
 }
 
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
@@ -101,20 +101,25 @@
         CGRect frame = CGRectMake(i, topLineY, blockWidth, topBarHeight);
         [self setLayerFrame:frame atIndex:i];
 
-        // Top spacer line
-        frame = CGRectMake(i + blockWidth, topLineY, 1, topBarHeight);
-        [self setLayerFrame:frame atIndex:i + 1];
-
         // Mirror line
         CGFloat bottomBarHeight = clampMin(round(topBarHeight * (1-topLineRatio)), 0);
         frame = CGRectMake(i, bottomLineY - bottomBarHeight, blockWidth, bottomBarHeight);
         [self setLayerFrame:frame atIndex:i + 2];
+
+    }
+/*
+    for (NSUInteger i = 0; i < count - 4; i+=4) {
+
+        // Top spacer line
+        CGFrame frame = CGRectMake(i + blockWidth, topLineY, 1, topBarHeight);
+        [self setLayerFrame:frame atIndex:i + 1];
 
         // Mirror spacer line
         frame = CGRectMake(i + blockWidth, bottomLineY - bottomBarHeight, 1, bottomBarHeight);
         [self setLayerFrame:frame atIndex:i + 3];
 
     }
+*/
 }
 
 @end
