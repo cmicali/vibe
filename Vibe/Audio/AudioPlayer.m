@@ -41,28 +41,26 @@
         [_thread start];
         self.delegate = delegate;
         [_thread run:^{
-            [self setup:deviceName];
+
+            LogDebug(@"AudioPlayer init");
+
+            BASS_PluginLoad("libbassflac.dylib", 0);
+            BASS_SetConfig(BASS_CONFIG_FLOATDSP, 1);
+
+            AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForName:deviceName];
+            self.currentlyRequestedAudioDeviceId = device.deviceId;
+
+            [self initWithDeviceIndexInternal:(int) device.deviceId];
+
+            [CoreAudioUtil listenForSystemOutputDeviceChanges:self];
+
+            run_on_main_thread({
+                [self.delegate audioPlayerDidInitialize:self];
+            });
+
         }];
     }
     return self;
-}
-
-- (void)setup:(NSString *)deviceName {
-    LogDebug(@"AudioPlayer init");
-    BASS_PluginLoad("libbassflac.dylib", 0);
-    BASS_SetConfig(BASS_CONFIG_FLOATDSP, 1);
-
-    AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForName:deviceName];
-    self.currentlyRequestedAudioDeviceId = device.deviceId;
-
-    [self initWithDeviceIndexInternal:(int) device.deviceId];
-
-    [CoreAudioUtil listenForSystemOutputDeviceChanges:self];
-
-    run_on_main_thread({
-        [self.delegate audioPlayerDidInitialize:self];
-    });
-
 }
 
 - (void)initWithDeviceIndexInternal:(int)newDeviceIndex {
@@ -121,20 +119,19 @@
 
 - (void)play:(AudioTrack *)track {
 
-    const char *filename = [track.url.path UTF8String];
-
     [_thread run:^{
 
         if (self.channel) {
-            BASS_ChannelStop(self.channel);
+            [BassUtil rampVolumeToZero:self.channel async:NO];
             BASS_StreamFree(self.channel);
+            self.channel = 0;
         }
 
         self.currentTrack = nil;
 
         LogDebug(@"play file: %@", track.url.path);
 
-        self.channel = BASS_StreamCreateFile(FALSE, filename, 0, 0, BASS_ASYNCFILE) ;
+        self.channel = BASS_StreamCreateFile(FALSE,  [track.url.path UTF8String], 0, 0, BASS_ASYNCFILE) ;
 
         if (self.channel) {
             [BassUtil setChannelDelegate:self channel:self.channel];

@@ -75,7 +75,7 @@
 
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
     CGFloat totalHeight = bounds.size.height;
-    size_t count = 512;
+    size_t count = self.layers.count;
 
     CGFloat vscale = totalHeight * 0.75;
 
@@ -90,13 +90,16 @@
     _overlayGradientY = bottomLineY;
     _overlayGradientHeight = bounds.size.height - _overlayGradientY;
 
+    CGFloat scaleFactor = waveform.count / count;
     for (NSUInteger i = 0; i < count; i+=4) {
 
-        AudioWaveformCacheChunk *m = [waveform chunkAtIndex:(NSUInteger) ((float) i * waveform.count / count)];
-        if (!m) m = [AudioWaveform emptyChunk];
+        AudioWaveformCacheChunk m = [waveform chunksAtIndex:(NSUInteger) (i * scaleFactor) numChunks:(NSUInteger) scaleFactor];
+
+//        AudioWaveformCacheChunk *m = [waveform chunkAtIndex:(NSUInteger) ((float) i * waveform.count / count)];
+//        if (!m) m = [AudioWaveform emptyChunk];
 
         // Top line
-        CGFloat height = fabs(m->max - m->min) / 2 * vscale;
+        CGFloat height = fabs(m.max - m.min) / 2 * vscale;
         CGFloat topBarHeight = clampMin(round(height * topLineRatio), 1);
         CGRect frame = CGRectMake(i, topLineY, blockWidth, topBarHeight);
         [self setLayerFrame:frame atIndex:i];
