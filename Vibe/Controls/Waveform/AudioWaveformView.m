@@ -63,6 +63,7 @@
     _waveformRenderers = [NSMutableDictionary new];
 
     [self addWaveformRenderer:BasicAudioWaveformRenderer.class];
+    [self addWaveformRenderer:DetailedAudioWaveformRenderer.class];
     [self addWaveformRenderer:VibeDefaultWaveformRenderer.class];
 
 }
@@ -79,6 +80,7 @@
     if (name.length && _waveformRenderers[name]) {
         _currentWaveformRenderer = [[_waveformRenderers[name] alloc] initWithLayer:self.layer bounds:self.bounds];
         [self drawWaveform];
+        [self updateRendererProgress];
     }
 }
 
@@ -123,14 +125,15 @@
 - (void)setProgress:(CGFloat)progress {
     NSUInteger w = (NSUInteger)(self.bounds.size.width * progress);
     _progress = progress;
-    if (w != _progressWidth) {
-        _progressWidth = w;
-        [CATransaction begin];
-        CATransaction.animationDuration = 0.2;
-        [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform];
-        [CATransaction commit];
-        _currentWaveformRenderer.progress = _progress;
-    }
+    [self updateRendererProgress];
+}
+
+- (void)updateRendererProgress {
+    [CATransaction begin];
+    CATransaction.animationDuration = 0.2;
+    [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform];
+    [CATransaction commit];
+    _currentWaveformRenderer.progress = _progress;
 }
 
 - (CGFloat)progress {

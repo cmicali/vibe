@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="15702" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" customObjectInstantitationMethod="direct">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="15702"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="PlayerDetailController">
+            <connections>
+                <outlet property="window" destination="cfb-5I-KE5" id="qCA-27-yfU"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <window identifier="main_window" title="Vibe" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" frameAutosaveName="VibeMainWindow" animationBehavior="default" tabbingIdentifier="main_window" tabbingMode="disallowed" titlebarAppearsTransparent="YES" titleVisibility="hidden" id="cfb-5I-KE5" customClass="MainWindow">
+            <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES" fullSizeContentView="YES"/>
+            <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
+            <rect key="contentRect" x="206" y="444" width="680" height="150"/>
+            <rect key="screenRect" x="0.0" y="0.0" width="2560" height="1417"/>
+            <value key="minSize" type="size" width="680" height="150"/>
+            <value key="maxSize" type="size" width="680" height="600"/>
+            <view key="contentView" canDrawConcurrently="YES" id="O2Q-On-QuA">
+                <rect key="frame" x="0.0" y="0.0" width="680" height="150"/>
+                <autoresizingMask key="autoresizingMask"/>
+                <subviews>
+                    <visualEffectView canDrawConcurrently="YES" fixedFrame="YES" blendingMode="behindWindow" material="underWindowBackground" state="active" translatesAutoresizingMaskIntoConstraints="NO" id="Ci9-HG-FjH">
+                        <rect key="frame" x="0.0" y="0.0" width="680" height="150"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <imageView canDrawConcurrently="YES" horizontalHuggingPriority="251" verticalHuggingPriority="251" ambiguous="YES" id="h7a-ns-9xA" customClass="ArtworkImageView">
+                                <rect key="frame" x="530" y="0.0" width="150" height="150"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="proportionallyUpOrDown" image="record-transparent-1024" id="V4r-a1-RS9"/>
+                            </imageView>
+                            <customView canDrawConcurrently="YES" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="qwE-3w-YaL">
+                                <rect key="frame" x="530" y="0.0" width="150" height="150"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                            </customView>
+                        </subviews>
+                    </visualEffectView>
+                </subviews>
+            </view>
+            <point key="canvasLocation" x="139" y="195"/>
+        </window>
+    </objects>
+    <resources>
+        <image name="record-transparent-1024" width="1024" height="1024"/>
+    </resources>
+</document>

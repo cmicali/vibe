@@ -27,7 +27,7 @@
             <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES" fullSizeContentView="YES"/>
             <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
             <rect key="contentRect" x="206" y="444" width="680" height="350"/>
-            <rect key="screenRect" x="0.0" y="0.0" width="1536" height="937"/>
+            <rect key="screenRect" x="0.0" y="0.0" width="2560" height="1417"/>
             <value key="minSize" type="size" width="680" height="150"/>
             <value key="maxSize" type="size" width="680" height="600"/>
             <view key="contentView" canDrawConcurrently="YES" id="se5-gp-TjO">
@@ -54,7 +54,7 @@
                             <button canDrawConcurrently="YES" horizontalHuggingPriority="750" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="vOu-I2-fjc" customClass="SYFlatButton">
                                 <rect key="frame" x="0.0" y="200" width="50" height="50"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="button-hamburger" imagePosition="only" alignment="center" enabled="NO" imageScaling="proportionallyDown" inset="2" id="B3C-l6-Ak6">
+                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="button-hamburger" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="B3C-l6-Ak6">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
@@ -395,9 +395,6 @@
                     <outlet property="menu" destination="TVp-YJ-6eW" id="5rC-48-g5s"/>
                 </connections>
             </view>
-            <connections>
-                <outlet property="dropDelegate" destination="-2" id="0bl-1N-AYu"/>
-            </connections>
             <point key="canvasLocation" x="139" y="195"/>
         </window>
         <menu title="Popup Menu" id="TVp-YJ-6eW">
