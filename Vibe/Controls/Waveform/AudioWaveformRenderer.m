@@ -4,7 +4,6 @@
 //
 
 #import "DetailedAudioWaveformRenderer.h"
-#import "AudioWaveform.h"
 
 @implementation AudioWaveformRenderer {
     NSMutableArray<CALayer*> *_otherLayers;
@@ -71,40 +70,19 @@
     return layer;
 }
 
-- (void)setLayerFrame:(CGRect)frame atIndex:(NSUInteger)index {
-    self.layers[index].frame = frame;
-    CGFloat bottom = frame.origin.y;
-    CGFloat top = bottom + frame.size.height;
-    if (top > self.topY) {
-        self.topY = top;
-    }
-    if (bottom < self.bottomY) {
-        self.bottomY = bottom;
-    }
-}
-
-- (void)setLayerColor:(NSColor*)color atIndex:(NSUInteger)index {
-    CGColorRef c = color.CGColor;
-    CALayer *layer = self.layers[index];
-    if (CGColorEqualToColor(layer.backgroundColor, c)) {
-        return;
-    }
-    layer.backgroundColor = c;
-}
-
-- (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
+- (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveformOld *)waveform {
     self.bottomY = bounds.size.height/2 - (bounds.size.height/2 * .5);
     self.topY = bounds.size.height/2 + (bounds.size.height/2 * .5);
 }
 
-- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
+- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveformOld *)waveform {
 
 }
 
-- (void)didUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
+- (void)didUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveformOld *)waveform {
 }
 
-- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform *__nullable)waveform {
+- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveformOld *__nullable)waveform {
 
 }
 

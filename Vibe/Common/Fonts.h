@@ -9,6 +9,8 @@
 
 + (NSFont *)fontForNumbers:(CGFloat)size;
 
++ (NSFont *)fontForNumbers:(CGFloat)size bold:(BOOL)bold1;
+
 + (NSFont *)font:(CGFloat)size;
 
 + (NSMutableAttributedString *)stringForNumbers:(NSString *)str color:(NSColor *)color size:(CGFloat)size;
