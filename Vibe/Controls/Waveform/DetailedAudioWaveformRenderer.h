@@ -8,4 +8,5 @@
 
 @interface DetailedAudioWaveformRenderer : AudioWaveformRenderer
 
+- (NSUInteger)numLayers;
 @end

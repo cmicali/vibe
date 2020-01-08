@@ -8,7 +8,7 @@
 
 @implementation BASSAudioWaveformLoader
 
-- (AudioWaveform *)load:(NSString *)filename {
+- (AudioWaveformOld *)load:(NSString *)filename {
 
     self.isCancelled = NO;
     self.isFinished = NO;
@@ -19,7 +19,7 @@
         return nil;
     }
 
-    AudioWaveform *waveform = [[AudioWaveform alloc] init];
+    AudioWaveformOld *waveform = [[AudioWaveformOld alloc] init];
 
     BASS_CHANNELINFO info;
     BASS_ChannelGetInfo(channel, &info);
@@ -34,7 +34,9 @@
     float *buffer = (float*)malloc(readChunkSize);
 
     NSUInteger bytesProcessed = 0;
-    NSUInteger delegateUpdateDivider = 8;
+    NSUInteger updateBytesCounter = 0;
+    NSUInteger numUpdates = 128;
+    NSUInteger updateBytesLimit = totalBytes / numUpdates;
 
     for (int i = 0; i < waveform.count && !self.isCancelled; i++) {
         BASS_ChannelSetPosition(channel, bytesProcessed, BASS_POS_BYTE);
@@ -43,8 +45,10 @@
         AudioWaveformCacheChunk chunk = [self getChunkForAudioBuffer:buffer length:len/sizeof(float) numChannels:numChannels];
         [waveform setChunk:chunk atIndex:i];
         bytesProcessed += len;
+        updateBytesCounter += len;
         float percentComplete = ((float) i / waveform.count);
-        if (!self.isCancelled && percentComplete != 1.0 && (i % delegateUpdateDivider)) {
+        if (!self.isCancelled && percentComplete != 1.0 && updateBytesCounter >= updateBytesLimit) {
+            updateBytesCounter = 0;
             dispatch_async(dispatch_get_main_queue(), ^(void) {
                 [self.delegate audioWaveformLoader:self waveform:waveform didLoadData:percentComplete];
             });
@@ -53,8 +57,6 @@
 
     BASS_StreamFree(channel);
     free(buffer);
-
-    //    [self normalizeMinMaxValues];
 
     self.isFinished = YES;
 

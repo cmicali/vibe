@@ -3,17 +3,17 @@
 // Copyright (c) 2020 Christopher Micali. All rights reserved.
 //
 
-#import "AudioWaveform.h"
+#import "AudioWaveformOld.h"
 
-#define NUM_WAVEFORM_CHUNKS     1024
+#define NUM_WAVEFORM_CHUNKS     4096*2
 
-@interface AudioWaveform ()
+@interface AudioWaveformOld ()
 
 @property (strong) NSMutableData* chunks;
 
 @end
 
-@implementation AudioWaveform
+@implementation AudioWaveformOld
 
 - (instancetype)init {
     self = [super init];
@@ -57,30 +57,22 @@
     [coder encodeObject:self.chunks forKey:@"chunks"];
 }
 
-- (AudioWaveformCacheChunk *)chunkAtIndex:(NSUInteger)index {
-    if (index >= self.count) {
-        return nil;
-    }
-    AudioWaveformCacheChunk* chunks = [self.chunks mutableBytes];
-    return &chunks[index];
-}
-
-- (void)addChunk:(AudioWaveformCacheChunk*)src toChunk:(AudioWaveformCacheChunk*)dst {
-    if (!src) return;
-    dst->min = MIN(src->min, dst->min);
-    dst->max = MAX(src->max, dst->max);
-//    dst->min = (src->min + dst->min)/2;
-//    dst->max = (src->max + dst->max)/2;;
-}
-
-- (AudioWaveformCacheChunk)chunksAtIndex:(NSUInteger)index numChunks:(NSUInteger)size {
+- (AudioWaveformCacheChunk)chunkAtIndex:(NSUInteger)index forSize:(NSUInteger)size {
     ZeroedAudioWaveformCacheChunk(result);
-    if (index >= self.count) {
+    NSUInteger numAvailableChunks = self.chunks.length / sizeof(AudioWaveformCacheChunk);
+    NSUInteger startIndex = numAvailableChunks * index / size;
+    NSUInteger numChunks = (NSUInteger)MAX((CGFloat)numAvailableChunks / (CGFloat)size, 1.0);
+    if (startIndex >= self.count) {
         return result;
     }
     AudioWaveformCacheChunk* chunks = [self.chunks mutableBytes];
-    for (int i = 0; i < size; ++i) {
-        [self addChunk:&chunks[index + i] toChunk:&result];
+    if (numChunks == 1) {
+        return chunks[startIndex];
+    }
+    for (int i = 0; i < numChunks; ++i) {
+        AudioWaveformCacheChunk *chunk = &chunks[startIndex + i];
+        result.min = MIN(chunk->min, result.min);
+        result.max = MAX(chunk->max, result.max);
     }
     return result;
 }

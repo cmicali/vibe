@@ -27,10 +27,10 @@
             <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES" fullSizeContentView="YES"/>
             <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
             <rect key="contentRect" x="206" y="444" width="680" height="350"/>
-            <rect key="screenRect" x="0.0" y="0.0" width="2560" height="1417"/>
+            <rect key="screenRect" x="0.0" y="0.0" width="1536" height="937"/>
             <value key="minSize" type="size" width="680" height="150"/>
             <value key="maxSize" type="size" width="680" height="600"/>
-            <view key="contentView" canDrawConcurrently="YES" id="se5-gp-TjO">
+            <view key="contentView" canDrawConcurrently="YES" focusRingType="none" id="se5-gp-TjO">
                 <rect key="frame" x="0.0" y="0.0" width="680" height="350"/>
                 <autoresizingMask key="autoresizingMask"/>
                 <subviews>
@@ -192,20 +192,20 @@
                                     <action selector="next:" target="-2" id="tCw-s0-hSM"/>
                                 </connections>
                             </button>
-                            <textField canDrawConcurrently="YES" horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mwy-gr-lMQ">
+                            <textField canDrawConcurrently="YES" horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" textCompletion="NO" translatesAutoresizingMaskIntoConstraints="NO" id="mwy-gr-lMQ">
                                 <rect key="frame" x="158" y="293" width="512" height="48"/>
                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" title="Artist" drawsBackground="YES" id="U75-je-r0E">
-                                    <font key="font" metaFont="system" size="16"/>
-                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                    <font key="font" size="16" name="HelveticaNeue-Medium"/>
+                                    <color key="textColor" white="0.60204389313576923" alpha="1" colorSpace="calibratedWhite"/>
                                     <color key="backgroundColor" red="0.11764705882352941" green="0.11764705882352941" blue="0.11764705882352941" alpha="0.0" colorSpace="custom" customColorSpace="sRGB"/>
                                 </textFieldCell>
                             </textField>
-                            <textField canDrawConcurrently="YES" horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="WWp-WO-R66">
-                                <rect key="frame" x="158" y="293" width="512" height="30"/>
+                            <textField canDrawConcurrently="YES" horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" textCompletion="NO" translatesAutoresizingMaskIntoConstraints="NO" id="WWp-WO-R66">
+                                <rect key="frame" x="158" y="292" width="512" height="30"/>
                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" title="Title" drawsBackground="YES" id="DOL-Me-2Pr">
-                                    <font key="font" metaFont="system" size="20"/>
+                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" title="Spacer Woman (Vocal)" drawsBackground="YES" id="DOL-Me-2Pr">
+                                    <font key="font" size="20" name="HelveticaNeue-Medium"/>
                                     <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" red="0.11764705882352941" green="0.11764705882352941" blue="0.11764705882352941" alpha="0.0" colorSpace="custom" customColorSpace="sRGB"/>
                                 </textFieldCell>
@@ -215,7 +215,7 @@
                                 <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="00:00" drawsBackground="YES" id="BgZ-9V-mrn">
                                     <font key="font" metaFont="system"/>
-                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="textColor" white="0.60204389313576923" alpha="1" colorSpace="calibratedWhite"/>
                                     <color key="backgroundColor" red="1" green="1" blue="1" alpha="0.0" colorSpace="custom" customColorSpace="sRGB"/>
                                 </textFieldCell>
                             </textField>
@@ -224,21 +224,21 @@
                                 <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" title="00:00" drawsBackground="YES" id="SOJ-zZ-ueD">
                                     <font key="font" metaFont="system"/>
-                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="textColor" white="0.60204389313576923" alpha="1" colorSpace="calibratedWhite"/>
                                     <color key="backgroundColor" red="1" green="1" blue="1" alpha="0.0" colorSpace="custom" customColorSpace="sRGB"/>
                                 </textFieldCell>
                             </textField>
                             <scrollView canDrawConcurrently="YES" fixedFrame="YES" borderType="none" autohidesScrollers="YES" horizontalLineScroll="28" horizontalPageScroll="10" verticalLineScroll="28" verticalPageScroll="10" hasHorizontalScroller="NO" usesPredominantAxisScrolling="NO" translatesAutoresizingMaskIntoConstraints="NO" id="cbh-c2-gKr">
                                 <rect key="frame" x="0.0" y="0.0" width="680" height="200"/>
                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                                <clipView key="contentView" ambiguous="YES" drawsBackground="NO" id="eFx-Xx-CTd">
+                                <clipView key="contentView" canDrawConcurrently="YES" ambiguous="YES" id="eFx-Xx-CTd">
                                     <rect key="frame" x="0.0" y="0.0" width="680" height="200"/>
                                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                     <subviews>
                                         <tableView verticalHuggingPriority="750" ambiguous="YES" allowsExpansionToolTips="YES" columnAutoresizingStyle="lastColumnOnly" columnReordering="NO" columnResizing="NO" multipleSelection="NO" autosaveColumns="NO" rowHeight="28" viewBased="YES" id="zHV-yh-XlN">
                                             <rect key="frame" x="0.0" y="0.0" width="680" height="200"/>
                                             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                                            <color key="backgroundColor" name="playlistBackgroundColor"/>
+                                            <color key="backgroundColor" red="1" green="1" blue="1" alpha="0.0" colorSpace="custom" customColorSpace="sRGB"/>
                                             <color key="gridColor" name="gridColor" catalog="System" colorSpace="catalog"/>
                                             <tableColumns>
                                                 <tableColumn identifier="numColumn" width="32" minWidth="32" maxWidth="32" id="R59-x3-eCo">
@@ -248,7 +248,7 @@
                                                         <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                                     </tableHeaderCell>
                                                     <textFieldCell key="dataCell" lineBreakMode="truncatingTail" selectable="YES" editable="YES" alignment="center" title="Text Cell" id="VO4-0B-x9g">
-                                                        <font key="font" metaFont="label" size="12"/>
+                                                        <font key="font" metaFont="controlContent"/>
                                                         <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
                                                         <color key="backgroundColor" red="1" green="1" blue="1" alpha="0.0" colorSpace="custom" customColorSpace="sRGB"/>
                                                     </textFieldCell>
@@ -378,6 +378,7 @@
                                             </tableColumns>
                                         </tableView>
                                     </subviews>
+                                    <color key="backgroundColor" name="playlistBackgroundColor"/>
                                 </clipView>
                                 <scroller key="horizontalScroller" hidden="YES" wantsLayer="YES" verticalHuggingPriority="750" horizontal="YES" id="2C9-op-IUK">
                                     <rect key="frame" x="-100" y="-100" width="700" height="16"/>
@@ -416,7 +417,7 @@
         <image name="equi" width="100" height="100"/>
         <image name="record-transparent-1024" width="1024" height="1024"/>
         <namedColor name="playlistBackgroundColor">
-            <color red="0.8784313725490196" green="0.8784313725490196" blue="0.8784313725490196" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+            <color red="0.73000001907348633" green="0.73000001907348633" blue="0.73000001907348633" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </namedColor>
     </resources>
 </document>
