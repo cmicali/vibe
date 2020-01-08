@@ -67,14 +67,51 @@
     self.playButton.image = [NSImage imageNamed:@"button-play"];
     self.nextButton.image = [NSImage imageNamed:@"button-skip-next"];
 
-    self.totalTimeTextField.font = [Fonts fontForNumbers:self.currentTimeTextField.font.pointSize];
-    self.currentTimeTextField.font = [Fonts fontForNumbers:self.currentTimeTextField.font.pointSize];
+    self.artistTextField.wantsLayer = YES;
+    self.artistTextField.layer.shadowColor = NSColor.blackColor.CGColor;
+    self.artistTextField.layer.shadowRadius = 0.25;
+    self.artistTextField.layer.shadowOpacity = 1.0;
+    self.artistTextField.layer.shadowOffset = CGSizeMake(0, -1);
+    self.artistTextField.layer.shouldRasterize = true;
+    self.artistTextField.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
+    self.artistTextField.layer.masksToBounds = NO;
+
+    self.titleTextField.wantsLayer = YES;
+    self.titleTextField.layer.shadowColor = NSColor.blackColor.CGColor;
+    self.titleTextField.layer.shadowRadius = 0.25;
+    self.titleTextField.layer.shadowOpacity = 1.0;
+    self.titleTextField.layer.shadowOffset = CGSizeMake(0, -1);
+    self.titleTextField.layer.shouldRasterize = true;
+    self.titleTextField.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
+    self.titleTextField.layer.masksToBounds = NO;
+
+    self.totalTimeTextField.wantsLayer = YES;
+    self.totalTimeTextField.layer.shadowColor = NSColor.blackColor.CGColor;
+    self.totalTimeTextField.layer.shadowRadius = 0.25;
+    self.totalTimeTextField.layer.shadowOpacity = 1.0;
+    self.totalTimeTextField.layer.shadowOffset = CGSizeMake(0, -1);
+    self.totalTimeTextField.layer.masksToBounds = NO;
+    self.totalTimeTextField.layer.shouldRasterize = true;
+    self.totalTimeTextField.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
+    self.totalTimeTextField.font = [Fonts fontForNumbers:self.totalTimeTextField.font.pointSize bold:YES];
+
+    self.currentTimeTextField.wantsLayer = YES;
+    self.currentTimeTextField.layer.shadowColor = NSColor.blackColor.CGColor;
+    self.currentTimeTextField.layer.shadowRadius = 0.25;
+    self.currentTimeTextField.layer.shadowOpacity = 1.0;
+    self.currentTimeTextField.layer.shadowOffset = CGSizeMake(0, -1);
+    self.currentTimeTextField.layer.masksToBounds = NO;
+    self.currentTimeTextField.layer.shouldRasterize = true;
+    self.currentTimeTextField.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
+    self.currentTimeTextField.font = [Fonts fontForNumbers:self.currentTimeTextField.font.pointSize bold:YES];
 
     self.albumArtImageView.wantsLayer = YES;
-    self.albumArtImageView.shadow = [[NSShadow alloc] init];
-    self.albumArtImageView.layer.shadowRadius = 4;
+    self.albumArtImageView.layer.shadowRadius = 6;
+    self.albumArtImageView.layer.shadowOpacity = 0.25;
     self.albumArtImageView.layer.shadowOffset = CGSizeMake(4, 0);
-    self.albumArtImageView.layer.shadowOpacity = 1;
+    self.albumArtImageView.layer.masksToBounds = NO;
+    self.albumArtImageView.layer.shouldRasterize = true;
+    self.albumArtImageView.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
 //
 //    if ([MacOSUtil isDarkMode:self.window.appearance]) {
 //        self.playlistTableView.backgroundColor = [NSColor colorWithRed:0.1 green:0.1 blue:0.1 alpha:1];
@@ -379,9 +416,10 @@
             [menu insertItem:[NSMenuItem new] atIndex:0];
         while ([menu numberOfItems] > count)
             [menu removeItemAtIndex:0];
+        NSArray<NSString*>* styles = [self.waveformView.availableWaveformStyles sortedArrayUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
         for (NSUInteger i = 0; i < count; ++i) {
             NSMenuItem *item = [menu itemAtIndex:i];
-            item.title = self.waveformView.availableWaveformStyles[i];
+            item.title = styles[i];
             item.state = StateForBOOL([item.title isEqualToString:self.waveformView.currentWaveformStyle]);
             item.enabled = YES;
             item.target = self;

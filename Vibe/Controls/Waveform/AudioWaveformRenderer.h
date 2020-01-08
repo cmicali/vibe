@@ -4,11 +4,33 @@
 //
 
 #import <AppKit/AppKit.h>
-#import "AudioWaveform.h"
+#import "AudioWaveformOld.h"
 
-@class AudioWaveform;
+@class AudioWaveformOld;
 
 NS_ASSUME_NONNULL_BEGIN
+
+#define setLayerFrame(frame, index) \
+{ \
+    self.layers[index].frame = frame; \
+    CGFloat bottom = frame.origin.y; \
+    CGFloat top = bottom + frame.size.height; \
+    if (top > self.topY) { \
+        self.topY = top; \
+    } \
+    if (bottom < self.bottomY) { \
+        self.bottomY = bottom; \
+    } \
+}
+
+#define setLayerColor(color, index) \
+{ \
+    CGColorRef c = (color).CGColor; \
+    CALayer *layer = self.layers[index]; \
+    if (!CGColorEqualToColor(layer.backgroundColor, c)) { \
+        layer.backgroundColor = c; \
+    } \
+}
 
 @interface AudioWaveformRenderer : NSObject
 
@@ -30,14 +52,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (CAGradientLayer *)createGradientLayer:(NSArray<NSColor *> *)colors;
 - (CAGradientLayer *)createGradientLayer:(NSArray<NSColor *> *)colors filter:(NSString * __nullable)filterName;
 
-- (void)setLayerFrame:(CGRect)frame atIndex:(NSUInteger)index;
-
-- (void)setLayerColor:(NSColor *)color atIndex:(NSUInteger)index;
-
-- (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform * __nullable)waveform;
-- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
-- (void)didUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform * __nullable)waveform;
-- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
+- (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveformOld * __nullable)waveform;
+- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveformOld* __nullable)waveform;
+- (void)didUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveformOld * __nullable)waveform;
+- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveformOld* __nullable)waveform;
 
 @end
 

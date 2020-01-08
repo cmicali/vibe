@@ -15,6 +15,10 @@
     return @"Detailed";
 }
 
+- (NSUInteger)numLayers {
+    return 1024;
+}
+
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds{
     self = [super initWithLayer:parentLayer bounds:bounds];
     if (self) {
@@ -22,7 +26,7 @@
         _playedColor = [[NSColor whiteColor] colorWithAlphaComponent:0.95];
         _unPlayedColor = [[NSColor whiteColor] colorWithAlphaComponent:0.5];
 
-        [self addLayers:1024 backgroundColor:_unPlayedColor.CGColor];
+        [self addLayers:self.numLayers backgroundColor:_unPlayedColor.CGColor];
 
         NSArray *colors = @[
                 [[NSColor whiteColor] colorWithAlphaComponent:0.1],
@@ -37,33 +41,37 @@
     return self;
 }
 
-- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
+- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveformOld*)waveform {
     size_t count = self.layers.count;
     for (NSUInteger i = 0; i < count; i++) {
         BOOL played = ((CGFloat)i/(CGFloat)count <= progress);
-        NSColor* color = played ? _playedColor : _unPlayedColor;
-        [self setLayerColor:color atIndex:i];
+        setLayerColor(played ? _playedColor : _unPlayedColor, i);
     }
 }
 
-- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
+- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveformOld*)waveform {
+
     _overlayGradient.frame = bounds;
+
+    if (!waveform) return;
+
     CGFloat width = bounds.size.width;
-    CGFloat height = bounds.size.height;
-    CGFloat vscale = (height / 2) * 0.75;
-    CGFloat midY = height / 2;
-    CGFloat barWidth = bounds.size.width / waveform.count;
-    for (NSUInteger i = 0; i < waveform.count; i++) {
-        AudioWaveformCacheChunk *m = [waveform chunkAtIndex:i];
-        if (!m) m = [AudioWaveform emptyChunk];
-        CGFloat top = round(midY - m->min * vscale);
-        CGFloat bottom = round(midY - m->max * vscale);
-        height = top - bottom;
-        if (height < 1) height = 1;
-        CGFloat x = width * (CGFloat)i/(CGFloat)waveform.count;
+    CGFloat vscale = (bounds.size.height / 2) * 0.75;
+    CGFloat midY = bounds.size.height / 2;
+
+    size_t count = self.layers.count;
+    CGFloat barWidth = width / self.layers.count;
+
+    for (NSUInteger i = 0; i < count; i++) {
+        AudioWaveformCacheChunk m = [waveform chunkAtIndex:i forSize:count];
+        CGFloat top = round(midY - m.min * vscale);
+        CGFloat bottom = round(midY - m.max * vscale);
+        CGFloat height = MAX(top - bottom, 1);
+        CGFloat x = ((CGFloat)width / (CGFloat)count) * (CGFloat)i;
         CGRect frame = CGRectMake(x, bottom, barWidth, height);
-        [self setLayerFrame:frame atIndex:i];
+        setLayerFrame(frame, i);
     }
+
 }
 
 @end

@@ -13,11 +13,12 @@
 #import "DetailedAudioWaveformRenderer.h"
 #import "VibeDefaultWaveformRenderer.h"
 #import "BasicAudioWaveformRenderer.h"
+#import "OversamplingDetailedAudioWaveformRenderer.h"
 
 
 @interface AudioWaveformView () <AudioWaveformCacheDelegate>
 
-@property (strong) AudioWaveform*       waveform;
+@property (strong) AudioWaveformOld*       waveform;
 @property (strong) AudioWaveformCache*  waveformCache;
 
 @end
@@ -63,8 +64,11 @@
     _waveformRenderers = [NSMutableDictionary new];
 
     [self addWaveformRenderer:BasicAudioWaveformRenderer.class];
-    [self addWaveformRenderer:DetailedAudioWaveformRenderer.class];
     [self addWaveformRenderer:VibeDefaultWaveformRenderer.class];
+    [self addWaveformRenderer:DetailedAudioWaveformRenderer.class];
+    [self addWaveformRenderer:x2OversamplingDetailedAudioWaveformRenderer.class];
+    [self addWaveformRenderer:x4OversamplingDetailedAudioWaveformRenderer.class];
+    [self addWaveformRenderer:x8OversamplingDetailedAudioWaveformRenderer.class];
 
 }
 
@@ -88,6 +92,14 @@
     [_currentWaveformRenderer willUpdateWaveform:self.bounds progress:self.progress waveform:self.waveform];
     [_currentWaveformRenderer updateWaveform:self.bounds progress:self.progress waveform:self.waveform];
     [_currentWaveformRenderer didUpdateWaveform:self.bounds progress:self.progress waveform:self.waveform];
+}
+
+- (void)updateRendererProgress {
+    [CATransaction begin];
+    CATransaction.animationDuration = 0;
+    [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform];
+    [CATransaction commit];
+    _currentWaveformRenderer.progress = _progress;
 }
 
 - (NSArray<NSString*>*)availableWaveformStyles {
@@ -128,13 +140,6 @@
     [self updateRendererProgress];
 }
 
-- (void)updateRendererProgress {
-    [CATransaction begin];
-    CATransaction.animationDuration = 0.2;
-    [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform];
-    [CATransaction commit];
-    _currentWaveformRenderer.progress = _progress;
-}
 
 - (CGFloat)progress {
     return _progress;
@@ -150,7 +155,7 @@
     [_waveformCache loadWaveformForTrack:track];
 }
 
-- (void)audioWaveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded {
+- (void)audioWaveform:(AudioWaveformOld *)waveform didLoadData:(float)percentLoaded {
     if (_waveform != waveform) {
         _waveform = waveform;
     }

@@ -19,6 +19,7 @@
     dispatch_queue_t                _loaderQueue;
     PINCache*                       _waveformCache;
     __weak AudioWaveformLoader*     _currentLoader;
+    BOOL                            _normalize;
 }
 
 - (id)init {
@@ -29,8 +30,9 @@
         _waveformCache = [[PINCache alloc] initWithName:@"audio_waveform_cache"];
         _waveformCache.diskCache.byteLimit = 64 * 1024 * 1024; // 64mb disk cache limit
         _waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
+        _normalize = NO;
         _currentLoader = nil;
-        [_waveformCache removeAllObjects];
+         [_waveformCache removeAllObjects];
     }
     return self;
 }
@@ -46,11 +48,14 @@
 
 - (void)load:(AudioTrack *)track withLoader:(AudioWaveformLoader *)loader {
     NSString *cacheKey = track.calculateFileHash;
-    AudioWaveform *waveform = [self->_waveformCache objectForKey:cacheKey];
+    AudioWaveformOld *waveform = [self->_waveformCache objectForKey:cacheKey];
     if (!waveform) {
         waveform = [loader load:track.url.path];
     }
     if (!loader.isCancelled) {
+        if (_normalize) {
+            [waveform normalize];
+        }
         [self->_waveformCache setObject:waveform forKey:cacheKey];
         run_on_main_thread({
             if (!loader.isCancelled) {
@@ -60,7 +65,7 @@
     }
 }
 
-- (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded {
+- (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(AudioWaveformOld *)waveform didLoadData:(float)percentLoaded {
     [self.delegate audioWaveform:waveform didLoadData:percentLoaded];
 }
 

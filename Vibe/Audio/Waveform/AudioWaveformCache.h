@@ -4,7 +4,7 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "AudioWaveform.h"
+#import "AudioWaveformOld.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -24,7 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol AudioWaveformCacheDelegate <NSObject>
 @optional
 
-- (void)audioWaveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded;
+- (void)audioWaveform:(AudioWaveformOld *)waveform didLoadData:(float)percentLoaded;
 
 @end
 

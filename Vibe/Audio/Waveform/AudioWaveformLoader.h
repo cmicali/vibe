@@ -4,7 +4,7 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "AudioWaveform.h"
+#import "AudioWaveformOld.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -20,7 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (atomic) BOOL isCancelled;
 
 - (BOOL)cancel;
-- (AudioWaveform *)load:(NSString *)filename;
+- (AudioWaveformOld *)load:(NSString *)filename;
 - (AudioWaveformCacheChunk)getChunkForAudioBuffer:(float *)buffer length:(NSUInteger)length numChannels:(NSUInteger)channels;
 
 @end
@@ -28,7 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol AudioWaveformLoaderDelegate <NSObject>
 @optional
 
-- (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded;
+- (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(AudioWaveformOld *)waveform didLoadData:(float)percentLoaded;
 
 @end
 

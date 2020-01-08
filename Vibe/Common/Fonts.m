@@ -10,11 +10,15 @@
 }
 
 + (NSFont *)fontForNumbers:(CGFloat)size {
-    return [NSFont monospacedDigitSystemFontOfSize:size weight:NSFontWeightRegular];
+    return [self fontForNumbers:size bold:NO];
+}
+
++ (NSFont *)fontForNumbers:(CGFloat)size bold:(BOOL)bold {
+    return [NSFont monospacedDigitSystemFontOfSize:size weight:bold?NSFontWeightBold:NSFontWeightRegular];
 }
 
 + (NSFont *)font:(CGFloat)size {
-    return [NSFont systemFontOfSize:size];
+    return [NSFont fontWithName:@"HelveticaNeue-Medium" size:size];
 }
 
 + (NSMutableAttributedString *) stringForNumbers:(NSString *)str color:(NSColor *)color size:(CGFloat)size {
