@@ -16,6 +16,8 @@
 @implementation PlaylistManager {
     NSMutableArray<AudioTrack *> *_playlist;
     __weak NSTableView *_tableView;
+    NSImage *_imageEqWhite;
+    NSImage *_imageEqBlack;
 }
 
 - (NSArray<AudioTrack *> *)playlist {
@@ -38,6 +40,8 @@
         _playlist = [NSMutableArray new];
         self.currentIndex = 0;
         self.audioPlayer = audioPlayer;
+        _imageEqBlack = [NSImage imageNamed:@"equi-black.gif"];
+        _imageEqWhite = [NSImage imageNamed:@"equi-white.gif"];
     }
     return self;
 }
@@ -55,6 +59,8 @@
             view.textField.hidden = YES;
             view.imageView.hidden = NO;
             view.imageView.animates = self.audioPlayer.isPlaying;
+            BOOL dark = [NSAppearanceNameDarkAqua isEqualToString:[view.effectiveAppearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua]]];
+            view.imageView.image = dark ? _imageEqWhite : _imageEqBlack;
         }
         else {
             view.textField.hidden = NO;
@@ -70,7 +76,7 @@
         view = [tableView makeViewWithIdentifier:@"trackArt" owner:self];
         NSImage *image = track.albumArt;
         if (!image) {
-            image = [NSImage imageNamed:@"record-black-1024"];
+            image = [NSImage imageNamed:@"record"];
         }
         view.imageView.image = image;
     }
