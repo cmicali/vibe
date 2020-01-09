@@ -70,7 +70,7 @@
     self.artistTextField.wantsLayer = YES;
     self.artistTextField.layer.shadowColor = NSColor.blackColor.CGColor;
     self.artistTextField.layer.shadowRadius = 0.25;
-    self.artistTextField.layer.shadowOpacity = 1.0;
+    self.artistTextField.layer.shadowOpacity = 0.75;
     self.artistTextField.layer.shadowOffset = CGSizeMake(0, -1);
     self.artistTextField.layer.shouldRasterize = true;
     self.artistTextField.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
@@ -79,7 +79,7 @@
     self.titleTextField.wantsLayer = YES;
     self.titleTextField.layer.shadowColor = NSColor.blackColor.CGColor;
     self.titleTextField.layer.shadowRadius = 0.25;
-    self.titleTextField.layer.shadowOpacity = 1.0;
+    self.titleTextField.layer.shadowOpacity = 0.75;
     self.titleTextField.layer.shadowOffset = CGSizeMake(0, -1);
     self.titleTextField.layer.shouldRasterize = true;
     self.titleTextField.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
@@ -88,7 +88,7 @@
     self.totalTimeTextField.wantsLayer = YES;
     self.totalTimeTextField.layer.shadowColor = NSColor.blackColor.CGColor;
     self.totalTimeTextField.layer.shadowRadius = 0.25;
-    self.totalTimeTextField.layer.shadowOpacity = 1.0;
+    self.totalTimeTextField.layer.shadowOpacity = 0.75;
     self.totalTimeTextField.layer.shadowOffset = CGSizeMake(0, -1);
     self.totalTimeTextField.layer.masksToBounds = NO;
     self.totalTimeTextField.layer.shouldRasterize = true;
@@ -98,7 +98,7 @@
     self.currentTimeTextField.wantsLayer = YES;
     self.currentTimeTextField.layer.shadowColor = NSColor.blackColor.CGColor;
     self.currentTimeTextField.layer.shadowRadius = 0.25;
-    self.currentTimeTextField.layer.shadowOpacity = 1.0;
+    self.currentTimeTextField.layer.shadowOpacity = 0.75;
     self.currentTimeTextField.layer.shadowOffset = CGSizeMake(0, -1);
     self.currentTimeTextField.layer.masksToBounds = NO;
     self.currentTimeTextField.layer.shouldRasterize = true;
