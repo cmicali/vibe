@@ -9,10 +9,11 @@
     NSMutableArray<CALayer*> *_otherLayers;
 }
 
-- (instancetype)initWithLayer:(CALayer*)layer bounds:(CGRect)bounds {
+- (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
     self = [super init];
     if (self) {
-        self.parentLayer = layer;
+        self.parentLayer = parentLayer;
+        self.isDark = isDark;
         _otherLayers = [NSMutableArray new];
     }
     return self;
@@ -36,6 +37,10 @@
     [_otherLayers addObject:layer];
 }
 
+- (void)updateColors:(BOOL)isDark {
+    self.isDark = isDark;
+}
+
 - (void)addLayers:(NSUInteger)numLayers backgroundColor:(CGColorRef)color {
     [self addLayers:numLayers forClass:CALayer.class backgroundColor:color];
 }
@@ -51,23 +56,26 @@
     self.layers = layers;
 }
 
-- (CAGradientLayer*) createGradientLayer:(NSArray<NSColor*>*)colors {
-    return [self createGradientLayer:colors filter:nil];
+- (CAGradientLayer*) createGradientLayer {
+    return [self createGradientLayer:nil];
 }
 
-- (CAGradientLayer*) createGradientLayer:(NSArray<NSColor*>*)colors filter:(NSString * __nullable)filterName {
+- (CAGradientLayer*) createGradientLayer:(NSString * __nullable)filterName {
     CAGradientLayer *layer = [[CAGradientLayer alloc] init];
-    NSMutableArray *cgColors = [[NSMutableArray alloc] initWithCapacity:colors.count];
-    for (NSColor *color in colors) {
-        [cgColors addObject:(id)color.CGColor];
-    }
-    layer.colors = cgColors;
     if (filterName.length) {
         CIFilter *filter = [CIFilter filterWithName:filterName];
         [filter setDefaults];
         layer.compositingFilter = filter;
     }
     return layer;
+}
+
+- (void) setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<NSColor*>*)colors {
+    NSMutableArray *cgColors = [[NSMutableArray alloc] initWithCapacity:colors.count];
+    for (NSColor *color in colors) {
+        [cgColors addObject:(id)color.CGColor];
+    }
+    layer.colors = cgColors;
 }
 
 - (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
