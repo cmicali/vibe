@@ -9,18 +9,20 @@
 #import "AudioTrack.h"
 #import "AudioPlayer.h"
 
+@class AudioTrackMetadataCache;
+
 NS_ASSUME_NONNULL_BEGIN
 
 @interface PlaylistManager : NSObject <NSTableViewDataSource, NSTableViewDelegate>
 
 @property NSUInteger currentIndex;
 
+@property (weak) AudioTrackMetadataCache *metadataCache;
 @property (weak) AudioPlayer *audioPlayer;
-@property (weak) NSTableView *tableView;
 
 - (NSArray<AudioTrack *> *)playlist;
 
-- (id)initWithAudioPlayer:(AudioPlayer *)player;
+- (id)initWithAudioPlayer:(AudioPlayer *)player metadataCache:(AudioTrackMetadataCache *)metadataCache tableView:(NSTableView *)view;
 
 - (void)play;
 - (void)play:(NSArray<NSURL *> *)urls;

@@ -4,19 +4,21 @@
 //
 
 #import "AudioTrack.h"
-#import "AudioTrackMetadata.h"
 #import "Formatters.h"
 #import "NSURL+Hash.h"
 
 @implementation AudioTrack {
     NSTimeInterval _duration;
     NSString *_fileHash;
+    NSString *_title;
+    NSString *_artist;
 }
 
 - (instancetype)initWithUrl:(NSURL *)url {
     self = [super init];
     if (self) {
         self.url = url;
+        self.metadataLoaded = NO;
         _duration = -1;
         _fileHash = nil;
     }
@@ -25,6 +27,28 @@
 
 + (AudioTrack *)withURL:(NSURL *)url {
     return [[AudioTrack alloc] initWithUrl:url];
+}
+
+- (NSString *)title {
+    if (_title.length > 0) {
+        return _title;
+    }
+    else if (self.url) {
+        return [[self.url standardizedURL] lastPathComponent];
+    }
+    return @"";
+}
+
+- (void)setTitle:(NSString *)title {
+    _title = title;
+}
+
+- (NSString *)artist {
+    return _artist;
+}
+
+- (void)setArtist:(NSString *)artist {
+    _artist = artist;
 }
 
 - (NSString *)fileHash {
@@ -37,35 +61,8 @@
     }
     return _fileHash;
 }
-
-- (NSString *)title {
-    if (self.metadata.title.length > 0) {
-        return self.metadata.title;
-    }
-    else if (self.url) {
-        return [[self.url standardizedURL] lastPathComponent];
-    }
-    return @"";
-}
-
-- (NSString *)artist {
-    if (self.metadata.artist.length > 0) {
-        return self.metadata.artist;
-    }
-    else {
-        return @"";
-    }
-}
-
-- (NSImage *)albumArt {
-    return self.metadata.albumArt;
-}
-
 - (NSTimeInterval)duration {
-    if (_duration >= 0) {
-        return _duration;
-    }
-    return self.metadata.duration;
+    return _duration;
 }
 
 - (void)setDuration:(NSTimeInterval)len {
@@ -82,7 +79,7 @@
 }
 
 - (BOOL)hasArtistAndTitle {
-    return self.artist.length > 0 && self.metadata.title.length > 0;
+    return self.artist.length > 0 && self.title.length > 0;
 }
 
 - (NSString *)singleLineTitle {

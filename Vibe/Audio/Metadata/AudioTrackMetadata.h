@@ -17,6 +17,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (AudioTrackMetadata *)metadataWithURL:(NSURL *)url;
 
+- (NSUInteger)size;
+
 @end
 
 NS_ASSUME_NONNULL_END

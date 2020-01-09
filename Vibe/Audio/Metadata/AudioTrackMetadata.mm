@@ -94,6 +94,11 @@
 
 }
 
+- (NSImage *)imageFromByteVector:(TagLib::ByteVector*)bytes {
+    NSData *data = [[NSData alloc] initWithBytes:bytes->data() length:bytes->size()];
+    return [[NSImage alloc] initWithData:data];
+}
+
 - (NSImage *)getAlbumArtMP4:(TagLib::MP4::File *)mp4File {
     if (!mp4File->tag()->isEmpty()) {
         auto tag = mp4File->tag();
@@ -102,8 +107,7 @@
             auto list = item.toCoverArtList();
             if (!list.isEmpty()) {
                 auto bytes = list.front().data();
-                NSData *data = [[NSData alloc] initWithBytes:bytes.data() length:bytes.size()];
-                return [[NSImage alloc] initWithData:data];
+                return [self imageFromByteVector:&bytes];
             }
         }
     }
@@ -115,8 +119,7 @@
     if (!picList.isEmpty()) {
         TagLib::FLAC::Picture* pic = picList[0];
         auto bytes = pic->data();
-        NSData *data = [[NSData alloc] initWithBytes:bytes.data() length:bytes.size()];
-        return [[NSImage alloc] initWithData:data];
+        return [self imageFromByteVector:&bytes];
     }
     return nil;
 }
@@ -147,10 +150,21 @@
     if (!frameList.isEmpty()) {
         TagLib::ID3v2::AttachedPictureFrame *frame = (TagLib::ID3v2::AttachedPictureFrame *) frameList.front();
         auto bytes = frame->picture();
-        NSData *data = [[NSData alloc] initWithBytes:bytes.data() length:bytes.size()];
-        return [[NSImage alloc] initWithData:data];
+        return [self imageFromByteVector:&bytes];
     }
     return nil;
 }
 
+- (NSUInteger)size {
+    NSUInteger imageSize = 0;
+    if (self.albumArt) {
+        imageSize = (NSUInteger)self.albumArt.size.width;
+        imageSize *= (NSUInteger)self.albumArt.size.height;
+        imageSize *= 4;
+    }
+    return self.artist.length + self.title.length + imageSize;
+}
+
 @end
+
+

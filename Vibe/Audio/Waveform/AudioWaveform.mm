@@ -18,7 +18,7 @@ AudioWaveform::AudioWaveform() {
 
 AudioWaveform::AudioWaveform(NSUInteger numChunks, const void* chunks) {
     this->numChunks = numChunks;
-    chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
+    this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
     memcpy(this->chunks, chunks, this->getNumBytes());
 }
 
@@ -90,6 +90,10 @@ void AudioWaveform::normalize() {
         self.waveform = waveform;
     }
     return self;
+}
+
+- (NSUInteger) size {
+    return self.waveform->getNumBytes();
 }
 
 @end
