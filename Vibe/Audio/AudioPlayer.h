@@ -13,7 +13,6 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol AudioPlayerDelegate;
 @class AudioTrack;
 @class AudioDevice;
-@class MainPlayerController;
 
 @interface AudioPlayer : NSObject <CoreAudioSystemOutputDeviceDelegate>
 
@@ -23,7 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nullable, strong)    AudioTrack* currentTrack;
 @property (atomic) NSInteger    currentlyRequestedAudioDeviceId;
 
-- (id)initWithDevice:(NSString *)deviceName lockSampleRate:(BOOL)lockSampleRate delegate:(MainPlayerController *)delegate;
+- (id)initWithDevice:(NSString *)deviceName lockSampleRate:(BOOL)lockSampleRate delegate:(id <AudioPlayerDelegate>)delegate;
 
 - (BOOL)lockSampleRate;
 - (void)setLockSampleRate:(BOOL)lockSampleRate;

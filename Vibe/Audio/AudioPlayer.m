@@ -31,7 +31,7 @@
 
 #pragma mark - Init
 
-- (id)initWithDevice:(NSString *)deviceName lockSampleRate:(BOOL)shouldLockSampleRate delegate:(MainPlayerController *)delegate {
+- (id)initWithDevice:(NSString *)deviceName lockSampleRate:(BOOL)shouldLockSampleRate delegate:(id <AudioPlayerDelegate>)delegate {
     self = [super init];
     if (self) {
         self.channel = 0;
