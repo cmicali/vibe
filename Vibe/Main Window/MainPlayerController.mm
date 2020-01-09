@@ -202,7 +202,7 @@
     }
     else {
         if (_displayedArt) {
-            self.albumArtImageView.image = [NSImage imageNamed:@"record-black-1024.png"];
+            self.albumArtImageView.image = [NSImage imageNamed:@"record"];
             [NSDockTile resetToAppIcon];
             _displayedArt = nil;
         }
@@ -367,7 +367,7 @@
         }
     }
     self.window.appearance = Settings.windowAppearance;
-
+    [self.playlistManager reloadCurrentTrack];
 }
 
 //- (NSTouchBar *)makeTouchBar {

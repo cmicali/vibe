@@ -40,7 +40,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (weak) IBOutlet AudioWaveformView *waveformView;
 @property (weak) IBOutlet NSTextField *totalTimeTextField;
 @property (weak) IBOutlet NSTextField *currentTimeTextField;
-@property (weak) IBOutlet NSView *playlistBackgroundView;
 @property (weak) IBOutlet NSView *albumArtGradientView;
 
 @property (weak) IBOutlet OutputDevicesMenuController *devicesMenuController;
