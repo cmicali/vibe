@@ -31,10 +31,10 @@
 
         [self addLayers:512 backgroundColor:_unPlayedColorTop.CGColor];
 
-        NSArray *colors = @[
-            [NSColor colorWithRed:1 green:0.2 blue:0 alpha:1],
-            [NSColor colorWithRed:1 green:0.45 blue:0 alpha:1],
-        ];
+//        NSArray *colors = @[
+//            [NSColor colorWithRed:1 green:0.2 blue:0 alpha:1],
+//            [NSColor colorWithRed:1 green:0.45 blue:0 alpha:1],
+//        ];
 //        _overlayGradient = [self createGradientLayer:colors filter:@"CISourceInCompositing"];
 //        [self addOtherLayer:_overlayGradient];
         [self updateWaveform:bounds progress:0 waveform:nil];

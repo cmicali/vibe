@@ -12,6 +12,7 @@
 
 @property (atomic) BOOL isFinished;
 @property (atomic) BOOL isCancelled;
+@property (nullable, weak) id <AudioTrackMetadataManagerDelegate> delegate;
 
 - (id)initWithCache:(PINCache *)cache delegate:(id <AudioTrackMetadataManagerDelegate>)delegate;
 - (void)cancel;
@@ -20,7 +21,6 @@
 
 @implementation AudioTrackMetadataLoader {
     PINCache* _metadataCache;
-    __weak id <AudioTrackMetadataManagerDelegate> _delegate;
 }
 
 - (id)initWithCache:(PINCache *)cache delegate:(id <AudioTrackMetadataManagerDelegate>)delegate {
@@ -50,7 +50,7 @@
         }
         if (track.metadata && !self.isCancelled) {
             run_on_main_thread({
-                [_delegate didLoadMetadata:track];
+                [self.delegate didLoadMetadata:track];
             });
         }
     }
