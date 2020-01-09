@@ -27,7 +27,7 @@
             <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES" fullSizeContentView="YES"/>
             <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
             <rect key="contentRect" x="206" y="444" width="680" height="350"/>
-            <rect key="screenRect" x="0.0" y="0.0" width="1536" height="937"/>
+            <rect key="screenRect" x="0.0" y="0.0" width="2560" height="1417"/>
             <value key="minSize" type="size" width="680" height="150"/>
             <value key="maxSize" type="size" width="680" height="600"/>
             <view key="contentView" canDrawConcurrently="YES" focusRingType="none" id="se5-gp-TjO">
@@ -45,7 +45,7 @@
                             <imageView canDrawConcurrently="YES" horizontalHuggingPriority="251" verticalHuggingPriority="251" ambiguous="YES" id="tsY-dV-b1N" customClass="ArtworkImageView">
                                 <rect key="frame" x="0.0" y="200" width="150" height="150"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="proportionallyUpOrDown" image="record-transparent-1024" id="V3M-ha-yqf"/>
+                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="proportionallyUpOrDown" image="record" id="V3M-ha-yqf"/>
                             </imageView>
                             <customView canDrawConcurrently="YES" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="f3F-dv-EUa">
                                 <rect key="frame" x="0.0" y="200" width="150" height="150"/>
@@ -261,7 +261,7 @@
                                                                 <imageView horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="W1c-SS-H2m">
                                                                     <rect key="frame" x="8" y="2" width="16" height="16"/>
                                                                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                                                    <imageCell key="cell" refusesFirstResponder="YES" alignment="left" animates="YES" imageScaling="proportionallyDown" image="equi" id="KOO-8m-BBc"/>
+                                                                    <imageCell key="cell" refusesFirstResponder="YES" alignment="left" animates="YES" imageScaling="proportionallyDown" image="equi-white" id="KOO-8m-BBc"/>
                                                                 </imageView>
                                                                 <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" preferredMaxLayoutWidth="28" textCompletion="NO" translatesAutoresizingMaskIntoConstraints="NO" id="UZL-IR-GSl">
                                                                     <rect key="frame" x="2" y="-2" width="28" height="18"/>
@@ -414,8 +414,8 @@
         <image name="button-hamburger" width="50" height="50"/>
         <image name="button-play" width="50" height="50"/>
         <image name="button-skip-next" width="50" height="50"/>
-        <image name="equi" width="100" height="100"/>
-        <image name="record-transparent-1024" width="1024" height="1024"/>
+        <image name="equi-white" width="100" height="100"/>
+        <image name="record" width="512" height="512"/>
         <namedColor name="playlistBackgroundColor">
             <color red="0.73000001907348633" green="0.73000001907348633" blue="0.73000001907348633" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </namedColor>
