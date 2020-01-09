@@ -3,15 +3,10 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
-#import <QuartzCore/QuartzCore.h>
 #import "PlaylistManager.h"
-#import "AudioPlayer.h"
-#import "AudioTrack.h"
-#import "PlaylistTextCell.h"
 #import "NSMutableAttributedString+Util.h"
-#import "NSView+Util.h"
 #import "Fonts.h"
-#import "AudioTrackMetadataCache.h"
+#import "NSView+DarkMode.h"
 
 @implementation PlaylistManager {
     NSMutableArray<AudioTrack *> *_playlist;
@@ -59,8 +54,7 @@
             view.textField.hidden = YES;
             view.imageView.hidden = NO;
             view.imageView.animates = self.audioPlayer.isPlaying;
-            BOOL dark = [NSAppearanceNameDarkAqua isEqualToString:[view.effectiveAppearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua]]];
-            view.imageView.image = dark ? _imageEqWhite : _imageEqBlack;
+            view.imageView.image = view.isDark ? _imageEqWhite : _imageEqBlack;
         }
         else {
             view.textField.hidden = NO;

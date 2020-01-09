@@ -24,6 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)loadWaveformForTrack:(AudioTrack *)track;
 
+- (void)updateAppearance;
 @end
 
 @protocol AudioWaveformViewDelegate <NSObject>

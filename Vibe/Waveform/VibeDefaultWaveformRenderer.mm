@@ -20,8 +20,8 @@
     return @"Vibe Default";
 }
 
-- (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds{
-    self = [super initWithLayer:parentLayer bounds:bounds];
+- (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
+    self = [super initWithLayer:parentLayer bounds:bounds isDark:isDark];
     if (self) {
 
         _playedColorTop = [NSColor colorWithRed:1 green:0.45 blue:0 alpha:1];

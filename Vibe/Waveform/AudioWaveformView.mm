@@ -10,6 +10,7 @@
 #import "VibeDefaultWaveformRenderer.h"
 #import "BasicAudioWaveformRenderer.h"
 #import "OversamplingDetailedAudioWaveformRenderer.h"
+#import "NSView+DarkMode.h"
 
 @interface AudioWaveformView () <AudioWaveformCacheDelegate>
 
@@ -19,15 +20,12 @@
 @end
 
 @implementation AudioWaveformView {
-
     CGFloat                     _progress;
-    NSUInteger                  _progressWidth;
-
+    NSUInteger                  _progressTracker;
+    NSUInteger                  _numProgressSteps;
     BOOL                        _didClickInside;
-
     AudioWaveformRenderer*      _currentWaveformRenderer;
     NSMutableDictionary*        _waveformRenderers;
-
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -52,6 +50,9 @@
     self.layer = [[CALayer alloc] init];
     self.layerUsesCoreImageFilters = YES;
 
+    _progress = 0;
+    _progressTracker = 0;
+    _numProgressSteps = 256;
     _didClickInside = NO;
 
     _waveformCache = [[AudioWaveformCache alloc] init];
@@ -77,7 +78,7 @@
 
 - (void)setWaveformStyle:(NSString*)name {
     if (name.length && _waveformRenderers[name]) {
-        _currentWaveformRenderer = [[_waveformRenderers[name] alloc] initWithLayer:self.layer bounds:self.bounds];
+        _currentWaveformRenderer = [[_waveformRenderers[name] alloc] initWithLayer:self.layer bounds:self.bounds isDark:self.isDark];
         [self drawWaveform];
         [self updateRendererProgress];
     }
@@ -130,8 +131,12 @@
 }
 
 - (void)setProgress:(CGFloat)progress {
-    _progress = progress;
-    [self updateRendererProgress];
+    NSUInteger p = static_cast<NSUInteger>(progress * _numProgressSteps);
+    if (_progressTracker != p) {
+        _progressTracker = p;
+        _progress = progress;
+        [self updateRendererProgress];
+    }
 }
 
 
@@ -156,5 +161,14 @@
     [self drawWaveform];
 }
 
+- (void)updateAppearance {
+    if (_currentWaveformRenderer) {
+        BOOL isDark = self.isDark;
+        if (_currentWaveformRenderer.isDark != isDark) {
+            [_currentWaveformRenderer updateColors:isDark];
+            [self updateRendererProgress];
+        }
+    }
+}
 
 @end

@@ -35,20 +35,23 @@ NS_ASSUME_NONNULL_BEGIN
 @property (assign) CGFloat topY;
 @property (assign) CGFloat bottomY;
 @property (assign) CGFloat progress;
+@property (assign) BOOL isDark;
 
 @property (strong) CALayer* parentLayer;
 @property (strong) NSArray<CALayer*>* layers;
 
 + (NSString *)displayName;
 
-- (instancetype)initWithLayer:(CALayer*)layer bounds:(CGRect)bounds;
+- (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark;
 
+- (void)updateColors:(BOOL)isDark;
 - (void)addLayers:(NSUInteger)numLayers backgroundColor:(CGColorRef)color;
 - (void)addLayers:(NSUInteger)numLayers forClass:(Class)clazz backgroundColor:(CGColorRef)color;
 - (void)addOtherLayer:(CALayer *)layer;
 
-- (CAGradientLayer *)createGradientLayer:(NSArray<NSColor *> *)colors;
-- (CAGradientLayer *)createGradientLayer:(NSArray<NSColor *> *)colors filter:(NSString * __nullable)filterName;
+- (CAGradientLayer*) createGradientLayer;
+- (CAGradientLayer*) createGradientLayer:(NSString * __nullable)filterName;
+- (void) setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<NSColor*>*)colors;
 
 - (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform * __nullable)waveform;
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;

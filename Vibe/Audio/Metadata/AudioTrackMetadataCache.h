@@ -14,6 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nullable, weak) id <AudioTrackMetadataManagerDelegate> delegate;
 
+- (void)invalidate;
 - (void)loadMetadata:(NSArray<AudioTrack *> *)tracks;
 
 @end

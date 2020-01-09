@@ -22,3 +22,5 @@
 #define AlignSizeToTypeBoundary(size, type) { if (size % sizeof(type) != 0) { size += sizeof(type) - size % sizeof(type); } }
 
 #define run_on_main_thread(block) dispatch_async(dispatch_get_main_queue(), ^(void)block)
+
+#define round_to_precision(val, precision) (double)(((NSInteger)(val*((double)pow(10,precision))))/pow(10,precision))
