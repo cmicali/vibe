@@ -8,45 +8,90 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 
+@interface AudioTrackMetadataLoader : NSObject
+
+@property (atomic) BOOL isFinished;
+@property (atomic) BOOL isCancelled;
+
+- (id)initWithCache:(PINCache *)cache delegate:(id <AudioTrackMetadataManagerDelegate>)delegate;
+- (void)cancel;
+
+@end
+
+@implementation AudioTrackMetadataLoader {
+    PINCache* _metadataCache;
+    __weak id <AudioTrackMetadataManagerDelegate> _delegate;
+}
+
+- (id)initWithCache:(PINCache *)cache delegate:(id <AudioTrackMetadataManagerDelegate>)delegate {
+    self = [super init];
+    if (self) {
+        _isCancelled = NO;
+        _isFinished = NO;
+        _metadataCache = cache;
+        _delegate = delegate;
+    }
+    return self;
+}
+
+- (void)load:(NSArray<AudioTrack*>*)tracks {
+    for (NSUInteger i = 0; i < tracks.count && !self.isCancelled; ++i) {
+        AudioTrack *track = tracks[i];
+        if (!track.metadata) {
+            NSString *cacheKey = track.url.path;
+            AudioTrackMetadata *cachedMetaData = [_metadataCache objectForKey:cacheKey];
+            if (cachedMetaData) {
+                track.metadata = cachedMetaData;
+            }
+            else {
+                track.metadata = [AudioTrackMetadata metadataWithURL:track.url];
+                [_metadataCache setObject:track.metadata forKey:cacheKey];
+            }
+        }
+        if (track.metadata && !self.isCancelled) {
+            run_on_main_thread({
+                [_delegate didLoadMetadata:track];
+            });
+        }
+    }
+    self.isFinished = YES;
+}
+
+- (void)cancel {
+    self.isCancelled = YES;
+}
+
+@end
+
 @implementation AudioTrackMetadataCache {
-    PINCache *_metadataCache;
+    dispatch_queue_t            _loaderQueue;
+    PINCache*                   _metadataCache;
+    AudioTrackMetadataLoader*   _currentLoader;
 }
 
 - (instancetype)init {
     self = [super init];
     if (self) {
+        dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_BACKGROUND, 0);
+        _loaderQueue = dispatch_queue_create("AudioTrackMetadataCache", queueAttributes);
         _metadataCache = [[PINCache alloc] initWithName:@"Audio Track Metadata"];
         _metadataCache.diskCache.byteLimit = 64 * 1024 * 1024;
         _metadataCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
-        // [_metadataCache removeAllObjects];
+        [_metadataCache removeAllObjects];
     }
     return self;
 }
 
 -(void)loadMetadata:(NSArray<AudioTrack*>*)tracks {
+    [_currentLoader cancel];
     if (!tracks.count) {
         return;
     }
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-        for (AudioTrack *track in tracks) {
-            NSString *cacheKey = track.url.path;
-            if (!track.metadata) {
-                if ([self->_metadataCache objectForKey:cacheKey]) {
-                    track.metadata = [self->_metadataCache objectForKey:cacheKey];
-                }
-                else {
-                    track.metadata = [AudioTrackMetadata metadataWithURL:track.url];
-                    [self->_metadataCache setObject:track.metadata forKey:cacheKey];
-                }
-            }
-            if (track.metadata) {
-                run_on_main_thread({
-                    [self.delegate didLoadMetadata:track];
-                });
-            }
-        }
+    AudioTrackMetadataLoader* loader = [[AudioTrackMetadataLoader alloc] initWithCache:_metadataCache delegate:self.delegate];
+    _currentLoader = loader;
+    dispatch_async(_loaderQueue, ^{
+        [loader load:tracks];
     });
-
 }
 
 

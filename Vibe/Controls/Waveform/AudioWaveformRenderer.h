@@ -4,9 +4,7 @@
 //
 
 #import <AppKit/AppKit.h>
-#import "AudioWaveformOld.h"
-
-@class AudioWaveformOld;
+#import "AudioWaveform.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -52,10 +50,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (CAGradientLayer *)createGradientLayer:(NSArray<NSColor *> *)colors;
 - (CAGradientLayer *)createGradientLayer:(NSArray<NSColor *> *)colors filter:(NSString * __nullable)filterName;
 
-- (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveformOld * __nullable)waveform;
-- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveformOld* __nullable)waveform;
-- (void)didUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveformOld * __nullable)waveform;
-- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveformOld* __nullable)waveform;
+- (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform * __nullable)waveform;
+- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
+- (void)didUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform * __nullable)waveform;
+- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 
 @end
 
