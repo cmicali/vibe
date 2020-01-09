@@ -48,7 +48,7 @@
     return self;
 }
 
-- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveformOld*)waveform {
+- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
     size_t count = 512;
 //    CGFloat width = round(count * progress);
 //    if (_overlayGradient.frame.size.width != width) {
@@ -66,7 +66,7 @@
     }
 }
 
-- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveformOld*)waveform {
+- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
 
     if (!waveform) return;
 
@@ -88,10 +88,10 @@
 
     for (NSUInteger i = 0; i < count; i+=4) {
 
-        AudioWaveformCacheChunk m = [waveform chunkAtIndex:i forSize:count];
+        AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
 
         // Top line
-        CGFloat height = fabs(m.max - m.min) / 2 * vscale;
+        CGFloat height = fabs(m.getMax() - m.getMin()) / 2 * vscale;
         CGFloat topBarHeight = clampMin(round(height * topLineRatio), 1);
         CGRect frame = CGRectMake(i, topLineY, blockWidth, topBarHeight);
         setLayerFrame(frame, i);
