@@ -10,8 +10,9 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AudioTrack : NSObject
 
 @property (copy) NSURL *url;
-
-@property(nonatomic, strong) AudioTrackMetadata *metadata;
+@property (copy) NSString *title;
+@property (copy) NSString *artist;
+@property (assign) BOOL metadataLoaded;
 
 - (instancetype)initWithUrl:(NSURL *)url;
 + (AudioTrack *)withURL:(NSURL *)url;
@@ -19,17 +20,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)fileHash;
 - (NSString *)calculateFileHash;
 
-- (NSString *)title;
-- (NSString *)artist;
 - (NSTimeInterval)duration;
-
 - (void)setDuration:(NSTimeInterval)len;
-
 - (NSString *)durationString;
-- (NSImage *)albumArt;
 
 - (BOOL)hasArtistAndTitle;
-
 - (NSString *)singleLineTitle;
 
 @end

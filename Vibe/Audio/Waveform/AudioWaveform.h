@@ -78,4 +78,5 @@ private:
 
 - (id)initWithWaveform:(AudioWaveform *)waveform;
 
+- (NSUInteger)size;
 @end

@@ -43,11 +43,10 @@
                                             lockSampleRate:Settings.audioPlayerLockSampleRate
                                                   delegate:self
     ];
-    self.metadataManager = [[AudioTrackMetadataCache alloc] init];
-    self.metadataManager.delegate = self;
-
-    self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
-    self.playlistManager.tableView = self.playlistTableView;
+    self.metadataCache = [[AudioTrackMetadataCache alloc] init];
+    self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer
+                                                          metadataCache:self.metadataCache
+                                                              tableView:self.playlistTableView];
 
     self.devicesMenuController.audioPlayer = self.audioPlayer;
 
@@ -193,11 +192,15 @@
 
     self.albumArtImageView.fileURL = track.url;
 
-    if (track.albumArt) {
-        if (_displayedArt != track.albumArt) {
-            self.albumArtImageView.image = track.albumArt;
-            [NSDockTile setDockIcon:self.playlistManager.currentTrack.albumArt];
-            _displayedArt = track.albumArt;
+    AudioTrackMetadata *metadata = [_metadataCache metadataForTrack:track orLoad:^(AudioTrackMetadata *metadata) {
+        [self updateUI];
+    }];
+
+    if (metadata.albumArt) {
+        if (_displayedArt != metadata.albumArt) {
+            self.albumArtImageView.image = metadata.albumArt;
+            [NSDockTile setDockIcon:metadata.albumArt];
+            _displayedArt = metadata.albumArt;
         }
     }
     else {
@@ -248,7 +251,6 @@
 
 - (void)play:(NSArray<NSURL *> *)urls {
     [self.playlistManager play:urls];
-    [self.metadataManager loadMetadata:self.playlistManager.playlist];
 }
 
 - (IBAction)next:(id)sender {

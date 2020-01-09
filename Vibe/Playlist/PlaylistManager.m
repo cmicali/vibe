@@ -7,6 +7,8 @@
 #import "NSMutableAttributedString+Util.h"
 #import "Fonts.h"
 #import "NSView+DarkMode.h"
+#import "AudioTrackMetadataCache.h"
+#import "AudioTrackMetadata.h"
 
 @implementation PlaylistManager {
     NSMutableArray<AudioTrack *> *_playlist;
@@ -19,24 +21,18 @@
     return _playlist;
 }
 
-- (NSTableView *)tableView {
-    return _tableView;
-}
-
-- (void)setTableView:(NSTableView *)tableView {
-    _tableView = tableView;
-    [_tableView setTarget:self];
-    [_tableView setDoubleAction:@selector(doubleClick:)];
-}
-
-- (id)initWithAudioPlayer:(AudioPlayer *)audioPlayer {
+- (id)initWithAudioPlayer:(AudioPlayer *)player metadataCache:(AudioTrackMetadataCache *)metadataCache tableView:(NSTableView *)tableView {
     self = [super init];
     if (self) {
         _playlist = [NSMutableArray new];
-        self.currentIndex = 0;
-        self.audioPlayer = audioPlayer;
         _imageEqBlack = [NSImage imageNamed:@"equi-black.gif"];
         _imageEqWhite = [NSImage imageNamed:@"equi-white.gif"];
+        self.currentIndex = 0;
+        self.audioPlayer = player;
+        self.metadataCache = metadataCache;
+        _tableView = tableView;
+        [_tableView setTarget:self];
+        [_tableView setDoubleAction:@selector(doubleClick:)];
     }
     return self;
 }
@@ -48,6 +44,9 @@
 - (nullable NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row {
     AudioTrack *track = _playlist[row];
     NSTableCellView *view;
+    AudioTrackMetadata *metadata = [self.metadataCache metadataForTrack:track orLoad:^(AudioTrackMetadata *metadata) {
+        [tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndex:row] columnIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, tableView.tableColumns.count)]];
+    }];
     if ([tableColumn.identifier isEqualToString:@"numColumn"]) {
         view = [tableView makeViewWithIdentifier:@"trackNum" owner:self];
         if (row == self.currentIndex) {
@@ -68,7 +67,7 @@
     }
     else if ([tableColumn.identifier isEqualToString:@"artColumn"]) {
         view = [tableView makeViewWithIdentifier:@"trackArt" owner:self];
-        NSImage *image = track.albumArt;
+        NSImage *image = metadata.albumArt;
         if (!image) {
             image = [NSImage imageNamed:@"record"];
         }
@@ -122,7 +121,7 @@
     }
     _currentIndex = 0;
     self.currentIndex = 0;
-    [self.tableView reloadData];
+    [_tableView reloadData];
     [self play];
 }
 
@@ -134,7 +133,7 @@
 }
 
 - (void)reloadTrackAtIndex:(NSUInteger)index {
-    [self.tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndex:index] columnIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, (NSUInteger)self.tableView.numberOfColumns)]];
+    [_tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndex:index] columnIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, (NSUInteger)_tableView.numberOfColumns)]];
 }
 
 - (BOOL)next {

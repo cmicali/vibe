@@ -27,8 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
                                                       NSMenuDelegate,
                                                       FileDropDelegate,
                                                       AudioPlayerDelegate,
-                                                      AudioWaveformViewDelegate,
-                                                      AudioTrackMetadataManagerDelegate>
+                                                      AudioWaveformViewDelegate>
 
 @property (weak) IBOutlet SYFlatButton *nextButton;
 @property (weak) IBOutlet SYFlatButton *playButton;
@@ -48,7 +47,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (strong) AudioPlayer *audioPlayer;
 @property (strong) PlaylistManager *playlistManager;
-@property (strong) AudioTrackMetadataCache *metadataManager;
+@property (strong) AudioTrackMetadataCache *metadataCache;
 
 - (void)play:(NSArray<NSURL *> *)urls;
 - (void)playURL:(NSURL *)url;
