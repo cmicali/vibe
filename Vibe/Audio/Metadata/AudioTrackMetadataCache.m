@@ -72,14 +72,19 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
+        _currentLoader  =nil;
         dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_BACKGROUND, 0);
         _loaderQueue = dispatch_queue_create("AudioTrackMetadataCache", queueAttributes);
         _metadataCache = [[PINCache alloc] initWithName:@"Audio Track Metadata"];
         _metadataCache.diskCache.byteLimit = 64 * 1024 * 1024;
         _metadataCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
-        [_metadataCache removeAllObjects];
+//        [self invalidate];
     }
     return self;
+}
+
+-(void) invalidate {
+    [_metadataCache removeAllObjects];
 }
 
 -(void)loadMetadata:(NSArray<AudioTrack*>*)tracks {

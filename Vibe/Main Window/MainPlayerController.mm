@@ -368,6 +368,7 @@
     }
     self.window.appearance = Settings.windowAppearance;
     [self.playlistManager reloadCurrentTrack];
+    [self.waveformView updateAppearance];
 }
 
 //- (NSTouchBar *)makeTouchBar {

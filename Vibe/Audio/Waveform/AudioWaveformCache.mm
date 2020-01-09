@@ -30,9 +30,13 @@
         _waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
         _normalize = NO;
         _currentLoader = nil;
-         [_waveformCache removeAllObjects];
+        // [self invalidate];
     }
     return self;
+}
+
+- (void)invalidate {
+    [_waveformCache removeAllObjects];
 }
 
 - (void)loadWaveformForTrack:(AudioTrack *)track {

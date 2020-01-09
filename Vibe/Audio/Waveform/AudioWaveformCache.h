@@ -17,6 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nullable, weak) id <AudioWaveformCacheDelegate> delegate;
 
+- (void)invalidate;
 - (void)loadWaveformForTrack:(AudioTrack *)track;
 
 @end
