@@ -3,22 +3,17 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
-#import <PINCache/PINCache.h>
 #import <Quartz/Quartz.h>
-#import <JavaScriptCore/JavaScriptCore.h>
 #import "AudioWaveformView.h"
-#import "AudioWaveformCache.h"
 #import "AudioTrack.h"
-#import "NSURL+Hash.h"
 #import "DetailedAudioWaveformRenderer.h"
 #import "VibeDefaultWaveformRenderer.h"
 #import "BasicAudioWaveformRenderer.h"
 #import "OversamplingDetailedAudioWaveformRenderer.h"
 
-
 @interface AudioWaveformView () <AudioWaveformCacheDelegate>
 
-@property (strong) AudioWaveformOld*       waveform;
+@property (nonatomic) AudioWaveform*    waveform;
 @property (strong) AudioWaveformCache*  waveformCache;
 
 @end
@@ -135,7 +130,6 @@
 }
 
 - (void)setProgress:(CGFloat)progress {
-    NSUInteger w = (NSUInteger)(self.bounds.size.width * progress);
     _progress = progress;
     [self updateRendererProgress];
 }
@@ -155,7 +149,7 @@
     [_waveformCache loadWaveformForTrack:track];
 }
 
-- (void)audioWaveform:(AudioWaveformOld *)waveform didLoadData:(float)percentLoaded {
+- (void)audioWaveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded {
     if (_waveform != waveform) {
         _waveform = waveform;
     }

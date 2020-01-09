@@ -70,19 +70,19 @@
     return layer;
 }
 
-- (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveformOld *)waveform {
+- (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
     self.bottomY = bounds.size.height/2 - (bounds.size.height/2 * .5);
     self.topY = bounds.size.height/2 + (bounds.size.height/2 * .5);
 }
 
-- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveformOld *)waveform {
+- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
 
 }
 
-- (void)didUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveformOld *)waveform {
+- (void)didUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
 }
 
-- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveformOld *__nullable)waveform {
+- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform *__nullable)waveform {
 
 }
 

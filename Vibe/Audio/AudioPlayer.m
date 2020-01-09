@@ -10,7 +10,6 @@
 #import "BassWrapper.h"
 #import "AudioTrack.h"
 #import "BassUtil.h"
-#import "MainPlayerController.h"
 #import "AudioDeviceManager.h"
 #import "WorkQueueThread.h"
 #import "NSThread+Blocks.h"

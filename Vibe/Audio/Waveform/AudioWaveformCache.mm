@@ -8,8 +8,6 @@
 #import "AudioTrack.h"
 #import "BASSAudioWaveformLoader.h"
 
-#pragma mark - Waveform Loader
-
 #pragma mark - Waveform Cache
 
 @interface AudioWaveformCache () <AudioWaveformLoaderDelegate>
@@ -48,15 +46,22 @@
 
 - (void)load:(AudioTrack *)track withLoader:(AudioWaveformLoader *)loader {
     NSString *cacheKey = track.calculateFileHash;
-    AudioWaveformOld *waveform = [self->_waveformCache objectForKey:cacheKey];
-    if (!waveform) {
+    AudioWaveform *waveform;
+    CodableAudioWaveform *cachedWaveform = [self->_waveformCache objectForKey:cacheKey];
+    if (cachedWaveform) {
+        waveform = cachedWaveform.waveform;
+    }
+    else {
         waveform = [loader load:track.url.path];
+        if (loader.isComplete) {
+            if (_normalize) {
+                waveform->normalize();
+            }
+            cachedWaveform = [[CodableAudioWaveform alloc] initWithWaveform:waveform];
+            [self->_waveformCache setObject:cachedWaveform forKey:cacheKey];
+        }
     }
     if (!loader.isCancelled) {
-        if (_normalize) {
-            [waveform normalize];
-        }
-        [self->_waveformCache setObject:waveform forKey:cacheKey];
         run_on_main_thread({
             if (!loader.isCancelled) {
                 [self.delegate audioWaveform:waveform didLoadData:1];
@@ -65,7 +70,7 @@
     }
 }
 
-- (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(AudioWaveformOld *)waveform didLoadData:(float)percentLoaded {
+- (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded {
     [self.delegate audioWaveform:waveform didLoadData:percentLoaded];
 }
 
