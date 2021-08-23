@@ -67,8 +67,10 @@
     if (wasPlaying) {
         BASS_ChannelPause(self.channel);
     }
+    BASS_Free();
     if (!BASS_Init(newDeviceIndex, 44100, 0, NULL, NULL)) {
-        LogError(@"Error initializing BASS");
+        int errorCode = BASS_ErrorGetCode();
+        LogError(@"Error initializing BASS: %@", [BassUtil stringForErrorCode:errorCode]);
     }
     if (newDeviceIndex != -1) {
         BASS_SetDevice((DWORD) newDeviceIndex);
