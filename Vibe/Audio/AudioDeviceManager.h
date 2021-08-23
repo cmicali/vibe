@@ -10,9 +10,9 @@
 
 + (AudioDeviceManager *)sharedInstance;
 
-- (AudioDevice *)defaultOutputDevice;
+//- (AudioDevice *)defaultOutputDevice;
 
-- (NSInteger)defaultOutputDeviceId;
+//- (NSInteger)defaultOutputDeviceId;
 
 - (NSInteger)numOutputDevices;
 

@@ -8,7 +8,7 @@
 #import "AudioDevice.h"
 
 @implementation AudioDeviceManager {
-    AudioDevice* _defaultOutputDevice;
+//    AudioDevice* _defaultOutputDevice;
 }
 
 + (AudioDeviceManager*)sharedInstance {
@@ -23,16 +23,16 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _defaultOutputDevice = [[AudioDevice alloc] init];
-        _defaultOutputDevice.name = @"System Default";
-        _defaultOutputDevice.deviceId = -1;
+//        _defaultOutputDevice = [[AudioDevice alloc] init];
+//        _defaultOutputDevice.name = @"System Default";
+//        _defaultOutputDevice.deviceId = -1;
     }
     return self;
 }
 
-- (AudioDevice *)defaultOutputDevice {
-    return _defaultOutputDevice;
-}
+//- (AudioDevice *)defaultOutputDevice {
+//    return _defaultOutputDevice;
+//}
 
 - (NSInteger)defaultOutputDeviceId {
     BASS_DEVICEINFO info;
@@ -80,16 +80,21 @@
 - (AudioDevice *)outputDeviceWithDeviceInfo:(BASS_DEVICEINFO *)info deviceId:(NSInteger)deviceId {
     AudioDevice *dev = [[AudioDevice alloc] init];
     dev.name = [NSString stringWithCString:info->name encoding:NSUTF8StringEncoding];
-    dev.uid = [NSString stringWithCString:info->driver encoding:NSUTF8StringEncoding];
+    if (info->driver) {
+        dev.uid = [NSString stringWithCString:info->driver encoding:NSUTF8StringEncoding];
+    }
+    else {
+        dev.uid = @"default";
+    }
     dev.deviceId = deviceId;
     dev.isSystemDefault = (info->flags & BASS_DEVICE_DEFAULT) != 0;
     return dev;
 }
 
 - (AudioDevice *)outputDeviceForId:(NSInteger)deviceId {
-    if (deviceId == -1) {
-        return _defaultOutputDevice;
-    }
+//    if (deviceId == -1) {
+//        return _defaultOutputDevice;
+//    }
     BASS_DEVICEINFO info;
     if (!BASS_GetDeviceInfo((DWORD)deviceId, &info)) {
         return nil;
