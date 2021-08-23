@@ -18,24 +18,24 @@
 
 - (void)menuNeedsUpdate:(NSMenu *)menu {
     if (menu.numberOfItems == 0) {
-        [menu addItem:[NSMenuItem new]];
-        [menu addItem:[NSMenuItem separatorItem]];
-        [menu addItem:[NSMenuItem separatorItem]];
-        [menu addItem:[[NSMenuItem alloc] initWithTitle:@"Lock Sample Rate" action:@selector(lockSampleRate:) keyEquivalent:@""]];
+//        [menu addItem:[NSMenuItem new]];
+//        [menu addItem:[NSMenuItem separatorItem]];
+//        [menu addItem:[NSMenuItem separatorItem]];
+//        [menu addItem:[[NSMenuItem alloc] initWithTitle:@"Lock Sample Rate" action:@selector(lockSampleRate:) keyEquivalent:@""]];
     }
     NSInteger count = [self numberOfItemsInMenu:menu];
 
     while ([menu numberOfItems] < count)
-        [menu insertItem:[NSMenuItem new] atIndex:2];
+        [menu insertItem:[NSMenuItem new] atIndex:0];
     while ([menu numberOfItems] > count)
-        [menu removeItemAtIndex:2];
+        [menu removeItemAtIndex:0];
 
     NSArray *devices = AudioDeviceManager.sharedInstance.outputDevices;
     NSMenuItem *item;
 
-    [self configureMenuItem:[menu itemAtIndex:0] withDevice:AudioDeviceManager.sharedInstance.defaultOutputDevice];
+//    [self configureMenuItem:[menu itemAtIndex:0] withDevice:AudioDeviceManager.sharedInstance.defaultOutputDevice];
 
-    int i = 2;
+    int i = 0;
     for (AudioDevice *device in devices) {
         item = [menu itemAtIndex:i];
         [self configureMenuItem:item withDevice:device];
@@ -52,15 +52,14 @@
 - (void)configureMenuItem:(NSMenuItem *)item withDevice:(AudioDevice *)device {
 
     BOOL isRequestedDevice = self.audioPlayer.currentlyRequestedAudioDeviceId == device.deviceId;
-    BOOL isSystemDefaultDevice = AudioDeviceManager.sharedInstance.defaultOutputDeviceId == device.deviceId;
+//    BOOL isSystemDefaultDevice = AudioDeviceManager.sharedInstance.defaultOutputDeviceId == device.deviceId;
 
-    //    item.title = [NSString stringWithFormat:@"%@ (%@)", device.name, @(device.deviceId)];
     item.title = [NSString stringWithFormat:@"%@", device.name];
     item.tag = device.deviceId;
 
     item.state = StateForBOOL(isRequestedDevice);
 
-    if (isSystemDefaultDevice && !isRequestedDevice) {
+    if (device.isSystemDefault && !isRequestedDevice) {
         if (self.audioPlayer.currentlyRequestedAudioDeviceId != -1) {
             item.offStateImage = [NSImage imageNamed:@"icon-system-output"];
         }
@@ -83,7 +82,7 @@
 }
 
 - (NSInteger)numberOfItemsInMenu:(NSMenu *)menu {
-    return AudioDeviceManager.sharedInstance.numOutputDevices + 2 + 2;
+    return AudioDeviceManager.sharedInstance.numOutputDevices;
 }
 
 - (BOOL)menuHasKeyEquivalent:(NSMenu *)menu forEvent:(NSEvent *)event target:(_Nullable id *_Nonnull)target action:(_Nullable SEL *_Nonnull)action {

@@ -13,17 +13,17 @@
 
 AudioWaveform::AudioWaveform() {
     numChunks = NUM_CHUNKS;
-    chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
+    this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
 }
 
 AudioWaveform::AudioWaveform(NSUInteger numChunks, const void* chunks) {
     this->numChunks = numChunks;
-    chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
+    this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
     memcpy(this->chunks, chunks, this->getNumBytes());
 }
 
 AudioWaveform::~AudioWaveform() {
-    free(chunks);
+    free(this->chunks);
 }
 
 AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInteger size)  {
