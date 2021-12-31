@@ -11,6 +11,7 @@
 #include <mpegfile.h>
 #include <mp4file.h>
 #include <flacfile.h>
+#include <oggfile.h>
 #include <id3v2tag.h>
 #include <attachedpictureframe.h>
 #include <aifffile.h>
@@ -23,6 +24,9 @@
     [coder encodeObject:self.title forKey:@"title"];
     [coder encodeObject:self.artist forKey:@"artist"];
     [coder encodeObject:self.albumArt forKey:@"albumArt"];
+    [coder encodeObject:self.fileType forKey:@"fileType"];
+    [coder encodeObject:self.bitrate forKey:@"bitrate"];
+    [coder encodeObject:self.sampleRate forKey:@"sampleRate"];
 }
 
 - (instancetype)initWithCoder:(NSCoder *)coder {
@@ -31,6 +35,9 @@
         self.title = [coder decodeObjectForKey:@"title"];
         self.artist = [coder decodeObjectForKey:@"artist"];
         self.albumArt = [coder decodeObjectForKey:@"albumArt"];
+        self.fileType = [coder decodeObjectForKey:@"fileType"];
+        self.bitrate = [coder decodeObjectForKey:@"bitrate"];
+        self.sampleRate = [coder decodeObjectForKey:@"sampleRate"];
     }
     return self;
 }
@@ -74,24 +81,46 @@
             self.title = [self.title stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
             self.duration = static_cast<NSTimeInterval>(file->audioProperties()->lengthInMilliseconds()) / 1000;
 
+            self.fileType = @"";
+            self.bitrate = @(file->audioProperties()->bitrate());
+            self.sampleRate = @(file->audioProperties()->sampleRate());
+
             if (auto mp3 = dynamic_cast<TagLib::MPEG::File*>(file)) {
+                self.fileType = FILETYPE_MP3;
                 self.albumArt = [self getAlbumArtMP3:mp3];
             }
             else if (auto flac = dynamic_cast<TagLib::FLAC::File*>(file)) {
+                self.fileType = FILETYPE_FLAC;
                 self.albumArt = [self getAlbumArtFLAC:flac];
             }
             else if (auto mp4 = dynamic_cast<TagLib::MP4::File*>(file)) {
+                self.fileType = FILETYPE_MP4;
                 self.albumArt = [self getAlbumArtMP4:mp4];
             }
             else if (auto aiff = dynamic_cast<TagLib::RIFF::AIFF::File*>(file)) {
+                self.fileType = FILETYPE_AIFF;
                 self.albumArt = [self getAlbumArtAIFF:aiff];
             }
             else if (auto wav = dynamic_cast<TagLib::RIFF::WAV::File*>(file)) {
+                self.fileType = FILETYPE_WAV;
                 self.albumArt = [self getAlbumArtWAV:wav];
+            }
+            else if (auto ogg = dynamic_cast<TagLib::Ogg::File*>(file)) {
+                self.fileType = FILETYPE_OGG;
+                self.albumArt = [self getAlbumArtOgg:ogg];
             }
         }
     }
+}
 
+- (bool)isLossless {
+    if ([FILETYPE_MP3 isEqualToString:self.fileType]) return NO;
+    if ([FILETYPE_FLAC isEqualToString:self.fileType]) return YES;
+    if ([FILETYPE_MP4 isEqualToString:self.fileType]) return NO;
+    if ([FILETYPE_AIFF isEqualToString:self.fileType]) return YES;
+    if ([FILETYPE_WAV isEqualToString:self.fileType]) return YES;
+    if ([FILETYPE_OGG isEqualToString:self.fileType]) return NO;
+    return NO;
 }
 
 - (NSImage *)getAlbumArtMP4:(TagLib::MP4::File *)mp4File {
@@ -150,6 +179,13 @@
         NSData *data = [[NSData alloc] initWithBytes:bytes.data() length:bytes.size()];
         return [[NSImage alloc] initWithData:data];
     }
+    return nil;
+}
+
+- (NSImage *)getAlbumArtOgg:(TagLib::Ogg::File *)oggFile {
+//    if (aiffFile->hasID3v2Tag()) {
+//        return [self getAlbumArtID3v2:aiffFile->tag()];
+//    }
     return nil;
 }
 

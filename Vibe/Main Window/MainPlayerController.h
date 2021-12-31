@@ -32,6 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (weak) IBOutlet SYFlatButton *nextButton;
 @property (weak) IBOutlet SYFlatButton *playButton;
+@property (weak) IBOutlet SYFlatButton *closeButton;
 
 @property (weak) IBOutlet NSTableView *playlistTableView;
 @property (weak) IBOutlet NSTextField *artistTextField;
@@ -40,6 +41,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (weak) IBOutlet AudioWaveformView *waveformView;
 @property (weak) IBOutlet NSTextField *totalTimeTextField;
 @property (weak) IBOutlet NSTextField *currentTimeTextField;
+@property (weak) IBOutlet NSTextField *fileMetadataTextField;
 @property (weak) IBOutlet NSView *albumArtGradientView;
 
 @property (weak) IBOutlet OutputDevicesMenuController *devicesMenuController;
@@ -53,9 +55,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)play:(NSArray<NSURL *> *)urls;
 - (void)playURL:(NSURL *)url;
 
+- (IBAction)closeApp:(id)sender;
 
 - (IBAction)playPause:(id)sender;
 - (IBAction)next:(id)sender;
+- (IBAction)previous:(id)sender;
 
 - (IBAction)setSmallSize:(id)sender;
 - (IBAction)setLargeSize:(id)sender;
