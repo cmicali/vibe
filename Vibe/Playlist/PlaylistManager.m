@@ -147,6 +147,16 @@
     return NO;
 }
 
+- (BOOL)previous {
+    if (self.currentIndex > 0) {
+        self.currentIndex -= 1;
+        [self reloadTrackAtIndex:self.currentIndex - 1];
+        [self play];
+        return YES;
+    }
+    return NO;
+}
+
 - (void)doubleClick:(id)doubleClick {
     NSUInteger previousIndex = self.currentIndex;
     self.currentIndex = (NSUInteger) [_tableView clickedRow];

@@ -26,6 +26,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)play:(NSArray<NSURL *> *)urls;
 - (BOOL)next;
 
+- (BOOL)previous;
+
 - (AudioTrack * _Nullable)currentTrack;
 - (NSUInteger)count;
 

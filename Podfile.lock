@@ -1,7 +1,7 @@
 PODS:
-  - CocoaLumberjack (3.7.2):
-    - CocoaLumberjack/Core (= 3.7.2)
-  - CocoaLumberjack/Core (3.7.2)
+  - CocoaLumberjack (3.7.4):
+    - CocoaLumberjack/Core (= 3.7.4)
+  - CocoaLumberjack/Core (3.7.4)
   - PINCache (3.0.3):
     - PINCache/Arc-exception-safe (= 3.0.3)
     - PINCache/Core (= 3.0.3)
@@ -34,11 +34,11 @@ CHECKOUT OPTIONS:
     :tag: '1.12'
 
 SPEC CHECKSUMS:
-  CocoaLumberjack: b7e05132ff94f6ae4dfa9d5bce9141893a21d9da
+  CocoaLumberjack: 543c79c114dadc3b1aba95641d8738b06b05b646
   PINCache: 7a8fc1a691173d21dbddbf86cd515de6efa55086
   PINOperation: 00c935935f1e8cf0d1e2d6b542e75b88fc3e5e20
   taglib-pod: 77fab2cfc25f360c842c23e67d47cfb68d1b649c
 
-PODFILE CHECKSUM: 2c546ca62404c33f22f48497cfd7b774c65bacda
+PODFILE CHECKSUM: febde2eae3bd3268b07c20322037cb982d34e1a3
 
 COCOAPODS: 1.8.4

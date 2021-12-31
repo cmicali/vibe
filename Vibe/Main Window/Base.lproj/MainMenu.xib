@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="15702" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" customObjectInstantitationMethod="direct">
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="19529" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" customObjectInstantitationMethod="direct">
     <dependencies>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="15702"/>
+        <deployment identifier="macosx"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="19529"/>
     </dependencies>
     <objects>
         <customObject id="-2" userLabel="File's Owner" customClass="NSApplication">
@@ -110,8 +111,11 @@
                                     <action selector="playPause:" target="j8i-XM-36F" id="f2G-aH-DwM"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="Previous Track" hidden="YES" keyEquivalent="p" id="Lle-qZ-BNp">
+                            <menuItem title="Previous Track" keyEquivalent="b" id="Lle-qZ-BNp">
                                 <modifierMask key="keyEquivalentModifierMask"/>
+                                <connections>
+                                    <action selector="previous:" target="j8i-XM-36F" id="k5G-xs-WQF"/>
+                                </connections>
                             </menuItem>
                             <menuItem title="Next Track" keyEquivalent="n" identifier="menu_next_track" id="cK4-Rv-Q4U">
                                 <modifierMask key="keyEquivalentModifierMask"/>
