@@ -112,6 +112,17 @@
     self.albumArtImageView.layer.masksToBounds = NO;
     self.albumArtImageView.layer.shouldRasterize = true;
     self.albumArtImageView.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
+
+    self.fileMetadataTextField.wantsLayer = YES;
+    self.fileMetadataTextField.layer.shadowColor = NSColor.blackColor.CGColor;
+    self.fileMetadataTextField.layer.shadowRadius = 0.25;
+    self.fileMetadataTextField.layer.shadowOpacity = 0.75;
+    self.fileMetadataTextField.layer.shadowOffset = CGSizeMake(0, -1);
+    self.fileMetadataTextField.layer.masksToBounds = NO;
+    self.fileMetadataTextField.layer.shouldRasterize = true;
+    self.fileMetadataTextField.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
+    self.fileMetadataTextField.font = [Fonts fontForNumbers:self.totalTimeTextField.font.pointSize bold:NO];
+
 //
 //    if ([MacOSUtil isDarkMode:self.window.appearance]) {
 //        self.playlistTableView.backgroundColor = [NSColor colorWithRed:0.1 green:0.1 blue:0.1 alpha:1];
@@ -183,12 +194,30 @@
             self.titleTextField.stringValue = track.singleLineTitle;
         }
         self.totalTimeTextField.stringValue = [[Formatters sharedInstance] durationStringFromTimeInterval:self.audioPlayer.duration];
+        if (track.metadata.fileType) {
+            NSString *bitrate = @"";
+            if (!track.metadata.isLossless) {
+                bitrate = [NSString stringWithFormat:@"%@ kbps | ", track.metadata.bitrate];
+            }
+            NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
+            paragraph.alignment = NSTextAlignmentRight;
+            self.fileMetadataTextField.attributedStringValue = [[NSMutableAttributedString alloc] initWithString:
+                                                                [NSString stringWithFormat:@"%@ | %@%.1f kHz", track.metadata.fileType, bitrate, ([track.metadata.sampleRate doubleValue]/1000)]
+                                                                                                      attributes:@{
+                                                                    NSKernAttributeName:@(-1.2),
+                                                                    NSParagraphStyleAttributeName:paragraph,
+                                                                }];
+        }
+        else {
+            self.fileMetadataTextField.stringValue = @"";
+        }
     }
     else {
         self.artistTextField.stringValue = @"";
         self.titleTextField.stringValue = @"";
         self.totalTimeTextField.stringValue = @"";
         self.currentTimeTextField.stringValue = @"";
+        self.fileMetadataTextField.stringValue = @"";
     }
 
     self.albumArtImageView.fileURL = track.url;
@@ -254,6 +283,15 @@
 - (IBAction)next:(id)sender {
     [self.playlistManager next];
     [self updateUI];
+}
+
+- (IBAction)previous:(id)sender {
+    [self.playlistManager previous];
+    [self updateUI];
+}
+
+- (IBAction)closeApp:(id)sender {
+    [self close];
 }
 
 - (void)mainWindow:(MainWindow *)mainWindow filesDropped:urls {
