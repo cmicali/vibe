@@ -5,7 +5,7 @@
 
 #import <Foundation/Foundation.h>
 
-#define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"Vibe Default"
+#define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"Oversampling Detailed x4"
 
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT     @""
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT       @"light"
