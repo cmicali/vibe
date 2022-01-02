@@ -40,7 +40,7 @@
     NSDictionary *appDefaults = @{
             SETTING_AUDIO_PLAYER_DEVICE_NAME:       @"",
             SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE:  @(NO),
-            SETTING_WINDOW_APPEARANCE_STYLE:        SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT,
+            SETTING_WINDOW_APPEARANCE_STYLE:        SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK,
             SETTING_WAVEFORM_STYLE:                 SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT
     };
     [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
