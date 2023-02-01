@@ -29,7 +29,7 @@
             <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES" fullSizeContentView="YES"/>
             <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
             <rect key="contentRect" x="206" y="444" width="680" height="350"/>
-            <rect key="screenRect" x="0.0" y="0.0" width="1920" height="1055"/>
+            <rect key="screenRect" x="0.0" y="0.0" width="1344" height="815"/>
             <value key="minSize" type="size" width="680" height="150"/>
             <value key="maxSize" type="size" width="680" height="600"/>
             <view key="contentView" focusRingType="none" id="se5-gp-TjO">
