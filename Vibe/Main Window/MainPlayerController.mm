@@ -150,10 +150,11 @@
     [self.playlistTableView reloadData];
     [self updateUI];
 
+    [self configureTrackingArea];
+    
     [NSApp activateIgnoringOtherApps:YES];
 
 }
-
 
 - (void)pauseUIUpdateTimer {
     if (_timerRunning) {
