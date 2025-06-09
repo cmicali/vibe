@@ -10,6 +10,8 @@
 
 #pragma mark - Waveform Cache
 
+#define WAVEFORM_CACHE_ENABLED 1
+
 @interface AudioWaveformCache () <AudioWaveformLoaderDelegate>
 @end
 
@@ -30,7 +32,9 @@
         _waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
         _normalize = NO;
         _currentLoader = nil;
-        // [self invalidate];
+        if (!WAVEFORM_CACHE_ENABLED) {
+            [self invalidate];
+        }
     }
     return self;
 }
@@ -51,7 +55,10 @@
 - (void)load:(AudioTrack *)track withLoader:(AudioWaveformLoader *)loader {
     NSString *cacheKey = track.calculateFileHash;
     AudioWaveform *waveform;
-    CodableAudioWaveform *cachedWaveform = [self->_waveformCache objectForKey:cacheKey];
+    CodableAudioWaveform *cachedWaveform;
+    if (WAVEFORM_CACHE_ENABLED) {
+        cachedWaveform = [self->_waveformCache objectForKey:cacheKey];
+    }
     if (cachedWaveform) {
         waveform = cachedWaveform.waveform;
     }
@@ -61,8 +68,10 @@
             if (_normalize) {
                 waveform->normalize();
             }
-            cachedWaveform = [[CodableAudioWaveform alloc] initWithWaveform:waveform];
-            [self->_waveformCache setObject:cachedWaveform forKey:cacheKey];
+            if (WAVEFORM_CACHE_ENABLED) {
+                cachedWaveform = [[CodableAudioWaveform alloc] initWithWaveform:waveform];
+                [self->_waveformCache setObject:cachedWaveform forKey:cacheKey];
+            }
         }
     }
     if (!loader.isCancelled) {
@@ -75,7 +84,9 @@
 }
 
 - (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded {
-    [self.delegate audioWaveform:waveform didLoadData:percentLoaded];
+    if (!loader.isCancelled) {
+        [self.delegate audioWaveform:waveform didLoadData:percentLoaded];
+    }
 }
 
 @end

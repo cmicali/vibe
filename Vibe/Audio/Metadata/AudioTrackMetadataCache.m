@@ -8,6 +8,8 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 
+#define METADATA_CACHE_ENABELD 1
+
 @interface AudioTrackMetadataLoader : NSObject
 
 @property (atomic) BOOL isFinished;
@@ -38,14 +40,19 @@
     for (NSUInteger i = 0; i < tracks.count && !self.isCancelled; ++i) {
         AudioTrack *track = tracks[i];
         if (!track.metadata) {
-            NSString *cacheKey = track.url.path;
-            AudioTrackMetadata *cachedMetaData = [_metadataCache objectForKey:cacheKey];
+            NSString *cacheKey = track.calculateFileHash; // track.url.path;
+            AudioTrackMetadata *cachedMetaData;
+            if (METADATA_CACHE_ENABELD) {
+                cachedMetaData = [_metadataCache objectForKey:cacheKey];
+            }
             if (cachedMetaData) {
                 track.metadata = cachedMetaData;
             }
             else {
                 track.metadata = [AudioTrackMetadata metadataWithURL:track.url];
-                [_metadataCache setObject:track.metadata forKey:cacheKey];
+                if (METADATA_CACHE_ENABELD) {
+                    [_metadataCache setObject:track.metadata forKey:cacheKey];
+                }
             }
         }
         if (track.metadata && !self.isCancelled) {
@@ -78,7 +85,9 @@
         _metadataCache = [[PINCache alloc] initWithName:@"Audio Track Metadata"];
         _metadataCache.diskCache.byteLimit = 64 * 1024 * 1024;
         _metadataCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
-//        [self invalidate];
+        if (!METADATA_CACHE_ENABELD) {
+            [self invalidate];
+        }
     }
     return self;
 }

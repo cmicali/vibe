@@ -4,7 +4,6 @@
 //
 
 #import "AudioWaveform.h"
-#include <algorithm>
 
 #define NUM_CHUNKS     4096*2
 
@@ -20,6 +19,7 @@ AudioWaveform::AudioWaveform(NSUInteger numChunks, const void* chunks) {
     this->numChunks = numChunks;
     this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
     memcpy(this->chunks, chunks, this->getNumBytes());
+    
 }
 
 AudioWaveform::~AudioWaveform() {
@@ -76,12 +76,6 @@ void AudioWaveform::normalize() {
         self.waveform = new AudioWaveform(numChunks, data);
     }
     return self;
-}
-
-- (void)dealloc {
-    if (self.waveform) {
-        free(self.waveform);
-    }
 }
 
 - (id)initWithWaveform:(AudioWaveform *)waveform {
