@@ -11,9 +11,9 @@
 #define min(a, b) (b < a ? b : a)
 #define max(a, b) (a < b ? b : a)
 
-#define clampMax(v, max) (v > max ? max : v)
+// #define clampMax(v, max) (v > max ? max : v)
 #define clampMin(v, min) (v < min ? min : v)
-#define clamp(v, min, max) clampMin(clampMax(v, max), min)
+// #define clamp(v, min, max) clampMin(clampMax(v, max), min)
 
 #define TIME_START(msg) CFTimeInterval startTime = CACurrentMediaTime(); CFTimeInterval endTime; NSString *timer_msg = msg;
 #define TIME_RESTART(msg) startTime = CACurrentMediaTime(); timer_msg = msg;

@@ -30,7 +30,7 @@
 }
 + (void)rampVolumeToZero:(HCHANNEL)channel async:(BOOL)async {
     if (channel) {
-        BASS_ChannelSlideAttribute(channel, BASS_ATTRIB_VOL | BASS_SLIDE_LOG, 0, 1000);
+        BASS_ChannelSlideAttribute(channel, BASS_ATTRIB_VOL | BASS_SLIDE_LOG, 0, 100);
         if (!async) {
             [self waitForChannelSlide:channel attribute:BASS_ATTRIB_VOL];
         }

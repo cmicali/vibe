@@ -134,6 +134,7 @@
     self.waveformView.delegate = self;
     self.waveformView.waveformStyle = Settings.waveformStyle;
 
+    // self.playlistTableView
     self.playlistTableView.delegate = self.self.playlistManager;
     self.playlistTableView.dataSource = self.self.playlistManager;
 
@@ -150,7 +151,7 @@
     [self.playlistTableView reloadData];
     [self updateUI];
 
-    [self configureTrackingArea];
+    // [self configureTrackingArea];
     
     [NSApp activateIgnoringOtherApps:YES];
 

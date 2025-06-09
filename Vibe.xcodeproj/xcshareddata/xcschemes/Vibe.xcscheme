@@ -10,7 +10,7 @@
             ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
             <ActionContent
                title = "Run Script"
-               scriptText = "# Type a script or drag a script file from your workspace to insert its path.&#10;currentNumber=$(/usr/libexec/PlistBuddy -c &quot;Print :CFBundleVersion&quot; &quot;$PRODUCT_SETTINGS_PATH&quot;)&#10;if [ &quot;$buildNumber&quot; -ne &quot;$currentNumber&quot; ] ; then&#10;  /usr/libexec/PlistBuddy -c &quot;Set :CFBundleVersion $buildNumber&quot; &quot;$PRODUCT_SETTINGS_PATH&quot;&#10;fi &quot;${PROJECT_DIR}/${INFOPLIST_FILE}&quot;&#10;">
+               scriptText = "# Type a script or drag a script file from your workspace to insert its path.&#10;currentNumber=$(/usr/libexec/PlistBuddy -c &quot;Print :CFBundleVersion&quot; &quot;$PRODUCT_SETTINGS_PATH&quot;)&#10;if [ &quot;$buildNumber&quot; -ne &quot;$currentNumber&quot; ] ; then&#10;  /usr/libexec/PlistBuddy -c &quot;Set :CFBundleVersion $buildNumber&quot; &quot;$PRODUCT_SETTINGS_PATH&quot;&#10;fi # &quot;${PROJECT_DIR}/${INFOPLIST_FILE}&quot;&#10;">
                <EnvironmentBuildable>
                   <BuildableReference
                      BuildableIdentifier = "primary"

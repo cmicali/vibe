@@ -1,7 +1,7 @@
 PODS:
-  - CocoaLumberjack (3.7.4):
-    - CocoaLumberjack/Core (= 3.7.4)
-  - CocoaLumberjack/Core (3.7.4)
+  - CocoaLumberjack (3.8.5):
+    - CocoaLumberjack/Core (= 3.8.5)
+  - CocoaLumberjack/Core (3.8.5)
   - PINCache (3.0.3):
     - PINCache/Arc-exception-safe (= 3.0.3)
     - PINCache/Core (= 3.0.3)
@@ -9,13 +9,13 @@ PODS:
     - PINCache/Core
   - PINCache/Core (3.0.3):
     - PINOperation (~> 1.2.1)
-  - PINOperation (1.2.1)
-  - taglib-pod (1.12)
+  - PINOperation (1.2.3)
+  - taglib-pod (2.1)
 
 DEPENDENCIES:
   - CocoaLumberjack
   - PINCache
-  - taglib-pod (from `https://github.com/cmicali/taglib-pod.git`, tag `1.12`)
+  - taglib-pod (from `https://github.com/cmicali/taglib-pod.git`, tag `2.1`)
 
 SPEC REPOS:
   trunk:
@@ -26,19 +26,19 @@ SPEC REPOS:
 EXTERNAL SOURCES:
   taglib-pod:
     :git: https://github.com/cmicali/taglib-pod.git
-    :tag: '1.12'
+    :tag: '2.1'
 
 CHECKOUT OPTIONS:
   taglib-pod:
     :git: https://github.com/cmicali/taglib-pod.git
-    :tag: '1.12'
+    :tag: '2.1'
 
 SPEC CHECKSUMS:
-  CocoaLumberjack: 543c79c114dadc3b1aba95641d8738b06b05b646
+  CocoaLumberjack: 6a459bc897d6d80bd1b8c78482ec7ad05dffc3f0
   PINCache: 7a8fc1a691173d21dbddbf86cd515de6efa55086
-  PINOperation: 00c935935f1e8cf0d1e2d6b542e75b88fc3e5e20
-  taglib-pod: 77fab2cfc25f360c842c23e67d47cfb68d1b649c
+  PINOperation: fb563bcc9c32c26d6c78aaff967d405aa2ee74a7
+  taglib-pod: 8524fd1d05610b2a3e362cb581c3d0d5648a0ec3
 
-PODFILE CHECKSUM: febde2eae3bd3268b07c20322037cb982d34e1a3
+PODFILE CHECKSUM: 46463d599acb459c73c1a63f7694b9e98a4bd64a
 
-COCOAPODS: 1.11.2
+COCOAPODS: 1.16.2

@@ -31,7 +31,7 @@
     self.opaque = NO;
 
     self.contentView.wantsLayer = YES;
-    self.contentView.layer.cornerRadius = 5;
+    self.contentView.layer.cornerRadius = 15;
     self.contentView.layer.borderColor = [NSColor.blackColor colorWithAlphaComponent:0.5].CGColor;
     self.contentView.layer.borderWidth = 1;
 

@@ -63,25 +63,24 @@
 
     const char *filename = [url.path UTF8String];
 
-    auto fileRef = std::unique_ptr<TagLib::FileRef>();
-    fileRef.reset(new TagLib::FileRef(filename, true));
+    TagLib::FileRef fileRef(filename);
 
     self.title = [url.path.lastPathComponent stringByDeletingPathExtension];
     self.title = [self.title stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 
-    if (!fileRef->isNull()) {
-        if (fileRef->tag()) {
+    if (!fileRef.isNull()) {
+        if (fileRef.tag()) {
 
-            TagLib::Tag *tag = fileRef->tag();
-            TagLib::File *file = fileRef->file();
-
-            self.artist = [NSString stringWithstring:tag->artist().to8Bit(true)];
-            self.artist = [self.artist stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-            self.title = [NSString stringWithstring:tag->title().to8Bit(true)];
-            self.title = [self.title stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-            self.duration = static_cast<NSTimeInterval>(file->audioProperties()->lengthInMilliseconds()) / 1000;
+            TagLib::Tag *tag = fileRef.tag();
 
             self.fileType = @"";
+            
+            self.artist = [[NSString stringWithstring:tag->artist().to8Bit(true)] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            self.title = [[NSString stringWithstring:tag->title().to8Bit(true)] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            
+            TagLib::File *file = fileRef.file();
+
+            self.duration = static_cast<NSTimeInterval>(file->audioProperties()->lengthInMilliseconds()) / 1000;
             self.bitrate = @(file->audioProperties()->bitrate());
             self.sampleRate = @(file->audioProperties()->sampleRate());
 
@@ -166,7 +165,7 @@
 
 - (NSImage *)getAlbumArtWAV:(TagLib::RIFF::WAV::File *)wavFile {
     if (wavFile->hasID3v2Tag()) {
-        return [self getAlbumArtID3v2:wavFile->tag()];
+        return [self getAlbumArtID3v2:wavFile->ID3v2Tag()];
     }
     return nil;
 }

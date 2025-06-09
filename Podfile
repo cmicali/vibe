@@ -6,7 +6,7 @@ target 'Vibe' do
   platform :osx, '10.15'
 
   pod 'CocoaLumberjack'
-  pod 'taglib-pod', :git => 'https://github.com/cmicali/taglib-pod.git', :tag => '1.12'
-  pod 'PINCache'
+  pod 'taglib-pod', :git => 'https://github.com/cmicali/taglib-pod.git', :tag => '2.1'
+  pod 'PINCache' #, '3.0.3'
 
 end

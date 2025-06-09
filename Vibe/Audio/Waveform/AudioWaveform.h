@@ -65,7 +65,7 @@ public:
 
     inline NSUInteger getNumChunks() { return this->numChunks; }
     inline const void* getBytes() { return (const void *)&chunks[0]; }
-    inline  NSUInteger getNumBytes() { return this->numChunks * sizeof(AudioWaveformCacheChunk); }
+    inline NSUInteger getNumBytes() { return this->numChunks * sizeof(AudioWaveformCacheChunk); }
 
 private:
     NSUInteger numChunks;
