@@ -19,6 +19,7 @@
 
 @class OutputDevicesMenuController;
 @class ArtworkImageView;
+@class BackgroundArtworkImageView;
 @class AudioTrackMetadataCache;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -39,6 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (weak) IBOutlet NSTextField *artistTextField;
 @property (weak) IBOutlet NSTextField *titleTextField;
 @property (weak) IBOutlet ArtworkImageView *albumArtImageView;
+@property (weak) IBOutlet BackgroundArtworkImageView *backgroundAlbumArtImageView;
 @property (weak) IBOutlet AudioWaveformView *waveformView;
 @property (weak) IBOutlet NSTextField *totalTimeTextField;
 @property (weak) IBOutlet NSTextField *currentTimeTextField;

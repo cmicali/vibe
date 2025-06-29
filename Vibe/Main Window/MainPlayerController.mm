@@ -13,6 +13,7 @@
 #import "Formatters.h"
 #import "Fonts.h"
 #import "ArtworkImageView.h"
+#import "BackgroundArtworkImageView.h"
 #import "AudioDeviceManager.h"
 
 #define UPDATE_HZ 3
@@ -112,6 +113,11 @@
     self.albumArtImageView.layer.masksToBounds = NO;
     self.albumArtImageView.layer.shouldRasterize = true;
     self.albumArtImageView.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
+
+    self.backgroundAlbumArtImageView.wantsLayer = YES;
+    self.backgroundAlbumArtImageView.layer.masksToBounds = NO;
+    self.backgroundAlbumArtImageView.layer.shouldRasterize = true;
+    self.backgroundAlbumArtImageView.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
 
     self.fileMetadataTextField.wantsLayer = YES;
     self.fileMetadataTextField.layer.shadowColor = NSColor.blackColor.CGColor;
@@ -227,6 +233,7 @@
     if (track.albumArt) {
         if (_displayedArt != track.albumArt) {
             self.albumArtImageView.image = track.albumArt;
+            self.backgroundAlbumArtImageView.image = track.albumArt;
             [NSDockTile setDockIcon:self.playlistManager.currentTrack.albumArt];
             _displayedArt = track.albumArt;
         }
@@ -234,6 +241,7 @@
     else {
         if (_displayedArt) {
             self.albumArtImageView.image = [NSImage imageNamed:@"record"];
+            self.backgroundAlbumArtImageView.image = [NSImage imageNamed:@"record"];
             [NSDockTile resetToAppIcon];
             _displayedArt = nil;
         }
