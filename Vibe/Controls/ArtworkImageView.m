@@ -29,6 +29,15 @@
     [self unregisterDraggedTypes];
 }
 
+- (BOOL)mouseDownCanMoveWindow {
+    if (!self.fileURL) {
+        return YES;
+    }
+    else {
+        return NO;
+    }
+}
+
 - (void)mouseDown:(NSEvent *)event {
 
     if (!self.fileURL) {
