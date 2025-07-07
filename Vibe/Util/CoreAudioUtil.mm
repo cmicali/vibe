@@ -21,9 +21,9 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
 
 + (void)listenForSystemOutputDeviceChanges:(id<CoreAudioSystemOutputDeviceDelegate>)delegate {
     CFRunLoopRef nullRunLoop =  NULL;
-    AudioObjectPropertyAddress runLoopProperty = { kAudioHardwarePropertyRunLoop, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster };
+    AudioObjectPropertyAddress runLoopProperty = { kAudioHardwarePropertyRunLoop, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
     AudioObjectSetPropertyData(kAudioObjectSystemObject, &runLoopProperty, 0, NULL, sizeof(CFRunLoopRef), &nullRunLoop);
-    AudioObjectPropertyAddress outputDeviceAddress = { kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster };
+    AudioObjectPropertyAddress outputDeviceAddress = { kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
     AudioObjectAddPropertyListener(kAudioObjectSystemObject, &outputDeviceAddress, &outputDeviceChangedCallback, (__bridge void *)delegate);
 }
 
@@ -33,7 +33,7 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
     AudioObjectPropertyAddress property_address = {
             kAudioHardwarePropertyDevices,
             kAudioObjectPropertyScopeGlobal,
-            kAudioObjectPropertyElementMaster
+            kAudioObjectPropertyElementMain
     };
     AudioDeviceID audio_device_id = kAudioObjectUnknown;
     UInt32 device_size = sizeof(audio_device_id);
@@ -59,7 +59,7 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
 
 + (NSMutableArray<NSNumber *>*) supportedSampleRatesForAudioDeviceId:(AudioDeviceID)did {
     UInt32 s;
-    AudioObjectPropertyAddress pa={kAudioDevicePropertyAvailableNominalSampleRates, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster};
+    AudioObjectPropertyAddress pa={kAudioDevicePropertyAvailableNominalSampleRates, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
     AudioObjectGetPropertyDataSize(did, &pa, 0, NULL, &s); // get size of available sample rates array
     AudioValueRange *vr = new AudioValueRange[s/sizeof(AudioValueRange)]; // allocate it
     AudioObjectGetPropertyData(did, &pa, 0, NULL, &s, vr); // get the available sample rates

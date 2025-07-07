@@ -140,10 +140,16 @@
     self.waveformView.delegate = self;
     self.waveformView.waveformStyle = Settings.waveformStyle;
 
-    // self.playlistTableView
+    NSScrollView *playlistScrollView = self.playlistTableView.enclosingScrollView;
     self.playlistTableView.delegate = self.self.playlistManager;
     self.playlistTableView.dataSource = self.self.playlistManager;
-
+    self.playlistTableView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.playlistTableView.intercellSpacing = NSMakeSize(0, 0);
+    
+    playlistScrollView.automaticallyAdjustsContentInsets = NO;
+    playlistScrollView.contentInsets = NSEdgeInsetsZero;
+    
+    
     MainWindow *window = (MainWindow *)self.window;
     window.dropDelegate = self;
 
