@@ -17,8 +17,8 @@
 
 NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat size) {
     
-    CGFloat cornerRadius = size * 0.18;
-    CGFloat borderWidth = 12.0;
+    CGFloat cornerRadius = size * 0.26;
+    CGFloat borderWidth = 0;//24;//12.0;
     CGFloat shadowBlur = size * 0.06;
     CGFloat shadowOffsetY = -size * 0.03;
 

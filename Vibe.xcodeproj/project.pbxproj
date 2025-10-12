@@ -53,6 +53,7 @@
 		34FF4F37386022BD3B0B511B /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4E1DD78AC461983E62F6 /* AppDelegate.mm */; };
 		9435FB41B386C06179B65314 /* Pods_Vibe.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E2C73920E9C44F4AF69315C9 /* Pods_Vibe.framework */; };
 		B63DAE6A2E117B8D00A52B03 /* BackgroundArtworkImageView.m in Sources */ = {isa = PBXBuildFile; fileRef = B63DAE692E117B8900A52B03 /* BackgroundArtworkImageView.m */; };
+		B63FB1E62E831C690026C028 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = B63FB1E52E831C690026C028 /* AppIcon.icon */; };
 		B654E8BC23C7725A009DE809 /* equi-white.gif in Resources */ = {isa = PBXBuildFile; fileRef = B654E8BA23C7725A009DE809 /* equi-white.gif */; };
 		B654E8BD23C7725A009DE809 /* equi-black.gif in Resources */ = {isa = PBXBuildFile; fileRef = B654E8BB23C7725A009DE809 /* equi-black.gif */; };
 		B660F21A23A6B8C600BBD9C8 /* MainPlayerController.mm in Sources */ = {isa = PBXBuildFile; fileRef = B660F21823A6B8C600BBD9C8 /* MainPlayerController.mm */; };
@@ -181,6 +182,7 @@
 		39F5AFF5F50C33BBB667F716 /* Pods-Vibe.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Vibe.debug.xcconfig"; path = "Target Support Files/Pods-Vibe/Pods-Vibe.debug.xcconfig"; sourceTree = "<group>"; };
 		B63DAE682E117B7B00A52B03 /* BackgroundArtworkImageView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BackgroundArtworkImageView.h; sourceTree = "<group>"; };
 		B63DAE692E117B8900A52B03 /* BackgroundArtworkImageView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BackgroundArtworkImageView.m; sourceTree = "<group>"; };
+		B63FB1E52E831C690026C028 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		B654886F23C78FE900A5A4FE /* AudioWaveformRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioWaveformRenderer.h; sourceTree = "<group>"; };
 		B654E8BA23C7725A009DE809 /* equi-white.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; path = "equi-white.gif"; sourceTree = "<group>"; };
 		B654E8BB23C7725A009DE809 /* equi-black.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; path = "equi-black.gif"; sourceTree = "<group>"; };
@@ -424,6 +426,7 @@
 				B654E8BB23C7725A009DE809 /* equi-black.gif */,
 				B654E8BA23C7725A009DE809 /* equi-white.gif */,
 				B6E7883723A562380035BCD0 /* Assets.xcassets */,
+				B63FB1E52E831C690026C028 /* AppIcon.icon */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -519,7 +522,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1640;
+				LastUpgradeCheck = 2600;
 				ORGANIZATIONNAME = "Christopher Micali";
 				TargetAttributes = {
 					B6E7883023A562360035BCD0 = {
@@ -556,6 +559,7 @@
 				B654E8BD23C7725A009DE809 /* equi-black.gif in Resources */,
 				B6E7883B23A562380035BCD0 /* MainMenu.xib in Resources */,
 				B660F21B23A6B8C600BBD9C8 /* MainPlayerWindow.xib in Resources */,
+				B63FB1E62E831C690026C028 /* AppIcon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -758,6 +762,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = "-headerpad_max_install_names";
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 			};
 			name = Debug;
 		};
@@ -817,6 +822,7 @@
 				MTL_FAST_MATH = YES;
 				OTHER_LDFLAGS = "-headerpad_max_install_names";
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 			};
 			name = Release;
 		};
@@ -833,8 +839,11 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 10;
 				DEAD_CODE_STRIPPING = YES;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				EXCLUDED_ARCHS = "";
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
@@ -853,7 +862,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/Libraries/bass",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.commonwealthrecordings.Vibe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -877,8 +886,11 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 10;
 				DEAD_CODE_STRIPPING = YES;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				EXCLUDED_ARCHS = "";
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
@@ -897,7 +909,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/Libraries/bass",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.commonwealthrecordings.Vibe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
