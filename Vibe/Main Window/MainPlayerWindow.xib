@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="23727" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" customObjectInstantitationMethod="direct">
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24128" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" customObjectInstantitationMethod="direct">
     <dependencies>
-        <deployment identifier="macosx"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="23727"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24128"/>
         <capability name="Named colors" minToolsVersion="9.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
@@ -13,6 +12,7 @@
                 <outlet property="albumArtImageView" destination="tsY-dV-b1N" id="lNH-7w-yHy"/>
                 <outlet property="artistTextField" destination="mwy-gr-lMQ" id="Vks-HG-hvD"/>
                 <outlet property="backgroundAlbumArtImageView" destination="Mrc-bf-dPk" id="2nu-wg-vTE"/>
+                <outlet property="closeButton" destination="D61-p9-uXb" id="Jcz-D7-djM"/>
                 <outlet property="currentTimeTextField" destination="Z6C-PG-0nQ" id="Gmp-6V-0g2"/>
                 <outlet property="fileMetadataTextField" destination="6PQ-eV-SmD" id="vbT-ry-uG2"/>
                 <outlet property="nextButton" destination="TBc-Wp-QfZ" id="Abj-wj-TeW"/>
@@ -30,7 +30,7 @@
             <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES" fullSizeContentView="YES"/>
             <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
             <rect key="contentRect" x="206" y="444" width="680" height="350"/>
-            <rect key="screenRect" x="0.0" y="0.0" width="1312" height="818"/>
+            <rect key="screenRect" x="0.0" y="0.0" width="1312" height="821"/>
             <value key="minSize" type="size" width="680" height="150"/>
             <value key="maxSize" type="size" width="680" height="600"/>
             <view key="contentView" focusRingType="none" id="se5-gp-TjO">
@@ -58,7 +58,7 @@
                                         </configuration>
                                     </ciFilter>
                                 </contentFilters>
-                                <imageCell key="cell" focusRingType="none" alignment="left" animates="YES" image="record" id="quf-OZ-5aN"/>
+                                <imageCell key="cell" focusRingType="none" alignment="left" animates="YES" id="quf-OZ-5aN"/>
                             </imageView>
                             <customView fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="PeP-FU-qGN" customClass="AudioWaveformView">
                                 <rect key="frame" x="158" y="215" width="512" height="86"/>
@@ -67,14 +67,14 @@
                             <imageView horizontalHuggingPriority="251" verticalHuggingPriority="251" id="tsY-dV-b1N" customClass="ArtworkImageView">
                                 <rect key="frame" x="0.0" y="200" width="150" height="150"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="proportionallyUpOrDown" image="record" id="V3M-ha-yqf"/>
+                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="proportionallyUpOrDown" image="record-bg" id="V3M-ha-yqf"/>
                             </imageView>
                             <customView fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="f3F-dv-EUa">
                                 <rect key="frame" x="0.0" y="200" width="150" height="150"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                             </customView>
-                            <button alphaValue="0.5" horizontalHuggingPriority="750" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="D61-p9-uXb" customClass="SYFlatButton">
-                                <rect key="frame" x="-3" y="321" width="32" height="32"/>
+                            <button alphaValue="0.5" horizontalHuggingPriority="750" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="D61-p9-uXb" userLabel="Close Button" customClass="SYFlatButton">
+                                <rect key="frame" x="5" y="313" width="32" height="32"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="button-close" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="6Da-Na-ASj">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -117,8 +117,8 @@
                                     <action selector="closeApp:" target="-2" id="9th-FB-CCx"/>
                                 </connections>
                             </button>
-                            <button horizontalHuggingPriority="750" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="vOu-I2-fjc" customClass="SYFlatButton">
-                                <rect key="frame" x="0.0" y="200" width="50" height="50"/>
+                            <button horizontalHuggingPriority="750" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="vOu-I2-fjc" userLabel="Playlist Button" customClass="SYFlatButton">
+                                <rect key="frame" x="0.0" y="202" width="50" height="50"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="button-hamburger" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="B3C-l6-Ak6">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -164,8 +164,8 @@
                                     <action selector="toggleSize:" target="-2" id="mkl-BQ-T9G"/>
                                 </connections>
                             </button>
-                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="xlv-bC-qSf" customClass="SYFlatButton">
-                                <rect key="frame" x="50" y="200" width="50" height="50"/>
+                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="xlv-bC-qSf" userLabel="Play Button" customClass="SYFlatButton">
+                                <rect key="frame" x="50" y="203" width="50" height="50"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="button-play" imagePosition="only" alignment="center" enabled="NO" imageScaling="proportionallyDown" inset="2" id="Afe-jm-Yz9">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -211,8 +211,8 @@
                                     <action selector="playPause:" target="-2" id="tPc-nL-pmT"/>
                                 </connections>
                             </button>
-                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="TBc-Wp-QfZ" customClass="SYFlatButton">
-                                <rect key="frame" x="100" y="200" width="50" height="50"/>
+                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="TBc-Wp-QfZ" userLabel="Next Button" customClass="SYFlatButton">
+                                <rect key="frame" x="100" y="203" width="50" height="50"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="button-skip-next" imagePosition="only" alignment="center" enabled="NO" imageScaling="proportionallyDown" inset="2" id="5Pg-PK-vfj">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -489,7 +489,7 @@
         <image name="button-play" width="50" height="50"/>
         <image name="button-skip-next" width="50" height="50"/>
         <image name="equi-white" width="100" height="100"/>
-        <image name="record" width="512" height="512"/>
+        <image name="record-bg" width="512" height="512"/>
         <namedColor name="playlistBackgroundColor">
             <color red="0.73000001907348633" green="0.73000001907348633" blue="0.73000001907348633" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </namedColor>

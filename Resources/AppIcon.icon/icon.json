@@ -14,15 +14,35 @@
   ],
   "groups" : [
     {
+      "blur-material" : 0.5,
+      "layers" : [
+        {
+          "fill" : {
+            "solid" : "extended-gray:1.00000,1.00000"
+          },
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "waveform.png",
+          "name" : "waveform"
+        }
+      ],
+      "lighting" : "combined",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
       "blur-material" : null,
       "hidden" : false,
       "layers" : [
         {
-          "blend-mode" : "normal",
-          "fill" : "none",
-          "glass" : false,
-          "image-name" : "icon-1024.png",
-          "name" : "icon-1024"
+          "image-name" : "record background.png",
+          "name" : "record background"
         }
       ],
       "lighting" : "combined",
