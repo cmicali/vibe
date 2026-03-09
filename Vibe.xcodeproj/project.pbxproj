@@ -183,6 +183,8 @@
 		B63DAE682E117B7B00A52B03 /* BackgroundArtworkImageView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BackgroundArtworkImageView.h; sourceTree = "<group>"; };
 		B63DAE692E117B8900A52B03 /* BackgroundArtworkImageView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BackgroundArtworkImageView.m; sourceTree = "<group>"; };
 		B63FB1E52E831C690026C028 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		B64A90D22F5F3BEF00919E55 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = "<group>"; };
+		B64A90D32F5F3BEF00919E55 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		B654886F23C78FE900A5A4FE /* AudioWaveformRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioWaveformRenderer.h; sourceTree = "<group>"; };
 		B654E8BA23C7725A009DE809 /* equi-white.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; path = "equi-white.gif"; sourceTree = "<group>"; };
 		B654E8BB23C7725A009DE809 /* equi-black.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; path = "equi-black.gif"; sourceTree = "<group>"; };
@@ -446,6 +448,8 @@
 		B6E7882823A562360035BCD0 = {
 			isa = PBXGroup;
 			children = (
+				B64A90D22F5F3BEF00919E55 /* CLAUDE.md */,
+				B64A90D32F5F3BEF00919E55 /* README.md */,
 				B6E7883323A562360035BCD0 /* Vibe */,
 				B6E7883D23A562380035BCD0 /* main.m */,
 				B64B6A0923A6C72400B91994 /* Resources */,
