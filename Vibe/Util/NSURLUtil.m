@@ -41,7 +41,7 @@
 + (NSArray<NSURL*>*) expandAndFilterList:(NSArray<NSURL*>*)list {
     list = [NSURLUtil expandFileList:list];
     list = [list filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSURL *url, NSDictionary* bindings) {
-        return [ALLOWED_FILETYPES containsObject:[url.pathExtension lowercaseString]];
+        return [VIBE_SUPPORTED_FILETYPES containsObject:[url.pathExtension lowercaseString]];
     }]];
     return list;
 }
