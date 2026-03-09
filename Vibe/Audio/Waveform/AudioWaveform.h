@@ -3,6 +3,8 @@
 // Copyright (c) 2020 Christopher Micali. All rights reserved.
 //
 
+#include <Accelerate/Accelerate.h>
+
 struct AudioWaveformCacheChunk {
 
     inline AudioWaveformCacheChunk() noexcept { set(0, 0); }
@@ -31,19 +33,53 @@ struct AudioWaveformCacheChunk {
         if (chunk->values[1] > values[1]) values[1] = chunk->values[1];
     }
 
-    inline void mergeFromAudioBuffer(float* buffer, NSUInteger length, NSUInteger channels) {
-        for (NSUInteger i = 0; i < length; ++i) {
-            float value = 0;
-            for (NSUInteger j = 0; j < channels; j++) {
-                value += buffer[i];
-                i++;
+    inline void mergeFromAudioBuffer(float* buffer, NSUInteger numSamples, NSUInteger channels) {
+        if (numSamples == 0) return;
+        NSUInteger numFrames = numSamples / channels;
+        if (numFrames == 0) return;
+
+        float minVal, maxVal;
+
+        if (channels == 1) {
+            // Mono: min/max directly on the buffer via vDSP
+            vDSP_minv(buffer, 1, &minVal, numFrames);
+            vDSP_maxv(buffer, 1, &maxVal, numFrames);
+        } else if (channels == 2) {
+            // Stereo: average L+R using vDSP, then find min/max
+            // Use a stack buffer for small sizes, heap for large
+            constexpr NSUInteger kStackLimit = 8192;
+            float stackBuf[kStackLimit];
+            float *mono = (numFrames <= kStackLimit) ? stackBuf : (float*)malloc(numFrames * sizeof(float));
+
+            // Add left + right channels (interleaved: L0 R0 L1 R1 ...)
+            vDSP_vadd(buffer, 2, buffer + 1, 2, mono, 1, numFrames);
+            // Scale by 0.5 to average
+            float half = 0.5f;
+            vDSP_vsmul(mono, 1, &half, mono, 1, numFrames);
+
+            vDSP_minv(mono, 1, &minVal, numFrames);
+            vDSP_maxv(mono, 1, &maxVal, numFrames);
+
+            if (mono != stackBuf) free(mono);
+        } else {
+            // N-channel: sum all channels, divide by N, then find min/max
+            NSUInteger monoLen = numFrames;
+            float *mono = (float*)calloc(monoLen, sizeof(float));
+
+            for (NSUInteger ch = 0; ch < channels; ch++) {
+                vDSP_vadd(mono, 1, buffer + ch, channels, mono, 1, monoLen);
             }
-            value /= channels;
-//            if (value > 2 || value < -2) {
-//            LogDebug(@"Value out of range: %.4f i: %d", value, i);
-//            }
-            merge(value);
+            float scale = 1.0f / (float)channels;
+            vDSP_vsmul(mono, 1, &scale, mono, 1, monoLen);
+
+            vDSP_minv(mono, 1, &minVal, monoLen);
+            vDSP_maxv(mono, 1, &maxVal, monoLen);
+
+            free(mono);
         }
+
+        if (minVal < values[0]) values[0] = minVal;
+        if (maxVal > values[1]) values[1] = maxVal;
     }
 
 private:

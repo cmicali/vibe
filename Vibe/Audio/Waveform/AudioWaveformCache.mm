@@ -10,7 +10,7 @@
 
 #pragma mark - Waveform Cache
 
-#define WAVEFORM_CACHE_ENABLED 1
+#define WAVEFORM_CACHE_ENABLED 0
 
 @interface AudioWaveformCache () <AudioWaveformLoaderDelegate>
 @end

@@ -35,28 +35,40 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
     if (numChunksToCombine == 1) {
         return chunks[startIndex];
     }
-    for (NSUInteger i = 0; i < numChunksToCombine; ++i) {
-        result.merge(&chunks[startIndex + i]);
+    // Clamp to avoid reading past the buffer
+    if (startIndex + numChunksToCombine > numChunks) {
+        numChunksToCombine = numChunks - startIndex;
     }
+    // chunks[] is float[2] pairs: [min0, max0, min1, max1, ...]
+    // Use stride-2 vDSP to find min of all mins and max of all maxes
+    float *base = reinterpret_cast<float*>(&chunks[startIndex]);
+    float minVal, maxVal;
+    vDSP_minv(base,     2, &minVal, numChunksToCombine);  // stride 2, starting at values[0]
+    vDSP_maxv(base + 1, 2, &maxVal, numChunksToCombine);  // stride 2, starting at values[1]
+    result.set(minVal, maxVal);
     return result;
 }
 
 void AudioWaveform::normalize() {
-    AudioWaveformCacheChunk total;
-    for (NSUInteger i = 0; i < numChunks; i++) {
-        AudioWaveformCacheChunk* m = &chunks[i];
-        if (m->getMin() < total.getMin()) total.setMin(m);
-        if (m->getMax() > total.getMax()) total.setMax(m);
-    }
-    float factor = fabsf(total.getMin());
-    if (fabsf(total.getMin()) > fabsf(total.getMax())) {
-        factor = fabsf(total.getMin());
-    }
-    factor = 1/factor;
-    for (NSUInteger i = 0; i < numChunks; i++) {
-        AudioWaveformCacheChunk* m = &chunks[i];
-        m->setMin(m->getMin() * factor);
-        m->setMax(m->getMax() * factor);
+    // chunks[] is a contiguous array of float[2] pairs: [min0, max0, min1, max1, ...]
+    // We can treat it as a single float array of length numChunks * 2
+    float *data = reinterpret_cast<float*>(chunks);
+    vDSP_Length totalFloats = numChunks * 2;
+
+    // Find global min and max across all values
+    float globalMin, globalMax;
+    vDSP_minv(data, 1, &globalMin, totalFloats);
+    vDSP_maxv(data, 1, &globalMax, totalFloats);
+
+    // Find the largest absolute value for normalization
+    float absMin = fabsf(globalMin);
+    float absMax = fabsf(globalMax);
+    float peak = (absMin > absMax) ? absMin : absMax;
+
+    if (peak != 0.0f) {
+        float factor = 1.0f / peak;
+        // Scale all values in one vectorized pass
+        vDSP_vsmul(data, 1, &factor, data, 1, totalFloats);
     }
 }
 
@@ -85,5 +97,10 @@ void AudioWaveform::normalize() {
     }
     return self;
 }
+
+- (void)dealloc {
+    
+}
+
 
 @end
