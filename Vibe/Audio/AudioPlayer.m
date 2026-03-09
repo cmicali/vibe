@@ -169,7 +169,7 @@
             if (BASS_ChannelPlay(self.channel, NO)) {
                 [BassUtil rampVolumeToNormal:self.channel async:YES];
                 run_on_main_thread({
-                    [self.delegate audioPlayer:self didPausePlaying:self.currentTrack];
+                    [self.delegate audioPlayer:self didResumePlaying:self.currentTrack];
                 });
                 return;
             }
