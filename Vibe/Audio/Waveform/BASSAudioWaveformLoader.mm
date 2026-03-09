@@ -30,26 +30,22 @@
 
     AlignSizeToTypeBoundary(chunkSize, float);
 
-    NSUInteger readChunkSize = chunkSize + 4096;
-    float *buffer = (float*)malloc(readChunkSize);
+    float *buffer = (float*)malloc(chunkSize);
 
-    NSUInteger bytesProcessed = 0;
     NSUInteger updateBytesCounter = 0;
-    NSUInteger numUpdates = 128;
-    NSUInteger updateBytesLimit = totalBytes / numUpdates;
+    NSUInteger updateBytesLimit = totalBytes / 128;
 
     for (NSUInteger i = 0; i < numChunks && !self.isCancelled; i++) {
-        BASS_ChannelSetPosition(channel, bytesProcessed, BASS_POS_BYTE);
-        NSUInteger bytesRead = BASS_ChannelGetData(channel, buffer, (DWORD)readChunkSize);
-        if (bytesRead <= 0) {
-            LogError(@"BASS_ChannelGetData returned %@", @(bytesRead));
+        // Sequential read — no seeking needed, BASS advances the decode position
+        DWORD bytesRead = BASS_ChannelGetData(channel, buffer, (DWORD)chunkSize);
+        if (bytesRead == (DWORD)-1) {
+            break;
         }
-        NSUInteger bytesToMerge = min(chunkSize, bytesRead);
+        NSUInteger bytesToMerge = min(chunkSize, (NSUInteger)bytesRead);
         AudioWaveformCacheChunk chunk(buffer, bytesToMerge/sizeof(float), numChannels);
         waveform->setChunkAtIndex(chunk, i);
-        bytesProcessed += bytesToMerge;
         updateBytesCounter += bytesToMerge;
-        if (!self.isCancelled &&  updateBytesCounter >= updateBytesLimit) {
+        if (!self.isCancelled && updateBytesCounter >= updateBytesLimit) {
             updateBytesCounter = 0;
             float percentComplete = (float)i / (float)numChunks;
             if (percentComplete < 1.0) {
