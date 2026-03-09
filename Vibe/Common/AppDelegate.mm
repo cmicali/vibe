@@ -84,11 +84,11 @@
     panel.allowsMultipleSelection = YES;
     panel.canChooseFiles = YES;
     panel.canChooseDirectories = YES;
-    panel.allowedFileTypes = ALLOWED_FILETYPES;
+    panel.allowedFileTypes = VIBE_SUPPORTED_FILETYPES;
     [panel beginWithCompletionHandler:^(NSInteger result){
         if (result == NSModalResponseOK) {
             [self->_urlsToOpen addObjectsFromArray:panel.URLs];
-            [self performSelectorInBackground:@selector(playURLs) withObject:nil];
+            [self performSelectorOnMainThread:@selector(playURLs) withObject:nil waitUntilDone:NO];
         }
     }];
 }

@@ -67,7 +67,7 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
     NSMutableArray *result = [[NSMutableArray alloc] initWithCapacity:count];
     for (int i = 0; i < count; i++)
         [result addObject:@(vr[i].mMinimum)];
-    free(vr);
+    delete [] vr;
     return result;
 }
 

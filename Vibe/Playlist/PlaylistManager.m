@@ -138,7 +138,7 @@
 }
 
 - (BOOL)next {
-    if (self.currentIndex < _playlist.count - 1) {
+    if (_playlist.count > 0 && self.currentIndex < _playlist.count - 1) {
         self.currentIndex += 1;
         [self reloadTrackAtIndex:self.currentIndex - 1];
         [self play];

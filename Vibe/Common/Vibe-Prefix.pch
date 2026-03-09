@@ -29,6 +29,6 @@ static const DDLogLevel ddLogLevel = DDLogLevelVerbose;
 
 #define Settings [AppSettings sharedInstance]
 
-#define ALLOWED_FILETYPES @[@"mp2", @"mp3", @"aif", @"aiff", @"wav", @"flac", @"m4a", @"ogg", @"mp4"]
+#define VIBE_SUPPORTED_FILETYPES @[@"mp2", @"mp3", @"aif", @"aiff", @"wav", @"flac", @"m4a", @"ogg", @"mp4"]
 
 #endif
