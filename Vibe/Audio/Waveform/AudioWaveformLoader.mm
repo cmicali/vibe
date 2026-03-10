@@ -25,7 +25,7 @@
     return YES;
 }
 
-- (AudioWaveform *)load:(NSString *)filename {
+- (CodableAudioWaveform *)load:(NSString *)filename {
     @throw [NSException exceptionWithName:NSInternalInconsistencyException
                                    reason:[NSString stringWithFormat:@"You must override %@ in a subclass", NSStringFromSelector(_cmd)]
                                  userInfo:nil];

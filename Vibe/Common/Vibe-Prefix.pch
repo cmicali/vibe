@@ -25,8 +25,6 @@ static const DDLogLevel ddLogLevel = DDLogLevelVerbose;
 #define LogDebug(fmt, ...)  DDLogDebug(fmt, ##__VA_ARGS__)
 #define LogTrace(fmt, ...)  DDLogVerbose(fmt, ##__VA_ARGS__)
 
-#define WEAK_SELF typeof(self) __block weakSelf = self;
-
 #define Settings [AppSettings sharedInstance]
 
 #define VIBE_SUPPORTED_FILETYPES @[@"mp2", @"mp3", @"aif", @"aiff", @"wav", @"flac", @"m4a", @"ogg", @"mp4"]

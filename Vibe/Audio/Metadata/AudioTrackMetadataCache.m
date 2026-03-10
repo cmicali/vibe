@@ -8,7 +8,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 
-#define METADATA_CACHE_ENABELD 1
+#define METADATA_CACHE_ENABLED 1
 
 @interface AudioTrackMetadataLoader : NSObject
 
@@ -42,7 +42,7 @@
         if (!track.metadata) {
             NSString *cacheKey = track.calculateFileHash; // track.url.path;
             AudioTrackMetadata *cachedMetaData;
-            if (METADATA_CACHE_ENABELD) {
+            if (METADATA_CACHE_ENABLED) {
                 cachedMetaData = [_metadataCache objectForKey:cacheKey];
             }
             if (cachedMetaData) {
@@ -50,7 +50,7 @@
             }
             else {
                 track.metadata = [AudioTrackMetadata metadataWithURL:track.url];
-                if (METADATA_CACHE_ENABELD) {
+                if (METADATA_CACHE_ENABLED) {
                     [_metadataCache setObject:track.metadata forKey:cacheKey];
                 }
             }
@@ -85,7 +85,7 @@
         _metadataCache = [[PINCache alloc] initWithName:@"Audio Track Metadata"];
         _metadataCache.diskCache.byteLimit = 64 * 1024 * 1024;
         _metadataCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
-        if (!METADATA_CACHE_ENABELD) {
+        if (!METADATA_CACHE_ENABLED) {
             [self invalidate];
         }
     }

@@ -26,10 +26,7 @@
         NSError *error;
         NSNumber *isDirectory = nil;
         if ([url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:&error]) {
-            if ([isDirectory boolValue]) {
-                [results addObjectsFromArray:[self expandDirectory:url]];
-            }
-            else {
+            if (![isDirectory boolValue]) {
                 [results addObject:url];
             }
         }

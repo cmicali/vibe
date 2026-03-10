@@ -28,6 +28,7 @@
         while(BASS_ChannelIsSliding(channel, attribute));
     });
 }
+
 + (void)rampVolumeToZero:(HCHANNEL)channel async:(BOOL)async {
     if (channel) {
         BASS_ChannelSlideAttribute(channel, BASS_ATTRIB_VOL | BASS_SLIDE_LOG, 0, 100);
@@ -112,8 +113,6 @@ void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, voi
 }
 
 #pragma mark Error handling
-
-static NSDictionary* dic = nil;
 
 + (NSDictionary*)errorCodeToStringDict {
     static NSDictionary *instance = nil;

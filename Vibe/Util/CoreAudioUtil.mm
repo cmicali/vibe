@@ -105,7 +105,7 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
     AudioDeviceID did = [self audioDeviceIDforUID:uid];
     NSArray<NSNumber *> *rates = [self supportedSampleRatesForAudioDeviceId:did];
     if (![rates containsObject:@(rate)]) {
-        [rates sortedArrayUsingComparator:^NSComparisonResult(NSNumber* n1, NSNumber* n2) {
+        rates = [rates sortedArrayUsingComparator:^NSComparisonResult(NSNumber* n1, NSNumber* n2) {
             return [n1 compare:n2];
         }];
         LogError(@"CoreAudioUtil: setSampleRate: requested rate %.0f not in [%@]", rate, [rates componentsJoinedByString:@", "]);

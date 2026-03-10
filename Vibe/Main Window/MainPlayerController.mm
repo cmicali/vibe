@@ -33,7 +33,7 @@
 }
 
 - (void)dealloc {
-    if (!_timerRunning) {
+    if (_timer && !_timerRunning) {
         dispatch_resume(_timer);
     }
 }
@@ -141,8 +141,8 @@
     self.waveformView.waveformStyle = Settings.waveformStyle;
 
     NSScrollView *playlistScrollView = self.playlistTableView.enclosingScrollView;
-    self.playlistTableView.delegate = self.self.playlistManager;
-    self.playlistTableView.dataSource = self.self.playlistManager;
+    self.playlistTableView.delegate = self.playlistManager;
+    self.playlistTableView.dataSource = self.playlistManager;
     self.playlistTableView.translatesAutoresizingMaskIntoConstraints = NO;
     self.playlistTableView.intercellSpacing = NSMakeSize(0, 0);
     

@@ -137,10 +137,14 @@
     [self.tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndex:index] columnIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, (NSUInteger)self.tableView.numberOfColumns)]];
 }
 
+- (void)reloadTrackInRange:(NSRange)range {
+    [self.tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndexesInRange:range] columnIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, (NSUInteger)self.tableView.numberOfColumns)]];
+}
+
 - (BOOL)next {
     if (_playlist.count > 0 && self.currentIndex < _playlist.count - 1) {
         self.currentIndex += 1;
-        [self reloadTrackAtIndex:self.currentIndex - 1];
+        [self reloadTrackInRange:NSMakeRange(self.currentIndex - 1, 2)];
         [self play];
         return YES;
     }
@@ -149,8 +153,8 @@
 
 - (BOOL)previous {
     if (self.currentIndex > 0) {
-        self.currentIndex -= 1;
-        [self reloadTrackAtIndex:self.currentIndex - 1];
+        self.currentIndex -= 1;        
+        [self reloadTrackInRange:NSMakeRange(self.currentIndex, 2)];
         [self play];
         return YES;
     }

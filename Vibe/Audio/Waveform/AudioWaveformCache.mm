@@ -63,13 +63,13 @@
         waveform = cachedWaveform.waveform;
     }
     else {
-        waveform = [loader load:track.url.path];
+        cachedWaveform = [loader load:track.url.path];
+        waveform = cachedWaveform.waveform;
         if (loader.isComplete) {
             if (_normalize) {
                 waveform->normalize();
             }
             if (WAVEFORM_CACHE_ENABLED) {
-                cachedWaveform = [[CodableAudioWaveform alloc] initWithWaveform:waveform];
                 [self->_waveformCache setObject:cachedWaveform forKey:cacheKey];
             }
         }
