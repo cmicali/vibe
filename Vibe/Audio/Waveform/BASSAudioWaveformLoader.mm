@@ -8,7 +8,7 @@
 
 @implementation BASSAudioWaveformLoader
 
-- (AudioWaveform *)load:(NSString *)filename {
+- (CodableAudioWaveform *)load:(NSString *)filename {
 
     self.isCancelled = NO;
     self.isComplete = NO;
@@ -65,7 +65,7 @@
     BASS_StreamFree(channel);
     free(buffer);
 
-    return waveform;
+    return [[CodableAudioWaveform alloc] initWithWaveform:waveform];
 
 }
 

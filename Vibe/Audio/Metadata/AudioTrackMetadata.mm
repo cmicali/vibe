@@ -80,9 +80,13 @@
             
             TagLib::File *file = fileRef.file();
 
-            self.duration = static_cast<NSTimeInterval>(file->audioProperties()->lengthInMilliseconds()) / 1000;
-            self.bitrate = @(file->audioProperties()->bitrate());
-            self.sampleRate = @(file->audioProperties()->sampleRate());
+            auto props = file->audioProperties();
+            
+            if (props) {
+                self.duration = static_cast<NSTimeInterval>(props->lengthInMilliseconds()) / 1000;
+                self.bitrate = @(props->bitrate());
+                self.sampleRate = @(props->sampleRate());
+            }
 
             if (auto mp3 = dynamic_cast<TagLib::MPEG::File*>(file)) {
                 self.fileType = FILETYPE_MP3;

@@ -7,9 +7,6 @@
 
 #define NUM_CHUNKS     4096*2
 
-#define min(a, b) (b < a ? b : a)
-#define max(a, b) (a < b ? b : a)
-
 AudioWaveform::AudioWaveform() {
     numChunks = NUM_CHUNKS;
     this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
@@ -50,6 +47,7 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
 }
 
 void AudioWaveform::normalize() {
+    if (chunks == 0 || numChunks == 0) return;
     // chunks[] is a contiguous array of float[2] pairs: [min0, max0, min1, max1, ...]
     // We can treat it as a single float array of length numChunks * 2
     float *data = reinterpret_cast<float*>(chunks);
@@ -99,7 +97,9 @@ void AudioWaveform::normalize() {
 }
 
 - (void)dealloc {
-    
+    if (self.waveform) {
+        delete self.waveform;
+    }
 }
 
 

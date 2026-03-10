@@ -6,8 +6,6 @@
 #import <Foundation/Foundation.h>
 #import "AudioWaveform.h"
 
-NS_ASSUME_NONNULL_BEGIN
-
 @protocol AudioWaveformLoaderDelegate;
 
 @interface AudioWaveformLoader : NSObject
@@ -20,7 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (atomic) BOOL isCancelled;
 
 - (BOOL)cancel;
-- (AudioWaveform *)load:(NSString *)filename;
+- (CodableAudioWaveform *)load:(NSString *)filename;
 
 @end
 
@@ -30,5 +28,3 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded;
 
 @end
-
-NS_ASSUME_NONNULL_END

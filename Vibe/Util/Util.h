@@ -8,7 +8,7 @@
 
 #pragma once
 
-bool runWithTimeout(int timeoutSec, void (^block)(void)) {
+static inline bool runWithTimeout(int timeoutSec, void (^block)(void)) {
     dispatch_semaphore_t mySemaphore = dispatch_semaphore_create(0);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
         block();

@@ -8,8 +8,8 @@
 
 #define BOOLToStr(b) (b?@"Yes":@"No")
 
-#define min(a, b) (b < a ? b : a)
-#define max(a, b) (a < b ? b : a)
+#define min(a, b) ((b) < (a) ? (b) : (a))
+#define max(a, b) ((a) < (b) ? (b) : (a))
 
 // #define clampMax(v, max) (v > max ? max : v)
 #define clampMin(v, min) (v < min ? min : v)
