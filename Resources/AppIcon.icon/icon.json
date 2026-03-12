@@ -41,6 +41,7 @@
       "hidden" : false,
       "layers" : [
         {
+          "hidden" : false,
           "image-name" : "record background.png",
           "name" : "record background"
         }
