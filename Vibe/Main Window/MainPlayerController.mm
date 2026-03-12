@@ -247,8 +247,8 @@
     }
     else {
         if (_displayedArt) {
-            self.albumArtImageView.image = [NSImage imageNamed:@"record"];
-            self.backgroundAlbumArtImageView.image = [NSImage imageNamed:@"record"];
+            self.albumArtImageView.image = [NSImage imageNamed:@"record-bg"];
+            self.backgroundAlbumArtImageView.image = [NSImage imageNamed:@"record-bg"];
             [NSDockTile resetToAppIcon];
             _displayedArt = nil;
         }
