@@ -93,7 +93,7 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
 
     AudioObjectPropertyAddress addr = { kAudioDevicePropertyStreamFormat, kAudioDevicePropertyScopeOutput, 0 };
     OSStatus err = AudioObjectGetPropertyData(did, &addr, 0, NULL, &size, &mFormat);
-    LogError(@"CoreAudioUtil: setSampleRate: %.0f -> %0.1f", mFormat.mSampleRate, rate);
+    LogDebug(@"CoreAudioUtil: setSampleRate: %.0f -> %0.1f", mFormat.mSampleRate, rate);
     mFormat.mSampleRate = rate;
     mFormat.mBitsPerChannel = 32 ;
     addr = { kAudioDevicePropertyStreamFormat, kAudioObjectPropertyScopeGlobal, 0 };
@@ -113,7 +113,7 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
         double minRate = 44100;
         for (NSNumber *number in rates) {
             double n = [number doubleValue];
-            if (n > minRate && n >= candidateRate) {
+            if (n >= minRate && n >= candidateRate) {
                 candidateRate = n;
                 break;
             }

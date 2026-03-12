@@ -82,7 +82,7 @@ void CALLBACK DeviceFailedCallback(HSYNC handle, DWORD channel, DWORD data, void
 }
 
 void CALLBACK DeviceChangedCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
-    __block id<BASSChannelDelegate> delegate = (__bridge id<BASSChannelDelegate>)(user);
+    id<BASSChannelDelegate> delegate = (__bridge id<BASSChannelDelegate>)(user);
     [delegate channelDeviceDidChange];
 }
 

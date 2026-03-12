@@ -42,11 +42,6 @@
         i++;
     }
 
-    // Lock sample rate item
-    item = [menu itemAtIndex:count - 1];
-    item.state = StateForBOOL(Settings.audioPlayerLockSampleRate);
-    item.target = self;
-
 }
 
 - (void)configureMenuItem:(NSMenuItem *)item withDevice:(AudioDevice *)device {

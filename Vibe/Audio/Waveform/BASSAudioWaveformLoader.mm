@@ -20,6 +20,9 @@
     }
 
     AudioWaveform *waveform = new AudioWaveform();
+    // Wrap immediately so ARC manages the lifetime. Blocks below capture result
+    // strongly, keeping the waveform alive until all pending callbacks fire.
+    CodableAudioWaveform *result = [[CodableAudioWaveform alloc] initWithWaveform:waveform];
 
     BASS_CHANNELINFO info;
     BASS_ChannelGetInfo(channel, &info);
@@ -51,21 +54,23 @@
             if (percentComplete < 1.0) {
                 dispatch_async(dispatch_get_main_queue(), ^(void) {
                     if (!self.isCancelled) {
-                        [self.delegate audioWaveformLoader:self waveform:waveform didLoadData:percentComplete];
+                        // result is captured strongly, keeping waveform alive
+                        [self.delegate audioWaveformLoader:self waveform:result.waveform didLoadData:percentComplete];
                     }
                 });
             }
         }
     }
 
-    if (!self.isCancelled) {
-        self.isComplete = YES;
-    }
-
     BASS_StreamFree(channel);
     free(buffer);
 
-    return [[CodableAudioWaveform alloc] initWithWaveform:waveform];
+    if (self.isCancelled) {
+        return nil;
+    }
+
+    self.isComplete = YES;
+    return result;
 
 }
 

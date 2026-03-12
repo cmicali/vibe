@@ -5,7 +5,7 @@
 
 #import "AudioWaveform.h"
 
-#define NUM_CHUNKS     4096*2
+#define NUM_CHUNKS     (4096*2)
 
 AudioWaveform::AudioWaveform() {
     numChunks = NUM_CHUNKS;
