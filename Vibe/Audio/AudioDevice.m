@@ -19,8 +19,10 @@
     return self;
 }
 
-- (BOOL)isEqual:(AudioDevice*)object {
-    return self.deviceId == object.deviceId;
+- (BOOL)isEqual:(id)object {
+    if (self == object) return YES;
+    if (![object isKindOfClass:[AudioDevice class]]) return NO;
+    return self.deviceId == ((AudioDevice *)object).deviceId;
 }
 
 - (NSUInteger)hash {

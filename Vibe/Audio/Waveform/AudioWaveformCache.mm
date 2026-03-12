@@ -10,7 +10,7 @@
 
 #pragma mark - Waveform Cache
 
-#define WAVEFORM_CACHE_ENABLED 0
+#define WAVEFORM_CACHE_ENABLED 1
 
 @interface AudioWaveformCache () <AudioWaveformLoaderDelegate>
 @end
@@ -75,9 +75,12 @@
         }
     }
     if (!loader.isCancelled) {
+        // Capture cachedWaveform strongly so it outlives this stack frame and
+        // the waveform pointer remains valid when the block executes on the main thread.
+        CodableAudioWaveform *liveWaveform = cachedWaveform;
         run_on_main_thread({
             if (!loader.isCancelled) {
-                [self.delegate audioWaveform:waveform didLoadData:1];
+                [self.delegate audioWaveform:liveWaveform.waveform didLoadData:1];
             }
         });
     }

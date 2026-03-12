@@ -33,8 +33,8 @@
 }
 
 - (void)dealloc {
-    if (_timer && !_timerRunning) {
-        dispatch_resume(_timer);
+    if (_timer) {
+        dispatch_source_cancel(_timer);
     }
 }
 
@@ -155,8 +155,9 @@
 
     _timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
     dispatch_source_set_timer(_timer, DISPATCH_TIME_NOW, NSEC_PER_SEC / UPDATE_HZ, NSEC_PER_SEC / 2);
+    __weak id weakSelf = self;
     dispatch_source_set_event_handler(_timer, ^{
-        [self updatePlaybackUI];
+        [weakSelf updatePlaybackUI];
     });
     _timerRunning = NO;
 
