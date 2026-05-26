@@ -45,7 +45,6 @@
     };
     [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
     [[NSUserDefaults standardUserDefaults] setBool:YES forKey:SETTING_HAS_LAUNCHED];
-    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 - (NSString *)audioOutputDeviceName {
@@ -54,7 +53,6 @@
 
 -(void)setAudioOutputDeviceName:(NSString*)deviceName {
     [[NSUserDefaults standardUserDefaults] setObject:deviceName forKey:SETTING_AUDIO_PLAYER_DEVICE_NAME];
-    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 - (BOOL) audioPlayerLockSampleRate {
@@ -63,7 +61,6 @@
 
 -(void) setAudioPlayerLockSampleRate:(BOOL)lockSampleRate {
     [[NSUserDefaults standardUserDefaults] setBool:lockSampleRate forKey:SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE];
-    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 - (void)applicationDidFinishLaunching {
@@ -82,7 +79,6 @@
 
 - (void)setWindowAppearanceStyle:(NSString *)name {
     [[NSUserDefaults standardUserDefaults] setValue:name forKey:SETTING_WINDOW_APPEARANCE_STYLE];
-    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 - (NSAppearance *)windowAppearance {
@@ -105,7 +101,6 @@
 
 - (void)setWaveformStyle:(NSString *)name {
     [[NSUserDefaults standardUserDefaults] setValue:name forKey:SETTING_WAVEFORM_STYLE];
-    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 @end

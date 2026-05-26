@@ -60,8 +60,9 @@
                    withObject:nil
                 waitUntilDone:YES];
         while (![self isFinished] || [self isExecuting]) {
-            // Spin until the thread is really done.
-            usleep(10);
+            // Spin until the thread is really done. 10 ms is plenty —
+            // the cancel above just needs the runloop to wake once.
+            usleep(10 * 1000);
         }
     }
 }

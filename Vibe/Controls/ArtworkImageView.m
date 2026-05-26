@@ -78,8 +78,10 @@
                                   event:event
                                  source:self];
 
-    [self.fileURL stopAccessingSecurityScopedResource];
-
+    // Note: we do *not* stop the security-scoped access here. The drag is
+    // async — stopping now would revoke the URL before the receiving app
+    // has finished reading it. We release access in
+    // draggingSession:endedAtPoint:operation: below.
 }
 
 - (NSDragOperation)draggingSession:(NSDraggingSession *)session sourceOperationMaskForDraggingContext:(NSDraggingContext)context {
@@ -87,6 +89,10 @@
         return NSDragOperationCopy;
     }
     return NSDragOperationNone;
+}
+
+- (void)draggingSession:(NSDraggingSession *)session endedAtPoint:(NSPoint)screenPoint operation:(NSDragOperation)operation {
+    [self.fileURL stopAccessingSecurityScopedResource];
 }
 
 
