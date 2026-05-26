@@ -68,7 +68,7 @@
     }
     else if ([tableColumn.identifier isEqualToString:@"artColumn"]) {
         view = [tableView makeViewWithIdentifier:@"trackArt" owner:self];
-        NSImage *image = track.albumArt;
+        NSImage *image = track.thumbnailAlbumArt;
         if (!image) {
             image = [NSImage imageNamed:@"record"];
         }
@@ -120,7 +120,6 @@
     for (NSURL *url in urls) {
         [_playlist addObject:[AudioTrack withURL:url]];
     }
-    _currentIndex = 0;
     self.currentIndex = 0;
     [self.tableView reloadData];
     [self play];

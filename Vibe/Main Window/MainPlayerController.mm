@@ -143,11 +143,24 @@
     NSScrollView *playlistScrollView = self.playlistTableView.enclosingScrollView;
     self.playlistTableView.delegate = self.playlistManager;
     self.playlistTableView.dataSource = self.playlistManager;
-    self.playlistTableView.translatesAutoresizingMaskIntoConstraints = NO;
     self.playlistTableView.intercellSpacing = NSMakeSize(0, 0);
-    
+    self.playlistTableView.columnAutoresizingStyle = NSTableViewSequentialColumnAutoresizingStyle;
+    // Opt out of the macOS 11+ inset look; we want the selection highlight
+    // and row content flush with the scroll view's left/right edges.
+    if (@available(macOS 11.0, *)) {
+        self.playlistTableView.style = NSTableViewStyleFullWidth;
+    }
+    // Let the autoresize mask from the xib govern width/height so the table
+    // tracks its clip view. Previously we set
+    // translatesAutoresizingMaskIntoConstraints = NO without adding any
+    // Auto Layout constraints, leaving the table stuck at its xib-time
+    // width (712 px) — wider than the clip view, hence horizontal scroll.
+
     playlistScrollView.automaticallyAdjustsContentInsets = NO;
     playlistScrollView.contentInsets = NSEdgeInsetsZero;
+    playlistScrollView.hasHorizontalScroller = NO;
+    playlistScrollView.horizontalScrollElasticity = NSScrollElasticityNone;
+    [self.playlistTableView sizeToFit];
     
     
     MainWindow *window = (MainWindow *)self.window;

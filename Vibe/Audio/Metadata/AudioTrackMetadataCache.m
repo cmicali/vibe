@@ -23,6 +23,7 @@
 
 @implementation AudioTrackMetadataLoader {
     PINCache* _metadataCache;
+    NSOperationQueue* _queue;
 }
 
 - (id)initWithCache:(PINCache *)cache delegate:(id <AudioTrackMetadataManagerDelegate>)delegate {
@@ -32,46 +33,65 @@
         _isFinished = NO;
         _metadataCache = cache;
         _delegate = delegate;
+        // Concurrency 4 lets a single slow file (network mount, sleeping disk)
+        // stall only its own worker rather than the whole playlist. Utility QoS
+        // is the right band: user-visible (we drive the playlist UI) but not
+        // user-initiated.
+        _queue = [[NSOperationQueue alloc] init];
+        _queue.name = @"AudioTrackMetadataLoader";
+        _queue.maxConcurrentOperationCount = 4;
+        _queue.qualityOfService = NSQualityOfServiceUtility;
     }
     return self;
 }
 
 - (void)load:(NSArray<AudioTrack*>*)tracks {
-    for (NSUInteger i = 0; i < tracks.count && !self.isCancelled; ++i) {
-        AudioTrack *track = tracks[i];
-        if (!track.metadata) {
-            NSString *cacheKey = track.calculateFileHash; // track.url.path;
-            AudioTrackMetadata *cachedMetaData;
-            if (METADATA_CACHE_ENABLED) {
-                cachedMetaData = [_metadataCache objectForKey:cacheKey];
-            }
-            if (cachedMetaData) {
-                track.metadata = cachedMetaData;
-            }
-            else {
-                track.metadata = [AudioTrackMetadata metadataWithURL:track.url];
-                if (METADATA_CACHE_ENABLED) {
-                    [_metadataCache setObject:track.metadata forKey:cacheKey];
-                }
-            }
-        }
-        if (track.metadata && !self.isCancelled) {
-            run_on_main_thread({
-                [self.delegate didLoadMetadata:track];
-            });
+    __weak __typeof(self) weakSelf = self;
+    for (AudioTrack *track in tracks) {
+        if (self.isCancelled) break;
+        if (track.metadata) continue;  // already loaded earlier
+        [_queue addOperationWithBlock:^{
+            __typeof(self) strongSelf = weakSelf;
+            if (!strongSelf || strongSelf.isCancelled) return;
+            [strongSelf loadOneTrack:track];
+        }];
+    }
+}
+
+- (void)loadOneTrack:(AudioTrack *)track {
+    NSString *cacheKey = track.cacheKey;
+    AudioTrackMetadata *cachedMetaData = nil;
+    if (METADATA_CACHE_ENABLED) {
+        cachedMetaData = [_metadataCache objectForKey:cacheKey];
+    }
+    if (cachedMetaData) {
+        track.metadata = cachedMetaData;
+    } else {
+        track.metadata = [AudioTrackMetadata metadataWithURL:track.url];
+        if (METADATA_CACHE_ENABLED && track.metadata) {
+            [_metadataCache setObject:track.metadata forKey:cacheKey];
         }
     }
-    self.isFinished = YES;
+    if (track.metadata && !self.isCancelled) {
+        // Pre-warm the playlist-cell thumbnail on the worker so the table
+        // delegate (main thread) never has to do the resize itself.
+        (void)track.metadata.thumbnailAlbumArt;
+        run_on_main_thread({
+            if (!self.isCancelled) {
+                [self.delegate didLoadMetadata:track];
+            }
+        });
+    }
 }
 
 - (void)cancel {
     self.isCancelled = YES;
+    [_queue cancelAllOperations];
 }
 
 @end
 
 @implementation AudioTrackMetadataCache {
-    dispatch_queue_t            _loaderQueue;
     PINCache*                   _metadataCache;
     AudioTrackMetadataLoader*   _currentLoader;
 }
@@ -79,9 +99,7 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _currentLoader  =nil;
-        dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_BACKGROUND, 0);
-        _loaderQueue = dispatch_queue_create("AudioTrackMetadataCache", queueAttributes);
+        _currentLoader = nil;
         _metadataCache = [[PINCache alloc] initWithName:@"Audio Track Metadata"];
         _metadataCache.diskCache.byteLimit = 64 * 1024 * 1024;
         _metadataCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
@@ -103,9 +121,7 @@
     }
     AudioTrackMetadataLoader* loader = [[AudioTrackMetadataLoader alloc] initWithCache:_metadataCache delegate:self.delegate];
     _currentLoader = loader;
-    dispatch_async(_loaderQueue, ^{
-        [loader load:tracks];
-    });
+    [loader load:tracks];
 }
 
 

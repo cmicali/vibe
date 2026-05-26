@@ -63,30 +63,50 @@
 }
 
 - (void)initWithDeviceIndexInternal:(int)newDeviceIndex {
+    // Snapshot the current playback state so we can restore it on the new device.
+    // BASS_Free() invalidates self.channel, so we must rebuild the stream from the
+    // track URL rather than reuse the old handle.
+    AudioTrack *trackToRestore = self.currentTrack;
     BOOL wasPlaying = self.isPlaying;
-    if (wasPlaying) {
-        BASS_ChannelPause(self.channel);
+    NSTimeInterval positionToRestore = 0;
+    HSTREAM oldChannel = self.channel;
+    if (oldChannel) {
+        positionToRestore = [BassUtil getChannelPosition:oldChannel];
+        BASS_StreamFree(oldChannel);
+        self.channel = 0;
     }
     BASS_Free();
     if (!BASS_Init(newDeviceIndex, 44100, 0, NULL, NULL)) {
         int errorCode = BASS_ErrorGetCode();
         LogError(@"Error initializing BASS: %@", [BassUtil stringForErrorCode:errorCode]);
+        return;
     }
-    if (newDeviceIndex != -1) {
-        BASS_SetDevice((DWORD) newDeviceIndex);
-        if (self.channel) {
-            BASS_ChannelSetDevice(self.channel, (DWORD) newDeviceIndex);
+    if (newDeviceIndex == -1) {
+        return;
+    }
+    BASS_SetDevice((DWORD) newDeviceIndex);
+    if (trackToRestore) {
+        HSTREAM newChannel = BASS_StreamCreateFile(FALSE, [trackToRestore.url.path UTF8String], 0, 0, BASS_ASYNCFILE);
+        if (!newChannel) {
+            LogError(@"Error recreating stream on new device: %@", [BassUtil stringForErrorCode:BASS_ErrorGetCode()]);
+            return;
+        }
+        self.channel = newChannel;
+        [BassUtil setChannelDelegate:self channel:newChannel];
+        [self changeSystemSampleRateToChannelRate];
+        if (positionToRestore > 0) {
+            [BassUtil setChannelPosition:newChannel position:positionToRestore];
         }
         if (wasPlaying) {
-            BASS_ChannelPlay(self.channel, NO);
+            if (!BASS_ChannelPlay(newChannel, NO)) {
+                LogError(@"Error resuming playback on new device: %@", [BassUtil stringForErrorCode:BASS_ErrorGetCode()]);
+            }
         }
-    }
-    if (self.channel) {
-        [self changeSystemSampleRateToChannelRate];
     }
 }
 
 - (void)dealloc  {
+    [CoreAudioUtil stopListeningForSystemOutputDeviceChanges];
     BASS_Free();
     DDLogDebug(@"Bass freed");
 }
@@ -181,34 +201,38 @@
 #pragma mark - Properties
 
 - (BOOL)isPlaying {
-    return self.channel != 0 && BASS_ChannelIsActive(self.channel) == BASS_ACTIVE_PLAYING;
+    HSTREAM ch = self.channel;
+    return ch != 0 && BASS_ChannelIsActive(ch) == BASS_ACTIVE_PLAYING;
 }
 
 - (BOOL)isPaused {
-    return self.channel != 0 && (
-            BASS_ChannelIsActive(self.channel) == BASS_ACTIVE_PAUSED ||
-            BASS_ChannelIsActive(self.channel) == BASS_ACTIVE_PAUSED_DEVICE
-    );
+    HSTREAM ch = self.channel;
+    if (ch == 0) return NO;
+    DWORD state = BASS_ChannelIsActive(ch);
+    return state == BASS_ACTIVE_PAUSED || state == BASS_ACTIVE_PAUSED_DEVICE;
 }
 
 - (BOOL)isStopped {
-    return self.channel == 0 || BASS_ChannelIsActive(self.channel) == BASS_ACTIVE_STOPPED;
+    HSTREAM ch = self.channel;
+    return ch == 0 || BASS_ChannelIsActive(ch) == BASS_ACTIVE_STOPPED;
 }
 
 - (NSTimeInterval)duration {
-    if (self.channel) {
-        QWORD len = BASS_ChannelGetLength(self.channel, BASS_POS_BYTE);
-        NSTimeInterval time = BASS_ChannelBytes2Seconds(self.channel, len);
-        return time;
+    HSTREAM ch = self.channel;
+    if (ch) {
+        QWORD len = BASS_ChannelGetLength(ch, BASS_POS_BYTE);
+        return BASS_ChannelBytes2Seconds(ch, len);
     }
     return 0;
 }
 
 - (NSUInteger)numChannels {
-    if (self.channel) {
+    HSTREAM ch = self.channel;
+    if (ch) {
         BASS_CHANNELINFO info;
-        BASS_ChannelGetInfo(self.channel, &info);
-        return info.chans;
+        if (BASS_ChannelGetInfo(ch, &info)) {
+            return info.chans;
+        }
     }
     return 0;
 }
@@ -232,6 +256,14 @@
     run_on_main_thread({
         [self.delegate audioPlayer:self didFinishPlaying:self.currentTrack];
     });
+}
+
+- (void)channelDeviceDidFail {
+    // Fired by BASS_SYNC_DEV_FAIL when the device the active stream is using
+    // dies (e.g. the user unplugs a USB DAC). Fall back to the system default
+    // so audio resumes somewhere audible instead of silently dropping.
+    LogError(@"Audio output device failed; falling back to system default");
+    [self setOutputDevice:-1];
 }
 
 #pragma mark - Sample rates

@@ -38,15 +38,20 @@
     NSUInteger updateBytesCounter = 0;
     NSUInteger updateBytesLimit = totalBytes / 128;
 
+    NSUInteger chunksFilled = 0;
+    BOOL readError = NO;
     for (NSUInteger i = 0; i < numChunks && !self.isCancelled; i++) {
         // Sequential read — no seeking needed, BASS advances the decode position
         DWORD bytesRead = BASS_ChannelGetData(channel, buffer, (DWORD)chunkSize);
         if (bytesRead == (DWORD)-1) {
+            LogError(@"BASS_ChannelGetData failed at chunk %lu: %d", (unsigned long)i, BASS_ErrorGetCode());
+            readError = YES;
             break;
         }
         NSUInteger bytesToMerge = min(chunkSize, (NSUInteger)bytesRead);
         AudioWaveformCacheChunk chunk(buffer, bytesToMerge/sizeof(float), numChannels);
         waveform->setChunkAtIndex(chunk, i);
+        chunksFilled = i + 1;
         updateBytesCounter += bytesToMerge;
         if (!self.isCancelled && updateBytesCounter >= updateBytesLimit) {
             updateBytesCounter = 0;
@@ -69,7 +74,7 @@
         return nil;
     }
 
-    self.isComplete = YES;
+    self.isComplete = !readError && chunksFilled == numChunks;
     return result;
 
 }

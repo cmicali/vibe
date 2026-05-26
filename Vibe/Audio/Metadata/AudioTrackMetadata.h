@@ -25,6 +25,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (strong) NSImage *albumArt;
 
+// Downscaled copy of albumArt suitable for small table cells. Generated lazily
+// the first time it's read; not serialized to the on-disk cache (cheap to
+// regenerate from albumArt on cache hit).
+- (nullable NSImage *)thumbnailAlbumArt;
+
 + (AudioTrackMetadata *)metadataWithURL:(NSURL *)url;
 
 - (bool)isLossless;

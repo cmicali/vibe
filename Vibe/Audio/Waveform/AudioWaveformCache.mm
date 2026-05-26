@@ -53,28 +53,29 @@
 }
 
 - (void)load:(AudioTrack *)track withLoader:(AudioWaveformLoader *)loader {
-    NSString *cacheKey = track.calculateFileHash;
-    AudioWaveform *waveform;
-    CodableAudioWaveform *cachedWaveform;
+    NSString *cacheKey = track.cacheKey;
+    CodableAudioWaveform *cachedWaveform = nil;
+    BOOL fromCache = NO;
     if (WAVEFORM_CACHE_ENABLED) {
         cachedWaveform = [self->_waveformCache objectForKey:cacheKey];
+        fromCache = (cachedWaveform != nil);
     }
-    if (cachedWaveform) {
-        waveform = cachedWaveform.waveform;
-    }
-    else {
+    if (!cachedWaveform) {
         cachedWaveform = [loader load:track.url.path];
-        waveform = cachedWaveform.waveform;
-        if (loader.isComplete) {
+        if (cachedWaveform && loader.isComplete) {
             if (_normalize) {
-                waveform->normalize();
+                cachedWaveform.waveform->normalize();
             }
             if (WAVEFORM_CACHE_ENABLED) {
                 [self->_waveformCache setObject:cachedWaveform forKey:cacheKey];
             }
         }
     }
-    if (!loader.isCancelled) {
+    // Only report 100% when the waveform is actually complete — either pulled
+    // from cache, or freshly loaded without read errors. Partial loads leave
+    // the UI at whatever progress its last in-flight callback reported.
+    BOOL waveformComplete = cachedWaveform != nil && (fromCache || loader.isComplete);
+    if (waveformComplete && !loader.isCancelled) {
         // Capture cachedWaveform strongly so it outlives this stack frame and
         // the waveform pointer remains valid when the block executes on the main thread.
         CodableAudioWaveform *liveWaveform = cachedWaveform;

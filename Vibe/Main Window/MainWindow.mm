@@ -58,8 +58,14 @@
     NSPasteboard *pboard = [sender draggingPasteboard];
     NSArray<NSURL*> *urls = [pboard readObjectsForClasses:@[[NSURL class]] options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
     urls = [NSURLUtil expandAndFilterList:urls];
+    if (urls.count == 0) {
+        // Drop contained no playable audio (e.g. an empty folder). Reject the
+        // drop instead of forwarding an empty list, which would clear the
+        // current playlist.
+        return NO;
+    }
     [self.dropDelegate mainWindow:self filesDropped:urls];
-    return urls.count > 0;
+    return YES;
 }
 
 - (void)setHeight:(CGFloat)height animate:(BOOL)animate {

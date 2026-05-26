@@ -373,7 +373,7 @@
                                                         </tableCellView>
                                                     </prototypeCellViews>
                                                 </tableColumn>
-                                                <tableColumn identifier="titleColumn" width="552" minWidth="552" maxWidth="552" id="4QB-Fv-iEd">
+                                                <tableColumn identifier="titleColumn" width="552" minWidth="100" maxWidth="10000" id="4QB-Fv-iEd">
                                                     <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" alignment="left" title="Track">
                                                         <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
                                                         <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
@@ -386,11 +386,11 @@
                                                     <tableColumnResizingMask key="resizingMask" resizeWithTable="YES" userResizable="YES"/>
                                                     <prototypeCellViews>
                                                         <tableCellView identifier="trackName" id="Fim-F9-sMN">
-                                                            <rect key="frame" x="96" y="0.0" width="552" height="22"/>
+                                                            <rect key="frame" x="96" y="0.0" width="552" height="28"/>
                                                             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                             <subviews>
                                                                 <textField focusRingType="none" verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="s5U-k7-V5I">
-                                                                    <rect key="frame" x="6" y="-1" width="548" height="18"/>
+                                                                    <rect key="frame" x="6" y="0" width="548" height="28"/>
                                                                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                                     <textFieldCell key="cell" lineBreakMode="truncatingTail" sendsActionOnEndEditing="YES" alignment="left" title="Table View Cell" drawsBackground="YES" id="k07-bB-ukM" customClass="PlaylistTextCell">
                                                                         <font key="font" metaFont="system"/>
@@ -418,11 +418,11 @@
                                                     <tableColumnResizingMask key="resizingMask" resizeWithTable="YES" userResizable="YES"/>
                                                     <prototypeCellViews>
                                                         <tableCellView identifier="trackLength" id="cgE-Pc-cnJ">
-                                                            <rect key="frame" x="648" y="0.0" width="54" height="22"/>
+                                                            <rect key="frame" x="648" y="0.0" width="54" height="28"/>
                                                             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                             <subviews>
                                                                 <textField focusRingType="none" verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" preferredMaxLayoutWidth="36" translatesAutoresizingMaskIntoConstraints="NO" id="HPX-Cm-iS1">
-                                                                    <rect key="frame" x="2" y="-2" width="42" height="18"/>
+                                                                    <rect key="frame" x="2" y="0" width="42" height="28"/>
                                                                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                                     <textFieldCell key="cell" lineBreakMode="truncatingTail" sendsActionOnEndEditing="YES" alignment="right" title="00" drawsBackground="YES" id="NYZ-lz-oNB" customClass="PlaylistTextCell">
                                                                         <font key="font" metaFont="system"/>

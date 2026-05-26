@@ -29,6 +29,24 @@
     return result;
 }
 
+- (NSString *)cacheKey {
+    NSString *path = self.path;
+    NSDictionary<NSFileAttributeKey, id> *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:NULL];
+    unsigned long long size = [attrs[NSFileSize] unsignedLongLongValue];
+    // Microsecond resolution is enough to distinguish writes; APFS only
+    // surfaces sub-second mtime via getattrlist anyway.
+    long long mtimeUs = (long long)llround([(NSDate *)attrs[NSFileModificationDate] timeIntervalSince1970] * 1e6);
+
+    const char *pathCStr = [path UTF8String];
+    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
+    CC_SHA1(pathCStr, (CC_LONG)strlen(pathCStr), digest);
+    char hex[2 * CC_SHA1_DIGEST_LENGTH + 1];
+    for (size_t i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
+        snprintf(hex + 2 * i, 3, "%02x", digest[i]);
+    }
+    return [NSString stringWithFormat:@"%llu-%lld-%s", size, mtimeUs, hex];
+}
+
 // Constants
 static const size_t FileHashDefaultChunkSizeForReadingData = 64 * 1024;
 
