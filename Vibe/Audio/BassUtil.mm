@@ -24,9 +24,18 @@
 }
 
 + (void)waitForChannelSlide:(HCHANNEL)channel attribute:(DWORD)attribute  {
-    runWithTimeout(2, ^{
-        while(BASS_ChannelIsSliding(channel, attribute));
-    });
+    // Volume slides are kicked off at 100 ms. Poll with 10 ms sleeps for up
+    // to ~1 s. Previously this busy-waited on a dispatch queue with no sleep,
+    // burning a CPU core for the full slide duration.
+    const int maxIterations = 100;
+    int i = 0;
+    while (BASS_ChannelIsSliding(channel, attribute) && i < maxIterations) {
+        usleep(10 * 1000);
+        i++;
+    }
+    if (i >= maxIterations) {
+        LogError(@"BassUtil: channel slide on attr 0x%x did not complete within 1s", attribute);
+    }
 }
 
 + (void)rampVolumeToZero:(HCHANNEL)channel async:(BOOL)async {
@@ -34,6 +43,11 @@
         BASS_ChannelSlideAttribute(channel, BASS_ATTRIB_VOL | BASS_SLIDE_LOG, 0, 100);
         if (!async) {
             [self waitForChannelSlide:channel attribute:BASS_ATTRIB_VOL];
+            // Guarantee the post-condition: if the poll above timed out we
+            // do not want the caller's next op (e.g. BASS_StreamFree) racing
+            // an in-flight slide. Setting to the target slide value is a
+            // no-op when the slide finished cleanly.
+            BASS_ChannelSetAttribute(channel, BASS_ATTRIB_VOL, 0);
         }
     }
 }
@@ -43,6 +57,7 @@
         BASS_ChannelSlideAttribute(channel, BASS_ATTRIB_VOL | BASS_SLIDE_LOG, 1, 100);
         if (!async) {
             [self waitForChannelSlide:channel attribute:BASS_ATTRIB_VOL];
+            BASS_ChannelSetAttribute(channel, BASS_ATTRIB_VOL, 1);
         }
     }
 }

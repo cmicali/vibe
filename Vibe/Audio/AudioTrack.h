@@ -16,8 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithUrl:(NSURL *)url;
 + (AudioTrack *)withURL:(NSURL *)url;
 
-- (NSString *)fileHash;
-- (NSString *)calculateFileHash;
+- (NSString *)cacheKey;
 
 - (NSString *)title;
 - (NSString *)artist;
@@ -27,6 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSString *)durationString;
 - (NSImage *)albumArt;
+- (nullable NSImage *)thumbnailAlbumArt;
 
 - (BOOL)hasArtistAndTitle;
 

@@ -8,11 +8,24 @@
 
 @implementation CoreAudioUtil
 
+// Retained delegate pointer for the default-output-device listener. The HAL
+// callback runs without retaining the client-data pointer, so we keep a strong
+// reference here for the lifetime of the registration.
+static void *gOutputDeviceListenerClientData = NULL;
+
+static const AudioObjectPropertyAddress kOutputDeviceAddress = {
+    kAudioHardwarePropertyDefaultOutputDevice,
+    kAudioObjectPropertyScopeGlobal,
+    kAudioObjectPropertyElementMain
+};
+
 OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
                                      UInt32 inNumberAddresses,
                                      const AudioObjectPropertyAddress *inAddresses,
                                      void *inClientData) {
-    __block id<CoreAudioSystemOutputDeviceDelegate> delegate = (__bridge id<CoreAudioSystemOutputDeviceDelegate>)(inClientData);
+    // Strong local capture so the block on the main queue holds its own retain,
+    // even if the listener is removed (and its retain released) before it runs.
+    id<CoreAudioSystemOutputDeviceDelegate> delegate = (__bridge id<CoreAudioSystemOutputDeviceDelegate>)(inClientData);
     dispatch_async(dispatch_get_main_queue(), ^{
         [delegate systemAudioOutputDeviceDidChange];
     });
@@ -20,11 +33,23 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
 }
 
 + (void)listenForSystemOutputDeviceChanges:(id<CoreAudioSystemOutputDeviceDelegate>)delegate {
+    [self stopListeningForSystemOutputDeviceChanges];
     CFRunLoopRef nullRunLoop =  NULL;
     AudioObjectPropertyAddress runLoopProperty = { kAudioHardwarePropertyRunLoop, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
     AudioObjectSetPropertyData(kAudioObjectSystemObject, &runLoopProperty, 0, NULL, sizeof(CFRunLoopRef), &nullRunLoop);
-    AudioObjectPropertyAddress outputDeviceAddress = { kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-    AudioObjectAddPropertyListener(kAudioObjectSystemObject, &outputDeviceAddress, &outputDeviceChangedCallback, (__bridge void *)delegate);
+    gOutputDeviceListenerClientData = (__bridge_retained void *)delegate;
+    AudioObjectAddPropertyListener(kAudioObjectSystemObject, &kOutputDeviceAddress, &outputDeviceChangedCallback, gOutputDeviceListenerClientData);
+}
+
++ (void)stopListeningForSystemOutputDeviceChanges {
+    if (!gOutputDeviceListenerClientData) {
+        return;
+    }
+    AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &kOutputDeviceAddress, &outputDeviceChangedCallback, gOutputDeviceListenerClientData);
+    // Transfer ownership back to ARC so the retain from registration is released.
+    id<CoreAudioSystemOutputDeviceDelegate> delegate = (__bridge_transfer id<CoreAudioSystemOutputDeviceDelegate>)gOutputDeviceListenerClientData;
+    (void)delegate;
+    gOutputDeviceListenerClientData = NULL;
 }
 
 + (AudioDeviceID) audioDeviceIDforUID:(NSString *)deviceUid {

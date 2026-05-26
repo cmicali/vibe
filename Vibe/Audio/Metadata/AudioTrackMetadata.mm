@@ -5,6 +5,11 @@
 
 #import "AudioTrackMetadata.h"
 #import "NSString+CPPStrings.h"
+#import "NSImage+Util.h"
+
+// Pixel size for the playlist-cell thumbnail. Generous for Retina at typical
+// row heights; original art is usually 1000×1000+, so this is ~50× smaller.
+static const CGFloat kThumbnailDimension = 128.0;
 
 #include <fileref.h>
 #include <tpropertymap.h>
@@ -18,6 +23,27 @@
 #include <wavfile.h>
 
 @implementation AudioTrackMetadata {
+    NSImage *_thumbnailAlbumArt;
+}
+
+- (NSImage *)thumbnailAlbumArt {
+    @synchronized (self) {
+        if (_thumbnailAlbumArt) return _thumbnailAlbumArt;
+        NSImage *full = self.albumArt;
+        if (!full) return nil;
+        NSSize originalSize = full.size;
+        if (originalSize.width <= kThumbnailDimension && originalSize.height <= kThumbnailDimension) {
+            // Already small — skip the resize.
+            _thumbnailAlbumArt = full;
+        } else {
+            CGFloat scale = MIN(kThumbnailDimension / originalSize.width,
+                                kThumbnailDimension / originalSize.height);
+            NSSize target = NSMakeSize(round(originalSize.width * scale),
+                                       round(originalSize.height * scale));
+            _thumbnailAlbumArt = [full resizedImage:target];
+        }
+        return _thumbnailAlbumArt;
+    }
 }
 
 - (void)encodeWithCoder:(NSCoder *)coder {

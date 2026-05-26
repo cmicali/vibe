@@ -10,6 +10,7 @@
 @interface CoreAudioUtil : NSObject
 
 + (void)listenForSystemOutputDeviceChanges:(id <CoreAudioSystemOutputDeviceDelegate>)delegate;
++ (void)stopListeningForSystemOutputDeviceChanges;
 + (NSArray<NSNumber *> *)supportedSampleRatesForOutputDevice:(NSString *)uid;
 
 + (BOOL)setBestSampleRate:(double)rate forDeviceUID:(NSString *)uid;

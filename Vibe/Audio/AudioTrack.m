@@ -10,7 +10,7 @@
 
 @implementation AudioTrack {
     NSTimeInterval _duration;
-    NSString *_fileHash;
+    NSString *_cacheKey;
 }
 
 - (instancetype)initWithUrl:(NSURL *)url {
@@ -18,7 +18,7 @@
     if (self) {
         self.url = url;
         _duration = -1;
-        _fileHash = nil;
+        _cacheKey = nil;
     }
     return self;
 }
@@ -27,15 +27,11 @@
     return [[AudioTrack alloc] initWithUrl:url];
 }
 
-- (NSString *)fileHash {
-    return _fileHash;
-}
-
-- (NSString *)calculateFileHash {
-    if (!_fileHash) {
-        _fileHash = [self.url sha1HashOfFile];
+- (NSString *)cacheKey {
+    if (!_cacheKey) {
+        _cacheKey = [self.url cacheKey];
     }
-    return _fileHash;
+    return _cacheKey;
 }
 
 - (NSString *)title {
@@ -59,6 +55,10 @@
 
 - (NSImage *)albumArt {
     return self.metadata.albumArt;
+}
+
+- (NSImage *)thumbnailAlbumArt {
+    return self.metadata.thumbnailAlbumArt;
 }
 
 - (NSTimeInterval)duration {
