@@ -11,7 +11,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (copy) NSURL *url;
 
-@property(nonatomic, strong) AudioTrackMetadata *metadata;
+// atomic so the loader workers (utility QoS, up to 4 in flight) can publish
+// new metadata while the main thread reads it for cell rendering and the
+// "currently playing" track header.
+@property(atomic, strong) AudioTrackMetadata *metadata;
 
 - (instancetype)initWithUrl:(NSURL *)url;
 + (AudioTrack *)withURL:(NSURL *)url;
