@@ -48,11 +48,27 @@
 }
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
-    size_t count = self.layers.count;
-    for (NSUInteger i = 0; i < count; i++) {
-        BOOL played = ((CGFloat)i/(CGFloat)count <= progress);
+    NSInteger count = (NSInteger)self.layers.count;
+    if (count <= 0) return;
+    NSInteger newBoundary = (NSInteger)round((CGFloat)count * progress);
+    if (newBoundary < 0) newBoundary = 0;
+    if (newBoundary > count) newBoundary = count;
+
+    NSInteger oldBoundary = self.lastProgressBoundary;
+    NSInteger start, end;
+    if (oldBoundary < 0) {
+        // Sentinel after updateColors: — repaint everything.
+        start = 0;
+        end = count;
+    } else {
+        start = MIN(oldBoundary, newBoundary);
+        end = MAX(oldBoundary, newBoundary);
+    }
+    for (NSInteger i = start; i < end; i++) {
+        BOOL played = (i < newBoundary);
         setLayerColor(played ? _playedColor : _unPlayedColor, i);
     }
+    self.lastProgressBoundary = newBoundary;
 }
 
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {

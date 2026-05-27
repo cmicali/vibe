@@ -49,21 +49,36 @@
 }
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
-    size_t count = 512;
-//    CGFloat width = round(count * progress);
-//    if (_overlayGradient.frame.size.width != width) {
-////
-//        CGRect frame = CGRectMake(0, 10, width, _overlayGradientHeight);
-//        _overlayGradient.frame = frame;
-//        _overlayGradient.mask.frame = frame;
-//    }
-    for (NSUInteger i = 0; i < count; i+=4) {
-        BOOL played = (CGFloat)i/(CGFloat)count <= progress;
-        NSColor* colorTop = played ? _playedColorTop : _unPlayedColorTop;
-        NSColor* colorBottom = played ? _playedColorBottom : _unPlayedColorBottom;
+    NSInteger count = 512;
+    NSInteger newBoundary = (NSInteger)round((CGFloat)count * progress);
+    if (newBoundary < 0) newBoundary = 0;
+    if (newBoundary > count) newBoundary = count;
+
+    NSInteger oldBoundary = self.lastProgressBoundary;
+    NSInteger start, end;
+    if (oldBoundary < 0) {
+        // Sentinel after updateColors: — repaint everything.
+        start = 0;
+        end = count;
+    } else {
+        start = MIN(oldBoundary, newBoundary);
+        end = MAX(oldBoundary, newBoundary);
+    }
+    // Snap the iteration range to the stride-4 group boundaries the original
+    // loop walked (i, i+4, i+8, ...) so we never miss a group that straddles
+    // the boundary.
+    start = (start / 4) * 4;
+    end = ((end + 3) / 4) * 4;
+    if (end > count) end = count;
+
+    for (NSInteger i = start; i < end; i += 4) {
+        BOOL played = (i < newBoundary);
+        NSColor *colorTop = played ? _playedColorTop : _unPlayedColorTop;
+        NSColor *colorBottom = played ? _playedColorBottom : _unPlayedColorBottom;
         setLayerColor(colorTop, i);
         setLayerColor(colorBottom, i + 2);
     }
+    self.lastProgressBoundary = newBoundary;
 }
 
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {

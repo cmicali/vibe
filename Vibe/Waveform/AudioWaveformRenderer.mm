@@ -39,6 +39,9 @@
 
 - (void)updateColors:(BOOL)isDark {
     self.isDark = isDark;
+    // Colors changed — the cached played/unplayed colors on every layer are
+    // now stale. Force the next updateProgress: to repaint everything.
+    self.lastProgressBoundary = -1;
 }
 
 - (void)addLayers:(NSUInteger)numLayers backgroundColor:(CGColorRef)color {
