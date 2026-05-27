@@ -45,6 +45,10 @@
 
             BASS_PluginLoad("libbassflac.dylib", 0);
             BASS_SetConfig(BASS_CONFIG_FLOATDSP, 1);
+            // Halve the decoder/output wake-up rate from the 100 ms default.
+            // Trades ~100 ms of extra output latency (imperceptible) for ~1-3%
+            // less background-thread CPU during playback.
+            BASS_SetConfig(BASS_CONFIG_UPDATEPERIOD, 200);
 
             AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForName:deviceName];
             self.currentlyRequestedAudioDeviceId = device.deviceId;
