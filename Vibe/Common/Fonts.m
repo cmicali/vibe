@@ -14,11 +14,35 @@
 }
 
 + (NSFont *)fontForNumbers:(CGFloat)size bold:(BOOL)bold {
-    return [NSFont monospacedDigitSystemFontOfSize:size weight:bold?NSFontWeightBold:NSFontWeightRegular];
+    static NSMutableDictionary<NSNumber *, NSFont *> *cache;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        cache = [NSMutableDictionary new];
+    });
+    NSNumber *key = @(bold ? -size : size);
+    NSFont *font = cache[key];
+    if (!font) {
+        font = [NSFont monospacedDigitSystemFontOfSize:size weight:bold?NSFontWeightBold:NSFontWeightRegular];
+        cache[key] = font;
+    }
+    return font;
 }
 
 + (NSFont *)font:(CGFloat)size {
-    return [NSFont fontWithName:@"HelveticaNeue-Medium" size:size];
+    static NSMutableDictionary<NSNumber *, NSFont *> *cache;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        cache = [NSMutableDictionary new];
+    });
+    NSNumber *key = @(size);
+    NSFont *font = cache[key];
+    if (!font) {
+        font = [NSFont fontWithName:@"HelveticaNeue-Medium" size:size];
+        if (font) {
+            cache[key] = font;
+        }
+    }
+    return font;
 }
 
 + (NSMutableAttributedString *) stringForNumbers:(NSString *)str color:(NSColor *)color size:(CGFloat)size {

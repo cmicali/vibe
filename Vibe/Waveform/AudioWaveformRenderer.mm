@@ -15,6 +15,9 @@
         self.parentLayer = parentLayer;
         self.isDark = isDark;
         _otherLayers = [NSMutableArray new];
+        // Sentinel: force the first updateProgress: to paint every layer's
+        // played/unplayed color, not just the boundary delta.
+        self.lastProgressBoundary = -1;
     }
     return self;
 }
@@ -49,10 +52,12 @@
 }
 
 - (void)addLayers:(NSUInteger)numLayers forClass:(Class)clazz backgroundColor:(CGColorRef)color {
+    CGFloat scale = self.parentLayer.contentsScale;
     NSMutableArray *layers = [NSMutableArray new];
     for (int i = 0; i < numLayers; ++i) {
         CALayer *layer = (CALayer *)[[clazz alloc] init];
         layer.backgroundColor = color;
+        layer.contentsScale = scale;
         [layers addObject:layer];
         [self.parentLayer addSublayer:layer];
     }
@@ -65,6 +70,7 @@
 
 - (CAGradientLayer*) createGradientLayer:(NSString * __nullable)filterName {
     CAGradientLayer *layer = [[CAGradientLayer alloc] init];
+    layer.contentsScale = self.parentLayer.contentsScale;
     if (filterName.length) {
         CIFilter *filter = [CIFilter filterWithName:filterName];
         [filter setDefaults];

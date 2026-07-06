@@ -36,6 +36,14 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
     if (startIndex + numChunksToCombine > numChunks) {
         numChunksToCombine = numChunks - startIndex;
     }
+    if (numChunksToCombine < 16) {
+        // vDSP setup overhead dominates for tiny strided ranges — plain loop
+        result = chunks[startIndex];
+        for (NSUInteger i = 1; i < numChunksToCombine; i++) {
+            result.merge(&chunks[startIndex + i]);
+        }
+        return result;
+    }
     // chunks[] is float[2] pairs: [min0, max0, min1, max1, ...]
     // Use stride-2 vDSP to find min of all mins and max of all maxes
     float *base = reinterpret_cast<float*>(&chunks[startIndex]);
@@ -70,9 +78,12 @@ void AudioWaveform::normalize() {
     }
 }
 
+static const int kCodableAudioWaveformVersion = 2;
+
 @implementation CodableAudioWaveform
 
 - (void)encodeWithCoder:(NSCoder *)coder {
+    [coder encodeInt:kCodableAudioWaveformVersion forKey:@"version"];
     [coder encodeObject:@(self.waveform->getNumChunks()) forKey:@"numChunks"];
     [coder encodeBytes:(const uint8_t*)self.waveform->getBytes() length:self.waveform->getNumBytes() forKey:@"chunks"];
 }
@@ -80,9 +91,17 @@ void AudioWaveform::normalize() {
 - (instancetype)initWithCoder:(NSCoder *)coder {
     self = [super init];
     if (self) {
+        // Missing/mismatched version (old cache entries decode as 0) or
+        // malformed payloads are rejected; the waveform just re-generates.
+        if ([coder decodeIntForKey:@"version"] != kCodableAudioWaveformVersion) {
+            return nil;
+        }
         NSUInteger numChunks = [[coder decodeObjectForKey:@"numChunks"] unsignedIntegerValue];
         NSUInteger length;
         const void* data = [coder decodeBytesForKey:@"chunks" returnedLength:&length];
+        if (!data || numChunks == 0 || length != numChunks * sizeof(AudioWaveformCacheChunk)) {
+            return nil;
+        }
         self.waveform = new AudioWaveform(numChunks, data);
     }
     return self;

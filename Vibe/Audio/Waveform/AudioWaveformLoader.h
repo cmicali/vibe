@@ -25,6 +25,6 @@
 @protocol AudioWaveformLoaderDelegate <NSObject>
 @optional
 
-- (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded;
+- (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded;
 
 @end

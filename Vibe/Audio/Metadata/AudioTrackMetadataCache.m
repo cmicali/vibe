@@ -69,13 +69,19 @@
     } else {
         track.metadata = [AudioTrackMetadata metadataWithURL:track.url];
         if (METADATA_CACHE_ENABLED && track.metadata) {
+            // Synchronous on purpose: the write is small (~10KB) and the
+            // back-pressure paces the workers. Async writes pile up on
+            // PINDiskCache's serial queue and stall the workers' next
+            // objectForKey: behind the backlog.
             [_metadataCache setObject:track.metadata forKey:cacheKey];
         }
     }
     if (track.metadata && !self.isCancelled) {
         // Pre-warm the playlist-cell thumbnail on the worker so the table
-        // delegate (main thread) never has to do the resize itself.
-        (void)track.metadata.thumbnailAlbumArt;
+        // delegate (main thread) never pays the resize or the JPEG decode.
+        // CGImageForProposedRect forces the actual bitmap decode, which is
+        // otherwise deferred until the cell first draws (on main).
+        [track.metadata.thumbnailAlbumArt CGImageForProposedRect:NULL context:nil hints:nil];
         run_on_main_thread({
             if (!self.isCancelled) {
                 [self.delegate didLoadMetadata:track];
@@ -100,9 +106,15 @@
     self = [super init];
     if (self) {
         _currentLoader = nil;
-        _metadataCache = [[PINCache alloc] initWithName:@"Audio Track Metadata"];
+        // v3: archives only the JPEG thumbnail + scalar fields (~10KB/track).
+        // Earlier formats stored art at original size, which overflowed the
+        // byte limit and turned every launch into a full library re-parse.
+        _metadataCache = [[PINCache alloc] initWithName:@"Audio Track Metadata v3"];
         _metadataCache.diskCache.byteLimit = 64 * 1024 * 1024;
         _metadataCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
+        // Objects are stored without cost tracking, so costLimit would be a
+        // no-op; an age limit keeps idle entries from pinning memory forever.
+        _metadataCache.memoryCache.ageLimit = 60 * 60; // 1 hour
         if (!METADATA_CACHE_ENABLED) {
             [self invalidate];
         }

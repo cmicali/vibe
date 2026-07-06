@@ -36,20 +36,44 @@
 
     [[AppSettings sharedInstance] applicationDidFinishLaunching];
 
+    [self cleanupLegacyCaches];
+
     [self.mainPlayerController showWindow:self];
 
     _isLoaded = YES;
     [self playURLs];
 }
 
+// Superseded cache formats can hold tens of MB that would otherwise linger
+// for months; delete their directories once in the background.
+- (void)cleanupLegacyCaches {
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSString *cachesDir = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).firstObject;
+        if (!cachesDir) {
+            return;
+        }
+        NSArray<NSString *> *legacyCacheNames = @[
+                @"com.pinterest.PINDiskCache.Audio Track Metadata",
+                @"com.pinterest.PINDiskCache.Audio Track Metadata v2",
+                @"com.pinterest.PINDiskCache.audio_waveform_cache",
+        ];
+        for (NSString *name in legacyCacheNames) {
+            [[NSFileManager defaultManager] removeItemAtPath:[cachesDir stringByAppendingPathComponent:name] error:nil];
+        }
+    });
+}
+
 - (void)playURLs {
     if (_isLoaded && _urlsToOpen.count > 0) {
         NSArray<NSURL*>* urls = [self->_urlsToOpen copy];
         [self->_urlsToOpen removeAllObjects];
-        urls = [NSURLUtil expandAndFilterList:urls];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self.mainPlayerController play:urls];
-        });
+        [NSURLUtil expandAndFilterList:urls completion:^(NSArray<NSURL *> *expanded) {
+            // Nothing playable (e.g. a folder with no audio) — don't wipe the
+            // current playlist with an empty list.
+            if (expanded.count > 0) {
+                [self.mainPlayerController play:expanded];
+            }
+        }];
     }
 }
 

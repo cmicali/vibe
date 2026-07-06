@@ -57,14 +57,20 @@
 - (BOOL)performDragOperation:(id<NSDraggingInfo>)sender {
     NSPasteboard *pboard = [sender draggingPasteboard];
     NSArray<NSURL*> *urls = [pboard readObjectsForClasses:@[[NSURL class]] options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
-    urls = [NSURLUtil expandAndFilterList:urls];
     if (urls.count == 0) {
-        // Drop contained no playable audio (e.g. an empty folder). Reject the
-        // drop instead of forwarding an empty list, which would clear the
-        // current playlist.
         return NO;
     }
-    [self.dropDelegate mainWindow:self filesDropped:urls];
+    // Accept the drop immediately; expand directories off the main thread and
+    // deliver the playable files via the main-thread completion.
+    __weak MainWindow *weakSelf = self;
+    [NSURLUtil expandAndFilterList:urls completion:^(NSArray<NSURL *> *expanded) {
+        MainWindow *strongSelf = weakSelf;
+        // Drop contained no playable audio (e.g. an empty folder). Don't
+        // forward an empty list, which would clear the current playlist.
+        if (strongSelf && expanded.count > 0) {
+            [strongSelf.dropDelegate mainWindow:strongSelf filesDropped:expanded];
+        }
+    }];
     return YES;
 }
 

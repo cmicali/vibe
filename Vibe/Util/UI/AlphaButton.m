@@ -87,7 +87,7 @@
 
 - (void)mouseDragged:(NSEvent *)event {
     [super mouseDragged:event];
-    _mouseInside = CGRectContainsPoint(self.frame, event.locationInWindow);
+    _mouseInside = NSPointInRect([self convertPoint:event.locationInWindow fromView:nil], self.bounds);
     [self updateAlpha];
 }
 

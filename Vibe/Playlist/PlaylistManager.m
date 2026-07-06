@@ -45,7 +45,47 @@
     return _playlist.count;
 }
 
+static NSDictionary *numColumnAttributes;
+static NSDictionary *lengthColumnAttributes;
+static NSDictionary *titleAttributes;
+static NSDictionary *artistAttributes;
+
+static void ensureCellAttributes(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSMutableParagraphStyle *center = [[NSParagraphStyle new] mutableCopy];
+        center.alignment = NSTextAlignmentCenter;
+        NSMutableParagraphStyle *left = [[NSParagraphStyle new] mutableCopy];
+        left.alignment = NSTextAlignmentLeft;
+        NSMutableParagraphStyle *right = [[NSParagraphStyle new] mutableCopy];
+        right.alignment = NSTextAlignmentRight;
+        numColumnAttributes = @{
+                NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
+                NSKernAttributeName: @(-1.5),
+                NSFontAttributeName: [Fonts fontForNumbers:12],
+                NSParagraphStyleAttributeName: right,
+        };
+        lengthColumnAttributes = @{
+                NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
+                NSKernAttributeName: @(-1.0),
+                NSFontAttributeName: [Fonts fontForNumbers:12],
+                NSParagraphStyleAttributeName: right,
+        };
+        titleAttributes = @{
+                NSForegroundColorAttributeName: NSColor.labelColor,
+                NSKernAttributeName: @(-0.3),
+                NSFontAttributeName: [Fonts font:14],
+        };
+        artistAttributes = @{
+                NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
+                NSKernAttributeName: @(-0.3),
+                NSFontAttributeName: [Fonts font:14],
+        };
+    });
+}
+
 - (nullable NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row {
+    ensureCellAttributes();
     AudioTrack *track = _playlist[row];
     NSTableCellView *view;
     if ([tableColumn.identifier isEqualToString:@"numColumn"]) {
@@ -59,11 +99,8 @@
         else {
             view.textField.hidden = NO;
             view.imageView.hidden = YES;
-            view.textField.attributedStringValue = [Fonts stringForNumbers:[NSString stringWithFormat:@"%ld", (long)row+1]
-                                                                     color:NSColor.secondaryLabelColor
-                                                                      size:12
-                                                                 alignment:NSTextAlignmentCenter
-                                                                   kerning:-1.5];
+            view.textField.attributedStringValue = [[NSAttributedString alloc] initWithString:[NSString stringWithFormat:@"%ld", (long)row+1]
+                                                                                   attributes:numColumnAttributes];
         }
     }
     else if ([tableColumn.identifier isEqualToString:@"artColumn"]) {
@@ -77,32 +114,21 @@
     else if ([tableColumn.identifier isEqualToString:@"titleColumn"]) {
         view = [tableView makeViewWithIdentifier:@"trackName" owner:self];
         if (track.hasArtistAndTitle) {
-            NSMutableAttributedString *artist = [Fonts string:track.artist
-                                                        color:NSColor.secondaryLabelColor
-                                                         size:14];
-            NSMutableAttributedString *title = [Fonts string:track.title
-                                                       color:NSColor.labelColor
-                                                        size:14];
-            NSMutableAttributedString *s = [[NSMutableAttributedString alloc] init];
-            [s appendAttributedString:title];
-            [s appendString:@" "];
-            [s appendAttributedString:artist];
+            NSMutableAttributedString *s = [[NSMutableAttributedString alloc] initWithString:[track.title stringByAppendingString:@" "]
+                                                                                  attributes:titleAttributes];
+            [s appendAttributedString:[[NSAttributedString alloc] initWithString:track.artist
+                                                                      attributes:artistAttributes]];
             view.textField.attributedStringValue = s;
         }
         else {
-            view.textField.attributedStringValue = [Fonts string:track.singleLineTitle
-                                                           color:NSColor.secondaryLabelColor
-                                                            size:14];
+            view.textField.attributedStringValue = [[NSAttributedString alloc] initWithString:track.singleLineTitle
+                                                                                    attributes:artistAttributes];
         }
     }
     else if ([tableColumn.identifier isEqualToString:@"lengthColumn"]) {
         view = [tableView makeViewWithIdentifier:@"trackLength" owner:self];
-        view.textField.attributedStringValue = [Fonts stringForNumbers:track.durationString
-                                                                 color:NSColor.secondaryLabelColor
-                                                                  size:12
-                                                             alignment:NSTextAlignmentRight
-                                                               kerning:-1.0
-        ];
+        view.textField.attributedStringValue = [[NSAttributedString alloc] initWithString:track.durationString
+                                                                                attributes:lengthColumnAttributes];
     }
 
     return view;
@@ -161,6 +187,9 @@
 }
 
 - (void)doubleClick:(id)doubleClick {
+    if ([_tableView clickedRow] < 0) {
+        return;
+    }
     NSUInteger previousIndex = self.currentIndex;
     self.currentIndex = (NSUInteger) [_tableView clickedRow];
     [self play];
@@ -182,6 +211,15 @@
 
 - (void)reloadCurrentTrack {
     [self reloadTrackAtIndex:self.currentIndex];
+}
+
+- (void)reloadCurrentTrackPlayState {
+    NSInteger column = [self.tableView columnWithIdentifier:@"numColumn"];
+    if (column < 0 || self.currentIndex >= _playlist.count) {
+        return;
+    }
+    [self.tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndex:self.currentIndex]
+                              columnIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)column]];
 }
 
 - (void)reloadTrack:(AudioTrack *)track {

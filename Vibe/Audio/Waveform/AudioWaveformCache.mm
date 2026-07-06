@@ -27,7 +27,9 @@
     if (self) {
         dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
         _loaderQueue = dispatch_queue_create("AudioWaveformCache", queueAttributes);
-        _waveformCache = [[PINCache alloc] initWithName:@"audio_waveform_cache"];
+        // v2: entries carry a format version key; renamed so the budget isn't
+        // consumed by unreadable v1 entries waiting for LRU eviction.
+        _waveformCache = [[PINCache alloc] initWithName:@"audio_waveform_cache_v2"];
         _waveformCache.diskCache.byteLimit = 64 * 1024 * 1024; // 64mb disk cache limit
         _waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
         _normalize = NO;
@@ -67,7 +69,7 @@
                 cachedWaveform.waveform->normalize();
             }
             if (WAVEFORM_CACHE_ENABLED) {
-                [self->_waveformCache setObject:cachedWaveform forKey:cacheKey];
+                [self->_waveformCache setObjectAsync:cachedWaveform forKey:cacheKey completion:nil];
             }
         }
     }
@@ -80,14 +82,16 @@
         // the waveform pointer remains valid when the block executes on the main thread.
         CodableAudioWaveform *liveWaveform = cachedWaveform;
         run_on_main_thread({
+            // Re-check on the main thread: a cancel (new track selected) may
+            // have landed after this block was enqueued.
             if (!loader.isCancelled) {
-                [self.delegate audioWaveform:liveWaveform.waveform didLoadData:1];
+                [self.delegate audioWaveform:liveWaveform didLoadData:1];
             }
         });
     }
 }
 
-- (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded {
+- (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded {
     if (!loader.isCancelled) {
         [self.delegate audioWaveform:waveform didLoadData:percentLoaded];
     }

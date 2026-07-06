@@ -23,11 +23,14 @@ NS_ASSUME_NONNULL_BEGIN
 @property (copy) NSNumber *sampleRate;
 @property (assign) NSTimeInterval duration;
 
+// Full-resolution art, lazily decoded from the original compressed bytes on
+// first access. Only the decoded image of tracks actually displayed full-res
+// ever lives in memory; the on-disk cache stores the compressed bytes.
 @property (strong) NSImage *albumArt;
 
 // Downscaled copy of albumArt suitable for small table cells. Generated lazily
-// the first time it's read; not serialized to the on-disk cache (cheap to
-// regenerate from albumArt on cache hit).
+// the first time it's read and serialized to the on-disk cache, so cache hits
+// get it for free.
 - (nullable NSImage *)thumbnailAlbumArt;
 
 + (AudioTrackMetadata *)metadataWithURL:(NSURL *)url;

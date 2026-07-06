@@ -292,8 +292,11 @@
 #pragma mark - Property method
 
 - (void)setFrame:(NSRect)frame {
+    BOOL sizeChanged = !NSEqualSizes(frame.size, self.frame.size);
     [super setFrame:frame];
-    [self setupTitleLayer];
+    if (sizeChanged) {
+        [self setupTitleLayer];
+    }
 }
 
 - (void)setFont:(NSFont *)font {
@@ -307,6 +310,9 @@
 }
 
 - (void)setImage:(NSImage *)image {
+    if (image == self.image) {
+        return;
+    }
     [super setImage:image];
     [self setupImageLayer];
 }

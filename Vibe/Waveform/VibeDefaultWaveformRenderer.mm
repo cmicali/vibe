@@ -5,6 +5,10 @@
 
 #import "VibeDefaultWaveformRenderer.h"
 
+// 128 bars, each drawn with two layers: layers[i*2] is the top bar and
+// layers[i*2 + 1] is the mirrored bottom bar.
+#define kVibeBarCount 128
+
 @implementation VibeDefaultWaveformRenderer {
     CAGradientLayer *_overlayGradient;
     CGFloat _overlayGradientY;
@@ -29,27 +33,20 @@
         _playedColorBottom = [NSColor colorWithRed:1 green:0.75 blue:0.585 alpha:0.8];
         _unPlayedColorBottom = [[NSColor whiteColor] colorWithAlphaComponent:0.55];
 
-        [self addLayers:512 backgroundColor:_unPlayedColorTop.CGColor];
+        [self addLayers:kVibeBarCount * 2 backgroundColor:_unPlayedColorTop.CGColor];
+        // The mirrored bottom bars are dimmer than the top bars at all times.
+        for (NSUInteger i = 0; i < kVibeBarCount; i++) {
+            self.layers[i * 2 + 1].backgroundColor = _unPlayedColorBottom.CGColor;
+        }
 
-//        NSArray *colors = @[
-//            [NSColor colorWithRed:1 green:0.2 blue:0 alpha:1],
-//            [NSColor colorWithRed:1 green:0.45 blue:0 alpha:1],
-//        ];
-//        _overlayGradient = [self createGradientLayer:colors filter:@"CISourceInCompositing"];
-//        [self addOtherLayer:_overlayGradient];
         [self updateWaveform:bounds progress:0 waveform:nil];
         [self updateProgress:0 waveform:nil];
-//        _overlayGradient.frame = CGRectMake(0, 0, 0, bounds.size.height);
-//        CALayer *maskLayer = [[CALayer alloc] init];
-//        maskLayer.frame = _overlayGradient.frame;
-//        maskLayer.backgroundColor = [NSColor whiteColor].CGColor;
-//        _overlayGradient.mask = maskLayer;
     }
     return self;
 }
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
-    NSInteger count = 512;
+    NSInteger count = kVibeBarCount;
     NSInteger newBoundary = (NSInteger)round((CGFloat)count * progress);
     if (newBoundary < 0) newBoundary = 0;
     if (newBoundary > count) newBoundary = count;
@@ -64,33 +61,39 @@
         start = MIN(oldBoundary, newBoundary);
         end = MAX(oldBoundary, newBoundary);
     }
-    // Snap the iteration range to the stride-4 group boundaries the original
-    // loop walked (i, i+4, i+8, ...) so we never miss a group that straddles
-    // the boundary.
-    start = (start / 4) * 4;
-    end = ((end + 3) / 4) * 4;
-    if (end > count) end = count;
 
-    for (NSInteger i = start; i < end; i += 4) {
+    for (NSInteger i = start; i < end; i++) {
         BOOL played = (i < newBoundary);
         NSColor *colorTop = played ? _playedColorTop : _unPlayedColorTop;
         NSColor *colorBottom = played ? _playedColorBottom : _unPlayedColorBottom;
-        setLayerColor(colorTop, i);
-        setLayerColor(colorBottom, i + 2);
+        setLayerColor(colorTop, i * 2);
+        setLayerColor(colorBottom, i * 2 + 1);
     }
     self.lastProgressBoundary = newBoundary;
 }
 
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
 
-    if (!waveform) return;
+    NSUInteger count = kVibeBarCount;
+
+    if (!waveform) {
+        // Clear stale bars from the previous track.
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        for (NSUInteger i = 0; i < count * 2; i++) {
+            self.layers[i].frame = CGRectZero;
+        }
+        [CATransaction commit];
+        return;
+    }
 
     CGFloat totalHeight = bounds.size.height;
-    size_t count = self.layers.count;
+    CGFloat width = bounds.size.width;
 
     CGFloat vscale = totalHeight * 0.75;
 
-    CGFloat blockWidth = 3;
+    CGFloat barPitch = width / (CGFloat)count;
+    CGFloat blockWidth = clampMin(barPitch * 0.75, 1);
 
     CGFloat topLineRatio = 0.70;
     CGFloat topLineY = round(totalHeight * (1-topLineRatio));
@@ -101,35 +104,26 @@
     _overlayGradientY = bottomLineY;
     _overlayGradientHeight = bounds.size.height - _overlayGradientY;
 
-    for (NSUInteger i = 0; i < count; i+=4) {
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    for (NSUInteger i = 0; i < count; i++) {
 
         AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
+        CGFloat x = barPitch * (CGFloat)i;
 
         // Top line
         CGFloat height = fabs(m.getMax() - m.getMin()) / 2 * vscale;
         CGFloat topBarHeight = clampMin(round(height * topLineRatio), 1);
-        CGRect frame = CGRectMake(i, topLineY, blockWidth, topBarHeight);
-        setLayerFrame(frame, i);
+        CGRect frame = CGRectMake(x, topLineY, blockWidth, topBarHeight);
+        setLayerFrame(frame, i * 2);
 
         // Mirror line
         CGFloat bottomBarHeight = clampMin(round(topBarHeight * (1-topLineRatio)), 0);
-        frame = CGRectMake(i, bottomLineY - bottomBarHeight, blockWidth, bottomBarHeight);
-        setLayerFrame(frame, i+2);
+        frame = CGRectMake(x, bottomLineY - bottomBarHeight, blockWidth, bottomBarHeight);
+        setLayerFrame(frame, i * 2 + 1);
 
     }
-/*
-    for (NSUInteger i = 0; i < count - 4; i+=4) {
-
-        // Top spacer line
-        CGFrame frame = CGRectMake(i + blockWidth, topLineY, 1, topBarHeight);
-        [self setLayerFrame:frame atIndex:i + 1];
-
-        // Mirror spacer line
-        frame = CGRectMake(i + blockWidth, bottomLineY - bottomBarHeight, 1, bottomBarHeight);
-        [self setLayerFrame:frame atIndex:i + 3];
-
-    }
-*/
+    [CATransaction commit];
 }
 
 @end

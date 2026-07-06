@@ -37,11 +37,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (assign) CGFloat progress;
 @property (assign) BOOL isDark;
 
-// Last "played" layer index that updateProgress: painted. Subclasses use this
-// to only repaint layers between the old and new progress boundary instead of
-// iterating every layer (which on the default x4 oversampling renderer is
-// 4096 layers per tick). Set to -1 to force a full repaint (e.g. after the
-// played/unplayed colors change in updateColors:).
+// Last "played" bar index that updateProgress: painted. Layer-array renderers
+// (only VibeDefaultWaveformRenderer nowadays) use this to repaint just the
+// bars between the old and new progress boundary instead of every bar. Set to
+// -1 to force a full repaint (e.g. after the played/unplayed colors change in
+// updateColors:).
 @property (assign) NSInteger lastProgressBoundary;
 
 @property (strong) CALayer* parentLayer;

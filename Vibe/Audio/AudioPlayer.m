@@ -51,9 +51,12 @@
             BASS_SetConfig(BASS_CONFIG_UPDATEPERIOD, 200);
 
             AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForName:deviceName];
-            self.currentlyRequestedAudioDeviceId = device.deviceId;
+            // nil device (empty/unmatched name) must map to the BASS default
+            // device (-1), not 0 ("no sound").
+            int deviceIndex = device ? (int)device.deviceId : -1;
+            self.currentlyRequestedAudioDeviceId = deviceIndex;
 
-            [self initWithDeviceIndexInternal:(int) device.deviceId];
+            [self initWithDeviceIndexInternal:deviceIndex];
 
             [CoreAudioUtil listenForSystemOutputDeviceChanges:self];
 
@@ -146,10 +149,12 @@
 
     [_thread run:^{
 
-        if (self.channel) {
-            [BassUtil rampVolumeToZero:self.channel async:NO];
-            BASS_StreamFree(self.channel);
+        HSTREAM oldChannel = self.channel;
+        if (oldChannel) {
+            // Fade the old stream out asynchronously and free it when the
+            // slide completes, so a skip doesn't block on the ~100ms ramp.
             self.channel = 0;
+            [BassUtil fadeOutAndFreeChannel:oldChannel];
         }
 
         self.currentTrack = nil;
@@ -170,8 +175,12 @@
                 });
                 return;
             }
+            // Capture the error before BASS_StreamFree resets it
+            int errorCode = BASS_ErrorGetCode();
             BASS_StreamFree(self.channel);
             self.channel = 0;
+            [self sendDelegateError:errorCode];
+            return;
         }
         [self sendDelegateLastError];
     }];
@@ -257,8 +266,14 @@
 #pragma mark - BASSChannelDelegate
 
 - (void)channelDidEnd {
+    // Snapshot before dispatching; if the track changed by the time the block
+    // runs on main, this end event is stale and must be dropped.
+    AudioTrack *track = self.currentTrack;
     run_on_main_thread({
-        [self.delegate audioPlayer:self didFinishPlaying:self.currentTrack];
+        if (!track || self.currentTrack != track) {
+            return;
+        }
+        [self.delegate audioPlayer:self didFinishPlaying:track];
     });
 }
 
@@ -281,10 +296,15 @@
     BASS_GetInfo(&bassInfo);
     BASS_ChannelGetInfo(self.channel, &channelInfo);
     if (bassInfo.freq != channelInfo.freq) {
+        NSString *deviceUID = BassUtil.driverForCurrentDevice;
+        if (!deviceUID) {
+            LogError(@"AudioPlayer: cannot change sample rate, no driver UID for current device");
+            return;
+        }
         LogDebug(@"AudioPlayer: Changing system sample rate");
         LogDebug(@"  from: %d", bassInfo.freq);
         LogDebug(@"    to: %d", channelInfo.freq);
-        [CoreAudioUtil setBestSampleRate:channelInfo.freq forDeviceUID:BassUtil.driverForCurrentDevice];
+        [CoreAudioUtil setBestSampleRate:channelInfo.freq forDeviceUID:deviceUID];
     }
 }
 
@@ -351,7 +371,10 @@
 #pragma mark - Helpers
 
 - (void)sendDelegateLastError {
-    int errorCode = BASS_ErrorGetCode();
+    [self sendDelegateError:BASS_ErrorGetCode()];
+}
+
+- (void)sendDelegateError:(int)errorCode {
     LogError(@"AudioPlayer Error: %@", [BassUtil stringForErrorCode:errorCode]);
     NSError *error = [BassUtil errorForErrorCode:errorCode];
     run_on_main_thread({

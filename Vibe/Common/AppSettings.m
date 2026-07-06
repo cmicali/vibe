@@ -92,7 +92,8 @@
     else if ([value isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK]) {
         return [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
     }
-    return [NSAppearance currentAppearance];
+    // System default: a nil window appearance tracks the OS light/dark setting.
+    return nil;
 }
 
 - (NSString *)waveformStyle {

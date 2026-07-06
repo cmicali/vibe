@@ -39,7 +39,11 @@
 }
 
 - (NSString *)durationStringFromTimeInterval:(NSTimeInterval)duration {
-    return [_timeFormatter stringFromTimeInterval:duration];
+    if (isnan(duration) || duration < 0) {
+        duration = 0;
+    }
+    NSString *result = [_timeFormatter stringFromTimeInterval:duration];
+    return result ?: @"";
 }
 
 @end
