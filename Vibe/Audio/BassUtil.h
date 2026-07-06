@@ -12,10 +12,13 @@
 
 + (BASS_DEVICEINFO)infoForCurrentDevice;
 + (BASS_DEVICEINFO)infoForDevice:(DWORD)deviceId;
-+ (NSString *)driverForCurrentDevice;
+// Returns nil if the current device info or driver is unavailable
++ (nullable NSString *)driverForCurrentDevice;
 
 + (void)rampVolumeToZero:(HCHANNEL)channel async:(BOOL)async;
 + (void)rampVolumeToNormal:(HCHANNEL)channel async:(BOOL)async;
+// Starts an async fade-out and frees the channel when the slide completes
++ (void)fadeOutAndFreeChannel:(HSTREAM)channel;
 
 + (NSTimeInterval)getChannelPosition:(HCHANNEL)channel;
 + (void)setChannelPosition:(HCHANNEL)channel position:(NSTimeInterval)pos;

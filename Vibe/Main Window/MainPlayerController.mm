@@ -21,9 +21,12 @@
 @implementation MainPlayerController {
     dispatch_source_t           _timer;
     NSTimeInterval              _lastPosition;
+    NSTimeInterval              _currentTrackDuration;
     BOOL                        _timerRunning;
     __weak NSImage*             _displayedArt;
-
+    __weak AudioTrack*          _lastReloadedTrack;
+    NSString*                   _lastFileMetadataString;
+    BOOL                        _metadataLoadPending;
 }
 
 - (id) init {
@@ -34,6 +37,11 @@
 
 - (void)dealloc {
     if (_timer) {
+        // Releasing a suspended dispatch source traps; the timer is created
+        // suspended and stays suspended whenever _timerRunning is NO.
+        if (!_timerRunning) {
+            dispatch_resume(_timer);
+        }
         dispatch_source_cancel(_timer);
     }
 }
@@ -102,8 +110,8 @@
     self.currentTimeTextField.layer.shadowOpacity = 0.75;
     self.currentTimeTextField.layer.shadowOffset = CGSizeMake(0, -1);
     self.currentTimeTextField.layer.masksToBounds = NO;
-    self.currentTimeTextField.layer.shouldRasterize = true;
-    self.currentTimeTextField.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
+    // No shouldRasterize here: this field's content changes every second, so
+    // rasterization would just force a re-raster on every update.
     self.currentTimeTextField.font = [Fonts fontForNumbers:self.currentTimeTextField.font.pointSize bold:YES];
 
     self.albumArtImageView.wantsLayer = YES;
@@ -116,8 +124,8 @@
 
     self.backgroundAlbumArtImageView.wantsLayer = YES;
     self.backgroundAlbumArtImageView.layer.masksToBounds = NO;
-    self.backgroundAlbumArtImageView.layer.shouldRasterize = true;
-    self.backgroundAlbumArtImageView.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
+    // shouldRasterize was only there to cache the (now removed) live
+    // CIGaussianBlur filter output; the image is pre-blurred these days.
 
     self.fileMetadataTextField.wantsLayer = YES;
     self.fileMetadataTextField.layer.shadowColor = NSColor.blackColor.CGColor;
@@ -198,6 +206,12 @@
     }
 }
 
+static void setStringValueIfChanged(NSTextField *field, NSString *value) {
+    if (![field.stringValue isEqualToString:value]) {
+        field.stringValue = value;
+    }
+}
+
 - (void)updateUI {
 
     AudioTrack *track = self.playlistManager.currentTrack;
@@ -212,40 +226,50 @@
     self.playButton.enabled = self.playlistManager.count > 0;
     self.nextButton.enabled = self.playlistManager.count > 1;
 
+    BOOL trackLoaded = track != nil;
+    self.totalTimeTextField.hidden = !trackLoaded;
+    self.currentTimeTextField.hidden = !trackLoaded;
+    self.waveformView.hidden = !trackLoaded;
+
     if (track) {
         if (track.hasArtistAndTitle) {
-            self.artistTextField.stringValue = track.artist;
-            self.titleTextField.stringValue = track.title;
+            setStringValueIfChanged(self.artistTextField, track.artist);
+            setStringValueIfChanged(self.titleTextField, track.title);
         }
         else {
-            self.artistTextField.stringValue = @"";
-            self.titleTextField.stringValue = track.singleLineTitle;
+            setStringValueIfChanged(self.artistTextField, @"");
+            setStringValueIfChanged(self.titleTextField, track.singleLineTitle);
         }
-        self.totalTimeTextField.stringValue = [[Formatters sharedInstance] durationStringFromTimeInterval:self.audioPlayer.duration];
+        setStringValueIfChanged(self.totalTimeTextField, [[Formatters sharedInstance] durationStringFromTimeInterval:self.audioPlayer.duration]);
         if (track.metadata.fileType) {
             NSString *bitrate = @"";
             if (!track.metadata.isLossless) {
                 bitrate = [NSString stringWithFormat:@"%@ kbps | ", track.metadata.bitrate];
             }
-            NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
-            paragraph.alignment = NSTextAlignmentRight;
-            self.fileMetadataTextField.attributedStringValue = [[NSMutableAttributedString alloc] initWithString:
-                                                                [NSString stringWithFormat:@"%@ | %@%.1f kHz", track.metadata.fileType, bitrate, ([track.metadata.sampleRate doubleValue]/1000)]
-                                                                                                      attributes:@{
-                                                                    NSKernAttributeName:@(-1.2),
-                                                                    NSParagraphStyleAttributeName:paragraph,
-                                                                }];
+            NSString *fileMetadata = [NSString stringWithFormat:@"%@ | %@%.1f kHz", track.metadata.fileType, bitrate, ([track.metadata.sampleRate doubleValue]/1000)];
+            if (![fileMetadata isEqualToString:_lastFileMetadataString]) {
+                NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
+                paragraph.alignment = NSTextAlignmentRight;
+                self.fileMetadataTextField.attributedStringValue = [[NSMutableAttributedString alloc] initWithString:fileMetadata
+                                                                                                          attributes:@{
+                                                                        NSKernAttributeName:@(-1.2),
+                                                                        NSParagraphStyleAttributeName:paragraph,
+                                                                    }];
+                _lastFileMetadataString = fileMetadata;
+            }
         }
         else {
-            self.fileMetadataTextField.stringValue = @"";
+            setStringValueIfChanged(self.fileMetadataTextField, @"");
+            _lastFileMetadataString = nil;
         }
     }
     else {
-        self.artistTextField.stringValue = @"";
-        self.titleTextField.stringValue = @"";
-        self.totalTimeTextField.stringValue = @"";
-        self.currentTimeTextField.stringValue = @"";
-        self.fileMetadataTextField.stringValue = @"";
+        setStringValueIfChanged(self.artistTextField, @"");
+        setStringValueIfChanged(self.titleTextField, @"");
+        setStringValueIfChanged(self.totalTimeTextField, @"");
+        setStringValueIfChanged(self.currentTimeTextField, @"");
+        setStringValueIfChanged(self.fileMetadataTextField, @"");
+        _lastFileMetadataString = nil;
     }
 
     self.albumArtImageView.fileURL = track.url;
@@ -253,7 +277,7 @@
     if (track.albumArt) {
         if (_displayedArt != track.albumArt) {
             self.albumArtImageView.image = track.albumArt;
-            self.backgroundAlbumArtImageView.image = track.albumArt;
+            [self.backgroundAlbumArtImageView setArtworkImage:track.albumArt];
             [NSDockTile setDockIcon:self.playlistManager.currentTrack.albumArt];
             _displayedArt = track.albumArt;
         }
@@ -261,34 +285,38 @@
     else {
         if (_displayedArt) {
             self.albumArtImageView.image = [NSImage imageNamed:@"record-bg"];
-            self.backgroundAlbumArtImageView.image = [NSImage imageNamed:@"record-bg"];
+            [self.backgroundAlbumArtImageView setArtworkImage:[NSImage imageNamed:@"record-bg"]];
             [NSDockTile resetToAppIcon];
             _displayedArt = nil;
         }
     }
 
-    [self.playlistManager reloadCurrentTrack];
+    if (track && track == _lastReloadedTrack) {
+        // Same track as last time: only the play/pause indicator can have
+        // changed in the playlist row.
+        [self.playlistManager reloadCurrentTrackPlayState];
+    }
+    else {
+        [self.playlistManager reloadCurrentTrack];
+        _lastReloadedTrack = track;
+    }
     [self updatePlaybackUI];
 }
 
 - (void)updatePlaybackUI {
 
-    BOOL trackLoaded = self.playlistManager.currentTrack != nil;
+    if (!self.playlistManager.currentTrack) {
+        return;
+    }
 
-    self.totalTimeTextField.hidden = !trackLoaded;
-    self.currentTimeTextField.hidden = !trackLoaded;
-    self.waveformView.hidden = !trackLoaded;
-
-    if (trackLoaded) {
-        NSTimeInterval duration = self.audioPlayer.duration;
-        NSTimeInterval position = self.audioPlayer.position;
-        if (duration > 0) {
-            self.waveformView.progress = (float) position / (float) duration;
-        }
-        if (round(position) != round(_lastPosition)) {
-            self.currentTimeTextField.stringValue = [[Formatters sharedInstance] durationStringFromTimeInterval:position];
-            _lastPosition = position;
-        }
+    NSTimeInterval duration = _currentTrackDuration;
+    NSTimeInterval position = self.audioPlayer.position;
+    if (duration > 0) {
+        self.waveformView.progress = (float) position / (float) duration;
+    }
+    if (round(position) != round(_lastPosition)) {
+        self.currentTimeTextField.stringValue = [[Formatters sharedInstance] durationStringFromTimeInterval:position];
+        _lastPosition = position;
     }
 }
 
@@ -307,6 +335,22 @@
 
 - (void)play:(NSArray<NSURL *> *)urls {
     [self.playlistManager play:urls];
+    // Defer the playlist-wide metadata load until playback has actually
+    // started: four workers reading every file can starve the player's own
+    // file open on slow disks, delaying first sound by seconds. The fallback
+    // covers the case where playback never starts (bad file, device error).
+    _metadataLoadPending = YES;
+    __weak MainPlayerController *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [weakSelf startPendingMetadataLoad];
+    });
+}
+
+- (void)startPendingMetadataLoad {
+    if (!_metadataLoadPending) {
+        return;
+    }
+    _metadataLoadPending = NO;
     [self.metadataManager loadMetadata:self.playlistManager.playlist];
 }
 
@@ -332,8 +376,11 @@
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
+    [self startPendingMetadataLoad];
+    _currentTrackDuration = self.audioPlayer.duration;
     [self.waveformView loadWaveformForTrack:track];
-    [self.playlistManager reloadCurrentTrack];
+    // No reloadCurrentTrack here: resumeUIUpdateTimer -> updateUI already
+    // reloads the current row.
     [self resumeUIUpdateTimer];
     self.playButton.enabled = YES;
 }
@@ -355,6 +402,7 @@
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
+    [self startPendingMetadataLoad];
     NSAlert *alert = [[NSAlert alloc] init];
     [alert addButtonWithTitle:@"Ok"];
     [alert setMessageText:@"AudioPlayer Error"];
@@ -381,7 +429,6 @@
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {
     [self updatePlaybackUI];
-    self.waveformView.needsDisplay = YES;
 }
 
 #pragma mark - Metadata and Waveform

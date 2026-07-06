@@ -64,11 +64,10 @@
     NSInteger deviceId = -1;
     if (name.length > 0) {
         const char *requestedName = [name cStringUsingEncoding:NSUTF8StringEncoding];
-        size_t requestedNameLen = strlen(requestedName);
         BASS_DEVICEINFO info;
         for (int i = 1; BASS_GetDeviceInfo((DWORD)i, &info); i++) {
             if (info.flags & BASS_DEVICE_ENABLED) {
-                if (strncmp(info.name, requestedName, requestedNameLen) == 0) {
+                if (strcmp(info.name, requestedName) == 0) {
                     deviceId = i;
                     break;
                 }

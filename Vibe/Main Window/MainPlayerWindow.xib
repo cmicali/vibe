@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24506" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" customObjectInstantitationMethod="direct">
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24765" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" customObjectInstantitationMethod="direct">
     <dependencies>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24506"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24765"/>
         <capability name="Named colors" minToolsVersion="9.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
@@ -30,7 +30,7 @@
             <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES" fullSizeContentView="YES"/>
             <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
             <rect key="contentRect" x="206" y="444" width="680" height="350"/>
-            <rect key="screenRect" x="0.0" y="0.0" width="1312" height="822"/>
+            <rect key="screenRect" x="0.0" y="0.0" width="1496" height="938"/>
             <value key="minSize" type="size" width="680" height="150"/>
             <value key="maxSize" type="size" width="680" height="600"/>
             <view key="contentView" focusRingType="none" id="se5-gp-TjO">
@@ -44,20 +44,6 @@
                             <imageView wantsLayer="YES" focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="251" id="Mrc-bf-dPk" customClass="BackgroundArtworkImageView">
                                 <rect key="frame" x="125" y="200" width="577" height="150"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <ciFilter key="compositingFilter" name="CIOverlayBlendMode">
-                                    <configuration>
-                                        <null key="inputBackgroundImage"/>
-                                        <null key="inputImage"/>
-                                    </configuration>
-                                </ciFilter>
-                                <contentFilters>
-                                    <ciFilter name="CIGaussianBlur">
-                                        <configuration>
-                                            <null key="inputImage"/>
-                                            <real key="inputRadius" value="30"/>
-                                        </configuration>
-                                    </ciFilter>
-                                </contentFilters>
                                 <imageCell key="cell" focusRingType="none" alignment="left" animates="YES" id="quf-OZ-5aN"/>
                             </imageView>
                             <customView fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="PeP-FU-qGN" customClass="AudioWaveformView">
@@ -308,7 +294,7 @@
                                             <color key="gridColor" name="gridColor" catalog="System" colorSpace="catalog"/>
                                             <tableColumns>
                                                 <tableColumn identifier="numColumn" width="32" minWidth="32" maxWidth="32" id="R59-x3-eCo">
-                                                    <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" alignment="left" title="#">
+                                                    <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" alignment="right" title="#">
                                                         <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
                                                         <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                                     </tableHeaderCell>
@@ -329,7 +315,7 @@
                                                                     <imageCell key="cell" refusesFirstResponder="YES" alignment="left" animates="YES" imageScaling="proportionallyDown" image="equi-white" id="KOO-8m-BBc"/>
                                                                 </imageView>
                                                                 <textField focusRingType="none" verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" preferredMaxLayoutWidth="28" textCompletion="NO" translatesAutoresizingMaskIntoConstraints="NO" id="UZL-IR-GSl">
-                                                                    <rect key="frame" x="2" y="-2" width="28" height="18"/>
+                                                                    <rect key="frame" x="-2" y="-2" width="24" height="18"/>
                                                                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                                                     <textFieldCell key="cell" lineBreakMode="truncatingTail" allowsUndo="NO" sendsActionOnEndEditing="YES" alignment="center" title="00" drawsBackground="YES" usesSingleLineMode="YES" id="vXw-2f-nJL">
                                                                         <font key="font" size="12" name="HelveticaNeue"/>
@@ -390,7 +376,7 @@
                                                             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                             <subviews>
                                                                 <textField focusRingType="none" verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="s5U-k7-V5I">
-                                                                    <rect key="frame" x="6" y="0" width="548" height="28"/>
+                                                                    <rect key="frame" x="6" y="0.0" width="548" height="28"/>
                                                                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                                     <textFieldCell key="cell" lineBreakMode="truncatingTail" sendsActionOnEndEditing="YES" alignment="left" title="Table View Cell" drawsBackground="YES" id="k07-bB-ukM" customClass="PlaylistTextCell">
                                                                         <font key="font" metaFont="system"/>
@@ -422,7 +408,7 @@
                                                             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                             <subviews>
                                                                 <textField focusRingType="none" verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" preferredMaxLayoutWidth="36" translatesAutoresizingMaskIntoConstraints="NO" id="HPX-Cm-iS1">
-                                                                    <rect key="frame" x="2" y="0" width="42" height="28"/>
+                                                                    <rect key="frame" x="2" y="0.0" width="42" height="28"/>
                                                                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                                     <textFieldCell key="cell" lineBreakMode="truncatingTail" sendsActionOnEndEditing="YES" alignment="right" title="00" drawsBackground="YES" id="NYZ-lz-oNB" customClass="PlaylistTextCell">
                                                                         <font key="font" metaFont="system"/>

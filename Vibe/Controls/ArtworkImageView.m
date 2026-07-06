@@ -7,7 +7,11 @@
 #import "NSDraggingImageComponent+Util.h"
 
 
-@implementation ArtworkImageView
+@implementation ArtworkImageView {
+    // The exact URL instance startAccessingSecurityScopedResource was called
+    // on; fileURL may be reassigned (it's a copy property) before drag end.
+    NSURL *_securityScopedURL;
+}
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
@@ -51,11 +55,13 @@
         return;
     }
 
-    [self.fileURL startAccessingSecurityScopedResource];
+    NSURL *fileURL = self.fileURL;
+    [fileURL startAccessingSecurityScopedResource];
+    _securityScopedURL = fileURL;
 
     CGFloat imageSize = 48;
 
-    NSDraggingItem *draggingItem = [[NSDraggingItem alloc] initWithPasteboardWriter:self.fileURL];
+    NSDraggingItem *draggingItem = [[NSDraggingItem alloc] initWithPasteboardWriter:fileURL];
 
 
     [draggingItem setImageComponentsProvider:^NSArray<NSDraggingImageComponent *> * {
@@ -92,7 +98,8 @@
 }
 
 - (void)draggingSession:(NSDraggingSession *)session endedAtPoint:(NSPoint)screenPoint operation:(NSDragOperation)operation {
-    [self.fileURL stopAccessingSecurityScopedResource];
+    [_securityScopedURL stopAccessingSecurityScopedResource];
+    _securityScopedURL = nil;
 }
 
 

@@ -14,7 +14,9 @@
 
 @interface AudioWaveformView () <AudioWaveformCacheDelegate>
 
-@property (nonatomic) AudioWaveform*    waveform;
+// Strong reference to the wrapper — it owns the underlying C++ AudioWaveform,
+// so holding it keeps the raw pointer handed to renderers valid.
+@property (nonatomic, strong, nullable) CodableAudioWaveform* waveform;
 @property (strong) AudioWaveformCache*  waveformCache;
 
 @end
@@ -48,7 +50,6 @@
 
     self.wantsLayer = YES;
     self.layer = [[CALayer alloc] init];
-    self.layerUsesCoreImageFilters = YES;
 
     _progress = 0;
     _progressTracker = 0;
@@ -85,15 +86,16 @@
 }
 
 - (void)drawWaveform {
-    [_currentWaveformRenderer willUpdateWaveform:self.bounds progress:self.progress waveform:self.waveform];
-    [_currentWaveformRenderer updateWaveform:self.bounds progress:self.progress waveform:self.waveform];
-    [_currentWaveformRenderer didUpdateWaveform:self.bounds progress:self.progress waveform:self.waveform];
+    AudioWaveform *waveform = self.waveform.waveform;
+    [_currentWaveformRenderer willUpdateWaveform:self.bounds progress:self.progress waveform:waveform];
+    [_currentWaveformRenderer updateWaveform:self.bounds progress:self.progress waveform:waveform];
+    [_currentWaveformRenderer didUpdateWaveform:self.bounds progress:self.progress waveform:waveform];
 }
 
 - (void)updateRendererProgress {
     [CATransaction begin];
     CATransaction.animationDuration = 0;
-    [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform];
+    [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform.waveform];
     [CATransaction commit];
     _currentWaveformRenderer.progress = _progress;
 }
@@ -154,11 +156,37 @@
     [_waveformCache loadWaveformForTrack:track];
 }
 
-- (void)audioWaveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded {
+- (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded {
     if (_waveform != waveform) {
         _waveform = waveform;
     }
     [self drawWaveform];
+}
+
+- (void)setFrameSize:(NSSize)newSize {
+    BOOL sizeChanged = !NSEqualSizes(newSize, self.frame.size);
+    [super setFrameSize:newSize];
+    if (sizeChanged && _waveform) {
+        [self drawWaveform];
+    }
+}
+
+static void applyContentsScale(CALayer *layer, CGFloat scale) {
+    if (!layer) return;
+    layer.contentsScale = scale;
+    applyContentsScale(layer.mask, scale);
+    for (CALayer *sublayer in layer.sublayers) {
+        applyContentsScale(sublayer, scale);
+    }
+}
+
+// Keep the manually-created layer tree (renderer sublayers, masks, gradients)
+// at the window's backing scale — the root layer is layer-hosted, so AppKit
+// doesn't manage contentsScale for us.
+- (void)viewDidChangeBackingProperties {
+    [super viewDidChangeBackingProperties];
+    CGFloat scale = self.window ? self.window.backingScaleFactor : 2.0;
+    applyContentsScale(self.layer, scale);
 }
 
 - (void)updateAppearance {

@@ -35,6 +35,15 @@
     return results;
 }
 
++ (void) expandAndFilterList:(NSArray<NSURL*>*)list completion:(void (^)(NSArray<NSURL*>*))completion {
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSArray<NSURL*> *results = [self expandAndFilterList:list];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(results);
+        });
+    });
+}
+
 + (NSArray<NSURL*>*) expandAndFilterList:(NSArray<NSURL*>*)list {
     list = [NSURLUtil expandFileList:list];
     list = [list filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSURL *url, NSDictionary* bindings) {

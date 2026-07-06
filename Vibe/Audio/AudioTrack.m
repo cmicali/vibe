@@ -11,6 +11,8 @@
 @implementation AudioTrack {
     NSTimeInterval _duration;
     NSString *_cacheKey;
+    NSString *_durationString;
+    NSTimeInterval _durationStringDuration;
 }
 
 - (instancetype)initWithUrl:(NSURL *)url {
@@ -28,10 +30,17 @@
 }
 
 - (NSString *)cacheKey {
-    if (!_cacheKey) {
-        _cacheKey = [self.url cacheKey];
+    // Double-checked: fast path avoids the lock once the key is computed
+    NSString *key = _cacheKey;
+    if (!key) {
+        @synchronized (self) {
+            if (!_cacheKey) {
+                _cacheKey = [self.url cacheKey];
+            }
+            key = _cacheKey;
+        }
     }
-    return _cacheKey;
+    return key;
 }
 
 - (NSString *)title {
@@ -73,12 +82,16 @@
 }
 
 - (NSString *)durationString {
-    if (self.duration > 0) {
-        return [[Formatters sharedInstance] durationStringFromTimeInterval:self.duration];
-    }
-    else {
+    NSTimeInterval duration = self.duration;
+    if (duration <= 0) {
         return @"";
     }
+    // Memoized per duration value; hot path during table cell rebuilds
+    if (!_durationString || _durationStringDuration != duration) {
+        _durationString = [[Formatters sharedInstance] durationStringFromTimeInterval:duration];
+        _durationStringDuration = duration;
+    }
+    return _durationString;
 }
 
 - (BOOL)hasArtistAndTitle {

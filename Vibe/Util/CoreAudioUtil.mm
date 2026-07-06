@@ -8,9 +8,10 @@
 
 @implementation CoreAudioUtil
 
-// Retained delegate pointer for the default-output-device listener. The HAL
-// callback runs without retaining the client-data pointer, so we keep a strong
-// reference here for the lifetime of the registration.
+// Unretained delegate pointer for the default-output-device listener. The
+// caller must call stopListeningForSystemOutputDeviceChanges before the
+// delegate deallocates (retaining here would keep the delegate alive forever
+// and prevent its dealloc from ever running).
 static void *gOutputDeviceListenerClientData = NULL;
 
 static const AudioObjectPropertyAddress kOutputDeviceAddress = {
@@ -23,8 +24,8 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
                                      UInt32 inNumberAddresses,
                                      const AudioObjectPropertyAddress *inAddresses,
                                      void *inClientData) {
-    // Strong local capture so the block on the main queue holds its own retain,
-    // even if the listener is removed (and its retain released) before it runs.
+    // Strong local capture so the block on the main queue holds its own retain
+    // while it is queued/running (the client-data pointer itself is unretained).
     id<CoreAudioSystemOutputDeviceDelegate> delegate = (__bridge id<CoreAudioSystemOutputDeviceDelegate>)(inClientData);
     dispatch_async(dispatch_get_main_queue(), ^{
         [delegate systemAudioOutputDeviceDidChange];
@@ -37,7 +38,7 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
     CFRunLoopRef nullRunLoop =  NULL;
     AudioObjectPropertyAddress runLoopProperty = { kAudioHardwarePropertyRunLoop, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
     AudioObjectSetPropertyData(kAudioObjectSystemObject, &runLoopProperty, 0, NULL, sizeof(CFRunLoopRef), &nullRunLoop);
-    gOutputDeviceListenerClientData = (__bridge_retained void *)delegate;
+    gOutputDeviceListenerClientData = (__bridge void *)delegate;
     AudioObjectAddPropertyListener(kAudioObjectSystemObject, &kOutputDeviceAddress, &outputDeviceChangedCallback, gOutputDeviceListenerClientData);
 }
 
@@ -46,9 +47,6 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
         return;
     }
     AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &kOutputDeviceAddress, &outputDeviceChangedCallback, gOutputDeviceListenerClientData);
-    // Transfer ownership back to ARC so the retain from registration is released.
-    id<CoreAudioSystemOutputDeviceDelegate> delegate = (__bridge_transfer id<CoreAudioSystemOutputDeviceDelegate>)gOutputDeviceListenerClientData;
-    (void)delegate;
     gOutputDeviceListenerClientData = NULL;
 }
 
@@ -83,13 +81,21 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
 }
 
 + (NSMutableArray<NSNumber *>*) supportedSampleRatesForAudioDeviceId:(AudioDeviceID)did {
-    UInt32 s;
+    NSMutableArray *result = [[NSMutableArray alloc] init];
+    if (did == kAudioObjectUnknown) {
+        return result;
+    }
+    UInt32 s = 0;
     AudioObjectPropertyAddress pa={kAudioDevicePropertyAvailableNominalSampleRates, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
-    AudioObjectGetPropertyDataSize(did, &pa, 0, NULL, &s); // get size of available sample rates array
+    if (AudioObjectGetPropertyDataSize(did, &pa, 0, NULL, &s) != noErr || s == 0) { // get size of available sample rates array
+        return result;
+    }
     AudioValueRange *vr = new AudioValueRange[s/sizeof(AudioValueRange)]; // allocate it
-    AudioObjectGetPropertyData(did, &pa, 0, NULL, &s, vr); // get the available sample rates
+    if (AudioObjectGetPropertyData(did, &pa, 0, NULL, &s, vr) != noErr) { // get the available sample rates
+        delete [] vr;
+        return result;
+    }
     NSUInteger count = s / sizeof(AudioValueRange);
-    NSMutableArray *result = [[NSMutableArray alloc] initWithCapacity:count];
     for (int i = 0; i < count; i++)
         [result addObject:@(vr[i].mMinimum)];
     delete [] vr;

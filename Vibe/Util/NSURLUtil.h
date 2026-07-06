@@ -12,5 +12,7 @@
 
 + (NSArray<NSURL *> *)expandAndFilterList:(NSArray<NSURL *> *)list;
 
++ (void)expandAndFilterList:(NSArray<NSURL *> *)list completion:(void (^)(NSArray<NSURL *> *))completion;
+
 + (NSArray<NSURL *> *)expandFileList:(NSArray<NSURL *> *)list;
 @end

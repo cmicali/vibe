@@ -25,7 +25,9 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol AudioWaveformCacheDelegate <NSObject>
 @optional
 
-- (void)audioWaveform:(AudioWaveform *)waveform didLoadData:(float)percentLoaded;
+// Passes the ARC-managed wrapper so receivers can retain it — the raw
+// AudioWaveform* is owned by (and dies with) the wrapper.
+- (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded;
 
 @end
 

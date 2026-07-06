@@ -71,7 +71,7 @@
                                             }
 
                                             CGFloat xpos = imageSize.width/2.0 - newImageSize.width/2.0;
-                                            CGFloat ypos = imageSize.height/2.0 - newImageSize.height/4;///2.0;
+                                            CGFloat ypos = imageSize.height/2.0 - newImageSize.height/2.0;
                                             NSRect srcRect = NSMakeRect(xpos, ypos, newImageSize.width, newImageSize.height);
 
                                             [[NSGraphicsContext currentContext] setImageInterpolation:NSImageInterpolationHigh];

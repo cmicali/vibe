@@ -34,6 +34,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSInteger)getIndexForTrack:(AudioTrack *)track;
 
 - (void)reloadCurrentTrack;
+- (void)reloadCurrentTrackPlayState;
 - (void)reloadTrackAtIndex:(NSUInteger)index;
 - (void)reloadTrack:(AudioTrack *)track;
 

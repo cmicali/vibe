@@ -15,12 +15,18 @@
 
 + (BASS_DEVICEINFO) infoForDevice:(DWORD)deviceId {
     BASS_DEVICEINFO info;
-    BASS_GetDeviceInfo(deviceId, &info);
+    if (!BASS_GetDeviceInfo(deviceId, &info)) {
+        memset(&info, 0, sizeof(info));
+    }
     return info;
 }
 
 + (NSString *)driverForCurrentDevice {
-    return [NSString stringWithUTF8String:self.infoForCurrentDevice.driver];
+    BASS_DEVICEINFO info;
+    if (!BASS_GetDeviceInfo(BASS_GetDevice(), &info) || info.driver == NULL) {
+        return nil;
+    }
+    return [NSString stringWithUTF8String:info.driver];
 }
 
 + (void)waitForChannelSlide:(HCHANNEL)channel attribute:(DWORD)attribute  {
@@ -59,6 +65,26 @@
             [self waitForChannelSlide:channel attribute:BASS_ATTRIB_VOL];
             BASS_ChannelSetAttribute(channel, BASS_ATTRIB_VOL, 1);
         }
+    }
+}
+
+// Frees the channel once its fade-out slide completes. Uses only the channel
+// handle passed by BASS, so it is safe even if the owning object is gone.
+void CALLBACK SlideEndedFreeChannelCallback(HSYNC handle, DWORD channel, DWORD data, void *user)  {
+    BASS_StreamFree(channel);
+}
+
++ (void)fadeOutAndFreeChannel:(HSTREAM)channel {
+    if (!channel) {
+        return;
+    }
+    if (!BASS_ChannelSetSync(channel, BASS_SYNC_SLIDE | BASS_SYNC_ONETIME, 0, SlideEndedFreeChannelCallback, NULL)) {
+        // Can't get the completion callback; free immediately rather than leak.
+        BASS_StreamFree(channel);
+        return;
+    }
+    if (!BASS_ChannelSlideAttribute(channel, BASS_ATTRIB_VOL | BASS_SLIDE_LOG, 0, 100)) {
+        BASS_StreamFree(channel);
     }
 }
 

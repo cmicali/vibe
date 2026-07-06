@@ -7,4 +7,8 @@
 
 @interface BackgroundArtworkImageView : NSImageView
 
+// Renders a pre-blurred/dimmed copy of the artwork on a background queue and
+// sets it as the view's image. Replaces the old live CIGaussianBlur filter.
+- (void)setArtworkImage:(NSImage *)image;
+
 @end
