@@ -109,14 +109,24 @@
     panel.allowsMultipleSelection = YES;
     panel.canChooseFiles = YES;
     panel.canChooseDirectories = YES;
+    // Derive the selectable types from the CFBundleDocumentTypes declarations
+    // in Info.plist so the open panel can't drift from what Launch Services
+    // registers the app for.
     NSMutableArray<UTType *> *contentTypes = [NSMutableArray new];
-    for (NSString *extension in VIBE_SUPPORTED_FILETYPES) {
-        UTType *type = [UTType typeWithFilenameExtension:extension];
-        if (type) {
-            [contentTypes addObject:type];
+    NSArray *documentTypes = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleDocumentTypes"];
+    for (NSDictionary *documentType in documentTypes) {
+        for (NSString *identifier in documentType[@"LSItemContentTypes"]) {
+            UTType *type = [UTType typeWithIdentifier:identifier];
+            if (type) {
+                [contentTypes addObject:type];
+            }
         }
     }
-    panel.allowedContentTypes = contentTypes;
+    // An empty allowlist would make every file unselectable; fall back to
+    // no filter if the plist declarations ever go missing.
+    if (contentTypes.count > 0) {
+        panel.allowedContentTypes = contentTypes;
+    }
     [panel beginWithCompletionHandler:^(NSInteger result){
         if (result == NSModalResponseOK) {
             [self->_urlsToOpen addObjectsFromArray:panel.URLs];

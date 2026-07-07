@@ -19,18 +19,6 @@
 			</array>
 		</dict>
 		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>mp2</string>
-				<string>mp3</string>
-				<string>aif</string>
-				<string>aiff</string>
-				<string>wav</string>
-				<string>flac</string>
-				<string>m4a</string>
-				<string>aac</string>
-				<string>mp4</string>
-			</array>
 			<key>CFBundleTypeIconFile</key>
 			<string>record-transparent-1024</string>
 			<key>CFBundleTypeName</key>
@@ -39,6 +27,17 @@
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
 			<string>Default</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.mp2</string>
+				<string>public.mp3</string>
+				<string>public.aac-audio</string>
+				<string>public.aiff-audio</string>
+				<string>com.microsoft.waveform-audio</string>
+				<string>org.xiph.flac</string>
+				<string>com.apple.m4a-audio</string>
+				<string>public.mpeg-4</string>
+			</array>
 		</dict>
 	</array>
 	<key>CFBundleExecutable</key>

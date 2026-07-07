@@ -12,7 +12,6 @@ NS_ASSUME_NONNULL_BEGIN
 #define FILETYPE_MP4    @"MP4"
 #define FILETYPE_AIFF   @"AIFF"
 #define FILETYPE_WAV    @"WAV"
-#define FILETYPE_OGG    @"OGG"
 
 @interface AudioTrackMetadata : NSObject <NSCoding>
 

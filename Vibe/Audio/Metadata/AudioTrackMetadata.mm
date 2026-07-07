@@ -50,7 +50,6 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 #include <mpegfile.h>
 #include <mp4file.h>
 #include <flacfile.h>
-#include <oggfile.h>
 #include <id3v2tag.h>
 #include <attachedpictureframe.h>
 #include <aifffile.h>
@@ -269,10 +268,6 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
         self.fileType = FILETYPE_WAV;
         return [self getAlbumArtWAV:wav];
     }
-    else if (auto ogg = dynamic_cast<TagLib::Ogg::File*>(file)) {
-        self.fileType = FILETYPE_OGG;
-        return [self getAlbumArtOgg:ogg];
-    }
     return nil;
 }
 
@@ -294,7 +289,6 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     if ([FILETYPE_MP4 isEqualToString:self.fileType]) return NO;
     if ([FILETYPE_AIFF isEqualToString:self.fileType]) return YES;
     if ([FILETYPE_WAV isEqualToString:self.fileType]) return YES;
-    if ([FILETYPE_OGG isEqualToString:self.fileType]) return NO;
     return NO;
 }
 
