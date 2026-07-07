@@ -9,6 +9,7 @@
 #define SETTING_WINDOW_APPEARANCE_STYLE             @"Settings.windowAppearance"
 #define SETTING_WAVEFORM_STYLE                      @"Settings.waveformStyle"
 #define SETTING_AUDIO_PLAYER_DEVICE_NAME            @"AudioPlayer.deviceName"
+#define SETTING_AUDIO_PLAYER_DEVICE_UID             @"AudioPlayer.deviceUID"
 #define SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE       @"AudioPlayer.lockSampleRate"
 
 @implementation AppSettings {
@@ -39,6 +40,7 @@
     }
     NSDictionary *appDefaults = @{
             SETTING_AUDIO_PLAYER_DEVICE_NAME:       @"",
+            SETTING_AUDIO_PLAYER_DEVICE_UID:        @"",
             SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE:  @(NO),
             SETTING_WINDOW_APPEARANCE_STYLE:        SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK,
             SETTING_WAVEFORM_STYLE:                 SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT
@@ -53,6 +55,14 @@
 
 -(void)setAudioOutputDeviceName:(NSString*)deviceName {
     [[NSUserDefaults standardUserDefaults] setObject:deviceName forKey:SETTING_AUDIO_PLAYER_DEVICE_NAME];
+}
+
+- (NSString *)audioOutputDeviceUID {
+    return [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_AUDIO_PLAYER_DEVICE_UID];
+}
+
+- (void)setAudioOutputDeviceUID:(NSString *)deviceUID {
+    [[NSUserDefaults standardUserDefaults] setObject:deviceUID forKey:SETTING_AUDIO_PLAYER_DEVICE_UID];
 }
 
 - (BOOL) audioPlayerLockSampleRate {

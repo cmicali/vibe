@@ -27,6 +27,8 @@ static const DDLogLevel ddLogLevel = DDLogLevelVerbose;
 
 #define Settings [AppSettings sharedInstance]
 
-#define VIBE_SUPPORTED_FILETYPES @[@"mp2", @"mp3", @"aif", @"aiff", @"wav", @"flac", @"m4a", @"ogg", @"mp4"]
+// Formats CoreAudio decodes natively. OGG was dropped with the BASS removal
+// (it was never actually playable — no vorbis plugin was loaded).
+#define VIBE_SUPPORTED_FILETYPES @[@"mp2", @"mp3", @"aac", @"aif", @"aiff", @"wav", @"flac", @"m4a", @"mp4"]
 
 #endif

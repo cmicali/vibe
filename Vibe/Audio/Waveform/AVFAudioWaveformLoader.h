@@ -7,6 +7,6 @@
 #import "AudioWaveformCache.h"
 #import "AudioWaveformLoader.h"
 
-@interface BASSAudioWaveformLoader : AudioWaveformLoader
+@interface AVFAudioWaveformLoader : AudioWaveformLoader
 
 @end

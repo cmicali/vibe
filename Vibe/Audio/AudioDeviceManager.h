@@ -4,21 +4,23 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <CoreAudio/CoreAudio.h>
 #import "AudioDevice.h"
 
 @interface AudioDeviceManager : NSObject
 
 + (AudioDeviceManager *)sharedInstance;
 
-//- (AudioDevice *)defaultOutputDevice;
-
-//- (NSInteger)defaultOutputDeviceId;
-
 - (NSInteger)numOutputDevices;
 
 - (NSArray<AudioDevice *> *)outputDevices;
 
 - (AudioDevice *)outputDeviceForName:(NSString *)name;
+- (AudioDevice *)outputDeviceForUID:(NSString *)uid;
 - (AudioDevice *)outputDeviceForId:(NSInteger)deviceId;
+
+// kAudioObjectUnknown when there is no default output device.
++ (AudioDeviceID)systemDefaultOutputDeviceID;
++ (NSString *)uidForDeviceID:(AudioDeviceID)deviceID;
 
 @end

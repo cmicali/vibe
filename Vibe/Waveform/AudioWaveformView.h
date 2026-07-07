@@ -24,6 +24,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)loadWaveformForTrack:(AudioTrack *)track;
 
+// Indeterminate shimmer across the waveform area while a slow file open
+// (e.g. a cloud placeholder downloading) is pending.
+- (void)showLoadingIndicator;
+- (void)hideLoadingIndicator;
+
 - (void)updateAppearance;
 @end
 

@@ -8,6 +8,7 @@
 
 #import "AppDelegate.h"
 #import "NSURLUtil.h"
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 @interface AppDelegate ()
 
@@ -108,7 +109,14 @@
     panel.allowsMultipleSelection = YES;
     panel.canChooseFiles = YES;
     panel.canChooseDirectories = YES;
-    panel.allowedFileTypes = VIBE_SUPPORTED_FILETYPES;
+    NSMutableArray<UTType *> *contentTypes = [NSMutableArray new];
+    for (NSString *extension in VIBE_SUPPORTED_FILETYPES) {
+        UTType *type = [UTType typeWithFilenameExtension:extension];
+        if (type) {
+            [contentTypes addObject:type];
+        }
+    }
+    panel.allowedContentTypes = contentTypes;
     [panel beginWithCompletionHandler:^(NSInteger result){
         if (result == NSModalResponseOK) {
             [self->_urlsToOpen addObjectsFromArray:panel.URLs];

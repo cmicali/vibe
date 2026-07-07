@@ -40,6 +40,16 @@
 
 }
 
+// Borderless windows return NO by default, which makes AppKit warn on every
+// makeKeyWindow and can keep the window from receiving key events.
+- (BOOL)canBecomeKeyWindow {
+    return YES;
+}
+
+- (BOOL)canBecomeMainWindow {
+    return YES;
+}
+
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
     if (sender.draggingSource) {
         return NSDragOperationNone;

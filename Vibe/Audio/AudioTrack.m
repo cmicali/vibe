@@ -63,7 +63,10 @@
 }
 
 - (NSImage *)albumArt {
-    return self.metadata.albumArt;
+    // Non-blocking on purpose: this is read from the main thread (updateUI,
+    // dock icon). Extraction that needs a file read happens via the
+    // background load MainPlayerController kicks off when albumArtNeedsLoad.
+    return self.metadata.albumArtIfLoaded;
 }
 
 - (NSImage *)thumbnailAlbumArt {

@@ -26,7 +26,11 @@
     __weak NSImage*             _displayedArt;
     __weak AudioTrack*          _lastReloadedTrack;
     NSString*                   _lastFileMetadataString;
+    NSString*                   _statusMessage;
     BOOL                        _metadataLoadPending;
+    BOOL                        _artDisplayInitialized;
+    BOOL                        _errorAlertVisible;
+    id                          _keyDownMonitor;
 }
 
 - (id) init {
@@ -36,6 +40,9 @@
 }
 
 - (void)dealloc {
+    if (_keyDownMonitor) {
+        [NSEvent removeMonitor:_keyDownMonitor];
+    }
     if (_timer) {
         // Releasing a suspended dispatch source traps; the timer is created
         // suspended and stays suspended whenever _timerRunning is NO.
@@ -48,7 +55,14 @@
 
 - (void)windowDidLoad {
 
-    self.audioPlayer = [[AudioPlayer alloc] initWithDevice:Settings.audioOutputDeviceName
+    // Resolve the saved device by UID first (robust against duplicate device
+    // names); fall back to the persisted name for pre-UID settings.
+    NSString *savedDeviceName = Settings.audioOutputDeviceName;
+    AudioDevice *savedDevice = [[AudioDeviceManager sharedInstance] outputDeviceForUID:Settings.audioOutputDeviceUID];
+    if (savedDevice) {
+        savedDeviceName = savedDevice.name;
+    }
+    self.audioPlayer = [[AudioPlayer alloc] initWithDevice:savedDeviceName
                                             lockSampleRate:Settings.audioPlayerLockSampleRate
                                                   delegate:self
     ];
@@ -153,6 +167,51 @@
     self.playlistTableView.dataSource = self.playlistManager;
     self.playlistTableView.intercellSpacing = NSMakeSize(0, 0);
     self.playlistTableView.columnAutoresizingStyle = NSTableViewSequentialColumnAutoresizingStyle;
+    // Type-select would swallow plain keystrokes (jump to the first row
+    // starting with that letter) before the menu sees them, breaking the
+    // unmodified transport key equivalents (Space/B/N) whenever the table
+    // has focus.
+    self.playlistTableView.allowsTypeSelect = NO;
+
+    // Handle the transport keys with a local event monitor instead of relying
+    // on the menu's unmodified key equivalents. Those only fire as a fallback
+    // after the focused view's keyDown/input-context machinery declines the
+    // event, and that path is fragile: the playlist table's input context can
+    // wedge after an unhandled letter (observed: press any unbound key while
+    // the table is focused and every subsequent key beeps, killing B/N until
+    // relaunch). The monitor sees the event before any of that runs.
+    __weak MainPlayerController *weakSelf = self;
+    _keyDownMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
+                                                            handler:^NSEvent *(NSEvent *event) {
+        MainPlayerController *strongSelf = weakSelf;
+        if (!strongSelf || event.window != strongSelf.window) {
+            return event;
+        }
+        // Leave anything that isn't a bare keypress alone (menu shortcuts,
+        // future text editing in a field editor).
+        NSEventModifierFlags mods = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
+        if (mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl |
+                    NSEventModifierFlagOption | NSEventModifierFlagShift)) {
+            return event;
+        }
+        if ([strongSelf.window.firstResponder isKindOfClass:[NSTextView class]]) {
+            return event;
+        }
+        NSString *chars = event.charactersIgnoringModifiers.lowercaseString;
+        if ([chars isEqualToString:@" "]) {
+            [strongSelf playPause:nil];
+            return nil;
+        }
+        if ([chars isEqualToString:@"b"]) {
+            [strongSelf previous:nil];
+            return nil;
+        }
+        if ([chars isEqualToString:@"n"]) {
+            [strongSelf next:nil];
+            return nil;
+        }
+        return event;
+    }];
     // Opt out of the macOS 11+ inset look; we want the selection highlight
     // and row content flush with the scroll view's left/right edges.
     if (@available(macOS 11.0, *)) {
@@ -176,7 +235,6 @@
 
     _timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
     dispatch_source_set_timer(_timer, DISPATCH_TIME_NOW, NSEC_PER_SEC / UPDATE_HZ, NSEC_PER_SEC / 2);
-    __weak id weakSelf = self;
     dispatch_source_set_event_handler(_timer, ^{
         [weakSelf updatePlaybackUI];
     });
@@ -241,20 +299,20 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
             setStringValueIfChanged(self.titleTextField, track.singleLineTitle);
         }
         setStringValueIfChanged(self.totalTimeTextField, [[Formatters sharedInstance] durationStringFromTimeInterval:self.audioPlayer.duration]);
-        if (track.metadata.fileType) {
+        if (_statusMessage) {
+            // Transient player status (e.g. "Load timed out") takes the
+            // bitrate label's spot until the next play attempt.
+            [self setFileMetadataLabel:_statusMessage];
+            _lastFileMetadataString = nil;
+        }
+        else if (track.metadata.fileType) {
             NSString *bitrate = @"";
             if (!track.metadata.isLossless) {
                 bitrate = [NSString stringWithFormat:@"%@ kbps | ", track.metadata.bitrate];
             }
             NSString *fileMetadata = [NSString stringWithFormat:@"%@ | %@%.1f kHz", track.metadata.fileType, bitrate, ([track.metadata.sampleRate doubleValue]/1000)];
             if (![fileMetadata isEqualToString:_lastFileMetadataString]) {
-                NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
-                paragraph.alignment = NSTextAlignmentRight;
-                self.fileMetadataTextField.attributedStringValue = [[NSMutableAttributedString alloc] initWithString:fileMetadata
-                                                                                                          attributes:@{
-                                                                        NSKernAttributeName:@(-1.2),
-                                                                        NSParagraphStyleAttributeName:paragraph,
-                                                                    }];
+                [self setFileMetadataLabel:fileMetadata];
                 _lastFileMetadataString = fileMetadata;
             }
         }
@@ -268,7 +326,12 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
         setStringValueIfChanged(self.titleTextField, @"");
         setStringValueIfChanged(self.totalTimeTextField, @"");
         setStringValueIfChanged(self.currentTimeTextField, @"");
-        setStringValueIfChanged(self.fileMetadataTextField, @"");
+        if (_statusMessage) {
+            [self setFileMetadataLabel:_statusMessage];
+        }
+        else {
+            setStringValueIfChanged(self.fileMetadataTextField, @"");
+        }
         _lastFileMetadataString = nil;
     }
 
@@ -283,13 +346,37 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
         }
     }
     else {
-        if (_displayedArt) {
+        // _artDisplayInitialized distinguishes "never displayed anything"
+        // from "already showing record-bg": the very first track being
+        // artless must still install the default backdrop.
+        if (_displayedArt || !_artDisplayInitialized) {
             self.albumArtImageView.image = [NSImage imageNamed:@"record-bg"];
             [self.backgroundAlbumArtImageView setArtworkImage:[NSImage imageNamed:@"record-bg"]];
             [NSDockTile resetToAppIcon];
             _displayedArt = nil;
         }
+        // Cache-hit metadata doesn't carry the art bytes; extracting them
+        // re-reads the audio file, which can block on a cloud placeholder
+        // until it downloads. Do it off the main thread and refresh when done.
+        AudioTrackMetadata *metadata = track.metadata;
+        if (metadata.albumArtNeedsLoad && !metadata.albumArtLoadDispatched) {
+            metadata.albumArtLoadDispatched = YES;
+            __weak MainPlayerController *weakSelf = self;
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                NSImage *loaded = metadata.albumArt; // may block; background thread
+                if (!loaded) {
+                    return;
+                }
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    MainPlayerController *strongSelf = weakSelf;
+                    if (strongSelf && strongSelf.playlistManager.currentTrack == track) {
+                        [strongSelf updateUI];
+                    }
+                });
+            });
+        }
     }
+    _artDisplayInitialized = YES;
 
     if (track && track == _lastReloadedTrack) {
         // Same track as last time: only the play/pause indicator can have
@@ -320,7 +407,7 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     }
 }
 
-- (IBAction)playPause:(id)sender {
+- (IBAction)playPause:(nullable id)sender {
     if (self.audioPlayer.isStopped) {
         [self.playlistManager play];
     }
@@ -354,12 +441,12 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     [self.metadataManager loadMetadata:self.playlistManager.playlist];
 }
 
-- (IBAction)next:(id)sender {
+- (IBAction)next:(nullable id)sender {
     [self.playlistManager next];
     [self updateUI];
 }
 
-- (IBAction)previous:(id)sender {
+- (IBAction)previous:(nullable id)sender {
     [self.playlistManager previous];
     [self updateUI];
 }
@@ -374,7 +461,28 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 
 #pragma mark - AudioPlayerDelegate Implementation
 
+// Right-aligned, kerned like the file-metadata string it replaces.
+- (void)setFileMetadataLabel:(NSString *)text {
+    NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
+    paragraph.alignment = NSTextAlignmentRight;
+    self.fileMetadataTextField.attributedStringValue = [[NSMutableAttributedString alloc] initWithString:text
+                                                                                              attributes:@{
+                                                                NSKernAttributeName:@(-1.2),
+                                                                NSParagraphStyleAttributeName:paragraph,
+                                                            }];
+}
+
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track {
+    _statusMessage = nil;
+    // Show the pending track's title/artist while it loads.
+    [self updateUI];
+    [self.waveformView showLoadingIndicator];
+    self.waveformView.hidden = NO;
+}
+
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
+    _statusMessage = nil;
+    [self.waveformView hideLoadingIndicator];
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
     [self startPendingMetadataLoad];
     _currentTrackDuration = self.audioPlayer.duration;
@@ -403,13 +511,48 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
     [self startPendingMetadataLoad];
+    [self pauseUIUpdateTimer];
+    [self.waveformView hideLoadingIndicator];
+    if ([error.domain isEqualToString:kVibeAudioErrorDomain] && error.code == VibeAudioErrorFileOpenTimedOut) {
+        // Slow/unreachable file (cloud placeholder, dead network): no modal,
+        // no auto-skip — just an inline status where the bitrate info goes.
+        LogError(@"%@", error.localizedDescription);
+        _statusMessage = @"Load timed out";
+        [self updateUI];
+        return;
+    }
+    // Present the alert as a sheet, not with runModal. runModal spins a nested
+    // app-modal run loop with no parent window; on this borderless window the
+    // window fails to reclaim key status afterward, which silently kills the
+    // unmodified transport key equivalents (Space/B/N) until the app is
+    // relaunched. Errors can also fire back-to-back (a folder of bad files),
+    // and _errorAlertVisible collapses those into a single sheet instead of
+    // nesting modal sessions.
+    if (_errorAlertVisible) {
+        return;
+    }
+    _errorAlertVisible = YES;
     NSAlert *alert = [[NSAlert alloc] init];
     [alert addButtonWithTitle:@"Ok"];
     [alert setMessageText:@"AudioPlayer Error"];
     [alert setInformativeText:error.userInfo[NSLocalizedDescriptionKey]];
     [alert setAlertStyle:NSAlertStyleWarning];
-    [alert runModal];
-    [self.playlistManager next];
+    __weak MainPlayerController *weakSelf = self;
+    [alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse returnCode) {
+        MainPlayerController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        strongSelf->_errorAlertVisible = NO;
+        [strongSelf.playlistManager next];
+        // If next couldn't start anything (end of playlist, single bad track),
+        // make the header/waveform/play-button reflect the stopped player
+        // instead of the previous track.
+        [strongSelf updateUI];
+        // Belt-and-suspenders: guarantee the borderless window is key again so
+        // the transport key equivalents keep working after the sheet closes.
+        [strongSelf.window makeKeyWindow];
+    }];
 }
 
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer {
@@ -420,10 +563,16 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     LogDebug(@"MainPlayerController: didChangeOutputDevice: %zd", newDeviceIndex);
     if (newDeviceIndex == -1) {
         Settings.audioOutputDeviceName = @"";
+        Settings.audioOutputDeviceUID = @"";
     }
     else {
         AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:newDeviceIndex];
-        Settings.audioOutputDeviceName = device.name;
+        // Device gone by the time this fires (or transient enumeration
+        // failure): keep the previous persisted choice rather than erasing it.
+        if (device) {
+            Settings.audioOutputDeviceName = device.name;
+            Settings.audioOutputDeviceUID = device.uid;
+        }
     }
 }
 

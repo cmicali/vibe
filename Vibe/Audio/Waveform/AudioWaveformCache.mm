@@ -6,7 +6,7 @@
 #import "AudioWaveformCache.h"
 #import "PINCache.h"
 #import "AudioTrack.h"
-#import "BASSAudioWaveformLoader.h"
+#import "AVFAudioWaveformLoader.h"
 
 #pragma mark - Waveform Cache
 
@@ -25,29 +25,44 @@
 - (id)init {
     self = [super init];
     if (self) {
-        dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
+        // Utility, not user-initiated: the loader blocks on PINCache's own
+        // utility-QoS queues (sync objectForKey:), and a higher class here
+        // just trips the Thread Performance Checker's priority-inversion
+        // warning while stealing P-core time from playback start.
+        dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
         _loaderQueue = dispatch_queue_create("AudioWaveformCache", queueAttributes);
-        // v2: entries carry a format version key; renamed so the budget isn't
-        // consumed by unreadable v1 entries waiting for LRU eviction.
-        _waveformCache = [[PINCache alloc] initWithName:@"audio_waveform_cache_v2"];
-        _waveformCache.diskCache.byteLimit = 64 * 1024 * 1024; // 64mb disk cache limit
-        _waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
         _normalize = NO;
         _currentLoader = nil;
-        if (!WAVEFORM_CACHE_ENABLED) {
-            [self invalidate];
-        }
+        // Create the cache on the loader queue: constructing it on the main
+        // thread would boost PINCache's internal init-time disk scan to
+        // user-initiated QoS, which then priority-inverts against our
+        // utility-QoS cache calls (Thread Performance Checker warning at
+        // first drop). Every cache use is on this serial queue, so ordering
+        // is guaranteed.
+        dispatch_async(_loaderQueue, ^{
+            // v2: entries carry a format version key; renamed so the budget
+            // isn't consumed by unreadable v1 entries waiting for LRU
+            // eviction.
+            self->_waveformCache = [[PINCache alloc] initWithName:@"audio_waveform_cache_v2"];
+            self->_waveformCache.diskCache.byteLimit = 64 * 1024 * 1024; // 64mb disk cache limit
+            self->_waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
+            if (!WAVEFORM_CACHE_ENABLED) {
+                [self->_waveformCache removeAllObjects];
+            }
+        });
     }
     return self;
 }
 
 - (void)invalidate {
-    [_waveformCache removeAllObjects];
+    dispatch_async(_loaderQueue, ^{
+        [self->_waveformCache removeAllObjects];
+    });
 }
 
 - (void)loadWaveformForTrack:(AudioTrack *)track {
     [_currentLoader cancel];
-    AudioWaveformLoader *loader = [[BASSAudioWaveformLoader alloc] initWithDelegate:self];
+    AudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:self];
      _currentLoader = loader;
     dispatch_async(_loaderQueue, ^{
         [self load:track withLoader:loader];

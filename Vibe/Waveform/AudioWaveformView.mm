@@ -28,6 +28,7 @@
     BOOL                        _didClickInside;
     AudioWaveformRenderer*      _currentWaveformRenderer;
     NSMutableDictionary*        _waveformRenderers;
+    CAGradientLayer*            _loadingLayer;
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -147,6 +148,7 @@
 }
 
 - (void)loadWaveformForTrack:(AudioTrack *)track {
+    [self hideLoadingIndicator];
     _waveform = nil;
     if (!_currentWaveformRenderer) {
         [self setWaveformStyle:_waveformRenderers.allKeys[0]];
@@ -154,6 +156,49 @@
     self.progress = 0;
     [self drawWaveform];
     [_waveformCache loadWaveformForTrack:track];
+}
+
+- (void)showLoadingIndicator {
+    if (_loadingLayer) {
+        return;
+    }
+    // Collapse any previous track's waveform so the shimmer stands alone.
+    _waveform = nil;
+    self.progress = 0;
+    if (_currentWaveformRenderer) {
+        [self drawWaveform];
+    }
+
+    CGFloat width = self.bounds.size.width;
+    CGFloat midY = self.bounds.size.height / 2;
+    CGFloat bandWidth = MAX(width * 0.35, 40);
+
+    CAGradientLayer *shimmer = [CAGradientLayer layer];
+    shimmer.contentsScale = self.window ? self.window.backingScaleFactor : 2.0;
+    shimmer.frame = CGRectMake(0, midY - 1, bandWidth, 2);
+    shimmer.startPoint = CGPointMake(0, 0.5);
+    shimmer.endPoint = CGPointMake(1, 0.5);
+    shimmer.colors = @[
+            (id)[[NSColor whiteColor] colorWithAlphaComponent:0].CGColor,
+            (id)[[NSColor whiteColor] colorWithAlphaComponent:0.55].CGColor,
+            (id)[[NSColor whiteColor] colorWithAlphaComponent:0].CGColor,
+    ];
+    [self.layer addSublayer:shimmer];
+    _loadingLayer = shimmer;
+
+    CABasicAnimation *sweep = [CABasicAnimation animationWithKeyPath:@"position.x"];
+    sweep.fromValue = @(-bandWidth / 2);
+    sweep.toValue = @(width + bandWidth / 2);
+    sweep.duration = 1.2;
+    sweep.repeatCount = HUGE_VALF;
+    sweep.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+    [shimmer addAnimation:sweep forKey:@"sweep"];
+}
+
+- (void)hideLoadingIndicator {
+    [_loadingLayer removeAllAnimations];
+    [_loadingLayer removeFromSuperlayer];
+    _loadingLayer = nil;
 }
 
 - (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded {

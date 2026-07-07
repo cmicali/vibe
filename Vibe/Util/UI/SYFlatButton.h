@@ -11,7 +11,7 @@
 #import <CoreGraphics/CoreGraphics.h>
 
 IB_DESIGNABLE
-@interface SYFlatButton : NSButton
+@interface SYFlatButton : NSButton <NSViewLayerContentScaleDelegate>
 
 @property (nonatomic, assign) IBInspectable BOOL momentary;                     // Default:NO   - Restore button state when mouse up
 @property (nonatomic, assign) IBInspectable CGFloat onAnimateDuration;          // Default:0.0  - The animation duration from NSOffState to NSOnState
