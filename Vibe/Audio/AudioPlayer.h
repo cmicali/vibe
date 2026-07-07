@@ -1,5 +1,5 @@
 //
-//  BASSAudioPlayer.h
+//  AudioPlayer.h
 //  Vibe
 //
 //  Created by Christopher Micali on 12/18/19.
@@ -13,6 +13,16 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol AudioPlayerDelegate;
 @class AudioTrack;
 @class AudioDevice;
+
+extern NSString *const kVibeAudioErrorDomain;
+
+typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
+    VibeAudioErrorFileOpenFailed = 1,
+    VibeAudioErrorEngineStartFailed,
+    VibeAudioErrorDeviceUnavailable,
+    VibeAudioErrorNotPlaying,
+    VibeAudioErrorFileOpenTimedOut,
+};
 
 @interface AudioPlayer : NSObject <CoreAudioSystemOutputDeviceDelegate>
 
@@ -49,6 +59,11 @@ NS_ASSUME_NONNULL_BEGIN
 @optional
 
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer;
+
+// Fired when a play request's file open is still pending after a short grace
+// period (slow disk, cloud placeholder downloading) — show a loading state.
+// Always followed by either didStartPlaying: or error:.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track;

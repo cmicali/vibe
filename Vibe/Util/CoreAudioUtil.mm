@@ -124,6 +124,11 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
 
     AudioObjectPropertyAddress addr = { kAudioDevicePropertyStreamFormat, kAudioDevicePropertyScopeOutput, 0 };
     OSStatus err = AudioObjectGetPropertyData(did, &addr, 0, NULL, &size, &mFormat);
+    if (err != noErr) {
+        // Never write back an uninitialized format struct.
+        LogError(@"CoreAudioUtil: could not read stream format (OSStatus %d)", (int)err);
+        return NO;
+    }
     LogDebug(@"CoreAudioUtil: setSampleRate: %.0f -> %0.1f", mFormat.mSampleRate, rate);
     mFormat.mSampleRate = rate;
     mFormat.mBitsPerChannel = 32 ;

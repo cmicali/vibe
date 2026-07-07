@@ -23,14 +23,17 @@
 //        [menu addItem:[NSMenuItem separatorItem]];
 //        [menu addItem:[[NSMenuItem alloc] initWithTitle:@"Lock Sample Rate" action:@selector(lockSampleRate:) keyEquivalent:@""]];
     }
-    NSInteger count = [self numberOfItemsInMenu:menu];
+    // Enumerate once and size the menu from the same snapshot: a second
+    // enumeration could disagree (device hotplug mid-update) and overrun
+    // the menu's item count.
+    NSArray *devices = AudioDeviceManager.sharedInstance.outputDevices;
+    NSInteger count = (NSInteger)devices.count;
 
     while ([menu numberOfItems] < count)
         [menu insertItem:[NSMenuItem new] atIndex:0];
     while ([menu numberOfItems] > count)
         [menu removeItemAtIndex:0];
 
-    NSArray *devices = AudioDeviceManager.sharedInstance.outputDevices;
     NSMenuItem *item;
 
 //    [self configureMenuItem:[menu itemAtIndex:0] withDevice:AudioDeviceManager.sharedInstance.defaultOutputDevice];

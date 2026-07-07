@@ -1,5 +1,5 @@
 //
-//  BASSAudioPlayer.m
+//  AudioPlayer.m
 //  Vibe
 //
 //  Created by Christopher Micali on 12/18/19.
@@ -7,265 +7,319 @@
 //
 
 #import "AudioPlayer.h"
-#import "BassWrapper.h"
 #import "AudioTrack.h"
-#import "BassUtil.h"
 #import "AudioDeviceManager.h"
-#import "WorkQueueThread.h"
-#import "NSThread+Blocks.h"
+#import "AudioDevice.h"
+#import <AVFoundation/AVFoundation.h>
+#import <AudioToolbox/AudioToolbox.h>
+#import <os/lock.h>
 
-@interface AudioPlayer () <BASSChannelDelegate>
+typedef NS_ENUM(NSInteger, VibePlayerState) {
+    VibePlayerStateStopped = 0,
+    VibePlayerStatePlaying,
+    VibePlayerStatePaused,
+};
 
-@property (atomic) HSTREAM      channel;
-@property (atomic) BOOL         lockSampleRate;
+NSString *const kVibeAudioErrorDomain = @"com.commonwealthrecordings.Vibe";
 
-- (void)initWithDeviceIndexInternal:(int)newDeviceIndex;
-
-@end
-
-@implementation AudioPlayer {
-    BOOL                    _lockSampleRate;
-    WorkQueueThread*        _thread;
+static NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError *underlying) {
+    NSMutableDictionary *info = [NSMutableDictionary new];
+    if (underlying) {
+        info[NSUnderlyingErrorKey] = underlying;
+        if (underlying.localizedDescription.length) {
+            description = [NSString stringWithFormat:@"%@ (%@)", description, underlying.localizedDescription];
+        }
+    }
+    info[NSLocalizedDescriptionKey] = description;
+    return [NSError errorWithDomain:kVibeAudioErrorDomain code:code userInfo:info];
 }
 
+// How long a file open may block (cloud placeholders download on demand)
+// before the play request is abandoned with an error.
+static const NSTimeInterval kFileOpenTimeoutSeconds = 10.0;
+
+// A still-pending open after this long is worth a visible loading state.
+static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
+
+// 100ms multiplicative (perceptually log, like BASS_SLIDE_LOG) volume ramps.
+static const int kFadeSteps = 10;
+static const useconds_t kFadeStepMicroseconds = 10000;
+static const float kFadeFloor = 0.001f; // -60 dB
+
+static float VibeFadeVolume(float from, float to, int step) {
+    if (step >= kFadeSteps) {
+        return to;
+    }
+    float f = MAX(from, kFadeFloor);
+    float t = MAX(to, kFadeFloor);
+    return f * powf(t / f, (float)step / (float)kFadeSteps);
+}
+
+@implementation AudioPlayer {
+    dispatch_queue_t        _queue;
+    AVAudioEngine           *_engine;
+    AVAudioPlayerNode       *_node;
+    AVAudioFile             *_file;
+    AVAudioFramePosition    _segmentStartFrame;
+    NSTimeInterval          _pausedPosition;
+    uint64_t                _generation;
+    uint64_t                _openRequestId;
+    VibePlayerState         _state;
+    os_unfair_lock          _stateLock;
+    BOOL                    _lockSampleRate;
+    id                      _configChangeObserver;
+}
 
 #pragma mark - Init
 
 - (id)initWithDevice:(NSString *)deviceName lockSampleRate:(BOOL)shouldLockSampleRate delegate:(id <AudioPlayerDelegate>)delegate {
     self = [super init];
     if (self) {
-        self.channel = 0;
-        self.lockSampleRate = shouldLockSampleRate;
-        _thread = [[WorkQueueThread alloc] init];
-        [_thread start];
+        _stateLock = OS_UNFAIR_LOCK_INIT;
+        _state = VibePlayerStateStopped;
+        _lockSampleRate = shouldLockSampleRate;
+        // Meaningful before the async init block resolves the saved device:
+        // -1 (follow system default) instead of a bogus device id 0.
+        self.currentlyRequestedAudioDeviceId = -1;
+        _queue = dispatch_queue_create("com.vibe.audioplayer",
+                dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0));
         self.delegate = delegate;
-        [_thread run:^{
+        dispatch_async(_queue, ^{
 
             LogDebug(@"AudioPlayer init");
 
-            BASS_PluginLoad("libbassflac.dylib", 0);
-            BASS_SetConfig(BASS_CONFIG_FLOATDSP, 1);
-            // Halve the decoder/output wake-up rate from the 100 ms default.
-            // Trades ~100 ms of extra output latency (imperceptible) for ~1-3%
-            // less background-thread CPU during playback.
-            BASS_SetConfig(BASS_CONFIG_UPDATEPERIOD, 200);
+            self->_engine = [[AVAudioEngine alloc] init];
 
             AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForName:deviceName];
-            // nil device (empty/unmatched name) must map to the BASS default
-            // device (-1), not 0 ("no sound").
-            int deviceIndex = device ? (int)device.deviceId : -1;
+            // nil device (empty/unmatched name) means follow the system default.
+            NSInteger deviceIndex = device ? device.deviceId : -1;
             self.currentlyRequestedAudioDeviceId = deviceIndex;
-
-            [self initWithDeviceIndexInternal:deviceIndex];
+            if (deviceIndex >= 0) {
+                [self setOutputUnitDevice:(AudioDeviceID)deviceIndex];
+            }
+            // The engine isn't started until the first play.
 
             [CoreAudioUtil listenForSystemOutputDeviceChanges:self];
+
+            __weak AudioPlayer *weakSelf = self;
+            self->_configChangeObserver = [[NSNotificationCenter defaultCenter]
+                    addObserverForName:AVAudioEngineConfigurationChangeNotification
+                                object:self->_engine
+                                 queue:nil
+                            usingBlock:^(NSNotification *note) {
+                                AudioPlayer *strongSelf = weakSelf;
+                                if (strongSelf) {
+                                    dispatch_async(strongSelf->_queue, ^{
+                                        [strongSelf handleEngineConfigurationChange];
+                                    });
+                                }
+                            }];
 
             run_on_main_thread({
                 [self.delegate audioPlayerDidInitialize:self];
             });
 
-        }];
+        });
     }
     return self;
 }
 
-- (void)initWithDeviceIndexInternal:(int)newDeviceIndex {
-    // Snapshot the current playback state so we can restore it on the new device.
-    // BASS_Free() invalidates self.channel, so we must rebuild the stream from the
-    // track URL rather than reuse the old handle.
-    AudioTrack *trackToRestore = self.currentTrack;
-    BOOL wasPlaying = self.isPlaying;
-    NSTimeInterval positionToRestore = 0;
-    HSTREAM oldChannel = self.channel;
-    if (oldChannel) {
-        positionToRestore = [BassUtil getChannelPosition:oldChannel];
-        BASS_StreamFree(oldChannel);
-        self.channel = 0;
+- (void)dealloc {
+    if (_configChangeObserver) {
+        [[NSNotificationCenter defaultCenter] removeObserver:_configChangeObserver];
     }
-    BASS_Free();
-    if (!BASS_Init(newDeviceIndex, 44100, 0, NULL, NULL)) {
-        int errorCode = BASS_ErrorGetCode();
-        LogError(@"Error initializing BASS: %@", [BassUtil stringForErrorCode:errorCode]);
-        return;
-    }
-    if (newDeviceIndex == -1) {
-        return;
-    }
-    BASS_SetDevice((DWORD) newDeviceIndex);
-    if (trackToRestore) {
-        HSTREAM newChannel = BASS_StreamCreateFile(FALSE, [trackToRestore.url.path UTF8String], 0, 0, BASS_ASYNCFILE);
-        if (!newChannel) {
-            LogError(@"Error recreating stream on new device: %@", [BassUtil stringForErrorCode:BASS_ErrorGetCode()]);
-            return;
-        }
-        self.channel = newChannel;
-        [BassUtil setChannelDelegate:self channel:newChannel];
-        [self changeSystemSampleRateToChannelRate];
-        if (positionToRestore > 0) {
-            [BassUtil setChannelPosition:newChannel position:positionToRestore];
-        }
-        if (wasPlaying) {
-            if (!BASS_ChannelPlay(newChannel, NO)) {
-                LogError(@"Error resuming playback on new device: %@", [BassUtil stringForErrorCode:BASS_ErrorGetCode()]);
-            }
-        }
-    }
-}
-
-- (void)dealloc  {
     [CoreAudioUtil stopListeningForSystemOutputDeviceChanges];
-    BASS_Free();
-    DDLogDebug(@"Bass freed");
+    [_node stop];
+    [_engine stop];
 }
 
-#pragma mark - Methods
-
-- (void)rampVolumeToZero:(BOOL)async {
-    [_thread run:^{
-        [BassUtil rampVolumeToZero:self.channel async:async];
-    }];
-}
-
-- (void)rampVolumeToNormal:(BOOL)async {
-    [_thread run:^{
-        [BassUtil rampVolumeToNormal:self.channel async:async];
-    }];
-}
-
-- (BOOL)lockSampleRate {
-    return _lockSampleRate;
-}
-
-- (void)setLockSampleRate:(BOOL)lockSampleRate {
-    _lockSampleRate = lockSampleRate;
-    if (_lockSampleRate && _channel) {
-        [_thread run:^{
-            [self changeSystemSampleRateToChannelRate];
-        }];
-    }
-}
+#pragma mark - Playback
 
 - (void)play:(AudioTrack *)track {
-
-    [_thread run:^{
-
-        HSTREAM oldChannel = self.channel;
-        if (oldChannel) {
-            // Fade the old stream out asynchronously and free it when the
-            // slide completes, so a skip doesn't block on the ~100ms ramp.
-            self.channel = 0;
-            [BassUtil fadeOutAndFreeChannel:oldChannel];
-        }
-
-        self.currentTrack = nil;
-
-        LogDebug(@"play file: %@", track.url.path);
-
-        self.channel = BASS_StreamCreateFile(FALSE,  [track.url.path UTF8String], 0, 0, BASS_ASYNCFILE) ;
-
-        if (self.channel) {
-            [BassUtil setChannelDelegate:self channel:self.channel];
-            [self changeSystemSampleRateToChannelRate];
-            BOOL success = BASS_ChannelPlay(self.channel, FALSE);
-            if (success) {
-                self.currentTrack = track;
-                track.duration = self.duration;
-                run_on_main_thread({
-                    [self.delegate audioPlayer:self didStartPlaying:track];
-                });
-                return;
-            }
-            // Capture the error before BASS_StreamFree resets it
-            int errorCode = BASS_ErrorGetCode();
-            BASS_StreamFree(self.channel);
-            self.channel = 0;
-            [self sendDelegateError:errorCode];
-            return;
-        }
-        [self sendDelegateLastError];
-    }];
-
+    dispatch_async(_queue, ^{
+        [self playOnQueue:track];
+    });
 }
 
-- (void)playPause {
-    [_thread run:^{
-        if (self.isPlaying) {
-            [BassUtil rampVolumeToZero:self.channel async:NO];
-            if (BASS_ChannelPause(self.channel)) {
-                run_on_main_thread({
-                    [self.delegate audioPlayer:self didPausePlaying:self.currentTrack];
-                });
-                return;
-            }
-        }
-        else {
-            if (BASS_ChannelPlay(self.channel, NO)) {
-                [BassUtil rampVolumeToNormal:self.channel async:YES];
-                run_on_main_thread({
-                    [self.delegate audioPlayer:self didResumePlaying:self.currentTrack];
-                });
-                return;
-            }
-        }
-        [self sendDelegateLastError];
-    }];
-}
+- (void)playOnQueue:(AudioTrack *)track {
+    _generation++;
 
-#pragma mark - Properties
-
-- (BOOL)isPlaying {
-    HSTREAM ch = self.channel;
-    return ch != 0 && BASS_ChannelIsActive(ch) == BASS_ACTIVE_PLAYING;
-}
-
-- (BOOL)isPaused {
-    HSTREAM ch = self.channel;
-    if (ch == 0) return NO;
-    DWORD state = BASS_ChannelIsActive(ch);
-    return state == BASS_ACTIVE_PAUSED || state == BASS_ACTIVE_PAUSED_DEVICE;
-}
-
-- (BOOL)isStopped {
-    HSTREAM ch = self.channel;
-    return ch == 0 || BASS_ChannelIsActive(ch) == BASS_ACTIVE_STOPPED;
-}
-
-- (NSTimeInterval)duration {
-    HSTREAM ch = self.channel;
-    if (ch) {
-        QWORD len = BASS_ChannelGetLength(ch, BASS_POS_BYTE);
-        return BASS_ChannelBytes2Seconds(ch, len);
+    AVAudioPlayerNode *oldNode = _node;
+    if (oldNode) {
+        // Fade the old node out asynchronously and detach it when the ramp
+        // completes, so a skip doesn't block on the ~100ms fade.
+        os_unfair_lock_lock(&_stateLock);
+        _node = nil;
+        os_unfair_lock_unlock(&_stateLock);
+        [self fadeOutStopAndDetachNode:oldNode];
     }
-    return 0;
+
+    self.currentTrack = nil;
+
+    LogDebug(@"play file: %@", track.url.path);
+
+    // Open the file off-queue: a cloud placeholder (iCloud/Dropbox) blocks
+    // the open until it materializes, and that must never wedge the player
+    // queue. The request id pairs each open with its timeout; whichever
+    // fires first consumes the id and the other becomes a no-op.
+    uint64_t openId = ++_openRequestId;
+    __weak AudioPlayer *weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *error = nil;
+        AVAudioFile *file = [[AVAudioFile alloc] initForReading:track.url error:&error];
+        AudioPlayer *strongSelf = weakSelf;
+        if (strongSelf) {
+            dispatch_async(strongSelf->_queue, ^{
+                [strongSelf finishPlayOnQueue:track file:file error:error openRequestId:openId];
+            });
+        }
+    });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFileOpenTimeoutSeconds * NSEC_PER_SEC)), _queue, ^{
+        [weakSelf fileOpenTimedOut:track openRequestId:openId];
+    });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kSlowOpenIndicatorDelaySeconds * NSEC_PER_SEC)), _queue, ^{
+        AudioPlayer *strongSelf = weakSelf;
+        if (strongSelf && openId == strongSelf->_openRequestId) {
+            // Still waiting on the open — let the UI show a loading state.
+            run_on_main_thread({
+                [strongSelf.delegate audioPlayer:strongSelf didBeginLoading:track];
+            });
+        }
+    });
 }
 
-- (NSUInteger)numChannels {
-    HSTREAM ch = self.channel;
-    if (ch) {
-        BASS_CHANNELINFO info;
-        if (BASS_ChannelGetInfo(ch, &info)) {
-            return info.chans;
+- (void)finishPlayOnQueue:(AudioTrack *)track file:(AVAudioFile *)file error:(NSError *)error openRequestId:(uint64_t)openId {
+    if (openId != _openRequestId) {
+        return; // Superseded by a newer play, or already timed out.
+    }
+    _openRequestId++; // Consume: the pending timeout must no-op.
+
+    if (!file || file.length <= 0) {
+        [self resetToStoppedStateOnQueue];
+        [self sendDelegateError:VibeAudioError(VibeAudioErrorFileOpenFailed,
+                [NSString stringWithFormat:@"Could not open %@", track.url.lastPathComponent], error)];
+        return;
+    }
+
+    // Switch the hardware rate before wiring the graph so the engine starts
+    // against the final device format.
+    [self changeSystemSampleRateToRate:file.processingFormat.sampleRate];
+
+    AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
+    [_engine attachNode:node];
+    [_engine connect:node to:_engine.mainMixerNode format:file.processingFormat];
+
+    [self scheduleFile:file onNode:node fromFrame:0];
+    node.volume = 1.0;
+
+    NSError *startError = nil;
+    if (![self startEngineAndPlayNode:node error:&startError]) {
+        _generation++; // drop the scheduled segment's stop-fired completion
+        [node stop];
+        [_engine detachNode:node];
+        [self resetToStoppedStateOnQueue];
+        [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
+                @"Could not start audio engine", startError)];
+        return;
+    }
+
+    os_unfair_lock_lock(&_stateLock);
+    _node = node;
+    _file = file;
+    _segmentStartFrame = 0;
+    _pausedPosition = 0;
+    _state = VibePlayerStatePlaying;
+    os_unfair_lock_unlock(&_stateLock);
+
+    self.currentTrack = track;
+    track.duration = self.duration;
+    run_on_main_thread({
+        [self.delegate audioPlayer:self didStartPlaying:track];
+    });
+}
+
+// Schedules the remainder of the file from startFrame with a completion tagged
+// by the current generation. AVAudioPlayerNode fires completions on stop and
+// reschedule too, not just natural end — every interruption (skip, seek,
+// device switch, new play) bumps _generation first so those get dropped.
+- (void)scheduleFile:(AVAudioFile *)file onNode:(AVAudioPlayerNode *)node fromFrame:(AVAudioFramePosition)startFrame {
+    uint64_t gen = _generation;
+    AVAudioFrameCount frames = (AVAudioFrameCount)MAX(file.length - startFrame, 1);
+    __weak AudioPlayer *weakSelf = self;
+    [node scheduleSegment:file
+            startingFrame:startFrame
+               frameCount:frames
+                   atTime:nil
+   completionCallbackType:AVAudioPlayerNodeCompletionDataPlayedBack
+        completionHandler:^(AVAudioPlayerNodeCompletionCallbackType callbackType) {
+            AudioPlayer *strongSelf = weakSelf;
+            if (strongSelf) {
+                dispatch_async(strongSelf->_queue, ^{
+                    [strongSelf segmentDidCompleteWithGeneration:gen];
+                });
+            }
+        }];
+}
+
+- (void)fileOpenTimedOut:(AudioTrack *)track openRequestId:(uint64_t)openId {
+    if (openId != _openRequestId) {
+        return; // The open landed in time, or a newer play superseded it.
+    }
+    _openRequestId++; // Invalidate the still-blocked open.
+    LogError(@"Timed out opening %@", track.url.path);
+    [self resetToStoppedStateOnQueue];
+    [self sendDelegateError:VibeAudioError(VibeAudioErrorFileOpenTimedOut,
+            [NSString stringWithFormat:@"Timed out opening %@ — it may still be downloading from iCloud/Dropbox or the network may be unavailable",
+                                       track.url.lastPathComponent], nil)];
+}
+
+// Marks playback fully stopped after a failure so isPlaying/duration report
+// reality and the play button can recover.
+- (void)resetToStoppedStateOnQueue {
+    os_unfair_lock_lock(&_stateLock);
+    _node = nil;
+    _file = nil;
+    _segmentStartFrame = 0;
+    _pausedPosition = 0;
+    _state = VibePlayerStateStopped;
+    os_unfair_lock_unlock(&_stateLock);
+}
+
+// [AVAudioPlayerNode play] throws NSException if the engine stopped between
+// our isRunning check and the call — and the engine stops itself on device
+// and format changes. Start the engine if needed and absorb the race.
+- (BOOL)startEngineAndPlayNode:(AVAudioPlayerNode *)node error:(NSError **)outError {
+    if (outError) {
+        *outError = nil;
+    }
+    for (int attempt = 0; attempt < 2; attempt++) {
+        if (!_engine.isRunning) {
+            NSError *startError = nil;
+            if (![_engine startAndReturnError:&startError]) {
+                if (outError) {
+                    *outError = startError;
+                }
+                return NO;
+            }
+        }
+        @try {
+            [node play];
+            return YES;
+        }
+        @catch (NSException *exception) {
+            LogError(@"AudioPlayer: node play threw (%@); retrying", exception.reason);
         }
     }
-    return 0;
+    return NO;
 }
 
-- (NSTimeInterval)position  {
-    return [BassUtil getChannelPosition:self.channel];
-}
-
-- (void)setPosition:(NSTimeInterval)pos {
-    [_thread run:^{
-        [BassUtil setChannelPosition:self.channel position:pos];
-        run_on_main_thread({
-            [self.delegate audioPlayer:self didFinishSeeking:self.currentTrack];
-        });
-    }];
-}
-
-#pragma mark - BASSChannelDelegate
-
-- (void)channelDidEnd {
+- (void)segmentDidCompleteWithGeneration:(uint64_t)generation {
+    if (generation != _generation) {
+        return; // Stale: a stop/seek/skip/device switch superseded this segment.
+    }
+    os_unfair_lock_lock(&_stateLock);
+    _state = VibePlayerStateStopped;
+    os_unfair_lock_unlock(&_stateLock);
     // Snapshot before dispatching; if the track changed by the time the block
     // runs on main, this end event is stale and must be dropped.
     AudioTrack *track = self.currentTrack;
@@ -277,35 +331,257 @@
     });
 }
 
-- (void)channelDeviceDidFail {
-    // Fired by BASS_SYNC_DEV_FAIL when the device the active stream is using
-    // dies (e.g. the user unplugs a USB DAC). Fall back to the system default
-    // so audio resumes somewhere audible instead of silently dropping.
-    LogError(@"Audio output device failed; falling back to system default");
-    [self setOutputDevice:-1];
+- (void)playPause {
+    dispatch_async(_queue, ^{
+        AVAudioPlayerNode *node = self->_node;
+        if (!node) {
+            [self sendDelegateError:VibeAudioError(VibeAudioErrorNotPlaying, @"Nothing is playing", nil)];
+            return;
+        }
+        if (self->_state == VibePlayerStatePlaying) {
+            // Capture the position before pausing: playerTimeForNodeTime:
+            // stops reporting once the node is paused.
+            NSTimeInterval position = self.position;
+            [self rampNodeSync:node toVolume:0];
+            [node pause];
+            os_unfair_lock_lock(&self->_stateLock);
+            self->_pausedPosition = position;
+            self->_state = VibePlayerStatePaused;
+            os_unfair_lock_unlock(&self->_stateLock);
+            run_on_main_thread({
+                [self.delegate audioPlayer:self didPausePlaying:self.currentTrack];
+            });
+        }
+        else if (self->_state == VibePlayerStatePaused) {
+            NSError *startError = nil;
+            if (![self startEngineAndPlayNode:node error:&startError]) {
+                [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
+                        @"Could not resume playback", startError)];
+                return;
+            }
+            os_unfair_lock_lock(&self->_stateLock);
+            self->_state = VibePlayerStatePlaying;
+            os_unfair_lock_unlock(&self->_stateLock);
+            [self rampNodeAsync:node step:1 from:node.volume to:1.0 completion:nil];
+            run_on_main_thread({
+                [self.delegate audioPlayer:self didResumePlaying:self.currentTrack];
+            });
+        }
+        else {
+            [self sendDelegateError:VibeAudioError(VibeAudioErrorNotPlaying, @"Nothing is playing", nil)];
+        }
+    });
+}
+
+#pragma mark - Fades
+
+// Blocking ~100ms fade on the player queue (pause path — matches the old
+// synchronous BASS ramp).
+- (void)rampNodeSync:(AVAudioPlayerNode *)node toVolume:(float)target {
+    float start = node.volume;
+    for (int step = 1; step <= kFadeSteps; step++) {
+        node.volume = VibeFadeVolume(start, target, step);
+        usleep(kFadeStepMicroseconds);
+    }
+    node.volume = target;
+}
+
+// Non-blocking fade stepped via dispatch_after on the player queue.
+- (void)rampNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target completion:(dispatch_block_t)completion {
+    node.volume = VibeFadeVolume(start, target, step);
+    if (step >= kFadeSteps) {
+        if (completion) {
+            completion();
+        }
+        return;
+    }
+    __weak AudioPlayer *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFadeStepMicroseconds * NSEC_PER_USEC)), _queue, ^{
+        [weakSelf rampNodeAsync:node step:step + 1 from:start to:target completion:completion];
+    });
+}
+
+// Replacement for the old fade-out-then-free skip flow: the outgoing node
+// keeps rendering while its volume ramps, then is stopped and detached.
+- (void)fadeOutStopAndDetachNode:(AVAudioPlayerNode *)node {
+    AVAudioEngine *engine = _engine;
+    [self rampNodeAsync:node step:1 from:node.volume to:0 completion:^{
+        [node stop];
+        [engine detachNode:node];
+    }];
+}
+
+#pragma mark - Properties
+
+- (BOOL)isPlaying {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL playing = (_state == VibePlayerStatePlaying);
+    os_unfair_lock_unlock(&_stateLock);
+    return playing;
+}
+
+- (BOOL)isPaused {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL paused = (_state == VibePlayerStatePaused);
+    os_unfair_lock_unlock(&_stateLock);
+    return paused;
+}
+
+- (BOOL)isStopped {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL stopped = (_state == VibePlayerStateStopped);
+    os_unfair_lock_unlock(&_stateLock);
+    return stopped;
+}
+
+- (NSTimeInterval)duration {
+    os_unfair_lock_lock(&_stateLock);
+    AVAudioFile *file = _file;
+    os_unfair_lock_unlock(&_stateLock);
+    double sampleRate = file.processingFormat.sampleRate;
+    if (!file || sampleRate <= 0) {
+        return 0;
+    }
+    return (NSTimeInterval)file.length / sampleRate;
+}
+
+- (NSUInteger)numChannels {
+    os_unfair_lock_lock(&_stateLock);
+    AVAudioFile *file = _file;
+    os_unfair_lock_unlock(&_stateLock);
+    return file.processingFormat.channelCount;
+}
+
+- (NSTimeInterval)position {
+    os_unfair_lock_lock(&_stateLock);
+    VibePlayerState state = _state;
+    AVAudioPlayerNode *node = _node;
+    AVAudioFile *file = _file;
+    AVAudioFramePosition segmentStartFrame = _segmentStartFrame;
+    NSTimeInterval pausedPosition = _pausedPosition;
+    os_unfair_lock_unlock(&_stateLock);
+
+    if (!file || state == VibePlayerStateStopped) {
+        return 0;
+    }
+    double sampleRate = file.processingFormat.sampleRate;
+    if (sampleRate <= 0) {
+        return 0;
+    }
+    if (state == VibePlayerStatePaused || !node) {
+        return pausedPosition;
+    }
+    // playerTime restarts at 0 after every stop+reschedule, so the segment's
+    // start frame must always be added back.
+    AVAudioTime *nodeTime = node.lastRenderTime;
+    AVAudioTime *playerTime = nodeTime ? [node playerTimeForNodeTime:nodeTime] : nil;
+    NSTimeInterval position;
+    if (!playerTime || !playerTime.sampleTimeValid) {
+        // No render yet (immediately after play) — report the segment start.
+        position = (NSTimeInterval)segmentStartFrame / sampleRate;
+    }
+    else {
+        position = (NSTimeInterval)(segmentStartFrame + playerTime.sampleTime) / sampleRate;
+    }
+    NSTimeInterval duration = (NSTimeInterval)file.length / sampleRate;
+    return MIN(MAX(position, 0), duration);
+}
+
+- (void)setPosition:(NSTimeInterval)pos {
+    dispatch_async(_queue, ^{
+        AVAudioPlayerNode *node = self->_node;
+        AVAudioFile *file = self->_file;
+        if (!node || !file) {
+            run_on_main_thread({
+                [self.delegate audioPlayer:self didFinishSeeking:self.currentTrack];
+            });
+            return;
+        }
+        double sampleRate = file.processingFormat.sampleRate;
+        BOOL wasPlaying = (self->_state == VibePlayerStatePlaying);
+        self->_generation++;
+        [node stop];
+        AVAudioFramePosition startFrame = (AVAudioFramePosition)(pos * sampleRate);
+        startFrame = MAX(0, MIN(startFrame, file.length - 1));
+        [self scheduleFile:file onNode:node fromFrame:startFrame];
+        os_unfair_lock_lock(&self->_stateLock);
+        self->_segmentStartFrame = startFrame;
+        self->_pausedPosition = (NSTimeInterval)startFrame / sampleRate;
+        os_unfair_lock_unlock(&self->_stateLock);
+        if (wasPlaying) {
+            NSError *startError = nil;
+            if (![self startEngineAndPlayNode:node error:&startError]) {
+                // Keep the seeked position; report paused so the UI recovers.
+                os_unfair_lock_lock(&self->_stateLock);
+                self->_state = VibePlayerStatePaused;
+                os_unfair_lock_unlock(&self->_stateLock);
+                [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
+                        @"Could not resume playback after seek", startError)];
+            }
+        }
+        run_on_main_thread({
+            [self.delegate audioPlayer:self didFinishSeeking:self.currentTrack];
+        });
+    });
 }
 
 #pragma mark - Sample rates
 
-- (void)changeSystemSampleRateToChannelRate {
-    if (!self.channel || !_lockSampleRate) {
+- (BOOL)lockSampleRate {
+    return _lockSampleRate;
+}
+
+- (void)setLockSampleRate:(BOOL)lockSampleRate {
+    _lockSampleRate = lockSampleRate;
+    if (lockSampleRate) {
+        dispatch_async(_queue, ^{
+            AVAudioFile *file = self->_file;
+            if (file) {
+                [self changeSystemSampleRateToRate:file.processingFormat.sampleRate];
+            }
+        });
+    }
+}
+
+- (void)changeSystemSampleRateToRate:(double)rate {
+    if (!_lockSampleRate || rate <= 0) {
         return;
     }
-    BASS_INFO bassInfo;
-    BASS_CHANNELINFO channelInfo;
-    BASS_GetInfo(&bassInfo);
-    BASS_ChannelGetInfo(self.channel, &channelInfo);
-    if (bassInfo.freq != channelInfo.freq) {
-        NSString *deviceUID = BassUtil.driverForCurrentDevice;
-        if (!deviceUID) {
-            LogError(@"AudioPlayer: cannot change sample rate, no driver UID for current device");
-            return;
-        }
-        LogDebug(@"AudioPlayer: Changing system sample rate");
-        LogDebug(@"  from: %d", bassInfo.freq);
-        LogDebug(@"    to: %d", channelInfo.freq);
-        [CoreAudioUtil setBestSampleRate:channelInfo.freq forDeviceUID:deviceUID];
+    AudioDeviceID deviceID = [self activeOutputDeviceID];
+    if (deviceID == kAudioObjectUnknown) {
+        LogError(@"AudioPlayer: cannot change sample rate, no active output device");
+        return;
     }
+    double currentRate = [AudioPlayer nominalSampleRateForDevice:deviceID];
+    if (currentRate == rate) {
+        return;
+    }
+    NSString *deviceUID = [AudioDeviceManager uidForDeviceID:deviceID];
+    if (!deviceUID) {
+        LogError(@"AudioPlayer: cannot change sample rate, no UID for current device");
+        return;
+    }
+    LogDebug(@"AudioPlayer: Changing system sample rate");
+    LogDebug(@"  from: %g", currentRate);
+    LogDebug(@"    to: %g", rate);
+    // The hardware rate change makes the engine stop itself and post a
+    // configuration-change notification; handleEngineConfigurationChange's
+    // health check restarts the graph if the caller's own start didn't win.
+    [CoreAudioUtil setBestSampleRate:rate forDeviceUID:deviceUID];
+}
+
++ (double)nominalSampleRateForDevice:(AudioDeviceID)deviceID {
+    AudioObjectPropertyAddress addr = {
+            kAudioDevicePropertyNominalSampleRate,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+    };
+    Float64 rate = 0;
+    UInt32 size = sizeof(rate);
+    if (AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, &rate) != noErr) {
+        return 0;
+    }
+    return rate;
 }
 
 #pragma mark - Output devices
@@ -316,67 +592,190 @@
     }
 }
 
+// The AudioDeviceID the output unit is currently bound to.
+- (AudioDeviceID)activeOutputDeviceID {
+    AudioUnit outputUnit = _engine.outputNode.audioUnit;
+    if (outputUnit) {
+        AudioDeviceID deviceID = kAudioObjectUnknown;
+        UInt32 size = sizeof(deviceID);
+        if (AudioUnitGetProperty(outputUnit, kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global, 0, &deviceID, &size) == noErr && deviceID != kAudioObjectUnknown) {
+            return deviceID;
+        }
+    }
+    return [AudioDeviceManager systemDefaultOutputDeviceID];
+}
+
 - (NSInteger)currentlyActiveAudioDeviceId {
-    return BASS_GetDevice();
+    return (NSInteger)[self activeOutputDeviceID];
+}
+
+- (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID {
+    AudioUnit outputUnit = _engine.outputNode.audioUnit;
+    if (!outputUnit) {
+        LogError(@"AudioPlayer: output unit unavailable");
+        return NO;
+    }
+    OSStatus status = AudioUnitSetProperty(outputUnit, kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global, 0, &deviceID, sizeof(deviceID));
+    if (status != noErr) {
+        LogError(@"AudioPlayer: could not set output device %u (OSStatus %d)", deviceID, (int)status);
+        return NO;
+    }
+    return YES;
 }
 
 - (void)setOutputDevice:(NSInteger)outputDeviceIndex {
-
-    [_thread run:^{
+    dispatch_async(_queue, ^{
 
         LogDebug(@"setOutputDevice: %@", @(outputDeviceIndex));
-        BASS_DEVICEINFO info;
 
-        DWORD newDeviceIndex = 0;
-
+        AudioDeviceID newDeviceID = kAudioObjectUnknown;
         if (outputDeviceIndex >= 0) {
-            newDeviceIndex = (DWORD) outputDeviceIndex;
+            newDeviceID = (AudioDeviceID)outputDeviceIndex;
         }
-        else if (outputDeviceIndex == -1) {
-            // Find default output device
-            for (NSUInteger d = 1; BASS_GetDeviceInfo((DWORD)d, &info); d++) {
-                if (info.flags & BASS_DEVICE_DEFAULT) {
-                    newDeviceIndex = (DWORD)d;
-                    break;
-                }
-            }
+        else {
+            newDeviceID = [AudioDeviceManager systemDefaultOutputDeviceID];
         }
 
-        if (newDeviceIndex == 0) {
-            LogError(@"Unable to find system default output device, and no sound (0) is disallowed");
-            [self sendDelegateLastError];
+        if (newDeviceID == kAudioObjectUnknown) {
+            LogError(@"Unable to resolve output device %@", @(outputDeviceIndex));
+            [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
+                    @"Audio output device is unavailable", nil)];
             return;
         }
 
-        int currentDevice = BASS_GetDevice();
+        AudioDeviceID currentDeviceID = [self activeOutputDeviceID];
 
-        LogDebug(@"current: %@ new: %@", @(currentDevice), @(newDeviceIndex));
+        LogDebug(@"current: %@ new: %@", @(currentDeviceID), @(newDeviceID));
 
-        if (newDeviceIndex != currentDevice) {
-            [self initWithDeviceIndexInternal:newDeviceIndex];
+        if (newDeviceID != currentDeviceID) {
+            if (![self configureOutputDeviceOnQueue:newDeviceID]) {
+                // configureOutputDeviceOnQueue already reported the error;
+                // don't record or persist a device we failed to switch to.
+                return;
+            }
         }
 
         self.currentlyRequestedAudioDeviceId = outputDeviceIndex;
-
-        LogDebug(@"currentlyRequestedAudioDeviceId: %@", @(self.currentlyRequestedAudioDeviceId));
 
         run_on_main_thread({
             [self.delegate audioPlayer:self didChangeOuputDevice:self.currentlyRequestedAudioDeviceId];
         });
 
-    }];
+    });
+}
 
+// Rebinds the engine to a new output device, restoring the current track,
+// position, and play/pause state — the replacement for the old free/reinit
+// device dance. Returns NO (after reporting a delegate error) on failure.
+- (BOOL)configureOutputDeviceOnQueue:(AudioDeviceID)deviceID {
+    AudioTrack *trackToRestore = self.currentTrack;
+    BOOL wasPlaying = self.isPlaying;
+    NSTimeInterval positionToRestore = self.position;
+
+    _generation++;
+
+    AVAudioPlayerNode *oldNode = _node;
+    [oldNode stop];
+    [_engine stop];
+    if (oldNode) {
+        [_engine detachNode:oldNode];
+    }
+    os_unfair_lock_lock(&_stateLock);
+    _node = nil;
+    os_unfair_lock_unlock(&_stateLock);
+
+    if (![self setOutputUnitDevice:deviceID]) {
+        [self resetToStoppedStateOnQueue];
+        [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
+                @"Could not switch audio output device", nil)];
+        return NO;
+    }
+
+    if (trackToRestore) {
+        NSError *error = nil;
+        AVAudioFile *file = [[AVAudioFile alloc] initForReading:trackToRestore.url error:&error];
+        if (!file) {
+            [self resetToStoppedStateOnQueue];
+            [self sendDelegateError:VibeAudioError(VibeAudioErrorFileOpenFailed,
+                    @"Could not reopen track on the new audio device", error)];
+            return NO;
+        }
+        [self changeSystemSampleRateToRate:file.processingFormat.sampleRate];
+        AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
+        [_engine attachNode:node];
+        [_engine connect:node to:_engine.mainMixerNode format:file.processingFormat];
+        double sampleRate = file.processingFormat.sampleRate;
+        AVAudioFramePosition startFrame = (AVAudioFramePosition)(positionToRestore * sampleRate);
+        startFrame = MAX(0, MIN(startFrame, file.length - 1));
+        [self scheduleFile:file onNode:node fromFrame:startFrame];
+        node.volume = 1.0;
+        os_unfair_lock_lock(&_stateLock);
+        _node = node;
+        _file = file;
+        _segmentStartFrame = startFrame;
+        _pausedPosition = positionToRestore;
+        _state = wasPlaying ? VibePlayerStatePlaying : VibePlayerStatePaused;
+        os_unfair_lock_unlock(&_stateLock);
+        if (wasPlaying) {
+            NSError *startError = nil;
+            if (![self startEngineAndPlayNode:node error:&startError]) {
+                _generation++;
+                [node stop];
+                [_engine detachNode:node];
+                [self resetToStoppedStateOnQueue];
+                [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
+                        @"Could not restart playback on the new audio device", startError)];
+                return NO;
+            }
+        }
+    }
+
+    return YES;
+}
+
+// AVAudioEngineConfigurationChangeNotification — the output hardware changed
+// under the engine (device removed, format/sample-rate change — including our
+// own sample-rate lock, which makes the engine stop itself). Replacement for
+// BASS_SYNC_DEV_FAIL / BASS_SYNC_DEV_FORMAT. Idempotent health check: only
+// rebuild when the graph actually died, so notifications caused by our own
+// completed rebuilds are no-ops instead of redundant rebuilds.
+- (void)handleEngineConfigurationChange {
+    NSInteger requested = self.currentlyRequestedAudioDeviceId;
+    if (requested >= 0) {
+        AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:requested];
+        if (!device) {
+            LogError(@"Audio output device failed; falling back to system default");
+            [self setOutputDevice:-1];
+            return;
+        }
+    }
+    os_unfair_lock_lock(&_stateLock);
+    VibePlayerState state = _state;
+    BOOL hasNode = (_node != nil);
+    os_unfair_lock_unlock(&_stateLock);
+    if (state == VibePlayerStateStopped) {
+        return;
+    }
+    if (_engine.isRunning && hasNode) {
+        // Graph survived — nothing to recover.
+        return;
+    }
+    // The engine stopped itself in response to the change. Rebuild the graph,
+    // preserving track/position/play-pause state.
+    AudioDeviceID deviceID = requested >= 0
+            ? (AudioDeviceID)requested
+            : [AudioDeviceManager systemDefaultOutputDeviceID];
+    if (deviceID != kAudioObjectUnknown) {
+        [self configureOutputDeviceOnQueue:deviceID];
+    }
 }
 
 #pragma mark - Helpers
 
-- (void)sendDelegateLastError {
-    [self sendDelegateError:BASS_ErrorGetCode()];
-}
-
-- (void)sendDelegateError:(int)errorCode {
-    LogError(@"AudioPlayer Error: %@", [BassUtil stringForErrorCode:errorCode]);
-    NSError *error = [BassUtil errorForErrorCode:errorCode];
+- (void)sendDelegateError:(NSError *)error {
+    LogError(@"AudioPlayer Error: %@", error.localizedDescription);
     run_on_main_thread({
         [self.delegate audioPlayer:self error:error];
     });

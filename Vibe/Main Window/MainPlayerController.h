@@ -60,9 +60,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (IBAction)closeApp:(id)sender;
 
-- (IBAction)playPause:(id)sender;
-- (IBAction)next:(id)sender;
-- (IBAction)previous:(id)sender;
+- (IBAction)playPause:(nullable id)sender;
+- (IBAction)next:(nullable id)sender;
+- (IBAction)previous:(nullable id)sender;
 
 - (IBAction)setSmallSize:(id)sender;
 - (IBAction)setLargeSize:(id)sender;

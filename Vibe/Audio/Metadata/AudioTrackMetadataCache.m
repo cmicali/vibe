@@ -97,8 +97,12 @@
 
 @end
 
+@interface AudioTrackMetadataCache ()
+// Atomic: created asynchronously at utility QoS, read from the main thread.
+@property (atomic, strong) PINCache *metadataCache;
+@end
+
 @implementation AudioTrackMetadataCache {
-    PINCache*                   _metadataCache;
     AudioTrackMetadataLoader*   _currentLoader;
 }
 
@@ -106,24 +110,37 @@
     self = [super init];
     if (self) {
         _currentLoader = nil;
-        // v3: archives only the JPEG thumbnail + scalar fields (~10KB/track).
-        // Earlier formats stored art at original size, which overflowed the
-        // byte limit and turned every launch into a full library re-parse.
-        _metadataCache = [[PINCache alloc] initWithName:@"Audio Track Metadata v3"];
-        _metadataCache.diskCache.byteLimit = 64 * 1024 * 1024;
-        _metadataCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
-        // Objects are stored without cost tracking, so costLimit would be a
-        // no-op; an age limit keeps idle entries from pinning memory forever.
-        _metadataCache.memoryCache.ageLimit = 60 * 60; // 1 hour
-        if (!METADATA_CACHE_ENABLED) {
-            [self invalidate];
-        }
+        // Create the cache at utility QoS: constructing it on the main
+        // thread boosts PINCache's internal init-time disk scan to
+        // user-initiated, which then priority-inverts against the utility
+        // worker ops (Thread Performance Checker warning at first drop).
+        // Metadata loading starts well after init (deferred until playback
+        // begins), so the cache is always ready by first use; the loader
+        // tolerates a nil cache regardless.
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            // v3: archives only the JPEG thumbnail + scalar fields
+            // (~10KB/track). Earlier formats stored art at original size,
+            // which overflowed the byte limit and turned every launch into a
+            // full library re-parse.
+            PINCache *cache = [[PINCache alloc] initWithName:@"Audio Track Metadata v3"];
+            cache.diskCache.byteLimit = 64 * 1024 * 1024;
+            cache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
+            // Objects are stored without cost tracking, so costLimit would be
+            // a no-op; an age limit keeps idle entries from pinning memory.
+            cache.memoryCache.ageLimit = 60 * 60; // 1 hour
+            if (!METADATA_CACHE_ENABLED) {
+                [cache removeAllObjects];
+            }
+            self.metadataCache = cache;
+        });
     }
     return self;
 }
 
 -(void) invalidate {
-    [_metadataCache removeAllObjects];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        [self.metadataCache removeAllObjects];
+    });
 }
 
 -(void)loadMetadata:(NSArray<AudioTrack*>*)tracks {
@@ -131,7 +148,7 @@
     if (!tracks.count) {
         return;
     }
-    AudioTrackMetadataLoader* loader = [[AudioTrackMetadataLoader alloc] initWithCache:_metadataCache delegate:self.delegate];
+    AudioTrackMetadataLoader* loader = [[AudioTrackMetadataLoader alloc] initWithCache:self.metadataCache delegate:self.delegate];
     _currentLoader = loader;
     [loader load:tracks];
 }

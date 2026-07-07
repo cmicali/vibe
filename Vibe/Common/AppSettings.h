@@ -22,6 +22,11 @@
 - (NSString *)audioOutputDeviceName;
 - (void)setAudioOutputDeviceName:(NSString *)deviceName;
 
+// CoreAudio device UID — more robust than the name (survives duplicate
+// device names); the name is kept as a fallback for older settings.
+- (NSString *)audioOutputDeviceUID;
+- (void)setAudioOutputDeviceUID:(NSString *)deviceUID;
+
 - (BOOL)audioPlayerLockSampleRate;
 - (void)setAudioPlayerLockSampleRate:(BOOL)lockSampleRate;
 

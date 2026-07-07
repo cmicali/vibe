@@ -6,10 +6,44 @@
 #import "AudioTrackMetadata.h"
 #import "NSString+CPPStrings.h"
 #import "NSImage+Util.h"
+#import <ImageIO/ImageIO.h>
 
 // Pixel size for the playlist-cell thumbnail. Generous for Retina at typical
 // row heights; original art is usually 1000×1000+, so this is ~50× smaller.
 static const CGFloat kThumbnailDimension = 128.0;
+
+// Cap for the "full-res" display image. Nothing renders art larger than the
+// ~300px artwork panel / 512px dock icon, and ImageIO decodes straight to
+// this size — the original-resolution bitmap (which can be 50MB+ decoded)
+// never gets allocated.
+static const CGFloat kDisplayArtMaxDimension = 1024.0;
+
+// Decode image data directly at a bounded pixel size via ImageIO. Unlike
+// NSImage initWithData: + resize, this never materializes the full-size
+// bitmap.
+static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
+    if (!data) {
+        return nil;
+    }
+    CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)data, NULL);
+    if (!source) {
+        return nil;
+    }
+    NSDictionary *options = @{
+            (id)kCGImageSourceCreateThumbnailFromImageAlways: @YES,
+            (id)kCGImageSourceCreateThumbnailWithTransform: @YES,
+            (id)kCGImageSourceShouldCacheImmediately: @YES,
+            (id)kCGImageSourceThumbnailMaxPixelSize: @(maxPixelSize),
+    };
+    CGImageRef cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, (__bridge CFDictionaryRef)options);
+    CFRelease(source);
+    if (!cgImage) {
+        return nil;
+    }
+    NSImage *image = [[NSImage alloc] initWithCGImage:cgImage size:NSZeroSize];
+    CGImageRelease(cgImage);
+    return image;
+}
 
 #include <fileref.h>
 #include <tpropertymap.h>
@@ -27,6 +61,7 @@ static const CGFloat kThumbnailDimension = 128.0;
     NSImage *_albumArt;
     NSData *_albumArtData;
     NSString *_sourceFilePath;
+    BOOL _albumArtExtractionAttempted;
 }
 
 // Full-res art is decoded lazily so only tracks whose art is actually
@@ -35,14 +70,33 @@ static const CGFloat kThumbnailDimension = 128.0;
 // re-extract them from the audio file on demand; only the currently playing
 // track ever takes that path.
 - (NSImage *)albumArt {
+    NSString *pathToExtract = nil;
     @synchronized (self) {
-        if (!_albumArt) {
-            if (!_albumArtData && _sourceFilePath) {
-                _albumArtData = [self extractAlbumArtDataFromSourceFile];
-            }
-            if (_albumArtData) {
-                _albumArt = [[NSImage alloc] initWithData:_albumArtData];
-            }
+        if (!_albumArt && _albumArtData) {
+            _albumArt = VibeDecodeImageData(_albumArtData, kDisplayArtMaxDimension);
+        }
+        if (_albumArt) {
+            return _albumArt;
+        }
+        // Attempt the file re-read at most once: artless or moved files
+        // must not pay a synchronous TagLib parse on every access. Claim the
+        // attempt under the lock so concurrent callers don't double-extract.
+        if (!_sourceFilePath || _albumArtExtractionAttempted) {
+            return nil;
+        }
+        _albumArtExtractionAttempted = YES;
+        pathToExtract = _sourceFilePath;
+    }
+    // File I/O happens OUTSIDE the lock: a cloud placeholder can block this
+    // read until it downloads, and holding @synchronized here would stall
+    // every other accessor (thumbnail reads from the main thread) with it.
+    NSData *artData = [self extractAlbumArtDataFromFile:pathToExtract];
+    @synchronized (self) {
+        if (artData && !_albumArtData) {
+            _albumArtData = artData;
+        }
+        if (!_albumArt && _albumArtData) {
+            _albumArt = VibeDecodeImageData(_albumArtData, kDisplayArtMaxDimension);
         }
         return _albumArt;
     }
@@ -54,25 +108,41 @@ static const CGFloat kThumbnailDimension = 128.0;
     }
 }
 
+- (NSImage *)albumArtIfLoaded {
+    @synchronized (self) {
+        if (!_albumArt && _albumArtData) {
+            _albumArt = VibeDecodeImageData(_albumArtData, kDisplayArtMaxDimension);
+        }
+        return _albumArt;
+    }
+}
+
+- (BOOL)albumArtNeedsLoad {
+    @synchronized (self) {
+        return !_albumArt && !_albumArtData && _sourceFilePath != nil && !_albumArtExtractionAttempted;
+    }
+}
+
 - (NSImage *)thumbnailAlbumArt {
     @synchronized (self) {
         if (_thumbnailAlbumArt) return _thumbnailAlbumArt;
-        NSImage *full = _albumArt;
-        if (!full && _albumArtData) {
-            // Transient decode for the resize; don't pin the full-res image.
-            full = [[NSImage alloc] initWithData:_albumArtData];
+        if (_albumArtData) {
+            // ImageIO decodes straight to thumbnail size — the full-size
+            // bitmap is never allocated.
+            _thumbnailAlbumArt = VibeDecodeImageData(_albumArtData, kThumbnailDimension);
         }
-        if (!full) return nil;
-        NSSize originalSize = full.size;
-        if (originalSize.width <= kThumbnailDimension && originalSize.height <= kThumbnailDimension) {
-            // Already small — skip the resize.
-            _thumbnailAlbumArt = full;
-        } else {
-            CGFloat scale = MIN(kThumbnailDimension / originalSize.width,
-                                kThumbnailDimension / originalSize.height);
-            NSSize target = NSMakeSize(MAX(1.0, round(originalSize.width * scale)),
-                                       MAX(1.0, round(originalSize.height * scale)));
-            _thumbnailAlbumArt = [full resizedImage:target];
+        else if (_albumArt) {
+            // Rare fallback: an injected image with no backing data.
+            NSSize originalSize = _albumArt.size;
+            if (originalSize.width <= kThumbnailDimension && originalSize.height <= kThumbnailDimension) {
+                _thumbnailAlbumArt = _albumArt;
+            } else {
+                CGFloat scale = MIN(kThumbnailDimension / originalSize.width,
+                                    kThumbnailDimension / originalSize.height);
+                NSSize target = NSMakeSize(MAX(1.0, round(originalSize.width * scale)),
+                                           MAX(1.0, round(originalSize.height * scale)));
+                _thumbnailAlbumArt = [_albumArt resizedImage:target];
+            }
         }
         return _thumbnailAlbumArt;
     }
@@ -171,6 +241,7 @@ static const CGFloat kThumbnailDimension = 128.0;
             }
 
             _albumArtData = [self readFileTypeAndAlbumArtFromTagLibFile:file];
+            _albumArtExtractionAttempted = YES;
         }
     }
 }
@@ -205,11 +276,12 @@ static const CGFloat kThumbnailDimension = 128.0;
     return nil;
 }
 
-- (NSData *)extractAlbumArtDataFromSourceFile {
-    if (!_sourceFilePath) {
+// Blocking file read — call without holding @synchronized (self).
+- (NSData *)extractAlbumArtDataFromFile:(NSString *)path {
+    if (!path) {
         return nil;
     }
-    TagLib::FileRef fileRef([_sourceFilePath UTF8String]);
+    TagLib::FileRef fileRef([path UTF8String]);
     if (fileRef.isNull() || !fileRef.file()) {
         return nil;
     }
@@ -283,13 +355,6 @@ static const CGFloat kThumbnailDimension = 128.0;
         if (bytes.isEmpty()) continue;
         return [[NSData alloc] initWithBytes:bytes.data() length:bytes.size()];
     }
-    return nil;
-}
-
-- (NSData *)getAlbumArtOgg:(TagLib::Ogg::File *)oggFile {
-//    if (aiffFile->hasID3v2Tag()) {
-//        return [self getAlbumArtID3v2:aiffFile->tag()];
-//    }
     return nil;
 }
 
