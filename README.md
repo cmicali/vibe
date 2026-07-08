@@ -1,8 +1,8 @@
 # Vibe
 
-A fast, minimal music player for macOS, built for large local libraries and lossless files.
+A fast, minimal native music player for macOS, built for large local libraries and lossless files. 
 
-Native app written in Objective-C with a focus on simplicity, performance, and low memory footprint.
+![Vibe screenshot](Assets/screenshot-basic.png)
 
 ## Features
 
