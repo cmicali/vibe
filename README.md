@@ -1,6 +1,6 @@
 # Vibe
 
-A fast, minimal native music player for macOS, built for large local libraries and lossless files. 
+A fast and minimal winamp-inspired native music player for macOS. Built for large local libraries and lossless files. 
 
 ![Vibe screenshot](Assets/screenshot-basic.png)
 
