@@ -107,7 +107,7 @@ static void ensureCellAttributes(void) {
         view = [tableView makeViewWithIdentifier:@"trackArt" owner:self];
         NSImage *image = track.thumbnailAlbumArt;
         if (!image) {
-            image = [NSImage imageNamed:@"record"];
+            image = [NSImage imageNamed:@"record-bg"];
         }
         view.imageView.image = image;
     }
