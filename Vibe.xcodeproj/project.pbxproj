@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AB07000000000000000000B2 /* VectorBallsView.m in Sources */ = {isa = PBXBuildFile; fileRef = AB07000000000000000000A2 /* VectorBallsView.m */; };
+		AB07000000000000000000B4 /* AboutWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = AB07000000000000000000A4 /* AboutWindowController.m */; };
 		34FF40610A4EB028EC190151 /* NSURL+Hash.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4332509EABC415A0A5EB /* NSURL+Hash.m */; };
 		34FF40BCC1328A8EB4A4B753 /* AudioWaveformRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF46C5DB656AAA171A5984 /* AudioWaveformRenderer.mm */; };
 		34FF4113001518E37080A80F /* BasicAudioWaveformRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF40C150803791290DADAE /* BasicAudioWaveformRenderer.mm */; };
@@ -37,7 +39,6 @@
 		34FF4A828E15FEB015564F9D /* NSMutableAttributedString+Util.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF433F9FE866FC4684CC25 /* NSMutableAttributedString+Util.m */; };
 		34FF4AE1ACE2E6673F149C3D /* Formatters.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF45FBACD93387E9706D41 /* Formatters.m */; };
 		34FF4AFD918FEFC3A05BADC7 /* AudioWaveformLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF422C6AC6CAB9B5A43725 /* AudioWaveformLoader.mm */; };
-		34FF4B548C528711111238DD /* PlayerTouchBar.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF462D9B0BEDAA200B533E /* PlayerTouchBar.m */; };
 		34FF4BF32F0785E1FAAF1ECA /* AudioDeviceManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4BDDAE061E63D8BAA501 /* AudioDeviceManager.m */; };
 		34FF4CB6A1C128EB32DE8118 /* ArtworkImageView.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4464120AB1B3EA5F0CC8 /* ArtworkImageView.m */; };
 		34FF4CBCFD4174BEBC23A583 /* DetailedAudioWaveformRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF42E69315F87BA3652E77 /* DetailedAudioWaveformRenderer.mm */; };
@@ -81,6 +82,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AB07000000000000000000A1 /* VectorBallsView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VectorBallsView.h; sourceTree = "<group>"; };
+		AB07000000000000000000A2 /* VectorBallsView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = VectorBallsView.m; sourceTree = "<group>"; };
+		AB07000000000000000000A3 /* AboutWindowController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AboutWindowController.h; sourceTree = "<group>"; };
+		AB07000000000000000000A4 /* AboutWindowController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AboutWindowController.m; sourceTree = "<group>"; };
 		34FF4065120E705650E06694 /* AppDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		34FF408561F7DF7DA84C6EEA /* AudioTrackMetadataCache.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioTrackMetadataCache.h; sourceTree = "<group>"; };
 		34FF408589774269742C487B /* ScaledImageView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScaledImageView.h; sourceTree = "<group>"; };
@@ -113,10 +118,8 @@
 		34FF457BCFE238F6FBE97F6A /* NSString+CPPStrings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSString+CPPStrings.h"; sourceTree = "<group>"; };
 		34FF45FBACD93387E9706D41 /* Formatters.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Formatters.m; sourceTree = "<group>"; };
 		34FF461706DB2954215A3413 /* MacOSUtil.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MacOSUtil.h; sourceTree = "<group>"; };
-		34FF462D9B0BEDAA200B533E /* PlayerTouchBar.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = PlayerTouchBar.m; sourceTree = "<group>"; };
 		34FF465741427C92D158BB81 /* VibeDefaultWaveformRenderer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = VibeDefaultWaveformRenderer.mm; sourceTree = "<group>"; };
 		34FF466808E0F10F15F2F213 /* NSView+Util.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSView+Util.m"; sourceTree = "<group>"; };
-		34FF46737EB46D4AF1BE31EE /* PlayerTouchBar.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PlayerTouchBar.h; sourceTree = "<group>"; };
 		34FF4673B99FFF4C729743B9 /* NSView+DarkMode.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSView+DarkMode.m"; sourceTree = "<group>"; };
 		34FF46C5DB656AAA171A5984 /* AudioWaveformRenderer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioWaveformRenderer.mm; sourceTree = "<group>"; };
 		34FF47482DFB21C44F91C417 /* RSVerticallyCenteredTextFieldCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = RSVerticallyCenteredTextFieldCell.m; sourceTree = "<group>"; };
@@ -377,8 +380,6 @@
 				34FF4E4074FCDF9987862179 /* MainWindow.mm */,
 				34FF426EADB1FCC0BBAB2FF2 /* OutputDevicesMenuController.h */,
 				34FF482BFB65CD379F8499EB /* OutputDevicesMenuController.m */,
-				34FF46737EB46D4AF1BE31EE /* PlayerTouchBar.h */,
-				34FF462D9B0BEDAA200B533E /* PlayerTouchBar.m */,
 			);
 			path = "Main Window";
 			sourceTree = "<group>";
@@ -433,9 +434,21 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		AB07000000000000000000C1 /* About */ = {
+			isa = PBXGroup;
+			children = (
+				AB07000000000000000000A3 /* AboutWindowController.h */,
+				AB07000000000000000000A4 /* AboutWindowController.m */,
+				AB07000000000000000000A1 /* VectorBallsView.h */,
+				AB07000000000000000000A2 /* VectorBallsView.m */,
+			);
+			path = About;
+			sourceTree = "<group>";
+		};
 		B6E7883323A562360035BCD0 /* Vibe */ = {
 			isa = PBXGroup;
 			children = (
+				AB07000000000000000000C1 /* About */,
 				34FF48C886FF01D51470B6EE /* Audio */,
 				B626E36723B65B5B0075B506 /* Common */,
 				34FF4D186760F9F6458D3EE9 /* Controls */,
@@ -587,6 +600,8 @@
 			files = (
 				B6E7883E23A562380035BCD0 /* main.m in Sources */,
 				B660F21A23A6B8C600BBD9C8 /* MainPlayerController.mm in Sources */,
+				AB07000000000000000000B2 /* VectorBallsView.m in Sources */,
+				AB07000000000000000000B4 /* AboutWindowController.m in Sources */,
 				34FF41F5F64CA81A54C15EBC /* AudioTrack.m in Sources */,
 				B6C43BC423AA5837009B6536 /* AudioPlayer.m in Sources */,
 				34FF474E4200A813A4A01606 /* NSString+CPPStrings.mm in Sources */,
@@ -601,7 +616,6 @@
 				34FF42E49186916E522A9C4F /* AlphaButton.m in Sources */,
 				34FF4484903DE5AD7A67B838 /* SYFlatButton.m in Sources */,
 				B63DAE6A2E117B8D00A52B03 /* BackgroundArtworkImageView.m in Sources */,
-				34FF4B548C528711111238DD /* PlayerTouchBar.m in Sources */,
 				34FF42A916FA0A4391E23D42 /* OutputDevicesMenuController.m in Sources */,
 				34FF4D673AEDD903E6D4F623 /* AudioDevice.m in Sources */,
 				34FF40610A4EB028EC190151 /* NSURL+Hash.m in Sources */,

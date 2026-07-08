@@ -41,6 +41,11 @@
     CodableAudioWaveform *result = [[CodableAudioWaveform alloc] initWithWaveform:waveform];
 
     NSUInteger numChunks = waveform->getNumChunks();
+    if (numChunks == 0) {
+        // Chunk-buffer calloc failed (OOM) — everything downstream divides by
+        // the chunk count, so bail rather than SIGFPE.
+        return nil;
+    }
     // file.length is exact for all CoreAudio formats — no prescan needed.
     // Chunk i covers frames [i*T/N, (i+1)*T/N): every frame is scanned and a
     // normal file always fills exactly numChunks chunks at their final
@@ -100,9 +105,14 @@
                 lastProgressTime = now;
                 float percentComplete = (float)i / (float)effectiveChunks;
                 if (percentComplete < 1.0) {
+                    // Snapshot on the loader thread (the only writer) so the
+                    // main thread renders an immutable copy — reading the live
+                    // buffer while this loop keeps calling setChunkAtIndex, and
+                    // the stretch pass below remaps it in place, is a data race.
+                    CodableAudioWaveform *snapshot = [result snapshot];
                     dispatch_async(dispatch_get_main_queue(), ^(void) {
                         if (!self.isCancelled) {
-                            [self.delegate audioWaveformLoader:self waveform:result didLoadData:percentComplete];
+                            [self.delegate audioWaveformLoader:self waveform:snapshot didLoadData:percentComplete];
                         }
                     });
                 }
@@ -114,7 +124,18 @@
         return nil;
     }
 
-    self.isComplete = !readError && chunksFilled >= effectiveChunks - 1;
+    // Match the EOF tolerance above: a read that ends up to 2 chunks short of
+    // file.length's claim is treated as complete (VBR mis-tags / slight
+    // truncation over-report the length). Requiring effectiveChunks - 1 here
+    // while tolerating an EOF at effectiveChunks - 2 left such files neither
+    // errored nor complete — frozen mid-load, never cached, nothing logged.
+    // (effectiveChunks >= 1; guard the unsigned subtraction for tiny files.)
+    NSUInteger completeThreshold = effectiveChunks > 2 ? effectiveChunks - 2 : 1;
+    self.isComplete = !readError && chunksFilled >= completeThreshold;
+    if (self.isComplete && chunksFilled < effectiveChunks) {
+        LogWarn(@"Waveform for %@ decoded short: %lu of %lu chunks (file length over-reported)",
+                filename, (unsigned long)chunksFilled, (unsigned long)effectiveChunks);
+    }
 
     // Sub-chunk-count files: stretch the decoded chunks across the full chunk
     // array (back to front so it's safe in place) so the waveform spans the

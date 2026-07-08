@@ -61,6 +61,11 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     NSData *_albumArtData;
     NSString *_sourceFilePath;
     BOOL _albumArtExtractionAttempted;
+    BOOL _parsedOK;
+}
+
+- (BOOL)parsedOK {
+    return _parsedOK;
 }
 
 // Full-res art is decoded lazily so only tracks whose art is actually
@@ -70,32 +75,41 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 // track ever takes that path.
 - (NSImage *)albumArt {
     NSString *pathToExtract = nil;
+    NSData *dataToDecode = nil;
     @synchronized (self) {
-        if (!_albumArt && _albumArtData) {
-            _albumArt = VibeDecodeImageData(_albumArtData, kDisplayArtMaxDimension);
-        }
         if (_albumArt) {
             return _albumArt;
+        }
+        if (_albumArtData) {
+            dataToDecode = _albumArtData;
         }
         // Attempt the file re-read at most once: artless or moved files
         // must not pay a synchronous TagLib parse on every access. Claim the
         // attempt under the lock so concurrent callers don't double-extract.
-        if (!_sourceFilePath || _albumArtExtractionAttempted) {
+        else if (!_sourceFilePath || _albumArtExtractionAttempted) {
             return nil;
         }
-        _albumArtExtractionAttempted = YES;
-        pathToExtract = _sourceFilePath;
-    }
-    // File I/O happens OUTSIDE the lock: a cloud placeholder can block this
-    // read until it downloads, and holding @synchronized here would stall
-    // every other accessor (thumbnail reads from the main thread) with it.
-    NSData *artData = [self extractAlbumArtDataFromFile:pathToExtract];
-    @synchronized (self) {
-        if (artData && !_albumArtData) {
-            _albumArtData = artData;
+        else {
+            _albumArtExtractionAttempted = YES;
+            pathToExtract = _sourceFilePath;
         }
-        if (!_albumArt && _albumArtData) {
-            _albumArt = VibeDecodeImageData(_albumArtData, kDisplayArtMaxDimension);
+    }
+    // Both the file I/O and the ImageIO decode happen OUTSIDE the lock: a
+    // cloud placeholder can block the read until it downloads, and the
+    // full-res decode is a 10-100ms hitch — holding @synchronized through
+    // either stalls the main thread's albumArtIfLoaded/thumbnail accessors.
+    // Worst case two callers decode concurrently; results are identical and
+    // the first store wins.
+    if (!dataToDecode && pathToExtract) {
+        dataToDecode = [self extractAlbumArtDataFromFile:pathToExtract];
+    }
+    NSImage *decoded = dataToDecode ? VibeDecodeImageData(dataToDecode, kDisplayArtMaxDimension) : nil;
+    @synchronized (self) {
+        if (dataToDecode && !_albumArtData) {
+            _albumArtData = dataToDecode;
+        }
+        if (!_albumArt && decoded) {
+            _albumArt = decoded;
         }
         return _albumArt;
     }
@@ -108,18 +122,64 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 }
 
 - (NSImage *)albumArtIfLoaded {
+    // No decode work here: a full-res ImageIO decode is a 10-100ms hitch and
+    // this is called from updateUI on the main thread. Decoding of in-memory
+    // bytes happens on the background albumArt path (albumArtNeedsLoad).
     @synchronized (self) {
-        if (!_albumArt && _albumArtData) {
-            _albumArt = VibeDecodeImageData(_albumArtData, kDisplayArtMaxDimension);
-        }
         return _albumArt;
     }
 }
 
 - (BOOL)albumArtNeedsLoad {
     @synchronized (self) {
-        return !_albumArt && !_albumArtData && _sourceFilePath != nil && !_albumArtExtractionAttempted;
+        if (_albumArt) {
+            return NO;
+        }
+        // Either in-memory bytes still need decoding, or the file hasn't been
+        // read yet — both are background work worth dispatching.
+        return _albumArtData != nil || (!_albumArtExtractionAttempted && _sourceFilePath != nil);
     }
+}
+
+// Drop the full-size compressed art bytes once the thumbnail exists. Freshly
+// parsed instances otherwise pin 0.5-5MB per track for the session; afterward
+// the instance behaves exactly like a cache hit — the albumArt getter re-reads
+// the audio file on demand for the one track shown full-res.
+- (void)discardAlbumArtData {
+    @synchronized (self) {
+        if (!_albumArtData) {
+            // Nothing to drop (an artless track, or already discarded). Do NOT
+            // reset _albumArtExtractionAttempted: an artless track has it YES
+            // from the parse, and resetting it would make albumArtNeedsLoad
+            // re-trigger a full-file TagLib re-parse (a whole-file download for
+            // cloud files) just to rediscover there is no art.
+            return;
+        }
+        _albumArtData = nil;
+        if (!_albumArt) {
+            // Art existed but isn't decoded yet: reset the attempt flag so the
+            // on-demand file re-read (albumArtNeedsLoad → albumArt) still fires
+            // for the one track shown full-res.
+            _albumArtExtractionAttempted = NO;
+        }
+    }
+}
+
+// Called by the UI (main thread) when this track stops being the current one.
+- (void)discardDecodedAlbumArt {
+    @synchronized (self) {
+        if (!_albumArt && !_albumArtData) {
+            // Artless (or never loaded) — keep the attempted flag so we don't
+            // re-parse the file just to rediscover there's no art.
+            return;
+        }
+        _albumArt = nil;
+        _albumArtData = nil;
+        // Art exists in the file; re-arm the on-demand re-read for the next
+        // time this track is shown full-res.
+        _albumArtExtractionAttempted = NO;
+    }
+    self.albumArtLoadDispatched = NO;
 }
 
 - (NSImage *)thumbnailAlbumArt {
@@ -162,20 +222,57 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     [coder encodeDouble:self.duration forKey:@"duration"];
 }
 
++ (BOOL)supportsSecureCoding {
+    return YES;
+}
+
 - (instancetype)initWithCoder:(NSCoder *)coder {
     self = [super init];
     if (self) {
-        self.title = [coder decodeObjectForKey:@"title"];
-        self.artist = [coder decodeObjectForKey:@"artist"];
-        NSData *thumbnailJPEG = [coder decodeObjectForKey:@"thumbnailJPEG"];
+        // PINDiskCache unarchives with requiresSecureCoding = NO, so a corrupt
+        // or tampered entry can hand back the wrong class. Validate every field
+        // and treat any mismatch as a cache miss (return nil) rather than
+        // crashing later on the main thread; a persistent bad entry would
+        // otherwise crash on every launch (it's never evicted). nil is allowed —
+        // these are all optional fields.
+        id title = [coder decodeObjectForKey:@"title"];
+        id artist = [coder decodeObjectForKey:@"artist"];
+        id thumbnailJPEG = [coder decodeObjectForKey:@"thumbnailJPEG"];
+        id sourceFilePath = [coder decodeObjectForKey:@"sourceFilePath"];
+        id fileType = [coder decodeObjectForKey:@"fileType"];
+        id bitrate = [coder decodeObjectForKey:@"bitrate"];
+        id sampleRate = [coder decodeObjectForKey:@"sampleRate"];
+        if (title && ![title isKindOfClass:[NSString class]]) return nil;
+        if (artist && ![artist isKindOfClass:[NSString class]]) return nil;
+        if (thumbnailJPEG && ![thumbnailJPEG isKindOfClass:[NSData class]]) return nil;
+        if (sourceFilePath && ![sourceFilePath isKindOfClass:[NSString class]]) return nil;
+        if (fileType && ![fileType isKindOfClass:[NSString class]]) return nil;
+        if (bitrate && ![bitrate isKindOfClass:[NSNumber class]]) return nil;
+        if (sampleRate && ![sampleRate isKindOfClass:[NSNumber class]]) return nil;
+        self.title = title;
+        self.artist = artist;
         if (thumbnailJPEG) {
-            _thumbnailAlbumArt = [[NSImage alloc] initWithData:thumbnailJPEG];
+            // Bounded decode: a tampered cache entry could carry a huge image;
+            // initWithData: would defer a multi-GB decode to first cell draw.
+            _thumbnailAlbumArt = VibeDecodeImageData(thumbnailJPEG, kThumbnailDimension);
         }
-        _sourceFilePath = [coder decodeObjectForKey:@"sourceFilePath"];
-        self.fileType = [coder decodeObjectForKey:@"fileType"];
-        self.bitrate = [coder decodeObjectForKey:@"bitrate"];
-        self.sampleRate = [coder decodeObjectForKey:@"sampleRate"];
-        self.duration = [coder decodeDoubleForKey:@"duration"];
+        // A track with embedded art always produced a thumbnail; a thumbnail-less
+        // entry was artless. Mark artless entries as already-attempted so
+        // albumArtNeedsLoad doesn't re-read the file for art that isn't there,
+        // while art-bearing entries stay NO so the full-res image can be
+        // re-read on demand for the track shown full-res.
+        _albumArtExtractionAttempted = (thumbnailJPEG == nil);
+        _sourceFilePath = sourceFilePath;
+        self.fileType = fileType;
+        self.bitrate = bitrate;
+        self.sampleRate = sampleRate;
+        double duration = [coder decodeDoubleForKey:@"duration"];
+        if (!isfinite(duration)) {
+            return nil; // corrupt/tampered entry — treat as a cache miss
+        }
+        self.duration = duration;
+        // A cache-hit instance represents a successful prior parse.
+        _parsedOK = YES;
     }
     return self;
 }
@@ -241,6 +338,11 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 
             _albumArtData = [self readFileTypeAndAlbumArtFromTagLibFile:file];
             _albumArtExtractionAttempted = YES;
+            // TagLib opened the file and read its tag — this is real metadata,
+            // safe to persist. A null FileRef (dataless cloud placeholder,
+            // transient I/O error) leaves this NO so loadOneTrack won't cache
+            // the filename-only fallback and shadow the real tags for months.
+            _parsedOK = YES;
         }
     }
 }

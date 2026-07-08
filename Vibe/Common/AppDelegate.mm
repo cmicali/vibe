@@ -8,9 +8,12 @@
 
 #import "AppDelegate.h"
 #import "NSURLUtil.h"
+#import "AboutWindowController.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 @interface AppDelegate ()
+
+@property (nonatomic, strong) AboutWindowController *aboutWindowController;
 
 @end
 
@@ -82,26 +85,16 @@
     return YES;
 }
 
-- (void)applicationWillTerminate:(NSNotification *)aNotification {
-    // [self.mainPlayerController.audioPlayer rampVolumeToZero:NO];
-}
-
 - (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {
     [_urlsToOpen addObjectsFromArray:urls];
     [self playURLs];
 }
 
-- (BOOL)application:(NSApplication *)sender openFile:(NSString *)filename {
-    [_urlsToOpen addObject:[NSURL fileURLWithPath:filename]];
-    [self playURLs];
-    return YES;
-}
-
-- (void)application:(NSApplication *)sender openFiles:(NSArray<NSString *> *)filenames {
-    for(NSString *file in filenames) {
-        [_urlsToOpen addObject:[NSURL fileURLWithPath:file]];
+- (IBAction)showAboutWindow:(id)sender {
+    if (!self.aboutWindowController) {
+        self.aboutWindowController = [[AboutWindowController alloc] init];
     }
-    [self playURLs];
+    [self.aboutWindowController showWindow:sender];
 }
 
 - (IBAction)openDocument:(id)sender {

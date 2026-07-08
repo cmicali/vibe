@@ -18,6 +18,11 @@ typedef NS_ENUM(NSInteger, VibePlayerState) {
     VibePlayerStateStopped = 0,
     VibePlayerStatePlaying,
     VibePlayerStatePaused,
+    // A play was requested and the file open is in flight (can take up to
+    // kFileOpenTimeoutSeconds for a cloud placeholder). No node/file yet, but
+    // playback is imminent — isPlaying reports YES so the UI holds the pause
+    // icon, while position/duration read 0 instead of the previous track's.
+    VibePlayerStateLoading,
 };
 
 NSString *const kVibeAudioErrorDomain = @"com.commonwealthrecordings.Vibe";
@@ -36,7 +41,7 @@ static NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, N
 
 // How long a file open may block (cloud placeholders download on demand)
 // before the play request is abandoned with an error.
-static const NSTimeInterval kFileOpenTimeoutSeconds = 10.0;
+static const NSTimeInterval kFileOpenTimeoutSeconds = 20.0;
 
 // A still-pending open after this long is worth a visible loading state.
 static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
@@ -62,8 +67,23 @@ static float VibeFadeVolume(float from, float to, int step) {
     AVAudioFile             *_file;
     AVAudioFramePosition    _segmentStartFrame;
     NSTimeInterval          _pausedPosition;
+    // Last position computed from a valid playerTime (guarded by _stateLock).
+    // When the engine stops ITSELF (device unplug/format change), lastRenderTime
+    // goes nil before the recovery path can read the position — without this,
+    // recovery restores from the segment start and the track restarts at 0:00
+    // (or the last seek point). Reset alongside every _pausedPosition write.
+    NSTimeInterval          _lastValidPosition;
     uint64_t                _generation;
     uint64_t                _openRequestId;
+    // Bumped by every path that preempts an async volume ramp (pause, resume,
+    // seek, skip, device switch); each ramp step aborts once its captured value
+    // goes stale, so a resume fade-in can't drive volume back up after a pause.
+    uint64_t                _rampGeneration;
+    // Path of the track whose open is currently in flight (matching
+    // _openRequestId), or nil. Mutated only on _queue. Re-selecting the same
+    // still-loading track is a no-op (its open will deliver) rather than
+    // stranding a second blocked global-queue worker on initForReading:.
+    NSString *_currentOpenPath;
     VibePlayerState         _state;
     os_unfair_lock          _stateLock;
     BOOL                    _lockSampleRate;
@@ -143,6 +163,7 @@ static float VibeFadeVolume(float from, float to, int step) {
 
 - (void)playOnQueue:(AudioTrack *)track {
     _generation++;
+    _rampGeneration++; // preempt any in-flight resume fade-in
 
     AVAudioPlayerNode *oldNode = _node;
     if (oldNode) {
@@ -158,10 +179,32 @@ static float VibeFadeVolume(float from, float to, int step) {
 
     LogDebug(@"play file: %@", track.url.path);
 
+    NSString *path = track.url.path;
+    if (_state == VibePlayerStateLoading && [path isEqualToString:_currentOpenPath]) {
+        // This exact track is already loading (its open is in flight). A repeat
+        // selection — a double-click, or an impatient re-click on a slow cloud
+        // file — is a no-op: the pending open will deliver it. Starting another
+        // open would strand a second blocked worker and (for a slow file) flash
+        // a spurious timeout error before the first open completes.
+        return;
+    }
+
+    // Enter the loading state: no node/file yet, but a play is committed. This
+    // clears the previous track's file/position so the UI stops showing stale
+    // duration/position for up to the full open timeout.
+    os_unfair_lock_lock(&_stateLock);
+    _file = nil;
+    _segmentStartFrame = 0;
+    _pausedPosition = 0;
+    _lastValidPosition = 0;
+    _state = VibePlayerStateLoading;
+    os_unfair_lock_unlock(&_stateLock);
+
     // Open the file off-queue: a cloud placeholder (iCloud/Dropbox) blocks
     // the open until it materializes, and that must never wedge the player
     // queue. The request id pairs each open with its timeout; whichever
     // fires first consumes the id and the other becomes a no-op.
+    _currentOpenPath = path;
     uint64_t openId = ++_openRequestId;
     __weak AudioPlayer *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
@@ -193,6 +236,7 @@ static float VibeFadeVolume(float from, float to, int step) {
         return; // Superseded by a newer play, or already timed out.
     }
     _openRequestId++; // Consume: the pending timeout must no-op.
+    _currentOpenPath = nil; // This open resolved; the track is no longer loading.
 
     if (!file || file.length <= 0) {
         [self resetToStoppedStateOnQueue];
@@ -228,6 +272,7 @@ static float VibeFadeVolume(float from, float to, int step) {
     _file = file;
     _segmentStartFrame = 0;
     _pausedPosition = 0;
+    _lastValidPosition = 0;
     _state = VibePlayerStatePlaying;
     os_unfair_lock_unlock(&_stateLock);
 
@@ -266,6 +311,10 @@ static float VibeFadeVolume(float from, float to, int step) {
         return; // The open landed in time, or a newer play superseded it.
     }
     _openRequestId++; // Invalidate the still-blocked open.
+    // Clear so the file is retryable: a later play of it starts a fresh open.
+    // The original worker may stay blocked on a truly-hung mount (one leaked
+    // worker), but rapid re-clicks were already absorbed by the loading no-op.
+    _currentOpenPath = nil;
     LogError(@"Timed out opening %@", track.url.path);
     [self resetToStoppedStateOnQueue];
     [self sendDelegateError:VibeAudioError(VibeAudioErrorFileOpenTimedOut,
@@ -276,13 +325,22 @@ static float VibeFadeVolume(float from, float to, int step) {
 // Marks playback fully stopped after a failure so isPlaying/duration report
 // reality and the play button can recover.
 - (void)resetToStoppedStateOnQueue {
+    // Invalidate any in-flight open: after an unrelated failure resets to
+    // Stopped (e.g. a device switch failing mid-Loading), a still-pending open
+    // must not land later and start playback out of an errored/stopped UI.
+    // Harmless when the caller already consumed the id (extra bump).
+    _openRequestId++;
+    _currentOpenPath = nil;
     os_unfair_lock_lock(&_stateLock);
     _node = nil;
     _file = nil;
     _segmentStartFrame = 0;
     _pausedPosition = 0;
+    _lastValidPosition = 0;
     _state = VibePlayerStateStopped;
     os_unfair_lock_unlock(&_stateLock);
+    // Release the output device while idle; the next play restarts the engine.
+    [_engine stop];
 }
 
 // [AVAudioPlayerNode play] throws NSException if the engine stopped between
@@ -319,7 +377,16 @@ static float VibeFadeVolume(float from, float to, int step) {
     }
     os_unfair_lock_lock(&_stateLock);
     _state = VibePlayerStateStopped;
+    AVAudioPlayerNode *finishedNode = _node;
+    _node = nil;
     os_unfair_lock_unlock(&_stateLock);
+    // Tear down the finished node and stop the engine so the output device
+    // isn't held active while idle; the next play restarts the engine lazily.
+    if (finishedNode) {
+        [finishedNode stop];
+        [_engine detachNode:finishedNode];
+    }
+    [_engine stop];
     // Snapshot before dispatching; if the track changed by the time the block
     // runs on main, this end event is stale and must be dropped.
     AudioTrack *track = self.currentTrack;
@@ -333,23 +400,33 @@ static float VibeFadeVolume(float from, float to, int step) {
 
 - (void)playPause {
     dispatch_async(_queue, ^{
+        if (self->_state == VibePlayerStateLoading) {
+            // A play is committed and its file open is in flight; the toggle
+            // has nothing coherent to act on yet. Ignore silently.
+            return;
+        }
         AVAudioPlayerNode *node = self->_node;
         if (!node) {
             [self sendDelegateError:VibeAudioError(VibeAudioErrorNotPlaying, @"Nothing is playing", nil)];
             return;
         }
         if (self->_state == VibePlayerStatePlaying) {
-            // Capture the position before pausing: playerTimeForNodeTime:
-            // stops reporting once the node is paused.
-            NSTimeInterval position = self.position;
+            self->_rampGeneration++; // cancel any in-flight resume fade-in
             [self rampNodeSync:node toVolume:0];
+            // Capture the position AFTER the fade (the node keeps rendering
+            // through the ~100ms ramp) but BEFORE [node pause] — once paused,
+            // playerTimeForNodeTime: stops reporting. Capturing before the fade
+            // stored a point ~100ms behind where playback actually resumes.
+            NSTimeInterval position = self.position;
             [node pause];
             os_unfair_lock_lock(&self->_stateLock);
             self->_pausedPosition = position;
+            self->_lastValidPosition = position;
             self->_state = VibePlayerStatePaused;
             os_unfair_lock_unlock(&self->_stateLock);
+            AudioTrack *track = self.currentTrack;
             run_on_main_thread({
-                [self.delegate audioPlayer:self didPausePlaying:self.currentTrack];
+                [self.delegate audioPlayer:self didPausePlaying:track];
             });
         }
         else if (self->_state == VibePlayerStatePaused) {
@@ -362,9 +439,11 @@ static float VibeFadeVolume(float from, float to, int step) {
             os_unfair_lock_lock(&self->_stateLock);
             self->_state = VibePlayerStatePlaying;
             os_unfair_lock_unlock(&self->_stateLock);
-            [self rampNodeAsync:node step:1 from:node.volume to:1.0 completion:nil];
+            uint64_t rampGen = ++self->_rampGeneration;
+            [self rampNodeAsync:node step:1 from:node.volume to:1.0 generation:rampGen completion:nil];
+            AudioTrack *track = self.currentTrack;
             run_on_main_thread({
-                [self.delegate audioPlayer:self didResumePlaying:self.currentTrack];
+                [self.delegate audioPlayer:self didResumePlaying:track];
             });
         }
         else {
@@ -386,8 +465,17 @@ static float VibeFadeVolume(float from, float to, int step) {
     node.volume = target;
 }
 
-// Non-blocking fade stepped via dispatch_after on the player queue.
-- (void)rampNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target completion:(dispatch_block_t)completion {
+// Non-blocking fade stepped via dispatch_after on the player queue. Tagged with
+// a ramp generation: if a pause/seek/skip/device-switch/new-play bumps
+// _rampGeneration, this ramp stops stepping the volume — but still runs its
+// completion so teardown (the skip fade-out's stop+detach) isn't lost.
+- (void)rampNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target generation:(uint64_t)generation completion:(dispatch_block_t)completion {
+    if (generation != _rampGeneration) {
+        if (completion) {
+            completion();
+        }
+        return;
+    }
     node.volume = VibeFadeVolume(start, target, step);
     if (step >= kFadeSteps) {
         if (completion) {
@@ -397,15 +485,17 @@ static float VibeFadeVolume(float from, float to, int step) {
     }
     __weak AudioPlayer *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFadeStepMicroseconds * NSEC_PER_USEC)), _queue, ^{
-        [weakSelf rampNodeAsync:node step:step + 1 from:start to:target completion:completion];
+        [weakSelf rampNodeAsync:node step:step + 1 from:start to:target generation:generation completion:completion];
     });
 }
 
 // Replacement for the old fade-out-then-free skip flow: the outgoing node
-// keeps rendering while its volume ramps, then is stopped and detached.
+// keeps rendering while its volume ramps, then is stopped and detached. Uses
+// the current ramp generation (the caller bumped it), so a subsequent play
+// preempts the fade but its completion still tears this node down.
 - (void)fadeOutStopAndDetachNode:(AVAudioPlayerNode *)node {
     AVAudioEngine *engine = _engine;
-    [self rampNodeAsync:node step:1 from:node.volume to:0 completion:^{
+    [self rampNodeAsync:node step:1 from:node.volume to:0 generation:_rampGeneration completion:^{
         [node stop];
         [engine detachNode:node];
     }];
@@ -415,7 +505,9 @@ static float VibeFadeVolume(float from, float to, int step) {
 
 - (BOOL)isPlaying {
     os_unfair_lock_lock(&_stateLock);
-    BOOL playing = (_state == VibePlayerStatePlaying);
+    // Loading counts as playing: a play is committed and imminent, so the UI
+    // holds the pause icon rather than flashing the play icon during the open.
+    BOOL playing = (_state == VibePlayerStatePlaying || _state == VibePlayerStateLoading);
     os_unfair_lock_unlock(&_stateLock);
     return playing;
 }
@@ -459,6 +551,7 @@ static float VibeFadeVolume(float from, float to, int step) {
     AVAudioFile *file = _file;
     AVAudioFramePosition segmentStartFrame = _segmentStartFrame;
     NSTimeInterval pausedPosition = _pausedPosition;
+    NSTimeInterval lastValidPosition = _lastValidPosition;
     os_unfair_lock_unlock(&_stateLock);
 
     if (!file || state == VibePlayerStateStopped) {
@@ -477,29 +570,47 @@ static float VibeFadeVolume(float from, float to, int step) {
     AVAudioTime *playerTime = nodeTime ? [node playerTimeForNodeTime:nodeTime] : nil;
     NSTimeInterval position;
     if (!playerTime || !playerTime.sampleTimeValid) {
-        // No render yet (immediately after play) — report the segment start.
-        position = (NSTimeInterval)segmentStartFrame / sampleRate;
+        // No render yet (right after play), OR the engine stopped itself
+        // (device unplug/format change — lastRenderTime is nil while stopped).
+        // The last valid reading is never behind the segment start within one
+        // segment, so MAX covers both cases.
+        position = MAX((NSTimeInterval)segmentStartFrame / sampleRate, lastValidPosition);
     }
     else {
         position = (NSTimeInterval)(segmentStartFrame + playerTime.sampleTime) / sampleRate;
     }
     NSTimeInterval duration = (NSTimeInterval)file.length / sampleRate;
-    return MIN(MAX(position, 0), duration);
+    position = MIN(MAX(position, 0), duration);
+    if (playerTime && playerTime.sampleTimeValid) {
+        os_unfair_lock_lock(&_stateLock);
+        _lastValidPosition = position;
+        os_unfair_lock_unlock(&_stateLock);
+    }
+    return position;
 }
 
 - (void)setPosition:(NSTimeInterval)pos {
     dispatch_async(_queue, ^{
+        AudioTrack *track = self.currentTrack;
         AVAudioPlayerNode *node = self->_node;
         AVAudioFile *file = self->_file;
         if (!node || !file) {
             run_on_main_thread({
-                [self.delegate audioPlayer:self didFinishSeeking:self.currentTrack];
+                [self.delegate audioPlayer:self didFinishSeeking:track];
             });
             return;
         }
         double sampleRate = file.processingFormat.sampleRate;
         BOOL wasPlaying = (self->_state == VibePlayerStatePlaying);
         self->_generation++;
+        self->_rampGeneration++; // preempt any in-flight fade
+        if (wasPlaying) {
+            // A cancelled resume fade-in leaves volume near the -60dB floor;
+            // nothing else restores it, so a seek right after resume would play
+            // on at ~3% volume. (Paused seeks keep the faded volume — the next
+            // resume ramps it back up.)
+            node.volume = 1.0;
+        }
         [node stop];
         AVAudioFramePosition startFrame = (AVAudioFramePosition)(pos * sampleRate);
         startFrame = MAX(0, MIN(startFrame, file.length - 1));
@@ -507,6 +618,7 @@ static float VibeFadeVolume(float from, float to, int step) {
         os_unfair_lock_lock(&self->_stateLock);
         self->_segmentStartFrame = startFrame;
         self->_pausedPosition = (NSTimeInterval)startFrame / sampleRate;
+        self->_lastValidPosition = self->_pausedPosition;
         os_unfair_lock_unlock(&self->_stateLock);
         if (wasPlaying) {
             NSError *startError = nil;
@@ -520,7 +632,7 @@ static float VibeFadeVolume(float from, float to, int step) {
             }
         }
         run_on_main_thread({
-            [self.delegate audioPlayer:self didFinishSeeking:self.currentTrack];
+            [self.delegate audioPlayer:self didFinishSeeking:track];
         });
     });
 }
@@ -670,11 +782,20 @@ static float VibeFadeVolume(float from, float to, int step) {
 // position, and play/pause state — the replacement for the old free/reinit
 // device dance. Returns NO (after reporting a delegate error) on failure.
 - (BOOL)configureOutputDeviceOnQueue:(AudioDeviceID)deviceID {
+    os_unfair_lock_lock(&_stateLock);
+    VibePlayerState priorState = _state;
+    os_unfair_lock_unlock(&_stateLock);
     AudioTrack *trackToRestore = self.currentTrack;
-    BOOL wasPlaying = self.isPlaying;
     NSTimeInterval positionToRestore = self.position;
+    // Only a live track is restored onto the new device. A finished (Stopped)
+    // track still carries currentTrack/_file, so rescheduling it from the saved
+    // frame would resurrect it as Paused; a Loading track's open is in flight
+    // and will start itself on the new device. Both leave state untouched here.
+    BOOL shouldRestore = (priorState == VibePlayerStatePlaying || priorState == VibePlayerStatePaused) && trackToRestore != nil;
+    BOOL wasPlaying = (priorState == VibePlayerStatePlaying);
 
     _generation++;
+    _rampGeneration++; // preempt any in-flight fade
 
     AVAudioPlayerNode *oldNode = _node;
     [oldNode stop];
@@ -693,13 +814,18 @@ static float VibeFadeVolume(float from, float to, int step) {
         return NO;
     }
 
-    if (trackToRestore) {
-        NSError *error = nil;
-        AVAudioFile *file = [[AVAudioFile alloc] initForReading:trackToRestore.url error:&error];
+    if (shouldRestore) {
+        // Reuse the already-open handle rather than reopening the URL. The old
+        // reopen was a synchronous, timeout-free initForReading: on the player
+        // queue — a track evicted to an iCloud/Dropbox placeholder (or on a hung
+        // mount) between play and the device switch would wedge the whole queue.
+        // processingFormat is fixed at open, so rescheduling the existing file
+        // on the new node is safe (and the reopen was redundant work anyway).
+        AVAudioFile *file = _file; // on _queue; _file is mutated only here
         if (!file) {
             [self resetToStoppedStateOnQueue];
             [self sendDelegateError:VibeAudioError(VibeAudioErrorFileOpenFailed,
-                    @"Could not reopen track on the new audio device", error)];
+                    @"Could not restore track on the new audio device", nil)];
             return NO;
         }
         [self changeSystemSampleRateToRate:file.processingFormat.sampleRate];
@@ -716,6 +842,7 @@ static float VibeFadeVolume(float from, float to, int step) {
         _file = file;
         _segmentStartFrame = startFrame;
         _pausedPosition = positionToRestore;
+        _lastValidPosition = positionToRestore;
         _state = wasPlaying ? VibePlayerStatePlaying : VibePlayerStatePaused;
         os_unfair_lock_unlock(&_stateLock);
         if (wasPlaying) {

@@ -13,7 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 #define FILETYPE_AIFF   @"AIFF"
 #define FILETYPE_WAV    @"WAV"
 
-@interface AudioTrackMetadata : NSObject <NSCoding>
+@interface AudioTrackMetadata : NSObject <NSSecureCoding>
 
 @property (copy) NSString *title;
 @property (copy) NSString *artist;
@@ -21,6 +21,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (copy) NSNumber *bitrate;
 @property (copy) NSNumber *sampleRate;
 @property (assign) NSTimeInterval duration;
+
+// YES only when TagLib actually opened the file and read its tag. NO means
+// the parse failed (dataless cloud placeholder, transient I/O error) and only
+// the filename-derived title is populated — such an instance must not be
+// persisted to the cache, or the empty entry shadows the real tags until the
+// cache key changes.
+@property (readonly) BOOL parsedOK;
 
 // Full-resolution art, lazily decoded from the original compressed bytes on
 // first access. Only the decoded image of tracks actually displayed full-res
@@ -31,13 +38,29 @@ NS_ASSUME_NONNULL_BEGIN
 // the main thread instead.
 @property (strong) NSImage *albumArt;
 
-// Non-blocking: returns the art only if it can be produced without touching
-// the audio file (already decoded, or decodable from in-memory bytes).
+// Non-blocking: returns the art only if it has already been decoded. Never
+// does decode work — a full-res ImageIO decode is a 10-100ms hitch on the
+// main thread.
 - (nullable NSImage *)albumArtIfLoaded;
 
-// YES when albumArt would need a (potentially blocking) file read that hasn't
-// been attempted yet — i.e. it's worth dispatching a background load.
+// YES when producing albumArt requires background work that hasn't happened
+// yet — a (potentially blocking) file read, or a decode of in-memory art
+// bytes — i.e. it's worth dispatching a background load.
 - (BOOL)albumArtNeedsLoad;
+
+// Drops the full-size compressed art bytes once the thumbnail exists. Freshly
+// parsed instances otherwise pin 0.5-5MB per track for the session; after
+// this call the instance behaves exactly like a cache hit — the albumArt
+// getter re-reads the audio file on demand for the one track displayed
+// full-res.
+- (void)discardAlbumArtData;
+
+// Demotes a track no longer displayed full-res: drops the decoded full-size
+// image AND the compressed bytes (keeping the thumbnail), and re-arms the
+// on-demand load so the art comes back if the track becomes current again.
+// Without this every track played in a session pins ~4MB of decoded art for
+// the playlist's lifetime. Main-thread use only (resets albumArtLoadDispatched).
+- (void)discardDecodedAlbumArt;
 
 // Set by the UI when it kicks off a background albumArt load, so repeated
 // updateUI passes don't dispatch duplicates. Main-thread use only.

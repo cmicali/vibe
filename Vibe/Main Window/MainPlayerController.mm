@@ -25,6 +25,9 @@
     BOOL                        _timerRunning;
     __weak NSImage*             _displayedArt;
     __weak AudioTrack*          _lastReloadedTrack;
+    // Track whose full-res art is currently held decoded (weak: if the
+    // playlist was replaced the track deallocates and takes its art with it).
+    __weak AudioTrack*          _artOwnerTrack;
     NSString*                   _lastFileMetadataString;
     NSString*                   _statusMessage;
     BOOL                        _metadataLoadPending;
@@ -234,7 +237,9 @@
     window.dropDelegate = self;
 
     _timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
-    dispatch_source_set_timer(_timer, DISPATCH_TIME_NOW, NSEC_PER_SEC / UPDATE_HZ, NSEC_PER_SEC / 2);
+    // Leeway must be well under the interval, or the OS coalesces ticks and the
+    // time label visibly skips seconds (worst on battery). ~1/10th interval.
+    dispatch_source_set_timer(_timer, DISPATCH_TIME_NOW, NSEC_PER_SEC / UPDATE_HZ, NSEC_PER_SEC / UPDATE_HZ / 10);
     dispatch_source_set_event_handler(_timer, ^{
         [weakSelf updatePlaybackUI];
     });
@@ -306,11 +311,21 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
             _lastFileMetadataString = nil;
         }
         else if (track.metadata.fileType) {
+            // bitrate/sampleRate can be nil even with fileType set: the art
+            // re-read path fills fileType as a side effect after a failed
+            // initial parse, and TagLib can return no audioProperties. Guard
+            // so the label never shows "(null) kbps" / "0.0 kHz".
             NSString *bitrate = @"";
-            if (!track.metadata.isLossless) {
+            if (!track.metadata.isLossless && track.metadata.bitrate) {
                 bitrate = [NSString stringWithFormat:@"%@ kbps | ", track.metadata.bitrate];
             }
-            NSString *fileMetadata = [NSString stringWithFormat:@"%@ | %@%.1f kHz", track.metadata.fileType, bitrate, ([track.metadata.sampleRate doubleValue]/1000)];
+            NSString *sampleRate = @"";
+            if (track.metadata.sampleRate) {
+                sampleRate = [NSString stringWithFormat:@"%.1f kHz", [track.metadata.sampleRate doubleValue] / 1000];
+            }
+            NSString *fileMetadata = (bitrate.length || sampleRate.length)
+                    ? [NSString stringWithFormat:@"%@ | %@%@", track.metadata.fileType, bitrate, sampleRate]
+                    : track.metadata.fileType;
             if (![fileMetadata isEqualToString:_lastFileMetadataString]) {
                 [self setFileMetadataLabel:fileMetadata];
                 _lastFileMetadataString = fileMetadata;
@@ -481,6 +496,14 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
+    // Demote the previous track's full-res art (decoded bitmap + compressed
+    // bytes, ~4-9MB together). Without this, every track played in a session
+    // stays pinned for the playlist's lifetime. The thumbnail is kept; the art
+    // reloads on demand if the track becomes current again.
+    if (_artOwnerTrack && _artOwnerTrack != track) {
+        [_artOwnerTrack.metadata discardDecodedAlbumArt];
+    }
+    _artOwnerTrack = track;
     _statusMessage = nil;
     [self.waveformView hideLoadingIndicator];
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
@@ -505,11 +528,23 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track {
+    // A natural-end callback can be delivered just as the user replaces the
+    // playlist or double-clicks a new row. Only auto-advance if the finished
+    // track is still the playlist's current one, otherwise we'd skip past the
+    // track the user just chose.
+    if (track && track != [self.playlistManager currentTrack]) {
+        return;
+    }
     [self pauseUIUpdateTimer];
     [self next:self];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
+    if ([error.domain isEqualToString:kVibeAudioErrorDomain] && error.code == VibeAudioErrorNotPlaying) {
+        // A play/pause toggle raced a track ending (or nothing is loaded).
+        // Harmless — ignore silently rather than popping a modal alert.
+        return;
+    }
     [self startPendingMetadataLoad];
     [self pauseUIUpdateTimer];
     [self.waveformView hideLoadingIndicator];
@@ -634,11 +669,6 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     [self.playlistManager reloadCurrentTrack];
     [self.waveformView updateAppearance];
 }
-
-//- (NSTouchBar *)makeTouchBar {
-//    return [[PlayerTouchBar alloc] init];
-//}
-
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     MainWindow *window = (MainWindow *)self.window;

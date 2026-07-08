@@ -140,8 +140,11 @@
     CGMutablePathRef path = CGPathCreateMutable();
     for (NSUInteger i = 0; i < count; i++) {
         AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
-        CGFloat top = round(midY - m.getMin() * vscale);
-        CGFloat bottom = round(midY - m.getMax() * vscale);
+        // y-up layer coords: the bar's top comes from the positive peak (max),
+        // the bottom from the negative peak (min). Subtracting instead drew
+        // the envelope vertically mirrored (visible on DC-offset material).
+        CGFloat top = round(midY + m.getMax() * vscale);
+        CGFloat bottom = round(midY + m.getMin() * vscale);
         CGFloat height = MAX(top - bottom, 1);
         CGFloat x = width * (CGFloat)i / (CGFloat)count;
         CGPathAddRect(path, NULL, CGRectMake(x, bottom, barWidth, height));

@@ -49,8 +49,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (weak) IBOutlet OutputDevicesMenuController *devicesMenuController;
 
-@property (strong) AudioTrackMetadata *metadata;
-
 @property (strong) AudioPlayer *audioPlayer;
 @property (strong) PlaylistManager *playlistManager;
 @property (strong) AudioTrackMetadataCache *metadataManager;

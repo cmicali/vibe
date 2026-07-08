@@ -10,13 +10,29 @@
 AudioWaveform::AudioWaveform() {
     numChunks = NUM_CHUNKS;
     this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
+    // A NULL alloc would make setChunkAtIndex dereference NULL; a zero count
+    // turns every access into a safe no-op instead.
+    if (!this->chunks) { this->numChunks = 0; }
 }
 
 AudioWaveform::AudioWaveform(NSUInteger numChunks, const void* chunks) {
     this->numChunks = numChunks;
     this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
-    memcpy(this->chunks, chunks, this->getNumBytes());
-    
+    if (this->chunks && chunks) {
+        memcpy(this->chunks, chunks, this->getNumBytes());
+    } else {
+        this->numChunks = 0;
+    }
+}
+
+AudioWaveform::AudioWaveform(const AudioWaveform& other) {
+    this->numChunks = other.numChunks;
+    this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
+    if (this->chunks && other.chunks) {
+        memcpy(this->chunks, other.chunks, this->getNumBytes());
+    } else {
+        this->numChunks = 0;
+    }
 }
 
 AudioWaveform::~AudioWaveform() {
@@ -25,10 +41,13 @@ AudioWaveform::~AudioWaveform() {
 
 AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInteger size)  {
     AudioWaveformCacheChunk result;
+    // A failed calloc leaves chunks NULL / numChunks 0 (see the constructors);
+    // guard here as normalize() already does, so a renderer read can't deref NULL.
+    if (chunks == nullptr || numChunks == 0) return result;
     if (index >= size) return result;
     if (size == numChunks) { return chunks[index]; }
     NSUInteger startIndex = numChunks * index / size;
-    NSUInteger numChunksToCombine = static_cast<NSUInteger>(max((float) numChunks / (float) size, 1.0f));
+    NSUInteger numChunksToCombine = static_cast<NSUInteger>(MAX((float) numChunks / (float) size, 1.0f));
     if (numChunksToCombine == 1) {
         return chunks[startIndex];
     }
@@ -99,7 +118,10 @@ static const int kCodableAudioWaveformVersion = 2;
         NSUInteger numChunks = [[coder decodeObjectForKey:@"numChunks"] unsignedIntegerValue];
         NSUInteger length;
         const void* data = [coder decodeBytesForKey:@"chunks" returnedLength:&length];
-        if (!data || numChunks == 0 || length != numChunks * sizeof(AudioWaveformCacheChunk)) {
+        // The encoder only ever writes NUM_CHUNKS. Requiring exact equality
+        // rejects corrupt/rot entries and removes the unchecked-multiply
+        // overflow the length comparison would otherwise carry.
+        if (!data || numChunks != NUM_CHUNKS || length != numChunks * sizeof(AudioWaveformCacheChunk)) {
             return nil;
         }
         self.waveform = new AudioWaveform(numChunks, data);
@@ -113,6 +135,13 @@ static const int kCodableAudioWaveformVersion = 2;
         self.waveform = waveform;
     }
     return self;
+}
+
+- (CodableAudioWaveform *)snapshot {
+    if (!self.waveform) {
+        return nil;
+    }
+    return [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform(*self.waveform)];
 }
 
 - (void)dealloc {

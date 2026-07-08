@@ -159,6 +159,13 @@ static void ensureCellAttributes(void) {
 }
 
 - (void)reloadTrackAtIndex:(NSUInteger)index {
+    // Guard out-of-range (matches reloadCurrentTrackPlayState): reloadCurrentTrack
+    // fires with currentIndex 0 on an empty playlist (e.g. updateUI at launch),
+    // and doubleClick passes a previous index that a playlist replacement may
+    // have invalidated.
+    if (index >= _playlist.count) {
+        return;
+    }
     [self.tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndex:index] columnIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, (NSUInteger)self.tableView.numberOfColumns)]];
 }
 
