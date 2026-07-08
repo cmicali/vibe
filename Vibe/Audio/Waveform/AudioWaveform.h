@@ -4,6 +4,7 @@
 //
 
 #include <Accelerate/Accelerate.h>
+#include <cmath>
 
 struct AudioWaveformCacheChunk {
 
@@ -50,6 +51,7 @@ struct AudioWaveformCacheChunk {
             constexpr NSUInteger kStackLimit = 8192;
             float stackBuf[kStackLimit];
             float *mono = (numFrames <= kStackLimit) ? stackBuf : (float*)malloc(numFrames * sizeof(float));
+            if (!mono) return; // OOM on a large chunk — leave this chunk at 0,0
 
             // Add left + right channels (interleaved: L0 R0 L1 R1 ...)
             vDSP_vadd(buffer, 2, buffer + 1, 2, mono, 1, numFrames);
@@ -65,6 +67,7 @@ struct AudioWaveformCacheChunk {
             // N-channel: sum all channels, divide by N, then find min/max
             NSUInteger monoLen = numFrames;
             float *mono = (float*)calloc(monoLen, sizeof(float));
+            if (!mono) return; // OOM — leave this chunk at 0,0
 
             for (NSUInteger ch = 0; ch < channels; ch++) {
                 vDSP_vadd(mono, 1, buffer + ch, channels, mono, 1, monoLen);
@@ -78,6 +81,14 @@ struct AudioWaveformCacheChunk {
             free(mono);
         }
 
+        // A corrupt file can decode NaN/Inf floats, which vDSP propagates into
+        // min/max. Left unsanitized they produce NaN CGRects in the renderers
+        // (CoreGraphics error spam, blank bars), can wipe the whole waveform in
+        // normalize(), and — because isComplete stays YES — get persisted under
+        // the file hash, breaking that track forever. Clamp to 0 here.
+        if (!std::isfinite(minVal)) minVal = 0.0f;
+        if (!std::isfinite(maxVal)) maxVal = 0.0f;
+
         if (minVal < values[0]) values[0] = minVal;
         if (maxVal > values[1]) values[1] = maxVal;
     }
@@ -90,6 +101,11 @@ class AudioWaveform {
 public:
     AudioWaveform();
     AudioWaveform(NSUInteger numChunks, const void* chunks);
+    AudioWaveform(const AudioWaveform& other);
+    // Copy-assignment would shallow-copy the raw chunks pointer → double-free.
+    // It's never used (waveforms are always heap-allocated and passed by
+    // pointer); delete it to complete the rule-of-three and keep it that way.
+    AudioWaveform& operator=(const AudioWaveform&) = delete;
     ~AudioWaveform();
 
     AudioWaveformCacheChunk getChunkAtIndex(NSUInteger index, NSUInteger size);
@@ -113,5 +129,10 @@ private:
 @property (nonatomic) AudioWaveform *waveform;
 
 - (id)initWithWaveform:(AudioWaveform *)waveform;
+
+// Deep copy of the current chunk buffer, wrapped in a new object that owns it.
+// Handed to the main thread on progress ticks so it renders an immutable copy
+// while the loader keeps writing the live buffer (otherwise a data race).
+- (CodableAudioWaveform *)snapshot;
 
 @end

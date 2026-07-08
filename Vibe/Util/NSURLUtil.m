@@ -35,8 +35,21 @@
     return results;
 }
 
+// Serial so overlapping drops complete in submission order. On the old
+// concurrent queue a slow folder expansion could finish after a later single
+// file's and replace the newer playlist mid-listen.
++ (dispatch_queue_t)expansionQueue {
+    static dispatch_queue_t queue;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        queue = dispatch_queue_create("com.vibe.urlexpansion",
+                dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0));
+    });
+    return queue;
+}
+
 + (void) expandAndFilterList:(NSArray<NSURL*>*)list completion:(void (^)(NSArray<NSURL*>*))completion {
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+    dispatch_async([self expansionQueue], ^{
         NSArray<NSURL*> *results = [self expandAndFilterList:list];
         dispatch_async(dispatch_get_main_queue(), ^{
             completion(results);

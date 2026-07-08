@@ -12,17 +12,7 @@
 
 }
 
-- (void)menuWillOpen:(NSMenu *)menu {
-
-}
-
 - (void)menuNeedsUpdate:(NSMenu *)menu {
-    if (menu.numberOfItems == 0) {
-//        [menu addItem:[NSMenuItem new]];
-//        [menu addItem:[NSMenuItem separatorItem]];
-//        [menu addItem:[NSMenuItem separatorItem]];
-//        [menu addItem:[[NSMenuItem alloc] initWithTitle:@"Lock Sample Rate" action:@selector(lockSampleRate:) keyEquivalent:@""]];
-    }
     // Enumerate once and size the menu from the same snapshot: a second
     // enumeration could disagree (device hotplug mid-update) and overrun
     // the menu's item count.

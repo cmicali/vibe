@@ -11,6 +11,7 @@
 #import "BasicAudioWaveformRenderer.h"
 #import "OversamplingDetailedAudioWaveformRenderer.h"
 #import "NSView+DarkMode.h"
+#import "AppSettings.h"
 
 @interface AudioWaveformView () <AudioWaveformCacheDelegate>
 
@@ -151,7 +152,17 @@
     [self hideLoadingIndicator];
     _waveform = nil;
     if (!_currentWaveformRenderer) {
-        [self setWaveformStyle:_waveformRenderers.allKeys[0]];
+        // Prefer the persisted style, then the app default; allKeys[0] is a
+        // last resort only (NSMutableDictionary key order is unspecified, so
+        // it would otherwise pick an arbitrary renderer run to run).
+        NSString *style = [[AppSettings sharedInstance] waveformStyle];
+        if (!style.length || !_waveformRenderers[style]) {
+            style = SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT;
+        }
+        if (!_waveformRenderers[style]) {
+            style = _waveformRenderers.allKeys.firstObject;
+        }
+        [self setWaveformStyle:style];
     }
     self.progress = 0;
     [self drawWaveform];
@@ -169,13 +180,8 @@
         [self drawWaveform];
     }
 
-    CGFloat width = self.bounds.size.width;
-    CGFloat midY = self.bounds.size.height / 2;
-    CGFloat bandWidth = MAX(width * 0.35, 40);
-
     CAGradientLayer *shimmer = [CAGradientLayer layer];
     shimmer.contentsScale = self.window ? self.window.backingScaleFactor : 2.0;
-    shimmer.frame = CGRectMake(0, midY - 1, bandWidth, 2);
     shimmer.startPoint = CGPointMake(0, 0.5);
     shimmer.endPoint = CGPointMake(1, 0.5);
     shimmer.colors = @[
@@ -186,13 +192,33 @@
     [self.layer addSublayer:shimmer];
     _loadingLayer = shimmer;
 
+    // Frame + sweep depend on the current bounds; a helper keeps them in sync
+    // when the window resizes (or small/large layout toggles) mid-load.
+    [self layoutLoadingLayer];
+}
+
+// Position the shimmer band and (re)install its sweep for the current bounds.
+- (void)layoutLoadingLayer {
+    if (!_loadingLayer) {
+        return;
+    }
+    CGFloat width = self.bounds.size.width;
+    CGFloat midY = self.bounds.size.height / 2;
+    CGFloat bandWidth = MAX(width * 0.35, 40);
+
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _loadingLayer.frame = CGRectMake(0, midY - 1, bandWidth, 2);
+    [CATransaction commit];
+
+    [_loadingLayer removeAnimationForKey:@"sweep"];
     CABasicAnimation *sweep = [CABasicAnimation animationWithKeyPath:@"position.x"];
     sweep.fromValue = @(-bandWidth / 2);
     sweep.toValue = @(width + bandWidth / 2);
     sweep.duration = 1.2;
     sweep.repeatCount = HUGE_VALF;
     sweep.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
-    [shimmer addAnimation:sweep forKey:@"sweep"];
+    [_loadingLayer addAnimation:sweep forKey:@"sweep"];
 }
 
 - (void)hideLoadingIndicator {
@@ -214,6 +240,10 @@
     if (sizeChanged && _waveform) {
         [self drawWaveform];
     }
+    if (sizeChanged && _loadingLayer) {
+        // Keep the shimmer centered and spanning the new width mid-load.
+        [self layoutLoadingLayer];
+    }
 }
 
 static void applyContentsScale(CALayer *layer, CGFloat scale) {
@@ -232,6 +262,14 @@ static void applyContentsScale(CALayer *layer, CGFloat scale) {
     [super viewDidChangeBackingProperties];
     CGFloat scale = self.window ? self.window.backingScaleFactor : 2.0;
     applyContentsScale(self.layer, scale);
+}
+
+// Fires when the system switches light/dark (with "System default" appearance
+// the window follows the OS). Without this, the cached renderer colors go
+// stale until a manual View→Appearance toggle.
+- (void)viewDidChangeEffectiveAppearance {
+    [super viewDidChangeEffectiveAppearance];
+    [self updateAppearance];
 }
 
 - (void)updateAppearance {

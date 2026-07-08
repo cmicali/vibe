@@ -6,13 +6,23 @@
 #import "CoreAudioUtil.h"
 #import <CoreAudio/CoreAudio.h>
 
+// Trampoline between the HAL listener callback and the real delegate. It is
+// retained by the static reference below (so the callback's client-data pointer
+// is always to a live object) and holds only a *weak* reference to the delegate
+// — a HAL-thread callback firing during the delegate's dealloc reads nil and
+// no-ops instead of resurrecting/messaging a deallocating object.
+@interface VibeOutputDeviceListenerTrampoline : NSObject
+@property (weak) id<CoreAudioSystemOutputDeviceDelegate> delegate;
+@end
+
+@implementation VibeOutputDeviceListenerTrampoline
+@end
+
 @implementation CoreAudioUtil
 
-// Unretained delegate pointer for the default-output-device listener. The
-// caller must call stopListeningForSystemOutputDeviceChanges before the
-// delegate deallocates (retaining here would keep the delegate alive forever
-// and prevent its dealloc from ever running).
-static void *gOutputDeviceListenerClientData = NULL;
+// Retained trampoline for the default-output-device listener (nil when not
+// listening). Its lifetime brackets Add/RemovePropertyListener.
+static VibeOutputDeviceListenerTrampoline *gOutputDeviceListener = nil;
 
 static const AudioObjectPropertyAddress kOutputDeviceAddress = {
     kAudioHardwarePropertyDefaultOutputDevice,
@@ -24,9 +34,13 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
                                      UInt32 inNumberAddresses,
                                      const AudioObjectPropertyAddress *inAddresses,
                                      void *inClientData) {
-    // Strong local capture so the block on the main queue holds its own retain
-    // while it is queued/running (the client-data pointer itself is unretained).
-    id<CoreAudioSystemOutputDeviceDelegate> delegate = (__bridge id<CoreAudioSystemOutputDeviceDelegate>)(inClientData);
+    VibeOutputDeviceListenerTrampoline *trampoline = (__bridge VibeOutputDeviceListenerTrampoline *)(inClientData);
+    // Weak → strong: nil if the delegate has since deallocated. The strong
+    // local keeps it alive across the async hop to the main queue.
+    id<CoreAudioSystemOutputDeviceDelegate> delegate = trampoline.delegate;
+    if (!delegate) {
+        return kAudioHardwareNoError;
+    }
     dispatch_async(dispatch_get_main_queue(), ^{
         [delegate systemAudioOutputDeviceDidChange];
     });
@@ -38,16 +52,19 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
     CFRunLoopRef nullRunLoop =  NULL;
     AudioObjectPropertyAddress runLoopProperty = { kAudioHardwarePropertyRunLoop, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
     AudioObjectSetPropertyData(kAudioObjectSystemObject, &runLoopProperty, 0, NULL, sizeof(CFRunLoopRef), &nullRunLoop);
-    gOutputDeviceListenerClientData = (__bridge void *)delegate;
-    AudioObjectAddPropertyListener(kAudioObjectSystemObject, &kOutputDeviceAddress, &outputDeviceChangedCallback, gOutputDeviceListenerClientData);
+    gOutputDeviceListener = [[VibeOutputDeviceListenerTrampoline alloc] init];
+    gOutputDeviceListener.delegate = delegate;
+    AudioObjectAddPropertyListener(kAudioObjectSystemObject, &kOutputDeviceAddress, &outputDeviceChangedCallback, (__bridge void *)gOutputDeviceListener);
 }
 
 + (void)stopListeningForSystemOutputDeviceChanges {
-    if (!gOutputDeviceListenerClientData) {
+    if (!gOutputDeviceListener) {
         return;
     }
-    AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &kOutputDeviceAddress, &outputDeviceChangedCallback, gOutputDeviceListenerClientData);
-    gOutputDeviceListenerClientData = NULL;
+    AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &kOutputDeviceAddress, &outputDeviceChangedCallback, (__bridge void *)gOutputDeviceListener);
+    // Release only after removal returns, so the callback's client-data pointer
+    // was valid for the entire time the listener was registered.
+    gOutputDeviceListener = nil;
 }
 
 + (AudioDeviceID) audioDeviceIDforUID:(NSString *)deviceUid {
@@ -80,8 +97,11 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
     return audio_device_id;
 }
 
-+ (NSMutableArray<NSNumber *>*) supportedSampleRatesForAudioDeviceId:(AudioDeviceID)did {
-    NSMutableArray *result = [[NSMutableArray alloc] init];
+// The device's available nominal-rate ranges, each wrapped as an NSValue of an
+// AudioValueRange. A discrete rate is reported as a range with mMinimum ==
+// mMaximum; interfaces/aggregates can report true continuous ranges.
++ (NSArray<NSValue *> *)sampleRateRangesForAudioDeviceId:(AudioDeviceID)did {
+    NSMutableArray<NSValue *> *result = [[NSMutableArray alloc] init];
     if (did == kAudioObjectUnknown) {
         return result;
     }
@@ -95,10 +115,27 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
         delete [] vr;
         return result;
     }
-    NSUInteger count = s / sizeof(AudioValueRange);
-    for (int i = 0; i < count; i++)
-        [result addObject:@(vr[i].mMinimum)];
+    NSUInteger count = s / sizeof(AudioValueRange); // recompute: the call may return fewer than requested
+    for (NSUInteger i = 0; i < count; i++) {
+        [result addObject:[NSValue valueWithBytes:&vr[i] objCType:@encode(AudioValueRange)]];
+    }
     delete [] vr;
+    return result;
+}
+
++ (NSMutableArray<NSNumber *>*) supportedSampleRatesForAudioDeviceId:(AudioDeviceID)did {
+    NSMutableArray<NSNumber *> *result = [[NSMutableArray alloc] init];
+    // Report both ends of each range as discrete rates (a plain discrete rate
+    // has mMinimum == mMaximum). Recording only the minimum, as before, hid
+    // every rate above the low end of a continuous-range device.
+    for (NSValue *value in [self sampleRateRangesForAudioDeviceId:did]) {
+        AudioValueRange range;
+        [value getValue:&range];
+        [result addObject:@(range.mMinimum)];
+        if (range.mMaximum != range.mMinimum) {
+            [result addObject:@(range.mMaximum)];
+        }
+    }
     return result;
 }
 
@@ -119,48 +156,69 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
 }
 
 + (BOOL)setSampleRate:(double)rate forAudioDeviceID:(AudioDeviceID)did {
-    AudioStreamBasicDescription mFormat;
-    UInt32 size = sizeof(mFormat);
-
-    AudioObjectPropertyAddress addr = { kAudioDevicePropertyStreamFormat, kAudioDevicePropertyScopeOutput, 0 };
-    OSStatus err = AudioObjectGetPropertyData(did, &addr, 0, NULL, &size, &mFormat);
-    if (err != noErr) {
-        // Never write back an uninitialized format struct.
-        LogError(@"CoreAudioUtil: could not read stream format (OSStatus %d)", (int)err);
+    if (did == kAudioObjectUnknown || rate <= 0) {
         return NO;
     }
-    LogDebug(@"CoreAudioUtil: setSampleRate: %.0f -> %0.1f", mFormat.mSampleRate, rate);
-    mFormat.mSampleRate = rate;
-    mFormat.mBitsPerChannel = 32 ;
-    addr = { kAudioDevicePropertyStreamFormat, kAudioObjectPropertyScopeGlobal, 0 };
-    err = AudioObjectSetPropertyData(did, &addr, 0, NULL, size, &mFormat);
-    return err == noErr;
+    // The nominal sample rate is a single Float64 — the whole job. The old
+    // read-modify-write of kAudioDevicePropertyStreamFormat forced a 32-bit
+    // depth without fixing bytes-per-frame/packet (producing an inconsistent
+    // ASBD the device rejected) and read/wrote mismatched scopes. This is also
+    // symmetric with the nominal-rate read in AudioPlayer.
+    AudioObjectPropertyAddress addr = {
+        kAudioDevicePropertyNominalSampleRate,
+        kAudioObjectPropertyScopeGlobal,
+        kAudioObjectPropertyElementMain
+    };
+    Float64 nominal = rate;
+    OSStatus err = AudioObjectSetPropertyData(did, &addr, 0, NULL, sizeof(nominal), &nominal);
+    if (err != noErr) {
+        LogError(@"CoreAudioUtil: could not set nominal sample rate to %.0f (OSStatus %d)", rate, (int)err);
+        return NO;
+    }
+    LogDebug(@"CoreAudioUtil: setSampleRate: -> %.0f", rate);
+    return YES;
 }
 
 + (BOOL)setBestSampleRate:(double)rate forDeviceUID:(NSString *)uid {
     AudioDeviceID did = [self audioDeviceIDforUID:uid];
-    NSArray<NSNumber *> *rates = [self supportedSampleRatesForAudioDeviceId:did];
-    if (![rates containsObject:@(rate)]) {
-        rates = [rates sortedArrayUsingComparator:^NSComparisonResult(NSNumber* n1, NSNumber* n2) {
-            return [n1 compare:n2];
-        }];
-        LogError(@"CoreAudioUtil: setSampleRate: requested rate %.0f not in [%@]", rate, [rates componentsJoinedByString:@", "]);
-        double candidateRate = rate;
-        double minRate = 44100;
-        for (NSNumber *number in rates) {
-            double n = [number doubleValue];
-            if (n >= minRate && n >= candidateRate) {
-                candidateRate = n;
-                break;
-            }
-        }
-        if (candidateRate == rate) {
-            LogError(@"could not find better rate");
-            return NO;
-        }
-        rate = candidateRate;
+    NSArray<NSValue *> *ranges = [self sampleRateRangesForAudioDeviceId:did];
+    if (ranges.count == 0) {
+        LogError(@"CoreAudioUtil: setSampleRate: no supported rates for device");
+        return NO;
     }
-    return [self setSampleRate:rate forAudioDeviceID:did];
+    // Choose the smallest supported rate >= the requested rate. A range whose
+    // [min,max] straddles the request means the request itself is supported and
+    // is the best possible choice.
+    double best = -1;    // smallest candidate >= rate found so far
+    double highest = -1; // highest supported rate, for the downgrade fallback
+    for (NSValue *value in ranges) {
+        AudioValueRange range;
+        [value getValue:&range];
+        if (range.mMaximum > highest) {
+            highest = range.mMaximum;
+        }
+        if (rate >= range.mMinimum && rate <= range.mMaximum) {
+            best = rate; // exact request supported by this range
+            break;
+        }
+        if (rate <= range.mMinimum && (best < 0 || range.mMinimum < best)) {
+            best = range.mMinimum; // smallest rate at/above the request
+        }
+    }
+    double chosen;
+    if (best >= 0) {
+        chosen = best;
+    } else {
+        // The request exceeds every supported rate (e.g. a 192k file on a
+        // 96k-max device): use the highest available rather than leaving the
+        // device at a lower mismatched rate.
+        chosen = highest;
+        LogDebug(@"CoreAudioUtil: requested rate %.0f above device maximum; using %.0f", rate, chosen);
+    }
+    if (chosen <= 0) {
+        return NO;
+    }
+    return [self setSampleRate:chosen forAudioDeviceID:did];
 }
 
 @end

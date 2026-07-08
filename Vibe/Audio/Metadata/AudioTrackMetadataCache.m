@@ -59,21 +59,44 @@
 }
 
 - (void)loadOneTrack:(AudioTrack *)track {
+    // A track can be re-queued by a second drop before its first op runs;
+    // skip the redundant parse.
+    if (track.metadata) {
+        return;
+    }
     NSString *cacheKey = track.cacheKey;
     AudioTrackMetadata *cachedMetaData = nil;
     if (METADATA_CACHE_ENABLED) {
         cachedMetaData = [_metadataCache objectForKey:cacheKey];
+        // PINCache unarchives without secure coding, so a tampered entry with a
+        // different root class decodes cleanly and bypasses initWithCoder:'s
+        // field validation entirely. A wrong-class object would crash on first
+        // use (unrecognized selector) on every launch — evict it instead.
+        if (cachedMetaData && ![cachedMetaData isKindOfClass:[AudioTrackMetadata class]]) {
+            [_metadataCache removeObjectForKey:cacheKey];
+            cachedMetaData = nil;
+        }
     }
     if (cachedMetaData) {
         track.metadata = cachedMetaData;
     } else {
-        track.metadata = [AudioTrackMetadata metadataWithURL:track.url];
-        if (METADATA_CACHE_ENABLED && track.metadata) {
+        // A stale loader (cancelled when a new playlist replaced this one)
+        // must not keep parsing discarded tracks and issuing synchronous cache
+        // writes that the live loader's objectForKey: reads then queue behind.
+        if (self.isCancelled) {
+            return;
+        }
+        AudioTrackMetadata *metadata = [AudioTrackMetadata metadataWithURL:track.url];
+        track.metadata = metadata;
+        if (METADATA_CACHE_ENABLED && metadata.parsedOK && !self.isCancelled) {
+            // Skip failed parses (dataless cloud file, transient I/O error):
+            // caching the filename-only fallback would shadow the real tags
+            // until the size+mtime cache key changes (up to the 6-month limit).
             // Synchronous on purpose: the write is small (~10KB) and the
             // back-pressure paces the workers. Async writes pile up on
             // PINDiskCache's serial queue and stall the workers' next
             // objectForKey: behind the backlog.
-            [_metadataCache setObject:track.metadata forKey:cacheKey];
+            [_metadataCache setObject:metadata forKey:cacheKey];
         }
     }
     if (track.metadata && !self.isCancelled) {
@@ -82,6 +105,11 @@
         // CGImageForProposedRect forces the actual bitmap decode, which is
         // otherwise deferred until the cell first draws (on main).
         [track.metadata.thumbnailAlbumArt CGImageForProposedRect:NULL context:nil hints:nil];
+        // Thumbnail now exists — drop the full-size art bytes so a large first
+        // import doesn't pin hundreds of MB. Cache-hit instances never carried
+        // them; freshly parsed ones now match that (re-read on demand for the
+        // one track shown full-res).
+        [track.metadata discardAlbumArtData];
         run_on_main_thread({
             if (!self.isCancelled) {
                 [self.delegate didLoadMetadata:track];
@@ -104,12 +132,17 @@
 
 @implementation AudioTrackMetadataCache {
     AudioTrackMetadataLoader*   _currentLoader;
+    // Serial so invalidate always runs after construction (both hop here); a
+    // concurrent queue let invalidate read a nil cache and silently no-op.
+    dispatch_queue_t            _cacheQueue;
 }
 
 - (instancetype)init {
     self = [super init];
     if (self) {
         _currentLoader = nil;
+        _cacheQueue = dispatch_queue_create("com.vibe.metadatacache",
+                dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
         // Create the cache at utility QoS: constructing it on the main
         // thread boosts PINCache's internal init-time disk scan to
         // user-initiated, which then priority-inverts against the utility
@@ -117,7 +150,7 @@
         // Metadata loading starts well after init (deferred until playback
         // begins), so the cache is always ready by first use; the loader
         // tolerates a nil cache regardless.
-        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        dispatch_async(_cacheQueue, ^{
             // v3: archives only the JPEG thumbnail + scalar fields
             // (~10KB/track). Earlier formats stored art at original size,
             // which overflowed the byte limit and turned every launch into a
@@ -138,7 +171,7 @@
 }
 
 -(void) invalidate {
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    dispatch_async(_cacheQueue, ^{
         [self.metadataCache removeAllObjects];
     });
 }

@@ -36,7 +36,11 @@
 				<string>com.microsoft.waveform-audio</string>
 				<string>org.xiph.flac</string>
 				<string>com.apple.m4a-audio</string>
-				<string>public.mpeg-4</string>
+				<!-- public.mpeg-4-audio, NOT public.mpeg-4: the latter is the
+				     MOVIE UTI — declaring it registered Vibe as a handler
+				     candidate for MP4 videos and let the open panel (which
+				     derives its filter from these entries) select them. -->
+				<string>public.mpeg-4-audio</string>
 			</array>
 		</dict>
 	</array>

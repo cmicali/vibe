@@ -53,6 +53,15 @@
     _unplayedGradient = [CAGradientLayer layer];
     _unplayedGradient.opacity = kWaveformOpacity;
     _unplayedGradient.contentsScale = scale;
+    // Fade runs top → bottom (layer coords: y=1 is the top, y=0 the bottom),
+    // so colors[0] is the top color and colors[last] the bottom. The start/end
+    // points are pinned to the waveform's vertical band, not the full view, so
+    // the full 100%→70% range lands across the visible bars: bars reach at most
+    // ±0.75·(height/2) from the midline (see vscale in updateWaveform:), i.e.
+    // the band spans y ∈ [0.125, 0.875]. Mapping the fade to the whole view
+    // instead only swung the bars ~0.96→0.74 — too subtle to read.
+    _unplayedGradient.startPoint = CGPointMake(0.5, 0.875);
+    _unplayedGradient.endPoint = CGPointMake(0.5, 0.125);
     _unplayedMask = [CAShapeLayer layer];
     _unplayedMask.fillColor = [NSColor whiteColor].CGColor;
     _unplayedMask.contentsScale = scale;
@@ -71,6 +80,8 @@
     _playedGradient = [CAGradientLayer layer];
     _playedGradient.opacity = kWaveformOpacity;
     _playedGradient.contentsScale = scale;
+    _playedGradient.startPoint = CGPointMake(0.5, 0.875);
+    _playedGradient.endPoint = CGPointMake(0.5, 0.125);
     _playedMask = [CAShapeLayer layer];
     _playedMask.fillColor = [NSColor whiteColor].CGColor;
     _playedMask.contentsScale = scale;
@@ -88,26 +99,22 @@
     [super updateColors:isDark];
     _gradientColor = isDark ? [NSColor whiteColor] : [NSColor blackColor];
 
-    // Played: same alpha profile as the old design (transparent at the
-    // far-from-center edge, fully opaque at the top).
+    // Slight vertical fade: full color at the top, kBottomAlpha of it at the
+    // bottom (same colors + start/end points in light and dark — the direction
+    // is fixed by the gradient's startPoint/endPoint, not by the array order).
+    const CGFloat kBottomAlpha = 0.45;
+    // Played is fully opaque at the top; unplayed is half as opaque, so the
+    // played region reads clearly brighter where the two meet at the boundary.
+    const CGFloat kPlayedTop = 1.0;
+    const CGFloat kUnplayedTop = 0.5;
     NSArray *playedColors = @[
-            [_gradientColor colorWithAlphaComponent:0.1],
-            [_gradientColor colorWithAlphaComponent:0.65],
-            [_gradientColor colorWithAlphaComponent:1.0],
-            [_gradientColor colorWithAlphaComponent:1.0],
+            [_gradientColor colorWithAlphaComponent:kPlayedTop],
+            [_gradientColor colorWithAlphaComponent:kPlayedTop * kBottomAlpha],
     ];
-    // Unplayed: half the alphas of played, so the played region is clearly
-    // brighter where the two regions meet.
     NSArray *unplayedColors = @[
-            [_gradientColor colorWithAlphaComponent:0.05],
-            [_gradientColor colorWithAlphaComponent:0.325],
-            [_gradientColor colorWithAlphaComponent:0.5],
-            [_gradientColor colorWithAlphaComponent:0.5],
+            [_gradientColor colorWithAlphaComponent:kUnplayedTop],
+            [_gradientColor colorWithAlphaComponent:kUnplayedTop * kBottomAlpha],
     ];
-    if (!isDark) {
-        playedColors = [[playedColors reverseObjectEnumerator] allObjects];
-        unplayedColors = [[unplayedColors reverseObjectEnumerator] allObjects];
-    }
     [self setGradientLayerColors:_playedGradient colors:playedColors];
     [self setGradientLayerColors:_unplayedGradient colors:unplayedColors];
 }
@@ -166,8 +173,11 @@
     CGMutablePathRef path = CGPathCreateMutable();
     for (NSUInteger i = 0; i < count; i++) {
         AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
-        CGFloat top = round(midY - m.getMin() * vscale);
-        CGFloat bottom = round(midY - m.getMax() * vscale);
+        // y-up layer coords: the bar's top comes from the positive peak (max),
+        // the bottom from the negative peak (min). Subtracting instead drew
+        // the envelope vertically mirrored (visible on DC-offset material).
+        CGFloat top = round(midY + m.getMax() * vscale);
+        CGFloat bottom = round(midY + m.getMin() * vscale);
         CGFloat height = MAX(top - bottom, 1);
         CGFloat x = barWidth * (CGFloat)i;
         CGPathAddRect(path, NULL, CGRectMake(x, bottom, barWidth, height));
