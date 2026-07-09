@@ -12,18 +12,31 @@
 #import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
 
-#import <CocoaLumberjack/CocoaLumberjack.h>
+#import <os/log.h>
 
 #import "AppSettings.h"
 #import "HelperMacros.h"
 
-static const DDLogLevel ddLogLevel = DDLogLevelVerbose;
+static inline os_log_t VibeLog(void) {
+    static os_log_t log;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        log = os_log_create("com.commonwealthrecordings.Vibe", "app");
+    });
+    return log;
+}
 
-#define LogError(fmt, ...)  DDLogError(fmt, ##__VA_ARGS__)
-#define LogWarn(fmt, ...)   DDLogWarn(fmt, ##__VA_ARGS__)
-#define LogInfo(fmt, ...)   DDLogInfo(fmt, ##__VA_ARGS__)
-#define LogDebug(fmt, ...)  DDLogDebug(fmt, ##__VA_ARGS__)
-#define LogTrace(fmt, ...)  DDLogVerbose(fmt, ##__VA_ARGS__)
+// os_log requires a compile-time constant format string, so messages are
+// pre-formatted with NSString. %{public} keeps them readable in Console
+// (os_log redacts dynamic strings by default).
+#define VibeLogAt(type, fmt, ...) \
+    os_log_with_type(VibeLog(), type, "%{public}@", [NSString stringWithFormat:(fmt), ##__VA_ARGS__])
+
+#define LogError(fmt, ...)  VibeLogAt(OS_LOG_TYPE_ERROR, fmt, ##__VA_ARGS__)
+#define LogWarn(fmt, ...)   VibeLogAt(OS_LOG_TYPE_DEFAULT, fmt, ##__VA_ARGS__)
+#define LogInfo(fmt, ...)   VibeLogAt(OS_LOG_TYPE_INFO, fmt, ##__VA_ARGS__)
+#define LogDebug(fmt, ...)  VibeLogAt(OS_LOG_TYPE_DEBUG, fmt, ##__VA_ARGS__)
+#define LogTrace(fmt, ...)  VibeLogAt(OS_LOG_TYPE_DEBUG, fmt, ##__VA_ARGS__)
 
 #define Settings [AppSettings sharedInstance]
 
