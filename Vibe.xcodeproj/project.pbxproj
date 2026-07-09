@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		AB07000000000000000000B2 /* VectorBallsView.m in Sources */ = {isa = PBXBuildFile; fileRef = AB07000000000000000000A2 /* VectorBallsView.m */; };
-		AB07000000000000000000B4 /* AboutWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = AB07000000000000000000A4 /* AboutWindowController.m */; };
 		34FF40610A4EB028EC190151 /* NSURL+Hash.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4332509EABC415A0A5EB /* NSURL+Hash.m */; };
 		34FF40BCC1328A8EB4A4B753 /* AudioWaveformRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF46C5DB656AAA171A5984 /* AudioWaveformRenderer.mm */; };
 		34FF4113001518E37080A80F /* BasicAudioWaveformRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF40C150803791290DADAE /* BasicAudioWaveformRenderer.mm */; };
@@ -52,6 +50,8 @@
 		A1B2C3D4E5F60718293A0001 /* AVFAudioWaveformLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A0003 /* AVFAudioWaveformLoader.mm */; };
 		A1B2C3D4E5F60718293A0004 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A0005 /* AVFoundation.framework */; };
 		A1B2C3D4E5F60718293A0006 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A0007 /* AudioToolbox.framework */; };
+		AB07000000000000000000B2 /* VectorBallsView.m in Sources */ = {isa = PBXBuildFile; fileRef = AB07000000000000000000A2 /* VectorBallsView.m */; };
+		AB07000000000000000000B4 /* AboutWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = AB07000000000000000000A4 /* AboutWindowController.m */; };
 		B63DAE6A2E117B8D00A52B03 /* BackgroundArtworkImageView.m in Sources */ = {isa = PBXBuildFile; fileRef = B63DAE692E117B8900A52B03 /* BackgroundArtworkImageView.m */; };
 		B63FB1E62E831C690026C028 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = B63FB1E52E831C690026C028 /* AppIcon.icon */; };
 		B654E8BC23C7725A009DE809 /* equi-white.gif in Resources */ = {isa = PBXBuildFile; fileRef = B654E8BA23C7725A009DE809 /* equi-white.gif */; };
@@ -82,10 +82,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		AB07000000000000000000A1 /* VectorBallsView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VectorBallsView.h; sourceTree = "<group>"; };
-		AB07000000000000000000A2 /* VectorBallsView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = VectorBallsView.m; sourceTree = "<group>"; };
-		AB07000000000000000000A3 /* AboutWindowController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AboutWindowController.h; sourceTree = "<group>"; };
-		AB07000000000000000000A4 /* AboutWindowController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AboutWindowController.m; sourceTree = "<group>"; };
 		34FF4065120E705650E06694 /* AppDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		34FF408561F7DF7DA84C6EEA /* AudioTrackMetadataCache.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioTrackMetadataCache.h; sourceTree = "<group>"; };
 		34FF408589774269742C487B /* ScaledImageView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScaledImageView.h; sourceTree = "<group>"; };
@@ -171,6 +167,10 @@
 		A1B2C3D4E5F60718293A0003 /* AVFAudioWaveformLoader.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AVFAudioWaveformLoader.mm; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A0005 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
 		A1B2C3D4E5F60718293A0007 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
+		AB07000000000000000000A1 /* VectorBallsView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VectorBallsView.h; sourceTree = "<group>"; };
+		AB07000000000000000000A2 /* VectorBallsView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = VectorBallsView.m; sourceTree = "<group>"; };
+		AB07000000000000000000A3 /* AboutWindowController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AboutWindowController.h; sourceTree = "<group>"; };
+		AB07000000000000000000A4 /* AboutWindowController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AboutWindowController.m; sourceTree = "<group>"; };
 		B63DAE682E117B7B00A52B03 /* BackgroundArtworkImageView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BackgroundArtworkImageView.h; sourceTree = "<group>"; };
 		B63DAE692E117B8900A52B03 /* BackgroundArtworkImageView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BackgroundArtworkImageView.m; sourceTree = "<group>"; };
 		B63FB1E52E831C690026C028 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
@@ -369,6 +369,17 @@
 			path = Pods;
 			sourceTree = "<group>";
 		};
+		AB07000000000000000000C1 /* About */ = {
+			isa = PBXGroup;
+			children = (
+				AB07000000000000000000A3 /* AboutWindowController.h */,
+				AB07000000000000000000A4 /* AboutWindowController.m */,
+				AB07000000000000000000A1 /* VectorBallsView.h */,
+				AB07000000000000000000A2 /* VectorBallsView.m */,
+			);
+			path = About;
+			sourceTree = "<group>";
+		};
 		B626E36623B65AF60075B506 /* Main Window */ = {
 			isa = PBXGroup;
 			children = (
@@ -432,17 +443,6 @@
 				B6E7883123A562360035BCD0 /* Vibe.app */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		AB07000000000000000000C1 /* About */ = {
-			isa = PBXGroup;
-			children = (
-				AB07000000000000000000A3 /* AboutWindowController.h */,
-				AB07000000000000000000A4 /* AboutWindowController.m */,
-				AB07000000000000000000A1 /* VectorBallsView.h */,
-				AB07000000000000000000A2 /* VectorBallsView.m */,
-			);
-			path = About;
 			sourceTree = "<group>";
 		};
 		B6E7883323A562360035BCD0 /* Vibe */ = {
@@ -556,13 +556,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Vibe/Pods-Vibe-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Vibe/Pods-Vibe-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -805,12 +801,6 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				EXCLUDED_ARCHS = "";
-				HEADER_SEARCH_PATHS = (
-					"$(inherited)",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/CocoaLumberjack/CocoaLumberjack.framework/Headers\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/SVGKit/SVGKit.framework/Headers\"",
-					"$(SDKROOT)/usr/include/libxml2",
-				);
 				INFOPLIST_FILE = "$(SRCROOT)/Vibe/Common/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Vibe;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
@@ -849,12 +839,6 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				EXCLUDED_ARCHS = "";
-				HEADER_SEARCH_PATHS = (
-					"$(inherited)",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/CocoaLumberjack/CocoaLumberjack.framework/Headers\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/SVGKit/SVGKit.framework/Headers\"",
-					"$(SDKROOT)/usr/include/libxml2",
-				);
 				INFOPLIST_FILE = "$(SRCROOT)/Vibe/Common/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Vibe;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";

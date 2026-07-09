@@ -56,9 +56,12 @@ Vibe is a native macOS music player written in Objective-C/Objective-C++. Playba
 
 ### Dependencies (CocoaPods)
 
-- **CocoaLumberjack**: Logging (`LogDebug`, `LogInfo`, etc. macros via `DDLogLevel`)
 - **taglib-pod**: Audio metadata extraction (custom pod from `github.com/cmicali/taglib-pod`)
 - **PINCache**: Disk/memory caching for metadata and waveform data
+
+### Logging
+
+`LogError`/`LogWarn`/`LogInfo`/`LogDebug`/`LogTrace` macros (defined in `Vibe-Prefix.pch`) wrap Apple's unified logging (`os_log`) under subsystem `com.commonwealthrecordings.Vibe`. Info/debug messages are not persisted to the log store — stream them live with `/usr/bin/log stream --level debug --predicate 'subsystem == "com.commonwealthrecordings.Vibe"'` (use the full path; zsh has a `log` builtin).
 
 ### Key Patterns
 
