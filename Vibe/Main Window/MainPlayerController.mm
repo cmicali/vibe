@@ -352,46 +352,7 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 
     self.albumArtImageView.fileURL = track.url;
 
-    if (track.albumArt) {
-        if (_displayedArt != track.albumArt) {
-            self.albumArtImageView.image = track.albumArt;
-            [self.backgroundAlbumArtImageView setArtworkImage:track.albumArt];
-            [NSDockTile setDockIcon:self.playlistManager.currentTrack.albumArt];
-            _displayedArt = track.albumArt;
-        }
-    }
-    else {
-        // _artDisplayInitialized distinguishes "never displayed anything"
-        // from "already showing record-bg": the very first track being
-        // artless must still install the default backdrop.
-        if (_displayedArt || !_artDisplayInitialized) {
-            self.albumArtImageView.image = [NSImage imageNamed:@"record-bg"];
-            [self.backgroundAlbumArtImageView setArtworkImage:[NSImage imageNamed:@"record-bg"]];
-            [NSDockTile resetToAppIcon];
-            _displayedArt = nil;
-        }
-        // Cache-hit metadata doesn't carry the art bytes; extracting them
-        // re-reads the audio file, which can block on a cloud placeholder
-        // until it downloads. Do it off the main thread and refresh when done.
-        AudioTrackMetadata *metadata = track.metadata;
-        if (metadata.albumArtNeedsLoad && !metadata.albumArtLoadDispatched) {
-            metadata.albumArtLoadDispatched = YES;
-            __weak MainPlayerController *weakSelf = self;
-            dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-                NSImage *loaded = metadata.albumArt; // may block; background thread
-                if (!loaded) {
-                    return;
-                }
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    MainPlayerController *strongSelf = weakSelf;
-                    if (strongSelf && strongSelf.playlistManager.currentTrack == track) {
-                        [strongSelf updateUI];
-                    }
-                });
-            });
-        }
-    }
-    _artDisplayInitialized = YES;
+    [self updateArtworkForTrack:track];
 
     if (track && track == _lastReloadedTrack) {
         // Same track as last time: only the play/pause indicator can have
@@ -403,6 +364,73 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
         _lastReloadedTrack = track;
     }
     [self updatePlaybackUI];
+}
+
+// Artwork display policy: new art replaces old art directly. While the new
+// track's art is still unresolved (metadata pending, load worth dispatching,
+// or a load in flight), the PREVIOUS track's art stays on screen — no flash
+// of the default between tracks. The default backdrop is installed only when
+// the track is known to be artless.
+- (void)updateArtworkForTrack:(AudioTrack *)track {
+    if (track.albumArt) {
+        if (_displayedArt != track.albumArt) {
+            self.albumArtImageView.image = track.albumArt;
+            [self.backgroundAlbumArtImageView setArtworkImage:track.albumArt];
+            [NSDockTile setDockIcon:self.playlistManager.currentTrack.albumArt];
+            _displayedArt = track.albumArt;
+        }
+        _artDisplayInitialized = YES;
+        return;
+    }
+
+    AudioTrackMetadata *metadata = track.metadata;
+    // albumArtLoadDispatched is cleared when a load completes, so here it
+    // means exactly "a load is in flight".
+    BOOL artUnresolved = !metadata || metadata.albumArtNeedsLoad || metadata.albumArtLoadDispatched;
+    if (!artUnresolved || !_artDisplayInitialized) {
+        [self showDefaultArtwork];
+    }
+    _artDisplayInitialized = YES;
+
+    // Cache-hit metadata doesn't carry the art bytes; extracting them
+    // re-reads the audio file, which can block on a cloud placeholder
+    // until it downloads. Do it off the main thread and refresh when done.
+    if (metadata.albumArtNeedsLoad && !metadata.albumArtLoadDispatched) {
+        metadata.albumArtLoadDispatched = YES;
+        __weak MainPlayerController *weakSelf = self;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            NSImage *loaded = metadata.albumArt; // may block; background thread
+            dispatch_async(dispatch_get_main_queue(), ^{
+                // Resolved either way — clear the in-flight marker. No
+                // duplicate-dispatch risk: albumArtNeedsLoad is NO after any
+                // completion (image decoded, or attempted and artless).
+                metadata.albumArtLoadDispatched = NO;
+                MainPlayerController *strongSelf = weakSelf;
+                if (!strongSelf || strongSelf.playlistManager.currentTrack != track) {
+                    return;
+                }
+                if (loaded) {
+                    [strongSelf updateUI];
+                }
+                else {
+                    // Definitively artless: only now does the default
+                    // replace the previous track's art.
+                    [strongSelf showDefaultArtwork];
+                }
+            });
+        });
+    }
+}
+
+// Installs the record-bg default backdrop (no-op if it's already showing).
+- (void)showDefaultArtwork {
+    if (!_displayedArt && _artDisplayInitialized) {
+        return;
+    }
+    self.albumArtImageView.image = [NSImage imageNamed:@"record-bg"];
+    [self.backgroundAlbumArtImageView setArtworkImage:[NSImage imageNamed:@"record-bg"]];
+    [NSDockTile resetToAppIcon];
+    _displayedArt = nil;
 }
 
 - (void)updatePlaybackUI {

@@ -4,6 +4,7 @@
 //
 
 #import "BackgroundArtworkImageView.h"
+#import "NSImageView+VibeCrossfade.h"
 #import <CoreImage/CoreImage.h>
 
 #define BACKGROUND_ART_TARGET_SIZE      150.0
@@ -134,6 +135,19 @@
 
 - (void)setup {
     [self unregisterDraggedTypes];
+    // Layer-backed so setImage: can cross-fade via CATransition.
+    self.wantsLayer = YES;
+}
+
+// Cross-fade whenever the visible backdrop changes. The blur is rendered
+// asynchronously, so the fade must live here (where the image actually
+// lands) rather than at the controller's setArtworkImage: call site. See
+// NSImageView+VibeCrossfade.h for why this is a snapshot overlay.
+- (void)setImage:(NSImage *)image {
+    if (image != self.image) {
+        VibeBeginImageCrossfade(self);
+    }
+    [super setImage:image];
 }
 
 - (BOOL)mouseDownCanMoveWindow {
