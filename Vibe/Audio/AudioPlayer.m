@@ -107,8 +107,17 @@ static float VibeFadeVolume(float from, float to, int step) {
         // Meaningful before the async init block resolves the saved device:
         // -1 (follow system default) instead of a bogus device id 0.
         self.currentlyRequestedAudioDeviceId = -1;
+        // Default QoS (not user-initiated): this queue owns the engine graph
+        // and calls blocking AVAudioEngine APIs — [node stop], detachNode:,
+        // engine start/stop — which wait on the engine's internal
+        // graph-reconfiguration thread (Default QoS). A user-initiated queue
+        // blocking on that lower-QoS thread is a priority inversion (flagged by
+        // the Thread Performance Checker on the skip teardown). Matching Default
+        // removes the inversion; the latency-critical file open runs on its own
+        // user-initiated global queue (see playOnQueue:), so control-plane
+        // scheduling here staying at Default costs nothing perceptible.
         _queue = dispatch_queue_create("com.vibe.audioplayer",
-                dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0));
+                dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
         self.delegate = delegate;
         dispatch_async(_queue, ^{
 
