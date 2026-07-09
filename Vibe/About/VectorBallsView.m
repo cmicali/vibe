@@ -320,7 +320,7 @@ static float vb_random01(void) {
 
     uint8_t *buffer = calloc(w * h, 1);
     CGColorSpaceRef gray = CGColorSpaceCreateDeviceGray();
-    CGContextRef cg = CGBitmapContextCreate(buffer, w, h, 8, w, gray, kCGImageAlphaNone);
+    CGContextRef cg = CGBitmapContextCreate(buffer, w, h, 8, w, gray, (CGBitmapInfo)kCGImageAlphaNone);
     CGColorSpaceRelease(gray);
     if (!cg) {
         free(buffer);
