@@ -84,6 +84,12 @@ static float VibeFadeVolume(float from, float to, int step) {
     // still-loading track is a no-op (its open will deliver) rather than
     // stranding a second blocked global-queue worker on initForReading:.
     NSString *_currentOpenPath;
+    // The AudioTrack the in-flight open should deliver. Normally the object
+    // passed to play:, but a same-path replay REBINDS it: a drag/drop of the
+    // same file replaces the playlist with fresh AudioTrack objects, and the
+    // open must complete with the object the new playlist actually contains —
+    // otherwise row state, artwork, and end-of-track advance all mismatch.
+    AudioTrack *_pendingOpenTrack;
     VibePlayerState         _state;
     os_unfair_lock          _stateLock;
     BOOL                    _lockSampleRate;
@@ -181,11 +187,13 @@ static float VibeFadeVolume(float from, float to, int step) {
 
     NSString *path = track.url.path;
     if (_state == VibePlayerStateLoading && [path isEqualToString:_currentOpenPath]) {
-        // This exact track is already loading (its open is in flight). A repeat
-        // selection — a double-click, or an impatient re-click on a slow cloud
-        // file — is a no-op: the pending open will deliver it. Starting another
-        // open would strand a second blocked worker and (for a slow file) flash
-        // a spurious timeout error before the first open completes.
+        // This exact file is already loading (its open is in flight). Don't
+        // start another open — that would strand a second blocked worker and
+        // (for a slow file) flash a spurious timeout error before the first
+        // completes. But DO rebind the delivery to the new track object: a
+        // re-drop replaces the playlist with fresh AudioTrack instances, and
+        // completing with the old one would orphan the open's result.
+        _pendingOpenTrack = track;
         return;
     }
 
@@ -205,6 +213,7 @@ static float VibeFadeVolume(float from, float to, int step) {
     // queue. The request id pairs each open with its timeout; whichever
     // fires first consumes the id and the other becomes a no-op.
     _currentOpenPath = path;
+    _pendingOpenTrack = track;
     uint64_t openId = ++_openRequestId;
     __weak AudioPlayer *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
@@ -237,6 +246,12 @@ static float VibeFadeVolume(float from, float to, int step) {
     }
     _openRequestId++; // Consume: the pending timeout must no-op.
     _currentOpenPath = nil; // This open resolved; the track is no longer loading.
+    // Deliver the track object the playlist currently knows — a same-path
+    // replay (re-drop) may have rebound it since this open was dispatched.
+    if (_pendingOpenTrack) {
+        track = _pendingOpenTrack;
+    }
+    _pendingOpenTrack = nil;
 
     if (!file || file.length <= 0) {
         [self resetToStoppedStateOnQueue];
@@ -315,6 +330,10 @@ static float VibeFadeVolume(float from, float to, int step) {
     // The original worker may stay blocked on a truly-hung mount (one leaked
     // worker), but rapid re-clicks were already absorbed by the loading no-op.
     _currentOpenPath = nil;
+    if (_pendingOpenTrack) {
+        track = _pendingOpenTrack; // report against the rebound (current) object
+    }
+    _pendingOpenTrack = nil;
     LogError(@"Timed out opening %@", track.url.path);
     [self resetToStoppedStateOnQueue];
     [self sendDelegateError:VibeAudioError(VibeAudioErrorFileOpenTimedOut,
@@ -331,6 +350,7 @@ static float VibeFadeVolume(float from, float to, int step) {
     // Harmless when the caller already consumed the id (extra bump).
     _openRequestId++;
     _currentOpenPath = nil;
+    _pendingOpenTrack = nil;
     os_unfair_lock_lock(&_stateLock);
     _node = nil;
     _file = nil;

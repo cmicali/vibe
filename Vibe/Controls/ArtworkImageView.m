@@ -5,6 +5,7 @@
 
 #import "ArtworkImageView.h"
 #import "NSDraggingImageComponent+Util.h"
+#import "NSImageView+VibeCrossfade.h"
 
 
 @implementation ArtworkImageView {
@@ -31,6 +32,18 @@
 
 - (void)setup {
     [self unregisterDraggedTypes];
+    // Layer-backed so setImage: can cross-fade via CATransition.
+    self.wantsLayer = YES;
+}
+
+// Cross-fade between artworks (and to/from the default) instead of an
+// instant swap. See NSImageView+VibeCrossfade.h for why this is a snapshot
+// overlay and not a CATransition.
+- (void)setImage:(NSImage *)image {
+    if (image != self.image) {
+        VibeBeginImageCrossfade(self);
+    }
+    [super setImage:image];
 }
 
 - (BOOL)mouseDownCanMoveWindow {
