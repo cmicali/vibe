@@ -10,10 +10,6 @@
 #define kVibeBarCount 128
 
 @implementation VibeDefaultWaveformRenderer {
-    CAGradientLayer *_overlayGradient;
-    CGFloat _overlayGradientY;
-    CGFloat _overlayGradientHeight;
-
     NSColor* _playedColorTop;
     NSColor* _unPlayedColorTop;
     NSColor* _playedColorBottom;
@@ -100,9 +96,6 @@
 
     CGFloat bottomBarSpacing = 2;
     CGFloat bottomLineY = topLineY - bottomBarSpacing;
-
-    _overlayGradientY = bottomLineY;
-    _overlayGradientHeight = bounds.size.height - _overlayGradientY;
 
     [CATransaction begin];
     [CATransaction setDisableActions:YES];

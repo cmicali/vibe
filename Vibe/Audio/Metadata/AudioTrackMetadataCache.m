@@ -67,13 +67,19 @@
     NSString *cacheKey = track.cacheKey;
     AudioTrackMetadata *cachedMetaData = nil;
     if (METADATA_CACHE_ENABLED) {
-        cachedMetaData = [_metadataCache objectForKey:cacheKey];
+        // Read through the disk cache directly, bypassing PINMemoryCache: on
+        // macOS the memory cache never evicts (its pressure hooks are iOS-only
+        // and disk hits repopulate it at cost 0), so every track ever loaded —
+        // decoded thumbnail included — would stay pinned for the age limit even
+        // after its playlist is gone. The playlist's AudioTrack objects retain
+        // the live metadata; a re-drop pays a ~10KB unarchive per track.
+        cachedMetaData = (AudioTrackMetadata *)[_metadataCache.diskCache objectForKey:cacheKey];
         // PINCache unarchives without secure coding, so a tampered entry with a
         // different root class decodes cleanly and bypasses initWithCoder:'s
         // field validation entirely. A wrong-class object would crash on first
         // use (unrecognized selector) on every launch — evict it instead.
         if (cachedMetaData && ![cachedMetaData isKindOfClass:[AudioTrackMetadata class]]) {
-            [_metadataCache removeObjectForKey:cacheKey];
+            [_metadataCache.diskCache removeObjectForKey:cacheKey];
             cachedMetaData = nil;
         }
     }
@@ -96,7 +102,7 @@
             // back-pressure paces the workers. Async writes pile up on
             // PINDiskCache's serial queue and stall the workers' next
             // objectForKey: behind the backlog.
-            [_metadataCache setObject:metadata forKey:cacheKey];
+            [_metadataCache.diskCache setObject:metadata forKey:cacheKey];
         }
     }
     if (track.metadata && !self.isCancelled) {
@@ -158,9 +164,11 @@
             PINCache *cache = [[PINCache alloc] initWithName:@"Audio Track Metadata v3"];
             cache.diskCache.byteLimit = 64 * 1024 * 1024;
             cache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
-            // Objects are stored without cost tracking, so costLimit would be
-            // a no-op; an age limit keeps idle entries from pinning memory.
-            cache.memoryCache.ageLimit = 60 * 60; // 1 hour
+            // The memory cache is deliberately unused (loadOneTrack reads and
+            // writes diskCache directly): on macOS PINMemoryCache never evicts
+            // — costLimit needs per-entry costs (and disk hits repopulate at
+            // cost 0) and its memory-pressure hooks are iOS-only — so it would
+            // pin every loaded track's metadata + thumbnail indefinitely.
             if (!METADATA_CACHE_ENABLED) {
                 [cache removeAllObjects];
             }

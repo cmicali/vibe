@@ -46,6 +46,11 @@
             self->_waveformCache = [[PINCache alloc] initWithName:@"audio_waveform_cache_v2"];
             self->_waveformCache.diskCache.byteLimit = 64 * 1024 * 1024; // 64mb disk cache limit
             self->_waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
+            // The memory cache is deliberately unused (load: reads and writes
+            // diskCache directly): on macOS PINMemoryCache never evicts, so it
+            // would pin ~64KB per unique track played for the app's lifetime.
+            // The view retains the one live waveform; replays re-read from
+            // disk in a few ms on this utility queue.
             if (!WAVEFORM_CACHE_ENABLED) {
                 [self->_waveformCache removeAllObjects];
             }
@@ -74,7 +79,7 @@
     CodableAudioWaveform *cachedWaveform = nil;
     BOOL fromCache = NO;
     if (WAVEFORM_CACHE_ENABLED) {
-        cachedWaveform = [self->_waveformCache objectForKey:cacheKey];
+        cachedWaveform = (CodableAudioWaveform *)[self->_waveformCache.diskCache objectForKey:cacheKey];
         fromCache = (cachedWaveform != nil);
     }
     if (!cachedWaveform) {
@@ -84,7 +89,7 @@
                 cachedWaveform.waveform->normalize();
             }
             if (WAVEFORM_CACHE_ENABLED) {
-                [self->_waveformCache setObjectAsync:cachedWaveform forKey:cacheKey completion:nil];
+                [self->_waveformCache.diskCache setObjectAsync:cachedWaveform forKey:cacheKey completion:nil];
             }
         }
     }
