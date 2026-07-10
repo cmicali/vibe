@@ -62,6 +62,12 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     NSString *_sourceFilePath;
     BOOL _albumArtExtractionAttempted;
     BOOL _parsedOK;
+    // Bumped by both discard methods. An albumArt load that was in flight when
+    // a discard ran must not store its result back — the read/decode happens
+    // outside the lock (and can block for minutes on a cloud placeholder), so
+    // without this a skip-during-load re-pins the demoted track's art for the
+    // playlist's lifetime.
+    NSUInteger _artGeneration;
 }
 
 - (BOOL)parsedOK {
@@ -76,7 +82,9 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 - (NSImage *)albumArt {
     NSString *pathToExtract = nil;
     NSData *dataToDecode = nil;
+    NSUInteger generation;
     @synchronized (self) {
+        generation = _artGeneration;
         if (_albumArt) {
             return _albumArt;
         }
@@ -105,13 +113,25 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     }
     NSImage *decoded = dataToDecode ? VibeDecodeImageData(dataToDecode, kDisplayArtMaxDimension) : nil;
     @synchronized (self) {
-        if (dataToDecode && !_albumArtData) {
-            _albumArtData = dataToDecode;
+        // Store back only if no discard ran while the load was in flight;
+        // otherwise return the result transiently (the caller re-checks
+        // currency anyway) without re-pinning a demoted track's art.
+        if (generation == _artGeneration) {
+            if (dataToDecode && !_albumArtData) {
+                _albumArtData = dataToDecode;
+            }
+            if (!_albumArt && decoded) {
+                _albumArt = decoded;
+            }
         }
-        if (!_albumArt && decoded) {
-            _albumArt = decoded;
+        else if (dataToDecode) {
+            // Not storing, but the file demonstrably has art: re-arm the
+            // on-demand re-read (this load claimed the attempt flag on entry,
+            // and a discard's early return leaves that claim in place —
+            // without this the track could never load art again).
+            _albumArtExtractionAttempted = NO;
         }
-        return _albumArt;
+        return _albumArt ?: decoded;
     }
 }
 
@@ -147,6 +167,7 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 // the audio file on demand for the one track shown full-res.
 - (void)discardAlbumArtData {
     @synchronized (self) {
+        _artGeneration++; // invalidate any in-flight albumArt store-back
         if (!_albumArtData) {
             // Nothing to drop (an artless track, or already discarded). Do NOT
             // reset _albumArtExtractionAttempted: an artless track has it YES
@@ -168,6 +189,10 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 // Called by the UI (main thread) when this track stops being the current one.
 - (void)discardDecodedAlbumArt {
     @synchronized (self) {
+        // Invalidate before the early return: the demotion race this guards
+        // against is precisely "nothing stored yet because the load is still
+        // in flight".
+        _artGeneration++;
         if (!_albumArt && !_albumArtData) {
             // Artless (or never loaded) — keep the attempted flag so we don't
             // re-parse the file just to rediscover there's no art.
@@ -183,25 +208,46 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 }
 
 - (NSImage *)thumbnailAlbumArt {
+    NSData *dataToDecode = nil;
+    NSImage *imageToScale = nil;
     @synchronized (self) {
         if (_thumbnailAlbumArt) return _thumbnailAlbumArt;
         if (_albumArtData) {
-            // ImageIO decodes straight to thumbnail size — the full-size
-            // bitmap is never allocated.
-            _thumbnailAlbumArt = VibeDecodeImageData(_albumArtData, kThumbnailDimension);
+            dataToDecode = _albumArtData;
         }
         else if (_albumArt) {
             // Rare fallback: an injected image with no backing data.
-            NSSize originalSize = _albumArt.size;
-            if (originalSize.width <= kThumbnailDimension && originalSize.height <= kThumbnailDimension) {
-                _thumbnailAlbumArt = _albumArt;
-            } else {
-                CGFloat scale = MIN(kThumbnailDimension / originalSize.width,
-                                    kThumbnailDimension / originalSize.height);
-                NSSize target = NSMakeSize(MAX(1.0, round(originalSize.width * scale)),
-                                           MAX(1.0, round(originalSize.height * scale)));
-                _thumbnailAlbumArt = [_albumArt resizedImage:target];
-            }
+            imageToScale = _albumArt;
+        }
+        else {
+            return nil;
+        }
+    }
+    // Decode/scale OUTSIDE the lock — this monitor is also taken by the main
+    // thread's albumArtIfLoaded (3 Hz updateUI), which must never wait behind
+    // a 10-50ms ImageIO decode on a loader worker. Worst case two callers
+    // decode concurrently; results are identical and the first store wins.
+    NSImage *thumbnail = nil;
+    if (dataToDecode) {
+        // ImageIO decodes straight to thumbnail size — the full-size
+        // bitmap is never allocated.
+        thumbnail = VibeDecodeImageData(dataToDecode, kThumbnailDimension);
+    }
+    else {
+        NSSize originalSize = imageToScale.size;
+        if (originalSize.width <= kThumbnailDimension && originalSize.height <= kThumbnailDimension) {
+            thumbnail = imageToScale;
+        } else {
+            CGFloat scale = MIN(kThumbnailDimension / originalSize.width,
+                                kThumbnailDimension / originalSize.height);
+            NSSize target = NSMakeSize(MAX(1.0, round(originalSize.width * scale)),
+                                       MAX(1.0, round(originalSize.height * scale)));
+            thumbnail = [imageToScale resizedImage:target];
+        }
+    }
+    @synchronized (self) {
+        if (!_thumbnailAlbumArt && thumbnail) {
+            _thumbnailAlbumArt = thumbnail;
         }
         return _thumbnailAlbumArt;
     }

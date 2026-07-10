@@ -33,6 +33,8 @@
 }
 
 - (void)renderArtwork {
+    // An explicit render supersedes any resize-debounced one still queued.
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(renderArtwork) object:nil];
     NSUInteger generation = ++_artworkGeneration;
     NSImage *image = _sourceImage;
     if (!image) {
@@ -65,9 +67,17 @@
     CGFloat oldAspect = self.bounds.size.height > 0 ? self.bounds.size.width / self.bounds.size.height : 0;
     [super setFrameSize:newSize];
     CGFloat newAspect = newSize.height > 0 ? newSize.width / newSize.height : 0;
-    // The blurred bitmap is baked at the view's aspect ratio; re-render when it changes.
+    // The blurred bitmap is baked at the view's aspect ratio; re-render when
+    // it changes. Debounced: the animated small/large window toggle delivers a
+    // frame per animation tick, and re-blurring each one burns a burst of CI
+    // passes and stacks cross-fade overlays. One render shortly after the
+    // resize settles is enough — the existing bitmap stretches in the interim.
     if (_sourceImage && newAspect > 0 && fabs(newAspect - oldAspect) > 0.01) {
-        [self renderArtwork];
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(renderArtwork) object:nil];
+        [self performSelector:@selector(renderArtwork)
+                   withObject:nil
+                   afterDelay:0.05
+                      inModes:@[NSRunLoopCommonModes]];
     }
 }
 

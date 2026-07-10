@@ -31,6 +31,11 @@
     NSString*                   _lastFileMetadataString;
     NSString*                   _statusMessage;
     BOOL                        _metadataLoadPending;
+    // Pairs each play:'s 2s fallback timer with its own playlist: a timer
+    // armed by playlist A firing after a re-drop must not start playlist B's
+    // load early (while B's first track is still opening — exactly the I/O
+    // contention the deferral exists to avoid).
+    NSUInteger                  _metadataLoadGeneration;
     BOOL                        _artDisplayInitialized;
     BOOL                        _errorAlertVisible;
     id                          _keyDownMonitor;
@@ -470,9 +475,13 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     // file open on slow disks, delaying first sound by seconds. The fallback
     // covers the case where playback never starts (bad file, device error).
     _metadataLoadPending = YES;
+    NSUInteger generation = ++_metadataLoadGeneration;
     __weak MainPlayerController *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [weakSelf startPendingMetadataLoad];
+        MainPlayerController *strongSelf = weakSelf;
+        if (strongSelf && generation == strongSelf->_metadataLoadGeneration) {
+            [strongSelf startPendingMetadataLoad];
+        }
     });
 }
 
@@ -535,7 +544,13 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     _statusMessage = nil;
     [self.waveformView hideLoadingIndicator];
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
-    [self startPendingMetadataLoad];
+    // Only the current playlist's start may consume the deferred load: a
+    // stale didStartPlaying from a just-replaced playlist would otherwise
+    // start the new playlist's load while its first track is still opening.
+    // (The new playlist's own didStartPlaying — or the 2s fallback — follows.)
+    if (track == [self.playlistManager currentTrack]) {
+        [self startPendingMetadataLoad];
+    }
     _currentTrackDuration = self.audioPlayer.duration;
     [self.waveformView loadWaveformForTrack:track];
     // No reloadCurrentTrack here: resumeUIUpdateTimer -> updateUI already

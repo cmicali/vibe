@@ -13,10 +13,15 @@
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
     NSFileManager *fileManager = [NSFileManager defaultManager];
 
+    // Skip hidden files: on exFAT/SMB/USB volumes macOS writes AppleDouble
+    // sidecars ("._Song.mp3") whose extension passes the filetype filter but
+    // which hold resource-fork metadata, not audio — each one showed up as a
+    // duplicate, unplayable playlist row. Skipping package descendants keeps
+    // the walk out of app/bundle internals.
     NSDirectoryEnumerator *enumerator = [fileManager
             enumeratorAtURL:dir
  includingPropertiesForKeys:@[NSURLIsDirectoryKey]
-                    options:0
+                    options:NSDirectoryEnumerationSkipsHiddenFiles | NSDirectoryEnumerationSkipsPackageDescendants
                errorHandler:^(NSURL *url, NSError *error) {
                    // Handle the error.
                    // Return YES if the enumeration should continue after the error.

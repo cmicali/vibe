@@ -14,7 +14,6 @@
 		34FF414234C1E943F7A09A42 /* Fonts.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4C57F6ED62E9825A4D6B /* Fonts.m */; };
 		34FF41F5F64CA81A54C15EBC /* AudioTrack.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4F22665F4945EBFF675E /* AudioTrack.m */; };
 		34FF42A916FA0A4391E23D42 /* OutputDevicesMenuController.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF482BFB65CD379F8499EB /* OutputDevicesMenuController.m */; };
-		34FF42E49186916E522A9C4F /* AlphaButton.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF43188C3AAB2DCC4D7A20 /* AlphaButton.m */; };
 		34FF434D64E08606D08DF142 /* NSDraggingImageComponent+Util.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4A6443F93E9026069737 /* NSDraggingImageComponent+Util.m */; };
 		34FF444F59270F634E9ECE3C /* AudioWaveform.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4D432D0CA20F99F1326B /* AudioWaveform.mm */; };
 		34FF4478E449DFA4CB901A2A /* PlaylistManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF420F46EEA64A522D8819 /* PlaylistManager.m */; };
@@ -100,7 +99,6 @@
 		34FF42B28E14C5CA422064E4 /* Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Util.h; sourceTree = "<group>"; };
 		34FF42C946A6B74BCFE970B8 /* Formatters.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Formatters.h; sourceTree = "<group>"; };
 		34FF42E69315F87BA3652E77 /* DetailedAudioWaveformRenderer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = DetailedAudioWaveformRenderer.mm; sourceTree = "<group>"; };
-		34FF43188C3AAB2DCC4D7A20 /* AlphaButton.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AlphaButton.m; sourceTree = "<group>"; };
 		34FF4332509EABC415A0A5EB /* NSURL+Hash.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSURL+Hash.m"; sourceTree = "<group>"; };
 		34FF433F9FE866FC4684CC25 /* NSMutableAttributedString+Util.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSMutableAttributedString+Util.m"; sourceTree = "<group>"; };
 		34FF4362BDC6132353A0962D /* NSString+CPPStrings.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = "NSString+CPPStrings.mm"; sourceTree = "<group>"; };
@@ -109,7 +107,6 @@
 		34FF4439AAF27E72B2D9B89C /* PlaylistManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PlaylistManager.h; sourceTree = "<group>"; };
 		34FF4464120AB1B3EA5F0CC8 /* ArtworkImageView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ArtworkImageView.m; sourceTree = "<group>"; };
 		34FF44C3143D8C7424E75829 /* HelperMacros.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = HelperMacros.h; sourceTree = "<group>"; };
-		34FF44C6010573D582F7B2E8 /* AlphaButton.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AlphaButton.h; sourceTree = "<group>"; };
 		34FF457AA6992F3165F57EBC /* AudioWaveform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioWaveform.h; sourceTree = "<group>"; };
 		34FF457BCFE238F6FBE97F6A /* NSString+CPPStrings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSString+CPPStrings.h"; sourceTree = "<group>"; };
 		34FF45FBACD93387E9706D41 /* Formatters.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Formatters.m; sourceTree = "<group>"; };
@@ -252,8 +249,6 @@
 		34FF411D6D68971959338BC4 /* UI */ = {
 			isa = PBXGroup;
 			children = (
-				34FF44C6010573D582F7B2E8 /* AlphaButton.h */,
-				34FF43188C3AAB2DCC4D7A20 /* AlphaButton.m */,
 				34FF49E4321B915207F727C9 /* RSVerticallyCenteredTextFieldCell.h */,
 				34FF47482DFB21C44F91C417 /* RSVerticallyCenteredTextFieldCell.m */,
 				34FF408589774269742C487B /* ScaledImageView.h */,
@@ -556,9 +551,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Vibe/Pods-Vibe-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Vibe/Pods-Vibe-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -609,7 +608,6 @@
 				34FF4A1AFA6D5C200E75E184 /* MacOSUtil.m in Sources */,
 				34FF45BF3B91F3811A097228 /* ScaledImageView.m in Sources */,
 				34FF4E608A8013A623779042 /* RSVerticallyCenteredTextFieldCell.m in Sources */,
-				34FF42E49186916E522A9C4F /* AlphaButton.m in Sources */,
 				34FF4484903DE5AD7A67B838 /* SYFlatButton.m in Sources */,
 				B63DAE6A2E117B8D00A52B03 /* BackgroundArtworkImageView.m in Sources */,
 				34FF42A916FA0A4391E23D42 /* OutputDevicesMenuController.m in Sources */,

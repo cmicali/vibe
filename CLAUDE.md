@@ -67,7 +67,7 @@ Vibe is a native macOS music player written in Objective-C/Objective-C++. Playba
 
 - **Delegation** is used throughout: AudioPlayer → MainPlayerController, waveform views → controller, metadata cache → controller.
 - **Singletons**: `AppSettings`, `AudioDeviceManager`.
-- **File hashing**: `NSURL+Hash` provides SHA1 hashing used as cache keys for metadata and waveform data.
+- **File hashing**: `NSURL+Hash` provides the cache key for metadata and waveform data: `<size>-<mtime_us>-<sha1(path)>` from file attributes only (no content hash — cheap, but misses on rewrite or move).
 - **ObjC++ (.mm files)**: Used wherever C++ is needed — TagLib integration, waveform data structures, and CoreAudio utilities.
 
 ### Supported Audio Formats

@@ -33,9 +33,15 @@
     // Double-checked: fast path avoids the lock once the key is computed
     NSString *key = _cacheKey;
     if (!key) {
+        // Compute OUTSIDE the lock: the file-attribute stat can block
+        // indefinitely on a hung network mount or dataless cloud file, and
+        // holding the monitor through it would wedge every other caller
+        // (metadata and waveform loaders both key off this). Concurrent
+        // callers may compute twice; results are identical, first store wins.
+        key = [self.url cacheKey];
         @synchronized (self) {
             if (!_cacheKey) {
-                _cacheKey = [self.url cacheKey];
+                _cacheKey = key;
             }
             key = _cacheKey;
         }
