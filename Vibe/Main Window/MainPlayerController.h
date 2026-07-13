@@ -34,22 +34,22 @@ NS_ASSUME_NONNULL_BEGIN
                                                       AudioTrackMetadataManagerDelegate,
                                                       PitchFaderViewDelegate>
 
-@property (weak) IBOutlet SYFlatButton *nextButton;
-@property (weak) IBOutlet SYFlatButton *playButton;
-@property (weak) IBOutlet SYFlatButton *closeButton;
+@property (weak) SYFlatButton *nextButton;
+@property (weak) SYFlatButton *playButton;
+@property (weak) SYFlatButton *closeButton;
 
-@property (weak) IBOutlet NSTableView *playlistTableView;
-@property (weak) IBOutlet NSTextField *artistTextField;
-@property (weak) IBOutlet NSTextField *titleTextField;
-@property (weak) IBOutlet ArtworkImageView *albumArtImageView;
-@property (weak) IBOutlet BackgroundArtworkImageView *backgroundAlbumArtImageView;
-@property (weak) IBOutlet AudioWaveformView *waveformView;
-@property (weak) IBOutlet NSTextField *totalTimeTextField;
-@property (weak) IBOutlet NSTextField *currentTimeTextField;
-@property (weak) IBOutlet NSTextField *fileMetadataTextField;
-@property (weak) IBOutlet NSView *albumArtGradientView;
+@property (weak) NSTableView *playlistTableView;
+@property (weak) NSTextField *artistTextField;
+@property (weak) NSTextField *titleTextField;
+@property (weak) ArtworkImageView *albumArtImageView;
+@property (weak) BackgroundArtworkImageView *backgroundAlbumArtImageView;
+@property (weak) AudioWaveformView *waveformView;
+@property (weak) NSTextField *totalTimeTextField;
+@property (weak) NSTextField *currentTimeTextField;
+@property (weak) NSTextField *fileMetadataTextField;
+@property (weak) NSView *albumArtGradientView;
 
-@property (weak) IBOutlet OutputDevicesMenuController *devicesMenuController;
+@property (strong) OutputDevicesMenuController *devicesMenuController;
 
 @property (strong) AudioPlayer *audioPlayer;
 @property (strong) PlaylistManager *playlistManager;
@@ -66,9 +66,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (IBAction)setSmallSize:(id)sender;
 - (IBAction)setLargeSize:(id)sender;
-- (IBAction)toggleSize:(id)sender;
+- (IBAction)toggleSize:(nullable id)sender;
 
-- (IBAction)togglePitchPanel:(id)sender;
+- (IBAction)togglePitchPanel:(nullable id)sender;
+- (IBAction)setPitchRange:(id)sender;
 
 - (IBAction)showInFinder:(id)sender;
 

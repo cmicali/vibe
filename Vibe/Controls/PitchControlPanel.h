@@ -21,6 +21,10 @@ extern const CGFloat kPitchPanelWidth;
 
 @property (nonatomic) float pitch;
 
+// Fader range in percent; forwarded to the fader (which rescales and
+// re-clamps). Keep in sync with AudioPlayer.maxPitch.
+@property (nonatomic) float maxPitch;
+
 @end
 
 NS_ASSUME_NONNULL_END

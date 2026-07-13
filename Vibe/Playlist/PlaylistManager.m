@@ -7,6 +7,8 @@
 #import "NSMutableAttributedString+Util.h"
 #import "Fonts.h"
 #import "NSView+DarkMode.h"
+#import "PlaylistCoverImageView.h"
+#import "PlaylistTextCell.h"
 
 @implementation PlaylistManager {
     NSMutableArray<AudioTrack *> *_playlist;
@@ -84,12 +86,76 @@ static void ensureCellAttributes(void) {
     });
 }
 
+// Static text field for a table cell, backed by the vertically-centering
+// PlaylistTextCell the old nib prototypes used.
+static NSTextField *makeCellTextField(NSRect frame) {
+    NSTextField *field = [[NSTextField alloc] initWithFrame:frame];
+    PlaylistTextCell *cell = [[PlaylistTextCell alloc] initTextCell:@""];
+    cell.lineBreakMode = NSLineBreakByTruncatingTail;
+    field.cell = cell;
+    field.editable = NO;
+    field.selectable = NO;
+    field.bordered = NO;
+    field.bezeled = NO;
+    field.drawsBackground = NO;
+    field.focusRingType = NSFocusRingTypeNone;
+    field.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    return field;
+}
+
+// Programmatic replacements for the nib cell prototypes. makeViewWithIdentifier
+// returns nil until a view of that identifier has been created once; setting
+// the identifier here puts these into the table's normal reuse queue.
+- (NSTableCellView *)makeCellViewWithIdentifier:(NSString *)identifier width:(CGFloat)width {
+    CGFloat rowHeight = _tableView.rowHeight;
+    NSTableCellView *view = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, width, rowHeight)];
+    view.identifier = identifier;
+    if ([identifier isEqualToString:@"trackNum"]) {
+        NSImageView *imageView = [[NSImageView alloc] initWithFrame:NSMakeRect(8, (rowHeight - 16) / 2, 16, 16)];
+        imageView.imageScaling = NSImageScaleProportionallyDown;
+        imageView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
+        [view addSubview:imageView];
+        view.imageView = imageView;
+        NSTextField *field = makeCellTextField(NSMakeRect(-2, 0, 24, rowHeight));
+        field.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
+        [view addSubview:field];
+        view.textField = field;
+    }
+    else if ([identifier isEqualToString:@"trackArt"]) {
+        // Bleeds past the cell on every side so artwork rows tile seamlessly.
+        PlaylistCoverImageView *imageView = [[PlaylistCoverImageView alloc] initWithFrame:NSInsetRect(view.bounds, -4, -4)];
+        imageView.imageScaling = NSImageScaleAxesIndependently;
+        imageView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+        [view addSubview:imageView];
+        view.imageView = imageView;
+    }
+    else if ([identifier isEqualToString:@"trackName"]) {
+        NSTextField *field = makeCellTextField(NSMakeRect(6, 0, width - 10, rowHeight));
+        [view addSubview:field];
+        view.textField = field;
+    }
+    else if ([identifier isEqualToString:@"trackLength"]) {
+        NSTextField *field = makeCellTextField(NSMakeRect(2, 0, width - 6, rowHeight));
+        [view addSubview:field];
+        view.textField = field;
+    }
+    return view;
+}
+
+- (NSTableCellView *)cellViewWithIdentifier:(NSString *)identifier column:(NSTableColumn *)column {
+    NSTableCellView *view = [_tableView makeViewWithIdentifier:identifier owner:self];
+    if (!view) {
+        view = [self makeCellViewWithIdentifier:identifier width:column.width];
+    }
+    return view;
+}
+
 - (nullable NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row {
     ensureCellAttributes();
     AudioTrack *track = _playlist[row];
     NSTableCellView *view;
     if ([tableColumn.identifier isEqualToString:@"numColumn"]) {
-        view = [tableView makeViewWithIdentifier:@"trackNum" owner:self];
+        view = [self cellViewWithIdentifier:@"trackNum" column:tableColumn];
         if (row == self.currentIndex) {
             view.textField.hidden = YES;
             view.imageView.hidden = NO;
@@ -104,7 +170,7 @@ static void ensureCellAttributes(void) {
         }
     }
     else if ([tableColumn.identifier isEqualToString:@"artColumn"]) {
-        view = [tableView makeViewWithIdentifier:@"trackArt" owner:self];
+        view = [self cellViewWithIdentifier:@"trackArt" column:tableColumn];
         NSImage *image = track.thumbnailAlbumArt;
         if (!image) {
             image = [NSImage imageNamed:@"record-bg"];
@@ -112,7 +178,7 @@ static void ensureCellAttributes(void) {
         view.imageView.image = image;
     }
     else if ([tableColumn.identifier isEqualToString:@"titleColumn"]) {
-        view = [tableView makeViewWithIdentifier:@"trackName" owner:self];
+        view = [self cellViewWithIdentifier:@"trackName" column:tableColumn];
         if (track.hasArtistAndTitle) {
             NSMutableAttributedString *s = [[NSMutableAttributedString alloc] initWithString:[track.title stringByAppendingString:@" "]
                                                                                   attributes:titleAttributes];
@@ -126,7 +192,7 @@ static void ensureCellAttributes(void) {
         }
     }
     else if ([tableColumn.identifier isEqualToString:@"lengthColumn"]) {
-        view = [tableView makeViewWithIdentifier:@"trackLength" owner:self];
+        view = [self cellViewWithIdentifier:@"trackLength" column:tableColumn];
         view.textField.attributedStringValue = [[NSAttributedString alloc] initWithString:track.durationString
                                                                                 attributes:lengthColumnAttributes];
     }

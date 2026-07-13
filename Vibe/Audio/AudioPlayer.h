@@ -32,10 +32,13 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 @property (nullable, strong)    AudioTrack* currentTrack;
 @property (atomic) NSInteger    currentlyRequestedAudioDeviceId;
 
-// Turntable-style pitch adjustment in percent (clamped to ±10): speed and
-// pitch move together, like a Technics pitch fader. 0 = normal speed.
+// Turntable-style pitch adjustment in percent (clamped to ±maxPitch): speed
+// and pitch move together, like a Technics pitch fader. 0 = normal speed.
 // Persists across tracks (it's a deck control, not a track property).
 @property (nonatomic) float pitch;
+
+// Fader range in percent (default 8). Shrinking it re-clamps the current pitch.
+@property (nonatomic) float maxPitch;
 
 - (id)initWithDevice:(NSString *)deviceName lockSampleRate:(BOOL)lockSampleRate delegate:(id <AudioPlayerDelegate>)delegate;
 

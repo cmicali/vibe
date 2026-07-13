@@ -18,7 +18,7 @@ There are no unit tests in this project.
 
 ## Debugging / Verification
 
-**Window snapshot helper** (debug builds only, defined in `AppDelegate.mm`): dumps the frontmost window to a PNG by rendering its Core Animation *presentation* layer tree in-process — no screen-recording permission needed, works with the display asleep/locked or the window occluded, and captures in-flight animations (e.g. the artwork cross-fade) mid-frame. Trigger from a terminal:
+**Window snapshot helper** (debug builds only, defined in `Common/DebugUtil.mm`): dumps the frontmost window to a PNG by rendering its Core Animation *presentation* layer tree in-process — no screen-recording permission needed, works with the display asleep/locked or the window occluded, and captures in-flight animations (e.g. the artwork cross-fade) mid-frame. Trigger from a terminal:
 
 ```bash
 notifyutil -p com.vibe.debug.screenshot
@@ -52,7 +52,8 @@ Vibe is a native macOS music player written in Objective-C/Objective-C++. Playba
 - `PlaylistManager` manages the track list as NSTableViewDataSource/Delegate with custom cells for track number, artwork thumbnail, title/artist, and duration.
 - `OutputDevicesMenuController` populates the audio device selection menu from `AudioDeviceManager` (singleton). The menu's device-marker icons are template images (tinted automatically for light/dark menus).
 - `About/` contains the About window: `AboutWindowController` plus `VectorBallsView`, an MTKView Metal animation (paused while the window is occluded).
-- XIB-based layout: `MainPlayerWindow.xib` for the main UI, `MainMenu.xib` for the app menu.
+- Programmatic layout, no nibs: `MainWindow` configures itself in `init` (borderless, frame autosave, drag-and-drop registration); the whole main-window view hierarchy lives in `MainPlayerContentView` (an `NSVisualEffectView` subclass exposing the subviews as readonly properties), which `MainPlayerController` adopts as its outlets in `buildContentInWindow:` (called from `init`; `windowDidLoad` is invoked manually since AppKit only fires it on the nib path). Playlist cell views are built in `PlaylistManager` (`makeCellViewWithIdentifier:`) and recycled through the table's normal reuse queue.
+- App bootstrap (no main nib): `main.mm` creates the `AppDelegate` (kept alive by a global — `NSApplication.delegate` is weak); `applicationWillFinishLaunching:` creates `MainPlayerController` (which owns its `OutputDevicesMenuController`) and installs the menu bar via `MainMenuBuilder`, which also backs the Open Recent submenu from `NSDocumentController.recentDocumentURLs`. Bare key equivalents must set `keyEquivalentModifierMask = 0` explicitly (`NSMenuItem` defaults to Command).
 
 ### Dependencies (CocoaPods)
 

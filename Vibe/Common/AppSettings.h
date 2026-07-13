@@ -38,4 +38,14 @@
 - (NSString *)waveformStyle;
 - (void)setWaveformStyle:(NSString *)name;
 
+- (BOOL)isPitchPanelShown;
+- (void)setPitchPanelShown:(BOOL)shown;
+
+- (BOOL)isPlaylistShown;
+- (void)setPlaylistShown:(BOOL)shown;
+
+// Pitch fader range in percent (8 or 16, like the SL-1200MK5G's range button).
+- (NSInteger)pitchRange;
+- (void)setPitchRange:(NSInteger)range;
+
 @end

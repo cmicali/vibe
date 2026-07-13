@@ -10,8 +10,12 @@
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 
-@property (nonatomic, weak) IBOutlet MainPlayerController *mainPlayerController;
+@property (nonatomic, strong) MainPlayerController *mainPlayerController;
 
 - (IBAction)openDocument:(id)sender;
+- (IBAction)showAboutWindow:(id)sender;
+
+// Target of the Open Recent menu items MainMenuBuilder creates.
+- (void)openRecentDocument:(NSMenuItem *)sender;
 @end
 
