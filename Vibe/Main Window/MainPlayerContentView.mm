@@ -9,6 +9,7 @@
 #import "ArtworkImageView.h"
 #import "BackgroundArtworkImageView.h"
 #import "AudioWaveformView.h"
+#import "NSView+DarkMode.h"
 
 // Design-time size; the controller resizes the view to the window's restored
 // frame after adding it, which runs the same autoresizing pass a nib load
@@ -16,19 +17,44 @@
 static const CGFloat kDesignWidth  = 680;
 static const CGFloat kDesignHeight = 350;
 
-@implementation MainPlayerContentView
+@implementation MainPlayerContentView {
+    NSView *_playlistDimView;
+}
 
 - (instancetype)initWithTarget:(id)target {
     self = [super initWithFrame:NSMakeRect(0, 0, kDesignWidth, kDesignHeight)];
     if (self) {
         self.blendingMode = NSVisualEffectBlendingModeBehindWindow;
-        self.material = NSVisualEffectMaterialUnderWindowBackground;
         self.state = NSVisualEffectStateActive;
         self.wantsLayer = YES;
         self.autoresizingMask = NSViewMaxXMargin | NSViewHeightSizable;
         [self buildSubviewsWithTarget:target];
+        [self updateMaterialForAppearance];
     }
     return self;
+}
+
+// The translucent behind-window material effectively shows whatever is behind
+// the window, so a light appearance over a dark desktop still read as dark.
+// Light mode pins the opaque standard window background instead; dark keeps
+// the translucent blur.
+- (void)updateMaterialForAppearance {
+    BOOL dark = self.isDark;
+    self.material = dark ? NSVisualEffectMaterialUnderWindowBackground
+                         : NSVisualEffectMaterialWindowBackground;
+    // Dark mode shows the material through the playlist; the light material is
+    // near-white, so dim the playlist down to roughly the blurred-artwork
+    // backdrop's tone (art baked on a 0.85 base). The wash is a plain view
+    // under the scroll view (an NSClipView background doesn't composite
+    // semi-transparent colors over the material) so it also covers the empty
+    // area below the last row.
+    _playlistDimView.layer.backgroundColor = dark ? NSColor.clearColor.CGColor
+                                                  : [NSColor colorWithWhite:0 alpha:0.22].CGColor;
+}
+
+- (void)viewDidChangeEffectiveAppearance {
+    [super viewDidChangeEffectiveAppearance];
+    [self updateMaterialForAppearance];
 }
 
 - (void)buildSubviewsWithTarget:(id)target {
@@ -82,7 +108,7 @@ static const CGFloat kDesignHeight = 350;
     _nextButton.enabled = NO;
     [self addSubview:_nextButton];
 
-    NSColor *dimmedTextColor = [NSColor colorWithCalibratedWhite:0.602 alpha:1];
+    NSColor *dimmedTextColor = [NSColor secondaryLabelColor];
 
     _artistTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(158, 293, 512, 48)];
     _artistTextField.font = [NSFont fontWithName:@"HelveticaNeue-Medium" size:16];
@@ -106,6 +132,11 @@ static const CGFloat kDesignHeight = 350;
     _currentTimeTextField.textColor = dimmedTextColor;
     _currentTimeTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
     [self addSubview:_currentTimeTextField];
+
+    _playlistDimView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, kDesignWidth, 200)];
+    _playlistDimView.wantsLayer = YES;
+    _playlistDimView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [self addSubview:_playlistDimView];
 
     [self addSubview:[self buildPlaylistScrollViewWithFrame:NSMakeRect(0, 0, kDesignWidth, 200)]];
 

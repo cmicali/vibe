@@ -5,13 +5,17 @@
 
 #import "BackgroundArtworkImageView.h"
 #import "NSImageView+VibeCrossfade.h"
+#import "NSView+DarkMode.h"
 #import <CoreImage/CoreImage.h>
 
 #define BACKGROUND_ART_TARGET_SIZE      150.0
 #define BACKGROUND_ART_BLUR_RADIUS      15.0
-// Dark base the art is overlay-blended onto, standing in for the behind-window
-// material the old CIOverlayBlendMode compositing filter blended against.
-#define BACKGROUND_ART_BASE_GRAY        0.12
+// Base the art is overlay-blended onto, standing in for the window background
+// the old CIOverlayBlendMode compositing filter blended against. Overlay over
+// a dark base darkens the art; over a light base it lightens it, so the
+// backdrop follows the window's light/dark appearance.
+#define BACKGROUND_ART_BASE_GRAY_DARK   0.12
+#define BACKGROUND_ART_BASE_GRAY_LIGHT  0.85
 
 @implementation BackgroundArtworkImageView {
     NSUInteger _artworkGeneration;
@@ -51,9 +55,10 @@
     if (viewSize.width < 1 || viewSize.height < 1) {
         viewSize = image.size;
     }
+    CGFloat baseGray = self.isDark ? BACKGROUND_ART_BASE_GRAY_DARK : BACKGROUND_ART_BASE_GRAY_LIGHT;
     __weak BackgroundArtworkImageView *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSImage *blurred = [BackgroundArtworkImageView blurredImageFromCIImage:input viewSize:viewSize];
+        NSImage *blurred = [BackgroundArtworkImageView blurredImageFromCIImage:input viewSize:viewSize baseGray:baseGray];
         dispatch_async(dispatch_get_main_queue(), ^{
             BackgroundArtworkImageView *strongSelf = weakSelf;
             if (strongSelf && generation == strongSelf->_artworkGeneration) {
@@ -61,6 +66,15 @@
             }
         });
     });
+}
+
+// The base gray is baked into the rendered bitmap, so a light/dark switch
+// needs a re-render.
+- (void)viewDidChangeEffectiveAppearance {
+    [super viewDidChangeEffectiveAppearance];
+    if (_sourceImage) {
+        [self renderArtwork];
+    }
 }
 
 - (void)setFrameSize:(NSSize)newSize {
@@ -81,7 +95,7 @@
     }
 }
 
-+ (NSImage *)blurredImageFromCIImage:(CIImage *)input viewSize:(NSSize)viewSize {
++ (NSImage *)blurredImageFromCIImage:(CIImage *)input viewSize:(NSSize)viewSize baseGray:(CGFloat)baseGray {
     CGRect extent = input.extent;
     if (CGRectIsEmpty(extent) || CGRectIsInfinite(extent)) {
         return nil;
@@ -104,11 +118,12 @@
     // Clamp so the blur doesn't fade to transparent at the edges, then crop back.
     CIImage *blurred = [[small imageByClampingToExtent] imageByApplyingGaussianBlurWithSigma:BACKGROUND_ART_BLUR_RADIUS];
     blurred = [blurred imageByCroppingToRect:smallExtent];
-    // Overlay-blend onto a dark base, matching the old compositing filter's look
-    // (overlay over a dark backdrop ≈ 2 × base × art: dark, tinted by the art).
-    CIImage *base = [[CIImage imageWithColor:[CIColor colorWithRed:BACKGROUND_ART_BASE_GRAY
-                                                             green:BACKGROUND_ART_BASE_GRAY
-                                                              blue:BACKGROUND_ART_BASE_GRAY]] imageByCroppingToRect:smallExtent];
+    // Overlay-blend onto the appearance's base, matching the old compositing
+    // filter's look (overlay over a dark backdrop ≈ 2 × base × art: dark,
+    // tinted by the art; over a light backdrop the inverse — light, tinted).
+    CIImage *base = [[CIImage imageWithColor:[CIColor colorWithRed:baseGray
+                                                             green:baseGray
+                                                              blue:baseGray]] imageByCroppingToRect:smallExtent];
     CIFilter *overlay = [CIFilter filterWithName:@"CIOverlayBlendMode"];
     [overlay setValue:blurred forKey:kCIInputImageKey];
     [overlay setValue:base forKey:kCIInputBackgroundImageKey];
