@@ -8,23 +8,28 @@
 
 // enum, not static const: a const variable isn't a C constant expression,
 // so using it as an array size would make the tables below VLAs.
-enum { kBarCount = 3 };
-static const CGFloat kBarGap = 2;
+enum { kBarCount = 5 };
+static const CGFloat kBarGap = 1.5;
 
-// Pose shown while paused; also the model value the animation returns to
-// when it is removed (the keyframes animate transform.scale.y around it).
-static const CGFloat kPausedHeights[kBarCount] = {0.5, 0.85, 0.65};
+// Pose shown while paused — the diamond envelope of the app icon's waveform
+// (short, tall, tallest, tall, short); also the model value the animation
+// returns to when it is removed (the keyframes animate transform.scale.y
+// around it).
+static const CGFloat kPausedHeights[kBarCount] = {0.4, 0.7, 1.0, 0.7, 0.4};
 
 // Per-bar loops with distinct durations so the combined pattern doesn't
-// visibly repeat. Each sequence ends where it starts for a seamless cycle.
+// visibly repeat. Each sequence ends where it starts for a seamless cycle,
+// and each bar moves independently around its envelope height.
 static NSArray<NSNumber *> *barValues(NSUInteger bar) {
     switch (bar) {
-        case 0:  return @[@0.5, @0.95, @0.35, @0.75, @0.55, @1.0, @0.5];
-        case 1:  return @[@0.85, @0.4, @1.0, @0.6, @0.9, @0.3, @0.85];
-        default: return @[@0.65, @1.0, @0.5, @0.85, @0.3, @0.9, @0.65];
+        case 0:  return @[@0.4, @0.75, @0.3, @0.6, @0.35, @0.85, @0.4];
+        case 1:  return @[@0.7, @0.35, @0.9, @0.5, @1.0, @0.45, @0.7];
+        case 2:  return @[@1.0, @0.55, @0.85, @0.4, @0.95, @0.65, @1.0];
+        case 3:  return @[@0.7, @1.0, @0.4, @0.8, @0.3, @0.9, @0.7];
+        default: return @[@0.4, @0.8, @0.35, @0.65, @0.9, @0.3, @0.4];
     }
 }
-static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0};
+static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0, 1.25, 0.95};
 
 @implementation EqualizerIndicatorView {
     NSArray<CALayer *> *_bars;
@@ -37,7 +42,9 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0};
         NSMutableArray<CALayer *> *bars = [NSMutableArray arrayWithCapacity:kBarCount];
         for (NSUInteger i = 0; i < kBarCount; i++) {
             CALayer *bar = [CALayer layer];
-            bar.anchorPoint = CGPointMake(0.5, 0); // grow from the baseline
+            // Centered anchor: bars grow and shrink symmetrically around the
+            // vertical midline, like the app icon's waveform.
+            bar.anchorPoint = CGPointMake(0.5, 0.5);
             [self.layer addSublayer:bar];
             [bars addObject:bar];
         }
@@ -71,7 +78,8 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0};
     for (NSUInteger i = 0; i < kBarCount; i++) {
         CALayer *bar = _bars[i];
         bar.bounds = CGRectMake(0, 0, barWidth, height);
-        bar.position = CGPointMake(i * (barWidth + kBarGap) + barWidth / 2, 0);
+        bar.position = CGPointMake(i * (barWidth + kBarGap) + barWidth / 2, height / 2);
+        bar.cornerRadius = barWidth / 2; // pill ends, like the icon's bars
         bar.transform = CATransform3DMakeScale(1, kPausedHeights[i], 1);
     }
     [CATransaction commit];

@@ -110,7 +110,7 @@ static NSTextField *makeCellTextField(NSRect frame) {
     NSTableCellView *view = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, width, rowHeight)];
     view.identifier = identifier;
     if ([identifier isEqualToString:@"trackNum"]) {
-        EqualizerIndicatorView *eqView = [[EqualizerIndicatorView alloc] initWithFrame:NSMakeRect(8, (rowHeight - 16) / 2, 16, 14)];
+        EqualizerIndicatorView *eqView = [[EqualizerIndicatorView alloc] initWithFrame:NSMakeRect(8, (rowHeight - 14) / 2, 16, 14)];
         eqView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
         [view addSubview:eqView];
         NSTextField *field = makeCellTextField(NSMakeRect(-2, 0, 24, rowHeight));

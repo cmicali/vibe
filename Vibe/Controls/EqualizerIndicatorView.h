@@ -2,12 +2,13 @@
 //  EqualizerIndicatorView.h
 //  Vibe
 //
-//  The playing-row equalizer bars. Replaces the old animated GIFs
-//  (equi-white/equi-black): NSImageView re-decodes GIF frames on the CPU for
-//  every animation tick (~5% of a core, and it keeps ticking even when the
-//  view is clipped offscreen). These bars are plain CALayers driven by
-//  repeating keyframe animations — composited on the render server, zero
-//  per-frame CPU in the app.
+//  The playing-row indicator: five vertically-centered pill bars (the app
+//  icon's waveform) that grow and shrink independently. Replaces the old
+//  animated GIFs (equi-white/equi-black): NSImageView re-decodes GIF frames
+//  on the CPU for every animation tick (~5% of a core, and it keeps ticking
+//  even when the view is clipped offscreen). These bars are plain CALayers
+//  driven by repeating keyframe animations — composited on the render
+//  server, zero per-frame CPU in the app.
 //
 
 #import <Cocoa/Cocoa.h>
