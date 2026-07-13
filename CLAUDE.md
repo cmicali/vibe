@@ -18,17 +18,7 @@ There are no unit tests in this project.
 
 ## Debugging / Verification
 
-**Window snapshot helper** (debug builds only, defined in `Common/DebugUtil.mm`): dumps the frontmost window to a PNG by rendering its Core Animation *presentation* layer tree in-process — no screen-recording permission needed, works with the display asleep/locked or the window occluded, and captures in-flight animations (e.g. the artwork cross-fade) mid-frame. Trigger from a terminal:
-
-```bash
-notifyutil -p com.vibe.debug.screenshot
-# then read (the app is sandboxed, so output lands in its container):
-open ~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp/vibe-screenshot.png
-```
-
-Each trigger overwrites the same file. Metal content (the About window's vector-balls view) does not render via this path. To verify UI changes end-to-end: launch the built app with an audio file via `open -a <path-to>/Vibe.app <file>`, then trigger snapshots and inspect the PNG.
-
-`AppDelegate` also parses file/directory paths from `argv` (`openCommandLineArguments`), but the **App Sandbox denies reading arbitrary argv paths** (no Launch Services / user-selection grant), so `open -a` is the reliable way to feed the app a file for verification — a raw `.../Vibe <file>` launch parses the path but the open fails under the sandbox.
+To launch, drive, inspect, or screenshot the app — anything involving verifying a change against the running app — use the **`vibe-debug` skill** (`.claude/skills/vibe-debug/`). It documents the debug command channel (`Vibe --debug-cmd state|viewtree|screenshot|playPause|…`, debug builds only, defined in `Common/DebugUtil.mm`), both screenshot paths (the in-process snapshot helper cannot render `NSVisualEffectView` materials or Metal content — real `screencapture` is required for background/appearance checks), sandbox launch pitfalls (`open -a` vs raw argv, Xcode-run instances shadowing your build), and bundles scripts for window capture and pixel probing.
 
 ## Architecture
 

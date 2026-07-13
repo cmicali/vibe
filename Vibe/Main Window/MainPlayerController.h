@@ -74,6 +74,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)showInFinder:(id)sender;
 
 - (IBAction)setAppearance:(id)sender;
+
+#if DEBUG
+// Debug command channel (Common/DebugUtil.mm) drives the app through these;
+// not part of the normal UI surface.
+- (PitchControlPanel *)pitchPanel;
+- (void)debugRefreshUI;
+#endif
 @end
 
 NS_ASSUME_NONNULL_END

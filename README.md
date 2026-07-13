@@ -12,6 +12,7 @@ A fast and minimal winamp-inspired native music player for macOS. Built for larg
 - **Metadata & artwork** — Metadata and artwork pulled via TagLib
 - **Performance** — Optimized code and caching keep things quick
 - **Keyboard transport** — `Space` play/pause, `B` previous track, `N` next track
+- **Pitch Adjust** — SL-1200 style optional pitch adjustment
 
 ## Requirements
 
