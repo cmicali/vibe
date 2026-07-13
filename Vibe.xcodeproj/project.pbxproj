@@ -53,8 +53,6 @@
 		AB07000000000000000000B4 /* AboutWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = AB07000000000000000000A4 /* AboutWindowController.m */; };
 		B63DAE6A2E117B8D00A52B03 /* BackgroundArtworkImageView.m in Sources */ = {isa = PBXBuildFile; fileRef = B63DAE692E117B8900A52B03 /* BackgroundArtworkImageView.m */; };
 		B63FB1E62E831C690026C028 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = B63FB1E52E831C690026C028 /* AppIcon.icon */; };
-		B654E8BC23C7725A009DE809 /* equi-white.gif in Resources */ = {isa = PBXBuildFile; fileRef = B654E8BA23C7725A009DE809 /* equi-white.gif */; };
-		B654E8BD23C7725A009DE809 /* equi-black.gif in Resources */ = {isa = PBXBuildFile; fileRef = B654E8BB23C7725A009DE809 /* equi-black.gif */; };
 		B660F21A23A6B8C600BBD9C8 /* MainPlayerController.mm in Sources */ = {isa = PBXBuildFile; fileRef = B660F21823A6B8C600BBD9C8 /* MainPlayerController.mm */; };
 		B6C43BC423AA5837009B6536 /* AudioPlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = B6C43BC323AA5837009B6536 /* AudioPlayer.m */; };
 		B6DD030D23BED3E500DD6DDB /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6DD030C23BED3E500DD6DDB /* CoreAudio.framework */; };
@@ -64,6 +62,7 @@
 		B6E7885F23A564AD0035BCD0 /* ApplicationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6E7885E23A564AD0035BCD0 /* ApplicationServices.framework */; };
 		B6E7886123A564C20035BCD0 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6E7886023A564C20035BCD0 /* QuartzCore.framework */; };
 		P17C4B01F0DE1201000000B1 /* PitchFaderView.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A1 /* PitchFaderView.m */; };
+		P17C4B01F0DE1201000000C6 /* EqualizerIndicatorView.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000C5 /* EqualizerIndicatorView.m */; };
 		P17C4B01F0DE1201000000B2 /* PitchControlPanel.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A3 /* PitchControlPanel.m */; };
 		P17C4B01F0DE1201000000B3 /* MainMenuBuilder.mm in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A5 /* MainMenuBuilder.mm */; };
 		P17C4B01F0DE1201000000B5 /* DebugUtil.mm in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A9 /* DebugUtil.mm */; };
@@ -178,8 +177,6 @@
 		B64A90D22F5F3BEF00919E55 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = "<group>"; };
 		B64A90D32F5F3BEF00919E55 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		B654886F23C78FE900A5A4FE /* AudioWaveformRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioWaveformRenderer.h; sourceTree = "<group>"; };
-		B654E8BA23C7725A009DE809 /* equi-white.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; path = "equi-white.gif"; sourceTree = "<group>"; };
-		B654E8BB23C7725A009DE809 /* equi-black.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; path = "equi-black.gif"; sourceTree = "<group>"; };
 		B660F21723A6B8C600BBD9C8 /* MainPlayerController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MainPlayerController.h; sourceTree = "<group>"; };
 		B660F21823A6B8C600BBD9C8 /* MainPlayerController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MainPlayerController.mm; sourceTree = "<group>"; };
 		B6A7C07823ABD056007739BA /* Vibe-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Vibe-Prefix.pch"; sourceTree = "<group>"; };
@@ -197,6 +194,8 @@
 		E2C73920E9C44F4AF69315C9 /* Pods_Vibe.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Vibe.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		E3DA1577BA15C12EDFE250EF /* Pods-Vibe.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Vibe.release.xcconfig"; path = "Target Support Files/Pods-Vibe/Pods-Vibe.release.xcconfig"; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A1 /* PitchFaderView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PitchFaderView.m; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000C5 /* EqualizerIndicatorView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EqualizerIndicatorView.m; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000C7 /* EqualizerIndicatorView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EqualizerIndicatorView.h; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A2 /* PitchFaderView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PitchFaderView.h; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A3 /* PitchControlPanel.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PitchControlPanel.m; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A4 /* PitchControlPanel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PitchControlPanel.h; sourceTree = "<group>"; };
@@ -334,6 +333,8 @@
 				B63DAE682E117B7B00A52B03 /* BackgroundArtworkImageView.h */,
 				34FF4464120AB1B3EA5F0CC8 /* ArtworkImageView.m */,
 				34FF481A0F628B84A8D32E13 /* ArtworkImageView.h */,
+				P17C4B01F0DE1201000000C7 /* EqualizerIndicatorView.h */,
+				P17C4B01F0DE1201000000C5 /* EqualizerIndicatorView.m */,
 				P17C4B01F0DE1201000000A1 /* PitchFaderView.m */,
 				P17C4B01F0DE1201000000A2 /* PitchFaderView.h */,
 				P17C4B01F0DE1201000000A3 /* PitchControlPanel.m */,
@@ -440,8 +441,6 @@
 		B64B6A0923A6C72400B91994 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				B654E8BB23C7725A009DE809 /* equi-black.gif */,
-				B654E8BA23C7725A009DE809 /* equi-white.gif */,
 				B6E7883723A562380035BCD0 /* Assets.xcassets */,
 				B63FB1E52E831C690026C028 /* AppIcon.icon */,
 			);
@@ -564,8 +563,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				B6E7883823A562380035BCD0 /* Assets.xcassets in Resources */,
-				B654E8BC23C7725A009DE809 /* equi-white.gif in Resources */,
-				B654E8BD23C7725A009DE809 /* equi-black.gif in Resources */,
 				B63FB1E62E831C690026C028 /* AppIcon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -655,6 +652,7 @@
 				A1B2C3D4E5F60718293A0001 /* AVFAudioWaveformLoader.mm in Sources */,
 				34FF4CB6A1C128EB32DE8118 /* ArtworkImageView.m in Sources */,
 				P17C4B01F0DE1201000000B1 /* PitchFaderView.m in Sources */,
+				P17C4B01F0DE1201000000C6 /* EqualizerIndicatorView.m in Sources */,
 				P17C4B01F0DE1201000000B3 /* MainMenuBuilder.mm in Sources */,
 				P17C4B01F0DE1201000000B5 /* DebugUtil.mm in Sources */,
 				P17C4B01F0DE1201000000B4 /* MainPlayerContentView.mm in Sources */,

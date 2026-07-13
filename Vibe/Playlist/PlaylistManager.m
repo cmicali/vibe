@@ -9,12 +9,11 @@
 #import "NSView+DarkMode.h"
 #import "PlaylistCoverImageView.h"
 #import "PlaylistTextCell.h"
+#import "EqualizerIndicatorView.h"
 
 @implementation PlaylistManager {
     NSMutableArray<AudioTrack *> *_playlist;
     __weak NSTableView *_tableView;
-    NSImage *_imageEqWhite;
-    NSImage *_imageEqBlack;
 }
 
 - (NSArray<AudioTrack *> *)playlist {
@@ -37,8 +36,6 @@
         _playlist = [NSMutableArray new];
         self.currentIndex = 0;
         self.audioPlayer = audioPlayer;
-        _imageEqBlack = [NSImage imageNamed:@"equi-black.gif"];
-        _imageEqWhite = [NSImage imageNamed:@"equi-white.gif"];
     }
     return self;
 }
@@ -113,11 +110,9 @@ static NSTextField *makeCellTextField(NSRect frame) {
     NSTableCellView *view = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, width, rowHeight)];
     view.identifier = identifier;
     if ([identifier isEqualToString:@"trackNum"]) {
-        NSImageView *imageView = [[NSImageView alloc] initWithFrame:NSMakeRect(8, (rowHeight - 16) / 2, 16, 16)];
-        imageView.imageScaling = NSImageScaleProportionallyDown;
-        imageView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
-        [view addSubview:imageView];
-        view.imageView = imageView;
+        EqualizerIndicatorView *eqView = [[EqualizerIndicatorView alloc] initWithFrame:NSMakeRect(8, (rowHeight - 16) / 2, 16, 14)];
+        eqView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
+        [view addSubview:eqView];
         NSTextField *field = makeCellTextField(NSMakeRect(-2, 0, 24, rowHeight));
         field.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
         [view addSubview:field];
@@ -144,6 +139,17 @@ static NSTextField *makeCellTextField(NSRect frame) {
     return view;
 }
 
+// NSTableCellView.imageView is typed NSImageView, so the equalizer view
+// can't ride the built-in outlet; fetch it by class instead.
+static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
+    for (NSView *subview in view.subviews) {
+        if ([subview isKindOfClass:[EqualizerIndicatorView class]]) {
+            return (EqualizerIndicatorView *)subview;
+        }
+    }
+    return nil;
+}
+
 - (NSTableCellView *)cellViewWithIdentifier:(NSString *)identifier column:(NSTableColumn *)column {
     NSTableCellView *view = [_tableView makeViewWithIdentifier:identifier owner:self];
     if (!view) {
@@ -158,15 +164,17 @@ static NSTextField *makeCellTextField(NSRect frame) {
     NSTableCellView *view;
     if ([tableColumn.identifier isEqualToString:@"numColumn"]) {
         view = [self cellViewWithIdentifier:@"trackNum" column:tableColumn];
+        EqualizerIndicatorView *eqView = eqViewInCell(view);
         if (row == self.currentIndex) {
             view.textField.hidden = YES;
-            view.imageView.hidden = NO;
-            view.imageView.animates = self.audioPlayer.isPlaying;
-            view.imageView.image = view.isDark ? _imageEqWhite : _imageEqBlack;
+            eqView.hidden = NO;
+            eqView.color = view.isDark ? NSColor.whiteColor : NSColor.blackColor;
+            eqView.animating = self.audioPlayer.isPlaying;
         }
         else {
             view.textField.hidden = NO;
-            view.imageView.hidden = YES;
+            eqView.hidden = YES;
+            eqView.animating = NO;
             view.textField.attributedStringValue = [[NSAttributedString alloc] initWithString:[NSString stringWithFormat:@"%ld", (long)row+1]
                                                                                    attributes:numColumnAttributes];
         }
