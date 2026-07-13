@@ -38,6 +38,8 @@
 		34FF4AFD918FEFC3A05BADC7 /* AudioWaveformLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF422C6AC6CAB9B5A43725 /* AudioWaveformLoader.mm */; };
 		34FF4BF32F0785E1FAAF1ECA /* AudioDeviceManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4BDDAE061E63D8BAA501 /* AudioDeviceManager.m */; };
 		34FF4CB6A1C128EB32DE8118 /* ArtworkImageView.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4464120AB1B3EA5F0CC8 /* ArtworkImageView.m */; };
+		P17C4B01F0DE1201000000B1 /* PitchFaderView.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A1 /* PitchFaderView.m */; };
+		P17C4B01F0DE1201000000B2 /* PitchControlPanel.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A3 /* PitchControlPanel.m */; };
 		34FF4CBCFD4174BEBC23A583 /* DetailedAudioWaveformRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF42E69315F87BA3652E77 /* DetailedAudioWaveformRenderer.mm */; };
 		34FF4CC69B5F464F902C2C26 /* AudioWaveformCache.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4D53CF024A2C7F1E1FD8 /* AudioWaveformCache.mm */; };
 		34FF4D673AEDD903E6D4F623 /* AudioDevice.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4875D6CBDC7E349DF255 /* AudioDevice.m */; };
@@ -106,6 +108,10 @@
 		34FF44077EA6DE4A13AC10AF /* NSDockTile+Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSDockTile+Util.h"; sourceTree = "<group>"; };
 		34FF4439AAF27E72B2D9B89C /* PlaylistManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PlaylistManager.h; sourceTree = "<group>"; };
 		34FF4464120AB1B3EA5F0CC8 /* ArtworkImageView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ArtworkImageView.m; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000A1 /* PitchFaderView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PitchFaderView.m; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000A2 /* PitchFaderView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PitchFaderView.h; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000A3 /* PitchControlPanel.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PitchControlPanel.m; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000A4 /* PitchControlPanel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PitchControlPanel.h; sourceTree = "<group>"; };
 		34FF44C3143D8C7424E75829 /* HelperMacros.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = HelperMacros.h; sourceTree = "<group>"; };
 		34FF457AA6992F3165F57EBC /* AudioWaveform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioWaveform.h; sourceTree = "<group>"; };
 		34FF457BCFE238F6FBE97F6A /* NSString+CPPStrings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSString+CPPStrings.h"; sourceTree = "<group>"; };
@@ -309,6 +315,10 @@
 				B63DAE682E117B7B00A52B03 /* BackgroundArtworkImageView.h */,
 				34FF4464120AB1B3EA5F0CC8 /* ArtworkImageView.m */,
 				34FF481A0F628B84A8D32E13 /* ArtworkImageView.h */,
+				P17C4B01F0DE1201000000A1 /* PitchFaderView.m */,
+				P17C4B01F0DE1201000000A2 /* PitchFaderView.h */,
+				P17C4B01F0DE1201000000A3 /* PitchControlPanel.m */,
+				P17C4B01F0DE1201000000A4 /* PitchControlPanel.h */,
 			);
 			path = Controls;
 			sourceTree = "<group>";
@@ -624,6 +634,8 @@
 				34FF4CC69B5F464F902C2C26 /* AudioWaveformCache.mm in Sources */,
 				A1B2C3D4E5F60718293A0001 /* AVFAudioWaveformLoader.mm in Sources */,
 				34FF4CB6A1C128EB32DE8118 /* ArtworkImageView.m in Sources */,
+				P17C4B01F0DE1201000000B1 /* PitchFaderView.m in Sources */,
+				P17C4B01F0DE1201000000B2 /* PitchControlPanel.m in Sources */,
 				34FF4EEDE5F050658C8B07F9 /* AudioWaveformView.mm in Sources */,
 				34FF4F37386022BD3B0B511B /* AppDelegate.mm in Sources */,
 				34FF48B6F0F3EAA35CE21546 /* AppSettings.m in Sources */,

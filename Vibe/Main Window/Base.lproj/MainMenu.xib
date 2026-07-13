@@ -170,6 +170,12 @@
                                     <action selector="toggleSize:" target="j8i-XM-36F" id="eKC-jJ-Nbo"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Pitch Control" keyEquivalent="p" identifier="menu_show_pitch" id="qPt-ch-p01">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <connections>
+                                    <action selector="togglePitchPanel:" target="j8i-XM-36F" id="qPt-ch-p02"/>
+                                </connections>
+                            </menuItem>
                         </items>
                     </menu>
                 </menuItem>

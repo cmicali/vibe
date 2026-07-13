@@ -39,6 +39,7 @@
     BOOL                        _artDisplayInitialized;
     BOOL                        _errorAlertVisible;
     id                          _keyDownMonitor;
+    PitchControlPanel*          _pitchPanel;
 }
 
 - (id) init {
@@ -218,6 +219,17 @@
             [strongSelf next:nil];
             return nil;
         }
+        if ([chars isEqualToString:@"p"]) {
+            [strongSelf togglePitchPanel:nil];
+            return nil;
+        }
+        // Tab's menu key equivalent is only installed when validateMenuItem
+        // runs (i.e. after the View menu has been opened once), so on a fresh
+        // launch the menu path never fires. Handle it here like the others.
+        if ([chars isEqualToString:@"\t"]) {
+            [strongSelf toggleSize:nil];
+            return nil;
+        }
         return event;
     }];
     // Opt out of the macOS 11+ inset look; we want the selection highlight
@@ -240,6 +252,17 @@
     
     MainWindow *window = (MainWindow *)self.window;
     window.dropDelegate = self;
+
+    // Parked just past the content's right edge; revealed by widening the
+    // window (togglePitchPanel:). Fixed left offset + flexible right margin
+    // keeps it there through width changes; heightSizable tracks the
+    // small/large layout toggle.
+    NSView *contentView = self.window.contentView;
+    _pitchPanel = [[PitchControlPanel alloc] initWithFrame:
+            NSMakeRect(NSMaxX(contentView.bounds), 0, kPitchPanelWidth, contentView.bounds.size.height)];
+    _pitchPanel.autoresizingMask = NSViewMaxXMargin | NSViewHeightSizable;
+    _pitchPanel.delegate = self;
+    [contentView addSubview:_pitchPanel];
 
     _timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
     // Leeway must be well under the interval, or the OS coalesces ticks and the
@@ -688,6 +711,19 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     [window toggleSize:sender];
 }
 
+- (IBAction) togglePitchPanel:(id)sender {
+    MainWindow *window = (MainWindow *)self.window;
+    if (!window.isPitchPanelShown) {
+        // Sync the fader with the player before the reveal (cheap either way).
+        _pitchPanel.pitch = self.audioPlayer.pitch;
+    }
+    [window setPitchPanelShown:!window.isPitchPanelShown animate:YES];
+}
+
+- (void)pitchFaderView:(PitchFaderView *)faderView didChangePitch:(float)pitch {
+    self.audioPlayer.pitch = pitch;
+}
+
 - (IBAction) showInFinder:(id)sender {
     NSURL *url = self.playlistManager.currentTrack.url;
     if (url) {
@@ -718,6 +754,9 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     if ([menuItem.identifier isEqualToString:@"menu_show_playlist"]) {
         menuItem.state = StateForBOOL(window.isPlaylistShown);
         [menuItem setKeyEquivalent:[NSString stringWithFormat:@"%c", NSTabCharacter]];
+    }
+    else if ([menuItem.identifier isEqualToString:@"menu_show_pitch"]) {
+        menuItem.state = StateForBOOL(window.isPitchPanelShown);
     }
     else if ([menuItem.identifier isEqualToString:@"view_appearance_system_default"]) {
         menuItem.state = StateForString(Settings.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT);

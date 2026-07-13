@@ -21,6 +21,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (IBAction)toggleSize:(id)sender;
 
+// Slide-out pitch panel: the window grows kPitchPanelWidth to the right to
+// reveal the panel view the controller parked past the content's right edge.
+- (BOOL)isPitchPanelShown;
+- (void)setPitchPanelShown:(BOOL)shown animate:(BOOL)animate;
+
 - (void)loadSettings;
 
 @end

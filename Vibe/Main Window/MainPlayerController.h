@@ -16,6 +16,7 @@
 #import "MainWindow.h"
 #import "SYFlatButton.h"
 #import "AudioTrackMetadataCache.h"
+#import "PitchControlPanel.h"
 
 @class OutputDevicesMenuController;
 @class ArtworkImageView;
@@ -30,7 +31,8 @@ NS_ASSUME_NONNULL_BEGIN
                                                       FileDropDelegate,
                                                       AudioPlayerDelegate,
                                                       AudioWaveformViewDelegate,
-                                                      AudioTrackMetadataManagerDelegate>
+                                                      AudioTrackMetadataManagerDelegate,
+                                                      PitchFaderViewDelegate>
 
 @property (weak) IBOutlet SYFlatButton *nextButton;
 @property (weak) IBOutlet SYFlatButton *playButton;
@@ -65,6 +67,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)setSmallSize:(id)sender;
 - (IBAction)setLargeSize:(id)sender;
 - (IBAction)toggleSize:(id)sender;
+
+- (IBAction)togglePitchPanel:(id)sender;
 
 - (IBAction)showInFinder:(id)sender;
 
