@@ -40,10 +40,7 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // Fader range in percent (default 8). Shrinking it re-clamps the current pitch.
 @property (nonatomic) float maxPitch;
 
-- (id)initWithDevice:(NSString *)deviceName lockSampleRate:(BOOL)lockSampleRate delegate:(id <AudioPlayerDelegate>)delegate;
-
-- (BOOL)lockSampleRate;
-- (void)setLockSampleRate:(BOOL)lockSampleRate;
+- (id)initWithDevice:(NSString *)deviceName delegate:(id <AudioPlayerDelegate>)delegate;
 
 - (void)play:(AudioTrack *)track;
 - (void)playPause;

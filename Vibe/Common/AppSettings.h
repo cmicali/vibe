@@ -17,8 +17,6 @@
 
 - (void)applicationDidFinishLaunching;
 
-- (BOOL)isFirstLaunch;
-
 - (NSString *)audioOutputDeviceName;
 - (void)setAudioOutputDeviceName:(NSString *)deviceName;
 
@@ -26,9 +24,6 @@
 // device names); the name is kept as a fallback for older settings.
 - (NSString *)audioOutputDeviceUID;
 - (void)setAudioOutputDeviceUID:(NSString *)deviceUID;
-
-- (BOOL)audioPlayerLockSampleRate;
-- (void)setAudioPlayerLockSampleRate:(BOOL)lockSampleRate;
 
 - (NSString *)windowAppearanceStyle;
 - (void)setWindowAppearanceStyle:(NSString *)name;

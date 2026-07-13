@@ -80,6 +80,14 @@
     BOOL fromCache = NO;
     if (WAVEFORM_CACHE_ENABLED) {
         cachedWaveform = (CodableAudioWaveform *)[self->_waveformCache.diskCache objectForKey:cacheKey];
+        // PINCache unarchives without secure coding, so a corrupt/tampered
+        // entry with a different root class decodes cleanly and would crash
+        // (unrecognized selector) at first use — on every play of this track,
+        // since nothing would ever evict it. Same guard as the metadata cache.
+        if (cachedWaveform && ![cachedWaveform isKindOfClass:[CodableAudioWaveform class]]) {
+            [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
+            cachedWaveform = nil;
+        }
         fromCache = (cachedWaveform != nil);
     }
     if (!cachedWaveform) {

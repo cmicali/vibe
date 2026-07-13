@@ -21,9 +21,4 @@
 
 + (BOOL)deviceHasOutputChannels:(AudioDeviceID)deviceID;
 
-// 0 on failure.
-+ (double)nominalSampleRateForDevice:(AudioDeviceID)deviceID;
-
-+ (BOOL)setBestSampleRate:(double)rate forDeviceUID:(NSString *)uid;
-
 @end

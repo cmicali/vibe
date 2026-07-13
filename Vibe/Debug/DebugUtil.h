@@ -7,6 +7,13 @@
 
 #if DEBUG
 
+// The implementation is ObjC++ (DebugUtil.mm) but the callers (main.m,
+// AppDelegate.m) are plain ObjC — without C linkage the definitions get
+// C++-mangled names and the link fails.
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Installs a notification hook that dumps the frontmost window to a PNG.
 // Trigger from a terminal:
 //
@@ -49,5 +56,9 @@ void VibeInstallDebugCommandHook(void);
 // NSApplicationMain, so no second app instance ever starts. Returns the
 // process exit code (0 ok, 1 no response, 2 command error, 64 usage).
 int VibeDebugCommandClientMain(int argc, const char *argv[]);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

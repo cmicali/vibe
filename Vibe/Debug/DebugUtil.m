@@ -12,9 +12,15 @@
 #import <ImageIO/ImageIO.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <notify.h>
-// Pulls in MainPlayerController, MainWindow, AudioPlayer, PlaylistManager,
-// AudioTrack, PitchControlPanel — everything the command dispatch touches.
 #import "AppDelegate.h"
+#import "MainPlayerController.h"
+#import "MainPlayerController+Debug.h"
+#import "MainWindow.h"
+#import "AudioPlayer.h"
+#import "AudioTrack.h"
+#import "PlaylistManager.h"
+#import "PitchControlPanel.h"
+#import "SYFlatButton.h"
 
 static NSString *VibeDebugScreenshotPath(void) {
     return [NSTemporaryDirectory() stringByAppendingPathComponent:@"vibe-screenshot.png"];
@@ -40,7 +46,7 @@ static void VibeDumpWindowSnapshot(void) {
     size_t pixelsHigh = (size_t)llround(view.bounds.size.height * scale);
     CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     CGContextRef ctx = CGBitmapContextCreate(NULL, pixelsWide, pixelsHigh, 8, 0, space,
-            kCGImageAlphaPremultipliedFirst | (CGBitmapInfo)kCGBitmapByteOrder32Host);
+            (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
     CGColorSpaceRelease(space);
     if (!ctx) {
         return;

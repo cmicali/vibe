@@ -7,6 +7,7 @@
 //
 
 #import "AppDelegate.h"
+#import "MainPlayerController.h"
 #import "NSURLUtil.h"
 #import "AboutWindowController.h"
 #import "MainMenuBuilder.h"

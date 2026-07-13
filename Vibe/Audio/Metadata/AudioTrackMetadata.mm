@@ -61,6 +61,12 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     NSData *_albumArtData;
     NSString *_sourceFilePath;
     BOOL _albumArtExtractionAttempted;
+    // The file carries art bytes ImageIO cannot decode (truncated/corrupt tag
+    // frame). Permanent for this file's content, so it is set regardless of
+    // _artGeneration and never cleared by the discard paths: without it,
+    // albumArtNeedsLoad would stay YES and the UI would re-dispatch the same
+    // doomed decode on every 3 Hz tick for as long as the track is current.
+    BOOL _albumArtUndecodable;
     BOOL _parsedOK;
     // Bumped ONLY by discardDecodedAlbumArt (track changed — drop everything).
     // An albumArt load that was in flight when that discard ran must not store
@@ -99,7 +105,7 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
         // Attempt the file re-read at most once: artless or moved files
         // must not pay a synchronous TagLib parse on every access. Claim the
         // attempt under the lock so concurrent callers don't double-extract.
-        else if (!_sourceFilePath || _albumArtExtractionAttempted) {
+        else if (!_sourceFilePath || _albumArtExtractionAttempted || _albumArtUndecodable) {
             return nil;
         }
         else {
@@ -118,6 +124,14 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     }
     NSImage *decoded = dataToDecode ? VibeDecodeImageData(dataToDecode, kDisplayArtMaxDimension) : nil;
     @synchronized (self) {
+        if (dataToDecode && !decoded) {
+            // The bytes exist but can't be decoded — permanent for this file,
+            // so mark it (generation-independent) and drop the bytes rather
+            // than pinning undecodable data for the playlist's lifetime.
+            _albumArtUndecodable = YES;
+            _albumArtData = nil;
+            return _albumArt; // still nil unless a concurrent store won
+        }
         // Store back only if no track-change discard (discardDecodedAlbumArt)
         // ran while the load was in flight; otherwise return the result
         // transiently (the caller re-checks currency anyway) without
@@ -164,7 +178,7 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 
 - (BOOL)albumArtNeedsLoad {
     @synchronized (self) {
-        if (_albumArt) {
+        if (_albumArt || _albumArtUndecodable) {
             return NO;
         }
         // Either in-memory bytes still need decoding, or the file hasn't been
@@ -264,6 +278,12 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
         }
     }
     @synchronized (self) {
+        if (dataToDecode && !thumbnail) {
+            // Same undecodable-bytes marking as the full-res path: without it
+            // every playlist cell redraw retries this doomed decode.
+            _albumArtUndecodable = YES;
+            _albumArtData = nil;
+        }
         if (!_thumbnailAlbumArt && thumbnail) {
             _thumbnailAlbumArt = thumbnail;
         }

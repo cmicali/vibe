@@ -5,19 +5,15 @@
 
 #import "AppSettings.h"
 
-#define SETTING_HAS_LAUNCHED                        @"Settings.hasLaunched"
 #define SETTING_WINDOW_APPEARANCE_STYLE             @"Settings.windowAppearance"
 #define SETTING_WAVEFORM_STYLE                      @"Settings.waveformStyle"
 #define SETTING_AUDIO_PLAYER_DEVICE_NAME            @"AudioPlayer.deviceName"
 #define SETTING_AUDIO_PLAYER_DEVICE_UID             @"AudioPlayer.deviceUID"
-#define SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE       @"AudioPlayer.lockSampleRate"
 #define SETTING_PITCH_PANEL_SHOWN                   @"MainWindow.pitchPanelShown"
 #define SETTING_PLAYLIST_SHOWN                      @"MainWindow.playlistShown"
 #define SETTING_PITCH_RANGE                         @"AudioPlayer.pitchRange"
 
-@implementation AppSettings {
-    BOOL _firstLaunch;
-}
+@implementation AppSettings
 
 + (AppSettings*)sharedInstance {
     static AppSettings *instance = nil;
@@ -37,14 +33,9 @@
 }
 
 - (void)registerDefaults {
-    _firstLaunch = NO;
-    if (![[NSUserDefaults standardUserDefaults] boolForKey:SETTING_HAS_LAUNCHED]) {
-        _firstLaunch = YES;
-    }
     NSDictionary *appDefaults = @{
             SETTING_AUDIO_PLAYER_DEVICE_NAME:       @"",
             SETTING_AUDIO_PLAYER_DEVICE_UID:        @"",
-            SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE:  @(NO),
             SETTING_WINDOW_APPEARANCE_STYLE:        SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK,
             SETTING_WAVEFORM_STYLE:                 SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
             SETTING_PITCH_PANEL_SHOWN:              @(NO),
@@ -52,7 +43,6 @@
             SETTING_PITCH_RANGE:                    @(8),
     };
     [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
-    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:SETTING_HAS_LAUNCHED];
 }
 
 - (NSString *)audioOutputDeviceName {
@@ -71,22 +61,10 @@
     [[NSUserDefaults standardUserDefaults] setObject:deviceUID forKey:SETTING_AUDIO_PLAYER_DEVICE_UID];
 }
 
-- (BOOL) audioPlayerLockSampleRate {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE];
-}
-
--(void) setAudioPlayerLockSampleRate:(BOOL)lockSampleRate {
-    [[NSUserDefaults standardUserDefaults] setBool:lockSampleRate forKey:SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE];
-}
-
 - (void)applicationDidFinishLaunching {
     [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"NSQuitAlwaysKeepsWindows"];
     [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"NSFullScreenMenuItemEverywhere"];
     [NSApplication sharedApplication].automaticCustomizeTouchBarMenuItemEnabled = NO;
-}
-
-- (BOOL)isFirstLaunch {
-    return _firstLaunch;
 }
 
 - (NSString *)windowAppearanceStyle {

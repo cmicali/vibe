@@ -14,9 +14,11 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Bar color follows the view's own effectiveAppearance (white in dark, black
+// in light) and re-resolves on appearance change — a snapshot taken while the
+// cell was detached from the table would resolve against the app/system
+// appearance instead of the window's forced appearance.
 @interface EqualizerIndicatorView : NSView
-
-@property (nonatomic, strong) NSColor *color;
 
 // YES: bars bounce (track playing). NO: bars hold a static pose (paused).
 @property (nonatomic) BOOL animating;

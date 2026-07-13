@@ -4,12 +4,15 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "AudioWaveform.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Waveform Cache
 
+// Kept a forward declaration (its header defines C++ classes): importing
+// AudioWaveform.h here would force every transitive importer — most of the
+// UI layer — to compile as ObjC++.
+@class CodableAudioWaveform;
 @class AudioTrack;
 @protocol AudioWaveformCacheDelegate;
 

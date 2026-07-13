@@ -5,8 +5,6 @@
 
 #import <AppKit/AppKit.h>
 
-#include "AudioWaveformCache.h"
-
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioWaveformViewDelegate;

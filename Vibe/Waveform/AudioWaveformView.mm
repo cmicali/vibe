@@ -5,6 +5,8 @@
 
 #import <Quartz/Quartz.h>
 #import "AudioWaveformView.h"
+#import "AudioWaveformCache.h"
+#import "AudioWaveform.h"
 #import "AudioTrack.h"
 #import "DetailedAudioWaveformRenderer.h"
 #import "VibeDefaultWaveformRenderer.h"

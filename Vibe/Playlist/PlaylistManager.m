@@ -168,7 +168,6 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
         if (row == self.currentIndex) {
             view.textField.hidden = YES;
             eqView.hidden = NO;
-            eqView.color = view.isDark ? NSColor.whiteColor : NSColor.blackColor;
             eqView.animating = self.audioPlayer.isPlaying;
         }
         else {

@@ -4,6 +4,7 @@
 //
 
 #import "EqualizerIndicatorView.h"
+#import "NSView+DarkMode.h"
 
 // enum, not static const: a const variable isn't a C constant expression,
 // so using it as an array size would make the tables below VLAs.
@@ -33,18 +34,32 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0};
     self = [super initWithFrame:frameRect];
     if (self) {
         self.wantsLayer = YES;
-        _color = NSColor.whiteColor;
         NSMutableArray<CALayer *> *bars = [NSMutableArray arrayWithCapacity:kBarCount];
         for (NSUInteger i = 0; i < kBarCount; i++) {
             CALayer *bar = [CALayer layer];
             bar.anchorPoint = CGPointMake(0.5, 0); // grow from the baseline
-            bar.backgroundColor = _color.CGColor;
             [self.layer addSublayer:bar];
             [bars addObject:bar];
         }
         _bars = bars;
+        [self applyAppearanceColor];
     }
     return self;
+}
+
+- (void)applyAppearanceColor {
+    CGColorRef color = (self.isDark ? NSColor.whiteColor : NSColor.blackColor).CGColor;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    for (CALayer *bar in _bars) {
+        bar.backgroundColor = color;
+    }
+    [CATransaction commit];
+}
+
+- (void)viewDidChangeEffectiveAppearance {
+    [super viewDidChangeEffectiveAppearance];
+    [self applyAppearanceColor];
 }
 
 - (void)layout {
@@ -62,25 +77,18 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0};
     [CATransaction commit];
 }
 
-- (void)setColor:(NSColor *)color {
-    _color = color;
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    for (CALayer *bar in _bars) {
-        bar.backgroundColor = color.CGColor;
-    }
-    [CATransaction commit];
-}
-
 - (void)setAnimating:(BOOL)animating {
     _animating = animating;
     [self updateAnimations];
 }
 
 // Core Animation strips animations whenever the layer leaves the layer tree
-// (table cell reuse detaches the view); reinstall on re-attach.
+// (table cell reuse detaches the view); reinstall on re-attach. The color is
+// re-resolved too: attaching to a window can change the effective appearance
+// without a viewDidChangeEffectiveAppearance callback.
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
+    [self applyAppearanceColor];
     [self updateAnimations];
 }
 

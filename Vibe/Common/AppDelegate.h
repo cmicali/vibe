@@ -6,7 +6,9 @@
 //  Copyright © 2019 Christopher Micali. All rights reserved.
 //
 
-#import "MainPlayerController.h"
+#import <Cocoa/Cocoa.h>
+
+@class MainPlayerController;
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 
