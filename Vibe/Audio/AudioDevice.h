@@ -12,6 +12,5 @@
 @property (nonatomic, copy)     NSString *uid;
 @property (assign)              NSInteger deviceId;
 @property (assign)              BOOL isSystemDefault;
-@property (nonatomic, strong)   NSArray<NSNumber *>* supportedOutputSampleRates;
 
 @end

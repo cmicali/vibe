@@ -4,21 +4,26 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <CoreAudio/CoreAudio.h>
 
-@protocol CoreAudioSystemOutputDeviceDelegate;
-
+// Raw HAL property accessors (one property read/write per method). Device
+// enumeration, AudioDevice model lookup, and device-change notifications
+// live in AudioDeviceManager.
 @interface CoreAudioUtil : NSObject
 
-+ (void)listenForSystemOutputDeviceChanges:(id <CoreAudioSystemOutputDeviceDelegate>)delegate;
-+ (void)stopListeningForSystemOutputDeviceChanges;
-+ (NSArray<NSNumber *> *)supportedSampleRatesForOutputDevice:(NSString *)uid;
+// kAudioObjectUnknown when the UID doesn't resolve / there is no default.
++ (AudioDeviceID)audioDeviceIDforUID:(NSString *)deviceUid;
++ (AudioDeviceID)systemDefaultOutputDeviceID;
+
+// nil when the device is gone or has no such property.
++ (NSString *)uidForDeviceID:(AudioDeviceID)deviceID;
++ (NSString *)nameForDeviceID:(AudioDeviceID)deviceID;
+
++ (BOOL)deviceHasOutputChannels:(AudioDeviceID)deviceID;
+
+// 0 on failure.
++ (double)nominalSampleRateForDevice:(AudioDeviceID)deviceID;
 
 + (BOOL)setBestSampleRate:(double)rate forDeviceUID:(NSString *)uid;
-
-@end
-
-@protocol CoreAudioSystemOutputDeviceDelegate <NSObject>
-- (void)systemAudioOutputDeviceDidChange;
-@optional
 
 @end

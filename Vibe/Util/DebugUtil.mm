@@ -175,83 +175,105 @@ static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
     };
 }
 
+// Every debug command replies with exactly one JSON object; errors are
+// {"error": "..."} (the client maps them to exit code 2).
 static NSString *VibeJSONString(NSDictionary *dict) {
     NSData *data = [NSJSONSerialization dataWithJSONObject:dict
                                                    options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys
                                                      error:nil];
     NSString *json = data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
-    return json ?: @"ERROR: state not JSON-serializable";
+    return json ?: @"{\"error\": \"response not JSON-serializable\"}";
 }
 
-static void VibeAppendViewTree(NSView *view, NSUInteger depth, NSMutableString *out) {
-    [out appendString:[@"" stringByPaddingToLength:depth * 2 withString:@" " startingAtIndex:0]];
-    [out appendFormat:@"%@ %p", view.className, view];
+static NSString *VibeErrorJSON(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);
+static NSString *VibeErrorJSON(NSString *format, ...) {
+    va_list args;
+    va_start(args, format);
+    NSString *message = [[NSString alloc] initWithFormat:format arguments:args];
+    va_end(args);
+    return VibeJSONString(@{@"error": message});
+}
+
+static NSDictionary *VibeViewDictionary(NSView *view) {
+    NSMutableDictionary *node = [NSMutableDictionary dictionary];
+    node[@"class"] = view.className;
+    node[@"address"] = [NSString stringWithFormat:@"%p", view];
     if (view.identifier.length) {
-        [out appendFormat:@" id=%@", view.identifier];
+        node[@"id"] = view.identifier;
     }
-    [out appendFormat:@" frame=%@", NSStringFromRect(view.frame)];
+    node[@"frame"] = NSStringFromRect(view.frame);
     if (view.isHidden) {
-        [out appendString:@" hidden"];
+        node[@"hidden"] = @YES;
     }
     if (view.alphaValue < 1.0) {
-        [out appendFormat:@" alpha=%.2f", view.alphaValue];
+        node[@"alpha"] = @(view.alphaValue);
     }
     if (view.autoresizingMask != NSViewNotSizable) {
-        [out appendFormat:@" mask=0x%lx", (unsigned long)view.autoresizingMask];
+        node[@"mask"] = [NSString stringWithFormat:@"0x%lx", (unsigned long)view.autoresizingMask];
     }
-    [out appendString:@"\n"];
-    for (NSView *subview in view.subviews) {
-        VibeAppendViewTree(subview, depth + 1, out);
+    if (view.subviews.count) {
+        NSMutableArray *subviews = [NSMutableArray array];
+        for (NSView *subview in view.subviews) {
+            [subviews addObject:VibeViewDictionary(subview)];
+        }
+        node[@"subviews"] = subviews;
     }
+    return node;
 }
 
 static NSString *VibeViewTreeDump(void) {
-    NSMutableString *out = [NSMutableString string];
+    NSMutableArray *windows = [NSMutableArray array];
     for (NSWindow *window in NSApp.windows) {
-        [out appendFormat:@"%@ %p \"%@\" frame=%@ visible=%d key=%d\n",
-                          window.className, window, window.title, NSStringFromRect(window.frame),
-                          window.isVisible, window.isKeyWindow];
+        NSMutableDictionary *node = [NSMutableDictionary dictionary];
+        node[@"class"] = window.className;
+        node[@"address"] = [NSString stringWithFormat:@"%p", window];
+        node[@"title"] = window.title ?: @"";
+        node[@"frame"] = NSStringFromRect(window.frame);
+        node[@"visible"] = @(window.isVisible);
+        node[@"key"] = @(window.isKeyWindow);
         if (window.contentView) {
-            VibeAppendViewTree(window.contentView, 1, out);
+            node[@"contentView"] = VibeViewDictionary(window.contentView);
         }
+        [windows addObject:node];
     }
-    return out;
+    return VibeJSONString(@{@"windows": windows});
 }
 
-static void VibeAppendMenuTree(NSMenu *menu, NSUInteger depth, NSMutableString *out) {
+static NSArray *VibeMenuArray(NSMenu *menu) {
     // Runs validateMenuItem exactly like opening the menu would, so
     // enabled/checkmark below are live, not stale defaults. Also fires
     // menuNeedsUpdate for delegate-built menus (Open Recent, waveform styles).
     [menu update];
+    NSMutableArray *items = [NSMutableArray array];
     for (NSMenuItem *item in menu.itemArray) {
-        NSString *indent = [@"" stringByPaddingToLength:depth * 2 withString:@" " startingAtIndex:0];
         if (item.isSeparatorItem) {
-            [out appendFormat:@"%@---\n", indent];
+            [items addObject:@{@"separator": @YES}];
             continue;
         }
-        [out appendFormat:@"%@\"%@\"", indent, item.title];
+        NSMutableDictionary *node = [NSMutableDictionary dictionary];
+        node[@"title"] = item.title;
         if (item.identifier.length) {
-            [out appendFormat:@" id=%@", item.identifier];
+            node[@"id"] = item.identifier;
         }
         if (item.keyEquivalent.length) {
-            NSString *key = [item.keyEquivalent stringByReplacingOccurrencesOfString:@"\t" withString:@"\\t"];
-            [out appendFormat:@" key=\"%@\"", key];
+            node[@"key"] = item.keyEquivalent;
             if (item.keyEquivalentModifierMask) {
-                [out appendFormat:@" mods=0x%lx", (unsigned long)item.keyEquivalentModifierMask];
+                node[@"mods"] = [NSString stringWithFormat:@"0x%lx", (unsigned long)item.keyEquivalentModifierMask];
             }
         }
         if (item.action) {
-            [out appendFormat:@" action=%@", NSStringFromSelector(item.action)];
+            node[@"action"] = NSStringFromSelector(item.action);
         }
-        [out appendFormat:@" enabled=%d", item.isEnabled];
+        node[@"enabled"] = @(item.isEnabled);
         if (item.state != NSControlStateValueOff) {
-            [out appendFormat:@" state=%ld", (long)item.state];
+            node[@"state"] = @(item.state);
         }
-        [out appendString:@"\n"];
         if (item.submenu) {
-            VibeAppendMenuTree(item.submenu, depth + 1, out);
+            node[@"items"] = VibeMenuArray(item.submenu);
         }
+        [items addObject:node];
     }
+    return items;
 }
 
 static NSMenuItem *VibeFindMenuItem(NSMenu *menu, NSString *name) {
@@ -272,34 +294,41 @@ static NSMenuItem *VibeFindMenuItem(NSMenu *menu, NSString *name) {
 static NSString *VibeClickMenuItem(NSString *name) {
     NSMenuItem *item = VibeFindMenuItem(NSApp.mainMenu, name);
     if (!item) {
-        return [NSString stringWithFormat:@"ERROR: no menu item with identifier or title '%@' (run `menu` to list)", name];
+        return VibeErrorJSON(@"no menu item with identifier or title '%@' (run `menu` to list)", name);
     }
     [item.menu update]; // same validation pass opening the menu would run
     if (!item.isEnabled) {
-        return [NSString stringWithFormat:@"ERROR: menu item '%@' is disabled", item.title];
+        return VibeErrorJSON(@"menu item '%@' is disabled", item.title);
     }
     if (!item.action) {
-        return [NSString stringWithFormat:@"ERROR: menu item '%@' has no action", item.title];
+        return VibeErrorJSON(@"menu item '%@' has no action", item.title);
     }
     if (![NSApp sendAction:item.action to:item.target from:item]) {
-        return [NSString stringWithFormat:@"ERROR: no responder handled %@", NSStringFromSelector(item.action)];
+        return VibeErrorJSON(@"no responder handled %@", NSStringFromSelector(item.action));
     }
-    return [NSString stringWithFormat:@"ok clicked \"%@\" (%@)", item.title, NSStringFromSelector(item.action)];
+    return VibeJSONString(@{
+        @"ok": @YES,
+        @"clicked": item.title,
+        @"action": NSStringFromSelector(item.action),
+    });
 }
 
-// One-line result for action commands: enough to assert on without a second
+// Compact result for action commands: enough to assert on without a second
 // `state` round-trip. Transport actions kick off async engine work, so state
 // here can be a beat behind (it's read synchronously after the call).
 static NSString *VibeActionSummary(MainPlayerController *controller) {
     AudioPlayer *player = controller.audioPlayer;
     MainWindow *window = (MainWindow *)controller.window;
-    return [NSString stringWithFormat:
-            @"ok state=%@ index=%lu/%lu position=%.2f pitch=%+.1f playlistShown=%d pitchPanelShown=%d",
-            VibePlayerStateName(player),
-            (unsigned long)controller.playlistManager.currentIndex,
-            (unsigned long)controller.playlistManager.count,
-            player.position, player.pitch,
-            window.isPlaylistShown, window.isPitchPanelShown];
+    return VibeJSONString(@{
+        @"ok": @YES,
+        @"state": VibePlayerStateName(player),
+        @"index": @(controller.playlistManager.currentIndex),
+        @"count": @(controller.playlistManager.count),
+        @"position": @(player.position),
+        @"pitch": @(player.pitch),
+        @"playlistShown": @(window.isPlaylistShown),
+        @"pitchPanelShown": @(window.isPitchPanelShown),
+    });
 }
 
 static NSString *VibeExecuteDebugCommand(NSString *commandLine) {
@@ -316,7 +345,7 @@ static NSString *VibeExecuteDebugCommand(NSString *commandLine) {
     MainPlayerController *controller = [appDelegate isKindOfClass:AppDelegate.class]
             ? appDelegate.mainPlayerController : nil;
     if (!controller) {
-        return @"ERROR: app not fully launched";
+        return VibeErrorJSON(@"app not fully launched");
     }
     AudioPlayer *player = controller.audioPlayer;
 
@@ -327,13 +356,11 @@ static NSString *VibeExecuteDebugCommand(NSString *commandLine) {
         return VibeViewTreeDump();
     }
     if ([verb isEqualToString:@"menu"]) {
-        NSMutableString *out = [NSMutableString string];
-        VibeAppendMenuTree(NSApp.mainMenu, 0, out);
-        return out;
+        return VibeJSONString(@{@"menu": VibeMenuArray(NSApp.mainMenu)});
     }
     if ([verb isEqualToString:@"clickMenu"]) {
         if (tokens.count < 2) {
-            return @"ERROR: usage: clickMenu <identifier-or-title>";
+            return VibeErrorJSON(@"usage: clickMenu <identifier-or-title>");
         }
         // Rest of the line, so exact titles with spaces work too.
         NSString *name = [[tokens subarrayWithRange:NSMakeRange(1, tokens.count - 1)]
@@ -342,7 +369,7 @@ static NSString *VibeExecuteDebugCommand(NSString *commandLine) {
     }
     if ([verb isEqualToString:@"screenshot"]) {
         VibeDumpWindowSnapshot();
-        return VibeDebugScreenshotPath();
+        return VibeJSONString(@{@"path": VibeDebugScreenshotPath()});
     }
     if ([verb isEqualToString:@"playPause"]) {
         [controller playPause:nil];
@@ -366,7 +393,7 @@ static NSString *VibeExecuteDebugCommand(NSString *commandLine) {
     }
     if ([verb isEqualToString:@"setPitch"]) {
         if (tokens.count < 2) {
-            return @"ERROR: usage: setPitch <percent>";
+            return VibeErrorJSON(@"usage: setPitch <percent>");
         }
         // Through the panel first so the fader clamps to its range exactly
         // like a drag, then the player takes the clamped value.
@@ -377,16 +404,16 @@ static NSString *VibeExecuteDebugCommand(NSString *commandLine) {
     }
     if ([verb isEqualToString:@"seek"]) {
         if (tokens.count < 2) {
-            return @"ERROR: usage: seek <seconds>";
+            return VibeErrorJSON(@"usage: seek <seconds>");
         }
         player.position = tokens[1].doubleValue;
         [controller debugRefreshUI];
         return VibeActionSummary(controller);
     }
-    return [NSString stringWithFormat:
-            @"ERROR: unknown command '%@'. Commands: state, viewtree, menu, screenshot, playPause, "
+    return VibeErrorJSON(
+            @"unknown command '%@'. Commands: state, viewtree, menu, screenshot, playPause, "
             @"next, previous, togglePitchPanel, toggleSize, setPitch <percent>, seek <seconds>, "
-            @"clickMenu <identifier-or-title>", verb];
+            @"clickMenu <identifier-or-title>", verb);
 }
 
 static void VibeHandleDebugCommandFile(void) {
@@ -458,7 +485,14 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
                 if (response.length) {
                     printf("%s\n", response.UTF8String);
                 }
-                return [response hasPrefix:@"ERROR"] ? 2 : 0;
+                // Replies are always a single JSON object; {"error": ...}
+                // means the command failed.
+                NSDictionary *reply = [NSJSONSerialization JSONObjectWithData:
+                        [response dataUsingEncoding:NSUTF8StringEncoding] ?: NSData.data
+                                                                      options:0
+                                                                        error:nil];
+                BOOL failed = ![reply isKindOfClass:NSDictionary.class] || reply[@"error"] != nil;
+                return failed ? 2 : 0;
             }
         }
         [fileManager removeItemAtPath:VibeDebugCommandPath() error:nil];

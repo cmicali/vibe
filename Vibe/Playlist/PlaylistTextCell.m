@@ -30,8 +30,4 @@
     self.editable = NO;
 }
 
-- (NSRect)drawingRectForBounds:(NSRect)rect {
-    return [super drawingRectForBounds:rect];
-}
-
 @end

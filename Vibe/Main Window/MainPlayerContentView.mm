@@ -10,6 +10,7 @@
 #import "BackgroundArtworkImageView.h"
 #import "AudioWaveformView.h"
 #import "NSView+DarkMode.h"
+#import "Fonts.h"
 
 // Design-time size; the controller resizes the view to the window's restored
 // frame after adding it, which runs the same autoresizing pass a nib load
@@ -57,9 +58,28 @@ static const CGFloat kDesignHeight = 350;
     [self updateMaterialForAppearance];
 }
 
+// One shadow recipe for every header label. Rasterization is opted out for
+// fields whose content changes every second (re-rastering would cost more
+// than it saves).
+static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
+    field.wantsLayer = YES;
+    field.layer.shadowColor = NSColor.blackColor.CGColor;
+    field.layer.shadowRadius = 0.25;
+    field.layer.shadowOpacity = 0.75;
+    field.layer.shadowOffset = CGSizeMake(0, -1);
+    field.layer.masksToBounds = NO;
+    field.layer.shouldRasterize = rasterize;
+    if (rasterize) {
+        field.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
+    }
+}
+
 - (void)buildSubviewsWithTarget:(id)target {
     _backgroundAlbumArtImageView = [[BackgroundArtworkImageView alloc] initWithFrame:NSMakeRect(125, 200, 577, 150)];
     _backgroundAlbumArtImageView.wantsLayer = YES;
+    _backgroundAlbumArtImageView.layer.masksToBounds = NO;
+    // No shouldRasterize: it was only there to cache the (long removed) live
+    // CIGaussianBlur filter output; the image is pre-blurred these days.
     _backgroundAlbumArtImageView.autoresizingMask = NSViewMinXMargin | NSViewMaxXMargin | NSViewMinYMargin;
     [self addSubview:_backgroundAlbumArtImageView];
 
@@ -72,10 +92,28 @@ static const CGFloat kDesignHeight = 350;
     _albumArtImageView.imageScaling = NSImageScaleProportionallyUpOrDown;
     _albumArtImageView.refusesFirstResponder = YES;
     _albumArtImageView.focusRingType = NSFocusRingTypeNone;
+    _albumArtImageView.wantsLayer = YES;
+    _albumArtImageView.layer.shadowRadius = 6;
+    _albumArtImageView.layer.shadowOpacity = 0.25;
+    _albumArtImageView.layer.shadowOffset = CGSizeMake(4, 0);
+    _albumArtImageView.layer.masksToBounds = NO;
+    _albumArtImageView.layer.shouldRasterize = true;
+    _albumArtImageView.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
     _albumArtImageView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
     [self addSubview:_albumArtImageView];
 
+    // Darkening gradient over the album art (dark at the bottom, fading out
+    // upward — the default CAGradientLayer axis) so the transport buttons
+    // overlaying the art's lower half read against bright covers.
     _albumArtGradientView = [[NSView alloc] initWithFrame:NSMakeRect(0, 200, 150, 150)];
+    _albumArtGradientView.wantsLayer = YES;
+    CAGradientLayer *artGradient = [[CAGradientLayer alloc] init];
+    artGradient.colors = @[
+            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.85].CGColor,
+            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.25].CGColor,
+            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0].CGColor
+    ];
+    _albumArtGradientView.layer = artGradient;
     _albumArtGradientView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
     [self addSubview:_albumArtGradientView];
 
@@ -111,26 +149,34 @@ static const CGFloat kDesignHeight = 350;
     NSColor *dimmedTextColor = [NSColor secondaryLabelColor];
 
     _artistTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(158, 293, 512, 48)];
-    _artistTextField.font = [NSFont fontWithName:@"HelveticaNeue-Medium" size:16];
+    _artistTextField.font = [Fonts font:16];
     _artistTextField.textColor = dimmedTextColor;
     _artistTextField.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
+    configureLabelShadow(_artistTextField, YES);
     [self addSubview:_artistTextField];
 
     _titleTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(158, 292, 512, 30)];
-    _titleTextField.font = [NSFont fontWithName:@"HelveticaNeue-Medium" size:23];
+    _titleTextField.font = [Fonts font:23];
     _titleTextField.textColor = [NSColor labelColor];
     _titleTextField.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
+    configureLabelShadow(_titleTextField, YES);
     [self addSubview:_titleTextField];
 
     _totalTimeTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(611, 207, 59, 16)];
+    _totalTimeTextField.font = [Fonts fontForNumbers:_totalTimeTextField.font.pointSize bold:YES];
     _totalTimeTextField.alignment = NSTextAlignmentRight;
     _totalTimeTextField.textColor = dimmedTextColor;
     _totalTimeTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
+    configureLabelShadow(_totalTimeTextField, YES);
     [self addSubview:_totalTimeTextField];
 
     _currentTimeTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(158, 207, 59, 16)];
+    _currentTimeTextField.font = [Fonts fontForNumbers:_currentTimeTextField.font.pointSize bold:YES];
     _currentTimeTextField.textColor = dimmedTextColor;
     _currentTimeTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
+    // No rasterization: this field's content changes every second, so
+    // rasterization would just force a re-raster on every update.
+    configureLabelShadow(_currentTimeTextField, NO);
     [self addSubview:_currentTimeTextField];
 
     _playlistDimView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, kDesignWidth, 200)];
@@ -141,10 +187,12 @@ static const CGFloat kDesignHeight = 350;
     [self addSubview:[self buildPlaylistScrollViewWithFrame:NSMakeRect(0, 0, kDesignWidth, 200)]];
 
     _fileMetadataTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(430, 325, 240, 16)];
+    _fileMetadataTextField.font = [Fonts fontForNumbers:_totalTimeTextField.font.pointSize bold:NO];
     _fileMetadataTextField.alignment = NSTextAlignmentRight;
     _fileMetadataTextField.textColor = dimmedTextColor;
     _fileMetadataTextField.alphaValue = 0.5;
     _fileMetadataTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
+    configureLabelShadow(_fileMetadataTextField, YES);
     [self addSubview:_fileMetadataTextField];
 }
 
@@ -158,6 +206,18 @@ static const CGFloat kDesignHeight = 350;
     table.allowsExpansionToolTips = YES;
     table.backgroundColor = [NSColor clearColor];
     table.focusRingType = NSFocusRingTypeNone;
+    table.intercellSpacing = NSMakeSize(0, 0);
+    table.columnAutoresizingStyle = NSTableViewSequentialColumnAutoresizingStyle;
+    // Type-select would swallow plain keystrokes (jump to the first row
+    // starting with that letter) before the menu sees them, breaking the
+    // unmodified transport key equivalents (Space/B/N) whenever the table
+    // has focus.
+    table.allowsTypeSelect = NO;
+    // Opt out of the macOS 11+ inset look; we want the selection highlight
+    // and row content flush with the scroll view's left/right edges.
+    if (@available(macOS 11.0, *)) {
+        table.style = NSTableViewStyleFullWidth;
+    }
 
     struct {
         NSString *identifier;
@@ -187,8 +247,11 @@ static const CGFloat kDesignHeight = 350;
     scrollView.horizontalScrollElasticity = NSScrollElasticityNone;
     scrollView.verticalLineScroll = 28;
     scrollView.horizontalLineScroll = 28;
+    scrollView.automaticallyAdjustsContentInsets = NO;
+    scrollView.contentInsets = NSEdgeInsetsZero;
     scrollView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     scrollView.documentView = table;
+    [table sizeToFit];
 
     _playlistTableView = table;
     return scrollView;

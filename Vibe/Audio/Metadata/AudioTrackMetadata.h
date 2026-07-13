@@ -15,11 +15,15 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioTrackMetadata : NSObject <NSSecureCoding>
 
-@property (copy) NSString *title;
-@property (copy) NSString *artist;
-@property (copy) NSString *fileType;
-@property (copy) NSNumber *bitrate;
-@property (copy) NSNumber *sampleRate;
+// All nullable: a failed parse populates only the filename-derived title, a
+// tagless file carries no artist, audioProperties can be absent (no
+// bitrate/sampleRate), and a validated cache decode can hand back nil for any
+// field (initWithCoder: treats them all as optional).
+@property (copy, nullable) NSString *title;
+@property (copy, nullable) NSString *artist;
+@property (copy, nullable) NSString *fileType;
+@property (copy, nullable) NSNumber *bitrate;
+@property (copy, nullable) NSNumber *sampleRate;
 @property (assign) NSTimeInterval duration;
 
 // YES only when TagLib actually opened the file and read its tag. NO means
@@ -35,8 +39,8 @@ NS_ASSUME_NONNULL_BEGIN
 // May synchronously re-read the audio FILE (cache-hit instances don't carry
 // the art bytes) — never call on the main thread; a cloud placeholder file
 // can block until it downloads. Use albumArtIfLoaded + albumArtNeedsLoad on
-// the main thread instead.
-@property (strong) NSImage *albumArt;
+// the main thread instead. nil for artless tracks and unreadable files.
+@property (strong, nullable) NSImage *albumArt;
 
 // Non-blocking: returns the art only if it has already been decoded. Never
 // does decode work — a full-res ImageIO decode is a 10-100ms hitch on the
@@ -52,7 +56,10 @@ NS_ASSUME_NONNULL_BEGIN
 // parsed instances otherwise pin 0.5-5MB per track for the session; after
 // this call the instance behaves exactly like a cache hit — the albumArt
 // getter re-reads the audio file on demand for the one track displayed
-// full-res.
+// full-res. Does NOT invalidate an in-flight or completed decode of those
+// bytes (only discardDecodedAlbumArt does): the loader calls this right
+// after publishing metadata, racing the current track's first full-res
+// decode.
 - (void)discardAlbumArtData;
 
 // Demotes a track no longer displayed full-res: drops the decoded full-size

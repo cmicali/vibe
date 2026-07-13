@@ -8,8 +8,46 @@
 #import "AudioDevice.h"
 #import "AudioDeviceManager.h"
 
-@implementation OutputDevicesMenuController {
+@interface OutputDevicesMenuController () <AudioDeviceManagerObserver>
+@end
 
+@implementation OutputDevicesMenuController {
+    // The devices menu while it is on screen (nil otherwise). Device
+    // notifications arrive in the common run-loop modes, so an open menu can
+    // be rebuilt in place when a device is (un)plugged or the default changes.
+    __weak NSMenu *_openMenu;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        [AudioDeviceManager.sharedInstance addObserver:self];
+    }
+    return self;
+}
+
+- (void)menuWillOpen:(NSMenu *)menu {
+    _openMenu = menu;
+}
+
+- (void)menuDidClose:(NSMenu *)menu {
+    _openMenu = nil;
+}
+
+- (void)audioOutputDevicesDidChange {
+    [self refreshOpenMenu];
+}
+
+- (void)systemDefaultOutputDeviceDidChange {
+    // The default-device marker icon moves even when the device list didn't.
+    [self refreshOpenMenu];
+}
+
+- (void)refreshOpenMenu {
+    NSMenu *menu = _openMenu;
+    if (menu) {
+        [self menuNeedsUpdate:menu];
+    }
 }
 
 - (void)menuNeedsUpdate:(NSMenu *)menu {
@@ -26,8 +64,6 @@
 
     NSMenuItem *item;
 
-//    [self configureMenuItem:[menu itemAtIndex:0] withDevice:AudioDeviceManager.sharedInstance.defaultOutputDevice];
-
     int i = 0;
     for (AudioDevice *device in devices) {
         item = [menu itemAtIndex:i];
@@ -40,7 +76,6 @@
 - (void)configureMenuItem:(NSMenuItem *)item withDevice:(AudioDevice *)device {
 
     BOOL isRequestedDevice = self.audioPlayer.currentlyRequestedAudioDeviceId == device.deviceId;
-//    BOOL isSystemDefaultDevice = AudioDeviceManager.sharedInstance.defaultOutputDeviceId == device.deviceId;
 
     item.title = [NSString stringWithFormat:@"%@", device.name];
     item.tag = device.deviceId;

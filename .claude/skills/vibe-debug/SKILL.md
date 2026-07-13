@@ -5,7 +5,7 @@ description: Launch, drive, inspect, and visually verify the Vibe app. Use whene
 
 # Debugging and verifying Vibe
 
-All debug tooling is compiled in **debug builds only** (`Common/DebugUtil.mm`). Build first:
+All debug tooling is compiled in **debug builds only** (`Util/DebugUtil.mm`). Build first:
 
 ```bash
 xcodebuild -workspace Vibe.xcworkspace -scheme Vibe -configuration Debug \
@@ -33,12 +33,14 @@ V="$APP/Contents/MacOS/Vibe"
 
 The Vibe binary doubles as its own CLI client (same bundle ID + sandbox, so it shares the app's container tmp). **Prefer this over lldb attach, CGEvent input, or AppleScript menu clicks** — no Accessibility/Automation permission, no frontmost requirement, doesn't pause the process.
 
+**Every command replies with exactly one JSON object** — never scrape text. Filter with `jq` (`-r` for shell substitution, `-e` to assert); drop to python only when the logic outgrows filtering (multi-step transforms, comparing states). Pipe via `printf '%s' "$out"`, not `echo` — zsh's `echo` rewrites `\t` escapes inside the JSON into illegal raw control characters. Errors are `{"error": "…"}` (exit code 2).
+
 ```bash
-"$V" --debug-cmd state           # JSON: player, current track, playlist, UI label text, window, settings
-"$V" --debug-cmd viewtree        # every window's view hierarchy: class, frame, hidden/alpha, mask
-"$V" --debug-cmd menu            # full menu tree: title, id, key equivalent, LIVE enabled/checkmark
-"$V" --debug-cmd clickMenu menu_show_pitch   # click by identifier (preferred) or exact title
-"$V" --debug-cmd screenshot      # in-process snapshot; prints the PNG path
+"$V" --debug-cmd state           # {player, currentTrack, playlist, ui (label text), window, settings}
+"$V" --debug-cmd viewtree        # {windows: [{class, frame, visible, key, contentView: {…, subviews}}]}
+"$V" --debug-cmd menu            # {menu: [{title, id, key, action, enabled, state, items}]} — LIVE enabled/checkmark
+"$V" --debug-cmd clickMenu menu_show_pitch   # {ok, clicked, action} — by identifier (preferred) or exact title
+"$V" --debug-cmd screenshot      # {path: <PNG path>} — in-process snapshot
 "$V" --debug-cmd playPause       # also: next, previous, togglePitchPanel, toggleSize
 "$V" --debug-cmd setPitch -4.5   # drives fader (clamps), player, and time labels together
 "$V" --debug-cmd seek 120        # seconds
@@ -46,14 +48,14 @@ The Vibe binary doubles as its own CLI client (same bundle ID + sandbox, so it s
 
 `menu` and `clickMenu` run the same `validateMenuItem` pass opening the menu would, so enabled/checkmark are live — this replaces AppleScript/System Events menu clicking (no Automation permission, no frontmost requirement). Get identifiers from `menu`.
 
-Action replies are a one-line `ok state=… position=…` summary read synchronously, so they can lag async engine work — run `state` afterwards to confirm. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error. With **two instances running, the command file is racy** (either instance may consume it) — quit one first.
+Action replies are a compact `{ok, state, index, count, position, pitch, playlistShown, pitchPanelShown}` object read synchronously, so they can lag async engine work — run `state` afterwards to confirm. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error. With **two instances running, the command file is racy** (either instance may consume it) — quit one first.
 
 ## Screenshots: two paths, each shows what the other can't
 
-**1. In-process snapshot** — synchronous one-liner (the command prints the PNG path):
+**1. In-process snapshot** — synchronous one-liner (the reply carries the PNG path):
 
 ```bash
-cp "$("$V" --debug-cmd screenshot)" shot.png
+cp "$("$V" --debug-cmd screenshot | jq -r .path)" shot.png
 ```
 
 (`notifyutil -p com.vibe.debug.screenshot` also works but is async — you'd have to sleep and copy from the container manually. Each capture overwrites the same file, so copy it out before the next one.)

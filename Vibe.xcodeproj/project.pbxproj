@@ -68,6 +68,7 @@
 		P17C4B01F0DE1201000000B3 /* MainMenuBuilder.mm in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A5 /* MainMenuBuilder.mm */; };
 		P17C4B01F0DE1201000000B5 /* DebugUtil.mm in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A9 /* DebugUtil.mm */; };
 		P17C4B01F0DE1201000000B4 /* MainPlayerContentView.mm in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A7 /* MainPlayerContentView.mm */; };
+		P17C4B01F0DE1201000000C4 /* ArtworkDisplayController.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000C2 /* ArtworkDisplayController.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -205,6 +206,8 @@
 		P17C4B01F0DE1201000000A6 /* MainMenuBuilder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MainMenuBuilder.h; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A7 /* MainPlayerContentView.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MainPlayerContentView.mm; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A8 /* MainPlayerContentView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MainPlayerContentView.h; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000C2 /* ArtworkDisplayController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ArtworkDisplayController.m; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000C3 /* ArtworkDisplayController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ArtworkDisplayController.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -232,6 +235,8 @@
 				34FF411D6D68971959338BC4 /* UI */,
 				34FF4C6489A152B4AE37F887 /* CoreAudioUtil.h */,
 				34FF496F9E64AD2135175796 /* CoreAudioUtil.mm */,
+				P17C4B01F0DE1201000000AA /* DebugUtil.h */,
+				P17C4B01F0DE1201000000A9 /* DebugUtil.mm */,
 				34FF42C946A6B74BCFE970B8 /* Formatters.h */,
 				34FF45FBACD93387E9706D41 /* Formatters.m */,
 				34FF44C3143D8C7424E75829 /* HelperMacros.h */,
@@ -402,6 +407,8 @@
 		B626E36623B65AF60075B506 /* Main Window */ = {
 			isa = PBXGroup;
 			children = (
+				P17C4B01F0DE1201000000C3 /* ArtworkDisplayController.h */,
+				P17C4B01F0DE1201000000C2 /* ArtworkDisplayController.m */,
 				B660F21723A6B8C600BBD9C8 /* MainPlayerController.h */,
 				B660F21823A6B8C600BBD9C8 /* MainPlayerController.mm */,
 				P17C4B01F0DE1201000000A7 /* MainPlayerContentView.mm */,
@@ -419,8 +426,6 @@
 			children = (
 				34FF4065120E705650E06694 /* AppDelegate.h */,
 				34FF4E1DD78AC461983E62F6 /* AppDelegate.mm */,
-				P17C4B01F0DE1201000000A9 /* DebugUtil.mm */,
-				P17C4B01F0DE1201000000AA /* DebugUtil.h */,
 				34FF4A51076EB07083C3A70A /* AppSettings.h */,
 				34FF4E137BF339459C5E63C0 /* AppSettings.m */,
 				34FF4EE108AD43AD9F0EC29A /* Fonts.h */,
@@ -653,6 +658,7 @@
 				P17C4B01F0DE1201000000B3 /* MainMenuBuilder.mm in Sources */,
 				P17C4B01F0DE1201000000B5 /* DebugUtil.mm in Sources */,
 				P17C4B01F0DE1201000000B4 /* MainPlayerContentView.mm in Sources */,
+				P17C4B01F0DE1201000000C4 /* ArtworkDisplayController.m in Sources */,
 				P17C4B01F0DE1201000000B2 /* PitchControlPanel.m in Sources */,
 				34FF4EEDE5F050658C8B07F9 /* AudioWaveformView.mm in Sources */,
 				34FF4F37386022BD3B0B511B /* AppDelegate.mm in Sources */,

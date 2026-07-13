@@ -54,10 +54,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)updateColors:(BOOL)isDark;
 - (void)addLayers:(NSUInteger)numLayers backgroundColor:(CGColorRef)color;
 - (void)addLayers:(NSUInteger)numLayers forClass:(Class)clazz backgroundColor:(CGColorRef)color;
-- (void)addOtherLayer:(CALayer *)layer;
 
-- (CAGradientLayer*) createGradientLayer;
-- (CAGradientLayer*) createGradientLayer:(NSString * __nullable)filterName;
 - (void) setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<NSColor*>*)colors;
 
 - (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform * __nullable)waveform;

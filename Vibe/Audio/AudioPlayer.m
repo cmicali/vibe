@@ -10,6 +10,7 @@
 #import "AudioTrack.h"
 #import "AudioDeviceManager.h"
 #import "AudioDevice.h"
+#import "CoreAudioUtil.h"
 #import <AVFoundation/AVFoundation.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>
@@ -63,6 +64,9 @@ static float VibeFadeVolume(float from, float to, int step) {
 // Default pitch fader range in percent (±8%, matching a stock SL-1200).
 static const float kDefaultMaxPitchPercent = 8.0f;
 
+@interface AudioPlayer () <AudioDeviceManagerObserver>
+@end
+
 @implementation AudioPlayer {
     dispatch_queue_t        _queue;
     AVAudioEngine           *_engine;
@@ -83,6 +87,12 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     // recovery restores from the segment start and the track restarts at 0:00
     // (or the last seek point). Reset alongside every _pausedPosition write.
     NSTimeInterval          _lastValidPosition;
+    // Bumped (under _stateLock) by every queue-side write of the position
+    // state above. The position getter runs concurrently on the main thread
+    // and writes _lastValidPosition back after computing off-lock; without
+    // the epoch check a getter that snapshotted pre-seek state could clobber
+    // the freshly seeked position with a stale one.
+    uint64_t                _positionEpoch;
     uint64_t                _generation;
     uint64_t                _openRequestId;
     // Bumped by every path that preempts an async volume ramp (pause, resume,
@@ -148,7 +158,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
             }
             // The engine isn't started until the first play.
 
-            [CoreAudioUtil listenForSystemOutputDeviceChanges:self];
+            [[AudioDeviceManager sharedInstance] addObserver:self];
 
             __weak AudioPlayer *weakSelf = self;
             self->_configChangeObserver = [[NSNotificationCenter defaultCenter]
@@ -177,7 +187,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     if (_configChangeObserver) {
         [[NSNotificationCenter defaultCenter] removeObserver:_configChangeObserver];
     }
-    [CoreAudioUtil stopListeningForSystemOutputDeviceChanges];
+    [[AudioDeviceManager sharedInstance] removeObserver:self];
     [_node stop];
     [_engine stop];
 }
@@ -228,6 +238,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     _segmentStartFrame = 0;
     _pausedPosition = 0;
     _lastValidPosition = 0;
+    _positionEpoch++;
     _state = VibePlayerStateLoading;
     os_unfair_lock_unlock(&_stateLock);
 
@@ -311,6 +322,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     _segmentStartFrame = 0;
     _pausedPosition = 0;
     _lastValidPosition = 0;
+    _positionEpoch++;
     _state = VibePlayerStatePlaying;
     os_unfair_lock_unlock(&_stateLock);
 
@@ -394,6 +406,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     _segmentStartFrame = 0;
     _pausedPosition = 0;
     _lastValidPosition = 0;
+    _positionEpoch++;
     _state = VibePlayerStateStopped;
     os_unfair_lock_unlock(&_stateLock);
     // Release the output device while idle; the next play restarts the engine.
@@ -479,6 +492,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
             os_unfair_lock_lock(&self->_stateLock);
             self->_pausedPosition = position;
             self->_lastValidPosition = position;
+            self->_positionEpoch++;
             self->_state = VibePlayerStatePaused;
             os_unfair_lock_unlock(&self->_stateLock);
             AudioTrack *track = self.currentTrack;
@@ -609,6 +623,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     AVAudioFramePosition segmentStartFrame = _segmentStartFrame;
     NSTimeInterval pausedPosition = _pausedPosition;
     NSTimeInterval lastValidPosition = _lastValidPosition;
+    uint64_t positionEpoch = _positionEpoch;
     os_unfair_lock_unlock(&_stateLock);
 
     if (!file || state == VibePlayerStateStopped) {
@@ -640,7 +655,16 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     position = MIN(MAX(position, 0), duration);
     if (playerTime && playerTime.sampleTimeValid) {
         os_unfair_lock_lock(&_stateLock);
-        _lastValidPosition = position;
+        // A seek/pause/track change may have rewritten the position state
+        // while this was computed off-lock; storing then would resurrect the
+        // pre-seek position. The stale reading is also not returned upward —
+        // the epoch writer's value is the truth now.
+        if (_positionEpoch == positionEpoch) {
+            _lastValidPosition = position;
+        }
+        else {
+            position = _lastValidPosition;
+        }
         os_unfair_lock_unlock(&_stateLock);
     }
     return position;
@@ -676,6 +700,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
         self->_segmentStartFrame = startFrame;
         self->_pausedPosition = (NSTimeInterval)startFrame / sampleRate;
         self->_lastValidPosition = self->_pausedPosition;
+        self->_positionEpoch++;
         os_unfair_lock_unlock(&self->_stateLock);
         if (wasPlaying) {
             NSError *startError = nil;
@@ -761,11 +786,11 @@ static const float kDefaultMaxPitchPercent = 8.0f;
         LogError(@"AudioPlayer: cannot change sample rate, no active output device");
         return;
     }
-    double currentRate = [AudioPlayer nominalSampleRateForDevice:deviceID];
+    double currentRate = [CoreAudioUtil nominalSampleRateForDevice:deviceID];
     if (currentRate == rate) {
         return;
     }
-    NSString *deviceUID = [AudioDeviceManager uidForDeviceID:deviceID];
+    NSString *deviceUID = [CoreAudioUtil uidForDeviceID:deviceID];
     if (!deviceUID) {
         LogError(@"AudioPlayer: cannot change sample rate, no UID for current device");
         return;
@@ -779,23 +804,9 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     [CoreAudioUtil setBestSampleRate:rate forDeviceUID:deviceUID];
 }
 
-+ (double)nominalSampleRateForDevice:(AudioDeviceID)deviceID {
-    AudioObjectPropertyAddress addr = {
-            kAudioDevicePropertyNominalSampleRate,
-            kAudioObjectPropertyScopeGlobal,
-            kAudioObjectPropertyElementMain
-    };
-    Float64 rate = 0;
-    UInt32 size = sizeof(rate);
-    if (AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, &rate) != noErr) {
-        return 0;
-    }
-    return rate;
-}
-
 #pragma mark - Output devices
 
-- (void)systemAudioOutputDeviceDidChange {
+- (void)systemDefaultOutputDeviceDidChange {
     if (self.currentlyRequestedAudioDeviceId == -1) {
         [self setOutputDevice:self.currentlyRequestedAudioDeviceId];
     }
@@ -812,7 +823,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
             return deviceID;
         }
     }
-    return [AudioDeviceManager systemDefaultOutputDeviceID];
+    return [CoreAudioUtil systemDefaultOutputDeviceID];
 }
 
 - (NSInteger)currentlyActiveAudioDeviceId {
@@ -844,7 +855,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
             newDeviceID = (AudioDeviceID)outputDeviceIndex;
         }
         else {
-            newDeviceID = [AudioDeviceManager systemDefaultOutputDeviceID];
+            newDeviceID = [CoreAudioUtil systemDefaultOutputDeviceID];
         }
 
         if (newDeviceID == kAudioObjectUnknown) {
@@ -869,7 +880,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
         self.currentlyRequestedAudioDeviceId = outputDeviceIndex;
 
         run_on_main_thread({
-            [self.delegate audioPlayer:self didChangeOuputDevice:self.currentlyRequestedAudioDeviceId];
+            [self.delegate audioPlayer:self didChangeOutputDevice:self.currentlyRequestedAudioDeviceId];
         });
 
     });
@@ -944,6 +955,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
         _segmentStartFrame = startFrame;
         _pausedPosition = positionToRestore;
         _lastValidPosition = positionToRestore;
+        _positionEpoch++;
         _state = wasPlaying ? VibePlayerStatePlaying : VibePlayerStatePaused;
         os_unfair_lock_unlock(&_stateLock);
         if (wasPlaying) {
@@ -994,7 +1006,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     // preserving track/position/play-pause state.
     AudioDeviceID deviceID = requested >= 0
             ? (AudioDeviceID)requested
-            : [AudioDeviceManager systemDefaultOutputDeviceID];
+            : [CoreAudioUtil systemDefaultOutputDeviceID];
     if (deviceID != kAudioObjectUnknown) {
         [self configureOutputDeviceOnQueue:deviceID];
     }

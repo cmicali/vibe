@@ -7,11 +7,10 @@
 //
 
 #import "MainPlayerController.h"
-#import "NSDockTile+Util.h"
+#import "ArtworkDisplayController.h"
 #import "OutputDevicesMenuController.h"
 #import "AppDelegate.h"
 #import "Formatters.h"
-#import "Fonts.h"
 #import "ArtworkImageView.h"
 #import "BackgroundArtworkImageView.h"
 #import "AudioDeviceManager.h"
@@ -24,11 +23,7 @@
     NSTimeInterval              _lastPosition;
     NSTimeInterval              _currentTrackDuration;
     BOOL                        _timerRunning;
-    __weak NSImage*             _displayedArt;
     __weak AudioTrack*          _lastReloadedTrack;
-    // Track whose full-res art is currently held decoded (weak: if the
-    // playlist was replaced the track deallocates and takes its art with it).
-    __weak AudioTrack*          _artOwnerTrack;
     NSString*                   _lastFileMetadataString;
     NSString*                   _statusMessage;
     BOOL                        _metadataLoadPending;
@@ -37,10 +32,10 @@
     // load early (while B's first track is still opening — exactly the I/O
     // contention the deferral exists to avoid).
     NSUInteger                  _metadataLoadGeneration;
-    BOOL                        _artDisplayInitialized;
     BOOL                        _errorAlertVisible;
     id                          _keyDownMonitor;
     PitchControlPanel*          _pitchPanel;
+    ArtworkDisplayController*   _artworkController;
 }
 
 - (id) init {
@@ -118,6 +113,12 @@
 
 - (void)windowDidLoad {
 
+    // Closing the player means quitting: without this, closing the main
+    // window while the About window is open leaves the app running with no
+    // way to get the player back (applicationShouldTerminateAfterLastWindowClosed
+    // never fires because About still counts as a window).
+    self.window.delegate = self;
+
     // Resolve the saved device by UID first (robust against duplicate device
     // names); fall back to the persisted name for pre-UID settings.
     NSString *savedDeviceName = Settings.audioOutputDeviceName;
@@ -129,112 +130,34 @@
                                             lockSampleRate:Settings.audioPlayerLockSampleRate
                                                   delegate:self
     ];
-    self.metadataManager = [[AudioTrackMetadataCache alloc] init];
-    self.metadataManager.delegate = self;
+    self.metadataCache = [[AudioTrackMetadataCache alloc] init];
+    self.metadataCache.delegate = self;
 
     self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
     self.playlistManager.tableView = self.playlistTableView;
 
+    _artworkController = [[ArtworkDisplayController alloc] initWithArtworkView:self.albumArtImageView
+                                                                backgroundView:self.backgroundAlbumArtImageView];
+    __weak MainPlayerController *weakControllerForArt = self;
+    _artworkController.currentTrackProvider = ^AudioTrack *{
+        return weakControllerForArt.playlistManager.currentTrack;
+    };
+    _artworkController.artDidResolveHandler = ^{
+        [weakControllerForArt updateUI];
+    };
+
     self.devicesMenuController.audioPlayer = self.audioPlayer;
 
-    // Setup Views
+    // Wire the collaborators to the views (all appearance/layout is applied
+    // by MainPlayerContentView at construction).
 
     self.window.appearance = Settings.windowAppearance;
-
-    self.albumArtGradientView.wantsLayer = YES;
-    CAGradientLayer *g = [[CAGradientLayer alloc] init];
-    g.colors = @[
-            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.85].CGColor,
-            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.25].CGColor,
-            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0].CGColor
-    ];
-    self.albumArtGradientView.layer = g;
-
-    self.playButton.image = [NSImage imageNamed:@"button-play"];
-    self.nextButton.image = [NSImage imageNamed:@"button-skip-next"];
-
-    self.artistTextField.wantsLayer = YES;
-    self.artistTextField.layer.shadowColor = NSColor.blackColor.CGColor;
-    self.artistTextField.layer.shadowRadius = 0.25;
-    self.artistTextField.layer.shadowOpacity = 0.75;
-    self.artistTextField.layer.shadowOffset = CGSizeMake(0, -1);
-    self.artistTextField.layer.shouldRasterize = true;
-    self.artistTextField.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
-    self.artistTextField.layer.masksToBounds = NO;
-
-    self.titleTextField.wantsLayer = YES;
-    self.titleTextField.layer.shadowColor = NSColor.blackColor.CGColor;
-    self.titleTextField.layer.shadowRadius = 0.25;
-    self.titleTextField.layer.shadowOpacity = 0.75;
-    self.titleTextField.layer.shadowOffset = CGSizeMake(0, -1);
-    self.titleTextField.layer.shouldRasterize = true;
-    self.titleTextField.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
-    self.titleTextField.layer.masksToBounds = NO;
-
-    self.totalTimeTextField.wantsLayer = YES;
-    self.totalTimeTextField.layer.shadowColor = NSColor.blackColor.CGColor;
-    self.totalTimeTextField.layer.shadowRadius = 0.25;
-    self.totalTimeTextField.layer.shadowOpacity = 0.75;
-    self.totalTimeTextField.layer.shadowOffset = CGSizeMake(0, -1);
-    self.totalTimeTextField.layer.masksToBounds = NO;
-    self.totalTimeTextField.layer.shouldRasterize = true;
-    self.totalTimeTextField.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
-    self.totalTimeTextField.font = [Fonts fontForNumbers:self.totalTimeTextField.font.pointSize bold:YES];
-
-    self.currentTimeTextField.wantsLayer = YES;
-    self.currentTimeTextField.layer.shadowColor = NSColor.blackColor.CGColor;
-    self.currentTimeTextField.layer.shadowRadius = 0.25;
-    self.currentTimeTextField.layer.shadowOpacity = 0.75;
-    self.currentTimeTextField.layer.shadowOffset = CGSizeMake(0, -1);
-    self.currentTimeTextField.layer.masksToBounds = NO;
-    // No shouldRasterize here: this field's content changes every second, so
-    // rasterization would just force a re-raster on every update.
-    self.currentTimeTextField.font = [Fonts fontForNumbers:self.currentTimeTextField.font.pointSize bold:YES];
-
-    self.albumArtImageView.wantsLayer = YES;
-    self.albumArtImageView.layer.shadowRadius = 6;
-    self.albumArtImageView.layer.shadowOpacity = 0.25;
-    self.albumArtImageView.layer.shadowOffset = CGSizeMake(4, 0);
-    self.albumArtImageView.layer.masksToBounds = NO;
-    self.albumArtImageView.layer.shouldRasterize = true;
-    self.albumArtImageView.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
-
-    self.backgroundAlbumArtImageView.wantsLayer = YES;
-    self.backgroundAlbumArtImageView.layer.masksToBounds = NO;
-    // shouldRasterize was only there to cache the (now removed) live
-    // CIGaussianBlur filter output; the image is pre-blurred these days.
-
-    self.fileMetadataTextField.wantsLayer = YES;
-    self.fileMetadataTextField.layer.shadowColor = NSColor.blackColor.CGColor;
-    self.fileMetadataTextField.layer.shadowRadius = 0.25;
-    self.fileMetadataTextField.layer.shadowOpacity = 0.75;
-    self.fileMetadataTextField.layer.shadowOffset = CGSizeMake(0, -1);
-    self.fileMetadataTextField.layer.masksToBounds = NO;
-    self.fileMetadataTextField.layer.shouldRasterize = true;
-    self.fileMetadataTextField.layer.rasterizationScale = NSScreen.mainScreen.backingScaleFactor;
-    self.fileMetadataTextField.font = [Fonts fontForNumbers:self.totalTimeTextField.font.pointSize bold:NO];
-
-//
-//    if ([MacOSUtil isDarkMode:self.window.appearance]) {
-//        self.playlistTableView.backgroundColor = [NSColor colorWithRed:0.1 green:0.1 blue:0.1 alpha:1];
-//    }
-//    else {
-//        self.playlistBackgroundView.hidden = YES;
-//    }
 
     self.waveformView.delegate = self;
     self.waveformView.waveformStyle = Settings.waveformStyle;
 
-    NSScrollView *playlistScrollView = self.playlistTableView.enclosingScrollView;
     self.playlistTableView.delegate = self.playlistManager;
     self.playlistTableView.dataSource = self.playlistManager;
-    self.playlistTableView.intercellSpacing = NSMakeSize(0, 0);
-    self.playlistTableView.columnAutoresizingStyle = NSTableViewSequentialColumnAutoresizingStyle;
-    // Type-select would swallow plain keystrokes (jump to the first row
-    // starting with that letter) before the menu sees them, breaking the
-    // unmodified transport key equivalents (Space/B/N) whenever the table
-    // has focus.
-    self.playlistTableView.allowsTypeSelect = NO;
 
     // Handle the transport keys with a local event monitor instead of relying
     // on the menu's unmodified key equivalents. Those only fire as a fallback
@@ -277,40 +200,26 @@
             [strongSelf togglePitchPanel:nil];
             return nil;
         }
-        // Tab's menu key equivalent is only installed when validateMenuItem
-        // runs (i.e. after the View menu has been opened once), so on a fresh
-        // launch the menu path never fires. Handle it here like the others.
+        // Tab is also a menu key equivalent (installed by MainMenuBuilder),
+        // but that path only fires as a fallback after the focused view
+        // declines the event — handle it here like the other bare keys.
         if ([chars isEqualToString:@"\t"]) {
             [strongSelf toggleSize:nil];
             return nil;
         }
         return event;
     }];
-    // Opt out of the macOS 11+ inset look; we want the selection highlight
-    // and row content flush with the scroll view's left/right edges.
-    if (@available(macOS 11.0, *)) {
-        self.playlistTableView.style = NSTableViewStyleFullWidth;
-    }
-    // Let the autoresize mask from the xib govern width/height so the table
-    // tracks its clip view. Previously we set
-    // translatesAutoresizingMaskIntoConstraints = NO without adding any
-    // Auto Layout constraints, leaving the table stuck at its xib-time
-    // width (712 px) — wider than the clip view, hence horizontal scroll.
 
-    playlistScrollView.automaticallyAdjustsContentInsets = NO;
-    playlistScrollView.contentInsets = NSEdgeInsetsZero;
-    playlistScrollView.hasHorizontalScroller = NO;
-    playlistScrollView.horizontalScrollElasticity = NSScrollElasticityNone;
-    [self.playlistTableView sizeToFit];
-    
-    
     MainWindow *window = (MainWindow *)self.window;
     window.dropDelegate = self;
 
-    // Parked just past the content's right edge; revealed by widening the
-    // window (togglePitchPanel:). Fixed left offset + flexible right margin
-    // keeps it there through width changes; heightSizable tracks the
-    // small/large layout toggle.
+    // Built here rather than in MainPlayerContentView: the panel must be a
+    // SIBLING of the content view (which is pinned at the design width), not
+    // a child — it's revealed by widening the window past the content, and
+    // its height comes from the window's restored frame, not the design size.
+    // Parked just past the content's right edge (togglePitchPanel:). Fixed
+    // left offset + flexible right margin keeps it there through width
+    // changes; heightSizable tracks the small/large layout toggle.
     // Anchored at the content width, NOT the current bounds edge: when the
     // panel-open state was restored from the autosave the window is already
     // kPitchPanelWidth wider than the content.
@@ -334,10 +243,12 @@
     [self.playlistTableView reloadData];
     [self updateUI];
 
-    // [self configureTrackingArea];
-    
     [NSApp activateIgnoringOtherApps:YES];
 
+}
+
+- (void)windowWillClose:(NSNotification *)notification {
+    [NSApp terminate:nil];
 }
 
 - (void)pauseUIUpdateTimer {
@@ -373,7 +284,9 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     }
 
     self.playButton.enabled = self.playlistManager.count > 0;
-    self.nextButton.enabled = self.playlistManager.count > 1;
+    // Same rule as the Next Track menu item: only when a track actually
+    // follows the current one.
+    self.nextButton.enabled = self.playlistManager.currentIndex + 1 < self.playlistManager.count;
 
     BOOL trackLoaded = track != nil;
     self.totalTimeTextField.hidden = !trackLoaded;
@@ -438,7 +351,7 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 
     self.albumArtImageView.fileURL = track.url;
 
-    [self updateArtworkForTrack:track];
+    [_artworkController updateForTrack:track];
 
     if (track && track == _lastReloadedTrack) {
         // Same track as last time: only the play/pause indicator can have
@@ -450,73 +363,6 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
         _lastReloadedTrack = track;
     }
     [self updatePlaybackUI];
-}
-
-// Artwork display policy: new art replaces old art directly. While the new
-// track's art is still unresolved (metadata pending, load worth dispatching,
-// or a load in flight), the PREVIOUS track's art stays on screen — no flash
-// of the default between tracks. The default backdrop is installed only when
-// the track is known to be artless.
-- (void)updateArtworkForTrack:(AudioTrack *)track {
-    if (track.albumArt) {
-        if (_displayedArt != track.albumArt) {
-            self.albumArtImageView.image = track.albumArt;
-            [self.backgroundAlbumArtImageView setArtworkImage:track.albumArt];
-            [NSDockTile setDockIcon:self.playlistManager.currentTrack.albumArt];
-            _displayedArt = track.albumArt;
-        }
-        _artDisplayInitialized = YES;
-        return;
-    }
-
-    AudioTrackMetadata *metadata = track.metadata;
-    // albumArtLoadDispatched is cleared when a load completes, so here it
-    // means exactly "a load is in flight".
-    BOOL artUnresolved = !metadata || metadata.albumArtNeedsLoad || metadata.albumArtLoadDispatched;
-    if (!artUnresolved || !_artDisplayInitialized) {
-        [self showDefaultArtwork];
-    }
-    _artDisplayInitialized = YES;
-
-    // Cache-hit metadata doesn't carry the art bytes; extracting them
-    // re-reads the audio file, which can block on a cloud placeholder
-    // until it downloads. Do it off the main thread and refresh when done.
-    if (metadata.albumArtNeedsLoad && !metadata.albumArtLoadDispatched) {
-        metadata.albumArtLoadDispatched = YES;
-        __weak MainPlayerController *weakSelf = self;
-        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-            NSImage *loaded = metadata.albumArt; // may block; background thread
-            dispatch_async(dispatch_get_main_queue(), ^{
-                // Resolved either way — clear the in-flight marker. No
-                // duplicate-dispatch risk: albumArtNeedsLoad is NO after any
-                // completion (image decoded, or attempted and artless).
-                metadata.albumArtLoadDispatched = NO;
-                MainPlayerController *strongSelf = weakSelf;
-                if (!strongSelf || strongSelf.playlistManager.currentTrack != track) {
-                    return;
-                }
-                if (loaded) {
-                    [strongSelf updateUI];
-                }
-                else {
-                    // Definitively artless: only now does the default
-                    // replace the previous track's art.
-                    [strongSelf showDefaultArtwork];
-                }
-            });
-        });
-    }
-}
-
-// Installs the record-bg default backdrop (no-op if it's already showing).
-- (void)showDefaultArtwork {
-    if (!_displayedArt && _artDisplayInitialized) {
-        return;
-    }
-    self.albumArtImageView.image = [NSImage imageNamed:@"record-bg"];
-    [self.backgroundAlbumArtImageView setArtworkImage:[NSImage imageNamed:@"record-bg"]];
-    [NSDockTile resetToAppIcon];
-    _displayedArt = nil;
 }
 
 // Varispeed rate: the track plays this much faster/slower than file time, so
@@ -580,7 +426,7 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
         return;
     }
     _metadataLoadPending = NO;
-    [self.metadataManager loadMetadata:self.playlistManager.playlist];
+    [self.metadataCache loadMetadata:self.playlistManager.playlist];
 }
 
 - (IBAction)next:(nullable id)sender {
@@ -623,14 +469,7 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
-    // Demote the previous track's full-res art (decoded bitmap + compressed
-    // bytes, ~4-9MB together). Without this, every track played in a session
-    // stays pinned for the playlist's lifetime. The thumbnail is kept; the art
-    // reloads on demand if the track becomes current again.
-    if (_artOwnerTrack && _artOwnerTrack != track) {
-        [_artOwnerTrack.metadata discardDecodedAlbumArt];
-    }
-    _artOwnerTrack = track;
+    [_artworkController trackDidStartPlaying:track];
     _statusMessage = nil;
     [self.waveformView hideLoadingIndicator];
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
@@ -727,7 +566,7 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 
 }
 
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOuputDevice:(NSInteger)newDeviceIndex {
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceIndex {
     LogDebug(@"MainPlayerController: didChangeOutputDevice: %zd", newDeviceIndex);
     if (newDeviceIndex == -1) {
         Settings.audioOutputDeviceName = @"";
@@ -802,14 +641,25 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     // A narrower range clamps the current pitch; resync the fader and the
     // rate-scaled time labels.
     _pitchPanel.pitch = self.audioPlayer.pitch;
-    [self updateUI];
+    [self updateRateDependentUI];
+}
+
+// Only the time labels depend on the playback rate. The full updateUI would
+// also re-resolve artwork and reload the current playlist row (rebuilding the
+// cell view) — far too heavy to run on every fader tick during a drag.
+- (void)updateRateDependentUI {
+    if (self.playlistManager.currentTrack) {
+        setStringValueIfChanged(self.totalTimeTextField,
+                [[Formatters sharedInstance] durationStringFromTimeInterval:self.audioPlayer.duration / self.playbackRate]);
+    }
+    [self updatePlaybackUI];
 }
 
 - (void)pitchFaderView:(PitchFaderView *)faderView didChangePitch:(float)pitch {
     self.audioPlayer.pitch = pitch;
     // The time labels scale with the rate — refresh immediately (the 3 Hz
     // timer isn't running while paused).
-    [self updateUI];
+    [self updateRateDependentUI];
 }
 
 - (IBAction) showInFinder:(id)sender {
@@ -841,7 +691,6 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     MainWindow *window = (MainWindow *)self.window;
     if ([menuItem.identifier isEqualToString:@"menu_show_playlist"]) {
         menuItem.state = StateForBOOL(window.isPlaylistShown);
-        [menuItem setKeyEquivalent:[NSString stringWithFormat:@"%c", NSTabCharacter]];
     }
     else if ([menuItem.identifier isEqualToString:@"menu_show_pitch"]) {
         menuItem.state = StateForBOOL(window.isPitchPanelShown);

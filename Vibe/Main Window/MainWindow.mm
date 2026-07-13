@@ -93,6 +93,25 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     }
 }
 
+// The default validation disables performClose: (File > Close, Cmd-W) for
+// any window without NSWindowStyleMaskClosable.
+- (BOOL)validateUserInterfaceItem:(id<NSValidatedUserInterfaceItem>)item {
+    if (item.action == @selector(performClose:)) {
+        return YES;
+    }
+    return [super validateUserInterfaceItem:item];
+}
+
+// Cmd-W. The default implementation simulates a click on the close button,
+// which a borderless window doesn't have — it just beeps.
+- (void)performClose:(id)sender {
+    if ([self.delegate respondsToSelector:@selector(windowShouldClose:)] &&
+        ![self.delegate windowShouldClose:self]) {
+        return;
+    }
+    [self close];
+}
+
 - (void)syncPlaylistShownFromHeight {
     BOOL shown = (self.frame.size.height > 150);
     if (shown != _playlistShown) {
@@ -110,6 +129,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 - (BOOL)canBecomeMainWindow {
     return YES;
 }
+
+#pragma mark - Drag and Drop
 
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
     if (sender.draggingSource) {
@@ -144,6 +165,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     }];
     return YES;
 }
+
+#pragma mark - Public API
 
 - (void)setHeight:(CGFloat)height animate:(BOOL)animate {
     CGFloat delta = height - self.frame.size.height;

@@ -8,6 +8,7 @@
 
 @implementation Formatters {
     NSDateComponentsFormatter *_timeFormatter;
+    NSDateComponentsFormatter *_hourTimeFormatter;
 }
 
 + (Formatters*)sharedInstance {
@@ -17,10 +18,6 @@
         instance = [[Formatters alloc] init];
     });
     return instance;
-}
-
-- (NSDateComponentsFormatter *)timeFormatter {
-    return _timeFormatter;
 }
 
 - (instancetype)init {
@@ -36,13 +33,23 @@
     _timeFormatter.unitsStyle = NSDateComponentsFormatterUnitsStylePositional;
     _timeFormatter.allowedUnits = NSCalendarUnitMinute | NSCalendarUnitSecond;
     _timeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorNone;
+    // Hour-long files (DJ sets, live recordings) roll over to h:mm:ss instead
+    // of showing "90:00". Separate pre-configured formatter so the sub-hour
+    // rendering (m:ss, no leading zero-hours) stays exactly as it was.
+    _hourTimeFormatter = [[NSDateComponentsFormatter alloc] init];
+    _hourTimeFormatter.unitsStyle = NSDateComponentsFormatterUnitsStylePositional;
+    _hourTimeFormatter.allowedUnits = NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond;
+    // DropLeading renders "1:30:00", not "01:30:00" (the hour is never zero
+    // here — this formatter is only chosen for durations >= an hour).
+    _hourTimeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorDropLeading;
 }
 
 - (NSString *)durationStringFromTimeInterval:(NSTimeInterval)duration {
     if (isnan(duration) || duration < 0) {
         duration = 0;
     }
-    NSString *result = [_timeFormatter stringFromTimeInterval:duration];
+    NSDateComponentsFormatter *formatter = duration >= 3600 ? _hourTimeFormatter : _timeFormatter;
+    NSString *result = [formatter stringFromTimeInterval:duration];
     return result ?: @"";
 }
 

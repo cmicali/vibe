@@ -5,16 +5,13 @@
 
 #import "DetailedAudioWaveformRenderer.h"
 
-@implementation AudioWaveformRenderer {
-    NSMutableArray<CALayer*> *_otherLayers;
-}
+@implementation AudioWaveformRenderer
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
     self = [super init];
     if (self) {
         self.parentLayer = parentLayer;
         self.isDark = isDark;
-        _otherLayers = [NSMutableArray new];
         // Sentinel: force the first updateProgress: to paint every layer's
         // played/unplayed color, not just the boundary delta.
         self.lastProgressBoundary = -1;
@@ -26,18 +23,10 @@
     for (CALayer *layer in _layers) {
         [layer removeFromSuperlayer];
     }
-    for (CALayer *layer in _otherLayers) {
-        [layer removeFromSuperlayer];
-    }
 }
 
 + (NSString *)displayName {
     return nil;
-}
-
-- (void)addOtherLayer:(CALayer*)layer {
-    [self.parentLayer addSublayer:layer];
-    [_otherLayers addObject:layer];
 }
 
 - (void)updateColors:(BOOL)isDark {
@@ -62,21 +51,6 @@
         [self.parentLayer addSublayer:layer];
     }
     self.layers = layers;
-}
-
-- (CAGradientLayer*) createGradientLayer {
-    return [self createGradientLayer:nil];
-}
-
-- (CAGradientLayer*) createGradientLayer:(NSString * __nullable)filterName {
-    CAGradientLayer *layer = [[CAGradientLayer alloc] init];
-    layer.contentsScale = self.parentLayer.contentsScale;
-    if (filterName.length) {
-        CIFilter *filter = [CIFilter filterWithName:filterName];
-        [filter setDefaults];
-        layer.compositingFilter = filter;
-    }
-    return layer;
 }
 
 - (void) setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<NSColor*>*)colors {

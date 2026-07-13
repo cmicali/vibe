@@ -5,6 +5,7 @@
 
 #import "AboutWindowController.h"
 #import "VectorBallsView.h"
+#import "Fonts.h"
 
 static const CGFloat kAboutWindowWidth = 460;
 static const CGFloat kAboutWindowHeight = 340;
@@ -66,7 +67,7 @@ static const CGFloat kAboutWindowHeight = 340;
 
 - (NSTextField *)labelWithString:(NSString *)string fontSize:(CGFloat)fontSize alpha:(CGFloat)alpha y:(CGFloat)y {
     NSTextField *label = [NSTextField labelWithString:string];
-    label.font = [NSFont systemFontOfSize:fontSize];
+    label.font = [Fonts font:fontSize];
     label.textColor = [NSColor colorWithWhite:1.0 alpha:alpha];
     label.alignment = NSTextAlignmentCenter;
     label.frame = NSMakeRect(0, y, kAboutWindowWidth, fontSize + 6);
