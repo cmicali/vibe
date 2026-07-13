@@ -5,7 +5,9 @@
 
 #import "EqualizerIndicatorView.h"
 
-static const NSUInteger kBarCount = 3;
+// enum, not static const: a const variable isn't a C constant expression,
+// so using it as an array size would make the tables below VLAs.
+enum { kBarCount = 3 };
 static const CGFloat kBarGap = 2;
 
 // Pose shown while paused; also the model value the animation returns to
@@ -47,7 +49,7 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0};
 
 - (void)layout {
     [super layout];
-    CGFloat barWidth = (self.bounds.size.width - kBarGap * (kBarCount - 1)) / kBarCount;
+    CGFloat barWidth = (self.bounds.size.width - kBarGap * (kBarCount - 1)) / (CGFloat)kBarCount;
     CGFloat height = self.bounds.size.height;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
