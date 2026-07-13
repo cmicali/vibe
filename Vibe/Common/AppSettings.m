@@ -11,6 +11,9 @@
 #define SETTING_AUDIO_PLAYER_DEVICE_NAME            @"AudioPlayer.deviceName"
 #define SETTING_AUDIO_PLAYER_DEVICE_UID             @"AudioPlayer.deviceUID"
 #define SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE       @"AudioPlayer.lockSampleRate"
+#define SETTING_PITCH_PANEL_SHOWN                   @"MainWindow.pitchPanelShown"
+#define SETTING_PLAYLIST_SHOWN                      @"MainWindow.playlistShown"
+#define SETTING_PITCH_RANGE                         @"AudioPlayer.pitchRange"
 
 @implementation AppSettings {
     BOOL _firstLaunch;
@@ -43,7 +46,10 @@
             SETTING_AUDIO_PLAYER_DEVICE_UID:        @"",
             SETTING_AUDIO_PLAYER_LOCK_SAMPLE_RATE:  @(NO),
             SETTING_WINDOW_APPEARANCE_STYLE:        SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK,
-            SETTING_WAVEFORM_STYLE:                 SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT
+            SETTING_WAVEFORM_STYLE:                 SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
+            SETTING_PITCH_PANEL_SHOWN:              @(NO),
+            SETTING_PLAYLIST_SHOWN:                 @(NO),
+            SETTING_PITCH_RANGE:                    @(8),
     };
     [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
     [[NSUserDefaults standardUserDefaults] setBool:YES forKey:SETTING_HAS_LAUNCHED];
@@ -112,6 +118,30 @@
 
 - (void)setWaveformStyle:(NSString *)name {
     [[NSUserDefaults standardUserDefaults] setValue:name forKey:SETTING_WAVEFORM_STYLE];
+}
+
+- (BOOL)isPitchPanelShown {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_PITCH_PANEL_SHOWN];
+}
+
+- (void)setPitchPanelShown:(BOOL)shown {
+    [[NSUserDefaults standardUserDefaults] setBool:shown forKey:SETTING_PITCH_PANEL_SHOWN];
+}
+
+- (BOOL)isPlaylistShown {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_PLAYLIST_SHOWN];
+}
+
+- (void)setPlaylistShown:(BOOL)shown {
+    [[NSUserDefaults standardUserDefaults] setBool:shown forKey:SETTING_PLAYLIST_SHOWN];
+}
+
+- (NSInteger)pitchRange {
+    return [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_PITCH_RANGE];
+}
+
+- (void)setPitchRange:(NSInteger)range {
+    [[NSUserDefaults standardUserDefaults] setInteger:range forKey:SETTING_PITCH_RANGE];
 }
 
 @end

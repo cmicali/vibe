@@ -60,8 +60,8 @@ static float VibeFadeVolume(float from, float to, int step) {
     return f * powf(t / f, (float)step / (float)kFadeSteps);
 }
 
-// Pitch fader range in percent (±10%, a hair wider than a stock SL-1200's ±8).
-static const float kMaxPitchPercent = 10.0f;
+// Default pitch fader range in percent (±8%, matching a stock SL-1200).
+static const float kDefaultMaxPitchPercent = 8.0f;
 
 @implementation AudioPlayer {
     dispatch_queue_t        _queue;
@@ -73,6 +73,7 @@ static const float kMaxPitchPercent = 10.0f;
     // so the UI can read it without touching the queue.
     AVAudioUnitVarispeed    *_varispeed;
     float                   _pitch;
+    float                   _maxPitch;
     AVAudioFile             *_file;
     AVAudioFramePosition    _segmentStartFrame;
     NSTimeInterval          _pausedPosition;
@@ -112,6 +113,7 @@ static const float kMaxPitchPercent = 10.0f;
     if (self) {
         _stateLock = OS_UNFAIR_LOCK_INIT;
         _state = VibePlayerStateStopped;
+        _maxPitch = kDefaultMaxPitchPercent;
         _lockSampleRate = shouldLockSampleRate;
         // Meaningful before the async init block resolves the saved device:
         // -1 (follow system default) instead of a bogus device id 0.
@@ -702,12 +704,31 @@ static const float kMaxPitchPercent = 10.0f;
 }
 
 - (void)setPitch:(float)pitch {
-    pitch = MAX(-kMaxPitchPercent, MIN(kMaxPitchPercent, pitch));
     os_unfair_lock_lock(&_stateLock);
+    pitch = MAX(-_maxPitch, MIN(_maxPitch, pitch));
     _pitch = pitch;
     os_unfair_lock_unlock(&_stateLock);
     // The rate is an AU parameter, but touch the node only on the engine's
     // owning queue like every other graph mutation.
+    dispatch_async(_queue, ^{
+        self->_varispeed.rate = 1.0f + pitch / 100.0f;
+    });
+}
+
+- (float)maxPitch {
+    os_unfair_lock_lock(&_stateLock);
+    float maxPitch = _maxPitch;
+    os_unfair_lock_unlock(&_stateLock);
+    return maxPitch;
+}
+
+- (void)setMaxPitch:(float)maxPitch {
+    os_unfair_lock_lock(&_stateLock);
+    _maxPitch = maxPitch;
+    float pitch = MAX(-maxPitch, MIN(maxPitch, _pitch));
+    _pitch = pitch;
+    os_unfair_lock_unlock(&_stateLock);
+    // Re-apply in case the narrower range clamped the current pitch.
     dispatch_async(_queue, ^{
         self->_varispeed.rate = 1.0f + pitch / 100.0f;
     });

@@ -10,6 +10,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @protocol FileDropDelegate;
 
+// Width of the main content; the window is this wide, plus kPitchPanelWidth
+// when the pitch panel is revealed.
+extern const CGFloat kMainWindowContentWidth;
+
 @interface MainWindow : NSWindow <NSDraggingDestination>
 
 @property (nullable, weak) id <FileDropDelegate> dropDelegate;

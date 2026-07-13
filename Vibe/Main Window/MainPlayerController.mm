@@ -15,6 +15,7 @@
 #import "ArtworkImageView.h"
 #import "BackgroundArtworkImageView.h"
 #import "AudioDeviceManager.h"
+#import "MainPlayerContentView.h"
 
 #define UPDATE_HZ 3
 
@@ -43,9 +44,62 @@
 }
 
 - (id) init {
-    if((self = [super initWithWindowNibName:@"MainPlayerWindow"])) {
+    // Programmatic window (no nib). initWithWindow: marks the controller as
+    // already loaded (even the overridden loadWindow would never run), so the
+    // window is built here and windowDidLoad — which AppKit only fires on the
+    // nib path — is invoked directly.
+    MainWindow *window = [[MainWindow alloc] init];
+    if((self = [super initWithWindow:window])) {
+        // Owned here now (the main nib used to instantiate it); windowDidLoad
+        // hands it the audio player, so it must exist first.
+        self.devicesMenuController = [[OutputDevicesMenuController alloc] init];
+        [self buildContentInWindow:window];
+        [self windowDidLoad];
     }
     return self;
+}
+
+#pragma mark - Window construction (previously MainPlayerWindow.xib)
+
+// The UI hierarchy lives in MainPlayerContentView; this wires it to the
+// window and adopts its subviews as the controller's outlets.
+- (void)buildContentInWindow:(MainWindow *)window {
+    NSView *contentView = window.contentView;
+    MainPlayerContentView *content = [[MainPlayerContentView alloc] initWithTarget:self];
+    [contentView addSubview:content];
+    // The window already carries the restored (autosaved) frame, so the nib's
+    // load-then-resize pass never happens; setting the frame here runs the
+    // same subview autoresizing that pass would have. Width stays pinned at
+    // the content width — when the pitch panel state restored as shown, the
+    // window is already kPitchPanelWidth wider than the content.
+    NSRect contentFrame = contentView.bounds;
+    contentFrame.size.width = kMainWindowContentWidth;
+    content.frame = contentFrame;
+
+    self.closeButton = content.closeButton;
+    self.playButton = content.playButton;
+    self.nextButton = content.nextButton;
+    self.backgroundAlbumArtImageView = content.backgroundAlbumArtImageView;
+    self.albumArtImageView = content.albumArtImageView;
+    self.albumArtGradientView = content.albumArtGradientView;
+    self.waveformView = content.waveformView;
+    self.artistTextField = content.artistTextField;
+    self.titleTextField = content.titleTextField;
+    self.totalTimeTextField = content.totalTimeTextField;
+    self.currentTimeTextField = content.currentTimeTextField;
+    self.fileMetadataTextField = content.fileMetadataTextField;
+    self.playlistTableView = content.playlistTableView;
+
+    // Right-click menu on the whole window body (content view, so it also
+    // covers the pitch panel via the responder chain).
+    NSMenu *contextMenu = [[NSMenu alloc] initWithTitle:@"Popup Menu"];
+    NSMenuItem *showInFinder = [[NSMenuItem alloc] initWithTitle:@"Show in Finder"
+                                                          action:@selector(showInFinder:)
+                                                   keyEquivalent:@""];
+    showInFinder.identifier = @"show_in_finder";
+    showInFinder.target = self;
+    [contextMenu addItem:showInFinder];
+    contentView.menu = contextMenu;
 }
 
 - (void)dealloc {
@@ -257,12 +311,16 @@
     // window (togglePitchPanel:). Fixed left offset + flexible right margin
     // keeps it there through width changes; heightSizable tracks the
     // small/large layout toggle.
+    // Anchored at the content width, NOT the current bounds edge: when the
+    // panel-open state was restored from the autosave the window is already
+    // kPitchPanelWidth wider than the content.
     NSView *contentView = self.window.contentView;
     _pitchPanel = [[PitchControlPanel alloc] initWithFrame:
-            NSMakeRect(NSMaxX(contentView.bounds), 0, kPitchPanelWidth, contentView.bounds.size.height)];
+            NSMakeRect(kMainWindowContentWidth, 0, kPitchPanelWidth, contentView.bounds.size.height)];
     _pitchPanel.autoresizingMask = NSViewMaxXMargin | NSViewHeightSizable;
     _pitchPanel.delegate = self;
     [contentView addSubview:_pitchPanel];
+    [self applyPitchRange];
 
     _timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
     // Leeway must be well under the interval, or the OS coalesces ticks and the
@@ -331,7 +389,7 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
             setStringValueIfChanged(self.artistTextField, @"");
             setStringValueIfChanged(self.titleTextField, track.singleLineTitle);
         }
-        setStringValueIfChanged(self.totalTimeTextField, [[Formatters sharedInstance] durationStringFromTimeInterval:self.audioPlayer.duration]);
+        setStringValueIfChanged(self.totalTimeTextField, [[Formatters sharedInstance] durationStringFromTimeInterval:self.audioPlayer.duration / self.playbackRate]);
         if (_statusMessage) {
             // Transient player status (e.g. "Load timed out") takes the
             // bitrate label's spot until the next play attempt.
@@ -461,6 +519,14 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     _displayedArt = nil;
 }
 
+// Varispeed rate: the track plays this much faster/slower than file time, so
+// the time labels show file time divided by it (the wall-clock time a DJ
+// counting bars actually experiences). The waveform progress is a ratio and
+// needs no scaling.
+- (double)playbackRate {
+    return 1.0 + self.audioPlayer.pitch / 100.0;
+}
+
 - (void)updatePlaybackUI {
 
     if (!self.playlistManager.currentTrack) {
@@ -472,9 +538,10 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     if (duration > 0) {
         self.waveformView.progress = (float) position / (float) duration;
     }
-    if (round(position) != round(_lastPosition)) {
-        self.currentTimeTextField.stringValue = [[Formatters sharedInstance] durationStringFromTimeInterval:position];
-        _lastPosition = position;
+    NSTimeInterval displayPosition = position / self.playbackRate;
+    if (round(displayPosition) != round(_lastPosition)) {
+        self.currentTimeTextField.stringValue = [[Formatters sharedInstance] durationStringFromTimeInterval:displayPosition];
+        _lastPosition = displayPosition;
     }
 }
 
@@ -720,8 +787,29 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     [window setPitchPanelShown:!window.isPitchPanelShown animate:YES];
 }
 
+- (IBAction)setPitchRange:(id)sender {
+    if ([sender isKindOfClass:[NSMenuItem class]]) {
+        NSMenuItem *item = sender;
+        Settings.pitchRange = [item.identifier isEqualToString:@"pitch_range_16"] ? 16 : 8;
+        [self applyPitchRange];
+    }
+}
+
+- (void)applyPitchRange {
+    float range = (float)Settings.pitchRange;
+    self.audioPlayer.maxPitch = range;
+    _pitchPanel.maxPitch = range;
+    // A narrower range clamps the current pitch; resync the fader and the
+    // rate-scaled time labels.
+    _pitchPanel.pitch = self.audioPlayer.pitch;
+    [self updateUI];
+}
+
 - (void)pitchFaderView:(PitchFaderView *)faderView didChangePitch:(float)pitch {
     self.audioPlayer.pitch = pitch;
+    // The time labels scale with the rate — refresh immediately (the 3 Hz
+    // timer isn't running while paused).
+    [self updateUI];
 }
 
 - (IBAction) showInFinder:(id)sender {
@@ -768,7 +856,18 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
         menuItem.state = StateForString(Settings.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_next_track"]) {
-        return self.playlistManager.count > 1;
+        // Only when there is actually a track after the current one; at the
+        // end of the playlist next: is a no-op.
+        return self.playlistManager.currentIndex + 1 < self.playlistManager.count;
+    }
+    else if ([menuItem.identifier isEqualToString:@"menu_previous_track"]) {
+        return self.playlistManager.count > 0 && self.playlistManager.currentIndex > 0;
+    }
+    else if ([menuItem.identifier isEqualToString:@"pitch_range_8"]) {
+        menuItem.state = StateForBOOL(Settings.pitchRange == 8);
+    }
+    else if ([menuItem.identifier isEqualToString:@"pitch_range_16"]) {
+        menuItem.state = StateForBOOL(Settings.pitchRange == 16);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_play"]) {
         return self.playlistManager.count > 0;

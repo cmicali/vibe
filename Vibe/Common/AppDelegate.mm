@@ -9,12 +9,11 @@
 #import "AppDelegate.h"
 #import "NSURLUtil.h"
 #import "AboutWindowController.h"
+#import "MainMenuBuilder.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #if DEBUG
-#import <QuartzCore/QuartzCore.h>
-#import <ImageIO/ImageIO.h>
-#import <notify.h>
+#import "DebugUtil.h"
 #endif
 
 @interface AppDelegate ()
@@ -23,95 +22,11 @@
 
 @end
 
-#if DEBUG
-// Debug-only window snapshot: renders the frontmost window's layer tree
-// in-process and writes it to a fixed path — no window server capture, so it
-// needs no screen-recording permission and works with the display asleep or
-// the window occluded. Trigger from a terminal:
-//
-//     notifyutil -p com.vibe.debug.screenshot
-//
-// then read vibe-screenshot.png from the app container's tmp directory
-// (the app is sandboxed, so /tmp is not writable):
-//
-//     ~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp/
-//
-// Renders the *presentation* layer tree, so in-flight Core Animation (e.g.
-// the artwork cross-fade) is captured mid-animation. Metal content (the
-// About window) does not render this way.
-static NSString *VibeDebugScreenshotPath(void) {
-    return [NSTemporaryDirectory() stringByAppendingPathComponent:@"vibe-screenshot.png"];
-}
-
-static void VibeDumpWindowSnapshot(void) {
-    NSWindow *window = NSApp.keyWindow ?: NSApp.mainWindow;
-    if (!window) {
-        for (NSWindow *candidate in NSApp.windows) {
-            if (candidate.isVisible && candidate.contentView) {
-                window = candidate;
-                break;
-            }
-        }
-    }
-    NSView *view = window.contentView;
-    if (!view || NSIsEmptyRect(view.bounds)) {
-        LogError(@"Debug screenshot: no window content to render");
-        return;
-    }
-    CGFloat scale = window.backingScaleFactor > 0 ? window.backingScaleFactor : 2.0;
-    size_t pixelsWide = (size_t)llround(view.bounds.size.width * scale);
-    size_t pixelsHigh = (size_t)llround(view.bounds.size.height * scale);
-    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGContextRef ctx = CGBitmapContextCreate(NULL, pixelsWide, pixelsHigh, 8, 0, space,
-            kCGImageAlphaPremultipliedFirst | (CGBitmapInfo)kCGBitmapByteOrder32Host);
-    CGColorSpaceRelease(space);
-    if (!ctx) {
-        return;
-    }
-    CGContextScaleCTM(ctx, scale, scale);
-    CALayer *layer = view.layer;
-    if (layer) {
-        // Presentation tree when available: captures animations mid-flight.
-        CALayer *presentation = layer.presentationLayer ?: layer;
-        [presentation renderInContext:ctx];
-    }
-    else {
-        // Non-layer-backed fallback: AppKit drawing path.
-        NSGraphicsContext *gc = [NSGraphicsContext graphicsContextWithCGContext:ctx flipped:NO];
-        [NSGraphicsContext saveGraphicsState];
-        [NSGraphicsContext setCurrentContext:gc];
-        [view displayRectIgnoringOpacity:view.bounds inContext:gc];
-        [NSGraphicsContext restoreGraphicsState];
-    }
-    CGImageRef image = CGBitmapContextCreateImage(ctx);
-    CGContextRelease(ctx);
-    if (!image) {
-        return;
-    }
-    NSString *path = VibeDebugScreenshotPath();
-    NSURL *url = [NSURL fileURLWithPath:path];
-    CGImageDestinationRef dest = CGImageDestinationCreateWithURL((__bridge CFURLRef)url,
-            (__bridge CFStringRef)UTTypePNG.identifier, 1, NULL);
-    if (dest) {
-        CGImageDestinationAddImage(dest, image, NULL);
-        CGImageDestinationFinalize(dest);
-        CFRelease(dest);
-        LogInfo(@"Debug screenshot written to %@", path);
-    }
-    CGImageRelease(image);
-}
-
-static void VibeInstallDebugScreenshotHook(void) {
-    static int token;
-    notify_register_dispatch("com.vibe.debug.screenshot", &token, dispatch_get_main_queue(), ^(int t) {
-        VibeDumpWindowSnapshot();
-    });
-}
-#endif
 
 @implementation AppDelegate {
     BOOL _isLoaded;
     NSMutableArray<NSURL *> *_urlsToOpen;
+    MainMenuBuilder *_menuBuilder;
 }
 
 - (instancetype)init {
@@ -122,6 +37,27 @@ static void VibeInstallDebugScreenshotHook(void) {
         LogInfo(@"Vibe starting");
     }
     return self;
+}
+
+#pragma mark - Launch
+
+- (void)applicationWillFinishLaunching:(NSNotification *)notification {
+    // The main nib used to instantiate the controller and the menu bar; both
+    // are built here now, early enough for window state restoration (which
+    // runs before applicationDidFinishLaunching) to find the controller.
+    self.mainPlayerController = [[MainPlayerController alloc] init];
+    _menuBuilder = [[MainMenuBuilder alloc] initWithAppDelegate:self
+                                               playerController:self.mainPlayerController];
+    [_menuBuilder installMainMenu];
+}
+
+// Target of the Open Recent items MainMenuBuilder creates.
+- (void)openRecentDocument:(NSMenuItem *)sender {
+    NSURL *url = sender.representedObject;
+    if (url) {
+        [_urlsToOpen addObject:url];
+        [self playURLs];
+    }
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {

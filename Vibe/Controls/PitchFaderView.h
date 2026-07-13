@@ -24,7 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
 // NOT fire the delegate (only user interaction does).
 @property (nonatomic) float pitch;
 
-@property (nonatomic) float maxPitch; // default 10
+@property (nonatomic) float maxPitch; // default 8
 
 @end
 

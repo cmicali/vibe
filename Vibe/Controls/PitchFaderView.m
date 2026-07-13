@@ -26,7 +26,7 @@ static const float   kDetentPercent   = 0.35f;
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
-        _maxPitch = 10;
+        _maxPitch = 8;
     }
     return self;
 }
@@ -40,6 +40,14 @@ static const float   kDetentPercent   = 0.35f;
     // The window is movable-by-background and this view is non-opaque, so
     // without this a fader drag ALSO drags the whole window along.
     return NO;
+}
+
+- (void)setMaxPitch:(float)maxPitch {
+    if (maxPitch != _maxPitch) {
+        _maxPitch = maxPitch;
+        _pitch = MAX(-maxPitch, MIN(maxPitch, _pitch));
+        self.needsDisplay = YES;
+    }
 }
 
 - (void)setPitch:(float)pitch {

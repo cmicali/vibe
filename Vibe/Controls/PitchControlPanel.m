@@ -111,6 +111,15 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
     NSRectFillUsingOperation(NSMakeRect(0, 0, 1, self.bounds.size.height), NSCompositingOperationSourceOver);
 }
 
+- (float)maxPitch {
+    return _faderView.maxPitch;
+}
+
+- (void)setMaxPitch:(float)maxPitch {
+    _faderView.maxPitch = maxPitch;
+    [self updateReadout];
+}
+
 - (float)pitch {
     return _faderView.pitch;
 }
