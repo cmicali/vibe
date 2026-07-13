@@ -912,6 +912,16 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     }
 }
 
+#if DEBUG
+- (PitchControlPanel *)pitchPanel {
+    return _pitchPanel;
+}
+
+- (void)debugRefreshUI {
+    [self updateUI];
+}
+#endif
+
 + (void)restoreWindowWithIdentifier:(NSString *)identifier
                               state:(NSCoder *)state
                   completionHandler:(void (^)(NSWindow *, NSError *))completionHandler {

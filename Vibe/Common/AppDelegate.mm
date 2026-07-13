@@ -68,6 +68,7 @@
 
 #if DEBUG
     VibeInstallDebugScreenshotHook();
+    VibeInstallDebugCommandHook();
 #endif
 
     [self cleanupLegacyCaches];
