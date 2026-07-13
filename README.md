@@ -39,3 +39,17 @@ A fast and minimal winamp-inspired native music player for macOS. Built for larg
 ## Running
 
 Launch the app, then drop audio files or a music folder onto the window (or the dock icon).
+
+## Screenshots
+
+#### Pitch control
+
+![Vibe screenshot](Assets/screenshot-pitch.png)
+
+#### Playlist
+
+![Vibe screenshot](Assets/screenshot-playlist.png)
+
+#### Playlist + Pitch
+
+![Vibe screenshot](Assets/screenshot-playlist-pitch.png)
