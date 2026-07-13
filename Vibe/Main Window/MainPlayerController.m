@@ -15,8 +15,47 @@
 #import "BackgroundArtworkImageView.h"
 #import "AudioDeviceManager.h"
 #import "MainPlayerContentView.h"
+#import "AudioPlayer.h"
+#import "AudioTrack.h"
+#import "AudioTrackMetadata.h"
+#import "AudioTrackMetadataCache.h"
+#import "AudioWaveformView.h"
+#import "PlaylistManager.h"
+#import "MainWindow.h"
+#import "SYFlatButton.h"
+#import "PitchControlPanel.h"
 
 #define UPDATE_HZ 3
+
+// View outlets (adopted from MainPlayerContentView in buildContentInWindow:)
+// and protocol conformances are internal: nothing outside this file needs
+// them except the debug command channel, which re-declares what it reads in
+// MainPlayerController+Debug.h against these synthesized accessors.
+@interface MainPlayerController () <NSMenuItemValidation,
+                                    NSWindowDelegate,
+                                    NSWindowRestoration,
+                                    FileDropDelegate,
+                                    AudioPlayerDelegate,
+                                    AudioWaveformViewDelegate,
+                                    AudioTrackMetadataCacheDelegate,
+                                    PitchFaderViewDelegate>
+
+@property (weak) SYFlatButton *nextButton;
+@property (weak) SYFlatButton *playButton;
+@property (weak) SYFlatButton *closeButton;
+
+@property (weak) NSTableView *playlistTableView;
+@property (weak) NSTextField *artistTextField;
+@property (weak) NSTextField *titleTextField;
+@property (weak) ArtworkImageView *albumArtImageView;
+@property (weak) BackgroundArtworkImageView *backgroundAlbumArtImageView;
+@property (weak) AudioWaveformView *waveformView;
+@property (weak) NSTextField *totalTimeTextField;
+@property (weak) NSTextField *currentTimeTextField;
+@property (weak) NSTextField *fileMetadataTextField;
+@property (weak) NSView *albumArtGradientView;
+
+@end
 
 @implementation MainPlayerController {
     dispatch_source_t           _timer;
@@ -127,7 +166,6 @@
         savedDeviceName = savedDevice.name;
     }
     self.audioPlayer = [[AudioPlayer alloc] initWithDevice:savedDeviceName
-                                            lockSampleRate:Settings.audioPlayerLockSampleRate
                                                   delegate:self
     ];
     self.metadataCache = [[AudioTrackMetadataCache alloc] init];

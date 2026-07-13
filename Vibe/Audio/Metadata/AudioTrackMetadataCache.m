@@ -101,6 +101,13 @@
         }
     }
     if (cachedMetaData) {
+        // Pre-warm the playlist-cell thumbnail BEFORE publishing the metadata:
+        // the table delegate (main thread) reads thumbnailAlbumArt as soon as
+        // the metadata is visible, and publishing first opened a window where
+        // a redraw paid the ImageIO decode on main. CGImageForProposedRect
+        // forces the actual bitmap decode, which is otherwise deferred until
+        // the cell first draws (on main).
+        [cachedMetaData.thumbnailAlbumArt CGImageForProposedRect:NULL context:nil hints:nil];
         track.metadata = cachedMetaData;
     } else {
         // A stale loader (cancelled when a new playlist replaced this one)
@@ -110,6 +117,9 @@
             return;
         }
         AudioTrackMetadata *metadata = [AudioTrackMetadata metadataWithURL:track.url];
+        // Decode the thumbnail before the metadata becomes visible to the
+        // main thread (see the cache-hit branch above).
+        [metadata.thumbnailAlbumArt CGImageForProposedRect:NULL context:nil hints:nil];
         // Never clobber real metadata with a failed parse: a cancelled
         // loader's op can still be mid-parse (having opened the file while it
         // was dataless) when this loader re-parses it successfully; last-
@@ -129,15 +139,10 @@
         }
     }
     if (track.metadata && !self.isCancelled) {
-        // Pre-warm the playlist-cell thumbnail on the worker so the table
-        // delegate (main thread) never pays the resize or the JPEG decode.
-        // CGImageForProposedRect forces the actual bitmap decode, which is
-        // otherwise deferred until the cell first draws (on main).
-        [track.metadata.thumbnailAlbumArt CGImageForProposedRect:NULL context:nil hints:nil];
-        // Thumbnail now exists — drop the full-size art bytes so a large first
-        // import doesn't pin hundreds of MB. Cache-hit instances never carried
-        // them; freshly parsed ones now match that (re-read on demand for the
-        // one track shown full-res).
+        // The thumbnail was pre-warmed before publish — drop the full-size art
+        // bytes so a large first import doesn't pin hundreds of MB. Cache-hit
+        // instances never carried them; freshly parsed ones now match that
+        // (re-read on demand for the one track shown full-res).
         [track.metadata discardAlbumArtData];
         run_on_main_thread({
             if (!self.isCancelled) {

@@ -28,10 +28,8 @@
 		34FF482DF7352F43B6AF35C0 /* AudioTrackMetadataCache.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF42979C0203E308C072C3 /* AudioTrackMetadataCache.m */; };
 		34FF4870B9345EA58ABF33AC /* NSView+DarkMode.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4673B99FFF4C729743B9 /* NSView+DarkMode.m */; };
 		34FF487C9B7D9AD974784F26 /* NSDockTile+Util.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF422B054BBF951A4D63CA /* NSDockTile+Util.m */; };
-		34FF489D4479528A062D95EC /* MainWindow.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4E4074FCDF9987862179 /* MainWindow.mm */; };
+		34FF489D4479528A062D95EC /* MainWindow.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4E4074FCDF9987862179 /* MainWindow.m */; };
 		34FF48B6F0F3EAA35CE21546 /* AppSettings.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4E137BF339459C5E63C0 /* AppSettings.m */; };
-		34FF49C38743205A9B8A1BC8 /* NSView+Util.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF466808E0F10F15F2F213 /* NSView+Util.m */; };
-		34FF4A1AFA6D5C200E75E184 /* MacOSUtil.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4FF6B8CA311EBAF85F78 /* MacOSUtil.m */; };
 		34FF4A607C863108CECB187B /* VibeDefaultWaveformRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF465741427C92D158BB81 /* VibeDefaultWaveformRenderer.mm */; };
 		34FF4A828E15FEB015564F9D /* NSMutableAttributedString+Util.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF433F9FE866FC4684CC25 /* NSMutableAttributedString+Util.m */; };
 		34FF4AE1ACE2E6673F149C3D /* Formatters.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF45FBACD93387E9706D41 /* Formatters.m */; };
@@ -44,7 +42,7 @@
 		34FF4E608A8013A623779042 /* RSVerticallyCenteredTextFieldCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF47482DFB21C44F91C417 /* RSVerticallyCenteredTextFieldCell.m */; };
 		34FF4EA92D52C10981097FE1 /* CoreAudioUtil.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF496F9E64AD2135175796 /* CoreAudioUtil.mm */; };
 		34FF4EEDE5F050658C8B07F9 /* AudioWaveformView.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4F207EE6DCB581AC1382 /* AudioWaveformView.mm */; };
-		34FF4F37386022BD3B0B511B /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4E1DD78AC461983E62F6 /* AppDelegate.mm */; };
+		34FF4F37386022BD3B0B511B /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4E1DD78AC461983E62F6 /* AppDelegate.m */; };
 		9435FB41B386C06179B65314 /* Pods_Vibe.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E2C73920E9C44F4AF69315C9 /* Pods_Vibe.framework */; };
 		A1B2C3D4E5F60718293A0001 /* AVFAudioWaveformLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A0003 /* AVFAudioWaveformLoader.mm */; };
 		A1B2C3D4E5F60718293A0004 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A0005 /* AVFoundation.framework */; };
@@ -53,20 +51,20 @@
 		AB07000000000000000000B4 /* AboutWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = AB07000000000000000000A4 /* AboutWindowController.m */; };
 		B63DAE6A2E117B8D00A52B03 /* BackgroundArtworkImageView.m in Sources */ = {isa = PBXBuildFile; fileRef = B63DAE692E117B8900A52B03 /* BackgroundArtworkImageView.m */; };
 		B63FB1E62E831C690026C028 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = B63FB1E52E831C690026C028 /* AppIcon.icon */; };
-		B660F21A23A6B8C600BBD9C8 /* MainPlayerController.mm in Sources */ = {isa = PBXBuildFile; fileRef = B660F21823A6B8C600BBD9C8 /* MainPlayerController.mm */; };
+		B660F21A23A6B8C600BBD9C8 /* MainPlayerController.m in Sources */ = {isa = PBXBuildFile; fileRef = B660F21823A6B8C600BBD9C8 /* MainPlayerController.m */; };
 		B6C43BC423AA5837009B6536 /* AudioPlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = B6C43BC323AA5837009B6536 /* AudioPlayer.m */; };
 		B6DD030D23BED3E500DD6DDB /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6DD030C23BED3E500DD6DDB /* CoreAudio.framework */; };
 		B6E7883823A562380035BCD0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B6E7883723A562380035BCD0 /* Assets.xcassets */; };
-		B6E7883E23A562380035BCD0 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = B6E7883D23A562380035BCD0 /* main.mm */; };
+		B6E7883E23A562380035BCD0 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B6E7883D23A562380035BCD0 /* main.m */; };
 		B6E7885D23A564A40035BCD0 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6E7885C23A564A40035BCD0 /* Accelerate.framework */; };
 		B6E7885F23A564AD0035BCD0 /* ApplicationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6E7885E23A564AD0035BCD0 /* ApplicationServices.framework */; };
 		B6E7886123A564C20035BCD0 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6E7886023A564C20035BCD0 /* QuartzCore.framework */; };
 		P17C4B01F0DE1201000000B1 /* PitchFaderView.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A1 /* PitchFaderView.m */; };
 		P17C4B01F0DE1201000000C6 /* EqualizerIndicatorView.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000C5 /* EqualizerIndicatorView.m */; };
 		P17C4B01F0DE1201000000B2 /* PitchControlPanel.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A3 /* PitchControlPanel.m */; };
-		P17C4B01F0DE1201000000B3 /* MainMenuBuilder.mm in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A5 /* MainMenuBuilder.mm */; };
-		P17C4B01F0DE1201000000B5 /* DebugUtil.mm in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A9 /* DebugUtil.mm */; };
-		P17C4B01F0DE1201000000B4 /* MainPlayerContentView.mm in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A7 /* MainPlayerContentView.mm */; };
+		P17C4B01F0DE1201000000B3 /* MainMenuBuilder.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A5 /* MainMenuBuilder.m */; };
+		P17C4B01F0DE1201000000B5 /* DebugUtil.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A9 /* DebugUtil.m */; };
+		P17C4B01F0DE1201000000B4 /* MainPlayerContentView.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A7 /* MainPlayerContentView.m */; };
 		P17C4B01F0DE1201000000C4 /* ArtworkDisplayController.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000C2 /* ArtworkDisplayController.m */; };
 /* End PBXBuildFile section */
 
@@ -97,9 +95,7 @@
 		34FF422C6AC6CAB9B5A43725 /* AudioWaveformLoader.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioWaveformLoader.mm; sourceTree = "<group>"; };
 		34FF426EADB1FCC0BBAB2FF2 /* OutputDevicesMenuController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = OutputDevicesMenuController.h; sourceTree = "<group>"; };
 		34FF42979C0203E308C072C3 /* AudioTrackMetadataCache.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioTrackMetadataCache.m; sourceTree = "<group>"; };
-		34FF42A2D7CDC63BB2FB35A2 /* NSView+Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSView+Util.h"; sourceTree = "<group>"; };
 		34FF42A3D4CB85CAF2568A7F /* AudioWaveformLoader.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioWaveformLoader.h; sourceTree = "<group>"; };
-		34FF42B28E14C5CA422064E4 /* Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Util.h; sourceTree = "<group>"; };
 		34FF42C946A6B74BCFE970B8 /* Formatters.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Formatters.h; sourceTree = "<group>"; };
 		34FF42E69315F87BA3652E77 /* DetailedAudioWaveformRenderer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = DetailedAudioWaveformRenderer.mm; sourceTree = "<group>"; };
 		34FF4332509EABC415A0A5EB /* NSURL+Hash.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSURL+Hash.m"; sourceTree = "<group>"; };
@@ -113,9 +109,7 @@
 		34FF457AA6992F3165F57EBC /* AudioWaveform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioWaveform.h; sourceTree = "<group>"; };
 		34FF457BCFE238F6FBE97F6A /* NSString+CPPStrings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSString+CPPStrings.h"; sourceTree = "<group>"; };
 		34FF45FBACD93387E9706D41 /* Formatters.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Formatters.m; sourceTree = "<group>"; };
-		34FF461706DB2954215A3413 /* MacOSUtil.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MacOSUtil.h; sourceTree = "<group>"; };
 		34FF465741427C92D158BB81 /* VibeDefaultWaveformRenderer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = VibeDefaultWaveformRenderer.mm; sourceTree = "<group>"; };
-		34FF466808E0F10F15F2F213 /* NSView+Util.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSView+Util.m"; sourceTree = "<group>"; };
 		34FF4673B99FFF4C729743B9 /* NSView+DarkMode.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSView+DarkMode.m"; sourceTree = "<group>"; };
 		34FF46C5DB656AAA171A5984 /* AudioWaveformRenderer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioWaveformRenderer.mm; sourceTree = "<group>"; };
 		34FF47482DFB21C44F91C417 /* RSVerticallyCenteredTextFieldCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = RSVerticallyCenteredTextFieldCell.m; sourceTree = "<group>"; };
@@ -150,9 +144,9 @@
 		34FF4D53CF024A2C7F1E1FD8 /* AudioWaveformCache.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioWaveformCache.mm; sourceTree = "<group>"; };
 		34FF4D9C4071E7B6F8D083FF /* VibeDefaultWaveformRenderer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VibeDefaultWaveformRenderer.h; sourceTree = "<group>"; };
 		34FF4E137BF339459C5E63C0 /* AppSettings.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AppSettings.m; sourceTree = "<group>"; };
-		34FF4E1DD78AC461983E62F6 /* AppDelegate.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AppDelegate.mm; sourceTree = "<group>"; };
+		34FF4E1DD78AC461983E62F6 /* AppDelegate.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
 		34FF4E298A6204B96307E206 /* BasicAudioWaveformRenderer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BasicAudioWaveformRenderer.h; sourceTree = "<group>"; };
-		34FF4E4074FCDF9987862179 /* MainWindow.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MainWindow.mm; sourceTree = "<group>"; };
+		34FF4E4074FCDF9987862179 /* MainWindow.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MainWindow.m; sourceTree = "<group>"; };
 		34FF4EA8794DA9DC335A3D0B /* AudioWaveformCache.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioWaveformCache.h; sourceTree = "<group>"; };
 		34FF4EE108AD43AD9F0EC29A /* Fonts.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Fonts.h; sourceTree = "<group>"; };
 		34FF4EEE2D41CC67215D8C88 /* MainWindow.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MainWindow.h; sourceTree = "<group>"; };
@@ -161,7 +155,6 @@
 		34FF4F4C0BCCC1A1CA0898A0 /* Podfile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = Podfile; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
 		34FF4FA087C910402AE873A5 /* DetailedAudioWaveformRenderer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DetailedAudioWaveformRenderer.h; sourceTree = "<group>"; };
 		34FF4FE5A8CF9374A4502382 /* NSDraggingImageComponent+Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSDraggingImageComponent+Util.h"; sourceTree = "<group>"; };
-		34FF4FF6B8CA311EBAF85F78 /* MacOSUtil.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MacOSUtil.m; sourceTree = "<group>"; };
 		39F5AFF5F50C33BBB667F716 /* Pods-Vibe.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Vibe.debug.xcconfig"; path = "Target Support Files/Pods-Vibe/Pods-Vibe.debug.xcconfig"; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A0002 /* AVFAudioWaveformLoader.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AVFAudioWaveformLoader.h; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A0003 /* AVFAudioWaveformLoader.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AVFAudioWaveformLoader.mm; sourceTree = "<group>"; };
@@ -178,7 +171,8 @@
 		B64A90D32F5F3BEF00919E55 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		B654886F23C78FE900A5A4FE /* AudioWaveformRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioWaveformRenderer.h; sourceTree = "<group>"; };
 		B660F21723A6B8C600BBD9C8 /* MainPlayerController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MainPlayerController.h; sourceTree = "<group>"; };
-		B660F21823A6B8C600BBD9C8 /* MainPlayerController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MainPlayerController.mm; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000D3 /* MainPlayerController+Debug.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MainPlayerController+Debug.h"; sourceTree = "<group>"; };
+		B660F21823A6B8C600BBD9C8 /* MainPlayerController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MainPlayerController.m; sourceTree = "<group>"; };
 		B6A7C07823ABD056007739BA /* Vibe-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Vibe-Prefix.pch"; sourceTree = "<group>"; };
 		B6C43BC223AA5837009B6536 /* AudioPlayer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioPlayer.h; sourceTree = "<group>"; };
 		B6C43BC323AA5837009B6536 /* AudioPlayer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AudioPlayer.m; sourceTree = "<group>"; };
@@ -186,7 +180,7 @@
 		B6E7883123A562360035BCD0 /* Vibe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vibe.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6E7883723A562380035BCD0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B6E7883C23A562380035BCD0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		B6E7883D23A562380035BCD0 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		B6E7883D23A562380035BCD0 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		B6E7883F23A562380035BCD0 /* Vibe.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Vibe.entitlements; sourceTree = "<group>"; };
 		B6E7885C23A564A40035BCD0 /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
 		B6E7885E23A564AD0035BCD0 /* ApplicationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ApplicationServices.framework; path = System/Library/Frameworks/ApplicationServices.framework; sourceTree = SDKROOT; };
@@ -199,11 +193,11 @@
 		P17C4B01F0DE1201000000A2 /* PitchFaderView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PitchFaderView.h; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A3 /* PitchControlPanel.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PitchControlPanel.m; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A4 /* PitchControlPanel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PitchControlPanel.h; sourceTree = "<group>"; };
-		P17C4B01F0DE1201000000A5 /* MainMenuBuilder.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MainMenuBuilder.mm; sourceTree = "<group>"; };
-		P17C4B01F0DE1201000000A9 /* DebugUtil.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DebugUtil.mm; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000A5 /* MainMenuBuilder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MainMenuBuilder.m; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000A9 /* DebugUtil.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DebugUtil.m; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000AA /* DebugUtil.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DebugUtil.h; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A6 /* MainMenuBuilder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MainMenuBuilder.h; sourceTree = "<group>"; };
-		P17C4B01F0DE1201000000A7 /* MainPlayerContentView.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MainPlayerContentView.mm; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000A7 /* MainPlayerContentView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MainPlayerContentView.m; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A8 /* MainPlayerContentView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MainPlayerContentView.h; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000C2 /* ArtworkDisplayController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ArtworkDisplayController.m; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000C3 /* ArtworkDisplayController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ArtworkDisplayController.h; sourceTree = "<group>"; };
@@ -227,6 +221,26 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		P17C4B01F0DE1201000000D1 /* Debug */ = {
+			isa = PBXGroup;
+			children = (
+				P17C4B01F0DE1201000000AA /* DebugUtil.h */,
+				P17C4B01F0DE1201000000A9 /* DebugUtil.m */,
+			);
+			path = Debug;
+			sourceTree = "<group>";
+		};
+		P17C4B01F0DE1201000000D2 /* ThirdParty */ = {
+			isa = PBXGroup;
+			children = (
+				34FF49E4321B915207F727C9 /* RSVerticallyCenteredTextFieldCell.h */,
+				34FF47482DFB21C44F91C417 /* RSVerticallyCenteredTextFieldCell.m */,
+				34FF47EB93534A24C0594283 /* SYFlatButton.h */,
+				34FF48E9F08E5E82D6C692BA /* SYFlatButton.m */,
+			);
+			path = ThirdParty;
+			sourceTree = "<group>";
+		};
 		34FF40B806BAEDAB621E87C2 /* Util */ = {
 			isa = PBXGroup;
 			children = (
@@ -234,16 +248,11 @@
 				34FF411D6D68971959338BC4 /* UI */,
 				34FF4C6489A152B4AE37F887 /* CoreAudioUtil.h */,
 				34FF496F9E64AD2135175796 /* CoreAudioUtil.mm */,
-				P17C4B01F0DE1201000000AA /* DebugUtil.h */,
-				P17C4B01F0DE1201000000A9 /* DebugUtil.mm */,
 				34FF42C946A6B74BCFE970B8 /* Formatters.h */,
 				34FF45FBACD93387E9706D41 /* Formatters.m */,
 				34FF44C3143D8C7424E75829 /* HelperMacros.h */,
-				34FF461706DB2954215A3413 /* MacOSUtil.h */,
-				34FF4FF6B8CA311EBAF85F78 /* MacOSUtil.m */,
 				34FF40AF244ECCFCBF37142E /* NSURLUtil.h */,
 				34FF47AA07AEC3807ECCC08E /* NSURLUtil.m */,
-				34FF42B28E14C5CA422064E4 /* Util.h */,
 			);
 			path = Util;
 			sourceTree = "<group>";
@@ -264,12 +273,8 @@
 		34FF411D6D68971959338BC4 /* UI */ = {
 			isa = PBXGroup;
 			children = (
-				34FF49E4321B915207F727C9 /* RSVerticallyCenteredTextFieldCell.h */,
-				34FF47482DFB21C44F91C417 /* RSVerticallyCenteredTextFieldCell.m */,
 				34FF408589774269742C487B /* ScaledImageView.h */,
 				34FF4AA77C54EAA82C12DE35 /* ScaledImageView.m */,
-				34FF47EB93534A24C0594283 /* SYFlatButton.h */,
-				34FF48E9F08E5E82D6C692BA /* SYFlatButton.m */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -320,8 +325,10 @@
 		P17C4B01F0DE1201000000C1 /* Menu */ = {
 			isa = PBXGroup;
 			children = (
-				P17C4B01F0DE1201000000A5 /* MainMenuBuilder.mm */,
+				P17C4B01F0DE1201000000A5 /* MainMenuBuilder.m */,
 				P17C4B01F0DE1201000000A6 /* MainMenuBuilder.h */,
+				34FF426EADB1FCC0BBAB2FF2 /* OutputDevicesMenuController.h */,
+				34FF482BFB65CD379F8499EB /* OutputDevicesMenuController.m */,
 			);
 			path = Menu;
 			sourceTree = "<group>";
@@ -377,8 +384,6 @@
 				34FF4362BDC6132353A0962D /* NSString+CPPStrings.mm */,
 				34FF4B7F739FE9FF24B1E1F4 /* NSURL+Hash.h */,
 				34FF4332509EABC415A0A5EB /* NSURL+Hash.m */,
-				34FF42A2D7CDC63BB2FB35A2 /* NSView+Util.h */,
-				34FF466808E0F10F15F2F213 /* NSView+Util.m */,
 				34FF4673B99FFF4C729743B9 /* NSView+DarkMode.m */,
 				34FF4AFAD96AD4279659B6C5 /* NSView+DarkMode.h */,
 			);
@@ -411,13 +416,12 @@
 				P17C4B01F0DE1201000000C3 /* ArtworkDisplayController.h */,
 				P17C4B01F0DE1201000000C2 /* ArtworkDisplayController.m */,
 				B660F21723A6B8C600BBD9C8 /* MainPlayerController.h */,
-				B660F21823A6B8C600BBD9C8 /* MainPlayerController.mm */,
-				P17C4B01F0DE1201000000A7 /* MainPlayerContentView.mm */,
+				P17C4B01F0DE1201000000D3 /* MainPlayerController+Debug.h */,
+				B660F21823A6B8C600BBD9C8 /* MainPlayerController.m */,
+				P17C4B01F0DE1201000000A7 /* MainPlayerContentView.m */,
 				P17C4B01F0DE1201000000A8 /* MainPlayerContentView.h */,
 				34FF4EEE2D41CC67215D8C88 /* MainWindow.h */,
-				34FF4E4074FCDF9987862179 /* MainWindow.mm */,
-				34FF426EADB1FCC0BBAB2FF2 /* OutputDevicesMenuController.h */,
-				34FF482BFB65CD379F8499EB /* OutputDevicesMenuController.m */,
+				34FF4E4074FCDF9987862179 /* MainWindow.m */,
 			);
 			path = "Main Window";
 			sourceTree = "<group>";
@@ -426,7 +430,7 @@
 			isa = PBXGroup;
 			children = (
 				34FF4065120E705650E06694 /* AppDelegate.h */,
-				34FF4E1DD78AC461983E62F6 /* AppDelegate.mm */,
+				34FF4E1DD78AC461983E62F6 /* AppDelegate.m */,
 				34FF4A51076EB07083C3A70A /* AppSettings.h */,
 				34FF4E137BF339459C5E63C0 /* AppSettings.m */,
 				34FF4EE108AD43AD9F0EC29A /* Fonts.h */,
@@ -453,7 +457,7 @@
 				B64A90D22F5F3BEF00919E55 /* CLAUDE.md */,
 				B64A90D32F5F3BEF00919E55 /* README.md */,
 				B6E7883323A562360035BCD0 /* Vibe */,
-				B6E7883D23A562380035BCD0 /* main.mm */,
+				B6E7883D23A562380035BCD0 /* main.m */,
 				B64B6A0923A6C72400B91994 /* Resources */,
 				B6E7883223A562360035BCD0 /* Products */,
 				B6E7885823A563780035BCD0 /* Frameworks */,
@@ -477,9 +481,11 @@
 				34FF48C886FF01D51470B6EE /* Audio */,
 				B626E36723B65B5B0075B506 /* Common */,
 				34FF4D186760F9F6458D3EE9 /* Controls */,
+				P17C4B01F0DE1201000000D1 /* Debug */,
 				B626E36623B65AF60075B506 /* Main Window */,
 				P17C4B01F0DE1201000000C1 /* Menu */,
 				34FF40ED83E80996C59F5E22 /* Playlist */,
+				P17C4B01F0DE1201000000D2 /* ThirdParty */,
 				34FF40B806BAEDAB621E87C2 /* Util */,
 				34FF4DE91675897020AE5852 /* Waveform */,
 			);
@@ -620,8 +626,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B6E7883E23A562380035BCD0 /* main.mm in Sources */,
-				B660F21A23A6B8C600BBD9C8 /* MainPlayerController.mm in Sources */,
+				B6E7883E23A562380035BCD0 /* main.m in Sources */,
+				B660F21A23A6B8C600BBD9C8 /* MainPlayerController.m in Sources */,
 				AB07000000000000000000B2 /* VectorBallsView.m in Sources */,
 				AB07000000000000000000B4 /* AboutWindowController.m in Sources */,
 				34FF41F5F64CA81A54C15EBC /* AudioTrack.m in Sources */,
@@ -632,7 +638,6 @@
 				34FF480939F28858AEDD48A9 /* NSImage+Util.m in Sources */,
 				34FF4478E449DFA4CB901A2A /* PlaylistManager.m in Sources */,
 				34FF44EE58D1AE8AD48B9279 /* PlaylistTextCell.m in Sources */,
-				34FF4A1AFA6D5C200E75E184 /* MacOSUtil.m in Sources */,
 				34FF45BF3B91F3811A097228 /* ScaledImageView.m in Sources */,
 				34FF4E608A8013A623779042 /* RSVerticallyCenteredTextFieldCell.m in Sources */,
 				34FF4484903DE5AD7A67B838 /* SYFlatButton.m in Sources */,
@@ -641,7 +646,6 @@
 				34FF4D673AEDD903E6D4F623 /* AudioDevice.m in Sources */,
 				34FF40610A4EB028EC190151 /* NSURL+Hash.m in Sources */,
 				34FF4A828E15FEB015564F9D /* NSMutableAttributedString+Util.m in Sources */,
-				34FF49C38743205A9B8A1BC8 /* NSView+Util.m in Sources */,
 				34FF4AE1ACE2E6673F149C3D /* Formatters.m in Sources */,
 				34FF414234C1E943F7A09A42 /* Fonts.m in Sources */,
 				34FF41329A5EAA49BF963107 /* PlaylistCoverImageView.m in Sources */,
@@ -653,15 +657,15 @@
 				34FF4CB6A1C128EB32DE8118 /* ArtworkImageView.m in Sources */,
 				P17C4B01F0DE1201000000B1 /* PitchFaderView.m in Sources */,
 				P17C4B01F0DE1201000000C6 /* EqualizerIndicatorView.m in Sources */,
-				P17C4B01F0DE1201000000B3 /* MainMenuBuilder.mm in Sources */,
-				P17C4B01F0DE1201000000B5 /* DebugUtil.mm in Sources */,
-				P17C4B01F0DE1201000000B4 /* MainPlayerContentView.mm in Sources */,
+				P17C4B01F0DE1201000000B3 /* MainMenuBuilder.m in Sources */,
+				P17C4B01F0DE1201000000B5 /* DebugUtil.m in Sources */,
+				P17C4B01F0DE1201000000B4 /* MainPlayerContentView.m in Sources */,
 				P17C4B01F0DE1201000000C4 /* ArtworkDisplayController.m in Sources */,
 				P17C4B01F0DE1201000000B2 /* PitchControlPanel.m in Sources */,
 				34FF4EEDE5F050658C8B07F9 /* AudioWaveformView.mm in Sources */,
-				34FF4F37386022BD3B0B511B /* AppDelegate.mm in Sources */,
+				34FF4F37386022BD3B0B511B /* AppDelegate.m in Sources */,
 				34FF48B6F0F3EAA35CE21546 /* AppSettings.m in Sources */,
-				34FF489D4479528A062D95EC /* MainWindow.mm in Sources */,
+				34FF489D4479528A062D95EC /* MainWindow.m in Sources */,
 				34FF47B7622E1323DB001AE9 /* AudioTrackMetadata.mm in Sources */,
 				34FF482DF7352F43B6AF35C0 /* AudioTrackMetadataCache.m in Sources */,
 				34FF4AFD918FEFC3A05BADC7 /* AudioWaveformLoader.mm in Sources */,

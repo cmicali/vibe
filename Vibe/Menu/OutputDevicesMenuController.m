@@ -99,11 +99,6 @@
     item.action = @selector(changeOutputDevice:);
 }
 
-- (void)lockSampleRate:(id)lockSampleRate {
-    Settings.audioPlayerLockSampleRate = !Settings.audioPlayerLockSampleRate;
-    self.audioPlayer.lockSampleRate = Settings.audioPlayerLockSampleRate;
-}
-
 - (NSInteger)numberOfItemsInMenu:(NSMenu *)menu {
     return AudioDeviceManager.sharedInstance.numOutputDevices;
 }

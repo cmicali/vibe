@@ -5,7 +5,7 @@
 
 #import "ArtworkImageView.h"
 #import "NSDraggingImageComponent+Util.h"
-#import "NSImageView+VibeCrossfade.h"
+#import "VibeImageCrossfade.h"
 
 
 @implementation ArtworkImageView {
@@ -37,7 +37,7 @@
 }
 
 // Cross-fade between artworks (and to/from the default) instead of an
-// instant swap. See NSImageView+VibeCrossfade.h for why this is a snapshot
+// instant swap. See VibeImageCrossfade.h for why this is a snapshot
 // overlay and not a CATransition.
 - (void)setImage:(NSImage *)image {
     if (image != self.image) {

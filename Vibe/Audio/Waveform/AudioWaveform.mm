@@ -115,7 +115,14 @@ static const int kCodableAudioWaveformVersion = 2;
         if ([coder decodeIntForKey:@"version"] != kCodableAudioWaveformVersion) {
             return nil;
         }
-        NSUInteger numChunks = [[coder decodeObjectForKey:@"numChunks"] unsignedIntegerValue];
+        // Validate the class before messaging: a bit-rotted entry that decodes
+        // numChunks as some other object would otherwise crash (unrecognized
+        // selector) inside the decode, ahead of the payload checks below.
+        NSNumber *numChunksValue = [coder decodeObjectForKey:@"numChunks"];
+        if (![numChunksValue isKindOfClass:[NSNumber class]]) {
+            return nil;
+        }
+        NSUInteger numChunks = [numChunksValue unsignedIntegerValue];
         NSUInteger length;
         const void* data = [coder decodeBytesForKey:@"chunks" returnedLength:&length];
         // The encoder only ever writes NUM_CHUNKS. Requiring exact equality

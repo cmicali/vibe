@@ -4,7 +4,7 @@
 //
 
 #import "BackgroundArtworkImageView.h"
-#import "NSImageView+VibeCrossfade.h"
+#import "VibeImageCrossfade.h"
 #import "NSView+DarkMode.h"
 #import <CoreImage/CoreImage.h>
 
@@ -167,7 +167,7 @@
 // Cross-fade whenever the visible backdrop changes. The blur is rendered
 // asynchronously, so the fade must live here (where the image actually
 // lands) rather than at the controller's setArtworkImage: call site. See
-// NSImageView+VibeCrossfade.h for why this is a snapshot overlay.
+// VibeImageCrossfade.h for why this is a snapshot overlay.
 - (void)setImage:(NSImage *)image {
     if (image != self.image) {
         VibeBeginImageCrossfade(self);

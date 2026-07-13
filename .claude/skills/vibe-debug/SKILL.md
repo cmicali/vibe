@@ -5,7 +5,7 @@ description: Launch, drive, inspect, and visually verify the Vibe app. Use whene
 
 # Debugging and verifying Vibe
 
-All debug tooling is compiled in **debug builds only** (`Util/DebugUtil.mm`). Build first:
+All debug tooling is compiled in **debug builds only** (`Debug/DebugUtil.m`). Build first:
 
 ```bash
 xcodebuild -workspace Vibe.xcworkspace -scheme Vibe -configuration Debug \

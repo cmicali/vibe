@@ -47,9 +47,9 @@ static const NSTimeInterval kFileOpenTimeoutSeconds = 20.0;
 // A still-pending open after this long is worth a visible loading state.
 static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
 
-// 100ms multiplicative (perceptually log, like BASS_SLIDE_LOG) volume ramps.
+// 50ms multiplicative (perceptually log, like BASS_SLIDE_LOG) volume ramps.
 static const int kFadeSteps = 10;
-static const useconds_t kFadeStepMicroseconds = 10000;
+static const useconds_t kFadeStepMicroseconds = 5000;
 static const float kFadeFloor = 0.001f; // -60 dB
 
 static float VibeFadeVolume(float from, float to, int step) {
@@ -112,19 +112,22 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     AudioTrack *_pendingOpenTrack;
     VibePlayerState         _state;
     os_unfair_lock          _stateLock;
-    BOOL                    _lockSampleRate;
+    // A pause fade is in flight (queue-confined). A second playPause during
+    // the ~50ms fade-out cancels the pending pause and ramps back up instead
+    // of pausing twice; cleared unconditionally by the fade's completion
+    // (which runs on preemption too), so it can't go stale.
+    BOOL                    _pausePending;
     id                      _configChangeObserver;
 }
 
 #pragma mark - Init
 
-- (id)initWithDevice:(NSString *)deviceName lockSampleRate:(BOOL)shouldLockSampleRate delegate:(id <AudioPlayerDelegate>)delegate {
+- (id)initWithDevice:(NSString *)deviceName delegate:(id <AudioPlayerDelegate>)delegate {
     self = [super init];
     if (self) {
         _stateLock = OS_UNFAIR_LOCK_INIT;
         _state = VibePlayerStateStopped;
         _maxPitch = kDefaultMaxPitchPercent;
-        _lockSampleRate = shouldLockSampleRate;
         // Meaningful before the async init block resolves the saved device:
         // -1 (follow system default) instead of a bogus device id 0.
         self.currentlyRequestedAudioDeviceId = -1;
@@ -206,12 +209,32 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 
     AVAudioPlayerNode *oldNode = _node;
     if (oldNode) {
-        // Fade the old node out asynchronously and detach it when the ramp
-        // completes, so a skip doesn't block on the ~100ms fade.
         os_unfair_lock_lock(&_stateLock);
         _node = nil;
         os_unfair_lock_unlock(&_stateLock);
-        [self fadeOutStopAndDetachNode:oldNode];
+        AVAudioFormat *oldFormat = _file.processingFormat;
+        if (_engine.isRunning && _state == VibePlayerStatePlaying && oldFormat) {
+            // Fade the old node out asynchronously and detach it when the ramp
+            // completes, so a skip doesn't block on the ~50ms fade. The node
+            // must first move onto its own mixer input: it shares the
+            // varispeed's single input bus, so the incoming track's connect
+            // would otherwise steal the bus and hard-cut the fade after the
+            // first step (the varispeed's pitch is lost for the fade's 50ms —
+            // inaudible). If the reroute fails, fall back to a hard cut.
+            @try {
+                [_engine connect:oldNode to:_engine.mainMixerNode format:oldFormat];
+                [self fadeOutStopAndDetachNode:oldNode];
+                oldNode = nil;
+            }
+            @catch (NSException *exception) {
+                LogError(@"AudioPlayer: could not reroute outgoing node for fade (%@)", exception.reason);
+            }
+        }
+        if (oldNode) {
+            // Engine idle (nothing audible) or reroute failed: hard cut.
+            [oldNode stop];
+            [_engine detachNode:oldNode];
+        }
     }
 
     self.currentTrack = nil;
@@ -293,10 +316,6 @@ static const float kDefaultMaxPitchPercent = 8.0f;
                 [NSString stringWithFormat:@"Could not open %@", track.url.lastPathComponent], error)];
         return;
     }
-
-    // Switch the hardware rate before wiring the graph so the engine starts
-    // against the final device format.
-    [self changeSystemSampleRateToRate:file.processingFormat.sampleRate];
 
     AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
     [_engine attachNode:node];
@@ -481,24 +500,35 @@ static const float kDefaultMaxPitchPercent = 8.0f;
             return;
         }
         if (self->_state == VibePlayerStatePlaying) {
-            self->_rampGeneration++; // cancel any in-flight resume fade-in
-            [self rampNodeSync:node toVolume:0];
-            // Capture the position AFTER the fade (the node keeps rendering
-            // through the ~100ms ramp) but BEFORE [node pause] — once paused,
-            // playerTimeForNodeTime: stops reporting. Capturing before the fade
-            // stored a point ~100ms behind where playback actually resumes.
-            NSTimeInterval position = self.position;
-            [node pause];
-            os_unfair_lock_lock(&self->_stateLock);
-            self->_pausedPosition = position;
-            self->_lastValidPosition = position;
-            self->_positionEpoch++;
-            self->_state = VibePlayerStatePaused;
-            os_unfair_lock_unlock(&self->_stateLock);
-            AudioTrack *track = self.currentTrack;
-            run_on_main_thread({
-                [self.delegate audioPlayer:self didPausePlaying:track];
-            });
+            if (self->_pausePending) {
+                // Second press during the pause fade-out: cancel the pending
+                // pause and ramp back up. No delegate event — didPause never
+                // fired, so the UI never left the playing state.
+                self->_pausePending = NO;
+                uint64_t rampGen = ++self->_rampGeneration;
+                [self rampNodeAsync:node step:1 from:node.volume to:1.0 generation:rampGen completion:nil];
+                return;
+            }
+            uint64_t rampGen = ++self->_rampGeneration; // cancel any in-flight resume fade-in
+            // Fade out asynchronously (the queue must not block ~50ms — a
+            // skip or seek issued right behind a pause used to stall on the
+            // old synchronous ramp), then pause in the completion. State stays
+            // Playing through the fade: the node really is still rendering.
+            self->_pausePending = YES;
+            __weak AudioPlayer *weakSelf = self;
+            [self rampNodeAsync:node step:1 from:node.volume to:0 generation:rampGen completion:^{
+                AudioPlayer *strongSelf = weakSelf;
+                if (!strongSelf) {
+                    return;
+                }
+                // Runs on _queue, and runs in every case (preemption included),
+                // so the pending flag can be cleared unconditionally.
+                strongSelf->_pausePending = NO;
+                if (strongSelf->_node != node || strongSelf->_state != VibePlayerStatePlaying) {
+                    return; // A play/stop/device switch superseded the pause.
+                }
+                [strongSelf completePauseOfNode:node];
+            }];
         }
         else if (self->_state == VibePlayerStatePaused) {
             NSError *startError = nil;
@@ -523,18 +553,26 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     });
 }
 
-#pragma mark - Fades
-
-// Blocking ~100ms fade on the player queue (pause path — matches the old
-// synchronous BASS ramp).
-- (void)rampNodeSync:(AVAudioPlayerNode *)node toVolume:(float)target {
-    float start = node.volume;
-    for (int step = 1; step <= kFadeSteps; step++) {
-        node.volume = VibeFadeVolume(start, target, step);
-        usleep(kFadeStepMicroseconds);
-    }
-    node.volume = target;
+// Runs on _queue. Captures the position (after any fade — the node keeps
+// rendering through the ramp — but BEFORE [node pause]; once paused,
+// playerTimeForNodeTime: stops reporting), pauses the node, and publishes
+// the Paused state.
+- (void)completePauseOfNode:(AVAudioPlayerNode *)node {
+    NSTimeInterval position = self.position;
+    [node pause];
+    os_unfair_lock_lock(&_stateLock);
+    _pausedPosition = position;
+    _lastValidPosition = position;
+    _positionEpoch++;
+    _state = VibePlayerStatePaused;
+    os_unfair_lock_unlock(&_stateLock);
+    AudioTrack *track = self.currentTrack;
+    run_on_main_thread({
+        [self.delegate audioPlayer:self didPausePlaying:track];
+    });
 }
+
+#pragma mark - Fades
 
 // Non-blocking fade stepped via dispatch_after on the player queue. Tagged with
 // a ramp generation: if a pause/seek/skip/device-switch/new-play bumps
@@ -759,51 +797,6 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     });
 }
 
-#pragma mark - Sample rates
-
-- (BOOL)lockSampleRate {
-    return _lockSampleRate;
-}
-
-- (void)setLockSampleRate:(BOOL)lockSampleRate {
-    _lockSampleRate = lockSampleRate;
-    if (lockSampleRate) {
-        dispatch_async(_queue, ^{
-            AVAudioFile *file = self->_file;
-            if (file) {
-                [self changeSystemSampleRateToRate:file.processingFormat.sampleRate];
-            }
-        });
-    }
-}
-
-- (void)changeSystemSampleRateToRate:(double)rate {
-    if (!_lockSampleRate || rate <= 0) {
-        return;
-    }
-    AudioDeviceID deviceID = [self activeOutputDeviceID];
-    if (deviceID == kAudioObjectUnknown) {
-        LogError(@"AudioPlayer: cannot change sample rate, no active output device");
-        return;
-    }
-    double currentRate = [CoreAudioUtil nominalSampleRateForDevice:deviceID];
-    if (currentRate == rate) {
-        return;
-    }
-    NSString *deviceUID = [CoreAudioUtil uidForDeviceID:deviceID];
-    if (!deviceUID) {
-        LogError(@"AudioPlayer: cannot change sample rate, no UID for current device");
-        return;
-    }
-    LogDebug(@"AudioPlayer: Changing system sample rate");
-    LogDebug(@"  from: %g", currentRate);
-    LogDebug(@"    to: %g", rate);
-    // The hardware rate change makes the engine stop itself and post a
-    // configuration-change notification; handleEngineConfigurationChange's
-    // health check restarts the graph if the caller's own start didn't win.
-    [CoreAudioUtil setBestSampleRate:rate forDeviceUID:deviceUID];
-}
-
 #pragma mark - Output devices
 
 - (void)systemDefaultOutputDeviceDidChange {
@@ -936,7 +929,6 @@ static const float kDefaultMaxPitchPercent = 8.0f;
                     @"Could not restore track on the new audio device", nil)];
             return NO;
         }
-        [self changeSystemSampleRateToRate:file.processingFormat.sampleRate];
         AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
         [_engine attachNode:node];
         [self connectNode:node throughVarispeedWithFormat:file.processingFormat];
@@ -947,7 +939,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
         // Preserve the pause-fade invariant: a Paused track sits at volume 0
         // so the next resume ramps it back up (see setPosition:). Restoring
         // at 1.0 would make that resume start instantly at full volume
-        // mid-waveform — the click the 100ms ramp exists to prevent.
+        // mid-waveform — the click the 50ms ramp exists to prevent.
         node.volume = wasPlaying ? 1.0 : 0;
         os_unfair_lock_lock(&_stateLock);
         _node = node;
@@ -976,8 +968,8 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 }
 
 // AVAudioEngineConfigurationChangeNotification — the output hardware changed
-// under the engine (device removed, format/sample-rate change — including our
-// own sample-rate lock, which makes the engine stop itself). Replacement for
+// under the engine (device removed, format/sample-rate change), which makes
+// the engine stop itself. Replacement for
 // BASS_SYNC_DEV_FAIL / BASS_SYNC_DEV_FORMAT. Idempotent health check: only
 // rebuild when the graph actually died, so notifications caused by our own
 // completed rebuilds are no-ops instead of redundant rebuilds.

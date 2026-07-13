@@ -8,50 +8,23 @@
 
 #import <Cocoa/Cocoa.h>
 
-#import "AudioPlayer.h"
-#import "AudioTrackMetadata.h"
-#import "AudioWaveformView.h"
-#import "PlaylistManager.h"
-
-#import "MainWindow.h"
-#import "SYFlatButton.h"
-#import "AudioTrackMetadataCache.h"
-#import "PitchControlPanel.h"
-
-@class OutputDevicesMenuController;
-@class ArtworkImageView;
-@class BackgroundArtworkImageView;
+@class AudioPlayer;
+@class PlaylistManager;
 @class AudioTrackMetadataCache;
+@class OutputDevicesMenuController;
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface MainPlayerController : NSWindowController <NSMenuItemValidation,
-                                                      NSMenuDelegate,
-                                                      NSWindowDelegate,
-                                                      NSWindowRestoration,
-                                                      FileDropDelegate,
-                                                      AudioPlayerDelegate,
-                                                      AudioWaveformViewDelegate,
-                                                      AudioTrackMetadataCacheDelegate,
-                                                      PitchFaderViewDelegate>
+// Central coordinator for the main window. View outlets and most protocol
+// conformances are internal (class extension in the implementation); the
+// debug command channel's extra surface lives in MainPlayerController+Debug.h.
+// NSMenuDelegate stays public: MainMenuBuilder wires the controller as the
+// waveform-style submenu's delegate.
+@interface MainPlayerController : NSWindowController <NSMenuDelegate>
 
-@property (weak) SYFlatButton *nextButton;
-@property (weak) SYFlatButton *playButton;
-@property (weak) SYFlatButton *closeButton;
-
-@property (weak) NSTableView *playlistTableView;
-@property (weak) NSTextField *artistTextField;
-@property (weak) NSTextField *titleTextField;
-@property (weak) ArtworkImageView *albumArtImageView;
-@property (weak) BackgroundArtworkImageView *backgroundAlbumArtImageView;
-@property (weak) AudioWaveformView *waveformView;
-@property (weak) NSTextField *totalTimeTextField;
-@property (weak) NSTextField *currentTimeTextField;
-@property (weak) NSTextField *fileMetadataTextField;
-@property (weak) NSView *albumArtGradientView;
-
+// Collaborators (created in init). devicesMenuController is wired as the
+// Output menu's delegate by MainMenuBuilder.
 @property (strong) OutputDevicesMenuController *devicesMenuController;
-
 @property (strong) AudioPlayer *audioPlayer;
 @property (strong) PlaylistManager *playlistManager;
 @property (strong) AudioTrackMetadataCache *metadataCache;
@@ -76,12 +49,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (IBAction)setAppearance:(id)sender;
 
-#if DEBUG
-// Debug command channel (Util/DebugUtil.mm) drives the app through these;
-// not part of the normal UI surface.
-- (PitchControlPanel *)pitchPanel;
-- (void)debugRefreshUI;
-#endif
 @end
 
 NS_ASSUME_NONNULL_END
