@@ -4,20 +4,9 @@
 //
 
 #import "AudioDevice.h"
-#import "CoreAudioUtil.h"
 
 
-@implementation AudioDevice {
-    NSArray<NSNumber *> *_supportedOutputSampleRates;
-}
-
-- (instancetype)init {
-    self = [super init];
-    if (self) {
-        _supportedOutputSampleRates = nil;
-    }
-    return self;
-}
+@implementation AudioDevice
 
 - (BOOL)isEqual:(id)object {
     if (self == object) return YES;
@@ -26,19 +15,7 @@
 }
 
 - (NSUInteger)hash {
-    return [[NSString stringWithFormat:@"%ld", (long)self.deviceId] hash];
+    return (NSUInteger)self.deviceId;
 }
-
-- (NSArray<NSNumber *> *)supportedOutputSampleRates {
-    if (!_supportedOutputSampleRates) {
-        _supportedOutputSampleRates = [CoreAudioUtil supportedSampleRatesForOutputDevice:self.uid];
-    }
-    return _supportedOutputSampleRates;
-}
-
-- (void)setSupportedOutputSampleRates:(NSArray<NSNumber *> *)supportedOutputSampleRates {
-    _supportedOutputSampleRates = supportedOutputSampleRates;
-}
-
 
 @end

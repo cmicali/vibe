@@ -37,11 +37,6 @@
     return self;
 }
 
-- (void)awakeFromNib {
-    [super awakeFromNib];
-    [self addTrackingArea:[[NSTrackingArea alloc] initWithRect:self.bounds options:NSTrackingActiveAlways|NSTrackingInVisibleRect|NSTrackingMouseEnteredAndExited owner:self userInfo:nil]];
-}
-
 #pragma mark - Drawing method
 
 - (void)drawRect:(NSRect)dirtyRect {
@@ -60,7 +55,11 @@
     self.wantsLayer = YES;
     self.layer.masksToBounds = YES;
     self.layer.delegate = self;
-    self.layer.backgroundColor = [NSColor redColor].CGColor;
+
+    // Buttons are created programmatically (initWithFrame:), so this must
+    // live here, not in awakeFromNib. InVisibleRect keeps the area tracking
+    // the actual bounds.
+    [self addTrackingArea:[[NSTrackingArea alloc] initWithRect:self.bounds options:NSTrackingActiveAlways|NSTrackingInVisibleRect|NSTrackingMouseEnteredAndExited owner:self userInfo:nil]];
 
     // setup the list of custom y-offsets for specific fonts so they are vertically aligned
     self.fontFamilyNameToYOffsetMap = [NSMutableDictionary new];

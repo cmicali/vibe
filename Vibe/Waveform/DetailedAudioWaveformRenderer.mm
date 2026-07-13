@@ -5,6 +5,8 @@
 
 #import "DetailedAudioWaveformRenderer.h"
 
+#include <vector>
+
 @implementation DetailedAudioWaveformRenderer {
     NSColor *_gradientColor;
 
@@ -18,6 +20,14 @@
     CAShapeLayer *_playedMask;
 
     BOOL _hasHydrated;  // tracks whether the grow-from-midline animation has played for the current waveform
+
+    // Inputs behind the current mask paths, used to skip no-op rebuilds:
+    // the per-bar min/max values sampled from the waveform plus the bounds
+    // they were laid out in. _maskValid is NO until the first build and
+    // after the waveform is cleared.
+    std::vector<float> _maskSamples;  // interleaved min/max per bar
+    CGSize _maskSize;
+    BOOL _maskValid;
 }
 
 + (NSString *)displayName {
@@ -26,6 +36,14 @@
 
 - (NSUInteger)numLayers {
     return 1024;
+}
+
+- (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
+    return width / (CGFloat)count;
+}
+
+- (CGFloat)barXForIndex:(NSUInteger)index width:(CGFloat)width barCount:(NSUInteger)count barWidth:(CGFloat)barWidth {
+    return barWidth * (CGFloat)index;
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
@@ -53,15 +71,7 @@
     _unplayedGradient = [CAGradientLayer layer];
     _unplayedGradient.opacity = kWaveformOpacity;
     _unplayedGradient.contentsScale = scale;
-    // Fade runs top → bottom (layer coords: y=1 is the top, y=0 the bottom),
-    // so colors[0] is the top color and colors[last] the bottom. The start/end
-    // points are pinned to the waveform's vertical band, not the full view, so
-    // the full 100%→70% range lands across the visible bars: bars reach at most
-    // ±0.75·(height/2) from the midline (see vscale in updateWaveform:), i.e.
-    // the band spans y ∈ [0.125, 0.875]. Mapping the fade to the whole view
-    // instead only swung the bars ~0.96→0.74 — too subtle to read.
-    _unplayedGradient.startPoint = CGPointMake(0.5, 0.875);
-    _unplayedGradient.endPoint = CGPointMake(0.5, 0.125);
+    [self configureGradient:_unplayedGradient];
     _unplayedMask = [CAShapeLayer layer];
     _unplayedMask.fillColor = [NSColor whiteColor].CGColor;
     _unplayedMask.contentsScale = scale;
@@ -80,14 +90,25 @@
     _playedGradient = [CAGradientLayer layer];
     _playedGradient.opacity = kWaveformOpacity;
     _playedGradient.contentsScale = scale;
-    _playedGradient.startPoint = CGPointMake(0.5, 0.875);
-    _playedGradient.endPoint = CGPointMake(0.5, 0.125);
+    [self configureGradient:_playedGradient];
     _playedMask = [CAShapeLayer layer];
     _playedMask.fillColor = [NSColor whiteColor].CGColor;
     _playedMask.contentsScale = scale;
     _playedGradient.mask = _playedMask;
     [_playedClip addSublayer:_playedGradient];
     [self.parentLayer addSublayer:_playedClip];
+}
+
+- (void)configureGradient:(CAGradientLayer *)gradient {
+    // Fade runs top → bottom (layer coords: y=1 is the top, y=0 the bottom),
+    // so colors[0] is the top color and colors[last] the bottom. The start/end
+    // points are pinned to the waveform's vertical band, not the full view, so
+    // the full 100%→70% range lands across the visible bars: bars reach at most
+    // ±0.75·(height/2) from the midline (see vscale in updateWaveform:), i.e.
+    // the band spans y ∈ [0.125, 0.875]. Mapping the fade to the whole view
+    // instead only swung the bars ~0.96→0.74 — too subtle to read.
+    gradient.startPoint = CGPointMake(0.5, 0.875);
+    gradient.endPoint = CGPointMake(0.5, 0.125);
 }
 
 - (void)dealloc {
@@ -98,25 +119,31 @@
 - (void)updateColors:(BOOL)isDark {
     [super updateColors:isDark];
     _gradientColor = isDark ? [NSColor whiteColor] : [NSColor blackColor];
+    [self setGradientLayerColors:_playedGradient colors:[self playedGradientColors:_gradientColor isDark:isDark]];
+    [self setGradientLayerColors:_unplayedGradient colors:[self unplayedGradientColors:_gradientColor isDark:isDark]];
+}
 
-    // Slight vertical fade: full color at the top, kBottomAlpha of it at the
-    // bottom (same colors + start/end points in light and dark — the direction
-    // is fixed by the gradient's startPoint/endPoint, not by the array order).
+// Slight vertical fade: full color at the top, kBottomAlpha of it at the
+// bottom (same colors + start/end points in light and dark — the direction
+// is fixed by the gradient's startPoint/endPoint, not by the array order).
+// Played is fully opaque at the top; unplayed is half as opaque, so the
+// played region reads clearly brighter where the two meet at the boundary.
+- (NSArray<NSColor *> *)playedGradientColors:(NSColor *)baseColor isDark:(BOOL)isDark {
     const CGFloat kBottomAlpha = 0.45;
-    // Played is fully opaque at the top; unplayed is half as opaque, so the
-    // played region reads clearly brighter where the two meet at the boundary.
     const CGFloat kPlayedTop = 1.0;
+    return @[
+            [baseColor colorWithAlphaComponent:kPlayedTop],
+            [baseColor colorWithAlphaComponent:kPlayedTop * kBottomAlpha],
+    ];
+}
+
+- (NSArray<NSColor *> *)unplayedGradientColors:(NSColor *)baseColor isDark:(BOOL)isDark {
+    const CGFloat kBottomAlpha = 0.45;
     const CGFloat kUnplayedTop = 0.5;
-    NSArray *playedColors = @[
-            [_gradientColor colorWithAlphaComponent:kPlayedTop],
-            [_gradientColor colorWithAlphaComponent:kPlayedTop * kBottomAlpha],
+    return @[
+            [baseColor colorWithAlphaComponent:kUnplayedTop],
+            [baseColor colorWithAlphaComponent:kUnplayedTop * kBottomAlpha],
     ];
-    NSArray *unplayedColors = @[
-            [_gradientColor colorWithAlphaComponent:kUnplayedTop],
-            [_gradientColor colorWithAlphaComponent:kUnplayedTop * kBottomAlpha],
-    ];
-    [self setGradientLayerColors:_playedGradient colors:playedColors];
-    [self setGradientLayerColors:_unplayedGradient colors:unplayedColors];
 }
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
@@ -150,6 +177,7 @@
         // Collapse the gradient layers to a thin line at the midline and
         // clear the paths. The next non-nil call animates back to identity.
         _hasHydrated = NO;
+        _maskValid = NO;
         [CATransaction begin];
         [CATransaction setDisableActions:YES];
         _unplayedGradient.transform = CATransform3DMakeScale(1, 0.001, 1);
@@ -168,18 +196,47 @@
     // the sub-pixel overlap accumulates differently per density, which is
     // what visually distinguishes the oversampling variants. Don't clamp.
     NSUInteger count = self.numLayers;
-    CGFloat barWidth = width / (CGFloat)count;
+    CGFloat barWidth = [self barWidthForWidth:width barCount:count];
+
+    // Sample the waveform into a reusable buffer and compare against the
+    // values behind the current masks. Callers redraw unconditionally (every
+    // loader progress tick, every live-resize step), but assigning a shape
+    // layer as a mask forces a full-view alpha re-rasterization — skip it
+    // when neither the sampled peaks nor the geometry changed.
+    BOOL changed = !_maskValid || !NSEqualSizes(bounds.size, _maskSize);
+    if (_maskSamples.size() != count * 2) {
+        _maskSamples.resize(count * 2);
+        changed = YES;
+    }
+    for (NSUInteger i = 0; i < count; i++) {
+        AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
+        float chunkMin = m.getMin();
+        float chunkMax = m.getMax();
+        if (!changed && (_maskSamples[i * 2] != chunkMin || _maskSamples[i * 2 + 1] != chunkMax)) {
+            changed = YES;
+        }
+        _maskSamples[i * 2] = chunkMin;
+        _maskSamples[i * 2 + 1] = chunkMax;
+    }
+
+    self.topY = round(midY + vscale);
+    self.bottomY = round(midY - vscale);
+
+    if (!changed) {
+        return;
+    }
+    _maskValid = YES;
+    _maskSize = bounds.size;
 
     CGMutablePathRef path = CGPathCreateMutable();
     for (NSUInteger i = 0; i < count; i++) {
-        AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
         // y-up layer coords: the bar's top comes from the positive peak (max),
         // the bottom from the negative peak (min). Subtracting instead drew
         // the envelope vertically mirrored (visible on DC-offset material).
-        CGFloat top = round(midY + m.getMax() * vscale);
-        CGFloat bottom = round(midY + m.getMin() * vscale);
+        CGFloat top = round(midY + _maskSamples[i * 2 + 1] * vscale);
+        CGFloat bottom = round(midY + _maskSamples[i * 2] * vscale);
         CGFloat height = MAX(top - bottom, 1);
-        CGFloat x = barWidth * (CGFloat)i;
+        CGFloat x = [self barXForIndex:i width:width barCount:count barWidth:barWidth];
         CGPathAddRect(path, NULL, CGRectMake(x, bottom, barWidth, height));
     }
 
@@ -204,9 +261,6 @@
     }
 
     CGPathRelease(path);
-
-    self.topY = round(midY + vscale);
-    self.bottomY = round(midY - vscale);
 }
 
 @end

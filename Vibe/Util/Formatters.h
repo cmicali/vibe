@@ -9,8 +9,6 @@
 
 + (Formatters *)sharedInstance;
 
-- (NSDateComponentsFormatter *)timeFormatter;
-
 - (NSString *)durationStringFromTimeInterval:(NSTimeInterval)duration;
 
 @end

@@ -62,11 +62,14 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     NSString *_sourceFilePath;
     BOOL _albumArtExtractionAttempted;
     BOOL _parsedOK;
-    // Bumped by both discard methods. An albumArt load that was in flight when
-    // a discard ran must not store its result back — the read/decode happens
-    // outside the lock (and can block for minutes on a cloud placeholder), so
-    // without this a skip-during-load re-pins the demoted track's art for the
-    // playlist's lifetime.
+    // Bumped ONLY by discardDecodedAlbumArt (track changed — drop everything).
+    // An albumArt load that was in flight when that discard ran must not store
+    // its result back — the read/decode happens outside the lock (and can
+    // block for minutes on a cloud placeholder), so without this a
+    // skip-during-load re-pins the demoted track's art for the playlist's
+    // lifetime. discardAlbumArtData deliberately does NOT bump it: it drops
+    // the raw bytes to save memory, not the validity of a decode of those
+    // same bytes (see the comment there).
     NSUInteger _artGeneration;
 }
 
@@ -82,6 +85,7 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 - (NSImage *)albumArt {
     NSString *pathToExtract = nil;
     NSData *dataToDecode = nil;
+    BOOL dataWasInMemory = NO;
     NSUInteger generation;
     @synchronized (self) {
         generation = _artGeneration;
@@ -90,6 +94,7 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
         }
         if (_albumArtData) {
             dataToDecode = _albumArtData;
+            dataWasInMemory = YES;
         }
         // Attempt the file re-read at most once: artless or moved files
         // must not pay a synchronous TagLib parse on every access. Claim the
@@ -113,11 +118,18 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     }
     NSImage *decoded = dataToDecode ? VibeDecodeImageData(dataToDecode, kDisplayArtMaxDimension) : nil;
     @synchronized (self) {
-        // Store back only if no discard ran while the load was in flight;
-        // otherwise return the result transiently (the caller re-checks
-        // currency anyway) without re-pinning a demoted track's art.
+        // Store back only if no track-change discard (discardDecodedAlbumArt)
+        // ran while the load was in flight; otherwise return the result
+        // transiently (the caller re-checks currency anyway) without
+        // re-pinning a demoted track's art. discardAlbumArtData racing this
+        // decode is fine — it only wants the raw bytes gone, and the decoded
+        // image is exactly what the still-current track needs next.
         if (generation == _artGeneration) {
-            if (dataToDecode && !_albumArtData) {
+            // Cache the bytes only when they were just read from the file.
+            // Bytes snapshotted from _albumArtData that are gone by now were
+            // dropped by discardAlbumArtData mid-decode — restoring them
+            // would undo its memory release.
+            if (dataToDecode && !_albumArtData && !dataWasInMemory) {
                 _albumArtData = dataToDecode;
             }
             if (!_albumArt && decoded) {
@@ -167,7 +179,13 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 // the audio file on demand for the one track shown full-res.
 - (void)discardAlbumArtData {
     @synchronized (self) {
-        _artGeneration++; // invalidate any in-flight albumArt store-back
+        // Deliberately NO _artGeneration bump: this call only wants the raw
+        // bytes released, not an in-flight decode of those same bytes thrown
+        // away. The loader calls it right after publishing metadata, racing
+        // the current track's first full-res decode — invalidating that
+        // decode forced a second TagLib file read plus a second 1024px
+        // decode. Only discardDecodedAlbumArt (track changed, drop
+        // everything) invalidates decodes.
         if (!_albumArtData) {
             // Nothing to drop (an artless track, or already discarded). Do NOT
             // reset _albumArtExtractionAttempted: an artless track has it YES
@@ -331,11 +349,6 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     NSBitmapImageRep *rep = [NSBitmapImageRep imageRepWithData:thumbnail.TIFFRepresentation];
     return [rep representationUsingType:NSBitmapImageFileTypeJPEG
                              properties:@{NSImageCompressionFactor: @0.85}];
-}
-
-- (instancetype)init {
-    self = [super init];
-    return self;
 }
 
 - (instancetype)initWithURL:(NSURL *)url {

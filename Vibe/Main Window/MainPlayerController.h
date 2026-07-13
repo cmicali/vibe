@@ -27,11 +27,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface MainPlayerController : NSWindowController <NSMenuItemValidation,
                                                       NSMenuDelegate,
+                                                      NSWindowDelegate,
                                                       NSWindowRestoration,
                                                       FileDropDelegate,
                                                       AudioPlayerDelegate,
                                                       AudioWaveformViewDelegate,
-                                                      AudioTrackMetadataManagerDelegate,
+                                                      AudioTrackMetadataCacheDelegate,
                                                       PitchFaderViewDelegate>
 
 @property (weak) SYFlatButton *nextButton;
@@ -53,7 +54,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (strong) AudioPlayer *audioPlayer;
 @property (strong) PlaylistManager *playlistManager;
-@property (strong) AudioTrackMetadataCache *metadataManager;
+@property (strong) AudioTrackMetadataCache *metadataCache;
 
 - (void)play:(NSArray<NSURL *> *)urls;
 - (void)playURL:(NSURL *)url;
@@ -76,7 +77,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)setAppearance:(id)sender;
 
 #if DEBUG
-// Debug command channel (Common/DebugUtil.mm) drives the app through these;
+// Debug command channel (Util/DebugUtil.mm) drives the app through these;
 // not part of the normal UI surface.
 - (PitchControlPanel *)pitchPanel;
 - (void)debugRefreshUI;

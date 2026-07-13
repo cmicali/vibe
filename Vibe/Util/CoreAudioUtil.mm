@@ -6,66 +6,7 @@
 #import "CoreAudioUtil.h"
 #import <CoreAudio/CoreAudio.h>
 
-// Trampoline between the HAL listener callback and the real delegate. It is
-// retained by the static reference below (so the callback's client-data pointer
-// is always to a live object) and holds only a *weak* reference to the delegate
-// — a HAL-thread callback firing during the delegate's dealloc reads nil and
-// no-ops instead of resurrecting/messaging a deallocating object.
-@interface VibeOutputDeviceListenerTrampoline : NSObject
-@property (weak) id<CoreAudioSystemOutputDeviceDelegate> delegate;
-@end
-
-@implementation VibeOutputDeviceListenerTrampoline
-@end
-
 @implementation CoreAudioUtil
-
-// Retained trampoline for the default-output-device listener (nil when not
-// listening). Its lifetime brackets Add/RemovePropertyListener.
-static VibeOutputDeviceListenerTrampoline *gOutputDeviceListener = nil;
-
-static const AudioObjectPropertyAddress kOutputDeviceAddress = {
-    kAudioHardwarePropertyDefaultOutputDevice,
-    kAudioObjectPropertyScopeGlobal,
-    kAudioObjectPropertyElementMain
-};
-
-OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
-                                     UInt32 inNumberAddresses,
-                                     const AudioObjectPropertyAddress *inAddresses,
-                                     void *inClientData) {
-    VibeOutputDeviceListenerTrampoline *trampoline = (__bridge VibeOutputDeviceListenerTrampoline *)(inClientData);
-    // Weak → strong: nil if the delegate has since deallocated. The strong
-    // local keeps it alive across the async hop to the main queue.
-    id<CoreAudioSystemOutputDeviceDelegate> delegate = trampoline.delegate;
-    if (!delegate) {
-        return kAudioHardwareNoError;
-    }
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [delegate systemAudioOutputDeviceDidChange];
-    });
-    return kAudioHardwareNoError;
-}
-
-+ (void)listenForSystemOutputDeviceChanges:(id<CoreAudioSystemOutputDeviceDelegate>)delegate {
-    [self stopListeningForSystemOutputDeviceChanges];
-    CFRunLoopRef nullRunLoop =  NULL;
-    AudioObjectPropertyAddress runLoopProperty = { kAudioHardwarePropertyRunLoop, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-    AudioObjectSetPropertyData(kAudioObjectSystemObject, &runLoopProperty, 0, NULL, sizeof(CFRunLoopRef), &nullRunLoop);
-    gOutputDeviceListener = [[VibeOutputDeviceListenerTrampoline alloc] init];
-    gOutputDeviceListener.delegate = delegate;
-    AudioObjectAddPropertyListener(kAudioObjectSystemObject, &kOutputDeviceAddress, &outputDeviceChangedCallback, (__bridge void *)gOutputDeviceListener);
-}
-
-+ (void)stopListeningForSystemOutputDeviceChanges {
-    if (!gOutputDeviceListener) {
-        return;
-    }
-    AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &kOutputDeviceAddress, &outputDeviceChangedCallback, (__bridge void *)gOutputDeviceListener);
-    // Release only after removal returns, so the callback's client-data pointer
-    // was valid for the entire time the listener was registered.
-    gOutputDeviceListener = nil;
-}
 
 + (AudioDeviceID) audioDeviceIDforUID:(NSString *)deviceUid {
     CFStringRef uid = (__bridge CFStringRef)deviceUid;
@@ -123,36 +64,93 @@ OSStatus outputDeviceChangedCallback(AudioObjectID inObjectID,
     return result;
 }
 
-+ (NSMutableArray<NSNumber *>*) supportedSampleRatesForAudioDeviceId:(AudioDeviceID)did {
-    NSMutableArray<NSNumber *> *result = [[NSMutableArray alloc] init];
-    // Report both ends of each range as discrete rates (a plain discrete rate
-    // has mMinimum == mMaximum). Recording only the minimum, as before, hid
-    // every rate above the low end of a continuous-range device.
-    for (NSValue *value in [self sampleRateRangesForAudioDeviceId:did]) {
-        AudioValueRange range;
-        [value getValue:&range];
-        [result addObject:@(range.mMinimum)];
-        if (range.mMaximum != range.mMinimum) {
-            [result addObject:@(range.mMaximum)];
++ (AudioDeviceID)systemDefaultOutputDeviceID {
+    AudioObjectPropertyAddress addr = {
+            kAudioHardwarePropertyDefaultOutputDevice,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+    };
+    AudioDeviceID deviceID = kAudioObjectUnknown;
+    UInt32 size = sizeof(deviceID);
+    OSStatus status = AudioObjectGetPropertyData(kAudioObjectSystemObject, &addr, 0, NULL, &size, &deviceID);
+    if (status != noErr) {
+        return kAudioObjectUnknown;
+    }
+    return deviceID;
+}
+
++ (NSString *)uidForDeviceID:(AudioDeviceID)deviceID {
+    if (deviceID == kAudioObjectUnknown) {
+        return nil;
+    }
+    AudioObjectPropertyAddress addr = {
+            kAudioDevicePropertyDeviceUID,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+    };
+    CFStringRef uid = NULL;
+    UInt32 size = sizeof(uid);
+    OSStatus status = AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, &uid);
+    if (status != noErr || !uid) {
+        return nil;
+    }
+    return CFBridgingRelease(uid);
+}
+
++ (NSString *)nameForDeviceID:(AudioDeviceID)deviceID {
+    AudioObjectPropertyAddress addr = {
+            kAudioObjectPropertyName,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+    };
+    CFStringRef name = NULL;
+    UInt32 size = sizeof(name);
+    OSStatus status = AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, &name);
+    if (status != noErr || !name) {
+        return nil;
+    }
+    return CFBridgingRelease(name);
+}
+
++ (BOOL)deviceHasOutputChannels:(AudioDeviceID)deviceID {
+    AudioObjectPropertyAddress addr = {
+            kAudioDevicePropertyStreamConfiguration,
+            kAudioObjectPropertyScopeOutput,
+            kAudioObjectPropertyElementMain
+    };
+    UInt32 size = 0;
+    if (AudioObjectGetPropertyDataSize(deviceID, &addr, 0, NULL, &size) != noErr || size == 0) {
+        return NO;
+    }
+    AudioBufferList *bufferList = (AudioBufferList *)malloc(size);
+    if (!bufferList) {
+        return NO;
+    }
+    BOOL hasOutput = NO;
+    if (AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, bufferList) == noErr) {
+        for (UInt32 i = 0; i < bufferList->mNumberBuffers; i++) {
+            if (bufferList->mBuffers[i].mNumberChannels > 0) {
+                hasOutput = YES;
+                break;
+            }
         }
     }
-    return result;
+    free(bufferList);
+    return hasOutput;
 }
 
-+ (NSArray<NSNumber *>*) supportedSampleRatesForOutputDevice:(NSString *)uid {
-    return [self supportedSampleRatesForAudioDeviceId:[self audioDeviceIDforUID:uid]];
-}
-
-
-+ (Float64)getCurrentSampleRateForOutputDevice:(NSString *)uid {
-    AudioDeviceID did = [self audioDeviceIDforUID:uid];
-    AudioStreamBasicDescription mFormat;
-    UInt32 size = sizeof(mFormat);
-    AudioObjectPropertyAddress addr = { kAudioDevicePropertyStreamFormat, kAudioDevicePropertyScopeOutput, 0 };
-    if (AudioObjectGetPropertyData(did, &addr, 0, NULL, &size, &mFormat) == noErr) {
-        return mFormat.mSampleRate;
++ (double)nominalSampleRateForDevice:(AudioDeviceID)deviceID {
+    AudioObjectPropertyAddress addr = {
+            kAudioDevicePropertyNominalSampleRate,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+    };
+    Float64 rate = 0;
+    UInt32 size = sizeof(rate);
+    if (AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, &rate) != noErr) {
+        return 0;
     }
-    return -1;
+    return rate;
 }
 
 + (BOOL)setSampleRate:(double)rate forAudioDeviceID:(AudioDeviceID)did {

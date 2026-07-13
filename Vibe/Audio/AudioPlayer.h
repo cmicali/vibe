@@ -6,7 +6,7 @@
 //  Copyright © 2019 Christopher Micali. All rights reserved.
 //
 
-#import "CoreAudioUtil.h"
+#import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -24,7 +24,7 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
     VibeAudioErrorFileOpenTimedOut,
 };
 
-@interface AudioPlayer : NSObject <CoreAudioSystemOutputDeviceDelegate>
+@interface AudioPlayer : NSObject
 
 @property (nullable, weak) id <AudioPlayerDelegate> delegate;
 
@@ -47,8 +47,6 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 
 - (void)play:(AudioTrack *)track;
 - (void)playPause;
-//- (void)rampVolumeToZero:(BOOL)async;
-//- (void)rampVolumeToNormal:(BOOL)async;
 
 - (BOOL)isPlaying;
 - (BOOL)isPaused;
@@ -76,10 +74,13 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track;
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track;
+// track is nil when a seek was requested with nothing playable loaded
+// (e.g. right after a failed play) — the seek is a no-op but the UI still
+// gets the callback to settle the waveform.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(nullable AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track;
 
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOuputDevice:(NSInteger)newDeviceIndex;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceIndex;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error;
 

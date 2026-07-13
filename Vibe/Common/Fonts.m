@@ -9,6 +9,30 @@
 
 }
 
++ (NSFont *)font:(CGFloat)size {
+    return [self font:size bold:NO];
+}
+
++ (NSFont *)font:(CGFloat)size bold:(BOOL)bold {
+    static NSMutableDictionary<NSNumber *, NSFont *> *cache;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        cache = [NSMutableDictionary new];
+    });
+    NSNumber *key = @(bold ? -size : size);
+    NSFont *font = cache[key];
+    if (!font) {
+        font = [NSFont fontWithName:bold ? @"HelveticaNeue-Bold" : @"HelveticaNeue-Medium" size:size];
+        if (!font) {
+            // Never return nil: callers put the result straight into
+            // attribute dictionaries, where nil raises.
+            font = [NSFont systemFontOfSize:size weight:bold ? NSFontWeightBold : NSFontWeightMedium];
+        }
+        cache[key] = font;
+    }
+    return font;
+}
+
 + (NSFont *)fontForNumbers:(CGFloat)size {
     return [self fontForNumbers:size bold:NO];
 }
@@ -24,23 +48,6 @@
     if (!font) {
         font = [NSFont monospacedDigitSystemFontOfSize:size weight:bold?NSFontWeightBold:NSFontWeightRegular];
         cache[key] = font;
-    }
-    return font;
-}
-
-+ (NSFont *)font:(CGFloat)size {
-    static NSMutableDictionary<NSNumber *, NSFont *> *cache;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        cache = [NSMutableDictionary new];
-    });
-    NSNumber *key = @(size);
-    NSFont *font = cache[key];
-    if (!font) {
-        font = [NSFont fontWithName:@"HelveticaNeue-Medium" size:size];
-        if (font) {
-            cache[key] = font;
-        }
     }
     return font;
 }

@@ -7,19 +7,18 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@protocol AudioTrackMetadataManagerDelegate;
+@protocol AudioTrackMetadataCacheDelegate;
 @class AudioTrack;
 
 @interface AudioTrackMetadataCache : NSObject
 
-@property (nullable, weak) id <AudioTrackMetadataManagerDelegate> delegate;
+@property (nullable, weak) id <AudioTrackMetadataCacheDelegate> delegate;
 
-- (void)invalidate;
 - (void)loadMetadata:(NSArray<AudioTrack *> *)tracks;
 
 @end
 
-@protocol AudioTrackMetadataManagerDelegate <NSObject>
+@protocol AudioTrackMetadataCacheDelegate <NSObject>
 @optional
 - (void)didLoadMetadata:(AudioTrack *)track;
 @end

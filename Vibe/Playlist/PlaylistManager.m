@@ -47,6 +47,8 @@
     return _playlist.count;
 }
 
+#pragma mark - View Construction
+
 static NSDictionary *numColumnAttributes;
 static NSDictionary *lengthColumnAttributes;
 static NSDictionary *titleAttributes;
@@ -199,6 +201,8 @@ static NSTextField *makeCellTextField(NSRect frame) {
 
     return view;
 }
+
+#pragma mark - Public API
 
 - (AudioTrack *)currentTrack {
     if (self.currentIndex < _playlist.count) {

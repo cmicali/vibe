@@ -6,6 +6,7 @@
 #import "VectorBallsView.h"
 #import <Metal/Metal.h>
 #import <simd/simd.h>
+#import "Fonts.h"
 
 // The wordmark, halftoned into dots. "vibe" is rasterised in a rounded font
 // then sampled on a grid: cells with heavy ink coverage become large dots,
@@ -301,7 +302,8 @@ static float vb_random01(void) {
 // are returned via out params.
 - (uint8_t *)rasterizeWord:(NSString *)word width:(NSUInteger *)outW height:(NSUInteger *)outH bytesPerRow:(NSUInteger *)outBPR {
     CGFloat pointSize = 128.0;
-    NSFont *font = [NSFont systemFontOfSize:pointSize weight:NSFontWeightSemibold];
+    // NSFont *font = [NSFont systemFontOfSize:pointSize weight:NSFontWeightSemibold];
+    NSFont *font = [Fonts font:pointSize bold:YES];
     if (@available(macOS 10.15, *)) {
         NSFontDescriptor *rounded = [font.fontDescriptor fontDescriptorWithDesign:NSFontDescriptorSystemDesignRounded];
         NSFont *roundedFont = rounded ? [NSFont fontWithDescriptor:rounded size:pointSize] : nil;
@@ -349,17 +351,6 @@ static float vb_random01(void) {
     float r = sqrtf(MAX(0.0f, 1.0f - z * z));
     float radius = 18.0f + vb_random01() * 10.0f;
     return (vector_float4){ cosf(theta) * r * radius, sinf(theta) * r * radius, z * radius, 1 };
-}
-
-- (void)restartIntro {
-    if (!_instanceBuffer) {
-        return;
-    }
-    VBInstance *instances = (VBInstance *)_instanceBuffer.contents;
-    for (NSUInteger i = 0; i < _instanceCount; i++) {
-        instances[i].scatter = [self randomScatterPosition];
-    }
-    _startTime = CACurrentMediaTime();
 }
 
 #pragma mark - MTKViewDelegate

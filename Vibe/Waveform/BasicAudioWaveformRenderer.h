@@ -4,8 +4,8 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "AudioWaveformRenderer.h"
+#import "DetailedAudioWaveformRenderer.h"
 
-@interface BasicAudioWaveformRenderer : AudioWaveformRenderer
+@interface BasicAudioWaveformRenderer : DetailedAudioWaveformRenderer
 
 @end

@@ -40,7 +40,7 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
     self = [super initWithFrame:frameRect];
     if (self) {
         _titleLabel = [NSTextField labelWithString:@"PITCH"];
-        _titleLabel.font = [NSFont systemFontOfSize:10 weight:NSFontWeightBold];
+        _titleLabel.font = [Fonts font:10 bold:YES];
         _titleLabel.textColor = [NSColor colorWithWhite:0.55 alpha:1];
         _titleLabel.alignment = NSTextAlignmentCenter;
         [self addSubview:_titleLabel];

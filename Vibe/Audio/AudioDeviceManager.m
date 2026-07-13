@@ -5,8 +5,60 @@
 
 #import "AudioDeviceManager.h"
 #import "AudioDevice.h"
+#import "CoreAudioUtil.h"
+#import <os/lock.h>
 
-@implementation AudioDeviceManager
+static const AudioObjectPropertyAddress kDefaultOutputDeviceAddress = {
+        kAudioHardwarePropertyDefaultOutputDevice,
+        kAudioObjectPropertyScopeGlobal,
+        kAudioObjectPropertyElementMain
+};
+
+static const AudioObjectPropertyAddress kDevicesAddress = {
+        kAudioHardwarePropertyDevices,
+        kAudioObjectPropertyScopeGlobal,
+        kAudioObjectPropertyElementMain
+};
+
+@interface AudioDeviceManager ()
+- (void)notifyObserversUsingBlock:(void (^)(id<AudioDeviceManagerObserver> observer))block;
+@end
+
+@implementation AudioDeviceManager {
+    // Weakly-held observers. AudioPlayer registers from its serial queue while
+    // the menu controller registers from the main thread, so all access goes
+    // through _observersLock.
+    NSHashTable<id<AudioDeviceManagerObserver>> *_observers;
+    os_unfair_lock _observersLock;
+}
+
+// The client data is the singleton, which lives for the whole process, so the
+// unretained pointer can never dangle and the listeners are never removed.
+static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
+                                              UInt32 inNumberAddresses,
+                                              const AudioObjectPropertyAddress *inAddresses,
+                                              void *inClientData) {
+    AudioDeviceManager *manager = (__bridge AudioDeviceManager *)inClientData;
+    for (UInt32 i = 0; i < inNumberAddresses; i++) {
+        switch (inAddresses[i].mSelector) {
+            case kAudioHardwarePropertyDefaultOutputDevice:
+                [manager notifyObserversUsingBlock:^(id<AudioDeviceManagerObserver> observer) {
+                    if ([observer respondsToSelector:@selector(systemDefaultOutputDeviceDidChange)]) {
+                        [observer systemDefaultOutputDeviceDidChange];
+                    }
+                }];
+                break;
+            case kAudioHardwarePropertyDevices:
+                [manager notifyObserversUsingBlock:^(id<AudioDeviceManagerObserver> observer) {
+                    if ([observer respondsToSelector:@selector(audioOutputDevicesDidChange)]) {
+                        [observer audioOutputDevicesDidChange];
+                    }
+                }];
+                break;
+        }
+    }
+    return kAudioHardwareNoError;
+}
 
 + (AudioDeviceManager*)sharedInstance {
     static AudioDeviceManager *instance = nil;
@@ -17,79 +69,59 @@
     return instance;
 }
 
-+ (AudioDeviceID)systemDefaultOutputDeviceID {
-    AudioObjectPropertyAddress addr = {
-            kAudioHardwarePropertyDefaultOutputDevice,
-            kAudioObjectPropertyScopeGlobal,
-            kAudioObjectPropertyElementMain
-    };
-    AudioDeviceID deviceID = kAudioObjectUnknown;
-    UInt32 size = sizeof(deviceID);
-    OSStatus status = AudioObjectGetPropertyData(kAudioObjectSystemObject, &addr, 0, NULL, &size, &deviceID);
-    if (status != noErr) {
-        return kAudioObjectUnknown;
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _observers = [NSHashTable weakObjectsHashTable];
+        _observersLock = OS_UNFAIR_LOCK_INIT;
+        // Deliver HAL notifications on the HAL's own thread instead of the
+        // main run loop; notifyObserversUsingBlock: hops to the main thread
+        // itself.
+        CFRunLoopRef nullRunLoop = NULL;
+        AudioObjectPropertyAddress runLoopProperty = { kAudioHardwarePropertyRunLoop, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+        AudioObjectSetPropertyData(kAudioObjectSystemObject, &runLoopProperty, 0, NULL, sizeof(CFRunLoopRef), &nullRunLoop);
+        AudioObjectAddPropertyListener(kAudioObjectSystemObject, &kDefaultOutputDeviceAddress, &devicePropertyChangedCallback, (__bridge void *)self);
+        AudioObjectAddPropertyListener(kAudioObjectSystemObject, &kDevicesAddress, &devicePropertyChangedCallback, (__bridge void *)self);
     }
-    return deviceID;
+    return self;
 }
 
-+ (NSString *)uidForDeviceID:(AudioDeviceID)deviceID {
-    if (deviceID == kAudioObjectUnknown) {
-        return nil;
+- (void)addObserver:(id<AudioDeviceManagerObserver>)observer {
+    if (!observer) {
+        return;
     }
-    AudioObjectPropertyAddress addr = {
-            kAudioDevicePropertyDeviceUID,
-            kAudioObjectPropertyScopeGlobal,
-            kAudioObjectPropertyElementMain
-    };
-    CFStringRef uid = NULL;
-    UInt32 size = sizeof(uid);
-    OSStatus status = AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, &uid);
-    if (status != noErr || !uid) {
-        return nil;
-    }
-    return CFBridgingRelease(uid);
+    os_unfair_lock_lock(&_observersLock);
+    [_observers addObject:observer];
+    os_unfair_lock_unlock(&_observersLock);
 }
 
-+ (NSString *)nameForDeviceID:(AudioDeviceID)deviceID {
-    AudioObjectPropertyAddress addr = {
-            kAudioObjectPropertyName,
-            kAudioObjectPropertyScopeGlobal,
-            kAudioObjectPropertyElementMain
-    };
-    CFStringRef name = NULL;
-    UInt32 size = sizeof(name);
-    OSStatus status = AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, &name);
-    if (status != noErr || !name) {
-        return nil;
+- (void)removeObserver:(id<AudioDeviceManagerObserver>)observer {
+    if (!observer) {
+        return;
     }
-    return CFBridgingRelease(name);
+    os_unfair_lock_lock(&_observersLock);
+    [_observers removeObject:observer];
+    os_unfair_lock_unlock(&_observersLock);
 }
 
-+ (BOOL)deviceHasOutputChannels:(AudioDeviceID)deviceID {
-    AudioObjectPropertyAddress addr = {
-            kAudioDevicePropertyStreamConfiguration,
-            kAudioObjectPropertyScopeOutput,
-            kAudioObjectPropertyElementMain
-    };
-    UInt32 size = 0;
-    if (AudioObjectGetPropertyDataSize(deviceID, &addr, 0, NULL, &size) != noErr || size == 0) {
-        return NO;
+// Fans a notification out to every observer on the main thread. Uses the
+// common run-loop modes rather than dispatch_async(main): GCD main-queue
+// blocks don't run while a menu is tracking, and the devices menu needs the
+// callback while it is open.
+- (void)notifyObserversUsingBlock:(void (^)(id<AudioDeviceManagerObserver> observer))block {
+    os_unfair_lock_lock(&_observersLock);
+    NSArray<id<AudioDeviceManagerObserver>> *observers = _observers.allObjects;
+    os_unfair_lock_unlock(&_observersLock);
+    if (observers.count == 0) {
+        return;
     }
-    AudioBufferList *bufferList = (AudioBufferList *)malloc(size);
-    if (!bufferList) {
-        return NO;
-    }
-    BOOL hasOutput = NO;
-    if (AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, bufferList) == noErr) {
-        for (UInt32 i = 0; i < bufferList->mNumberBuffers; i++) {
-            if (bufferList->mBuffers[i].mNumberChannels > 0) {
-                hasOutput = YES;
-                break;
-            }
+    CFRunLoopRef mainRunLoop = CFRunLoopGetMain();
+    CFRunLoopPerformBlock(mainRunLoop, kCFRunLoopCommonModes, ^{
+        for (id<AudioDeviceManagerObserver> observer in observers) {
+            block(observer);
         }
-    }
-    free(bufferList);
-    return hasOutput;
+    });
+    CFRunLoopWakeUp(mainRunLoop);
 }
 
 - (NSArray<AudioDevice *>*)outputDevices {
@@ -111,9 +143,9 @@
         // size is in/out: recompute from what was actually returned so a
         // device vanishing mid-query can't make us read the buffer tail.
         UInt32 count = size / sizeof(AudioDeviceID);
-        AudioDeviceID defaultID = [AudioDeviceManager systemDefaultOutputDeviceID];
+        AudioDeviceID defaultID = [CoreAudioUtil systemDefaultOutputDeviceID];
         for (UInt32 i = 0; i < count; i++) {
-            if (![AudioDeviceManager deviceHasOutputChannels:deviceIDs[i]]) {
+            if (![CoreAudioUtil deviceHasOutputChannels:deviceIDs[i]]) {
                 continue;
             }
             AudioDevice *device = [AudioDeviceManager deviceForID:deviceIDs[i] defaultID:defaultID];
@@ -127,13 +159,13 @@
 }
 
 + (AudioDevice *)deviceForID:(AudioDeviceID)deviceID defaultID:(AudioDeviceID)defaultID {
-    NSString *name = [AudioDeviceManager nameForDeviceID:deviceID];
+    NSString *name = [CoreAudioUtil nameForDeviceID:deviceID];
     if (!name.length) {
         return nil;
     }
     AudioDevice *device = [[AudioDevice alloc] init];
     device.name = name;
-    device.uid = [AudioDeviceManager uidForDeviceID:deviceID] ?: @"default";
+    device.uid = [CoreAudioUtil uidForDeviceID:deviceID] ?: @"default";
     device.deviceId = (NSInteger)deviceID;
     device.isSystemDefault = (deviceID == defaultID);
     return device;

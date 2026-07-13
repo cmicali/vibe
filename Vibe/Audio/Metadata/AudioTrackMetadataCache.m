@@ -12,11 +12,10 @@
 
 @interface AudioTrackMetadataLoader : NSObject
 
-@property (atomic) BOOL isFinished;
 @property (atomic) BOOL isCancelled;
-@property (nullable, weak) id <AudioTrackMetadataManagerDelegate> delegate;
+@property (nullable, weak) id <AudioTrackMetadataCacheDelegate> delegate;
 
-- (id)initWithCache:(PINCache *)cache delegate:(id <AudioTrackMetadataManagerDelegate>)delegate;
+- (id)initWithCache:(PINCache *)cache delegate:(id <AudioTrackMetadataCacheDelegate>)delegate;
 - (void)cancel;
 
 @end
@@ -24,14 +23,21 @@
 @implementation AudioTrackMetadataLoader {
     PINCache* _metadataCache;
     NSOperationQueue* _queue;
+    // Tracks this loader has queued (identity set). track.metadata being
+    // non-nil used to double as the "already queued" marker, but a failed
+    // parse (parsedOK == NO) must stay eligible for a re-parse by a later
+    // loader — the file may have downloaded since — so queued-ness gets its
+    // own, per-loader marker. Only touched from load: (a single pass on the
+    // caller's thread), so no locking is needed.
+    NSMutableSet<AudioTrack *>* _queuedTracks;
 }
 
-- (id)initWithCache:(PINCache *)cache delegate:(id <AudioTrackMetadataManagerDelegate>)delegate {
+- (id)initWithCache:(PINCache *)cache delegate:(id <AudioTrackMetadataCacheDelegate>)delegate {
     self = [super init];
     if (self) {
         _isCancelled = NO;
-        _isFinished = NO;
         _metadataCache = cache;
+        _queuedTracks = [NSMutableSet set];
         _delegate = delegate;
         // Concurrency 4 lets a single slow file (network mount, sleeping disk)
         // stall only its own worker rather than the whole playlist. Utility QoS
@@ -49,7 +55,16 @@
     __weak __typeof(self) weakSelf = self;
     for (AudioTrack *track in tracks) {
         if (self.isCancelled) break;
-        if (track.metadata) continue;  // already loaded earlier
+        // Skip only tracks with real metadata. A failed parse (parsedOK ==
+        // NO: dataless cloud placeholder, transient I/O error) stays
+        // eligible — the file may be readable by the time the playlist is
+        // re-queued, and the filename-only fallback would otherwise stick
+        // until app restart. (Messaging nil metadata returns NO, so
+        // never-parsed tracks pass through too.)
+        if (track.metadata.parsedOK) continue;
+        // A track appearing twice in the array must not parse twice.
+        if ([_queuedTracks containsObject:track]) continue;
+        [_queuedTracks addObject:track];
         [_queue addOperationWithBlock:^{
             __typeof(self) strongSelf = weakSelf;
             if (!strongSelf || strongSelf.isCancelled) return;
@@ -60,8 +75,10 @@
 
 - (void)loadOneTrack:(AudioTrack *)track {
     // A track can be re-queued by a second drop before its first op runs;
-    // skip the redundant parse.
-    if (track.metadata) {
+    // if the earlier loader already produced real metadata, skip the
+    // redundant parse. Failed (parsedOK == NO) metadata does NOT count as
+    // done — re-parsing it is the whole point of the re-queue.
+    if (track.metadata.parsedOK) {
         return;
     }
     NSString *cacheKey = track.cacheKey;
@@ -93,7 +110,13 @@
             return;
         }
         AudioTrackMetadata *metadata = [AudioTrackMetadata metadataWithURL:track.url];
-        track.metadata = metadata;
+        // Never clobber real metadata with a failed parse: a cancelled
+        // loader's op can still be mid-parse (having opened the file while it
+        // was dataless) when this loader re-parses it successfully; last-
+        // writer-wins would reinstate the filename-only fallback.
+        if (metadata.parsedOK || !track.metadata.parsedOK) {
+            track.metadata = metadata;
+        }
         if (METADATA_CACHE_ENABLED && metadata.parsedOK && !self.isCancelled) {
             // Skip failed parses (dataless cloud file, transient I/O error):
             // caching the filename-only fallback would shadow the real tags
@@ -138,8 +161,8 @@
 
 @implementation AudioTrackMetadataCache {
     AudioTrackMetadataLoader*   _currentLoader;
-    // Serial so invalidate always runs after construction (both hop here); a
-    // concurrent queue let invalidate read a nil cache and silently no-op.
+    // Exists only to construct the cache off the main thread at utility QoS
+    // (see init).
     dispatch_queue_t            _cacheQueue;
 }
 
@@ -176,12 +199,6 @@
         });
     }
     return self;
-}
-
--(void) invalidate {
-    dispatch_async(_cacheQueue, ^{
-        [self.metadataCache removeAllObjects];
-    });
 }
 
 -(void)loadMetadata:(NSArray<AudioTrack*>*)tracks {
