@@ -6,8 +6,16 @@
 #import "MainWindow.h"
 #import "NSURLUtil.h"
 #import "MainPlayerController.h"
+#import "PitchControlPanel.h"
 
-@implementation MainWindow
+// Width of the main content, matching MainPlayerWindow.xib. The window frame
+// is derived from this (+ the pitch panel width when revealed) rather than
+// read back, so a stale autosaved/restored width self-corrects on toggle.
+static const CGFloat kMainContentWidth = 680;
+
+@implementation MainWindow {
+    BOOL _pitchPanelShown;
+}
 
 - (void)awakeFromNib {
 
@@ -115,9 +123,46 @@
     }
 }
 
+- (BOOL)isPitchPanelShown {
+    return _pitchPanelShown;
+}
+
+- (void)setPitchPanelShown:(BOOL)shown animate:(BOOL)animate {
+    if (shown == _pitchPanelShown) {
+        return;
+    }
+    _pitchPanelShown = shown;
+    CGFloat width = kMainContentWidth + (shown ? kPitchPanelWidth : 0);
+    // min/max track the toggle (the xib pins them at 680) so user resizes
+    // can't reveal or crop the panel; they only constrain the resize cursor,
+    // not setFrame, so order relative to the frame change doesn't matter.
+    NSSize minSize = self.minSize;
+    NSSize maxSize = self.maxSize;
+    minSize.width = width;
+    maxSize.width = width;
+    self.minSize = minSize;
+    self.maxSize = maxSize;
+    NSRect frame = self.frame;
+    frame.size.width = width;
+    // Grow to the right, but keep the panel on-screen when the window sits
+    // against the screen's right edge.
+    NSRect screenRect = self.screen.visibleFrame;
+    if (screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
+        frame.origin.x = NSMaxX(screenRect) - frame.size.width;
+    }
+    [self setFrame:frame display:YES animate:animate];
+}
+
 - (void)loadSettings {
     if (Settings.isFirstLaunch) { // || !Settings.isPlaylistShown) {
         [self setSmallSize:NO];
+    }
+    // The autosaved frame may include the pitch panel from a previous session;
+    // the panel always starts hidden, so normalize back to the content width.
+    NSRect frame = self.frame;
+    if (frame.size.width != kMainContentWidth) {
+        frame.size.width = kMainContentWidth;
+        [self setFrame:frame display:NO];
     }
 }
 

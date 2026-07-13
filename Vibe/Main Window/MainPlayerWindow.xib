@@ -37,9 +37,12 @@
                 <rect key="frame" x="0.0" y="0.0" width="680" height="350"/>
                 <autoresizingMask key="autoresizingMask"/>
                 <subviews>
+                    <!-- Fixed width (flexibleMaxX, not widthSizable): the window widens to
+                         reveal the pitch panel, and the main content must not stretch into
+                         that space. -->
                     <visualEffectView wantsLayer="YES" fixedFrame="YES" blendingMode="behindWindow" material="underWindowBackground" state="active" translatesAutoresizingMaskIntoConstraints="NO" id="nFU-LW-b7u">
                         <rect key="frame" x="0.0" y="0.0" width="680" height="350"/>
-                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" heightSizable="YES"/>
                         <subviews>
                             <imageView wantsLayer="YES" focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="251" id="Mrc-bf-dPk" customClass="BackgroundArtworkImageView">
                                 <rect key="frame" x="125" y="200" width="577" height="150"/>

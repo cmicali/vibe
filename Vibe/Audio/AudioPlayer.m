@@ -60,10 +60,19 @@ static float VibeFadeVolume(float from, float to, int step) {
     return f * powf(t / f, (float)step / (float)kFadeSteps);
 }
 
+// Pitch fader range in percent (±10%, a hair wider than a stock SL-1200's ±8).
+static const float kMaxPitchPercent = 10.0f;
+
 @implementation AudioPlayer {
     dispatch_queue_t        _queue;
     AVAudioEngine           *_engine;
     AVAudioPlayerNode       *_node;
+    // Varispeed sits between every player node and the mixer (attached once,
+    // reconnected per track). Rate changes resample like a turntable motor:
+    // tempo and pitch move together. _pitch (percent) is guarded by _stateLock
+    // so the UI can read it without touching the queue.
+    AVAudioUnitVarispeed    *_varispeed;
+    float                   _pitch;
     AVAudioFile             *_file;
     AVAudioFramePosition    _segmentStartFrame;
     NSTimeInterval          _pausedPosition;
@@ -124,6 +133,9 @@ static float VibeFadeVolume(float from, float to, int step) {
             LogDebug(@"AudioPlayer init");
 
             self->_engine = [[AVAudioEngine alloc] init];
+
+            self->_varispeed = [[AVAudioUnitVarispeed alloc] init];
+            [self->_engine attachNode:self->_varispeed];
 
             AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForName:deviceName];
             // nil device (empty/unmatched name) means follow the system default.
@@ -275,7 +287,7 @@ static float VibeFadeVolume(float from, float to, int step) {
 
     AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
     [_engine attachNode:node];
-    [_engine connect:node to:_engine.mainMixerNode format:file.processingFormat];
+    [self connectNode:node throughVarispeedWithFormat:file.processingFormat];
 
     [self scheduleFile:file onNode:node fromFrame:0];
     node.volume = 1.0;
@@ -305,6 +317,20 @@ static float VibeFadeVolume(float from, float to, int step) {
     run_on_main_thread({
         [self.delegate audioPlayer:self didStartPlaying:track];
     });
+}
+
+// Wires node -> varispeed -> mixer for a track's format (runs on _queue).
+// Connecting replaces the varispeed's previous input/output connections, so
+// per-track format changes need no explicit disconnects. Position math is
+// unaffected by the rate: playerTimeForNodeTime: counts file frames the
+// player node rendered, and varispeed just consumes them faster or slower.
+- (void)connectNode:(AVAudioPlayerNode *)node throughVarispeedWithFormat:(AVAudioFormat *)format {
+    [_engine connect:node to:_varispeed format:format];
+    [_engine connect:_varispeed to:_engine.mainMixerNode format:format];
+    os_unfair_lock_lock(&_stateLock);
+    float pitch = _pitch;
+    os_unfair_lock_unlock(&_stateLock);
+    _varispeed.rate = 1.0f + pitch / 100.0f;
 }
 
 // Schedules the remainder of the file from startFrame with a completion tagged
@@ -666,6 +692,27 @@ static float VibeFadeVolume(float from, float to, int step) {
     });
 }
 
+#pragma mark - Pitch
+
+- (float)pitch {
+    os_unfair_lock_lock(&_stateLock);
+    float pitch = _pitch;
+    os_unfair_lock_unlock(&_stateLock);
+    return pitch;
+}
+
+- (void)setPitch:(float)pitch {
+    pitch = MAX(-kMaxPitchPercent, MIN(kMaxPitchPercent, pitch));
+    os_unfair_lock_lock(&_stateLock);
+    _pitch = pitch;
+    os_unfair_lock_unlock(&_stateLock);
+    // The rate is an AU parameter, but touch the node only on the engine's
+    // owning queue like every other graph mutation.
+    dispatch_async(_queue, ^{
+        self->_varispeed.rate = 1.0f + pitch / 100.0f;
+    });
+}
+
 #pragma mark - Sample rates
 
 - (BOOL)lockSampleRate {
@@ -860,7 +907,7 @@ static float VibeFadeVolume(float from, float to, int step) {
         [self changeSystemSampleRateToRate:file.processingFormat.sampleRate];
         AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
         [_engine attachNode:node];
-        [_engine connect:node to:_engine.mainMixerNode format:file.processingFormat];
+        [self connectNode:node throughVarispeedWithFormat:file.processingFormat];
         double sampleRate = file.processingFormat.sampleRate;
         AVAudioFramePosition startFrame = (AVAudioFramePosition)(positionToRestore * sampleRate);
         startFrame = MAX(0, MIN(startFrame, file.length - 1));
