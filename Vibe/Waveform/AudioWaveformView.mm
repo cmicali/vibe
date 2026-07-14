@@ -171,6 +171,10 @@
     [_waveformCache loadWaveformForTrack:track];
 }
 
+- (void)invalidateCacheWithCompletion:(dispatch_block_t)completion {
+    [_waveformCache invalidateWithCompletion:completion];
+}
+
 - (void)showLoadingIndicator {
     if (_loadingLayer) {
         return;

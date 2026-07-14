@@ -60,8 +60,15 @@
 }
 
 - (void)invalidate {
+    [self invalidateWithCompletion:nil];
+}
+
+- (void)invalidateWithCompletion:(dispatch_block_t)completion {
     dispatch_async(_loaderQueue, ^{
         [self->_waveformCache removeAllObjects];
+        if (completion) {
+            completion();
+        }
     });
 }
 

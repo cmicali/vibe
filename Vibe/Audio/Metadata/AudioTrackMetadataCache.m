@@ -206,6 +206,17 @@
     return self;
 }
 
+- (void)invalidateWithCompletion:(dispatch_block_t)completion {
+    // Serial queue: runs after the deferred cache construction in init, so
+    // self.metadataCache is always set by the time this block executes.
+    dispatch_async(_cacheQueue, ^{
+        [self.metadataCache removeAllObjects];
+        if (completion) {
+            completion();
+        }
+    });
+}
+
 -(void)loadMetadata:(NSArray<AudioTrack*>*)tracks {
     [_currentLoader cancel];
     if (!tracks.count) {

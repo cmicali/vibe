@@ -18,6 +18,8 @@
 #import "MainWindow.h"
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
+#import "AudioTrackMetadataCache.h"
+#import "AudioWaveformView.h"
 #import "PlaylistManager.h"
 #import "PitchControlPanel.h"
 #import "SYFlatButton.h"
@@ -416,10 +418,32 @@ static NSString *VibeExecuteDebugCommand(NSString *commandLine) {
         [controller debugRefreshUI];
         return VibeActionSummary(controller);
     }
+    if ([verb isEqualToString:@"clearCaches"]) {
+        // Blocks the main thread until both PINCache stores are empty —
+        // acceptable for a debug-only command; the clears are file deletes at
+        // utility QoS. The waveform clear queues behind any in-flight waveform
+        // load on the same serial queue, hence the generous timeout.
+        dispatch_group_t group = dispatch_group_create();
+        dispatch_group_enter(group);
+        [controller.metadataCache invalidateWithCompletion:^{
+            dispatch_group_leave(group);
+        }];
+        dispatch_group_enter(group);
+        [controller.waveformView invalidateCacheWithCompletion:^{
+            dispatch_group_leave(group);
+        }];
+        if (dispatch_group_wait(group, dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC))) {
+            return VibeErrorJSON(@"cache clear timed out after 15s");
+        }
+        return VibeJSONString(@{
+            @"ok": @YES,
+            @"cleared": @[@"Audio Track Metadata v3", @"audio_waveform_cache_v4"],
+        });
+    }
     return VibeErrorJSON(
             @"unknown command '%@'. Commands: state, viewtree, menu, screenshot, playPause, "
             @"next, previous, togglePitchPanel, toggleSize, setPitch <percent>, seek <seconds>, "
-            @"clickMenu <identifier-or-title>", verb);
+            @"clickMenu <identifier-or-title>, clearCaches", verb);
 }
 
 static void VibeHandleDebugCommandFile(void) {

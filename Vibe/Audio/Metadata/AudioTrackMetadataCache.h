@@ -16,6 +16,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)loadMetadata:(NSArray<AudioTrack *> *)tracks;
 
+// Empties the disk cache. Completion fires on the cache's internal queue once
+// the entries are gone; a load already in flight keeps its snapshot and may
+// still write entries after the clear.
+- (void)invalidateWithCompletion:(nullable dispatch_block_t)completion;
+
 @end
 
 @protocol AudioTrackMetadataCacheDelegate <NSObject>
