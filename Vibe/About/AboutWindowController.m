@@ -49,9 +49,15 @@ static const CGFloat kAboutWindowHeight = 340;
         [window.contentView addSubview:recordView];
 
         NSDictionary *info = NSBundle.mainBundle.infoDictionary;
-        NSString *version = [NSString stringWithFormat:@"Version %@ (%@)",
+#if DEBUG
+        NSString *configuration = @"Debug";
+#else
+        NSString *configuration = @"Release";
+#endif
+        NSString *version = [NSString stringWithFormat:@"Version %@ (%@) · %@",
                                                        info[@"CFBundleShortVersionString"] ?: @"?",
-                                                       info[@"CFBundleVersion"] ?: @"?"];
+                                                       info[@"CFBundleVersion"] ?: @"?",
+                                                       configuration];
         [window.contentView addSubview:[self labelWithString:version
                                                     fontSize:11
                                                        alpha:0.55
