@@ -1,6 +1,6 @@
 # Vibe
 
-A fast and minimal winamp-inspired native music player for macOS. Built for large local libraries and lossless files. 
+A fast and minimal winamp-inspired native music player for macOS. Built with DJs in mind with large local libraries, lossless files, and the need to quickly sort and scrub through tracks.
 
 ![Vibe screenshot](Assets/screenshot-basic.png)
 
@@ -16,22 +16,52 @@ A fast and minimal winamp-inspired native music player for macOS. Built for larg
 
 ## Requirements
 
-- macOS 10.15 or later
-- Xcode
+- macOS 26 or later
+- Xcode 26 or later
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen) — the Xcode project is generated from `project.yml`
+
+## Setup
+
+1. Install XcodeGen
+
+   ```
+   brew install xcodegen
+   ```
 
 ## Building
 
-1. Open the project (all dependencies are vendored — no package manager needed):
+1. Generate the project file
+
+   ```
+   xcodegen generate
+   ```
+
+2. Open the project in Xcode:
 
    ```
    open Vibe.xcodeproj
    ```
 
-2. Build and run the `Vibe` scheme (⌘R).
+3. Build and run the `Vibe` scheme (⌘R).
 
-## Running
+Alterntatively, you can use run `scripts/build.sh` to build `build/DerivedData/Build/Products/Release/Vibe.app`
 
-Launch the app, then drop audio files or a music folder onto the window (or the dock icon).
+## Usage
+
+Drop audio files or a music folder onto the window to play. Click the waveform to seek/skip in the track.
+
+Drag and drop the artwork to copy the currently playing file to another folder.
+
+### Key commands
+
+| Key | Action |
+| --- | --- |
+| `Space` | Play / pause |
+| `B` | Previous track |
+| `N` | Next track |
+| `Tab` | Show / hide playlist |
+| `P` | Show / hide pitch control |
+| `⌘O` | Open file or folder |
 
 ## Screenshots
 

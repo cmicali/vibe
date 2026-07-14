@@ -4,12 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build Commands
 
+`Vibe.xcodeproj` is generated from `project.yml` by XcodeGen (`brew install xcodegen`) and is **not** checked in — regenerate it after cloning, pulling, or editing `project.yml`:
+
 ```bash
-# Build via Xcode
-open Vibe.xcodeproj
+xcodegen generate          # or: make project
 ```
 
-Build and run through Xcode using the `Vibe` scheme. There is no dependency manager — all third-party code is vendored under `Vibe/ThirdParty/` and compiles as part of the app target.
+Then build in Xcode (open `Vibe.xcodeproj`, `Vibe` scheme, ⌘R) or from the command line:
+
+```bash
+# Release (app at build/DerivedData/Build/Products/Release/Vibe.app)
+xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Release \
+    -derivedDataPath build/DerivedData build
+
+# Debug — needed for the debug command channel; see Debugging / Verification
+xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Debug \
+    -derivedDataPath build/DerivedData build
+```
+
+Convenience wrappers (each runs `xcodegen generate` first and writes to `build/DerivedData`): `make build` (Release; `make build CONFIG=Debug` for debug) or `scripts/build.sh [Debug|Release]`; `make release` (or `scripts/release.sh`) builds Release then signs with Developer ID, notarizes, and staples a distributable app.
+
+There is no package manager — all third-party code is vendored under `Vibe/ThirdParty/` and compiles as part of the app target (CocoaPods was removed; TagLib and PINCache are now in-tree). Editing `project.yml` (adding files, changing build settings) means running `xcodegen generate` again.
 
 There are no unit tests in this project.
 

@@ -1,0 +1,173 @@
+name: Vibe
+
+options:
+  bundleIdPrefix: com.commonwealthrecordings   # cosmetic; bundle id is set explicitly below
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  settingPresets: none        # we specify EVERY setting explicitly; presets-on would inject
+                              # template defaults (e.g. Release GCC_OPTIMIZATION_LEVEL=s) that
+                              # diverge from the original. `none` = deterministic 1:1.
+  fileTypes:
+    icon:                     # Icon Composer AppIcon.icon: treat the .icon package as a single
+      file: true              # file reference (not a group to recurse into) so actool compiles it.
+
+configs:
+  Debug: debug
+  Release: release
+
+# ---- PROJECT-LEVEL settings (== PBXProject build configs) ----
+settings:
+  base:
+    ALWAYS_SEARCH_USER_PATHS: NO
+    ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+    CLANG_ANALYZER_NONNULL: YES
+    CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION: YES_AGGRESSIVE
+    CLANG_CXX_LANGUAGE_STANDARD: "c++17"
+    CLANG_CXX_LIBRARY: "libc++"
+    CLANG_ENABLE_MODULES: YES
+    CLANG_ENABLE_OBJC_ARC: YES
+    CLANG_ENABLE_OBJC_WEAK: YES
+    CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING: YES
+    CLANG_WARN_BOOL_CONVERSION: YES
+    CLANG_WARN_COMMA: YES
+    CLANG_WARN_CONSTANT_CONVERSION: YES
+    CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS: YES
+    CLANG_WARN_DIRECT_OBJC_ISA_USAGE: YES_ERROR
+    CLANG_WARN_DOCUMENTATION_COMMENTS: YES
+    CLANG_WARN_EMPTY_BODY: YES
+    CLANG_WARN_ENUM_CONVERSION: YES
+    CLANG_WARN_INFINITE_RECURSION: YES
+    CLANG_WARN_INT_CONVERSION: YES
+    CLANG_WARN_NON_LITERAL_NULL_CONVERSION: YES
+    CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF: YES
+    CLANG_WARN_OBJC_LITERAL_CONVERSION: YES
+    CLANG_WARN_OBJC_ROOT_CLASS: YES_ERROR
+    CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER: YES
+    CLANG_WARN_RANGE_LOOP_ANALYSIS: YES
+    CLANG_WARN_STRICT_PROTOTYPES: YES
+    CLANG_WARN_SUSPICIOUS_MOVE: YES
+    CLANG_WARN_UNGUARDED_AVAILABILITY: YES_AGGRESSIVE
+    CLANG_WARN_UNREACHABLE_CODE: YES
+    CLANG_WARN__DUPLICATE_METHOD_MATCH: YES
+    COPY_PHASE_STRIP: NO
+    DEAD_CODE_STRIPPING: YES
+    DEVELOPMENT_TEAM: 4UEV752JH4
+    ENABLE_STRICT_OBJC_MSGSEND: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    GCC_C_LANGUAGE_STANDARD: c17
+    GCC_NO_COMMON_BLOCKS: YES
+    GCC_WARN_64_TO_32_BIT_CONVERSION: YES
+    GCC_WARN_ABOUT_RETURN_TYPE: YES_ERROR
+    GCC_WARN_UNDECLARED_SELECTOR: YES
+    GCC_WARN_UNINITIALIZED_AUTOS: YES_AGGRESSIVE
+    GCC_WARN_UNUSED_FUNCTION: YES
+    GCC_WARN_UNUSED_VARIABLE: YES
+    GCC_PRECOMPILE_PREFIX_HEADER: YES
+    GCC_PREFIX_HEADER: "$(SRCROOT)/Vibe/Common/Vibe-Prefix.pch"   # CASE FIX (was Vibe-prefix.pch)
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    MTL_FAST_MATH: YES
+    SDKROOT: macosx
+    STRING_CATALOG_GENERATE_SYMBOLS: YES
+  configs:
+    Debug:
+      DEBUG_INFORMATION_FORMAT: dwarf
+      ENABLE_TESTABILITY: YES
+      GCC_DYNAMIC_NO_PIC: NO
+      GCC_OPTIMIZATION_LEVEL: 0
+      GCC_PREPROCESSOR_DEFINITIONS:
+        - "DEBUG=1"
+        - "$(inherited)"
+      MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
+      ONLY_ACTIVE_ARCH: YES
+    Release:
+      DEBUG_INFORMATION_FORMAT: "dwarf-with-dsym"
+      ENABLE_NS_ASSERTIONS: NO
+      MTL_ENABLE_DEBUG_INFO: NO
+
+targets:
+  Vibe:
+    type: application
+    platform: macOS
+    sources:
+      - path: main.m                          # repo root, outside Vibe/
+      - path: Vibe                            # all app + vendored code (incl. .h for header map)
+        excludes:
+          - "**/.DS_Store"
+          - "**/*.xcprivacy"                  # PIN privacy manifests: keep UNbundled (as today)
+          - "**/*.txt"                        # vendored LICENSE.txt: keep UNbundled (as today)
+          - "**/Info.plist"                   # consumed via INFOPLIST_FILE; must NOT be bundled
+          - "**/PINDiskCache.m"               # re-added below with its per-file flag
+      - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
+        compilerFlags:
+          - "-fobjc-arc-exceptions"
+      - path: Resources/Assets.xcassets       # .xcassets handled natively by XcodeGen
+      - path: Resources/AppIcon.icon          # Icon Composer .icon (handled via options.fileTypes)
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
+        CLANG_ENABLE_MODULES: YES
+        CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/Common/Vibe.entitlements"
+        CODE_SIGN_IDENTITY: "Apple Development"
+        CODE_SIGN_STYLE: Automatic
+        COMBINE_HIDPI_IMAGES: YES
+        CURRENT_PROJECT_VERSION: 10
+        DEAD_CODE_STRIPPING: YES
+        ENABLE_APP_SANDBOX: YES
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: NO           # target overrides project-level YES
+        ENABLE_USER_SELECTED_FILES: readwrite
+        EXCLUDED_ARCHS: ""
+        HEADER_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(SRCROOT)/Vibe/ThirdParty/taglib"
+          - "$(SRCROOT)/Vibe/ThirdParty/taglib/toolkit"
+          - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg"
+          - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg/id3v1"
+          - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg/id3v2"
+          - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg/id3v2/frames"
+          - "$(SRCROOT)/Vibe/ThirdParty/taglib/ape"
+          - "$(SRCROOT)/Vibe/ThirdParty/taglib/mp4"
+          - "$(SRCROOT)/Vibe/ThirdParty/taglib/flac"
+          - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff"
+          - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff/aiff"
+          - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff/wav"
+          - "$(SRCROOT)/Vibe/ThirdParty/taglib/ogg"
+          - "$(SRCROOT)/Vibe/ThirdParty"
+          - "$(SRCROOT)/Vibe/ThirdParty/PINCache"
+          - "$(SRCROOT)/Vibe/ThirdParty/PINOperation"
+        INFOPLIST_FILE: "$(SRCROOT)/Vibe/Common/Info.plist"
+        INFOPLIST_KEY_CFBundleDisplayName: Vibe
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.entertainment"
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
+        LIBRARY_SEARCH_PATHS: "$(inherited)"
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
+        MARKETING_VERSION: "1.4"
+        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.Vibe
+        PRODUCT_NAME: "$(TARGET_NAME)"
+        PROVISIONING_PROFILE_SPECIFIER: ""
+      # No target-level per-config block: the only one was the vestigial Debug
+      # SWIFT_OPTIMIZATION_LEVEL, intentionally dropped (tidy).
+    dependencies:
+      - sdk: AVFoundation.framework
+      - sdk: Accelerate.framework
+      - sdk: ApplicationServices.framework
+      - sdk: AudioToolbox.framework
+      - sdk: CoreAudio.framework
+      - sdk: QuartzCore.framework
+
+schemes:
+  Vibe:
+    build:
+      parallelizeBuild: true
+      targets:
+        Vibe: all
+    run:      { config: Debug }
+    test:     { config: Debug }
+    profile:  { config: Release }
+    analyze:  { config: Debug }
+    archive:  { config: Release }

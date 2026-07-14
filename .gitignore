@@ -28,6 +28,9 @@ DerivedData/
 # AppCode
 .idea/
 
+# XcodeGen — the Xcode project is generated from project.yml; do not track it.
+/Vibe.xcodeproj/
+
 
 
 
