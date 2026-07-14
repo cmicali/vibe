@@ -45,7 +45,8 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     return image;
 }
 
-#include <fileref.h>
+#include <memory>
+#include <tfilestream.h>
 #include <tpropertymap.h>
 #include <mpegfile.h>
 #include <mp4file.h>
@@ -54,6 +55,73 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 #include <attachedpictureframe.h>
 #include <aifffile.h>
 #include <wavfile.h>
+
+namespace {
+
+// Replaces TagLib::FileRef so only the formats the app plays get linked in —
+// FileRef's detection references every parser in the library (Ogg, ASF, MPC,
+// tracker formats, ...) and would keep them all alive in the binary. Mirrors
+// FileRef's behavior for our formats: extension dispatch, then isValid() as a
+// content check, then magic-byte sniffing when the extension lies.
+class TagLibAudioFile {
+public:
+    explicit TagLibAudioFile(const char *path)
+        : _stream(std::make_unique<TagLib::FileStream>(path, true)) {
+        if (!_stream->isOpen()) {
+            return;
+        }
+        _file = openByExtension(path, _stream.get());
+        if (!_file || !_file->isValid()) {
+            _file = openByContent(_stream.get());
+        }
+        if (_file && !_file->isValid()) {
+            _file = nullptr;
+        }
+    }
+
+    bool isNull() const { return _file == nullptr; }
+    TagLib::File *file() const { return _file.get(); }
+    TagLib::Tag *tag() const { return _file ? _file->tag() : nullptr; }
+
+private:
+    // Extension → format mapping copied from FileRef::detectByExtension.
+    static std::unique_ptr<TagLib::File> openByExtension(const char *path, TagLib::IOStream *stream) {
+        NSString *ext = [@(path) pathExtension].uppercaseString;
+        if ([ext isEqualToString:@"MP3"] || [ext isEqualToString:@"MP2"] || [ext isEqualToString:@"AAC"])
+            return std::make_unique<TagLib::MPEG::File>(stream);
+        if ([ext isEqualToString:@"M4A"] || [ext isEqualToString:@"M4R"] || [ext isEqualToString:@"M4B"] ||
+            [ext isEqualToString:@"M4P"] || [ext isEqualToString:@"MP4"] || [ext isEqualToString:@"M4V"])
+            return std::make_unique<TagLib::MP4::File>(stream);
+        if ([ext isEqualToString:@"FLAC"])
+            return std::make_unique<TagLib::FLAC::File>(stream);
+        if ([ext isEqualToString:@"AIF"] || [ext isEqualToString:@"AIFF"] ||
+            [ext isEqualToString:@"AFC"] || [ext isEqualToString:@"AIFC"])
+            return std::make_unique<TagLib::RIFF::AIFF::File>(stream);
+        if ([ext isEqualToString:@"WAV"])
+            return std::make_unique<TagLib::RIFF::WAV::File>(stream);
+        return nullptr;
+    }
+
+    // Same sniff order FileRef::detectByContent uses for these formats.
+    static std::unique_ptr<TagLib::File> openByContent(TagLib::IOStream *stream) {
+        if (TagLib::MPEG::File::isSupported(stream))
+            return std::make_unique<TagLib::MPEG::File>(stream);
+        if (TagLib::FLAC::File::isSupported(stream))
+            return std::make_unique<TagLib::FLAC::File>(stream);
+        if (TagLib::MP4::File::isSupported(stream))
+            return std::make_unique<TagLib::MP4::File>(stream);
+        if (TagLib::RIFF::AIFF::File::isSupported(stream))
+            return std::make_unique<TagLib::RIFF::AIFF::File>(stream);
+        if (TagLib::RIFF::WAV::File::isSupported(stream))
+            return std::make_unique<TagLib::RIFF::WAV::File>(stream);
+        return nullptr;
+    }
+
+    std::unique_ptr<TagLib::FileStream> _stream; // declared first: must outlive _file
+    std::unique_ptr<TagLib::File> _file;
+};
+
+} // namespace
 
 @implementation AudioTrackMetadata {
     NSImage *_thumbnailAlbumArt;
@@ -392,7 +460,7 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 
     const char *filename = [url.path UTF8String];
 
-    TagLib::FileRef fileRef(filename);
+    TagLibAudioFile fileRef(filename);
 
     _sourceFilePath = url.path;
     self.title = [url.path.lastPathComponent stringByDeletingPathExtension];
@@ -472,8 +540,8 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     if (!path) {
         return nil;
     }
-    TagLib::FileRef fileRef([path UTF8String]);
-    if (fileRef.isNull() || !fileRef.file()) {
+    TagLibAudioFile fileRef([path UTF8String]);
+    if (fileRef.isNull()) {
         return nil;
     }
     return [self readFileTypeAndAlbumArtFromTagLibFile:fileRef.file()];
