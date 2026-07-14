@@ -133,7 +133,7 @@ private:
     // frame). Permanent for this file's content, so it is set regardless of
     // _artGeneration and never cleared by the discard paths: without it,
     // albumArtNeedsLoad would stay YES and the UI would re-dispatch the same
-    // doomed decode on every 3 Hz tick for as long as the track is current.
+    // doomed decode on every updateUI pass for as long as the track is current.
     BOOL _albumArtUndecodable;
     BOOL _parsedOK;
     // Bumped ONLY by discardDecodedAlbumArt (track changed — drop everything).
@@ -324,8 +324,8 @@ private:
         }
     }
     // Decode/scale OUTSIDE the lock — this monitor is also taken by the main
-    // thread's albumArtIfLoaded (3 Hz updateUI), which must never wait behind
-    // a 10-50ms ImageIO decode on a loader worker. Worst case two callers
+    // thread's albumArtIfLoaded (every updateUI pass), which must never wait
+    // behind a 10-50ms ImageIO decode on a loader worker. Worst case two callers
     // decode concurrently; results are identical and the first store wins.
     NSImage *thumbnail = nil;
     if (dataToDecode) {

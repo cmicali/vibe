@@ -37,8 +37,10 @@
         // thread would boost PINCache's internal init-time disk scan to
         // user-initiated QoS, which then priority-inverts against our
         // utility-QoS cache calls (Thread Performance Checker warning at
-        // first drop). Every cache use is on this serial queue, so ordering
-        // is guaranteed.
+        // first drop). The _waveformCache ivar is only ever read on this
+        // serial queue (decode-side writes go through a pointer snapshotted
+        // here; PINCache itself is thread-safe), so it is always constructed
+        // before first use.
         dispatch_async(_loaderQueue, ^{
             // v4 (BPM analyzer fix): entries carry a format version key;
             // renamed so the budget isn't consumed by unreadable
@@ -84,7 +86,6 @@
 - (void)load:(AudioTrack *)track withLoader:(AudioWaveformLoader *)loader {
     NSString *cacheKey = track.cacheKey;
     CodableAudioWaveform *cachedWaveform = nil;
-    BOOL fromCache = NO;
     if (WAVEFORM_CACHE_ENABLED) {
         cachedWaveform = (CodableAudioWaveform *)[self->_waveformCache.diskCache objectForKey:cacheKey];
         // PINCache unarchives without secure coding, so a corrupt/tampered
@@ -95,35 +96,61 @@
             [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
             cachedWaveform = nil;
         }
-        fromCache = (cachedWaveform != nil);
     }
-    if (!cachedWaveform) {
-        cachedWaveform = [loader load:track.url.path];
-        if (cachedWaveform && loader.isComplete) {
-            if (_normalize) {
-                cachedWaveform.waveform->normalize();
-            }
-            if (WAVEFORM_CACHE_ENABLED) {
-                [self->_waveformCache.diskCache setObjectAsync:cachedWaveform forKey:cacheKey completion:nil];
+    if (cachedWaveform) {
+        [self deliverCompleteWaveform:cachedWaveform loader:loader];
+        return;
+    }
+    if (loader.isCancelled) {
+        return; // superseded while the cache lookup ran — don't start a decode
+    }
+    // Decode OFF this serial queue: AVAudioFile's open has no cancellation
+    // point and blocks until a cloud placeholder materializes (minutes) — on
+    // this queue that wedged every later track's waveform behind it (the
+    // decode loop is cancellable per chunk; the open isn't). Same tradeoff as
+    // the player's off-queue open in playOnQueue: a truly hung open strands
+    // one global-queue worker instead of the pipeline. Overlap is bounded: a
+    // superseded loader aborts at its next chunk check.
+    PINCache *cache = _waveformCache; // snapshot: the ivar is confined to _loaderQueue
+    BOOL normalize = _normalize;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        CodableAudioWaveform *waveform = [loader load:track.url.path];
+        if (!waveform || !loader.isComplete) {
+            // Cancelled, failed, or partial: the UI stays at whatever progress
+            // the last in-flight callback reported.
+            return;
+        }
+        if (normalize) {
+            waveform.waveform->normalize();
+        }
+        if (WAVEFORM_CACHE_ENABLED) {
+            // Cache even when cancelled — a completed decode is worth keeping
+            // for the next play of this track.
+            [cache.diskCache setObjectAsync:waveform forKey:cacheKey completion:nil];
+        }
+        [self deliverCompleteWaveform:waveform loader:loader];
+    });
+}
+
+// Final 100% delivery (progress ticks go straight from the loader to the
+// delegate). The waveform is captured strongly so the C++ buffer stays valid
+// when the block runs; cancellation is re-checked on the main thread because
+// a cancel (new track selected) may land after the block is enqueued.
+- (void)deliverCompleteWaveform:(CodableAudioWaveform *)waveform loader:(AudioWaveformLoader *)loader {
+    if (loader.isCancelled) {
+        return;
+    }
+    run_on_main_thread({
+        if (!loader.isCancelled) {
+            [self.delegate audioWaveform:waveform didLoadData:1];
+            // BPM is computed at the end of the decode pass (or carried by a
+            // cache hit), so it only ever exists on this final delivery.
+            if (waveform.bpm > 0 &&
+                [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectBPM:)]) {
+                [self.delegate audioWaveformCache:self didDetectBPM:waveform.bpm];
             }
         }
-    }
-    // Only report 100% when the waveform is actually complete — either pulled
-    // from cache, or freshly loaded without read errors. Partial loads leave
-    // the UI at whatever progress its last in-flight callback reported.
-    BOOL waveformComplete = cachedWaveform != nil && (fromCache || loader.isComplete);
-    if (waveformComplete && !loader.isCancelled) {
-        // Capture cachedWaveform strongly so it outlives this stack frame and
-        // the waveform pointer remains valid when the block executes on the main thread.
-        CodableAudioWaveform *liveWaveform = cachedWaveform;
-        run_on_main_thread({
-            // Re-check on the main thread: a cancel (new track selected) may
-            // have landed after this block was enqueued.
-            if (!loader.isCancelled) {
-                [self.delegate audioWaveform:liveWaveform didLoadData:1];
-            }
-        });
-    }
+    });
 }
 
 - (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded {

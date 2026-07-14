@@ -20,24 +20,28 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
+#import "AudioWaveformCache.h"
 #import "AudioWaveformView.h"
 #import "PlaylistManager.h"
 #import "MainWindow.h"
 #import "GlyphButton.h"
 #import "PitchControlPanel.h"
+#import "TransportKeyMonitor.h"
 
 #define UPDATE_HZ 3
 
 // View outlets (adopted from MainPlayerContentView in buildContentInWindow:)
 // and protocol conformances are internal: nothing outside this file needs
-// them except the debug command channel, which re-declares what it reads in
-// MainPlayerController+Debug.h against these synthesized accessors.
-@interface MainPlayerController () <NSMenuItemValidation,
-                                    NSWindowDelegate,
+// them except the debug command channel and the menu-validation category,
+// which re-declare what they read (MainPlayerController+Debug.h /
+// MainPlayerController+Menus.m) against these synthesized accessors.
+// NSMenuItemValidation lives on the Menus category, where it is implemented.
+@interface MainPlayerController () <NSWindowDelegate,
                                     NSWindowRestoration,
                                     FileDropDelegate,
                                     AudioPlayerDelegate,
                                     AudioWaveformViewDelegate,
+                                    AudioWaveformCacheDelegate,
                                     AudioTrackMetadataCacheDelegate,
                                     PitchFaderViewDelegate>
 
@@ -75,7 +79,7 @@
     // contention the deferral exists to avoid).
     NSUInteger                  _metadataLoadGeneration;
     BOOL                        _errorAlertVisible;
-    id                          _keyDownMonitor;
+    TransportKeyMonitor*        _keyMonitor;
     PitchControlPanel*          _pitchPanel;
     ArtworkDisplayController*   _artworkController;
 }
@@ -141,9 +145,6 @@
 }
 
 - (void)dealloc {
-    if (_keyDownMonitor) {
-        [NSEvent removeMonitor:_keyDownMonitor];
-    }
     if (_timer) {
         // Releasing a suspended dispatch source traps; the timer is created
         // suspended and stays suspended whenever _timerRunning is NO.
@@ -162,18 +163,21 @@
     // never fires because About still counts as a window).
     self.window.delegate = self;
 
-    // Resolve the saved device by UID first (robust against duplicate device
-    // names); fall back to the persisted name for pre-UID settings.
-    NSString *savedDeviceName = Settings.audioOutputDeviceName;
-    AudioDevice *savedDevice = [[AudioDeviceManager sharedInstance] outputDeviceForUID:Settings.audioOutputDeviceUID];
-    if (savedDevice) {
-        savedDeviceName = savedDevice.name;
-    }
-    self.audioPlayer = [[AudioPlayer alloc] initWithDevice:savedDeviceName
-                                                  delegate:self
-    ];
+    // The saved device (UID first, name fallback) is resolved inside
+    // AudioPlayer's async init on its own queue: resolution enumerates
+    // CoreAudio devices — per-device HAL property reads, tens of ms with
+    // Bluetooth devices present — and this method runs before first paint.
+    self.audioPlayer = [[AudioPlayer alloc] initWithDeviceUID:Settings.audioOutputDeviceUID
+                                                         name:Settings.audioOutputDeviceName
+                                                     delegate:self];
     self.metadataCache = [[AudioTrackMetadataCache alloc] init];
     self.metadataCache.delegate = self;
+
+    // Owned here, like the metadata cache — the waveform view is a pure
+    // rendering surface; the controller requests loads and forwards the
+    // deliveries (waveform snapshots to the view, BPM to the label).
+    self.waveformCache = [[AudioWaveformCache alloc] init];
+    self.waveformCache.delegate = self;
 
     self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
     self.playlistManager.tableView = self.playlistTableView;
@@ -201,56 +205,10 @@
     self.playlistTableView.delegate = self.playlistManager;
     self.playlistTableView.dataSource = self.playlistManager;
 
-    // Handle the transport keys with a local event monitor instead of relying
-    // on the menu's unmodified key equivalents. Those only fire as a fallback
-    // after the focused view's keyDown/input-context machinery declines the
-    // event, and that path is fragile: the playlist table's input context can
-    // wedge after an unhandled letter (observed: press any unbound key while
-    // the table is focused and every subsequent key beeps, killing B/N until
-    // relaunch). The monitor sees the event before any of that runs.
-    __weak MainPlayerController *weakSelf = self;
-    _keyDownMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
-                                                            handler:^NSEvent *(NSEvent *event) {
-        MainPlayerController *strongSelf = weakSelf;
-        if (!strongSelf || event.window != strongSelf.window) {
-            return event;
-        }
-        // Leave anything that isn't a bare keypress alone (menu shortcuts,
-        // future text editing in a field editor).
-        NSEventModifierFlags mods = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
-        if (mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl |
-                    NSEventModifierFlagOption | NSEventModifierFlagShift)) {
-            return event;
-        }
-        if ([strongSelf.window.firstResponder isKindOfClass:[NSTextView class]]) {
-            return event;
-        }
-        NSString *chars = event.charactersIgnoringModifiers.lowercaseString;
-        if ([chars isEqualToString:@" "]) {
-            [strongSelf playPause:nil];
-            return nil;
-        }
-        if ([chars isEqualToString:@"b"]) {
-            [strongSelf previous:nil];
-            return nil;
-        }
-        if ([chars isEqualToString:@"n"]) {
-            [strongSelf next:nil];
-            return nil;
-        }
-        if ([chars isEqualToString:@"p"]) {
-            [strongSelf togglePitchPanel:nil];
-            return nil;
-        }
-        // Tab is also a menu key equivalent (installed by MainMenuBuilder),
-        // but that path only fires as a fallback after the focused view
-        // declines the event — handle it here like the other bare keys.
-        if ([chars isEqualToString:@"\t"]) {
-            [strongSelf toggleSize:nil];
-            return nil;
-        }
-        return event;
-    }];
+    // Bare transport keys (Space/B/N/P/Tab) via a local event monitor — see
+    // TransportKeyMonitor for why the menu key-equivalent path can't be
+    // trusted for unmodified keys.
+    _keyMonitor = [[TransportKeyMonitor alloc] initWithController:self];
 
     MainWindow *window = (MainWindow *)self.window;
     window.dropDelegate = self;
@@ -277,6 +235,7 @@
     // Leeway must be well under the interval, or the OS coalesces ticks and the
     // time label visibly skips seconds (worst on battery). ~1/10th interval.
     dispatch_source_set_timer(_timer, DISPATCH_TIME_NOW, NSEC_PER_SEC / UPDATE_HZ, NSEC_PER_SEC / UPDATE_HZ / 10);
+    __weak MainPlayerController *weakSelf = self;
     dispatch_source_set_event_handler(_timer, ^{
         [weakSelf updatePlaybackUI];
     });
@@ -502,7 +461,8 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 // Shrink-to-fit for the title: long titles reduce the font size (down to a
 // floor) so they fit the label's capped width instead of running under the
 // codec/BPM labels; anything still too long at the floor truncates with an
-// ellipsis. updateUI runs at 3 Hz, so only re-fit when the text changes.
+// ellipsis. updateUI re-runs on every transport event and metadata delivery
+// (once per track during the sweep), so only re-fit when the text changes.
 - (void)setTitleLabelText:(NSString *)text {
     static const CGFloat kTitleFontSize = 23;
     static const CGFloat kTitleMinFontSize = 15;
@@ -524,8 +484,9 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 
 // The BPM line sits under the codec line and matches its style exactly
 // (right-aligned, same kern). Tagged tempo wins over the analyzed one; the
-// displayed value scales with the pitch fader. updateUI runs at 3 Hz, so
-// skip the attributed-string rebuild when nothing changed.
+// displayed value scales with the pitch fader. This re-runs on every updateUI
+// pass and every fader tick during a drag (updateRateDependentUI), so skip
+// the attributed-string rebuild when nothing changed.
 - (void)updateBPMLabel {
     AudioTrack *track = self.playlistManager.currentTrack;
     float baseBPM = track.metadata.bpm > 0 ? track.metadata.bpm : track.detectedBPM;
@@ -566,7 +527,18 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
         [self startPendingMetadataLoad];
     }
     _currentTrackDuration = self.audioPlayer.duration;
-    [self.waveformView loadWaveformForTrack:track];
+    [self.waveformView prepareForWaveformLoad];
+    [self.waveformCache loadWaveformForTrack:track];
+    // Pre-open the likely-next file so auto-advance and Next skip the file
+    // open — the dominant transition latency. Recomputed on every track start
+    // (next/previous, double-click, re-drop all land here); nil past the last
+    // track drops the parked handle.
+    AudioTrack *nextTrack = nil;
+    NSUInteger nextIndex = self.playlistManager.currentIndex + 1;
+    if (nextIndex < self.playlistManager.count) {
+        nextTrack = self.playlistManager.playlist[nextIndex];
+    }
+    [self.audioPlayer prefetchTrack:nextTrack];
     // No reloadCurrentTrack here: resumeUIUpdateTimer -> updateUI already
     // reloads the current row.
     [self resumeUIUpdateTimer];
@@ -685,7 +657,14 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     self.audioPlayer.position = self.audioPlayer.duration * percentage;
 }
 
-- (void)audioWaveformView:(AudioWaveformView *)waveformView didDetectBPM:(float)bpm {
+// Progressive snapshots and the final waveform, on the main thread. The view
+// just renders what it's handed; cancellation filtering already happened in
+// the cache.
+- (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded {
+    [self.waveformView showWaveform:waveform];
+}
+
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm {
     // Waveform loads are cancelled on track change, so a delivery always
     // belongs to the most recently loaded — i.e. current — track.
     AudioTrack *track = self.playlistManager.currentTrack;
@@ -781,80 +760,6 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     self.window.appearance = Settings.windowAppearance;
     [self.playlistManager reloadCurrentTrack];
     [self.waveformView updateAppearance];
-}
-
-- (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
-    MainWindow *window = (MainWindow *)self.window;
-    if ([menuItem.identifier isEqualToString:@"menu_show_playlist"]) {
-        menuItem.state = StateForBOOL(window.isPlaylistShown);
-    }
-    else if ([menuItem.identifier isEqualToString:@"menu_show_pitch"]) {
-        menuItem.state = StateForBOOL(window.isPitchPanelShown);
-    }
-    else if ([menuItem.identifier isEqualToString:@"view_appearance_system_default"]) {
-        menuItem.state = StateForString(Settings.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT);
-    }
-    else if ([menuItem.identifier isEqualToString:@"view_appearance_light"]) {
-        menuItem.state = StateForString(Settings.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT);
-    }
-    else if ([menuItem.identifier isEqualToString:@"view_appearance_dark"]) {
-        menuItem.state = StateForString(Settings.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK);
-    }
-    else if ([menuItem.identifier isEqualToString:@"menu_next_track"]) {
-        // Only when there is actually a track after the current one; at the
-        // end of the playlist next: is a no-op.
-        return self.playlistManager.currentIndex + 1 < self.playlistManager.count;
-    }
-    else if ([menuItem.identifier isEqualToString:@"menu_previous_track"]) {
-        return self.playlistManager.count > 0 && self.playlistManager.currentIndex > 0;
-    }
-    else if ([menuItem.identifier isEqualToString:@"pitch_range_8"]) {
-        menuItem.state = StateForBOOL(Settings.pitchRange == 8);
-    }
-    else if ([menuItem.identifier isEqualToString:@"pitch_range_16"]) {
-        menuItem.state = StateForBOOL(Settings.pitchRange == 16);
-    }
-    else if ([menuItem.identifier isEqualToString:@"menu_play"]) {
-        return self.playlistManager.count > 0;
-    }
-    else if ([menuItem.identifier isEqualToString:@"show_in_finder"]) {
-        return self.playlistManager.currentTrack.url != nil;
-    }
-    return YES;
-}
-
-- (NSInteger)numberOfItemsInMenu:(NSMenu *)menu {
-    if ([menu.identifier isEqualToString:@"waveform_style"]) {
-        return self.waveformView.availableWaveformStyles.count;
-    }
-    return 0;
-}
-
-- (void)menuNeedsUpdate:(NSMenu *)menu {
-    if ([menu.identifier isEqualToString:@"waveform_style"]) {
-        NSInteger count = [self numberOfItemsInMenu:menu];
-        while ([menu numberOfItems] < count)
-            [menu insertItem:[NSMenuItem new] atIndex:0];
-        while ([menu numberOfItems] > count)
-            [menu removeItemAtIndex:0];
-        NSArray<NSString*>* styles = [self.waveformView.availableWaveformStyles sortedArrayUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
-        for (NSUInteger i = 0; i < count; ++i) {
-            NSMenuItem *item = [menu itemAtIndex:i];
-            item.title = styles[i];
-            item.state = StateForBOOL([item.title isEqualToString:self.waveformView.currentWaveformStyle]);
-            item.enabled = YES;
-            item.target = self;
-            item.action = @selector(setWaveformStyle:);
-        }
-    }
-}
-
-- (IBAction)setWaveformStyle:(id)sender {
-    if ([sender isKindOfClass:NSMenuItem.class]) {
-        NSString *title = ((NSMenuItem *)sender).title;
-        self.waveformView.waveformStyle = title;
-        Settings.waveformStyle = title;
-    }
 }
 
 #if DEBUG

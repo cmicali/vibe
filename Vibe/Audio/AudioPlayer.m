@@ -47,9 +47,19 @@ static const NSTimeInterval kFileOpenTimeoutSeconds = 20.0;
 // A still-pending open after this long is worth a visible loading state.
 static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
 
+// How long the engine may sit idle (Stopped) before it is stopped to release
+// the output device. Deferred rather than immediate: a natural track end is
+// followed within milliseconds by the auto-advance's play, and an immediate
+// stop made every consecutive-track transition pay an output-unit stop+start
+// (10-50ms, worse on Bluetooth). Long enough to absorb even a slow next-track
+// open; short enough that the device is released promptly when playback
+// really ends.
+static const NSTimeInterval kEngineIdleStopDelaySeconds = 2.0;
+
 // 50ms multiplicative (perceptually log, like BASS_SLIDE_LOG) volume ramps.
+// Step delay in microseconds, fed to dispatch_after via NSEC_PER_USEC.
 static const int kFadeSteps = 10;
-static const useconds_t kFadeStepMicroseconds = 5000;
+static const uint64_t kFadeStepMicroseconds = 5000;
 static const float kFadeFloor = 0.001f; // -60 dB
 
 static float VibeFadeVolume(float from, float to, int step) {
@@ -110,6 +120,20 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     // open must complete with the object the new playlist actually contains —
     // otherwise row state, artwork, and end-of-track advance all mismatch.
     AudioTrack *_pendingOpenTrack;
+    // Pre-opened handle for the playlist's likely-next track (prefetchTrack:).
+    // Queue-confined. Consumed (single use) by a play: of the same path,
+    // skipping the file open — the dominant transition latency. The request
+    // id pairs each prefetch with its async open so a superseded prefetch
+    // can't park a stale handle. The handle holds an open fd, so a file
+    // rewritten between prefetch and play plays the bytes as prefetched —
+    // same behavior as a file rewritten mid-playback.
+    NSString                *_prefetchedPath;
+    AVAudioFile             *_prefetchedFile;
+    uint64_t                _prefetchRequestId;
+    // Bumped by startEngineAndPlayNode: (the single funnel for starting
+    // playback) to dissolve the deferred idle engine stop
+    // (scheduleEngineIdleStopOnQueue). Queue-confined.
+    uint64_t                _engineIdleStopGeneration;
     VibePlayerState         _state;
     os_unfair_lock          _stateLock;
     // A pause fade is in flight (queue-confined). A second playPause during
@@ -122,7 +146,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 
 #pragma mark - Init
 
-- (id)initWithDevice:(NSString *)deviceName delegate:(id <AudioPlayerDelegate>)delegate {
+- (id)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName delegate:(id <AudioPlayerDelegate>)delegate {
     self = [super init];
     if (self) {
         _stateLock = OS_UNFAIR_LOCK_INIT;
@@ -152,12 +176,30 @@ static const float kDefaultMaxPitchPercent = 8.0f;
             self->_varispeed = [[AVAudioUnitVarispeed alloc] init];
             [self->_engine attachNode:self->_varispeed];
 
-            AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForName:deviceName];
-            // nil device (empty/unmatched name) means follow the system default.
+            // Resolve the saved device here rather than on the main thread:
+            // this is the app's first CoreAudio device enumeration (per-device
+            // HAL property reads — tens of ms with Bluetooth/aggregate devices
+            // present), and the caller runs before the window's first paint.
+            // UID first (robust against duplicate device names); name is the
+            // fallback for pre-UID settings.
+            AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForUID:deviceUID];
+            if (!device) {
+                device = [[AudioDeviceManager sharedInstance] outputDeviceForName:deviceName];
+            }
+            // nil device (empty/unmatched UID and name) means follow the system default.
             NSInteger deviceIndex = device ? device.deviceId : -1;
             self.currentlyRequestedAudioDeviceId = deviceIndex;
             if (deviceIndex >= 0) {
                 [self setOutputUnitDevice:(AudioDeviceID)deviceIndex];
+            }
+            else if (deviceUID.length > 0 || deviceName.length > 0) {
+                // A device was saved but is gone: fall back to System Output
+                // for good, not just this launch — the delegate persists the
+                // -1 choice, so the old device won't reclaim the checkmark if
+                // it reappears later.
+                run_on_main_thread({
+                    [self.delegate audioPlayer:self didChangeOutputDevice:-1];
+                });
             }
             // The engine isn't started until the first play.
 
@@ -265,6 +307,20 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     _state = VibePlayerStateLoading;
     os_unfair_lock_unlock(&_stateLock);
 
+    // A prefetched handle for this exact path skips the open entirely — the
+    // transition goes straight to schedule+play. Ownership passes to the
+    // normal finish path with a fresh open id, so it consumes the id like any
+    // completed open and no timeout/loading-indicator timers ever exist.
+    if (_prefetchedFile && [path isEqualToString:_prefetchedPath]) {
+        AVAudioFile *prefetchedFile = _prefetchedFile;
+        _prefetchedFile = nil;
+        _prefetchedPath = nil;
+        _currentOpenPath = path;
+        _pendingOpenTrack = track;
+        [self finishPlayOnQueue:track file:prefetchedFile error:nil openRequestId:++_openRequestId];
+        return;
+    }
+
     // Open the file off-queue: a cloud placeholder (iCloud/Dropbox) blocks
     // the open until it materializes, and that must never wedge the player
     // queue. The request id pairs each open with its timeout; whichever
@@ -319,7 +375,13 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 
     AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
     [_engine attachNode:node];
-    [self connectNode:node throughVarispeedWithFormat:file.processingFormat];
+    if (![self connectNode:node throughVarispeedWithFormat:file.processingFormat]) {
+        [self detachNodeAfterFailedConnect:node];
+        [self resetToStoppedStateOnQueue];
+        [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
+                [NSString stringWithFormat:@"Could not play %@ (unsupported format)", track.url.lastPathComponent], nil)];
+        return;
+    }
 
     [self scheduleFile:file onNode:node fromFrame:0];
     node.volume = 1.0;
@@ -353,17 +415,47 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 }
 
 // Wires node -> varispeed -> mixer for a track's format (runs on _queue).
-// Connecting replaces the varispeed's previous input/output connections, so
-// per-track format changes need no explicit disconnects. Position math is
-// unaffected by the rate: playerTimeForNodeTime: counts file frames the
-// player node rendered, and varispeed just consumes them faster or slower.
-- (void)connectNode:(AVAudioPlayerNode *)node throughVarispeedWithFormat:(AVAudioFormat *)format {
-    [_engine connect:node to:_varispeed format:format];
-    [_engine connect:_varispeed to:_engine.mainMixerNode format:format];
+// A RUNNING engine re-initializes the whole active chain on connect, and the
+// varispeed cannot initialize across a channel-count change (stereo track ->
+// mono track): AVAudioEngine throws kAudioUnitErr_FormatNotSupported (-10868)
+// as an NSException. Stopping the engine for the rewire avoids that — the
+// caller restarts it via startEngineAndPlayNode:. This costs an output-unit
+// restart (and hard-cuts a concurrent skip fade) only on mono<->stereo
+// transitions; same-channel-count connects keep the running engine. The catch
+// is the backstop for whatever formats the graph still refuses — a failed
+// connect must report, not crash. Position math is unaffected by the rate:
+// playerTimeForNodeTime: counts file frames the player node rendered, and
+// varispeed just consumes them faster or slower.
+- (BOOL)connectNode:(AVAudioPlayerNode *)node throughVarispeedWithFormat:(AVAudioFormat *)format {
+    @try {
+        if (_engine.isRunning
+                && [_varispeed inputFormatForBus:0].channelCount != format.channelCount) {
+            [_engine stop];
+        }
+        [_engine connect:node to:_varispeed format:format];
+        [_engine connect:_varispeed to:_engine.mainMixerNode format:format];
+    }
+    @catch (NSException *exception) {
+        LogError(@"AudioPlayer: engine connect failed for format %@: %@", format, exception);
+        return NO;
+    }
     os_unfair_lock_lock(&_stateLock);
     float pitch = _pitch;
     os_unfair_lock_unlock(&_stateLock);
     _varispeed.rate = 1.0f + pitch / 100.0f;
+    return YES;
+}
+
+// Detach that cannot throw: after a failed connect the node can be in a state
+// AVAudioEngine's RemoveNode refuses (it raises an NSException; leaking the
+// node is better than crashing the app on an already-failing path).
+- (void)detachNodeAfterFailedConnect:(AVAudioPlayerNode *)node {
+    @try {
+        [_engine detachNode:node];
+    }
+    @catch (NSException *exception) {
+        LogError(@"AudioPlayer: detach after failed connect: %@", exception);
+    }
 }
 
 // Schedules the remainder of the file from startFrame with a completion tagged
@@ -409,6 +501,57 @@ static const float kDefaultMaxPitchPercent = 8.0f;
                                        track.url.lastPathComponent], nil)];
 }
 
+- (void)prefetchTrack:(AudioTrack *)track {
+    dispatch_async(_queue, ^{
+        [self prefetchOnQueue:track];
+    });
+}
+
+// Runs on _queue. Opens the file on a background queue and parks the handle
+// for playOnQueue: to consume. Utility QoS: readahead for a track that won't
+// be needed for minutes, not user-blocking work. A blocked open (cloud
+// placeholder) strands one worker — the same accepted tradeoff as the
+// playback open — and usefully starts the download before the track is due.
+- (void)prefetchOnQueue:(AudioTrack *)track {
+    NSString *path = track.url.path;
+    if (path && [path isEqualToString:_prefetchedPath]) {
+        return; // already prefetched, or that open is still in flight
+    }
+    if (path && [path isEqualToString:_currentOpenPath]) {
+        return; // being opened for playback right now
+    }
+    _prefetchRequestId++; // supersede any in-flight prefetch open
+    // Claimed at request time (not completion) so repeated prefetches of the
+    // same path don't stack opens; _prefetchedFile stays nil until it lands.
+    _prefetchedPath = path;
+    _prefetchedFile = nil;
+    if (!path) {
+        return; // nil track: end of playlist — just drop the parked handle
+    }
+    uint64_t prefetchId = _prefetchRequestId;
+    __weak AudioPlayer *weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        AVAudioFile *file = [[AVAudioFile alloc] initForReading:track.url error:nil];
+        AudioPlayer *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        dispatch_async(strongSelf->_queue, ^{
+            if (prefetchId != strongSelf->_prefetchRequestId) {
+                return; // a newer prefetch target superseded this open
+            }
+            if (file && file.length > 0) {
+                strongSelf->_prefetchedFile = file;
+            }
+            else {
+                // Open failed — release the claim so a play of this track
+                // runs its own open and reports the error the normal way.
+                strongSelf->_prefetchedPath = nil;
+            }
+        });
+    });
+}
+
 // Marks playback fully stopped after a failure so isPlaying/duration report
 // reality and the play button can recover.
 - (void)resetToStoppedStateOnQueue {
@@ -428,8 +571,32 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     _positionEpoch++;
     _state = VibePlayerStateStopped;
     os_unfair_lock_unlock(&_stateLock);
-    // Release the output device while idle; the next play restarts the engine.
-    [_engine stop];
+    // Release the output device once genuinely idle; a quick follow-up play
+    // (auto-advance past a bad file) reuses the running engine.
+    [self scheduleEngineIdleStopOnQueue];
+}
+
+// Runs on _queue. Stops the engine after a grace period if playback is still
+// Stopped, releasing the output device. Any (re)start of playback in the
+// interim — startEngineAndPlayNode: is the single funnel — bumps the
+// generation and the pending stop dissolves.
+- (void)scheduleEngineIdleStopOnQueue {
+    uint64_t generation = ++_engineIdleStopGeneration;
+    __weak AudioPlayer *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kEngineIdleStopDelaySeconds * NSEC_PER_SEC)), _queue, ^{
+        AudioPlayer *strongSelf = weakSelf;
+        if (!strongSelf || generation != strongSelf->_engineIdleStopGeneration) {
+            return;
+        }
+        os_unfair_lock_lock(&strongSelf->_stateLock);
+        VibePlayerState state = strongSelf->_state;
+        os_unfair_lock_unlock(&strongSelf->_stateLock);
+        // Only a still-Stopped player stops the engine. Loading counts as
+        // busy — the in-flight open's finish path wants the engine warm.
+        if (state == VibePlayerStateStopped) {
+            [strongSelf->_engine stop];
+        }
+    });
 }
 
 // [AVAudioPlayerNode play] throws NSException if the engine stopped between
@@ -439,6 +606,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     if (outError) {
         *outError = nil;
     }
+    _engineIdleStopGeneration++; // playback is (re)starting — cancel any pending idle stop
     for (int attempt = 0; attempt < 2; attempt++) {
         if (!_engine.isRunning) {
             NSError *startError = nil;
@@ -469,13 +637,15 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     AVAudioPlayerNode *finishedNode = _node;
     _node = nil;
     os_unfair_lock_unlock(&_stateLock);
-    // Tear down the finished node and stop the engine so the output device
-    // isn't held active while idle; the next play restarts the engine lazily.
+    // Tear down the finished node; the engine stop is deferred so the
+    // auto-advance play (arriving within milliseconds via didFinishPlaying →
+    // next) reuses the running engine instead of paying an output-unit
+    // stop+start per consecutive-track transition.
     if (finishedNode) {
         [finishedNode stop];
         [_engine detachNode:finishedNode];
     }
-    [_engine stop];
+    [self scheduleEngineIdleStopOnQueue];
     // Snapshot before dispatching; if the track changed by the time the block
     // runs on main, this end event is stale and must be dropped.
     AudioTrack *track = self.currentTrack;
@@ -676,8 +846,19 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     }
     // playerTime restarts at 0 after every stop+reschedule, so the segment's
     // start frame must always be added back.
-    AVAudioTime *nodeTime = node.lastRenderTime;
-    AVAudioTime *playerTime = nodeTime ? [node playerTimeForNodeTime:nodeTime] : nil;
+    AVAudioTime *playerTime = nil;
+    @try {
+        // The queue can detach this node concurrently (fast skips — this
+        // getter is deliberately lock-free), and a detached node's
+        // lastRenderTime RAISES (_engine != nil) instead of returning nil.
+        // Treat it as "no reading": the fallback below serves the last valid
+        // position, and the next tick reads the replacement node.
+        AVAudioTime *nodeTime = node.lastRenderTime;
+        playerTime = nodeTime ? [node playerTimeForNodeTime:nodeTime] : nil;
+    }
+    @catch (NSException *exception) {
+        playerTime = nil;
+    }
     NSTimeInterval position;
     if (!playerTime || !playerTime.sampleTimeValid) {
         // No render yet (right after play), OR the engine stopped itself
@@ -805,6 +986,18 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     }
 }
 
+// Covers the explicitly chosen device disappearing while playback is idle —
+// handleEngineConfigurationChange only sees removals that kill the running
+// graph. setOutputDevice:-1 rebinds and the delegate persists the fallback,
+// so System Output stays the choice even after the device returns.
+- (void)audioOutputDevicesDidChange {
+    NSInteger requested = self.currentlyRequestedAudioDeviceId;
+    if (requested >= 0 && ![[AudioDeviceManager sharedInstance] outputDeviceForId:requested]) {
+        LogInfo(@"AudioPlayer: requested output device removed; falling back to system default");
+        [self setOutputDevice:-1];
+    }
+}
+
 // The AudioDeviceID the output unit is currently bound to.
 - (AudioDeviceID)activeOutputDeviceID {
     AudioUnit outputUnit = _engine.outputNode.audioUnit;
@@ -898,15 +1091,17 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     _generation++;
     _rampGeneration++; // preempt any in-flight fade
 
+    // Unpublish the node BEFORE detaching it: the position getter reads _node
+    // lock-free on the main thread, and calling into a detached node raises.
+    os_unfair_lock_lock(&_stateLock);
     AVAudioPlayerNode *oldNode = _node;
+    _node = nil;
+    os_unfair_lock_unlock(&_stateLock);
     [oldNode stop];
     [_engine stop];
     if (oldNode) {
         [_engine detachNode:oldNode];
     }
-    os_unfair_lock_lock(&_stateLock);
-    _node = nil;
-    os_unfair_lock_unlock(&_stateLock);
 
     if (![self setOutputUnitDevice:deviceID]) {
         [self resetToStoppedStateOnQueue];
@@ -931,7 +1126,13 @@ static const float kDefaultMaxPitchPercent = 8.0f;
         }
         AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
         [_engine attachNode:node];
-        [self connectNode:node throughVarispeedWithFormat:file.processingFormat];
+        if (![self connectNode:node throughVarispeedWithFormat:file.processingFormat]) {
+            [self detachNodeAfterFailedConnect:node];
+            [self resetToStoppedStateOnQueue];
+            [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
+                    @"Could not restore track on the new audio device", nil)];
+            return NO;
+        }
         double sampleRate = file.processingFormat.sampleRate;
         AVAudioFramePosition startFrame = (AVAudioFramePosition)(positionToRestore * sampleRate);
         startFrame = MAX(0, MIN(startFrame, file.length - 1));

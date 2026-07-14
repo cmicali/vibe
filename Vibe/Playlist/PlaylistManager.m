@@ -13,6 +13,11 @@
 
 @implementation PlaylistManager {
     NSMutableArray<AudioTrack *> *_playlist;
+    // Track → row for reloadTrack:. didLoadMetadata fires it once per track
+    // during the metadata sweep, and the linear scan it replaces made the
+    // sweep O(n²) in playlist size on the main thread. Rebuilt whenever the
+    // playlist is replaced (play:) — the list never mutates in place.
+    NSMapTable<AudioTrack *, NSNumber *> *_trackIndexes;
     __weak NSTableView *_tableView;
 }
 
@@ -223,6 +228,11 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
     for (NSURL *url in urls) {
         [_playlist addObject:[AudioTrack withURL:url]];
     }
+    NSMapTable<AudioTrack *, NSNumber *> *indexes = [NSMapTable strongToStrongObjectsMapTable];
+    for (NSUInteger i = 0; i < _playlist.count; i++) {
+        [indexes setObject:@(i) forKey:_playlist[i]];
+    }
+    _trackIndexes = indexes;
     self.currentIndex = 0;
     [self.tableView reloadData];
     [self play];
@@ -285,12 +295,10 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
 }
 
 - (NSInteger)getIndexForTrack:(AudioTrack *)track {
-    for(NSUInteger i = 0; i < _playlist.count; i++) {
-        if (_playlist[i] == track) {
-            return i;
-        }
-    }
-    return -1;
+    // AudioTrack uses NSObject's identity hash/isEqual, so this is an
+    // identity lookup — same semantics as the linear scan it replaced.
+    NSNumber *index = track ? [_trackIndexes objectForKey:track] : nil;
+    return index ? index.integerValue : -1;
 }
 
 - (void)reloadCurrentTrack {

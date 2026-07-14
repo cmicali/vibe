@@ -35,6 +35,12 @@ NS_ASSUME_NONNULL_BEGIN
 // AudioWaveform* is owned by (and dies with) the wrapper.
 - (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded;
 
+// Fired once per completed waveform load (fresh analysis or cache hit) when
+// the decode pass detected a tempo — never with 0. Follows the final
+// didLoadData: delivery, on the main thread. Loads are cancelled on track
+// change, so a delivery always belongs to the most recently requested track.
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm;
+
 @end
 
 NS_ASSUME_NONNULL_END

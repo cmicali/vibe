@@ -233,9 +233,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     table.allowsTypeSelect = NO;
     // Opt out of the macOS 11+ inset look; we want the selection highlight
     // and row content flush with the scroll view's left/right edges.
-    if (@available(macOS 11.0, *)) {
-        table.style = NSTableViewStyleFullWidth;
-    }
+    table.style = NSTableViewStyleFullWidth;
 
     struct {
         NSString *identifier;
