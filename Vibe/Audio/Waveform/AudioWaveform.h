@@ -128,6 +128,12 @@ private:
 
 @property (nonatomic) AudioWaveform *waveform;
 
+// Detected tempo (0 = unknown/undetectable). Not conceptually waveform data,
+// but it is the product of the same full-file decode pass and shares the
+// waveform's cache key and lifecycle, so it rides along in this archive
+// rather than paying a second decode into its own cache.
+@property (nonatomic) float bpm;
+
 - (id)initWithWaveform:(AudioWaveform *)waveform;
 
 // Deep copy of the current chunk buffer, wrapped in a new object that owns it.

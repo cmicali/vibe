@@ -11,6 +11,7 @@
 #import "OutputDevicesMenuController.h"
 #import "AppDelegate.h"
 #import "Formatters.h"
+#import "Fonts.h"
 #import "ArtworkImageView.h"
 #import "BackgroundArtworkImageView.h"
 #import "AudioDeviceManager.h"
@@ -53,6 +54,7 @@
 @property (weak) NSTextField *totalTimeTextField;
 @property (weak) NSTextField *currentTimeTextField;
 @property (weak) NSTextField *fileMetadataTextField;
+@property (weak) NSTextField *bpmTextField;
 @property (weak) NSView *albumArtGradientView;
 
 @end
@@ -64,6 +66,7 @@
     BOOL                        _timerRunning;
     __weak AudioTrack*          _lastReloadedTrack;
     NSString*                   _lastFileMetadataString;
+    NSString*                   _lastBPMString;
     NSString*                   _statusMessage;
     BOOL                        _metadataLoadPending;
     // Pairs each play:'s 2s fallback timer with its own playlist: a timer
@@ -122,6 +125,7 @@
     self.totalTimeTextField = content.totalTimeTextField;
     self.currentTimeTextField = content.currentTimeTextField;
     self.fileMetadataTextField = content.fileMetadataTextField;
+    self.bpmTextField = content.bpmTextField;
     self.playlistTableView = content.playlistTableView;
 
     // Right-click menu on the whole window body (content view, so it also
@@ -334,11 +338,11 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     if (track) {
         if (track.hasArtistAndTitle) {
             setStringValueIfChanged(self.artistTextField, track.artist);
-            setStringValueIfChanged(self.titleTextField, track.title);
+            [self setTitleLabelText:track.title];
         }
         else {
             setStringValueIfChanged(self.artistTextField, @"");
-            setStringValueIfChanged(self.titleTextField, track.singleLineTitle);
+            [self setTitleLabelText:track.singleLineTitle];
         }
         setStringValueIfChanged(self.totalTimeTextField, [[Formatters sharedInstance] durationStringFromTimeInterval:self.audioPlayer.duration / self.playbackRate]);
         if (_statusMessage) {
@@ -375,7 +379,7 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     }
     else {
         setStringValueIfChanged(self.artistTextField, @"");
-        setStringValueIfChanged(self.titleTextField, @"");
+        [self setTitleLabelText:@""];
         setStringValueIfChanged(self.totalTimeTextField, @"");
         setStringValueIfChanged(self.currentTimeTextField, @"");
         if (_statusMessage) {
@@ -388,6 +392,8 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     }
 
     self.albumArtImageView.fileURL = track.url;
+
+    [self updateBPMLabel];
 
     [_artworkController updateForTrack:track];
 
@@ -496,6 +502,52 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
                                                                 NSKernAttributeName:@(-1.2),
                                                                 NSParagraphStyleAttributeName:paragraph,
                                                             }];
+}
+
+// Shrink-to-fit for the title: long titles reduce the font size (down to a
+// floor) so they fit the label's capped width instead of running under the
+// codec/BPM labels; anything still too long at the floor truncates with an
+// ellipsis. updateUI runs at 3 Hz, so only re-fit when the text changes.
+- (void)setTitleLabelText:(NSString *)text {
+    static const CGFloat kTitleFontSize = 23;
+    static const CGFloat kTitleMinFontSize = 15;
+    if ([text isEqualToString:self.titleTextField.stringValue]) {
+        return;
+    }
+    NSFont *font = [Fonts font:kTitleFontSize];
+    CGFloat maxWidth = self.titleTextField.frame.size.width;
+    CGFloat width = [text sizeWithAttributes:@{NSFontAttributeName: font}].width;
+    if (width > maxWidth) {
+        // Glyph advance scales linearly with point size, so one scale step
+        // lands on the fitting size; the 2% margin covers rounding.
+        CGFloat fitted = kTitleFontSize * (maxWidth / width) * 0.98;
+        font = [Fonts font:MAX(kTitleMinFontSize, floor(fitted * 2) / 2)];
+    }
+    self.titleTextField.font = font;
+    self.titleTextField.stringValue = text;
+}
+
+// The BPM line sits under the codec line and matches its style exactly
+// (right-aligned, same kern). Tagged tempo wins over the analyzed one; the
+// displayed value scales with the pitch fader. updateUI runs at 3 Hz, so
+// skip the attributed-string rebuild when nothing changed.
+- (void)updateBPMLabel {
+    AudioTrack *track = self.playlistManager.currentTrack;
+    float baseBPM = track.metadata.bpm > 0 ? track.metadata.bpm : track.detectedBPM;
+    NSString *text = (track && baseBPM > 0)
+            ? [NSString stringWithFormat:@"%.1f BPM", baseBPM * self.playbackRate]
+            : @"";
+    if ([text isEqualToString:_lastBPMString]) {
+        return;
+    }
+    _lastBPMString = text;
+    NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
+    paragraph.alignment = NSTextAlignmentRight;
+    self.bpmTextField.attributedStringValue = [[NSMutableAttributedString alloc] initWithString:text
+                                                                                      attributes:@{
+                                                            NSKernAttributeName:@(-1.2),
+                                                            NSParagraphStyleAttributeName:paragraph,
+                                                        }];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track {
@@ -638,6 +690,16 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     self.audioPlayer.position = self.audioPlayer.duration * percentage;
 }
 
+- (void)audioWaveformView:(AudioWaveformView *)waveformView didDetectBPM:(float)bpm {
+    // Waveform loads are cancelled on track change, so a delivery always
+    // belongs to the most recently loaded — i.e. current — track.
+    AudioTrack *track = self.playlistManager.currentTrack;
+    if (track) {
+        track.detectedBPM = bpm;
+        [self updateBPMLabel];
+    }
+}
+
 #pragma mark - Actions
 
 - (IBAction) setSmallSize:(id)sender {
@@ -690,6 +752,7 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
         setStringValueIfChanged(self.totalTimeTextField,
                 [[Formatters sharedInstance] durationStringFromTimeInterval:self.audioPlayer.duration / self.playbackRate]);
     }
+    [self updateBPMLabel];
     [self updatePlaybackUI];
 }
 

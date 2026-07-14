@@ -120,6 +120,8 @@
                 @"com.pinterest.PINDiskCache.Audio Track Metadata",
                 @"com.pinterest.PINDiskCache.Audio Track Metadata v2",
                 @"com.pinterest.PINDiskCache.audio_waveform_cache",
+                @"com.pinterest.PINDiskCache.audio_waveform_cache_v2",
+                @"com.pinterest.PINDiskCache.audio_waveform_cache_v3",
         ];
         for (NSString *name in legacyCacheNames) {
             [[NSFileManager defaultManager] removeItemAtPath:[cachesDir stringByAppendingPathComponent:name] error:nil];
@@ -145,9 +147,14 @@
     return YES;
 }
 
+// LaunchServices can split one multi-file open into several openURLs:
+// events (seen reliably right after a rebuild re-registers the bundle).
+// play: REPLACES the playlist, so acting on each event separately keeps
+// only the last event's files. Coalesce a burst into a single play.
 - (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {
     [_urlsToOpen addObjectsFromArray:urls];
-    [self playURLs];
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(playURLs) object:nil];
+    [self performSelector:@selector(playURLs) withObject:nil afterDelay:0.3];
 }
 
 - (IBAction)showAboutWindow:(id)sender {

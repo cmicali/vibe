@@ -97,7 +97,9 @@ void AudioWaveform::normalize() {
     }
 }
 
-static const int kCodableAudioWaveformVersion = 2;
+// v4: BPM re-detected after an analyzer fix (v3's could half-tempo tracks
+// with alternating beat emphasis).
+static const int kCodableAudioWaveformVersion = 4;
 
 @implementation CodableAudioWaveform
 
@@ -105,6 +107,7 @@ static const int kCodableAudioWaveformVersion = 2;
     [coder encodeInt:kCodableAudioWaveformVersion forKey:@"version"];
     [coder encodeObject:@(self.waveform->getNumChunks()) forKey:@"numChunks"];
     [coder encodeBytes:(const uint8_t*)self.waveform->getBytes() length:self.waveform->getNumBytes() forKey:@"chunks"];
+    [coder encodeFloat:self.bpm forKey:@"bpm"];
 }
 
 - (instancetype)initWithCoder:(NSCoder *)coder {
@@ -132,6 +135,8 @@ static const int kCodableAudioWaveformVersion = 2;
             return nil;
         }
         self.waveform = new AudioWaveform(numChunks, data);
+        float bpm = [coder decodeFloatForKey:@"bpm"];
+        self.bpm = std::isfinite(bpm) && bpm > 0 ? bpm : 0;
     }
     return self;
 }
@@ -148,7 +153,9 @@ static const int kCodableAudioWaveformVersion = 2;
     if (!self.waveform) {
         return nil;
     }
-    return [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform(*self.waveform)];
+    CodableAudioWaveform *copy = [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform(*self.waveform)];
+    copy.bpm = self.bpm;
+    return copy;
 }
 
 - (void)dealloc {

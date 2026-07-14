@@ -35,6 +35,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage;
 
+// Fired once per completed waveform load (fresh analysis or cache hit) when
+// the decode pass detected a tempo. Never fired with 0.
+- (void)audioWaveformView:(AudioWaveformView *)waveformView didDetectBPM:(float)bpm;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -304,6 +304,7 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     [coder encodeObject:self.bitrate forKey:@"bitrate"];
     [coder encodeObject:self.sampleRate forKey:@"sampleRate"];
     [coder encodeDouble:self.duration forKey:@"duration"];
+    [coder encodeFloat:self.bpm forKey:@"bpm"];
 }
 
 + (BOOL)supportsSecureCoding {
@@ -355,6 +356,10 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
             return nil; // corrupt/tampered entry — treat as a cache miss
         }
         self.duration = duration;
+        // Absent in pre-BPM entries (decodes as 0 = untagged) — no version
+        // bump needed.
+        float bpm = [coder decodeFloatForKey:@"bpm"];
+        self.bpm = isfinite(bpm) && bpm > 0 ? bpm : 0;
         // A cache-hit instance represents a successful prior parse.
         _parsedOK = YES;
     }
@@ -413,6 +418,16 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
                 self.duration = static_cast<NSTimeInterval>(props->lengthInMilliseconds()) / 1000;
                 self.bitrate = @(props->bitrate());
                 self.sampleRate = @(props->sampleRate());
+            }
+
+            // TagLib's PropertyMap normalizes every format's tempo tag (ID3
+            // TBPM, MP4 tmpo, Vorbis/FLAC BPM) to the "BPM" key.
+            TagLib::StringList bpmValues = file->properties()["BPM"];
+            if (!bpmValues.isEmpty()) {
+                float tagBPM = [NSString stringWithstring:bpmValues.front().to8Bit(true)].floatValue;
+                if (isfinite(tagBPM) && tagBPM > 0 && tagBPM < 1000) {
+                    self.bpm = tagBPM;
+                }
             }
 
             _albumArtData = [self readFileTypeAndAlbumArtFromTagLibFile:file];
