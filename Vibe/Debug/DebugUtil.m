@@ -22,7 +22,7 @@
 #import "AudioWaveformView.h"
 #import "PlaylistManager.h"
 #import "PitchControlPanel.h"
-#import "SYFlatButton.h"
+#import "GlyphButton.h"
 
 static NSString *VibeDebugScreenshotPath(void) {
     return [NSTemporaryDirectory() stringByAppendingPathComponent:@"vibe-screenshot.png"];

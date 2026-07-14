@@ -5,7 +5,7 @@
 
 #import "MainPlayerContentView.h"
 #import "MainPlayerController.h" // declares the button action selectors
-#import "SYFlatButton.h"
+#import "GlyphButton.h"
 #import "ArtworkImageView.h"
 #import "BackgroundArtworkImageView.h"
 #import "AudioWaveformView.h"
@@ -118,29 +118,32 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:_albumArtGradientView];
 
     _closeButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(5, 313, 32, 32)
-                                                             image:@"button-close"
+                                                             glyph:GlyphButtonGlyphClose
                                                             action:@selector(closeApp:)
                                                             target:target];
     _closeButton.alphaValue = 0.5;
-    _closeButton.imageNormalColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:0.75];
-    _closeButton.imageHighlightColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:1];
+    _closeButton.glyphSize = 12; // the old button-close dot was a 12pt circle (24px @2x)
+    _closeButton.glyphNormalColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:0.56];
+    _closeButton.glyphHighlightColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:0.75];
     [self addSubview:_closeButton];
 
-    SYFlatButton *playlistButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(0, 202, 50, 50)
-                                                                             image:@"button-hamburger"
-                                                                            action:@selector(toggleSize:)
-                                                                            target:target];
+    // The outer two buttons are nudged toward the center one; the slight
+    // frame overlap is fine (later siblings win hit testing).
+    GlyphButton *playlistButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(4, 203, 50, 50)
+                                                                            glyph:GlyphButtonGlyphPlaylist
+                                                                           action:@selector(toggleSize:)
+                                                                           target:target];
     [self addSubview:playlistButton];
 
     _playButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(50, 203, 50, 50)
-                                                            image:@"button-play"
+                                                            glyph:GlyphButtonGlyphPlay
                                                            action:@selector(playPause:)
                                                            target:target];
     _playButton.enabled = NO;
     [self addSubview:_playButton];
 
-    _nextButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(100, 203, 50, 50)
-                                                            image:@"button-skip-next"
+    _nextButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(96, 203, 50, 50)
+                                                            glyph:GlyphButtonGlyphSkipNext
                                                            action:@selector(next:)
                                                            target:target];
     _nextButton.enabled = NO;
@@ -273,27 +276,12 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 }
 
 // Shared config for the borderless icon buttons (close/playlist/play/next):
-// shadowless square bezel, icon only, ~100ms highlight fade, all border and
-// background states transparent, white icon tinting unless overridden.
-+ (SYFlatButton *)transportButtonWithFrame:(NSRect)frame image:(NSString *)imageName action:(SEL)action target:(id)target {
-    SYFlatButton *button = [[SYFlatButton alloc] initWithFrame:frame];
-    [button setButtonType:NSButtonTypeMomentaryPushIn];
-    button.bezelStyle = NSBezelStyleShadowlessSquare;
-    button.image = [NSImage imageNamed:imageName];
-    button.imagePosition = NSImageOnly;
-    button.imageScaling = NSImageScaleProportionallyDown;
-    button.momentary = YES;
-    button.onAnimateDuration = 0.1;
-    button.offAnimateDuration = 0.1;
-    button.borderNormalColor = [NSColor clearColor];
-    button.borderHighlightColor = [NSColor clearColor];
-    button.borderDisabledColor = [NSColor clearColor];
-    button.backgroundNormalColor = [NSColor clearColor];
-    button.backgroundHighlightColor = [NSColor clearColor];
-    button.backgroundDisabledColor = [NSColor clearColor];
-    button.imageNormalColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:0.74];
-    button.imageHighlightColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:1];
-    button.imageDisabledColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:0.25];
+// GlyphButton already draws a momentary, white-tinted glyph with a ~100ms
+// highlight fade; only the glyph, action, and resizing behavior vary.
++ (GlyphButton *)transportButtonWithFrame:(NSRect)frame glyph:(GlyphButtonGlyph)glyph action:(SEL)action target:(id)target {
+    GlyphButton *button = [[GlyphButton alloc] initWithFrame:frame];
+    button.glyph = glyph;
+    button.glyphSize = 26; // the replaced 2x PNGs drew their glyphs in a ~26pt box
     button.target = target;
     button.action = action;
     button.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;

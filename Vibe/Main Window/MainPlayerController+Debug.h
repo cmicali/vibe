@@ -12,7 +12,7 @@
 
 #import "MainPlayerController.h"
 
-@class SYFlatButton;
+@class GlyphButton;
 @class PitchControlPanel;
 @class AudioWaveformView;
 
@@ -20,8 +20,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface MainPlayerController (Debug)
 
-@property (weak, readonly) SYFlatButton *nextButton;
-@property (weak, readonly) SYFlatButton *playButton;
+@property (weak, readonly) GlyphButton *nextButton;
+@property (weak, readonly) GlyphButton *playButton;
 @property (weak, readonly) NSTextField *artistTextField;
 @property (weak, readonly) NSTextField *titleTextField;
 @property (weak, readonly) NSTextField *totalTimeTextField;
