@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		BPMA0001000000000000000C /* AudioBPMAnalyzer.mm in Sources */ = {isa = PBXBuildFile; fileRef = BPMA0001000000000000000B /* AudioBPMAnalyzer.mm */; };
 		34FF40610A4EB028EC190151 /* NSURL+Hash.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4332509EABC415A0A5EB /* NSURL+Hash.m */; };
 		34FF40BCC1328A8EB4A4B753 /* AudioWaveformRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF46C5DB656AAA171A5984 /* AudioWaveformRenderer.mm */; };
 		34FF4113001518E37080A80F /* BasicAudioWaveformRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF40C150803791290DADAE /* BasicAudioWaveformRenderer.mm */; };
@@ -60,13 +59,14 @@
 		B6E7885D23A564A40035BCD0 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6E7885C23A564A40035BCD0 /* Accelerate.framework */; };
 		B6E7885F23A564AD0035BCD0 /* ApplicationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6E7885E23A564AD0035BCD0 /* ApplicationServices.framework */; };
 		B6E7886123A564C20035BCD0 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6E7886023A564C20035BCD0 /* QuartzCore.framework */; };
+		BPMA0001000000000000000C /* AudioBPMAnalyzer.mm in Sources */ = {isa = PBXBuildFile; fileRef = BPMA0001000000000000000B /* AudioBPMAnalyzer.mm */; };
 		P17C4B01F0DE1201000000B1 /* PitchFaderView.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A1 /* PitchFaderView.m */; };
-		P17C4B01F0DE1201000000C6 /* EqualizerIndicatorView.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000C5 /* EqualizerIndicatorView.m */; };
 		P17C4B01F0DE1201000000B2 /* PitchControlPanel.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A3 /* PitchControlPanel.m */; };
 		P17C4B01F0DE1201000000B3 /* MainMenuBuilder.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A5 /* MainMenuBuilder.m */; };
-		P17C4B01F0DE1201000000B5 /* DebugUtil.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A9 /* DebugUtil.m */; };
 		P17C4B01F0DE1201000000B4 /* MainPlayerContentView.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A7 /* MainPlayerContentView.m */; };
+		P17C4B01F0DE1201000000B5 /* DebugUtil.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000A9 /* DebugUtil.m */; };
 		P17C4B01F0DE1201000000C4 /* ArtworkDisplayController.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000C2 /* ArtworkDisplayController.m */; };
+		P17C4B01F0DE1201000000C6 /* EqualizerIndicatorView.m in Sources */ = {isa = PBXBuildFile; fileRef = P17C4B01F0DE1201000000C5 /* EqualizerIndicatorView.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -83,8 +83,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		BPMA0001000000000000000A /* AudioBPMAnalyzer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioBPMAnalyzer.h; sourceTree = "<group>"; };
-		BPMA0001000000000000000B /* AudioBPMAnalyzer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioBPMAnalyzer.mm; sourceTree = "<group>"; };
 		34FF4065120E705650E06694 /* AppDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		34FF408561F7DF7DA84C6EEA /* AudioTrackMetadataCache.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioTrackMetadataCache.h; sourceTree = "<group>"; };
 		34FF408589774269742C487B /* ScaledImageView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScaledImageView.h; sourceTree = "<group>"; };
@@ -174,7 +172,6 @@
 		B64A90D32F5F3BEF00919E55 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		B654886F23C78FE900A5A4FE /* AudioWaveformRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioWaveformRenderer.h; sourceTree = "<group>"; };
 		B660F21723A6B8C600BBD9C8 /* MainPlayerController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MainPlayerController.h; sourceTree = "<group>"; };
-		P17C4B01F0DE1201000000D3 /* MainPlayerController+Debug.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MainPlayerController+Debug.h"; sourceTree = "<group>"; };
 		B660F21823A6B8C600BBD9C8 /* MainPlayerController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MainPlayerController.m; sourceTree = "<group>"; };
 		B6A7C07823ABD056007739BA /* Vibe-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Vibe-Prefix.pch"; sourceTree = "<group>"; };
 		B6C43BC223AA5837009B6536 /* AudioPlayer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioPlayer.h; sourceTree = "<group>"; };
@@ -188,22 +185,25 @@
 		B6E7885C23A564A40035BCD0 /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
 		B6E7885E23A564AD0035BCD0 /* ApplicationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ApplicationServices.framework; path = System/Library/Frameworks/ApplicationServices.framework; sourceTree = SDKROOT; };
 		B6E7886023A564C20035BCD0 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		BPMA0001000000000000000A /* AudioBPMAnalyzer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioBPMAnalyzer.h; sourceTree = "<group>"; };
+		BPMA0001000000000000000B /* AudioBPMAnalyzer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioBPMAnalyzer.mm; sourceTree = "<group>"; };
 		E2C73920E9C44F4AF69315C9 /* Pods_Vibe.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Vibe.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		E3DA1577BA15C12EDFE250EF /* Pods-Vibe.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Vibe.release.xcconfig"; path = "Target Support Files/Pods-Vibe/Pods-Vibe.release.xcconfig"; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A1 /* PitchFaderView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PitchFaderView.m; sourceTree = "<group>"; };
-		P17C4B01F0DE1201000000C5 /* EqualizerIndicatorView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EqualizerIndicatorView.m; sourceTree = "<group>"; };
-		P17C4B01F0DE1201000000C7 /* EqualizerIndicatorView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EqualizerIndicatorView.h; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A2 /* PitchFaderView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PitchFaderView.h; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A3 /* PitchControlPanel.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PitchControlPanel.m; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A4 /* PitchControlPanel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PitchControlPanel.h; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A5 /* MainMenuBuilder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MainMenuBuilder.m; sourceTree = "<group>"; };
-		P17C4B01F0DE1201000000A9 /* DebugUtil.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DebugUtil.m; sourceTree = "<group>"; };
-		P17C4B01F0DE1201000000AA /* DebugUtil.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DebugUtil.h; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A6 /* MainMenuBuilder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MainMenuBuilder.h; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A7 /* MainPlayerContentView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MainPlayerContentView.m; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000A8 /* MainPlayerContentView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MainPlayerContentView.h; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000A9 /* DebugUtil.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DebugUtil.m; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000AA /* DebugUtil.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DebugUtil.h; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000C2 /* ArtworkDisplayController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ArtworkDisplayController.m; sourceTree = "<group>"; };
 		P17C4B01F0DE1201000000C3 /* ArtworkDisplayController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ArtworkDisplayController.h; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000C5 /* EqualizerIndicatorView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EqualizerIndicatorView.m; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000C7 /* EqualizerIndicatorView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EqualizerIndicatorView.h; sourceTree = "<group>"; };
+		P17C4B01F0DE1201000000D3 /* MainPlayerController+Debug.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MainPlayerController+Debug.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -224,35 +224,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		BPMA0001000000000000000D /* Analysis */ = {
-			isa = PBXGroup;
-			children = (
-				BPMA0001000000000000000A /* AudioBPMAnalyzer.h */,
-				BPMA0001000000000000000B /* AudioBPMAnalyzer.mm */,
-			);
-			path = Analysis;
-			sourceTree = "<group>";
-		};
-		P17C4B01F0DE1201000000D1 /* Debug */ = {
-			isa = PBXGroup;
-			children = (
-				P17C4B01F0DE1201000000AA /* DebugUtil.h */,
-				P17C4B01F0DE1201000000A9 /* DebugUtil.m */,
-			);
-			path = Debug;
-			sourceTree = "<group>";
-		};
-		P17C4B01F0DE1201000000D2 /* ThirdParty */ = {
-			isa = PBXGroup;
-			children = (
-				34FF49E4321B915207F727C9 /* RSVerticallyCenteredTextFieldCell.h */,
-				34FF47482DFB21C44F91C417 /* RSVerticallyCenteredTextFieldCell.m */,
-				34FF47EB93534A24C0594283 /* SYFlatButton.h */,
-				34FF48E9F08E5E82D6C692BA /* SYFlatButton.m */,
-			);
-			path = ThirdParty;
-			sourceTree = "<group>";
-		};
 		34FF40B806BAEDAB621E87C2 /* Util */ = {
 			isa = PBXGroup;
 			children = (
@@ -333,17 +304,6 @@
 				34FF411DA6545179824EB761 /* Waveform */,
 			);
 			path = Audio;
-			sourceTree = "<group>";
-		};
-		P17C4B01F0DE1201000000C1 /* Menu */ = {
-			isa = PBXGroup;
-			children = (
-				P17C4B01F0DE1201000000A5 /* MainMenuBuilder.m */,
-				P17C4B01F0DE1201000000A6 /* MainMenuBuilder.h */,
-				34FF426EADB1FCC0BBAB2FF2 /* OutputDevicesMenuController.h */,
-				34FF482BFB65CD379F8499EB /* OutputDevicesMenuController.m */,
-			);
-			path = Menu;
 			sourceTree = "<group>";
 		};
 		34FF4D186760F9F6458D3EE9 /* Controls */ = {
@@ -517,6 +477,46 @@
 				E2C73920E9C44F4AF69315C9 /* Pods_Vibe.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		BPMA0001000000000000000D /* Analysis */ = {
+			isa = PBXGroup;
+			children = (
+				BPMA0001000000000000000A /* AudioBPMAnalyzer.h */,
+				BPMA0001000000000000000B /* AudioBPMAnalyzer.mm */,
+			);
+			path = Analysis;
+			sourceTree = "<group>";
+		};
+		P17C4B01F0DE1201000000C1 /* Menu */ = {
+			isa = PBXGroup;
+			children = (
+				P17C4B01F0DE1201000000A5 /* MainMenuBuilder.m */,
+				P17C4B01F0DE1201000000A6 /* MainMenuBuilder.h */,
+				34FF426EADB1FCC0BBAB2FF2 /* OutputDevicesMenuController.h */,
+				34FF482BFB65CD379F8499EB /* OutputDevicesMenuController.m */,
+			);
+			path = Menu;
+			sourceTree = "<group>";
+		};
+		P17C4B01F0DE1201000000D1 /* Debug */ = {
+			isa = PBXGroup;
+			children = (
+				P17C4B01F0DE1201000000AA /* DebugUtil.h */,
+				P17C4B01F0DE1201000000A9 /* DebugUtil.m */,
+			);
+			path = Debug;
+			sourceTree = "<group>";
+		};
+		P17C4B01F0DE1201000000D2 /* ThirdParty */ = {
+			isa = PBXGroup;
+			children = (
+				34FF49E4321B915207F727C9 /* RSVerticallyCenteredTextFieldCell.h */,
+				34FF47482DFB21C44F91C417 /* RSVerticallyCenteredTextFieldCell.m */,
+				34FF47EB93534A24C0594283 /* SYFlatButton.h */,
+				34FF48E9F08E5E82D6C692BA /* SYFlatButton.m */,
+			);
+			path = ThirdParty;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -849,7 +849,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.commonwealthrecordings.Vibe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -887,7 +887,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.commonwealthrecordings.Vibe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
