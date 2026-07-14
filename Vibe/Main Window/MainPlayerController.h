@@ -11,6 +11,7 @@
 @class AudioPlayer;
 @class PlaylistManager;
 @class AudioTrackMetadataCache;
+@class AudioWaveformCache;
 @class OutputDevicesMenuController;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -28,6 +29,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (strong) AudioPlayer *audioPlayer;
 @property (strong) PlaylistManager *playlistManager;
 @property (strong) AudioTrackMetadataCache *metadataCache;
+@property (strong) AudioWaveformCache *waveformCache;
 
 - (void)play:(NSArray<NSURL *> *)urls;
 - (void)playURL:(NSURL *)url;

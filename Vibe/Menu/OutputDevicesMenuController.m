@@ -39,7 +39,7 @@
 }
 
 - (void)systemDefaultOutputDeviceDidChange {
-    // The default-device marker icon moves even when the device list didn't.
+    // The System Output item's device name changes even when the list didn't.
     [self refreshOpenMenu];
 }
 
@@ -50,57 +50,62 @@
     }
 }
 
+// Menu layout: [0] "System Output (<default device>)" (tag -1, the default
+// choice), [1] separator, [2..] every output device. Checkmark tracks
+// currentlyRequestedAudioDeviceId: -1 checks System Output, otherwise the
+// explicitly chosen device.
 - (void)menuNeedsUpdate:(NSMenu *)menu {
     // Enumerate once and size the menu from the same snapshot: a second
     // enumeration could disagree (device hotplug mid-update) and overrun
     // the menu's item count.
-    NSArray *devices = AudioDeviceManager.sharedInstance.outputDevices;
-    NSInteger count = (NSInteger)devices.count;
+    NSArray<AudioDevice *> *devices = AudioDeviceManager.sharedInstance.outputDevices;
+    NSInteger requestedId = self.audioPlayer.currentlyRequestedAudioDeviceId;
 
-    while ([menu numberOfItems] < count)
-        [menu insertItem:[NSMenuItem new] atIndex:0];
-    while ([menu numberOfItems] > count)
-        [menu removeItemAtIndex:0];
-
-    NSMenuItem *item;
-
-    int i = 0;
+    AudioDevice *systemDevice = nil;
     for (AudioDevice *device in devices) {
-        item = [menu itemAtIndex:i];
-        [self configureMenuItem:item withDevice:device];
+        if (device.isSystemDefault) {
+            systemDevice = device;
+            break;
+        }
+    }
+
+    // Build the fixed header once; the device tail below resizes in place so
+    // an open menu refreshes without losing its tracking state.
+    if (menu.numberOfItems < 2 || ![menu itemAtIndex:1].isSeparatorItem) {
+        [menu removeAllItems];
+        NSMenuItem *systemItem = [NSMenuItem new];
+        systemItem.identifier = @"output_system_default";
+        [menu addItem:systemItem];
+        [menu addItem:[NSMenuItem separatorItem]];
+    }
+
+    NSMenuItem *systemItem = [menu itemAtIndex:0];
+    systemItem.title = systemDevice
+            ? [NSString stringWithFormat:@"System Output (%@)", systemDevice.name]
+            : @"System Output";
+    systemItem.tag = -1;
+    systemItem.state = StateForBOOL(requestedId == -1);
+    systemItem.enabled = YES;
+    systemItem.target = self;
+    systemItem.action = @selector(changeOutputDevice:);
+
+    NSInteger count = (NSInteger)devices.count;
+    while (menu.numberOfItems - 2 < count)
+        [menu addItem:[NSMenuItem new]];
+    while (menu.numberOfItems - 2 > count)
+        [menu removeItemAtIndex:menu.numberOfItems - 1];
+
+    NSInteger i = 2;
+    for (AudioDevice *device in devices) {
+        NSMenuItem *item = [menu itemAtIndex:i];
+        item.title = device.name;
+        item.tag = device.deviceId;
+        item.state = StateForBOOL(requestedId == device.deviceId);
+        item.enabled = YES;
+        item.target = self;
+        item.action = @selector(changeOutputDevice:);
         i++;
     }
-
-}
-
-- (void)configureMenuItem:(NSMenuItem *)item withDevice:(AudioDevice *)device {
-
-    BOOL isRequestedDevice = self.audioPlayer.currentlyRequestedAudioDeviceId == device.deviceId;
-
-    item.title = [NSString stringWithFormat:@"%@", device.name];
-    item.tag = device.deviceId;
-
-    item.state = StateForBOOL(isRequestedDevice);
-
-    if (device.isSystemDefault && !isRequestedDevice) {
-        if (self.audioPlayer.currentlyRequestedAudioDeviceId != -1) {
-            item.offStateImage = [NSImage imageNamed:@"icon-system-output"];
-        }
-        else {
-            item.offStateImage = [NSImage imageNamed:@"icon-current-output"];
-        }
-    }
-    else {
-        item.offStateImage = nil;
-    }
-
-    item.enabled = YES;
-    item.target = self;
-    item.action = @selector(changeOutputDevice:);
-}
-
-- (NSInteger)numberOfItemsInMenu:(NSMenu *)menu {
-    return AudioDeviceManager.sharedInstance.numOutputDevices;
 }
 
 - (BOOL)menuHasKeyEquivalent:(NSMenu *)menu forEvent:(NSEvent *)event target:(_Nullable id *_Nonnull)target action:(_Nullable SEL *_Nonnull)action {

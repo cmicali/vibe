@@ -40,10 +40,21 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // Fader range in percent (default 8). Shrinking it re-clamps the current pitch.
 @property (nonatomic) float maxPitch;
 
-- (id)initWithDevice:(NSString *)deviceName delegate:(id <AudioPlayerDelegate>)delegate;
+// deviceUID/deviceName: the persisted output device (empty or unmatched →
+// follow the system default). Resolved inside the async init on the player's
+// own queue — resolution enumerates CoreAudio devices, which must stay off
+// the launch path's main thread.
+- (id)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName delegate:(id <AudioPlayerDelegate>)delegate;
 
 - (void)play:(AudioTrack *)track;
 - (void)playPause;
+
+// Pre-opens the track's file so a later play: of it starts without paying
+// the open — the dominant auto-advance/skip latency (and for cloud files it
+// starts the download early). Call with the playlist's next track whenever
+// playback of a track starts; nil drops the parked handle (end of playlist).
+// Single-use: consumed by the next play: of the same path.
+- (void)prefetchTrack:(nullable AudioTrack *)track;
 
 - (BOOL)isPlaying;
 - (BOOL)isPaused;

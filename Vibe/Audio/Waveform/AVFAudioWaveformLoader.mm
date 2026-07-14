@@ -27,6 +27,11 @@
         LogError(@"AVAudioFile open failed for %@: %@", filename, error);
         return nil;
     }
+    if (self.isCancelled) {
+        // The open blocked (cloud placeholder, slow mount) and the track
+        // changed in the meantime — skip the decode setup entirely.
+        return nil;
+    }
 
     AVAudioFramePosition totalFrames = file.length;
     NSUInteger numChannels = file.processingFormat.channelCount;

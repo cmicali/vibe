@@ -8,8 +8,12 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioWaveformViewDelegate;
-@class AudioTrack;
+@class CodableAudioWaveform;
 
+// Pure rendering surface: draws whatever waveform it is handed and reports
+// seek clicks. Loading and caching live in AudioWaveformCache, owned by
+// MainPlayerController — the controller resets this view (prepareForWaveformLoad),
+// asks the cache to load, and forwards the cache's deliveries to showWaveform:.
 @interface AudioWaveformView : NSView
 
 @property (nullable, weak) id <AudioWaveformViewDelegate> delegate;
@@ -20,11 +24,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setWaveformStyle:(NSString*)name;
 - (NSArray<NSString *> *)availableWaveformStyles;
 
-- (void)loadWaveformForTrack:(AudioTrack *)track;
+// Clears the previous track's waveform ahead of a new load (and installs the
+// persisted renderer style on first use).
+- (void)prepareForWaveformLoad;
 
-// Empties the waveform disk cache (the view owns the cache). Completion fires
-// on the cache's queue once the entries are gone.
-- (void)invalidateCacheWithCompletion:(nullable dispatch_block_t)completion;
+// Renders a waveform snapshot — a progressive one mid-load, or the final /
+// cache-hit waveform. Retains it: the wrapper owns the C++ chunk buffer the
+// renderers read.
+- (void)showWaveform:(CodableAudioWaveform *)waveform;
 
 // Indeterminate shimmer across the waveform area while a slow file open
 // (e.g. a cloud placeholder downloading) is pending.
@@ -38,10 +45,6 @@ NS_ASSUME_NONNULL_BEGIN
 @optional
 
 - (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage;
-
-// Fired once per completed waveform load (fresh analysis or cache hit) when
-// the decode pass detected a tempo. Never fired with 0.
-- (void)audioWaveformView:(AudioWaveformView *)waveformView didDetectBPM:(float)bpm;
 
 @end
 

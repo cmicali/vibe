@@ -19,6 +19,7 @@
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
+#import "AudioWaveformCache.h"
 #import "AudioWaveformView.h"
 #import "PlaylistManager.h"
 #import "PitchControlPanel.h"
@@ -248,9 +249,14 @@ static NSString *VibeViewTreeDump(void) {
 }
 
 static NSArray *VibeMenuArray(NSMenu *menu) {
+    // Delegate-built menus (Output devices, Open Recent, waveform styles)
+    // only populate when displayed; ask the delegate directly the way display
+    // would — [menu update] alone does not call menuNeedsUpdate:.
+    if ([menu.delegate respondsToSelector:@selector(menuNeedsUpdate:)]) {
+        [menu.delegate menuNeedsUpdate:menu];
+    }
     // Runs validateMenuItem exactly like opening the menu would, so
-    // enabled/checkmark below are live, not stale defaults. Also fires
-    // menuNeedsUpdate for delegate-built menus (Open Recent, waveform styles).
+    // enabled/checkmark below are live, not stale defaults.
     [menu update];
     NSMutableArray *items = [NSMutableArray array];
     for (NSMenuItem *item in menu.itemArray) {
@@ -429,7 +435,7 @@ static NSString *VibeExecuteDebugCommand(NSString *commandLine) {
             dispatch_group_leave(group);
         }];
         dispatch_group_enter(group);
-        [controller.waveformView invalidateCacheWithCompletion:^{
+        [controller.waveformCache invalidateWithCompletion:^{
             dispatch_group_leave(group);
         }];
         if (dispatch_group_wait(group, dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC))) {

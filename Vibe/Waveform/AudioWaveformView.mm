@@ -5,9 +5,7 @@
 
 #import <Quartz/Quartz.h>
 #import "AudioWaveformView.h"
-#import "AudioWaveformCache.h"
 #import "AudioWaveform.h"
-#import "AudioTrack.h"
 #import "DetailedAudioWaveformRenderer.h"
 #import "VibeDefaultWaveformRenderer.h"
 #import "BasicAudioWaveformRenderer.h"
@@ -15,12 +13,11 @@
 #import "NSView+DarkMode.h"
 #import "AppSettings.h"
 
-@interface AudioWaveformView () <AudioWaveformCacheDelegate>
+@interface AudioWaveformView ()
 
 // Strong reference to the wrapper — it owns the underlying C++ AudioWaveform,
 // so holding it keeps the raw pointer handed to renderers valid.
 @property (nonatomic, strong, nullable) CodableAudioWaveform* waveform;
-@property (strong) AudioWaveformCache*  waveformCache;
 
 @end
 
@@ -60,8 +57,6 @@
     _numProgressSteps = 256;
     _didClickInside = NO;
 
-    _waveformCache = [[AudioWaveformCache alloc] init];
-    _waveformCache.delegate = self;
     _waveformRenderers = [NSMutableDictionary new];
 
     [self addWaveformRenderer:BasicAudioWaveformRenderer.class];
@@ -150,7 +145,7 @@
     return _progress;
 }
 
-- (void)loadWaveformForTrack:(AudioTrack *)track {
+- (void)prepareForWaveformLoad {
     [self hideLoadingIndicator];
     _waveform = nil;
     if (!_currentWaveformRenderer) {
@@ -168,11 +163,6 @@
     }
     self.progress = 0;
     [self drawWaveform];
-    [_waveformCache loadWaveformForTrack:track];
-}
-
-- (void)invalidateCacheWithCompletion:(dispatch_block_t)completion {
-    [_waveformCache invalidateWithCompletion:completion];
 }
 
 - (void)showLoadingIndicator {
@@ -233,17 +223,11 @@
     _loadingLayer = nil;
 }
 
-- (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded {
+- (void)showWaveform:(CodableAudioWaveform *)waveform {
     if (_waveform != waveform) {
         _waveform = waveform;
     }
     [self drawWaveform];
-    // BPM is computed at the end of the decode pass (or carried by a cache
-    // hit), so it's only ever present on the final 100% delivery.
-    if (percentLoaded >= 1 && waveform.bpm > 0 &&
-        [self.delegate respondsToSelector:@selector(audioWaveformView:didDetectBPM:)]) {
-        [self.delegate audioWaveformView:self didDetectBPM:waveform.bpm];
-    }
 }
 
 - (void)setFrameSize:(NSSize)newSize {
