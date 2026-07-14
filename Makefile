@@ -21,3 +21,7 @@ release:
 # Remove build/ and the generated Vibe.xcodeproj.
 clean:
 	scripts/clean.sh
+
+# Remove build/ and the generated Vibe.xcodeproj.
+run:
+	scripts/run.sh $(CONFIG)

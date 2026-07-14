@@ -69,19 +69,19 @@ if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>
     exit 1
 fi
 
-echo "==> signing identity : $DEVELOPER_ID"
-echo "==> notary profile   : $NOTARY_PROFILE"
-echo "==> team id          : $TEAM_ID"
+echo "🔊 signing identity : $DEVELOPER_ID"
+echo "🔊 notary profile   : $NOTARY_PROFILE"
+echo "🔊 team id          : $TEAM_ID"
 
 # ---------------------------------------------------------------------------
 # Generate + archive + export.
 # ---------------------------------------------------------------------------
 rm -rf "$BUILD_DIR"
 
-echo "==> xcodegen generate"
+echo "🔊 xcodegen generate"
 xcodegen generate
 
-echo "==> archive (Release)"
+echo "🔊 archive (Release)"
 xcodebuild -project "$PRODUCT.xcodeproj" -scheme "$SCHEME" -configuration Release \
     -archivePath "$ARCHIVE" archive
 
@@ -98,7 +98,7 @@ cat > "$BUILD_DIR/ExportOptions.plist" <<PLIST
 </plist>
 PLIST
 
-echo "==> export (Developer ID)"
+echo "🔊 export (Developer ID)"
 xcodebuild -exportArchive -archivePath "$ARCHIVE" \
     -exportOptionsPlist "$BUILD_DIR/ExportOptions.plist" \
     -exportPath "$EXPORT_DIR"
@@ -106,13 +106,13 @@ xcodebuild -exportArchive -archivePath "$ARCHIVE" \
 # ---------------------------------------------------------------------------
 # Notarize + staple.
 # ---------------------------------------------------------------------------
-echo "==> zip for submission"
+echo "🔊 zip for submission"
 ditto -c -k --keepParent "$APP" "$ZIP"
 
-echo "==> notarize (waits for Apple's verdict)"
+echo "🔊 notarize (waits for Apple's verdict)"
 xcrun notarytool submit "$ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
 
-echo "==> staple + validate"
+echo "🔊 staple + validate"
 xcrun stapler staple "$APP"
 xcrun stapler validate "$APP"
 spctl -a -vvv --type exec "$APP"
@@ -121,6 +121,6 @@ spctl -a -vvv --type exec "$APP"
 rm -f "$ZIP"
 ditto -c -k --keepParent "$APP" "$ZIP"
 
-echo "==> done"
+echo "🔊 done"
 echo "    app: $APP"
 echo "    zip: $ZIP  (notarized + stapled)"

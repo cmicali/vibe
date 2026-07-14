@@ -25,13 +25,13 @@ fi
 # SKIP_GENERATE=1 skips regeneration (the Makefile's `build` target sets this
 # because its `project` prerequisite has already run `xcodegen generate`).
 if [[ "${SKIP_GENERATE:-}" == "1" ]]; then
-    echo "==> skipping xcodegen generate (SKIP_GENERATE=1)"
+    echo "🔊 skipping xcodegen generate (SKIP_GENERATE=1)"
 else
-    echo "==> xcodegen generate"
+    echo "🔊 xcodegen generate"
     xcodegen generate
 fi
 
-echo "==> xcodebuild ($CONFIGURATION)"
+echo "🔊 xcodebuild ($CONFIGURATION)"
 xcodebuild \
     -project Vibe.xcodeproj \
     -scheme Vibe \
@@ -39,4 +39,4 @@ xcodebuild \
     -parallelizeTargets \
     -derivedDataPath build/DerivedData build
 
-echo "==> built build/DerivedData/Build/Products/$CONFIGURATION/Vibe.app"
+echo "🔊 built build/DerivedData/Build/Products/$CONFIGURATION/Vibe.app"
