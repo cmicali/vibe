@@ -44,6 +44,18 @@ The Vibe binary doubles as its own CLI client (same bundle ID + sandbox, so it s
 "$V" --debug-cmd playPause       # also: next, previous, togglePitchPanel, toggleSize
 "$V" --debug-cmd setPitch -4.5   # drives fader (clamps), player, and time labels together
 "$V" --debug-cmd seek 120        # seconds
+"$V" --debug-cmd clearCaches     # {ok, cleared} — empties metadata + waveform PINCaches
+```
+
+`clearCaches` blocks until both disk caches are actually empty (so a follow-up
+launch is guaranteed a cold parse); the waveform clear queues behind any
+in-flight waveform load, so allow up to 15 s right after feeding a long file.
+For the common "cold-cache launch" setup there's a wrapper that also works when
+the app isn't running (it then deletes the container's PINDiskCache directories
+directly, including superseded cache versions):
+
+```bash
+.claude/skills/vibe-debug/scripts/clear-caches.sh   # prints {ok, cleared: [...]}
 ```
 
 `menu` and `clickMenu` run the same `validateMenuItem` pass opening the menu would, so enabled/checkmark are live — this replaces AppleScript/System Events menu clicking (no Automation permission, no frontmost requirement). Get identifiers from `menu`.

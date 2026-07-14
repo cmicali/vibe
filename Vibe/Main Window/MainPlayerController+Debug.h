@@ -14,6 +14,7 @@
 
 @class SYFlatButton;
 @class PitchControlPanel;
+@class AudioWaveformView;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -26,6 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (weak, readonly) NSTextField *totalTimeTextField;
 @property (weak, readonly) NSTextField *currentTimeTextField;
 @property (weak, readonly) NSTextField *fileMetadataTextField;
+@property (weak, readonly) AudioWaveformView *waveformView;
 
 - (PitchControlPanel *)pitchPanel;
 - (void)debugRefreshUI;

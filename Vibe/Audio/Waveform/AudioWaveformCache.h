@@ -21,6 +21,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nullable, weak) id <AudioWaveformCacheDelegate> delegate;
 
 - (void)invalidate;
+// Completion fires on the cache's serial loader queue once the disk cache is
+// actually empty — behind any in-flight waveform load on that queue.
+- (void)invalidateWithCompletion:(nullable dispatch_block_t)completion;
 - (void)loadWaveformForTrack:(AudioTrack *)track;
 
 @end
