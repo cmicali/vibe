@@ -5,7 +5,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-@class SYFlatButton;
+@class GlyphButton;
 @class ArtworkImageView;
 @class BackgroundArtworkImageView;
 @class AudioWaveformView;
@@ -22,9 +22,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTarget:(id)target;
 
-@property (readonly) SYFlatButton *closeButton;
-@property (readonly) SYFlatButton *playButton;
-@property (readonly) SYFlatButton *nextButton;
+@property (readonly) GlyphButton *closeButton;
+@property (readonly) GlyphButton *playButton;
+@property (readonly) GlyphButton *nextButton;
 
 @property (readonly) BackgroundArtworkImageView *backgroundAlbumArtImageView;
 @property (readonly) ArtworkImageView *albumArtImageView;

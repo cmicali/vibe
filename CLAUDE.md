@@ -61,7 +61,8 @@ Framework-style imports (`<PINCache/...>`) resolve through target `HEADER_SEARCH
 - **Singletons**: `AppSettings`, `AudioDeviceManager`.
 - **File hashing**: `NSURL+Hash` provides the cache key for metadata and waveform data: `<size>-<mtime_us>-<sha1(path)>` from file attributes only (no content hash — cheap, but misses on rewrite or move).
 - **ObjC++ (.mm files)**: Used only where C++ is actually needed — TagLib integration and the waveform data structures. Everything else (including the whole UI layer) is plain ObjC (.m); don't add C++ types to headers that ObjC files import.
-- **Third-party sources** (`ThirdParty/`): `SYFlatButton`, `RSVerticallyCenteredTextFieldCell`, `taglib/`, `PINCache/`, `PINOperation/` — vendored code by other authors; don't restyle it.
+- **Third-party sources** (`ThirdParty/`): `RSVerticallyCenteredTextFieldCell`, `taglib/`, `PINCache/`, `PINOperation/` — vendored code by other authors; don't restyle it.
+- **Custom-drawn controls** (`Controls/`): the transport/close buttons (`GlyphButton`) and the playing-row indicator (`EqualizerIndicatorView`) draw CAShapeLayer/CALayer glyphs instead of asset-catalog images — resolution independent, state changes composited on the render server.
 
 ### Supported Audio Formats
 

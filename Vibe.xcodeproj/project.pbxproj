@@ -30,7 +30,7 @@
 		34FF434D64E08606D08DF142 /* NSDraggingImageComponent+Util.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4A6443F93E9026069737 /* NSDraggingImageComponent+Util.m */; };
 		34FF444F59270F634E9ECE3C /* AudioWaveform.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4D432D0CA20F99F1326B /* AudioWaveform.mm */; };
 		34FF4478E449DFA4CB901A2A /* PlaylistManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF420F46EEA64A522D8819 /* PlaylistManager.m */; };
-		34FF4484903DE5AD7A67B838 /* SYFlatButton.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF48E9F08E5E82D6C692BA /* SYFlatButton.m */; };
+		34FF4484903DE5AD7A67B838 /* GlyphButton.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF48E9F08E5E82D6C692BA /* GlyphButton.m */; };
 		34FF44C6E3C9B3377BED7C95 /* NSURLUtil.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF47AA07AEC3807ECCC08E /* NSURLUtil.m */; };
 		34FF44EE58D1AE8AD48B9279 /* PlaylistTextCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF47E18BBE829AD2958151 /* PlaylistTextCell.m */; };
 		34FF45BF3B91F3811A097228 /* ScaledImageView.m in Sources */ = {isa = PBXBuildFile; fileRef = 34FF4AA77C54EAA82C12DE35 /* ScaledImageView.m */; };
@@ -230,13 +230,13 @@
 		34FF47482DFB21C44F91C417 /* RSVerticallyCenteredTextFieldCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = RSVerticallyCenteredTextFieldCell.m; sourceTree = "<group>"; };
 		34FF47AA07AEC3807ECCC08E /* NSURLUtil.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NSURLUtil.m; sourceTree = "<group>"; };
 		34FF47E18BBE829AD2958151 /* PlaylistTextCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = PlaylistTextCell.m; sourceTree = "<group>"; };
-		34FF47EB93534A24C0594283 /* SYFlatButton.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SYFlatButton.h; sourceTree = "<group>"; };
+		34FF47EB93534A24C0594283 /* GlyphButton.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GlyphButton.h; sourceTree = "<group>"; };
 		34FF481A0F628B84A8D32E13 /* ArtworkImageView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ArtworkImageView.h; sourceTree = "<group>"; };
 		34FF482BFB65CD379F8499EB /* OutputDevicesMenuController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = OutputDevicesMenuController.m; sourceTree = "<group>"; };
 		34FF4875D6CBDC7E349DF255 /* AudioDevice.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioDevice.m; sourceTree = "<group>"; };
 		34FF488E2FA642F388F894AC /* AudioTrackMetadata.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioTrackMetadata.h; sourceTree = "<group>"; };
 		34FF48D853B00853E66BCCB8 /* OversamplingDetailedAudioWaveformRenderer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = OversamplingDetailedAudioWaveformRenderer.h; sourceTree = "<group>"; };
-		34FF48E9F08E5E82D6C692BA /* SYFlatButton.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SYFlatButton.m; sourceTree = "<group>"; };
+		34FF48E9F08E5E82D6C692BA /* GlyphButton.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GlyphButton.m; sourceTree = "<group>"; };
 		34FF495980860234FA093E3B /* AudioTrack.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioTrack.h; sourceTree = "<group>"; };
 		34FF496F9E64AD2135175796 /* CoreAudioUtil.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = CoreAudioUtil.mm; sourceTree = "<group>"; };
 		34FF4979AAEF8F0FF67CD36B /* NSImage+Util.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSImage+Util.m"; sourceTree = "<group>"; };
@@ -619,6 +619,8 @@
 				B63DAE682E117B7B00A52B03 /* BackgroundArtworkImageView.h */,
 				34FF4464120AB1B3EA5F0CC8 /* ArtworkImageView.m */,
 				34FF481A0F628B84A8D32E13 /* ArtworkImageView.h */,
+				34FF47EB93534A24C0594283 /* GlyphButton.h */,
+				34FF48E9F08E5E82D6C692BA /* GlyphButton.m */,
 				P17C4B01F0DE1201000000C7 /* EqualizerIndicatorView.h */,
 				P17C4B01F0DE1201000000C5 /* EqualizerIndicatorView.m */,
 				P17C4B01F0DE1201000000A1 /* PitchFaderView.m */,
@@ -1041,8 +1043,6 @@
 			children = (
 				34FF49E4321B915207F727C9 /* RSVerticallyCenteredTextFieldCell.h */,
 				34FF47482DFB21C44F91C417 /* RSVerticallyCenteredTextFieldCell.m */,
-				34FF47EB93534A24C0594283 /* SYFlatButton.h */,
-				34FF48E9F08E5E82D6C692BA /* SYFlatButton.m */,
 				316DFB374903ECF913527F46 /* taglib */,
 				CD084298E51666C4F2D01182 /* PINCache */,
 				B2C14DEBE7A83B5C9A172DA4 /* PINOperation */,
@@ -1137,7 +1137,7 @@
 				34FF44EE58D1AE8AD48B9279 /* PlaylistTextCell.m in Sources */,
 				34FF45BF3B91F3811A097228 /* ScaledImageView.m in Sources */,
 				34FF4E608A8013A623779042 /* RSVerticallyCenteredTextFieldCell.m in Sources */,
-				34FF4484903DE5AD7A67B838 /* SYFlatButton.m in Sources */,
+				34FF4484903DE5AD7A67B838 /* GlyphButton.m in Sources */,
 				B63DAE6A2E117B8D00A52B03 /* BackgroundArtworkImageView.m in Sources */,
 				34FF42A916FA0A4391E23D42 /* OutputDevicesMenuController.m in Sources */,
 				34FF4D673AEDD903E6D4F623 /* AudioDevice.m in Sources */,

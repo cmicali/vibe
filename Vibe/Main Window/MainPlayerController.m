@@ -23,7 +23,7 @@
 #import "AudioWaveformView.h"
 #import "PlaylistManager.h"
 #import "MainWindow.h"
-#import "SYFlatButton.h"
+#import "GlyphButton.h"
 #import "PitchControlPanel.h"
 
 #define UPDATE_HZ 3
@@ -41,9 +41,9 @@
                                     AudioTrackMetadataCacheDelegate,
                                     PitchFaderViewDelegate>
 
-@property (weak) SYFlatButton *nextButton;
-@property (weak) SYFlatButton *playButton;
-@property (weak) SYFlatButton *closeButton;
+@property (weak) GlyphButton *nextButton;
+@property (weak) GlyphButton *playButton;
+@property (weak) GlyphButton *closeButton;
 
 @property (weak) NSTableView *playlistTableView;
 @property (weak) NSTextField *artistTextField;
@@ -318,12 +318,7 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 
     AudioTrack *track = self.playlistManager.currentTrack;
 
-    if (self.audioPlayer.isPlaying) {
-        self.playButton.image = [NSImage imageNamed:@"button-pause"];
-    }
-    else {
-        self.playButton.image = [NSImage imageNamed:@"button-play"];
-    }
+    self.playButton.glyph = self.audioPlayer.isPlaying ? GlyphButtonGlyphPause : GlyphButtonGlyphPlay;
 
     self.playButton.enabled = self.playlistManager.count > 0;
     // Same rule as the Next Track menu item: only when a track actually
