@@ -13,6 +13,7 @@
 		0C24456F605E5DE58ECEABA5 /* id3v2footer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 321627E8E71B8458C3FA7E3F /* id3v2footer.cpp */; };
 		0CBE00A957C3E822C943D62D /* tagunion.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6AB453BE82EE82D9D5F43C39 /* tagunion.cpp */; };
 		10AE8B8EA2781FF28C6ED67C /* id3v2synchdata.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 368DA8CDD44BD16DE5B7B4F1 /* id3v2synchdata.cpp */; };
+		1A9154EA53FEF547D67CABC0 /* PINMemoryCache.m in Sources */ = {isa = PBXBuildFile; fileRef = 1131D29D555AD1AC4E8BFE84 /* PINMemoryCache.m */; };
 		1C0CB6A729C16FEC89615D90 /* unknownframe.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7B7A27E81B9DF6F6AEC40456 /* unknownframe.cpp */; };
 		247BD488676668D584B35BC9 /* tbytevectorstream.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB5DBECDB6D23E38DE2FE78A /* tbytevectorstream.cpp */; };
 		24C1C80A16E8AC123C05769B /* mp4coverart.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 200D5485F1FEC331326748FA /* mp4coverart.cpp */; };
@@ -67,6 +68,7 @@
 		6C4D7F2C596CD38FF5107434 /* generalencapsulatedobjectframe.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C20CDA0A3CBFC6FCBD3563D2 /* generalencapsulatedobjectframe.cpp */; };
 		6D38303AA68DA0ECA6597ABB /* id3v1tag.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D4164AE799DF407AC6EAD7F7 /* id3v1tag.cpp */; };
 		6FEA95C353C622BCD4B54F61 /* mp4properties.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 92359CAF9CA972BD70CDC42E /* mp4properties.cpp */; };
+		70E86B7AE466229EEA04406C /* PINDiskCache.m in Sources */ = {isa = PBXBuildFile; fileRef = 3CDBBF01A1A6A55E7F4A9EBD /* PINDiskCache.m */; settings = {COMPILER_FLAGS = "-fobjc-arc-exceptions"; }; };
 		749500401BB48FCAC96ED313 /* tdebug.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9917E22595983CC403404714 /* tdebug.cpp */; };
 		759D70DB07309416E67203D8 /* mp4itemfactory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3D2D36205D74CC800E682DF9 /* mp4itemfactory.cpp */; };
 		780624798F6FDA0C35D02F69 /* id3v1genres.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 81BB46FB6EF4672504FCACA8 /* id3v1genres.cpp */; };
@@ -74,7 +76,7 @@
 		7FC6FC1559D4C25E2C9D9AA6 /* tstring.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B2B966F461A642DFDE00EE91 /* tstring.cpp */; };
 		90256354C7FEA62E22A992CF /* tversionnumber.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F8A7453D9AABC667EDD2D8FD /* tversionnumber.cpp */; };
 		91CE8137CAB53E50CE1B51E6 /* apeitem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8838AD96BF617C6782F74595 /* apeitem.cpp */; };
-		9435FB41B386C06179B65314 /* Pods_Vibe.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E2C73920E9C44F4AF69315C9 /* Pods_Vibe.framework */; };
+		944DF145BB5D5842EC8F7E8D /* PINOperationQueue.m in Sources */ = {isa = PBXBuildFile; fileRef = 912E6006CB81EAC6B957998E /* PINOperationQueue.m */; };
 		945EC5736A0222C9F95B0087 /* tfile.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 154EEBB5265C5425DF5635EB /* tfile.cpp */; };
 		A175FEDE2B1C016210C7A7DC /* mpegproperties.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 32CFE6134701E4643F5A982A /* mpegproperties.cpp */; };
 		A1B2C3D4E5F60718293A0001 /* AVFAudioWaveformLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A0003 /* AVFAudioWaveformLoader.mm */; };
@@ -108,6 +110,7 @@
 		C91E802D21F6BB5CA88119FA /* urllinkframe.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 850157973A276FECBEC970B2 /* urllinkframe.cpp */; };
 		CA0D2276865D02057A75090E /* ownershipframe.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 78436DCD2951A1284EAC4F58 /* ownershipframe.cpp */; };
 		CB9A19863476FD27EC5A69CE /* mp4tag.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1A56FBB0A02646E39352603E /* mp4tag.cpp */; };
+		CBF334437503ABD190D5226F /* PINCache.m in Sources */ = {isa = PBXBuildFile; fileRef = C586E9C2FABFE10B69407C67 /* PINCache.m */; };
 		CDC873302D24A27F44836245 /* podcastframe.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 80EDC2F8392F515886D99896 /* podcastframe.cpp */; };
 		D10432B9A9FDAE812E4348C6 /* textidentificationframe.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6C890BF60DC5A8BFAACCAC34 /* textidentificationframe.cpp */; };
 		D2259BE7320664B3A2ABD53C /* flacpicture.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0B81DEAD0BD23C257797176F /* flacpicture.cpp */; };
@@ -128,6 +131,7 @@
 		EFCD31E38134C9D826CF2829 /* id3v2framefactory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8B20D23C8B564808F56B6179 /* id3v2framefactory.cpp */; };
 		F5A0864C0079257C8CEA13B9 /* popularimeterframe.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FAF22E1623AEF3F48656D4CB /* popularimeterframe.cpp */; };
 		F7B9626F2556C26659CA58A5 /* attachedpictureframe.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6DDD0D0E3DC1CE6FCD1053E3 /* attachedpictureframe.cpp */; };
+		F7D805DB683FC4E0B12FF677 /* PINOperationGroup.m in Sources */ = {isa = PBXBuildFile; fileRef = 93B5A3EAE71F56F4B718BE9E /* PINOperationGroup.m */; };
 		F8797D6AC8EF5A560F64544A /* eventtimingcodesframe.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3B970CF09B46228B54544A83 /* eventtimingcodesframe.cpp */; };
 		FC1A01784869B0F953E3F0D3 /* mp4item.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D217CF277727BE2591044CE8 /* mp4item.cpp */; };
 		FDF9A7C3A0F8F95E76103DFC /* tbytevectorlist.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8319AB68E1EDDD22B9BABC6E /* tbytevectorlist.cpp */; };
@@ -166,6 +170,7 @@
 		0B937F6C8B146DBD0B994393 /* wavproperties.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = wavproperties.h; sourceTree = "<group>"; };
 		0D7DF37CE28BBD99D54B58AA /* uniquefileidentifierframe.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = uniquefileidentifierframe.h; sourceTree = "<group>"; };
 		0F7A651E950B3F211BD69D52 /* mpegproperties.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = mpegproperties.h; sourceTree = "<group>"; };
+		1131D29D555AD1AC4E8BFE84 /* PINMemoryCache.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = PINMemoryCache.m; sourceTree = "<group>"; };
 		118048B218B4B66BDD37F9AC /* xingheader.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = xingheader.cpp; sourceTree = "<group>"; };
 		11E48C63701404A00A62D7D7 /* id3v2frame.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = id3v2frame.cpp; sourceTree = "<group>"; };
 		124647BD7F85DF4A0E3F20DC /* mp4file.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = mp4file.cpp; sourceTree = "<group>"; };
@@ -262,13 +267,12 @@
 		34FF4EEE2D41CC67215D8C88 /* MainWindow.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MainWindow.h; sourceTree = "<group>"; };
 		34FF4F207EE6DCB581AC1382 /* AudioWaveformView.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioWaveformView.mm; sourceTree = "<group>"; };
 		34FF4F22665F4945EBFF675E /* AudioTrack.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioTrack.m; sourceTree = "<group>"; };
-		34FF4F4C0BCCC1A1CA0898A0 /* Podfile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = Podfile; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
 		34FF4FA087C910402AE873A5 /* DetailedAudioWaveformRenderer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DetailedAudioWaveformRenderer.h; sourceTree = "<group>"; };
 		34FF4FE5A8CF9374A4502382 /* NSDraggingImageComponent+Util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSDraggingImageComponent+Util.h"; sourceTree = "<group>"; };
 		35CE57AB4D67147B505151D2 /* xingheader.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = xingheader.h; sourceTree = "<group>"; };
 		368DA8CDD44BD16DE5B7B4F1 /* id3v2synchdata.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = id3v2synchdata.cpp; sourceTree = "<group>"; };
-		39F5AFF5F50C33BBB667F716 /* Pods-Vibe.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Vibe.debug.xcconfig"; path = "Target Support Files/Pods-Vibe/Pods-Vibe.debug.xcconfig"; sourceTree = "<group>"; };
 		3B970CF09B46228B54544A83 /* eventtimingcodesframe.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = eventtimingcodesframe.cpp; sourceTree = "<group>"; };
+		3CDBBF01A1A6A55E7F4A9EBD /* PINDiskCache.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = PINDiskCache.m; sourceTree = "<group>"; };
 		3D2D36205D74CC800E682DF9 /* mp4itemfactory.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = mp4itemfactory.cpp; sourceTree = "<group>"; };
 		3E381AF66EB62FE5E4C90BED /* taglib_export.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = taglib_export.h; sourceTree = "<group>"; };
 		3ECF347AF0EE2491495D7122 /* tbytevector.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = tbytevector.cpp; sourceTree = "<group>"; };
@@ -280,6 +284,7 @@
 		4CFFB2EECD18E0473D8F1A04 /* tutils.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = tutils.h; sourceTree = "<group>"; };
 		51B882361D6A5704A017A0B7 /* tlist.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = tlist.h; sourceTree = "<group>"; };
 		53F64B0293608483534AA23A /* id3v2tag.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = id3v2tag.h; sourceTree = "<group>"; };
+		55CCEFDBAF3308E23727E3CD /* PINCache.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = PINCache.h; sourceTree = "<group>"; };
 		570D923DDF68476972440826 /* unsynchronizedlyricsframe.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = unsynchronizedlyricsframe.h; sourceTree = "<group>"; };
 		587BC01584D9B8506749F736 /* flacmetadatablock.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = flacmetadatablock.h; sourceTree = "<group>"; };
 		590E5552C1198506352D6103 /* tdebuglistener.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = tdebuglistener.h; sourceTree = "<group>"; };
@@ -293,6 +298,7 @@
 		6CDE4EBC2E88B04EF5FCEBD1 /* tbytevector.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = tbytevector.h; sourceTree = "<group>"; };
 		6DDD0D0E3DC1CE6FCD1053E3 /* attachedpictureframe.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = attachedpictureframe.cpp; sourceTree = "<group>"; };
 		7156DEFFAE7D9FF209AED829 /* riffutils.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = riffutils.h; sourceTree = "<group>"; };
+		71788B8E822EEC7D0D3D53BA /* PINOperationMacros.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = PINOperationMacros.h; sourceTree = "<group>"; };
 		737E3E308F12AB360DB4E3BB /* rifffile.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = rifffile.cpp; sourceTree = "<group>"; };
 		78436DCD2951A1284EAC4F58 /* ownershipframe.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = ownershipframe.cpp; sourceTree = "<group>"; };
 		7B57041181367951727FD187 /* id3v2extendedheader.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = id3v2extendedheader.h; sourceTree = "<group>"; };
@@ -315,8 +321,12 @@
 		8B770EFEC962E23407896D7F /* tpicturetype.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = tpicturetype.h; sourceTree = "<group>"; };
 		8D3DB4BB3B1CB260807D2643 /* eventtimingcodesframe.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = eventtimingcodesframe.h; sourceTree = "<group>"; };
 		900487D20C5CF1138D79B88C /* flacproperties.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = flacproperties.h; sourceTree = "<group>"; };
+		912E6006CB81EAC6B957998E /* PINOperationQueue.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = PINOperationQueue.m; sourceTree = "<group>"; };
 		91C7C34A3A15FAFC852B0593 /* tiostream.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = tiostream.cpp; sourceTree = "<group>"; };
 		92359CAF9CA972BD70CDC42E /* mp4properties.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = mp4properties.cpp; sourceTree = "<group>"; };
+		924BEF3E8C3BD758714F531A /* PINCaching.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = PINCaching.h; sourceTree = "<group>"; };
+		9358C90344BB079BAB7DA2CF /* PINDiskCache.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = PINDiskCache.h; sourceTree = "<group>"; };
+		93B5A3EAE71F56F4B718BE9E /* PINOperationGroup.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = PINOperationGroup.m; sourceTree = "<group>"; };
 		95A23128146E389531027F17 /* tpropertymap.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = tpropertymap.h; sourceTree = "<group>"; };
 		9917E22595983CC403404714 /* tdebug.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = tdebug.cpp; sourceTree = "<group>"; };
 		992C64DFF09DC6BBAA0DB663 /* utf8-cpp.core.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "utf8-cpp.core.h"; sourceTree = "<group>"; };
@@ -324,6 +334,7 @@
 		9ABA10A7FAAC9620789C1270 /* id3v2header.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = id3v2header.cpp; sourceTree = "<group>"; };
 		9D38E590E329DB3102F3878D /* wavproperties.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = wavproperties.cpp; sourceTree = "<group>"; };
 		9E578C3F7AFE0B8B079CB29F /* audioproperties.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = audioproperties.h; sourceTree = "<group>"; };
+		9FFBFAC5547A208E26615D94 /* PINCacheObjectSubscripting.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = PINCacheObjectSubscripting.h; sourceTree = "<group>"; };
 		A01CEA5995ADBA0D6A5CF02A /* audioproperties.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = audioproperties.cpp; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A0002 /* AVFAudioWaveformLoader.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AVFAudioWaveformLoader.h; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A0003 /* AVFAudioWaveformLoader.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AVFAudioWaveformLoader.mm; sourceTree = "<group>"; };
@@ -344,6 +355,7 @@
 		AF6F4E438DFDC1FEE965731C /* wavfile.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = wavfile.h; sourceTree = "<group>"; };
 		B0027C08E07FF3AD5D48AFFB /* rifffile.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = rifffile.h; sourceTree = "<group>"; };
 		B2B966F461A642DFDE00EE91 /* tstring.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = tstring.cpp; sourceTree = "<group>"; };
+		B312139A8B97F64E034BE75E /* PINOperationGroup.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = PINOperationGroup.h; sourceTree = "<group>"; };
 		B41A66D2294B6526DD2A5F1D /* tpropertymap.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = tpropertymap.cpp; sourceTree = "<group>"; };
 		B4E7EC2A6A97CF91385FB6C8 /* flacpicture.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = flacpicture.h; sourceTree = "<group>"; };
 		B5A27313538DD20EC9B9CE20 /* tvariant.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = tvariant.h; sourceTree = "<group>"; };
@@ -374,6 +386,7 @@
 		B86BE8DC49CA7218737BD960 /* tpicturetype.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = tpicturetype.cpp; sourceTree = "<group>"; };
 		B9203DECD57595DA9584C08C /* tagunion.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = tagunion.h; sourceTree = "<group>"; };
 		B9D836AA5C94877B3D6A1069 /* infotag.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = infotag.h; sourceTree = "<group>"; };
+		BA4166CA76E88721B34BF5B2 /* PINOperationQueue.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = PINOperationQueue.h; sourceTree = "<group>"; };
 		BBF2844B7660476AB8AA1856 /* id3v2frame.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = id3v2frame.h; sourceTree = "<group>"; };
 		BCA4DFF16D64A175AB9FF1DD /* xiphcomment.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = xiphcomment.h; sourceTree = "<group>"; };
 		BD86AC0969496A41D2F28806 /* aiffproperties.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = aiffproperties.cpp; sourceTree = "<group>"; };
@@ -385,7 +398,10 @@
 		C18AFBAAD182B84B8B251958 /* unsynchronizedlyricsframe.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = unsynchronizedlyricsframe.cpp; sourceTree = "<group>"; };
 		C20CDA0A3CBFC6FCBD3563D2 /* generalencapsulatedobjectframe.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = generalencapsulatedobjectframe.cpp; sourceTree = "<group>"; };
 		C21CA4642F4217A60A05A7D9 /* tfilestream.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = tfilestream.h; sourceTree = "<group>"; };
+		C586E9C2FABFE10B69407C67 /* PINCache.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = PINCache.m; sourceTree = "<group>"; };
 		C80DBCDDD306D8CBD3095E63 /* infotag.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = infotag.cpp; sourceTree = "<group>"; };
+		C9297F1304623AF4E6DADF00 /* PINOperationTypes.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = PINOperationTypes.h; sourceTree = "<group>"; };
+		CA673A75FF8BB08EE69A334F /* PINCacheMacros.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = PINCacheMacros.h; sourceTree = "<group>"; };
 		CB5DBECDB6D23E38DE2FE78A /* tbytevectorstream.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = tbytevectorstream.cpp; sourceTree = "<group>"; };
 		CE5EA5DE9B43234668D6DD2B /* tstring.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = tstring.h; sourceTree = "<group>"; };
 		CF182DB1E6E9883A04F68221 /* tag.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = tag.h; sourceTree = "<group>"; };
@@ -402,12 +418,12 @@
 		E05CFDEC5B70DA9E96803458 /* mpegfile.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = mpegfile.h; sourceTree = "<group>"; };
 		E106272C82225C21B964979E /* tag.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = tag.cpp; sourceTree = "<group>"; };
 		E27279B52746116603243148 /* tdebuglistener.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = tdebuglistener.cpp; sourceTree = "<group>"; };
-		E2C73920E9C44F4AF69315C9 /* Pods_Vibe.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Vibe.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		E3DA1577BA15C12EDFE250EF /* Pods-Vibe.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Vibe.release.xcconfig"; path = "Target Support Files/Pods-Vibe/Pods-Vibe.release.xcconfig"; sourceTree = "<group>"; };
+		E4DD7FA644C5DA95C4C04BBD /* PINMemoryCache.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = PINMemoryCache.h; sourceTree = "<group>"; };
 		E5E9885B4CAC62358A8835CE /* synchronizedlyricsframe.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = synchronizedlyricsframe.cpp; sourceTree = "<group>"; };
 		F293488D1330F48B38BC942D /* privateframe.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = privateframe.cpp; sourceTree = "<group>"; };
 		F592659F95DEADF13797090B /* flacfile.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = flacfile.cpp; sourceTree = "<group>"; };
 		F8A7453D9AABC667EDD2D8FD /* tversionnumber.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = tversionnumber.cpp; sourceTree = "<group>"; };
+		FA32A1E49873892A844B84A7 /* PINOperation.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = PINOperation.h; sourceTree = "<group>"; };
 		FAE54B299077CFEC1F0401F8 /* apefooter.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = apefooter.cpp; sourceTree = "<group>"; };
 		FAF22E1623AEF3F48656D4CB /* popularimeterframe.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = popularimeterframe.cpp; sourceTree = "<group>"; };
 		FD43835EBAFA31A257C9F9E3 /* id3v2framefactory.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = id3v2framefactory.h; sourceTree = "<group>"; };
@@ -441,7 +457,6 @@
 				B6E7886123A564C20035BCD0 /* QuartzCore.framework in Frameworks */,
 				B6E7885F23A564AD0035BCD0 /* ApplicationServices.framework in Frameworks */,
 				B6E7885D23A564A40035BCD0 /* Accelerate.framework in Frameworks */,
-				9435FB41B386C06179B65314 /* Pods_Vibe.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -678,15 +693,6 @@
 			path = id3v2;
 			sourceTree = "<group>";
 		};
-		40E5B0E384E4D10E23140ADD /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				39F5AFF5F50C33BBB667F716 /* Pods-Vibe.debug.xcconfig */,
-				E3DA1577BA15C12EDFE250EF /* Pods-Vibe.release.xcconfig */,
-			);
-			path = Pods;
-			sourceTree = "<group>";
-		};
 		6574B377E0480624FC3F2410 /* frames */ = {
 			isa = PBXGroup;
 			children = (
@@ -844,6 +850,21 @@
 			path = About;
 			sourceTree = "<group>";
 		};
+		B2C14DEBE7A83B5C9A172DA4 /* PINOperation */ = {
+			isa = PBXGroup;
+			children = (
+				FA32A1E49873892A844B84A7 /* PINOperation.h */,
+				B312139A8B97F64E034BE75E /* PINOperationGroup.h */,
+				93B5A3EAE71F56F4B718BE9E /* PINOperationGroup.m */,
+				71788B8E822EEC7D0D3D53BA /* PINOperationMacros.h */,
+				BA4166CA76E88721B34BF5B2 /* PINOperationQueue.h */,
+				912E6006CB81EAC6B957998E /* PINOperationQueue.m */,
+				C9297F1304623AF4E6DADF00 /* PINOperationTypes.h */,
+			);
+			name = PINOperation;
+			path = PINOperation;
+			sourceTree = "<group>";
+		};
 		B626E36623B65AF60075B506 /* Main Window */ = {
 			isa = PBXGroup;
 			children = (
@@ -895,8 +916,6 @@
 				B64B6A0923A6C72400B91994 /* Resources */,
 				B6E7883223A562360035BCD0 /* Products */,
 				B6E7885823A563780035BCD0 /* Frameworks */,
-				40E5B0E384E4D10E23140ADD /* Pods */,
-				34FF4F4C0BCCC1A1CA0898A0 /* Podfile */,
 			);
 			sourceTree = "<group>";
 		};
@@ -935,7 +954,6 @@
 				B6E7886023A564C20035BCD0 /* QuartzCore.framework */,
 				B6E7885E23A564AD0035BCD0 /* ApplicationServices.framework */,
 				B6E7885C23A564A40035BCD0 /* Accelerate.framework */,
-				E2C73920E9C44F4AF69315C9 /* Pods_Vibe.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -947,6 +965,23 @@
 				BPMA0001000000000000000B /* AudioBPMAnalyzer.mm */,
 			);
 			path = Analysis;
+			sourceTree = "<group>";
+		};
+		CD084298E51666C4F2D01182 /* PINCache */ = {
+			isa = PBXGroup;
+			children = (
+				55CCEFDBAF3308E23727E3CD /* PINCache.h */,
+				C586E9C2FABFE10B69407C67 /* PINCache.m */,
+				CA673A75FF8BB08EE69A334F /* PINCacheMacros.h */,
+				9FFBFAC5547A208E26615D94 /* PINCacheObjectSubscripting.h */,
+				924BEF3E8C3BD758714F531A /* PINCaching.h */,
+				9358C90344BB079BAB7DA2CF /* PINDiskCache.h */,
+				3CDBBF01A1A6A55E7F4A9EBD /* PINDiskCache.m */,
+				E4DD7FA644C5DA95C4C04BBD /* PINMemoryCache.h */,
+				1131D29D555AD1AC4E8BFE84 /* PINMemoryCache.m */,
+			);
+			name = PINCache;
+			path = PINCache;
 			sourceTree = "<group>";
 		};
 		D16285F13C0F2863934DB58F /* mpeg */ = {
@@ -1009,6 +1044,8 @@
 				34FF47EB93534A24C0594283 /* SYFlatButton.h */,
 				34FF48E9F08E5E82D6C692BA /* SYFlatButton.m */,
 				316DFB374903ECF913527F46 /* taglib */,
+				CD084298E51666C4F2D01182 /* PINCache */,
+				B2C14DEBE7A83B5C9A172DA4 /* PINOperation */,
 			);
 			path = ThirdParty;
 			sourceTree = "<group>";
@@ -1020,12 +1057,10 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = B6E7884223A562380035BCD0 /* Build configuration list for PBXNativeTarget "Vibe" */;
 			buildPhases = (
-				E6DDFACBE38CB4016C12AB96 /* [CP] Check Pods Manifest.lock */,
 				B6E7882D23A562360035BCD0 /* Sources */,
 				B6E7882E23A562360035BCD0 /* Frameworks */,
 				B6E7882F23A562360035BCD0 /* Resources */,
 				B6E7885B23A563780035BCD0 /* Embed Frameworks */,
-				9F959F93563D8681F3BC671C /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -1081,48 +1116,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		9F959F93563D8681F3BC671C /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Vibe/Pods-Vibe-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Vibe/Pods-Vibe-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Vibe/Pods-Vibe-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		E6DDFACBE38CB4016C12AB96 /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-Vibe-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B6E7882D23A562360035BCD0 /* Sources */ = {
@@ -1251,6 +1244,11 @@
 				03E33C1B3143876EFF0DE250 /* tvariant.cpp in Sources */,
 				90256354C7FEA62E22A992CF /* tversionnumber.cpp in Sources */,
 				EBF35403D54C91B40C1FCF8F /* tzlib.cpp in Sources */,
+				CBF334437503ABD190D5226F /* PINCache.m in Sources */,
+				70E86B7AE466229EEA04406C /* PINDiskCache.m in Sources */,
+				1A9154EA53FEF547D67CABC0 /* PINMemoryCache.m in Sources */,
+				F7D805DB683FC4E0B12FF677 /* PINOperationGroup.m in Sources */,
+				944DF145BB5D5842EC8F7E8D /* PINOperationQueue.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1384,7 +1382,6 @@
 		};
 		B6E7884323A562380035BCD0 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 39F5AFF5F50C33BBB667F716 /* Pods-Vibe.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
@@ -1416,6 +1413,9 @@
 					"$(SRCROOT)/Vibe/ThirdParty/taglib/riff/aiff",
 					"$(SRCROOT)/Vibe/ThirdParty/taglib/riff/wav",
 					"$(SRCROOT)/Vibe/ThirdParty/taglib/ogg",
+					"$(SRCROOT)/Vibe/ThirdParty",
+					"$(SRCROOT)/Vibe/ThirdParty/PINCache",
+					"$(SRCROOT)/Vibe/ThirdParty/PINOperation",
 				);
 				INFOPLIST_FILE = "$(SRCROOT)/Vibe/Common/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Vibe;
@@ -1438,7 +1438,6 @@
 		};
 		B6E7884423A562380035BCD0 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = E3DA1577BA15C12EDFE250EF /* Pods-Vibe.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
@@ -1470,6 +1469,9 @@
 					"$(SRCROOT)/Vibe/ThirdParty/taglib/riff/aiff",
 					"$(SRCROOT)/Vibe/ThirdParty/taglib/riff/wav",
 					"$(SRCROOT)/Vibe/ThirdParty/taglib/ogg",
+					"$(SRCROOT)/Vibe/ThirdParty",
+					"$(SRCROOT)/Vibe/ThirdParty/PINCache",
+					"$(SRCROOT)/Vibe/ThirdParty/PINOperation",
 				);
 				INFOPLIST_FILE = "$(SRCROOT)/Vibe/Common/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Vibe;

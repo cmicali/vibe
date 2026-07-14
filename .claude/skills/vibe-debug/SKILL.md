@@ -8,7 +8,7 @@ description: Launch, drive, inspect, and visually verify the Vibe app. Use whene
 All debug tooling is compiled in **debug builds only** (`Debug/DebugUtil.m`). Build first:
 
 ```bash
-xcodebuild -workspace Vibe.xcworkspace -scheme Vibe -configuration Debug \
+xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Debug \
     -derivedDataPath build/DerivedData build
 APP=build/DerivedData/Build/Products/Debug/Vibe.app
 V="$APP/Contents/MacOS/Vibe"

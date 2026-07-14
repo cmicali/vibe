@@ -5,14 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build Commands
 
 ```bash
-# Install dependencies (CocoaPods)
-pod install
-
-# Build via Xcode (use .xcworkspace, not .xcodeproj)
-open Vibe.xcworkspace
+# Build via Xcode
+open Vibe.xcodeproj
 ```
 
-Build and run through Xcode using the `Vibe` scheme. Always open `Vibe.xcworkspace` (not `.xcodeproj`) because CocoaPods manages dependencies through the workspace.
+Build and run through Xcode using the `Vibe` scheme. There is no dependency manager — all third-party code is vendored under `Vibe/ThirdParty/` and compiles as part of the app target.
 
 There are no unit tests in this project.
 
@@ -22,7 +19,7 @@ To launch, drive, inspect, or screenshot the app — anything involving verifyin
 
 ## Architecture
 
-Vibe is a native macOS music player written in Objective-C/Objective-C++. Playback is built entirely on Apple frameworks (AVFAudio/AVAudioEngine + CoreAudio) with no third-party audio library — CoreAudio decodes MP3 and FLAC natively. The only external dependencies are the CocoaPods below.
+Vibe is a native macOS music player written in Objective-C/Objective-C++. Playback is built entirely on Apple frameworks (AVFAudio/AVAudioEngine + CoreAudio) with no third-party audio library — CoreAudio decodes MP3 and FLAC natively. There are no external dependencies; the vendored libraries below are compiled into the app target.
 
 ### Core Components
 
@@ -47,10 +44,12 @@ Vibe is a native macOS music player written in Objective-C/Objective-C++. Playba
 - Programmatic layout, no nibs: `MainWindow` configures itself in `init` (borderless, frame autosave, drag-and-drop registration); the whole main-window view hierarchy lives in `MainPlayerContentView` (an `NSVisualEffectView` subclass exposing the subviews as readonly properties), which `MainPlayerController` adopts as its outlets in `buildContentInWindow:` (called from `init`; `windowDidLoad` is invoked manually since AppKit only fires it on the nib path). Playlist cell views are built in `PlaylistManager` (`makeCellViewWithIdentifier:`) and recycled through the table's normal reuse queue.
 - App bootstrap (no main nib): `main.m` creates the `AppDelegate` (kept alive by a global — `NSApplication.delegate` is weak); `applicationWillFinishLaunching:` creates `MainPlayerController` (which owns its `OutputDevicesMenuController`) and installs the menu bar via `MainMenuBuilder`, which also backs the Open Recent submenu from `NSDocumentController.recentDocumentURLs`. Bare key equivalents must set `keyEquivalentModifierMask = 0` explicitly (`NSMenuItem` defaults to Command).
 
-### Dependencies (CocoaPods)
+### Dependencies (vendored in `Vibe/ThirdParty/`)
 
-- **taglib-pod**: Audio metadata extraction (custom pod from `github.com/cmicali/taglib-pod`)
-- **PINCache**: Disk/memory caching for metadata and waveform data
+- **taglib** (`ThirdParty/taglib/`, TagLib 2.2 subset, ~70 of 113 sources): audio metadata extraction. Only the formats the app plays are vendored — MPEG/ID3, MP4, FLAC, RIFF, plus the APE *tag* machinery MPEG files need and `ogg/xiphcomment` for FLAC comments. `TagLib::FileRef` is deliberately not used (its detection references every format parser); `AudioTrackMetadata.mm` has a `TagLibAudioFile` factory that mirrors FileRef's extension→content-sniff detection for the supported formats. When updating TagLib, re-copy the subset and let the linker report anything new.
+- **PINCache** + **PINOperation** (`ThirdParty/PINCache/`, `ThirdParty/PINOperation/`): disk/memory caching for metadata and waveform data. `PINDiskCache.m` carries a per-file `-fobjc-arc-exceptions` compiler flag (the pod's Arc-exception-safe subspec did the same).
+
+Framework-style imports (`<PINCache/...>`) resolve through target `HEADER_SEARCH_PATHS` entries pointing into `Vibe/ThirdParty/`.
 
 ### Logging
 
@@ -62,7 +61,7 @@ Vibe is a native macOS music player written in Objective-C/Objective-C++. Playba
 - **Singletons**: `AppSettings`, `AudioDeviceManager`.
 - **File hashing**: `NSURL+Hash` provides the cache key for metadata and waveform data: `<size>-<mtime_us>-<sha1(path)>` from file attributes only (no content hash — cheap, but misses on rewrite or move).
 - **ObjC++ (.mm files)**: Used only where C++ is actually needed — TagLib integration and the waveform data structures. Everything else (including the whole UI layer) is plain ObjC (.m); don't add C++ types to headers that ObjC files import.
-- **Third-party sources** (`ThirdParty/`): `SYFlatButton`, `RSVerticallyCenteredTextFieldCell` — vendored code by other authors; don't restyle it.
+- **Third-party sources** (`ThirdParty/`): `SYFlatButton`, `RSVerticallyCenteredTextFieldCell`, `taglib/`, `PINCache/`, `PINOperation/` — vendored code by other authors; don't restyle it.
 
 ### Supported Audio Formats
 
