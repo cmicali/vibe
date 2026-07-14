@@ -18,10 +18,10 @@ clean_path() {
         return 0
     fi
     rm -rf "$path"
-    echo "removed $path"
+    echo "🔊 removed $path"
 }
 
 clean_path build
 clean_path Vibe.xcodeproj
 
-echo "done — recreate the project with: xcodegen generate  (or: make project)"
+echo "🔊 cleaned"
