@@ -4,6 +4,7 @@
 //
 
 #import "AVFAudioWaveformLoader.h"
+#import "AudioBPMAnalyzer.h"
 #import <AVFoundation/AVFoundation.h>
 
 @implementation AVFAudioWaveformLoader
@@ -65,6 +66,12 @@
         return nil;
     }
 
+    // Tempo detection rides the same decode pass — the analyzer consumes each
+    // buffer right after the waveform chunk does, so BPM never costs a second
+    // full-file read (which matters for cloud-backed files).
+    AudioBPMAnalyzer *bpmAnalyzer = [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate
+                                                                    channelCount:numChannels];
+
     CFAbsoluteTime lastProgressTime = 0;
     NSUInteger chunksFilled = 0;
     BOOL readError = NO;
@@ -95,6 +102,7 @@
                                       numChannels);
         waveform->setChunkAtIndex(chunk, i);
         chunksFilled = i + 1;
+        [bpmAnalyzer appendSamples:buffer.floatChannelData[0] frameCount:buffer.frameLength];
 
         // Throttle delegate notifications to ~10 Hz — each one triggers a
         // full path rebuild on the main thread. The final completion
@@ -145,6 +153,9 @@
             NSUInteger src = (NSUInteger)i * chunksFilled / numChunks;
             waveform->setChunkAtIndex(waveform->getChunkAtIndex(src, numChunks), (NSUInteger)i);
         }
+    }
+    if (self.isComplete) {
+        result.bpm = [bpmAnalyzer finish];
     }
     return result;
 }

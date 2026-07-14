@@ -26,6 +26,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (copy, nullable) NSNumber *sampleRate;
 @property (assign) NSTimeInterval duration;
 
+// Producer-tagged tempo (ID3 TBPM, MP4 tmpo, Vorbis/FLAC BPM), 0 when the
+// file carries none. A tagged value wins over the decode-pass analysis
+// (AudioTrack.detectedBPM) — DJs curate their tags.
+@property (assign) float bpm;
+
 // YES only when TagLib actually opened the file and read its tag. NO means
 // the parse failed (dataless cloud placeholder, transient I/O error) and only
 // the filename-derived title is populated — such an instance must not be

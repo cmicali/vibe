@@ -40,10 +40,10 @@
         // first drop). Every cache use is on this serial queue, so ordering
         // is guaranteed.
         dispatch_async(_loaderQueue, ^{
-            // v2: entries carry a format version key; renamed so the budget
-            // isn't consumed by unreadable v1 entries waiting for LRU
-            // eviction.
-            self->_waveformCache = [[PINCache alloc] initWithName:@"audio_waveform_cache_v2"];
+            // v4 (BPM analyzer fix): entries carry a format version key;
+            // renamed so the budget isn't consumed by unreadable
+            // older-version entries waiting for LRU eviction.
+            self->_waveformCache = [[PINCache alloc] initWithName:@"audio_waveform_cache_v4"];
             self->_waveformCache.diskCache.byteLimit = 64 * 1024 * 1024; // 64mb disk cache limit
             self->_waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
             // The memory cache is deliberately unused (load: reads and writes

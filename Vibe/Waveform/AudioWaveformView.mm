@@ -234,6 +234,12 @@
         _waveform = waveform;
     }
     [self drawWaveform];
+    // BPM is computed at the end of the decode pass (or carried by a cache
+    // hit), so it's only ever present on the final 100% delivery.
+    if (percentLoaded >= 1 && waveform.bpm > 0 &&
+        [self.delegate respondsToSelector:@selector(audioWaveformView:didDetectBPM:)]) {
+        [self.delegate audioWaveformView:self didDetectBPM:waveform.bpm];
+    }
 }
 
 - (void)setFrameSize:(NSSize)newSize {

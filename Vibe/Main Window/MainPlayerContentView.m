@@ -155,9 +155,14 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     configureLabelShadow(_artistTextField, YES);
     [self addSubview:_artistTextField];
 
-    _titleTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(158, 292, 512, 30)];
+    // Narrower than the artist line: the title shrinks-to-fit within this
+    // width (MainPlayerController setTitleLabelText:), and capping it here
+    // keeps even the longest titles clear of the codec/BPM labels in the
+    // top-right corner.
+    _titleTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(158, 292, 415, 30)];
     _titleTextField.font = [Fonts font:23];
     _titleTextField.textColor = [NSColor labelColor];
+    _titleTextField.lineBreakMode = NSLineBreakByTruncatingTail;
     _titleTextField.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     configureLabelShadow(_titleTextField, YES);
     [self addSubview:_titleTextField];
@@ -194,6 +199,16 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _fileMetadataTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
     configureLabelShadow(_fileMetadataTextField, YES);
     [self addSubview:_fileMetadataTextField];
+
+    // BPM readout, directly below the codec line and styled to match.
+    _bpmTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(430, 307, 240, 16)];
+    _bpmTextField.font = [Fonts fontForNumbers:_totalTimeTextField.font.pointSize bold:NO];
+    _bpmTextField.alignment = NSTextAlignmentRight;
+    _bpmTextField.textColor = dimmedTextColor;
+    _bpmTextField.alphaValue = 0.5;
+    _bpmTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
+    configureLabelShadow(_bpmTextField, YES);
+    [self addSubview:_bpmTextField];
 }
 
 - (NSScrollView *)buildPlaylistScrollViewWithFrame:(NSRect)frame {

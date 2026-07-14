@@ -16,6 +16,11 @@ NS_ASSUME_NONNULL_BEGIN
 // "currently playing" track header.
 @property(atomic, strong) AudioTrackMetadata *metadata;
 
+// Tempo from the waveform decode pass (0 = not yet analyzed / undetectable).
+// Transient — persistence lives in the waveform cache, which re-delivers it
+// on every load. A tagged tempo (metadata.bpm) takes precedence for display.
+@property(atomic, assign) float detectedBPM;
+
 - (instancetype)initWithUrl:(NSURL *)url;
 + (AudioTrack *)withURL:(NSURL *)url;
 

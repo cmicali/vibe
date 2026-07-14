@@ -36,6 +36,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) NSTextField *totalTimeTextField;
 @property (readonly) NSTextField *currentTimeTextField;
 @property (readonly) NSTextField *fileMetadataTextField;
+@property (readonly) NSTextField *bpmTextField;
 
 @property (readonly) NSTableView *playlistTableView;
 
