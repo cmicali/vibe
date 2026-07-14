@@ -18,23 +18,16 @@ A fast and minimal winamp-inspired native music player for macOS. Built for larg
 
 - macOS 10.15 or later
 - Xcode
-- [CocoaPods](https://cocoapods.org)
 
 ## Building
 
-1. Install dependencies:
+1. Open the project (all dependencies are vendored — no package manager needed):
 
    ```
-   pod install
+   open Vibe.xcodeproj
    ```
 
-2. Open the workspace (not the project — CocoaPods manages dependencies through the workspace):
-
-   ```
-   open Vibe.xcworkspace
-   ```
-
-3. Build and run the `Vibe` scheme (⌘R).
+2. Build and run the `Vibe` scheme (⌘R).
 
 ## Running
 
