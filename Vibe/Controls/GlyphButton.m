@@ -35,8 +35,8 @@ static void addRoundedTriangle(CGMutablePathRef path, CGPoint a, CGPoint b, CGPo
 
 @implementation GlyphButton {
     CAShapeLayer *_glyphLayer;
-    BOOL _mouseDown;   // a drag that started inside us is in progress
-    BOOL _pressed;     // the cursor is currently inside during that drag
+    BOOL _hovering;    // the cursor is inside the button
+    BOOL _mouseDown;   // a press that began inside us is in progress
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -45,10 +45,10 @@ static void addRoundedTriangle(CGMutablePathRef path, CGPoint a, CGPoint b, CGPo
         self.wantsLayer = YES;
         _glyphLayer = [CAShapeLayer layer];
         [self.layer addSublayer:_glyphLayer];
-        // The old buttons drew their tint through an imageLayer with opacity
-        // 0.75; these defaults fold that in (0.74/1.0/0.25 × 0.75).
+        // Idle sits dim; hover fades to the highlight color at full opacity
+        // (no transparency) and a press dims to half that opacity.
         _glyphNormalColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:0.55];
-        _glyphHighlightColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:0.75];
+        _glyphHighlightColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:0.8];
         _glyphDisabledColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:0.19];
         // EnabledDuringMouseDrag: exited/entered don't fire during a drag
         // without it, and drag-off/drag-back is exactly a mid-drag exit.
@@ -154,7 +154,8 @@ static void addRoundedTriangle(CGMutablePathRef path, CGPoint a, CGPoint b, CGPo
             }
             break;
         }
-        case GlyphButtonGlyphClose: {
+        case GlyphButtonGlyphClose:
+        case GlyphButtonGlyphMinimize: {
             CGPathAddEllipseInRect(path, NULL, box);
             break;
         }
@@ -165,9 +166,18 @@ static void addRoundedTriangle(CGMutablePathRef path, CGPoint a, CGPoint b, CGPo
 #pragma mark - State color
 
 - (void)applyColorAnimated:(BOOL)animated {
-    NSColor *color = !self.isEnabled ? _glyphDisabledColor
-                   : _pressed        ? _glyphHighlightColor
-                                     : _glyphNormalColor;
+    NSColor *color;
+    if (!self.isEnabled) {
+        color = _glyphDisabledColor;
+    } else if (_mouseDown && _hovering) {
+        // Pressed: half the highlight's opacity.
+        color = [_glyphHighlightColor colorWithAlphaComponent:_glyphHighlightColor.alphaComponent * 0.5];
+    } else if (_hovering) {
+        // Hover: full highlight color.
+        color = _glyphHighlightColor;
+    } else {
+        color = _glyphNormalColor;
+    }
     [CATransaction begin];
     if (animated) {
         [CATransaction setAnimationDuration:kFadeDuration];
@@ -191,22 +201,18 @@ static void addRoundedTriangle(CGMutablePathRef path, CGPoint a, CGPoint b, CGPo
         return;
     }
     _mouseDown = YES;
-    _pressed = YES;
+    _hovering = YES; // pressing implies the cursor is inside
     [self applyColorAnimated:YES];
 }
 
 - (void)mouseEntered:(NSEvent *)event {
-    if (_mouseDown && !_pressed) {
-        _pressed = YES;
-        [self applyColorAnimated:YES];
-    }
+    _hovering = YES;
+    [self applyColorAnimated:YES];
 }
 
 - (void)mouseExited:(NSEvent *)event {
-    if (_mouseDown && _pressed) {
-        _pressed = NO;
-        [self applyColorAnimated:YES];
-    }
+    _hovering = NO;
+    [self applyColorAnimated:YES];
 }
 
 - (void)mouseUp:(NSEvent *)event {
@@ -214,10 +220,10 @@ static void addRoundedTriangle(CGMutablePathRef path, CGPoint a, CGPoint b, CGPo
         return;
     }
     _mouseDown = NO;
-    _pressed = NO;
-    [self applyColorAnimated:YES];
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
-    if (NSPointInRect(point, self.bounds)) {
+    _hovering = NSPointInRect(point, self.bounds); // released inside → stay in hover state
+    [self applyColorAnimated:YES];
+    if (_hovering) {
         [NSApp sendAction:self.action to:self.target from:self];
     }
 }
@@ -273,6 +279,7 @@ static void addRoundedTriangle(CGMutablePathRef path, CGPoint a, CGPoint b, CGPo
         case GlyphButtonGlyphSkipNext: return @"Next Track";
         case GlyphButtonGlyphPlaylist: return @"Toggle Playlist";
         case GlyphButtonGlyphClose:    return @"Close";
+        case GlyphButtonGlyphMinimize: return @"Minimize";
     }
     return @"";
 }

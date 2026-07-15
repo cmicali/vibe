@@ -11,6 +11,7 @@
 #import <QuartzCore/QuartzCore.h>
 #import <ImageIO/ImageIO.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <MediaPlayer/MediaPlayer.h>
 #import <notify.h>
 #import "AppDelegate.h"
 #import "MainPlayerController.h"
@@ -366,6 +367,30 @@ static NSString *VibeExecuteDebugCommand(NSString *commandLine) {
     if ([verb isEqualToString:@"state"]) {
         return VibeJSONString(VibeStateDictionary(controller));
     }
+    if ([verb isEqualToString:@"nowPlaying"]) {
+        // The state we publish to the system Now Playing UI (Control Center,
+        // media keys). Cross-checks the NowPlayingController wiring without a
+        // private-framework reader.
+        MPNowPlayingInfoCenter *center = [MPNowPlayingInfoCenter defaultCenter];
+        NSDictionary *info = center.nowPlayingInfo;
+        MPNowPlayingPlaybackState playbackState = center.playbackState;
+        NSString *stateName = playbackState == MPNowPlayingPlaybackStatePlaying ? @"playing"
+                : playbackState == MPNowPlayingPlaybackStatePaused ? @"paused"
+                : playbackState == MPNowPlayingPlaybackStateStopped ? @"stopped"
+                : @"unknown";
+        NSMutableDictionary *out = [NSMutableDictionary dictionary];
+        out[@"playbackState"] = stateName;
+        out[@"hasInfo"] = @(info != nil);
+        if (info) {
+            out[@"title"] = info[MPMediaItemPropertyTitle] ?: NSNull.null;
+            out[@"artist"] = info[MPMediaItemPropertyArtist] ?: NSNull.null;
+            out[@"duration"] = info[MPMediaItemPropertyPlaybackDuration] ?: NSNull.null;
+            out[@"elapsed"] = info[MPNowPlayingInfoPropertyElapsedPlaybackTime] ?: NSNull.null;
+            out[@"rate"] = info[MPNowPlayingInfoPropertyPlaybackRate] ?: NSNull.null;
+            out[@"hasArtwork"] = @(info[MPMediaItemPropertyArtwork] != nil);
+        }
+        return VibeJSONString(out);
+    }
     if ([verb isEqualToString:@"viewtree"]) {
         return VibeViewTreeDump();
     }
@@ -447,7 +472,7 @@ static NSString *VibeExecuteDebugCommand(NSString *commandLine) {
         });
     }
     return VibeErrorJSON(
-            @"unknown command '%@'. Commands: state, viewtree, menu, screenshot, playPause, "
+            @"unknown command '%@'. Commands: state, nowPlaying, viewtree, menu, screenshot, playPause, "
             @"next, previous, togglePitchPanel, toggleSize, setPitch <percent>, seek <seconds>, "
             @"clickMenu <identifier-or-title>, clearCaches", verb);
 }

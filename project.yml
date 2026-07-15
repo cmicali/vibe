@@ -158,6 +158,7 @@ targets:
       - sdk: ApplicationServices.framework
       - sdk: AudioToolbox.framework
       - sdk: CoreAudio.framework
+      - sdk: MediaPlayer.framework
       - sdk: QuartzCore.framework
 
 schemes:

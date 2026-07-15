@@ -25,6 +25,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     self = [super initWithContentRect:NSMakeRect(206, 444, kMainWindowContentWidth, 350)
                             styleMask:NSWindowStyleMaskBorderless |
                                       NSWindowStyleMaskResizable |
+                                      NSWindowStyleMaskMiniaturizable |
                                       NSWindowStyleMaskFullSizeContentView
                               backing:NSBackingStoreBuffered
                                 defer:NO];
