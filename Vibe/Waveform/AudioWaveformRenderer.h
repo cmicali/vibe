@@ -38,7 +38,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (assign) BOOL isDark;
 
 // Last "played" bar index that updateProgress: painted. Layer-array renderers
-// (only VibeDefaultWaveformRenderer nowadays) use this to repaint just the
+// (only SonicCirrusWaveformRenderer nowadays) use this to repaint just the
 // bars between the old and new progress boundary instead of every bar. Set to
 // -1 to force a full repaint (e.g. after the played/unplayed colors change in
 // updateColors:).

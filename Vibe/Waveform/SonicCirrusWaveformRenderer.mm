@@ -3,13 +3,13 @@
 // Copyright (c) 2020 Christopher Micali. All rights reserved.
 //
 
-#import "VibeDefaultWaveformRenderer.h"
+#import "SonicCirrusWaveformRenderer.h"
 
 // 128 bars, each drawn with two layers: layers[i*2] is the top bar and
 // layers[i*2 + 1] is the mirrored bottom bar.
 #define kVibeBarCount 128
 
-@implementation VibeDefaultWaveformRenderer {
+@implementation SonicCirrusWaveformRenderer {
     NSColor* _playedColorTop;
     NSColor* _unPlayedColorTop;
     NSColor* _playedColorBottom;
@@ -17,7 +17,7 @@
 }
 
 + (NSString *)displayName {
-    return @"Vibe Default";
+    return @"Sonic Cirrus";
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
