@@ -7,7 +7,7 @@
 #import "AudioWaveformView.h"
 #import "AudioWaveform.h"
 #import "DetailedAudioWaveformRenderer.h"
-#import "VibeDefaultWaveformRenderer.h"
+#import "SonicCirrusWaveformRenderer.h"
 #import "BasicAudioWaveformRenderer.h"
 #import "OversamplingDetailedAudioWaveformRenderer.h"
 #import "NSView+DarkMode.h"
@@ -60,7 +60,7 @@
     _waveformRenderers = [NSMutableDictionary new];
 
     [self addWaveformRenderer:BasicAudioWaveformRenderer.class];
-    [self addWaveformRenderer:VibeDefaultWaveformRenderer.class];
+    [self addWaveformRenderer:SonicCirrusWaveformRenderer.class];
     [self addWaveformRenderer:DetailedAudioWaveformRenderer.class];
     [self addWaveformRenderer:x2OversamplingDetailedAudioWaveformRenderer.class];
     [self addWaveformRenderer:x4OversamplingDetailedAudioWaveformRenderer.class];

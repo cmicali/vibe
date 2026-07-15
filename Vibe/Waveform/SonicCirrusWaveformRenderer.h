@@ -6,6 +6,6 @@
 #import <Foundation/Foundation.h>
 #import "AudioWaveformRenderer.h"
 
-@interface VibeDefaultWaveformRenderer : AudioWaveformRenderer
+@interface SonicCirrusWaveformRenderer : AudioWaveformRenderer
 
 @end
