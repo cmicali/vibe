@@ -8,10 +8,10 @@
 #import "MainPlayerController.h"
 #import "PitchControlPanel.h"
 
-// The window frame is derived from this (+ the pitch panel width when
-// revealed) rather than read back, so a stale autosaved/restored width
-// self-corrects on toggle.
-const CGFloat kMainWindowContentWidth = 680;
+// The window frame is derived from kMainWindowContentWidth (+ the pitch panel
+// width when revealed) rather than read back, so a stale autosaved/restored
+// width self-corrects on toggle. The layout constants live in Constants.h
+// (imported via MainWindow.h), shared with MainPlayerContentView.
 
 static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
@@ -33,8 +33,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         self.title = @"Vibe";
         self.identifier = @"main_window";
         self.releasedWhenClosed = NO;
-        self.minSize = NSMakeSize(kMainWindowContentWidth, 150);
-        self.maxSize = NSMakeSize(kMainWindowContentWidth, 600);
+        self.minSize = NSMakeSize(kMainWindowContentWidth, kMainWindowSmallHeight);
+        self.maxSize = NSMakeSize(kMainWindowContentWidth, kMainWindowMaxHeight);
         self.tabbingMode = NSWindowTabbingModeDisallowed;
         self.autorecalculatesKeyViewLoop = NO;
         self.allowsToolTipsWhenApplicationIsInactive = NO;
@@ -114,7 +114,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 }
 
 - (void)syncPlaylistShownFromHeight {
-    BOOL shown = (self.frame.size.height > 150);
+    BOOL shown = (self.frame.size.height > kMainWindowSmallHeight);
     if (shown != _playlistShown) {
         _playlistShown = shown;
         Settings.playlistShown = shown;
@@ -183,16 +183,16 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     return _playlistShown;
 }
 
-- (IBAction)setSmallSize:(BOOL)animate {
+- (void)setSmallSize:(BOOL)animate {
     _playlistShown = NO;
     Settings.playlistShown = NO;
-    [self setHeight:150 animate:animate];
+    [self setHeight:kMainWindowSmallHeight animate:animate];
 }
 
-- (IBAction)setLargeSize:(BOOL)animate {
+- (void)setLargeSize:(BOOL)animate {
     _playlistShown = YES;
     Settings.playlistShown = YES;
-    [self setHeight:400 animate:animate];
+    [self setHeight:kMainWindowLargeHeight animate:animate];
 }
 
 - (IBAction)toggleSize:(id)sender {
@@ -245,10 +245,10 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     _playlistShown = Settings.isPlaylistShown;
     CGFloat height = frame.size.height;
     if (!_playlistShown) {
-        height = 150;
+        height = kMainWindowSmallHeight;
     }
-    else if (height <= 150) {
-        height = 400; // shown, but the restored height is collapsed/missing
+    else if (height <= kMainWindowSmallHeight) {
+        height = kMainWindowLargeHeight; // shown, but the restored height is collapsed/missing
     }
     // else: shown — keep the user's custom restored height.
     frame.origin.y -= height - frame.size.height; // top edge fixed, like setHeight:

@@ -8,5 +8,8 @@
 
 @interface NSImage (Util)
 
-- (NSImage *)resizedImage:(NSSize)newSize;
+// Redraws the image at newSize into an sRGB bitmap. Returns nil if the
+// bitmap or its drawing context can't be created — never falls back to the
+// full-size original (callers resize precisely to shed its memory).
+- (nullable NSImage *)resizedImage:(NSSize)newSize;
 @end

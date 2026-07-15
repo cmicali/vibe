@@ -8,28 +8,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-#define setLayerFrame(frame, index) \
-{ \
-    self.layers[index].frame = frame; \
-    CGFloat bottom = frame.origin.y; \
-    CGFloat top = bottom + frame.size.height; \
-    if (top > self.topY) { \
-        self.topY = top; \
-    } \
-    if (bottom < self.bottomY) { \
-        self.bottomY = bottom; \
-    } \
-}
-
-#define setLayerColor(color, index) \
-{ \
-    CGColorRef c = (color).CGColor; \
-    CALayer *layer = self.layers[index]; \
-    if (!CGColorEqualToColor(layer.backgroundColor, c)) { \
-        layer.backgroundColor = c; \
-    } \
-}
-
 @interface AudioWaveformRenderer : NSObject
 
 @property (assign) CGFloat topY;
@@ -38,22 +16,19 @@ NS_ASSUME_NONNULL_BEGIN
 @property (assign) BOOL isDark;
 
 // Last "played" bar index that updateProgress: painted. Layer-array renderers
-// (only SonicCirrusWaveformRenderer nowadays) use this to repaint just the
-// bars between the old and new progress boundary instead of every bar. Set to
-// -1 to force a full repaint (e.g. after the played/unplayed colors change in
-// updateColors:).
+// (only SonicCirrusWaveformRenderer nowadays — the bar-layer machinery itself
+// lives there) use this to repaint just the bars between the old and new
+// progress boundary instead of every bar. Set to -1 to force a full repaint
+// (e.g. after the played/unplayed colors change in updateColors:).
 @property (assign) NSInteger lastProgressBoundary;
 
 @property (strong) CALayer* parentLayer;
-@property (strong) NSArray<CALayer*>* layers;
 
 + (NSString *)displayName;
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark;
 
 - (void)updateColors:(BOOL)isDark;
-- (void)addLayers:(NSUInteger)numLayers backgroundColor:(CGColorRef)color;
-- (void)addLayers:(NSUInteger)numLayers forClass:(Class)clazz backgroundColor:(CGColorRef)color;
 
 - (void) setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<NSColor*>*)colors;
 

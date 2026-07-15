@@ -115,12 +115,16 @@ NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
 + (void)setDockIcon:(NSImage*)image {
     CGFloat size = 512;
     NSUInteger generation = ++VibeDockIconGeneration;
+    // Copy before hopping queues: the caller's instance is also being drawn
+    // by the artwork views on the main thread, and NSImageRep's first-draw
+    // caching is not documented thread-safe.
+    NSImage *imageCopy = [image copy];
     // Compose off the main thread: the 512px rounded-rect + shadow render
     // (drawing from up-to-1024px art) is a several-ms hitch that used to land
     // exactly at track start, alongside waveform hydration and the artwork
     // cross-fades. Only the dock-tile assignment happens on main.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        NSImage *customIcon = CreateMacStyleIconFromImage(image, size);
+        NSImage *customIcon = CreateMacStyleIconFromImage(imageCopy, size);
         dispatch_async(dispatch_get_main_queue(), ^{
             if (generation != VibeDockIconGeneration) {
                 return; // a newer icon (or a reset to the app icon) won

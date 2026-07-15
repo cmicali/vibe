@@ -11,11 +11,12 @@
 #import "AudioWaveformView.h"
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
+#import "Constants.h"
 
 // Design-time size; the controller resizes the view to the window's restored
 // frame after adding it, which runs the same autoresizing pass a nib load
-// used to.
-static const CGFloat kDesignWidth  = 680;
+// used to. The width is the shared kMainWindowContentWidth (Constants.h) —
+// the view must lay out at exactly the window's content width.
 static const CGFloat kDesignHeight = 350;
 
 // All the window's buttons sit hidden and fade in only while the cursor is
@@ -34,7 +35,7 @@ static const CFTimeInterval kControlFadeDur = 0.2;
 }
 
 - (instancetype)initWithTarget:(id)target {
-    self = [super initWithFrame:NSMakeRect(0, 0, kDesignWidth, kDesignHeight)];
+    self = [super initWithFrame:NSMakeRect(0, 0, kMainWindowContentWidth, kDesignHeight)];
     if (self) {
         self.blendingMode = NSVisualEffectBlendingModeBehindWindow;
         self.state = NSVisualEffectStateActive;
@@ -285,12 +286,12 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     configureLabelShadow(_currentTimeTextField, NO);
     [self addSubview:_currentTimeTextField];
 
-    _playlistDimView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, kDesignWidth, 200)];
+    _playlistDimView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, kMainWindowContentWidth, 200)];
     _playlistDimView.wantsLayer = YES;
     _playlistDimView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [self addSubview:_playlistDimView];
 
-    [self addSubview:[self buildPlaylistScrollViewWithFrame:NSMakeRect(0, 0, kDesignWidth, 200)]];
+    [self addSubview:[self buildPlaylistScrollViewWithFrame:NSMakeRect(0, 0, kMainWindowContentWidth, 200)]];
 
     _fileMetadataTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(430, 325, 240, 16)];
     _fileMetadataTextField.font = [Fonts fontForNumbers:_totalTimeTextField.font.pointSize bold:NO];

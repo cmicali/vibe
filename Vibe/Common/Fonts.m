@@ -13,24 +13,34 @@
     return [self font:size bold:NO];
 }
 
+// Cache key: negating the size for bold collides at size 0, so the key spells
+// out both dimensions.
+static NSString *fontCacheKey(CGFloat size, BOOL bold) {
+    return [NSString stringWithFormat:@"%g%@", size, bold ? @"-bold" : @""];
+}
+
 + (NSFont *)font:(CGFloat)size bold:(BOOL)bold {
-    static NSMutableDictionary<NSNumber *, NSFont *> *cache;
+    static NSMutableDictionary<NSString *, NSFont *> *cache;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         cache = [NSMutableDictionary new];
     });
-    NSNumber *key = @(bold ? -size : size);
-    NSFont *font = cache[key];
-    if (!font) {
-        font = [NSFont fontWithName:bold ? @"HelveticaNeue-Bold" : @"HelveticaNeue-Medium" size:size];
+    NSString *key = fontCacheKey(size, bold);
+    // NSMutableDictionary isn't thread-safe and not every caller is on the
+    // main thread; a duplicate create inside the lock is harmless.
+    @synchronized (cache) {
+        NSFont *font = cache[key];
         if (!font) {
-            // Never return nil: callers put the result straight into
-            // attribute dictionaries, where nil raises.
-            font = [NSFont systemFontOfSize:size weight:bold ? NSFontWeightBold : NSFontWeightMedium];
+            font = [NSFont fontWithName:bold ? @"HelveticaNeue-Bold" : @"HelveticaNeue-Medium" size:size];
+            if (!font) {
+                // Never return nil: callers put the result straight into
+                // attribute dictionaries, where nil raises.
+                font = [NSFont systemFontOfSize:size weight:bold ? NSFontWeightBold : NSFontWeightMedium];
+            }
+            cache[key] = font;
         }
-        cache[key] = font;
+        return font;
     }
-    return font;
 }
 
 + (NSFont *)fontForNumbers:(CGFloat)size {
@@ -38,18 +48,20 @@
 }
 
 + (NSFont *)fontForNumbers:(CGFloat)size bold:(BOOL)bold {
-    static NSMutableDictionary<NSNumber *, NSFont *> *cache;
+    static NSMutableDictionary<NSString *, NSFont *> *cache;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         cache = [NSMutableDictionary new];
     });
-    NSNumber *key = @(bold ? -size : size);
-    NSFont *font = cache[key];
-    if (!font) {
-        font = [NSFont monospacedDigitSystemFontOfSize:size weight:bold?NSFontWeightBold:NSFontWeightRegular];
-        cache[key] = font;
+    NSString *key = fontCacheKey(size, bold);
+    @synchronized (cache) {
+        NSFont *font = cache[key];
+        if (!font) {
+            font = [NSFont monospacedDigitSystemFontOfSize:size weight:bold?NSFontWeightBold:NSFontWeightRegular];
+            cache[key] = font;
+        }
+        return font;
     }
-    return font;
 }
 
 + (NSMutableAttributedString *) stringForNumbers:(NSString *)str color:(NSColor *)color size:(CGFloat)size {

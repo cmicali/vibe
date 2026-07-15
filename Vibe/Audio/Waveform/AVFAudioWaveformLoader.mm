@@ -4,8 +4,11 @@
 //
 
 #import "AVFAudioWaveformLoader.h"
+#import "AudioWaveform.h"
 #import "AudioBPMAnalyzer.h"
 #import <AVFoundation/AVFoundation.h>
+
+#include <vector>
 
 @implementation AVFAudioWaveformLoader
 
@@ -17,8 +20,8 @@
     }
 
     NSError *error = nil;
-    // Interleaved float32: AudioWaveformCacheChunk::mergeFromAudioBuffer
-    // expects L0 R0 L1 R1 ... sample layout.
+    // Interleaved float32: AudioWaveformMonoMix expects L0 R0 L1 R1 ...
+    // sample layout.
     AVAudioFile *file = [[AVAudioFile alloc] initForReading:[NSURL fileURLWithPath:filename]
                                                commonFormat:AVAudioPCMFormatFloat32
                                                 interleaved:YES
@@ -74,8 +77,16 @@
     // Tempo detection rides the same decode pass — the analyzer consumes each
     // buffer right after the waveform chunk does, so BPM never costs a second
     // full-file read (which matters for cloud-backed files).
-    AudioBPMAnalyzer *bpmAnalyzer = [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate
-                                                                    channelCount:numChannels];
+    AudioBPMAnalyzer *bpmAnalyzer = [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate];
+
+    // Scratch for the shared interleaved→mono mix: each decode buffer is
+    // downmixed once here and fed to both the waveform chunk and the BPM
+    // analyzer (each used to redo the same downmix per buffer). Mono files
+    // skip the mix entirely — AudioWaveformMonoMix returns the buffer itself.
+    std::vector<float> monoScratch;
+    if (numChannels > 1) {
+        monoScratch.resize(maxFramesPerChunk);
+    }
 
     CFAbsoluteTime lastProgressTime = 0;
     NSUInteger chunksFilled = 0;
@@ -102,12 +113,13 @@
             }
             break;
         }
-        AudioWaveformCacheChunk chunk(buffer.floatChannelData[0],
-                                      (NSUInteger)buffer.frameLength * numChannels,
-                                      numChannels);
+        NSUInteger numFrames = buffer.frameLength;
+        const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], monoScratch.data(),
+                                                 numFrames, numChannels);
+        AudioWaveformCacheChunk chunk(mono, numFrames);
         waveform->setChunkAtIndex(chunk, i);
         chunksFilled = i + 1;
-        [bpmAnalyzer appendSamples:buffer.floatChannelData[0] frameCount:buffer.frameLength];
+        [bpmAnalyzer appendMonoSamples:mono frameCount:numFrames];
 
         // Throttle delegate notifications to ~10 Hz — each one triggers a
         // full path rebuild on the main thread. The final completion
@@ -117,23 +129,26 @@
             if (now - lastProgressTime >= 0.1) {
                 lastProgressTime = now;
                 float percentComplete = (float)i / (float)effectiveChunks;
-                if (percentComplete < 1.0) {
-                    // Snapshot on the loader thread (the only writer) so the
-                    // main thread renders an immutable copy — reading the live
-                    // buffer while this loop keeps calling setChunkAtIndex, and
-                    // the stretch pass below remaps it in place, is a data race.
-                    CodableAudioWaveform *snapshot = [result snapshot];
-                    dispatch_async(dispatch_get_main_queue(), ^(void) {
-                        if (!self.isCancelled) {
-                            [self.delegate audioWaveformLoader:self waveform:snapshot didLoadData:percentComplete];
-                        }
-                    });
-                }
+                // Snapshot on the loader thread (the only writer) so the
+                // main thread renders an immutable copy — reading the live
+                // buffer while this loop keeps calling setChunkAtIndex, and
+                // the stretch pass below remaps it in place, is a data race.
+                CodableAudioWaveform *snapshot = [result snapshot];
+                dispatch_async(dispatch_get_main_queue(), ^(void) {
+                    if (!self.isCancelled) {
+                        [self.delegate audioWaveformLoader:self waveform:snapshot didLoadData:percentComplete];
+                    }
+                });
             }
         }
     }
 
-    if (self.isCancelled) {
+    if (self.isCancelled && chunksFilled < effectiveChunks) {
+        // Cancelled mid-decode — the data really is partial. A cancel that
+        // lands after the loop read every chunk falls through instead: the
+        // decode is complete and worth caching for the next play of this
+        // track (the cache's delivery site filters cancelled loads out of
+        // the UI; discarding here made that cache write unreachable).
         return nil;
     }
 

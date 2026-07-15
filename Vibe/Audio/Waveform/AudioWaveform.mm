@@ -42,7 +42,7 @@ AudioWaveform::~AudioWaveform() {
 AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInteger size)  {
     AudioWaveformCacheChunk result;
     // A failed calloc leaves chunks NULL / numChunks 0 (see the constructors);
-    // guard here as normalize() already does, so a renderer read can't deref NULL.
+    // guard here so a renderer read can't deref NULL.
     if (chunks == nullptr || numChunks == 0) return result;
     if (index >= size) return result;
     if (size == numChunks) { return chunks[index]; }
@@ -71,30 +71,6 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
     vDSP_maxv(base + 1, 2, &maxVal, numChunksToCombine);  // stride 2, starting at values[1]
     result.set(minVal, maxVal);
     return result;
-}
-
-void AudioWaveform::normalize() {
-    if (chunks == 0 || numChunks == 0) return;
-    // chunks[] is a contiguous array of float[2] pairs: [min0, max0, min1, max1, ...]
-    // We can treat it as a single float array of length numChunks * 2
-    float *data = reinterpret_cast<float*>(chunks);
-    vDSP_Length totalFloats = numChunks * 2;
-
-    // Find global min and max across all values
-    float globalMin, globalMax;
-    vDSP_minv(data, 1, &globalMin, totalFloats);
-    vDSP_maxv(data, 1, &globalMax, totalFloats);
-
-    // Find the largest absolute value for normalization
-    float absMin = fabsf(globalMin);
-    float absMax = fabsf(globalMax);
-    float peak = (absMin > absMax) ? absMin : absMax;
-
-    if (peak != 0.0f) {
-        float factor = 1.0f / peak;
-        // Scale all values in one vectorized pass
-        vDSP_vsmul(data, 1, &factor, data, 1, totalFloats);
-    }
 }
 
 // v4: BPM re-detected after an analyzer fix (v3's could half-tempo tracks

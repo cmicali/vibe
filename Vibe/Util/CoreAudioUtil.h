@@ -11,8 +11,7 @@
 // live in AudioDeviceManager.
 @interface CoreAudioUtil : NSObject
 
-// kAudioObjectUnknown when the UID doesn't resolve / there is no default.
-+ (AudioDeviceID)audioDeviceIDforUID:(NSString *)deviceUid;
+// kAudioObjectUnknown when there is no default.
 + (AudioDeviceID)systemDefaultOutputDeviceID;
 
 // nil when the device is gone or has no such property.

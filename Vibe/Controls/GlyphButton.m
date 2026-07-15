@@ -223,7 +223,9 @@ static void addRoundedTriangle(CGMutablePathRef path, CGPoint a, CGPoint b, CGPo
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     _hovering = NSPointInRect(point, self.bounds); // released inside → stay in hover state
     [self applyColorAnimated:YES];
-    if (_hovering) {
+    // Re-check isEnabled: the button can be disabled mid-press (mouseDown:
+    // only gates the press starting).
+    if (_hovering && self.isEnabled) {
         [NSApp sendAction:self.action to:self.target from:self];
     }
 }

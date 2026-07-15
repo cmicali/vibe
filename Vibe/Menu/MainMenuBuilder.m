@@ -51,6 +51,11 @@ static NSMenuItem *VibeSubmenuItem(NSMenu *parent, NSString *title) {
     NSMenu *appMenu = [VibeSubmenuItem(mainMenu, @"Vibe") submenu];
     [appMenu addItem:VibeMenuItem(@"About Vibe", @selector(showAboutWindow:), appDelegate, @"", 0, nil)];
     [appMenu addItem:[NSMenuItem separatorItem]];
+    // AppKit populates the Services submenu once it's registered as
+    // NSApp.servicesMenu (the nib's connection did the same).
+    NSMenuItem *servicesItem = VibeSubmenuItem(appMenu, @"Services");
+    NSApp.servicesMenu = servicesItem.submenu;
+    [appMenu addItem:[NSMenuItem separatorItem]];
     [appMenu addItem:VibeMenuItem(@"Hide Vibe", @selector(hide:), nil, @"h", NSEventModifierFlagCommand, nil)];
     [appMenu addItem:VibeMenuItem(@"Hide Others", @selector(hideOtherApplications:), nil, @"h",
                                   NSEventModifierFlagCommand | NSEventModifierFlagOption, nil)];

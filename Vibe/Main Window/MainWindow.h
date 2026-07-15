@@ -5,14 +5,11 @@
 
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
+#import "Constants.h" // window-layout constants (kMainWindowContentWidth etc.)
 
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol FileDropDelegate;
-
-// Width of the main content; the window is this wide, plus kPitchPanelWidth
-// when the pitch panel is revealed.
-extern const CGFloat kMainWindowContentWidth;
 
 @interface MainWindow : NSWindow <NSDraggingDestination>
 
@@ -20,8 +17,8 @@ extern const CGFloat kMainWindowContentWidth;
 
 - (BOOL)isPlaylistShown;
 
-- (IBAction)setSmallSize:(BOOL)animate;
-- (IBAction)setLargeSize:(BOOL)animate;
+- (void)setSmallSize:(BOOL)animate;
+- (void)setLargeSize:(BOOL)animate;
 
 - (IBAction)toggleSize:(id)sender;
 

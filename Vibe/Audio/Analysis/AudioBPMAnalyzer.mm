@@ -31,7 +31,6 @@ static const float kMinConfidence = 1.3f;
 
 @implementation AudioBPMAnalyzer {
     double _sampleRate;
-    NSUInteger _channels;
     FFTSetup _fftSetup;
 
     // Mono samples not yet consumed by a full analysis frame (< kFrameSize +
@@ -49,11 +48,10 @@ static const float kMinConfidence = 1.3f;
     std::vector<float> _onsetEnvelope;
 }
 
-- (instancetype)initWithSampleRate:(double)sampleRate channelCount:(NSUInteger)channelCount {
+- (instancetype)initWithSampleRate:(double)sampleRate {
     self = [super init];
     if (self) {
         _sampleRate = sampleRate;
-        _channels = channelCount > 0 ? channelCount : 1;
         _fftSetup = vDSP_create_fftsetup(kLog2FrameSize, kFFTRadix2);
         _window.resize(kFrameSize);
         vDSP_hann_window(_window.data(), kFrameSize, vDSP_HANN_NORM);
@@ -72,26 +70,15 @@ static const float kMinConfidence = 1.3f;
     }
 }
 
-- (void)appendSamples:(const float *)samples frameCount:(NSUInteger)frameCount {
+- (void)appendMonoSamples:(const float *)samples frameCount:(NSUInteger)frameCount {
     if (!_fftSetup || frameCount == 0) {
         return;
     }
-    // Downmix to mono into the pending buffer. vDSP_vadd with the channel
-    // stride sums interleaved channels without a deinterleave pass.
+    // Already mono — the loader downmixes each decode buffer once
+    // (AudioWaveformMonoMix) and shares it with the waveform chunker.
     size_t base = _pending.size();
     _pending.resize(base + frameCount);
-    float *mono = _pending.data() + base;
-    if (_channels == 1) {
-        memcpy(mono, samples, frameCount * sizeof(float));
-    }
-    else {
-        vDSP_vadd(samples, (vDSP_Stride)_channels, samples + 1, (vDSP_Stride)_channels, mono, 1, frameCount);
-        for (NSUInteger ch = 2; ch < _channels; ch++) {
-            vDSP_vadd(mono, 1, samples + ch, (vDSP_Stride)_channels, mono, 1, frameCount);
-        }
-        float scale = 1.0f / (float)_channels;
-        vDSP_vsmul(mono, 1, &scale, mono, 1, frameCount);
-    }
+    memcpy(_pending.data() + base, samples, frameCount * sizeof(float));
 
     // Consume full frames, advancing by the hop.
     size_t consumed = 0;

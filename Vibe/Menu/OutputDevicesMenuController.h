@@ -7,8 +7,7 @@
 
 @class AudioPlayer;
 
-@interface OutputDevicesMenuController : NSObject <NSMenuDelegate,
-                                             NSMenuItemValidation>
+@interface OutputDevicesMenuController : NSObject <NSMenuDelegate>
 
 @property (weak) AudioPlayer *audioPlayer;
 

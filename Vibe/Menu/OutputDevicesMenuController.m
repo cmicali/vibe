@@ -119,9 +119,4 @@
     }
 }
 
-- (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
-    menuItem.enabled = YES;
-    return YES;
-}
-
 @end

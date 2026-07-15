@@ -23,13 +23,17 @@
                                                          colorSpaceName:NSCalibratedRGBColorSpace
                                                             bytesPerRow:0
                                                            bitsPerPixel:0];
+    // Retag (no pixel conversion — the buffer is still empty) so the draw
+    // below color-matches into sRGB. Leaving the rep calibrated ("generic"
+    // RGB) shifts gamma/saturation for sRGB and P3 sources.
+    rep = [rep bitmapImageRepByRetaggingWithColorSpace:NSColorSpace.sRGBColorSpace];
     if (!rep) {
-        return self;
+        return nil;
     }
     rep.size = newSize;
     NSGraphicsContext *context = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
     if (!context) {
-        return self;
+        return nil;
     }
     [NSGraphicsContext saveGraphicsState];
     [NSGraphicsContext setCurrentContext:context];

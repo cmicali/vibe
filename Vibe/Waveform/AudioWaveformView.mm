@@ -49,8 +49,11 @@
 
 - (void)setup  {
 
-    self.wantsLayer = YES;
+    // Layer-hosting contract: assign the layer BEFORE setting wantsLayer,
+    // or AppKit first creates its own backing layer and the view is
+    // layer-backed, not layer-hosting.
     self.layer = [[CALayer alloc] init];
+    self.wantsLayer = YES;
 
     _progress = 0;
     _progressTracker = 0;
@@ -132,10 +135,12 @@
 }
 
 - (void)setProgress:(CGFloat)progress {
+    // Store unconditionally — the bucket tracker below only gates repaints;
+    // gating the assignment too left the getter up to 1/256 stale.
+    _progress = progress;
     NSUInteger p = static_cast<NSUInteger>(progress * _numProgressSteps);
     if (_progressTracker != p) {
         _progressTracker = p;
-        _progress = progress;
         [self updateRendererProgress];
     }
 }

@@ -14,9 +14,12 @@ build: project
 	SKIP_GENERATE=1 scripts/build.sh $(CONFIG)
 
 # Build (Release by default) then copy the app into /Applications, replacing
-# any existing copy.
+# any existing copy. The rm matters: BSD cp -R copies INTO an existing
+# destination directory, so without it a second install produces
+# /Applications/Vibe.app/Vibe.app.
 install: build
 	@echo "🔊 installing to /Applications/Vibe.app"
+	rm -rf /Applications/Vibe.app
 	cp -R build/DerivedData/Build/Products/$(CONFIG)/Vibe.app /Applications/Vibe.app
 
 # Build Release, then sign (Developer ID), notarize, and staple a distributable
@@ -28,6 +31,6 @@ release:
 clean:
 	scripts/clean.sh
 
-# Remove build/ and the generated Vibe.xcodeproj.
+# Launch the app, building it first only if it isn't built yet.
 run:
 	scripts/run.sh $(CONFIG)

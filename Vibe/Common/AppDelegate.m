@@ -86,18 +86,24 @@
 //     Vibe.app/Contents/MacOS/Vibe ~/Music/album /path/to/song.flac
 // Paths resolve relative to the working directory and feed the same
 // expand/filter/play pipeline as dropped files and Finder opens (directories
-// are walked, unsupported files dropped). AppKit-injected "-key value"
-// arguments (Xcode debug flags etc.) are skipped, and each candidate must
-// exist on disk. NOTE: under the App Sandbox this only succeeds for paths the
-// sandbox already permits (the container, or files opened via Launch Services
-// / drag) — arbitrary argv paths may be denied at read time.
+// are walked, unsupported files dropped). Dash-prefixed flags are skipped,
+// and each candidate must exist on disk. NOTE: under the App Sandbox this
+// only succeeds for paths the sandbox already permits (the container, or
+// files opened via Launch Services / drag) — arbitrary argv paths may be
+// denied at read time.
 - (void)openCommandLineArguments {
     NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
     NSFileManager *fileManager = [NSFileManager defaultManager];
     for (NSUInteger i = 1; i < args.count; i++) { // skip argv[0] (the executable)
         NSString *arg = args[i];
+        if ([arg isEqualToString:@"--debug-cmd"]) {
+            i++; // the only flag that takes a value (see main.m)
+            continue;
+        }
         if ([arg hasPrefix:@"-"]) {
-            i++; // "-key value" convention: skip the value too
+            // Skip only the flag itself: unconditionally consuming the next
+            // arg would drop the path in `Vibe --someflag song.mp3`. A value
+            // riding an AppKit "-key value" pair fails the exists check below.
             continue;
         }
         NSString *path = arg.stringByExpandingTildeInPath;
@@ -119,6 +125,7 @@
         NSArray<NSString *> *legacyCacheNames = @[
                 @"com.pinterest.PINDiskCache.Audio Track Metadata",
                 @"com.pinterest.PINDiskCache.Audio Track Metadata v2",
+                @"com.pinterest.PINDiskCache.Audio Track Metadata v3",
                 @"com.pinterest.PINDiskCache.audio_waveform_cache",
                 @"com.pinterest.PINDiskCache.audio_waveform_cache_v2",
                 @"com.pinterest.PINDiskCache.audio_waveform_cache_v3",

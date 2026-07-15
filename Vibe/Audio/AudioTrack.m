@@ -79,15 +79,25 @@
     return self.metadata.thumbnailAlbumArt;
 }
 
+// _duration is written from the player queue (finishPlayOnQueue publishes
+// the decoded length) while the main thread reads it for cell rendering —
+// same cross-thread shape as the atomic metadata property, guarded here with
+// the monitor the file already uses for cacheKey.
 - (NSTimeInterval)duration {
-    if (_duration >= 0) {
-        return _duration;
+    NSTimeInterval duration;
+    @synchronized (self) {
+        duration = _duration;
+    }
+    if (duration >= 0) {
+        return duration;
     }
     return self.metadata.duration;
 }
 
 - (void)setDuration:(NSTimeInterval)len {
-    _duration = len;
+    @synchronized (self) {
+        _duration = len;
+    }
 }
 
 - (NSString *)durationString {
@@ -95,12 +105,16 @@
     if (duration <= 0) {
         return @"";
     }
-    // Memoized per duration value; hot path during table cell rebuilds
-    if (!_durationString || _durationStringDuration != duration) {
-        _durationString = [[Formatters sharedInstance] durationStringFromTimeInterval:duration];
-        _durationStringDuration = duration;
+    // Memoized per duration value; hot path during table cell rebuilds.
+    // The monitor keeps the string/duration pair coherent — this is reached
+    // from any thread that renders a duration, not just main.
+    @synchronized (self) {
+        if (!_durationString || _durationStringDuration != duration) {
+            _durationString = [[Formatters sharedInstance] durationStringFromTimeInterval:duration];
+            _durationStringDuration = duration;
+        }
+        return _durationString;
     }
-    return _durationString;
 }
 
 - (BOOL)hasArtistAndTitle {

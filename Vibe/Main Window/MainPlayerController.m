@@ -68,6 +68,9 @@
 @implementation MainPlayerController {
     dispatch_source_t           _timer;
     NSTimeInterval              _lastPosition;
+    // Duration snapshot from didStartPlaying: the live player duration reads
+    // 0 while a track is Loading, and updatePlaybackUI runs in that gap.
+    // Cleared when playback goes idle (error, end of playlist).
     NSTimeInterval              _currentTrackDuration;
     BOOL                        _timerRunning;
     __weak AudioTrack*          _lastReloadedTrack;
@@ -314,10 +317,9 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
             _lastFileMetadataString = nil;
         }
         else if (track.metadata.fileType) {
-            // bitrate/sampleRate can be nil even with fileType set: the art
-            // re-read path fills fileType as a side effect after a failed
-            // initial parse, and TagLib can return no audioProperties. Guard
-            // so the label never shows "(null) kbps" / "0.0 kHz".
+            // bitrate/sampleRate can be nil even with fileType set — TagLib
+            // can return no audioProperties. Guard so the label never shows
+            // "(null) kbps" / "0.0 kHz".
             NSString *bitrate = @"";
             if (!track.metadata.isLossless && track.metadata.bitrate) {
                 bitrate = [NSString stringWithFormat:@"%@ kbps | ", track.metadata.bitrate];
@@ -538,7 +540,7 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
     [self.window miniaturize:sender];
 }
 
-- (void)mainWindow:(MainWindow *)mainWindow filesDropped:urls {
+- (void)mainWindow:(MainWindow *)mainWindow filesDropped:(NSArray<NSURL *> *)urls {
     [self play:urls];
 }
 
@@ -663,6 +665,13 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
     }
     [self pauseUIUpdateTimer];
     [self next:self];
+    // End of playlist (next: started nothing): the cached duration would go
+    // stale against the idle player. Mid-playlist the cache must survive the
+    // Loading gap — the live duration reads 0 there, and updatePlaybackUI
+    // uses the cache to keep the waveform progress pinned instead of frozen.
+    if (self.audioPlayer.isStopped) {
+        _currentTrackDuration = 0;
+    }
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
@@ -673,6 +682,9 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
     }
     [self startPendingMetadataLoad];
     [self pauseUIUpdateTimer];
+    // Playback failed — the duration cached at the last didStartPlaying no
+    // longer describes anything the player holds.
+    _currentTrackDuration = 0;
     [self.waveformView hideLoadingIndicator];
     if ([error.domain isEqualToString:kVibeAudioErrorDomain] && error.code == VibeAudioErrorFileOpenTimedOut) {
         // Slow/unreachable file (cloud placeholder, dead network): no modal,
@@ -776,7 +788,11 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
 }
 
 - (void)nowPlayingController:(NowPlayingController *)controller seekToPosition:(NSTimeInterval)position {
-    self.audioPlayer.position = position;
+    // The scrubber position arrives in the wall-clock time updateNowPlaying
+    // publishes (elapsed/duration divided by the varispeed rate); the player
+    // seeks in file time, so convert back with the same rate — exactly as
+    // skipByWallClockSeconds: does.
+    self.audioPlayer.position = position * self.playbackRate;
 }
 
 #pragma mark - Metadata and Waveform
@@ -799,12 +815,27 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
     [self.waveformView showWaveform:waveform];
 }
 
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm {
-    // Waveform loads are cancelled on track change, so a delivery always
-    // belongs to the most recently loaded — i.e. current — track.
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url {
+    // A delivery usually belongs to the current track, but a late one can
+    // land after next: advanced the playlist. The BPM is valid for whichever
+    // track was analyzed, so stamp that track (deliveries are rare — once per
+    // load — so a linear scan is fine) and only refresh the label when the
+    // stamped track is the one it shows.
     AudioTrack *track = self.playlistManager.currentTrack;
-    if (track) {
-        track.detectedBPM = bpm;
+    if (![track.url isEqual:url]) {
+        track = nil;
+        for (AudioTrack *candidate in self.playlistManager.playlist) {
+            if ([candidate.url isEqual:url]) {
+                track = candidate;
+                break;
+            }
+        }
+    }
+    if (!track) {
+        return;
+    }
+    track.detectedBPM = bpm;
+    if (track == self.playlistManager.currentTrack) {
         [self updateBPMLabel];
     }
 }

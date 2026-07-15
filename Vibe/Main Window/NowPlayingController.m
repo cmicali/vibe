@@ -7,8 +7,38 @@
 #import "AudioTrack.h"
 #import <MediaPlayer/MediaPlayer.h>
 
+// A published position more than this far from what the system's own
+// extrapolation predicts is a jump (seek, pitch rescale) and must be
+// republished; anything inside it is natural playback advance, which the
+// system tracks without a republish.
+static const NSTimeInterval kPositionRepublishTolerance = 1.0;
+
 @implementation NowPlayingController {
     __weak id<NowPlayingControllerDelegate> _delegate;
+
+    // Vibe must not claim the system Now Playing slot at launch: updateUI
+    // runs (with no track) before anything has played, and publishing even a
+    // cleared state would evict the user's current Now Playing app.
+    BOOL _hasPublished;
+
+    // Last-published snapshot for the dirty check in updateWithTrack:...
+    // (updateUI runs several times back-to-back on a track transition; only
+    // the first pass with new content should touch MPNowPlayingInfoCenter).
+    // _publishedURL nil means cleared (or never published).
+    NSString *_publishedURL;
+    NSString *_publishedTitle;
+    NSString *_publishedArtist;
+    NowPlayingPlaybackState _publishedState;
+    double _publishedRate;
+    NSTimeInterval _publishedDuration;
+    NSTimeInterval _publishedPosition;
+    CFAbsoluteTime _publishedAt;
+
+    // The MPMediaItemArtwork wrapper is reused as long as the caller hands
+    // back the same decoded NSImage; the wrapper's request handler retains
+    // the image either way, so caching it here adds no lifetime.
+    NSImage *_publishedArtworkImage;
+    MPMediaItemArtwork *_publishedArtworkWrapper;
 }
 
 - (instancetype)initWithDelegate:(id<NowPlayingControllerDelegate>)delegate {
@@ -103,15 +133,53 @@
     MPNowPlayingInfoCenter *center = [MPNowPlayingInfoCenter defaultCenter];
 
     if (!track) {
+        // Silent until the first track plays (see _hasPublished); after that,
+        // a nil track clears the published state exactly once.
+        if (!_hasPublished || _publishedURL == nil) {
+            return;
+        }
         center.nowPlayingInfo = nil;
         center.playbackState = MPNowPlayingPlaybackStateStopped;
+        _publishedURL = nil;
+        _publishedArtworkImage = nil;
+        _publishedArtworkWrapper = nil;
         return;
     }
 
+    // Same string the in-app header shows for an untagged file — cleaned-up
+    // filename, not the raw title-with-extension.
+    NSString *title = track.singleLineTitle ?: @"";
+    NSString *artist = track.artist.length > 0 ? track.artist : nil;
+    // albumArt is the already-decoded image or nil — never blocks (no file
+    // read, no decode). When it's still nil the caller refreshes once art
+    // resolves, so the card fills in a moment later rather than stalling here.
+    NSImage *artwork = track.albumArt;
+
+    // Elapsed time is never republished at 3 Hz — the system extrapolates it
+    // from the last publish at the published rate — so natural advance since
+    // that publish must not count as dirty. Compare against the same
+    // extrapolation the system runs: only a jump beyond it (seek, pitch
+    // rescale) forces a republish.
+    if (_publishedURL != nil) {
+        double extrapolationRate = _publishedState == NowPlayingPlaybackStatePlaying ? _publishedRate : 0.0;
+        NSTimeInterval predicted = _publishedPosition + (CFAbsoluteTimeGetCurrent() - _publishedAt) * extrapolationRate;
+        BOOL unchanged = [_publishedURL isEqualToString:track.url.absoluteString]
+                && [title isEqualToString:_publishedTitle]
+                && (artist == _publishedArtist || [artist isEqualToString:_publishedArtist])
+                && state == _publishedState
+                && rate == _publishedRate
+                && duration == _publishedDuration
+                && artwork == _publishedArtworkImage
+                && fabs(position - predicted) <= kPositionRepublishTolerance;
+        if (unchanged) {
+            return;
+        }
+    }
+
     NSMutableDictionary<NSString *, id> *info = [NSMutableDictionary dictionary];
-    info[MPMediaItemPropertyTitle] = track.title ?: @"";
-    if (track.artist.length > 0) {
-        info[MPMediaItemPropertyArtist] = track.artist;
+    info[MPMediaItemPropertyTitle] = title;
+    if (artist) {
+        info[MPMediaItemPropertyArtist] = artist;
     }
     if (duration > 0) {
         info[MPMediaItemPropertyPlaybackDuration] = @(duration);
@@ -124,19 +192,31 @@
     info[MPNowPlayingInfoPropertyPlaybackRate] = @(state == NowPlayingPlaybackStatePlaying ? rate : 0.0);
     info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = @(1.0);
 
-    // albumArt is the already-decoded image or nil — never blocks (no file
-    // read, no decode). When it's still nil the caller refreshes once art
-    // resolves, so the card fills in a moment later rather than stalling here.
-    NSImage *artwork = track.albumArt;
     if (artwork) {
-        info[MPMediaItemPropertyArtwork] =
-            [[MPMediaItemArtwork alloc] initWithBoundsSize:artwork.size
-                                            requestHandler:^NSImage *(CGSize size) {
-                                                return artwork;
-                                            }];
+        if (artwork != _publishedArtworkImage || _publishedArtworkWrapper == nil) {
+            _publishedArtworkWrapper =
+                [[MPMediaItemArtwork alloc] initWithBoundsSize:artwork.size
+                                                requestHandler:^NSImage *(CGSize size) {
+                                                    return artwork;
+                                                }];
+        }
+        info[MPMediaItemPropertyArtwork] = _publishedArtworkWrapper;
     }
+    else {
+        _publishedArtworkWrapper = nil;
+    }
+    _publishedArtworkImage = artwork;
 
     center.nowPlayingInfo = info;
+    _hasPublished = YES;
+    _publishedURL = track.url.absoluteString ?: @"";
+    _publishedTitle = title;
+    _publishedArtist = artist;
+    _publishedState = state;
+    _publishedRate = rate;
+    _publishedDuration = duration;
+    _publishedPosition = position;
+    _publishedAt = CFAbsoluteTimeGetCurrent();
     switch (state) {
         case NowPlayingPlaybackStatePlaying:
             center.playbackState = MPNowPlayingPlaybackStatePlaying;

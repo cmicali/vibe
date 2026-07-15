@@ -21,8 +21,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nullable, weak) id <AudioWaveformCacheDelegate> delegate;
 
 - (void)invalidate;
-// Completion fires on the cache's serial loader queue once the disk cache is
-// actually empty — behind any in-flight waveform load on that queue.
+// Completion fires on the cache's serial loader queue once the disk cache has
+// been emptied. Decodes already in flight (they run on a global queue, not
+// the loader queue) can't repopulate it: their disk writes are dropped by a
+// cache-generation check, though their UI delivery still happens.
 - (void)invalidateWithCompletion:(nullable dispatch_block_t)completion;
 - (void)loadWaveformForTrack:(AudioTrack *)track;
 
@@ -37,9 +39,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Fired once per completed waveform load (fresh analysis or cache hit) when
 // the decode pass detected a tempo — never with 0. Follows the final
-// didLoadData: delivery, on the main thread. Loads are cancelled on track
-// change, so a delivery always belongs to the most recently requested track.
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm;
+// didLoadData: delivery, on the main thread. url is the file the waveform was
+// loaded for: a final delivery can race a track change (land after next: but
+// before the cancel is observed), so receivers must match it against their
+// current track rather than assume it.
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url;
 
 @end
 

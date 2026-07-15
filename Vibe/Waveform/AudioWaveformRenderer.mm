@@ -3,7 +3,7 @@
 // Copyright (c) 2020 Christopher Micali. All rights reserved.
 //
 
-#import "DetailedAudioWaveformRenderer.h"
+#import "AudioWaveformRenderer.h"
 
 @implementation AudioWaveformRenderer
 
@@ -19,12 +19,6 @@
     return self;
 }
 
-- (void) dealloc {
-    for (CALayer *layer in _layers) {
-        [layer removeFromSuperlayer];
-    }
-}
-
 + (NSString *)displayName {
     return nil;
 }
@@ -34,23 +28,6 @@
     // Colors changed — the cached played/unplayed colors on every layer are
     // now stale. Force the next updateProgress: to repaint everything.
     self.lastProgressBoundary = -1;
-}
-
-- (void)addLayers:(NSUInteger)numLayers backgroundColor:(CGColorRef)color {
-    [self addLayers:numLayers forClass:CALayer.class backgroundColor:color];
-}
-
-- (void)addLayers:(NSUInteger)numLayers forClass:(Class)clazz backgroundColor:(CGColorRef)color {
-    CGFloat scale = self.parentLayer.contentsScale;
-    NSMutableArray *layers = [NSMutableArray new];
-    for (int i = 0; i < numLayers; ++i) {
-        CALayer *layer = (CALayer *)[[clazz alloc] init];
-        layer.backgroundColor = color;
-        layer.contentsScale = scale;
-        [layers addObject:layer];
-        [self.parentLayer addSublayer:layer];
-    }
-    self.layers = layers;
 }
 
 - (void) setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<NSColor*>*)colors {
