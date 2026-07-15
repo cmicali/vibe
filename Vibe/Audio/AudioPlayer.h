@@ -49,6 +49,13 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 - (void)play:(AudioTrack *)track;
 - (void)playPause;
 
+// Ends the current track as if it had played to its end: stops output and
+// notifies the delegate via audioPlayer:didFinishPlaying:. The delegate's
+// handler is what drives auto-advance (or the end-of-playlist stop), so the
+// caller needs no next-vs-stop knowledge — used when a forward skip lands at
+// or past the end. No-op unless a track is playing or paused.
+- (void)finishCurrentTrack;
+
 // Pre-opens the track's file so a later play: of it starts without paying
 // the open — the dominant auto-advance/skip latency (and for cloud files it
 // starts the download early). Call with the playlist's next track whenever

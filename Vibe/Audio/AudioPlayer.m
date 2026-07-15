@@ -59,7 +59,7 @@ static const NSTimeInterval kEngineIdleStopDelaySeconds = 2.0;
 // 50ms multiplicative (perceptually log, like BASS_SLIDE_LOG) volume ramps.
 // Step delay in microseconds, fed to dispatch_after via NSEC_PER_USEC.
 static const int kFadeSteps = 10;
-static const uint64_t kFadeStepMicroseconds = 5000;
+static const uint64_t kFadeStepMicroseconds = 2500;
 static const float kFadeFloor = 0.001f; // -60 dB
 
 static float VibeFadeVolume(float from, float to, int step) {
@@ -81,10 +81,12 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     dispatch_queue_t        _queue;
     AVAudioEngine           *_engine;
     AVAudioPlayerNode       *_node;
-    // Varispeed sits between every player node and the mixer (attached once,
-    // reconnected per track). Rate changes resample like a turntable motor:
-    // tempo and pitch move together. _pitch (percent) is guarded by _stateLock
-    // so the UI can read it without touching the queue.
+    // Varispeed sits between the current player node and the mixer. A fresh one
+    // is created per track (playOnQueue:) so a track change crossfades on two
+    // independent chains without rerouting the live node; _varispeed always
+    // points at the current/incoming track's. Rate changes resample like a
+    // turntable motor: tempo and pitch move together. _pitch (percent) is
+    // guarded by _stateLock so the UI can read it without touching the queue.
     AVAudioUnitVarispeed    *_varispeed;
     float                   _pitch;
     float                   _maxPitch;
@@ -249,33 +251,44 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     _generation++;
     _rampGeneration++; // preempt any in-flight resume fade-in
 
+    // Dual-varispeed crossfade: the incoming track gets a BRAND-NEW varispeed,
+    // and the outgoing node is retired together with its OLD one. The outgoing
+    // node's live connection is therefore never rerouted — rerouting a running
+    // node reconfigures the graph and clicks (the same reason the seek path
+    // never reconnects); here we only ramp its volume. The two tracks ride
+    // independent player->varispeed->mixer chains, so the incoming's connect
+    // can't steal the outgoing's bus, and each varispeed is connected exactly
+    // once for one track's format (no cross-format reconnection — see
+    // connectNode:throughVarispeedWithFormat:).
     AVAudioPlayerNode *oldNode = _node;
-    if (oldNode) {
-        os_unfair_lock_lock(&_stateLock);
-        _node = nil;
-        os_unfair_lock_unlock(&_stateLock);
-        AVAudioFormat *oldFormat = _file.processingFormat;
-        if (_engine.isRunning && _state == VibePlayerStatePlaying && oldFormat) {
-            // Fade the old node out asynchronously and detach it when the ramp
-            // completes, so a skip doesn't block on the ~50ms fade. The node
-            // must first move onto its own mixer input: it shares the
-            // varispeed's single input bus, so the incoming track's connect
-            // would otherwise steal the bus and hard-cut the fade after the
-            // first step (the varispeed's pitch is lost for the fade's 50ms —
-            // inaudible). If the reroute fails, fall back to a hard cut.
-            @try {
-                [_engine connect:oldNode to:_engine.mainMixerNode format:oldFormat];
-                [self fadeOutStopAndDetachNode:oldNode];
-                oldNode = nil;
-            }
-            @catch (NSException *exception) {
-                LogError(@"AudioPlayer: could not reroute outgoing node for fade (%@)", exception.reason);
-            }
-        }
-        if (oldNode) {
-            // Engine idle (nothing audible) or reroute failed: hard cut.
+    AVAudioUnitVarispeed *oldVarispeed = _varispeed;
+    os_unfair_lock_lock(&_stateLock);
+    _node = nil;
+    os_unfair_lock_unlock(&_stateLock);
+
+    AVAudioUnitVarispeed *newVarispeed = [[AVAudioUnitVarispeed alloc] init];
+    [_engine attachNode:newVarispeed];
+    _varispeed = newVarispeed; // the incoming node (finishPlayOnQueue:) connects through this
+
+    AVAudioEngine *engine = _engine;
+    if (oldNode && _engine.isRunning && _state == VibePlayerStatePlaying) {
+        // Audible: fade the outgoing node out on its own varispeed, then detach
+        // both once silent. The incoming node fades in concurrently on the new
+        // varispeed (finishPlayOnQueue:) for a true crossfade.
+        [self rampNodeAsync:oldNode step:1 from:oldNode.volume to:0 generation:_rampGeneration completion:^{
             [oldNode stop];
-            [_engine detachNode:oldNode];
+            [engine detachNode:oldNode];
+            [engine detachNode:oldVarispeed];
+        }];
+    } else {
+        // Nothing audible (paused/stopped/first play): tear the old node and
+        // varispeed down immediately — at silence, so there is nothing to click.
+        if (oldNode) {
+            [oldNode stop];
+            [engine detachNode:oldNode];
+        }
+        if (oldVarispeed) {
+            [engine detachNode:oldVarispeed];
         }
     }
 
@@ -384,7 +397,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     }
 
     [self scheduleFile:file onNode:node fromFrame:0];
-    node.volume = 1.0;
+    node.volume = 0; // fade in from silence (see the ramp below)
 
     NSError *startError = nil;
     if (![self startEngineAndPlayNode:node error:&startError]) {
@@ -407,6 +420,13 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     _state = VibePlayerStatePlaying;
     os_unfair_lock_unlock(&_stateLock);
 
+    // Fade the new track in from silence: its first frame is rarely a zero
+    // crossing, so starting at full volume clicks (the same reason the seek
+    // fades in). Uses the CURRENT ramp generation — not a fresh one — so it
+    // rises in step with the outgoing track's fade-out (a real crossfade) and
+    // neither ramp cancels the other.
+    [self rampNodeAsync:node step:1 from:0 to:1.0 generation:_rampGeneration completion:nil];
+
     self.currentTrack = track;
     track.duration = self.duration;
     run_on_main_thread({
@@ -415,23 +435,16 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 }
 
 // Wires node -> varispeed -> mixer for a track's format (runs on _queue).
-// A RUNNING engine re-initializes the whole active chain on connect, and the
-// varispeed cannot initialize across a channel-count change (stereo track ->
-// mono track): AVAudioEngine throws kAudioUnitErr_FormatNotSupported (-10868)
-// as an NSException. Stopping the engine for the rewire avoids that — the
-// caller restarts it via startEngineAndPlayNode:. This costs an output-unit
-// restart (and hard-cuts a concurrent skip fade) only on mono<->stereo
-// transitions; same-channel-count connects keep the running engine. The catch
-// is the backstop for whatever formats the graph still refuses — a failed
-// connect must report, not crash. Position math is unaffected by the rate:
-// playerTimeForNodeTime: counts file frames the player node rendered, and
-// varispeed just consumes them faster or slower.
+// _varispeed is freshly created for each track (playOnQueue:) and connected
+// exactly once here, so — unlike the old shared varispeed — it never has to
+// reinitialize across a channel-count change (stereo -> mono), which used to
+// throw kAudioUnitErr_FormatNotSupported and force an engine stop on every
+// mono<->stereo transition. The catch is the backstop for whatever formats the
+// graph still refuses — a failed connect must report, not crash. Position math
+// is unaffected by the rate: playerTimeForNodeTime: counts file frames the
+// player node rendered, and varispeed just consumes them faster or slower.
 - (BOOL)connectNode:(AVAudioPlayerNode *)node throughVarispeedWithFormat:(AVAudioFormat *)format {
     @try {
-        if (_engine.isRunning
-                && [_varispeed inputFormatForBus:0].channelCount != format.channelCount) {
-            [_engine stop];
-        }
         [_engine connect:node to:_varispeed format:format];
         [_engine connect:_varispeed to:_engine.mainMixerNode format:format];
     }
@@ -632,15 +645,22 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     if (generation != _generation) {
         return; // Stale: a stop/seek/skip/device switch superseded this segment.
     }
+    [self finishPlaybackOnQueue];
+}
+
+// Shared terminus for "the current track is done" — the natural segment
+// completion above and an explicit -finishCurrentTrack both land here (on
+// _queue). Marks the player Stopped, tears the finished node down, and notifies
+// the delegate, whose handler drives auto-advance / end-of-playlist stop. The
+// engine stop is deferred so the auto-advance play (arriving within
+// milliseconds via didFinishPlaying → next) reuses the running engine instead
+// of paying an output-unit stop+start per consecutive-track transition.
+- (void)finishPlaybackOnQueue {
     os_unfair_lock_lock(&_stateLock);
     _state = VibePlayerStateStopped;
     AVAudioPlayerNode *finishedNode = _node;
     _node = nil;
     os_unfair_lock_unlock(&_stateLock);
-    // Tear down the finished node; the engine stop is deferred so the
-    // auto-advance play (arriving within milliseconds via didFinishPlaying →
-    // next) reuses the running engine instead of paying an output-unit
-    // stop+start per consecutive-track transition.
     if (finishedNode) {
         [finishedNode stop];
         [_engine detachNode:finishedNode];
@@ -654,6 +674,27 @@ static const float kDefaultMaxPitchPercent = 8.0f;
             return;
         }
         [self.delegate audioPlayer:self didFinishPlaying:track];
+    });
+}
+
+- (void)finishCurrentTrack {
+    dispatch_async(_queue, ^{
+        os_unfair_lock_lock(&self->_stateLock);
+        VibePlayerState state = self->_state;
+        os_unfair_lock_unlock(&self->_stateLock);
+        // Only a live track can finish. Stopped has nothing to do; Loading has
+        // no node yet (and the skip path never gets here while loading — its
+        // duration is 0), so treat it as a no-op too.
+        if (state != VibePlayerStatePlaying && state != VibePlayerStatePaused) {
+            return;
+        }
+        // [node stop] inside finishPlaybackOnQueue fires the scheduled
+        // completion; bump _generation so segmentDidCompleteWithGeneration:
+        // drops it, and _rampGeneration to preempt any in-flight fade — the
+        // same interruption dance seek/skip/device-switch use.
+        self->_generation++;
+        self->_rampGeneration++;
+        [self finishPlaybackOnQueue];
     });
 }
 
@@ -766,18 +807,6 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFadeStepMicroseconds * NSEC_PER_USEC)), _queue, ^{
         [weakSelf rampNodeAsync:node step:step + 1 from:start to:target generation:generation completion:completion];
     });
-}
-
-// Replacement for the old fade-out-then-free skip flow: the outgoing node
-// keeps rendering while its volume ramps, then is stopped and detached. Uses
-// the current ramp generation (the caller bumped it), so a subsequent play
-// preempts the fade but its completion still tears this node down.
-- (void)fadeOutStopAndDetachNode:(AVAudioPlayerNode *)node {
-    AVAudioEngine *engine = _engine;
-    [self rampNodeAsync:node step:1 from:node.volume to:0 generation:_rampGeneration completion:^{
-        [node stop];
-        [engine detachNode:node];
-    }];
 }
 
 #pragma mark - Properties
@@ -902,39 +931,84 @@ static const float kDefaultMaxPitchPercent = 8.0f;
         }
         double sampleRate = file.processingFormat.sampleRate;
         BOOL wasPlaying = (self->_state == VibePlayerStatePlaying);
-        self->_generation++;
-        self->_rampGeneration++; // preempt any in-flight fade
-        if (wasPlaying) {
-            // A cancelled resume fade-in leaves volume near the -60dB floor;
-            // nothing else restores it, so a seek right after resume would play
-            // on at ~3% volume. (Paused seeks keep the faded volume — the next
-            // resume ramps it back up.)
-            node.volume = 1.0;
-        }
-        [node stop];
         AVAudioFramePosition startFrame = (AVAudioFramePosition)(pos * sampleRate);
         startFrame = MAX(0, MIN(startFrame, file.length - 1));
-        [self scheduleFile:file onNode:node fromFrame:startFrame];
-        os_unfair_lock_lock(&self->_stateLock);
-        self->_segmentStartFrame = startFrame;
-        self->_pausedPosition = (NSTimeInterval)startFrame / sampleRate;
-        self->_lastValidPosition = self->_pausedPosition;
-        self->_positionEpoch++;
-        os_unfair_lock_unlock(&self->_stateLock);
-        if (wasPlaying) {
-            NSError *startError = nil;
-            if (![self startEngineAndPlayNode:node error:&startError]) {
-                // Keep the seeked position; report paused so the UI recovers.
-                os_unfair_lock_lock(&self->_stateLock);
-                self->_state = VibePlayerStatePaused;
-                os_unfair_lock_unlock(&self->_stateLock);
-                [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-                        @"Could not resume playback after seek", startError)];
-            }
+        NSTimeInterval framePosition = (NSTimeInterval)startFrame / sampleRate;
+        self->_generation++; // drop the current segment's stop-fired completion
+
+        if (!wasPlaying) {
+            // Paused: reschedule the existing (silent) node in place — no audio
+            // is rendering, so there is nothing to declick, and the next resume
+            // fades in from the seeked frame. The faded volume is kept; resume
+            // ramps it back up.
+            self->_rampGeneration++; // preempt any in-flight fade
+            [node stop];
+            [self scheduleFile:file onNode:node fromFrame:startFrame];
+            os_unfair_lock_lock(&self->_stateLock);
+            self->_segmentStartFrame = startFrame;
+            self->_pausedPosition = framePosition;
+            self->_lastValidPosition = framePosition;
+            self->_positionEpoch++;
+            os_unfair_lock_unlock(&self->_stateLock);
+            run_on_main_thread({
+                [self.delegate audioPlayer:self didFinishSeeking:track];
+            });
+            return;
         }
-        run_on_main_thread({
-            [self.delegate audioPlayer:self didFinishSeeking:track];
-        });
+
+        // Playing: declick without touching the audio graph. Reconnecting a
+        // live node (the two-node crossfade's reroute) is itself a click on a
+        // running engine, so instead fade THIS node down, reschedule it in
+        // place, and fade it back up — both the [node stop] and the new
+        // segment's start then land at silence. The reschedule is deferred into
+        // the fade-out completion (the node must stay audible through the ramp);
+        // the position state is rewritten there so the getter follows the node.
+        uint64_t rampGen = ++self->_rampGeneration;
+        __weak AudioPlayer *weakSelf = self;
+        [self rampNodeAsync:node step:1 from:node.volume to:0 generation:rampGen completion:^{
+            AudioPlayer *strongSelf = weakSelf;
+            if (!strongSelf) {
+                return;
+            }
+            // A newer seek, or a pause/track-change/stop/device-switch, bumped
+            // the ramp generation or replaced the node while this faded — that
+            // operation owns playback now, so don't reschedule underneath it.
+            if (rampGen != strongSelf->_rampGeneration || strongSelf->_node != node) {
+                return;
+            }
+            [node stop];
+            [strongSelf scheduleFile:file onNode:node fromFrame:startFrame];
+            node.volume = 0; // ramp back up from silence
+            NSError *startError = nil;
+            if (![strongSelf startEngineAndPlayNode:node error:&startError]) {
+                strongSelf->_generation++; // drop the stop-fired completion
+                // Keep the seeked frame; report paused so the UI recovers.
+                os_unfair_lock_lock(&strongSelf->_stateLock);
+                strongSelf->_segmentStartFrame = startFrame;
+                strongSelf->_pausedPosition = framePosition;
+                strongSelf->_lastValidPosition = framePosition;
+                strongSelf->_positionEpoch++;
+                strongSelf->_state = VibePlayerStatePaused;
+                os_unfair_lock_unlock(&strongSelf->_stateLock);
+                [strongSelf sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
+                        @"Could not resume playback after seek", startError)];
+                run_on_main_thread({
+                    [strongSelf.delegate audioPlayer:strongSelf didFinishSeeking:track];
+                });
+                return;
+            }
+            os_unfair_lock_lock(&strongSelf->_stateLock);
+            strongSelf->_segmentStartFrame = startFrame;
+            strongSelf->_pausedPosition = framePosition;
+            strongSelf->_lastValidPosition = framePosition;
+            strongSelf->_positionEpoch++;
+            os_unfair_lock_unlock(&strongSelf->_stateLock);
+            uint64_t fadeInGen = ++strongSelf->_rampGeneration;
+            [strongSelf rampNodeAsync:node step:1 from:0 to:1.0 generation:fadeInGen completion:nil];
+            run_on_main_thread({
+                [strongSelf.delegate audioPlayer:strongSelf didFinishSeeking:track];
+            });
+        }];
     });
 }
 

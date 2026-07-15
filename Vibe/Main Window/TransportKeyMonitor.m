@@ -64,6 +64,24 @@
         [controller togglePitchPanel:nil];
         return nil;
     }
+    // Skip seek: A/S forward 10s/30s, Z/X back 10s/30s (a 2×2 grid on the
+    // keyboard — forward on top, back below; near key = 10s, far = 30s).
+    if ([chars isEqualToString:@"a"]) {
+        [controller skipForward:nil];
+        return nil;
+    }
+    if ([chars isEqualToString:@"s"]) {
+        [controller skipForwardMore:nil];
+        return nil;
+    }
+    if ([chars isEqualToString:@"z"]) {
+        [controller skipBack:nil];
+        return nil;
+    }
+    if ([chars isEqualToString:@"x"]) {
+        [controller skipBackMore:nil];
+        return nil;
+    }
     // Tab is also a menu key equivalent (installed by MainMenuBuilder),
     // but that path only fires as a fallback after the focused view
     // declines the event — handle it here like the other bare keys.

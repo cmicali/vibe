@@ -73,6 +73,14 @@ static NSMenuItem *VibeSubmenuItem(NSMenu *parent, NSString *title) {
     [playbackMenu addItem:VibeMenuItem(@"Previous Track", @selector(previous:), player, @"b", 0, @"menu_previous_track")];
     [playbackMenu addItem:VibeMenuItem(@"Next Track", @selector(next:), player, @"n", 0, @"menu_next_track")];
     [playbackMenu addItem:[NSMenuItem separatorItem]];
+    // Bare A/S/Z/X, like the other transport keys (mask 0). Actually handled by
+    // TransportKeyMonitor; the key equivalents here are for display and as the
+    // fallback path. Enabled only with a track loaded (see the Menus category).
+    [playbackMenu addItem:VibeMenuItem(@"Skip Forward", @selector(skipForward:), player, @"a", 0, @"menu_skip_forward")];
+    [playbackMenu addItem:VibeMenuItem(@"Skip Forward More", @selector(skipForwardMore:), player, @"s", 0, @"menu_skip_forward_more")];
+    [playbackMenu addItem:VibeMenuItem(@"Skip Back", @selector(skipBack:), player, @"z", 0, @"menu_skip_back")];
+    [playbackMenu addItem:VibeMenuItem(@"Skip Back More", @selector(skipBackMore:), player, @"x", 0, @"menu_skip_back_more")];
+    [playbackMenu addItem:[NSMenuItem separatorItem]];
     NSMenu *pitchRangeMenu = [VibeSubmenuItem(playbackMenu, @"Pitch Range") submenu];
     [pitchRangeMenu addItem:VibeMenuItem(@"8%", @selector(setPitchRange:), player, @"", 0, @"pitch_range_8")];
     [pitchRangeMenu addItem:VibeMenuItem(@"16%", @selector(setPitchRange:), player, @"", 0, @"pitch_range_16")];

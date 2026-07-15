@@ -484,6 +484,52 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     [self updateUI];
 }
 
+// Skip distances, in wall-clock seconds (see skipByWallClockSeconds:).
+static const NSTimeInterval kSkipSeconds = 10.0;
+static const NSTimeInterval kSkipMoreSeconds = 30.0;
+
+- (IBAction)skipForward:(nullable id)sender {
+    [self skipByWallClockSeconds:kSkipSeconds];
+}
+
+- (IBAction)skipForwardMore:(nullable id)sender {
+    [self skipByWallClockSeconds:kSkipMoreSeconds];
+}
+
+- (IBAction)skipBack:(nullable id)sender {
+    [self skipByWallClockSeconds:-kSkipSeconds];
+}
+
+- (IBAction)skipBackMore:(nullable id)sender {
+    [self skipByWallClockSeconds:-kSkipMoreSeconds];
+}
+
+- (void)skipByWallClockSeconds:(NSTimeInterval)wallDelta {
+    if (!self.playlistManager.currentTrack) {
+        return;
+    }
+    NSTimeInterval duration = self.audioPlayer.duration;
+    if (duration <= 0) {
+        return; // Nothing seekable yet (loading, or no file open).
+    }
+    // The skip is expressed in the wall-clock seconds the user reads off the
+    // time label; convert to file time (the player's units) with the same
+    // varispeed rate the labels divide by, so a skip advances the displayed
+    // clock by exactly the stated amount at any pitch.
+    NSTimeInterval target = self.audioPlayer.position + wallDelta * self.playbackRate;
+    if (target >= duration) {
+        // Past the end: finish the track like a natural end — the delegate
+        // (didFinishPlaying:) advances to the next track, or stops at the end
+        // of the playlist.
+        [self.audioPlayer finishCurrentTrack];
+        return;
+    }
+    if (target < 0) {
+        target = 0; // Skipping before the start seeks to the beginning.
+    }
+    self.audioPlayer.position = target;
+}
+
 - (IBAction)closeApp:(id)sender {
     [self close];
 }

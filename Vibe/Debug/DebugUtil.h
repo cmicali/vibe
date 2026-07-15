@@ -46,8 +46,9 @@ void VibeInstallDebugScreenshotHook(void);
 // Commands: state (JSON dump: player/UI/playlist/window/settings),
 // viewtree (view hierarchy of every window, with frames), menu (menu tree
 // with live enabled/checkmark state), clickMenu <identifier-or-title>,
-// screenshot, playPause, next, previous, togglePitchPanel, toggleSize,
-// setPitch <percent>, seek <seconds>.
+// screenshot, playPause, next, previous, skipForward, skipForwardMore,
+// skipBack, skipBackMore, togglePitchPanel, toggleSize, setPitch <percent>,
+// seek <seconds>.
 
 // App side; call at launch. Listens on com.vibe.debug.command (main queue).
 void VibeInstallDebugCommandHook(void);
