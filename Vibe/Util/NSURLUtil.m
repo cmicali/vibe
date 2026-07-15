@@ -23,8 +23,9 @@
  includingPropertiesForKeys:@[NSURLIsDirectoryKey]
                     options:NSDirectoryEnumerationSkipsHiddenFiles | NSDirectoryEnumerationSkipsPackageDescendants
                errorHandler:^(NSURL *url, NSError *error) {
-                   // Handle the error.
-                   // Return YES if the enumeration should continue after the error.
+                   // Skip the unreadable entry/subtree but keep enumerating
+                   // the rest of the drop.
+                   LogWarn(@"Error enumerating %@: %@", url, error);
                    return YES;
                }];
     for (NSURL *url in enumerator) {
@@ -73,7 +74,15 @@
 + (NSArray<NSURL*>*) expandFileList:(NSArray<NSURL*>*)list {
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] initWithCapacity:list.count];
     for (NSURL *url in list) {
-        if (url.hasDirectoryPath) {
+        // Ask the filesystem, not the URL: hasDirectoryPath only inspects the
+        // trailing slash, so a directory URL built without isDirectory:YES
+        // (argv paths, some pasteboards) would be treated as a file and then
+        // silently dropped by the extension filter.
+        NSNumber *isDirectory = nil;
+        BOOL isDir = [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL]
+                ? isDirectory.boolValue
+                : url.hasDirectoryPath; // resource read failed; fall back to the slash
+        if (isDir) {
             [results addObjectsFromArray:[self expandDirectory:url]];
         }
         else {

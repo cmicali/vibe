@@ -4,9 +4,12 @@
 //
 
 #import "AudioWaveformCache.h"
+#import "AudioWaveform.h"
 #import "PINCache.h"
 #import "AudioTrack.h"
 #import "AVFAudioWaveformLoader.h"
+
+#include <atomic>
 
 #pragma mark - Waveform Cache
 
@@ -19,7 +22,11 @@
     dispatch_queue_t                _loaderQueue;
     PINCache*                       _waveformCache;
     __weak AudioWaveformLoader*     _currentLoader;
-    BOOL                            _normalize;
+    // Bumped by invalidate. A decode captures it when it starts and skips its
+    // disk write if it moved — decodes run on a global queue, so an in-flight
+    // one could otherwise land its setObjectAsync: after removeAllObjects and
+    // repopulate the emptied cache.
+    std::atomic<uint64_t>           _cacheGeneration;
 }
 
 - (id)init {
@@ -31,7 +38,7 @@
         // warning while stealing P-core time from playback start.
         dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
         _loaderQueue = dispatch_queue_create("AudioWaveformCache", queueAttributes);
-        _normalize = NO;
+        _cacheGeneration = 0;
         _currentLoader = nil;
         // Create the cache on the loader queue: constructing it on the main
         // thread would boost PINCache's internal init-time disk scan to
@@ -67,6 +74,7 @@
 
 - (void)invalidateWithCompletion:(dispatch_block_t)completion {
     dispatch_async(_loaderQueue, ^{
+        self->_cacheGeneration.fetch_add(1, std::memory_order_relaxed);
         [self->_waveformCache removeAllObjects];
         if (completion) {
             completion();
@@ -85,6 +93,10 @@
 
 - (void)load:(AudioTrack *)track withLoader:(AudioWaveformLoader *)loader {
     NSString *cacheKey = track.cacheKey;
+    // Captured now, not read back at delivery: the BPM delivery carries the
+    // URL this waveform was loaded for, so a final delivery that lands after
+    // a track change can't be stamped on whatever track is current by then.
+    NSURL *url = track.url;
     CodableAudioWaveform *cachedWaveform = nil;
     if (WAVEFORM_CACHE_ENABLED) {
         cachedWaveform = (CodableAudioWaveform *)[self->_waveformCache.diskCache objectForKey:cacheKey];
@@ -98,7 +110,7 @@
         }
     }
     if (cachedWaveform) {
-        [self deliverCompleteWaveform:cachedWaveform loader:loader];
+        [self deliverCompleteWaveform:cachedWaveform loader:loader url:url];
         return;
     }
     if (loader.isCancelled) {
@@ -112,7 +124,7 @@
     // one global-queue worker instead of the pipeline. Overlap is bounded: a
     // superseded loader aborts at its next chunk check.
     PINCache *cache = _waveformCache; // snapshot: the ivar is confined to _loaderQueue
-    BOOL normalize = _normalize;
+    uint64_t generation = _cacheGeneration.load(std::memory_order_relaxed);
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         CodableAudioWaveform *waveform = [loader load:track.url.path];
         if (!waveform || !loader.isComplete) {
@@ -120,15 +132,16 @@
             // the last in-flight callback reported.
             return;
         }
-        if (normalize) {
-            waveform.waveform->normalize();
-        }
-        if (WAVEFORM_CACHE_ENABLED) {
+        if (WAVEFORM_CACHE_ENABLED &&
+            generation == self->_cacheGeneration.load(std::memory_order_relaxed)) {
             // Cache even when cancelled — a completed decode is worth keeping
-            // for the next play of this track.
+            // for the next play of this track. Skipped when an invalidate
+            // arrived after this decode started: the write would repopulate
+            // the just-emptied cache. The delivery below is still valid
+            // either way — the waveform itself is fine, only the persist is.
             [cache.diskCache setObjectAsync:waveform forKey:cacheKey completion:nil];
         }
-        [self deliverCompleteWaveform:waveform loader:loader];
+        [self deliverCompleteWaveform:waveform loader:loader url:url];
     });
 }
 
@@ -136,7 +149,7 @@
 // delegate). The waveform is captured strongly so the C++ buffer stays valid
 // when the block runs; cancellation is re-checked on the main thread because
 // a cancel (new track selected) may land after the block is enqueued.
-- (void)deliverCompleteWaveform:(CodableAudioWaveform *)waveform loader:(AudioWaveformLoader *)loader {
+- (void)deliverCompleteWaveform:(CodableAudioWaveform *)waveform loader:(AudioWaveformLoader *)loader url:(NSURL *)url {
     if (loader.isCancelled) {
         return;
     }
@@ -146,8 +159,8 @@
             // BPM is computed at the end of the decode pass (or carried by a
             // cache hit), so it only ever exists on this final delivery.
             if (waveform.bpm > 0 &&
-                [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectBPM:)]) {
-                [self.delegate audioWaveformCache:self didDetectBPM:waveform.bpm];
+                [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectBPM:forURL:)]) {
+                [self.delegate audioWaveformCache:self didDetectBPM:waveform.bpm forURL:url];
             }
         }
     });

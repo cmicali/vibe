@@ -257,6 +257,12 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
 }
 
 - (void)reloadTrackInRange:(NSRange)range {
+    // Clamp against the table like reloadTrackAtIndex: guards its index —
+    // next/previous reload a two-row window that can extend past the end.
+    range = NSIntersectionRange(range, NSMakeRange(0, (NSUInteger)self.tableView.numberOfRows));
+    if (range.length == 0) {
+        return;
+    }
     [self.tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndexesInRange:range] columnIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, (NSUInteger)self.tableView.numberOfColumns)]];
 }
 
@@ -287,7 +293,10 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
     NSUInteger previousIndex = self.currentIndex;
     self.currentIndex = (NSUInteger) [_tableView clickedRow];
     [self play];
+    // Reload both rows: the clicked row must show its playing state now, not
+    // after the async didStartPlaying round-trip.
     [self reloadTrackAtIndex:previousIndex];
+    [self reloadTrackAtIndex:self.currentIndex];
 }
 
 - (NSUInteger)count {

@@ -50,9 +50,13 @@ typedef NS_ENUM(NSInteger, NowPlayingPlaybackState) {
 - (instancetype)initWithDelegate:(id<NowPlayingControllerDelegate>)delegate;
 
 // Publishes the current track's metadata, artwork, and playback timing/state.
-// A nil track clears the now-playing info (nothing loaded). Cheap enough to
-// call on every transport event and metadata/artwork delivery; artwork is read
-// non-blocking (already-decoded art only) so it's safe on the main thread.
+// A nil track clears the now-playing info (nothing loaded) — but only after
+// something has been published: before the first track plays a nil update is
+// a no-op, so Vibe never claims the system Now Playing slot at launch.
+// Cheap enough to call on every transport event and metadata/artwork
+// delivery: a dirty check skips the republish when nothing changed, and
+// artwork is read non-blocking (already-decoded art only) so it's safe on
+// the main thread.
 - (void)updateWithTrack:(nullable AudioTrack *)track
                position:(NSTimeInterval)position
                duration:(NSTimeInterval)duration

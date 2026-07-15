@@ -7,9 +7,9 @@
 
 #if DEBUG
 
-// The implementation is ObjC++ (DebugUtil.mm) but the callers (main.m,
-// AppDelegate.m) are plain ObjC — without C linkage the definitions get
-// C++-mangled names and the link fails.
+// The implementation (DebugUtil.m) and callers (main.m, AppDelegate.m) are
+// plain ObjC today; the C-linkage guard stays so an ObjC++ importer would
+// still agree with them on the unmangled names.
 #ifdef __cplusplus
 extern "C" {
 #endif

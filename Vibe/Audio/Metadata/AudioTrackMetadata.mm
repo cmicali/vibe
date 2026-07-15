@@ -45,11 +45,14 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     return image;
 }
 
+#include <exception>
 #include <memory>
 #include <tfilestream.h>
 #include <tpropertymap.h>
 #include <mpegfile.h>
+#include <mpegproperties.h>
 #include <mp4file.h>
+#include <mp4properties.h>
 #include <flacfile.h>
 #include <id3v2tag.h>
 #include <attachedpictureframe.h>
@@ -122,6 +125,8 @@ private:
 };
 
 } // namespace
+
+static NSString *fileTypeForTagLibFile(TagLib::File *file);
 
 @implementation AudioTrackMetadata {
     NSImage *_thumbnailAlbumArt;
@@ -342,6 +347,9 @@ private:
                                 kThumbnailDimension / originalSize.height);
             NSSize target = NSMakeSize(MAX(1.0, round(originalSize.width * scale)),
                                        MAX(1.0, round(originalSize.height * scale)));
+            // nil on bitmap/context allocation failure: store nothing (never
+            // the full-size image — pinning it defeats the thumbnail's memory
+            // point). _albumArt is still set, so the next access retries.
             thumbnail = [imageToScale resizedImage:target];
         }
     }
@@ -439,7 +447,26 @@ private:
     if (!thumbnail) {
         return nil;
     }
-    NSBitmapImageRep *rep = [NSBitmapImageRep imageRepWithData:thumbnail.TIFFRepresentation];
+    // The thumbnail is either CGImage-backed (VibeDecodeImageData) or already
+    // carries an NSBitmapImageRep (the resizedImage: fallback) — no need for
+    // the TIFFRepresentation round-trip (encode → decode → encode) to reach
+    // JPEG.
+    NSBitmapImageRep *rep = nil;
+    for (NSImageRep *candidate in thumbnail.representations) {
+        if ([candidate isKindOfClass:[NSBitmapImageRep class]]) {
+            rep = (NSBitmapImageRep *)candidate;
+            break;
+        }
+    }
+    if (!rep) {
+        // CGImageForProposedRect returns the backing CGImage directly for
+        // CGImage-backed reps (and rasterizes anything else).
+        CGImageRef cgImage = [thumbnail CGImageForProposedRect:NULL context:nil hints:nil];
+        if (!cgImage) {
+            return nil;
+        }
+        rep = [[NSBitmapImageRep alloc] initWithCGImage:cgImage];
+    }
     return [rep representationUsingType:NSBitmapImageFileTypeJPEG
                              properties:@{NSImageCompressionFactor: @0.85}];
 }
@@ -458,78 +485,114 @@ private:
 
 - (void)loadFromURL:(NSURL*)url {
 
-    const char *filename = [url.path UTF8String];
-
-    TagLibAudioFile fileRef(filename);
-
     _sourceFilePath = url.path;
     self.title = [url.path.lastPathComponent stringByDeletingPathExtension];
     self.title = [self.title stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 
-    if (!fileRef.isNull()) {
-        if (fileRef.tag()) {
+    // C++ exception barrier: a corrupt tag declaring a huge frame size can
+    // make TagLib throw (std::bad_alloc, std::length_error), and this runs on
+    // an NSOperationQueue worker where an uncaught C++ exception is
+    // std::terminate. Catch here — the outermost ObjC-facing boundary — so a
+    // malformed file degrades to a failed parse (_parsedOK stays NO, nothing
+    // is cached) instead of unwinding into ObjC frames.
+    try {
+        TagLibAudioFile fileRef([url.path UTF8String]);
+        if (fileRef.isNull()) {
+            return;
+        }
 
-            TagLib::Tag *tag = fileRef.tag();
+        TagLib::File *file = fileRef.file();
 
-            self.fileType = @"";
-
+        // Artist/title are the only tag-derived fields; everything below
+        // (audio properties, fileType, art) comes from the file itself, so a
+        // valid tagless file still parses OK with the filename-derived title.
+        if (TagLib::Tag *tag = fileRef.tag()) {
             NSString *tagArtist = [[NSString stringWithstring:tag->artist().to8Bit(true)] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
             NSString *tagTitle = [[NSString stringWithstring:tag->title().to8Bit(true)] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
             if (tagArtist.length > 0) self.artist = tagArtist;
             if (tagTitle.length > 0) self.title = tagTitle;
-
-            TagLib::File *file = fileRef.file();
-
-            auto props = file->audioProperties();
-
-            if (props) {
-                self.duration = static_cast<NSTimeInterval>(props->lengthInMilliseconds()) / 1000;
-                self.bitrate = @(props->bitrate());
-                self.sampleRate = @(props->sampleRate());
-            }
-
-            // TagLib's PropertyMap normalizes every format's tempo tag (ID3
-            // TBPM, MP4 tmpo, Vorbis/FLAC BPM) to the "BPM" key.
-            TagLib::StringList bpmValues = file->properties()["BPM"];
-            if (!bpmValues.isEmpty()) {
-                float tagBPM = [NSString stringWithstring:bpmValues.front().to8Bit(true)].floatValue;
-                if (isfinite(tagBPM) && tagBPM > 0 && tagBPM < 1000) {
-                    self.bpm = tagBPM;
-                }
-            }
-
-            _albumArtData = [self readFileTypeAndAlbumArtFromTagLibFile:file];
-            _albumArtExtractionAttempted = YES;
-            // TagLib opened the file and read its tag — this is real metadata,
-            // safe to persist. A null FileRef (dataless cloud placeholder,
-            // transient I/O error) leaves this NO so loadOneTrack won't cache
-            // the filename-only fallback and shadow the real tags for months.
-            _parsedOK = YES;
         }
+
+        if (auto props = file->audioProperties()) {
+            self.duration = static_cast<NSTimeInterval>(props->lengthInMilliseconds()) / 1000;
+            self.bitrate = @(props->bitrate());
+            self.sampleRate = @(props->sampleRate());
+        }
+
+        // TagLib's PropertyMap normalizes every format's tempo tag (ID3
+        // TBPM, MP4 tmpo, Vorbis/FLAC BPM) to the "BPM" key.
+        TagLib::StringList bpmValues = file->properties()["BPM"];
+        if (!bpmValues.isEmpty()) {
+            float tagBPM = [NSString stringWithstring:bpmValues.front().to8Bit(true)].floatValue;
+            if (isfinite(tagBPM) && tagBPM > 0 && tagBPM < 1000) {
+                self.bpm = tagBPM;
+            }
+        }
+
+        self.fileType = fileTypeForTagLibFile(file);
+        _albumArtData = [self albumArtDataFromTagLibFile:file];
+        _albumArtExtractionAttempted = YES;
+        // TagLib opened and recognized the file — this is real metadata, safe
+        // to persist. A null FileRef (dataless cloud placeholder, transient
+        // I/O error) leaves this NO so loadOneTrack won't cache the
+        // filename-only fallback and shadow the real tags for months.
+        _parsedOK = YES;
+    }
+    catch (const std::exception &e) {
+        LogError(@"TagLib parse failed for %@: %s", url.path, e.what());
+    }
+    catch (...) {
+        LogError(@"TagLib parse failed for %@", url.path);
     }
 }
 
-// Sets fileType as a side effect of the format dispatch; returns the raw
-// compressed art bytes (nil when the file has none).
-- (NSData *)readFileTypeAndAlbumArtFromTagLibFile:(TagLib::File *)file {
+// Codec label for the format dispatch. Free function (not a method) so it
+// can't touch instance state: the on-demand art re-read shares the dispatch
+// and must never mutate the displayed fileType.
+static NSString *fileTypeForTagLibFile(TagLib::File *file) {
+    if (auto mpeg = dynamic_cast<TagLib::MPEG::File*>(file)) {
+        // .mp2/.aac open as MPEG::File too — the header distinguishes them
+        // (ADTS is AAC; layer 2 is MP2; layer 3 is MP3).
+        if (auto props = mpeg->audioProperties()) {
+            if (props->isADTS()) return FILETYPE_AAC;
+            if (props->layer() == 2) return FILETYPE_MP2;
+        }
+        return FILETYPE_MP3;
+    }
+    if (dynamic_cast<TagLib::FLAC::File*>(file)) {
+        return FILETYPE_FLAC;
+    }
+    if (auto mp4 = dynamic_cast<TagLib::MP4::File*>(file)) {
+        auto props = mp4->audioProperties();
+        if (props && props->codec() == TagLib::MP4::Properties::ALAC) {
+            return FILETYPE_ALAC;
+        }
+        return FILETYPE_MP4;
+    }
+    if (dynamic_cast<TagLib::RIFF::AIFF::File*>(file)) {
+        return FILETYPE_AIFF;
+    }
+    if (dynamic_cast<TagLib::RIFF::WAV::File*>(file)) {
+        return FILETYPE_WAV;
+    }
+    return nil;
+}
+
+// Raw compressed art bytes (nil when the file has none).
+- (NSData *)albumArtDataFromTagLibFile:(TagLib::File *)file {
     if (auto mp3 = dynamic_cast<TagLib::MPEG::File*>(file)) {
-        self.fileType = FILETYPE_MP3;
         return [self getAlbumArtMP3:mp3];
     }
     else if (auto flac = dynamic_cast<TagLib::FLAC::File*>(file)) {
-        self.fileType = FILETYPE_FLAC;
         return [self getAlbumArtFLAC:flac];
     }
     else if (auto mp4 = dynamic_cast<TagLib::MP4::File*>(file)) {
-        self.fileType = FILETYPE_MP4;
         return [self getAlbumArtMP4:mp4];
     }
     else if (auto aiff = dynamic_cast<TagLib::RIFF::AIFF::File*>(file)) {
-        self.fileType = FILETYPE_AIFF;
         return [self getAlbumArtAIFF:aiff];
     }
     else if (auto wav = dynamic_cast<TagLib::RIFF::WAV::File*>(file)) {
-        self.fileType = FILETYPE_WAV;
         return [self getAlbumArtWAV:wav];
     }
     return nil;
@@ -540,17 +603,28 @@ private:
     if (!path) {
         return nil;
     }
-    TagLibAudioFile fileRef([path UTF8String]);
-    if (fileRef.isNull()) {
-        return nil;
+    // Same barrier as loadFromURL: — this runs on a background art load and a
+    // TagLib throw would terminate the process. A throw here just means no
+    // art.
+    try {
+        TagLibAudioFile fileRef([path UTF8String]);
+        if (fileRef.isNull()) {
+            return nil;
+        }
+        return [self albumArtDataFromTagLibFile:fileRef.file()];
     }
-    return [self readFileTypeAndAlbumArtFromTagLibFile:fileRef.file()];
+    catch (const std::exception &e) {
+        LogError(@"TagLib art extraction failed for %@: %s", path, e.what());
+    }
+    catch (...) {
+        LogError(@"TagLib art extraction failed for %@", path);
+    }
+    return nil;
 }
 
 - (bool)isLossless {
-    if ([FILETYPE_MP3 isEqualToString:self.fileType]) return NO;
     if ([FILETYPE_FLAC isEqualToString:self.fileType]) return YES;
-    if ([FILETYPE_MP4 isEqualToString:self.fileType]) return NO;
+    if ([FILETYPE_ALAC isEqualToString:self.fileType]) return YES;
     if ([FILETYPE_AIFF isEqualToString:self.fileType]) return YES;
     if ([FILETYPE_WAV isEqualToString:self.fileType]) return YES;
     return NO;

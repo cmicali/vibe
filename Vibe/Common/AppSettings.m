@@ -72,7 +72,7 @@
 }
 
 - (void)setWindowAppearanceStyle:(NSString *)name {
-    [[NSUserDefaults standardUserDefaults] setValue:name forKey:SETTING_WINDOW_APPEARANCE_STYLE];
+    [[NSUserDefaults standardUserDefaults] setObject:name forKey:SETTING_WINDOW_APPEARANCE_STYLE];
 }
 
 - (NSAppearance *)windowAppearance {
@@ -95,7 +95,7 @@
 }
 
 - (void)setWaveformStyle:(NSString *)name {
-    [[NSUserDefaults standardUserDefaults] setValue:name forKey:SETTING_WAVEFORM_STYLE];
+    [[NSUserDefaults standardUserDefaults] setObject:name forKey:SETTING_WAVEFORM_STYLE];
 }
 
 - (BOOL)isPitchPanelShown {

@@ -3,8 +3,9 @@
 //  Vibe
 //
 //  Streaming tempo estimator fed by the waveform loader's decode pass, so BPM
-//  detection never costs a second full-file read. Feed interleaved float32
-//  buffers in file order, then call finish once at end of file.
+//  detection never costs a second full-file read. Feed mono float32 buffers
+//  in file order (the loader downmixes each decode buffer once and shares it
+//  with the waveform chunker), then call finish once at end of file.
 //
 //  Method: a spectral-flux onset-strength envelope (vDSP FFT, 1024-sample
 //  frames, 256 hop) accumulated during streaming; finish() detrends the
@@ -22,10 +23,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioBPMAnalyzer : NSObject
 
-- (instancetype)initWithSampleRate:(double)sampleRate channelCount:(NSUInteger)channelCount;
+- (instancetype)initWithSampleRate:(double)sampleRate;
 
-// Interleaved float32 (L0 R0 L1 R1 ...), any frame count per call.
-- (void)appendSamples:(const float *)samples frameCount:(NSUInteger)frameCount;
+// Mono float32 (see AudioWaveformMonoMix), any frame count per call.
+- (void)appendMonoSamples:(const float *)samples frameCount:(NSUInteger)frameCount;
 
 // Estimated tempo in BPM, or 0 if undetectable. Call once, after all samples.
 - (float)finish;

@@ -56,7 +56,8 @@ static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
 // really ends.
 static const NSTimeInterval kEngineIdleStopDelaySeconds = 2.0;
 
-// 50ms multiplicative (perceptually log, like BASS_SLIDE_LOG) volume ramps.
+// 25ms (10 steps x 2.5ms) multiplicative (perceptually log, like
+// BASS_SLIDE_LOG) volume ramps.
 // Step delay in microseconds, fed to dispatch_after via NSEC_PER_USEC.
 static const int kFadeSteps = 10;
 static const uint64_t kFadeStepMicroseconds = 2500;
@@ -73,6 +74,11 @@ static float VibeFadeVolume(float from, float to, int step) {
 
 // Default pitch fader range in percent (±8%, matching a stock SL-1200).
 static const float kDefaultMaxPitchPercent = 8.0f;
+
+// Queue-specific key marking _queue, so dealloc can tell whether it is
+// already running ON the queue (a queued block dropping the last reference)
+// — dispatch_sync onto the current queue deadlocks.
+static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 @interface AudioPlayer () <AudioDeviceManagerObserver>
 @end
@@ -139,7 +145,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
     VibePlayerState         _state;
     os_unfair_lock          _stateLock;
     // A pause fade is in flight (queue-confined). A second playPause during
-    // the ~50ms fade-out cancels the pending pause and ramps back up instead
+    // the ~25ms fade-out cancels the pending pause and ramps back up instead
     // of pausing twice; cleared unconditionally by the fade's completion
     // (which runs on preemption too), so it can't go stale.
     BOOL                    _pausePending;
@@ -168,6 +174,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
         // scheduling here staying at Default costs nothing perceptible.
         _queue = dispatch_queue_create("com.vibe.audioplayer",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
+        dispatch_queue_set_specific(_queue, kAudioPlayerQueueKey, kAudioPlayerQueueKey, NULL);
         self.delegate = delegate;
         dispatch_async(_queue, ^{
 
@@ -235,8 +242,25 @@ static const float kDefaultMaxPitchPercent = 8.0f;
         [[NSNotificationCenter defaultCenter] removeObserver:_configChangeObserver];
     }
     [[AudioDeviceManager sharedInstance] removeObserver:self];
-    [_node stop];
-    [_engine stop];
+    // Engine mutation belongs on _queue like everywhere else. dispatch_sync
+    // from here cannot deadlock against in-flight queue work: a queued block
+    // either holds a strongSelf (then the retain count is nonzero and dealloc
+    // isn't running) or resolves its weakSelf to nil and returns without
+    // dispatching anywhere (run_on_main_thread is async besides). The one
+    // remaining hazard is dealloc itself running ON _queue — a queued block
+    // releasing the last reference — so that case tears down inline.
+    AVAudioPlayerNode *node = _node;
+    AVAudioEngine *engine = _engine;
+    if (dispatch_get_specific(kAudioPlayerQueueKey) == kAudioPlayerQueueKey) {
+        [node stop];
+        [engine stop];
+    }
+    else {
+        dispatch_sync(_queue, ^{
+            [node stop];
+            [engine stop];
+        });
+    }
 }
 
 #pragma mark - Playback
@@ -248,6 +272,21 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 }
 
 - (void)playOnQueue:(AudioTrack *)track {
+    NSString *path = track.url.path;
+    if (_state == VibePlayerStateLoading && [path isEqualToString:_currentOpenPath]) {
+        // This exact file is already loading (its open is in flight). Don't
+        // start another open — that would strand a second blocked worker and
+        // (for a slow file) flash a spurious timeout error before the first
+        // completes. But DO rebind the delivery to the new track object: a
+        // re-drop replaces the playlist with fresh AudioTrack instances, and
+        // completing with the old one would orphan the open's result.
+        // Checked before ANY teardown so a re-click of the loading row is a
+        // true no-op — not a generation bump plus a varispeed swap whose
+        // in-flight open then plays through a needlessly rebuilt chain.
+        _pendingOpenTrack = track;
+        return;
+    }
+
     _generation++;
     _rampGeneration++; // preempt any in-flight resume fade-in
 
@@ -294,19 +333,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 
     self.currentTrack = nil;
 
-    LogDebug(@"play file: %@", track.url.path);
-
-    NSString *path = track.url.path;
-    if (_state == VibePlayerStateLoading && [path isEqualToString:_currentOpenPath]) {
-        // This exact file is already loading (its open is in flight). Don't
-        // start another open — that would strand a second blocked worker and
-        // (for a slow file) flash a spurious timeout error before the first
-        // completes. But DO rebind the delivery to the new track object: a
-        // re-drop replaces the playlist with fresh AudioTrack instances, and
-        // completing with the old one would orphan the open's result.
-        _pendingOpenTrack = track;
-        return;
-    }
+    LogDebug(@"play file: %@", path);
 
     // Enter the loading state: no node/file yet, but a play is committed. This
     // clears the previous track's file/position so the UI stops showing stale
@@ -721,7 +748,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
                 return;
             }
             uint64_t rampGen = ++self->_rampGeneration; // cancel any in-flight resume fade-in
-            // Fade out asynchronously (the queue must not block ~50ms — a
+            // Fade out asynchronously (the queue must not block ~25ms — a
             // skip or seek issued right behind a pause used to stall on the
             // old synchronous ramp), then pause in the completion. State stays
             // Playing through the fade: the node really is still rendering.
@@ -735,8 +762,15 @@ static const float kDefaultMaxPitchPercent = 8.0f;
                 // Runs on _queue, and runs in every case (preemption included),
                 // so the pending flag can be cleared unconditionally.
                 strongSelf->_pausePending = NO;
-                if (strongSelf->_node != node || strongSelf->_state != VibePlayerStatePlaying) {
-                    return; // A play/stop/device switch superseded the pause.
+                // A preempted ramp still reaches this completion (see
+                // rampNodeAsync:), so the node/state checks alone aren't
+                // enough: the cancel-pause ramp-up and a seek's own fade both
+                // bump _rampGeneration but leave node and state untouched, and
+                // pausing under them would fight the operation that now owns
+                // volume and state.
+                if (rampGen != strongSelf->_rampGeneration
+                        || strongSelf->_node != node || strongSelf->_state != VibePlayerStatePlaying) {
+                    return; // A play/stop/seek/device switch superseded the pause.
                 }
                 [strongSelf completePauseOfNode:node];
             }];
@@ -970,14 +1004,53 @@ static const float kDefaultMaxPitchPercent = 8.0f;
             if (!strongSelf) {
                 return;
             }
-            // A newer seek, or a pause/track-change/stop/device-switch, bumped
-            // the ramp generation or replaced the node while this faded — that
-            // operation owns playback now, so don't reschedule underneath it.
-            if (rampGen != strongSelf->_rampGeneration || strongSelf->_node != node) {
+            if (strongSelf->_node != node) {
+                // A new play/track-change/stop/device-switch replaced the node
+                // while this faded — that operation owns playback and this
+                // seek's target is moot. The seek is dropped, but the request
+                // still settles the UI: the header promises didFinishSeeking:
+                // for every seek request (Control Center resyncs off it).
+                run_on_main_thread({
+                    [strongSelf.delegate audioPlayer:strongSelf didFinishSeeking:track];
+                });
                 return;
             }
+            // Same node, but a pause (or its cancel, or a newer seek) bumped
+            // the ramp generation mid-fade: the reschedule below still lands —
+            // the user asked for this position — but the preemptor owns volume
+            // and _state, so neither is touched on this path.
+            BOOL preempted = (rampGen != strongSelf->_rampGeneration);
+            // [node stop] fires the completion of whatever segment is
+            // scheduled RIGHT NOW — which, after a preempted seek's own
+            // reschedule, can carry the current generation, not the one this
+            // seek's entry bump retired. Re-bump immediately before the stop
+            // or that completion reads as current and "finishes" the track.
+            strongSelf->_generation++;
             [node stop];
             [strongSelf scheduleFile:file onNode:node fromFrame:startFrame];
+            if (preempted) {
+                os_unfair_lock_lock(&strongSelf->_stateLock);
+                strongSelf->_segmentStartFrame = startFrame;
+                strongSelf->_pausedPosition = framePosition;
+                strongSelf->_lastValidPosition = framePosition;
+                strongSelf->_positionEpoch++;
+                BOOL stillPlaying = (strongSelf->_state == VibePlayerStatePlaying);
+                os_unfair_lock_unlock(&strongSelf->_stateLock);
+                if (stillPlaying) {
+                    // Mid-pause-fade the state is still Playing (the pause
+                    // completion hasn't landed, and won't if it gets
+                    // cancelled): restart the node so a cancelled pause isn't
+                    // left with a stopped node behind a Playing state. Volume
+                    // stays wherever the preemptor's ramp has it — that ramp
+                    // keeps stepping, and a completing pause finds the node
+                    // where completePauseOfNode: expects it.
+                    [strongSelf startEngineAndPlayNode:node error:NULL];
+                }
+                run_on_main_thread({
+                    [strongSelf.delegate audioPlayer:strongSelf didFinishSeeking:track];
+                });
+                return;
+            }
             node.volume = 0; // ramp back up from silence
             NSError *startError = nil;
             if (![strongSelf startEngineAndPlayNode:node error:&startError]) {
@@ -1214,7 +1287,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
         // Preserve the pause-fade invariant: a Paused track sits at volume 0
         // so the next resume ramps it back up (see setPosition:). Restoring
         // at 1.0 would make that resume start instantly at full volume
-        // mid-waveform — the click the 50ms ramp exists to prevent.
+        // mid-waveform — the click the 25ms ramp exists to prevent.
         node.volume = wasPlaying ? 1.0 : 0;
         os_unfair_lock_lock(&_stateLock);
         _node = node;

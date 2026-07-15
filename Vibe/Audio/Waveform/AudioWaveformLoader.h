@@ -4,10 +4,13 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "AudioWaveform.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Kept a forward declaration (its header defines C++ classes): importing
+// AudioWaveform.h here would force every transitive importer to compile as
+// ObjC++ (same pattern as AudioWaveformCache.h).
+@class CodableAudioWaveform;
 @protocol AudioWaveformLoaderDelegate;
 
 @interface AudioWaveformLoader : NSObject

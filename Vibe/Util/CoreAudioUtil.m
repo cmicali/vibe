@@ -8,36 +8,6 @@
 
 @implementation CoreAudioUtil
 
-+ (AudioDeviceID) audioDeviceIDforUID:(NSString *)deviceUid {
-    CFStringRef uid = (__bridge CFStringRef)deviceUid;
-
-    AudioObjectPropertyAddress property_address = {
-            kAudioHardwarePropertyDevices,
-            kAudioObjectPropertyScopeGlobal,
-            kAudioObjectPropertyElementMain
-    };
-    AudioDeviceID audio_device_id = kAudioObjectUnknown;
-    UInt32 device_size = sizeof(audio_device_id);
-    OSStatus result = -1;
-
-    AudioValueTranslation value;
-    value.mInputData = &uid;
-    value.mInputDataSize = sizeof(CFStringRef);
-    value.mOutputData = &audio_device_id;
-    value.mOutputDataSize = device_size;
-    UInt32 translation_size = sizeof(AudioValueTranslation);
-
-    property_address.mSelector = kAudioHardwarePropertyDeviceForUID;
-    result = AudioObjectGetPropertyData(kAudioObjectSystemObject,
-            &property_address,
-            0,
-            0,
-            &translation_size,
-            &value);
-
-    return audio_device_id;
-}
-
 + (AudioDeviceID)systemDefaultOutputDeviceID {
     AudioObjectPropertyAddress addr = {
             kAudioHardwarePropertyDefaultOutputDevice,

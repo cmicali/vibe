@@ -7,9 +7,15 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Rendered verbatim in the codec label ("<fileType> | <bitrate> | <kHz>").
+// MP2/AAC are MPEG streams distinguished by layer/ADTS; ALAC is the lossless
+// codec inside an MP4 container (plain FILETYPE_MP4 is AAC-in-MP4).
 #define FILETYPE_MP3    @"MP3"
+#define FILETYPE_MP2    @"MP2"
+#define FILETYPE_AAC    @"AAC"
 #define FILETYPE_FLAC   @"FLAC"
 #define FILETYPE_MP4    @"MP4"
+#define FILETYPE_ALAC   @"ALAC"
 #define FILETYPE_AIFF   @"AIFF"
 #define FILETYPE_WAV    @"WAV"
 

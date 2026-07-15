@@ -8,8 +8,6 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 
-#define METADATA_CACHE_ENABLED 1
-
 @interface AudioTrackMetadataLoader : NSObject
 
 @property (atomic) BOOL isCancelled;
@@ -82,23 +80,20 @@
         return;
     }
     NSString *cacheKey = track.cacheKey;
-    AudioTrackMetadata *cachedMetaData = nil;
-    if (METADATA_CACHE_ENABLED) {
-        // Read through the disk cache directly, bypassing PINMemoryCache: on
-        // macOS the memory cache never evicts (its pressure hooks are iOS-only
-        // and disk hits repopulate it at cost 0), so every track ever loaded —
-        // decoded thumbnail included — would stay pinned for the age limit even
-        // after its playlist is gone. The playlist's AudioTrack objects retain
-        // the live metadata; a re-drop pays a ~10KB unarchive per track.
-        cachedMetaData = (AudioTrackMetadata *)[_metadataCache.diskCache objectForKey:cacheKey];
-        // PINCache unarchives without secure coding, so a tampered entry with a
-        // different root class decodes cleanly and bypasses initWithCoder:'s
-        // field validation entirely. A wrong-class object would crash on first
-        // use (unrecognized selector) on every launch — evict it instead.
-        if (cachedMetaData && ![cachedMetaData isKindOfClass:[AudioTrackMetadata class]]) {
-            [_metadataCache.diskCache removeObjectForKey:cacheKey];
-            cachedMetaData = nil;
-        }
+    // Read through the disk cache directly, bypassing PINMemoryCache: on
+    // macOS the memory cache never evicts (its pressure hooks are iOS-only
+    // and disk hits repopulate it at cost 0), so every track ever loaded —
+    // decoded thumbnail included — would stay pinned for the age limit even
+    // after its playlist is gone. The playlist's AudioTrack objects retain
+    // the live metadata; a re-drop pays a ~10KB unarchive per track.
+    AudioTrackMetadata *cachedMetaData = (AudioTrackMetadata *)[_metadataCache.diskCache objectForKey:cacheKey];
+    // PINCache unarchives without secure coding, so a tampered entry with a
+    // different root class decodes cleanly and bypasses initWithCoder:'s
+    // field validation entirely. A wrong-class object would crash on first
+    // use (unrecognized selector) on every launch — evict it instead.
+    if (cachedMetaData && ![cachedMetaData isKindOfClass:[AudioTrackMetadata class]]) {
+        [_metadataCache.diskCache removeObjectForKey:cacheKey];
+        cachedMetaData = nil;
     }
     if (cachedMetaData) {
         // Pre-warm the playlist-cell thumbnail BEFORE publishing the metadata:
@@ -127,7 +122,7 @@
         if (metadata.parsedOK || !track.metadata.parsedOK) {
             track.metadata = metadata;
         }
-        if (METADATA_CACHE_ENABLED && metadata.parsedOK && !self.isCancelled) {
+        if (metadata.parsedOK && !self.isCancelled) {
             // Skip failed parses (dataless cloud file, transient I/O error):
             // caching the filename-only fallback would shadow the real tags
             // until the size+mtime cache key changes (up to the 6-month limit).
@@ -185,11 +180,14 @@
         // begins), so the cache is always ready by first use; the loader
         // tolerates a nil cache regardless.
         dispatch_async(_cacheQueue, ^{
-            // v3: archives only the JPEG thumbnail + scalar fields
-            // (~10KB/track). Earlier formats stored art at original size,
-            // which overflowed the byte limit and turned every launch into a
-            // full library re-parse.
-            PINCache *cache = [[PINCache alloc] initWithName:@"Audio Track Metadata v3"];
+            // v4: fileType relabeled (ADTS AAC / MP2 no longer show as MP3,
+            // ALAC no longer shows as MP4) — persisted labels from v3 would
+            // stay wrong until the size+mtime cache key changed. v3 shrank
+            // the archive to the JPEG thumbnail + scalar fields (~10KB/track);
+            // earlier formats stored art at original size, which overflowed
+            // the byte limit and turned every launch into a full library
+            // re-parse.
+            PINCache *cache = [[PINCache alloc] initWithName:@"Audio Track Metadata v4"];
             cache.diskCache.byteLimit = 64 * 1024 * 1024;
             cache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
             // The memory cache is deliberately unused (loadOneTrack reads and
@@ -197,9 +195,6 @@
             // — costLimit needs per-entry costs (and disk hits repopulate at
             // cost 0) and its memory-pressure hooks are iOS-only — so it would
             // pin every loaded track's metadata + thumbnail indefinitely.
-            if (!METADATA_CACHE_ENABLED) {
-                [cache removeAllObjects];
-            }
             self.metadataCache = cache;
         });
     }

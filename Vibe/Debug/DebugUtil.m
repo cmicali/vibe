@@ -484,7 +484,7 @@ static NSString *VibeExecuteDebugCommand(NSString *commandLine) {
         }
         return VibeJSONString(@{
             @"ok": @YES,
-            @"cleared": @[@"Audio Track Metadata v3", @"audio_waveform_cache_v4"],
+            @"cleared": @[@"Audio Track Metadata v4", @"audio_waveform_cache_v4"],
         });
     }
     return VibeErrorJSON(

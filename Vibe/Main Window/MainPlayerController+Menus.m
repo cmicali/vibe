@@ -57,6 +57,10 @@
         menuItem.state = StateForBOOL(Settings.pitchRange == 16);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_play"]) {
+        // The action is playPause: — mirror the toggle in the title like
+        // standard macOS players (isPlaying covers Loading: a play is
+        // committed, so the available action is Pause).
+        menuItem.title = self.audioPlayer.isPlaying ? @"Pause" : @"Play";
         return self.playlistManager.count > 0;
     }
     else if ([menuItem.identifier isEqualToString:@"show_in_finder"]) {
@@ -65,16 +69,17 @@
     return YES;
 }
 
-- (NSInteger)numberOfItemsInMenu:(NSMenu *)menu {
-    if ([menu.identifier isEqualToString:@"waveform_style"]) {
-        return self.waveformView.availableWaveformStyles.count;
-    }
-    return 0;
+// Plain helper, deliberately NOT named numberOfItemsInMenu: — that selector
+// is NSMenuDelegate's opt-in to incremental menu population, which requires
+// the menu:updateItem:atIndex:shouldCancel: companion this class doesn't
+// implement (and would return 0 for every other delegated menu).
+- (NSInteger)waveformStyleMenuItemCount {
+    return self.waveformView.availableWaveformStyles.count;
 }
 
 - (void)menuNeedsUpdate:(NSMenu *)menu {
     if ([menu.identifier isEqualToString:@"waveform_style"]) {
-        NSInteger count = [self numberOfItemsInMenu:menu];
+        NSInteger count = [self waveformStyleMenuItemCount];
         while ([menu numberOfItems] < count)
             [menu insertItem:[NSMenuItem new] atIndex:0];
         while ([menu numberOfItems] > count)

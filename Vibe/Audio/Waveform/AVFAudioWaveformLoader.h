@@ -4,7 +4,6 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "AudioWaveformCache.h"
 #import "AudioWaveformLoader.h"
 
 @interface AVFAudioWaveformLoader : AudioWaveformLoader

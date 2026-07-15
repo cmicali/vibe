@@ -6,13 +6,32 @@
 #include <Accelerate/Accelerate.h>
 #include <cmath>
 
+// Interleaved→mono downmix shared by the waveform chunker and the BPM
+// analyzer — one mix per decode buffer instead of one per consumer. Returns
+// the buffer itself for mono input (no copy); otherwise averages the channels
+// (interleaved: L0 R0 L1 R1 ...) into scratch — which must hold numFrames
+// floats — and returns scratch.
+static inline const float* AudioWaveformMonoMix(const float* buffer, float* scratch,
+                                                NSUInteger numFrames, NSUInteger channels) {
+    if (channels <= 1) {
+        return buffer;
+    }
+    vDSP_vadd(buffer, (vDSP_Stride)channels, buffer + 1, (vDSP_Stride)channels, scratch, 1, numFrames);
+    for (NSUInteger ch = 2; ch < channels; ch++) {
+        vDSP_vadd(scratch, 1, buffer + ch, (vDSP_Stride)channels, scratch, 1, numFrames);
+    }
+    float scale = 1.0f / (float)channels;
+    vDSP_vsmul(scratch, 1, &scale, scratch, 1, numFrames);
+    return scratch;
+}
+
 struct AudioWaveformCacheChunk {
 
     inline AudioWaveformCacheChunk() noexcept { set(0, 0); }
     inline AudioWaveformCacheChunk(float min, float max) noexcept { set(min, max); }
-    inline AudioWaveformCacheChunk(float* buffer, NSUInteger length, NSUInteger channels) noexcept {
+    inline AudioWaveformCacheChunk(const float* mono, NSUInteger numFrames) noexcept {
         set(0, 0);
-        mergeFromAudioBuffer(buffer, length, channels);
+        mergeFromMonoBuffer(mono, numFrames);
     }
 
     inline float getMin() const noexcept { return values[0]; }
@@ -34,58 +53,18 @@ struct AudioWaveformCacheChunk {
         if (chunk->values[1] > values[1]) values[1] = chunk->values[1];
     }
 
-    inline void mergeFromAudioBuffer(float* buffer, NSUInteger numSamples, NSUInteger channels) {
-        if (numSamples == 0) return;
-        NSUInteger numFrames = numSamples / channels;
+    inline void mergeFromMonoBuffer(const float* mono, NSUInteger numFrames) {
         if (numFrames == 0) return;
 
         float minVal, maxVal;
-
-        if (channels == 1) {
-            // Mono: min/max directly on the buffer via vDSP
-            vDSP_minv(buffer, 1, &minVal, numFrames);
-            vDSP_maxv(buffer, 1, &maxVal, numFrames);
-        } else if (channels == 2) {
-            // Stereo: average L+R using vDSP, then find min/max
-            // Use a stack buffer for small sizes, heap for large
-            constexpr NSUInteger kStackLimit = 8192;
-            float stackBuf[kStackLimit];
-            float *mono = (numFrames <= kStackLimit) ? stackBuf : (float*)malloc(numFrames * sizeof(float));
-            if (!mono) return; // OOM on a large chunk — leave this chunk at 0,0
-
-            // Add left + right channels (interleaved: L0 R0 L1 R1 ...)
-            vDSP_vadd(buffer, 2, buffer + 1, 2, mono, 1, numFrames);
-            // Scale by 0.5 to average
-            float half = 0.5f;
-            vDSP_vsmul(mono, 1, &half, mono, 1, numFrames);
-
-            vDSP_minv(mono, 1, &minVal, numFrames);
-            vDSP_maxv(mono, 1, &maxVal, numFrames);
-
-            if (mono != stackBuf) free(mono);
-        } else {
-            // N-channel: sum all channels, divide by N, then find min/max
-            NSUInteger monoLen = numFrames;
-            float *mono = (float*)calloc(monoLen, sizeof(float));
-            if (!mono) return; // OOM — leave this chunk at 0,0
-
-            for (NSUInteger ch = 0; ch < channels; ch++) {
-                vDSP_vadd(mono, 1, buffer + ch, channels, mono, 1, monoLen);
-            }
-            float scale = 1.0f / (float)channels;
-            vDSP_vsmul(mono, 1, &scale, mono, 1, monoLen);
-
-            vDSP_minv(mono, 1, &minVal, monoLen);
-            vDSP_maxv(mono, 1, &maxVal, monoLen);
-
-            free(mono);
-        }
+        vDSP_minv(mono, 1, &minVal, numFrames);
+        vDSP_maxv(mono, 1, &maxVal, numFrames);
 
         // A corrupt file can decode NaN/Inf floats, which vDSP propagates into
         // min/max. Left unsanitized they produce NaN CGRects in the renderers
-        // (CoreGraphics error spam, blank bars), can wipe the whole waveform in
-        // normalize(), and — because isComplete stays YES — get persisted under
-        // the file hash, breaking that track forever. Clamp to 0 here.
+        // (CoreGraphics error spam, blank bars) and — because isComplete stays
+        // YES — get persisted under the file hash, breaking that track
+        // forever. Clamp to 0 here.
         if (!std::isfinite(minVal)) minVal = 0.0f;
         if (!std::isfinite(maxVal)) maxVal = 0.0f;
 
@@ -112,8 +91,6 @@ public:
     inline void setChunkAtIndex(AudioWaveformCacheChunk chunk, NSUInteger index) {
         if (index < numChunks) { chunks[index] = chunk; }
     }
-
-    void normalize();
 
     inline NSUInteger getNumChunks() { return this->numChunks; }
     inline const void* getBytes() { return (const void *)&chunks[0]; }
