@@ -2,7 +2,7 @@
 
 CONFIG ?= Release
 
-.PHONY: project build release clean run
+.PHONY: project build release install clean run
 
 # Generate Vibe.xcodeproj from project.yml (requires: brew install xcodegen).
 project:
@@ -12,6 +12,12 @@ project:
 # so build.sh is told to skip its own generate. Override with: make build CONFIG=Debug
 build: project
 	SKIP_GENERATE=1 scripts/build.sh $(CONFIG)
+
+# Build (Release by default) then copy the app into /Applications, replacing
+# any existing copy.
+install: build
+	@echo "🔊 installing to /Applications/Vibe.app"
+	cp -R build/DerivedData/Build/Products/$(CONFIG)/Vibe.app /Applications/Vibe.app
 
 # Build Release, then sign (Developer ID), notarize, and staple a distributable
 # app. See scripts/release.sh for the required credentials.
