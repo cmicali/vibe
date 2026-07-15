@@ -5,9 +5,7 @@ options:
   deploymentTarget:
     macOS: "26.0"
   createIntermediateGroups: true
-  settingPresets: none        # we specify EVERY setting explicitly; presets-on would inject
-                              # template defaults (e.g. Release GCC_OPTIMIZATION_LEVEL=s) that
-                              # diverge from the original. `none` = deterministic 1:1.
+  settingPresets: none
   fileTypes:
     icon:                     # Icon Composer AppIcon.icon: treat the .icon package as a single
       file: true              # file reference (not a group to recurse into) so actool compiles it.
@@ -83,6 +81,7 @@ settings:
     Release:
       DEBUG_INFORMATION_FORMAT: "dwarf-with-dsym"
       ENABLE_NS_ASSERTIONS: NO
+      GCC_OPTIMIZATION_LEVEL: s
       MTL_ENABLE_DEBUG_INFO: NO
 
 targets:
@@ -103,6 +102,48 @@ targets:
           - "-fobjc-arc-exceptions"
       - path: Resources/Assets.xcassets       # .xcassets handled natively by XcodeGen
       - path: Resources/AppIcon.icon          # Icon Composer .icon (handled via options.fileTypes)
+    info:
+      path: Vibe/Common/Info.plist
+      properties:
+
+        CFBundleName: "$(PRODUCT_NAME)"
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        LSApplicationCategoryType: "public.app-category.music"
+
+        NSHumanReadableCopyright: "Copyright © 2026 Christopher Micali. All rights reserved."
+
+        LSMultipleInstancesProhibited: YES
+        NSSupportsAutomaticTermination: YES
+        NSSupportsSuddenTermination: YES
+
+        NSPrincipalClass: "NSApplication"
+        LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
+        CFBundleDevelopmentRegion: "$(DEVELOPMENT_LANGUAGE)"
+        CFBundlePackageType: "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
+        CFBundleInfoDictionaryVersion: "6.0"
+
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: "Folder"
+            CFBundleTypeRole: "Viewer"
+            LSHandlerRank: "Alternate"
+            LSItemContentTypes:
+              - "public.folder"
+          - CFBundleTypeName: "Audio Files"
+            CFBundleTypeRole: "Viewer"
+            LSHandlerRank: "Default"
+            LSItemContentTypes:
+              - "public.mp2"
+              - "public.mp3"
+              - "public.aac-audio"
+              - "public.aiff-audio"
+              - "com.microsoft.waveform-audio"
+              - "org.xiph.flac"
+              - "com.apple.m4a-audio"
+              - "public.mpeg-4-audio"
+
     settings:
       base:
         PRODUCT_NAME: "$(TARGET_NAME)"
@@ -141,17 +182,12 @@ targets:
           - "$(SRCROOT)/Vibe/ThirdParty"
           - "$(SRCROOT)/Vibe/ThirdParty/PINCache"
           - "$(SRCROOT)/Vibe/ThirdParty/PINOperation"
-        INFOPLIST_FILE: "$(SRCROOT)/Vibe/Common/Info.plist"
-        INFOPLIST_KEY_CFBundleDisplayName: Vibe
-        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.entertainment"
         LD_RUNPATH_SEARCH_PATHS:
           - "$(inherited)"
           - "@executable_path/../Frameworks"
         LIBRARY_SEARCH_PATHS: "$(inherited)"
         MACOSX_DEPLOYMENT_TARGET: "26.0"
         PROVISIONING_PROFILE_SPECIFIER: ""
-      # No target-level per-config block: the only one was the vestigial Debug
-      # SWIFT_OPTIMIZATION_LEVEL, intentionally dropped (tidy).
     dependencies:
       - sdk: AVFoundation.framework
       - sdk: Accelerate.framework
