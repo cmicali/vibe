@@ -41,6 +41,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)next:(nullable id)sender;
 - (IBAction)previous:(nullable id)sender;
 
+// Seek relative to the current position, in wall-clock seconds (the units the
+// time labels show). Forward past the end advances to the next track or stops
+// at the end of the playlist; back before the start seeks to 0.
+- (IBAction)skipForward:(nullable id)sender;      // +10s
+- (IBAction)skipForwardMore:(nullable id)sender;  // +30s
+- (IBAction)skipBack:(nullable id)sender;         // −10s
+- (IBAction)skipBackMore:(nullable id)sender;     // −30s
+
 - (IBAction)setSmallSize:(id)sender;
 - (IBAction)setLargeSize:(id)sender;
 - (IBAction)toggleSize:(nullable id)sender;

@@ -422,6 +422,22 @@ static NSString *VibeExecuteDebugCommand(NSString *commandLine) {
         [controller previous:nil];
         return VibeActionSummary(controller);
     }
+    if ([verb isEqualToString:@"skipForward"]) {
+        [controller skipForward:nil];
+        return VibeActionSummary(controller);
+    }
+    if ([verb isEqualToString:@"skipForwardMore"]) {
+        [controller skipForwardMore:nil];
+        return VibeActionSummary(controller);
+    }
+    if ([verb isEqualToString:@"skipBack"]) {
+        [controller skipBack:nil];
+        return VibeActionSummary(controller);
+    }
+    if ([verb isEqualToString:@"skipBackMore"]) {
+        [controller skipBackMore:nil];
+        return VibeActionSummary(controller);
+    }
     if ([verb isEqualToString:@"togglePitchPanel"]) {
         [controller togglePitchPanel:nil];
         return VibeActionSummary(controller);
@@ -473,8 +489,8 @@ static NSString *VibeExecuteDebugCommand(NSString *commandLine) {
     }
     return VibeErrorJSON(
             @"unknown command '%@'. Commands: state, nowPlaying, viewtree, menu, screenshot, playPause, "
-            @"next, previous, togglePitchPanel, toggleSize, setPitch <percent>, seek <seconds>, "
-            @"clickMenu <identifier-or-title>, clearCaches", verb);
+            @"next, previous, skipForward, skipForwardMore, skipBack, skipBackMore, togglePitchPanel, "
+            @"toggleSize, setPitch <percent>, seek <seconds>, clickMenu <identifier-or-title>, clearCaches", verb);
 }
 
 static void VibeHandleDebugCommandFile(void) {
