@@ -39,6 +39,7 @@ The Vibe binary doubles as its own CLI client (same bundle ID + sandbox, so it s
 
 ```bash
 "$V" --debug-cmd state           # {player, currentTrack, playlist, ui (label text), window, settings}
+"$V" --debug-cmd nowPlaying      # {playbackState, hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — what we publish to the system Now Playing UI (Control Center / media keys)
 "$V" --debug-cmd viewtree        # {windows: [{class, frame, visible, key, contentView: {…, subviews}}]}
 "$V" --debug-cmd menu            # {menu: [{title, id, key, action, enabled, state, items}]} — LIVE enabled/checkmark
 "$V" --debug-cmd clickMenu menu_show_pitch   # {ok, clicked, action} — by identifier (preferred) or exact title

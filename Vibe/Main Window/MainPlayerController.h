@@ -35,6 +35,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)playURL:(NSURL *)url;
 
 - (IBAction)closeApp:(id)sender;
+- (IBAction)minimizeWindow:(id)sender;
 
 - (IBAction)playPause:(nullable id)sender;
 - (IBAction)next:(nullable id)sender;

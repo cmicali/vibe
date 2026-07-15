@@ -18,8 +18,19 @@
 static const CGFloat kDesignWidth  = 680;
 static const CGFloat kDesignHeight = 350;
 
+// All the window's buttons sit hidden and fade in only while the cursor is
+// over the window. The reveal is pure show/hide (full opacity); each button's
+// resting dimness vs. hover brightness lives in its glyph colors, so a hovered
+// traffic-light dot can reach full saturation like the real macOS controls.
+static const CGFloat kTrafficLightAlpha    = 1.0;
+static const CGFloat kTransportAlpha       = 1.0;
+static const CFTimeInterval kControlFadeDur = 0.2;
+
 @implementation MainPlayerContentView {
     NSView *_playlistDimView;
+    GlyphButton *_playlistToggleButton;
+    NSTrackingArea *_windowHoverArea;
+    __weak NSView *_windowHoverHost;
 }
 
 - (instancetype)initWithTarget:(id)target {
@@ -56,6 +67,73 @@ static const CGFloat kDesignHeight = 350;
 - (void)viewDidChangeEffectiveAppearance {
     [super viewDidChangeEffectiveAppearance];
     [self updateMaterialForAppearance];
+}
+
+#pragma mark - Hover reveal
+
+// The buttons (traffic lights + transport) fade in only while the cursor is
+// over the window. Tracking is attached to the window's content view (which
+// also spans the pitch panel) rather than this 680-wide player body, so
+// hovering any part of the window keeps them visible.
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    if (_windowHoverArea) {
+        [_windowHoverHost removeTrackingArea:_windowHoverArea];
+        _windowHoverArea = nil;
+        _windowHoverHost = nil;
+    }
+    NSView *host = self.window.contentView;
+    if (!host) {
+        return;
+    }
+    _windowHoverHost = host;
+    _windowHoverArea = [[NSTrackingArea alloc]
+            initWithRect:host.bounds
+                 options:NSTrackingActiveAlways | NSTrackingInVisibleRect |
+                         NSTrackingMouseEnteredAndExited
+                   owner:self userInfo:nil];
+    [host addTrackingArea:_windowHoverArea];
+    // Entered/exited only fire on boundary crossings, so seed the initial
+    // state from where the cursor actually is right now.
+    [self setControlsShown:[self isCursorOverWindow] animated:NO];
+}
+
+- (BOOL)isCursorOverWindow {
+    NSView *host = _windowHoverHost;
+    if (!host.window) {
+        return NO;
+    }
+    NSPoint p = [host convertPoint:host.window.mouseLocationOutsideOfEventStream fromView:nil];
+    return NSMouseInRect(p, host.bounds, host.isFlipped);
+}
+
+- (void)mouseEntered:(NSEvent *)event {
+    [self setControlsShown:YES animated:YES];
+}
+
+- (void)mouseExited:(NSEvent *)event {
+    [self setControlsShown:NO animated:YES];
+}
+
+- (void)setControlsShown:(BOOL)shown animated:(BOOL)animated {
+    CGFloat traffic   = shown ? kTrafficLightAlpha : 0.0;
+    CGFloat transport = shown ? kTransportAlpha : 0.0;
+    if (animated) {
+        [NSAnimationContext runAnimationGroup:^(NSAnimationContext *ctx) {
+            ctx.duration = kControlFadeDur;
+            self->_closeButton.animator.alphaValue = traffic;
+            self->_minimizeButton.animator.alphaValue = traffic;
+            self->_playlistToggleButton.animator.alphaValue = transport;
+            self->_playButton.animator.alphaValue = transport;
+            self->_nextButton.animator.alphaValue = transport;
+        }];
+    } else {
+        _closeButton.alphaValue = traffic;
+        _minimizeButton.alphaValue = traffic;
+        _playlistToggleButton.alphaValue = transport;
+        _playButton.alphaValue = transport;
+        _nextButton.alphaValue = transport;
+    }
 }
 
 // One shadow recipe for every header label. Rasterization is opted out for
@@ -117,28 +195,47 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _albumArtGradientView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
     [self addSubview:_albumArtGradientView];
 
-    _closeButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(5, 313, 32, 32)
+    // Traffic-light dots sized/spaced like the real macOS controls (13pt
+    // circles on 23pt centers) and left-aligned with the playlist icon's left
+    // edge below (its glyph starts ~18.5pt in). They start hidden and fade in
+    // on window hover (setControlsShown:animated:).
+    _closeButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(9, 313, 32, 32)
                                                              glyph:GlyphButtonGlyphClose
                                                             action:@selector(closeApp:)
                                                             target:target];
-    _closeButton.alphaValue = 0.5;
-    _closeButton.glyphSize = 12; // the old button-close dot was a 12pt circle (24px @2x)
-    _closeButton.glyphNormalColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:0.56];
-    _closeButton.glyphHighlightColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:0.75];
+    _closeButton.alphaValue = 0.0;
+    _closeButton.glyphSize = 13;
+    // Dim at rest; lights up to full salmon on hover.
+    _closeButton.glyphNormalColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:0.64];
+    _closeButton.glyphHighlightColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:1.0];
     [self addSubview:_closeButton];
 
+    _minimizeButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(32, 313, 32, 32)
+                                                                glyph:GlyphButtonGlyphMinimize
+                                                               action:@selector(minimizeWindow:)
+                                                               target:target];
+    _minimizeButton.alphaValue = 0.0;
+    _minimizeButton.glyphSize = 13; // same dot as close
+    // Dim at rest; lights up to full yellow on hover.
+    _minimizeButton.glyphNormalColor = [NSColor colorWithSRGBRed:0.988 green:0.741 blue:0.180 alpha:0.64];
+    _minimizeButton.glyphHighlightColor = [NSColor colorWithSRGBRed:0.988 green:0.741 blue:0.180 alpha:1.0];
+    [self addSubview:_minimizeButton];
+
     // The outer two buttons are nudged toward the center one; the slight
-    // frame overlap is fine (later siblings win hit testing).
-    GlyphButton *playlistButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(4, 203, 50, 50)
-                                                                            glyph:GlyphButtonGlyphPlaylist
-                                                                           action:@selector(toggleSize:)
-                                                                           target:target];
-    [self addSubview:playlistButton];
+    // frame overlap is fine (later siblings win hit testing). All three fade
+    // in with the traffic lights on window hover.
+    _playlistToggleButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(4, 203, 50, 50)
+                                                                      glyph:GlyphButtonGlyphPlaylist
+                                                                     action:@selector(toggleSize:)
+                                                                     target:target];
+    _playlistToggleButton.alphaValue = 0.0;
+    [self addSubview:_playlistToggleButton];
 
     _playButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(50, 203, 50, 50)
                                                             glyph:GlyphButtonGlyphPlay
                                                            action:@selector(playPause:)
                                                            target:target];
+    _playButton.alphaValue = 0.0;
     _playButton.enabled = NO;
     [self addSubview:_playButton];
 
@@ -146,6 +243,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
                                                             glyph:GlyphButtonGlyphSkipNext
                                                            action:@selector(next:)
                                                            target:target];
+    _nextButton.alphaValue = 0.0;
     _nextButton.enabled = NO;
     [self addSubview:_nextButton];
 

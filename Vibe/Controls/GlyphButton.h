@@ -18,11 +18,12 @@ typedef NS_ENUM(NSInteger, GlyphButtonGlyph) {
     GlyphButtonGlyphSkipNext,
     GlyphButtonGlyphPlaylist,   // four stacked lines (track-list icon)
     GlyphButtonGlyphClose,      // filled dot, traffic-light style
+    GlyphButtonGlyphMinimize,   // filled dot, traffic-light style (matches close)
 };
 
-// Momentary push button: highlights while pressed (tracking drag-off and
-// drag-back), sends its action on mouse-up inside, and is click-through when
-// disabled.
+// Momentary push button: fades to its highlight color on hover and dims to
+// half that opacity while pressed (tracking drag-off and drag-back), sends its
+// action on mouse-up inside, and is click-through when disabled.
 @interface GlyphButton : NSControl
 
 @property (nonatomic) GlyphButtonGlyph glyph;
@@ -31,8 +32,8 @@ typedef NS_ENUM(NSInteger, GlyphButtonGlyph) {
 // the full bounds; the close button uses this to shrink its dot.
 @property (nonatomic) CGFloat glyphSize;
 
-@property (nonatomic, strong) NSColor *glyphNormalColor;
-@property (nonatomic, strong) NSColor *glyphHighlightColor;
+@property (nonatomic, strong) NSColor *glyphNormalColor;    // idle
+@property (nonatomic, strong) NSColor *glyphHighlightColor; // hover (a press shows it at half alpha)
 @property (nonatomic, strong) NSColor *glyphDisabledColor;
 
 @end

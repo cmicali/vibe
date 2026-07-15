@@ -27,6 +27,7 @@
 #import "GlyphButton.h"
 #import "PitchControlPanel.h"
 #import "TransportKeyMonitor.h"
+#import "NowPlayingController.h"
 
 #define UPDATE_HZ 3
 
@@ -43,7 +44,8 @@
                                     AudioWaveformViewDelegate,
                                     AudioWaveformCacheDelegate,
                                     AudioTrackMetadataCacheDelegate,
-                                    PitchFaderViewDelegate>
+                                    PitchFaderViewDelegate,
+                                    NowPlayingControllerDelegate>
 
 @property (weak) GlyphButton *nextButton;
 @property (weak) GlyphButton *playButton;
@@ -82,6 +84,7 @@
     TransportKeyMonitor*        _keyMonitor;
     PitchControlPanel*          _pitchPanel;
     ArtworkDisplayController*   _artworkController;
+    NowPlayingController*       _nowPlayingController;
 }
 
 - (id) init {
@@ -210,6 +213,12 @@
     // trusted for unmodified keys.
     _keyMonitor = [[TransportKeyMonitor alloc] initWithController:self];
 
+    // System media keys / Control Center / Bluetooth transport controls. Its
+    // now-playing info is published from updateNowPlaying (called out of the
+    // updateUI funnel); registering the command handlers now lets the media
+    // keys route to us as soon as the first track starts playing.
+    _nowPlayingController = [[NowPlayingController alloc] initWithDelegate:self];
+
     MainWindow *window = (MainWindow *)self.window;
     window.dropDelegate = self;
 
@@ -244,8 +253,7 @@
     [self.playlistTableView reloadData];
     [self updateUI];
 
-    [NSApp activateIgnoringOtherApps:YES];
-
+    [NSApp activate];
 }
 
 - (void)windowWillClose:(NSNotification *)notification {
@@ -361,6 +369,45 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
         _lastReloadedTrack = track;
     }
     [self updatePlaybackUI];
+    [self updateNowPlaying];
+}
+
+// Publish the current track + playback state to the system Now Playing UI
+// (Control Center, media keys). Driven off updateUI so it refreshes on every
+// transport event, metadata delivery, and artwork resolution; also called on
+// seek and pitch change (the two things that move position/rate without an
+// updateUI). Cheap and non-blocking — safe to call this often.
+- (void)updateNowPlaying {
+    AudioTrack *track = self.playlistManager.currentTrack;
+    NowPlayingPlaybackState state;
+    if (self.audioPlayer.isPaused) {
+        state = NowPlayingPlaybackStatePaused;
+    }
+    else if (self.audioPlayer.isPlaying) { // Playing or Loading
+        state = NowPlayingPlaybackStatePlaying;
+    }
+    else {
+        state = NowPlayingPlaybackStateStopped;
+    }
+    // Report pitch-adjusted (wall-clock) time so Control Center matches the
+    // app's own current/total labels and tracks the pitch fader: the varispeed
+    // rate divides file time exactly as -playbackRate / -updatePlaybackUI do
+    // on screen. Wall-clock time then advances at real time, so the rate handed
+    // to the system is 1.0 while playing (NowPlayingController zeroes it when
+    // not) — NOT the varispeed rate, which would double-count against the
+    // already-scaled position.
+    double rate = self.playbackRate;
+    NSTimeInterval duration = self.audioPlayer.duration;
+    NSTimeInterval position = self.audioPlayer.position;
+    if (rate > 0) {
+        duration /= rate;
+        position /= rate;
+    }
+    [_nowPlayingController updateWithTrack:track
+                                 position:position
+                                 duration:duration
+                                    state:state
+                                     rate:1.0];
 }
 
 // Varispeed rate: the track plays this much faster/slower than file time, so
@@ -439,6 +486,10 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 
 - (IBAction)closeApp:(id)sender {
     [self close];
+}
+
+- (IBAction)minimizeWindow:(id)sender {
+    [self.window miniaturize:sender];
 }
 
 - (void)mainWindow:(MainWindow *)mainWindow filesDropped:urls {
@@ -642,6 +693,44 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {
     [self updatePlaybackUI];
+    // The playhead jumped — resync Control Center's elapsed time.
+    [self updateNowPlaying];
+}
+
+#pragma mark - NowPlayingControllerDelegate (system media keys / Control Center)
+
+// Commands arrive on the main thread; route them through the same transport
+// entry points the on-screen buttons and keyboard use.
+
+- (void)nowPlayingControllerPlay:(NowPlayingController *)controller {
+    // Discrete "play" — start/resume only if not already playing (playPause:
+    // would otherwise pause a playing track).
+    if (!self.audioPlayer.isPlaying) {
+        [self playPause:nil];
+    }
+}
+
+- (void)nowPlayingControllerPause:(NowPlayingController *)controller {
+    // Discrete "pause" — act only when something is actually playing.
+    if (self.audioPlayer.isPlaying) {
+        [self playPause:nil];
+    }
+}
+
+- (void)nowPlayingControllerTogglePlayPause:(NowPlayingController *)controller {
+    [self playPause:nil];
+}
+
+- (void)nowPlayingControllerNextTrack:(NowPlayingController *)controller {
+    [self next:nil];
+}
+
+- (void)nowPlayingControllerPreviousTrack:(NowPlayingController *)controller {
+    [self previous:nil];
+}
+
+- (void)nowPlayingController:(NowPlayingController *)controller seekToPosition:(NSTimeInterval)position {
+    self.audioPlayer.position = position;
 }
 
 #pragma mark - Metadata and Waveform
@@ -728,6 +817,9 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     }
     [self updateBPMLabel];
     [self updatePlaybackUI];
+    // The varispeed rate changed — update the rate we report so Control
+    // Center's progress interpolation keeps pace with real playback.
+    [self updateNowPlaying];
 }
 
 - (void)pitchFaderView:(PitchFaderView *)faderView didChangePitch:(float)pitch {

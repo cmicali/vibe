@@ -23,6 +23,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithTarget:(id)target;
 
 @property (readonly) GlyphButton *closeButton;
+@property (readonly) GlyphButton *minimizeButton;
 @property (readonly) GlyphButton *playButton;
 @property (readonly) GlyphButton *nextButton;
 

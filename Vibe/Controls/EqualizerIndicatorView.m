@@ -87,6 +87,9 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0, 1.25, 0.
 
 - (void)setAnimating:(BOOL)animating {
     _animating = animating;
+    // Full strength while playing; dimmed to half when the current track is
+    // paused so the indicator reads as "stopped".
+    self.alphaValue = animating ? 1.0 : 0.5;
     [self updateAnimations];
 }
 
