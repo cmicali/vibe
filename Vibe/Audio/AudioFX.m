@@ -67,10 +67,13 @@ static const float kReverbLargeSize = 0.15f;     // real max — the tail knob
 static const float kReverbSmallLargeMix = 90.0f; // 0-100: mostly the large (hall) engine
 static const float kReverbLargeDensity = 0.9f;   // lush, smooth tail
 
-// Momentary delay echo send (held R key), the same gated send/return pattern
-// as the reverb. The tap is an 1/8 note of the EFFECTIVE (pitch-scaled) tempo
-// — the controller feeds delayTapBPM from the same tagged/detected BPM the
-// label shows; with no tempo known the default below applies.
+// Momentary delay echo sends (held R and T keys), the same gated send/return
+// pattern as the reverb. The tap is a fraction of a beat of the EFFECTIVE
+// (pitch-scaled) tempo — the controller feeds delayTapBPM from the same
+// tagged/detected BPM the label shows; with no tempo known the default below
+// applies. R and T are the same machine at different clock divisions:
+static const float kDelayTapBeats = 0.5f;       // R: 1/8 note (half a beat)
+static const float kShortDelayTapBeats = 0.25f; // T: 1/16 note (quarter beat)
 static const float kDelaySendLevel = 0.3f;
 // Per-HOP echo decay (L->R counts as one hop). The ping-pong lanes run at
 // twice the tap period (see the graph comment at the ivars), so each lane's
@@ -92,6 +95,44 @@ static const float kReverbSwellRatio = 1.8f; // 0.3 -> 0.54
 static const float kDelaySwellRatio = 1.8f;  // 0.3 -> 0.54
 static const int kSendSwellSteps = 120;
 static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
+
+// One complete ping-pong delay send/return — built once per tap length, so
+// the 1/8 (R) and 1/16 (T) echoes are the same machine at different clock
+// divisions. AVAudioEngine forbids feedback cycles, so the classic cross-fed
+// ping-pong is impossible — instead two acyclic lanes at TWICE the tap
+// period T, the left lane offset by T, interleave into an exact alternating
+// pattern (all delays 100% wet, per-hop decay f):
+//
+//   gate -> half(T) ------------------> panLeft (-50%)   L: T
+//           half -> left(2T,f^2) ------> panLeft          L: 3T, 5T ...
+//   gate -> right(2T,f^2) ------------> panRight(+50%, volume f)
+//                                                         R: 2T, 4T ...
+//   panLeft/panRight -> sum -> lowCut -> masterMix
+//
+// The pan mixers exist because AVAudioUnitDelay doesn't adopt AVAudioMixing
+// — only a mixer feeding another mixer can pan.
+@interface VibeDelaySend : NSObject {
+@public
+    // The gate's ramp generation, passed by pointer into the shared stepper
+    // (stepSendGateRamp:...counter:) — queue-confined, like AudioFX's own
+    // reverb counter. Public ivar (not a property) so &send->_rampGeneration
+    // is expressible; the send lives for AudioFX's lifetime, so the pointer
+    // can't dangle.
+    uint64_t _rampGeneration;
+}
+@property (nonatomic) float beatsPerTap; // 0.5 = 1/8 note, 0.25 = 1/16
+@property (nonatomic, strong) AVAudioMixerNode *gate;
+@property (nonatomic, strong) AVAudioUnitDelay *half;
+@property (nonatomic, strong) AVAudioUnitDelay *left;
+@property (nonatomic, strong) AVAudioUnitDelay *right;
+@property (nonatomic, strong) AVAudioMixerNode *panLeft;
+@property (nonatomic, strong) AVAudioMixerNode *panRight;
+@property (nonatomic, strong) AVAudioMixerNode *sum;
+@property (nonatomic, strong) AVAudioUnitEQ *lowCut;
+@end
+
+@implementation VibeDelaySend
+@end
 
 @implementation AudioFX {
     // The player's serial engine queue (shared, not owned): all graph and
@@ -125,32 +166,13 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     BOOL                    _reverbSendEnabled;
     uint64_t                _reverbSendRampGeneration;
 
-    // Momentary ping-pong delay send, a second parallel return next to the
-    // reverb's. AVAudioEngine forbids feedback cycles, so the classic
-    // cross-fed ping-pong is impossible — instead two acyclic lanes at TWICE
-    // the tap period T, the left lane offset by T, interleave into an exact
-    // alternating pattern (all delays 100% wet, per-hop decay f):
-    //
-    //   gate -> delayHalf(T) ------------------> panLeft (-50%)   L: T
-    //           delayHalf -> delayLeft(2T,f^2) -> panLeft         L: 3T, 5T ...
-    //   gate -> delayRight(2T,f^2) ------------> panRight(+50%, volume f)
-    //                                                             R: 2T, 4T ...
-    //   panLeft/panRight -> delaySum -> delayLowCut -> masterMix
-    //
-    // The pan mixers exist because AVAudioUnitDelay doesn't adopt
-    // AVAudioMixing — only a mixer feeding another mixer can pan.
-    // _delayTapBPM (lock-guarded) is the effective tempo the 1/8-note tap
-    // follows.
-    AVAudioMixerNode        *_delaySendGate;
-    AVAudioUnitDelay        *_delayHalf;
-    AVAudioUnitDelay        *_delayLeft;
-    AVAudioUnitDelay        *_delayRight;
-    AVAudioMixerNode        *_delayPanLeft;
-    AVAudioMixerNode        *_delayPanRight;
-    AVAudioMixerNode        *_delaySum;
-    AVAudioUnitEQ           *_delayLowCut;
+    // Momentary ping-pong delay sends, parallel returns next to the reverb's
+    // — one VibeDelaySend per tap length (topology in its class comment).
+    // _delayTapBPM (lock-guarded) is the effective tempo both taps follow.
+    VibeDelaySend           *_delayEighth;    // R key: 1/8-note taps
+    VibeDelaySend           *_delaySixteenth; // T key: 1/16-note taps
     BOOL                    _delaySendEnabled;
-    uint64_t                _delaySendRampGeneration;
+    BOOL                    _shortDelaySendEnabled;
     float                   _delayTapBPM;
 }
 
@@ -220,95 +242,42 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     AudioUnitSetParameter(reverbUnit, kReverbParam_LargeSize, kAudioUnitScope_Global, 0, kReverbLargeSize, 0);
     AudioUnitSetParameter(reverbUnit, kReverbParam_LargeDensity, kAudioUnitScope_Global, 0, kReverbLargeDensity, 0);
 
-    // Ping-pong delay return (see the ivar comment for the topology).
-    // Fully wet like the reverb: the dry path never runs through it, the
-    // gate only adds echoes on top. Tap times follow delayTapBPM; lane
-    // feedback is the per-hop decay squared because each lane repeats every
-    // TWO hops.
-    float delayHopDecay = kDelayFeedbackPercent / 100.0f;
-    float laneFeedbackPercent = delayHopDecay * delayHopDecay * 100.0f;
-    NSTimeInterval defaultTap = 30.0 / kDelayDefaultBPM; // 1/8 note = half a beat
-    _delaySendGate = [[AVAudioMixerNode alloc] init];
-    _delayHalf = [[AVAudioUnitDelay alloc] init];
-    _delayHalf.wetDryMix = 100;
-    _delayHalf.feedback = 0; // pure T offset, no repeats of its own
-    _delayHalf.delayTime = defaultTap;
-    _delayLeft = [[AVAudioUnitDelay alloc] init];
-    _delayRight = [[AVAudioUnitDelay alloc] init];
-    for (AVAudioUnitDelay *lane in @[_delayLeft, _delayRight]) {
-        lane.wetDryMix = 100;
-        lane.feedback = laneFeedbackPercent;
-        lane.delayTime = defaultTap * 2;
-    }
-    _delayPanLeft = [[AVAudioMixerNode alloc] init];
-    _delayPanRight = [[AVAudioMixerNode alloc] init];
-    _delaySum = [[AVAudioMixerNode alloc] init];
-    _delayLowCut = [[AVAudioUnitEQ alloc] initWithNumberOfBands:1];
-    AVAudioUnitEQFilterParameters *echoCut = _delayLowCut.bands.firstObject;
-    echoCut.filterType = AVAudioUnitEQFilterTypeHighPass;
-    echoCut.frequency = kDelayEchoLowCutHz;
-    echoCut.bypass = NO;
-    [engine attachNode:_delaySendGate];
-    [engine attachNode:_delayHalf];
-    [engine attachNode:_delayLeft];
-    [engine attachNode:_delayRight];
-    [engine attachNode:_delayPanLeft];
-    [engine attachNode:_delayPanRight];
-    [engine attachNode:_delaySum];
-    [engine attachNode:_delayLowCut];
+    // Two ping-pong delay returns — the same machine at different clock
+    // divisions (see VibeDelaySend). Created (attached) here so their gates
+    // exist as fan-out targets below; WIRED after the fan-out, so the dry
+    // path's explicit masterMix bus-0 claim can't disconnect a return that
+    // grabbed bus 0 first.
+    _delayEighth = [self createDelaySendWithBeatsPerTap:kDelayTapBeats engine:engine];
+    _delaySixteenth = [self createDelaySendWithBeatsPerTap:kShortDelayTapBeats engine:engine];
 
     AVAudioFormat *mixerFormat = [engine.mainMixerNode outputFormatForBus:0];
     [engine connect:engine.mainMixerNode to:_lowKillEQ format:mixerFormat];
     // One-to-many: the post-low-kill master signal feeds the dry path
-    // (masterMix bus 0) and both send taps in parallel.
+    // (masterMix bus 0) and every send tap in parallel.
     [engine connect:_lowKillEQ
         toConnectionPoints:@[
             [[AVAudioConnectionPoint alloc] initWithNode:_masterMix bus:0],
             [[AVAudioConnectionPoint alloc] initWithNode:_reverbSendGate bus:0],
-            [[AVAudioConnectionPoint alloc] initWithNode:_delaySendGate bus:0],
+            [[AVAudioConnectionPoint alloc] initWithNode:_delayEighth.gate bus:0],
+            [[AVAudioConnectionPoint alloc] initWithNode:_delaySixteenth.gate bus:0],
         ]
                fromBus:0
                 format:mixerFormat];
     [engine connect:_reverbSendGate to:_reverb format:mixerFormat];
     [engine connect:_reverb to:_reverbLowCut format:mixerFormat];
     // connect:to:format: routes to a mixer's next available input bus
-    // — the returns land on buses 1 and 2, after the dry path's bus 0.
+    // — the returns land on buses 1..3, after the dry path's bus 0.
     [engine connect:_reverbLowCut to:_masterMix format:mixerFormat];
-    // Ping-pong lanes (topology in the ivar comment). The gate and
-    // delayHalf each fan out one-to-many.
-    [engine connect:_delaySendGate
-        toConnectionPoints:@[
-            [[AVAudioConnectionPoint alloc] initWithNode:_delayHalf bus:0],
-            [[AVAudioConnectionPoint alloc] initWithNode:_delayRight bus:0],
-        ]
-               fromBus:0
-                format:mixerFormat];
-    [engine connect:_delayHalf
-        toConnectionPoints:@[
-            [[AVAudioConnectionPoint alloc] initWithNode:_delayPanLeft bus:0],
-            [[AVAudioConnectionPoint alloc] initWithNode:_delayLeft bus:0],
-        ]
-               fromBus:0
-                format:mixerFormat];
-    [engine connect:_delayLeft to:_delayPanLeft format:mixerFormat]; // bus 1
-    [engine connect:_delayRight to:_delayPanRight format:mixerFormat];
-    [engine connect:_delayPanLeft to:_delaySum format:mixerFormat];
-    [engine connect:_delayPanRight to:_delaySum format:mixerFormat];
-    [engine connect:_delaySum to:_delayLowCut format:mixerFormat];
-    [engine connect:_delayLowCut to:_masterMix format:mixerFormat];
+    [self wireDelaySend:_delayEighth engine:engine format:mixerFormat];
+    [self wireDelaySend:_delaySixteenth engine:engine format:mixerFormat];
     [engine connect:_masterMix to:engine.outputNode format:mixerFormat];
     // Mixer state only AFTER the nodes are attached and wired:
     // AVAudioMixerNode's underlying mixer AU doesn't exist until then, and
     // volume/pan written earlier is dropped — the gates would come up at
     // their default (1.0) and the app would launch with the effects audibly
-    // stuck on.
+    // stuck on. (The delay sends' gate/pan state is set the same way, at the
+    // end of wireDelaySend:.)
     _reverbSendGate.outputVolume = 0;
-    _delaySendGate.outputVolume = 0;
-    _delayPanLeft.pan = -kDelayPingPongPan;
-    _delayPanRight.pan = kDelayPingPongPan;
-    // One hop of decay on the right lane: its first tap lands at 2T
-    // (hop 2), a full hop after the left lane's T.
-    _delayPanRight.outputVolume = delayHopDecay;
 
     // Apply any intent recorded before the engine existed (a key or menu
     // action racing the async engine init, the controller's first BPM feed).
@@ -317,6 +286,7 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     os_unfair_lock_lock(&_stateLock);
     BOOL reverbOn = _reverbSendEnabled;
     BOOL delayOn = _delaySendEnabled;
+    BOOL shortDelayOn = _shortDelaySendEnabled;
     os_unfair_lock_unlock(&_stateLock);
     if (reverbOn) {
         [self applySendGateOnQueue:_reverbSendGate enabled:YES
@@ -324,10 +294,86 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
                            counter:&_reverbSendRampGeneration];
     }
     if (delayOn) {
-        [self applySendGateOnQueue:_delaySendGate enabled:YES
-                             level:kDelaySendLevel swellRatio:kDelaySwellRatio
-                           counter:&_delaySendRampGeneration];
+        [self applyDelaySend:_delayEighth enabledOnQueue:YES];
     }
+    if (shortDelayOn) {
+        [self applyDelaySend:_delaySixteenth enabledOnQueue:YES];
+    }
+}
+
+// Allocates, configures, and attaches one ping-pong return's nodes (no
+// connections yet — see the wiring note in installInEngine:). Fully wet like
+// the reverb: the dry path never runs through it, the gate only adds echoes
+// on top. Tap times follow delayTapBPM; lane feedback is the per-hop decay
+// squared because each lane repeats every TWO hops.
+- (VibeDelaySend *)createDelaySendWithBeatsPerTap:(float)beatsPerTap engine:(AVAudioEngine *)engine {
+    float hopDecay = kDelayFeedbackPercent / 100.0f;
+    float laneFeedbackPercent = hopDecay * hopDecay * 100.0f;
+    NSTimeInterval defaultTap = 60.0 / kDelayDefaultBPM * beatsPerTap;
+    VibeDelaySend *send = [[VibeDelaySend alloc] init];
+    send.beatsPerTap = beatsPerTap;
+    send.gate = [[AVAudioMixerNode alloc] init];
+    send.half = [[AVAudioUnitDelay alloc] init];
+    send.half.wetDryMix = 100;
+    send.half.feedback = 0; // pure T offset, no repeats of its own
+    send.half.delayTime = defaultTap;
+    send.left = [[AVAudioUnitDelay alloc] init];
+    send.right = [[AVAudioUnitDelay alloc] init];
+    for (AVAudioUnitDelay *lane in @[send.left, send.right]) {
+        lane.wetDryMix = 100;
+        lane.feedback = laneFeedbackPercent;
+        lane.delayTime = defaultTap * 2;
+    }
+    send.panLeft = [[AVAudioMixerNode alloc] init];
+    send.panRight = [[AVAudioMixerNode alloc] init];
+    send.sum = [[AVAudioMixerNode alloc] init];
+    send.lowCut = [[AVAudioUnitEQ alloc] initWithNumberOfBands:1];
+    AVAudioUnitEQFilterParameters *echoCut = send.lowCut.bands.firstObject;
+    echoCut.filterType = AVAudioUnitEQFilterTypeHighPass;
+    echoCut.frequency = kDelayEchoLowCutHz;
+    echoCut.bypass = NO;
+    [engine attachNode:send.gate];
+    [engine attachNode:send.half];
+    [engine attachNode:send.left];
+    [engine attachNode:send.right];
+    [engine attachNode:send.panLeft];
+    [engine attachNode:send.panRight];
+    [engine attachNode:send.sum];
+    [engine attachNode:send.lowCut];
+    return send;
+}
+
+// Wires one return's internal chain (topology in VibeDelaySend's comment)
+// and lands it on masterMix's next available input bus. The gate and the
+// half-tap delay each fan out one-to-many.
+- (void)wireDelaySend:(VibeDelaySend *)send engine:(AVAudioEngine *)engine format:(AVAudioFormat *)format {
+    [engine connect:send.gate
+        toConnectionPoints:@[
+            [[AVAudioConnectionPoint alloc] initWithNode:send.half bus:0],
+            [[AVAudioConnectionPoint alloc] initWithNode:send.right bus:0],
+        ]
+               fromBus:0
+                format:format];
+    [engine connect:send.half
+        toConnectionPoints:@[
+            [[AVAudioConnectionPoint alloc] initWithNode:send.panLeft bus:0],
+            [[AVAudioConnectionPoint alloc] initWithNode:send.left bus:0],
+        ]
+               fromBus:0
+                format:format];
+    [engine connect:send.left to:send.panLeft format:format]; // bus 1
+    [engine connect:send.right to:send.panRight format:format];
+    [engine connect:send.panLeft to:send.sum format:format];
+    [engine connect:send.panRight to:send.sum format:format];
+    [engine connect:send.sum to:send.lowCut format:format];
+    [engine connect:send.lowCut to:_masterMix format:format];
+    // Mixer state only after attach+wire (see the note in installInEngine:).
+    send.gate.outputVolume = 0;
+    send.panLeft.pan = -kDelayPingPongPan;
+    send.panRight.pan = kDelayPingPongPan;
+    // One hop of decay on the right lane: its first tap lands at 2T
+    // (hop 2), a full hop after the left lane's T.
+    send.panRight.outputVolume = kDelayFeedbackPercent / 100.0f;
 }
 
 #pragma mark - Low kill
@@ -516,10 +562,39 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     _delaySendEnabled = enabled;
     os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{
-        [self applySendGateOnQueue:self->_delaySendGate enabled:enabled
-                             level:kDelaySendLevel swellRatio:kDelaySwellRatio
-                           counter:&self->_delaySendRampGeneration];
+        [self applyDelaySend:self->_delayEighth enabledOnQueue:enabled];
     });
+}
+
+- (BOOL)shortDelaySendEnabled {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL enabled = _shortDelaySendEnabled;
+    os_unfair_lock_unlock(&_stateLock);
+    return enabled;
+}
+
+- (void)setShortDelaySendEnabled:(BOOL)enabled {
+    os_unfair_lock_lock(&_stateLock);
+    if (_shortDelaySendEnabled == enabled) {
+        os_unfair_lock_unlock(&_stateLock);
+        return;
+    }
+    _shortDelaySendEnabled = enabled;
+    os_unfair_lock_unlock(&_stateLock);
+    dispatch_async(_queue, ^{
+        [self applyDelaySend:self->_delaySixteenth enabledOnQueue:enabled];
+    });
+}
+
+// Runs on _queue. Both delay sends share the level/swell tuning; only the
+// gate (and its generation counter) differ.
+- (void)applyDelaySend:(VibeDelaySend *)send enabledOnQueue:(BOOL)enabled {
+    if (!send) {
+        return; // Not installed yet; installInEngine: re-applies.
+    }
+    [self applySendGateOnQueue:send.gate enabled:enabled
+                         level:kDelaySendLevel swellRatio:kDelaySwellRatio
+                       counter:&send->_rampGeneration];
 }
 
 - (float)delayTapBPM {
@@ -542,11 +617,11 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     });
 }
 
-// Runs on _queue. 1/8 note = half a beat. The delays sit post-varispeed, so
-// this is wall-clock time — matching the effective (pitch-scaled) tempo the
-// controller provides. The lanes run at 2T (see the topology comment);
-// AVAudioUnitDelay caps delayTime at 2s, so 2T pins there below 30 BPM
-// effective — beyond any real tempo.
+// Runs on _queue. The delays sit post-varispeed, so tap time is wall-clock —
+// matching the effective (pitch-scaled) tempo the controller provides. Each
+// send's lanes run at 2x its tap (see the topology comment); AVAudioUnitDelay
+// caps delayTime at 2s, so the 1/8's lanes pin there below 30 BPM effective —
+// beyond any real tempo.
 - (void)applyDelayTapOnQueue {
     if (!_engine) {
         return; // Not installed yet; installInEngine: re-applies.
@@ -555,10 +630,12 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     float bpm = _delayTapBPM;
     os_unfair_lock_unlock(&_stateLock);
     float effectiveBPM = bpm > 0 ? bpm : kDelayDefaultBPM;
-    NSTimeInterval tap = 30.0 / effectiveBPM;
-    _delayHalf.delayTime = tap;
-    _delayLeft.delayTime = tap * 2;
-    _delayRight.delayTime = tap * 2;
+    for (VibeDelaySend *send in @[_delayEighth, _delaySixteenth]) {
+        NSTimeInterval tap = 60.0 / effectiveBPM * send.beatsPerTap;
+        send.half.delayTime = tap;
+        send.left.delayTime = tap * 2;
+        send.right.delayTime = tap * 2;
+    }
 }
 
 @end

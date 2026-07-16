@@ -55,11 +55,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)toggleLowKill:(nullable id)sender;
 
 // Momentary effects, driven by holding a bare key (down = YES, up = NO):
-// W = low-kill boost (double Q's cutoff), E = reverb send, R = delay echo
-// send. Not IBActions — a hold has no menu-item equivalent.
+// W = low-kill boost (double Q's cutoff), E = reverb send, R = 1/8-note
+// delay echo send, T = the same echo on 1/16 taps. Not IBActions — a hold
+// has no menu-item equivalent.
 - (void)setLowKillBoostActive:(BOOL)active;
 - (void)setReverbSendActive:(BOOL)active;
 - (void)setDelaySendActive:(BOOL)active;
+- (void)setShortDelaySendActive:(BOOL)active;
 
 - (IBAction)setSmallSize:(id)sender;
 - (IBAction)setLargeSize:(id)sender;

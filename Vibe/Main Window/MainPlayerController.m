@@ -590,6 +590,10 @@ static const double kSkipMostBars = 32.0;
     self.audioPlayer.fx.delaySendEnabled = active;
 }
 
+- (void)setShortDelaySendActive:(BOOL)active {
+    self.audioPlayer.fx.shortDelaySendEnabled = active;
+}
+
 - (IBAction)closeApp:(id)sender {
     [self close];
 }
