@@ -7,6 +7,7 @@
 //
 
 #import "AudioPlayer.h"
+#import "AudioFX.h"
 #import "AudioTrack.h"
 #import "AudioDeviceManager.h"
 #import "AudioDevice.h"
@@ -178,12 +179,20 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _queue = dispatch_queue_create("com.vibe.audioplayer",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
         dispatch_queue_set_specific(_queue, kAudioPlayerQueueKey, kAudioPlayerQueueKey, NULL);
+        // Created BEFORE the async engine init so fx is non-nil from the
+        // caller's first moment — intent set early (a key press, the BPM
+        // feed) is recorded and applied when installInEngine: runs below.
+        _fx = [[AudioFX alloc] initWithQueue:_queue];
         self.delegate = delegate;
         dispatch_async(_queue, ^{
 
             LogDebug(@"AudioPlayer init");
 
             self->_engine = [[AVAudioEngine alloc] init];
+
+            // The FX segment (low kill, reverb/delay returns) owns everything
+            // between the main mixer and the output node — see AudioFX.
+            [self->_fx installInEngine:self->_engine];
 
             // Resolve the saved device here rather than on the main thread:
             // this is the app's first CoreAudio device enumeration (per-device
