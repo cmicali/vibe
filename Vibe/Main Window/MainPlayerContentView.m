@@ -193,17 +193,21 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _albumArtImageView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
     [self addSubview:_albumArtImageView];
 
-    // Darkening gradient over the album art (dark at the bottom, fading out
-    // upward — the default CAGradientLayer axis) so the transport buttons
-    // overlaying the art's lower half read against bright covers.
+    // Darkening gradient over the album art — strong at the bottom for the
+    // transport buttons, clear through the middle, and a lighter band at the
+    // top for the traffic lights — so both button rows read against bright
+    // covers. Always visible (it doesn't join the hover fade).
     _albumArtGradientView = [[VibePassthroughView alloc] initWithFrame:NSMakeRect(0, 200, 150, 150)];
     _albumArtGradientView.wantsLayer = YES;
     CAGradientLayer *artGradient = [[CAGradientLayer alloc] init];
     artGradient.colors = @[
             (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.85].CGColor,
             (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.25].CGColor,
-            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0].CGColor
+            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0].CGColor,
+            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0].CGColor,
+            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.55].CGColor
     ];
+    artGradient.locations = @[@0.0, @0.3, @0.5, @0.72, @1.0];
     _albumArtGradientView.layer = artGradient;
     _albumArtGradientView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
     [self addSubview:_albumArtGradientView];
