@@ -13,6 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol AudioPlayerDelegate;
 @class AudioTrack;
 @class AudioDevice;
+@class AudioFX;
 
 extern NSString *const kVibeAudioErrorDomain;
 
@@ -39,6 +40,11 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 
 // Fader range in percent (default 8). Shrinking it re-clamps the current pitch.
 @property (nonatomic) float maxPitch;
+
+// The DJ performance effects (low kill/boost, reverb and delay sends, the
+// delay's tempo feed) — see AudioFX.h. Non-nil from init, so callers can set
+// intent immediately; the graph work lands once the async engine init runs.
+@property (nonatomic, readonly) AudioFX *fx;
 
 // deviceUID/deviceName: the persisted output device (empty or unmatched →
 // follow the system default). Resolved inside the async init on the player's

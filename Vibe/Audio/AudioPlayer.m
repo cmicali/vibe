@@ -7,6 +7,7 @@
 //
 
 #import "AudioPlayer.h"
+#import "AudioFX.h"
 #import "AudioTrack.h"
 #import "AudioDeviceManager.h"
 #import "AudioDevice.h"
@@ -184,6 +185,150 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             LogDebug(@"AudioPlayer init");
 
             self->_engine = [[AVAudioEngine alloc] init];
+
+            // Master-bus low kill: mainMixer -> EQ -> output (the explicit
+            // connects replace the implicit mixer->output one). Both bands
+            // stay live (never bypassed — see kLowKillParkedHz) for the
+            // engine's lifetime, parked inaudibly at 20 Hz; the toggle only
+            // sweeps the cutoff (applyLowKillOnQueue:). The output node
+            // converts if a later device runs at a different sample rate
+            // than this format.
+            self->_lowKillEQ = [[AVAudioUnitEQ alloc] initWithNumberOfBands:2];
+            AVAudioUnitEQFilterParameters *resonantBand = self->_lowKillEQ.bands[0];
+            resonantBand.filterType = AVAudioUnitEQFilterTypeResonantHighPass;
+            resonantBand.bandwidth = kLowKillResonanceBandwidth;
+            AVAudioUnitEQFilterParameters *plainBand = self->_lowKillEQ.bands[1];
+            plainBand.filterType = AVAudioUnitEQFilterTypeHighPass;
+            for (AVAudioUnitEQFilterParameters *band in self->_lowKillEQ.bands) {
+                band.frequency = kLowKillParkedHz;
+                band.bypass = NO;
+            }
+            [self->_engine attachNode:self->_lowKillEQ];
+
+            // Momentary reverb send/return (see the ivar comment for the
+            // graph). masterMix exists so the return has somewhere to re-enter
+            // that isn't mainMixer — returning there would loop the reverb
+            // back into its own send. The gate rests closed (volume 0) and the
+            // reverb is fully wet: the dry signal only ever travels the
+            // masterMix path, so opening the gate ADDS reverb on top.
+            self->_masterMix = [[AVAudioMixerNode alloc] init];
+            self->_reverbSendGate = [[AVAudioMixerNode alloc] init];
+            // AVAudioUnitReverb wraps MatrixReverb (verified: its component
+            // description is 'aufx'/'mrev'), so the raw kReverbParam_* knobs
+            // are settable through its audioUnit below. Hosting the AU
+            // directly via AVAudioUnitEffect instead ASSERTS in the render
+            // thread on the first pull (caulk CAVerboseAbort inside
+            // AudioUnitRender) — the AVAudioUnitReverb wrapper applies
+            // configuration the raw hosting path doesn't. Don't "simplify"
+            // back to AVAudioUnitEffect.
+            self->_reverb = [[AVAudioUnitReverb alloc] init];
+            [self->_reverb loadFactoryPreset:AVAudioUnitReverbPresetCathedral];
+            self->_reverb.wetDryMix = 100;
+            self->_reverbLowCut = [[AVAudioUnitEQ alloc] initWithNumberOfBands:1];
+            AVAudioUnitEQFilterParameters *tailCut = self->_reverbLowCut.bands.firstObject;
+            tailCut.filterType = AVAudioUnitEQFilterTypeHighPass;
+            tailCut.frequency = kReverbTailLowCutHz;
+            tailCut.bypass = NO;
+            [self->_engine attachNode:self->_masterMix];
+            [self->_engine attachNode:self->_reverbSendGate];
+            [self->_engine attachNode:self->_reverb];
+            [self->_engine attachNode:self->_reverbLowCut];
+            // Cathedral is the base character; these push the tail out to the
+            // target length (see the constants).
+            AudioUnit reverbUnit = self->_reverb.audioUnit;
+            AudioUnitSetParameter(reverbUnit, kReverbParam_SmallLargeMix, kAudioUnitScope_Global, 0, kReverbSmallLargeMix, 0);
+            AudioUnitSetParameter(reverbUnit, kReverbParam_LargeSize, kAudioUnitScope_Global, 0, kReverbLargeSize, 0);
+            AudioUnitSetParameter(reverbUnit, kReverbParam_LargeDensity, kAudioUnitScope_Global, 0, kReverbLargeDensity, 0);
+
+            // Ping-pong delay return (see the ivar comment for the topology).
+            // Fully wet like the reverb: the dry path never runs through it,
+            // the gate only adds echoes on top. Tap times follow delayTapBPM
+            // (setter below); lane feedback is the per-hop decay squared
+            // because each lane repeats every TWO hops.
+            float delayHopDecay = kDelayFeedbackPercent / 100.0f;
+            float laneFeedbackPercent = delayHopDecay * delayHopDecay * 100.0f;
+            NSTimeInterval defaultTap = 30.0 / kDelayDefaultBPM; // 1/8 note = half a beat
+            self->_delaySendGate = [[AVAudioMixerNode alloc] init];
+            self->_delayHalf = [[AVAudioUnitDelay alloc] init];
+            self->_delayHalf.wetDryMix = 100;
+            self->_delayHalf.feedback = 0; // pure T offset, no repeats of its own
+            self->_delayHalf.delayTime = defaultTap;
+            self->_delayLeft = [[AVAudioUnitDelay alloc] init];
+            self->_delayRight = [[AVAudioUnitDelay alloc] init];
+            for (AVAudioUnitDelay *lane in @[self->_delayLeft, self->_delayRight]) {
+                lane.wetDryMix = 100;
+                lane.feedback = laneFeedbackPercent;
+                lane.delayTime = defaultTap * 2;
+            }
+            self->_delayPanLeft = [[AVAudioMixerNode alloc] init];
+            self->_delayPanRight = [[AVAudioMixerNode alloc] init];
+            self->_delaySum = [[AVAudioMixerNode alloc] init];
+            self->_delayLowCut = [[AVAudioUnitEQ alloc] initWithNumberOfBands:1];
+            AVAudioUnitEQFilterParameters *echoCut = self->_delayLowCut.bands.firstObject;
+            echoCut.filterType = AVAudioUnitEQFilterTypeHighPass;
+            echoCut.frequency = kDelayEchoLowCutHz;
+            echoCut.bypass = NO;
+            [self->_engine attachNode:self->_delaySendGate];
+            [self->_engine attachNode:self->_delayHalf];
+            [self->_engine attachNode:self->_delayLeft];
+            [self->_engine attachNode:self->_delayRight];
+            [self->_engine attachNode:self->_delayPanLeft];
+            [self->_engine attachNode:self->_delayPanRight];
+            [self->_engine attachNode:self->_delaySum];
+            [self->_engine attachNode:self->_delayLowCut];
+
+            AVAudioFormat *mixerFormat = [self->_engine.mainMixerNode outputFormatForBus:0];
+            [self->_engine connect:self->_engine.mainMixerNode to:self->_lowKillEQ format:mixerFormat];
+            // One-to-many: the post-low-kill master signal feeds the dry path
+            // (masterMix bus 0) and both send taps in parallel.
+            [self->_engine connect:self->_lowKillEQ
+                toConnectionPoints:@[
+                    [[AVAudioConnectionPoint alloc] initWithNode:self->_masterMix bus:0],
+                    [[AVAudioConnectionPoint alloc] initWithNode:self->_reverbSendGate bus:0],
+                    [[AVAudioConnectionPoint alloc] initWithNode:self->_delaySendGate bus:0],
+                ]
+                           fromBus:0
+                            format:mixerFormat];
+            [self->_engine connect:self->_reverbSendGate to:self->_reverb format:mixerFormat];
+            [self->_engine connect:self->_reverb to:self->_reverbLowCut format:mixerFormat];
+            // connect:to:format: routes to a mixer's next available input bus
+            // — the returns land on buses 1 and 2, after the dry path's bus 0.
+            [self->_engine connect:self->_reverbLowCut to:self->_masterMix format:mixerFormat];
+            // Ping-pong lanes (topology in the ivar comment). The gate and
+            // delayHalf each fan out one-to-many.
+            [self->_engine connect:self->_delaySendGate
+                toConnectionPoints:@[
+                    [[AVAudioConnectionPoint alloc] initWithNode:self->_delayHalf bus:0],
+                    [[AVAudioConnectionPoint alloc] initWithNode:self->_delayRight bus:0],
+                ]
+                           fromBus:0
+                            format:mixerFormat];
+            [self->_engine connect:self->_delayHalf
+                toConnectionPoints:@[
+                    [[AVAudioConnectionPoint alloc] initWithNode:self->_delayPanLeft bus:0],
+                    [[AVAudioConnectionPoint alloc] initWithNode:self->_delayLeft bus:0],
+                ]
+                           fromBus:0
+                            format:mixerFormat];
+            [self->_engine connect:self->_delayLeft to:self->_delayPanLeft format:mixerFormat]; // bus 1
+            [self->_engine connect:self->_delayRight to:self->_delayPanRight format:mixerFormat];
+            [self->_engine connect:self->_delayPanLeft to:self->_delaySum format:mixerFormat];
+            [self->_engine connect:self->_delayPanRight to:self->_delaySum format:mixerFormat];
+            [self->_engine connect:self->_delaySum to:self->_delayLowCut format:mixerFormat];
+            [self->_engine connect:self->_delayLowCut to:self->_masterMix format:mixerFormat];
+            [self->_engine connect:self->_masterMix to:self->_engine.outputNode format:mixerFormat];
+            // Mixer state only AFTER the nodes are attached and wired:
+            // AVAudioMixerNode's underlying mixer AU doesn't exist until
+            // then, and volume/pan written earlier is dropped — the gates
+            // would come up at their default (1.0) and the app would launch
+            // with the effects audibly stuck on.
+            self->_reverbSendGate.outputVolume = 0;
+            self->_delaySendGate.outputVolume = 0;
+            self->_delayPanLeft.pan = -kDelayPingPongPan;
+            self->_delayPanRight.pan = kDelayPingPongPan;
+            // One hop of decay on the right lane: its first tap lands at 2T
+            // (hop 2), a full hop after the left lane's T.
+            self->_delayPanRight.outputVolume = delayHopDecay;
 
             // Resolve the saved device here rather than on the main thread:
             // this is the app's first CoreAudio device enumeration (per-device
@@ -1121,6 +1266,221 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // Re-apply in case the narrower range clamped the current pitch.
     dispatch_async(_queue, ^{
         self->_varispeed.rate = 1.0f + pitch / 100.0f;
+    });
+}
+
+#pragma mark - Low kill
+
+- (BOOL)lowKillEnabled {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL enabled = _lowKillEnabled;
+    os_unfair_lock_unlock(&_stateLock);
+    return enabled;
+}
+
+- (void)setLowKillEnabled:(BOOL)enabled {
+    os_unfair_lock_lock(&_stateLock);
+    if (_lowKillEnabled == enabled) {
+        os_unfair_lock_unlock(&_stateLock);
+        return;
+    }
+    _lowKillEnabled = enabled;
+    os_unfair_lock_unlock(&_stateLock);
+    dispatch_async(_queue, ^{
+        [self applyLowKillTargetOnQueue];
+    });
+}
+
+- (BOOL)lowKillBoostActive {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL active = _lowKillBoostActive;
+    os_unfair_lock_unlock(&_stateLock);
+    return active;
+}
+
+- (void)setLowKillBoostActive:(BOOL)active {
+    os_unfair_lock_lock(&_stateLock);
+    if (_lowKillBoostActive == active) {
+        os_unfair_lock_unlock(&_stateLock);
+        return;
+    }
+    _lowKillBoostActive = active;
+    os_unfair_lock_unlock(&_stateLock);
+    dispatch_async(_queue, ^{
+        [self applyLowKillTargetOnQueue];
+    });
+}
+
+// Runs on _queue. Resolves the ONE cutoff both controls share — the held
+// boost (double cutoff) outranks the Q toggle, which outranks parked — and
+// sweeps there from wherever the filter is: a re-toggle/release mid-sweep
+// bumps the generation, preempting the old sweep, and starts from the
+// current frequency (no jump). The bands are un-bypassed while parked
+// (transparent, so the flip is inaudible) and re-bypassed only by a
+// disengage sweep that reaches the parked cutoff un-preempted.
+- (void)applyLowKillTargetOnQueue {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL enabled = _lowKillEnabled;
+    BOOL boost = _lowKillBoostActive;
+    os_unfair_lock_unlock(&_stateLock);
+    float target = boost ? kLowKillCutoffHz * kLowKillBoostMultiplier
+                 : enabled ? kLowKillCutoffHz
+                           : kLowKillParkedHz;
+    uint64_t generation = ++_lowKillRampGeneration;
+    [self stepLowKillRamp:1 from:_lowKillEQ.bands.firstObject.frequency
+                       to:target generation:generation];
+}
+
+// The fade-loop pattern (stepRampAsync:) applied to the filter cutoff — both
+// cascaded bands track the same frequency, stepped along a log-frequency
+// curve (multiplicative interpolation, like the volume fades) at the finer
+// low-kill cadence.
+- (void)stepLowKillRamp:(int)step from:(float)start to:(float)target generation:(uint64_t)generation {
+    if (generation != _lowKillRampGeneration) {
+        return; // A newer toggle owns the cutoff now.
+    }
+    float frequency = (step >= kLowKillSweepSteps)
+            ? target
+            : start * powf(target / start, (float)step / (float)kLowKillSweepSteps);
+    for (AVAudioUnitEQFilterParameters *band in _lowKillEQ.bands) {
+        band.frequency = frequency;
+    }
+    if (step >= kLowKillSweepSteps) {
+        return;
+    }
+    __weak AudioPlayer *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kLowKillSweepStepMicroseconds * NSEC_PER_USEC)), _queue, ^{
+        [weakSelf stepLowKillRamp:step + 1 from:start to:target generation:generation];
+    });
+}
+
+#pragma mark - Reverb send
+
+- (BOOL)reverbSendEnabled {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL enabled = _reverbSendEnabled;
+    os_unfair_lock_unlock(&_stateLock);
+    return enabled;
+}
+
+- (void)setReverbSendEnabled:(BOOL)enabled {
+    os_unfair_lock_lock(&_stateLock);
+    if (_reverbSendEnabled == enabled) {
+        os_unfair_lock_unlock(&_stateLock);
+        return;
+    }
+    _reverbSendEnabled = enabled;
+    os_unfair_lock_unlock(&_stateLock);
+    dispatch_async(_queue, ^{
+        [self applySendGateOnQueue:self->_reverbSendGate enabled:enabled
+                             level:kReverbSendLevel swellRatio:kReverbSwellRatio
+                           counter:&self->_reverbSendRampGeneration];
+    });
+}
+
+// Runs on _queue. Opens/closes a send gate: a fast fade on the volume-fade
+// cadence (an instant volume step clicks; 25ms doesn't), then — while the
+// gate stays open — a slow swell up to kSendSwellRatio x the base level.
+// Closing cuts only the send — the effect keeps rendering, so its tail
+// decays naturally. A re-toggle mid-ramp preempts (via the counter) and
+// continues from the current gate level.
+- (void)applySendGateOnQueue:(AVAudioMixerNode *)gate enabled:(BOOL)enabled level:(float)level swellRatio:(float)swellRatio counter:(uint64_t *)counter {
+    uint64_t generation = ++(*counter);
+    if (!enabled) {
+        [self stepSendGateRamp:gate step:1 of:kFadeSteps stepMicroseconds:kFadeStepMicroseconds
+                          from:gate.outputVolume to:0
+                    generation:generation counter:counter completion:nil];
+        return;
+    }
+    __weak AudioPlayer *weakSelf = self;
+    [self stepSendGateRamp:gate step:1 of:kFadeSteps stepMicroseconds:kFadeStepMicroseconds
+                      from:gate.outputVolume to:level
+                generation:generation counter:counter completion:^{
+        // Same generation: the release (or a re-press) that would invalidate
+        // the swell bumps the counter and the first swell step drops out.
+        [weakSelf stepSendGateRamp:gate step:1 of:kSendSwellSteps stepMicroseconds:kSendSwellStepMicroseconds
+                              from:level to:level * swellRatio
+                        generation:generation counter:counter completion:nil];
+    }];
+}
+
+// counter points at the owning send's queue-confined ramp generation ivar, so
+// the two sends preempt independently. Only dereferenced with self alive (the
+// method runs on a strong self), so the pointer can't dangle. The completion
+// fires only on an un-preempted run to the target (a preempted ramp's owner
+// has moved on — its follow-up must not start).
+- (void)stepSendGateRamp:(AVAudioMixerNode *)gate step:(int)step of:(int)steps stepMicroseconds:(uint64_t)stepMicroseconds from:(float)start to:(float)target generation:(uint64_t)generation counter:(uint64_t *)counter completion:(dispatch_block_t)completion {
+    if (generation != *counter) {
+        return; // A newer toggle owns the gate now.
+    }
+    if (step >= steps) {
+        gate.outputVolume = target;
+        if (completion) {
+            completion();
+        }
+        return;
+    }
+    // Multiplicative (perceptually log) interpolation, like VibeFadeVolume
+    // but for an arbitrary step count.
+    float f = MAX(start, kFadeFloor);
+    float t = MAX(target, kFadeFloor);
+    gate.outputVolume = f * powf(t / f, (float)step / (float)steps);
+    __weak AudioPlayer *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(stepMicroseconds * NSEC_PER_USEC)), _queue, ^{
+        [weakSelf stepSendGateRamp:gate step:step + 1 of:steps stepMicroseconds:stepMicroseconds from:start to:target generation:generation counter:counter completion:completion];
+    });
+}
+
+#pragma mark - Delay send
+
+- (BOOL)delaySendEnabled {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL enabled = _delaySendEnabled;
+    os_unfair_lock_unlock(&_stateLock);
+    return enabled;
+}
+
+- (void)setDelaySendEnabled:(BOOL)enabled {
+    os_unfair_lock_lock(&_stateLock);
+    if (_delaySendEnabled == enabled) {
+        os_unfair_lock_unlock(&_stateLock);
+        return;
+    }
+    _delaySendEnabled = enabled;
+    os_unfair_lock_unlock(&_stateLock);
+    dispatch_async(_queue, ^{
+        [self applySendGateOnQueue:self->_delaySendGate enabled:enabled
+                             level:kDelaySendLevel swellRatio:kDelaySwellRatio
+                           counter:&self->_delaySendRampGeneration];
+    });
+}
+
+- (float)delayTapBPM {
+    os_unfair_lock_lock(&_stateLock);
+    float bpm = _delayTapBPM;
+    os_unfair_lock_unlock(&_stateLock);
+    return bpm;
+}
+
+- (void)setDelayTapBPM:(float)bpm {
+    os_unfair_lock_lock(&_stateLock);
+    if (_delayTapBPM == bpm) {
+        os_unfair_lock_unlock(&_stateLock);
+        return; // Called on every fader tick — only real changes touch the queue.
+    }
+    _delayTapBPM = bpm;
+    os_unfair_lock_unlock(&_stateLock);
+    float effectiveBPM = bpm > 0 ? bpm : kDelayDefaultBPM;
+    dispatch_async(_queue, ^{
+        // 1/8 note = half a beat. The delays sit post-varispeed, so this is
+        // wall-clock time — matching the effective (pitch-scaled) tempo the
+        // caller provides. The lanes run at 2T (see the topology comment);
+        // AVAudioUnitDelay caps delayTime at 2s, so 2T pins there below
+        // 30 BPM effective — beyond any real tempo.
+        NSTimeInterval tap = 30.0 / effectiveBPM;
+        self->_delayHalf.delayTime = tap;
+        self->_delayLeft.delayTime = tap * 2;
+        self->_delayRight.delayTime = tap * 2;
     });
 }
 
