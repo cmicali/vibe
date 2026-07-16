@@ -16,10 +16,4 @@
 + (NSFont *)fontForNumbers:(CGFloat)size;
 + (NSFont *)fontForNumbers:(CGFloat)size bold:(BOOL)bold;
 
-+ (NSMutableAttributedString *)stringForNumbers:(NSString *)str color:(NSColor *)color size:(CGFloat)size;
-
-+ (NSMutableAttributedString *)stringForNumbers:(NSString *)str color:(NSColor *)color size:(CGFloat)size alignment:(NSTextAlignment)alignment;
-+ (NSMutableAttributedString *)stringForNumbers:(NSString *)str color:(NSColor *)color size:(CGFloat)size alignment:(NSTextAlignment)alignment kerning:(CGFloat)kerning;
-+ (NSMutableAttributedString *)string:(NSString *)str color:(NSColor *)color size:(CGFloat)size;
-
 @end

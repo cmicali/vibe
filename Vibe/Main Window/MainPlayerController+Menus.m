@@ -9,11 +9,13 @@
 #import "AudioTrack.h"
 #import "AudioWaveformView.h"
 
-// waveformView is synthesized by the class extension in MainPlayerController.m;
-// re-declared readonly here (same pattern as MainPlayerController+Debug.h) so
-// the waveform-style submenu code can read it.
+// waveformView and playlistTableView are synthesized by the class extension in
+// MainPlayerController.m; re-declared readonly here (same pattern as
+// MainPlayerController+Debug.h) so the waveform-style submenu code and the
+// playlist context-menu validation can read them.
 @interface MainPlayerController (MenuOutlets)
 @property (weak, readonly) AudioWaveformView *waveformView;
+@property (weak, readonly) NSTableView *playlistTableView;
 @end
 
 @implementation MainPlayerController (Menus)
@@ -38,10 +40,10 @@
     else if ([menuItem.identifier isEqualToString:@"menu_next_track"]) {
         // Only when there is actually a track after the current one; at the
         // end of the playlist next: is a no-op.
-        return self.playlistManager.currentIndex + 1 < self.playlistManager.count;
+        return self.playlistManager.hasNextTrack;
     }
     else if ([menuItem.identifier isEqualToString:@"menu_previous_track"]) {
-        return self.playlistManager.count > 0 && self.playlistManager.currentIndex > 0;
+        return self.playlistManager.hasPreviousTrack;
     }
     else if ([menuItem.identifier isEqualToString:@"menu_skip_forward"] ||
              [menuItem.identifier isEqualToString:@"menu_skip_forward_more"] ||
@@ -65,6 +67,12 @@
     }
     else if ([menuItem.identifier isEqualToString:@"show_in_finder"]) {
         return self.playlistManager.currentTrack.url != nil;
+    }
+    else if ([menuItem.identifier isEqualToString:@"show_clicked_track_in_finder"]) {
+        // Right-click on the table's empty area still opens the menu, with
+        // clickedRow -1.
+        NSInteger row = self.playlistTableView.clickedRow;
+        return row >= 0 && row < (NSInteger)self.playlistManager.count;
     }
     return YES;
 }
@@ -94,6 +102,13 @@
             item.action = @selector(setWaveformStyle:);
         }
     }
+}
+
+// Without this, AppKit's key-equivalent scan calls menuNeedsUpdate: — a full
+// submenu rebuild — on every keyDown (same pattern as
+// OutputDevicesMenuController). The style items carry no key equivalents.
+- (BOOL)menuHasKeyEquivalent:(NSMenu *)menu forEvent:(NSEvent *)event target:(_Nullable id *_Nonnull)target action:(_Nullable SEL *_Nonnull)action {
+    return NO;
 }
 
 - (IBAction)setWaveformStyle:(id)sender {

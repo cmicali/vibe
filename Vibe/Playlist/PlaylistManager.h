@@ -28,6 +28,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (BOOL)previous;
 
+// Playlist-boundary predicates — the single source of truth for "is there a
+// track after/before the current one", shared by next/previous themselves,
+// the transport buttons, menu validation, Now Playing (Control Center)
+// command gating, and the end-of-playlist stop.
+- (BOOL)hasNextTrack;
+- (BOOL)hasPreviousTrack;
+
 - (AudioTrack * _Nullable)currentTrack;
 - (NSUInteger)count;
 

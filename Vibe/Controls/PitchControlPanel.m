@@ -152,4 +152,8 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
     [self.delegate pitchFaderView:faderView didChangePitch:pitch];
 }
 
+- (void)pitchFaderViewDidEndAdjusting:(PitchFaderView *)faderView {
+    [self.delegate pitchFaderViewDidEndAdjusting:faderView];
+}
+
 @end

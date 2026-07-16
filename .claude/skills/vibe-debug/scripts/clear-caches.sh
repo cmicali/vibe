@@ -1,7 +1,7 @@
 #!/bin/bash
 # Clear Vibe's metadata + waveform caches.
 #
-# If a debug build is running, goes through `--debug-cmd clearCaches` (the app
+# If a debug build is running, goes through `--debug-cmd clear_caches` (the app
 # keeps running with empty caches — the reply confirms completion). Otherwise
 # deletes every PINDiskCache directory in the app container directly, which
 # also sweeps superseded cache versions.
@@ -17,7 +17,7 @@ V="$APP/Contents/MacOS/Vibe"
 CACHES="$HOME/Library/Containers/com.commonwealthrecordings.Vibe/Data/Library/Caches"
 
 if pgrep -x Vibe >/dev/null && [ -x "$V" ]; then
-    if OUT="$("$V" --debug-cmd clearCaches 2>/dev/null)"; then
+    if OUT="$("$V" --debug-cmd clear_caches 2>/dev/null)"; then
         echo "$OUT"
         exit 0
     fi

@@ -28,7 +28,6 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 @protocol AudioWaveformLoaderDelegate <NSObject>
-@optional
 
 - (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded;
 

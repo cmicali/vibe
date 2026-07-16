@@ -11,6 +11,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @protocol PitchFaderViewDelegate <NSObject>
 - (void)pitchFaderView:(PitchFaderView *)faderView didChangePitch:(float)pitch;
+// Fired once when a pitch gesture ends (mouse-up after a click/drag, or the
+// double-click reset) — the hook for work too heavy to run on every drag tick.
+- (void)pitchFaderViewDidEndAdjusting:(PitchFaderView *)faderView;
 @end
 
 // Technics-style vertical pitch fader: minus range at the top, plus at the

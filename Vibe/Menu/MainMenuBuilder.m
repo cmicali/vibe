@@ -139,4 +139,11 @@ static NSMenuItem *VibeSubmenuItem(NSMenu *parent, NSString *title) {
     [menu addItem:clear];
 }
 
+// Without this, AppKit's key-equivalent scan calls menuNeedsUpdate: — a full
+// Open Recent rebuild — on every keyDown (same pattern as
+// OutputDevicesMenuController). No Open Recent item carries a key equivalent.
+- (BOOL)menuHasKeyEquivalent:(NSMenu *)menu forEvent:(NSEvent *)event target:(_Nullable id *_Nonnull)target action:(_Nullable SEL *_Nonnull)action {
+    return NO;
+}
+
 @end

@@ -24,7 +24,6 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 @protocol AudioTrackMetadataCacheDelegate <NSObject>
-@optional
 - (void)didLoadMetadata:(AudioTrack *)track;
 @end
 

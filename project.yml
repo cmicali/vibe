@@ -154,7 +154,9 @@ targets:
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         CLANG_ENABLE_MODULES: YES
         CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/Common/Vibe.entitlements"
-        CODE_SIGN_IDENTITY: "Apple Development"
+        CODE_SIGN_IDENTITY: "-"             # Sign to Run Locally: no dev cert needed (empty
+                                            # entitlements, no profile); release.sh re-signs
+                                            # with Developer ID for distribution.
         CODE_SIGN_STYLE: Automatic
         COMBINE_HIDPI_IMAGES: YES
         DEAD_CODE_STRIPPING: YES

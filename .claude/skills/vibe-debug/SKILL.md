@@ -22,9 +22,9 @@ V="$APP/Contents/MacOS/Vibe"
 .claude/skills/vibe-debug/scripts/launch.sh [audio-file ...]   # kill, open -a, wait until ready
 ```
 
-`launch.sh` relaunches the build and polls the debug channel until the app answers, printing its `state` JSON — no guessed sleeps. It honors `$VIBE_APP` if the app lives somewhere other than `build/DerivedData`. Doing it by hand instead:
+`launch.sh` relaunches the build and polls the debug channel until the app answers, printing its `dump_state` JSON — no guessed sleeps. It honors `$VIBE_APP` if the app lives somewhere other than `build/DerivedData`. Doing it by hand instead:
 
-- **Feed it a file with `open -a "$APP" <file>`.** The App Sandbox denies reading raw `argv` paths (no Launch Services grant), so `"$V" <file>` parses the path but the open fails. `open` grants access properly.
+- **Feed it a file with `open -a "$APP" <file>`.** The App Sandbox denies reading raw `argv` paths (no Launch Services grant), so `"$V" <file>` parses the path but the open fails. `open` grants access properly. (An already-running instance can also load files via `--debug-cmd open <path>` — but that grants no sandbox access either, so it's for container/already-granted paths; `open -a` works mid-session too and remains the way to feed arbitrary files.)
 - **Check WHICH binary is running before trusting any observation.** If the user has Vibe running from Xcode, LaunchServices routes `open -a` (and `open -n`) to that instance — you'll be testing a stale build without any error. Verify with:
   ```bash
   ps -o pid,command -p $(pgrep -x Vibe)
@@ -38,19 +38,22 @@ The Vibe binary doubles as its own CLI client (same bundle ID + sandbox, so it s
 **Every command replies with exactly one JSON object** — never scrape text. Filter with `jq` (`-r` for shell substitution, `-e` to assert); drop to python only when the logic outgrows filtering (multi-step transforms, comparing states). Pipe via `printf '%s' "$out"`, not `echo` — zsh's `echo` rewrites `\t` escapes inside the JSON into illegal raw control characters. Errors are `{"error": "…"}` (exit code 2).
 
 ```bash
-"$V" --debug-cmd state           # {player, currentTrack, playlist, ui (label text), window, settings}
-"$V" --debug-cmd nowPlaying      # {playbackState, hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — what we publish to the system Now Playing UI (Control Center / media keys)
-"$V" --debug-cmd viewtree        # {windows: [{class, frame, visible, key, contentView: {…, subviews}}]}
-"$V" --debug-cmd menu            # {menu: [{title, id, key, action, enabled, state, items}]} — LIVE enabled/checkmark
-"$V" --debug-cmd clickMenu menu_show_pitch   # {ok, clicked, action} — by identifier (preferred) or exact title
-"$V" --debug-cmd screenshot      # {path: <PNG path>} — in-process snapshot
-"$V" --debug-cmd playPause       # also: next, previous, togglePitchPanel, toggleSize
-"$V" --debug-cmd setPitch -4.5   # drives fader (clamps), player, and time labels together
-"$V" --debug-cmd seek 120        # seconds
-"$V" --debug-cmd clearCaches     # {ok, cleared} — empties metadata + waveform PINCaches
+"$V" --debug-cmd dump_state          # {player, currentTrack, playlist, ui (label text), window, settings}
+"$V" --debug-cmd dump_now_playing    # {playbackState, hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — what we publish to the system Now Playing UI (Control Center / media keys)
+"$V" --debug-cmd dump_view_tree      # {windows: [{class, frame, visible, key, contentView: {…, subviews}}]}
+"$V" --debug-cmd dump_menu           # {menu: [{title, id, key, action, enabled, state, items}]} — LIVE enabled/checkmark
+"$V" --debug-cmd click_menu menu_show_pitch   # {ok, clicked, action} — by identifier (preferred) or exact title
+"$V" --debug-cmd dump_screenshot     # {path: <PNG path>} — in-process snapshot
+"$V" --debug-cmd play_pause          # also: next, previous, skip_forward, skip_forward_more, skip_back, skip_back_more, toggle_pitch_panel, toggle_size
+"$V" --debug-cmd set_pitch -4.5      # drives fader (clamps), player, and time labels together
+"$V" --debug-cmd seek 120            # seconds
+"$V" --debug-cmd open ~/Music/album  # {ok, opening} — file or dir, same expand/filter/play pipeline as a drop; poll dump_state
+"$V" --debug-cmd file_cache song.flac        # {ok, wasCached, bpm} — decode + cache one file's waveform (UI untouched); waits up to 60s
+"$V" --debug-cmd file_clear_cache song.flac  # {ok, wasPresent} — evict one file's cached waveform
+"$V" --debug-cmd clear_caches        # {ok, cleared} — empties metadata + waveform PINCaches
 ```
 
-`clearCaches` blocks until both disk caches are actually empty (so a follow-up
+`clear_caches` blocks until both disk caches are actually empty (so a follow-up
 launch is guaranteed a cold parse); the waveform clear queues behind any
 in-flight waveform load, so allow up to 15 s right after feeding a long file.
 For the common "cold-cache launch" setup there's a wrapper that also works when
@@ -61,16 +64,18 @@ directly, including superseded cache versions):
 .claude/skills/vibe-debug/scripts/clear-caches.sh   # prints {ok, cleared: [...]}
 ```
 
-`menu` and `clickMenu` run the same `validateMenuItem` pass opening the menu would, so enabled/checkmark are live — this replaces AppleScript/System Events menu clicking (no Automation permission, no frontmost requirement). Get identifiers from `menu`.
+`file_cache` / `file_clear_cache` operate on the **waveform** cache for one file (keyed by size + mtime), independent of the current track — use them to force a cold decode when testing the waveform loader or BPM analyzer: `file_clear_cache foo.flac` then `file_cache foo.flac` reports the freshly detected `bpm`; the reply lands only after the entry is on disk, so a follow-up relaunch is guaranteed the cache hit. Quote paths as usual — arguments travel to the app as an array (never re-tokenized), so filenames with any whitespace are safe. `open` and `file_cache` read the path directly, so the App Sandbox may deny an arbitrary file the app hasn't been granted (same caveat as command-line args) — launching via `open -a "$APP" <file>` grants access, so prefer paths already opened this session.
 
-Action replies are a compact `{ok, state, index, count, position, pitch, playlistShown, pitchPanelShown}` object read synchronously, so they can lag async engine work — run `state` afterwards to confirm. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error. With **two instances running, the command file is racy** (either instance may consume it) — quit one first.
+`dump_menu` and `click_menu` run the same `validateMenuItem` pass opening the menu would, so enabled/checkmark are live — this replaces AppleScript/System Events menu clicking (no Automation permission, no frontmost requirement). Get identifiers from `dump_menu`.
+
+Action replies are a compact `{ok, state, index, count, position, pitch, playlistShown, pitchPanelShown}` object read synchronously, so they can lag async engine work — run `dump_state` afterwards to confirm. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error. With **two instances running, the command file is racy** (either instance may consume it) — quit one first.
 
 ## Screenshots: two paths, each shows what the other can't
 
 **1. In-process snapshot** — synchronous one-liner (the reply carries the PNG path):
 
 ```bash
-cp "$("$V" --debug-cmd screenshot | jq -r .path)" shot.png
+cp "$("$V" --debug-cmd dump_screenshot | jq -r .path)" shot.png
 ```
 
 (`notifyutil -p com.vibe.debug.screenshot` also works but is async — you'd have to sleep and copy from the container manually. Each capture overwrites the same file, so copy it out before the next one.)
@@ -106,7 +111,7 @@ defaults write com.commonwealthrecordings.Vibe Settings.windowAppearance light  
 defaults delete com.commonwealthrecordings.Vibe Settings.windowAppearance        # follow system
 ```
 
-Relaunch to apply, or toggle live: `"$V" --debug-cmd clickMenu view_appearance_light` (also `view_appearance_dark`, `view_appearance_system_default`). Test both modes for any color/material change; use real capture (path 2) to verify backgrounds. Note the app's window appearance is independent of the system's — a "light" window over a dark system is a supported (and previously buggy) combination.
+Relaunch to apply, or toggle live: `"$V" --debug-cmd click_menu view_appearance_light` (also `view_appearance_dark`, `view_appearance_system_default`). Test both modes for any color/material change; use real capture (path 2) to verify backgrounds. Note the app's window appearance is independent of the system's — a "light" window over a dark system is a supported (and previously buggy) combination.
 
 ## Real input path (hotkeys, fader mouse mechanics)
 
@@ -119,7 +124,7 @@ swift .claude/skills/vibe-debug/scripts/input.swift drag 882 461 882 552   # x1 
 swift .claude/skills/vibe-debug/scripts/input.swift dblclick 882 500       # also: click
 ```
 
-Global screen coordinates, origin top-left (`find-window.swift` prints window origin/size in the same space). Needs Accessibility permission; flaky if focus is stolen mid-test — verify the result with `state`, not by assuming the event landed. For everything else, prefer `--debug-cmd`.
+Global screen coordinates, origin top-left (`find-window.swift` prints window origin/size in the same space). Needs Accessibility permission; flaky if focus is stolen mid-test — verify the result with `dump_state`, not by assuming the event landed. For everything else, prefer `--debug-cmd`.
 
 ## Logs
 

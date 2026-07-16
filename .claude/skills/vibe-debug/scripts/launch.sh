@@ -24,7 +24,7 @@ for _ in 1 2 3 4 5 6; do
         open -a "$APP" "$@"
         sleep 2
     fi
-    if "$V" --debug-cmd state 2>/dev/null; then
+    if "$V" --debug-cmd dump_state 2>/dev/null; then
         # Guard against LaunchServices having routed open -a to an
         # Xcode-run instance of a different build.
         RUNNING="$(ps -o command= -p "$(pgrep -x Vibe | head -1)" 2>/dev/null || true)"

@@ -237,6 +237,7 @@ static const float   kDetentPercent   = 0.35f;
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     if (event.clickCount == 2) {
         [self userSetPitch:0];
+        [self.delegate pitchFaderViewDidEndAdjusting:self];
         return;
     }
     _dragging = YES;
@@ -259,7 +260,10 @@ static const float   kDetentPercent   = 0.35f;
 }
 
 - (void)mouseUp:(NSEvent *)event {
-    _dragging = NO;
+    if (_dragging) {
+        _dragging = NO;
+        [self.delegate pitchFaderViewDidEndAdjusting:self];
+    }
 }
 
 - (void)userSetPitch:(float)pitch {
@@ -267,6 +271,10 @@ static const float   kDetentPercent   = 0.35f;
         pitch = 0; // center detent
     }
     pitch = roundf(pitch * 10) / 10; // 0.1% steps
+    // Clamp before the dedupe: past the travel ends pitchForY: keeps growing,
+    // and comparing the unclamped value would fire the delegate with the same
+    // clamped pitch on every mouse move.
+    pitch = MAX(-_maxPitch, MIN(_maxPitch, pitch));
     if (pitch == _pitch) {
         return;
     }

@@ -90,9 +90,12 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // Varispeed sits between the current player node and the mixer. A fresh one
     // is created per track (playOnQueue:) so a track change crossfades on two
     // independent chains without rerouting the live node; _varispeed always
-    // points at the current/incoming track's. Rate changes resample like a
-    // turntable motor: tempo and pitch move together. _pitch (percent) is
-    // guarded by _stateLock so the UI can read it without touching the queue.
+    // points at the current/incoming track's, and is nil until the first play
+    // mints one (a pre-play setPitch: only records _pitch — the rate is
+    // re-applied to every new varispeed in connectNode:throughVarispeed…).
+    // Rate changes resample like a turntable motor: tempo and pitch move
+    // together. _pitch (percent) is guarded by _stateLock so the UI can read
+    // it without touching the queue.
     AVAudioUnitVarispeed    *_varispeed;
     float                   _pitch;
     float                   _maxPitch;
@@ -181,9 +184,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             LogDebug(@"AudioPlayer init");
 
             self->_engine = [[AVAudioEngine alloc] init];
-
-            self->_varispeed = [[AVAudioUnitVarispeed alloc] init];
-            [self->_engine attachNode:self->_varispeed];
 
             // Resolve the saved device here rather than on the main thread:
             // this is the app's first CoreAudio device enumeration (per-device
@@ -313,8 +313,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     if (oldNode && _engine.isRunning && _state == VibePlayerStatePlaying) {
         // Audible: fade the outgoing node out on its own varispeed, then detach
         // both once silent. The incoming node fades in concurrently on the new
-        // varispeed (finishPlayOnQueue:) for a true crossfade.
-        [self rampNodeAsync:oldNode step:1 from:oldNode.volume to:0 generation:_rampGeneration completion:^{
+        // varispeed (finishPlayOnQueue:) for a true crossfade. The retired-node
+        // ramp (not the generation-tagged one): a second skip, pause, or seek
+        // inside the fade window must not preempt this fade — its completion
+        // would then stop the node at mid-fade volume, which is a click.
+        [self rampRetiredNodeAsync:oldNode step:1 from:oldNode.volume completion:^{
             [oldNode stop];
             [engine detachNode:oldNode];
             [engine detachNode:oldVarispeed];
@@ -338,14 +341,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // Enter the loading state: no node/file yet, but a play is committed. This
     // clears the previous track's file/position so the UI stops showing stale
     // duration/position for up to the full open timeout.
-    os_unfair_lock_lock(&_stateLock);
-    _file = nil;
-    _segmentStartFrame = 0;
-    _pausedPosition = 0;
-    _lastValidPosition = 0;
-    _positionEpoch++;
-    _state = VibePlayerStateLoading;
-    os_unfair_lock_unlock(&_stateLock);
+    [self publishPlaybackState:VibePlayerStateLoading node:nil file:nil segmentStart:0 position:0];
 
     // A prefetched handle for this exact path skips the open entirely — the
     // transition goes straight to schedule+play. Ownership passes to the
@@ -369,16 +365,29 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _pendingOpenTrack = track;
     uint64_t openId = ++_openRequestId;
     __weak AudioPlayer *weakSelf = self;
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSError *error = nil;
-        AVAudioFile *file = [[AVAudioFile alloc] initForReading:track.url error:&error];
-        AudioPlayer *strongSelf = weakSelf;
-        if (strongSelf) {
-            dispatch_async(strongSelf->_queue, ^{
-                [strongSelf finishPlayOnQueue:track file:file error:error openRequestId:openId];
-            });
-        }
-    });
+    if (_prefetchedPath && [path isEqualToString:_prefetchedPath]) {
+        // The prefetch open for this exact path is still in flight (claimed,
+        // not landed — the parked-handle case returned above). Adopt it
+        // instead of starting a duplicate open: its completion sees
+        // _currentOpenPath == its path and delivers into finishPlayOnQueue:
+        // (see prefetchOnQueue:). The timeout and slow-open indicator below
+        // arm exactly as for an owned open; only the worker is shared. The
+        // claim is consumed so the completion can't also park the handle.
+        _prefetchRequestId++;
+        _prefetchedPath = nil;
+    }
+    else {
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSError *error = nil;
+            AVAudioFile *file = [[AVAudioFile alloc] initForReading:track.url error:&error];
+            AudioPlayer *strongSelf = weakSelf;
+            if (strongSelf) {
+                dispatch_async(strongSelf->_queue, ^{
+                    [strongSelf finishPlayOnQueue:track file:file error:error openRequestId:openId];
+                });
+            }
+        });
+    }
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFileOpenTimeoutSeconds * NSEC_PER_SEC)), _queue, ^{
         [weakSelf fileOpenTimedOut:track openRequestId:openId];
     });
@@ -437,15 +446,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         return;
     }
 
-    os_unfair_lock_lock(&_stateLock);
-    _node = node;
-    _file = file;
-    _segmentStartFrame = 0;
-    _pausedPosition = 0;
-    _lastValidPosition = 0;
-    _positionEpoch++;
-    _state = VibePlayerStatePlaying;
-    os_unfair_lock_unlock(&_stateLock);
+    [self publishPlaybackState:VibePlayerStatePlaying node:node file:file segmentStart:0 position:0];
 
     // Fade the new track in from silence: its first frame is rarely a zero
     // crossing, so starting at full volume clicks (the same reason the seek
@@ -571,14 +572,26 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     uint64_t prefetchId = _prefetchRequestId;
     __weak AudioPlayer *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        AVAudioFile *file = [[AVAudioFile alloc] initForReading:track.url error:nil];
+        NSError *error = nil;
+        AVAudioFile *file = [[AVAudioFile alloc] initForReading:track.url error:&error];
         AudioPlayer *strongSelf = weakSelf;
         if (!strongSelf) {
             return;
         }
         dispatch_async(strongSelf->_queue, ^{
+            if (strongSelf->_currentOpenPath && [path isEqualToString:strongSelf->_currentOpenPath]) {
+                // A play of this path is waiting on its open — the adoption
+                // case (playOnQueue: consumed the claim), or a later replay
+                // racing this straggler with its own worker. Deliver here:
+                // finishPlayOnQueue: consumes the open id, so whichever
+                // worker lands second no-ops. finishPlayOnQueue: rebinds to
+                // _pendingOpenTrack, so the play's track object wins.
+                [strongSelf finishPlayOnQueue:track file:file error:error
+                                openRequestId:strongSelf->_openRequestId];
+                return;
+            }
             if (prefetchId != strongSelf->_prefetchRequestId) {
-                return; // a newer prefetch target superseded this open
+                return; // a newer prefetch target (or an adoption) superseded this open
             }
             if (file && file.length > 0) {
                 strongSelf->_prefetchedFile = file;
@@ -602,15 +615,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _openRequestId++;
     _currentOpenPath = nil;
     _pendingOpenTrack = nil;
-    os_unfair_lock_lock(&_stateLock);
-    _node = nil;
-    _file = nil;
-    _segmentStartFrame = 0;
-    _pausedPosition = 0;
-    _lastValidPosition = 0;
-    _positionEpoch++;
-    _state = VibePlayerStateStopped;
-    os_unfair_lock_unlock(&_stateLock);
+    [self publishPlaybackState:VibePlayerStateStopped node:nil file:nil segmentStart:0 position:0];
     // Release the output device once genuinely idle; a quick follow-up play
     // (auto-advance past a bad file) reuses the running engine.
     [self scheduleEngineIdleStopOnQueue];
@@ -805,12 +810,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 - (void)completePauseOfNode:(AVAudioPlayerNode *)node {
     NSTimeInterval position = self.position;
     [node pause];
-    os_unfair_lock_lock(&_stateLock);
-    _pausedPosition = position;
-    _lastValidPosition = position;
-    _positionEpoch++;
-    _state = VibePlayerStatePaused;
-    os_unfair_lock_unlock(&_stateLock);
+    [self publishPlaybackState:VibePlayerStatePaused node:node file:_file segmentStart:_segmentStartFrame position:position];
     AudioTrack *track = self.currentTrack;
     run_on_main_thread({
         [self.delegate audioPlayer:self didPausePlaying:track];
@@ -819,12 +819,16 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 #pragma mark - Fades
 
-// Non-blocking fade stepped via dispatch_after on the player queue. Tagged with
-// a ramp generation: if a pause/seek/skip/device-switch/new-play bumps
-// _rampGeneration, this ramp stops stepping the volume — but still runs its
-// completion so teardown (the skip fade-out's stop+detach) isn't lost.
-- (void)rampNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target generation:(uint64_t)generation completion:(dispatch_block_t)completion {
-    if (generation != _rampGeneration) {
+// The one fade-stepping loop, non-blocking via dispatch_after on the player
+// queue — both ramp flavors below are thin entries into it, so a cadence or
+// curve change (kFadeSteps, kFadeStepMicroseconds, VibeFadeVolume) lands
+// everywhere at once. A preemptable ramp stops stepping the volume once
+// _rampGeneration moves past its generation — but still runs its completion
+// so completion-side bookkeeping (the pause fade's _pausePending clear, the
+// seek's reschedule/didFinishSeeking settle) isn't lost; those completions
+// re-check the generation themselves and yield to the preemptor.
+- (void)stepRampAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target preemptable:(BOOL)preemptable generation:(uint64_t)generation completion:(dispatch_block_t)completion {
+    if (preemptable && generation != _rampGeneration) {
         if (completion) {
             completion();
         }
@@ -839,8 +843,24 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     }
     __weak AudioPlayer *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFadeStepMicroseconds * NSEC_PER_USEC)), _queue, ^{
-        [weakSelf rampNodeAsync:node step:step + 1 from:start to:target generation:generation completion:completion];
+        [weakSelf stepRampAsync:node step:step + 1 from:start to:target preemptable:preemptable generation:generation completion:completion];
     });
+}
+
+// Generation-tagged fade for the CURRENT node: preempted when a
+// pause/seek/skip/device-switch/new-play bumps _rampGeneration.
+- (void)rampNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target generation:(uint64_t)generation completion:(dispatch_block_t)completion {
+    [self stepRampAsync:node step:step from:start to:target preemptable:YES generation:generation completion:completion];
+}
+
+// Fade-to-silence for a RETIRED node (the crossfade's outgoing side).
+// Deliberately NOT preemptable: once playOnQueue: retires a node nothing
+// re-targets it — the only remaining reference is this fade's completion — so
+// no later operation needs to preempt it, and preemption would hard-stop the
+// node at mid-fade volume (an audible click on rapid skips). Always reaches
+// silence, then runs the completion (stop+detach) exactly once.
+- (void)rampRetiredNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start completion:(dispatch_block_t)completion {
+    [self stepRampAsync:node step:step from:start to:0 preemptable:NO generation:0 completion:completion];
 }
 
 #pragma mark - Properties
@@ -978,12 +998,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             self->_rampGeneration++; // preempt any in-flight fade
             [node stop];
             [self scheduleFile:file onNode:node fromFrame:startFrame];
-            os_unfair_lock_lock(&self->_stateLock);
-            self->_segmentStartFrame = startFrame;
-            self->_pausedPosition = framePosition;
-            self->_lastValidPosition = framePosition;
-            self->_positionEpoch++;
-            os_unfair_lock_unlock(&self->_stateLock);
+            [self publishPlaybackState:self->_state node:node file:file segmentStart:startFrame position:framePosition];
             run_on_main_thread({
                 [self.delegate audioPlayer:self didFinishSeeking:track];
             });
@@ -1029,13 +1044,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             [node stop];
             [strongSelf scheduleFile:file onNode:node fromFrame:startFrame];
             if (preempted) {
-                os_unfair_lock_lock(&strongSelf->_stateLock);
-                strongSelf->_segmentStartFrame = startFrame;
-                strongSelf->_pausedPosition = framePosition;
-                strongSelf->_lastValidPosition = framePosition;
-                strongSelf->_positionEpoch++;
+                [strongSelf publishPlaybackState:strongSelf->_state node:node file:file segmentStart:startFrame position:framePosition];
                 BOOL stillPlaying = (strongSelf->_state == VibePlayerStatePlaying);
-                os_unfair_lock_unlock(&strongSelf->_stateLock);
                 if (stillPlaying) {
                     // Mid-pause-fade the state is still Playing (the pause
                     // completion hasn't landed, and won't if it gets
@@ -1056,13 +1066,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             if (![strongSelf startEngineAndPlayNode:node error:&startError]) {
                 strongSelf->_generation++; // drop the stop-fired completion
                 // Keep the seeked frame; report paused so the UI recovers.
-                os_unfair_lock_lock(&strongSelf->_stateLock);
-                strongSelf->_segmentStartFrame = startFrame;
-                strongSelf->_pausedPosition = framePosition;
-                strongSelf->_lastValidPosition = framePosition;
-                strongSelf->_positionEpoch++;
-                strongSelf->_state = VibePlayerStatePaused;
-                os_unfair_lock_unlock(&strongSelf->_stateLock);
+                [strongSelf publishPlaybackState:VibePlayerStatePaused node:node file:file segmentStart:startFrame position:framePosition];
                 [strongSelf sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
                         @"Could not resume playback after seek", startError)];
                 run_on_main_thread({
@@ -1070,12 +1074,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                 });
                 return;
             }
-            os_unfair_lock_lock(&strongSelf->_stateLock);
-            strongSelf->_segmentStartFrame = startFrame;
-            strongSelf->_pausedPosition = framePosition;
-            strongSelf->_lastValidPosition = framePosition;
-            strongSelf->_positionEpoch++;
-            os_unfair_lock_unlock(&strongSelf->_stateLock);
+            [strongSelf publishPlaybackState:strongSelf->_state node:node file:file segmentStart:startFrame position:framePosition];
             uint64_t fadeInGen = ++strongSelf->_rampGeneration;
             [strongSelf rampNodeAsync:node step:1 from:0 to:1.0 generation:fadeInGen completion:nil];
             run_on_main_thread({
@@ -1178,21 +1177,21 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     return YES;
 }
 
-- (void)setOutputDevice:(NSInteger)outputDeviceIndex {
+- (void)setOutputDevice:(NSInteger)outputDeviceID {
     dispatch_async(_queue, ^{
 
-        LogDebug(@"setOutputDevice: %@", @(outputDeviceIndex));
+        LogDebug(@"setOutputDevice: %@", @(outputDeviceID));
 
         AudioDeviceID newDeviceID = kAudioObjectUnknown;
-        if (outputDeviceIndex >= 0) {
-            newDeviceID = (AudioDeviceID)outputDeviceIndex;
+        if (outputDeviceID >= 0) {
+            newDeviceID = (AudioDeviceID)outputDeviceID;
         }
         else {
             newDeviceID = [CoreAudioUtil systemDefaultOutputDeviceID];
         }
 
         if (newDeviceID == kAudioObjectUnknown) {
-            LogError(@"Unable to resolve output device %@", @(outputDeviceIndex));
+            LogError(@"Unable to resolve output device %@", @(outputDeviceID));
             [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
                     @"Audio output device is unavailable", nil)];
             return;
@@ -1210,7 +1209,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             }
         }
 
-        self.currentlyRequestedAudioDeviceId = outputDeviceIndex;
+        self.currentlyRequestedAudioDeviceId = outputDeviceID;
 
         run_on_main_thread({
             [self.delegate audioPlayer:self didChangeOutputDevice:self.currentlyRequestedAudioDeviceId];
@@ -1289,15 +1288,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // at 1.0 would make that resume start instantly at full volume
         // mid-waveform — the click the 25ms ramp exists to prevent.
         node.volume = wasPlaying ? 1.0 : 0;
-        os_unfair_lock_lock(&_stateLock);
-        _node = node;
-        _file = file;
-        _segmentStartFrame = startFrame;
-        _pausedPosition = positionToRestore;
-        _lastValidPosition = positionToRestore;
-        _positionEpoch++;
-        _state = wasPlaying ? VibePlayerStatePlaying : VibePlayerStatePaused;
-        os_unfair_lock_unlock(&_stateLock);
+        [self publishPlaybackState:(wasPlaying ? VibePlayerStatePlaying : VibePlayerStatePaused)
+                              node:node file:file segmentStart:startFrame position:positionToRestore];
         if (wasPlaying) {
             NSError *startError = nil;
             if (![self startEngineAndPlayNode:node error:&startError]) {
@@ -1347,12 +1339,57 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     AudioDeviceID deviceID = requested >= 0
             ? (AudioDeviceID)requested
             : [CoreAudioUtil systemDefaultOutputDeviceID];
-    if (deviceID != kAudioObjectUnknown) {
-        [self configureOutputDeviceOnQueue:deviceID];
+    if (deviceID == kAudioObjectUnknown) {
+        // No output device exists at all (the last one vanished). A dead
+        // engine must not sit behind a Playing state — the UI would show
+        // playing with a frozen position and no explanation — so park as
+        // Paused at the last valid position and say why. Paused (not Stopped)
+        // keeps the track restorable: when a device appears, the default-
+        // device change fires setOutputDevice:-1 and configureOutputDevice…
+        // rebuilds the graph with the track parked at this position, ready
+        // to resume. Paused/Loading need no parking — their next start
+        // attempt (resume, or the open's finish) reports its own failure.
+        if (state == VibePlayerStatePlaying) {
+            NSTimeInterval position = self.position; // engine dead: serves the last valid reading
+            [self publishPlaybackState:VibePlayerStatePaused node:_node file:_file
+                          segmentStart:_segmentStartFrame position:position];
+            AudioTrack *track = self.currentTrack;
+            run_on_main_thread({
+                [self.delegate audioPlayer:self didPausePlaying:track];
+            });
+            [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
+                    @"No audio output device is available", nil)];
+        }
+        return;
     }
+    [self configureOutputDeviceOnQueue:deviceID];
 }
 
 #pragma mark - Helpers
+
+// The single writer for the lock-guarded playback/position state (runs on
+// _queue). Everything is published in ONE lock acquisition so the main-thread
+// getters never observe a torn combination (a new state with the old track's
+// position). The epoch bump is structural: the position getter computes
+// off-lock and only writes _lastValidPosition back if the epoch it snapshotted
+// is still current, so a write site that skipped the bump would let a stale
+// reading clobber this publish (see _positionEpoch). Callers whose operation
+// leaves a field untouched pass the current value through.
+- (void)publishPlaybackState:(VibePlayerState)state
+                        node:(AVAudioPlayerNode *)node
+                        file:(AVAudioFile *)file
+                segmentStart:(AVAudioFramePosition)segmentStart
+                    position:(NSTimeInterval)position {
+    os_unfair_lock_lock(&_stateLock);
+    _node = node;
+    _file = file;
+    _segmentStartFrame = segmentStart;
+    _pausedPosition = position;
+    _lastValidPosition = position;
+    _positionEpoch++;
+    _state = state;
+    os_unfair_lock_unlock(&_stateLock);
+}
 
 - (void)sendDelegateError:(NSError *)error {
     LogError(@"AudioPlayer Error: %@", error.localizedDescription);

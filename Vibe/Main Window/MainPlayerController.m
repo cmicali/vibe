@@ -61,7 +61,6 @@
 @property (weak) NSTextField *currentTimeTextField;
 @property (weak) NSTextField *fileMetadataTextField;
 @property (weak) NSTextField *bpmTextField;
-@property (weak) NSView *albumArtGradientView;
 
 @end
 
@@ -128,7 +127,6 @@
     self.nextButton = content.nextButton;
     self.backgroundAlbumArtImageView = content.backgroundAlbumArtImageView;
     self.albumArtImageView = content.albumArtImageView;
-    self.albumArtGradientView = content.albumArtGradientView;
     self.waveformView = content.waveformView;
     self.artistTextField = content.artistTextField;
     self.titleTextField = content.titleTextField;
@@ -148,6 +146,18 @@
     showInFinder.target = self;
     [contextMenu addItem:showInFinder];
     contentView.menu = contextMenu;
+
+    // The playlist table gets its own menu (shadowing the window-wide one
+    // above) so a right-click on a row reveals THAT row's track, not the
+    // current track.
+    NSMenu *playlistMenu = [[NSMenu alloc] initWithTitle:@"Playlist Menu"];
+    NSMenuItem *showRowInFinder = [[NSMenuItem alloc] initWithTitle:@"Show in Finder"
+                                                             action:@selector(showClickedTrackInFinder:)
+                                                      keyEquivalent:@""];
+    showRowInFinder.identifier = @"show_clicked_track_in_finder";
+    showRowInFinder.target = self;
+    [playlistMenu addItem:showRowInFinder];
+    self.playlistTableView.menu = playlistMenu;
 }
 
 - (void)dealloc {
@@ -291,9 +301,7 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     self.playButton.glyph = self.audioPlayer.isPlaying ? GlyphButtonGlyphPause : GlyphButtonGlyphPlay;
 
     self.playButton.enabled = self.playlistManager.count > 0;
-    // Same rule as the Next Track menu item: only when a track actually
-    // follows the current one.
-    self.nextButton.enabled = self.playlistManager.currentIndex + 1 < self.playlistManager.count;
+    self.nextButton.enabled = self.playlistManager.hasNextTrack;
 
     BOOL trackLoaded = track != nil;
     self.totalTimeTextField.hidden = !trackLoaded;
@@ -377,8 +385,10 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 // Publish the current track + playback state to the system Now Playing UI
 // (Control Center, media keys). Driven off updateUI so it refreshes on every
 // transport event, metadata delivery, and artwork resolution; also called on
-// seek and pitch change (the two things that move position/rate without an
-// updateUI). Cheap and non-blocking — safe to call this often.
+// seek, pitch-range change, and fader-gesture end (the things that move
+// position/rate without an updateUI — a fader drag deliberately publishes
+// once at gesture end, not per tick). Cheap and non-blocking — safe to call
+// this often.
 - (void)updateNowPlaying {
     AudioTrack *track = self.playlistManager.currentTrack;
     NowPlayingPlaybackState state;
@@ -409,7 +419,9 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
                                  position:position
                                  duration:duration
                                     state:state
-                                     rate:1.0];
+                                     rate:1.0
+                                  hasNext:self.playlistManager.hasNextTrack
+                              hasPrevious:self.playlistManager.hasPreviousTrack];
 }
 
 // Varispeed rate: the track plays this much faster/slower than file time, so
@@ -478,11 +490,15 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
 
 - (IBAction)next:(nullable id)sender {
     [self.playlistManager next];
+    // next just fully rendered the outgoing and incoming rows; without the
+    // mark, the updateUI below would rebuild the incoming row a second time.
+    _lastReloadedTrack = self.playlistManager.currentTrack;
     [self updateUI];
 }
 
 - (IBAction)previous:(nullable id)sender {
     [self.playlistManager previous];
+    _lastReloadedTrack = self.playlistManager.currentTrack; // see next:
     [self updateUI];
 }
 
@@ -638,8 +654,16 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
         nextTrack = self.playlistManager.playlist[nextIndex];
     }
     [self.audioPlayer prefetchTrack:nextTrack];
-    // No reloadCurrentTrack here: resumeUIUpdateTimer -> updateUI already
-    // reloads the current row.
+    // Whoever initiated this play already fully rendered the row (play:'s
+    // reloadData, next/previous's two-row window, doubleClick's pair); the
+    // mark makes resumeUIUpdateTimer -> updateUI refresh only the play-state
+    // cell (the equalizer indicator must flip to animating) instead of
+    // rebuilding the whole row again. Guarded like the metadata load above —
+    // a stale start from a just-replaced playlist must not mark the new
+    // playlist's row as rendered.
+    if (track == [self.playlistManager currentTrack]) {
+        _lastReloadedTrack = track;
+    }
     [self resumeUIUpdateTimer];
     self.playButton.enabled = YES;
 }
@@ -664,12 +688,16 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
         return;
     }
     [self pauseUIUpdateTimer];
+    // End of playlist must be read from the playlist BEFORE next: — the play
+    // it starts is async on the player queue, so the player still reads
+    // Stopped right after an ordinary mid-playlist advance.
+    BOOL hasNextTrack = self.playlistManager.hasNextTrack;
     [self next:self];
     // End of playlist (next: started nothing): the cached duration would go
     // stale against the idle player. Mid-playlist the cache must survive the
     // Loading gap — the live duration reads 0 there, and updatePlaybackUI
     // uses the cache to keep the waveform progress pinned instead of frozen.
-    if (self.audioPlayer.isStopped) {
+    if (!hasNextTrack) {
         _currentTrackDuration = 0;
     }
 }
@@ -717,11 +745,10 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
             return;
         }
         strongSelf->_errorAlertVisible = NO;
-        [strongSelf.playlistManager next];
-        // If next couldn't start anything (end of playlist, single bad track),
-        // make the header/waveform/play-button reflect the stopped player
-        // instead of the previous track.
-        [strongSelf updateUI];
+        // Through the next: funnel: if it couldn't start anything (end of
+        // playlist, single bad track), its updateUI makes the header/waveform/
+        // play-button reflect the stopped player instead of the previous track.
+        [strongSelf next:nil];
         // Belt-and-suspenders: guarantee the borderless window is key again so
         // the transport key equivalents keep working after the sheet closes.
         [strongSelf.window makeKeyWindow];
@@ -882,11 +909,17 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
     // rate-scaled time labels.
     _pitchPanel.pitch = self.audioPlayer.pitch;
     [self updateRateDependentUI];
+    // The clamp can move the wall-clock duration Control Center shows — and
+    // no fader gesture ends here to publish it.
+    [self updateNowPlaying];
 }
 
 // Only the time labels depend on the playback rate. The full updateUI would
 // also re-resolve artwork and reload the current playlist row (rebuilding the
-// cell view) — far too heavy to run on every fader tick during a drag.
+// cell view) — far too heavy to run on every fader tick during a drag. The
+// Now Playing publish (an XPC round-trip that a rate change always dirties)
+// is deliberately NOT here either: fader gestures publish once at gesture
+// end, and the non-gesture caller (applyPitchRange) publishes for itself.
 - (void)updateRateDependentUI {
     if (self.playlistManager.currentTrack) {
         setStringValueIfChanged(self.totalTimeTextField,
@@ -894,9 +927,6 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
     }
     [self updateBPMLabel];
     [self updatePlaybackUI];
-    // The varispeed rate changed — update the rate we report so Control
-    // Center's progress interpolation keeps pace with real playback.
-    [self updateNowPlaying];
 }
 
 - (void)pitchFaderView:(PitchFaderView *)faderView didChangePitch:(float)pitch {
@@ -906,8 +936,29 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
     [self updateRateDependentUI];
 }
 
+- (void)pitchFaderViewDidEndAdjusting:(PitchFaderView *)faderView {
+    // The pitch settled — resync Control Center's duration/position once for
+    // the whole gesture.
+    [self updateNowPlaying];
+}
+
 - (IBAction) showInFinder:(id)sender {
     NSURL *url = self.playlistManager.currentTrack.url;
+    if (url) {
+        [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[url]];
+    }
+}
+
+// The playlist table's context menu (buildContentInWindow:). clickedRow is
+// read at action time, not captured at menu-open — the playlist can be
+// replaced while the menu is up, so the row is re-bounds-checked here (menu
+// validation already disabled the item for a click outside the rows).
+- (IBAction) showClickedTrackInFinder:(id)sender {
+    NSInteger row = self.playlistTableView.clickedRow;
+    if (row < 0 || row >= (NSInteger)self.playlistManager.count) {
+        return;
+    }
+    NSURL *url = self.playlistManager.playlist[(NSUInteger)row].url;
     if (url) {
         [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[url]];
     }

@@ -46,8 +46,12 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
     if (chunks == nullptr || numChunks == 0) return result;
     if (index >= size) return result;
     if (size == numChunks) { return chunks[index]; }
+    // Column i combines [start(i), start(i+1)) so consecutive columns tile
+    // the source exactly — a floored fixed width skips a source chunk on most
+    // steps of a fractional ratio (transient peaks vanish at some view widths).
     NSUInteger startIndex = numChunks * index / size;
-    NSUInteger numChunksToCombine = static_cast<NSUInteger>(MAX((float) numChunks / (float) size, 1.0f));
+    NSUInteger endIndex = numChunks * (index + 1) / size;
+    NSUInteger numChunksToCombine = endIndex > startIndex ? endIndex - startIndex : 1;
     if (numChunksToCombine == 1) {
         return chunks[startIndex];
     }

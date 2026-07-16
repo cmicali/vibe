@@ -4,7 +4,6 @@
 //
 
 #import "PlaylistManager.h"
-#import "NSMutableAttributedString+Util.h"
 #import "Fonts.h"
 #import "NSView+DarkMode.h"
 #import "PlaylistCoverImageView.h"
@@ -266,8 +265,16 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
     [self.tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndexesInRange:range] columnIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, (NSUInteger)self.tableView.numberOfColumns)]];
 }
 
+- (BOOL)hasNextTrack {
+    return self.currentIndex + 1 < _playlist.count;
+}
+
+- (BOOL)hasPreviousTrack {
+    return _playlist.count > 0 && self.currentIndex > 0;
+}
+
 - (BOOL)next {
-    if (_playlist.count > 0 && self.currentIndex < _playlist.count - 1) {
+    if (self.hasNextTrack) {
         self.currentIndex += 1;
         [self reloadTrackInRange:NSMakeRange(self.currentIndex - 1, 2)];
         [self play];
@@ -277,8 +284,8 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
 }
 
 - (BOOL)previous {
-    if (self.currentIndex > 0) {
-        self.currentIndex -= 1;        
+    if (self.hasPreviousTrack) {
+        self.currentIndex -= 1;
         [self reloadTrackInRange:NSMakeRange(self.currentIndex, 2)];
         [self play];
         return YES;

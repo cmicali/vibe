@@ -23,6 +23,7 @@
 #import "AudioWaveformCache.h"
 #import "AudioWaveformView.h"
 #import "PlaylistManager.h"
+#import "NSURLUtil.h"
 #import "PitchControlPanel.h"
 #import "GlyphButton.h"
 
@@ -346,151 +347,275 @@ static NSString *VibeActionSummary(MainPlayerController *controller) {
     });
 }
 
-static NSString *VibeExecuteDebugCommand(NSString *commandLine) {
-    NSMutableArray<NSString *> *tokens = [NSMutableArray array];
-    for (NSString *token in [commandLine componentsSeparatedByCharactersInSet:
-            NSCharacterSet.whitespaceCharacterSet]) {
-        if (token.length) {
-            [tokens addObject:token];
+// Writes the per-command response file the client polls for. Used both by the
+// synchronous path (VibeHandleDebugCommandFile) and by commands that finish
+// asynchronously and call this from their own completion block.
+static void VibeWriteDebugResponse(NSString *commandId, NSString *response) {
+    [response writeToFile:VibeDebugResponsePath(commandId)
+               atomically:YES
+                 encoding:NSUTF8StringEncoding
+                    error:nil];
+}
+
+// tokens[0] is the verb; the rest are its arguments — one token per CLI argv
+// entry, transported verbatim (never re-tokenized). Rejoined with single
+// spaces as a convenience so an unquoted multi-word title still works; a
+// properly QUOTED argument arrives as one token and passes through exactly,
+// consecutive spaces and all.
+static NSString *VibeRestArgument(NSArray<NSString *> *tokens) {
+    return [[tokens subarrayWithRange:NSMakeRange(1, tokens.count - 1)]
+            componentsJoinedByString:@" "];
+}
+
+// Path argument: the rest of the tokens with a leading ~ expanded.
+static NSString *VibePathArgument(NSArray<NSString *> *tokens) {
+    return VibeRestArgument(tokens).stringByExpandingTildeInPath;
+}
+
+// Shared validation for verbs taking one existing-file argument — keeps
+// file_cache and file_clear_cache's argument contracts identical. Returns the
+// path, or nil with *errorJSON set to the reply to send.
+static NSString *VibeExistingFileArgument(NSArray<NSString *> *tokens, NSString **errorJSON) {
+    NSString *verb = tokens.firstObject;
+    if (tokens.count < 2) {
+        *errorJSON = VibeErrorJSON(@"usage: %@ <file>", verb);
+        return nil;
+    }
+    NSString *path = VibePathArgument(tokens);
+    BOOL isDirectory = NO;
+    if (![NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&isDirectory] || isDirectory) {
+        *errorJSON = VibeErrorJSON(@"%@ expects an existing file: '%@'", verb, path);
+        return nil;
+    }
+    return path;
+}
+
+#pragma mark Command table
+
+// One handler per verb; tokens[0] is the verb itself. Returning nil means the
+// command completes asynchronously and writes its own response later via
+// VibeWriteDebugResponse(commandId, ...) from a completion block.
+typedef NSString * _Nullable (^VibeDebugCommandHandler)(NSArray<NSString *> *tokens,
+                                                        NSString *commandId,
+                                                        MainPlayerController *controller);
+
+// usage's first word is the verb. clientTimeout is how long the CLI client
+// waits for this verb's response, in seconds (0 = the default; see
+// VibeDebugCommandClientMain).
+static NSDictionary *VibeCmd(NSString *usage, NSTimeInterval clientTimeout, VibeDebugCommandHandler handler) {
+    return @{@"usage": usage, @"clientTimeout": @(clientTimeout), @"handler": [handler copy]};
+}
+
+// Transport/toggle verbs: invoke the controller action, reply with the compact
+// action summary.
+static NSDictionary *VibeActionCmd(NSString *usage, void (^action)(MainPlayerController *controller)) {
+    return VibeCmd(usage, 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+        action(controller);
+        return VibeActionSummary(controller);
+    });
+}
+
+// THE command set — dispatch, the unknown-command usage reply, and the
+// client's per-verb wait all derive from this table, so adding an entry here
+// is the entire app-side hookup (usage docs live in the vibe-debug skill).
+static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
+    static NSArray<NSDictionary *> *table;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        table = @[
+            VibeCmd(@"dump_state", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeJSONString(VibeStateDictionary(controller));
+            }),
+            VibeCmd(@"dump_now_playing", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                // The state we publish to the system Now Playing UI (Control
+                // Center, media keys). Cross-checks the NowPlayingController
+                // wiring without a private-framework reader.
+                MPNowPlayingInfoCenter *center = [MPNowPlayingInfoCenter defaultCenter];
+                NSDictionary *info = center.nowPlayingInfo;
+                MPNowPlayingPlaybackState playbackState = center.playbackState;
+                NSString *stateName = playbackState == MPNowPlayingPlaybackStatePlaying ? @"playing"
+                        : playbackState == MPNowPlayingPlaybackStatePaused ? @"paused"
+                        : playbackState == MPNowPlayingPlaybackStateStopped ? @"stopped"
+                        : @"unknown";
+                NSMutableDictionary *out = [NSMutableDictionary dictionary];
+                out[@"playbackState"] = stateName;
+                out[@"hasInfo"] = @(info != nil);
+                if (info) {
+                    out[@"title"] = info[MPMediaItemPropertyTitle] ?: NSNull.null;
+                    out[@"artist"] = info[MPMediaItemPropertyArtist] ?: NSNull.null;
+                    out[@"duration"] = info[MPMediaItemPropertyPlaybackDuration] ?: NSNull.null;
+                    out[@"elapsed"] = info[MPNowPlayingInfoPropertyElapsedPlaybackTime] ?: NSNull.null;
+                    out[@"rate"] = info[MPNowPlayingInfoPropertyPlaybackRate] ?: NSNull.null;
+                    out[@"hasArtwork"] = @(info[MPMediaItemPropertyArtwork] != nil);
+                }
+                return VibeJSONString(out);
+            }),
+            VibeCmd(@"dump_view_tree", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeViewTreeDump();
+            }),
+            VibeCmd(@"dump_menu", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeJSONString(@{@"menu": VibeMenuArray(NSApp.mainMenu)});
+            }),
+            VibeCmd(@"dump_screenshot", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                VibeDumpWindowSnapshot();
+                return VibeJSONString(@{@"path": VibeDebugScreenshotPath()});
+            }),
+            VibeCmd(@"click_menu <identifier-or-title>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: click_menu <identifier-or-title>");
+                }
+                // Rest of the tokens, so exact titles with spaces work too.
+                return VibeClickMenuItem(VibeRestArgument(tokens));
+            }),
+            VibeActionCmd(@"play_pause", ^(MainPlayerController *controller) { [controller playPause:nil]; }),
+            VibeActionCmd(@"next", ^(MainPlayerController *controller) { [controller next:nil]; }),
+            VibeActionCmd(@"previous", ^(MainPlayerController *controller) { [controller previous:nil]; }),
+            VibeActionCmd(@"skip_forward", ^(MainPlayerController *controller) { [controller skipForward:nil]; }),
+            VibeActionCmd(@"skip_forward_more", ^(MainPlayerController *controller) { [controller skipForwardMore:nil]; }),
+            VibeActionCmd(@"skip_back", ^(MainPlayerController *controller) { [controller skipBack:nil]; }),
+            VibeActionCmd(@"skip_back_more", ^(MainPlayerController *controller) { [controller skipBackMore:nil]; }),
+            VibeActionCmd(@"toggle_pitch_panel", ^(MainPlayerController *controller) { [controller togglePitchPanel:nil]; }),
+            VibeActionCmd(@"toggle_size", ^(MainPlayerController *controller) { [controller toggleSize:nil]; }),
+            VibeCmd(@"set_pitch <percent>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: set_pitch <percent>");
+                }
+                // Through the panel first so the fader clamps to its range
+                // exactly like a drag, then the player takes the clamped value.
+                controller.pitchPanel.pitch = tokens[1].floatValue;
+                controller.audioPlayer.pitch = controller.pitchPanel.pitch;
+                [controller debugRefreshUI];
+                return VibeActionSummary(controller);
+            }),
+            VibeCmd(@"seek <seconds>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: seek <seconds>");
+                }
+                controller.audioPlayer.position = tokens[1].doubleValue;
+                [controller debugRefreshUI];
+                return VibeActionSummary(controller);
+            }),
+            VibeCmd(@"open <file-or-directory>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: open <file-or-directory>");
+                }
+                NSString *path = VibePathArgument(tokens);
+                if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
+                    return VibeErrorJSON(@"no file or directory at '%@'", path);
+                }
+                // Same expand/filter/play pipeline as a Finder open or a file
+                // drop: a directory is walked and unsupported files dropped.
+                // Async (a large folder walk shouldn't stall the channel) —
+                // the reply acks the request; poll `dump_state` for the
+                // resulting playlist. Sandbox: an arbitrary path the app
+                // hasn't been granted may be denied at read time (same caveat
+                // as command-line args); `open -a "$APP"` grants access.
+                [NSURLUtil expandAndFilterList:@[[NSURL fileURLWithPath:path]]
+                                    completion:^(NSArray<NSURL *> *expanded) {
+                    if (expanded.count > 0) {
+                        [controller play:expanded];
+                    }
+                }];
+                return VibeJSONString(@{@"ok": @YES, @"opening": path});
+            }),
+            VibeCmd(@"file_cache <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                NSString *errorJSON = nil;
+                NSString *path = VibeExistingFileArgument(tokens, &errorJSON);
+                if (!path) {
+                    return errorJSON;
+                }
+                // Decode + persist this file's waveform without disturbing the
+                // current load, then reply with its detected BPM once the entry
+                // is on disk. A cold decode of a long file runs well past the
+                // default client wait — hence this verb's 60s clientTimeout.
+                [controller.waveformCache cacheWaveformForURL:[NSURL fileURLWithPath:path]
+                                                   completion:^(BOOL ok, BOOL wasCached, float bpm) {
+                    NSString *reply = ok
+                            ? VibeJSONString(@{@"ok": @YES, @"path": path, @"wasCached": @(wasCached), @"bpm": @(bpm)})
+                            : VibeErrorJSON(@"waveform decode failed for '%@'", path);
+                    VibeWriteDebugResponse(commandId, reply);
+                }];
+                return nil; // response written by the completion above
+            }),
+            VibeCmd(@"file_clear_cache <file>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                NSString *errorJSON = nil;
+                NSString *path = VibeExistingFileArgument(tokens, &errorJSON);
+                if (!path) {
+                    return errorJSON;
+                }
+                [controller.waveformCache clearCachedWaveformForURL:[NSURL fileURLWithPath:path]
+                                                         completion:^(BOOL wasPresent) {
+                    VibeWriteDebugResponse(commandId, VibeJSONString(@{
+                        @"ok": @YES, @"path": path, @"wasPresent": @(wasPresent),
+                    }));
+                }];
+                return nil; // response written by the completion above
+            }),
+            // clientTimeout 20 > the 15s app-side dispatch_group_wait: the
+            // waveform clear queues behind any in-flight waveform load, and a
+            // flat 5s client wait could give up on a clear that succeeds.
+            VibeCmd(@"clear_caches", 20, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                // Blocks the main thread until both PINCache stores are empty —
+                // acceptable for a debug-only command; the clears are file
+                // deletes at utility QoS.
+                dispatch_group_t group = dispatch_group_create();
+                dispatch_group_enter(group);
+                [controller.metadataCache invalidateWithCompletion:^{
+                    dispatch_group_leave(group);
+                }];
+                dispatch_group_enter(group);
+                [controller.waveformCache invalidateWithCompletion:^{
+                    dispatch_group_leave(group);
+                }];
+                if (dispatch_group_wait(group, dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC))) {
+                    return VibeErrorJSON(@"cache clear timed out after 15s");
+                }
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"cleared": @[@"Audio Track Metadata v4", @"audio_waveform_cache_v4"],
+                });
+            }),
+        ];
+    });
+    return table;
+}
+
+static NSString *VibeVerbFromUsage(NSString *usage) {
+    NSRange space = [usage rangeOfString:@" "];
+    return space.location == NSNotFound ? usage : [usage substringToIndex:space.location];
+}
+
+static NSDictionary *VibeCommandSpecForVerb(NSString *verb) {
+    for (NSDictionary *spec in VibeDebugCommandTable()) {
+        if ([VibeVerbFromUsage(spec[@"usage"]) isEqualToString:verb]) {
+            return spec;
         }
     }
-    NSString *verb = tokens.firstObject ?: @"";
+    return nil;
+}
 
+// Returns the JSON response to write, or nil if the command completes
+// asynchronously and writes its own response via VibeWriteDebugResponse (e.g.
+// file_cache, which runs a full waveform decode off the main thread).
+static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *commandId) {
+    NSString *verb = tokens.firstObject ?: @"";
     AppDelegate *appDelegate = (AppDelegate *)NSApp.delegate;
     MainPlayerController *controller = [appDelegate isKindOfClass:AppDelegate.class]
             ? appDelegate.mainPlayerController : nil;
     if (!controller) {
         return VibeErrorJSON(@"app not fully launched");
     }
-    AudioPlayer *player = controller.audioPlayer;
-
-    if ([verb isEqualToString:@"state"]) {
-        return VibeJSONString(VibeStateDictionary(controller));
-    }
-    if ([verb isEqualToString:@"nowPlaying"]) {
-        // The state we publish to the system Now Playing UI (Control Center,
-        // media keys). Cross-checks the NowPlayingController wiring without a
-        // private-framework reader.
-        MPNowPlayingInfoCenter *center = [MPNowPlayingInfoCenter defaultCenter];
-        NSDictionary *info = center.nowPlayingInfo;
-        MPNowPlayingPlaybackState playbackState = center.playbackState;
-        NSString *stateName = playbackState == MPNowPlayingPlaybackStatePlaying ? @"playing"
-                : playbackState == MPNowPlayingPlaybackStatePaused ? @"paused"
-                : playbackState == MPNowPlayingPlaybackStateStopped ? @"stopped"
-                : @"unknown";
-        NSMutableDictionary *out = [NSMutableDictionary dictionary];
-        out[@"playbackState"] = stateName;
-        out[@"hasInfo"] = @(info != nil);
-        if (info) {
-            out[@"title"] = info[MPMediaItemPropertyTitle] ?: NSNull.null;
-            out[@"artist"] = info[MPMediaItemPropertyArtist] ?: NSNull.null;
-            out[@"duration"] = info[MPMediaItemPropertyPlaybackDuration] ?: NSNull.null;
-            out[@"elapsed"] = info[MPNowPlayingInfoPropertyElapsedPlaybackTime] ?: NSNull.null;
-            out[@"rate"] = info[MPNowPlayingInfoPropertyPlaybackRate] ?: NSNull.null;
-            out[@"hasArtwork"] = @(info[MPMediaItemPropertyArtwork] != nil);
+    NSDictionary *spec = VibeCommandSpecForVerb(verb);
+    if (!spec) {
+        NSMutableArray<NSString *> *usages = [NSMutableArray array];
+        for (NSDictionary *entry in VibeDebugCommandTable()) {
+            [usages addObject:entry[@"usage"]];
         }
-        return VibeJSONString(out);
+        return VibeErrorJSON(@"unknown command '%@'. Commands: %@",
+                verb, [usages componentsJoinedByString:@", "]);
     }
-    if ([verb isEqualToString:@"viewtree"]) {
-        return VibeViewTreeDump();
-    }
-    if ([verb isEqualToString:@"menu"]) {
-        return VibeJSONString(@{@"menu": VibeMenuArray(NSApp.mainMenu)});
-    }
-    if ([verb isEqualToString:@"clickMenu"]) {
-        if (tokens.count < 2) {
-            return VibeErrorJSON(@"usage: clickMenu <identifier-or-title>");
-        }
-        // Rest of the line, so exact titles with spaces work too.
-        NSString *name = [[tokens subarrayWithRange:NSMakeRange(1, tokens.count - 1)]
-                componentsJoinedByString:@" "];
-        return VibeClickMenuItem(name);
-    }
-    if ([verb isEqualToString:@"screenshot"]) {
-        VibeDumpWindowSnapshot();
-        return VibeJSONString(@{@"path": VibeDebugScreenshotPath()});
-    }
-    if ([verb isEqualToString:@"playPause"]) {
-        [controller playPause:nil];
-        return VibeActionSummary(controller);
-    }
-    if ([verb isEqualToString:@"next"]) {
-        [controller next:nil];
-        return VibeActionSummary(controller);
-    }
-    if ([verb isEqualToString:@"previous"]) {
-        [controller previous:nil];
-        return VibeActionSummary(controller);
-    }
-    if ([verb isEqualToString:@"skipForward"]) {
-        [controller skipForward:nil];
-        return VibeActionSummary(controller);
-    }
-    if ([verb isEqualToString:@"skipForwardMore"]) {
-        [controller skipForwardMore:nil];
-        return VibeActionSummary(controller);
-    }
-    if ([verb isEqualToString:@"skipBack"]) {
-        [controller skipBack:nil];
-        return VibeActionSummary(controller);
-    }
-    if ([verb isEqualToString:@"skipBackMore"]) {
-        [controller skipBackMore:nil];
-        return VibeActionSummary(controller);
-    }
-    if ([verb isEqualToString:@"togglePitchPanel"]) {
-        [controller togglePitchPanel:nil];
-        return VibeActionSummary(controller);
-    }
-    if ([verb isEqualToString:@"toggleSize"]) {
-        [controller toggleSize:nil];
-        return VibeActionSummary(controller);
-    }
-    if ([verb isEqualToString:@"setPitch"]) {
-        if (tokens.count < 2) {
-            return VibeErrorJSON(@"usage: setPitch <percent>");
-        }
-        // Through the panel first so the fader clamps to its range exactly
-        // like a drag, then the player takes the clamped value.
-        controller.pitchPanel.pitch = tokens[1].floatValue;
-        player.pitch = controller.pitchPanel.pitch;
-        [controller debugRefreshUI];
-        return VibeActionSummary(controller);
-    }
-    if ([verb isEqualToString:@"seek"]) {
-        if (tokens.count < 2) {
-            return VibeErrorJSON(@"usage: seek <seconds>");
-        }
-        player.position = tokens[1].doubleValue;
-        [controller debugRefreshUI];
-        return VibeActionSummary(controller);
-    }
-    if ([verb isEqualToString:@"clearCaches"]) {
-        // Blocks the main thread until both PINCache stores are empty —
-        // acceptable for a debug-only command; the clears are file deletes at
-        // utility QoS. The waveform clear queues behind any in-flight waveform
-        // load on the same serial queue, hence the generous timeout.
-        dispatch_group_t group = dispatch_group_create();
-        dispatch_group_enter(group);
-        [controller.metadataCache invalidateWithCompletion:^{
-            dispatch_group_leave(group);
-        }];
-        dispatch_group_enter(group);
-        [controller.waveformCache invalidateWithCompletion:^{
-            dispatch_group_leave(group);
-        }];
-        if (dispatch_group_wait(group, dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC))) {
-            return VibeErrorJSON(@"cache clear timed out after 15s");
-        }
-        return VibeJSONString(@{
-            @"ok": @YES,
-            @"cleared": @[@"Audio Track Metadata v4", @"audio_waveform_cache_v4"],
-        });
-    }
-    return VibeErrorJSON(
-            @"unknown command '%@'. Commands: state, nowPlaying, viewtree, menu, screenshot, playPause, "
-            @"next, previous, skipForward, skipForwardMore, skipBack, skipBackMore, togglePitchPanel, "
-            @"toggleSize, setPitch <percent>, seek <seconds>, clickMenu <identifier-or-title>, clearCaches", verb);
+    VibeDebugCommandHandler handler = spec[@"handler"];
+    return handler(tokens, commandId, controller);
 }
 
 static void VibeHandleDebugCommandFile(void) {
@@ -504,16 +629,22 @@ static void VibeHandleDebugCommandFile(void) {
         return;
     }
     NSString *commandId = payload[@"id"];
-    NSString *command = payload[@"command"];
-    if (![commandId isKindOfClass:NSString.class] || ![command isKindOfClass:NSString.class]) {
+    NSArray *args = payload[@"args"];
+    if (![commandId isKindOfClass:NSString.class] || ![args isKindOfClass:NSArray.class] || args.count == 0) {
         return;
     }
-    NSString *response = VibeExecuteDebugCommand(command);
-    [response writeToFile:VibeDebugResponsePath(commandId)
-               atomically:YES
-                 encoding:NSUTF8StringEncoding
-                    error:nil];
-    LogInfo(@"Debug command handled: %@", command);
+    for (id token in args) {
+        if (![token isKindOfClass:NSString.class]) {
+            return;
+        }
+    }
+    NSString *response = VibeExecuteDebugCommand(args, commandId);
+    // A nil response means the command completes asynchronously and writes its
+    // own response via VibeWriteDebugResponse when done (e.g. file_cache).
+    if (response) {
+        VibeWriteDebugResponse(commandId, response);
+    }
+    LogInfo(@"Debug command dispatched: %@", [args componentsJoinedByString:@" "]);
 }
 
 void VibeInstallDebugCommandHook(void) {
@@ -528,18 +659,21 @@ void VibeInstallDebugCommandHook(void) {
 
 int VibeDebugCommandClientMain(int argc, const char *argv[]) {
     @autoreleasepool {
-        NSMutableArray<NSString *> *parts = [NSMutableArray array];
+        NSMutableArray<NSString *> *args = [NSMutableArray array];
         for (int i = 2; i < argc; i++) {
-            [parts addObject:@(argv[i])];
+            [args addObject:@(argv[i])];
         }
-        if (parts.count == 0) {
+        if (args.count == 0) {
             fprintf(stderr, "usage: Vibe --debug-cmd <command> [args...]\n");
             return 64;
         }
         NSString *commandId = NSUUID.UUID.UUIDString;
+        // Args ride a JSON array, one element per argv entry — never joined
+        // and re-tokenized — so a quoted path with any whitespace (including
+        // consecutive spaces) reaches the handler byte-exact.
         NSDictionary *payload = @{
             @"id": commandId,
-            @"command": [parts componentsJoinedByString:@" "],
+            @"args": args,
         };
         // Same bundle ID + sandbox entitlements as the app, so NSTemporaryDirectory()
         // resolves to the same container tmp the app-side handler reads.
@@ -552,7 +686,15 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
 
         NSString *responsePath = VibeDebugResponsePath(commandId);
         NSFileManager *fileManager = NSFileManager.defaultManager;
-        for (int i = 0; i < 100; i++) { // 5s at 50ms
+        // Per-verb wait from the same table the app dispatches with — slow
+        // verbs (file_cache's full decode, clear_caches' blocking clear)
+        // declare their own window there; everything else gets 5s.
+        NSTimeInterval timeout = [VibeCommandSpecForVerb(args.firstObject)[@"clientTimeout"] doubleValue];
+        if (timeout <= 0) {
+            timeout = 5;
+        }
+        int maxPolls = (int)(timeout / 0.05);
+        for (int i = 0; i < maxPolls; i++) {
             usleep(50 * 1000);
             if ([fileManager fileExistsAtPath:responsePath]) {
                 NSString *response = [NSString stringWithContentsOfFile:responsePath
@@ -573,7 +715,7 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
             }
         }
         [fileManager removeItemAtPath:VibeDebugCommandPath() error:nil];
-        fprintf(stderr, "vibe: no response after 5s — is a debug build of Vibe running?\n");
+        fprintf(stderr, "vibe: no response after %.0fs — is a debug build of Vibe running?\n", timeout);
         return 1;
     }
 }

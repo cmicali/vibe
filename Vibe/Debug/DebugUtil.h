@@ -33,22 +33,24 @@ void VibeInstallDebugScreenshotHook(void);
 
 // Debug command channel: the Vibe binary doubles as its own CLI client.
 //
-//     .../Vibe.app/Contents/MacOS/Vibe --debug-cmd state
-//     .../Vibe.app/Contents/MacOS/Vibe --debug-cmd setPitch -4.5
+//     .../Vibe.app/Contents/MacOS/Vibe --debug-cmd dump_state
+//     .../Vibe.app/Contents/MacOS/Vibe --debug-cmd set_pitch -4.5
 //
-// Transport: the client writes a JSON command file into the sandbox
+// Transport: the client writes a JSON command file ({"id", "args": [verb,
+// arg, ...]} — args stay an array end to end, never joined and re-tokenized,
+// so quoted paths with any whitespace survive byte-exact) into the sandbox
 // container's tmp (the direct-exec'd client runs in the SAME container, so no
 // permission is needed), pokes the running app with a darwin notification —
 // the payload can't ride the notification itself, since darwin notifications
 // carry none and a sandboxed process may not post distributed notifications
 // with userInfo — then polls for a per-command response file and prints it.
 //
-// Commands: state (JSON dump: player/UI/playlist/window/settings),
-// viewtree (view hierarchy of every window, with frames), menu (menu tree
-// with live enabled/checkmark state), clickMenu <identifier-or-title>,
-// screenshot, playPause, next, previous, skipForward, skipForwardMore,
-// skipBack, skipBackMore, togglePitchPanel, toggleSize, setPitch <percent>,
-// seek <seconds>.
+// The command set covers inspection dumps (dump_*), transport/UI actions,
+// opening files, and per-file waveform-cache control. The authoritative list
+// is VibeDebugCommandTable in DebugUtil.m — one entry per verb carrying its
+// usage string, per-verb client wait, and handler; dispatch and the
+// unknown-command reply derive from it. Usage docs live in
+// .claude/skills/vibe-debug/SKILL.md.
 
 // App side; call at launch. Listens on com.vibe.debug.command (main queue).
 void VibeInstallDebugCommandHook(void);

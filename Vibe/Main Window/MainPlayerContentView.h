@@ -29,7 +29,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (readonly) BackgroundArtworkImageView *backgroundAlbumArtImageView;
 @property (readonly) ArtworkImageView *albumArtImageView;
-@property (readonly) NSView *albumArtGradientView;
 @property (readonly) AudioWaveformView *waveformView;
 
 @property (readonly) NSTextField *artistTextField;
