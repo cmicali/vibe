@@ -17,14 +17,15 @@
     if (self) {
         _controller = controller;
         __weak TransportKeyMonitor *weakSelf = self;
-        // KeyUp too: W/E/R are momentary (low-kill boost / reverb / delay
-        // while held), so their releases matter, unlike the other keys.
+        // KeyUp too: W/E/R/T are momentary (low-kill boost / reverb / 1/8
+        // delay / 1/16 delay while held), so their releases matter, unlike
+        // the other keys.
         _monitor = [NSEvent addLocalMonitorForEventsMatchingMask:(NSEventMaskKeyDown | NSEventMaskKeyUp)
                                                           handler:^NSEvent *(NSEvent *event) {
             TransportKeyMonitor *strongSelf = weakSelf;
             return strongSelf ? [strongSelf handleKeyEvent:event] : event;
         }];
-        // If the window resigns key while W/E/R is held (Cmd-Tab, a panel
+        // If the window resigns key while W/E/R/T is held (Cmd-Tab, a panel
         // steals focus), the release lands elsewhere and the effect would
         // stick on — force all off. Idempotent, so firing with nothing
         // active is free.
@@ -39,6 +40,7 @@
                 [strongController setLowKillBoostActive:NO];
                 [strongController setReverbSendActive:NO];
                 [strongController setDelaySendActive:NO];
+                [strongController setShortDelaySendActive:NO];
             }
         }];
     }
@@ -74,6 +76,10 @@
         }
         if ([upChars isEqualToString:@"r"]) {
             [controller setDelaySendActive:NO];
+            return nil;
+        }
+        if ([upChars isEqualToString:@"t"]) {
+            [controller setShortDelaySendActive:NO];
             return nil;
         }
         return event;
@@ -127,6 +133,12 @@
     if ([chars isEqualToString:@"r"]) {
         if (!event.isARepeat) {
             [controller setDelaySendActive:YES];
+        }
+        return nil;
+    }
+    if ([chars isEqualToString:@"t"]) {
+        if (!event.isARepeat) {
+            [controller setShortDelaySendActive:YES];
         }
         return nil;
     }

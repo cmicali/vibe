@@ -10,13 +10,14 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // The DJ performance effects on the master bus: the low-kill high-pass (Q
-// toggle + held-W boost) and the two momentary send/returns (E reverb wash,
-// R ping-pong delay). Owns the FX segment of the engine graph — everything
-// between the main mixer and the output node:
+// toggle + held-W boost) and the momentary send/returns (E reverb wash,
+// R/T ping-pong delays). Owns the FX segment of the engine graph —
+// everything between the main mixer and the output node:
 //
 //   mainMixer -> lowKillEQ -+-> masterMix -> output
-//                           +-> reverb send/return  -> masterMix
-//                           +-> delay send/return   -> masterMix
+//                           +-> reverb send/return       -> masterMix
+//                           +-> 1/8 delay send/return    -> masterMix
+//                           +-> 1/16 delay send/return   -> masterMix
 //
 // Downstream of the per-track player/varispeed chains, so track changes,
 // seeks, and the crossfade never touch it.
@@ -60,6 +61,11 @@ NS_ASSUME_NONNULL_BEGIN
 // the repeats don't stack up bass. Setting NO cuts only the send — the trail
 // decays through the feedback naturally.
 @property (nonatomic) BOOL delaySendEnabled;
+
+// Momentary short delay echo send (held T key): the same ping-pong echo as
+// delaySendEnabled, on 1/16-note taps — twice as fast. The two are
+// independent sends and can run together.
+@property (nonatomic) BOOL shortDelaySendEnabled;
 
 // Effective (pitch-scaled) tempo in BPM the echo's 1/8-note tap follows.
 // The controller feeds it from the same tagged/detected BPM the label shows;
