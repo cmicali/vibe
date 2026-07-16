@@ -6,28 +6,62 @@
 #import "DetailedAudioWaveformRenderer.h"
 
 #include <vector>
+#include <cmath>
+
+// Time constant of the exponential ease toward the target samples: each
+// frame the displayed bars cover a dt-scaled fraction of the remaining
+// distance, settling (~95%) in about 3τ ≈ 0.2s. Exponential approach — as
+// opposed to a keyframed from→to animation — retargets seamlessly: a new
+// target (track change mid-morph, every loader tick) just bends the
+// in-flight motion, so there is never a captured from-value to get wrong.
+static const CFTimeInterval kMorphTau = 0.07;
+// Convergence threshold in normalized sample units (bars span [-1, 1]);
+// well under a device pixel at any realistic waveform height.
+static const float kMorphEpsilon = 0.002f;
+static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
+
+// Bars reach at most ±kBarAmplitude·(height/2) from the vertical midline.
+// VibeBarVScale is the ONE normalized→pixels scale, shared by the subclass
+// band (updateWaveform:), the morph frame-skip heuristic (morphTick), the
+// drawn mask (rebuildMaskPaths), and the gradient band (configureGradient:)
+// — they silently disagree if any site re-derives it.
+static const CGFloat kBarAmplitude = 0.75;
+static inline CGFloat VibeBarVScale(CGFloat height) {
+    return (height / 2) * kBarAmplitude;
+}
 
 @implementation DetailedAudioWaveformRenderer {
     NSColor *_gradientColor;
 
+    // One bar-shaped mask clips the whole gradient stack. Masking the two
+    // gradients separately (the original structure) rasterized the identical
+    // bar path twice per morph frame — a full-view alpha pass each — and
+    // shipped the 4096-element path to the render server twice.
+    CALayer *_waveformContainer;      // mask: _barMask; holds both gradients
+    CAShapeLayer *_barMask;
     CAGradientLayer *_unplayedGradient;
-    CAShapeLayer *_unplayedMask;
 
     // Container layer with masksToBounds=YES. Its bounds.size.width is the
     // progress indicator — anything inside is clipped to the played region.
     CALayer *_playedClip;
     CAGradientLayer *_playedGradient;
-    CAShapeLayer *_playedMask;
 
-    BOOL _hasHydrated;  // tracks whether the grow-from-midline animation has played for the current waveform
-
-    // Inputs behind the current mask paths, used to skip no-op rebuilds:
-    // the per-bar min/max values sampled from the waveform plus the bounds
-    // they were laid out in. _maskValid is NO until the first build and
-    // after the waveform is cleared.
-    std::vector<float> _maskSamples;  // interleaved min/max per bar
+    // Morph state: what's on screen vs. where it's heading (interleaved
+    // min/max per bar, normalized). The timer eases displayed toward target,
+    // rebuilding the mask paths each frame, and stops once they converge.
+    // Also serves the no-op-rebuild check: an updateWaveform: whose samples
+    // and geometry match the current target is skipped outright.
+    std::vector<float> _displayedSamples;
+    std::vector<float> _targetSamples;
+    // updateWaveform:'s reusable target buffer — it runs on every loader tick
+    // and live-resize frame, so a fresh 32KB heap allocation per call (x4
+    // style) is real churn. Swapped with _targetSamples when the target moves.
+    std::vector<float> _scratchSamples;
     CGSize _maskSize;
-    BOOL _maskValid;
+    BOOL _hasWaveform;   // NO = the zero target means "empty", drawn as nothing rather than hairline bars
+    NSTimer *_morphTimer;
+    CFTimeInterval _lastMorphTick;
+    float _pendingRebuildPx;  // screen-space bar movement accumulated since the last mask rebuild
 }
 
 + (NSString *)displayName {
@@ -63,20 +97,28 @@
 
     CGFloat scale = self.parentLayer.contentsScale;
 
-    // Unplayed: dim gradient over the full waveform, clipped to bar shape.
-    // Path updates happen inside setDisableActions:YES transactions in
-    // updateWaveform: — the visible "hydrate" effect comes from the
-    // grow-from-midline transform animation there, not from implicit
-    // path animations.
+    // Everything composites inside one container that the bar mask clips:
+    // unplayed gradient across the full width, played gradient above it
+    // revealed by the progress clip. Mask path updates always happen inside
+    // setDisableActions:YES transactions — every visible morph is the
+    // timer-driven rebuild in rebuildMaskPaths, never a Core Animation path
+    // interpolation.
+    _waveformContainer = [CALayer layer];
+    _waveformContainer.anchorPoint = CGPointZero;
+    _waveformContainer.actions = @{@"bounds": [NSNull null], @"position": [NSNull null]};
+    _waveformContainer.contentsScale = scale;
+    _barMask = [CAShapeLayer layer];
+    _barMask.fillColor = [NSColor whiteColor].CGColor;
+    _barMask.contentsScale = scale;
+    _waveformContainer.mask = _barMask;
+    [self.parentLayer addSublayer:_waveformContainer];
+
+    // Unplayed: dim gradient over the full waveform.
     _unplayedGradient = [CAGradientLayer layer];
     _unplayedGradient.opacity = kWaveformOpacity;
     _unplayedGradient.contentsScale = scale;
     [self configureGradient:_unplayedGradient];
-    _unplayedMask = [CAShapeLayer layer];
-    _unplayedMask.fillColor = [NSColor whiteColor].CGColor;
-    _unplayedMask.contentsScale = scale;
-    _unplayedGradient.mask = _unplayedMask;
-    [self.parentLayer addSublayer:_unplayedGradient];
+    [_waveformContainer addSublayer:_unplayedGradient];
 
     // Played: bright gradient inside a clip container; resize the container
     // on progress changes to reveal/hide the played portion. Sits on top of
@@ -91,29 +133,26 @@
     _playedGradient.opacity = kWaveformOpacity;
     _playedGradient.contentsScale = scale;
     [self configureGradient:_playedGradient];
-    _playedMask = [CAShapeLayer layer];
-    _playedMask.fillColor = [NSColor whiteColor].CGColor;
-    _playedMask.contentsScale = scale;
-    _playedGradient.mask = _playedMask;
     [_playedClip addSublayer:_playedGradient];
-    [self.parentLayer addSublayer:_playedClip];
+    [_waveformContainer addSublayer:_playedClip];
 }
 
 - (void)configureGradient:(CAGradientLayer *)gradient {
     // Fade runs top → bottom (layer coords: y=1 is the top, y=0 the bottom),
     // so colors[0] is the top color and colors[last] the bottom. The start/end
     // points are pinned to the waveform's vertical band, not the full view, so
-    // the full 100%→70% range lands across the visible bars: bars reach at most
-    // ±0.75·(height/2) from the midline (see vscale in updateWaveform:), i.e.
-    // the band spans y ∈ [0.125, 0.875]. Mapping the fade to the whole view
-    // instead only swung the bars ~0.96→0.74 — too subtle to read.
-    gradient.startPoint = CGPointMake(0.5, 0.875);
-    gradient.endPoint = CGPointMake(0.5, 0.125);
+    // the full 100%→70% range lands across the visible bars: bars reach at
+    // most ±kBarAmplitude·(height/2) from the midline (VibeBarVScale), i.e.
+    // the band spans y ∈ [(1∓kBarAmplitude)/2] — computed, so an amplitude
+    // change re-aims the fade automatically. Mapping the fade to the whole
+    // view instead only swung the bars ~0.96→0.74 — too subtle to read.
+    gradient.startPoint = CGPointMake(0.5, (1 + kBarAmplitude) / 2);
+    gradient.endPoint = CGPointMake(0.5, (1 - kBarAmplitude) / 2);
 }
 
 - (void)dealloc {
-    [_unplayedGradient removeFromSuperlayer];
-    [_playedClip removeFromSuperlayer];
+    [_morphTimer invalidate];
+    [_waveformContainer removeFromSuperlayer];
 }
 
 - (void)updateColors:(BOOL)isDark {
@@ -157,109 +196,167 @@
 }
 
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
-    // Set bounds + position rather than frame on the gradient layers, because
-    // when those layers have a non-identity transform (during/after the
-    // hydration animation), the frame setter inverts the transform into the
-    // bounds — which would 1000× the layer height and put it off-screen.
     CGRect localBounds = CGRectMake(0, 0, bounds.size.width, bounds.size.height);
-    CGPoint center = CGPointMake(NSMidX(bounds), NSMidY(bounds));
-    _unplayedGradient.bounds = localBounds;
-    _unplayedGradient.position = center;
-    _playedGradient.bounds = localBounds;
-    _playedGradient.position = center;
-    // Masks live in the gradient's coordinate space and have no transform,
-    // so setting frame is safe and convenient.
-    _unplayedMask.frame = localBounds;
-    _playedMask.frame = localBounds;
+    // Disabled actions: an animated window resize redraws every frame, and
+    // implicit 0.25s animations on these leave the waveform chasing the
+    // window. (_playedClip needs no wrapper — its actions dict already
+    // disables bounds/position.)
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _waveformContainer.frame = localBounds;
+    _barMask.frame = localBounds;
+    _unplayedGradient.frame = localBounds;
+    _playedGradient.frame = localBounds;
+    [CATransaction commit];
     [self updateProgress:progress waveform:waveform];
-
-    if (!waveform) {
-        // Collapse the gradient layers to a thin line at the midline and
-        // clear the paths. The next non-nil call animates back to identity.
-        _hasHydrated = NO;
-        _maskValid = NO;
-        [CATransaction begin];
-        [CATransaction setDisableActions:YES];
-        _unplayedGradient.transform = CATransform3DMakeScale(1, 0.001, 1);
-        _playedGradient.transform = CATransform3DMakeScale(1, 0.001, 1);
-        _unplayedMask.path = NULL;
-        _playedMask.path = NULL;
-        [CATransaction commit];
-        return;
-    }
-
-    CGFloat width = bounds.size.width;
-    CGFloat vscale = (bounds.size.height / 2) * 0.75;
-    CGFloat midY = bounds.size.height / 2;
 
     // The x2/x4/x8 styles intentionally draw more rects than device pixels:
     // the sub-pixel overlap accumulates differently per density, which is
     // what visually distinguishes the oversampling variants. Don't clamp.
     NSUInteger count = self.numLayers;
-    CGFloat barWidth = [self barWidthForWidth:width barCount:count];
 
-    // Sample the waveform into a reusable buffer and compare against the
-    // values behind the current masks. Callers redraw unconditionally (every
-    // loader progress tick, every live-resize step), but assigning a shape
-    // layer as a mask forces a full-view alpha re-rasterization — skip it
-    // when neither the sampled peaks nor the geometry changed.
-    BOOL changed = !_maskValid || !NSEqualSizes(bounds.size, _maskSize);
-    if (_maskSamples.size() != count * 2) {
-        _maskSamples.resize(count * 2);
-        changed = YES;
+    // The target the bars ease toward: the waveform's per-bar min/max, or
+    // all-zero (collapsed to the midline) when there is no waveform — a
+    // track change morphs the old bars toward zero until the new track's
+    // waveform arrives and retargets them to its shape. Built into the
+    // reusable scratch buffer, not a fresh allocation.
+    if (_scratchSamples.size() != count * 2) {
+        _scratchSamples.resize(count * 2); // new elements value-init to 0
     }
-    for (NSUInteger i = 0; i < count; i++) {
-        AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
-        float chunkMin = m.getMin();
-        float chunkMax = m.getMax();
-        if (!changed && (_maskSamples[i * 2] != chunkMin || _maskSamples[i * 2 + 1] != chunkMax)) {
-            changed = YES;
+    if (waveform) {
+        for (NSUInteger i = 0; i < count; i++) {
+            AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
+            _scratchSamples[i * 2] = m.getMin();
+            _scratchSamples[i * 2 + 1] = m.getMax();
         }
-        _maskSamples[i * 2] = chunkMin;
-        _maskSamples[i * 2 + 1] = chunkMax;
+    }
+    else {
+        std::fill(_scratchSamples.begin(), _scratchSamples.end(), 0.0f);
     }
 
+    CGFloat vscale = VibeBarVScale(bounds.size.height);
+    CGFloat midY = bounds.size.height / 2;
     self.topY = round(midY + vscale);
     self.bottomY = round(midY - vscale);
 
-    if (!changed) {
+    BOOL geometryChanged = !NSEqualSizes(bounds.size, _maskSize);
+    _maskSize = bounds.size;
+    // The empty↔loaded flip is tracked separately from sample changes: a
+    // silent track's waveform is all-zero — sample-identical to the collapsed
+    // "no waveform" target — but draws differently (1px hairlines vs.
+    // nothing; minHeight in rebuildMaskPaths).
+    BOOL hasWaveformChanged = (_hasWaveform != (waveform != nil));
+    _hasWaveform = (waveform != nil);
+    if (_displayedSamples.size() != _scratchSamples.size()) {
+        // First draw (or a bar-count change): start collapsed so the first
+        // waveform grows out of the midline.
+        _displayedSamples.assign(_scratchSamples.size(), 0.0f);
+        geometryChanged = YES;
+    }
+    BOOL targetChanged = (_scratchSamples != _targetSamples);
+    if (!targetChanged && !geometryChanged && !hasWaveformChanged) {
+        // No-op redraw (repeated delivery of identical samples) — assigning
+        // a mask path forces a full-view alpha re-rasterization; skip it.
         return;
     }
-    _maskValid = YES;
-    _maskSize = bounds.size;
+    if (targetChanged) {
+        std::swap(_targetSamples, _scratchSamples); // scratch holds the stale target until the next call overwrites it
+    }
+    if (geometryChanged || (hasWaveformChanged && !targetChanged)) {
+        // Geometry: remap what's currently on screen instantly — a live
+        // resize must track the window, not ease after it. hasWaveform flip
+        // alone: the samples are identical so no morph will run, but the
+        // hairline floor changed — redraw in place (silent track's all-zero
+        // waveform arriving over the collapsed target, or a clear after one).
+        [self rebuildMaskPaths];
+    }
+    if (targetChanged) {
+        [self startMorphTimer];
+    }
+}
 
+// Ease displayed toward target, converging in ~3τ. Runs on the main run
+// loop's common modes so morphs don't freeze during menu tracking or a
+// live resize.
+- (void)startMorphTimer {
+    if (_morphTimer) {
+        return; // already easing — the updated target just bends the motion
+    }
+    _lastMorphTick = CACurrentMediaTime();
+    __weak __typeof__(self) weakSelf = self;
+    _morphTimer = [NSTimer timerWithTimeInterval:kMorphFrameInterval repeats:YES block:^(NSTimer *timer) {
+        [weakSelf morphTick];
+    }];
+    [NSRunLoop.mainRunLoop addTimer:_morphTimer forMode:NSRunLoopCommonModes];
+}
+
+- (void)morphTick {
+    CFTimeInterval now = CACurrentMediaTime();
+    // Clamp dt: after a stall (debugger pause, occluded window) one huge
+    // step would snap the morph instead of easing it.
+    CFTimeInterval dt = MIN(MAX(now - _lastMorphTick, 0), 0.1);
+    _lastMorphTick = now;
+    float k = (float)(1.0 - exp(-dt / kMorphTau));
+    float maxDistance = 0;
+    for (size_t i = 0; i < _displayedSamples.size(); i++) {
+        float d = _targetSamples[i] - _displayedSamples[i];
+        maxDistance = MAX(maxDistance, fabsf(d));
+        _displayedSamples[i] += d * k;
+    }
+    if (maxDistance < kMorphEpsilon) {
+        _displayedSamples = _targetSamples;
+        [_morphTimer invalidate];
+        _morphTimer = nil;
+        [self rebuildMaskPaths]; // final settle always draws (pixel-rounded)
+        return;
+    }
+    // Each rebuild is a full-view mask re-rasterization, and the exponential
+    // tail spends many frames moving imperceptibly — skip frames until the
+    // fastest bar has accumulated ~a quarter pixel of motion.
+    CGFloat vscale = VibeBarVScale(_maskSize.height);
+    _pendingRebuildPx += (float)(maxDistance * k * vscale);
+    if (_pendingRebuildPx >= 0.25f) {
+        [self rebuildMaskPaths];
+    }
+}
+
+// Build the bar path for the currently displayed samples and set it on the
+// shared mask. Pixel-rounding is reserved for the settled state — mid-morph
+// it would quantize the motion into visible 1px steps.
+- (void)rebuildMaskPaths {
+    _pendingRebuildPx = 0;
+    NSUInteger count = _displayedSamples.size() / 2;
+    if (count == 0) {
+        return;
+    }
+    CGFloat width = _maskSize.width;
+    CGFloat midY = _maskSize.height / 2;
+    CGFloat vscale = VibeBarVScale(_maskSize.height);
+    CGFloat barWidth = [self barWidthForWidth:width barCount:count];
+    // With no waveform, bars are allowed to shrink to nothing; with one,
+    // they keep the 1px floor (silent and not-yet-loaded chunks draw as a
+    // hairline, matching the settled look mid-load).
+    CGFloat minHeight = _hasWaveform ? 1 : 0;
+    BOOL settled = (_morphTimer == nil);
     CGMutablePathRef path = CGPathCreateMutable();
     for (NSUInteger i = 0; i < count; i++) {
         // y-up layer coords: the bar's top comes from the positive peak (max),
         // the bottom from the negative peak (min). Subtracting instead drew
         // the envelope vertically mirrored (visible on DC-offset material).
-        CGFloat top = round(midY + _maskSamples[i * 2 + 1] * vscale);
-        CGFloat bottom = round(midY + _maskSamples[i * 2] * vscale);
-        CGFloat height = MAX(top - bottom, 1);
+        CGFloat top = midY + _displayedSamples[i * 2 + 1] * vscale;
+        CGFloat bottom = midY + _displayedSamples[i * 2] * vscale;
+        if (settled) {
+            top = round(top);
+            bottom = round(bottom);
+        }
+        CGFloat height = MAX(top - bottom, minHeight);
         CGFloat x = [self barXForIndex:i width:width barCount:count barWidth:barWidth];
         CGPathAddRect(path, NULL, CGRectMake(x, bottom, barWidth, height));
     }
-
-    // Set the path without animation so subsequent loader chunks update
-    // heights instantly. The visible hydration comes from the transform
-    // animation below — which only fires on the first non-nil call per
-    // waveform (subsequent calls find _hasHydrated == YES and skip it).
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    _unplayedMask.path = path;
-    _playedMask.path = path;
+    _barMask.path = path;
     [CATransaction commit];
-
-    if (!_hasHydrated) {
-        _hasHydrated = YES;
-        [CATransaction begin];
-        [CATransaction setAnimationDuration:0.2];
-        [CATransaction setAnimationTimingFunction:[CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut]];
-        _unplayedGradient.transform = CATransform3DIdentity;
-        _playedGradient.transform = CATransform3DIdentity;
-        [CATransaction commit];
-    }
-
     CGPathRelease(path);
 }
 

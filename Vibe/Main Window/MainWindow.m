@@ -39,9 +39,11 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         self.autorecalculatesKeyViewLoop = NO;
         self.allowsToolTipsWhenApplicationIsInactive = NO;
 
+        // File URLs only: performDragOperation reads with FileURLsOnly, so
+        // also registering NSPasteboardTypeURL would show a copy cursor for a
+        // browser-link drag the drop then rejects.
         [self registerForDraggedTypes:@[
             NSPasteboardTypeFileURL,
-            NSPasteboardTypeURL,
         ]];
 
         self.allowsConcurrentViewDrawing = YES;

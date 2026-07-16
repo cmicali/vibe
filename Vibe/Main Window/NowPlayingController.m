@@ -34,6 +34,11 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
     NSTimeInterval _publishedPosition;
     CFAbsoluteTime _publishedAt;
 
+    // Last-applied command availability (registerCommands enables both), so
+    // the MPRemoteCommand .enabled properties are only written on change.
+    BOOL _publishedHasNext;
+    BOOL _publishedHasPrevious;
+
     // The MPMediaItemArtwork wrapper is reused as long as the caller hands
     // back the same decoded NSImage; the wrapper's request handler retains
     // the image either way, so caching it here adds no lifetime.
@@ -80,7 +85,10 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
         return MPRemoteCommandHandlerStatusSuccess;
     }];
 
+    // Enabled here so a command is never registered-but-dead; every
+    // updateWithTrack: retracks them against the playlist boundaries.
     center.nextTrackCommand.enabled = YES;
+    _publishedHasNext = YES;
     [center.nextTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
         NowPlayingController *strongSelf = weakSelf;
         [strongSelf->_delegate nowPlayingControllerNextTrack:strongSelf];
@@ -88,6 +96,7 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
     }];
 
     center.previousTrackCommand.enabled = YES;
+    _publishedHasPrevious = YES;
     [center.previousTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
         NowPlayingController *strongSelf = weakSelf;
         [strongSelf->_delegate nowPlayingControllerPreviousTrack:strongSelf];
@@ -129,8 +138,23 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
                position:(NSTimeInterval)position
                duration:(NSTimeInterval)duration
                   state:(NowPlayingPlaybackState)state
-                   rate:(double)rate {
+                   rate:(double)rate
+                hasNext:(BOOL)hasNext
+            hasPrevious:(BOOL)hasPrevious {
     MPNowPlayingInfoCenter *center = [MPNowPlayingInfoCenter defaultCenter];
+
+    // Applied before every early return below: command availability tracks
+    // the playlist boundaries even when the now-playing info itself is
+    // unchanged (or not yet published).
+    MPRemoteCommandCenter *commands = [MPRemoteCommandCenter sharedCommandCenter];
+    if (hasNext != _publishedHasNext) {
+        commands.nextTrackCommand.enabled = hasNext;
+        _publishedHasNext = hasNext;
+    }
+    if (hasPrevious != _publishedHasPrevious) {
+        commands.previousTrackCommand.enabled = hasPrevious;
+        _publishedHasPrevious = hasPrevious;
+    }
 
     if (!track) {
         // Silent until the first track plays (see _hasPublished); after that,

@@ -167,7 +167,7 @@
         [self setLayerFrame:frame atIndex:i * 2];
 
         // Mirror line
-        CGFloat bottomBarHeight = clampMin(round(topBarHeight * (1-topLineRatio)), 0);
+        CGFloat bottomBarHeight = round(topBarHeight * (1-topLineRatio));
         frame = CGRectMake(x, bottomLineY - bottomBarHeight, blockWidth, bottomBarHeight);
         [self setLayerFrame:frame atIndex:i * 2 + 1];
 

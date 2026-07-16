@@ -27,7 +27,19 @@ static const CGFloat kTrafficLightAlpha    = 1.0;
 static const CGFloat kTransportAlpha       = 1.0;
 static const CFTimeInterval kControlFadeDur = 0.2;
 
+// Purely decorative overlay: returns nil from hitTest so the views it covers
+// (the album art's drag-out, the transport buttons) still receive mouse events.
+@interface VibePassthroughView : NSView
+@end
+
+@implementation VibePassthroughView
+- (NSView *)hitTest:(NSPoint)point {
+    return nil;
+}
+@end
+
 @implementation MainPlayerContentView {
+    VibePassthroughView *_albumArtGradientView; // decorative darkening over the art; internal-only (no controller outlet)
     NSView *_playlistDimView;
     GlyphButton *_playlistToggleButton;
     NSTrackingArea *_windowHoverArea;
@@ -184,7 +196,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // Darkening gradient over the album art (dark at the bottom, fading out
     // upward — the default CAGradientLayer axis) so the transport buttons
     // overlaying the art's lower half read against bright covers.
-    _albumArtGradientView = [[NSView alloc] initWithFrame:NSMakeRect(0, 200, 150, 150)];
+    _albumArtGradientView = [[VibePassthroughView alloc] initWithFrame:NSMakeRect(0, 200, 150, 150)];
     _albumArtGradientView.wantsLayer = YES;
     CAGradientLayer *artGradient = [[CAGradientLayer alloc] init];
     artGradient.colors = @[

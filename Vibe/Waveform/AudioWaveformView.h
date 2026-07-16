@@ -42,7 +42,6 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 @protocol AudioWaveformViewDelegate <NSObject>
-@optional
 
 - (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage;
 

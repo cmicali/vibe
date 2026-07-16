@@ -86,17 +86,34 @@
     [_currentLoader cancel];
     AudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:self];
      _currentLoader = loader;
-    dispatch_async(_loaderQueue, ^{
-        [self load:track withLoader:loader];
-    });
-}
-
-- (void)load:(AudioTrack *)track withLoader:(AudioWaveformLoader *)loader {
-    NSString *cacheKey = track.cacheKey;
     // Captured now, not read back at delivery: the BPM delivery carries the
     // URL this waveform was loaded for, so a final delivery that lands after
     // a track change can't be stamped on whatever track is current by then.
     NSURL *url = track.url;
+    dispatch_async(_loaderQueue, ^{
+        [self load:track withLoader:loader awaitPersist:NO completion:^(CodableAudioWaveform *waveform, BOOL wasCached) {
+            if (waveform) {
+                [self deliverCompleteWaveform:waveform loader:loader url:url];
+            }
+            // nil (cancelled, failed, or partial): the UI stays at whatever
+            // progress the last in-flight loader callback reported.
+        }];
+    });
+}
+
+// Lookup-or-decode core, shared by the delegate delivery path above and the
+// debug pre-warm path below. Must be called on _loaderQueue. The completion
+// fires exactly once — waveform nil on a cancelled/failed decode, wasCached
+// YES on a disk hit — on the loader queue (hit / early-out) or a global
+// utility queue (fresh decode). awaitPersist defers a fresh decode's
+// completion until the disk write lands (the debug pre-warm's done-means-
+// persisted guarantee: `file_cache f && kill` must not lose the entry); the
+// delegate path passes NO so UI delivery never queues behind PINDiskCache.
+- (void)load:(AudioTrack *)track
+  withLoader:(AudioWaveformLoader *)loader
+awaitPersist:(BOOL)awaitPersist
+  completion:(void (^)(CodableAudioWaveform *waveform, BOOL wasCached))completion {
+    NSString *cacheKey = track.cacheKey;
     CodableAudioWaveform *cachedWaveform = nil;
     if (WAVEFORM_CACHE_ENABLED) {
         cachedWaveform = (CodableAudioWaveform *)[self->_waveformCache.diskCache objectForKey:cacheKey];
@@ -110,11 +127,12 @@
         }
     }
     if (cachedWaveform) {
-        [self deliverCompleteWaveform:cachedWaveform loader:loader url:url];
+        completion(cachedWaveform, YES);
         return;
     }
     if (loader.isCancelled) {
-        return; // superseded while the cache lookup ran — don't start a decode
+        completion(nil, NO); // superseded while the cache lookup ran — don't start a decode
+        return;
     }
     // Decode OFF this serial queue: AVAudioFile's open has no cancellation
     // point and blocks until a cloud placeholder materializes (minutes) — on
@@ -128,8 +146,7 @@
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         CodableAudioWaveform *waveform = [loader load:track.url.path];
         if (!waveform || !loader.isComplete) {
-            // Cancelled, failed, or partial: the UI stays at whatever progress
-            // the last in-flight callback reported.
+            completion(nil, NO); // cancelled, failed, or partial
             return;
         }
         if (WAVEFORM_CACHE_ENABLED &&
@@ -137,11 +154,18 @@
             // Cache even when cancelled — a completed decode is worth keeping
             // for the next play of this track. Skipped when an invalidate
             // arrived after this decode started: the write would repopulate
-            // the just-emptied cache. The delivery below is still valid
+            // the just-emptied cache. The completion below is still valid
             // either way — the waveform itself is fine, only the persist is.
+            if (awaitPersist) {
+                [cache.diskCache setObjectAsync:waveform forKey:cacheKey
+                                      completion:^(PINDiskCache *diskCache, NSString *key, id<NSCoding> object) {
+                    completion(waveform, NO);
+                }];
+                return;
+            }
             [cache.diskCache setObjectAsync:waveform forKey:cacheKey completion:nil];
         }
-        [self deliverCompleteWaveform:waveform loader:loader url:url];
+        completion(waveform, NO);
     });
 }
 
@@ -171,6 +195,38 @@
         [self.delegate audioWaveform:waveform didLoadData:percentLoaded];
     }
 }
+
+#if DEBUG
+
+#pragma mark - Debug: per-file cache control
+
+- (void)cacheWaveformForURL:(NSURL *)url completion:(void (^)(BOOL, BOOL, float))completion {
+    AudioTrack *track = [AudioTrack withURL:url];
+    // A private loader, never assigned to _currentLoader: the UI's in-flight
+    // load isn't cancelled, and no delegate progress/delivery fires — this
+    // path reports through the completion instead (typed nil delegate local
+    // dodges -Wnonnull).
+    id<AudioWaveformLoaderDelegate> noDelegate = nil;
+    AudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:noDelegate];
+    dispatch_async(_loaderQueue, ^{
+        [self load:track withLoader:loader awaitPersist:YES completion:^(CodableAudioWaveform *waveform, BOOL wasCached) {
+            float bpm = waveform.bpm; // nil → 0
+            run_on_main_thread({ if (completion) completion(waveform != nil, wasCached, bpm); });
+        }];
+    });
+}
+
+- (void)clearCachedWaveformForURL:(NSURL *)url completion:(void (^)(BOOL))completion {
+    AudioTrack *track = [AudioTrack withURL:url];
+    dispatch_async(_loaderQueue, ^{
+        NSString *cacheKey = track.cacheKey;
+        BOOL present = [self->_waveformCache.diskCache containsObjectForKey:cacheKey];
+        [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
+        run_on_main_thread({ if (completion) completion(present); });
+    });
+}
+
+#endif
 
 @end
 

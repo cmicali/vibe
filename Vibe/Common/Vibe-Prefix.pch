@@ -36,12 +36,9 @@ static inline os_log_t VibeLog(void) {
 #define LogWarn(fmt, ...)   VibeLogAt(OS_LOG_TYPE_DEFAULT, fmt, ##__VA_ARGS__)
 #define LogInfo(fmt, ...)   VibeLogAt(OS_LOG_TYPE_INFO, fmt, ##__VA_ARGS__)
 #define LogDebug(fmt, ...)  VibeLogAt(OS_LOG_TYPE_DEBUG, fmt, ##__VA_ARGS__)
-#define LogTrace(fmt, ...)  VibeLogAt(OS_LOG_TYPE_DEBUG, fmt, ##__VA_ARGS__)
 
 #define Settings [AppSettings sharedInstance]
 
-// Formats CoreAudio decodes natively. OGG was dropped with the BASS removal
-// (it was never actually playable — no vorbis plugin was loaded).
 #define VIBE_SUPPORTED_FILETYPES @[@"mp2", @"mp3", @"aac", @"aif", @"aiff", @"wav", @"flac", @"m4a", @"mp4"]
 
 #endif

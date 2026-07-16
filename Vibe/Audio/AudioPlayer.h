@@ -72,12 +72,16 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 
 - (NSInteger)currentlyActiveAudioDeviceId;
 
-- (void)setOutputDevice:(NSInteger)outputDeviceIndex;
+// outputDeviceID is a CoreAudio AudioDeviceID (as NSInteger), or -1 to follow
+// the system default output — not a menu/array index. Device IDs are transient
+// across reboots; persistence goes by UID/name (see initWithDeviceUID:).
+- (void)setOutputDevice:(NSInteger)outputDeviceID;
 
 @end
 
+// All methods are required: the player invokes every one of them
+// unconditionally (no respondsToSelector: guards on the send sites).
 @protocol AudioPlayerDelegate <NSObject>
-@optional
 
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer;
 
@@ -95,7 +99,7 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(nullable AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track;
 
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceIndex;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceID;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error;
 

@@ -28,14 +28,34 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)invalidateWithCompletion:(nullable dispatch_block_t)completion;
 - (void)loadWaveformForTrack:(AudioTrack *)track;
 
+#if DEBUG
+// Debug / pre-warm: decode and persist the waveform (and its detected BPM) for
+// a file WITHOUT cancelling or delivering to the current load — the running UI
+// is left untouched. Runs the same lookup-or-decode path as a normal load, but
+// a fresh decode's completion waits for the disk write, so once it fires the
+// entry is durably cached. completion fires on the main thread: ok is NO on
+// decode failure; wasCached is YES when the entry already existed (no decode
+// ran); bpm is 0 when none was detected.
+- (void)cacheWaveformForURL:(NSURL *)url
+                 completion:(void (^)(BOOL ok, BOOL wasCached, float bpm))completion;
+
+// Debug: remove a single file's waveform cache entry. The cache key is derived
+// from the file's current size + mtime, so the file must still exist unchanged
+// to resolve the same entry. completion fires on the main thread with whether
+// an entry was present.
+- (void)clearCachedWaveformForURL:(NSURL *)url
+                       completion:(void (^)(BOOL wasPresent))completion;
+#endif
+
 @end
 
 @protocol AudioWaveformCacheDelegate <NSObject>
-@optional
 
 // Passes the ARC-managed wrapper so receivers can retain it — the raw
 // AudioWaveform* is owned by (and dies with) the wrapper.
 - (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded;
+
+@optional
 
 // Fired once per completed waveform load (fresh analysis or cache hit) when
 // the decode pass detected a tempo — never with 0. Follows the final

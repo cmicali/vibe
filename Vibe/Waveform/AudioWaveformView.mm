@@ -3,7 +3,6 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
-#import <Quartz/Quartz.h>
 #import "AudioWaveformView.h"
 #import "AudioWaveform.h"
 #import "DetailedAudioWaveformRenderer.h"
@@ -96,7 +95,7 @@
 
 - (void)updateRendererProgress {
     [CATransaction begin];
-    CATransaction.animationDuration = 0;
+    [CATransaction setDisableActions:YES];
     [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform.waveform];
     [CATransaction commit];
     _currentWaveformRenderer.progress = _progress;
@@ -185,10 +184,13 @@
     shimmer.contentsScale = self.window ? self.window.backingScaleFactor : 2.0;
     shimmer.startPoint = CGPointMake(0, 0.5);
     shimmer.endPoint = CGPointMake(1, 0.5);
+    // Follows the appearance like the renderer palettes do — a fixed white
+    // band is near-invisible on a light background.
+    NSColor *base = self.isDark ? [NSColor whiteColor] : [NSColor blackColor];
     shimmer.colors = @[
-            (id)[[NSColor whiteColor] colorWithAlphaComponent:0].CGColor,
-            (id)[[NSColor whiteColor] colorWithAlphaComponent:0.55].CGColor,
-            (id)[[NSColor whiteColor] colorWithAlphaComponent:0].CGColor,
+            (id)[base colorWithAlphaComponent:0].CGColor,
+            (id)[base colorWithAlphaComponent:0.55].CGColor,
+            (id)[base colorWithAlphaComponent:0].CGColor,
     ];
     [self.layer addSublayer:shimmer];
     _loadingLayer = shimmer;
