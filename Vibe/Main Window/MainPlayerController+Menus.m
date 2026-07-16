@@ -4,6 +4,7 @@
 //
 
 #import "MainPlayerController+Menus.h"
+#import "AudioFX.h"
 #import "MainWindow.h"
 #import "PlaylistManager.h"
 #import "AudioTrack.h"
@@ -47,10 +48,15 @@
     }
     else if ([menuItem.identifier isEqualToString:@"menu_skip_forward"] ||
              [menuItem.identifier isEqualToString:@"menu_skip_forward_more"] ||
+             [menuItem.identifier isEqualToString:@"menu_skip_forward_most"] ||
              [menuItem.identifier isEqualToString:@"menu_skip_back"] ||
-             [menuItem.identifier isEqualToString:@"menu_skip_back_more"]) {
+             [menuItem.identifier isEqualToString:@"menu_skip_back_more"] ||
+             [menuItem.identifier isEqualToString:@"menu_skip_back_most"]) {
         // Seeking needs a loaded track; the skip is a no-op otherwise.
         return self.playlistManager.currentTrack != nil;
+    }
+    else if ([menuItem.identifier isEqualToString:@"menu_low_kill"]) {
+        menuItem.state = StateForBOOL(self.audioPlayer.fx.lowKillEnabled);
     }
     else if ([menuItem.identifier isEqualToString:@"pitch_range_8"]) {
         menuItem.state = StateForBOOL(Settings.pitchRange == 8);

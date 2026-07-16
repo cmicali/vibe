@@ -83,9 +83,13 @@ static NSMenuItem *VibeSubmenuItem(NSMenu *parent, NSString *title) {
     // fallback path. Enabled only with a track loaded (see the Menus category).
     [playbackMenu addItem:VibeMenuItem(@"Skip Forward", @selector(skipForward:), player, @"a", 0, @"menu_skip_forward")];
     [playbackMenu addItem:VibeMenuItem(@"Skip Forward More", @selector(skipForwardMore:), player, @"s", 0, @"menu_skip_forward_more")];
+    [playbackMenu addItem:VibeMenuItem(@"Skip Forward Most", @selector(skipForwardMost:), player, @"d", 0, @"menu_skip_forward_most")];
     [playbackMenu addItem:VibeMenuItem(@"Skip Back", @selector(skipBack:), player, @"z", 0, @"menu_skip_back")];
     [playbackMenu addItem:VibeMenuItem(@"Skip Back More", @selector(skipBackMore:), player, @"x", 0, @"menu_skip_back_more")];
+    [playbackMenu addItem:VibeMenuItem(@"Skip Back Most", @selector(skipBackMost:), player, @"c", 0, @"menu_skip_back_most")];
     [playbackMenu addItem:[NSMenuItem separatorItem]];
+    // Bare Q (mask 0), handled by TransportKeyMonitor like the keys above.
+    [playbackMenu addItem:VibeMenuItem(@"Low Kill", @selector(toggleLowKill:), player, @"q", 0, @"menu_low_kill")];
     NSMenu *pitchRangeMenu = [VibeSubmenuItem(playbackMenu, @"Pitch Range") submenu];
     [pitchRangeMenu addItem:VibeMenuItem(@"8%", @selector(setPitchRange:), player, @"", 0, @"pitch_range_8")];
     [pitchRangeMenu addItem:VibeMenuItem(@"16%", @selector(setPitchRange:), player, @"", 0, @"pitch_range_16")];
