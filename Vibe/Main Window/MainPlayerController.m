@@ -502,27 +502,56 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     [self updateUI];
 }
 
-// Skip distances, in wall-clock seconds (see skipByWallClockSeconds:).
+// Skip distances. When the track's tempo is known (tagged BPM wins over the
+// analyzed one, same precedence as the BPM label) a skip moves by whole bars
+// (4 beats) — a fixed span of *file* time, so the jump stays on the musical
+// grid at any pitch. Without a tempo the fallback is the fixed wall-clock
+// distance, as before.
 static const NSTimeInterval kSkipSeconds = 10.0;
 static const NSTimeInterval kSkipMoreSeconds = 30.0;
+static const NSTimeInterval kSkipMostSeconds = 60.0;
+static const double kSkipBars = 8.0;
+static const double kSkipMoreBars = 16.0;
+static const double kSkipMostBars = 32.0;
+
+- (NSTimeInterval)skipFileSecondsForBars:(double)bars fallbackWallClockSeconds:(NSTimeInterval)wallSeconds {
+    AudioTrack *track = self.playlistManager.currentTrack;
+    float bpm = track.metadata.bpm > 0 ? track.metadata.bpm : track.detectedBPM;
+    if (bpm > 0) {
+        return bars * 4.0 * 60.0 / bpm;
+    }
+    // The fallback is expressed in the wall-clock seconds the user reads off
+    // the time label; convert to file time (the player's units) with the same
+    // varispeed rate the labels divide by, so a skip advances the displayed
+    // clock by exactly the stated amount at any pitch.
+    return wallSeconds * self.playbackRate;
+}
 
 - (IBAction)skipForward:(nullable id)sender {
-    [self skipByWallClockSeconds:kSkipSeconds];
+    [self skipByFileSeconds:[self skipFileSecondsForBars:kSkipBars fallbackWallClockSeconds:kSkipSeconds]];
 }
 
 - (IBAction)skipForwardMore:(nullable id)sender {
-    [self skipByWallClockSeconds:kSkipMoreSeconds];
+    [self skipByFileSeconds:[self skipFileSecondsForBars:kSkipMoreBars fallbackWallClockSeconds:kSkipMoreSeconds]];
+}
+
+- (IBAction)skipForwardMost:(nullable id)sender {
+    [self skipByFileSeconds:[self skipFileSecondsForBars:kSkipMostBars fallbackWallClockSeconds:kSkipMostSeconds]];
 }
 
 - (IBAction)skipBack:(nullable id)sender {
-    [self skipByWallClockSeconds:-kSkipSeconds];
+    [self skipByFileSeconds:-[self skipFileSecondsForBars:kSkipBars fallbackWallClockSeconds:kSkipSeconds]];
 }
 
 - (IBAction)skipBackMore:(nullable id)sender {
-    [self skipByWallClockSeconds:-kSkipMoreSeconds];
+    [self skipByFileSeconds:-[self skipFileSecondsForBars:kSkipMoreBars fallbackWallClockSeconds:kSkipMoreSeconds]];
 }
 
-- (void)skipByWallClockSeconds:(NSTimeInterval)wallDelta {
+- (IBAction)skipBackMost:(nullable id)sender {
+    [self skipByFileSeconds:-[self skipFileSecondsForBars:kSkipMostBars fallbackWallClockSeconds:kSkipMostSeconds]];
+}
+
+- (void)skipByFileSeconds:(NSTimeInterval)fileDelta {
     if (!self.playlistManager.currentTrack) {
         return;
     }
@@ -530,11 +559,7 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
     if (duration <= 0) {
         return; // Nothing seekable yet (loading, or no file open).
     }
-    // The skip is expressed in the wall-clock seconds the user reads off the
-    // time label; convert to file time (the player's units) with the same
-    // varispeed rate the labels divide by, so a skip advances the displayed
-    // clock by exactly the stated amount at any pitch.
-    NSTimeInterval target = self.audioPlayer.position + wallDelta * self.playbackRate;
+    NSTimeInterval target = self.audioPlayer.position + fileDelta;
     if (target >= duration) {
         // Past the end: finish the track like a natural end — the delegate
         // (didFinishPlaying:) advances to the next track, or stops at the end
@@ -546,6 +571,22 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
         target = 0; // Skipping before the start seeks to the beginning.
     }
     self.audioPlayer.position = target;
+}
+
+- (IBAction)toggleLowKill:(nullable id)sender {
+    self.audioPlayer.lowKillEnabled = !self.audioPlayer.lowKillEnabled;
+}
+
+- (void)setLowKillBoostActive:(BOOL)active {
+    self.audioPlayer.lowKillBoostActive = active;
+}
+
+- (void)setReverbSendActive:(BOOL)active {
+    self.audioPlayer.reverbSendEnabled = active;
+}
+
+- (void)setDelaySendActive:(BOOL)active {
+    self.audioPlayer.delaySendEnabled = active;
 }
 
 - (IBAction)closeApp:(id)sender {
@@ -605,6 +646,11 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
 - (void)updateBPMLabel {
     AudioTrack *track = self.playlistManager.currentTrack;
     float baseBPM = track.metadata.bpm > 0 ? track.metadata.bpm : track.detectedBPM;
+    // This funnel sees every source of an effective-tempo change (track
+    // change, BPM delivery, fader tick), so the delay echo's 1/8-note tap is
+    // fed here — before the label early-return, whose string granularity
+    // (0.1 BPM) is coarser than the fader's. The setter no-ops on same value.
+    self.audioPlayer.delayTapBPM = baseBPM > 0 ? baseBPM * self.playbackRate : 0;
     NSString *text = (track && baseBPM > 0)
             ? [NSString stringWithFormat:@"%.1f BPM", baseBPM * self.playbackRate]
             : @"";
@@ -818,7 +864,7 @@ static const NSTimeInterval kSkipMoreSeconds = 30.0;
     // The scrubber position arrives in the wall-clock time updateNowPlaying
     // publishes (elapsed/duration divided by the varispeed rate); the player
     // seeks in file time, so convert back with the same rate — exactly as
-    // skipByWallClockSeconds: does.
+    // the skip actions' wall-clock fallback does.
     self.audioPlayer.position = position * self.playbackRate;
 }
 
