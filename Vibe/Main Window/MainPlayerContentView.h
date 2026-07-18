@@ -12,13 +12,15 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The main window's whole UI (previously MainPlayerWindow.xib): a
-// behind-window blur that builds artwork, waveform, transport buttons, track
-// labels, and the playlist table, exposing them for the controller to drive.
+// The main window's whole UI (previously MainPlayerWindow.xib): builds
+// artwork, waveform, transport buttons, track labels, and the playlist table,
+// exposing them for the controller to drive. The view itself is transparent —
+// the window's Liquid Glass backdrop (NSGlassEffectView, installed by
+// MainPlayerController behind this view) provides the background.
 // Button/menu actions are sent to `target` (the controller). The view is
 // pinned at its design width (flexible right margin) so the window can widen
 // past it to reveal the pitch panel.
-@interface MainPlayerContentView : NSVisualEffectView
+@interface MainPlayerContentView : NSView
 
 - (instancetype)initWithTarget:(id)target;
 

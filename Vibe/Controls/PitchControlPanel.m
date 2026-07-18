@@ -5,12 +5,9 @@
 
 #import "PitchControlPanel.h"
 #import "Fonts.h"
+#import "Constants.h" // kMainWindowCornerRadius — the right-edge corners follow the window shape
 
 const CGFloat kPitchPanelWidth = 96;
-
-// Matches MainWindow's contentView cornerRadius so the panel's right edge
-// follows the window shape.
-static const CGFloat kPanelCornerRadius = 26;
 
 static const CGFloat kTopPadding    = 14;
 static const CGFloat kTitleHeight   = 14;
@@ -90,7 +87,7 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
     // and (at least via CALayer renderInContext, seen on macOS 26) drawing
     // past the left edge bleeds a dark strip over the main content.
     NSRect b = self.bounds;
-    CGFloat r = kPanelCornerRadius;
+    CGFloat r = kMainWindowCornerRadius;
     NSBezierPath *background = [NSBezierPath bezierPath];
     [background moveToPoint:NSMakePoint(NSMinX(b), NSMinY(b))];
     [background lineToPoint:NSMakePoint(NSMaxX(b) - r, NSMinY(b))];

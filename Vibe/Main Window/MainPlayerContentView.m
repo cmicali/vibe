@@ -49,8 +49,6 @@ static const CFTimeInterval kControlFadeDur = 0.2;
 - (instancetype)initWithTarget:(id)target {
     self = [super initWithFrame:NSMakeRect(0, 0, kMainWindowContentWidth, kDesignHeight)];
     if (self) {
-        self.blendingMode = NSVisualEffectBlendingModeBehindWindow;
-        self.state = NSVisualEffectStateActive;
         self.wantsLayer = YES;
         self.autoresizingMask = NSViewMaxXMargin | NSViewHeightSizable;
         [self buildSubviewsWithTarget:target];
@@ -59,20 +57,16 @@ static const CFTimeInterval kControlFadeDur = 0.2;
     return self;
 }
 
-// The translucent behind-window material effectively shows whatever is behind
-// the window, so a light appearance over a dark desktop still read as dark.
-// Light mode pins the opaque standard window background instead; dark keeps
-// the translucent blur.
+// The window's glass backdrop adapts to appearance on its own; only the
+// playlist wash is appearance-dependent here.
 - (void)updateMaterialForAppearance {
     BOOL dark = self.isDark;
-    self.material = dark ? NSVisualEffectMaterialUnderWindowBackground
-                         : NSVisualEffectMaterialWindowBackground;
-    // Dark mode shows the material through the playlist; the light material is
-    // near-white, so dim the playlist down to roughly the blurred-artwork
-    // backdrop's tone (art baked on a 0.85 base). The wash is a plain view
-    // under the scroll view (an NSClipView background doesn't composite
-    // semi-transparent colors over the material) so it also covers the empty
-    // area below the last row.
+    // Dark mode shows the glass through the playlist; light glass is bright,
+    // so dim the playlist down to roughly the blurred-artwork backdrop's tone
+    // (art baked on a 0.85 base). The wash is a plain view under the scroll
+    // view (an NSClipView background doesn't composite semi-transparent
+    // colors over a backdrop) so it also covers the empty area below the
+    // last row.
     _playlistDimView.layer.backgroundColor = dark ? NSColor.clearColor.CGColor
                                                   : [NSColor colorWithWhite:0 alpha:0.22].CGColor;
 }
@@ -194,20 +188,17 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:_albumArtImageView];
 
     // Darkening gradient over the album art — strong at the bottom for the
-    // transport buttons, clear through the middle, and a lighter band at the
-    // top for the traffic lights — so both button rows read against bright
-    // covers. Always visible (it doesn't join the hover fade).
+    // transport buttons, clear from the middle up — so the button row reads
+    // against bright covers. Always visible (it doesn't join the hover fade).
     _albumArtGradientView = [[VibePassthroughView alloc] initWithFrame:NSMakeRect(0, 200, 150, 150)];
     _albumArtGradientView.wantsLayer = YES;
     CAGradientLayer *artGradient = [[CAGradientLayer alloc] init];
     artGradient.colors = @[
             (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.85].CGColor,
             (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.25].CGColor,
-            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0].CGColor,
-            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0].CGColor,
-            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.55].CGColor
+            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0].CGColor
     ];
-    artGradient.locations = @[@0.0, @0.3, @0.5, @0.72, @1.0];
+    artGradient.locations = @[@0.0, @0.3, @0.5];
     _albumArtGradientView.layer = artGradient;
     _albumArtGradientView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
     [self addSubview:_albumArtGradientView];
