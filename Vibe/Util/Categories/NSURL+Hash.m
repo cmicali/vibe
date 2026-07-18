@@ -8,14 +8,22 @@
 
 @implementation NSURL (Hash)
 
-- (NSString *)cacheKey {
+- (nullable NSString *)cacheKey {
     // Resolve symlinks first: attributesOfItemAtPath: does NOT traverse them,
     // so a symlinked track would key off the link's own tiny, fixed size/mtime
     // — retagging the target file would keep serving stale cached metadata
     // for up to the cache age limit. Keying off the resolved path also lets a
     // link and its target share one cache entry (same underlying file).
     NSString *path = [self.path stringByResolvingSymlinksInPath];
-    NSDictionary<NSFileAttributeKey, id> *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:NULL];
+    NSError *error = nil;
+    NSDictionary<NSFileAttributeKey, id> *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:&error];
+    if (!attrs) {
+        // No key rather than a degenerate "0-0-<sha1>" one: callers memoize
+        // and persist under this, and a transiently-unstattable file would
+        // mis-file its cache entries under that garbage identity forever.
+        LogWarn(@"Could not stat %@ for cache key: %@", path, error);
+        return nil;
+    }
     unsigned long long size = [attrs[NSFileSize] unsignedLongLongValue];
     // Microsecond resolution is enough to distinguish writes; APFS only
     // surfaces sub-second mtime via getattrlist anyway.

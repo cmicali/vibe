@@ -141,7 +141,7 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
     }
     _readoutField.stringValue = text;
     _readoutField.textColor = (pitch == 0)
-            ? [NSColor colorWithRed:0.22 green:0.95 blue:0.40 alpha:1]
+            ? VibeQuartzLockGreen(1)
             : [NSColor colorWithWhite:0.85 alpha:1];
 }
 

@@ -90,30 +90,46 @@
     // URL this waveform was loaded for, so a final delivery that lands after
     // a track change can't be stamped on whatever track is current by then.
     NSURL *url = track.url;
-    dispatch_async(_loaderQueue, ^{
-        [self load:track withLoader:loader awaitPersist:NO completion:^(CodableAudioWaveform *waveform, BOOL wasCached) {
-            if (waveform) {
-                [self deliverCompleteWaveform:waveform loader:loader url:url];
-            }
-            // nil (cancelled, failed, or partial): the UI stays at whatever
-            // progress the last in-flight loader callback reported.
-        }];
+    // The cache key is a file stat, computed OFF the serial loader queue: a
+    // hung network mount could block for minutes and wedge every later
+    // track's waveform behind it — same philosophy as the off-queue
+    // AVAudioFile open in load:. Out-of-order arrival is fine: a superseded
+    // loader was already cancelled above, so its work no-ops.
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSString *cacheKey = track.cacheKey;
+        if (!cacheKey) {
+            // Unstattable file (see NSURL+Hash): skip the load — the view
+            // keeps what it shows, and the next play retries.
+            LogWarn(@"No cache key for %@ — skipping waveform load", url.path);
+            return;
+        }
+        dispatch_async(self->_loaderQueue, ^{
+            [self load:track cacheKey:cacheKey withLoader:loader awaitPersist:NO completion:^(CodableAudioWaveform *waveform, BOOL wasCached) {
+                if (waveform) {
+                    [self deliverCompleteWaveform:waveform loader:loader url:url];
+                }
+                // nil (cancelled, failed, or partial): the UI stays at whatever
+                // progress the last in-flight loader callback reported.
+            }];
+        });
     });
 }
 
 // Lookup-or-decode core, shared by the delegate delivery path above and the
-// debug pre-warm path below. Must be called on _loaderQueue. The completion
-// fires exactly once — waveform nil on a cancelled/failed decode, wasCached
-// YES on a disk hit — on the loader queue (hit / early-out) or a global
-// utility queue (fresh decode). awaitPersist defers a fresh decode's
-// completion until the disk write lands (the debug pre-warm's done-means-
-// persisted guarantee: `file_cache f && kill` must not lose the entry); the
-// delegate path passes NO so UI delivery never queues behind PINDiskCache.
+// debug pre-warm path below. Must be called on _loaderQueue, with the cache
+// key precomputed off-queue by the caller (the stat must not block this
+// serial queue). The completion fires exactly once — waveform nil on a
+// cancelled/failed decode, wasCached YES on a disk hit — on the loader queue
+// (hit / early-out) or a global utility queue (fresh decode). awaitPersist
+// defers a fresh decode's completion until the disk write lands (the debug
+// pre-warm's done-means-persisted guarantee: `file_cache f && kill` must not
+// lose the entry); the delegate path passes NO so UI delivery never queues
+// behind PINDiskCache.
 - (void)load:(AudioTrack *)track
+    cacheKey:(NSString *)cacheKey
   withLoader:(AudioWaveformLoader *)loader
 awaitPersist:(BOOL)awaitPersist
   completion:(void (^)(CodableAudioWaveform *waveform, BOOL wasCached))completion {
-    NSString *cacheKey = track.cacheKey;
     CodableAudioWaveform *cachedWaveform = nil;
     if (WAVEFORM_CACHE_ENABLED) {
         cachedWaveform = (CodableAudioWaveform *)[self->_waveformCache.diskCache objectForKey:cacheKey];
@@ -208,21 +224,40 @@ awaitPersist:(BOOL)awaitPersist
     // dodges -Wnonnull).
     id<AudioWaveformLoaderDelegate> noDelegate = nil;
     AudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:noDelegate];
-    dispatch_async(_loaderQueue, ^{
-        [self load:track withLoader:loader awaitPersist:YES completion:^(CodableAudioWaveform *waveform, BOOL wasCached) {
-            float bpm = waveform.bpm; // nil → 0
-            run_on_main_thread({ if (completion) completion(waveform != nil, wasCached, bpm); });
-        }];
+    // Key computed off the loader queue (see loadWaveformForTrack:).
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSString *cacheKey = track.cacheKey;
+        if (!cacheKey) {
+            LogWarn(@"No cache key for %@ — cannot cache waveform", url.path);
+            run_on_main_thread({ if (completion) completion(NO, NO, 0); });
+            return;
+        }
+        dispatch_async(self->_loaderQueue, ^{
+            [self load:track cacheKey:cacheKey withLoader:loader awaitPersist:YES completion:^(CodableAudioWaveform *waveform, BOOL wasCached) {
+                float bpm = waveform.bpm; // nil → 0
+                run_on_main_thread({ if (completion) completion(waveform != nil, wasCached, bpm); });
+            }];
+        });
     });
 }
 
 - (void)clearCachedWaveformForURL:(NSURL *)url completion:(void (^)(BOOL))completion {
     AudioTrack *track = [AudioTrack withURL:url];
-    dispatch_async(_loaderQueue, ^{
+    // Key computed off the loader queue (see loadWaveformForTrack:).
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSString *cacheKey = track.cacheKey;
-        BOOL present = [self->_waveformCache.diskCache containsObjectForKey:cacheKey];
-        [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
-        run_on_main_thread({ if (completion) completion(present); });
+        if (!cacheKey) {
+            // Unstattable file — its entry can't be resolved anyway (the key
+            // derives from current size + mtime).
+            LogWarn(@"No cache key for %@ — cannot clear waveform entry", url.path);
+            run_on_main_thread({ if (completion) completion(NO); });
+            return;
+        }
+        dispatch_async(self->_loaderQueue, ^{
+            BOOL present = [self->_waveformCache.diskCache containsObjectForKey:cacheKey];
+            [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
+            run_on_main_thread({ if (completion) completion(present); });
+        });
     });
 }
 

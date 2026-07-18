@@ -102,16 +102,26 @@ static const float   kDetentPercent   = 0.35f;
 }
 
 - (void)drawScaleAroundCenterX:(CGFloat)centerX {
-    NSColor *tickColor = [NSColor colorWithWhite:0.62 alpha:1];
-    NSColor *minorTickColor = [NSColor colorWithWhite:0.38 alpha:1];
-    NSDictionary *labelAttributes = @{
-            NSFontAttributeName: [Fonts fontForNumbers:8 bold:NO],
-            NSForegroundColorAttributeName: [NSColor colorWithWhite:0.62 alpha:1],
-    };
-    NSDictionary *signAttributes = @{
-            NSFontAttributeName: [Fonts fontForNumbers:9 bold:YES],
-            NSForegroundColorAttributeName: [NSColor colorWithWhite:0.62 alpha:1],
-    };
+    // drawRect: runs on every drag tick — build the immutable pieces once.
+    // Safe: the fader is hardware-styled, nothing follows the effective
+    // appearance. Only geometry is computed per draw.
+    static NSColor *tickColor;
+    static NSColor *minorTickColor;
+    static NSDictionary *labelAttributes;
+    static NSDictionary *signAttributes;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        tickColor = [NSColor colorWithWhite:0.62 alpha:1];
+        minorTickColor = [NSColor colorWithWhite:0.38 alpha:1];
+        labelAttributes = @{
+                NSFontAttributeName: [Fonts fontForNumbers:8 bold:NO],
+                NSForegroundColorAttributeName: [NSColor colorWithWhite:0.62 alpha:1],
+        };
+        signAttributes = @{
+                NSFontAttributeName: [Fonts fontForNumbers:9 bold:YES],
+                NSForegroundColorAttributeName: [NSColor colorWithWhite:0.62 alpha:1],
+        };
+    });
 
     // Adapt density to the travel: the short (playlist-hidden) window has only
     // a few points per percent, where the full Technics scale turns to mush.
@@ -165,18 +175,34 @@ static const float   kDetentPercent   = 0.35f;
 }
 
 - (void)drawSlotAtCenterX:(CGFloat)centerX {
+    static NSColor *slotColor;
+    static NSColor *slotHighlightColor;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        slotColor = [NSColor colorWithWhite:0.02 alpha:1];
+        slotHighlightColor = [NSColor colorWithWhite:0.30 alpha:1];
+    });
     NSRect slotRect = NSMakeRect(centerX - kSlotWidth / 2, self.travelTop - 3,
                                  kSlotWidth, self.travelBottom - self.travelTop + 6);
     NSBezierPath *slot = [NSBezierPath bezierPathWithRoundedRect:slotRect xRadius:2 yRadius:2];
-    [[NSColor colorWithWhite:0.02 alpha:1] setFill];
+    [slotColor setFill];
     [slot fill];
     // Bottom-edge highlight sells the recessed slot.
-    [[NSColor colorWithWhite:0.30 alpha:1] setStroke];
+    [slotHighlightColor setStroke];
     slot.lineWidth = 0.5;
     [slot stroke];
 }
 
 - (void)drawZeroLEDAtCenterX:(CGFloat)centerX {
+    static NSColor *litColor;
+    static NSColor *glowColor;
+    static NSColor *unlitColor;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        litColor = VibeQuartzLockGreen(1);
+        glowColor = VibeQuartzLockGreen(0.30);
+        unlitColor = [NSColor colorWithRed:0.10 green:0.25 blue:0.12 alpha:1];
+    });
     // Quartz-lock style LED left of the center bar: lit green at exactly 0.
     BOOL locked = (_pitch == 0);
     CGFloat ledRadius = 2.5;
@@ -185,49 +211,60 @@ static const float   kDetentPercent   = 0.35f;
                                 ledRadius * 2, ledRadius * 2);
     NSBezierPath *led = [NSBezierPath bezierPathWithOvalInRect:ledRect];
     if (locked) {
-        [[NSColor colorWithRed:0.22 green:0.95 blue:0.40 alpha:1] setFill];
+        [litColor setFill];
         [led fill];
         // Soft glow.
-        [[NSColor colorWithRed:0.22 green:0.95 blue:0.40 alpha:0.30] setFill];
+        [glowColor setFill];
         [[NSBezierPath bezierPathWithOvalInRect:NSInsetRect(ledRect, -2.5, -2.5)] fill];
     }
     else {
-        [[NSColor colorWithRed:0.10 green:0.25 blue:0.12 alpha:1] setFill];
+        [unlitColor setFill];
         [led fill];
     }
 }
 
 - (void)drawKnobInRect:(NSRect)knobRect {
-    // Drop shadow under the cap.
-    NSShadow *shadow = [[NSShadow alloc] init];
-    shadow.shadowColor = [NSColor colorWithWhite:0 alpha:0.6];
-    shadow.shadowOffset = NSMakeSize(0, -2);
-    shadow.shadowBlurRadius = 4;
+    static NSShadow *shadow;
+    static NSGradient *gradient;
+    static NSColor *capColor;
+    static NSColor *capEdgeColor;
+    static NSColor *indexLineColor;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        // Drop shadow under the cap.
+        shadow = [[NSShadow alloc] init];
+        shadow.shadowColor = [NSColor colorWithWhite:0 alpha:0.6];
+        shadow.shadowOffset = NSMakeSize(0, -2);
+        shadow.shadowBlurRadius = 4;
+        // Machined-top gradient: darker at the vertical extremes, lighter middle.
+        gradient = [[NSGradient alloc] initWithColorsAndLocations:
+                [NSColor colorWithWhite:0.10 alpha:1], 0.0,
+                [NSColor colorWithWhite:0.30 alpha:1], 0.42,
+                [NSColor colorWithWhite:0.30 alpha:1], 0.58,
+                [NSColor colorWithWhite:0.08 alpha:1], 1.0,
+                nil];
+        capColor = [NSColor colorWithWhite:0.16 alpha:1];
+        capEdgeColor = [NSColor colorWithWhite:0 alpha:0.9];
+        indexLineColor = [NSColor colorWithWhite:0.95 alpha:1];
+    });
 
     [NSGraphicsContext saveGraphicsState];
     [shadow set];
     NSBezierPath *cap = [NSBezierPath bezierPathWithRoundedRect:knobRect xRadius:2.5 yRadius:2.5];
-    [[NSColor colorWithWhite:0.16 alpha:1] setFill];
+    [capColor setFill];
     [cap fill];
     [NSGraphicsContext restoreGraphicsState];
 
-    // Machined-top gradient: darker at the vertical extremes, lighter middle.
-    NSGradient *gradient = [[NSGradient alloc] initWithColorsAndLocations:
-            [NSColor colorWithWhite:0.10 alpha:1], 0.0,
-            [NSColor colorWithWhite:0.30 alpha:1], 0.42,
-            [NSColor colorWithWhite:0.30 alpha:1], 0.58,
-            [NSColor colorWithWhite:0.08 alpha:1], 1.0,
-            nil];
     [gradient drawInBezierPath:cap angle:self.isFlipped ? 90 : -90];
 
-    [[NSColor colorWithWhite:0 alpha:0.9] setStroke];
+    [capEdgeColor setStroke];
     cap.lineWidth = 1;
     [cap stroke];
 
     // The classic white index line across the middle of the cap.
     NSRect lineRect = NSMakeRect(knobRect.origin.x + 2, NSMidY(knobRect) - 1,
                                  knobRect.size.width - 4, 2);
-    [[NSColor colorWithWhite:0.95 alpha:1] setFill];
+    [indexLineColor setFill];
     NSRectFill(lineRect);
 }
 

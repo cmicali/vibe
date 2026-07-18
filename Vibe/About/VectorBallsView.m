@@ -302,15 +302,7 @@ static float vb_random01(void) {
 // are returned via out params.
 - (uint8_t *)rasterizeWord:(NSString *)word width:(NSUInteger *)outW height:(NSUInteger *)outH bytesPerRow:(NSUInteger *)outBPR {
     CGFloat pointSize = 128.0;
-    // NSFont *font = [NSFont systemFontOfSize:pointSize weight:NSFontWeightSemibold];
     NSFont *font = [Fonts font:pointSize bold:YES];
-    if (@available(macOS 10.15, *)) {
-        NSFontDescriptor *rounded = [font.fontDescriptor fontDescriptorWithDesign:NSFontDescriptorSystemDesignRounded];
-        NSFont *roundedFont = rounded ? [NSFont fontWithDescriptor:rounded size:pointSize] : nil;
-        if (roundedFont) {
-            font = roundedFont;
-        }
-    }
     NSDictionary *attrs = @{ NSFontAttributeName: font, NSForegroundColorAttributeName: NSColor.whiteColor };
     NSSize textSize = [word sizeWithAttributes:attrs];
     NSUInteger pad = (NSUInteger)ceil(pointSize * 0.12);

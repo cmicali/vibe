@@ -93,7 +93,9 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 
 // Fired when a play request's file open is still pending after a short grace
 // period (slow disk, cloud placeholder downloading) — show a loading state.
-// Always followed by either didStartPlaying: or error:.
+// Followed by didStartPlaying:, error:, or — when a newer play supersedes the
+// load — the newer track's events (a superseded load gets no terminal
+// callback of its own).
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track;

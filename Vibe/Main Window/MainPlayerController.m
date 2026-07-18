@@ -74,8 +74,6 @@
     NSTimeInterval              _currentTrackDuration;
     BOOL                        _timerRunning;
     __weak AudioTrack*          _lastReloadedTrack;
-    NSString*                   _lastFileMetadataString;
-    NSString*                   _lastBPMString;
     NSString*                   _statusMessage;
     BOOL                        _metadataLoadPending;
     // Pairs each play:'s 2s fallback timer with its own playlist: a timer
@@ -295,6 +293,23 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     }
 }
 
+// The codec-corner house style — right-aligned, tight kern — shared by the
+// file-metadata and BPM labels. Change-guarded like setStringValueIfChanged:
+// both labels re-run every updateUI pass (BPM on every fader tick too), and
+// reading the text back off the field keeps the guard here, in one place.
+static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
+    if ([field.stringValue isEqualToString:value]) {
+        return;
+    }
+    NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
+    paragraph.alignment = NSTextAlignmentRight;
+    field.attributedStringValue = [[NSAttributedString alloc] initWithString:value
+                                                                  attributes:@{
+                                       NSKernAttributeName:@(-1.2),
+                                       NSParagraphStyleAttributeName:paragraph,
+                                   }];
+}
+
 - (void)updateUI {
 
     AudioTrack *track = self.playlistManager.currentTrack;
@@ -322,8 +337,7 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
         if (_statusMessage) {
             // Transient player status (e.g. "Load timed out") takes the
             // bitrate label's spot until the next play attempt.
-            [self setFileMetadataLabel:_statusMessage];
-            _lastFileMetadataString = nil;
+            setKernedRightAlignedText(self.fileMetadataTextField, _statusMessage);
         }
         else if (track.metadata.fileType) {
             // bitrate/sampleRate can be nil even with fileType set — TagLib
@@ -340,14 +354,10 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
             NSString *fileMetadata = (bitrate.length || sampleRate.length)
                     ? [NSString stringWithFormat:@"%@ | %@%@", track.metadata.fileType, bitrate, sampleRate]
                     : track.metadata.fileType;
-            if (![fileMetadata isEqualToString:_lastFileMetadataString]) {
-                [self setFileMetadataLabel:fileMetadata];
-                _lastFileMetadataString = fileMetadata;
-            }
+            setKernedRightAlignedText(self.fileMetadataTextField, fileMetadata);
         }
         else {
             setStringValueIfChanged(self.fileMetadataTextField, @"");
-            _lastFileMetadataString = nil;
         }
     }
     else {
@@ -356,17 +366,16 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
         setStringValueIfChanged(self.totalTimeTextField, @"");
         setStringValueIfChanged(self.currentTimeTextField, @"");
         if (_statusMessage) {
-            [self setFileMetadataLabel:_statusMessage];
+            setKernedRightAlignedText(self.fileMetadataTextField, _statusMessage);
         }
         else {
             setStringValueIfChanged(self.fileMetadataTextField, @"");
         }
-        _lastFileMetadataString = nil;
     }
 
     self.albumArtImageView.fileURL = track.url;
 
-    [self updateBPMLabel];
+    [self effectiveTempoDidChange];
 
     [_artworkController updateForTrack:track];
 
@@ -608,17 +617,6 @@ static const double kSkipMostBars = 32.0;
 
 #pragma mark - AudioPlayerDelegate Implementation
 
-// Right-aligned, kerned like the file-metadata string it replaces.
-- (void)setFileMetadataLabel:(NSString *)text {
-    NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
-    paragraph.alignment = NSTextAlignmentRight;
-    self.fileMetadataTextField.attributedStringValue = [[NSMutableAttributedString alloc] initWithString:text
-                                                                                              attributes:@{
-                                                                NSKernAttributeName:@(-1.2),
-                                                                NSParagraphStyleAttributeName:paragraph,
-                                                            }];
-}
-
 // Shrink-to-fit for the title: long titles reduce the font size (down to a
 // floor) so they fit the label's capped width instead of running under the
 // codec/BPM labels; anything still too long at the floor truncates with an
@@ -643,33 +641,26 @@ static const double kSkipMostBars = 32.0;
     self.titleTextField.stringValue = text;
 }
 
-// The BPM line sits under the codec line and matches its style exactly
-// (right-aligned, same kern). Tagged tempo wins over the analyzed one; the
-// displayed value scales with the pitch fader. This re-runs on every updateUI
-// pass and every fader tick during a drag (updateRateDependentUI), so skip
-// the attributed-string rebuild when nothing changed.
-- (void)updateBPMLabel {
+// Every effective-tempo change (track change, BPM delivery, fader tick)
+// funnels through here so both consumers see it: the delay echo's BPM-synced
+// taps and the BPM label. The fx write is unconditional — the label's 0.1 BPM
+// granularity is coarser than the fader's, so it must not gate the audio
+// parameter (the setter no-ops on same value).
+- (void)effectiveTempoDidChange {
     AudioTrack *track = self.playlistManager.currentTrack;
+    // Tagged tempo wins over the analyzed one — same precedence as the skips.
     float baseBPM = track.metadata.bpm > 0 ? track.metadata.bpm : track.detectedBPM;
-    // This funnel sees every source of an effective-tempo change (track
-    // change, BPM delivery, fader tick), so the delay echo's 1/8-note tap is
-    // fed here — before the label early-return, whose string granularity
-    // (0.1 BPM) is coarser than the fader's. The setter no-ops on same value.
     self.audioPlayer.fx.delayTapBPM = baseBPM > 0 ? baseBPM * self.playbackRate : 0;
+    [self updateBPMLabelForTrack:track baseBPM:baseBPM];
+}
+
+// The BPM line sits under the codec line and matches its style; the displayed
+// value scales with the pitch fader.
+- (void)updateBPMLabelForTrack:(AudioTrack *)track baseBPM:(float)baseBPM {
     NSString *text = (track && baseBPM > 0)
             ? [NSString stringWithFormat:@"%.1f BPM", baseBPM * self.playbackRate]
             : @"";
-    if ([text isEqualToString:_lastBPMString]) {
-        return;
-    }
-    _lastBPMString = text;
-    NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
-    paragraph.alignment = NSTextAlignmentRight;
-    self.bpmTextField.attributedStringValue = [[NSMutableAttributedString alloc] initWithString:text
-                                                                                      attributes:@{
-                                                            NSKernAttributeName:@(-1.2),
-                                                            NSParagraphStyleAttributeName:paragraph,
-                                                        }];
+    setKernedRightAlignedText(self.bpmTextField, text);
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track {
@@ -759,7 +750,14 @@ static const double kSkipMostBars = 32.0;
         // Harmless — ignore silently rather than popping a modal alert.
         return;
     }
-    [self startPendingMetadataLoad];
+    // Staleness guard, like didStartPlaying:'s track check and the 2s
+    // fallback's generation check. An error carries no track and has no arm
+    // point, but every play-path error is published Stopped before delivery —
+    // so a stale error after a re-drop reads Loading/Playing and must not
+    // start the sweep while the new playlist's first track is opening.
+    if (self.audioPlayer.isStopped) {
+        [self startPendingMetadataLoad];
+    }
     [self pauseUIUpdateTimer];
     // Playback failed — the duration cached at the last didStartPlaying no
     // longer describes anything the player holds.
@@ -799,7 +797,12 @@ static const double kSkipMostBars = 32.0;
         // Through the next: funnel: if it couldn't start anything (end of
         // playlist, single bad track), its updateUI makes the header/waveform/
         // play-button reflect the stopped player instead of the previous track.
-        [strongSelf next:nil];
+        // Only while still stopped, though — media keys bypass the sheet, so
+        // playback can restart while the alert is up, and OK must not skip
+        // away from what the user just started.
+        if (strongSelf.audioPlayer.isStopped) {
+            [strongSelf next:nil];
+        }
         // Belt-and-suspenders: guarantee the borderless window is key again so
         // the transport key equivalents keep working after the sheet closes.
         [strongSelf.window makeKeyWindow];
@@ -914,7 +917,7 @@ static const double kSkipMostBars = 32.0;
     }
     track.detectedBPM = bpm;
     if (track == self.playlistManager.currentTrack) {
-        [self updateBPMLabel];
+        [self effectiveTempoDidChange];
     }
 }
 
@@ -976,7 +979,7 @@ static const double kSkipMostBars = 32.0;
         setStringValueIfChanged(self.totalTimeTextField,
                 [[Formatters sharedInstance] durationStringFromTimeInterval:self.audioPlayer.duration / self.playbackRate]);
     }
-    [self updateBPMLabel];
+    [self effectiveTempoDidChange];
     [self updatePlaybackUI];
 }
 

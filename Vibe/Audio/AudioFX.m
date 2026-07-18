@@ -4,25 +4,10 @@
 //
 
 #import "AudioFX.h"
+#import "VibeFadeCurve.h"
 #import <AVFoundation/AVFoundation.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>
-
-// Fast-fade cadence, mirroring AudioPlayer's volume fades (25ms, 10 steps x
-// 2.5ms, multiplicative/perceptually log) so a send gate opens exactly as
-// fast as a pause fades.
-static const int kFadeSteps = 10;
-static const uint64_t kFadeStepMicroseconds = 2500;
-static const float kFadeFloor = 0.001f; // -60 dB
-
-static float VibeFadeVolume(float from, float to, int step) {
-    if (step >= kFadeSteps) {
-        return to;
-    }
-    float f = MAX(from, kFadeFloor);
-    float t = MAX(to, kFadeFloor);
-    return f * powf(t / f, (float)step / (float)kFadeSteps);
-}
 
 // Low-kill high-pass cutoff (engaged) — bass and kick gone, mids untouched.
 // The EQ runs TWO cascaded high-pass bands swept together (12 dB/oct each,
@@ -422,9 +407,10 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 // boost (double cutoff) outranks the Q toggle, which outranks parked — and
 // sweeps there from wherever the filter is: a re-toggle/release mid-sweep
 // bumps the generation, preempting the old sweep, and starts from the
-// current frequency (no jump). The bands are un-bypassed while parked
-// (transparent, so the flip is inaudible) and re-bypassed only by a
-// disengage sweep that reaches the parked cutoff un-preempted.
+// current frequency (no jump). Bypass is never touched after installInEngine:
+// un-bypasses the bands once — flipping it dumps stale delay-line state into
+// the signal, an audible click (see kLowKillParkedHz); "off" is purely the
+// cutoff parked below the audible band.
 - (void)applyLowKillTargetOnQueue {
     if (!_engine) {
         return; // Not installed yet; installInEngine: re-applies.

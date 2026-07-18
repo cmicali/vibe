@@ -29,7 +29,7 @@
     return [[AudioTrack alloc] initWithUrl:url];
 }
 
-- (NSString *)cacheKey {
+- (nullable NSString *)cacheKey {
     // Double-checked: fast path avoids the lock once the key is computed
     NSString *key = _cacheKey;
     if (!key) {
@@ -39,6 +39,11 @@
         // (metadata and waveform loaders both key off this). Concurrent
         // callers may compute twice; results are identical, first store wins.
         key = [self.url cacheKey];
+        if (!key) {
+            // Stat failed (see NSURL+Hash) — likely transient, so don't
+            // memoize; the next call retries.
+            return nil;
+        }
         @synchronized (self) {
             if (!_cacheKey) {
                 _cacheKey = key;
@@ -54,7 +59,11 @@
         return self.metadata.title;
     }
     else if (self.url) {
-        return [[self.url standardizedURL] lastPathComponent];
+        // Filename fallback until metadata loads; strip/trim exactly like
+        // AudioTrackMetadata's filename-derived title so the row doesn't
+        // change when metadata arrives for a tagless file.
+        NSString *name = [[[self.url standardizedURL] lastPathComponent] stringByDeletingPathExtension];
+        return [name stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     }
     return @"";
 }
@@ -126,9 +135,9 @@
         return [NSString stringWithFormat:@"%@ - %@", self.artist, self.title];
     }
     else {
-        NSString *result = [self.title stringByDeletingPathExtension];
-        result = [result stringByReplacingOccurrencesOfString:@"_" withString:@" "];
-        return result;
+        // title never carries an extension (both fallbacks strip it), and
+        // re-stripping a real tagged title would mangle names like "Vol. 2".
+        return [self.title stringByReplacingOccurrencesOfString:@"_" withString:@" "];
     }
 }
 

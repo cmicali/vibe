@@ -7,7 +7,10 @@
 
 
 @implementation ScaledImageView {
-    __weak NSImage *_currentImage;
+    // Dedupes repeat setImage: with the same source (the visible image is a
+    // scale-to-fill wrapper, so super's own dedupe never fires). Strong is
+    // free: the wrapper's drawing handler retains the source anyway.
+    NSImage *_currentImage;
 }
 
 - (id)init {
@@ -42,6 +45,7 @@
 
 - (void)setImage:(NSImage *)image {
     if (image == nil) {
+        _currentImage = nil;
         [super setImage:image];
         return;
     }

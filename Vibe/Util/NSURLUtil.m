@@ -8,6 +8,16 @@
 
 @implementation NSURLUtil
 
+// Static set: consulted once per file in a folder drop.
++ (NSSet<NSString*>*) supportedExtensions {
+    static NSSet<NSString*> *extensions;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        extensions = [NSSet setWithObjects:@"mp2", @"mp3", @"aac", @"aif", @"aiff", @"wav", @"flac", @"m4a", @"mp4", nil];
+    });
+    return extensions;
+}
+
 + (NSArray<NSURL*>*) expandDirectory:(NSURL*)dir {
 
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
@@ -29,12 +39,18 @@
                    return YES;
                }];
     for (NSURL *url in enumerator) {
-        NSError *error;
+        NSError *error = nil;
         NSNumber *isDirectory = nil;
         if ([url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:&error]) {
             if (![isDirectory boolValue]) {
                 [results addObject:url];
             }
+        }
+        else {
+            // Log and treat as a file (same fallback as expandFileList:) so
+            // it still reaches the extension filter instead of vanishing.
+            LogWarn(@"Could not read directory flag for %@: %@", url, error);
+            [results addObject:url];
         }
     }
 
@@ -65,8 +81,9 @@
 
 + (NSArray<NSURL*>*) expandAndFilterList:(NSArray<NSURL*>*)list {
     list = [NSURLUtil expandFileList:list];
+    NSSet<NSString*> *supported = [NSURLUtil supportedExtensions];
     list = [list filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSURL *url, NSDictionary* bindings) {
-        return [VIBE_SUPPORTED_FILETYPES containsObject:[url.pathExtension lowercaseString]];
+        return [supported containsObject:[url.pathExtension lowercaseString]];
     }]];
     return list;
 }

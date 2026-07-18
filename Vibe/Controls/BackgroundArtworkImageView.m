@@ -4,7 +4,6 @@
 //
 
 #import "BackgroundArtworkImageView.h"
-#import "VibeImageCrossfade.h"
 #import "NSView+DarkMode.h"
 #import <CoreImage/CoreImage.h>
 
@@ -142,38 +141,9 @@
     return output;
 }
 
-- (instancetype)initWithFrame:(NSRect)frameRect {
-    self = [super initWithFrame:frameRect];
-    if (self) {
-        [self setup];
-    }
-    return self;
-}
-
-- (instancetype)initWithCoder:(NSCoder *)coder {
-    self = [super initWithCoder:coder];
-    if (self) {
-        [self setup];
-    }
-    return self;
-}
-
-- (void)setup {
-    [self unregisterDraggedTypes];
-    // Layer-backed so setImage: can cross-fade via CATransition.
-    self.wantsLayer = YES;
-}
-
-// Cross-fade whenever the visible backdrop changes. The blur is rendered
-// asynchronously, so the fade must live here (where the image actually
-// lands) rather than at the controller's setArtworkImage: call site. See
-// VibeImageCrossfade.h for why this is a snapshot overlay.
-- (void)setImage:(NSImage *)image {
-    if (image != self.image) {
-        VibeBeginImageCrossfade(self);
-    }
-    [super setImage:image];
-}
+// Cross-fading lives in CrossfadingImageView's setImage: — necessarily so
+// here: the blur renders asynchronously, so the fade must fire where the
+// image lands, not at the controller's call site.
 
 - (BOOL)mouseDownCanMoveWindow {
     return YES;

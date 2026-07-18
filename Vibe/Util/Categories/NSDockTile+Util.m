@@ -15,9 +15,7 @@ static NSUInteger VibeDockIconGeneration = 0;
 + (void) resetToAppIcon {
     VibeDockIconGeneration++; // invalidate any in-flight composition
     NSDockTile *dockTile = [[NSApplication sharedApplication] dockTile];
-    NSImage *image = [NSApplication sharedApplication].applicationIconImage;
-    NSImageView *iv = [NSImageView imageViewWithImage:image];
-    [[NSApplication sharedApplication] dockTile].contentView = iv;
+    dockTile.contentView = nil;
     [dockTile display];
 }
 

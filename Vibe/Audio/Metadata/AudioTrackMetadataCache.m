@@ -8,18 +8,28 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 
+@interface AudioTrackMetadataCache ()
+// Atomic: created asynchronously at utility QoS, read from the loader's
+// worker threads (and re-read per track — see loadOneTrack:).
+@property (atomic, strong) PINCache *metadataCache;
+@end
+
 @interface AudioTrackMetadataLoader : NSObject
 
 @property (atomic) BOOL isCancelled;
 @property (nullable, weak) id <AudioTrackMetadataCacheDelegate> delegate;
 
-- (id)initWithCache:(PINCache *)cache delegate:(id <AudioTrackMetadataCacheDelegate>)delegate;
+- (id)initWithOwner:(AudioTrackMetadataCache *)owner delegate:(id <AudioTrackMetadataCacheDelegate>)delegate;
 - (void)cancel;
 
 @end
 
 @implementation AudioTrackMetadataLoader {
-    PINCache* _metadataCache;
+    // Weak (the owner strongly holds its current loader) and re-read at use
+    // time rather than snapshotted: the owner constructs its PINCache
+    // asynchronously, and a snapshot taken too early would freeze a nil cache
+    // for this loader's lifetime — zero reads and writes, silently.
+    __weak AudioTrackMetadataCache* _owner;
     NSOperationQueue* _queue;
     // Tracks this loader has queued (identity set). track.metadata being
     // non-nil used to double as the "already queued" marker, but a failed
@@ -30,11 +40,11 @@
     NSMutableSet<AudioTrack *>* _queuedTracks;
 }
 
-- (id)initWithCache:(PINCache *)cache delegate:(id <AudioTrackMetadataCacheDelegate>)delegate {
+- (id)initWithOwner:(AudioTrackMetadataCache *)owner delegate:(id <AudioTrackMetadataCacheDelegate>)delegate {
     self = [super init];
     if (self) {
         _isCancelled = NO;
-        _metadataCache = cache;
+        _owner = owner;
         _queuedTracks = [NSMutableSet set];
         _delegate = delegate;
         // Concurrency 4 lets a single slow file (network mount, sleeping disk)
@@ -79,21 +89,36 @@
     if (track.metadata.parsedOK) {
         return;
     }
+    // nil when the file can't be statted (see NSURL+Hash): no stable identity,
+    // so skip the cache read and write below. The parse still runs; an
+    // unreadable file degrades to the filename-only fallback (parsedOK == NO).
     NSString *cacheKey = track.cacheKey;
+    if (!cacheKey) {
+        LogWarn(@"No cache key for %@ — loading metadata uncached", track.url.path);
+    }
+    // Re-read at use time (see _owner): nil just means not constructed yet —
+    // the earliest tracks parse uncached instead of the whole playlist.
+    PINCache *metadataCache = _owner.metadataCache;
+    if (!metadataCache) {
+        LogWarn(@"Metadata cache not yet available — loading %@ uncached", track.url.path);
+    }
     // Read through the disk cache directly, bypassing PINMemoryCache: on
     // macOS the memory cache never evicts (its pressure hooks are iOS-only
     // and disk hits repopulate it at cost 0), so every track ever loaded —
     // decoded thumbnail included — would stay pinned for the age limit even
     // after its playlist is gone. The playlist's AudioTrack objects retain
     // the live metadata; a re-drop pays a ~10KB unarchive per track.
-    AudioTrackMetadata *cachedMetaData = (AudioTrackMetadata *)[_metadataCache.diskCache objectForKey:cacheKey];
-    // PINCache unarchives without secure coding, so a tampered entry with a
-    // different root class decodes cleanly and bypasses initWithCoder:'s
-    // field validation entirely. A wrong-class object would crash on first
-    // use (unrecognized selector) on every launch — evict it instead.
-    if (cachedMetaData && ![cachedMetaData isKindOfClass:[AudioTrackMetadata class]]) {
-        [_metadataCache.diskCache removeObjectForKey:cacheKey];
-        cachedMetaData = nil;
+    AudioTrackMetadata *cachedMetaData = nil;
+    if (cacheKey && metadataCache) {
+        cachedMetaData = (AudioTrackMetadata *)[metadataCache.diskCache objectForKey:cacheKey];
+        // PINCache unarchives without secure coding, so a tampered entry with a
+        // different root class decodes cleanly and bypasses initWithCoder:'s
+        // field validation entirely. A wrong-class object would crash on first
+        // use (unrecognized selector) on every launch — evict it instead.
+        if (cachedMetaData && ![cachedMetaData isKindOfClass:[AudioTrackMetadata class]]) {
+            [metadataCache.diskCache removeObjectForKey:cacheKey];
+            cachedMetaData = nil;
+        }
     }
     if (cachedMetaData) {
         // Pre-warm the playlist-cell thumbnail BEFORE publishing the metadata:
@@ -122,7 +147,7 @@
         if (metadata.parsedOK || !track.metadata.parsedOK) {
             track.metadata = metadata;
         }
-        if (metadata.parsedOK && !self.isCancelled) {
+        if (metadata.parsedOK && cacheKey && !self.isCancelled) {
             // Skip failed parses (dataless cloud file, transient I/O error):
             // caching the filename-only fallback would shadow the real tags
             // until the size+mtime cache key changes (up to the 6-month limit).
@@ -130,7 +155,9 @@
             // back-pressure paces the workers. Async writes pile up on
             // PINDiskCache's serial queue and stall the workers' next
             // objectForKey: behind the backlog.
-            [_metadataCache.diskCache setObject:metadata forKey:cacheKey];
+            // Fresh re-read: the cache may have finished constructing during
+            // the parse above (nil no-ops harmlessly if not).
+            [_owner.metadataCache.diskCache setObject:metadata forKey:cacheKey];
         }
     }
     if (track.metadata && !self.isCancelled) {
@@ -154,11 +181,6 @@
 
 @end
 
-@interface AudioTrackMetadataCache ()
-// Atomic: created asynchronously at utility QoS, read from the main thread.
-@property (atomic, strong) PINCache *metadataCache;
-@end
-
 @implementation AudioTrackMetadataCache {
     AudioTrackMetadataLoader*   _currentLoader;
     // Exists only to construct the cache off the main thread at utility QoS
@@ -176,9 +198,9 @@
         // thread boosts PINCache's internal init-time disk scan to
         // user-initiated, which then priority-inverts against the utility
         // worker ops (Thread Performance Checker warning at first drop).
-        // Metadata loading starts well after init (deferred until playback
-        // begins), so the cache is always ready by first use; the loader
-        // tolerates a nil cache regardless.
+        // Metadata loading usually starts well after init (deferred until
+        // playback begins), but a launch-by-double-click can beat this block;
+        // the loader re-reads the property at each use.
         dispatch_async(_cacheQueue, ^{
             // v4: fileType relabeled (ADTS AAC / MP2 no longer show as MP3,
             // ALAC no longer shows as MP4) — persisted labels from v3 would
@@ -217,7 +239,7 @@
     if (!tracks.count) {
         return;
     }
-    AudioTrackMetadataLoader* loader = [[AudioTrackMetadataLoader alloc] initWithCache:self.metadataCache delegate:self.delegate];
+    AudioTrackMetadataLoader* loader = [[AudioTrackMetadataLoader alloc] initWithOwner:self delegate:self.delegate];
     _currentLoader = loader;
     [loader load:tracks];
 }
