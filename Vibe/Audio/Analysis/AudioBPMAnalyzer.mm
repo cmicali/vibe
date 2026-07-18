@@ -175,9 +175,8 @@ static const float kMinConfidence = 1.3f;
     double totalScore = 0;
     int bestLag = 0;
     for (int lag = minLag; lag <= maxLag; lag++) {
-        float s = ac[lag];
-        if (2 * lag <= maxCombLag) s += 0.5f * ac[2 * lag];
-        if (3 * lag <= maxCombLag) s += 0.33f * ac[3 * lag];
+        // maxCombLag = kCombHarmonics(3) * maxLag, so 2*lag and 3*lag always fit in ac[].
+        float s = ac[lag] + 0.5f * ac[2 * lag] + 0.33f * ac[3 * lag];
         score[lag] = s;
         totalScore += s;
         if (bestLag == 0 || s > score[bestLag]) {

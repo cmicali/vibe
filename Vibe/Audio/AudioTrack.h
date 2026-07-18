@@ -24,7 +24,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithUrl:(NSURL *)url;
 + (AudioTrack *)withURL:(NSURL *)url;
 
-- (NSString *)cacheKey;
+// Memoized file-identity key for the metadata/waveform caches (see
+// NSURL+Hash). nil when the file can't be statted — treated as transient and
+// not memoized, so a later call retries; callers must skip caching on nil.
+- (nullable NSString *)cacheKey;
 
 - (NSString *)title;
 - (NSString *)artist;

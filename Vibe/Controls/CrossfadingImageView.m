@@ -1,19 +1,17 @@
 //
-// Created by Christopher Micali on 7/8/26.
+// Created by Christopher Micali on 7/18/26.
 // Copyright (c) 2026 Christopher Micali. All rights reserved.
 //
-// See VibeImageCrossfade.h for why this is a snapshot overlay rather than a
-// CATransition or a view snapshot.
 
-#import "VibeImageCrossfade.h"
+#import "CrossfadingImageView.h"
 #import <QuartzCore/QuartzCore.h>
 
-const NSTimeInterval kVibeArtCrossfadeDuration = 0.1;
+static const NSTimeInterval kVibeArtCrossfadeDuration = 0.1;
 
-NSString *const kVibeCrossfadeOverlayName = @"VibeCrossfadeOverlay";
+static NSString *const kVibeCrossfadeOverlayName = @"VibeCrossfadeOverlay";
 
 // Match the overlay's scaling behavior to the image view's own.
-static CALayerContentsGravity VibeGravityForImageScaling(NSImageScaling scaling) {
+static CALayerContentsGravity GravityForImageScaling(NSImageScaling scaling) {
     switch (scaling) {
         case NSImageScaleAxesIndependently: return kCAGravityResize;
         case NSImageScaleNone:              return kCAGravityCenter;
@@ -21,7 +19,20 @@ static CALayerContentsGravity VibeGravityForImageScaling(NSImageScaling scaling)
     }
 }
 
-void VibeBeginImageCrossfade(NSImageView *view) {
+// Overlay cross-fade: called BEFORE [super setImage:], it overlays the
+// outgoing image and fades it out over the incoming one. No-ops when the view
+// isn't on screen yet or has nothing to fade from.
+//
+// Why not a CATransition on the backing layer: NSImageView redraws into its
+// layer on AppKit's own display schedule, so a transition added at setImage:
+// time is not reliably in the same CA transaction as the contents change and
+// silently no-ops. Why not a view snapshot (cacheDisplayInRect:): NSImageView
+// draws via updateLayer, so the drawRect-based snapshot comes back BLANK and
+// the fade is invisible. Instead the overlay is built directly from the
+// outgoing NSImage itself, stacked on top while the new image renders
+// beneath, and explicitly faded out — nothing here depends on AppKit's
+// drawing path or transaction timing.
+static void BeginImageCrossfade(NSImageView *view) {
     NSImage *oldImage = view.image;
     if (!view.window || !view.layer || !oldImage || NSIsEmptyRect(view.bounds)) {
         return;
@@ -41,7 +52,7 @@ void VibeBeginImageCrossfade(NSImageView *view) {
     overlay.frame = view.layer.bounds;
     overlay.contentsScale = view.window.backingScaleFactor ?: 2.0;
     overlay.contents = (__bridge id)cg;
-    overlay.contentsGravity = VibeGravityForImageScaling(view.imageScaling);
+    overlay.contentsGravity = GravityForImageScaling(view.imageScaling);
     overlay.masksToBounds = YES;
     // NSImageView renders its image through internal machinery that may add
     // its own sublayers; keep the overlay above everything in this view.
@@ -64,3 +75,39 @@ void VibeBeginImageCrossfade(NSImageView *view) {
     [overlay addAnimation:fade forKey:@"fade"];
     [CATransaction commit];
 }
+
+@implementation CrossfadingImageView
+
+- (instancetype)initWithFrame:(NSRect)frameRect {
+    self = [super initWithFrame:frameRect];
+    if (self) {
+        [self setup];
+    }
+    return self;
+}
+
+- (instancetype)initWithCoder:(NSCoder *)coder {
+    self = [super initWithCoder:coder];
+    if (self) {
+        [self setup];
+    }
+    return self;
+}
+
+- (void)setup {
+    [self unregisterDraggedTypes];
+    // Layer-backed so setImage: can cross-fade via the snapshot overlay.
+    self.wantsLayer = YES;
+}
+
+// Cross-fade between images instead of an instant swap. Living in setImage:
+// covers every path the image can arrive by, including async renders. See
+// BeginImageCrossfade above.
+- (void)setImage:(NSImage *)image {
+    if (image != self.image) {
+        BeginImageCrossfade(self);
+    }
+    [super setImage:image];
+}
+
+@end

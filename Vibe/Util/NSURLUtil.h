@@ -8,6 +8,9 @@
 
 @interface NSURLUtil : NSObject
 
+// Playable file extensions (lowercase, no dot).
++ (NSSet<NSString *> *)supportedExtensions;
+
 + (NSArray<NSURL *> *)expandDirectory:(NSURL *)dir;
 
 + (NSArray<NSURL *> *)expandAndFilterList:(NSArray<NSURL *> *)list;

@@ -210,24 +210,30 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     return _pitchPanelShown;
 }
 
-- (void)setPitchPanelShown:(BOOL)shown animate:(BOOL)animate {
-    if (shown == _pitchPanelShown) {
-        return;
-    }
-    _pitchPanelShown = shown;
-    Settings.pitchPanelShown = shown;
+// Window width is a pure function of the pitch-panel state; min/max are
+// pinned to it so user resizes can't reveal or crop the panel (they only
+// constrain the resize cursor, not setFrame, so ordering doesn't matter).
+// Both the toggle and the settings-restore derive their frame width here;
+// how the frame is applied (animated vs silent) stays with the caller.
+- (CGFloat)applyContentWidthForPitchPanelShown:(BOOL)shown {
     CGFloat width = kMainWindowContentWidth + (shown ? kPitchPanelWidth : 0);
-    // min/max track the toggle (the xib pins them at 680) so user resizes
-    // can't reveal or crop the panel; they only constrain the resize cursor,
-    // not setFrame, so order relative to the frame change doesn't matter.
     NSSize minSize = self.minSize;
     NSSize maxSize = self.maxSize;
     minSize.width = width;
     maxSize.width = width;
     self.minSize = minSize;
     self.maxSize = maxSize;
+    return width;
+}
+
+- (void)setPitchPanelShown:(BOOL)shown animate:(BOOL)animate {
+    if (shown == _pitchPanelShown) {
+        return;
+    }
+    _pitchPanelShown = shown;
+    Settings.pitchPanelShown = shown;
     NSRect frame = self.frame;
-    frame.size.width = width;
+    frame.size.width = [self applyContentWidthForPitchPanelShown:shown];
     // Grow to the right, but keep the panel on-screen when the window sits
     // against the screen's right edge.
     NSRect screenRect = self.screen.visibleFrame;
@@ -258,13 +264,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     frame.size.height = height;
 
     _pitchPanelShown = Settings.isPitchPanelShown;
-    frame.size.width = kMainWindowContentWidth + (_pitchPanelShown ? kPitchPanelWidth : 0);
-    NSSize minSize = self.minSize;
-    NSSize maxSize = self.maxSize;
-    minSize.width = frame.size.width;
-    maxSize.width = frame.size.width;
-    self.minSize = minSize;
-    self.maxSize = maxSize;
+    frame.size.width = [self applyContentWidthForPitchPanelShown:_pitchPanelShown];
 
     if (!NSEqualRects(frame, self.frame)) {
         [self setFrame:frame display:NO];

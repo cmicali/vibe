@@ -5,45 +5,16 @@
 
 #import "ArtworkImageView.h"
 #import "NSDraggingImageComponent+Util.h"
-#import "VibeImageCrossfade.h"
 
+// Movement (points) before a pressed mouse becomes a drag.
+static const CGFloat kDragHysteresis = 3;
 
 @implementation ArtworkImageView {
     // The exact URL instance startAccessingSecurityScopedResource was called
     // on; fileURL may be reassigned (it's a copy property) before drag end.
     NSURL *_securityScopedURL;
-}
-
-- (instancetype)initWithFrame:(NSRect)frameRect {
-    self = [super initWithFrame:frameRect];
-    if (self) {
-        [self setup];
-    }
-    return self;
-}
-
-- (instancetype)initWithCoder:(NSCoder *)coder {
-    self = [super initWithCoder:coder];
-    if (self) {
-        [self setup];
-    }
-    return self;
-}
-
-- (void)setup {
-    [self unregisterDraggedTypes];
-    // Layer-backed so setImage: can cross-fade via CATransition.
-    self.wantsLayer = YES;
-}
-
-// Cross-fade between artworks (and to/from the default) instead of an
-// instant swap. See VibeImageCrossfade.h for why this is a snapshot
-// overlay and not a CATransition.
-- (void)setImage:(NSImage *)image {
-    if (image != self.image) {
-        VibeBeginImageCrossfade(self);
-    }
-    [super setImage:image];
+    // The mouseDown that may become a drag; nil once consumed or released.
+    NSEvent *_pendingDragEvent;
 }
 
 - (BOOL)mouseDownCanMoveWindow {
@@ -57,41 +28,72 @@
 
 - (void)mouseDown:(NSEvent *)event {
 
+    _pendingDragEvent = nil;
+
     if (!self.fileURL) {
         return;
     }
 
     CGPoint dragPosition = [self convertPoint:[event locationInWindow] fromView:nil];
 
-    // Don't allow drag near buttons
+    // Don't allow drag near buttons — this band must match the transport
+    // GlyphButtons MainPlayerContentView lays over the bottom of the art.
     if (dragPosition.y < 42) {
         return;
     }
+
+    // Record only; mouseDragged: starts the session once the pointer moves —
+    // starting here would flash a drag ghost on a plain click.
+    _pendingDragEvent = event;
+}
+
+- (void)mouseDragged:(NSEvent *)event {
+    if (!_pendingDragEvent) {
+        return;
+    }
+    NSPoint start = [self convertPoint:_pendingDragEvent.locationInWindow fromView:nil];
+    NSPoint current = [self convertPoint:event.locationInWindow fromView:nil];
+    if (hypot(current.x - start.x, current.y - start.y) < kDragHysteresis) {
+        return;
+    }
+    NSEvent *mouseDownEvent = _pendingDragEvent;
+    _pendingDragEvent = nil;
+    [self beginDragWithEvent:mouseDownEvent];
+}
+
+- (void)mouseUp:(NSEvent *)event {
+    _pendingDragEvent = nil; // plain click — never became a drag
+}
+
+- (void)beginDragWithEvent:(NSEvent *)event {
+
+    CGPoint dragPosition = [self convertPoint:[event locationInWindow] fromView:nil];
 
     NSURL *fileURL = self.fileURL;
     [fileURL startAccessingSecurityScopedResource];
     _securityScopedURL = fileURL;
 
     CGFloat imageSize = 48;
+    CGRect imageRect = CGRectMake(0, 0, imageSize, imageSize);
 
     NSDraggingItem *draggingItem = [[NSDraggingItem alloc] initWithPasteboardWriter:fileURL];
 
-
     [draggingItem setImageComponentsProvider:^NSArray<NSDraggingImageComponent *> * {
 
-        CGRect imageRect = CGRectMake(0, 0, imageSize, imageSize);
         NSDraggingImageComponent *image = [NSDraggingImageComponent draggingImageComponentWithKey:NSDraggingImageComponentIconKey];
         image.frame = imageRect;
         image.contents = self.image;
 
+        // Filename label; positions itself below the icon in the item's space.
         NSDraggingImageComponent *label = [NSDraggingImageComponent labelWithFile:self.fileURL imageRect:imageRect];
 
         return @[image, label];
     }];
 
-    dragPosition.x -= imageSize/2;
-    dragPosition.y -= imageSize/2;
-    draggingItem.draggingFrame = CGRectMake(dragPosition.x, dragPosition.y, imageSize, imageSize * 4);
+    // Icon-sized, centered on the grab point.
+    draggingItem.draggingFrame = CGRectMake(dragPosition.x - imageSize / 2,
+                                            dragPosition.y - imageSize / 2,
+                                            imageSize, imageSize);
 
     [self beginDraggingSessionWithItems:@[draggingItem]
                                   event:event

@@ -2,10 +2,11 @@
 
 @implementation NSString (cppstring_additions)
 
-+(NSString*) stringWithstring:(const std::string&)s
++ (nullable NSString *)stringWithStdString:(const std::string &)s
 {
-    NSString* result = [[NSString alloc] initWithUTF8String:s.c_str()];
-    return result;
+    // initWithBytes:length:, not initWithUTF8String:c_str() — the C-string
+    // path truncates at an embedded NUL (corrupt tag frames contain them).
+    return [[NSString alloc] initWithBytes:s.data() length:s.size() encoding:NSUTF8StringEncoding];
 }
 
 @end

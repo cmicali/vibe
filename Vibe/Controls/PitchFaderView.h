@@ -7,6 +7,10 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Quartz-lock green shared by the fader's zero LED and the panel's readout.
+// Alpha-parameterized: the LED glow uses a low-alpha variant.
+#define VibeQuartzLockGreen(a) [NSColor colorWithRed:0.22 green:0.95 blue:0.40 alpha:(a)]
+
 @class PitchFaderView;
 
 @protocol PitchFaderViewDelegate <NSObject>

@@ -128,7 +128,8 @@
             CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
             if (now - lastProgressTime >= 0.1) {
                 lastProgressTime = now;
-                float percentComplete = (float)i / (float)effectiveChunks;
+                // i+1: chunk i is already filled by the time we report.
+                float percentComplete = (float)(i + 1) / (float)effectiveChunks;
                 // Snapshot on the loader thread (the only writer) so the
                 // main thread renders an immutable copy — reading the live
                 // buffer while this loop keeps calling setChunkAtIndex, and

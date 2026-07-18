@@ -39,6 +39,4 @@ static inline os_log_t VibeLog(void) {
 
 #define Settings [AppSettings sharedInstance]
 
-#define VIBE_SUPPORTED_FILETYPES @[@"mp2", @"mp3", @"aac", @"aif", @"aiff", @"wav", @"flac", @"m4a", @"mp4"]
-
 #endif

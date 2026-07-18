@@ -3,7 +3,6 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
-#import <Foundation/Foundation.h>
 #import "ScaledImageView.h"
 
 @interface PlaylistCoverImageView : ScaledImageView

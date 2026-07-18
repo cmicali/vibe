@@ -159,7 +159,6 @@ targets:
                                             # with Developer ID for distribution.
         CODE_SIGN_STYLE: Automatic
         COMBINE_HIDPI_IMAGES: YES
-        DEAD_CODE_STRIPPING: YES
         ENABLE_APP_SANDBOX: YES
         ENABLE_HARDENED_RUNTIME: YES
         ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES
@@ -196,8 +195,13 @@ targets:
       - sdk: ApplicationServices.framework
       - sdk: AudioToolbox.framework
       - sdk: CoreAudio.framework
+      - sdk: CoreImage.framework            # BackgroundArtworkImageView blur pipeline
+      - sdk: ImageIO.framework              # AudioTrackMetadata art decode, DebugUtil screenshots
       - sdk: MediaPlayer.framework
+      - sdk: Metal.framework                # VectorBallsView (About window)
+      - sdk: MetalKit.framework             # VectorBallsView (About window)
       - sdk: QuartzCore.framework
+      - sdk: UniformTypeIdentifiers.framework  # AppDelegate file filtering, DebugUtil
 
 schemes:
   Vibe:
@@ -206,7 +210,6 @@ schemes:
       targets:
         Vibe: all
     run:      { config: Debug }
-    test:     { config: Debug }
     profile:  { config: Release }
     analyze:  { config: Debug }
     archive:  { config: Release }

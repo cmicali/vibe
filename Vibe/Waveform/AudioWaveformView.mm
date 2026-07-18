@@ -26,7 +26,8 @@
     NSUInteger                  _numProgressSteps;
     BOOL                        _didClickInside;
     AudioWaveformRenderer*      _currentWaveformRenderer;
-    NSMutableDictionary*        _waveformRenderers;
+    // Renderer classes keyed by their display name; instantiated on selection.
+    NSMutableDictionary<NSString *, Class>* _waveformRenderers;
     CAGradientLayer*            _loadingLayer;
 }
 
@@ -70,7 +71,7 @@
 
 }
 
-- (void)addWaveformRenderer:(id)renderer {
+- (void)addWaveformRenderer:(Class)renderer {
     _waveformRenderers[[renderer displayName]] = renderer;
 }
 
@@ -231,9 +232,7 @@
 }
 
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
-    if (_waveform != waveform) {
-        _waveform = waveform;
-    }
+    _waveform = waveform;
     [self drawWaveform];
 }
 

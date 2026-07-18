@@ -646,19 +646,35 @@ static void VibeHandleDebugCommandFile(void) {
         return;
     }
     [NSFileManager.defaultManager removeItemAtPath:VibeDebugCommandPath() error:nil];
+    // Malformed payloads still get an {"error": ...} reply whenever the id is
+    // recoverable — a silent drop leaves the client polling out its window and
+    // blaming a missing debug build.
     NSDictionary *payload = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-    if (![payload isKindOfClass:NSDictionary.class]) {
-        return;
-    }
-    NSString *commandId = payload[@"id"];
-    NSArray *args = payload[@"args"];
-    if (![commandId isKindOfClass:NSString.class] || ![args isKindOfClass:NSArray.class] || args.count == 0) {
-        return;
-    }
-    for (id token in args) {
-        if (![token isKindOfClass:NSString.class]) {
-            return;
+    NSString *commandId = [payload isKindOfClass:NSDictionary.class] ? payload[@"id"] : nil;
+    if (![commandId isKindOfClass:NSString.class] || commandId.length == 0) {
+        NSString *raw = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"<not UTF-8>";
+        if (raw.length > 256) {
+            raw = [[raw substringToIndex:256] stringByAppendingString:@"…"];
         }
+        LogError(@"Debug command payload has no usable id, dropping: %@", raw);
+        return;
+    }
+    NSArray *args = payload[@"args"];
+    NSString *malformed = nil;
+    if (![args isKindOfClass:NSArray.class] || args.count == 0) {
+        malformed = @"payload 'args' must be a non-empty JSON array";
+    }
+    else {
+        for (id token in args) {
+            if (![token isKindOfClass:NSString.class]) {
+                malformed = @"payload 'args' must contain only strings";
+                break;
+            }
+        }
+    }
+    if (malformed) {
+        VibeWriteDebugResponse(commandId, VibeErrorJSON(@"%@", malformed));
+        return;
     }
     NSString *response = VibeExecuteDebugCommand(args, commandId);
     // A nil response means the command completes asynchronously and writes its
