@@ -110,6 +110,14 @@
 // window and adopts its subviews as the controller's outlets.
 - (void)buildContentInWindow:(MainWindow *)window {
     NSView *contentView = window.contentView;
+    // Liquid Glass backdrop (Control Center-style) spanning the whole window,
+    // pitch panel included — everything else composites over it. Its corner
+    // radius matches the contentView layer mask so the glass rim lighting
+    // follows the window shape.
+    NSGlassEffectView *glass = [[NSGlassEffectView alloc] initWithFrame:contentView.bounds];
+    glass.cornerRadius = kMainWindowCornerRadius;
+    glass.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [contentView addSubview:glass];
     MainPlayerContentView *content = [[MainPlayerContentView alloc] initWithTarget:self];
     [contentView addSubview:content];
     // The window already carries the restored (autosaved) frame, so the nib's

@@ -58,7 +58,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
         self.contentView.wantsLayer = YES;
         self.contentView.focusRingType = NSFocusRingTypeNone;
-        self.contentView.layer.cornerRadius = 26;
+        self.contentView.layer.cornerRadius = kMainWindowCornerRadius;
         self.contentView.layer.borderColor = [NSColor.blackColor colorWithAlphaComponent:0.5].CGColor;
         self.contentView.layer.borderWidth = 1;
 
