@@ -195,7 +195,6 @@ targets:
       - sdk: ApplicationServices.framework
       - sdk: AudioToolbox.framework
       - sdk: CoreAudio.framework
-      - sdk: CoreImage.framework            # BackgroundArtworkImageView blur pipeline
       - sdk: ImageIO.framework              # AudioTrackMetadata art decode, DebugUtil screenshots
       - sdk: MediaPlayer.framework
       - sdk: Metal.framework                # VectorBallsView (About window)

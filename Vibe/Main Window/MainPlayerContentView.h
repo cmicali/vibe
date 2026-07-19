@@ -7,7 +7,6 @@
 
 @class GlyphButton;
 @class ArtworkImageView;
-@class BackgroundArtworkImageView;
 @class AudioWaveformView;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -29,7 +28,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) GlyphButton *playButton;
 @property (readonly) GlyphButton *nextButton;
 
-@property (readonly) BackgroundArtworkImageView *backgroundAlbumArtImageView;
+// Tint wash over the header's glass panel; the artwork controller sets its
+// layer background to the current track's dominant art color. A plain view
+// rather than the glass's own tintColor because NSGlassEffectView drops its
+// tint entirely while the window is inactive — this wash dims to half
+// instead (ArtworkDisplayController).
+@property (readonly) NSView *headerTintView;
 @property (readonly) ArtworkImageView *albumArtImageView;
 @property (readonly) AudioWaveformView *waveformView;
 

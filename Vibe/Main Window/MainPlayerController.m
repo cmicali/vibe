@@ -13,7 +13,6 @@
 #import "Formatters.h"
 #import "Fonts.h"
 #import "ArtworkImageView.h"
-#import "BackgroundArtworkImageView.h"
 #import "AudioDeviceManager.h"
 #import "MainPlayerContentView.h"
 #import "AudioPlayer.h"
@@ -56,7 +55,7 @@
 @property (weak) NSTextField *artistTextField;
 @property (weak) NSTextField *titleTextField;
 @property (weak) ArtworkImageView *albumArtImageView;
-@property (weak) BackgroundArtworkImageView *backgroundAlbumArtImageView;
+@property (weak) NSView *headerTintView;
 @property (weak) AudioWaveformView *waveformView;
 @property (weak) NSTextField *totalTimeTextField;
 @property (weak) NSTextField *currentTimeTextField;
@@ -116,6 +115,9 @@
     // follows the window shape.
     NSGlassEffectView *glass = [[NSGlassEffectView alloc] initWithFrame:contentView.bounds];
     glass.cornerRadius = kMainWindowCornerRadius;
+    // Clear (vs Regular) keeps the backdrop legible as glass rather than a
+    // frosted wall — more of what's behind the window shows through.
+    glass.style = NSGlassEffectViewStyleClear;
     glass.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [contentView addSubview:glass];
     MainPlayerContentView *content = [[MainPlayerContentView alloc] initWithTarget:self];
@@ -132,7 +134,7 @@
     self.closeButton = content.closeButton;
     self.playButton = content.playButton;
     self.nextButton = content.nextButton;
-    self.backgroundAlbumArtImageView = content.backgroundAlbumArtImageView;
+    self.headerTintView = content.headerTintView;
     self.albumArtImageView = content.albumArtImageView;
     self.waveformView = content.waveformView;
     self.artistTextField = content.artistTextField;
@@ -206,7 +208,7 @@
     self.playlistManager.tableView = self.playlistTableView;
 
     _artworkController = [[ArtworkDisplayController alloc] initWithArtworkView:self.albumArtImageView
-                                                                backgroundView:self.backgroundAlbumArtImageView];
+                                                               headerTintView:self.headerTintView];
     __weak MainPlayerController *weakControllerForArt = self;
     _artworkController.currentTrackProvider = ^AudioTrack *{
         return weakControllerForArt.playlistManager.currentTrack;
