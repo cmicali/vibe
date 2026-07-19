@@ -43,9 +43,9 @@
 #pragma mark - Launch
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
-    // The main nib used to instantiate the controller and the menu bar; both
-    // are built here now, early enough for window state restoration (which
-    // runs before applicationDidFinishLaunching) to find the controller.
+    // Build the controller and menu bar early enough for window state
+    // restoration (which runs before applicationDidFinishLaunching) to find
+    // the controller.
     self.mainPlayerController = [[MainPlayerController alloc] init];
     _menuBuilder = [[MainMenuBuilder alloc] initWithAppDelegate:self
                                                playerController:self.mainPlayerController];

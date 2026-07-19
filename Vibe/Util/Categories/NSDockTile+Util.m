@@ -23,9 +23,8 @@ static NSUInteger VibeDockIconGeneration = 0;
 // grid. The Dock renders the tile's contentView edge to edge, and real app
 // icons carry built-in transparent margins: the rounded-rect content of a
 // standard macOS icon spans 824/1024 of its canvas, with a ~22.5% corner
-// radius (185/824). The old composition used only the shadow padding as
-// margin (content ≈ 85% of canvas, radius 26%), which made the Vibe tile
-// read visibly larger than every neighboring icon in the Dock and switcher.
+// radius (185/824). Anything with a smaller margin reads visibly larger
+// than every neighboring icon in the Dock and switcher.
 NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
 
     CGFloat size = canvasSize * (824.0 / 1024.0);
@@ -44,15 +43,12 @@ NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
     // contains the shadow (blur + |offset| ≈ 0.09 × size < margin).
     NSRect drawingRect = NSMakeRect(margin, margin, size, size);
 
-    // Create the rounded clipping path.
     NSBezierPath *clipPath = [NSBezierPath bezierPathWithRoundedRect:drawingRect
                                                               xRadius:cornerRadius
                                                               yRadius:cornerRadius];
 
-    // Save the current graphics state.
     [NSGraphicsContext saveGraphicsState];
-    
-    // Configure and set the shadow.
+
     NSShadow *shadow = [[NSShadow alloc] init];
     [shadow setShadowBlurRadius:shadowBlur];
     [shadow setShadowOffset:NSMakeSize(0, shadowOffsetY)];
@@ -118,7 +114,7 @@ NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
     // caching is not documented thread-safe.
     NSImage *imageCopy = [image copy];
     // Compose off the main thread: the 512px rounded-rect + shadow render
-    // (drawing from up-to-1024px art) is a several-ms hitch that used to land
+    // (drawing from up-to-1024px art) is a several-ms hitch that would land
     // exactly at track start, alongside waveform hydration and the artwork
     // cross-fades. Only the dock-tile assignment happens on main.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{

@@ -34,9 +34,9 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
     NSColor *_gradientColor;
 
     // One bar-shaped mask clips the whole gradient stack. Masking the two
-    // gradients separately (the original structure) rasterized the identical
-    // bar path twice per morph frame — a full-view alpha pass each — and
-    // shipped the 4096-element path to the render server twice.
+    // gradients separately would rasterize the identical bar path twice per
+    // morph frame — a full-view alpha pass each — and ship the 4096-element
+    // path to the render server twice.
     CALayer *_waveformContainer;      // mask: _barMask; holds both gradients
     CAShapeLayer *_barMask;
     CAGradientLayer *_unplayedGradient;
@@ -145,7 +145,7 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
     // most ±kBarAmplitude·(height/2) from the midline (VibeBarVScale), i.e.
     // the band spans y ∈ [(1∓kBarAmplitude)/2] — computed, so an amplitude
     // change re-aims the fade automatically. Mapping the fade to the whole
-    // view instead only swung the bars ~0.96→0.74 — too subtle to read.
+    // view instead would swing the bars only ~0.96→0.74 — too subtle to read.
     gradient.startPoint = CGPointMake(0.5, (1 + kBarAmplitude) / 2);
     gradient.endPoint = CGPointMake(0.5, (1 - kBarAmplitude) / 2);
 }
@@ -341,7 +341,7 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
     CGMutablePathRef path = CGPathCreateMutable();
     for (NSUInteger i = 0; i < count; i++) {
         // y-up layer coords: the bar's top comes from the positive peak (max),
-        // the bottom from the negative peak (min). Subtracting instead drew
+        // the bottom from the negative peak (min). Subtracting instead draws
         // the envelope vertically mirrored (visible on DC-offset material).
         CGFloat top = midY + _displayedSamples[i * 2 + 1] * vscale;
         CGFloat bottom = midY + _displayedSamples[i * 2] * vscale;

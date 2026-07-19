@@ -4,7 +4,7 @@
 //
 //  Menu-bar state for the View/Controls menus and the delegate-built
 //  waveform-style submenu, split from the main implementation purely for
-//  file size. AppKit reaches everything here exactly as before — item
+//  file size. AppKit reaches everything here without extra wiring — item
 //  validation through the items' target (the controller), menuNeedsUpdate:
 //  through the NSMenuDelegate wiring MainMenuBuilder installs.
 //

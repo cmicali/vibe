@@ -63,9 +63,9 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         // outline reads wrong in light mode).
         self.contentView.layer.cornerRadius = kMainWindowCornerRadius;
 
-        // Adopt the previous session's frame (the nib used to do this), then
-        // keep saving under the same name. loadSettings reconciles the frame
-        // with the persisted playlist/pitch-panel shown flags.
+        // Adopt the previous session's frame, then keep saving under the same
+        // name. loadSettings reconciles the frame with the persisted
+        // playlist/pitch-panel shown flags.
         if (![self setFrameUsingName:kFrameAutosaveName]) {
             [self center];
         }
@@ -247,7 +247,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 // Both shown states are persisted as explicit settings rather than riding on
 // the autosaved frame: NSWindow quietly normalizes the saved width, and a
 // first launch has no saved frame at all (the registered defaults — both
-// hidden — reproduce the old first-launch size).
+// hidden — supply the first-launch size).
 - (void)loadSettings {
     NSRect frame = self.frame;
 

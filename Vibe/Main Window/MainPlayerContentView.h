@@ -11,8 +11,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The main window's whole UI (previously MainPlayerWindow.xib): builds
-// artwork, waveform, transport buttons, track labels, and the playlist table,
+// The main window's whole UI: builds artwork, waveform, transport buttons,
+// track labels, and the playlist table,
 // exposing them for the controller to drive. The view itself is transparent —
 // the window's Liquid Glass backdrop (NSGlassEffectView, installed by
 // MainPlayerController behind this view) provides the background.

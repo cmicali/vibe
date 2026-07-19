@@ -77,8 +77,8 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
     return result;
 }
 
-// v4: BPM re-detected after an analyzer fix (v3's could half-tempo tracks
-// with alternating beat emphasis).
+// Bump to invalidate every cached entry (chunk-format change, BPM-analyzer
+// change that should re-detect) — mismatched entries just re-generate.
 static const int kCodableAudioWaveformVersion = 4;
 
 @implementation CodableAudioWaveform

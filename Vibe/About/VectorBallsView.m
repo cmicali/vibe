@@ -73,9 +73,6 @@ static NSString *const kShaderSource =
      "    out.centerView = centerView.xyz;\n"
      "    return out;\n"
      "}\n"
-     // Soft matte red studs (raised rubber dots), not chrome: a diffuse red\n"
-     // body under a warm lamp with a broad low gloss sheen — no tight white\n"
-     // specular. The hemisphere normal gives each dot its raised roundness.\n"
      // Procedural studio environment sampled by the mirror reflection vector,
      // standing in for a chrome cubemap: a floor->sky gradient, a broad overhead
      // softbox, and two sharp light streaks that give chrome its signature pop.

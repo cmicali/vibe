@@ -10,9 +10,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Builds the app's menu bar (previously MainMenu.xib) and acts as the Open
-// Recent submenu's delegate, so the app delegate must keep one alive for the
-// app's lifetime.
+// Builds the app's menu bar and acts as the Open Recent submenu's delegate,
+// so the app delegate must keep one alive for the app's lifetime.
 @interface MainMenuBuilder : NSObject <NSMenuDelegate>
 
 - (instancetype)initWithAppDelegate:(AppDelegate *)appDelegate

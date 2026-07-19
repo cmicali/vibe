@@ -40,8 +40,8 @@ static const float kReverbSendLevel = 0.3f;
 // High-pass on the reverb OUTPUT so the tail can't muddy the bass — filtering
 // the return (not the send) guarantees even the ringing tail is low-cut.
 static const float kReverbTailLowCutHz = 550.0f;
-// MatrixReverb tuning, applied on top of the Cathedral preset (Reverb2 was
-// tried first and sounded thin/digital). CAUTION: the ranges documented in
+// MatrixReverb tuning, applied on top of the Cathedral preset (Reverb2
+// sounds thin/digital by comparison). CAUTION: the ranges documented in
 // AudioUnitParameters.h are STALE — the AU's real LargeSize range (queried
 // via kAudioUnitProperty_ParameterInfo) is 0.005-0.15, not the header's
 // "0.4->10.0 Secs", and an out-of-range value ASSERTS in the render thread

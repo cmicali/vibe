@@ -13,8 +13,8 @@
 #import "Constants.h"
 
 // Design-time size; the controller resizes the view to the window's restored
-// frame after adding it, which runs the same autoresizing pass a nib load
-// used to. The width is the shared kMainWindowContentWidth (Constants.h) —
+// frame after adding it, and the autoresizing pass lays subviews out at the
+// real size. The width is the shared kMainWindowContentWidth (Constants.h) —
 // the view must lay out at exactly the window's content width.
 static const CGFloat kDesignHeight = 350;
 
@@ -188,10 +188,9 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 }
 
 - (void)buildSubviewsWithTarget:(id)target {
-    // Glass panel behind the waveform/header (replaces the old blurred-art
-    // image): plain glass over the window backdrop, tinted to the current
-    // track's dominant art color by ArtworkDisplayController. Same frame the
-    // blurred art occupied; corner radius follows the window's top-right.
+    // Glass panel behind the waveform/header: plain glass over the window
+    // backdrop, tinted to the current track's dominant art color by
+    // ArtworkDisplayController. Corner radius follows the window's top-right.
     _backgroundGlassView = [[VibePassthroughGlassView alloc] initWithFrame:NSMakeRect(125, 200, 577, 150)];
     _backgroundGlassView.cornerRadius = kMainWindowCornerRadius;
     _backgroundGlassView.autoresizingMask = NSViewMinXMargin | NSViewMaxXMargin | NSViewMinYMargin;
@@ -335,13 +334,13 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
     // Frosted backdrop under the playlist: the window's Clear glass is too
     // transparent to read row text over, so this panel frosts just the
-    // playlist region (the material the whole window used pre-glass). An
-    // NSVisualEffectView, NOT an NSGlassEffectView: the glass view's SwiftUI
-    // hosting internals fight the window's autoresizing when HeightSizable
-    // (the window refused to expand past the design height). Sits under the
-    // scroll view (an NSClipView background doesn't composite
-    // semi-transparent colors over a backdrop) so it also covers the empty
-    // area below the last row; the light-mode dim wash rides inside it.
+    // playlist region. An NSVisualEffectView, NOT an NSGlassEffectView: the
+    // glass view's SwiftUI hosting internals fight the window's autoresizing
+    // when HeightSizable (the window refuses to expand past the design
+    // height). Sits under the scroll view (an NSClipView background doesn't
+    // composite semi-transparent colors over a backdrop) so it also covers
+    // the empty area below the last row; the light-mode dim wash rides
+    // inside it.
     _playlistFrostView = [[NSVisualEffectView alloc] initWithFrame:NSMakeRect(0, 0, kMainWindowContentWidth, 200)];
     _playlistFrostView.blendingMode = NSVisualEffectBlendingModeBehindWindow;
     _playlistFrostView.state = NSVisualEffectStateActive;
@@ -440,15 +439,14 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 + (GlyphButton *)transportButtonWithFrame:(NSRect)frame glyph:(GlyphButtonGlyph)glyph action:(SEL)action target:(id)target {
     GlyphButton *button = [[GlyphButton alloc] initWithFrame:frame];
     button.glyph = glyph;
-    button.glyphSize = 26; // the replaced 2x PNGs drew their glyphs in a ~26pt box
+    button.glyphSize = 26;
     button.target = target;
     button.action = action;
     button.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
     return button;
 }
 
-// Static text field configured like the nib's labels: no border/bezel/edit,
-// clipping line break, transparent background.
+// Borderless, non-editable static label with a transparent background.
 + (NSTextField *)labelWithFrame:(NSRect)frame {
     NSTextField *field = [[NSTextField alloc] initWithFrame:frame];
     field.editable = NO;

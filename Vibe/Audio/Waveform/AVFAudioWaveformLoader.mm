@@ -81,8 +81,8 @@
 
     // Scratch for the shared interleaved→mono mix: each decode buffer is
     // downmixed once here and fed to both the waveform chunk and the BPM
-    // analyzer (each used to redo the same downmix per buffer). Mono files
-    // skip the mix entirely — AudioWaveformMonoMix returns the buffer itself.
+    // analyzer. Mono files skip the mix entirely — AudioWaveformMonoMix
+    // returns the buffer itself.
     std::vector<float> monoScratch;
     if (numChannels > 1) {
         monoScratch.resize(maxFramesPerChunk);
@@ -149,15 +149,15 @@
         // lands after the loop read every chunk falls through instead: the
         // decode is complete and worth caching for the next play of this
         // track (the cache's delivery site filters cancelled loads out of
-        // the UI; discarding here made that cache write unreachable).
+        // the UI; discarding here would only lose that cache write).
         return nil;
     }
 
     // Match the EOF tolerance above: a read that ends up to 2 chunks short of
     // file.length's claim is treated as complete (VBR mis-tags / slight
-    // truncation over-report the length). Requiring effectiveChunks - 1 here
-    // while tolerating an EOF at effectiveChunks - 2 left such files neither
-    // errored nor complete — frozen mid-load, never cached, nothing logged.
+    // truncation over-report the length). A stricter threshold here than the
+    // EOF tolerance would leave such files neither errored nor complete —
+    // frozen mid-load, never cached, nothing logged.
     // (effectiveChunks >= 1; guard the unsigned subtraction for tiny files.)
     NSUInteger completeThreshold = effectiveChunks > 2 ? effectiveChunks - 2 : 1;
     self.isComplete = !readError && chunksFilled >= completeThreshold;

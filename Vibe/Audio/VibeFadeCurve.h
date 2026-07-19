@@ -3,9 +3,9 @@
 //  Vibe
 //
 //  The one fade curve: 25ms (10 steps x 2.5ms) multiplicative (perceptually
-//  log, like BASS_SLIDE_LOG) volume ramps, shared by AudioPlayer's node fades
-//  and AudioFX's send gates. Each keeps its own stepper loop (the preemption
-//  bookkeeping differs); curve and cadence changes here land everywhere.
+//  log) volume ramps, shared by AudioPlayer's node fades and AudioFX's send
+//  gates. Each keeps its own stepper loop (the preemption bookkeeping
+//  differs); curve and cadence changes here land everywhere.
 //
 
 #import <Foundation/Foundation.h>
