@@ -74,17 +74,31 @@ static const CFTimeInterval kControlFadeDur = 0.2;
 // playlist frost is appearance-dependent here.
 - (void)updateMaterialForAppearance {
     BOOL dark = self.isDark;
-    _playlistFrostView.material = dark ? NSVisualEffectMaterialUnderWindowBackground
-                                       : NSVisualEffectMaterialWindowBackground;
-    // The dark material reads fine as-is; the light material is near-white,
-    // so pull it down toward the old dimmed tone for row-text contrast.
+    // Both modes use the translucent under-window material so the playlist
+    // keeps reading as glass (the light-mode WindowBackground material is
+    // effectively opaque paint). Dark needs no help; light gets a white wash
+    // — brightening, not dimming — which lifts row contrast for the dark
+    // text while letting the blur through.
+    _playlistFrostView.material = NSVisualEffectMaterialUnderWindowBackground;
     _playlistDimView.layer.backgroundColor = dark ? NSColor.clearColor.CGColor
-                                                  : [NSColor colorWithWhite:0 alpha:0.22].CGColor;
+                                                  : [NSColor colorWithWhite:1 alpha:0.35].CGColor;
+    // Header-label shadows: readability lift for light text on dark glass;
+    // dark text on the bright light material needs none (and a dark shadow
+    // under dark text just reads as smudge).
+    CGFloat shadowOpacity = dark ? kLabelShadowOpacityDark : 0.0;
+    for (NSTextField *field in @[ _artistTextField, _titleTextField,
+                                  _totalTimeTextField, _currentTimeTextField,
+                                  _fileMetadataTextField, _bpmTextField ]) {
+        field.layer.shadowOpacity = shadowOpacity;
+    }
 }
 
 - (void)viewDidChangeEffectiveAppearance {
     [super viewDidChangeEffectiveAppearance];
     [self updateMaterialForAppearance];
+    if (self.appearanceChangedHandler) {
+        self.appearanceChangedHandler();
+    }
 }
 
 #pragma mark - Hover reveal
@@ -154,14 +168,17 @@ static const CFTimeInterval kControlFadeDur = 0.2;
     }
 }
 
-// One shadow recipe for every header label. Rasterization is opted out for
-// fields whose content changes every second (re-rastering would cost more
-// than it saves).
+// One shadow recipe for every header label; the opacity itself is
+// appearance-driven (updateMaterialForAppearance): dark text on the light
+// glass needs no shadow, light text on dark glass gets a strong one.
+// Rasterization is opted out for fields whose content changes every second
+// (re-rastering would cost more than it saves).
+static const CGFloat kLabelShadowOpacityDark = 0.9;
+
 static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     field.wantsLayer = YES;
     field.layer.shadowColor = NSColor.blackColor.CGColor;
     field.layer.shadowRadius = 0.25;
-    field.layer.shadowOpacity = 0.75;
     field.layer.shadowOffset = CGSizeMake(0, -1);
     field.layer.masksToBounds = NO;
     field.layer.shouldRasterize = rasterize;

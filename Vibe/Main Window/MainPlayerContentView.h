@@ -23,6 +23,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTarget:(id)target;
 
+// Fired from the effective-appearance funnel (after the view's own
+// material/tint updates) so appearance-dependent state owned elsewhere —
+// the header art tint (ArtworkDisplayController) — can re-derive.
+@property (nonatomic, copy, nullable) void (^appearanceChangedHandler)(void);
+
 @property (readonly) GlyphButton *closeButton;
 @property (readonly) GlyphButton *minimizeButton;
 @property (readonly) GlyphButton *playButton;

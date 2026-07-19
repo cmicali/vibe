@@ -9,22 +9,34 @@
 #import "ArtworkImageView.h"
 #import "NSDockTile+Util.h"
 #import "NSImage+Util.h"
+#import "NSView+DarkMode.h"
 
 // The raw dominant color can be anything from neon to near-black; pulling
-// saturation/brightness into this band keeps the tint recognizable as the
-// art's color without overpowering the glass or silhouetting the labels.
-static const CGFloat kTintAlpha         = 0.4;
-static const CGFloat kTintMaxBrightness = 0.8;
-static const CGFloat kTintMinBrightness = 0.5;
-static const CGFloat kTintMaxSaturation = 0.75;
-// The tint drops to half strength while the window isn't key, like the
-// system dims inactive-window chrome.
+// saturation/brightness into an appearance-specific band keeps the tint
+// recognizable as the art's color without overpowering the glass or
+// silhouetting the labels. Dark glass wants a deeper, fuller wash; the same
+// values over the bright light material read as muddy paint, so light mode
+// forces a brighter, softer pastel instead.
+static const CGFloat kTintAlphaDark          = 0.4;
+static const CGFloat kTintMaxBrightnessDark  = 0.39;
+static const CGFloat kTintMinBrightnessDark  = 0.21;
+static const CGFloat kTintMaxSaturationDark  = 0.75;
+// Light alpha is deliberately high: the light glass shows a warm blur of
+// whatever is behind the window, and a subtle wash loses to it — the wash
+// has to own the header's color for the pastel to read.
+static const CGFloat kTintAlphaLight         = 0.55;
+static const CGFloat kTintMaxBrightnessLight = 0.97;
+static const CGFloat kTintMinBrightnessLight = 0.85;
+static const CGFloat kTintMaxSaturationLight = 0.45;
+// In light mode the tint drops to half strength while the window isn't key,
+// like the system dims inactive-window chrome; dark mode keeps the full
+// wash regardless — it's the window's resting look, not active chrome.
 static const CGFloat kTintInactiveFactor = 0.5;
 
 @implementation ArtworkDisplayController {
     ArtworkImageView            *_artworkView;
     NSView                      *_headerTintView;
-    NSColor                     *_headerTintColor; // full-strength; applied halved when inactive
+    NSColor                     *_dominantArtColor; // raw; clamps applied per-appearance at apply time
     __weak NSImage              *_displayedArt;
     // Track whose full-res art is currently held decoded (weak: if the
     // playlist was replaced the track deallocates and takes its art with it).
@@ -55,33 +67,38 @@ static const CGFloat kTintInactiveFactor = 0.5;
 
 - (void)windowKeyStateChanged:(NSNotification *)note {
     if (note.object == _headerTintView.window) {
-        [self applyCurrentHeaderTint];
+        [self refreshHeaderTint];
     }
 }
 
-// Pushes the stored tint to the header wash, at half strength while the
-// window isn't key.
-- (void)applyCurrentHeaderTint {
-    NSColor *color = _headerTintColor;
-    if (color && !_headerTintView.window.isKeyWindow) {
-        color = [color colorWithAlphaComponent:color.alphaComponent * kTintInactiveFactor];
+// Derives the on-screen wash from the raw dominant color — appearance
+// clamps first, then half strength while the window isn't key — and pushes
+// it to the header. Also the public refresh hook for appearance changes.
+- (void)refreshHeaderTint {
+    NSColor *color = nil;
+    if (_dominantArtColor) {
+        BOOL dark = _headerTintView.isDark;
+        CGFloat maxSat = dark ? kTintMaxSaturationDark : kTintMaxSaturationLight;
+        CGFloat minBri = dark ? kTintMinBrightnessDark : kTintMinBrightnessLight;
+        CGFloat maxBri = dark ? kTintMaxBrightnessDark : kTintMaxBrightnessLight;
+        CGFloat alpha  = dark ? kTintAlphaDark : kTintAlphaLight;
+        CGFloat hue, saturation, brightness;
+        [_dominantArtColor getHue:&hue saturation:&saturation brightness:&brightness alpha:NULL];
+        if (!dark && !_headerTintView.window.isKeyWindow) {
+            alpha *= kTintInactiveFactor;
+        }
+        color = [NSColor colorWithHue:hue
+                           saturation:MIN(saturation, maxSat)
+                           brightness:MAX(minBri, MIN(brightness, maxBri))
+                                alpha:alpha];
     }
     _headerTintView.layer.backgroundColor = color.CGColor; // nil color clears
 }
 
 // Tints the header glass to the art's dominant color (nil art → untinted).
 - (void)applyHeaderTintFromArt:(NSImage *)art {
-    NSColor *color = [art dominantColor];
-    if (color) {
-        CGFloat hue, saturation, brightness;
-        [color getHue:&hue saturation:&saturation brightness:&brightness alpha:NULL];
-        color = [NSColor colorWithHue:hue
-                           saturation:MIN(saturation, kTintMaxSaturation)
-                           brightness:MAX(kTintMinBrightness, MIN(brightness, kTintMaxBrightness))
-                                alpha:kTintAlpha];
-    }
-    _headerTintColor = color;
-    [self applyCurrentHeaderTint];
+    _dominantArtColor = [art dominantColor];
+    [self refreshHeaderTint];
 }
 
 // Artwork display policy: new art replaces old art directly. While the new
@@ -154,8 +171,8 @@ static const CGFloat kTintInactiveFactor = 0.5;
         return;
     }
     _artworkView.image = [NSImage imageNamed:@"record-bg"];
-    _headerTintColor = nil;
-    [self applyCurrentHeaderTint];
+    _dominantArtColor = nil;
+    [self refreshHeaderTint];
     [NSDockTile resetToAppIcon];
     _displayedArt = nil;
 }

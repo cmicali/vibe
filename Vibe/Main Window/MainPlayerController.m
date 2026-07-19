@@ -56,6 +56,7 @@
 @property (weak) NSTextField *titleTextField;
 @property (weak) ArtworkImageView *albumArtImageView;
 @property (weak) NSView *headerTintView;
+@property (weak) MainPlayerContentView *playerContentView;
 @property (weak) AudioWaveformView *waveformView;
 @property (weak) NSTextField *totalTimeTextField;
 @property (weak) NSTextField *currentTimeTextField;
@@ -121,6 +122,7 @@
     glass.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [contentView addSubview:glass];
     MainPlayerContentView *content = [[MainPlayerContentView alloc] initWithTarget:self];
+    self.playerContentView = content;
     [contentView addSubview:content];
     // The window already carries the restored (autosaved) frame, so the nib's
     // load-then-resize pass never happens; setting the frame here runs the
@@ -215,6 +217,14 @@
     };
     _artworkController.artDidResolveHandler = ^{
         [weakControllerForArt updateUI];
+    };
+    // The header art tint is appearance-dependent (dark wash vs light
+    // pastel); re-derive it whenever the window's appearance flips.
+    self.playerContentView.appearanceChangedHandler = ^{
+        MainPlayerController *strongSelf = weakControllerForArt;
+        if (strongSelf) {
+            [strongSelf->_artworkController refreshHeaderTint];
+        }
     };
 
     self.devicesMenuController.audioPlayer = self.audioPlayer;
