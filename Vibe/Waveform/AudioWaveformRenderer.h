@@ -16,10 +16,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (assign) BOOL isDark;
 
 // Last "played" bar index that updateProgress: painted. Layer-array renderers
-// (only SonicCirrusWaveformRenderer nowadays — the bar-layer machinery itself
-// lives there) use this to repaint just the bars between the old and new
-// progress boundary instead of every bar. Set to -1 to force a full repaint
-// (e.g. after the played/unplayed colors change in updateColors:).
+// (SonicCirrusWaveformRenderer, which owns the bar-layer machinery) use this
+// to repaint just the bars between the old and new progress boundary instead
+// of every bar. Set to -1 to force a full repaint (e.g. after the
+// played/unplayed colors change in updateColors:).
 @property (assign) NSInteger lastProgressBoundary;
 
 @property (strong) CALayer* parentLayer;

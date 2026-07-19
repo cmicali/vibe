@@ -13,9 +13,9 @@
 @implementation PlaylistManager {
     NSMutableArray<AudioTrack *> *_playlist;
     // Track → row for reloadTrack:. didLoadMetadata fires it once per track
-    // during the metadata sweep, and the linear scan it replaces made the
-    // sweep O(n²) in playlist size on the main thread. Rebuilt whenever the
-    // playlist is replaced (play:) — the list never mutates in place.
+    // during the metadata sweep — a linear scan would make that sweep O(n²)
+    // in playlist size on the main thread. Rebuilt whenever the playlist is
+    // replaced (play:) — the list never mutates in place.
     NSMapTable<AudioTrack *, NSNumber *> *_trackIndexes;
     __weak NSTableView *_tableView;
 }
@@ -90,7 +90,7 @@ static void ensureCellAttributes(void) {
 }
 
 // Static text field for a table cell, backed by the vertically-centering
-// PlaylistTextCell the old nib prototypes used.
+// PlaylistTextCell.
 static NSTextField *makeCellTextField(NSRect frame) {
     NSTextField *field = [[NSTextField alloc] initWithFrame:frame];
     PlaylistTextCell *cell = [[PlaylistTextCell alloc] initTextCell:@""];
@@ -106,9 +106,9 @@ static NSTextField *makeCellTextField(NSRect frame) {
     return field;
 }
 
-// Programmatic replacements for the nib cell prototypes. makeViewWithIdentifier
-// returns nil until a view of that identifier has been created once; setting
-// the identifier here puts these into the table's normal reuse queue.
+// Builds the table's cell prototypes in code. makeViewWithIdentifier returns
+// nil until a view of that identifier has been created once; setting the
+// identifier here puts these into the table's normal reuse queue.
 - (NSTableCellView *)makeCellViewWithIdentifier:(NSString *)identifier width:(CGFloat)width {
     CGFloat rowHeight = _tableView.rowHeight;
     NSTableCellView *view = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, width, rowHeight)];
@@ -312,7 +312,7 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
 
 - (NSInteger)getIndexForTrack:(AudioTrack *)track {
     // AudioTrack uses NSObject's identity hash/isEqual, so this is an
-    // identity lookup — same semantics as the linear scan it replaced.
+    // identity lookup.
     NSNumber *index = track ? [_trackIndexes objectForKey:track] : nil;
     return index ? index.integerValue : -1;
 }

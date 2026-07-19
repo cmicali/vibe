@@ -85,8 +85,8 @@ static const CGFloat kAboutWindowHeight = 340;
         [self.window center];
         // Build the Metal view fresh each time the window opens. MTKView's
         // render loop (and CVDisplayLink-based alternatives) does not reliably
-        // resume after the window is closed and reopened, which left the balls
-        // frozen on the second open; a new view always starts animating.
+        // resume after the window is closed and reopened — the balls freeze on
+        // the second open; a new view always starts animating.
         [self rebuildBallsView];
     }
     [super showWindow:sender];

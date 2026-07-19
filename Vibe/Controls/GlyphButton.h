@@ -2,10 +2,9 @@
 //  GlyphButton.h
 //  Vibe
 //
-//  Replaces the asset-catalog button PNGs (button-play/pause/skip-next/
-//  close/hamburger) with resolution-independent CAShapeLayer glyphs, in the
-//  same spirit as EqualizerIndicatorView: geometry lives in a layer path and
-//  state changes are color fades composited on the render server.
+//  Resolution-independent CAShapeLayer glyph buttons, in the same spirit as
+//  EqualizerIndicatorView: geometry lives in a layer path and state changes
+//  are color fades composited on the render server — no asset-catalog images.
 //
 
 #import <Cocoa/Cocoa.h>

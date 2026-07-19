@@ -52,7 +52,7 @@ static NSMenuItem *VibeSubmenuItem(NSMenu *parent, NSString *title) {
     [appMenu addItem:VibeMenuItem(@"About Vibe", @selector(showAboutWindow:), appDelegate, @"", 0, nil)];
     [appMenu addItem:[NSMenuItem separatorItem]];
     // AppKit populates the Services submenu once it's registered as
-    // NSApp.servicesMenu (the nib's connection did the same).
+    // NSApp.servicesMenu.
     NSMenuItem *servicesItem = VibeSubmenuItem(appMenu, @"Services");
     NSApp.servicesMenu = servicesItem.submenu;
     [appMenu addItem:[NSMenuItem separatorItem]];
@@ -117,8 +117,7 @@ static NSMenuItem *VibeSubmenuItem(NSMenu *parent, NSString *title) {
     NSApp.mainMenu = mainMenu;
 }
 
-// Open Recent, rebuilt from NSDocumentController each time it opens (the nib
-// used the private recent-documents system menu; this is the public analog).
+// Open Recent, rebuilt from NSDocumentController each time it opens.
 - (void)menuNeedsUpdate:(NSMenu *)menu {
     if (menu != _openRecentMenu) {
         return;

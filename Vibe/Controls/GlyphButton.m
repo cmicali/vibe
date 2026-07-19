@@ -5,13 +5,11 @@
 
 #import "GlyphButton.h"
 
-// Matches the fade the old SYFlatButton buttons were configured with
-// (onAnimateDuration/offAnimateDuration = 0.1).
 static const CFTimeInterval kFadeDuration = 0.1;
 
-// Glyph proportions, as fractions of the glyph box side. Measured from the
-// 2x PNGs this class replaced (a ~26pt box inside the 50pt transport
-// buttons, ~1pt corner rounding — not pills), so the row reads as before.
+// Glyph proportions, as fractions of the glyph box side (a ~26pt box inside
+// the 50pt transport buttons). Corner rounding is ~1pt — softened corners,
+// not pills.
 static const CGFloat kCornerRadius   = 0.04;
 static const CGFloat kPlayWidth      = 0.90;  // triangle, full box height
 static const CGFloat kPauseBarWidth  = 0.22;  // two bars, full box height
@@ -191,7 +189,7 @@ static void addRoundedTriangle(CGMutablePathRef path, CGPoint a, CGPoint b, CGPo
 #pragma mark - Mouse handling (momentary push)
 
 // Disabled buttons are click-through, so a click over them still drags the
-// window — same as the buttons this class replaced.
+// window.
 - (NSView *)hitTest:(NSPoint)point {
     return self.isEnabled ? [super hitTest:point] : nil;
 }
@@ -238,7 +236,7 @@ static void addRoundedTriangle(CGMutablePathRef path, CGPoint a, CGPoint b, CGPo
     }
     _glyph = glyph;
     [CATransaction begin];
-    [CATransaction setDisableActions:YES]; // instant swap, like the old image swap
+    [CATransaction setDisableActions:YES]; // instant swap, no fade
     _glyphLayer.path = [self glyphPath];
     [CATransaction commit];
 }
@@ -268,7 +266,7 @@ static void addRoundedTriangle(CGMutablePathRef path, CGPoint a, CGPoint b, CGPo
     [self applyColorAnimated:NO];
 }
 
-#pragma mark - Accessibility (the old image buttons exposed no label)
+#pragma mark - Accessibility
 
 - (NSString *)accessibilityRole {
     return NSAccessibilityButtonRole;

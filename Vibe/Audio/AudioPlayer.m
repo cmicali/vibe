@@ -453,13 +453,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 // Wires node -> varispeed -> mixer for a track's format (runs on _queue).
 // _varispeed is freshly created for each track (playOnQueue:) and connected
-// exactly once here, so — unlike the old shared varispeed — it never has to
-// reinitialize across a channel-count change (stereo -> mono), which used to
-// throw kAudioUnitErr_FormatNotSupported and force an engine stop on every
-// mono<->stereo transition. The catch is the backstop for whatever formats the
-// graph still refuses — a failed connect must report, not crash. Position math
-// is unaffected by the rate: playerTimeForNodeTime: counts file frames the
-// player node rendered, and varispeed just consumes them faster or slower.
+// exactly once here, so it never has to reinitialize across a channel-count
+// change (a varispeed reconnected stereo<->mono throws
+// kAudioUnitErr_FormatNotSupported and forces an engine stop). The catch is
+// the backstop for whatever formats the graph still refuses — a failed
+// connect must report, not crash. Position math is unaffected by the rate:
+// playerTimeForNodeTime: counts file frames the player node rendered, and
+// varispeed just consumes them faster or slower.
 - (BOOL)connectNode:(AVAudioPlayerNode *)node throughVarispeedWithFormat:(AVAudioFormat *)format {
     @try {
         [_engine connect:node to:_varispeed format:format];
@@ -742,9 +742,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                 return;
             }
             uint64_t rampGen = ++self->_rampGeneration; // cancel any in-flight resume fade-in
-            // Fade out asynchronously (the queue must not block ~25ms — a
-            // skip or seek issued right behind a pause used to stall on the
-            // old synchronous ramp), then pause in the completion. State stays
+            // Fade out asynchronously (the queue must not block for the
+            // ~25ms fade — a skip or seek issued right behind a pause would
+            // stall behind it), then pause in the completion. State stays
             // Playing through the fade: the node really is still rendering.
             self->_pausePending = YES;
             __weak AudioPlayer *weakSelf = self;
@@ -1232,8 +1232,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 }
 
 // Rebinds the engine to a new output device, restoring the current track,
-// position, and play/pause state — the replacement for the old free/reinit
-// device dance. Returns NO (after reporting a delegate error) on failure.
+// position, and play/pause state. Returns NO (after reporting a delegate
+// error) on failure.
 - (BOOL)configureOutputDeviceOnQueue:(AudioDeviceID)deviceID {
     os_unfair_lock_lock(&_stateLock);
     VibePlayerState priorState = _state;
@@ -1270,12 +1270,12 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     }
 
     if (shouldRestore) {
-        // Reuse the already-open handle rather than reopening the URL. The old
-        // reopen was a synchronous, timeout-free initForReading: on the player
-        // queue — a track evicted to an iCloud/Dropbox placeholder (or on a hung
-        // mount) between play and the device switch would wedge the whole queue.
+        // Reuse the already-open handle rather than reopening the URL: a
+        // synchronous, timeout-free initForReading: here would wedge the whole
+        // queue if the track was evicted to an iCloud/Dropbox placeholder (or
+        // sits on a hung mount) between play and the device switch.
         // processingFormat is fixed at open, so rescheduling the existing file
-        // on the new node is safe (and the reopen was redundant work anyway).
+        // on the new node is safe.
         AVAudioFile *file = _file; // on _queue; _file is mutated only here
         if (!file) {
             [self resetToStoppedStateOnQueue];
@@ -1345,10 +1345,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 // AVAudioEngineConfigurationChangeNotification — the output hardware changed
 // under the engine (device removed, format/sample-rate change), which makes
-// the engine stop itself. Replacement for
-// BASS_SYNC_DEV_FAIL / BASS_SYNC_DEV_FORMAT. Idempotent health check: only
-// rebuild when the graph actually died, so notifications caused by our own
-// completed rebuilds are no-ops instead of redundant rebuilds.
+// the engine stop itself. Idempotent health check: only rebuild when the
+// graph actually died, so notifications caused by our own completed rebuilds
+// are no-ops instead of redundant rebuilds.
 - (void)handleEngineConfigurationChange {
     NSInteger requested = self.currentlyRequestedAudioDeviceId;
     if (requested >= 0) {

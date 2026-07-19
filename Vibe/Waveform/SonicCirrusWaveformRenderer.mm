@@ -55,7 +55,7 @@
     // super sets lastProgressBoundary to -1, so the next updateProgress:
     // repaints every bar with the new colors.
     [super updateColors:isDark];
-    // The unplayed bars follow the appearance (fixed white was near-invisible
+    // The unplayed bars follow the appearance (fixed white is near-invisible
     // on a light background); the played orange reads fine on both.
     NSColor *base = isDark ? [NSColor whiteColor] : [NSColor blackColor];
     _playedColorTop = [NSColor colorWithRed:1 green:0.45 blue:0 alpha:1];

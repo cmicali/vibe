@@ -136,7 +136,7 @@
 
 - (void)setProgress:(CGFloat)progress {
     // Store unconditionally — the bucket tracker below only gates repaints;
-    // gating the assignment too left the getter up to 1/256 stale.
+    // gating the assignment too would leave the getter up to 1/256 stale.
     _progress = progress;
     NSUInteger p = static_cast<NSUInteger>(progress * _numProgressSteps);
     if (_progressTracker != p) {

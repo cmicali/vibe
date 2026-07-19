@@ -39,7 +39,8 @@
 
 - (void)setImageScaling:(NSImageScaling)newScaling
 {
-    // That's necessary to use nothing but NSImageScaleAxesIndependently
+    // Ignore the requested scaling — the scale-to-fill wrapper only works
+    // with NSImageScaleAxesIndependently.
     [super setImageScaling:NSImageScaleAxesIndependently];
 }
 

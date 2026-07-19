@@ -57,9 +57,9 @@
     return results;
 }
 
-// Serial so overlapping drops complete in submission order. On the old
-// concurrent queue a slow folder expansion could finish after a later single
-// file's and replace the newer playlist mid-listen.
+// Serial so overlapping drops complete in submission order — expanded
+// concurrently, a slow folder walk could finish after a later single file's
+// and replace the newer playlist mid-listen.
 + (dispatch_queue_t)expansionQueue {
     static dispatch_queue_t queue;
     static dispatch_once_t onceToken;

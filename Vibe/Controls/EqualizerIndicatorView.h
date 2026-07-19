@@ -3,12 +3,10 @@
 //  Vibe
 //
 //  The playing-row indicator: five vertically-centered pill bars (the app
-//  icon's waveform) that grow and shrink independently. Replaces the old
-//  animated GIFs (equi-white/equi-black): NSImageView re-decodes GIF frames
-//  on the CPU for every animation tick (~5% of a core, and it keeps ticking
-//  even when the view is clipped offscreen). These bars are plain CALayers
-//  driven by repeating keyframe animations — composited on the render
-//  server, zero per-frame CPU in the app.
+//  icon's waveform) that grow and shrink independently. Plain CALayers driven
+//  by repeating keyframe animations — composited on the render server, zero
+//  per-frame CPU in the app (an animated-GIF NSImageView re-decodes frames on
+//  the CPU every tick, even when clipped offscreen).
 //
 
 #import <Cocoa/Cocoa.h>

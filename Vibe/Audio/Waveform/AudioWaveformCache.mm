@@ -49,9 +49,10 @@
         // here; PINCache itself is thread-safe), so it is always constructed
         // before first use.
         dispatch_async(_loaderQueue, ^{
-            // v4 (BPM analyzer fix): entries carry a format version key;
-            // renamed so the budget isn't consumed by unreadable
-            // older-version entries waiting for LRU eviction.
+            // The name tracks the entry format version (see
+            // kCodableAudioWaveformVersion): rename on a version bump so the
+            // byte budget isn't consumed by unreadable older-version entries
+            // waiting for LRU eviction.
             self->_waveformCache = [[PINCache alloc] initWithName:@"audio_waveform_cache_v4"];
             self->_waveformCache.diskCache.byteLimit = 64 * 1024 * 1024; // 64mb disk cache limit
             self->_waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
@@ -152,7 +153,7 @@ awaitPersist:(BOOL)awaitPersist
     }
     // Decode OFF this serial queue: AVAudioFile's open has no cancellation
     // point and blocks until a cloud placeholder materializes (minutes) — on
-    // this queue that wedged every later track's waveform behind it (the
+    // this queue that would wedge every later track's waveform behind it (the
     // decode loop is cancellable per chunk; the open isn't). Same tradeoff as
     // the player's off-queue open in playOnQueue: a truly hung open strands
     // one global-queue worker instead of the pipeline. Overlap is bounded: a

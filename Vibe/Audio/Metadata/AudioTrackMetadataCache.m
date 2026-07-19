@@ -31,12 +31,12 @@
     // for this loader's lifetime — zero reads and writes, silently.
     __weak AudioTrackMetadataCache* _owner;
     NSOperationQueue* _queue;
-    // Tracks this loader has queued (identity set). track.metadata being
-    // non-nil used to double as the "already queued" marker, but a failed
-    // parse (parsedOK == NO) must stay eligible for a re-parse by a later
-    // loader — the file may have downloaded since — so queued-ness gets its
-    // own, per-loader marker. Only touched from load: (a single pass on the
-    // caller's thread), so no locking is needed.
+    // Tracks this loader has queued (identity set). Deliberately its own
+    // per-loader marker rather than inferring queued-ness from non-nil
+    // track.metadata: a failed parse (parsedOK == NO) must stay eligible for
+    // a re-parse by a later loader — the file may have downloaded since.
+    // Only touched from load: (a single pass on the caller's thread), so no
+    // locking is needed.
     NSMutableSet<AudioTrack *>* _queuedTracks;
 }
 
@@ -123,10 +123,10 @@
     if (cachedMetaData) {
         // Pre-warm the playlist-cell thumbnail BEFORE publishing the metadata:
         // the table delegate (main thread) reads thumbnailAlbumArt as soon as
-        // the metadata is visible, and publishing first opened a window where
-        // a redraw paid the ImageIO decode on main. CGImageForProposedRect
-        // forces the actual bitmap decode, which is otherwise deferred until
-        // the cell first draws (on main).
+        // the metadata is visible, and publishing first would open a window
+        // where a redraw pays the ImageIO decode on main.
+        // CGImageForProposedRect forces the actual bitmap decode, which is
+        // otherwise deferred until the cell first draws (on main).
         [cachedMetaData.thumbnailAlbumArt CGImageForProposedRect:NULL context:nil hints:nil];
         track.metadata = cachedMetaData;
     } else {
@@ -202,13 +202,10 @@
         // playback begins), but a launch-by-double-click can beat this block;
         // the loader re-reads the property at each use.
         dispatch_async(_cacheQueue, ^{
-            // v4: fileType relabeled (ADTS AAC / MP2 no longer show as MP3,
-            // ALAC no longer shows as MP4) — persisted labels from v3 would
-            // stay wrong until the size+mtime cache key changed. v3 shrank
-            // the archive to the JPEG thumbnail + scalar fields (~10KB/track);
-            // earlier formats stored art at original size, which overflowed
-            // the byte limit and turned every launch into a full library
-            // re-parse.
+            // The name embeds the archive-format version — bump it whenever
+            // the archived fields or their meaning change (e.g. fileType
+            // labeling), since stale entries otherwise persist until the
+            // size+mtime cache key changes (up to the age limit).
             PINCache *cache = [[PINCache alloc] initWithName:@"Audio Track Metadata v4"];
             cache.diskCache.byteLimit = 64 * 1024 * 1024;
             cache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months

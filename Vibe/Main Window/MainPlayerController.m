@@ -95,8 +95,7 @@
     // nib path — is invoked directly.
     MainWindow *window = [[MainWindow alloc] init];
     if((self = [super initWithWindow:window])) {
-        // Owned here now (the main nib used to instantiate it); windowDidLoad
-        // hands it the audio player, so it must exist first.
+        // windowDidLoad hands this the audio player, so it must exist first.
         self.devicesMenuController = [[OutputDevicesMenuController alloc] init];
         [self buildContentInWindow:window];
         [self windowDidLoad];
@@ -104,7 +103,7 @@
     return self;
 }
 
-#pragma mark - Window construction (previously MainPlayerWindow.xib)
+#pragma mark - Window construction
 
 // The UI hierarchy lives in MainPlayerContentView; this wires it to the
 // window and adopts its subviews as the controller's outlets.
@@ -124,11 +123,11 @@
     MainPlayerContentView *content = [[MainPlayerContentView alloc] initWithTarget:self];
     self.playerContentView = content;
     [contentView addSubview:content];
-    // The window already carries the restored (autosaved) frame, so the nib's
-    // load-then-resize pass never happens; setting the frame here runs the
-    // same subview autoresizing that pass would have. Width stays pinned at
-    // the content width — when the pitch panel state restored as shown, the
-    // window is already kPitchPanelWidth wider than the content.
+    // The window already carries the restored (autosaved) frame; setting the
+    // content frame here runs the subview autoresizing pass at the real size.
+    // Width stays pinned at the content width — when the pitch panel state
+    // restored as shown, the window is already kPitchPanelWidth wider than
+    // the content.
     NSRect contentFrame = contentView.bounds;
     contentFrame.size.width = kMainWindowContentWidth;
     content.frame = contentFrame;
@@ -536,7 +535,7 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
 // analyzed one, same precedence as the BPM label) a skip moves by whole bars
 // (4 beats) — a fixed span of *file* time, so the jump stays on the musical
 // grid at any pitch. Without a tempo the fallback is the fixed wall-clock
-// distance, as before.
+// distance.
 static const NSTimeInterval kSkipSeconds = 10.0;
 static const NSTimeInterval kSkipMoreSeconds = 30.0;
 static const NSTimeInterval kSkipMostSeconds = 60.0;
