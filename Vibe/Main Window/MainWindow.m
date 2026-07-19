@@ -58,9 +58,10 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
         self.contentView.wantsLayer = YES;
         self.contentView.focusRingType = NSFocusRingTypeNone;
+        // No explicit border: the system shadow and the glass backdrop's own
+        // rim lighting supply the edge, like standard windows (a drawn dark
+        // outline reads wrong in light mode).
         self.contentView.layer.cornerRadius = kMainWindowCornerRadius;
-        self.contentView.layer.borderColor = [NSColor.blackColor colorWithAlphaComponent:0.5].CGColor;
-        self.contentView.layer.borderWidth = 1;
 
         // Adopt the previous session's frame (the nib used to do this), then
         // keep saving under the same name. loadSettings reconciles the frame

@@ -38,6 +38,12 @@ NS_ASSUME_NONNULL_BEGIN
 // art stays on screen — no flash of the default between tracks.
 - (void)updateForTrack:(nullable AudioTrack *)track;
 
+// Re-derives the header wash from the stored art color. The wash is
+// appearance-dependent (dark: deep wash, light: pastel) and key-window-
+// dependent (half strength inactive); call on appearance changes — key
+// changes are observed internally.
+- (void)refreshHeaderTint;
+
 // Demotes the previous track's full-res art (decoded bitmap + compressed
 // bytes) when playback moves to a new track, so art doesn't accumulate for
 // the playlist's lifetime.
