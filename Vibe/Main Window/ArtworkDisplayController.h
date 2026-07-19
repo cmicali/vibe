@@ -4,23 +4,25 @@
 //
 //  Owns the artwork display policy for the main window: which image (track
 //  art or the default record-bg backdrop) is showing in the album-art view,
-//  the blurred window background, and the dock icon, plus the deferred
-//  off-main-thread art loads and the full-res art memory lifecycle.
+//  the header glass tint (dominant art color), and the dock icon, plus the
+//  deferred off-main-thread art loads and the full-res art memory lifecycle.
 //
 
 #import <Cocoa/Cocoa.h>
 
 @class AudioTrack;
 @class ArtworkImageView;
-@class BackgroundArtworkImageView;
 
 NS_ASSUME_NONNULL_BEGIN
 
 // Main thread only.
 @interface ArtworkDisplayController : NSObject
 
+// headerTintView: layer-backed wash over the header glass; this controller
+// sets its background color to the art's dominant color (half strength while
+// the window isn't key).
 - (instancetype)initWithArtworkView:(ArtworkImageView *)artworkView
-                     backgroundView:(BackgroundArtworkImageView *)backgroundView;
+                     headerTintView:(NSView *)headerTintView;
 
 // A deferred art load must re-check which track is current when it completes
 // (the user may have skipped on); the owner answers here. Set once at startup.

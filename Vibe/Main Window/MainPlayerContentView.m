@@ -7,7 +7,6 @@
 #import "MainPlayerController.h" // declares the button action selectors
 #import "GlyphButton.h"
 #import "ArtworkImageView.h"
-#import "BackgroundArtworkImageView.h"
 #import "AudioWaveformView.h"
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
@@ -38,8 +37,22 @@ static const CFTimeInterval kControlFadeDur = 0.2;
 }
 @end
 
+// Same passthrough treatment for the header's glass panel: clicks on the
+// empty header must fall through to the window (drag-to-move), and the
+// waveform view above it does its own hit handling.
+@interface VibePassthroughGlassView : NSGlassEffectView
+@end
+
+@implementation VibePassthroughGlassView
+- (NSView *)hitTest:(NSPoint)point {
+    return nil;
+}
+@end
+
 @implementation MainPlayerContentView {
     VibePassthroughView *_albumArtGradientView; // decorative darkening over the art; internal-only (no controller outlet)
+    NSGlassEffectView *_backgroundGlassView;    // header glass; its tint rides in headerTintView
+    NSVisualEffectView *_playlistFrostView;
     NSView *_playlistDimView;
     GlyphButton *_playlistToggleButton;
     NSTrackingArea *_windowHoverArea;
@@ -58,15 +71,13 @@ static const CFTimeInterval kControlFadeDur = 0.2;
 }
 
 // The window's glass backdrop adapts to appearance on its own; only the
-// playlist wash is appearance-dependent here.
+// playlist frost is appearance-dependent here.
 - (void)updateMaterialForAppearance {
     BOOL dark = self.isDark;
-    // Dark mode shows the glass through the playlist; light glass is bright,
-    // so dim the playlist down to roughly the blurred-artwork backdrop's tone
-    // (art baked on a 0.85 base). The wash is a plain view under the scroll
-    // view (an NSClipView background doesn't composite semi-transparent
-    // colors over a backdrop) so it also covers the empty area below the
-    // last row.
+    _playlistFrostView.material = dark ? NSVisualEffectMaterialUnderWindowBackground
+                                       : NSVisualEffectMaterialWindowBackground;
+    // The dark material reads fine as-is; the light material is near-white,
+    // so pull it down toward the old dimmed tone for row-text contrast.
     _playlistDimView.layer.backgroundColor = dark ? NSColor.clearColor.CGColor
                                                   : [NSColor colorWithWhite:0 alpha:0.22].CGColor;
 }
@@ -160,13 +171,25 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 }
 
 - (void)buildSubviewsWithTarget:(id)target {
-    _backgroundAlbumArtImageView = [[BackgroundArtworkImageView alloc] initWithFrame:NSMakeRect(125, 200, 577, 150)];
-    _backgroundAlbumArtImageView.wantsLayer = YES;
-    _backgroundAlbumArtImageView.layer.masksToBounds = NO;
-    // No shouldRasterize: it was only there to cache the (long removed) live
-    // CIGaussianBlur filter output; the image is pre-blurred these days.
-    _backgroundAlbumArtImageView.autoresizingMask = NSViewMinXMargin | NSViewMaxXMargin | NSViewMinYMargin;
-    [self addSubview:_backgroundAlbumArtImageView];
+    // Glass panel behind the waveform/header (replaces the old blurred-art
+    // image): plain glass over the window backdrop, tinted to the current
+    // track's dominant art color by ArtworkDisplayController. Same frame the
+    // blurred art occupied; corner radius follows the window's top-right.
+    _backgroundGlassView = [[VibePassthroughGlassView alloc] initWithFrame:NSMakeRect(125, 200, 577, 150)];
+    _backgroundGlassView.cornerRadius = kMainWindowCornerRadius;
+    _backgroundGlassView.autoresizingMask = NSViewMinXMargin | NSViewMaxXMargin | NSViewMinYMargin;
+    [self addSubview:_backgroundGlassView];
+
+    // The art-color tint over the glass. NOT the glass's tintColor: AppKit
+    // kills that outright while the window is inactive, and the design calls
+    // for half strength instead (ArtworkDisplayController drives the color
+    // and the active/inactive dimming).
+    _headerTintView = [[VibePassthroughView alloc] initWithFrame:_backgroundGlassView.frame];
+    _headerTintView.wantsLayer = YES;
+    _headerTintView.layer.cornerRadius = kMainWindowCornerRadius;
+    _headerTintView.layer.masksToBounds = YES;
+    _headerTintView.autoresizingMask = _backgroundGlassView.autoresizingMask;
+    [self addSubview:_headerTintView];
 
     _waveformView = [[AudioWaveformView alloc] initWithFrame:NSMakeRect(158, 215, 512, 86)];
     _waveformView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
@@ -293,10 +316,25 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     configureLabelShadow(_currentTimeTextField, NO);
     [self addSubview:_currentTimeTextField];
 
-    _playlistDimView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, kMainWindowContentWidth, 200)];
+    // Frosted backdrop under the playlist: the window's Clear glass is too
+    // transparent to read row text over, so this panel frosts just the
+    // playlist region (the material the whole window used pre-glass). An
+    // NSVisualEffectView, NOT an NSGlassEffectView: the glass view's SwiftUI
+    // hosting internals fight the window's autoresizing when HeightSizable
+    // (the window refused to expand past the design height). Sits under the
+    // scroll view (an NSClipView background doesn't composite
+    // semi-transparent colors over a backdrop) so it also covers the empty
+    // area below the last row; the light-mode dim wash rides inside it.
+    _playlistFrostView = [[NSVisualEffectView alloc] initWithFrame:NSMakeRect(0, 0, kMainWindowContentWidth, 200)];
+    _playlistFrostView.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+    _playlistFrostView.state = NSVisualEffectStateActive;
+    _playlistFrostView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [self addSubview:_playlistFrostView];
+
+    _playlistDimView = [[NSView alloc] initWithFrame:_playlistFrostView.bounds];
     _playlistDimView.wantsLayer = YES;
     _playlistDimView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    [self addSubview:_playlistDimView];
+    [_playlistFrostView addSubview:_playlistDimView];
 
     [self addSubview:[self buildPlaylistScrollViewWithFrame:NSMakeRect(0, 0, kMainWindowContentWidth, 200)]];
 

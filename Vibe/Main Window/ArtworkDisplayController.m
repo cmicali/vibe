@@ -7,12 +7,24 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "ArtworkImageView.h"
-#import "BackgroundArtworkImageView.h"
 #import "NSDockTile+Util.h"
+#import "NSImage+Util.h"
+
+// The raw dominant color can be anything from neon to near-black; pulling
+// saturation/brightness into this band keeps the tint recognizable as the
+// art's color without overpowering the glass or silhouetting the labels.
+static const CGFloat kTintAlpha         = 0.4;
+static const CGFloat kTintMaxBrightness = 0.8;
+static const CGFloat kTintMinBrightness = 0.5;
+static const CGFloat kTintMaxSaturation = 0.75;
+// The tint drops to half strength while the window isn't key, like the
+// system dims inactive-window chrome.
+static const CGFloat kTintInactiveFactor = 0.5;
 
 @implementation ArtworkDisplayController {
     ArtworkImageView            *_artworkView;
-    BackgroundArtworkImageView  *_backgroundView;
+    NSView                      *_headerTintView;
+    NSColor                     *_headerTintColor; // full-strength; applied halved when inactive
     __weak NSImage              *_displayedArt;
     // Track whose full-res art is currently held decoded (weak: if the
     // playlist was replaced the track deallocates and takes its art with it).
@@ -21,13 +33,55 @@
 }
 
 - (instancetype)initWithArtworkView:(ArtworkImageView *)artworkView
-                     backgroundView:(BackgroundArtworkImageView *)backgroundView {
+                     headerTintView:(NSView *)headerTintView {
     self = [super init];
     if (self) {
         _artworkView = artworkView;
-        _backgroundView = backgroundView;
+        _headerTintView = headerTintView;
+        // Object nil (filtered in the handler): the tint view isn't
+        // necessarily in a window yet at construction time.
+        NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+        [center addObserver:self selector:@selector(windowKeyStateChanged:)
+                       name:NSWindowDidBecomeKeyNotification object:nil];
+        [center addObserver:self selector:@selector(windowKeyStateChanged:)
+                       name:NSWindowDidResignKeyNotification object:nil];
     }
     return self;
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)windowKeyStateChanged:(NSNotification *)note {
+    if (note.object == _headerTintView.window) {
+        [self applyCurrentHeaderTint];
+    }
+}
+
+// Pushes the stored tint to the header wash, at half strength while the
+// window isn't key.
+- (void)applyCurrentHeaderTint {
+    NSColor *color = _headerTintColor;
+    if (color && !_headerTintView.window.isKeyWindow) {
+        color = [color colorWithAlphaComponent:color.alphaComponent * kTintInactiveFactor];
+    }
+    _headerTintView.layer.backgroundColor = color.CGColor; // nil color clears
+}
+
+// Tints the header glass to the art's dominant color (nil art → untinted).
+- (void)applyHeaderTintFromArt:(NSImage *)art {
+    NSColor *color = [art dominantColor];
+    if (color) {
+        CGFloat hue, saturation, brightness;
+        [color getHue:&hue saturation:&saturation brightness:&brightness alpha:NULL];
+        color = [NSColor colorWithHue:hue
+                           saturation:MIN(saturation, kTintMaxSaturation)
+                           brightness:MAX(kTintMinBrightness, MIN(brightness, kTintMaxBrightness))
+                                alpha:kTintAlpha];
+    }
+    _headerTintColor = color;
+    [self applyCurrentHeaderTint];
 }
 
 // Artwork display policy: new art replaces old art directly. While the new
@@ -39,7 +93,7 @@
     if (track.albumArt) {
         if (_displayedArt != track.albumArt) {
             _artworkView.image = track.albumArt;
-            [_backgroundView setArtworkImage:track.albumArt];
+            [self applyHeaderTintFromArt:track.albumArt];
             [NSDockTile setDockIcon:track.albumArt];
             _displayedArt = track.albumArt;
         }
@@ -93,13 +147,15 @@
     }
 }
 
-// Installs the record-bg default backdrop (no-op if it's already showing).
+// Installs the record-bg default art and clears the glass tint (no-op if
+// already showing).
 - (void)showDefaultArtwork {
     if (!_displayedArt && _initialized) {
         return;
     }
     _artworkView.image = [NSImage imageNamed:@"record-bg"];
-    [_backgroundView setArtworkImage:[NSImage imageNamed:@"record-bg"]];
+    _headerTintColor = nil;
+    [self applyCurrentHeaderTint];
     [NSDockTile resetToAppIcon];
     _displayedArt = nil;
 }
