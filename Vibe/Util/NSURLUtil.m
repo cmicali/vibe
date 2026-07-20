@@ -5,8 +5,18 @@
 
 #import "NSURLUtil.h"
 
+#include <sys/stat.h>
+
 
 @implementation NSURLUtil
+
++ (BOOL)isDatalessFile:(NSURL *)url {
+    struct stat st;
+    if (stat(url.fileSystemRepresentation, &st) != 0) {
+        return NO;
+    }
+    return (st.st_flags & SF_DATALESS) != 0;
+}
 
 // Static set: consulted once per file in a folder drop.
 + (NSSet<NSString*>*) supportedExtensions {

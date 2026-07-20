@@ -775,6 +775,13 @@ static const double kSkipMostBars = 32.0;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track {
     _erroredTrack = nil;
+    // A slow (cloud) open is in flight — the header can still show cached
+    // tags/art for the pending track while it materializes. Guarded like
+    // didStartPlaying:'s check: a stale delivery from a superseded open must
+    // not load for a track the playlist no longer points at.
+    if (track == [self.playlistManager currentTrack]) {
+        [self.metadataCache loadMetadataNow:track];
+    }
     // Show the pending track's title/artist while it loads.
     [self updateUI];
     [self.waveformView showLoadingIndicator];
@@ -790,6 +797,14 @@ static const double kSkipMostBars = 32.0;
     // start the new playlist's load while its first track is still opening.
     // (The new playlist's own didStartPlaying — or the 2s fallback — follows.)
     if (track == [self.playlistManager currentTrack]) {
+        // The now-playing track jumps the scan queue: its header tags/art
+        // must not wait behind the playlist sweep (a cloud-heavy folder keeps
+        // every scan worker blocked for minutes). Runs even when
+        // didBeginLoading: already asked — that call skips the parse while
+        // the file is a dataless placeholder, and by now the open has
+        // materialized it, so this one completes the job (no-op if the
+        // cache hit already published).
+        [self.metadataCache loadMetadataNow:track];
         [self startPendingMetadataLoad];
     }
     _currentTrackDuration = self.audioPlayer.duration;
