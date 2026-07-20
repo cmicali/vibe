@@ -39,6 +39,10 @@ static const CGFloat kTintMaxSaturationLight = 0.45;
     // Track whose full-res art is currently held decoded (weak: if the
     // playlist was replaced the track deallocates and takes its art with it).
     __weak AudioTrack           *_artOwnerTrack;
+    // Pairs each async dominant-color computation with the art that requested
+    // it — utility-queue blocks can complete out of order, and a stale color
+    // must not land over the tint that superseded it.
+    NSUInteger                  _tintGeneration;
     BOOL                        _initialized;
 }
 
@@ -93,10 +97,25 @@ static const CGFloat kTintMaxSaturationLight = 0.45;
     [layer addAnimation:fade forKey:@"tintFade"];
 }
 
-// Tints the header glass to the art's dominant color (nil art → untinted).
+// Tints the header glass to the art's dominant color. dominantColor renders
+// a 32px downscale and samples 1024 pixels — too much for the main thread on
+// the exact track-transition frame — so it runs off-main (bitmap-context
+// drawing is thread-safe) and applies on main; the tint fades a beat after
+// the art, which the crossfade hides.
 - (void)applyHeaderTintFromArt:(NSImage *)art {
-    _dominantArtColor = [art dominantColor];
-    [self refreshHeaderTint];
+    NSUInteger generation = ++_tintGeneration;
+    __weak ArtworkDisplayController *weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSColor *color = [art dominantColor];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            ArtworkDisplayController *strongSelf = weakSelf;
+            if (!strongSelf || generation != strongSelf->_tintGeneration) {
+                return; // newer art (or the default) owns the tint now
+            }
+            strongSelf->_dominantArtColor = color;
+            [strongSelf refreshHeaderTint];
+        });
+    });
 }
 
 // Artwork display policy: new art replaces old art directly. While the new
@@ -153,6 +172,11 @@ static const CGFloat kTintMaxSaturationLight = 0.45;
                 AudioTrack *currentTrack = strongSelf.currentTrackProvider
                         ? strongSelf.currentTrackProvider() : nil;
                 if (currentTrack != track) {
+                    // Skipped away before the load resolved: a track that
+                    // never started playing never becomes _artOwnerTrack, so
+                    // nothing else would demote the full-res art (~4-9MB)
+                    // this load just pinned.
+                    [metadata discardDecodedAlbumArt];
                     return;
                 }
                 if (loaded) {
@@ -170,6 +194,18 @@ static const CGFloat kTintMaxSaturationLight = 0.45;
     }
 }
 
+// A slow (cloud) open is taking long enough to show the loading shimmer. The
+// keep-previous-art policy would hold the OLD track's art for up to the open
+// timeout (20s) — show the empty-state default instead. If the pending
+// track's art already resolved, updateForTrack: displayed it; keep that.
+- (void)showPlaceholderForSlowLoad {
+    AudioTrack *track = self.currentTrackProvider ? self.currentTrackProvider() : nil;
+    if (track.albumArt && _displayedArt == track.albumArt) {
+        return;
+    }
+    [self showDefaultArtwork];
+}
+
 // Installs the record-bg default art and clears the glass tint (no-op if
 // already showing).
 - (void)showDefaultArtwork {
@@ -177,6 +213,7 @@ static const CGFloat kTintMaxSaturationLight = 0.45;
         return;
     }
     _artworkView.image = [NSImage imageNamed:@"record-bg"];
+    _tintGeneration++; // orphan any in-flight dominant-color computation
     _dominantArtColor = nil;
     [self refreshHeaderTint];
     [NSDockTile resetToAppIcon];

@@ -20,7 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSArray<AudioTrack *> *)playlist;
 
-- (id)initWithAudioPlayer:(AudioPlayer *)player;
+- (instancetype)initWithAudioPlayer:(AudioPlayer *)player;
 
 - (void)play;
 - (void)play:(NSArray<NSURL *> *)urls;

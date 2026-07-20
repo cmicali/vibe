@@ -255,6 +255,14 @@ static float vb_random01(void) {
     NSUInteger cell = MAX((NSUInteger)1, (NSUInteger)llround((double)bh / kHalftoneRows));
     NSUInteger cols = bw / cell;
     NSUInteger rows = bh / cell;
+    if (cols == 0 || rows == 0) {
+        // Degenerate raster (cell larger than the bitmap): spacing below
+        // would divide by zero, and newBufferWithBytes: would overread the
+        // calloc(0) buffer.
+        free(coverage);
+        _instanceCount = 0;
+        return;
+    }
     float spacing = kWordWorldWidth / (float)cols;
     float bigRadius = spacing * kBigDotFraction;
     float smallRadius = spacing * kSmallDotFraction;

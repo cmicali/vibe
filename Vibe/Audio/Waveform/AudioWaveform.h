@@ -28,7 +28,6 @@ static inline const float* AudioWaveformMonoMix(const float* buffer, float* scra
 struct AudioWaveformCacheChunk {
 
     inline AudioWaveformCacheChunk() noexcept { set(0, 0); }
-    inline AudioWaveformCacheChunk(float min, float max) noexcept { set(min, max); }
     inline AudioWaveformCacheChunk(const float* mono, NSUInteger numFrames) noexcept {
         set(0, 0);
         mergeFromMonoBuffer(mono, numFrames);
@@ -37,17 +36,6 @@ struct AudioWaveformCacheChunk {
     inline float getMin() const noexcept { return values[0]; }
     inline float getMax() const noexcept { return values[1]; }
     inline void set(float min, float max) noexcept { values[0] = min; values[1] = max; }
-    inline void setMin(float min) noexcept { values[0] = min; }
-    inline void setMin(AudioWaveformCacheChunk chunk) noexcept { values[0] = chunk.values[0]; }
-    inline void setMin(AudioWaveformCacheChunk* chunk) noexcept { values[0] = chunk->values[0]; }
-    inline void setMax(float max) noexcept { values[1] = max; }
-    inline void setMax(AudioWaveformCacheChunk chunk) noexcept { values[1] = chunk.values[1]; }
-    inline void setMax(AudioWaveformCacheChunk* chunk) noexcept { values[1] = chunk->values[1]; }
-    inline void merge(float value) {
-        if (value < values[0]) values[0] = value;
-        if (value > values[1]) values[1] = value;
-    }
-    inline void merge(AudioWaveformCacheChunk chunk) noexcept { merge(&chunk); }
     inline void merge(AudioWaveformCacheChunk* chunk) noexcept {
         if (chunk->values[0] < values[0]) values[0] = chunk->values[0];
         if (chunk->values[1] > values[1]) values[1] = chunk->values[1];

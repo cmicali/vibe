@@ -419,17 +419,26 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void) {
 }
 
 static NSData *getAlbumArtID3v2(TagLib::ID3v2::Tag *id3v2Tag) {
-    // TagLib hands back UnknownFrame for frames it couldn't parse (e.g.
-    // compressed/corrupt APIC), so take the first frame that actually casts.
+    // TagLib hands back UnknownFrame for frames it couldn't parse, so only
+    // frames that actually cast count. Prefer the FrontCover-typed picture:
+    // files can carry a 32x32 FileIcon ahead of the cover, and taking the
+    // first blindly puts the icon on the 300px header and the dock.
     const TagLib::ID3v2::FrameList &frameList = id3v2Tag->frameList("APIC");
+    TagLib::ID3v2::AttachedPictureFrame *fallback = nullptr;
     for (auto it = frameList.begin(); it != frameList.end(); ++it) {
         auto frame = dynamic_cast<TagLib::ID3v2::AttachedPictureFrame *>(*it);
-        if (!frame) continue;
-        auto bytes = frame->picture();
-        if (bytes.isEmpty()) continue;
-        return [[NSData alloc] initWithBytes:bytes.data() length:bytes.size()];
+        if (!frame || frame->picture().isEmpty()) continue;
+        if (frame->type() == TagLib::ID3v2::AttachedPictureFrame::FrontCover) {
+            fallback = frame;
+            break;
+        }
+        if (!fallback) fallback = frame; // first valid picture, any type
     }
-    return nil;
+    if (!fallback) {
+        return nil;
+    }
+    auto bytes = fallback->picture();
+    return [[NSData alloc] initWithBytes:bytes.data() length:bytes.size()];
 }
 
 static NSData *getAlbumArtMP4(TagLib::MP4::File *mp4File) {
@@ -448,13 +457,24 @@ static NSData *getAlbumArtMP4(TagLib::MP4::File *mp4File) {
 }
 
 static NSData *getAlbumArtFLAC(TagLib::FLAC::File *flacFile) {
+    // Same picture-type preference as getAlbumArtID3v2: the front cover wins
+    // over whatever picture happens to be stored first.
     const TagLib::List<TagLib::FLAC::Picture*>& picList = flacFile->pictureList();
-    if (!picList.isEmpty()) {
-        TagLib::FLAC::Picture* pic = picList[0];
-        auto bytes = pic->data();
-        return [[NSData alloc] initWithBytes:bytes.data() length:bytes.size()];
+    TagLib::FLAC::Picture *chosen = nullptr;
+    for (auto it = picList.begin(); it != picList.end(); ++it) {
+        TagLib::FLAC::Picture *pic = *it;
+        if (!pic || pic->data().isEmpty()) continue;
+        if (pic->type() == TagLib::FLAC::Picture::FrontCover) {
+            chosen = pic;
+            break;
+        }
+        if (!chosen) chosen = pic;
     }
-    return nil;
+    if (!chosen) {
+        return nil;
+    }
+    auto bytes = chosen->data();
+    return [[NSData alloc] initWithBytes:bytes.data() length:bytes.size()];
 }
 
 static NSData *getAlbumArtMP3(TagLib::MPEG::File *mp3File) {

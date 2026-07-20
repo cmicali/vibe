@@ -21,7 +21,10 @@
 }
 
 - (NSArray<AudioTrack *> *)playlist {
-    return _playlist;
+    // Defensive shallow copy: callers hold the result across async work (the
+    // metadata cache iterates it on its worker queue), and today's safety
+    // rests only on the list being replaced wholesale, never mutated.
+    return [_playlist copy];
 }
 
 - (NSTableView *)tableView {
@@ -34,7 +37,7 @@
     [_tableView setDoubleAction:@selector(doubleClick:)];
 }
 
-- (id)initWithAudioPlayer:(AudioPlayer *)audioPlayer {
+- (instancetype)initWithAudioPlayer:(AudioPlayer *)audioPlayer {
     self = [super init];
     if (self) {
         _playlist = [NSMutableArray new];
@@ -300,7 +303,7 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
     return NO;
 }
 
-- (void)doubleClick:(id)doubleClick {
+- (void)doubleClick:(id)sender {
     if ([_tableView clickedRow] < 0) {
         return;
     }

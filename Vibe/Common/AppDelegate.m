@@ -80,7 +80,10 @@
 
     _isLoaded = YES;
     if (_urlsToOpen.count > 0) {
-        [self playURLs];
+        // Through the coalescer, not a direct playURLs: a multi-file open can
+        // straddle launch, and playing the pre-launch batch immediately would
+        // let the post-launch remainder REPLACE the playlist.
+        [self coalescedPlayURLs];
     }
     else {
         // No launch-time open queued (Finder/argv events land before this
@@ -172,6 +175,13 @@
 // only the last event's files. Coalesce a burst into a single play.
 - (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {
     [_urlsToOpen addObjectsFromArray:urls];
+    [self coalescedPlayURLs];
+}
+
+// Debounced playURLs: each call restarts the window, so a burst of open
+// events lands as one play. Also the launch-time entry point — a burst can
+// straddle applicationDidFinishLaunching.
+- (void)coalescedPlayURLs {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(playURLs) object:nil];
     [self performSelector:@selector(playURLs) withObject:nil afterDelay:0.3];
 }

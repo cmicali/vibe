@@ -125,15 +125,15 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     uint64_t                _engineIdleStopGeneration;
     // A pause fade is in flight (queue-confined). A second playPause during
     // the ~25ms fade-out cancels the pending pause and ramps back up instead
-    // of pausing twice; cleared unconditionally by the fade's completion
-    // (which runs on preemption too), so it can't go stale.
+    // of pausing twice; cleared by the fade's completion (which runs on
+    // preemption too) and eagerly by preemptRampsOnQueue.
     BOOL                    _pausePending;
     id                      _configChangeObserver;
 }
 
 #pragma mark - Init
 
-- (id)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName delegate:(id <AudioPlayerDelegate>)delegate {
+- (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName delegate:(id <AudioPlayerDelegate>)delegate {
     self = [super init];
     if (self) {
         _stateLock = OS_UNFAIR_LOCK_INIT;
@@ -272,7 +272,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     }
 
     _generation++;
-    _rampGeneration++; // preempt any in-flight resume fade-in
+    [self preemptRampsOnQueue]; // preempt any in-flight resume fade-in
 
     // Dual-varispeed crossfade: the incoming track gets a BRAND-NEW varispeed,
     // and the outgoing node is retired together with its OLD one. The outgoing
@@ -440,10 +440,12 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 }
 
 // Wires node -> varispeed -> mixer for a track's format (runs on _queue).
-// _varispeed is freshly created for each track (playOnQueue:) and connected
-// exactly once here, so it never has to reinitialize across a channel-count
-// change (a varispeed reconnected stereo<->mono throws
-// kAudioUnitErr_FormatNotSupported and forces an engine stop). The catch is
+// _varispeed is freshly created for each track (playOnQueue:) and normally
+// connected exactly once here, so it never has to reinitialize across a
+// channel-count change (a varispeed reconnected stereo<->mono throws
+// kAudioUnitErr_FormatNotSupported and forces an engine stop). The one
+// re-connect — device-switch recovery — rewires the SAME varispeed for the
+// SAME format with the engine stopped, which is safe. The catch is
 // the backstop for whatever formats the graph still refuses — a failed
 // connect must report, not crash. Position math is unaffected by the rate:
 // playerTimeForNodeTime: counts file frames the player node rendered, and
@@ -464,10 +466,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     return YES;
 }
 
-// Detach that cannot throw: after a failed connect the node can be in a state
+// Detach that cannot throw: after a failed connect a node can be in a state
 // AVAudioEngine's RemoveNode refuses (it raises an NSException; leaking the
-// node is better than crashing the app on an already-failing path).
-- (void)detachNodeAfterFailedConnect:(AVAudioPlayerNode *)node {
+// node is better than crashing on an already-failing path).
+- (void)detachNodeAfterFailedConnect:(AVAudioNode *)node {
     @try {
         [_engine detachNode:node];
     }
@@ -559,12 +561,16 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         dispatch_async(strongSelf->_queue, ^{
             if (strongSelf->_currentOpenPath && [path isEqualToString:strongSelf->_currentOpenPath]) {
                 // A play of this path is waiting on its own open (plays never
-                // adopt this worker — see playOnQueue:). Deliver here anyway:
-                // finishPlayOnQueue: consumes the open id, so whichever worker
-                // lands second no-ops, and it rebinds to _pendingOpenTrack so
-                // the play's track object wins.
-                [strongSelf finishPlayOnQueue:track file:file error:error
-                                openRequestId:strongSelf->_openRequestId];
+                // adopt this worker — see playOnQueue:). Deliver on success
+                // only: finishPlayOnQueue: consumes the open id (whichever
+                // worker lands second no-ops) and rebinds to
+                // _pendingOpenTrack. A FAILED prefetch open must not consume
+                // the id — the play's own open may yet succeed, and consuming
+                // here turns that recoverable race into a "Could not open".
+                if (file && file.length > 0) {
+                    [strongSelf finishPlayOnQueue:track file:file error:error
+                                    openRequestId:strongSelf->_openRequestId];
+                }
                 return;
             }
             if (prefetchId != strongSelf->_prefetchRequestId) {
@@ -592,6 +598,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _openRequestId++;
     _currentOpenPath = nil;
     _pendingOpenTrack = nil;
+    // Detach the varispeed playOnQueue: attached for the failed track —
+    // otherwise it stays attached across Stopped until the next play/stop
+    // (stopOnQueue arrives here already nil). No-throw detach: this can run
+    // right after a failed connect left it half-connected.
+    if (_varispeed) {
+        [self detachNodeAfterFailedConnect:_varispeed];
+        _varispeed = nil;
+    }
     [self publishPlaybackState:VibePlayerStateStopped node:nil file:nil segmentStart:0 position:0];
     // Release the output device once genuinely idle; a quick follow-up play
     // (auto-advance past a bad file) reuses the running engine.
@@ -690,6 +704,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     dispatch_async(_queue, ^{
         os_unfair_lock_lock(&self->_stateLock);
         VibePlayerState state = self->_state;
+        AVAudioPlayerNode *node = self->_node;
         os_unfair_lock_unlock(&self->_stateLock);
         // Only a live track can finish. Stopped has nothing to do; Loading has
         // no node yet (and the skip path never gets here while loading — its
@@ -699,10 +714,25 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         }
         // [node stop] inside finishPlaybackOnQueue fires the scheduled
         // completion; bump _generation so segmentDidCompleteWithGeneration:
-        // drops it, and _rampGeneration to preempt any in-flight fade — the
-        // same interruption dance seek/skip/device-switch use.
+        // drops it, and preempt any in-flight fade — the same interruption
+        // dance seek/skip/device-switch use.
         self->_generation++;
-        self->_rampGeneration++;
+        [self preemptRampsOnQueue];
+        if (state == VibePlayerStatePlaying && node && self->_engine.isRunning) {
+            // Unlike a natural end (already silent), this path can arrive at
+            // full volume (forward skip past the end) — fade first or the
+            // bare [node stop] clicks. Retired-flavor ramp: a pause/seek
+            // mid-fade must not preempt it and strand the node audible.
+            __weak AudioPlayer *weakSelf = self;
+            [self rampRetiredNodeAsync:node step:1 from:node.volume completion:^{
+                AudioPlayer *strongSelf = weakSelf;
+                if (!strongSelf || strongSelf->_node != node) {
+                    return; // A play/stop during the fade owns playback now.
+                }
+                [strongSelf finishPlaybackOnQueue];
+            }];
+            return;
+        }
         [self finishPlaybackOnQueue];
     });
 }
@@ -714,8 +744,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 }
 
 - (void)stopOnQueue {
-    _generation++;      // drop the scheduled segment's stop-fired completion
-    _rampGeneration++;  // preempt any in-flight fade
+    _generation++; // drop the scheduled segment's stop-fired completion
+    [self preemptRampsOnQueue];
 
     // Pull the node/varispeed pair out of the live state, fade it to silence
     // if audible, and detach both.
@@ -769,12 +799,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                 // Second press during the pause fade-out: cancel the pending
                 // pause and ramp back up. No delegate event — didPause never
                 // fired, so the UI never left the playing state.
-                self->_pausePending = NO;
-                uint64_t rampGen = ++self->_rampGeneration;
+                uint64_t rampGen = [self preemptRampsOnQueue];
                 [self rampNodeAsync:node step:1 from:node.volume to:1.0 generation:rampGen completion:nil];
                 return;
             }
-            uint64_t rampGen = ++self->_rampGeneration; // cancel any in-flight resume fade-in
+            uint64_t rampGen = [self preemptRampsOnQueue]; // cancel any in-flight resume fade-in
             // Fade out asynchronously (the queue must not block for the
             // ~25ms fade — a skip or seek issued right behind a pause would
             // stall behind it), then pause in the completion. State stays
@@ -812,7 +841,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             os_unfair_lock_lock(&self->_stateLock);
             self->_state = VibePlayerStatePlaying;
             os_unfair_lock_unlock(&self->_stateLock);
-            uint64_t rampGen = ++self->_rampGeneration;
+            uint64_t rampGen = [self preemptRampsOnQueue];
             [self rampNodeAsync:node step:1 from:node.volume to:1.0 generation:rampGen completion:nil];
             AudioTrack *track = self.currentTrack;
             run_on_main_thread({
@@ -840,6 +869,16 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 }
 
 #pragma mark - Fades
+
+// The single way to preempt the generation-tagged ramps (runs on _queue).
+// Clearing _pausePending belongs with the bump: the preempted pause fade's
+// completion also clears it, but up to one fade step (~2.5ms) later — a
+// playPause inside that window would take the "cancel pending pause" path
+// and ramp the preemptor's node to full instead of pausing it.
+- (uint64_t)preemptRampsOnQueue {
+    _pausePending = NO;
+    return ++_rampGeneration;
+}
 
 // The player's one fade-stepping loop, non-blocking via dispatch_after on the
 // player queue — both ramp flavors below are thin entries into it. The curve
@@ -1024,7 +1063,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             // is rendering, so there is nothing to declick, and the next resume
             // fades in from the seeked frame. The faded volume is kept; resume
             // ramps it back up.
-            self->_rampGeneration++; // preempt any in-flight fade
+            [self preemptRampsOnQueue];
             [node stop];
             [self scheduleFile:file onNode:node fromFrame:startFrame];
             [self publishPlaybackState:self->_state node:node file:file segmentStart:startFrame position:framePosition];
@@ -1041,7 +1080,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // segment's start then land at silence. The reschedule is deferred into
         // the fade-out completion (the node must stay audible through the ramp);
         // the position state is rewritten there so the getter follows the node.
-        uint64_t rampGen = ++self->_rampGeneration;
+        uint64_t rampGen = [self preemptRampsOnQueue];
         __weak AudioPlayer *weakSelf = self;
         [self rampNodeAsync:node step:1 from:node.volume to:0 generation:rampGen completion:^{
             [weakSelf finishSeekOnQueue:node file:file startFrame:startFrame
@@ -1117,7 +1156,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         return;
     }
     [self publishPlaybackState:_state node:node file:file segmentStart:startFrame position:framePosition];
-    uint64_t fadeInGen = ++_rampGeneration;
+    uint64_t fadeInGen = [self preemptRampsOnQueue];
     [self rampNodeAsync:node step:1 from:0 to:1.0 generation:fadeInGen completion:nil];
     run_on_main_thread({
         [self.delegate audioPlayer:self didFinishSeeking:track];
@@ -1166,14 +1205,17 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 #pragma mark - Helpers
 
-// The single writer for the lock-guarded playback/position state (runs on
+// The single writer for the FULL five-field playback/position state (runs on
 // _queue). Everything is published in ONE lock acquisition so the main-thread
 // getters never observe a torn combination (a new state with the old track's
 // position). The epoch bump is structural: the position getter computes
 // off-lock and only writes _lastValidPosition back if the epoch it snapshotted
-// is still current, so a write site that skipped the bump would let a stale
-// reading clobber this publish (see _positionEpoch). Callers whose operation
-// leaves a field untouched pass the current value through.
+// is still current (see _positionEpoch). Callers whose operation leaves a
+// field untouched pass the current value through.
+//
+// A few sites write _state/_node alone under the lock without coming through
+// here — safe only because they never move the position fields; any write
+// that does must use this publisher.
 - (void)publishPlaybackState:(VibePlayerState)state
                         node:(AVAudioPlayerNode *)node
                         file:(AVAudioFile *)file

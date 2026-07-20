@@ -63,12 +63,14 @@
     NSUInteger effectiveChunks = totalFrames < (AVAudioFramePosition)numChunks
             ? (NSUInteger)totalFrames
             : numChunks;
-    // Proportional boundaries vary chunk sizes by ±1 frame.
-    AVAudioFrameCount maxFramesPerChunk =
-            (AVAudioFrameCount)(totalFrames / (AVAudioFramePosition)effectiveChunks) + 1;
 
+    // Read in large blocks and slice chunks in memory: chunk-granular reads
+    // (~5-10KB, ~8200 per file) each cross the ExtAudioFile/AudioConverter
+    // boundary, and that per-call overhead dominates cold scans. Output is
+    // identical — min/max merging is associative.
+    const AVAudioFrameCount kReadBlockFrames = 65536; // ~512KB stereo float32 per read
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat
-                                                             frameCapacity:maxFramesPerChunk];
+                                                             frameCapacity:kReadBlockFrames];
     if (!buffer) {
         LogError(@"Could not allocate PCM buffer for %@", filename);
         return nil;
@@ -85,41 +87,61 @@
     // returns the buffer itself.
     std::vector<float> monoScratch;
     if (numChannels > 1) {
-        monoScratch.resize(maxFramesPerChunk);
+        monoScratch.resize(kReadBlockFrames);
     }
 
     CFAbsoluteTime lastProgressTime = 0;
     NSUInteger chunksFilled = 0;
     BOOL readError = NO;
 
-    for (NSUInteger i = 0; i < effectiveChunks && !self.isCancelled; i++) {
-        AVAudioFramePosition chunkStart = totalFrames * (AVAudioFramePosition)i / (AVAudioFramePosition)effectiveChunks;
-        AVAudioFramePosition chunkEnd = totalFrames * (AVAudioFramePosition)(i + 1) / (AVAudioFramePosition)effectiveChunks;
-        AVAudioFrameCount chunkFrames = (AVAudioFrameCount)(chunkEnd - chunkStart);
+    AVAudioFramePosition framesRead = 0;
+    NSUInteger chunkIndex = 0;
+    // Proportional boundaries (±1 frame chunk-size variance): chunk i ends
+    // at frame (i+1)*T/N.
+    AVAudioFramePosition chunkEnd = totalFrames / (AVAudioFramePosition)effectiveChunks;
+    // Accumulates a chunk across block boundaries (a chunk rarely aligns
+    // with a block edge).
+    AudioWaveformCacheChunk currentChunk;
+    BOOL currentChunkHasFrames = NO;
+
+    while (framesRead < totalFrames && !self.isCancelled) {
+        AVAudioFrameCount toRead = (AVAudioFrameCount)MIN(
+                (AVAudioFramePosition)kReadBlockFrames, totalFrames - framesRead);
         // Sequential read — AVAudioFile advances its framePosition.
-        if (![file readIntoBuffer:buffer frameCount:chunkFrames error:&error]) {
-            LogError(@"AVAudioFile read failed at chunk %lu of %lu: %@",
-                     (unsigned long)i, (unsigned long)effectiveChunks, error);
+        if (![file readIntoBuffer:buffer frameCount:toRead error:&error]) {
+            LogError(@"AVAudioFile read failed at frame %lld of %lld in %@: %@",
+                     framesRead, totalFrames, filename, error);
             readError = YES;
             break;
         }
         if (buffer.frameLength == 0) {
-            // End of file. With exact lengths this only happens on the very
-            // last chunk (integer-division rounding); earlier means truncation.
-            if (i + 2 < effectiveChunks) {
-                LogError(@"Audio ended early at chunk %lu of %lu in %@",
-                         (unsigned long)i, (unsigned long)effectiveChunks, filename);
-                readError = YES;
-            }
-            break;
+            break; // EOF; the completeness thresholds below decide what it means
         }
         NSUInteger numFrames = buffer.frameLength;
         const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], monoScratch.data(),
                                                  numFrames, numChannels);
-        AudioWaveformCacheChunk chunk(mono, numFrames);
-        waveform->setChunkAtIndex(chunk, i);
-        chunksFilled = i + 1;
         [bpmAnalyzer appendMonoSamples:mono frameCount:numFrames];
+
+        // Slice the block at chunk boundaries, merging each segment into the
+        // chunk it belongs to.
+        NSUInteger offset = 0;
+        while (offset < numFrames && chunkIndex < effectiveChunks) {
+            AVAudioFramePosition pos = framesRead + (AVAudioFramePosition)offset;
+            NSUInteger take = (NSUInteger)MIN((AVAudioFramePosition)(numFrames - offset),
+                                              chunkEnd - pos);
+            currentChunk.mergeFromMonoBuffer(mono + offset, take);
+            currentChunkHasFrames = YES;
+            offset += take;
+            if (framesRead + (AVAudioFramePosition)offset >= chunkEnd) {
+                waveform->setChunkAtIndex(currentChunk, chunkIndex);
+                chunksFilled = ++chunkIndex;
+                currentChunk = AudioWaveformCacheChunk();
+                currentChunkHasFrames = NO;
+                chunkEnd = totalFrames * (AVAudioFramePosition)(chunkIndex + 1)
+                        / (AVAudioFramePosition)effectiveChunks;
+            }
+        }
+        framesRead += numFrames;
 
         // Throttle delegate notifications to ~10 Hz — each one triggers a
         // full path rebuild on the main thread. The final completion
@@ -128,8 +150,7 @@
             CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
             if (now - lastProgressTime >= 0.1) {
                 lastProgressTime = now;
-                // i+1: chunk i is already filled by the time we report.
-                float percentComplete = (float)(i + 1) / (float)effectiveChunks;
+                float percentComplete = (float)chunksFilled / (float)effectiveChunks;
                 // Snapshot on the loader thread (the only writer) so the
                 // main thread renders an immutable copy — reading the live
                 // buffer while this loop keeps calling setChunkAtIndex, and
@@ -142,6 +163,20 @@
                 });
             }
         }
+    }
+
+    // EOF with a partially-accumulated chunk: keep it.
+    if (currentChunkHasFrames && chunkIndex < effectiveChunks) {
+        waveform->setChunkAtIndex(currentChunk, chunkIndex);
+        chunksFilled = chunkIndex + 1;
+    }
+    if (!readError && !self.isCancelled
+            && framesRead < totalFrames && chunksFilled + 2 < effectiveChunks) {
+        // With exact lengths EOF only lands right at the end; ending more
+        // than ~2 chunks early means truncation.
+        LogError(@"Audio ended early at chunk %lu of %lu in %@",
+                 (unsigned long)chunksFilled, (unsigned long)effectiveChunks, filename);
+        readError = YES;
     }
 
     if (self.isCancelled && chunksFilled < effectiveChunks) {

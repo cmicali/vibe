@@ -45,14 +45,23 @@ Use the generated files in `Assets/test_audio_files/` (gitignored) instead of sy
 | `tone-long.wav` | seek and skip tests (120s — skips reach ±60s) |
 | `tone.flac` | FLAC/codec-label coverage |
 | `tone-art-red.m4a` / `tone-art-blue.m4a` | tagged metadata (titles "Red Art Test"/"Blue Art Test", artist "Art Tester") with solid red/blue covers — art, header-tint, and dock-icon tests; play one then the other to exercise the art crossfade and tint animation |
-| `bpm-85.wav`, `bpm-120.wav`, `bpm-128.wav`, `bpm-140.wav`, `bpm-174.wav` | 30s kick+hat loops at exactly the named tempo — BPM-analyzer tests (see `get-bpm.sh` below; compare against the filename) |
+| `bpm-85.wav`, `bpm-120.wav`, `bpm-128.wav`, `bpm-140.wav`, `bpm-174.wav` | 30s kick+hat loops at exactly the named tempo — BPM-analyzer tests (see `scan-bpm.sh` below; compare against the filename) |
 
 The short files end in 8 seconds — pause early (or use `tone-long.wav`) when a test needs playback still running at capture time.
 
-One-shot BPM measurement — `scan_bpm` is the one `--debug-cmd` verb the CLI executes in its own process (no channel round-trip): no app launch, no window, no caches, works with no app running, and a running Vibe instance is untouched. The script first copies the file into the app container's tmp because the direct-exec'd binary is still sandboxed and can't read arbitrary argv paths:
+**Simulating a slow (cloud) file open** — the Loading state, shimmer, load-timeout error, and anything gated on `didBeginLoading:` need an open that blocks, which no local file provides:
 
 ```bash
-.claude/skills/vibe-debug/scripts/get-bpm.sh <audio-file>   # {"ok":true,"bpm":120.01} — bpm 0 = no confident tempo
+.claude/skills/vibe-debug/scripts/slow-open.sh           # app enters Loading; shimmer at 0.5s, inline timeout error at 20s
+.claude/skills/vibe-debug/scripts/slow-open.sh cleanup   # after your checks — fails a still-pending open instantly (into the inline error) and removes the pipe
+```
+
+It opens a named pipe in the app container's tmp — `AVAudioFile`'s open blocks reading it forever, exactly like an undownloaded iCloud/Dropbox placeholder.
+
+One-shot BPM measurement — `scan_bpm` runs in the CLI's own process (no channel round-trip): no app launch, no window, no caches, works with no app running, and a running Vibe instance is untouched. The script streams the file via stdin (`scan_bpm - < file`) because the direct-exec'd binary is still sandboxed and can't read arbitrary argv paths (same reason argv opens fail); the client stages the bytes in its own container tmp, keeping shell processes out of `~/Library/Containers/` (the TCC prompt — see Screenshots):
+
+```bash
+.claude/skills/vibe-debug/scripts/scan-bpm.sh <audio-file>   # {"ok":true,"bpm":120.01} — bpm 0 = no confident tempo
 ```
 
 ## Driving and inspecting the running app: `--debug-cmd`
@@ -67,7 +76,7 @@ The Vibe binary doubles as its own CLI client (same bundle ID + sandbox, so it s
 "$V" --debug-cmd dump_view_tree      # {windows: [{class, frame, visible, key, contentView: {…, subviews}}]}
 "$V" --debug-cmd dump_menu           # {menu: [{title, id, key, action, enabled, state, items}]} — LIVE enabled/checkmark
 "$V" --debug-cmd click_menu menu_show_pitch   # {ok, clicked, action} — by identifier (preferred) or exact title
-"$V" --debug-cmd dump_screenshot     # {path: <PNG path>} — in-process snapshot
+"$V" --debug-cmd dump_screenshot -   # PNG bytes on stdout (redirect to a file), JSON reply on stderr — in-process snapshot
 "$V" --debug-cmd play_pause          # also: next, previous, skip_forward[_more|_most], skip_back[_more|_most], toggle_size, toggle_pitch_panel
 "$V" --debug-cmd toggle_low_kill     # FX, also: low_kill_boost_on/_off, reverb_send_on/_off, delay_send_on/_off, short_delay_send_on/_off (the *_on/_off pairs mirror the hold-down W/E/R/T keys)
 "$V" --debug-cmd set_pitch -4.5      # drives fader (clamps), player, and time labels together
@@ -76,15 +85,18 @@ The Vibe binary doubles as its own CLI client (same bundle ID + sandbox, so it s
 "$V" --debug-cmd file_cache song.flac        # {ok, wasCached, bpm} — decode + cache one file's waveform (UI untouched); waits up to 60s
 "$V" --debug-cmd file_clear_cache song.flac  # {ok, wasPresent} — evict one file's cached waveform
 "$V" --debug-cmd clear_caches        # {ok, cleared} — empties metadata + waveform PINCaches
-"$V" --debug-cmd scan_bpm song.wav   # {ok, bpm} — fresh decode+analyze, runs IN THE CLI PROCESS (no app needed; see Test audio files)
+"$V" --debug-cmd scan_bpm - < file   # {ok, bpm} — fresh decode+analyze, runs IN THE CLI PROCESS (no app needed; see Test audio files). Audio rides stdin; prefer the scan-bpm.sh wrapper
+"$V" --debug-cmd clear_disk_caches   # {ok, cleared} — CLI-process deletion of the PINDiskCache dirs, ONLY for when the app is NOT running (prefer clear-caches.sh, which picks the right one)
+"$V" --debug-cmd set_appearance dark # {ok, windowAppearance} — light|dark|system, CLI-process prefs write for the NEXT launch (live toggle: click_menu view_appearance_*)
 ```
 
 `clear_caches` blocks until both disk caches are actually empty (so a follow-up
 launch is guaranteed a cold parse); the waveform clear queues behind any
 in-flight waveform load, so allow up to 15 s right after feeding a long file.
 For the common "cold-cache launch" setup there's a wrapper that also works when
-the app isn't running (it then deletes the container's PINDiskCache directories
-directly, including superseded cache versions):
+the app isn't running (it then runs `clear_disk_caches`, which deletes the
+PINDiskCache directories — superseded cache versions included — inside the CLI
+client process, keeping shell `rm` out of the container):
 
 ```bash
 .claude/skills/vibe-debug/scripts/clear-caches.sh   # prints {ok, cleared: [...]}
@@ -94,17 +106,17 @@ directly, including superseded cache versions):
 
 `dump_menu` and `click_menu` run the same `validateMenuItem` pass opening the menu would, so enabled/checkmark are live — this replaces AppleScript/System Events menu clicking (no Automation permission, no frontmost requirement). Get identifiers from `dump_menu`.
 
-Action replies are a compact `{ok, state, index, count, position, pitch, playlistShown, pitchPanelShown}` object read synchronously, so they can lag async engine work — run `dump_state` afterwards to confirm. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error. With **two instances running, the command file is racy** (either instance may consume it) — quit one first.
+Action replies are a compact `{ok, state, index, count, position, pitch, playlistShown, pitchPanelShown}` object read synchronously, so they can lag async engine work — run `dump_state` afterwards to confirm. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error. With **two instances running, the channel is racy** (commands travel as per-id files, and either instance may consume one) — quit one first.
 
 ## Screenshots: two paths, each shows what the other can't
 
-**1. In-process snapshot** — synchronous one-liner (the reply carries the PNG path):
+**1. In-process snapshot** — synchronous one-liner (`-` streams the PNG bytes to stdout; the JSON reply goes to stderr):
 
 ```bash
-cp "$("$V" --debug-cmd dump_screenshot | jq -r .path)" shot.png
+"$V" --debug-cmd dump_screenshot - > shot.png
 ```
 
-(`notifyutil -p com.vibe.debug.screenshot` also works but is async — you'd have to sleep and copy from the container manually. Each capture overwrites the same file, so copy it out before the next one.)
+Always use the `-` form. Without it the reply carries the PNG's path, but that path is inside the app's sandbox container — reading it with shell tools (`cp`, `cat`) trips macOS's "access data from other apps" TCC prompt against the terminal's host app. The `-` streaming happens in the Vibe CLI client, which owns the container, so no prompt. (`notifyutil -p com.vibe.debug.screenshot` also works but is async and leaves you copying from the container manually — same TCC prompt; avoid it.)
 
 Renders the frontmost window's Core Animation layer tree in-process. No screen-recording permission, works occluded or with the display asleep. **Default to this** for layout, label text/color, artwork, and waveform checks.
 
@@ -130,12 +142,13 @@ Prints image size and RGBA per point. Coordinates are bitmap pixels, **origin to
 
 ## Appearance (light/dark) testing
 
-The app's appearance setting persists in its defaults:
+The app's appearance setting persists in its defaults; set it for the next launch with:
 
 ```bash
-defaults write com.commonwealthrecordings.Vibe Settings.windowAppearance light   # or: dark
-defaults delete com.commonwealthrecordings.Vibe Settings.windowAppearance        # follow system
+"$V" --debug-cmd set_appearance light    # or: dark, system — runs in the CLI process, app need not be running
 ```
+
+(Don't use `defaults write com.commonwealthrecordings.Vibe …` — the sandboxed app's prefs live in its container, so shell `defaults` can trip the "access data from other apps" TCC prompt. `set_appearance` writes the same key from inside the CLI client.)
 
 Relaunch to apply, or toggle live: `"$V" --debug-cmd click_menu view_appearance_light` (also `view_appearance_dark`, `view_appearance_system_default`). Test both modes for any color/material change; use real capture (path 2) to verify backgrounds. Note the app's window appearance is independent of the system's — a "light" window over a dark system is a supported (and previously buggy) combination.
 

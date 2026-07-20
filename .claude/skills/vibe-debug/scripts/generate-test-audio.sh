@@ -10,7 +10,7 @@
 #   tone.flac                    8s FLAC — codec-label / format coverage
 #   bpm-85.wav ... bpm-174.wav   30s kick+hat drum loops at exact BPMs (85,
 #                                120, 128, 140, 174) — BPM-analyzer tests
-#                                (get-bpm.sh prints the detected bpm; compare
+#                                (scan-bpm.sh prints the detected bpm; compare
 #                                against the filename)
 #   tone-art-red.m4a             8s AAC tagged with title/artist and a solid
 #   tone-art-blue.m4a            red/blue cover — art, header-tint, and
