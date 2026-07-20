@@ -11,6 +11,12 @@
 // Playable file extensions (lowercase, no dot).
 + (NSSet<NSString *> *)supportedExtensions;
 
+// YES for a cloud placeholder whose data isn't local (iCloud, Dropbox — any
+// File Provider): APFS marks these SF_DATALESS, and reading one blocks until
+// the provider materializes it. stat() itself never triggers the download,
+// so this check is always fast. NO on stat failure (unknown ≠ dataless).
++ (BOOL)isDatalessFile:(NSURL *)url;
+
 + (NSArray<NSURL *> *)expandDirectory:(NSURL *)dir;
 
 + (NSArray<NSURL *> *)expandAndFilterList:(NSArray<NSURL *> *)list;
