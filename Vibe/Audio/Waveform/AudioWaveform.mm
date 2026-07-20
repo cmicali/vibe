@@ -77,9 +77,9 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
     return result;
 }
 
-// Bump to invalidate every cached entry (chunk-format change, BPM-analyzer
-// change that should re-detect) — mismatched entries just re-generate.
-static const int kCodableAudioWaveformVersion = 4;
+// See the declaration in AudioWaveform.h: also names the disk cache, so a
+// bump invalidates by rename as well as by mismatch.
+const int kCodableAudioWaveformVersion = 4;
 
 @implementation CodableAudioWaveform
 

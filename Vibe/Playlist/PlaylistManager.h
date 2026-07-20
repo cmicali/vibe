@@ -18,7 +18,18 @@ NS_ASSUME_NONNULL_BEGIN
 @property (weak) AudioPlayer *audioPlayer;
 @property (weak) NSTableView *tableView;
 
+// Fired after a double-click starts a new track. The player's own events
+// arrive only once its async open makes progress (didBeginLoading is gated on
+// the 0.5 s slow-open threshold), so without this the owner's header keeps
+// describing the previous track after the row indicator has already moved.
+@property (nonatomic, copy, nullable) void (^userDidChangeTrackHandler)(void);
+
 - (NSArray<AudioTrack *> *)playlist;
+
+// Single-element access. Unlike the playlist getter, no defensive copy — use
+// this for one-off indexed reads on the main thread; use playlist only when
+// holding the whole list across async work. Returns nil out of range.
+- (AudioTrack * _Nullable)trackAtIndex:(NSUInteger)index;
 
 - (instancetype)initWithAudioPlayer:(AudioPlayer *)player;
 

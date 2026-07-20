@@ -764,6 +764,19 @@ static void VibeHandleDebugCommandFiles(void) {
 }
 
 void VibeInstallDebugCommandHook(void) {
+    // Sweep responses orphaned by earlier runs: an async verb that outlives
+    // its client's poll window writes a response no one ever deletes (the
+    // client cleans up only its command file), so vibe-response-*.txt litter
+    // accumulates in the container tmp until the OS purges it. Anything
+    // present before this hook is live belongs to a dead conversation.
+    NSString *tmpDir = NSTemporaryDirectory();
+    NSArray<NSString *> *names = [NSFileManager.defaultManager contentsOfDirectoryAtPath:tmpDir error:nil];
+    for (NSString *name in names) {
+        if ([name hasPrefix:@"vibe-response-"] && [name hasSuffix:@".txt"]) {
+            [NSFileManager.defaultManager removeItemAtPath:[tmpDir stringByAppendingPathComponent:name]
+                                                     error:nil];
+        }
+    }
     static int token;
     notify_register_dispatch(kVibeDebugCommandNotification.UTF8String, &token,
                              dispatch_get_main_queue(), ^(int t) {

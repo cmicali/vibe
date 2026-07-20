@@ -45,7 +45,7 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
     return @"Detailed";
 }
 
-- (NSUInteger)numLayers {
+- (NSUInteger)numBars {
     return 1024;
 }
 
@@ -211,7 +211,7 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
     // The x2/x4/x8 styles intentionally draw more rects than device pixels:
     // the sub-pixel overlap accumulates differently per density, which is
     // what visually distinguishes the oversampling variants. Don't clamp.
-    NSUInteger count = self.numLayers;
+    NSUInteger count = self.numBars;
 
     // The target the bars ease toward: the waveform's per-bar min/max, or
     // all-zero (collapsed to the midline) when there is no waveform — a

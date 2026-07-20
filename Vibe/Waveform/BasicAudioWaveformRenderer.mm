@@ -14,7 +14,7 @@
     return @"Basic";
 }
 
-- (NSUInteger)numLayers {
+- (NSUInteger)numBars {
     return kBasicBarCount;
 }
 

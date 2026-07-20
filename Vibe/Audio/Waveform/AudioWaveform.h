@@ -89,6 +89,13 @@ private:
     AudioWaveformCacheChunk* chunks;
 };
 
+// Entry-format version: encoded in every archive AND embedded in the disk
+// cache's name (AudioWaveformCache derives "audio_waveform_cache_v<N>" from
+// it, so both invalidation mechanisms move together). Bump to invalidate
+// every cached entry (chunk-format change, BPM-analyzer change that should
+// re-detect); mismatched entries just re-generate.
+extern const int kCodableAudioWaveformVersion;
+
 @interface CodableAudioWaveform : NSObject <NSCoding>
 
 @property (nonatomic) AudioWaveform *waveform;

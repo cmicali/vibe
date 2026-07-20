@@ -11,7 +11,8 @@
 
 @interface AudioTrackMetadataCache ()
 // Atomic: created asynchronously at utility QoS, read from the loader's
-// worker threads (and re-read per track — see loadOneTrack:).
+// worker threads (and re-read per track — see loadTrackFromDiskCache: /
+// parseOneTrack:).
 @property (atomic, strong) PINCache *metadataCache;
 @end
 
@@ -55,13 +56,17 @@
         _delegate = delegate;
         _queue = [[NSOperationQueue alloc] init];
         if (priorityLane) {
-            // The current-track lane (loadSingleTrack:): one user-visible
-            // track at a time, so width 2 is plenty — a second click still
-            // gets a worker while a cloud-blocked parse from the previous
-            // one drains. User-initiated: the user is looking at a header
-            // that's waiting on this exact load.
+            // The current-track lane (loadSingleTrack:): only the newest
+            // request is user-visible, so the width exists purely to absorb
+            // blocked predecessors. Dataless placeholders never parse inline,
+            // but a slow-but-materialized file (network mount, sleeping disk)
+            // can block a worker for minutes — width 4 means it takes four
+            // consecutive wedged opens before the header's load queues behind
+            // one, at the cost of one stranded thread each. User-initiated:
+            // the user is looking at a header that's waiting on this exact
+            // load.
             _queue.name = @"AudioTrackMetadataLoader.priority";
-            _queue.maxConcurrentOperationCount = 2;
+            _queue.maxConcurrentOperationCount = 4;
             _queue.qualityOfService = NSQualityOfServiceUserInitiated;
         }
         else {
@@ -214,10 +219,11 @@
     // Pre-warm the playlist-cell thumbnail BEFORE publishing the metadata:
     // the table delegate (main thread) reads thumbnailAlbumArt as soon as
     // the metadata is visible, and publishing first would open a window
-    // where a redraw pays the ImageIO decode on main.
-    // CGImageForProposedRect forces the actual bitmap decode, which is
-    // otherwise deferred until the cell first draws (on main).
-    [cachedMetaData.thumbnailAlbumArt CGImageForProposedRect:NULL context:nil hints:nil];
+    // where a redraw pays the ImageIO decode on main. The getter is the whole
+    // warm-up: it decodes eagerly (VibeDecodeImageData passes
+    // kCGImageSourceShouldCacheImmediately), so the bitmap is ready the
+    // moment the image object exists.
+    (void)cachedMetaData.thumbnailAlbumArt;
     // Pairs with parseOneTrack's guarded store: this unconditional store
     // (cached entries are always parsedOK) must not interleave inside that
     // check-then-act.
@@ -244,8 +250,9 @@
     }
     AudioTrackMetadata *metadata = [AudioTrackMetadata metadataWithURL:track.url];
     // Decode the thumbnail before the metadata becomes visible to the
-    // main thread (see loadTrackFromDiskCache:).
-    [metadata.thumbnailAlbumArt CGImageForProposedRect:NULL context:nil hints:nil];
+    // main thread (see loadTrackFromDiskCache: — the getter itself is the
+    // warm-up).
+    (void)metadata.thumbnailAlbumArt;
     // Never clobber real metadata with a failed parse: a cancelled loader's
     // op can still be mid-parse when this loader re-parses successfully, and
     // last-writer-wins would reinstate the filename-only fallback. The
@@ -329,8 +336,8 @@
             PINCache *cache = [[PINCache alloc] initWithName:@"Audio Track Metadata v4"];
             cache.diskCache.byteLimit = 64 * 1024 * 1024;
             cache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
-            // The memory cache is deliberately unused (loadOneTrack reads and
-            // writes diskCache directly): on macOS PINMemoryCache never evicts
+            // The memory cache is deliberately unused (the loaders read and
+            // write diskCache directly): on macOS PINMemoryCache never evicts
             // — costLimit needs per-entry costs (and disk hits repopulate at
             // cost 0) and its memory-pressure hooks are iOS-only — so it would
             // pin every loaded track's metadata + thumbnail indefinitely.

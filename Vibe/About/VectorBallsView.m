@@ -192,6 +192,26 @@ static float vb_random01(void) {
     return self;
 }
 
+// Compile the shader source once per process: the view is deliberately
+// rebuilt on every About open (see AboutWindowController), and the source
+// front-end compile is the expensive part of setup. Main-thread only (called
+// from view init). The library is device-bound, so a changed default device
+// (eGPU unplug) just recompiles.
+static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
+    static id<MTLLibrary> cached;
+    if (cached && cached.device == device) {
+        return cached;
+    }
+    NSError *error = nil;
+    id<MTLLibrary> library = [device newLibraryWithSource:kShaderSource options:nil error:&error];
+    if (!library) {
+        LogError(@"VectorBallsView: shader compile failed: %@", error.localizedDescription);
+        return nil;
+    }
+    cached = library;
+    return library;
+}
+
 - (void)setupMetal {
     if (!self.device) {
         LogError(@"VectorBallsView: no Metal device; about animation disabled");
@@ -210,9 +230,8 @@ static float vb_random01(void) {
     }
 
     NSError *error = nil;
-    id<MTLLibrary> library = [self.device newLibraryWithSource:kShaderSource options:nil error:&error];
+    id<MTLLibrary> library = VibeVectorBallsLibrary(self.device);
     if (!library) {
-        LogError(@"VectorBallsView: shader compile failed: %@", error.localizedDescription);
         return;
     }
 

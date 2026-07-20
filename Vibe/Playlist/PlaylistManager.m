@@ -27,6 +27,10 @@
     return [_playlist copy];
 }
 
+- (AudioTrack *)trackAtIndex:(NSUInteger)index {
+    return index < _playlist.count ? _playlist[index] : nil;
+}
+
 - (NSTableView *)tableView {
     return _tableView;
 }
@@ -314,6 +318,9 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
     // after the async didStartPlaying round-trip.
     [self reloadTrackAtIndex:previousIndex];
     [self reloadTrackAtIndex:self.currentIndex];
+    if (self.userDidChangeTrackHandler) {
+        self.userDidChangeTrackHandler();
+    }
 }
 
 - (NSUInteger)count {

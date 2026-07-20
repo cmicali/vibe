@@ -3,6 +3,9 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
+#import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
+
 NS_ASSUME_NONNULL_BEGIN
 
 @class AudioTrackMetadata;
@@ -13,8 +16,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // atomic so the loader workers (utility QoS, up to 4 in flight) can publish
 // new metadata while the main thread reads it for cell rendering and the
-// "currently playing" track header.
-@property(atomic, strong) AudioTrackMetadata *metadata;
+// "currently playing" track header. nil until a loader delivers (every
+// consumer below nil-checks it).
+@property(atomic, strong, nullable) AudioTrackMetadata *metadata;
 
 // Tempo from the waveform decode pass (0 = not yet analyzed / undetectable).
 // Transient — persistence lives in the waveform cache, which re-delivers it
@@ -36,7 +40,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setDuration:(NSTimeInterval)len;
 
 - (NSString *)durationString;
-- (NSImage *)albumArt;
+// Non-blocking (metadata.albumArtIfLoaded): nil until the art is decoded.
+- (nullable NSImage *)albumArt;
 - (nullable NSImage *)thumbnailAlbumArt;
 
 - (BOOL)hasArtistAndTitle;

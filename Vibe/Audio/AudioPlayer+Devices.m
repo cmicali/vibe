@@ -108,7 +108,7 @@
         // sits on a hung mount) between play and the device switch.
         // processingFormat is fixed at open, so rescheduling the existing file
         // on the new node is safe.
-        AVAudioFile *file = _file; // on _queue; _file is mutated only here
+        AVAudioFile *file = _file; // safe read: _file is only ever written on _queue, and we're on it
         if (!file) {
             [self resetToStoppedStateOnQueue];
             [self sendDelegateError:VibeAudioError(VibeAudioErrorFileOpenFailed,
@@ -257,8 +257,10 @@
             // handleEngineConfigurationChange's no-device branch.
             LogError(@"Unable to resolve output device %@", @(outputDeviceID));
             [self parkPlaybackForMissingOutputDeviceOnQueue];
-            // outputDeviceID is necessarily -1 here (an explicit id >= 0 is
-            // used verbatim above), and recording it matters: a stale
+            // outputDeviceID is -1 here in practice: an explicit id >= 0 is
+            // used verbatim above, and the only other value that could land
+            // in this branch is 0 (== kAudioObjectUnknown), which the HAL
+            // never assigns to a device. Recording it matters: a stale
             // explicit id would blind both observer recovery paths; with -1
             // recorded (and persisted by the delegate), the next
             // default-device arrival restores the parked track.

@@ -22,9 +22,11 @@ static const CGFloat kDesignHeight = 350;
 // over the window. The reveal is pure show/hide (full opacity); each button's
 // resting dimness vs. hover brightness lives in its glyph colors, so a hovered
 // traffic-light dot can reach full saturation like the real macOS controls.
-static const CGFloat kTrafficLightAlpha    = 1.0;
-static const CGFloat kTransportAlpha       = 1.0;
 static const CFTimeInterval kControlFadeDur = 0.2;
+
+// Shared point size for the small numeric labels (time readouts, codec line,
+// BPM line).
+static const CGFloat kNumericLabelFontSize = 13;
 
 // Purely decorative overlay: returns nil from hitTest so the views it covers
 // (the album art's drag-out, the transport buttons) still receive mouse events.
@@ -149,8 +151,8 @@ static const CFTimeInterval kControlFadeDur = 0.2;
 }
 
 - (void)setControlsShown:(BOOL)shown animated:(BOOL)animated {
-    CGFloat traffic   = shown ? kTrafficLightAlpha : 0.0;
-    CGFloat transport = shown ? kTransportAlpha : 0.0;
+    CGFloat traffic   = shown ? 1.0 : 0.0;
+    CGFloat transport = shown ? 1.0 : 0.0;
     if (animated) {
         [NSAnimationContext runAnimationGroup:^(NSAnimationContext *ctx) {
             ctx.duration = kControlFadeDur;
@@ -319,7 +321,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:_titleTextField];
 
     _totalTimeTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(611, 207, 59, 16)];
-    _totalTimeTextField.font = [Fonts fontForNumbers:_totalTimeTextField.font.pointSize bold:YES];
+    _totalTimeTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:YES];
     _totalTimeTextField.alignment = NSTextAlignmentRight;
     _totalTimeTextField.textColor = dimmedTextColor;
     _totalTimeTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
@@ -327,7 +329,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:_totalTimeTextField];
 
     _currentTimeTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(158, 207, 59, 16)];
-    _currentTimeTextField.font = [Fonts fontForNumbers:_currentTimeTextField.font.pointSize bold:YES];
+    _currentTimeTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:YES];
     _currentTimeTextField.textColor = dimmedTextColor;
     _currentTimeTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
     // No rasterization: this field's content changes every second, so
@@ -372,7 +374,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:[self buildPlaylistScrollViewWithFrame:NSMakeRect(0, 0, kMainWindowContentWidth, 200)]];
 
     _fileMetadataTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(430, 325, 240, 16)];
-    _fileMetadataTextField.font = [Fonts fontForNumbers:_totalTimeTextField.font.pointSize bold:NO];
+    _fileMetadataTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:NO];
     _fileMetadataTextField.alignment = NSTextAlignmentRight;
     _fileMetadataTextField.textColor = dimmedTextColor;
     _fileMetadataTextField.alphaValue = 0.5;
@@ -382,7 +384,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
     // BPM readout, directly below the codec line and styled to match.
     _bpmTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(430, 307, 240, 16)];
-    _bpmTextField.font = [Fonts fontForNumbers:_totalTimeTextField.font.pointSize bold:NO];
+    _bpmTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:NO];
     _bpmTextField.alignment = NSTextAlignmentRight;
     _bpmTextField.textColor = dimmedTextColor;
     _bpmTextField.alphaValue = 0.5;

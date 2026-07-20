@@ -12,8 +12,8 @@
     return @"Oversampling Detailed x2";
 }
 
-- (NSUInteger)numLayers {
-    return [super numLayers] * 2;
+- (NSUInteger)numBars {
+    return [super numBars] * 2;
 }
 
 @end
@@ -24,8 +24,8 @@
     return @"Oversampling Detailed x4";
 }
 
-- (NSUInteger)numLayers {
-    return [super numLayers] * 4;
+- (NSUInteger)numBars {
+    return [super numBars] * 4;
 }
 
 @end
@@ -36,8 +36,8 @@
     return @"Oversampling Detailed x8";
 }
 
-- (NSUInteger)numLayers {
-    return [super numLayers] * 8;
+- (NSUInteger)numBars {
+    return [super numBars] * 8;
 }
 
 @end

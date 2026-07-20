@@ -229,6 +229,21 @@
 
     self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
     self.playlistManager.tableView = self.playlistTableView;
+    // A double-click starts a play the controller never sees until the
+    // player's async events land (up to 0.5 s for a slow open) — refresh the
+    // header at initiation so it doesn't keep describing the previous track
+    // after the row indicator has already moved.
+    __weak MainPlayerController *weakControllerForPlaylist = self;
+    self.playlistManager.userDidChangeTrackHandler = ^{
+        MainPlayerController *strongSelf = weakControllerForPlaylist;
+        if (!strongSelf) {
+            return;
+        }
+        // doubleClick just fully rendered both affected rows; the mark keeps
+        // the updateUI below to the play-state cell (see next:).
+        strongSelf->_lastReloadedTrack = strongSelf.playlistManager.currentTrack;
+        [strongSelf updateUI];
+    };
 
     _artworkController = [[ArtworkDisplayController alloc] initWithArtworkView:self.albumArtImageView
                                                                headerTintView:self.headerTintView];
@@ -373,6 +388,16 @@ typedef NS_ENUM(NSInteger, VibeHeaderState) {
     // instantly lifts it.
     if (track == _erroredTrack && self.audioPlayer.isStopped) {
         return VibeHeaderStateError;
+    }
+    // A just-initiated track change is still queued on the player's serial
+    // queue: the player's currentTrack — and its position/duration — still
+    // describe the PREVIOUS file (currentTrack flips to the new track only at
+    // didStartPlaying). Render the gap as Loading so the new track's tags are
+    // never composited over the old file's times; visible on slow (cloud)
+    // opens, instant on prefetched ones. Stopped is excluded: an idle player
+    // at end of playlist legitimately parks with the playlist's last track.
+    if (!self.audioPlayer.isStopped && self.audioPlayer.currentTrack != track) {
+        return VibeHeaderStateLoading;
     }
     return self.audioPlayer.isLoading ? VibeHeaderStateLoading : VibeHeaderStateTrack;
 }
@@ -840,12 +865,7 @@ static const double kSkipMostBars = 32.0;
     // open — the dominant transition latency. Recomputed on every track start
     // (next/previous, double-click, re-drop all land here); nil past the last
     // track drops the parked handle.
-    AudioTrack *nextTrack = nil;
-    NSUInteger nextIndex = self.playlistManager.currentIndex + 1;
-    if (nextIndex < self.playlistManager.count) {
-        nextTrack = self.playlistManager.playlist[nextIndex];
-    }
-    [self.audioPlayer prefetchTrack:nextTrack];
+    [self.audioPlayer prefetchTrack:[self.playlistManager trackAtIndex:self.playlistManager.currentIndex + 1]];
     // Whoever initiated this play already fully rendered the row (play:'s
     // reloadData, next/previous's two-row window, doubleClick's pair); the
     // mark makes resumeUIUpdateTimer -> updateUI refresh only the play-state
@@ -887,6 +907,14 @@ static const double kSkipMostBars = 32.0;
     // uses the cache to keep the waveform progress pinned instead of frozen.
     if (!hasNextTrack) {
         _currentTrackDuration = 0;
+        // Pin the resting header deterministically: the updateUI inside next:
+        // read the player mid-teardown (its position/duration race the async
+        // stop), which could leave the waveform pinned at 100% while the
+        // elapsed label read 0:00. Park the finished track at its start.
+        self.waveformView.progress = 0;
+        _lastPosition = 0;
+        setStringValueIfChanged(self.currentTimeTextField,
+                [[Formatters sharedInstance] durationStringFromTimeInterval:0]);
     }
 }
 
@@ -976,9 +1004,16 @@ static const double kSkipMostBars = 32.0;
 #pragma mark - Metadata and Waveform
 
 - (void)didLoadMetadata:(AudioTrack *)track {
-    [self.playlistManager reloadTrack:track];
     if (self.playlistManager.currentTrack == track) {
+        // The metadata changed the row's content, so clear the same-track mark:
+        // updateUI then takes its full-row reload branch (the play-state-only
+        // branch would leave stale title/duration cells). One rebuild total —
+        // calling reloadTrack: here as well would rebuild the row twice.
+        _lastReloadedTrack = nil;
         [self updateUI];
+    }
+    else {
+        [self.playlistManager reloadTrack:track];
     }
 }
 
@@ -1002,7 +1037,9 @@ static const double kSkipMostBars = 32.0;
     AudioTrack *track = self.playlistManager.currentTrack;
     if (![track.url isEqual:url]) {
         track = nil;
-        for (AudioTrack *candidate in self.playlistManager.playlist) {
+        NSUInteger count = self.playlistManager.count;
+        for (NSUInteger i = 0; i < count; i++) {
+            AudioTrack *candidate = [self.playlistManager trackAtIndex:i];
             if ([candidate.url isEqual:url]) {
                 track = candidate;
                 break;
@@ -1109,7 +1146,7 @@ static const double kSkipMostBars = 32.0;
     if (row < 0 || row >= (NSInteger)self.playlistManager.count) {
         return;
     }
-    NSURL *url = self.playlistManager.playlist[(NSUInteger)row].url;
+    NSURL *url = [self.playlistManager trackAtIndex:(NSUInteger)row].url;
     if (url) {
         [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[url]];
     }

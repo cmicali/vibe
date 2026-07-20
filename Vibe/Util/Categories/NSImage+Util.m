@@ -52,6 +52,18 @@
     if (![rep isKindOfClass:[NSBitmapImageRep class]]) {
         return nil;
     }
+    // Direct buffer iteration: colorAtX:y: allocates an NSColor and runs
+    // colorspace conversions per pixel — orders of magnitude more work than
+    // reading the layout resizedImage always produces (meshed 8-bit RGBA,
+    // alpha last). The guards make the layout assumption explicit rather
+    // than trusted.
+    unsigned char *data = rep.bitmapData;
+    if (!data || rep.isPlanar || rep.bitsPerPixel != 32 || rep.samplesPerPixel != 4
+            || (rep.bitmapFormat & (NSBitmapFormatAlphaFirst | NSBitmapFormatFloatingPointSamples))) {
+        return nil;
+    }
+    BOOL premultiplied = !(rep.bitmapFormat & NSBitmapFormatAlphaNonpremultiplied);
+    NSInteger bytesPerRow = rep.bytesPerRow;
     // Weighted hue histogram: vivid pixels (saturated AND not near-black)
     // vote for their hue band; grays and shadows abstain but still feed the
     // monochrome fallback average.
@@ -63,22 +75,40 @@
     double avgR = 0, avgG = 0, avgB = 0;
     NSInteger avgCount = 0;
     for (NSInteger y = 0; y < kSide; y++) {
+        const unsigned char *row = data + y * bytesPerRow;
         for (NSInteger x = 0; x < kSide; x++) {
-            NSColor *pixel = [rep colorAtX:x y:y];
-            CGFloat r, g, b, a;
-            [pixel getRed:&r green:&g blue:&b alpha:&a];
+            const unsigned char *px = row + x * 4;
+            double a = px[3] / 255.0;
             if (a < 0.5) {
                 continue;
             }
+            double r = px[0] / 255.0, g = px[1] / 255.0, b = px[2] / 255.0;
+            if (premultiplied) {
+                r = MIN(1.0, r / a);
+                g = MIN(1.0, g / a);
+                b = MIN(1.0, b / a);
+            }
             avgR += r; avgG += g; avgB += b;
             avgCount++;
-            CGFloat hue, saturation, brightness;
-            [pixel getHue:&hue saturation:&saturation brightness:&brightness alpha:NULL];
+            double maxc = MAX(r, MAX(g, b));
+            double minc = MIN(r, MIN(g, b));
+            double brightness = maxc;
+            double saturation = maxc > 0 ? (maxc - minc) / maxc : 0;
             if (saturation < 0.15 || brightness < 0.1) {
                 continue;
             }
+            // saturation >= 0.15 guarantees maxc > minc, so delta > 0.
+            double delta = maxc - minc;
+            double hue;
+            if (maxc == r)      hue = fmod((g - b) / delta + 6.0, 6.0) / 6.0;
+            else if (maxc == g) hue = ((b - r) / delta + 2.0) / 6.0;
+            else                hue = ((r - g) / delta + 4.0) / 6.0;
             double weight = saturation * brightness;
-            NSInteger bin = MIN(kHueBins - 1, (NSInteger)(hue * kHueBins));
+            // Hue wraps: red straddles the 0.0/1.0 seam, so round to the
+            // nearest bin center and fold with a modulo — both edges land in
+            // bin 0. Flooring instead split red's vote across the first and
+            // last bins, uniquely penalizing red covers in the election.
+            NSInteger bin = ((NSInteger)lround(hue * kHueBins)) % kHueBins;
             binWeight[bin] += weight;
             binR[bin] += r * weight;
             binG[bin] += g * weight;

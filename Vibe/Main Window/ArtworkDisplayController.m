@@ -35,6 +35,11 @@ static const CGFloat kTintMaxSaturationLight = 0.45;
     ArtworkImageView            *_artworkView;
     NSView                      *_headerTintView;
     NSColor                     *_dominantArtColor; // raw; clamps applied per-appearance at apply time
+    // Raw dominant color per track (weak keys: dies with the playlist). The
+    // color is a pure function of the track's art, which is stable for the
+    // track's lifetime — revisiting a track re-decodes its demoted art
+    // (deliberate memory tradeoff) but need not resample it for the tint.
+    NSMapTable<AudioTrack *, NSColor *> *_dominantColorByTrack;
     __weak NSImage              *_displayedArt;
     // Track whose full-res art is currently held decoded (weak: if the
     // playlist was replaced the track deallocates and takes its art with it).
@@ -52,6 +57,7 @@ static const CGFloat kTintMaxSaturationLight = 0.45;
     if (self) {
         _artworkView = artworkView;
         _headerTintView = headerTintView;
+        _dominantColorByTrack = [NSMapTable weakToStrongObjectsMapTable];
     }
     return self;
 }
@@ -101,15 +107,30 @@ static const CGFloat kTintMaxSaturationLight = 0.45;
 // a 32px downscale and samples 1024 pixels — too much for the main thread on
 // the exact track-transition frame — so it runs off-main (bitmap-context
 // drawing is thread-safe) and applies on main; the tint fades a beat after
-// the art, which the crossfade hides.
-- (void)applyHeaderTintFromArt:(NSImage *)art {
+// the art, which the crossfade hides. A track whose color was already
+// computed this session applies synchronously from the cache instead.
+- (void)applyHeaderTintFromArt:(NSImage *)art forTrack:(AudioTrack *)track {
     NSUInteger generation = ++_tintGeneration;
+    NSColor *cached = track ? [_dominantColorByTrack objectForKey:track] : nil;
+    if (cached) {
+        _dominantArtColor = cached;
+        [self refreshHeaderTint];
+        return;
+    }
     __weak ArtworkDisplayController *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSColor *color = [art dominantColor];
         dispatch_async(dispatch_get_main_queue(), ^{
             ArtworkDisplayController *strongSelf = weakSelf;
-            if (!strongSelf || generation != strongSelf->_tintGeneration) {
+            if (!strongSelf) {
+                return;
+            }
+            // Cache even a stale result — the color is still right for the
+            // track that requested it, just not for the current tint.
+            if (color && track) {
+                [strongSelf->_dominantColorByTrack setObject:color forKey:track];
+            }
+            if (generation != strongSelf->_tintGeneration) {
                 return; // newer art (or the default) owns the tint now
             }
             strongSelf->_dominantArtColor = color;
@@ -135,7 +156,7 @@ static const CGFloat kTintMaxSaturationLight = 0.45;
     if (track.albumArt) {
         if (_displayedArt != track.albumArt) {
             _artworkView.image = track.albumArt;
-            [self applyHeaderTintFromArt:track.albumArt];
+            [self applyHeaderTintFromArt:track.albumArt forTrack:track];
             [NSDockTile setDockIcon:track.albumArt];
             _displayedArt = track.albumArt;
         }

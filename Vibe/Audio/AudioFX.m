@@ -96,6 +96,16 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 //
 // The pan mixers exist because AVAudioUnitDelay doesn't adopt AVAudioMixing
 // — only a mixer feeding another mixer can pan.
+//
+// DELIBERATE non-geometric decay: the left lane's echoes (3T, 5T, ...) start
+// at the lane's own first-tap level — `left`'s first wet tap emerges at
+// unity, and panLeft can't compensate (its bus 0 carries the T tap, which
+// must stay at unity) — so each odd hop >= 3 lands f^2 (~1.8x at f=0.75)
+// hotter than a strict per-hop trail: 1, f, 1, f^3, f^2, ... instead of
+// 1, f, f^2, f^3, f^4. The result is a left-leaning surge on every second
+// repeat rather than a smooth fade; auditioned and kept — it reads as bounce,
+// not as a bug. A strict trail would need a gain stage (small mixer at f^2)
+// between `left` and `sum`.
 @interface VibeDelaySend : NSObject {
 @public
     // The gate's ramp generation, passed by pointer into the shared stepper
@@ -357,7 +367,9 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     send.panLeft.pan = -kDelayPingPongPan;
     send.panRight.pan = kDelayPingPongPan;
     // One hop of decay on the right lane: its first tap lands at 2T
-    // (hop 2), a full hop after the left lane's T.
+    // (hop 2), a full hop after the left lane's T. The left lane's later
+    // echoes get no such compensation — deliberate; see the non-geometric
+    // decay note on VibeDelaySend's topology comment.
     send.panRight.outputVolume = kDelayFeedbackPercent / 100.0f;
 }
 

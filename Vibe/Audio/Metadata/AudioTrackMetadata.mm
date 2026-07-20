@@ -128,10 +128,6 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     return [_artwork albumArt];
 }
 
-- (void)setAlbumArt:(NSImage *)albumArt {
-    [_artwork setAlbumArt:albumArt];
-}
-
 - (NSImage *)albumArtIfLoaded {
     return [_artwork albumArtIfLoaded];
 }
@@ -243,6 +239,15 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
         }
         rep = [[NSBitmapImageRep alloc] initWithCGImage:cgImage];
     }
+    // JPEG can't store alpha: transparent art (PNG covers) would render
+    // composited on the fresh-parse session but flattened on every cache-hit
+    // session after. Keep alpha-bearing thumbnails as PNG; everything else
+    // stays JPEG (much smaller for photographic covers). The decode side
+    // (ImageIO) sniffs the bytes, so the "thumbnailJPEG" archive key keeps
+    // reading both.
+    if (rep.hasAlpha) {
+        return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    }
     return [rep representationUsingType:NSBitmapImageFileTypeJPEG
                              properties:@{NSImageCompressionFactor: @0.85}];
 }
@@ -310,7 +315,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
         [_artwork adoptParsedArtData:albumArtDataFromTagLibFile(file)];
         // TagLib opened and recognized the file — this is real metadata, safe
         // to persist. A null FileRef (dataless cloud placeholder, transient
-        // I/O error) leaves this NO so loadOneTrack won't cache the
+        // I/O error) leaves this NO so the loaders won't cache the
         // filename-only fallback and shadow the real tags for months.
         _parsedOK = YES;
     }
