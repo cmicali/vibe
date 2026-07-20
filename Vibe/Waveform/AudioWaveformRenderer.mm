@@ -30,24 +30,14 @@
     self.lastProgressBoundary = -1;
 }
 
-- (void) setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<NSColor*>*)colors {
-    NSMutableArray *cgColors = [[NSMutableArray alloc] initWithCapacity:colors.count];
-    for (NSColor *color in colors) {
-        [cgColors addObject:(id)color.CGColor];
-    }
-    layer.colors = cgColors;
-}
-
-- (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
-    self.bottomY = bounds.size.height/2 - (bounds.size.height/2 * .5);
-    self.topY = bounds.size.height/2 + (bounds.size.height/2 * .5);
+- (NSRect)seekHitBandForBounds:(NSRect)bounds {
+    CGFloat bottomY = bounds.size.height/2 - (bounds.size.height/2 * .5);
+    CGFloat topY = bounds.size.height/2 + (bounds.size.height/2 * .5);
+    return NSMakeRect(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
 }
 
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
 
-}
-
-- (void)didUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
 }
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform *__nullable)waveform {

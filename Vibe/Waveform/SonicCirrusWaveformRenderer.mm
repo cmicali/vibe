@@ -20,9 +20,9 @@ static const CFTimeInterval kMorphTau = 0.07;
 static const float kMorphEpsilon = 0.002f;
 static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
 
-// Geometry constants shared by morphTick's frame-skip heuristic and
-// rebuildLayerFrames, so the two can't disagree on the normalized→pixels
-// scale.
+// Geometry constants shared by morphTick's frame-skip heuristic,
+// rebuildLayerFrames, and the seek hit band (seekHitBandForBounds:), so
+// they can't disagree on the normalized→pixels scale.
 static const CGFloat kBarAmplitude = 0.75;     // full bar height as a fraction of the view height
 static const CGFloat kTopLineRatio = 0.70;     // top bar's share of the height; the mirror gets the rest
 static const CGFloat kBlockWidthRatio = 0.75;  // bar width as a fraction of the bar pitch
@@ -118,6 +118,19 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
     if (!CGColorEqualToColor(layer.backgroundColor, c)) {
         layer.backgroundColor = c;
     }
+}
+
+// Full-amplitude extents from the fixed geometry constants — NOT the bars
+// currently on screen, whose extents collapse to a sliver on quiet tracks
+// and make the seek band impossible to hit.
+- (NSRect)seekHitBandForBounds:(NSRect)bounds {
+    CGFloat totalHeight = bounds.size.height;
+    CGFloat topLineY = round(totalHeight * (1 - kTopLineRatio));
+    CGFloat bottomLineY = topLineY - kBottomBarSpacing;
+    CGFloat maxTopBarHeight = totalHeight * kBarAmplitude * kTopLineRatio;
+    CGFloat topY = topLineY + maxTopBarHeight;
+    CGFloat bottomY = bottomLineY - maxTopBarHeight * (1 - kTopLineRatio);
+    return NSMakeRect(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
 }
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
@@ -273,10 +286,6 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
     if (scale <= 0) scale = 2;
     CGFloat pixel = 1 / scale;
 
-    // Track the actual extents for the view's click hit-band.
-    CGFloat maxTop = topLineY;
-    CGFloat minBottom = bottomLineY;
-
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (NSUInteger i = 0; i < count; i++) {
@@ -292,14 +301,8 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
         // Mirror line
         CGFloat bottomBarHeight = round(topBarHeight * (1 - kTopLineRatio) / pixel) * pixel;
         _layers[i * 2 + 1].frame = CGRectMake(x, bottomLineY - bottomBarHeight, blockWidth, bottomBarHeight);
-
-        maxTop = MAX(maxTop, topLineY + topBarHeight);
-        minBottom = MIN(minBottom, bottomLineY - bottomBarHeight);
     }
     [CATransaction commit];
-
-    self.topY = maxTop;
-    self.bottomY = minBottom;
 }
 
 @end

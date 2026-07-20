@@ -21,10 +21,10 @@ static const float kMorphEpsilon = 0.002f;
 static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
 
 // Bars reach at most ±kBarAmplitude·(height/2) from the vertical midline.
-// VibeBarVScale is the ONE normalized→pixels scale, shared by the subclass
-// band (updateWaveform:), the morph frame-skip heuristic (morphTick), the
-// drawn mask (rebuildMaskPaths), and the gradient band (configureGradient:)
-// — they silently disagree if any site re-derives it.
+// VibeBarVScale is the ONE normalized→pixels scale, shared by the seek hit
+// band (seekHitBandForBounds:), the morph frame-skip heuristic (morphTick),
+// the drawn mask (rebuildMaskPaths), and the gradient band
+// (configureGradient:) — they silently disagree if any site re-derives it.
 static const CGFloat kBarAmplitude = 0.75;
 static inline CGFloat VibeBarVScale(CGFloat height) {
     return (height / 2) * kBarAmplitude;
@@ -78,6 +78,16 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
 
 - (CGFloat)barXForIndex:(NSUInteger)index width:(CGFloat)width barCount:(NSUInteger)count barWidth:(CGFloat)barWidth {
     return barWidth * (CGFloat)index;
+}
+
+// Matches the drawn band: bars reach at most ±kBarAmplitude·(height/2) from
+// the midline (VibeBarVScale).
+- (NSRect)seekHitBandForBounds:(NSRect)bounds {
+    CGFloat midY = bounds.size.height / 2;
+    CGFloat vscale = VibeBarVScale(bounds.size.height);
+    CGFloat bottomY = round(midY - vscale);
+    CGFloat topY = round(midY + vscale);
+    return NSMakeRect(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
@@ -153,6 +163,14 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
 - (void)dealloc {
     [_morphTimer invalidate];
     [_waveformContainer removeFromSuperlayer];
+}
+
+- (void)setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<NSColor*>*)colors {
+    NSMutableArray *cgColors = [[NSMutableArray alloc] initWithCapacity:colors.count];
+    for (NSColor *color in colors) {
+        [cgColors addObject:(id)color.CGColor];
+    }
+    layer.colors = cgColors;
 }
 
 - (void)updateColors:(BOOL)isDark {
@@ -233,11 +251,6 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
     else {
         std::fill(_scratchSamples.begin(), _scratchSamples.end(), 0.0f);
     }
-
-    CGFloat vscale = VibeBarVScale(bounds.size.height);
-    CGFloat midY = bounds.size.height / 2;
-    self.topY = round(midY + vscale);
-    self.bottomY = round(midY - vscale);
 
     BOOL geometryChanged = !NSEqualSizes(bounds.size, _maskSize);
     _maskSize = bounds.size;

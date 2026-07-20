@@ -10,8 +10,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioWaveformRenderer : NSObject
 
-@property (assign) CGFloat topY;
-@property (assign) CGFloat bottomY;
 @property (assign) CGFloat progress;
 @property (assign) BOOL isDark;
 
@@ -30,11 +28,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)updateColors:(BOOL)isDark;
 
-- (void) setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<NSColor*>*)colors;
+// Vertical band (view coords) a click must land in to count as a seek.
+// Queried by AudioWaveformView on mouseDown and computed from the given
+// bounds alone — a pure function, not per-draw mutable state, so each
+// renderer has exactly one band definition. Base: the middle 50% of the
+// height; renderers with a known drawn extent override.
+- (NSRect)seekHitBandForBounds:(NSRect)bounds;
 
-- (void)willUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform * __nullable)waveform;
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
-- (void)didUpdateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform * __nullable)waveform;
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 
 @end

@@ -89,10 +89,7 @@
 }
 
 - (void)drawWaveform {
-    AudioWaveform *waveform = self.waveform.waveform;
-    [_currentWaveformRenderer willUpdateWaveform:self.bounds progress:self.progress waveform:waveform];
-    [_currentWaveformRenderer updateWaveform:self.bounds progress:self.progress waveform:waveform];
-    [_currentWaveformRenderer didUpdateWaveform:self.bounds progress:self.progress waveform:waveform];
+    [_currentWaveformRenderer updateWaveform:self.bounds progress:self.progress waveform:self.waveform.waveform];
 }
 
 - (void)updateRendererProgress {
@@ -111,7 +108,8 @@
     NSPoint e = [event locationInWindow];
     NSPoint mouseLoc = [self convertPoint:e fromView:nil];
     if ([self mouse:mouseLoc inRect:self.bounds]) {
-        if (mouseLoc.y >= _currentWaveformRenderer.bottomY && mouseLoc.y <= _currentWaveformRenderer.topY) {
+        NSRect band = [_currentWaveformRenderer seekHitBandForBounds:self.bounds];
+        if (mouseLoc.y >= NSMinY(band) && mouseLoc.y <= NSMaxY(band)) {
             _didClickInside = YES;
         }
     }
