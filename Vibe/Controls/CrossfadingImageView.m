@@ -6,7 +6,7 @@
 #import "CrossfadingImageView.h"
 #import <QuartzCore/QuartzCore.h>
 
-static const NSTimeInterval kVibeArtCrossfadeDuration = 0.1;
+const NSTimeInterval kVibeArtCrossfadeDuration = 0.1;
 
 static NSString *const kVibeCrossfadeOverlayName = @"VibeCrossfadeOverlay";
 

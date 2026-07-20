@@ -14,6 +14,7 @@
 #include <mpegfile.h>
 #include <mpegproperties.h>
 #include <mp4file.h>
+#include <mp4itemfactory.h>
 #include <mp4properties.h>
 #include <flacfile.h>
 #include <id3v2tag.h>
@@ -32,6 +33,7 @@ class TagLibAudioFile {
 public:
     explicit TagLibAudioFile(const char *path)
         : _stream(std::make_unique<TagLib::FileStream>(path, true)) {
+        warmUpSharedFactories();
         if (!_stream->isOpen()) {
             return;
         }
@@ -49,6 +51,21 @@ public:
     TagLib::Tag *tag() const { return _file ? _file->tag() : nullptr; }
 
 private:
+    // The MP4::ItemFactory singleton lazily builds its three lookup maps with
+    // no synchronization, so concurrent cold M4A parses (metadata loader ×4,
+    // plus the art extractor's queue) race map assignment against reads —
+    // use-after-free. Build all three maps once, before any parse; every
+    // access afterwards is const. App-side rather than patching the vendored
+    // TagLib so a re-copy can't silently drop the fix.
+    static void warmUpSharedFactories() {
+        static dispatch_once_t once;
+        dispatch_once(&once, ^{
+            auto *factory = TagLib::MP4::ItemFactory::instance();
+            factory->itemToProperty("\251nam", TagLib::MP4::Item());
+            factory->nameForPropertyKey("TITLE");
+        });
+    }
+
     // Extension → format mapping copied from FileRef::detectByExtension.
     static std::unique_ptr<TagLib::File> openByExtension(const char *path, TagLib::IOStream *stream) {
         NSString *ext = [@(path) pathExtension].uppercaseString;

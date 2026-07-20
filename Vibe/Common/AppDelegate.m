@@ -79,7 +79,14 @@
     [self openCommandLineArguments];
 
     _isLoaded = YES;
-    [self playURLs];
+    if (_urlsToOpen.count > 0) {
+        [self playURLs];
+    }
+    else {
+        // No launch-time open queued (Finder/argv events land before this
+        // point), so the empty state may render.
+        [self.mainPlayerController revealEmptyState];
+    }
 }
 
 // Open file/directory paths passed as command-line arguments, e.g.
@@ -145,6 +152,11 @@
             // current playlist with an empty list.
             if (expanded.count > 0) {
                 [self.mainPlayerController play:expanded];
+            }
+            else {
+                // A launch open that resolved to nothing still has to end the
+                // launch grace, or the header would stay blank forever.
+                [self.mainPlayerController revealEmptyState];
             }
         }];
     }

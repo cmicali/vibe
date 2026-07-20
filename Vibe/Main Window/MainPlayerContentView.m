@@ -88,6 +88,7 @@ static const CFTimeInterval kControlFadeDur = 0.2;
     CGFloat shadowOpacity = dark ? kLabelShadowOpacityDark : 0.0;
     for (NSTextField *field in @[ _artistTextField, _titleTextField,
                                   _totalTimeTextField, _currentTimeTextField,
+                                  _dropHintTextField,
                                   _fileMetadataTextField, _bpmTextField ]) {
         field.layer.shadowOpacity = shadowOpacity;
     }
@@ -331,6 +332,20 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // rasterization would just force a re-raster on every update.
     configureLabelShadow(_currentTimeTextField, NO);
     [self addSubview:_currentTimeTextField];
+
+    // Empty-state hint, spanning the gap between the two time labels so the
+    // text centers on the waveform's midline.
+    _dropHintTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(217, 207, 394, 16)];
+    _dropHintTextField.font = [Fonts font:13];
+    _dropHintTextField.alignment = NSTextAlignmentCenter;
+    _dropHintTextField.textColor = dimmedTextColor;
+    _dropHintTextField.stringValue = @"Drop a file or press ⌘O";
+    // Half strength like the rest of the empty state.
+    _dropHintTextField.alphaValue = 0.5;
+    _dropHintTextField.hidden = YES;
+    _dropHintTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
+    configureLabelShadow(_dropHintTextField, YES);
+    [self addSubview:_dropHintTextField];
 
     // Frosted backdrop under the playlist: the window's Clear glass is too
     // transparent to read row text over, so this panel frosts just the

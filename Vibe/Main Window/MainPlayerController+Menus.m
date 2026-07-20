@@ -65,10 +65,17 @@
         menuItem.state = StateForBOOL(Settings.pitchRange == 16);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_play"]) {
-        // The action is playPause: — mirror the toggle in the title like
-        // standard macOS players (isPlaying covers Loading: a play is
+        // The action is playPause: — mirror the toggle in the title and icon
+        // like standard macOS players (isPlaying covers Loading: a play is
         // committed, so the available action is Pause).
-        menuItem.title = self.audioPlayer.isPlaying ? @"Pause" : @"Play";
+        BOOL playing = self.audioPlayer.isPlaying;
+        menuItem.title = playing ? @"Pause" : @"Play";
+        menuItem.image = [NSImage imageWithSystemSymbolName:(playing ? @"pause.fill" : @"play.fill")
+                                   accessibilityDescription:menuItem.title];
+        return self.playlistManager.count > 0;
+    }
+    else if ([menuItem.identifier isEqualToString:@"menu_close"]) {
+        menuItem.title = self.playlistManager.count > 1 ? @"Close All Files" : @"Close File";
         return self.playlistManager.count > 0;
     }
     else if ([menuItem.identifier isEqualToString:@"show_in_finder"]) {

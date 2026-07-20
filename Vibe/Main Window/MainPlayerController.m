@@ -60,6 +60,7 @@
 @property (weak) AudioWaveformView *waveformView;
 @property (weak) NSTextField *totalTimeTextField;
 @property (weak) NSTextField *currentTimeTextField;
+@property (weak) NSTextField *dropHintTextField;
 @property (weak) NSTextField *fileMetadataTextField;
 @property (weak) NSTextField *bpmTextField;
 
@@ -74,14 +75,25 @@
     NSTimeInterval              _currentTrackDuration;
     BOOL                        _timerRunning;
     __weak AudioTrack*          _lastReloadedTrack;
-    NSString*                   _statusMessage;
+    // The track whose play attempt failed. While it is still the playlist's
+    // current track and the player is stopped, the header renders the error
+    // state and ignores the track — including late metadata/art deliveries,
+    // which must not repopulate the header for a file that never played.
+    // Weak: the track stays in the playlist for retry, and clearing/replacing
+    // the playlist dissolves the mark.
+    __weak AudioTrack*          _erroredTrack;
+    // Short status for the error rendering's artist line ("Load timed out",
+    // ...); the full error text goes to the log.
+    NSString*                   _errorStatus;
+    // Launch grace (see revealEmptyState in the header): while YES the empty
+    // state renders as a blank header. Never set again once cleared.
+    BOOL                        _emptyStateSuppressed;
     BOOL                        _metadataLoadPending;
     // Pairs each play:'s 2s fallback timer with its own playlist: a timer
     // armed by playlist A firing after a re-drop must not start playlist B's
     // load early (while B's first track is still opening — exactly the I/O
     // contention the deferral exists to avoid).
     NSUInteger                  _metadataLoadGeneration;
-    BOOL                        _errorAlertVisible;
     TransportKeyMonitor*        _keyMonitor;
     PitchControlPanel*          _pitchPanel;
     ArtworkDisplayController*   _artworkController;
@@ -95,6 +107,9 @@
     // nib path — is invoked directly.
     MainWindow *window = [[MainWindow alloc] init];
     if((self = [super initWithWindow:window])) {
+        // Set before the first updateUI so the launch grace covers the very
+        // first render.
+        _emptyStateSuppressed = YES;
         // windowDidLoad hands this the audio player, so it must exist first.
         self.devicesMenuController = [[OutputDevicesMenuController alloc] init];
         [self buildContentInWindow:window];
@@ -142,6 +157,7 @@
     self.titleTextField = content.titleTextField;
     self.totalTimeTextField = content.totalTimeTextField;
     self.currentTimeTextField = content.currentTimeTextField;
+    self.dropHintTextField = content.dropHintTextField;
     self.fileMetadataTextField = content.fileMetadataTextField;
     self.bpmTextField = content.bpmTextField;
     self.playlistTableView = content.playlistTableView;
@@ -329,21 +345,37 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
                                    }];
 }
 
+// The track the header should describe: the playlist's current track, or nil
+// while a play-error state is up. Gated on isStopped so a retry's
+// Loading/Playing state instantly lifts the mask.
+- (AudioTrack *)displayedTrack {
+    AudioTrack *track = self.playlistManager.currentTrack;
+    if (track && track == _erroredTrack && self.audioPlayer.isStopped) {
+        return nil;
+    }
+    return track;
+}
+
 - (void)updateUI {
 
     AudioTrack *track = self.playlistManager.currentTrack;
+    AudioTrack *displayTrack = [self displayedTrack];
+    BOOL playError = (track != nil && displayTrack == nil);
 
-    self.playButton.glyph = self.audioPlayer.isPlaying ? GlyphButtonGlyphPause : GlyphButtonGlyphPlay;
+    // The track check covers Close: the player's stop is async on its queue,
+    // so it can still read isPlaying for the instant after closeFile: — and no
+    // later updateUI would fix the glyph (the update timer is paused).
+    self.playButton.glyph = (track && self.audioPlayer.isPlaying) ? GlyphButtonGlyphPause : GlyphButtonGlyphPlay;
 
     self.playButton.enabled = self.playlistManager.count > 0;
     self.nextButton.enabled = self.playlistManager.hasNextTrack;
 
-    BOOL trackLoaded = track != nil;
-    self.totalTimeTextField.hidden = !trackLoaded;
-    self.currentTimeTextField.hidden = !trackLoaded;
-    self.waveformView.hidden = !trackLoaded;
-
-    if (track) {
+    if (displayTrack) {
+        self.artistTextField.alphaValue = 1.0;
+        self.titleTextField.alphaValue = 1.0;
+        self.currentTimeTextField.alphaValue = 1.0;
+        self.totalTimeTextField.alphaValue = 1.0;
+        self.dropHintTextField.hidden = YES;
         if (track.hasArtistAndTitle) {
             setStringValueIfChanged(self.artistTextField, track.artist);
             [self setTitleLabelText:track.title];
@@ -352,13 +384,17 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
             setStringValueIfChanged(self.artistTextField, @"");
             [self setTitleLabelText:track.singleLineTitle];
         }
-        setStringValueIfChanged(self.totalTimeTextField, [[Formatters sharedInstance] durationStringFromTimeInterval:self.audioPlayer.duration / self.playbackRate]);
-        if (_statusMessage) {
-            // Transient player status (e.g. "Load timed out") takes the
-            // bitrate label's spot until the next play attempt.
-            setKernedRightAlignedText(self.fileMetadataTextField, _statusMessage);
+        if (self.audioPlayer.isLoading) {
+            // Open still in flight — duration/position are unknown, not zero,
+            // so show placeholders rather than 0:00.
+            setStringValueIfChanged(self.totalTimeTextField, @"--:--");
+            setStringValueIfChanged(self.currentTimeTextField, @"--:--");
+            _lastPosition = -1;
         }
-        else if (track.metadata.fileType) {
+        else {
+            setStringValueIfChanged(self.totalTimeTextField, [[Formatters sharedInstance] durationStringFromTimeInterval:self.audioPlayer.duration / self.playbackRate]);
+        }
+        if (track.metadata.fileType) {
             // bitrate/sampleRate can be nil even with fileType set — TagLib
             // can return no audioProperties. Guard so the label never shows
             // "(null) kbps" / "0.0 kHz".
@@ -379,33 +415,52 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
             setStringValueIfChanged(self.fileMetadataTextField, @"");
         }
     }
-    else {
+    else if (_emptyStateSuppressed) {
+        // Launch grace: a launch-time open may still be resolving — render a
+        // blank header instead of flashing the empty state.
         setStringValueIfChanged(self.artistTextField, @"");
         [self setTitleLabelText:@""];
         setStringValueIfChanged(self.totalTimeTextField, @"");
         setStringValueIfChanged(self.currentTimeTextField, @"");
-        if (_statusMessage) {
-            setKernedRightAlignedText(self.fileMetadataTextField, _statusMessage);
-        }
-        else {
-            setStringValueIfChanged(self.fileMetadataTextField, @"");
-        }
+        setStringValueIfChanged(self.fileMetadataTextField, @"");
+        self.dropHintTextField.hidden = YES;
+        _lastPosition = -1;
+    }
+    else {
+        // Empty state — also the play-error rendering: the error goes on the
+        // artist line, over the failed track's title.
+        setStringValueIfChanged(self.artistTextField, playError ? (_errorStatus ?: @"Playback error") : @"");
+        [self setTitleLabelText:playError ? track.singleLineTitle : @""];
+        // The whole empty state sits at half strength; the title matches the
+        // waveform's placeholder line (0.275 = half the shimmer's 0.55 peak).
+        self.artistTextField.alphaValue = 0.5;
+        self.titleTextField.alphaValue = 0.275;
+        self.currentTimeTextField.alphaValue = 0.5;
+        self.totalTimeTextField.alphaValue = 0.5;
+        self.dropHintTextField.hidden = NO;
+        setStringValueIfChanged(self.totalTimeTextField, @"--:--");
+        setStringValueIfChanged(self.currentTimeTextField, @"--:--");
+        // Poison the position cache so the first tick of the next track always
+        // overwrites the placeholder, even from position 0.
+        _lastPosition = -1;
+        [self.waveformView showEmptyPlaceholder];
+        setStringValueIfChanged(self.fileMetadataTextField, @"");
     }
 
-    self.albumArtImageView.fileURL = track.url;
+    self.albumArtImageView.fileURL = displayTrack.url;
 
     [self effectiveTempoDidChange];
 
-    [_artworkController updateForTrack:track];
+    [_artworkController updateForTrack:displayTrack];
 
-    if (track && track == _lastReloadedTrack) {
+    if (displayTrack && displayTrack == _lastReloadedTrack) {
         // Same track as last time: only the play/pause indicator can have
         // changed in the playlist row.
         [self.playlistManager reloadCurrentTrackPlayState];
     }
     else {
         [self.playlistManager reloadCurrentTrack];
-        _lastReloadedTrack = track;
+        _lastReloadedTrack = displayTrack;
     }
     [self updatePlaybackUI];
     [self updateNowPlaying];
@@ -463,7 +518,9 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
 
 - (void)updatePlaybackUI {
 
-    if (!self.playlistManager.currentTrack) {
+    // displayedTrack, not currentTrack: in the play-error state the position
+    // readout must keep showing the empty state's --:--.
+    if (![self displayedTrack]) {
         return;
     }
 
@@ -471,6 +528,11 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
     NSTimeInterval position = self.audioPlayer.position;
     if (duration > 0) {
         self.waveformView.progress = (float) position / (float) duration;
+    }
+    if (self.audioPlayer.isLoading) {
+        // Position reads 0 while the open is in flight — unknown, not zero.
+        // updateUI shows --:-- for this state; don't overwrite it.
+        return;
     }
     NSTimeInterval displayPosition = position / self.playbackRate;
     if (round(displayPosition) != round(_lastPosition)) {
@@ -492,7 +554,15 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
     [self play:@[url]];
 }
 
+- (void)revealEmptyState {
+    if (_emptyStateSuppressed) {
+        _emptyStateSuppressed = NO;
+        [self updateUI];
+    }
+}
+
 - (void)play:(NSArray<NSURL *> *)urls {
+    _emptyStateSuppressed = NO; // a real track supersedes the launch grace
     [self.playlistManager play:urls];
     // Defer the playlist-wide metadata load until playback has actually
     // started: four workers reading every file can starve the player's own
@@ -515,6 +585,27 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
     }
     _metadataLoadPending = NO;
     [self.metadataCache loadMetadata:self.playlistManager.playlist];
+}
+
+// File > Close (⌘W): unload everything and return to the empty state. The
+// player's stop sends no delegate callback (so nothing auto-advances), and an
+// end-of-track callback already in flight is dropped by didFinishPlaying:'s
+// stale-track guard.
+- (IBAction)closeFile:(nullable id)sender {
+    [self.audioPlayer stop];
+    [self.audioPlayer prefetchTrack:nil]; // drop the parked next-track handle
+    [self.waveformCache cancelLoad];
+    [self.playlistManager clear];
+    // Cancel the deferred playlist-wide metadata load — nothing will play to
+    // start it later.
+    _metadataLoadPending = NO;
+    _metadataLoadGeneration++;
+    _erroredTrack = nil;
+    _errorStatus = nil;
+    _emptyStateSuppressed = NO; // Close explicitly asks for the empty state
+    _currentTrackDuration = 0;
+    [self pauseUIUpdateTimer];
+    [self updateUI];
 }
 
 - (IBAction)next:(nullable id)sender {
@@ -666,7 +757,7 @@ static const double kSkipMostBars = 32.0;
 // granularity is coarser than the fader's, so it must not gate the audio
 // parameter (the setter no-ops on same value).
 - (void)effectiveTempoDidChange {
-    AudioTrack *track = self.playlistManager.currentTrack;
+    AudioTrack *track = [self displayedTrack];
     // Tagged tempo wins over the analyzed one — same precedence as the skips.
     float baseBPM = track.metadata.bpm > 0 ? track.metadata.bpm : track.detectedBPM;
     self.audioPlayer.fx.delayTapBPM = baseBPM > 0 ? baseBPM * self.playbackRate : 0;
@@ -683,16 +774,15 @@ static const double kSkipMostBars = 32.0;
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track {
-    _statusMessage = nil;
+    _erroredTrack = nil;
     // Show the pending track's title/artist while it loads.
     [self updateUI];
     [self.waveformView showLoadingIndicator];
-    self.waveformView.hidden = NO;
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
     [_artworkController trackDidStartPlaying:track];
-    _statusMessage = nil;
+    _erroredTrack = nil;
     [self.waveformView hideLoadingIndicator];
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
     // Only the current playlist's start may consume the deferred load: a
@@ -782,50 +872,36 @@ static const double kSkipMostBars = 32.0;
     // longer describes anything the player holds.
     _currentTrackDuration = 0;
     [self.waveformView hideLoadingIndicator];
-    if ([error.domain isEqualToString:kVibeAudioErrorDomain] && error.code == VibeAudioErrorFileOpenTimedOut) {
-        // Slow/unreachable file (cloud placeholder, dead network): no modal,
-        // no auto-skip — just an inline status where the bitrate info goes.
-        LogError(@"%@", error.localizedDescription);
-        _statusMessage = @"Load timed out";
-        [self updateUI];
-        return;
-    }
-    // Present the alert as a sheet, not with runModal. runModal spins a nested
-    // app-modal run loop with no parent window; on this borderless window the
-    // window fails to reclaim key status afterward, which silently kills the
-    // unmodified transport key equivalents (Space/B/N) until the app is
-    // relaunched. Errors can also fire back-to-back (a folder of bad files),
-    // and _errorAlertVisible collapses those into a single sheet instead of
-    // nesting modal sessions.
-    if (_errorAlertVisible) {
-        return;
-    }
-    _errorAlertVisible = YES;
-    NSAlert *alert = [[NSAlert alloc] init];
-    [alert addButtonWithTitle:@"Ok"];
-    [alert setMessageText:@"AudioPlayer Error"];
-    [alert setInformativeText:error.userInfo[NSLocalizedDescriptionKey]];
-    [alert setAlertStyle:NSAlertStyleWarning];
-    __weak MainPlayerController *weakSelf = self;
-    [alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse returnCode) {
-        MainPlayerController *strongSelf = weakSelf;
-        if (!strongSelf) {
-            return;
+    // Errors present inline: no modal (a sheet on this borderless window
+    // breaks key status and the bare transport keys), no auto-skip. The
+    // header shows the error state, the track stays in the playlist for
+    // retry, and the errored mark keeps late metadata/art deliveries from
+    // repopulating the header.
+    LogError(@"%@", error.localizedDescription);
+    _erroredTrack = self.playlistManager.currentTrack;
+    _errorStatus = [MainPlayerController statusForPlayError:error];
+    [self updateUI];
+}
+
+// Artist-line status for the inline error rendering. Deliberately short —
+// the title line already names the track, and the full error text is in the
+// log.
++ (NSString *)statusForPlayError:(NSError *)error {
+    if ([error.domain isEqualToString:kVibeAudioErrorDomain]) {
+        switch ((VibeAudioErrorCode)error.code) {
+            case VibeAudioErrorFileOpenTimedOut:
+                return @"Load timed out";
+            case VibeAudioErrorFileOpenFailed:
+                return @"Could not open file";
+            case VibeAudioErrorEngineStartFailed:
+                return @"Could not start playback";
+            case VibeAudioErrorDeviceUnavailable:
+                return @"Audio device unavailable";
+            case VibeAudioErrorNotPlaying:
+                break; // never reaches here (filtered above)
         }
-        strongSelf->_errorAlertVisible = NO;
-        // Through the next: funnel: if it couldn't start anything (end of
-        // playlist, single bad track), its updateUI makes the header/waveform/
-        // play-button reflect the stopped player instead of the previous track.
-        // Only while still stopped, though — media keys bypass the sheet, so
-        // playback can restart while the alert is up, and OK must not skip
-        // away from what the user just started.
-        if (strongSelf.audioPlayer.isStopped) {
-            [strongSelf next:nil];
-        }
-        // Belt-and-suspenders: guarantee the borderless window is key again so
-        // the transport key equivalents keep working after the sheet closes.
-        [strongSelf.window makeKeyWindow];
-    }];
+    }
+    return @"Playback error";
 }
 
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer {

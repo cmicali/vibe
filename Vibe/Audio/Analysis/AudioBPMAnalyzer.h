@@ -11,10 +11,11 @@
 //  frames, 256 hop) accumulated during streaming; finish() detrends the
 //  envelope, autocorrelates it over the 60-200 BPM lag range, scores each
 //  candidate with a harmonic comb (lag + 2x + 3x, suppressing half/double
-//  tempo errors), applies a mild prior centered near 120 BPM, and refines the
-//  winning lag by parabolic interpolation. Returns 0 when the track is too
-//  short or the tempo peak is not prominent enough to trust (ambient,
-//  rubato, speech).
+//  tempo errors), rescores the candidate family with a time-domain phase
+//  comb (with a mild prior centered near 120 BPM), and sharpens the winner's
+//  fractional period with a tolerance-free interpolated fine pass (~±0.01
+//  BPM on steady tempo). Returns 0 when the track is too short or the tempo
+//  peak is not prominent enough to trust (ambient, rubato, speech).
 //
 
 #import <Foundation/Foundation.h>

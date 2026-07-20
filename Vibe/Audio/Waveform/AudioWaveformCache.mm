@@ -116,6 +116,11 @@
     });
 }
 
+- (void)cancelLoad {
+    [_currentLoader cancel];
+    _currentLoader = nil;
+}
+
 // Lookup-or-decode core, shared by the delegate delivery path above and the
 // debug pre-warm path below. Must be called on _loaderQueue, with the cache
 // key precomputed off-queue by the caller (the stat must not block this

@@ -244,6 +244,13 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
     }
 }
 
+- (void)clear {
+    _playlist = [NSMutableArray new];
+    _trackIndexes = [NSMapTable strongToStrongObjectsMapTable];
+    self.currentIndex = 0;
+    [self.tableView reloadData];
+}
+
 - (void)reloadTrackAtIndex:(NSUInteger)index {
     // Guard out-of-range (matches reloadCurrentTrackPlayState): reloadCurrentTrack
     // fires with currentIndex 0 on an empty playlist (e.g. updateUI at launch),

@@ -55,6 +55,20 @@ void VibeInstallDebugScreenshotHook(void);
 // App side; call at launch. Listens on com.vibe.debug.command (main queue).
 void VibeInstallDebugCommandHook(void);
 
+// Core of the `scan_bpm` debug command: decodes the file and runs
+// AudioBPMAnalyzer in the calling process, returning one JSON object
+// ({"ok","bpm"} — bpm 0 = no confident tempo — or {"error"}). Pure
+// decode+analyze with no app state, so the CLI client executes this verb
+// locally (`Vibe --debug-cmd scan_bpm <file>` works with no app running and
+// never touches a running instance); the command-table entry runs the same
+// function app-side for callers that post the command file directly. Sandbox
+// caveat: the running process can only read paths it's been granted — the
+// direct-exec'd client is limited to the app container, so get-bpm.sh copies
+// the file into the container tmp first. Implemented in DebugBPMScan.mm
+// (needs the C++ waveform mono-mix header, which DebugUtil.m must not
+// import).
+NSString *VibeDebugBPMScanJSON(NSString *rawPath);
+
 // Client side; invoked by main() for `Vibe --debug-cmd ...` before
 // NSApplicationMain, so no second app instance ever starts. Returns the
 // process exit code (0 ok, 1 no response, 2 command error, 64 usage).

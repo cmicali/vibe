@@ -38,6 +38,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)showLoadingIndicator;
 - (void)hideLoadingIndicator;
 
+// No-track empty state: a static full-width line on the waveform midline.
+// Cleared by prepareForWaveformLoad / showLoadingIndicator when a track
+// arrives.
+- (void)showEmptyPlaceholder;
+
 - (void)updateAppearance;
 @end
 

@@ -320,6 +320,50 @@ static const float kMinConfidence = 1.3f;
     if (bestFinal <= 0 || bestCandidateLag <= 0) {
         return 0;
     }
+
+    // Fine pass on the winner. The coarse sweep's ±1-frame neighborhood max is
+    // what makes the phase comb robust to onset jitter, but it also flattens
+    // the score into a plateau ~±0.05 frames wide around the true period, and
+    // the coarse winner lands anywhere on it (~±0.1 BPM at 120). Re-score a
+    // narrow band around the winner with linearly interpolated envelope
+    // samples and NO tolerance window: exact sampling turns any period error
+    // into real accumulated drift off the onset blobs, so the score peaks at
+    // the true period instead of plateauing. The blobs themselves are ~2
+    // frames wide (spectral flux spreads each transient across overlapping
+    // frames), which supplies all the jitter tolerance this final ±0.09-frame
+    // band still needs. Only the period is refined — an integer phase offset
+    // shifts every sampled beat equally and cannot bias the slope.
+    {
+        double bestSum = -1;
+        double refined = bestCandidateLag;
+        for (double L = bestCandidateLag - 0.09; L <= bestCandidateLag + 0.0901; L += 0.005) {
+            if (L < 2) {
+                continue;
+            }
+            int phases = (int)L;
+            double phaseBest = 0;
+            for (int phase = 0; phase < phases; phase++) {
+                double sum = 0;
+                for (size_t k = 0;; k++) {
+                    double pos = (double)phase + (double)k * L;
+                    size_t idx = (size_t)pos;
+                    if (idx + 1 >= winLen) {
+                        break;
+                    }
+                    double frac = pos - (double)idx;
+                    sum += env[idx] * (1.0 - frac) + env[idx + 1] * frac;
+                }
+                if (sum > phaseBest) {
+                    phaseBest = sum;
+                }
+            }
+            if (phaseBest > bestSum) {
+                bestSum = phaseBest;
+                refined = L;
+            }
+        }
+        bestCandidateLag = refined;
+    }
     return (float)(60.0 * fps / bestCandidateLag);
 }
 
