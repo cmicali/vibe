@@ -51,7 +51,9 @@ NS_ASSUME_NONNULL_BEGIN
 // the art bytes) — never call on the main thread; a cloud placeholder file
 // can block until it downloads. Use albumArtIfLoaded + albumArtNeedsLoad on
 // the main thread instead. nil for artless tracks and unreadable files.
-@property (strong, nullable) NSImage *albumArt;
+// readonly: art only ever comes from the file itself (parse or on-demand
+// re-extraction) — there is deliberately no injection path.
+@property (readonly, strong, nullable) NSImage *albumArt;
 
 // Non-blocking: returns the art only if it has already been decoded. Never
 // does decode work — a full-res ImageIO decode is a 10-100ms hitch on the

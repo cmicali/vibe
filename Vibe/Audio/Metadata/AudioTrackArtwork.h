@@ -22,7 +22,7 @@ typedef NSData * _Nullable (^AudioTrackArtworkExtractor)(NSString *path);
 @interface AudioTrackArtwork : NSObject
 
 // sourceFilePath is the audio file art can be (re-)extracted from; nil
-// disables on-demand extraction (setAlbumArt: still works). Immutable.
+// disables on-demand extraction. Immutable.
 - (instancetype)initWithSourceFilePath:(nullable NSString *)sourceFilePath
                              extractor:(nullable AudioTrackArtworkExtractor)extractor;
 
@@ -43,7 +43,6 @@ typedef NSData * _Nullable (^AudioTrackArtworkExtractor)(NSString *path);
 // The AudioTrackMetadata art API, delegated here verbatim; contracts are on
 // the matching AudioTrackMetadata.h declarations.
 - (nullable NSImage *)albumArt;
-- (void)setAlbumArt:(nullable NSImage *)albumArt;
 - (nullable NSImage *)albumArtIfLoaded;
 - (BOOL)albumArtNeedsLoad;
 - (void)discardAlbumArtData;

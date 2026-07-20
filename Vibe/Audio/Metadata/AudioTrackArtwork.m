@@ -164,12 +164,6 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     }
 }
 
-- (void)setAlbumArt:(NSImage *)albumArt {
-    @synchronized (self) {
-        _albumArt = albumArt;
-    }
-}
-
 - (NSImage *)albumArtIfLoaded {
     // No decode here — this is the main thread's updateUI accessor; decoding
     // happens on the background albumArt path (albumArtNeedsLoad).
@@ -232,42 +226,17 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 
 - (NSImage *)thumbnailAlbumArt {
     NSData *dataToDecode = nil;
-    NSImage *imageToScale = nil;
     @synchronized (self) {
         if (_thumbnailAlbumArt) return _thumbnailAlbumArt;
-        if (_albumArtData) {
-            dataToDecode = _albumArtData;
-        }
-        else if (_albumArt) {
-            // Rare fallback: an injected image with no backing data.
-            imageToScale = _albumArt;
-        }
-        else {
+        if (!_albumArtData) {
             return nil;
         }
+        dataToDecode = _albumArtData;
     }
-    // Decode/scale outside the lock (see the file discipline above).
-    NSImage *thumbnail = nil;
-    if (dataToDecode) {
-        thumbnail = VibeDecodeImageData(dataToDecode, kThumbnailDimension);
-    }
-    else {
-        NSSize originalSize = imageToScale.size;
-        if (originalSize.width <= kThumbnailDimension && originalSize.height <= kThumbnailDimension) {
-            thumbnail = imageToScale;
-        } else {
-            CGFloat scale = MIN(kThumbnailDimension / originalSize.width,
-                                kThumbnailDimension / originalSize.height);
-            NSSize target = NSMakeSize(MAX(1.0, round(originalSize.width * scale)),
-                                       MAX(1.0, round(originalSize.height * scale)));
-            // nil on bitmap/context allocation failure: store nothing (never
-            // the full-size image — pinning it defeats the thumbnail's memory
-            // point); _albumArt is still set, so the next access retries.
-            thumbnail = [imageToScale resizedImage:target];
-        }
-    }
+    // Decode outside the lock (see the file discipline above).
+    NSImage *thumbnail = VibeDecodeImageData(dataToDecode, kThumbnailDimension);
     @synchronized (self) {
-        if (dataToDecode && !thumbnail) {
+        if (!thumbnail) {
             // Same undecodable marking as the full-res path — otherwise every
             // playlist cell redraw retries the doomed decode.
             _albumArtUndecodable = YES;

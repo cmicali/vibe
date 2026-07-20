@@ -49,11 +49,12 @@
         // here; PINCache itself is thread-safe), so it is always constructed
         // before first use.
         dispatch_async(_loaderQueue, ^{
-            // The name tracks the entry format version (see
-            // kCodableAudioWaveformVersion): rename on a version bump so the
-            // byte budget isn't consumed by unreadable older-version entries
-            // waiting for LRU eviction.
-            self->_waveformCache = [[PINCache alloc] initWithName:@"audio_waveform_cache_v4"];
+            // The name embeds the entry format version so a version bump
+            // renames the cache and the byte budget isn't consumed by
+            // unreadable older-version entries waiting for LRU eviction.
+            NSString *cacheName = [NSString stringWithFormat:@"audio_waveform_cache_v%d",
+                                                             kCodableAudioWaveformVersion];
+            self->_waveformCache = [[PINCache alloc] initWithName:cacheName];
             self->_waveformCache.diskCache.byteLimit = 64 * 1024 * 1024; // 64mb disk cache limit
             self->_waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
             // The memory cache is deliberately unused (load: reads and writes
@@ -192,18 +193,23 @@ awaitPersist:(BOOL)awaitPersist
 // when the block runs; cancellation is re-checked on the main thread because
 // a cancel (new track selected) may land after the block is enqueued.
 - (void)deliverCompleteWaveform:(CodableAudioWaveform *)waveform loader:(AudioWaveformLoader *)loader url:(NSURL *)url {
-    if (loader.isCancelled) {
+    if (loader.isCancelled && waveform.bpm <= 0) {
         return;
     }
     run_on_main_thread({
         if (!loader.isCancelled) {
             [self.delegate audioWaveform:waveform didLoadData:1];
-            // BPM is computed at the end of the decode pass (or carried by a
-            // cache hit), so it only ever exists on this final delivery.
-            if (waveform.bpm > 0 &&
-                [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectBPM:forURL:)]) {
-                [self.delegate audioWaveformCache:self didDetectBPM:waveform.bpm forURL:url];
-            }
+        }
+        // BPM is computed at the end of the decode pass (or carried by a cache
+        // hit), so it only ever exists on this final delivery — and it is
+        // delivered even when the load was cancelled: a cancelled-but-complete
+        // decode still persisted a BPM that is valid for its file, and the
+        // delegate matches the URL against its playlist, not the current
+        // track. Dropping it here would leave the analyzed track BPM-less
+        // until its next play purely because the cancel won a race.
+        if (waveform.bpm > 0 &&
+            [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectBPM:forURL:)]) {
+            [self.delegate audioWaveformCache:self didDetectBPM:waveform.bpm forURL:url];
         }
     });
 }

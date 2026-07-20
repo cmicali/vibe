@@ -26,9 +26,10 @@ NS_ASSUME_NONNULL_BEGIN
 // cache-generation check, though their UI delivery still happens.
 - (void)invalidateWithCompletion:(nullable dispatch_block_t)completion;
 - (void)loadWaveformForTrack:(AudioTrack *)track;
-// Cancels the in-flight load (if any): no further delegate deliveries until
+// Cancels the in-flight load (if any): no further waveform deliveries until
 // the next loadWaveformForTrack:. A decode that already completed may still
-// persist to disk; only the UI delivery is dropped.
+// persist to disk, and its BPM (URL-tagged, playlist-matched by the receiver)
+// is still delivered; only the waveform UI delivery is dropped.
 - (void)cancelLoad;
 
 #if DEBUG

@@ -28,9 +28,17 @@ static inline os_log_t VibeLog(void) {
 
 // os_log requires a compile-time constant format string, so messages are
 // pre-formatted with NSString. %{public} keeps them readable in Console
-// (os_log redacts dynamic strings by default).
-#define VibeLogAt(type, fmt, ...) \
-    os_log_with_type(VibeLog(), type, "%{public}@", [NSString stringWithFormat:(fmt), ##__VA_ARGS__])
+// (os_log redacts dynamic strings by default). The enabled check is what
+// makes disabled levels free: without it the stringWithFormat: runs
+// unconditionally — info/debug are off-stream by default, so every LogDebug
+// on a hot path would pay full ObjC formatting for a discarded message.
+#define VibeLogAt(type, fmt, ...)                                                              \
+    do {                                                                                       \
+        if (os_log_type_enabled(VibeLog(), type)) {                                            \
+            os_log_with_type(VibeLog(), type, "%{public}@",                                    \
+                             [NSString stringWithFormat:(fmt), ##__VA_ARGS__]);                \
+        }                                                                                      \
+    } while (0)
 
 #define LogError(fmt, ...)  VibeLogAt(OS_LOG_TYPE_ERROR, fmt, ##__VA_ARGS__)
 #define LogWarn(fmt, ...)   VibeLogAt(OS_LOG_TYPE_DEFAULT, fmt, ##__VA_ARGS__)

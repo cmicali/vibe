@@ -60,6 +60,10 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
 // Enable the transport commands we implement (this is what routes the hardware
 // media keys, Control Center, and Bluetooth remotes to us) and disable the
 // rest so the system doesn't offer controls we can't service.
+// The handler blocks are retained process-wide by MPRemoteCommandCenter, so
+// each one must tolerate outliving this controller: the strongSelf nil checks
+// are load-bearing (`nil->_delegate` is a NULL+offset dereference, not a
+// harmless nil-message send).
 - (void)registerCommands {
     MPRemoteCommandCenter *center = [MPRemoteCommandCenter sharedCommandCenter];
     __weak NowPlayingController *weakSelf = self;
@@ -67,6 +71,9 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
     center.playCommand.enabled = YES;
     [center.playCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
         NowPlayingController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return MPRemoteCommandHandlerStatusCommandFailed;
+        }
         [strongSelf->_delegate nowPlayingControllerPlay:strongSelf];
         return MPRemoteCommandHandlerStatusSuccess;
     }];
@@ -74,6 +81,9 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
     center.pauseCommand.enabled = YES;
     [center.pauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
         NowPlayingController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return MPRemoteCommandHandlerStatusCommandFailed;
+        }
         [strongSelf->_delegate nowPlayingControllerPause:strongSelf];
         return MPRemoteCommandHandlerStatusSuccess;
     }];
@@ -81,6 +91,9 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
     center.togglePlayPauseCommand.enabled = YES;
     [center.togglePlayPauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
         NowPlayingController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return MPRemoteCommandHandlerStatusCommandFailed;
+        }
         [strongSelf->_delegate nowPlayingControllerTogglePlayPause:strongSelf];
         return MPRemoteCommandHandlerStatusSuccess;
     }];
@@ -91,6 +104,9 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
     _publishedHasNext = YES;
     [center.nextTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
         NowPlayingController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return MPRemoteCommandHandlerStatusCommandFailed;
+        }
         [strongSelf->_delegate nowPlayingControllerNextTrack:strongSelf];
         return MPRemoteCommandHandlerStatusSuccess;
     }];
@@ -99,6 +115,9 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
     _publishedHasPrevious = YES;
     [center.previousTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
         NowPlayingController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return MPRemoteCommandHandlerStatusCommandFailed;
+        }
         [strongSelf->_delegate nowPlayingControllerPreviousTrack:strongSelf];
         return MPRemoteCommandHandlerStatusSuccess;
     }];
@@ -106,6 +125,9 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
     center.changePlaybackPositionCommand.enabled = YES;
     [center.changePlaybackPositionCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
         NowPlayingController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return MPRemoteCommandHandlerStatusCommandFailed;
+        }
         MPChangePlaybackPositionCommandEvent *positionEvent = (MPChangePlaybackPositionCommandEvent *)event;
         [strongSelf->_delegate nowPlayingController:strongSelf seekToPosition:positionEvent.positionTime];
         return MPRemoteCommandHandlerStatusSuccess;

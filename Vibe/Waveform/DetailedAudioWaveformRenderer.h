@@ -8,11 +8,13 @@
 
 @interface DetailedAudioWaveformRenderer : AudioWaveformRenderer
 
-// Subclass hooks — the Oversampling x2/x4/x8 variants override numLayers,
+// Subclass hooks — the Oversampling x2/x4/x8 variants override numBars,
 // and Basic overrides the geometry/gradient hooks below. Everything else
 // (layer setup, hydration animation, progress clipping, mask caching) is
 // shared.
-- (NSUInteger)numLayers;
+// numBars is the rect count in the single CAShapeLayer mask path — NOT a
+// CALayer count (8192 rects in one path is cheap; 8192 layers would not be).
+- (NSUInteger)numBars;
 
 // Bar geometry: the width of every bar, and the x origin of bar `index`.
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count;

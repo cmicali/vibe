@@ -23,7 +23,6 @@
 @implementation AudioWaveformView {
     CGFloat                     _progress;
     NSUInteger                  _progressTracker;
-    NSUInteger                  _numProgressSteps;
     BOOL                        _didClickInside;
     AudioWaveformRenderer*      _currentWaveformRenderer;
     // Renderer classes keyed by their display name; instantiated on selection.
@@ -58,7 +57,6 @@
 
     _progress = 0;
     _progressTracker = 0;
-    _numProgressSteps = 256;
     _didClickInside = NO;
 
     _waveformRenderers = [NSMutableDictionary new];
@@ -134,9 +132,15 @@
 
 - (void)setProgress:(CGFloat)progress {
     // Store unconditionally — the bucket tracker below only gates repaints;
-    // gating the assignment too would leave the getter up to 1/256 stale.
+    // gating the assignment too would leave the getter stale between repaints.
     _progress = progress;
-    NSUInteger p = static_cast<NSUInteger>(progress * _numProgressSteps);
+    // Repaint whenever the playhead crosses a device pixel. The gate must be
+    // width-based, not a fixed fraction of the track: a duration-proportional
+    // step stalls the played/unplayed boundary for many seconds on an
+    // hour-long mix and swallows sub-step seeks entirely.
+    CGFloat scale = self.window ? self.window.backingScaleFactor : 2.0;
+    NSUInteger steps = MAX((NSUInteger)1, (NSUInteger)(self.bounds.size.width * scale));
+    NSUInteger p = static_cast<NSUInteger>(progress * steps);
     if (_progressTracker != p) {
         _progressTracker = p;
         [self updateRendererProgress];
