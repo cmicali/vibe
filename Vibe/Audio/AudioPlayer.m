@@ -7,6 +7,8 @@
 //
 
 #import "AudioPlayer.h"
+#import "AudioPlayerInternal.h"
+#import "AudioPlayer+Devices.h"
 #import "AudioFX.h"
 #import "AudioTrack.h"
 #import "AudioDeviceManager.h"
@@ -17,20 +19,14 @@
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>
 
-typedef NS_ENUM(NSInteger, VibePlayerState) {
-    VibePlayerStateStopped = 0,
-    VibePlayerStatePlaying,
-    VibePlayerStatePaused,
-    // A play was requested and the file open is in flight (can take up to
-    // kFileOpenTimeoutSeconds for a cloud placeholder). No node/file yet, but
-    // playback is imminent — isPlaying reports YES so the UI holds the pause
-    // icon, while position/duration read 0 instead of the previous track's.
-    VibePlayerStateLoading,
-};
+// VibePlayerState lives in AudioPlayerInternal.h (shared with
+// AudioPlayer+Devices.m, alongside the class extension and this function's
+// declaration).
 
 NSString *const kVibeAudioErrorDomain = @"com.commonwealthrecordings.Vibe";
 
-static NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError *underlying) {
+// Not static: also used by AudioPlayer+Devices.m (declared in AudioPlayerInternal.h).
+NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError *underlying) {
     NSMutableDictionary *info = [NSMutableDictionary new];
     if (underlying) {
         info[NSUnderlyingErrorKey] = underlying;
@@ -66,13 +62,14 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 // — dispatch_sync onto the current queue deadlocks.
 static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
-@interface AudioPlayer () <AudioDeviceManagerObserver>
-@end
+// AudioDeviceManagerObserver conformance is declared on the (Devices)
+// category (AudioPlayer+Devices.h), which implements the observer callbacks.
 
 @implementation AudioPlayer {
-    dispatch_queue_t        _queue;
-    AVAudioEngine           *_engine;
-    AVAudioPlayerNode       *_node;
+    // The ivars the output-device category also touches (_queue, _engine,
+    // _node, _file, _segmentStartFrame, _generation, _rampGeneration, _state,
+    // _stateLock) are declared in AudioPlayerInternal.h's class extension.
+    //
     // Varispeed sits between the current player node and the mixer. A fresh one
     // is created per track (playOnQueue:) so a track change crossfades on two
     // independent chains without rerouting the live node; _varispeed always
@@ -85,8 +82,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     AVAudioUnitVarispeed    *_varispeed;
     float                   _pitch;
     float                   _maxPitch;
-    AVAudioFile             *_file;
-    AVAudioFramePosition    _segmentStartFrame;
     NSTimeInterval          _pausedPosition;
     // Last position computed from a valid playerTime (guarded by _stateLock).
     // When the engine stops ITSELF (device unplug/format change), lastRenderTime
@@ -100,12 +95,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // the epoch check a getter that snapshotted pre-seek state could clobber
     // the freshly seeked position with a stale one.
     uint64_t                _positionEpoch;
-    uint64_t                _generation;
     uint64_t                _openRequestId;
-    // Bumped by every path that preempts an async volume ramp (pause, resume,
-    // seek, skip, device switch); each ramp step aborts once its captured value
-    // goes stale, so a resume fade-in can't drive volume back up after a pause.
-    uint64_t                _rampGeneration;
     // Path of the track whose open is currently in flight (matching
     // _openRequestId), or nil. Mutated only on _queue. Re-selecting the same
     // still-loading track is a no-op (its open will deliver) rather than
@@ -133,8 +123,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // playback) to dissolve the deferred idle engine stop
     // (scheduleEngineIdleStopOnQueue). Queue-confined.
     uint64_t                _engineIdleStopGeneration;
-    VibePlayerState         _state;
-    os_unfair_lock          _stateLock;
     // A pause fade is in flight (queue-confined). A second playPause during
     // the ~25ms fade-out cancels the pending pause and ramps back up instead
     // of pausing twice; cleared unconditionally by the fade's completion
@@ -1174,270 +1162,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     dispatch_async(_queue, ^{
         self->_varispeed.rate = 1.0f + pitch / 100.0f;
     });
-}
-
-#pragma mark - Output devices
-
-- (void)systemDefaultOutputDeviceDidChange {
-    if (self.currentlyRequestedAudioDeviceId == -1) {
-        [self setOutputDevice:self.currentlyRequestedAudioDeviceId];
-    }
-}
-
-// Covers the explicitly chosen device disappearing while playback is idle —
-// handleEngineConfigurationChange only sees removals that kill the running
-// graph. setOutputDevice:-1 rebinds and the delegate persists the fallback,
-// so System Output stays the choice even after the device returns.
-- (void)audioOutputDevicesDidChange {
-    NSInteger requested = self.currentlyRequestedAudioDeviceId;
-    if (requested >= 0 && ![[AudioDeviceManager sharedInstance] outputDeviceForId:requested]) {
-        LogInfo(@"AudioPlayer: requested output device removed; falling back to system default");
-        [self setOutputDevice:-1];
-    }
-}
-
-// The AudioDeviceID the output unit is currently bound to.
-- (AudioDeviceID)activeOutputDeviceID {
-    AudioUnit outputUnit = _engine.outputNode.audioUnit;
-    if (outputUnit) {
-        AudioDeviceID deviceID = kAudioObjectUnknown;
-        UInt32 size = sizeof(deviceID);
-        if (AudioUnitGetProperty(outputUnit, kAudioOutputUnitProperty_CurrentDevice,
-                kAudioUnitScope_Global, 0, &deviceID, &size) == noErr && deviceID != kAudioObjectUnknown) {
-            return deviceID;
-        }
-    }
-    return [CoreAudioUtil systemDefaultOutputDeviceID];
-}
-
-- (NSInteger)currentlyActiveAudioDeviceId {
-    return (NSInteger)[self activeOutputDeviceID];
-}
-
-- (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID {
-    AudioUnit outputUnit = _engine.outputNode.audioUnit;
-    if (!outputUnit) {
-        LogError(@"AudioPlayer: output unit unavailable");
-        return NO;
-    }
-    OSStatus status = AudioUnitSetProperty(outputUnit, kAudioOutputUnitProperty_CurrentDevice,
-            kAudioUnitScope_Global, 0, &deviceID, sizeof(deviceID));
-    if (status != noErr) {
-        LogError(@"AudioPlayer: could not set output device %u (OSStatus %d)", deviceID, (int)status);
-        return NO;
-    }
-    return YES;
-}
-
-- (void)setOutputDevice:(NSInteger)outputDeviceID {
-    dispatch_async(_queue, ^{
-
-        LogDebug(@"setOutputDevice: %@", @(outputDeviceID));
-
-        AudioDeviceID newDeviceID = kAudioObjectUnknown;
-        if (outputDeviceID >= 0) {
-            newDeviceID = (AudioDeviceID)outputDeviceID;
-        }
-        else {
-            newDeviceID = [CoreAudioUtil systemDefaultOutputDeviceID];
-        }
-
-        if (newDeviceID == kAudioObjectUnknown) {
-            // No output device left at all (the explicitly chosen device
-            // vanished and it was the last one): park like
-            // handleEngineConfigurationChange's no-device branch.
-            LogError(@"Unable to resolve output device %@", @(outputDeviceID));
-            [self parkPlaybackForMissingOutputDeviceOnQueue];
-            // Settle the request as -1 (persisted by the delegate): a stale
-            // explicit id would blind both observer recovery paths, so a
-            // replug would never restart anything. With -1 recorded, the next
-            // default-device arrival re-runs setOutputDevice:-1 and restores
-            // the parked track.
-            self.currentlyRequestedAudioDeviceId = outputDeviceID;
-            run_on_main_thread({
-                [self.delegate audioPlayer:self didChangeOutputDevice:self.currentlyRequestedAudioDeviceId];
-            });
-            [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
-                    @"Audio output device is unavailable", nil)];
-            return;
-        }
-
-        AudioDeviceID currentDeviceID = [self activeOutputDeviceID];
-
-        LogDebug(@"current: %@ new: %@", @(currentDeviceID), @(newDeviceID));
-
-        if (newDeviceID != currentDeviceID) {
-            if (![self configureOutputDeviceOnQueue:newDeviceID]) {
-                // configureOutputDeviceOnQueue already reported the error;
-                // don't record or persist a device we failed to switch to.
-                return;
-            }
-        }
-
-        self.currentlyRequestedAudioDeviceId = outputDeviceID;
-
-        run_on_main_thread({
-            [self.delegate audioPlayer:self didChangeOutputDevice:self.currentlyRequestedAudioDeviceId];
-        });
-
-    });
-}
-
-// Rebinds the engine to a new output device, restoring the current track,
-// position, and play/pause state. Returns NO (after reporting a delegate
-// error) on failure.
-- (BOOL)configureOutputDeviceOnQueue:(AudioDeviceID)deviceID {
-    os_unfair_lock_lock(&_stateLock);
-    VibePlayerState priorState = _state;
-    os_unfair_lock_unlock(&_stateLock);
-    AudioTrack *trackToRestore = self.currentTrack;
-    NSTimeInterval positionToRestore = self.position;
-    // Only a live track is restored onto the new device. A finished (Stopped)
-    // track still carries currentTrack/_file, so rescheduling it from the saved
-    // frame would resurrect it as Paused; a Loading track's open is in flight
-    // and will start itself on the new device. Both leave state untouched here.
-    BOOL shouldRestore = (priorState == VibePlayerStatePlaying || priorState == VibePlayerStatePaused) && trackToRestore != nil;
-    BOOL wasPlaying = (priorState == VibePlayerStatePlaying);
-
-    _generation++;
-    _rampGeneration++; // preempt any in-flight fade
-
-    // Unpublish the node BEFORE detaching it: the position getter reads _node
-    // lock-free on the main thread, and calling into a detached node raises.
-    os_unfair_lock_lock(&_stateLock);
-    AVAudioPlayerNode *oldNode = _node;
-    _node = nil;
-    os_unfair_lock_unlock(&_stateLock);
-    [oldNode stop];
-    [_engine stop];
-    if (oldNode) {
-        [_engine detachNode:oldNode];
-    }
-
-    if (![self setOutputUnitDevice:deviceID]) {
-        [self resetToStoppedStateOnQueue];
-        [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
-                @"Could not switch audio output device", nil)];
-        return NO;
-    }
-
-    if (shouldRestore) {
-        // Reuse the already-open handle rather than reopening the URL: a
-        // synchronous, timeout-free initForReading: here would wedge the whole
-        // queue if the track was evicted to an iCloud/Dropbox placeholder (or
-        // sits on a hung mount) between play and the device switch.
-        // processingFormat is fixed at open, so rescheduling the existing file
-        // on the new node is safe.
-        AVAudioFile *file = _file; // on _queue; _file is mutated only here
-        if (!file) {
-            [self resetToStoppedStateOnQueue];
-            [self sendDelegateError:VibeAudioError(VibeAudioErrorFileOpenFailed,
-                    @"Could not restore track on the new audio device", nil)];
-            return NO;
-        }
-        AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
-        [_engine attachNode:node];
-        if (![self connectNode:node throughVarispeedWithFormat:file.processingFormat]) {
-            [self detachNodeAfterFailedConnect:node];
-            [self resetToStoppedStateOnQueue];
-            [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-                    @"Could not restore track on the new audio device", nil)];
-            return NO;
-        }
-        double sampleRate = file.processingFormat.sampleRate;
-        AVAudioFramePosition startFrame = (AVAudioFramePosition)(positionToRestore * sampleRate);
-        startFrame = MAX(0, MIN(startFrame, file.length - 1));
-        [self scheduleFile:file onNode:node fromFrame:startFrame];
-        // Preserve the pause-fade invariant: a Paused track sits at volume 0
-        // so the next resume ramps it back up (see setPosition:). Restoring
-        // at 1.0 would make that resume start instantly at full volume
-        // mid-waveform — the click the 25ms ramp exists to prevent.
-        node.volume = wasPlaying ? 1.0 : 0;
-        [self publishPlaybackState:(wasPlaying ? VibePlayerStatePlaying : VibePlayerStatePaused)
-                              node:node file:file segmentStart:startFrame position:positionToRestore];
-        if (wasPlaying) {
-            NSError *startError = nil;
-            if (![self startEngineAndPlayNode:node error:&startError]) {
-                _generation++;
-                [node stop];
-                [_engine detachNode:node];
-                [self resetToStoppedStateOnQueue];
-                [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-                        @"Could not restart playback on the new audio device", startError)];
-                return NO;
-            }
-        }
-    }
-
-    return YES;
-}
-
-// Runs on _queue when the last output device vanished mid-play. A dead engine
-// must not sit behind a Playing state (frozen position, no explanation), so
-// park as Paused at the last valid position — restorable when a device
-// returns (setOutputDevice:-1 rebuilds the graph at this position). No-op
-// unless Playing: Paused/Loading report their own failure on the next start
-// attempt. No generation bumps — nothing is stopped or rescheduled, same as
-// a normal pause landing.
-- (void)parkPlaybackForMissingOutputDeviceOnQueue {
-    os_unfair_lock_lock(&_stateLock);
-    VibePlayerState state = _state;
-    os_unfair_lock_unlock(&_stateLock);
-    if (state != VibePlayerStatePlaying) {
-        return;
-    }
-    NSTimeInterval position = self.position; // engine dead: serves the last valid reading
-    [self publishPlaybackState:VibePlayerStatePaused node:_node file:_file
-                  segmentStart:_segmentStartFrame position:position];
-    AudioTrack *track = self.currentTrack;
-    run_on_main_thread({
-        [self.delegate audioPlayer:self didPausePlaying:track];
-    });
-}
-
-// AVAudioEngineConfigurationChangeNotification — the output hardware changed
-// under the engine (device removed, format/sample-rate change), which makes
-// the engine stop itself. Idempotent health check: only rebuild when the
-// graph actually died, so notifications caused by our own completed rebuilds
-// are no-ops instead of redundant rebuilds.
-- (void)handleEngineConfigurationChange {
-    NSInteger requested = self.currentlyRequestedAudioDeviceId;
-    if (requested >= 0) {
-        AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:requested];
-        if (!device) {
-            LogError(@"Audio output device failed; falling back to system default");
-            [self setOutputDevice:-1];
-            return;
-        }
-    }
-    os_unfair_lock_lock(&_stateLock);
-    VibePlayerState state = _state;
-    BOOL hasNode = (_node != nil);
-    os_unfair_lock_unlock(&_stateLock);
-    if (state == VibePlayerStateStopped) {
-        return;
-    }
-    if (_engine.isRunning && hasNode) {
-        // Graph survived — nothing to recover.
-        return;
-    }
-    // The engine stopped itself in response to the change. Rebuild the graph,
-    // preserving track/position/play-pause state.
-    AudioDeviceID deviceID = requested >= 0
-            ? (AudioDeviceID)requested
-            : [CoreAudioUtil systemDefaultOutputDeviceID];
-    if (deviceID == kAudioObjectUnknown) {
-        // No output device exists at all (the last one vanished): park the
-        // track as Paused, restorable when a device returns (see
-        // parkPlaybackForMissingOutputDeviceOnQueue), and say why.
-        if (state == VibePlayerStatePlaying) {
-            [self parkPlaybackForMissingOutputDeviceOnQueue];
-            [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
-                    @"No audio output device is available", nil)];
-        }
-        return;
-    }
-    [self configureOutputDeviceOnQueue:deviceID];
 }
 
 #pragma mark - Helpers

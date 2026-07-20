@@ -86,6 +86,13 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 - (NSUInteger)numChannels;
 - (NSTimeInterval)duration;
 
+@end
+
+// The output-device half of the player, implemented in AudioPlayer+Devices.m
+// (declared as a category so the file split compiles cleanly; to callers it
+// is just part of AudioPlayer).
+@interface AudioPlayer (Devices)
+
 - (NSInteger)currentlyActiveAudioDeviceId;
 
 // outputDeviceID is a CoreAudio AudioDeviceID (as NSInteger), or -1 to follow

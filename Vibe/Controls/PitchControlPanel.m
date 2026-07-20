@@ -4,6 +4,7 @@
 //
 
 #import "PitchControlPanel.h"
+#import "PitchFaderView.h"
 #import "Fonts.h"
 #import "Constants.h" // kMainWindowCornerRadius — the right-edge corners follow the window shape
 
@@ -146,11 +147,11 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
 
 - (void)pitchFaderView:(PitchFaderView *)faderView didChangePitch:(float)pitch {
     [self updateReadout];
-    [self.delegate pitchFaderView:faderView didChangePitch:pitch];
+    [self.delegate pitchControlPanel:self didChangePitch:pitch];
 }
 
 - (void)pitchFaderViewDidEndAdjusting:(PitchFaderView *)faderView {
-    [self.delegate pitchFaderViewDidEndAdjusting:faderView];
+    [self.delegate pitchControlPanelDidEndAdjusting:self];
 }
 
 @end
