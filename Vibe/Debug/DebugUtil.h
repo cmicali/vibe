@@ -63,8 +63,9 @@ void VibeInstallDebugCommandHook(void);
 // never touches a running instance); the command-table entry runs the same
 // function app-side for callers that post the command file directly. Sandbox
 // caveat: the running process can only read paths it's been granted — the
-// direct-exec'd client is limited to the app container, so get-bpm.sh copies
-// the file into the container tmp first. Implemented in DebugBPMScan.mm
+// direct-exec'd client is limited to the app container, so scan-bpm.sh
+// streams the file via stdin (the `scan_bpm -` form) and the client stages
+// it in the container tmp. Implemented in DebugBPMScan.mm
 // (needs the C++ waveform mono-mix header, which DebugUtil.m must not
 // import).
 NSString *VibeDebugBPMScanJSON(NSString *rawPath);

@@ -97,7 +97,6 @@
     [CATransaction setDisableActions:YES];
     [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform.waveform];
     [CATransaction commit];
-    _currentWaveformRenderer.progress = _progress;
 }
 
 - (NSArray<NSString*>*)availableWaveformStyles {
@@ -186,20 +185,25 @@
     shimmer.contentsScale = self.window ? self.window.backingScaleFactor : 2.0;
     shimmer.startPoint = CGPointMake(0, 0.5);
     shimmer.endPoint = CGPointMake(1, 0.5);
-    // Follows the appearance like the renderer palettes do — a fixed white
-    // band is near-invisible on a light background.
-    NSColor *base = self.isDark ? [NSColor whiteColor] : [NSColor blackColor];
-    shimmer.colors = @[
-            (id)[base colorWithAlphaComponent:0].CGColor,
-            (id)[base colorWithAlphaComponent:0.55].CGColor,
-            (id)[base colorWithAlphaComponent:0].CGColor,
-    ];
+    shimmer.colors = [self shimmerColors];
     [self.layer addSublayer:shimmer];
     _loadingLayer = shimmer;
 
     // Frame + sweep depend on the current bounds; a helper keeps them in sync
     // when the window resizes (or small/large layout toggles) mid-load.
     [self layoutLoadingLayer];
+}
+
+// Follows the appearance like the renderer palettes do — a fixed white band
+// is near-invisible on a light background. Shared by showLoadingIndicator and
+// updateAppearance so a light↔dark flip mid-load recolors the live shimmer.
+- (NSArray *)shimmerColors {
+    NSColor *base = self.isDark ? [NSColor whiteColor] : [NSColor blackColor];
+    return @[
+            (id)[base colorWithAlphaComponent:0].CGColor,
+            (id)[base colorWithAlphaComponent:0.55].CGColor,
+            (id)[base colorWithAlphaComponent:0].CGColor,
+    ];
 }
 
 // Position the shimmer band and (re)install its sweep for the current bounds.
@@ -331,6 +335,9 @@ static void applyContentsScale(CALayer *layer, CGFloat scale) {
     }
     if (_placeholderLayer) {
         [self updatePlaceholderColor];
+    }
+    if (_loadingLayer) {
+        _loadingLayer.colors = [self shimmerColors];
     }
 }
 

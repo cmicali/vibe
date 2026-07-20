@@ -150,8 +150,11 @@ static NSString *VibeDebugTmpPath(NSString *name) {
     return [NSTemporaryDirectory() stringByAppendingPathComponent:name];
 }
 
-static NSString *VibeDebugCommandPath(void) {
-    return VibeDebugTmpPath(@"vibe-command.json");
+// Per-command files, like the response side: one fixed command path loses a
+// command when two clients write back-to-back (the second write replaces the
+// first before the app reads it).
+static NSString *VibeDebugCommandPath(NSString *commandId) {
+    return VibeDebugTmpPath([NSString stringWithFormat:@"vibe-command-%@.json", commandId]);
 }
 
 static NSString *VibeDebugResponsePath(NSString *commandId) {
@@ -512,7 +515,8 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeCmd(@"dump_menu", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeJSONString(@{@"menu": VibeMenuArray(NSApp.mainMenu)});
             }),
-            VibeCmd(@"dump_screenshot", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeCmd(@"dump_screenshot [-]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                // "-" is client-side: the CLI streams the PNG bytes to stdout.
                 VibeDumpWindowSnapshot();
                 return VibeJSONString(@{@"path": VibeDebugScreenshotPath()});
             }),
@@ -701,12 +705,12 @@ static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *
     return handler(tokens, commandId, controller);
 }
 
-static void VibeHandleDebugCommandFile(void) {
-    NSData *data = [NSData dataWithContentsOfFile:VibeDebugCommandPath()];
+static void VibeHandleOneDebugCommandFile(NSString *path) {
+    NSData *data = [NSData dataWithContentsOfFile:path];
     if (!data) {
         return;
     }
-    [NSFileManager.defaultManager removeItemAtPath:VibeDebugCommandPath() error:nil];
+    [NSFileManager.defaultManager removeItemAtPath:path error:nil];
     // Malformed payloads still get an {"error": ...} reply whenever the id is
     // recoverable — a silent drop leaves the client polling out its window and
     // blaming a missing debug build.
@@ -746,11 +750,24 @@ static void VibeHandleDebugCommandFile(void) {
     LogInfo(@"Debug command dispatched: %@", [args componentsJoinedByString:@" "]);
 }
 
+// notify_post coalesces back-to-back posts into one delivery, so a single
+// wake-up must drain every pending command file. Each reply pairs with its
+// command via the id.
+static void VibeHandleDebugCommandFiles(void) {
+    NSString *tmpDir = NSTemporaryDirectory();
+    NSArray<NSString *> *names = [NSFileManager.defaultManager contentsOfDirectoryAtPath:tmpDir error:nil];
+    for (NSString *name in [names sortedArrayUsingSelector:@selector(compare:)]) {
+        if ([name hasPrefix:@"vibe-command-"] && [name hasSuffix:@".json"]) {
+            VibeHandleOneDebugCommandFile([tmpDir stringByAppendingPathComponent:name]);
+        }
+    }
+}
+
 void VibeInstallDebugCommandHook(void) {
     static int token;
     notify_register_dispatch(kVibeDebugCommandNotification.UTF8String, &token,
                              dispatch_get_main_queue(), ^(int t) {
-        VibeHandleDebugCommandFile();
+        VibeHandleDebugCommandFiles();
     });
 }
 
@@ -769,18 +786,82 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
         // scan_bpm runs IN THIS PROCESS — a pure decode+analyze with no app
         // state — so the client skips the channel round-trip entirely: it
         // works with no app running and never disturbs a running instance.
+        // `scan_bpm - < file` streams the audio via stdin: this process owns
+        // the app container and stages the bytes in its own tmp — a shell cp
+        // into ~/Library/Containers/<id>/ trips macOS 14+ app-data
+        // protection, while inherited fds cross the sandbox freely. The
+        // staged file carries no extension: CoreAudio identifies the format
+        // by content (verified for WAV/FLAC/MP4/ADTS).
         if ([args.firstObject isEqualToString:@"scan_bpm"]) {
-            if (args.count != 2) {
-                fprintf(stderr, "usage: Vibe --debug-cmd scan_bpm <file>\n");
+            NSString *json = nil;
+            if (args.count == 2 && [args[1] isEqualToString:@"-"]) {
+                NSData *audio = [NSFileHandle.fileHandleWithStandardInput readDataToEndOfFile];
+                if (audio.length == 0) {
+                    fprintf(stderr, "vibe: empty stdin — usage: Vibe --debug-cmd scan_bpm - < file\n");
+                    return 64;
+                }
+                NSString *staged = [NSTemporaryDirectory() stringByAppendingPathComponent:
+                        [NSString stringWithFormat:@"bpm-scan-%@", NSUUID.UUID.UUIDString]];
+                if (![audio writeToFile:staged atomically:YES]) {
+                    fprintf(stderr, "vibe: cannot write %s\n", staged.fileSystemRepresentation);
+                    return 1;
+                }
+                json = VibeDebugBPMScanJSON(staged);
+                [NSFileManager.defaultManager removeItemAtPath:staged error:nil];
+            }
+            else if (args.count == 2) {
+                json = VibeDebugBPMScanJSON(args[1]);
+            }
+            else {
+                fprintf(stderr, "usage: Vibe --debug-cmd scan_bpm <file | ->\n");
                 return 64;
             }
-            NSString *json = VibeDebugBPMScanJSON(args[1]);
             printf("%s\n", json.UTF8String);
             NSDictionary *reply = [NSJSONSerialization JSONObjectWithData:
                     [json dataUsingEncoding:NSUTF8StringEncoding] ?: NSData.data
                                                                   options:0
                                                                     error:nil];
             return reply[@"error"] != nil ? 2 : 0;
+        }
+        // In-process for the same container-ownership reason (a shell rm -rf
+        // into the container prompts). Only for when no app is running —
+        // deleting under a live app races its open caches (clear-caches.sh
+        // guards with pgrep and uses the channel's clear_caches instead).
+        if ([args.firstObject isEqualToString:@"clear_disk_caches"]) {
+            NSString *caches = NSSearchPathForDirectoriesInDomains(
+                    NSCachesDirectory, NSUserDomainMask, YES).firstObject;
+            NSFileManager *fm = NSFileManager.defaultManager;
+            NSMutableArray<NSString *> *cleared = [NSMutableArray array];
+            for (NSString *name in [fm contentsOfDirectoryAtPath:caches error:nil]) {
+                if ([name hasPrefix:@"com.pinterest.PINDiskCache."]
+                        && [fm removeItemAtPath:[caches stringByAppendingPathComponent:name] error:nil]) {
+                    [cleared addObject:name];
+                }
+            }
+            printf("%s\n", VibeJSONString(@{@"ok": @YES, @"cleared": cleared}).UTF8String);
+            return 0;
+        }
+        // In-process: shell `defaults write` into the container prompts; this
+        // process writes its own domain. Persists for the next launch — with
+        // the app running use click_menu view_appearance_* instead. "system"
+        // writes the "" follow-OS sentinel (like the View menu) rather than
+        // deleting the key, whose registered default is dark.
+        if ([args.firstObject isEqualToString:@"set_appearance"]) {
+            NSDictionary<NSString *, NSString *> *values = @{
+                @"light": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT,
+                @"dark": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK,
+                @"system": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT,
+            };
+            NSString *value = args.count == 2 ? values[args[1]] : nil;
+            if (!value) {
+                fprintf(stderr, "usage: Vibe --debug-cmd set_appearance <light|dark|system>\n");
+                return 64;
+            }
+            Settings.windowAppearanceStyle = value;
+            // Short-lived process: force the cfprefsd flush before exit.
+            [NSUserDefaults.standardUserDefaults synchronize];
+            printf("%s\n", VibeJSONString(@{@"ok": @YES, @"windowAppearance": args[1]}).UTF8String);
+            return 0;
         }
         NSString *commandId = NSUUID.UUID.UUIDString;
         // Args ride a JSON array, one element per argv entry — never joined
@@ -793,8 +874,9 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
         // Same bundle ID + sandbox entitlements as the app, so NSTemporaryDirectory()
         // resolves to the same container tmp the app-side handler reads.
         NSData *data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
-        if (![data writeToFile:VibeDebugCommandPath() atomically:YES]) {
-            fprintf(stderr, "vibe: cannot write %s\n", VibeDebugCommandPath().fileSystemRepresentation);
+        NSString *commandPath = VibeDebugCommandPath(commandId);
+        if (![data writeToFile:commandPath atomically:YES]) {
+            fprintf(stderr, "vibe: cannot write %s\n", commandPath.fileSystemRepresentation);
             return 1;
         }
         notify_post(kVibeDebugCommandNotification.UTF8String);
@@ -816,9 +898,6 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
                                                                encoding:NSUTF8StringEncoding
                                                                   error:nil];
                 [fileManager removeItemAtPath:responsePath error:nil];
-                if (response.length) {
-                    printf("%s\n", response.UTF8String);
-                }
                 // Replies are always a single JSON object; {"error": ...}
                 // means the command failed.
                 NSDictionary *reply = [NSJSONSerialization JSONObjectWithData:
@@ -826,10 +905,32 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
                                                                       options:0
                                                                         error:nil];
                 BOOL failed = ![reply isKindOfClass:NSDictionary.class] || reply[@"error"] != nil;
+                // dump_screenshot -: stream the PNG over stdout (JSON reply
+                // moves to stderr). Only this process may read the PNG — it
+                // lives in the app container, and another process reading it
+                // trips macOS 14+ app-data protection; the inherited stdout
+                // fd crosses the sandbox, and the caller opens its own
+                // redirect target.
+                if (!failed && [args.firstObject isEqualToString:@"dump_screenshot"]
+                            && [args containsObject:@"-"]) {
+                    NSString *pngPath = [reply[@"path"] isKindOfClass:NSString.class] ? reply[@"path"] : nil;
+                    NSData *png = pngPath ? [NSData dataWithContentsOfFile:pngPath] : nil;
+                    if (png.length == 0) {
+                        fprintf(stderr, "vibe: no screenshot at %s\n",
+                                pngPath.fileSystemRepresentation ?: "(no path in reply)");
+                        return 2;
+                    }
+                    fwrite(png.bytes, 1, png.length, stdout);
+                    fprintf(stderr, "%s\n", response.UTF8String);
+                    return 0;
+                }
+                if (response.length) {
+                    printf("%s\n", response.UTF8String);
+                }
                 return failed ? 2 : 0;
             }
         }
-        [fileManager removeItemAtPath:VibeDebugCommandPath() error:nil];
+        [fileManager removeItemAtPath:commandPath error:nil];
         fprintf(stderr, "vibe: no response after %.0fs — is a debug build of Vibe running?\n", timeout);
         return 1;
     }

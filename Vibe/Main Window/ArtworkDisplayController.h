@@ -38,6 +38,11 @@ NS_ASSUME_NONNULL_BEGIN
 // art stays on screen — no flash of the default between tracks.
 - (void)updateForTrack:(nullable AudioTrack *)track;
 
+// A slow open crossed the loading-indicator threshold: drop the keep-previous
+// policy and show the default (empty-state) art, unless the pending track's
+// own art is already displayed. Pairs with the waveform's loading shimmer.
+- (void)showPlaceholderForSlowLoad;
+
 // Re-derives the header wash from the stored art color. The wash is
 // appearance-dependent (dark: deep wash, light: pastel) and key-window-
 // dependent (half strength inactive); call on appearance changes — key

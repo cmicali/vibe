@@ -24,6 +24,13 @@ int main(int argc, const char * argv[]) {
     if (argc >= 2 && strcmp(argv[1], "--debug-cmd") == 0) {
         return VibeDebugCommandClientMain(argc, argv);
     }
+#else
+    // Say so instead of silently launching the app and printing nothing —
+    // the flag against a Release binary otherwise looks like a hang.
+    if (argc >= 2 && strcmp(argv[1], "--debug-cmd") == 0) {
+        fprintf(stderr, "vibe: --debug-cmd requires a Debug build\n");
+        return 1;
+    }
 #endif
     @autoreleasepool {
         appDelegate = [[AppDelegate alloc] init];

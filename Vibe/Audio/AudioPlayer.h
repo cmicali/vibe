@@ -50,7 +50,7 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // follow the system default). Resolved inside the async init on the player's
 // own queue — resolution enumerates CoreAudio devices, which must stay off
 // the launch path's main thread.
-- (id)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName delegate:(id <AudioPlayerDelegate>)delegate;
+- (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName delegate:(id <AudioPlayerDelegate>)delegate;
 
 - (void)play:(AudioTrack *)track;
 - (void)playPause;

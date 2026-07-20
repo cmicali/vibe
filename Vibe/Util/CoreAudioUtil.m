@@ -42,6 +42,9 @@
 }
 
 + (NSString *)nameForDeviceID:(AudioDeviceID)deviceID {
+    if (deviceID == kAudioObjectUnknown) {
+        return nil; // same guard as uidForDeviceID: — don't query object 0
+    }
     AudioObjectPropertyAddress addr = {
             kAudioObjectPropertyName,
             kAudioObjectPropertyScopeGlobal,

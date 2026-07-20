@@ -10,13 +10,26 @@ const NSTimeInterval kVibeArtCrossfadeDuration = 0.1;
 
 static NSString *const kVibeCrossfadeOverlayName = @"VibeCrossfadeOverlay";
 
-// Match the overlay's scaling behavior to the image view's own.
-static CALayerContentsGravity GravityForImageScaling(NSImageScaling scaling) {
+// Match the overlay's scaling behavior to the image view's own. Sizes matter
+// for NSImageScaleProportionallyDown (NSImageView's default): "down" never
+// upscales, but kCAGravityResizeAspect does — a small image would visibly
+// jump between its natural size and the fitted size during the fade.
+static CALayerContentsGravity GravityForImageScaling(NSImageScaling scaling,
+                                                     NSSize imageSize,
+                                                     NSSize boundsSize) {
     switch (scaling) {
         case NSImageScaleAxesIndependently: return kCAGravityResize;
         case NSImageScaleNone:              return kCAGravityCenter;
-        default:                            return kCAGravityResizeAspect;
+        case NSImageScaleProportionallyDown:
+            // Already fits → drawn at natural size, like the view.
+            if (imageSize.width <= boundsSize.width && imageSize.height <= boundsSize.height) {
+                return kCAGravityCenter;
+            }
+            return kCAGravityResizeAspect;
+        case NSImageScaleProportionallyUpOrDown:
+            return kCAGravityResizeAspect;
     }
+    return kCAGravityResizeAspect;
 }
 
 // Overlay cross-fade: called BEFORE [super setImage:], it overlays the
@@ -52,7 +65,7 @@ static void BeginImageCrossfade(NSImageView *view) {
     overlay.frame = view.layer.bounds;
     overlay.contentsScale = view.window.backingScaleFactor ?: 2.0;
     overlay.contents = (__bridge id)cg;
-    overlay.contentsGravity = GravityForImageScaling(view.imageScaling);
+    overlay.contentsGravity = GravityForImageScaling(view.imageScaling, oldImage.size, view.bounds.size);
     overlay.masksToBounds = YES;
     // NSImageView renders its image through internal machinery that may add
     // its own sublayers; keep the overlay above everything in this view.

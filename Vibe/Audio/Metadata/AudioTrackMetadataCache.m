@@ -218,7 +218,12 @@
     // CGImageForProposedRect forces the actual bitmap decode, which is
     // otherwise deferred until the cell first draws (on main).
     [cachedMetaData.thumbnailAlbumArt CGImageForProposedRect:NULL context:nil hints:nil];
-    track.metadata = cachedMetaData;
+    // Pairs with parseOneTrack's guarded store: this unconditional store
+    // (cached entries are always parsedOK) must not interleave inside that
+    // check-then-act.
+    @synchronized (track) {
+        track.metadata = cachedMetaData;
+    }
     [self publishTrack:track];
     return YES;
 }
@@ -241,12 +246,15 @@
     // Decode the thumbnail before the metadata becomes visible to the
     // main thread (see loadTrackFromDiskCache:).
     [metadata.thumbnailAlbumArt CGImageForProposedRect:NULL context:nil hints:nil];
-    // Never clobber real metadata with a failed parse: a cancelled
-    // loader's op can still be mid-parse (having opened the file while it
-    // was dataless) when this loader re-parses it successfully; last-
-    // writer-wins would reinstate the filename-only fallback.
-    if (metadata.parsedOK || !track.metadata.parsedOK) {
-        track.metadata = metadata;
+    // Never clobber real metadata with a failed parse: a cancelled loader's
+    // op can still be mid-parse when this loader re-parses successfully, and
+    // last-writer-wins would reinstate the filename-only fallback. The
+    // monitor spans the check AND the store — unguarded, it's the same race
+    // one interleave later.
+    @synchronized (track) {
+        if (metadata.parsedOK || !track.metadata.parsedOK) {
+            track.metadata = metadata;
+        }
     }
     // cacheKey re-read here (memoized on the track): a transient stat
     // failure at cache-check time may have healed by end of parse.

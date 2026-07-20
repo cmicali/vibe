@@ -70,8 +70,12 @@ static const CGFloat kDragHysteresis = 3;
     CGPoint dragPosition = [self convertPoint:[event locationInWindow] fromView:nil];
 
     NSURL *fileURL = self.fileURL;
-    [fileURL startAccessingSecurityScopedResource];
-    _securityScopedURL = fileURL;
+    // Record for the drag-end stop only when the start took: stop must
+    // balance a SUCCESSFUL start (an unbalanced stop over-releases the
+    // sandbox extension). NO — URL not security-scoped — still drags fine.
+    if ([fileURL startAccessingSecurityScopedResource]) {
+        _securityScopedURL = fileURL;
+    }
 
     CGFloat imageSize = 48;
     CGRect imageRect = CGRectMake(0, 0, imageSize, imageSize);

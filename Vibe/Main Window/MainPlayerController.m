@@ -82,15 +82,12 @@
     BOOL                        _timerRunning;
     __weak AudioTrack*          _lastReloadedTrack;
     // The error mask: the track whose play attempt failed, plus the short
-    // status for the error rendering's artist line ("Load timed out", ...—
-    // the full error text goes to the log). While the track is still the
-    // playlist's current track and the player is stopped, the header renders
-    // the error state and ignores the track — including late metadata/art
-    // deliveries, which must not repopulate the header for a file that never
-    // played. Weak: the track stays in the playlist for retry, and
-    // clearing/replacing the playlist dissolves the mark. The pair is only
-    // valid together — written exclusively by setErrorMaskForTrack:status: /
-    // clearErrorMask.
+    // status for the error rendering's artist line (full error text goes to
+    // the log). While that track is still current and the player is stopped,
+    // the header renders the error state and ignores the track — including
+    // late metadata/art deliveries. Weak: the track stays in the playlist
+    // for retry, and replacing the playlist dissolves the mark. Written only
+    // by setErrorMaskForTrack:status: / clearErrorMask.
     __weak AudioTrack*          _erroredTrack;
     NSString*                   _errorStatus;
     // Launch grace (see revealEmptyState in the header): while YES the empty
@@ -99,10 +96,9 @@
     // The deferred playlist-wide metadata load (see play:). The generation
     // pairs each play:'s 2s fallback timer with its own playlist: a timer
     // armed by playlist A firing after a re-drop must not start playlist B's
-    // load early (while B's first track is still opening — exactly the I/O
-    // contention the deferral exists to avoid). The pair is only valid
-    // together — written exclusively by scheduleDeferredMetadataLoad /
-    // cancelDeferredMetadataLoad / startPendingMetadataLoad.
+    // load while B's first track is still opening. Written only by
+    // scheduleDeferredMetadataLoad / cancelDeferredMetadataLoad /
+    // startPendingMetadataLoad.
     BOOL                        _metadataLoadPending;
     NSUInteger                  _metadataLoadGeneration;
     TransportKeyMonitor*        _keyMonitor;
@@ -399,8 +395,10 @@ typedef NS_ENUM(NSInteger, VibeHeaderState) {
 
     VibeHeaderState headerState = [self headerState];
     AudioTrack *track = self.playlistManager.currentTrack;
-    AudioTrack *displayTrack =
-            (headerState == VibeHeaderStateTrack || headerState == VibeHeaderStateLoading) ? track : nil;
+    // The masking rule lives in displayedTrack — don't re-derive it here.
+    // track is still used deliberately below: the error rendering titles the
+    // masked track, and the play-button glyph follows the playlist.
+    AudioTrack *displayTrack = [self displayedTrack];
 
     // The track check covers Close: the player's stop is async on its queue,
     // so it can still read isPlaying for the instant after closeFile: — and no
@@ -810,28 +808,31 @@ static const double kSkipMostBars = 32.0;
     // Show the pending track's title/artist while it loads.
     [self updateUI];
     [self.waveformView showLoadingIndicator];
+    // After updateUI (which shows the pending track's art if it's already
+    // resolved): the previous track's art must not outlive the shimmer.
+    [_artworkController showPlaceholderForSlowLoad];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
+    // Stale start from a just-replaced playlist (re-drop while the old play's
+    // open was in flight): do nothing — acting would reset the NEW track's
+    // shimmer/waveform view, kick a wasted decode+prefetch for the old one,
+    // and cache the wrong duration. The new play's own events drive the UI
+    // from here.
+    if (track != [self.playlistManager currentTrack]) {
+        return;
+    }
     [_artworkController trackDidStartPlaying:track];
     [self clearErrorMask];
     [self.waveformView hideLoadingIndicator];
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
-    // Only the current playlist's start may consume the deferred load: a
-    // stale didStartPlaying from a just-replaced playlist would otherwise
-    // start the new playlist's load while its first track is still opening.
-    // (The new playlist's own didStartPlaying — or the 2s fallback — follows.)
-    if (track == [self.playlistManager currentTrack]) {
-        // The now-playing track jumps the scan queue: its header tags/art
-        // must not wait behind the playlist sweep (a cloud-heavy folder keeps
-        // every scan worker blocked for minutes). Runs even when
-        // didBeginLoading: already asked — that call skips the parse while
-        // the file is a dataless placeholder, and by now the open has
-        // materialized it, so this one completes the job (no-op if the
-        // cache hit already published).
-        [self.metadataCache loadMetadataNow:track];
-        [self startPendingMetadataLoad];
-    }
+    // The now-playing track jumps the scan queue: its header tags/art must
+    // not wait behind the playlist sweep (a cloud-heavy folder keeps every
+    // scan worker blocked for minutes). Runs even when didBeginLoading:
+    // already asked — that call skips the parse while the file is a dataless
+    // placeholder; by now the open has materialized it.
+    [self.metadataCache loadMetadataNow:track];
+    [self startPendingMetadataLoad];
     _currentTrackDuration = self.audioPlayer.duration;
     [self.waveformView prepareForWaveformLoad];
     [self.waveformCache loadWaveformForTrack:track];
@@ -849,25 +850,21 @@ static const double kSkipMostBars = 32.0;
     // reloadData, next/previous's two-row window, doubleClick's pair); the
     // mark makes resumeUIUpdateTimer -> updateUI refresh only the play-state
     // cell (the equalizer indicator must flip to animating) instead of
-    // rebuilding the whole row again. Guarded like the metadata load above —
-    // a stale start from a just-replaced playlist must not mark the new
-    // playlist's row as rendered.
-    if (track == [self.playlistManager currentTrack]) {
-        _lastReloadedTrack = track;
-    }
+    // rebuilding the whole row again.
+    _lastReloadedTrack = track;
     [self resumeUIUpdateTimer];
-    self.playButton.enabled = YES;
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track {
     [self pauseUIUpdateTimer];
     [self updateUI];
-    self.playButton.enabled = YES;
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track {
+    // A device-loss error can mask a track the player merely parked as Paused
+    // (see audioPlayer:error:); resuming proves the mask wrong.
+    [self clearErrorMask];
     [self resumeUIUpdateTimer];
-    self.playButton.enabled = YES;
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track {
@@ -899,14 +896,20 @@ static const double kSkipMostBars = 32.0;
         // Harmless — ignore silently rather than popping a modal alert.
         return;
     }
-    // Staleness guard, like didStartPlaying:'s track check and the 2s
-    // fallback's generation check. An error carries no track and has no arm
-    // point, but every play-path error is published Stopped before delivery —
-    // so a stale error after a re-drop reads Loading/Playing and must not
-    // start the sweep while the new playlist's first track is opening.
-    if (self.audioPlayer.isStopped) {
-        [self startPendingMetadataLoad];
+    LogError(@"%@", error.localizedDescription);
+    // Only a Stopped player takes the play-failure path below. This is both
+    // the staleness guard (play-path errors are published Stopped before
+    // delivery, so a stale error after a re-drop reads Loading/Playing) and
+    // the exclusion of device-loss errors for a track merely PARKED as Paused
+    // — masking a resumable track would render a false error screen later,
+    // and zeroing the duration cache would freeze the waveform progress after
+    // recovery. The park's didPausePlaying handles the UI; resume lifts any
+    // mask.
+    if (!self.audioPlayer.isStopped) {
+        [self updateUI];
+        return;
     }
+    [self startPendingMetadataLoad];
     [self pauseUIUpdateTimer];
     // Playback failed — the duration cached at the last didStartPlaying no
     // longer describes anything the player holds.
@@ -917,7 +920,6 @@ static const double kSkipMostBars = 32.0;
     // header shows the error state, the track stays in the playlist for
     // retry, and the errored mark keeps late metadata/art deliveries from
     // repopulating the header.
-    LogError(@"%@", error.localizedDescription);
     [self setErrorMaskForTrack:self.playlistManager.currentTrack
                         status:[MainPlayerController statusForPlayError:error]];
     [self updateUI];

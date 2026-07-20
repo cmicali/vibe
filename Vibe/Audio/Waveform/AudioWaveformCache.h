@@ -20,7 +20,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nullable, weak) id <AudioWaveformCacheDelegate> delegate;
 
-- (void)invalidate;
 // Completion fires on the cache's serial loader queue once the disk cache has
 // been emptied. Decodes already in flight (they run on a global queue, not
 // the loader queue) can't repopulate it: their disk writes are dropped by a

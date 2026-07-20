@@ -35,7 +35,6 @@
     }
 }
 
-// The AudioDeviceID the output unit is currently bound to.
 - (AudioDeviceID)activeOutputDeviceID {
     AudioUnit outputUnit = _engine.outputNode.audioUnit;
     if (outputUnit) {
@@ -81,7 +80,7 @@
     BOOL wasPlaying = (priorState == VibePlayerStatePlaying);
 
     _generation++;
-    _rampGeneration++; // preempt any in-flight fade
+    [self preemptRampsOnQueue];
 
     // Unpublish the node BEFORE detaching it: the position getter reads _node
     // lock-free on the main thread, and calling into a detached node raises.
@@ -218,6 +217,14 @@
         }
         return;
     }
+    // Paused idempotence: a Paused rebuild deliberately leaves the engine
+    // stopped, so the isRunning check above can't attest graph health for it
+    // — without this, every notification while paused re-ran a full rebuild.
+    // Node present + right device bound = graph intact; resume starts the
+    // engine, same as after a normal idle stop.
+    if (state == VibePlayerStatePaused && hasNode && [self activeOutputDeviceID] == deviceID) {
+        return;
+    }
     [self configureOutputDeviceOnQueue:deviceID];
 }
 
@@ -250,11 +257,11 @@
             // handleEngineConfigurationChange's no-device branch.
             LogError(@"Unable to resolve output device %@", @(outputDeviceID));
             [self parkPlaybackForMissingOutputDeviceOnQueue];
-            // Settle the request as -1 (persisted by the delegate): a stale
-            // explicit id would blind both observer recovery paths, so a
-            // replug would never restart anything. With -1 recorded, the next
-            // default-device arrival re-runs setOutputDevice:-1 and restores
-            // the parked track.
+            // outputDeviceID is necessarily -1 here (an explicit id >= 0 is
+            // used verbatim above), and recording it matters: a stale
+            // explicit id would blind both observer recovery paths; with -1
+            // recorded (and persisted by the delegate), the next
+            // default-device arrival restores the parked track.
             self.currentlyRequestedAudioDeviceId = outputDeviceID;
             run_on_main_thread({
                 [self.delegate audioPlayer:self didChangeOutputDevice:self.currentlyRequestedAudioDeviceId];

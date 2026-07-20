@@ -49,8 +49,9 @@ NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError 
 // Queue-side helpers implemented in AudioPlayer.m (see the definitions there
 // for the full contract comments); declared here so AudioPlayer+Devices.m can
 // call them. All of these run on _queue.
+- (uint64_t)preemptRampsOnQueue;
 - (BOOL)connectNode:(AVAudioPlayerNode *)node throughVarispeedWithFormat:(AVAudioFormat *)format;
-- (void)detachNodeAfterFailedConnect:(AVAudioPlayerNode *)node;
+- (void)detachNodeAfterFailedConnect:(AVAudioNode *)node;
 - (void)scheduleFile:(AVAudioFile *)file onNode:(AVAudioPlayerNode *)node fromFrame:(AVAudioFramePosition)startFrame;
 - (BOOL)startEngineAndPlayNode:(AVAudioPlayerNode *)node error:(NSError **)outError;
 - (void)resetToStoppedStateOnQueue;

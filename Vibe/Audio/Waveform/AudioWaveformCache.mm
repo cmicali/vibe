@@ -22,7 +22,7 @@
     dispatch_queue_t                _loaderQueue;
     PINCache*                       _waveformCache;
     __weak AudioWaveformLoader*     _currentLoader;
-    // Bumped by invalidate. A decode captures it when it starts and skips its
+    // Bumped by invalidateWithCompletion:. A decode captures it when it starts and skips its
     // disk write if it moved — decodes run on a global queue, so an in-flight
     // one could otherwise land its setObjectAsync: after removeAllObjects and
     // repopulate the emptied cache.
@@ -67,10 +67,6 @@
         });
     }
     return self;
-}
-
-- (void)invalidate {
-    [self invalidateWithCompletion:nil];
 }
 
 - (void)invalidateWithCompletion:(dispatch_block_t)completion {

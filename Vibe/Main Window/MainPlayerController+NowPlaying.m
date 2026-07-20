@@ -11,17 +11,14 @@
 @implementation MainPlayerController (NowPlaying)
 
 // Publish the current track + playback state to the system Now Playing UI
-// (Control Center, media keys). Driven off updateUI so it refreshes on every
-// transport event, metadata delivery, and artwork resolution; also called on
-// seek, pitch-range change, and fader-gesture end (the things that move
-// position/rate without an updateUI — a fader drag deliberately publishes
-// once at gesture end, not per tick). Cheap and non-blocking — safe to call
-// this often.
+// (Control Center, media keys). Driven off updateUI, plus seek, pitch-range
+// change, and fader-gesture end — the things that move position/rate without
+// an updateUI (a fader drag deliberately publishes once, at gesture end).
+// Cheap and non-blocking.
 - (void)updateNowPlaying {
-    // displayedTrack, not currentTrack: the system sees the same masked view
-    // the header renders, so a play-error state clears the Now Playing slot
-    // (via the nil-track path) instead of advertising a track that never
-    // produced audio.
+    // displayedTrack, not currentTrack: the system sees the header's masked
+    // view, so a play-error state clears the Now Playing slot instead of
+    // advertising a track that never produced audio.
     AudioTrack *track = [self displayedTrack];
     NowPlayingPlaybackState state;
     if (self.audioPlayer.isPaused) {
@@ -34,12 +31,9 @@
         state = NowPlayingPlaybackStateStopped;
     }
     // Report pitch-adjusted (wall-clock) time so Control Center matches the
-    // app's own current/total labels and tracks the pitch fader: the varispeed
-    // rate divides file time exactly as -playbackRate / -updatePlaybackUI do
-    // on screen. Wall-clock time then advances at real time, so the rate handed
-    // to the system is 1.0 while playing (NowPlayingController zeroes it when
-    // not) — NOT the varispeed rate, which would double-count against the
-    // already-scaled position.
+    // app's own time labels. Wall-clock elapsed advances at real time, so the
+    // rate handed to the system is 1.0 — NOT the varispeed rate, which would
+    // double-count against the already-scaled position.
     double rate = self.playbackRate;
     NSTimeInterval duration = self.audioPlayer.duration;
     NSTimeInterval position = self.audioPlayer.position;
@@ -90,9 +84,8 @@
 
 - (void)nowPlayingController:(NowPlayingController *)controller seekToPosition:(NSTimeInterval)position {
     // The scrubber position arrives in the wall-clock time updateNowPlaying
-    // publishes (elapsed/duration divided by the varispeed rate); the player
-    // seeks in file time, so convert back with the same rate — exactly as
-    // the skip actions' wall-clock fallback does.
+    // publishes; the player seeks in file time — convert back with the same
+    // rate.
     self.audioPlayer.position = position * self.playbackRate;
 }
 

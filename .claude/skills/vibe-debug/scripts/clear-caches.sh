@@ -3,8 +3,11 @@
 #
 # If a debug build is running, goes through `--debug-cmd clear_caches` (the app
 # keeps running with empty caches — the reply confirms completion). Otherwise
-# deletes every PINDiskCache directory in the app container directly, which
-# also sweeps superseded cache versions.
+# `--debug-cmd clear_disk_caches` deletes every PINDiskCache directory in the
+# app container (sweeping superseded cache versions too) — executed inside the
+# Vibe CLI client, which owns the container, so no shell process touches
+# ~/Library/Containers/ (that would trip macOS's "access data from other apps"
+# prompt against the terminal's host app).
 #
 # Usage: clear-caches.sh
 # App path: $VIBE_APP if set, else <repo>/build/DerivedData/Build/Products/Debug/Vibe.app
@@ -14,9 +17,9 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$DIR/../../../.." && pwd)"
 APP="${VIBE_APP:-$ROOT/build/DerivedData/Build/Products/Debug/Vibe.app}"
 V="$APP/Contents/MacOS/Vibe"
-CACHES="$HOME/Library/Containers/com.commonwealthrecordings.Vibe/Data/Library/Caches"
+[ -x "$V" ] || { echo "vibe: no debug binary at $V (build first, or set VIBE_APP)" >&2; exit 1; }
 
-if pgrep -x Vibe >/dev/null && [ -x "$V" ]; then
+if pgrep -x Vibe >/dev/null; then
     if OUT="$("$V" --debug-cmd clear_caches 2>/dev/null)"; then
         echo "$OUT"
         exit 0
@@ -28,14 +31,4 @@ if pgrep -x Vibe >/dev/null && [ -x "$V" ]; then
     exit 1
 fi
 
-shopt -s nullglob
-DIRS=("$CACHES"/com.pinterest.PINDiskCache.*)
-if [ ${#DIRS[@]} -eq 0 ]; then
-    echo '{"ok": true, "cleared": []}'
-    exit 0
-fi
-for d in "${DIRS[@]}"; do
-    rm -rf "$d"
-done
-printf '{"ok": true, "cleared": [%s]}\n' \
-    "$(printf '"%s",' "${DIRS[@]##*/}" | sed 's/,$//')"
+"$V" --debug-cmd clear_disk_caches

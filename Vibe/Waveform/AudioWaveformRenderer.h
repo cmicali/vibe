@@ -10,7 +10,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioWaveformRenderer : NSObject
 
-@property (assign) CGFloat progress;
 @property (assign) BOOL isDark;
 
 // Last "played" bar index that updateProgress: painted. Layer-array renderers

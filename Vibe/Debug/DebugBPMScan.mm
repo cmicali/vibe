@@ -23,8 +23,8 @@
 // that posts the command file directly.
 //
 // Sandbox: whichever process runs this is sandboxed, so <file> must be
-// somewhere it can read — in practice the app container's tmp (get-bpm.sh
-// copies the file there first).
+// somewhere it can read — in practice the app container's tmp (the client's
+// `scan_bpm -` stdin form stages the bytes there; see scan-bpm.sh).
 
 static NSString *VibeBPMScanJSONForDictionary(NSDictionary *reply) {
     NSData *data = [NSJSONSerialization dataWithJSONObject:reply options:0 error:nil];
