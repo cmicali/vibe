@@ -10,6 +10,8 @@
 #import "NSDockTile+Util.h"
 #import "NSImage+Util.h"
 #import "NSView+DarkMode.h"
+#import "CrossfadingImageView.h"
+#import <QuartzCore/QuartzCore.h>
 
 // The raw dominant color can be anything from neon to near-black; pulling
 // saturation/brightness into an appearance-specific band keeps the tint
@@ -28,10 +30,6 @@ static const CGFloat kTintAlphaLight         = 0.55;
 static const CGFloat kTintMaxBrightnessLight = 0.97;
 static const CGFloat kTintMinBrightnessLight = 0.85;
 static const CGFloat kTintMaxSaturationLight = 0.45;
-// In light mode the tint drops to half strength while the window isn't key,
-// like the system dims inactive-window chrome; dark mode keeps the full
-// wash regardless — it's the window's resting look, not active chrome.
-static const CGFloat kTintInactiveFactor = 0.5;
 
 @implementation ArtworkDisplayController {
     ArtworkImageView            *_artworkView;
@@ -50,30 +48,15 @@ static const CGFloat kTintInactiveFactor = 0.5;
     if (self) {
         _artworkView = artworkView;
         _headerTintView = headerTintView;
-        // Object nil (filtered in the handler): the tint view isn't
-        // necessarily in a window yet at construction time.
-        NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
-        [center addObserver:self selector:@selector(windowKeyStateChanged:)
-                       name:NSWindowDidBecomeKeyNotification object:nil];
-        [center addObserver:self selector:@selector(windowKeyStateChanged:)
-                       name:NSWindowDidResignKeyNotification object:nil];
     }
     return self;
 }
 
-- (void)dealloc {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
-}
-
-- (void)windowKeyStateChanged:(NSNotification *)note {
-    if (note.object == _headerTintView.window) {
-        [self refreshHeaderTint];
-    }
-}
-
-// Derives the on-screen wash from the raw dominant color — appearance
-// clamps first, then half strength while the window isn't key — and pushes
-// it to the header. Also the public refresh hook for appearance changes.
+// Derives the on-screen wash from the raw dominant color (appearance clamps
+// applied here) and pushes it to the header. Also the public refresh hook for
+// appearance changes. The wash is this view's own backgroundColor, not the
+// glass's tintColor — AppKit silently discards a glass tint whenever the
+// window isn't key, and the window must look the same active or not.
 - (void)refreshHeaderTint {
     NSColor *color = nil;
     if (_dominantArtColor) {
@@ -84,15 +67,30 @@ static const CGFloat kTintInactiveFactor = 0.5;
         CGFloat alpha  = dark ? kTintAlphaDark : kTintAlphaLight;
         CGFloat hue, saturation, brightness;
         [_dominantArtColor getHue:&hue saturation:&saturation brightness:&brightness alpha:NULL];
-        if (!dark && !_headerTintView.window.isKeyWindow) {
-            alpha *= kTintInactiveFactor;
-        }
         color = [NSColor colorWithHue:hue
                            saturation:MIN(saturation, maxSat)
                            brightness:MAX(minBri, MIN(brightness, maxBri))
                                 alpha:alpha];
     }
-    _headerTintView.layer.backgroundColor = color.CGColor; // nil color clears
+    // AppKit disables implicit actions on a view's backing layer, so the fade
+    // is explicit: set the model value action-free, then animate from the
+    // presentationLayer's current color (retargets a fade already in flight).
+    // "No tint" animates as clearColor rather than nil so the fade-out is a
+    // color ramp, not an instant clear.
+    CALayer *layer = _headerTintView.layer;
+    CGColorRef newColor = (color ?: NSColor.clearColor).CGColor;
+    CALayer *presentation = layer.presentationLayer ?: layer;
+    CGColorRef fromColor = presentation.backgroundColor ?: NSColor.clearColor.CGColor;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    layer.backgroundColor = newColor;
+    [CATransaction commit];
+    CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"backgroundColor"];
+    fade.fromValue = (__bridge id)fromColor;
+    fade.toValue = (__bridge id)newColor;
+    fade.duration = kVibeArtCrossfadeDuration;
+    fade.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+    [layer addAnimation:fade forKey:@"tintFade"];
 }
 
 // Tints the header glass to the art's dominant color (nil art → untinted).
@@ -107,6 +105,14 @@ static const CGFloat kTintInactiveFactor = 0.5;
 // of the default between tracks. The default backdrop is installed only when
 // the track is known to be artless.
 - (void)updateForTrack:(AudioTrack *)track {
+    if (!track) {
+        // No file loaded. Without this, a nil track reads as "art unresolved"
+        // below and the keep-previous-art policy would leave the closed
+        // track's art and tint up.
+        [self showDefaultArtwork];
+        _initialized = YES;
+        return;
+    }
     if (track.albumArt) {
         if (_displayedArt != track.albumArt) {
             _artworkView.image = track.albumArt;

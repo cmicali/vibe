@@ -46,6 +46,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) NSTextField *titleTextField;
 @property (readonly) NSTextField *totalTimeTextField;
 @property (readonly) NSTextField *currentTimeTextField;
+// Empty-state hint ("Drop a file or press ⌘O"); shown only while no track
+// is loaded.
+@property (readonly) NSTextField *dropHintTextField;
 @property (readonly) NSTextField *fileMetadataTextField;
 @property (readonly) NSTextField *bpmTextField;
 

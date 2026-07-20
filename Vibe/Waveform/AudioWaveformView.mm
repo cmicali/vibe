@@ -29,6 +29,7 @@
     // Renderer classes keyed by their display name; instantiated on selection.
     NSMutableDictionary<NSString *, Class>* _waveformRenderers;
     CAGradientLayer*            _loadingLayer;
+    CALayer*                    _placeholderLayer;
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -152,6 +153,7 @@
 
 - (void)prepareForWaveformLoad {
     [self hideLoadingIndicator];
+    [self hideEmptyPlaceholder];
     _waveform = nil;
     if (!_currentWaveformRenderer) {
         // Prefer the persisted style, then the app default; allKeys[0] is a
@@ -174,6 +176,7 @@
     if (_loadingLayer) {
         return;
     }
+    [self hideEmptyPlaceholder];
     // Collapse any previous track's waveform so the shimmer stands alone.
     _waveform = nil;
     self.progress = 0;
@@ -231,6 +234,49 @@
     _loadingLayer = nil;
 }
 
+- (void)showEmptyPlaceholder {
+    if (_placeholderLayer) {
+        return;
+    }
+    [self hideLoadingIndicator];
+    _waveform = nil;
+    self.progress = 0;
+    if (_currentWaveformRenderer) {
+        [self drawWaveform];
+    }
+
+    CALayer *line = [CALayer layer];
+    line.contentsScale = self.window ? self.window.backingScaleFactor : 2.0;
+    [self.layer addSublayer:line];
+    _placeholderLayer = line;
+
+    [self updatePlaceholderColor];
+    [self layoutPlaceholderLayer];
+}
+
+// Same 2pt midline band the shimmer sweeps, but full-width and static.
+- (void)layoutPlaceholderLayer {
+    if (!_placeholderLayer) {
+        return;
+    }
+    CGFloat midY = self.bounds.size.height / 2;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _placeholderLayer.frame = CGRectMake(0, midY - 1, self.bounds.size.width, 2);
+    [CATransaction commit];
+}
+
+- (void)updatePlaceholderColor {
+    NSColor *base = self.isDark ? [NSColor whiteColor] : [NSColor blackColor];
+    // Half the shimmer's 0.55 peak, so the empty state recedes.
+    _placeholderLayer.backgroundColor = [base colorWithAlphaComponent:0.275].CGColor;
+}
+
+- (void)hideEmptyPlaceholder {
+    [_placeholderLayer removeFromSuperlayer];
+    _placeholderLayer = nil;
+}
+
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
     _waveform = waveform;
     [self drawWaveform];
@@ -245,6 +291,9 @@
     if (sizeChanged && _loadingLayer) {
         // Keep the shimmer centered and spanning the new width mid-load.
         [self layoutLoadingLayer];
+    }
+    if (sizeChanged && _placeholderLayer) {
+        [self layoutPlaceholderLayer];
     }
 }
 
@@ -281,6 +330,9 @@ static void applyContentsScale(CALayer *layer, CGFloat scale) {
             [_currentWaveformRenderer updateColors:isDark];
             [self updateRendererProgress];
         }
+    }
+    if (_placeholderLayer) {
+        [self updatePlaceholderColor];
     }
 }
 

@@ -35,6 +35,14 @@ static NSMenuItem *VibeMenuItem(NSString *title, SEL action, id target, NSString
     return item;
 }
 
+// Same, plus a system-symbol icon.
+static NSMenuItem *VibeSymbolMenuItem(NSString *title, NSString *symbolName, SEL action, id target,
+                                      NSString *key, NSEventModifierFlags modifiers, NSString *identifier) {
+    NSMenuItem *item = VibeMenuItem(title, action, target, key, modifiers, identifier);
+    item.image = [NSImage imageWithSystemSymbolName:symbolName accessibilityDescription:title];
+    return item;
+}
+
 static NSMenuItem *VibeSubmenuItem(NSMenu *parent, NSString *title) {
     NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title action:NULL keyEquivalent:@""];
     item.submenu = [[NSMenu alloc] initWithTitle:title];
@@ -70,27 +78,31 @@ static NSMenuItem *VibeSubmenuItem(NSMenu *parent, NSString *title) {
     _openRecentMenu = openRecentItem.submenu;
     _openRecentMenu.delegate = self; // populated from NSDocumentController on open
     [fileMenu addItem:[NSMenuItem separatorItem]];
-    [fileMenu addItem:VibeMenuItem(@"Close", @selector(performClose:), nil, @"w", NSEventModifierFlagCommand, nil)];
+    // Closes the loaded file(s), not the window; title/enabled state managed
+    // by validation.
+    [fileMenu addItem:VibeSymbolMenuItem(@"Close File", @"xmark", @selector(closeFile:), player, @"w", NSEventModifierFlagCommand, @"menu_close")];
 
     // Playback
     NSMenu *playbackMenu = [VibeSubmenuItem(mainMenu, @"Playback") submenu];
-    [playbackMenu addItem:VibeMenuItem(@"Play", @selector(playPause:), player, @" ", 0, @"menu_play")];
-    [playbackMenu addItem:VibeMenuItem(@"Previous Track", @selector(previous:), player, @"b", 0, @"menu_previous_track")];
-    [playbackMenu addItem:VibeMenuItem(@"Next Track", @selector(next:), player, @"n", 0, @"menu_next_track")];
+    [playbackMenu addItem:VibeSymbolMenuItem(@"Play", @"play.fill", @selector(playPause:), player, @" ", 0, @"menu_play")];
+    [playbackMenu addItem:VibeSymbolMenuItem(@"Previous Track", @"backward.end.fill", @selector(previous:), player, @"b", 0, @"menu_previous_track")];
+    [playbackMenu addItem:VibeSymbolMenuItem(@"Next Track", @"forward.end.fill", @selector(next:), player, @"n", 0, @"menu_next_track")];
     [playbackMenu addItem:[NSMenuItem separatorItem]];
     // Bare A/S/Z/X, like the other transport keys (mask 0). Actually handled by
     // TransportKeyMonitor; the key equivalents here are for display and as the
     // fallback path. Enabled only with a track loaded (see the Menus category).
-    [playbackMenu addItem:VibeMenuItem(@"Skip Forward", @selector(skipForward:), player, @"a", 0, @"menu_skip_forward")];
-    [playbackMenu addItem:VibeMenuItem(@"Skip Forward More", @selector(skipForwardMore:), player, @"s", 0, @"menu_skip_forward_more")];
-    [playbackMenu addItem:VibeMenuItem(@"Skip Forward Most", @selector(skipForwardMost:), player, @"d", 0, @"menu_skip_forward_most")];
-    [playbackMenu addItem:VibeMenuItem(@"Skip Back", @selector(skipBack:), player, @"z", 0, @"menu_skip_back")];
-    [playbackMenu addItem:VibeMenuItem(@"Skip Back More", @selector(skipBackMore:), player, @"x", 0, @"menu_skip_back_more")];
-    [playbackMenu addItem:VibeMenuItem(@"Skip Back Most", @selector(skipBackMost:), player, @"c", 0, @"menu_skip_back_most")];
+    [playbackMenu addItem:VibeSymbolMenuItem(@"Skip Forward", @"forward", @selector(skipForward:), player, @"a", 0, @"menu_skip_forward")];
+    [playbackMenu addItem:VibeSymbolMenuItem(@"Skip Forward More", @"", @selector(skipForwardMore:), player, @"s", 0, @"menu_skip_forward_more")];
+    [playbackMenu addItem:VibeSymbolMenuItem(@"Skip Forward Most", @"", @selector(skipForwardMost:), player, @"d", 0, @"menu_skip_forward_most")];
+    [playbackMenu addItem:VibeSymbolMenuItem(@"Skip Back", @"backward", @selector(skipBack:), player, @"z", 0, @"menu_skip_back")];
+    [playbackMenu addItem:VibeSymbolMenuItem(@"Skip Back More", @"", @selector(skipBackMore:), player, @"x", 0, @"menu_skip_back_more")];
+    [playbackMenu addItem:VibeSymbolMenuItem(@"Skip Back Most", @"", @selector(skipBackMost:), player, @"c", 0, @"menu_skip_back_most")];
     [playbackMenu addItem:[NSMenuItem separatorItem]];
     // Bare Q (mask 0), handled by TransportKeyMonitor like the keys above.
-    [playbackMenu addItem:VibeMenuItem(@"Low Kill", @selector(toggleLowKill:), player, @"q", 0, @"menu_low_kill")];
-    NSMenu *pitchRangeMenu = [VibeSubmenuItem(playbackMenu, @"Pitch Range") submenu];
+    [playbackMenu addItem:VibeSymbolMenuItem(@"Low Kill", @"dial.min", @selector(toggleLowKill:), player, @"q", 0, @"menu_low_kill")];
+    NSMenuItem *pitchRangeItem = VibeSubmenuItem(playbackMenu, @"Pitch Range");
+    pitchRangeItem.image = [NSImage imageWithSystemSymbolName:@"slider.vertical.3" accessibilityDescription:@"Pitch Range"];
+    NSMenu *pitchRangeMenu = pitchRangeItem.submenu;
     [pitchRangeMenu addItem:VibeMenuItem(@"8%", @selector(setPitchRange:), player, @"", 0, @"pitch_range_8")];
     [pitchRangeMenu addItem:VibeMenuItem(@"16%", @selector(setPitchRange:), player, @"", 0, @"pitch_range_16")];
 
@@ -105,9 +117,9 @@ static NSMenuItem *VibeSubmenuItem(NSMenu *parent, NSString *title) {
     styleMenu.autoenablesItems = NO;
     styleMenu.delegate = player; // fills in the renderer styles
     [viewMenu addItem:[NSMenuItem separatorItem]];
-    [viewMenu addItem:VibeMenuItem(@"Show Playlist", @selector(toggleSize:), player,
+    [viewMenu addItem:VibeSymbolMenuItem(@"Show Playlist", @"list.dash", @selector(toggleSize:), player,
                                    [NSString stringWithFormat:@"%c", NSTabCharacter], 0, @"menu_show_playlist")];
-    [viewMenu addItem:VibeMenuItem(@"Show Pitch Control", @selector(togglePitchPanel:), player, @"p", 0, @"menu_show_pitch")];
+    [viewMenu addItem:VibeSymbolMenuItem(@"Show Pitch Control", @"slider.vertical.3", @selector(togglePitchPanel:), player, @"p", 0, @"menu_show_pitch")];
 
     // Output
     NSMenu *outputMenu = [VibeSubmenuItem(mainMenu, @"Output") submenu];

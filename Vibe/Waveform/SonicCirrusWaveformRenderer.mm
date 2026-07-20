@@ -5,9 +5,28 @@
 
 #import "SonicCirrusWaveformRenderer.h"
 
+#include <vector>
+#include <cmath>
+
 // 128 bars, each drawn with two layers: layers[i*2] is the top bar and
 // layers[i*2 + 1] is the mirrored bottom bar.
 #define kVibeBarCount 128
+
+// Morph timing: exponential ease toward the target heights, settling (~95%)
+// in about 3τ ≈ 0.2s. Exponential approach retargets seamlessly — a new
+// target mid-morph just bends the in-flight motion.
+static const CFTimeInterval kMorphTau = 0.07;
+// Convergence threshold in normalized height units (bar heights span [0, 1]).
+static const float kMorphEpsilon = 0.002f;
+static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
+
+// Geometry constants shared by morphTick's frame-skip heuristic and
+// rebuildLayerFrames, so the two can't disagree on the normalized→pixels
+// scale.
+static const CGFloat kBarAmplitude = 0.75;     // full bar height as a fraction of the view height
+static const CGFloat kTopLineRatio = 0.70;     // top bar's share of the height; the mirror gets the rest
+static const CGFloat kBlockWidthRatio = 0.75;  // bar width as a fraction of the bar pitch
+static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline and the mirror bars
 
 @implementation SonicCirrusWaveformRenderer {
     // The only renderer that draws with a flat array of bar layers (the
@@ -19,6 +38,21 @@
     NSColor* _unPlayedColorTop;
     NSColor* _playedColorBottom;
     NSColor* _unPlayedColorBottom;
+
+    // Morph state: what's on screen vs. where it's heading (one normalized
+    // height per bar). The timer eases displayed toward target and stops
+    // once they converge.
+    std::vector<float> _displayedSamples;
+    std::vector<float> _targetSamples;
+    // Reusable target buffer — updateWaveform: runs on every loader tick and
+    // live-resize frame, so a fresh allocation per call is churn. Swapped
+    // with _targetSamples when the target moves.
+    std::vector<float> _scratchSamples;
+    CGSize _layoutSize;
+    BOOL _hasWaveform;   // NO = the zero target means "empty", drawn as nothing rather than hairline bars
+    NSTimer *_morphTimer;
+    CFTimeInterval _lastMorphTick;
+    float _pendingRebuildPx;  // screen-space bar movement accumulated since the last frame relayout
 }
 
 + (NSString *)displayName {
@@ -46,6 +80,7 @@
 }
 
 - (void)dealloc {
+    [_morphTimer invalidate];
     for (CALayer *layer in _layers) {
         [layer removeFromSuperlayer];
     }
@@ -75,18 +110,6 @@
         [self.parentLayer addSublayer:layer];
     }
     _layers = layers;
-}
-
-- (void)setLayerFrame:(CGRect)frame atIndex:(NSUInteger)index {
-    _layers[index].frame = frame;
-    CGFloat bottom = frame.origin.y;
-    CGFloat top = bottom + frame.size.height;
-    if (top > self.topY) {
-        self.topY = top;
-    }
-    if (bottom < self.bottomY) {
-        self.bottomY = bottom;
-    }
 }
 
 - (void)setLayerColor:(NSColor *)color atIndex:(NSUInteger)index {
@@ -128,51 +151,155 @@
 
     NSUInteger count = kVibeBarCount;
 
-    if (!waveform) {
-        // Clear stale bars from the previous track.
-        [CATransaction begin];
-        [CATransaction setDisableActions:YES];
-        for (NSUInteger i = 0; i < count * 2; i++) {
-            _layers[i].frame = CGRectZero;
+    // Build the morph target: each bar's normalized peak-to-peak height, or
+    // all-zero when there is no waveform — a track change collapses the old
+    // bars toward the baseline until the new waveform retargets them.
+    if (_scratchSamples.size() != count) {
+        _scratchSamples.resize(count);
+    }
+    if (waveform) {
+        for (NSUInteger i = 0; i < count; i++) {
+            AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
+            _scratchSamples[i] = fabsf(m.getMax() - m.getMin()) / 2;
         }
-        [CATransaction commit];
+    }
+    else {
+        std::fill(_scratchSamples.begin(), _scratchSamples.end(), 0.0f);
+    }
+
+    BOOL geometryChanged = !NSEqualSizes(bounds.size, _layoutSize);
+    _layoutSize = bounds.size;
+    // The empty↔loaded flip is tracked separately from sample changes: a
+    // silent track's all-zero waveform is sample-identical to the collapsed
+    // "no waveform" target but draws hairlines instead of nothing.
+    BOOL hasWaveformChanged = (_hasWaveform != (waveform != nil));
+    _hasWaveform = (waveform != nil);
+    if (_displayedSamples.size() != count) {
+        // First draw: start collapsed so the first waveform grows out of the
+        // baseline.
+        _displayedSamples.assign(count, 0.0f);
+        geometryChanged = YES;
+    }
+    BOOL targetChanged = (_scratchSamples != _targetSamples);
+    if (!targetChanged && !geometryChanged && !hasWaveformChanged) {
+        // No-op redraw — skip the 256 frame writes.
+        return;
+    }
+    if (targetChanged) {
+        std::swap(_targetSamples, _scratchSamples);
+    }
+    if (geometryChanged || (hasWaveformChanged && !targetChanged)) {
+        // Geometry: remap the on-screen bars instantly — a live resize must
+        // track the window, not ease after it. hasWaveform flip alone: no
+        // morph will run (samples identical) but the hairline floor changed,
+        // so redraw in place.
+        [self rebuildLayerFrames];
+    }
+    if (targetChanged) {
+        [self startMorphTimer];
+    }
+}
+
+// Runs in the main run loop's common modes so morphs don't freeze during
+// menu tracking or a live resize.
+- (void)startMorphTimer {
+    if (_morphTimer) {
+        return; // already easing — the updated target just bends the motion
+    }
+    _lastMorphTick = CACurrentMediaTime();
+    __weak __typeof__(self) weakSelf = self;
+    _morphTimer = [NSTimer timerWithTimeInterval:kMorphFrameInterval repeats:YES block:^(NSTimer *timer) {
+        [weakSelf morphTick];
+    }];
+    [NSRunLoop.mainRunLoop addTimer:_morphTimer forMode:NSRunLoopCommonModes];
+}
+
+- (void)morphTick {
+    CFTimeInterval now = CACurrentMediaTime();
+    // Clamp dt: after a stall (debugger pause, occluded window) one huge
+    // step would snap the morph instead of easing it.
+    CFTimeInterval dt = MIN(MAX(now - _lastMorphTick, 0), 0.1);
+    _lastMorphTick = now;
+    float k = (float)(1.0 - exp(-dt / kMorphTau));
+    float maxDistance = 0;
+    for (size_t i = 0; i < _displayedSamples.size(); i++) {
+        float d = _targetSamples[i] - _displayedSamples[i];
+        maxDistance = MAX(maxDistance, fabsf(d));
+        _displayedSamples[i] += d * k;
+    }
+    if (maxDistance < kMorphEpsilon) {
+        _displayedSamples = _targetSamples;
+        [_morphTimer invalidate];
+        _morphTimer = nil;
+        [self rebuildLayerFrames]; // final settle always draws the exact target
+        return;
+    }
+    // The exponential tail spends many frames moving imperceptibly — skip
+    // relayouts until the fastest bar has accumulated ~a quarter pixel of
+    // motion.
+    CGFloat vscale = _layoutSize.height * kBarAmplitude * kTopLineRatio;
+    _pendingRebuildPx += (float)(maxDistance * k * vscale);
+    if (_pendingRebuildPx >= 0.25f) {
+        [self rebuildLayerFrames];
+    }
+}
+
+// Lay the bar layers out for the currently displayed samples. Heights round
+// to the DEVICE-pixel grid on every draw: edges stay crisp, quantization
+// stays at an imperceptible 1-device-pixel step, and the settle draw is
+// identical to the last animation frame — no end-of-morph shift.
+- (void)rebuildLayerFrames {
+    _pendingRebuildPx = 0;
+    NSUInteger count = _displayedSamples.size();
+    if (count == 0) {
         return;
     }
 
-    CGFloat totalHeight = bounds.size.height;
-    CGFloat width = bounds.size.width;
+    CGFloat totalHeight = _layoutSize.height;
+    CGFloat width = _layoutSize.width;
 
-    CGFloat vscale = totalHeight * 0.75;
+    CGFloat vscale = totalHeight * kBarAmplitude;
 
     CGFloat barPitch = width / (CGFloat)count;
-    CGFloat blockWidth = clampMin(barPitch * 0.75, 1);
+    CGFloat blockWidth = clampMin(barPitch * kBlockWidthRatio, 1);
 
-    CGFloat topLineRatio = 0.70;
-    CGFloat topLineY = round(totalHeight * (1-topLineRatio));
+    CGFloat topLineY = round(totalHeight * (1 - kTopLineRatio));
+    CGFloat bottomLineY = topLineY - kBottomBarSpacing;
 
-    CGFloat bottomBarSpacing = 2;
-    CGFloat bottomLineY = topLineY - bottomBarSpacing;
+    // With no waveform, bars may shrink to nothing; with one, silent and
+    // not-yet-loaded chunks keep a 1px hairline floor.
+    CGFloat minHeight = _hasWaveform ? 1 : 0;
+    CGFloat scale = self.parentLayer.contentsScale;
+    if (scale <= 0) scale = 2;
+    CGFloat pixel = 1 / scale;
+
+    // Track the actual extents for the view's click hit-band.
+    CGFloat maxTop = topLineY;
+    CGFloat minBottom = bottomLineY;
 
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (NSUInteger i = 0; i < count; i++) {
 
-        AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
         CGFloat x = barPitch * (CGFloat)i;
 
         // Top line
-        CGFloat height = fabs(m.getMax() - m.getMin()) / 2 * vscale;
-        CGFloat topBarHeight = clampMin(round(height * topLineRatio), 1);
-        CGRect frame = CGRectMake(x, topLineY, blockWidth, topBarHeight);
-        [self setLayerFrame:frame atIndex:i * 2];
+        CGFloat height = _displayedSamples[i] * vscale;
+        CGFloat topBarHeight = round(height * kTopLineRatio / pixel) * pixel;
+        topBarHeight = MAX(topBarHeight, minHeight);
+        _layers[i * 2].frame = CGRectMake(x, topLineY, blockWidth, topBarHeight);
 
         // Mirror line
-        CGFloat bottomBarHeight = round(topBarHeight * (1-topLineRatio));
-        frame = CGRectMake(x, bottomLineY - bottomBarHeight, blockWidth, bottomBarHeight);
-        [self setLayerFrame:frame atIndex:i * 2 + 1];
+        CGFloat bottomBarHeight = round(topBarHeight * (1 - kTopLineRatio) / pixel) * pixel;
+        _layers[i * 2 + 1].frame = CGRectMake(x, bottomLineY - bottomBarHeight, blockWidth, bottomBarHeight);
 
+        maxTop = MAX(maxTop, topLineY + topBarHeight);
+        minBottom = MIN(minBottom, bottomLineY - bottomBarHeight);
     }
     [CATransaction commit];
+
+    self.topY = maxTop;
+    self.bottomY = minBottom;
 }
 
 @end

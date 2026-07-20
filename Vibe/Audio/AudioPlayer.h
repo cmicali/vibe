@@ -55,6 +55,13 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 - (void)play:(AudioTrack *)track;
 - (void)playPause;
 
+// Stops playback and unloads the current track: any in-flight open is
+// superseded, a playing node fades to silence before teardown, and the player
+// reports Stopped with no currentTrack. Fires no delegate callback — this is
+// not a track-end event, so it must not drive auto-advance; the caller owns
+// the UI reset.
+- (void)stop;
+
 // Ends the current track as if it had played to its end: stops output and
 // notifies the delegate via audioPlayer:didFinishPlaying:. The delegate's
 // handler is what drives auto-advance (or the end-of-playlist stop), so the
@@ -72,6 +79,9 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 - (BOOL)isPlaying;
 - (BOOL)isPaused;
 - (BOOL)isStopped;
+// The in-flight file open (isPlaying also reports YES in this state);
+// position/duration read 0 here — unknown, not zero.
+- (BOOL)isLoading;
 
 - (NSUInteger)numChannels;
 - (NSTimeInterval)duration;

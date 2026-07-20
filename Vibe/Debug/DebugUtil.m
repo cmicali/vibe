@@ -32,6 +32,22 @@ static NSString *VibeDebugScreenshotPath(void) {
     return [NSTemporaryDirectory() stringByAppendingPathComponent:@"vibe-screenshot.png"];
 }
 
+// Glass views' hosting layers render as opaque white in renderInContext:
+// (their real content is window-server composited), painting over everything
+// below them in the tree — so they must be hidden for the render, not just
+// underpainted.
+static void VibeCollectGlassLayers(NSView *view, NSMutableArray<CALayer *> *out) {
+    if ([view isKindOfClass:[NSGlassEffectView class]]) {
+        if (view.layer) {
+            [out addObject:view.layer];
+        }
+        return;
+    }
+    for (NSView *subview in view.subviews) {
+        VibeCollectGlassLayers(subview, out);
+    }
+}
+
 static void VibeDumpWindowSnapshot(void) {
     NSWindow *window = NSApp.keyWindow ?: NSApp.mainWindow;
     if (!window) {
@@ -58,11 +74,40 @@ static void VibeDumpWindowSnapshot(void) {
         return;
     }
     CGContextScaleCTM(ctx, scale, scale);
+    // With the glass layers hidden below, their region renders transparent —
+    // paint an appearance-matched proxy background first so dark-mode content
+    // (white text/waveform at low alpha) keeps the window's real contrast
+    // polarity instead of flattening onto white.
+    NSAppearanceName match = [window.effectiveAppearance
+            bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
+    BOOL isDark = [match isEqualToString:NSAppearanceNameDarkAqua];
+    CGContextSetGrayFillColor(ctx, isDark ? 0.1 : 0.95, 1.0);
+    CGContextFillRect(ctx, view.bounds);
     CALayer *layer = view.layer;
     if (layer) {
-        // Presentation tree when available: captures animations mid-flight.
-        CALayer *presentation = layer.presentationLayer ?: layer;
-        [presentation renderInContext:ctx];
+        NSMutableArray<CALayer *> *glassLayers = [NSMutableArray array];
+        VibeCollectGlassLayers(view, glassLayers);
+        if (glassLayers.count > 0) {
+            // The hides must stay uncommitted so the on-screen window never
+            // flickers — which forces rendering the model tree (an uncommitted
+            // change is invisible to a presentation copy). Costs mid-flight
+            // animation capture, but only glass-bearing windows pay it.
+            [CATransaction begin];
+            [CATransaction setDisableActions:YES];
+            for (CALayer *glass in glassLayers) {
+                glass.hidden = YES;
+            }
+            [layer renderInContext:ctx];
+            for (CALayer *glass in glassLayers) {
+                glass.hidden = NO;
+            }
+            [CATransaction commit];
+        }
+        else {
+            // Presentation tree when available: captures animations mid-flight.
+            CALayer *presentation = layer.presentationLayer ?: layer;
+            [presentation renderInContext:ctx];
+        }
     }
     else {
         // Non-layer-backed fallback: AppKit drawing path.
@@ -540,6 +585,22 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 }];
                 return VibeJSONString(@{@"ok": @YES, @"opening": path});
             }),
+            // Normally never reached from the CLI: the client executes
+            // scan_bpm locally (see VibeDebugCommandClientMain), so this
+            // entry exists for the usage listing and for callers that post
+            // the command file directly. Same core function either way.
+            VibeCmd(@"scan_bpm <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                NSString *errorJSON = nil;
+                NSString *path = VibeExistingFileArgument(tokens, &errorJSON);
+                if (!path) {
+                    return errorJSON;
+                }
+                // Full-file decode — keep it off the main thread.
+                dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                    VibeWriteDebugResponse(commandId, VibeDebugBPMScanJSON(path));
+                });
+                return nil; // response written by the block above
+            }),
             VibeCmd(@"file_cache <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *errorJSON = nil;
                 NSString *path = VibeExistingFileArgument(tokens, &errorJSON);
@@ -704,6 +765,22 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
         if (args.count == 0) {
             fprintf(stderr, "usage: Vibe --debug-cmd <command> [args...]\n");
             return 64;
+        }
+        // scan_bpm runs IN THIS PROCESS — a pure decode+analyze with no app
+        // state — so the client skips the channel round-trip entirely: it
+        // works with no app running and never disturbs a running instance.
+        if ([args.firstObject isEqualToString:@"scan_bpm"]) {
+            if (args.count != 2) {
+                fprintf(stderr, "usage: Vibe --debug-cmd scan_bpm <file>\n");
+                return 64;
+            }
+            NSString *json = VibeDebugBPMScanJSON(args[1]);
+            printf("%s\n", json.UTF8String);
+            NSDictionary *reply = [NSJSONSerialization JSONObjectWithData:
+                    [json dataUsingEncoding:NSUTF8StringEncoding] ?: NSData.data
+                                                                  options:0
+                                                                    error:nil];
+            return reply[@"error"] != nil ? 2 : 0;
         }
         NSString *commandId = NSUUID.UUID.UUIDString;
         // Args ride a JSON array, one element per argv entry — never joined

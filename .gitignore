@@ -30,6 +30,9 @@ DerivedData/
 /Vibe.xcodeproj/
 Vibe/Common/Info.plist
 
+# Generated test audio (.claude/skills/vibe-debug/scripts/generate-test-audio.sh)
+/Assets/test_audio_files/
+
 
 
 

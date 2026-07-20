@@ -34,12 +34,22 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)play:(NSArray<NSURL *> *)urls;
 - (void)playURL:(NSURL *)url;
 
+// Ends the launch grace period: the header starts blank rather than flashing
+// the empty state while a launch-time open (Finder double-click, argv) is
+// still resolving. The app delegate calls this once it knows nothing is being
+// opened; play: ends the grace on its own. Idempotent.
+- (void)revealEmptyState;
+
 - (IBAction)closeApp:(id)sender;
 - (IBAction)minimizeWindow:(id)sender;
 
 - (IBAction)playPause:(nullable id)sender;
 - (IBAction)next:(nullable id)sender;
 - (IBAction)previous:(nullable id)sender;
+
+// File > Close (⌘W): stops playback, clears the playlist, and returns the app
+// to the empty state.
+- (IBAction)closeFile:(nullable id)sender;
 
 // Seek relative to the current position, in wall-clock seconds (the units the
 // time labels show). Forward past the end advances to the next track or stops

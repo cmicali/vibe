@@ -719,6 +719,51 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     });
 }
 
+- (void)stop {
+    dispatch_async(_queue, ^{
+        [self stopOnQueue];
+    });
+}
+
+- (void)stopOnQueue {
+    _generation++;      // drop the scheduled segment's stop-fired completion
+    _rampGeneration++;  // preempt any in-flight fade
+
+    // Pull the node/varispeed pair out of the live state, fade it to silence
+    // if audible, and detach both.
+    AVAudioPlayerNode *oldNode = _node;
+    AVAudioUnitVarispeed *oldVarispeed = _varispeed;
+    os_unfair_lock_lock(&_stateLock);
+    _node = nil;
+    os_unfair_lock_unlock(&_stateLock);
+    _varispeed = nil;
+
+    AVAudioEngine *engine = _engine;
+    if (oldNode && engine.isRunning && _state == VibePlayerStatePlaying) {
+        [self rampRetiredNodeAsync:oldNode step:1 from:oldNode.volume completion:^{
+            [oldNode stop];
+            [engine detachNode:oldNode];
+            if (oldVarispeed) {
+                [engine detachNode:oldVarispeed];
+            }
+        }];
+    }
+    else {
+        if (oldNode) {
+            [oldNode stop];
+            [engine detachNode:oldNode];
+        }
+        if (oldVarispeed) {
+            [engine detachNode:oldVarispeed];
+        }
+    }
+
+    self.currentTrack = nil;
+    // Supersedes any in-flight open, publishes Stopped, and schedules the
+    // engine idle stop that releases the output device.
+    [self resetToStoppedStateOnQueue];
+}
+
 - (void)playPause {
     dispatch_async(_queue, ^{
         if (self->_state == VibePlayerStateLoading) {
@@ -868,6 +913,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     BOOL paused = (_state == VibePlayerStatePaused);
     os_unfair_lock_unlock(&_stateLock);
     return paused;
+}
+
+- (BOOL)isLoading {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL loading = (_state == VibePlayerStateLoading);
+    os_unfair_lock_unlock(&_stateLock);
+    return loading;
 }
 
 - (BOOL)isStopped {

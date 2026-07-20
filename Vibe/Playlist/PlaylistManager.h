@@ -24,6 +24,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)play;
 - (void)play:(NSArray<NSURL *> *)urls;
+
+// Empties the playlist and resets currentIndex. Does not touch the audio
+// player — the caller stops playback itself.
+- (void)clear;
+
 - (BOOL)next;
 
 - (BOOL)previous;
