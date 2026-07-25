@@ -22,8 +22,9 @@ V="$APP/Contents/MacOS/Vibe"
 .claude/skills/vibe-debug/scripts/launch.sh [audio-file ...]   # kill, open -a, wait until ready
 ```
 
-`launch.sh` relaunches the build and polls the debug channel until the app answers, printing its `dump_state` JSON — no guessed sleeps. It honors `$VIBE_APP` if the app lives somewhere other than `build/DerivedData`. Doing it by hand instead:
+`launch.sh` relaunches the build and polls the debug channel until the app answers, printing its `dump_state` JSON — no guessed sleeps. It honors `$VIBE_APP` if the app lives somewhere other than `build/DerivedData`. **It launches with audio output MUTED** (the debug-only `--silent` argv flag zeroes the engine's main mixer — playback, position, waveform, and FX state all behave normally, nothing reaches the speakers; `dump_state` reports it as `player.silent`). Set `VIBE_AUDIBLE=1` to hear playback. Doing it by hand instead:
 
+- **Mute manual launches too**: `open -a "$APP" <files> --args --silent` (`--args` must come last — everything after it becomes the app's argv). The direct-exec second-instance path takes argv natively: `"$V" --silent &`.
 - **Feed it a file with `open -a "$APP" <file>`.** The App Sandbox denies reading raw `argv` paths (no Launch Services grant), so `"$V" <file>` parses the path but the open fails. `open` grants access properly. (An already-running instance can also load files via `--debug-cmd open <path>` — but that grants no sandbox access either, so it's for container/already-granted paths; `open -a` works mid-session too and remains the way to feed arbitrary files.)
 - **Check WHICH binary is running before trusting any observation.** If the user has Vibe running from Xcode, LaunchServices routes `open -a` (and `open -n`) to that instance — you'll be testing a stale build without any error. Verify with:
   ```bash

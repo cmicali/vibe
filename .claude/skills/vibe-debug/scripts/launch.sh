@@ -5,6 +5,8 @@
 #
 # Usage: launch.sh [audio-file ...]
 # App path: $VIBE_APP if set, else <repo>/build/DerivedData/Build/Products/Debug/Vibe.app
+# Audio output is MUTED by default (launches with --silent); set VIBE_AUDIBLE=1
+# to actually hear playback.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -21,7 +23,12 @@ pkill -x Vibe 2>/dev/null && sleep 1 || true
 # open can silently produce nothing (LaunchServices re-registering the bundle).
 for _ in 1 2 3 4 5 6; do
     if ! pgrep -x Vibe >/dev/null; then
-        open -a "$APP" "$@"
+        # --args must come last; everything after it becomes the app's argv.
+        if [ -z "${VIBE_AUDIBLE:-}" ]; then
+            open -a "$APP" "$@" --args --silent
+        else
+            open -a "$APP" "$@"
+        fi
         sleep 2
     fi
     if "$V" --debug-cmd dump_state 2>/dev/null; then
