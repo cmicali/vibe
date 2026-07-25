@@ -13,8 +13,6 @@
 
 #pragma mark - Waveform Cache
 
-#define WAVEFORM_CACHE_ENABLED 1
-
 @interface AudioWaveformCache () <AudioWaveformLoaderDelegate>
 @end
 
@@ -62,9 +60,6 @@
             // would pin ~64KB per unique track played for the app's lifetime.
             // The view retains the one live waveform; replays re-read from
             // disk in a few ms on this utility queue.
-            if (!WAVEFORM_CACHE_ENABLED) {
-                [self->_waveformCache removeAllObjects];
-            }
         });
     }
     return self;
@@ -133,17 +128,15 @@
   withLoader:(AudioWaveformLoader *)loader
 awaitPersist:(BOOL)awaitPersist
   completion:(void (^)(CodableAudioWaveform *waveform, BOOL wasCached))completion {
-    CodableAudioWaveform *cachedWaveform = nil;
-    if (WAVEFORM_CACHE_ENABLED) {
-        cachedWaveform = (CodableAudioWaveform *)[self->_waveformCache.diskCache objectForKey:cacheKey];
-        // PINCache unarchives without secure coding, so a corrupt/tampered
-        // entry with a different root class decodes cleanly and would crash
-        // (unrecognized selector) at first use — on every play of this track,
-        // since nothing would ever evict it. Same guard as the metadata cache.
-        if (cachedWaveform && ![cachedWaveform isKindOfClass:[CodableAudioWaveform class]]) {
-            [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
-            cachedWaveform = nil;
-        }
+    CodableAudioWaveform *cachedWaveform =
+            (CodableAudioWaveform *)[self->_waveformCache.diskCache objectForKey:cacheKey];
+    // PINCache unarchives without secure coding, so a corrupt/tampered entry
+    // with a different root class decodes cleanly and would crash
+    // (unrecognized selector) at first use — on every play of this track, since
+    // nothing would ever evict it. Same guard as the metadata cache.
+    if (cachedWaveform && ![cachedWaveform isKindOfClass:[CodableAudioWaveform class]]) {
+        [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
+        cachedWaveform = nil;
     }
     if (cachedWaveform) {
         completion(cachedWaveform, YES);
@@ -168,8 +161,7 @@ awaitPersist:(BOOL)awaitPersist
             completion(nil, NO); // cancelled, failed, or partial
             return;
         }
-        if (WAVEFORM_CACHE_ENABLED &&
-            generation == self->_cacheGeneration.load(std::memory_order_relaxed)) {
+        if (generation == self->_cacheGeneration.load(std::memory_order_relaxed)) {
             // Cache even when cancelled — a completed decode is worth keeping
             // for the next play of this track. Skipped when an invalidate
             // arrived after this decode started: the write would repopulate

@@ -25,6 +25,10 @@ static NSUInteger VibeDockIconGeneration = 0;
 // standard macOS icon spans 824/1024 of its canvas, with a ~22.5% corner
 // radius (185/824). Anything with a smaller margin reads visibly larger
 // than every neighboring icon in the Dock and switcher.
+//
+// Drawn into an explicit sRGB NSBitmapImageRep context rather than lockFocus
+// (soft-deprecated; its backing rep also picks up the deepest screen's scale)
+// — same pattern as NSImage+Util's resizedImage:. Returns nil if no context.
 NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
 
     CGFloat size = canvasSize * (824.0 / 1024.0);
@@ -36,8 +40,25 @@ NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
     CGFloat shadowBlur = size * 0.06;
     CGFloat shadowOffsetY = -size * 0.03;
 
-    NSImage *finalImage = [[NSImage alloc] initWithSize:NSMakeSize(canvasSize, canvasSize)];
-    [finalImage lockFocus];
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc]
+                                               initWithBitmapDataPlanes:NULL
+                                                             pixelsWide:(NSInteger)canvasSize
+                                                             pixelsHigh:(NSInteger)canvasSize
+                                                          bitsPerSample:8
+                                                        samplesPerPixel:4
+                                                               hasAlpha:YES
+                                                               isPlanar:NO
+                                                         colorSpaceName:NSCalibratedRGBColorSpace
+                                                            bytesPerRow:0
+                                                           bitsPerPixel:0];
+    rep = [rep bitmapImageRepByRetaggingWithColorSpace:NSColorSpace.sRGBColorSpace];
+    NSGraphicsContext *context = rep ? [NSGraphicsContext graphicsContextWithBitmapImageRep:rep] : nil;
+    if (!context) {
+        return nil;
+    }
+    rep.size = NSMakeSize(canvasSize, canvasSize); // 1 point per pixel: the Dock scales it itself
+    [NSGraphicsContext saveGraphicsState];
+    [NSGraphicsContext setCurrentContext:context];
 
     // Content rect centered on the icon grid. The grid margin comfortably
     // contains the shadow (blur + |offset| ≈ 0.09 × size < margin).
@@ -102,7 +123,10 @@ NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
     CGPathRelease(rimPath);
     CGContextRestoreGState(ctx);
 
-    [finalImage unlockFocus];
+    [NSGraphicsContext restoreGraphicsState];
+
+    NSImage *finalImage = [[NSImage alloc] initWithSize:NSMakeSize(canvasSize, canvasSize)];
+    [finalImage addRepresentation:rep];
     return finalImage;
 }
 
@@ -119,6 +143,9 @@ NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
     // cross-fades. Only the dock-tile assignment happens on main.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSImage *customIcon = CreateMacStyleIconFromImage(imageCopy, size);
+        if (!customIcon) {
+            return; // no context — leave whatever icon is showing
+        }
         dispatch_async(dispatch_get_main_queue(), ^{
             if (generation != VibeDockIconGeneration) {
                 return; // a newer icon (or a reset to the app icon) won

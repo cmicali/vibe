@@ -14,9 +14,10 @@
 static const CGFloat kMainWindowContentWidth = 680;
 
 // Corner radius of the main window, shared by the contentView layer mask
-// (MainWindow), the Liquid Glass backdrop (MainPlayerController), and the
-// pitch panel's right-edge corners (PitchControlPanel). 20pt is the
-// standardized system window radius as of macOS 27 (Tahoe used 26).
+// (MainWindow — the one that actually shapes the window), the Liquid Glass
+// backdrop, the header glass panel and tint layer, and the pitch panel's
+// right-edge corners. 20pt is the macOS 27 standardized window radius
+// (Tahoe used 26).
 static const CGFloat kMainWindowCornerRadius = 20;
 
 // Player-only height (playlist collapsed). Anything taller than this is a

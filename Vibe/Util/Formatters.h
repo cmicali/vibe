@@ -5,6 +5,8 @@
 
 #import <Foundation/Foundation.h>
 
+// MAIN THREAD ONLY: NSDateComponentsFormatter (unlike NSDateFormatter) has no
+// documented thread-safety guarantee.
 @interface Formatters : NSObject
 
 + (Formatters *)sharedInstance;

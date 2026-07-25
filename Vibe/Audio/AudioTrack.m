@@ -115,8 +115,8 @@
         return @"";
     }
     // Memoized per duration value; hot path during table cell rebuilds.
-    // The monitor keeps the string/duration pair coherent — this is reached
-    // from any thread that renders a duration, not just main.
+    // MAIN THREAD ONLY (unlike duration): Formatters has no documented thread
+    // safety, and the monitor guards only the memo pair — not the formatter.
     @synchronized (self) {
         if (!_durationString || _durationStringDuration != duration) {
             _durationString = [[Formatters sharedInstance] durationStringFromTimeInterval:duration];

@@ -1040,7 +1040,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     return position;
 }
 
-- (void)setPosition:(NSTimeInterval)pos {
+- (void)seekToPosition:(NSTimeInterval)pos {
     dispatch_async(_queue, ^{
         AudioTrack *track = self.currentTrack;
         AVAudioPlayerNode *node = self->_node;
@@ -1090,7 +1090,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 }
 
 // The playing seek's fade-out completion (runs on _queue; the parameters are
-// the values setPosition: captured when the seek was requested). Settles one
+// the values seekToPosition: captured when the seek was requested). Settles one
 // of four outcomes, each with an early return — node replaced, preempted
 // mid-fade, engine-start failure, or the happy-path reschedule + fade back
 // in — and every path delivers didFinishSeeking:.

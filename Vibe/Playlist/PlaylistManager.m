@@ -15,15 +15,15 @@
     // Track → row for reloadTrack:. didLoadMetadata fires it once per track
     // during the metadata sweep — a linear scan would make that sweep O(n²)
     // in playlist size on the main thread. Rebuilt whenever the playlist is
-    // replaced (play:) — the list never mutates in place.
+    // replaced (play:) and extended by append:; rows never move otherwise,
+    // so the recorded indexes stay valid.
     NSMapTable<AudioTrack *, NSNumber *> *_trackIndexes;
     __weak NSTableView *_tableView;
 }
 
 - (NSArray<AudioTrack *> *)playlist {
-    // Defensive shallow copy: callers hold the result across async work (the
-    // metadata cache iterates it on its worker queue), and today's safety
-    // rests only on the list being replaced wholesale, never mutated.
+    // Defensive shallow copy: callers iterate the result across async work
+    // while append: can extend the live array on the main thread.
     return [_playlist copy];
 }
 
@@ -45,6 +45,7 @@
     self = [super init];
     if (self) {
         _playlist = [NSMutableArray new];
+        _trackIndexes = [NSMapTable strongToStrongObjectsMapTable];
         self.currentIndex = 0;
         self.audioPlayer = audioPlayer;
     }
@@ -231,17 +232,32 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
 
 - (void)play:(NSArray<NSURL *> *)urls {
     _playlist = [NSMutableArray new];
-    for (NSURL *url in urls) {
-        [_playlist addObject:[AudioTrack withURL:url]];
-    }
-    NSMapTable<AudioTrack *, NSNumber *> *indexes = [NSMapTable strongToStrongObjectsMapTable];
-    for (NSUInteger i = 0; i < _playlist.count; i++) {
-        [indexes setObject:@(i) forKey:_playlist[i]];
-    }
-    _trackIndexes = indexes;
+    _trackIndexes = [NSMapTable strongToStrongObjectsMapTable];
+    [self addTracksForURLs:urls];
     self.currentIndex = 0;
     [self.tableView reloadData];
+    // reloadData keeps the scroll offset; a new playlist starts at the top.
+    [self scrollCurrentTrackToVisible];
     [self play];
+}
+
+- (void)append:(NSArray<NSURL *> *)urls {
+    if (!urls.count) {
+        return;
+    }
+    [self addTracksForURLs:urls];
+    // Whole-table reload like play: — only visible rows render either way.
+    // Playback and currentIndex are deliberately untouched.
+    [self.tableView reloadData];
+}
+
+// Appends tracks for urls to _playlist, recording each one's row.
+- (void)addTracksForURLs:(NSArray<NSURL *> *)urls {
+    for (NSURL *url in urls) {
+        AudioTrack *track = [AudioTrack withURL:url];
+        [_trackIndexes setObject:@(_playlist.count) forKey:track];
+        [_playlist addObject:track];
+    }
 }
 
 - (void)play {
@@ -291,6 +307,7 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
     if (self.hasNextTrack) {
         self.currentIndex += 1;
         [self reloadTrackInRange:NSMakeRange(self.currentIndex - 1, 2)];
+        [self scrollCurrentTrackToVisible];
         [self play];
         return YES;
     }
@@ -301,10 +318,20 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
     if (self.hasPreviousTrack) {
         self.currentIndex -= 1;
         [self reloadTrackInRange:NSMakeRange(self.currentIndex, 2)];
+        [self scrollCurrentTrackToVisible];
         [self play];
         return YES;
     }
     return NO;
+}
+
+// Called only on track changes, and scrollRowToVisible: no-ops while the row
+// is on screen — a user who scrolled away keeps their position until then.
+- (void)scrollCurrentTrackToVisible {
+    if (self.currentIndex >= _playlist.count) {
+        return;
+    }
+    [self.tableView scrollRowToVisible:(NSInteger)self.currentIndex];
 }
 
 - (void)doubleClick:(id)sender {

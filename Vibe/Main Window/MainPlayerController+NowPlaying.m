@@ -86,7 +86,7 @@
     // The scrubber position arrives in the wall-clock time updateNowPlaying
     // publishes; the player seeks in file time — convert back with the same
     // rate.
-    self.audioPlayer.position = position * self.playbackRate;
+    [self.audioPlayer seekToPosition:position * self.playbackRate];
 }
 
 @end

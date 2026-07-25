@@ -18,6 +18,76 @@
 // the view must lay out at exactly the window's content width.
 static const CGFloat kDesignHeight = 350;
 
+#pragma mark - Layout
+
+// All subview frames are absolute; the numbers live here, not inline in
+// buildSubviewsWithTarget:. Edge-reaching values are derived from
+// kMainWindowContentWidth; the one deliberate overhang is named
+// (kHeaderPanelRightBleed). Two bands split at kPlaylistHeight: the header
+// above, the playlist below.
+
+// The header band is the whole window in the small (playlist-collapsed) layout.
+static const CGFloat kHeaderHeight = kMainWindowSmallHeight;
+static const CGFloat kPlaylistHeight = kDesignHeight - kHeaderHeight;
+
+static const CGFloat kArtSize = kHeaderHeight; // square, fills the header band
+
+// Header glass: starts behind the art's right edge (the art shadows onto it)
+// and deliberately bleeds past the window's right edge — the glass rounds ALL
+// its corners, and the window shape clipping the right-side arcs off-screen is
+// what keeps the header's right edge square. Bleed must be ≥ the radius.
+static const CGFloat kHeaderPanelRightBleed = kMainWindowCornerRadius + 2;
+static const CGFloat kHeaderPanelX = kArtSize - 25;
+static const CGFloat kHeaderPanelWidth =
+        kMainWindowContentWidth + kHeaderPanelRightBleed - kHeaderPanelX;
+
+// Shared left edge / right margin for everything right of the art.
+static const CGFloat kHeaderContentX = kArtSize + 8;
+static const CGFloat kHeaderContentRightMargin = 10;
+static const CGFloat kHeaderContentWidth =
+        kMainWindowContentWidth - kHeaderContentX - kHeaderContentRightMargin;
+static const CGFloat kHeaderContentMaxX = kMainWindowContentWidth - kHeaderContentRightMargin;
+
+static const CGFloat kWaveformY = 215;
+static const CGFloat kWaveformHeight = 86;
+
+// The title is narrower than the artist line: it shrinks-to-fit within
+// kTitleWidth (setTitleLabelText:), staying clear of the codec/BPM labels.
+static const CGFloat kArtistY = 293;
+static const CGFloat kArtistHeight = 48;
+static const CGFloat kTitleY = 292;
+static const CGFloat kTitleWidth = 415;
+static const CGFloat kTitleHeight = 30;
+
+// Time row: elapsed left, total right, the empty-state hint spanning the gap.
+static const CGFloat kSmallLabelHeight = 16;
+static const CGFloat kTimeRowY = 207;
+static const CGFloat kTimeLabelWidth = 59;
+static const CGFloat kTotalTimeX = kHeaderContentMaxX - kTimeLabelWidth;
+static const CGFloat kDropHintX = kHeaderContentX + kTimeLabelWidth;
+static const CGFloat kDropHintWidth = kTotalTimeX - kDropHintX;
+
+// Codec line, BPM line directly beneath it; both right-aligned.
+static const CGFloat kCodecLabelWidth = 240;
+static const CGFloat kCodecLabelX = kHeaderContentMaxX - kCodecLabelWidth;
+static const CGFloat kCodecLabelY = 325;
+static const CGFloat kBPMLabelY = 307;
+
+// Traffic lights: 13pt dots on 23pt centers like the real macOS controls,
+// left-aligned with the playlist icon's glyph below.
+static const CGFloat kTrafficLightSize = 32;
+static const CGFloat kTrafficLightGlyphSize = 13;
+static const CGFloat kTrafficLightY = 313;
+static const CGFloat kCloseButtonX = 9;
+static const CGFloat kTrafficLightSpacing = 23;
+
+// Transport row: spacing tighter than the button size overlaps the frames —
+// fine, later siblings win hit testing.
+static const CGFloat kTransportButtonSize = 50;
+static const CGFloat kTransportButtonY = 203;
+static const CGFloat kTransportRowX = 4;
+static const CGFloat kTransportButtonSpacing = 46;
+
 // All the window's buttons sit hidden and fade in only while the cursor is
 // over the window. The reveal is pure show/hide (full opacity); each button's
 // resting dimness vs. hover brightness lives in its glyph colors, so a hovered
@@ -27,6 +97,11 @@ static const CFTimeInterval kControlFadeDur = 0.2;
 // Shared point size for the small numeric labels (time readouts, codec line,
 // BPM line).
 static const CGFloat kNumericLabelFontSize = 13;
+
+// One shadow recipe for every header label; the opacity itself is
+// appearance-driven (updateMaterialForAppearance): dark text on the light
+// glass needs no shadow, light text on dark glass gets a strong one.
+static const CGFloat kLabelShadowOpacityDark = 0.9;
 
 // Purely decorative overlay: returns nil from hitTest so the views it covers
 // (the album art's drag-out, the transport buttons) still receive mouse events.
@@ -171,13 +246,9 @@ static const CGFloat kNumericLabelFontSize = 13;
     }
 }
 
-// One shadow recipe for every header label; the opacity itself is
-// appearance-driven (updateMaterialForAppearance): dark text on the light
-// glass needs no shadow, light text on dark glass gets a strong one.
-// Rasterization is opted out for fields whose content changes every second
-// (re-rastering would cost more than it saves).
-static const CGFloat kLabelShadowOpacityDark = 0.9;
-
+// Applies the shared shadow recipe (kLabelShadowOpacityDark, set by
+// updateMaterialForAppearance). Rasterization is opted out for fields whose
+// content changes every second — re-rastering would cost more than it saves.
 static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     field.wantsLayer = YES;
     field.layer.shadowColor = NSColor.blackColor.CGColor;
@@ -194,7 +265,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // Glass panel behind the waveform/header: plain glass over the window
     // backdrop, tinted to the current track's dominant art color by
     // ArtworkDisplayController. Corner radius follows the window's top-right.
-    _backgroundGlassView = [[VibePassthroughGlassView alloc] initWithFrame:NSMakeRect(125, 200, 577, 150)];
+    _backgroundGlassView = [[VibePassthroughGlassView alloc] initWithFrame:
+            NSMakeRect(kHeaderPanelX, kPlaylistHeight, kHeaderPanelWidth, kHeaderHeight)];
     _backgroundGlassView.cornerRadius = kMainWindowCornerRadius;
     _backgroundGlassView.autoresizingMask = NSViewMinXMargin | NSViewMaxXMargin | NSViewMinYMargin;
     [self addSubview:_backgroundGlassView];
@@ -210,11 +282,13 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _headerTintView.autoresizingMask = _backgroundGlassView.autoresizingMask;
     [self addSubview:_headerTintView];
 
-    _waveformView = [[AudioWaveformView alloc] initWithFrame:NSMakeRect(158, 215, 512, 86)];
+    _waveformView = [[AudioWaveformView alloc] initWithFrame:
+            NSMakeRect(kHeaderContentX, kWaveformY, kHeaderContentWidth, kWaveformHeight)];
     _waveformView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
     [self addSubview:_waveformView];
 
-    _albumArtImageView = [[ArtworkImageView alloc] initWithFrame:NSMakeRect(0, 200, 150, 150)];
+    _albumArtImageView = [[ArtworkImageView alloc] initWithFrame:
+            NSMakeRect(0, kPlaylistHeight, kArtSize, kArtSize)];
     _albumArtImageView.image = [NSImage imageNamed:@"record-bg"];
     _albumArtImageView.imageScaling = NSImageScaleProportionallyUpOrDown;
     _albumArtImageView.refusesFirstResponder = YES;
@@ -232,7 +306,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // Darkening gradient over the album art — strong at the bottom for the
     // transport buttons, clear from the middle up — so the button row reads
     // against bright covers. Always visible (it doesn't join the hover fade).
-    _albumArtGradientView = [[VibePassthroughView alloc] initWithFrame:NSMakeRect(0, 200, 150, 150)];
+    _albumArtGradientView = [[VibePassthroughView alloc] initWithFrame:
+            NSMakeRect(0, kPlaylistHeight, kArtSize, kArtSize)];
     CAGradientLayer *artGradient = [[CAGradientLayer alloc] init];
     artGradient.colors = @[
             (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.85].CGColor,
@@ -247,43 +322,45 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _albumArtGradientView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
     [self addSubview:_albumArtGradientView];
 
-    // Traffic-light dots sized/spaced like the real macOS controls (13pt
-    // circles on 23pt centers) and left-aligned with the playlist icon's left
-    // edge below (its glyph starts ~18.5pt in). They start hidden and fade in
-    // on window hover (setControlsShown:animated:).
-    _closeButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(9, 313, 32, 32)
+    // Hidden until window hover (setControlsShown:animated:).
+    _closeButton = [MainPlayerContentView transportButtonWithFrame:
+                            NSMakeRect(kCloseButtonX, kTrafficLightY, kTrafficLightSize, kTrafficLightSize)
                                                              glyph:GlyphButtonGlyphClose
                                                             action:@selector(closeApp:)
                                                             target:target];
     _closeButton.alphaValue = 0.0;
-    _closeButton.glyphSize = 13;
+    _closeButton.glyphSize = kTrafficLightGlyphSize;
     // Dim at rest; lights up to full salmon on hover.
     _closeButton.glyphNormalColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:0.64];
     _closeButton.glyphHighlightColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:1.0];
     [self addSubview:_closeButton];
 
-    _minimizeButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(32, 313, 32, 32)
+    _minimizeButton = [MainPlayerContentView transportButtonWithFrame:
+                               NSMakeRect(kCloseButtonX + kTrafficLightSpacing, kTrafficLightY,
+                                          kTrafficLightSize, kTrafficLightSize)
                                                                 glyph:GlyphButtonGlyphMinimize
                                                                action:@selector(minimizeWindow:)
                                                                target:target];
     _minimizeButton.alphaValue = 0.0;
-    _minimizeButton.glyphSize = 13; // same dot as close
+    _minimizeButton.glyphSize = kTrafficLightGlyphSize; // same dot as close
     // Dim at rest; lights up to full yellow on hover.
     _minimizeButton.glyphNormalColor = [NSColor colorWithSRGBRed:0.988 green:0.741 blue:0.180 alpha:0.64];
     _minimizeButton.glyphHighlightColor = [NSColor colorWithSRGBRed:0.988 green:0.741 blue:0.180 alpha:1.0];
     [self addSubview:_minimizeButton];
 
-    // The outer two buttons are nudged toward the center one; the slight
-    // frame overlap is fine (later siblings win hit testing). All three fade
-    // in with the traffic lights on window hover.
-    _playlistToggleButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(4, 203, 50, 50)
+    // Fade in with the traffic lights on window hover.
+    _playlistToggleButton = [MainPlayerContentView transportButtonWithFrame:
+                                     NSMakeRect(kTransportRowX, kTransportButtonY,
+                                                kTransportButtonSize, kTransportButtonSize)
                                                                       glyph:GlyphButtonGlyphPlaylist
                                                                      action:@selector(toggleSize:)
                                                                      target:target];
     _playlistToggleButton.alphaValue = 0.0;
     [self addSubview:_playlistToggleButton];
 
-    _playButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(50, 203, 50, 50)
+    _playButton = [MainPlayerContentView transportButtonWithFrame:
+                           NSMakeRect(kTransportRowX + kTransportButtonSpacing, kTransportButtonY,
+                                      kTransportButtonSize, kTransportButtonSize)
                                                             glyph:GlyphButtonGlyphPlay
                                                            action:@selector(playPause:)
                                                            target:target];
@@ -291,7 +368,9 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _playButton.enabled = NO;
     [self addSubview:_playButton];
 
-    _nextButton = [MainPlayerContentView transportButtonWithFrame:NSMakeRect(96, 203, 50, 50)
+    _nextButton = [MainPlayerContentView transportButtonWithFrame:
+                           NSMakeRect(kTransportRowX + 2 * kTransportButtonSpacing, kTransportButtonY,
+                                      kTransportButtonSize, kTransportButtonSize)
                                                             glyph:GlyphButtonGlyphSkipNext
                                                            action:@selector(next:)
                                                            target:target];
@@ -301,18 +380,16 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
     NSColor *dimmedTextColor = [NSColor secondaryLabelColor];
 
-    _artistTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(158, 293, 512, 48)];
+    _artistTextField = [MainPlayerContentView labelWithFrame:
+            NSMakeRect(kHeaderContentX, kArtistY, kHeaderContentWidth, kArtistHeight)];
     _artistTextField.font = [Fonts font:16];
     _artistTextField.textColor = dimmedTextColor;
     _artistTextField.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     configureLabelShadow(_artistTextField, YES);
     [self addSubview:_artistTextField];
 
-    // Narrower than the artist line: the title shrinks-to-fit within this
-    // width (MainPlayerController setTitleLabelText:), and capping it here
-    // keeps even the longest titles clear of the codec/BPM labels in the
-    // top-right corner.
-    _titleTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(158, 292, 415, 30)];
+    _titleTextField = [MainPlayerContentView labelWithFrame:
+            NSMakeRect(kHeaderContentX, kTitleY, kTitleWidth, kTitleHeight)];
     _titleTextField.font = [Fonts font:23];
     _titleTextField.textColor = [NSColor labelColor];
     _titleTextField.lineBreakMode = NSLineBreakByTruncatingTail;
@@ -320,7 +397,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     configureLabelShadow(_titleTextField, YES);
     [self addSubview:_titleTextField];
 
-    _totalTimeTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(611, 207, 59, 16)];
+    _totalTimeTextField = [MainPlayerContentView labelWithFrame:
+            NSMakeRect(kTotalTimeX, kTimeRowY, kTimeLabelWidth, kSmallLabelHeight)];
     _totalTimeTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:YES];
     _totalTimeTextField.alignment = NSTextAlignmentRight;
     _totalTimeTextField.textColor = dimmedTextColor;
@@ -328,7 +406,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     configureLabelShadow(_totalTimeTextField, YES);
     [self addSubview:_totalTimeTextField];
 
-    _currentTimeTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(158, 207, 59, 16)];
+    _currentTimeTextField = [MainPlayerContentView labelWithFrame:
+            NSMakeRect(kHeaderContentX, kTimeRowY, kTimeLabelWidth, kSmallLabelHeight)];
     _currentTimeTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:YES];
     _currentTimeTextField.textColor = dimmedTextColor;
     _currentTimeTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
@@ -337,9 +416,9 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     configureLabelShadow(_currentTimeTextField, NO);
     [self addSubview:_currentTimeTextField];
 
-    // Empty-state hint, spanning the gap between the two time labels so the
-    // text centers on the waveform's midline.
-    _dropHintTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(217, 207, 394, 16)];
+    // Empty-state hint, spanning the gap between the two time labels.
+    _dropHintTextField = [MainPlayerContentView labelWithFrame:
+            NSMakeRect(kDropHintX, kTimeRowY, kDropHintWidth, kSmallLabelHeight)];
     _dropHintTextField.font = [Fonts font:13];
     _dropHintTextField.alignment = NSTextAlignmentCenter;
     _dropHintTextField.textColor = dimmedTextColor;
@@ -360,7 +439,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // composite semi-transparent colors over a backdrop) so it also covers
     // the empty area below the last row; the light-mode dim wash rides
     // inside it.
-    _playlistFrostView = [[NSVisualEffectView alloc] initWithFrame:NSMakeRect(0, 0, kMainWindowContentWidth, 200)];
+    _playlistFrostView = [[NSVisualEffectView alloc] initWithFrame:
+            NSMakeRect(0, 0, kMainWindowContentWidth, kPlaylistHeight)];
     _playlistFrostView.blendingMode = NSVisualEffectBlendingModeBehindWindow;
     _playlistFrostView.state = NSVisualEffectStateActive;
     _playlistFrostView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
@@ -371,9 +451,11 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _playlistDimView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [_playlistFrostView addSubview:_playlistDimView];
 
-    [self addSubview:[self buildPlaylistScrollViewWithFrame:NSMakeRect(0, 0, kMainWindowContentWidth, 200)]];
+    [self addSubview:[self buildPlaylistScrollViewWithFrame:
+            NSMakeRect(0, 0, kMainWindowContentWidth, kPlaylistHeight)]];
 
-    _fileMetadataTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(430, 325, 240, 16)];
+    _fileMetadataTextField = [MainPlayerContentView labelWithFrame:
+            NSMakeRect(kCodecLabelX, kCodecLabelY, kCodecLabelWidth, kSmallLabelHeight)];
     _fileMetadataTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:NO];
     _fileMetadataTextField.alignment = NSTextAlignmentRight;
     _fileMetadataTextField.textColor = dimmedTextColor;
@@ -383,7 +465,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:_fileMetadataTextField];
 
     // BPM readout, directly below the codec line and styled to match.
-    _bpmTextField = [MainPlayerContentView labelWithFrame:NSMakeRect(430, 307, 240, 16)];
+    _bpmTextField = [MainPlayerContentView labelWithFrame:
+            NSMakeRect(kCodecLabelX, kBPMLabelY, kCodecLabelWidth, kSmallLabelHeight)];
     _bpmTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:NO];
     _bpmTextField.alignment = NSTextAlignmentRight;
     _bpmTextField.textColor = dimmedTextColor;

@@ -74,12 +74,15 @@
 
 @implementation MainPlayerController {
     dispatch_source_t           _timer;
+    // _timerWanted: playback wants position updates. _timerRunning: the
+    // dispatch source's actual state (see syncUIUpdateTimer).
+    BOOL                        _timerWanted;
+    BOOL                        _timerRunning;
     NSTimeInterval              _lastPosition;
     // Duration snapshot from didStartPlaying: the live player duration reads
     // 0 while a track is Loading, and updatePlaybackUI runs in that gap.
     // Cleared when playback goes idle (error, end of playlist).
     NSTimeInterval              _currentTrackDuration;
-    BOOL                        _timerRunning;
     __weak AudioTrack*          _lastReloadedTrack;
     // The error mask: the track whose play attempt failed, plus the short
     // status for the error rendering's artist line (full error text goes to
@@ -329,18 +332,43 @@
 }
 
 - (void)pauseUIUpdateTimer {
-    if (_timerRunning) {
-        dispatch_suspend(_timer);
-        _timerRunning = NO;
-    }
+    _timerWanted = NO;
+    [self syncUIUpdateTimer];
 }
 
 - (void)resumeUIUpdateTimer {
+    _timerWanted = YES;
     [self updateUI];
-    if (!_timerRunning) {
-        dispatch_resume(_timer);
-        _timerRunning = YES;
+    [self syncUIUpdateTimer];
+}
+
+// Run the timer only while playback wants updates AND the window is visible —
+// its work is invisible when occluded (Control Center counts on its own).
+// Unbalanced dispatch_resume/suspend traps, hence the _timerRunning guard.
+- (void)syncUIUpdateTimer {
+    BOOL shouldRun = _timerWanted && [self isWindowVisible];
+    if (shouldRun == _timerRunning) {
+        return;
     }
+    if (shouldRun) {
+        dispatch_resume(_timer);
+    }
+    else {
+        dispatch_suspend(_timer);
+    }
+    _timerRunning = shouldRun;
+}
+
+- (BOOL)isWindowVisible {
+    return (self.window.occlusionState & NSWindowOcclusionStateVisible) != 0;
+}
+
+- (void)windowDidChangeOcclusionState:(NSNotification *)notification {
+    // Revealed mid-playback: refresh once now rather than waiting for a tick.
+    if (_timerWanted && [self isWindowVisible]) {
+        [self updateUI];
+    }
+    [self syncUIUpdateTimer];
 }
 
 static void setStringValueIfChanged(NSTextField *field, NSString *value) {
@@ -599,6 +627,23 @@ typedef NS_ENUM(NSInteger, VibeHeaderState) {
     [self scheduleDeferredMetadataLoad];
 }
 
+- (void)addURLs:(NSArray<NSURL *> *)urls {
+    if (self.playlistManager.count == 0) {
+        [self play:urls]; // nothing to append to — this IS the play
+        return;
+    }
+    [self.playlistManager append:urls];
+    // A still-pending deferred sweep reads the playlist when it fires; once it
+    // has started, re-queue the whole list (already-parsed tracks are skipped).
+    if (!_metadataLoadPending) {
+        [self.metadataCache loadMetadata:self.playlistManager.playlist];
+    }
+    // The current track may have gained a successor: refresh the parked handle
+    // and the Next button/menu state.
+    [self.audioPlayer prefetchTrack:[self.playlistManager trackAtIndex:self.playlistManager.currentIndex + 1]];
+    [self updateUI];
+}
+
 #pragma mark - Deferred metadata load / error mask
 // The only writers of their ivar pairs — see the ivar comments.
 
@@ -647,8 +692,9 @@ typedef NS_ENUM(NSInteger, VibeHeaderState) {
     [self.waveformCache cancelLoad];
     [self.playlistManager clear];
     // Cancel the deferred playlist-wide metadata load — nothing will play to
-    // start it later.
+    // start it later — and release the scan loader (see cancelAll).
     [self cancelDeferredMetadataLoad];
+    [self.metadataCache cancelAll];
     [self clearErrorMask];
     _emptyStateSuppressed = NO; // Close explicitly asks for the empty state
     _currentTrackDuration = 0;
@@ -720,7 +766,10 @@ static const double kSkipMostBars = 32.0;
 }
 
 - (void)skipByFileSeconds:(NSTimeInterval)fileDelta {
-    if (!self.playlistManager.currentTrack) {
+    // Stopped (end of playlist, post-error): the finished file stays open, so
+    // duration alone looks seekable with no node left to seek. Menu validation
+    // mirrors this; the guard here covers the bare keys, which bypass it.
+    if (!self.playlistManager.currentTrack || self.audioPlayer.isStopped) {
         return;
     }
     NSTimeInterval duration = self.audioPlayer.duration;
@@ -738,7 +787,7 @@ static const double kSkipMostBars = 32.0;
     if (target < 0) {
         target = 0; // Skipping before the start seeks to the beginning.
     }
-    self.audioPlayer.position = target;
+    [self.audioPlayer seekToPosition:target];
 }
 
 - (IBAction)toggleLowKill:(nullable id)sender {
@@ -872,6 +921,8 @@ static const double kSkipMostBars = 32.0;
     // cell (the equalizer indicator must flip to animating) instead of
     // rebuilding the whole row again.
     _lastReloadedTrack = track;
+    // next/previous scroll at the click; this covers the other play paths.
+    [self.playlistManager scrollCurrentTrackToVisible];
     [self resumeUIUpdateTimer];
 }
 
@@ -1018,7 +1069,7 @@ static const double kSkipMostBars = 32.0;
 }
 
 - (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage {
-    self.audioPlayer.position = self.audioPlayer.duration * percentage;
+    [self.audioPlayer seekToPosition:self.audioPlayer.duration * percentage];
 }
 
 // Progressive snapshots and the final waveform, on the main thread. The view

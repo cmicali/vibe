@@ -29,7 +29,9 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 
 @property (nullable, weak) id <AudioPlayerDelegate> delegate;
 
-@property (assign)              NSTimeInterval position;
+// Playhead in file seconds (lock-free; reads 0 while Stopped or Loading).
+// Seek with seekToPosition: — the move is asynchronous.
+@property (readonly)            NSTimeInterval position;
 @property (nullable, strong)    AudioTrack* currentTrack;
 @property (atomic) NSInteger    currentlyRequestedAudioDeviceId;
 
@@ -54,6 +56,10 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 
 - (void)play:(AudioTrack *)track;
 - (void)playPause;
+
+// Asynchronous declicked seek (file seconds, clamped to the file): position
+// reports the old playhead until it lands; didFinishSeeking: marks completion.
+- (void)seekToPosition:(NSTimeInterval)position;
 
 // Stops playback and unloads the current track: any in-flight open is
 // superseded, a playing node fades to silence before teardown, and the player

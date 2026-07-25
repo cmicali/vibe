@@ -24,9 +24,17 @@
 @end
 
 
+// How long after an open event the next one still counts as the same burst
+// (see openQueuedURLs): long enough to absorb a split multi-file open, short
+// enough that a deliberate second open replaces rather than appends.
+static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
+
 @implementation AppDelegate {
     BOOL _isLoaded;
     NSMutableArray<NSURL *> *_urlsToOpen;
+    // A batch already played and further batches belong with it (append,
+    // don't replace). Cleared by endOpenBurst after the quiet period.
+    BOOL _openBurstActive;
     MainMenuBuilder *_menuBuilder;
 }
 
@@ -80,10 +88,9 @@
 
     _isLoaded = YES;
     if (_urlsToOpen.count > 0) {
-        // Through the coalescer, not a direct playURLs: a multi-file open can
-        // straddle launch, and playing the pre-launch batch immediately would
-        // let the post-launch remainder REPLACE the playlist.
-        [self coalescedPlayURLs];
+        // Through the burst path: the post-launch remainder of an open that
+        // straddled launch must append, not replace.
+        [self openQueuedURLs];
     }
     else {
         // No launch-time open queued (Finder/argv events land before this
@@ -146,44 +153,66 @@
     });
 }
 
+// Replacing play of everything queued — the ⌘O panel / Open Recent entry point.
 - (void)playURLs {
-    if (_isLoaded && _urlsToOpen.count > 0) {
-        NSArray<NSURL*>* urls = [self->_urlsToOpen copy];
-        [self->_urlsToOpen removeAllObjects];
-        [NSURLUtil expandAndFilterList:urls completion:^(NSArray<NSURL *> *expanded) {
-            // Nothing playable (e.g. a folder with no audio) — don't wipe the
-            // current playlist with an empty list.
-            if (expanded.count > 0) {
-                [self.mainPlayerController play:expanded];
-            }
-            else {
-                // A launch open that resolved to nothing still has to end the
-                // launch grace, or the header would stay blank forever.
-                [self.mainPlayerController revealEmptyState];
-            }
-        }];
+    _openBurstActive = NO; // a deliberate open ends any Finder burst
+    [self openQueuedURLsAppending:NO];
+}
+
+// Expands the queue (folders walked, unsupported files dropped) and hands the
+// result to the controller — appended, or as a replacing play.
+- (void)openQueuedURLsAppending:(BOOL)append {
+    if (!_isLoaded || _urlsToOpen.count == 0) {
+        return;
     }
+    NSArray<NSURL*>* urls = [_urlsToOpen copy];
+    [_urlsToOpen removeAllObjects];
+    [NSURLUtil expandAndFilterList:urls completion:^(NSArray<NSURL *> *expanded) {
+        // Nothing playable (e.g. a folder with no audio) — don't wipe the
+        // current playlist with an empty list.
+        if (expanded.count == 0) {
+            // A launch open that resolved to nothing still has to end the
+            // launch grace, or the header would stay blank forever.
+            [self.mainPlayerController revealEmptyState];
+            return;
+        }
+        if (append) {
+            [self.mainPlayerController addURLs:expanded];
+        }
+        else {
+            [self.mainPlayerController play:expanded];
+        }
+    }];
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
     return YES;
 }
 
-// LaunchServices can split one multi-file open into several openURLs:
-// events (seen reliably right after a rebuild re-registers the bundle).
-// play: REPLACES the playlist, so acting on each event separately keeps
-// only the last event's files. Coalesce a burst into a single play.
+// LaunchServices can split one multi-file open into several openURLs: events
+// (seen reliably right after a rebuild re-registers the bundle).
 - (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {
     [_urlsToOpen addObjectsFromArray:urls];
-    [self coalescedPlayURLs];
+    [self openQueuedURLs];
 }
 
-// Debounced playURLs: each call restarts the window, so a burst of open
-// events lands as one play. Also the launch-time entry point — a burst can
-// straddle applicationDidFinishLaunching.
-- (void)coalescedPlayURLs {
-    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(playURLs) object:nil];
-    [self performSelector:@selector(playURLs) withObject:nil afterDelay:0.3];
+// Finder/Launch Services entry point (launch-time too — a burst can straddle
+// applicationDidFinishLaunching). The first batch plays immediately, with no
+// coalescing delay; later batches of the same burst append, so a split
+// multi-file open lands as one playlist without restarting the first track.
+- (void)openQueuedURLs {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(endOpenBurst) object:nil];
+    [self performSelector:@selector(endOpenBurst) withObject:nil afterDelay:kOpenBurstQuietPeriod];
+    if (!_isLoaded || _urlsToOpen.count == 0) {
+        return; // pre-launch: applicationDidFinishLaunching drains the queue
+    }
+    BOOL append = _openBurstActive;
+    _openBurstActive = YES;
+    [self openQueuedURLsAppending:append];
+}
+
+- (void)endOpenBurst {
+    _openBurstActive = NO;
 }
 
 - (IBAction)showAboutWindow:(id)sender {
