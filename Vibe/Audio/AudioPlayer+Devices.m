@@ -131,7 +131,7 @@
         // Preserve the pause-fade invariant: a Paused track sits at volume 0
         // so the next resume ramps it back up (see seekToPosition:). Restoring
         // at 1.0 would make that resume start instantly at full volume
-        // mid-waveform — the click the 25ms ramp exists to prevent.
+        // mid-waveform — the click the fade ramp exists to prevent.
         node.volume = wasPlaying ? 1.0 : 0;
         [self publishPlaybackState:(wasPlaying ? VibePlayerStatePlaying : VibePlayerStatePaused)
                               node:node file:file segmentStart:startFrame position:positionToRestore];

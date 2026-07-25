@@ -124,7 +124,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // (scheduleEngineIdleStopOnQueue). Queue-confined.
     uint64_t                _engineIdleStopGeneration;
     // A pause fade is in flight (queue-confined). A second playPause during
-    // the ~25ms fade-out cancels the pending pause and ramps back up instead
+    // the fade-out cancels the pending pause and ramps back up instead
     // of pausing twice; cleared by the fade's completion (which runs on
     // preemption too) and eagerly by preemptRampsOnQueue.
     BOOL                    _pausePending;
@@ -818,7 +818,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             }
             uint64_t rampGen = [self preemptRampsOnQueue]; // cancel any in-flight resume fade-in
             // Fade out asynchronously (the queue must not block for the
-            // ~25ms fade — a skip or seek issued right behind a pause would
+            // fade — a skip or seek issued right behind a pause would
             // stall behind it), then pause in the completion. State stays
             // Playing through the fade: the node really is still rendering.
             self->_pausePending = YES;
