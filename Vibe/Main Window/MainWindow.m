@@ -61,6 +61,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         // No explicit border: the system shadow and the glass backdrop's own
         // rim lighting supply the edge, like standard windows (a drawn dark
         // outline reads wrong in light mode).
+        // LOAD-BEARING despite the absent masksToBounds: AppKit shapes the
+        // window from this radius — without it the corners render square.
         self.contentView.layer.cornerRadius = kMainWindowCornerRadius;
 
         // Adopt the previous session's frame, then keep saving under the same
@@ -97,24 +99,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     }
 }
 
-// The default validation disables performClose: (File > Close, Cmd-W) for
-// any window without NSWindowStyleMaskClosable.
-- (BOOL)validateUserInterfaceItem:(id<NSValidatedUserInterfaceItem>)item {
-    if (item.action == @selector(performClose:)) {
-        return YES;
-    }
-    return [super validateUserInterfaceItem:item];
-}
-
-// Cmd-W. The default implementation simulates a click on the close button,
-// which a borderless window doesn't have — it just beeps.
-- (void)performClose:(id)sender {
-    if ([self.delegate respondsToSelector:@selector(windowShouldClose:)] &&
-        ![self.delegate windowShouldClose:self]) {
-        return;
-    }
-    [self close];
-}
+// No performClose: override — ⌘W is the player's closeFile: (it closes the
+// loaded files, not the window), and nothing sends performClose:.
 
 - (void)syncPlaylistShownFromHeight {
     BOOL shown = (self.frame.size.height > kMainWindowSmallHeight);

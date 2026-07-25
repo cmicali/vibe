@@ -36,6 +36,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)play;
 - (void)play:(NSArray<NSURL *> *)urls;
 
+// Adds tracks to the end without touching playback or currentIndex (play:
+// replaces and restarts). Used by AppDelegate's open burst.
+- (void)append:(NSArray<NSURL *> *)urls;
+
 // Empties the playlist and resets currentIndex. Does not touch the audio
 // player — the caller stops playback itself.
 - (void)clear;
@@ -60,6 +64,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)reloadCurrentTrackPlayState;
 - (void)reloadTrackAtIndex:(NSUInteger)index;
 - (void)reloadTrack:(AudioTrack *)track;
+
+// Scrolls the playing row into view; no-op while it is already visible.
+- (void)scrollCurrentTrackToVisible;
 
 @end
 

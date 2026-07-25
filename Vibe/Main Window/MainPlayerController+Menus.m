@@ -52,8 +52,9 @@
              [menuItem.identifier isEqualToString:@"menu_skip_back"] ||
              [menuItem.identifier isEqualToString:@"menu_skip_back_more"] ||
              [menuItem.identifier isEqualToString:@"menu_skip_back_most"]) {
-        // Seeking needs a loaded track; the skip is a no-op otherwise.
-        return self.playlistManager.currentTrack != nil;
+        // Needs a loaded track AND a non-stopped player — after the playlist
+        // ends there is no node left to seek (see skipByFileSeconds:).
+        return self.playlistManager.currentTrack != nil && !self.audioPlayer.isStopped;
     }
     else if ([menuItem.identifier isEqualToString:@"menu_low_kill"]) {
         menuItem.state = StateForBOOL(self.audioPlayer.fx.lowKillEnabled);

@@ -34,6 +34,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)play:(NSArray<NSURL *> *)urls;
 - (void)playURL:(NSURL *)url;
 
+// Appends to the current playlist without disturbing playback (plays when the
+// playlist is empty). Later batches of AppDelegate's open burst land here.
+- (void)addURLs:(NSArray<NSURL *> *)urls;
+
 // Ends the launch grace period: the header starts blank rather than flashing
 // the empty state while a launch-time open (Finder double-click, argv) is
 // still resolving. The app delegate calls this once it knows nothing is being

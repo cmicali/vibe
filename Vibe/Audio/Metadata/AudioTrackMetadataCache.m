@@ -358,8 +358,16 @@
     });
 }
 
--(void)loadMetadata:(NSArray<AudioTrack*>*)tracks {
+- (void)cancelAll {
+    // Release, not just cancel: _queuedTracks strongly holds every queued
+    // track, pinning the old playlist until a next loadMetadata: that may
+    // never come. The priority lane holds only in-flight tracks; leave it.
     [_currentLoader cancel];
+    _currentLoader = nil;
+}
+
+-(void)loadMetadata:(NSArray<AudioTrack*>*)tracks {
+    [self cancelAll];
     if (!tracks.count) {
         return;
     }

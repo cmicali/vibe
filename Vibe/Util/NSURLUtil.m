@@ -64,6 +64,13 @@
         }
     }
 
+    // The enumerator returns APFS hash order — effectively random. Sort by full
+    // path with Finder's comparator (numeric, subfolders grouped); explicit
+    // multi-file drops keep pasteboard order (expandFileList:).
+    [results sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
+        return [a.path localizedStandardCompare:b.path];
+    }];
+
     return results;
 }
 

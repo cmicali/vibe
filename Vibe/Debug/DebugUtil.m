@@ -562,7 +562,7 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: seek <seconds>");
                 }
-                controller.audioPlayer.position = tokens[1].doubleValue;
+                [controller.audioPlayer seekToPosition:tokens[1].doubleValue];
                 [controller debugRefreshUI];
                 return VibeActionSummary(controller);
             }),

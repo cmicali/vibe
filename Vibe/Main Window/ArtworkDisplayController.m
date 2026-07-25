@@ -153,12 +153,14 @@ static const CGFloat kTintMaxSaturationLight = 0.45;
         _initialized = YES;
         return;
     }
-    if (track.albumArt) {
-        if (_displayedArt != track.albumArt) {
-            _artworkView.image = track.albumArt;
-            [self applyHeaderTintFromArt:track.albumArt forTrack:track];
-            [NSDockTile setDockIcon:track.albumArt];
-            _displayedArt = track.albumArt;
+    // One read — the identity check and the install must see the same object.
+    NSImage *art = track.albumArt;
+    if (art) {
+        if (_displayedArt != art) {
+            _artworkView.image = art;
+            [self applyHeaderTintFromArt:art forTrack:track];
+            [NSDockTile setDockIcon:art];
+            _displayedArt = art;
         }
         _initialized = YES;
         return;
@@ -221,7 +223,8 @@ static const CGFloat kTintMaxSaturationLight = 0.45;
 // track's art already resolved, updateForTrack: displayed it; keep that.
 - (void)showPlaceholderForSlowLoad {
     AudioTrack *track = self.currentTrackProvider ? self.currentTrackProvider() : nil;
-    if (track.albumArt && _displayedArt == track.albumArt) {
+    NSImage *art = track.albumArt;
+    if (art && _displayedArt == art) {
         return;
     }
     [self showDefaultArtwork];

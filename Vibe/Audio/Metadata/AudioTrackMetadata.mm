@@ -109,16 +109,17 @@ static NSString *fileTypeForTagLibFile(TagLib::File *file);
 static NSData *albumArtDataFromTagLibFile(TagLib::File *file);
 static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 
+// Writable inside the class; atomic like every other field here (built on a
+// worker thread, read from main).
+@interface AudioTrackMetadata ()
+@property (assign) BOOL parsedOK;
+@end
+
 @implementation AudioTrackMetadata {
     // The whole art lifecycle lives in AudioTrackArtwork; the art API below
     // delegates to it 1:1. Both initializers create it — never nil on a live
     // instance.
     AudioTrackArtwork *_artwork;
-    BOOL _parsedOK;
-}
-
-- (BOOL)parsedOK {
-    return _parsedOK;
 }
 
 // Art accessors delegate to AudioTrackArtwork, which owns the lazy
@@ -213,7 +214,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
         float bpm = [coder decodeFloatForKey:@"bpm"];
         self.bpm = isfinite(bpm) && bpm > 0 ? bpm : 0;
         // A cache-hit instance represents a successful prior parse.
-        _parsedOK = YES;
+        self.parsedOK = YES;
     }
     return self;
 }
@@ -275,7 +276,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     // make TagLib throw (std::bad_alloc, std::length_error), and this runs on
     // an NSOperationQueue worker where an uncaught C++ exception is
     // std::terminate. Catch here — the outermost ObjC-facing boundary — so a
-    // malformed file degrades to a failed parse (_parsedOK stays NO, nothing
+    // malformed file degrades to a failed parse (parsedOK stays NO, nothing
     // is cached) instead of unwinding into ObjC frames.
     try {
         TagLibAudioFile fileRef([url.path UTF8String]);
@@ -317,7 +318,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
         // to persist. A null FileRef (dataless cloud placeholder, transient
         // I/O error) leaves this NO so the loaders won't cache the
         // filename-only fallback and shadow the real tags for months.
-        _parsedOK = YES;
+        self.parsedOK = YES;
     }
     catch (const std::exception &e) {
         LogError(@"TagLib parse failed for %@: %s", url.path, e.what());
