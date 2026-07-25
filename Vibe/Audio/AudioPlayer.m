@@ -169,6 +169,19 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             // between the main mixer and the output node — see AudioFX.
             [self->_fx installInEngine:self->_engine];
 
+#if DEBUG
+            // --silent (testing): zero the main mixer so playback runs
+            // normally but nothing reaches the output device. Downstream of
+            // all fade ramps (player-node volumes), upstream of the FX
+            // returns — wet tails too. Must run after installInEngine: —
+            // mixer volume written before the node is attached/wired is
+            // silently dropped (see AudioFX.m).
+            if ([NSProcessInfo.processInfo.arguments containsObject:@"--silent"]) {
+                self->_engine.mainMixerNode.outputVolume = 0;
+                LogInfo(@"AudioPlayer: --silent, output muted");
+            }
+#endif
+
             // Resolve the saved device here rather than on the main thread:
             // this is the app's first CoreAudio device enumeration (per-device
             // HAL property reads — tens of ms with Bluetooth/aggregate devices
