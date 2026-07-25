@@ -11,6 +11,7 @@
 #import "NSURLUtil.h"
 #import "AboutWindowController.h"
 #import "MainMenuBuilder.h"
+#import "OpenRecentMenuController.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #if DEBUG
@@ -35,7 +36,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // A batch already played and further batches belong with it (append,
     // don't replace). Cleared by endOpenBurst after the quiet period.
     BOOL _openBurstActive;
-    MainMenuBuilder *_menuBuilder;
+    // The Open Recent submenu's delegate; owned here because menu delegates
+    // are weak and this object is the target of the items it creates.
+    OpenRecentMenuController *_openRecentMenuController;
 }
 
 - (instancetype)init {
@@ -55,12 +58,13 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // restoration (which runs before applicationDidFinishLaunching) to find
     // the controller.
     self.mainPlayerController = [[MainPlayerController alloc] init];
-    _menuBuilder = [[MainMenuBuilder alloc] initWithAppDelegate:self
-                                               playerController:self.mainPlayerController];
-    [_menuBuilder installMainMenu];
+    _openRecentMenuController = [[OpenRecentMenuController alloc] initWithAppDelegate:self];
+    [MainMenuBuilder installMainMenuWithAppDelegate:self
+                                   playerController:self.mainPlayerController
+                           openRecentMenuController:_openRecentMenuController];
 }
 
-// Target of the Open Recent items MainMenuBuilder creates.
+// Target of the Open Recent items OpenRecentMenuController creates.
 - (void)openRecentDocument:(NSMenuItem *)sender {
     NSURL *url = sender.representedObject;
     if (url) {

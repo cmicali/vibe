@@ -7,23 +7,10 @@
 #import "AppDelegate.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Transport.h"
+#import "OpenRecentMenuController.h"
 #import "OutputDevicesMenuController.h"
 
-@implementation MainMenuBuilder {
-    __weak AppDelegate           *_appDelegate;
-    __weak MainPlayerController  *_playerController;
-    NSMenu                       *_openRecentMenu;
-}
-
-- (instancetype)initWithAppDelegate:(AppDelegate *)appDelegate
-                   playerController:(MainPlayerController *)playerController {
-    self = [super init];
-    if (self) {
-        _appDelegate = appDelegate;
-        _playerController = playerController;
-    }
-    return self;
-}
+@implementation MainMenuBuilder
 
 static NSMenuItem *VibeMenuItem(NSString *title, SEL action, id target, NSString *key,
                                 NSEventModifierFlags modifiers, NSString *identifier) {
@@ -51,9 +38,9 @@ static NSMenuItem *VibeSubmenuItem(NSMenu *parent, NSString *title) {
     return item;
 }
 
-- (void)installMainMenu {
-    AppDelegate *appDelegate = _appDelegate;
-    MainPlayerController *player = _playerController;
++ (void)installMainMenuWithAppDelegate:(AppDelegate *)appDelegate
+                      playerController:(MainPlayerController *)player
+              openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController {
     NSMenu *mainMenu = [[NSMenu alloc] initWithTitle:@"Main Menu"];
 
     // Vibe (application menu)
@@ -76,8 +63,7 @@ static NSMenuItem *VibeSubmenuItem(NSMenu *parent, NSString *title) {
     NSMenu *fileMenu = [VibeSubmenuItem(mainMenu, @"File") submenu];
     [fileMenu addItem:VibeMenuItem(@"Open…", @selector(openDocument:), nil, @"o", NSEventModifierFlagCommand, nil)];
     NSMenuItem *openRecentItem = VibeSubmenuItem(fileMenu, @"Open Recent");
-    _openRecentMenu = openRecentItem.submenu;
-    _openRecentMenu.delegate = self; // populated from NSDocumentController on open
+    openRecentItem.submenu.delegate = openRecentMenuController; // populated from NSDocumentController on open
     [fileMenu addItem:[NSMenuItem separatorItem]];
     // Closes the loaded file(s), not the window; title/enabled state managed
     // by validation.
@@ -128,38 +114,6 @@ static NSMenuItem *VibeSubmenuItem(NSMenu *parent, NSString *title) {
     outputMenu.delegate = player.devicesMenuController; // builds the device list
 
     NSApp.mainMenu = mainMenu;
-}
-
-// Open Recent, rebuilt from NSDocumentController each time it opens.
-- (void)menuNeedsUpdate:(NSMenu *)menu {
-    if (menu != _openRecentMenu) {
-        return;
-    }
-    [menu removeAllItems];
-    NSArray<NSURL *> *urls = [[NSDocumentController sharedDocumentController] recentDocumentURLs];
-    for (NSURL *url in urls) {
-        NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:url.lastPathComponent
-                                                      action:@selector(openRecentDocument:)
-                                               keyEquivalent:@""];
-        item.target = _appDelegate;
-        item.representedObject = url;
-        [menu addItem:item];
-    }
-    if (urls.count > 0) {
-        [menu addItem:[NSMenuItem separatorItem]];
-    }
-    NSMenuItem *clear = [[NSMenuItem alloc] initWithTitle:@"Clear Menu"
-                                                   action:@selector(clearRecentDocuments:)
-                                            keyEquivalent:@""];
-    clear.target = [NSDocumentController sharedDocumentController];
-    [menu addItem:clear];
-}
-
-// Without this, AppKit's key-equivalent scan calls menuNeedsUpdate: — a full
-// Open Recent rebuild — on every keyDown (same pattern as
-// OutputDevicesMenuController). No Open Recent item carries a key equivalent.
-- (BOOL)menuHasKeyEquivalent:(NSMenu *)menu forEvent:(NSEvent *)event target:(_Nullable id *_Nonnull)target action:(_Nullable SEL *_Nonnull)action {
-    return NO;
 }
 
 @end
