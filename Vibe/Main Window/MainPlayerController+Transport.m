@@ -84,22 +84,65 @@ static const double kSkipMostBars = 32.0;
     [self.audioPlayer seekToPosition:target];
 }
 
-#pragma mark - Performance effects (bare-key holds; see TransportKeyMonitor)
+#pragma mark - Performance effects (bare-key taps/holds; see TransportKeyMonitor)
+
+// The FX menu's toggles. Written against the pass-throughs below rather than
+// AudioFX directly, so a menu toggle and a bare-key tap are the same flip.
 
 - (IBAction)toggleLowKill:(nullable id)sender {
-    self.audioPlayer.fx.lowKillEnabled = !self.audioPlayer.fx.lowKillEnabled;
+    self.lowKillActive = !self.lowKillActive;
+}
+
+- (IBAction)toggleLowKillBoost:(nullable id)sender {
+    self.lowKillBoostActive = !self.lowKillBoostActive;
+}
+
+- (IBAction)toggleReverbSend:(nullable id)sender {
+    self.reverbSendActive = !self.reverbSendActive;
+}
+
+- (IBAction)toggleDelaySend:(nullable id)sender {
+    self.delaySendActive = !self.delaySendActive;
+}
+
+- (IBAction)toggleShortDelaySend:(nullable id)sender {
+    self.shortDelaySendActive = !self.shortDelaySendActive;
+}
+
+- (BOOL)lowKillActive {
+    return self.audioPlayer.fx.lowKillEnabled;
+}
+
+- (void)setLowKillActive:(BOOL)active {
+    self.audioPlayer.fx.lowKillEnabled = active;
+}
+
+- (BOOL)lowKillBoostActive {
+    return self.audioPlayer.fx.lowKillBoostActive;
 }
 
 - (void)setLowKillBoostActive:(BOOL)active {
     self.audioPlayer.fx.lowKillBoostActive = active;
 }
 
+- (BOOL)reverbSendActive {
+    return self.audioPlayer.fx.reverbSendEnabled;
+}
+
 - (void)setReverbSendActive:(BOOL)active {
     self.audioPlayer.fx.reverbSendEnabled = active;
 }
 
+- (BOOL)delaySendActive {
+    return self.audioPlayer.fx.delaySendEnabled;
+}
+
 - (void)setDelaySendActive:(BOOL)active {
     self.audioPlayer.fx.delaySendEnabled = active;
+}
+
+- (BOOL)shortDelaySendActive {
+    return self.audioPlayer.fx.shortDelaySendEnabled;
 }
 
 - (void)setShortDelaySendActive:(BOOL)active {

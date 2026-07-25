@@ -389,6 +389,14 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
         return;
     }
     _lowKillEnabled = enabled;
+    // The boost is a modifier of the low kill, not a control of its own, so
+    // killing the filter kills the boost with it — otherwise a latched W
+    // would hold the cutoff up (higher than Q alone) with the low kill
+    // reading off. Cleared under the same lock so the one sweep below
+    // resolves both, rather than racing a second one.
+    if (!enabled) {
+        _lowKillBoostActive = NO;
+    }
     os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{
         [self applyLowKillTargetOnQueue];
