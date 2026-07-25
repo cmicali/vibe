@@ -95,14 +95,26 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
         // own queue — populates the cache off the main path.
         _refreshQueue = dispatch_queue_create("com.vibe.audiodevicemanager.refresh",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
-        // Deliver HAL notifications on the HAL's own thread instead of the
-        // main run loop; notifyObserversUsingBlock: hops to the main thread
-        // itself.
-        CFRunLoopRef nullRunLoop = NULL;
-        AudioObjectPropertyAddress runLoopProperty = { kAudioHardwarePropertyRunLoop, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-        AudioObjectSetPropertyData(kAudioObjectSystemObject, &runLoopProperty, 0, NULL, sizeof(CFRunLoopRef), &nullRunLoop);
-        AudioObjectAddPropertyListener(kAudioObjectSystemObject, &kDefaultOutputDeviceAddress, &devicePropertyChangedCallback, (__bridge void *)self);
-        AudioObjectAddPropertyListener(kAudioObjectSystemObject, &kDevicesAddress, &devicePropertyChangedCallback, (__bridge void *)self);
+        // Register the HAL listeners on the refresh queue, not inline: these
+        // are the process's FIRST CoreAudio calls, and bringing up the HAL
+        // client connection to coreaudiod costs ~20ms — the singleton is first
+        // touched on the main thread before first paint (the devices menu
+        // controller's addObserver), which must not pay that. The serial
+        // refresh queue keeps ordering: any refreshDevicesThenNotify queues
+        // behind this block. A device change landing in the sub-100ms window
+        // before the listeners attach is not missed in effect — the first
+        // outputDevices sweep (AudioPlayer's async init) runs after and reads
+        // the then-current device list.
+        dispatch_async(_refreshQueue, ^{
+            // Deliver HAL notifications on the HAL's own thread instead of the
+            // main run loop; notifyObserversUsingBlock: hops to the main thread
+            // itself.
+            CFRunLoopRef nullRunLoop = NULL;
+            AudioObjectPropertyAddress runLoopProperty = { kAudioHardwarePropertyRunLoop, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+            AudioObjectSetPropertyData(kAudioObjectSystemObject, &runLoopProperty, 0, NULL, sizeof(CFRunLoopRef), &nullRunLoop);
+            AudioObjectAddPropertyListener(kAudioObjectSystemObject, &kDefaultOutputDeviceAddress, &devicePropertyChangedCallback, (__bridge void *)self);
+            AudioObjectAddPropertyListener(kAudioObjectSystemObject, &kDevicesAddress, &devicePropertyChangedCallback, (__bridge void *)self);
+        });
     }
     return self;
 }
