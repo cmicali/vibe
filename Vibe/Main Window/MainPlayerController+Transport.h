@@ -27,16 +27,31 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)skipBackMore:(nullable id)sender;     // −16 bars (−30s without BPM)
 - (IBAction)skipBackMost:(nullable id)sender;     // −32 bars (−60s without BPM)
 
-// DJ-style low kill: toggle a high-pass filter on the master bus (bare Q key).
-- (IBAction)toggleLowKill:(nullable id)sender;
+// One toggle per performance effect, for the FX menu. The bare keys don't use
+// these — they go through the getter/setter pairs below, so their hold mode can
+// restore the pre-press state.
+- (IBAction)toggleLowKill:(nullable id)sender;           // Q — low-kill high-pass
+- (IBAction)toggleLowKillBoost:(nullable id)sender;      // W — double Q's cutoff
+- (IBAction)toggleReverbSend:(nullable id)sender;        // E — reverb wash
+- (IBAction)toggleDelaySend:(nullable id)sender;         // R — 1/8-note echo
+- (IBAction)toggleShortDelaySend:(nullable id)sender;    // T — 1/16-note echo
 
-// Momentary effects, driven by holding a bare key (down = YES, up = NO):
-// W = low-kill boost (double Q's cutoff), E = reverb send, R = 1/8-note
-// delay echo send, T = the same echo on 1/16 taps. Not IBActions — a hold
-// has no menu-item equivalent.
+// Performance-effect state pass-throughs, one getter/setter pair per effect:
+// Q = low kill, W = low-kill boost (double Q's cutoff), E = reverb send,
+// R = 1/8-note delay echo send, T = the same echo on 1/16 taps.
+// TransportKeyMonitor drives these for its tap-vs-hold state machine (read
+// state at keyDown, flip it, maybe restore it at keyUp), the FX menu's toggles
+// above are written in terms of them, and the debug command channel uses the
+// setters directly.
+- (BOOL)lowKillActive;
+- (void)setLowKillActive:(BOOL)active;
+- (BOOL)lowKillBoostActive;
 - (void)setLowKillBoostActive:(BOOL)active;
+- (BOOL)reverbSendActive;
 - (void)setReverbSendActive:(BOOL)active;
+- (BOOL)delaySendActive;
 - (void)setDelaySendActive:(BOOL)active;
+- (BOOL)shortDelaySendActive;
 - (void)setShortDelaySendActive:(BOOL)active;
 
 @end

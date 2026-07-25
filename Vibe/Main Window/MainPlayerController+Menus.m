@@ -54,8 +54,23 @@
         // ends there is no node left to seek (see skipByFileSeconds:).
         return self.playlistController.currentTrack != nil && !self.audioPlayer.isStopped;
     }
-    else if ([menuItem.identifier isEqualToString:@"menu_low_kill"]) {
+    // FX: one checkmark per effect. Never disabled — the effects are deck
+    // controls that outlive any single track (see the FX menu in
+    // MainMenuBuilder).
+    else if ([menuItem.identifier isEqualToString:@"menu_fx_low_kill"]) {
         menuItem.state = StateForBOOL(self.audioPlayer.fx.lowKillEnabled);
+    }
+    else if ([menuItem.identifier isEqualToString:@"menu_fx_low_kill_boost"]) {
+        menuItem.state = StateForBOOL(self.audioPlayer.fx.lowKillBoostActive);
+    }
+    else if ([menuItem.identifier isEqualToString:@"menu_fx_reverb"]) {
+        menuItem.state = StateForBOOL(self.audioPlayer.fx.reverbSendEnabled);
+    }
+    else if ([menuItem.identifier isEqualToString:@"menu_fx_delay"]) {
+        menuItem.state = StateForBOOL(self.audioPlayer.fx.delaySendEnabled);
+    }
+    else if ([menuItem.identifier isEqualToString:@"menu_fx_short_delay"]) {
+        menuItem.state = StateForBOOL(self.audioPlayer.fx.shortDelaySendEnabled);
     }
     else if ([menuItem.identifier isEqualToString:@"pitch_range_8"]) {
         menuItem.state = StateForBOOL(Settings.pitchRange == 8);
