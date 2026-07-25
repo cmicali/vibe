@@ -2,7 +2,7 @@
 //  MainPlayerController+Debug.h
 //  Vibe
 //
-//  Extra surface for the debug command channel (Util/DebugUtil.mm) — internal
+//  Extra surface for the debug command channel (Debug/DebugUtil.m) — internal
 //  outlets re-declared so the state dump can read them. The accessors are the
 //  ones synthesized by the class extension in MainPlayerController.m; there is
 //  deliberately no @implementation for this category. Debug builds only.
@@ -14,7 +14,7 @@
 
 @class GlyphButton;
 @class PitchControlPanel;
-@class AudioWaveformView;
+@class TrackDisplayController;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -22,12 +22,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (weak, readonly) GlyphButton *nextButton;
 @property (weak, readonly) GlyphButton *playButton;
-@property (weak, readonly) NSTextField *artistTextField;
-@property (weak, readonly) NSTextField *titleTextField;
-@property (weak, readonly) NSTextField *totalTimeTextField;
-@property (weak, readonly) NSTextField *currentTimeTextField;
-@property (weak, readonly) NSTextField *fileMetadataTextField;
-@property (weak, readonly) AudioWaveformView *waveformView;
+// The header labels the state dump reads live behind this
+// (TrackDisplayController exposes them readonly).
+@property (strong, readonly) TrackDisplayController *trackDisplay;
 
 - (PitchControlPanel *)pitchPanel;
 - (void)debugRefreshUI;

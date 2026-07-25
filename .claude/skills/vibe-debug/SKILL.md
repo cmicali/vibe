@@ -107,7 +107,7 @@ client process, keeping shell `rm` out of the container):
 
 `dump_menu` and `click_menu` run the same `validateMenuItem` pass opening the menu would, so enabled/checkmark are live — this replaces AppleScript/System Events menu clicking (no Automation permission, no frontmost requirement). Get identifiers from `dump_menu`.
 
-Action replies are a compact `{ok, state, index, count, position, pitch, playlistShown, pitchPanelShown}` object read synchronously, so they can lag async engine work — run `dump_state` afterwards to confirm. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error. With **two instances running, the channel is racy** (commands travel as per-id files, and either instance may consume one) — quit one first.
+Action replies are a compact `{ok, state, index, count, position, pitch, lowKill, reverbSend, delaySend, shortDelaySend, playlistShown, pitchPanelShown}` object read synchronously, so they can lag async engine work — run `dump_state` afterwards to confirm. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error, 64 usage error. With **two instances running, the channel is racy** (commands travel as per-id files, and either instance may consume one) — quit one first.
 
 ## Screenshots: two paths, each shows what the other can't
 
@@ -119,7 +119,7 @@ Action replies are a compact `{ok, state, index, count, position, pitch, playlis
 
 Always use the `-` form. Without it the reply carries the PNG's path, but that path is inside the app's sandbox container — reading it with shell tools (`cp`, `cat`) trips macOS's "access data from other apps" TCC prompt against the terminal's host app. The `-` streaming happens in the Vibe CLI client, which owns the container, so no prompt. (`notifyutil -p com.vibe.debug.screenshot` also works but is async and leaves you copying from the container manually — same TCC prompt; avoid it.)
 
-Renders the frontmost window's Core Animation layer tree in-process. No screen-recording permission, works occluded or with the display asleep. **Default to this** for layout, label text/color, artwork, and waveform checks.
+Renders the key window's Core Animation layer tree in-process (falls back to the main window, then the first visible one — the app need not be frontmost). No screen-recording permission, works occluded or with the display asleep. **Default to this** for layout, label text/color, artwork, and waveform checks.
 
 **Blind spots:** `NSVisualEffectView` materials/vibrancy AND the `NSGlassEffectView` glass chrome (the window-spanning backdrop, header panel) don't render — the window server composites those. The snapshot hides the glass layers and paints an appearance-matched flat proxy fill (dark/light gray) where they would be, so dark-mode content stays legible; hiding them also forces a *model*-tree render on glass-bearing windows, so animations are captured at their target values, not mid-flight (glass-free windows still render the presentation tree). Metal content (About window) doesn't render either. **Never judge window background, material, tint-wash, or appearance-blending issues from this path** — it structurally cannot show them.
 

@@ -16,6 +16,8 @@
 #import "AppDelegate.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Debug.h"
+#import "MainPlayerController+Transport.h"
+#import "TrackDisplayController.h"
 #import "MainWindow.h"
 #import "AudioPlayer.h"
 #import "AudioFX.h"
@@ -216,12 +218,12 @@ static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"files": files,
         },
         @"ui": @{
-            @"title": controller.titleTextField.stringValue ?: @"",
-            @"artist": controller.artistTextField.stringValue ?: @"",
-            @"currentTime": controller.currentTimeTextField.stringValue ?: @"",
-            @"totalTime": controller.totalTimeTextField.stringValue ?: @"",
-            @"fileMetadata": controller.fileMetadataTextField.stringValue ?: @"",
-            @"timeLabelsHidden": @(controller.currentTimeTextField.isHidden),
+            @"title": controller.trackDisplay.titleTextField.stringValue ?: @"",
+            @"artist": controller.trackDisplay.artistTextField.stringValue ?: @"",
+            @"currentTime": controller.trackDisplay.currentTimeTextField.stringValue ?: @"",
+            @"totalTime": controller.trackDisplay.totalTimeTextField.stringValue ?: @"",
+            @"fileMetadata": controller.trackDisplay.fileMetadataTextField.stringValue ?: @"",
+            @"timeLabelsHidden": @(controller.trackDisplay.currentTimeTextField.isHidden),
             @"playButtonEnabled": @(controller.playButton.isEnabled),
             @"nextButtonEnabled": @(controller.nextButton.isEnabled),
             @"pitchFader": @(controller.pitchPanel.pitch),
@@ -695,10 +697,16 @@ static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *
     }
     NSDictionary *spec = VibeCommandSpecForVerb(verb);
     if (!spec) {
+        // The unknown-command reply is the channel's authoritative command
+        // list (CLAUDE.md points here), so it must also advertise the verbs
+        // the CLI client executes in its own process without ever posting a
+        // command file (see VibeDebugCommandClientMain).
         NSMutableArray<NSString *> *usages = [NSMutableArray array];
         for (NSDictionary *entry in VibeDebugCommandTable()) {
             [usages addObject:entry[@"usage"]];
         }
+        [usages addObject:@"clear_disk_caches"];
+        [usages addObject:@"set_appearance <light|dark|system>"];
         return VibeErrorJSON(@"unknown command '%@'. Commands: %@",
                 verb, [usages componentsJoinedByString:@", "]);
     }

@@ -44,7 +44,7 @@ A fast and minimal winamp-inspired native music player for macOS. Built with DJs
 
 3. Build and run the `Vibe` scheme (⌘R).
 
-Alterntatively, you can use run `scripts/build.sh` to build `build/DerivedData/Build/Products/Release/Vibe.app`
+Alternatively, run `scripts/build.sh` to build `build/DerivedData/Build/Products/Release/Vibe.app`
 
 ## Usage
 
@@ -59,6 +59,10 @@ Drag and drop the artwork to copy the currently playing file to another folder.
 | `Space` | Play / pause |
 | `B` | Previous track |
 | `N` | Next track |
+| `A` / `S` / `D` | Skip forward (8 / 16 / 32 bars when the tempo is known) |
+| `Z` / `X` / `C` | Skip back (8 / 16 / 32 bars when the tempo is known) |
+| `Q` | Toggle low-kill filter |
+| `W` `E` `R` `T` (hold) | Momentary FX: low-kill boost, reverb wash, 1/8- and 1/16-note delay |
 | `Tab` | Show / hide playlist |
 | `P` | Show / hide pitch control |
 | `⌘O` | Open file or folder |

@@ -9,8 +9,9 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Handles the bare transport keys (Space/B/N/P/Q/Tab, momentary W/E/R/T) for the main window with
-// a local keyDown monitor instead of relying on the menu's unmodified key
+// Handles the bare transport keys (Space/B/N/P/Q/Tab, A/S/D + Z/X/C
+// skip-seek, momentary W/E/R/T) for the main window with a local
+// keyDown+keyUp monitor instead of relying on the menu's unmodified key
 // equivalents. Those only fire as a fallback after the focused view's
 // keyDown/input-context machinery declines the event, and that path is
 // fragile: the playlist table's input context can wedge after an unhandled

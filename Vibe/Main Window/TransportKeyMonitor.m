@@ -5,6 +5,7 @@
 
 #import "TransportKeyMonitor.h"
 #import "MainPlayerController.h"
+#import "MainPlayerController+Transport.h"
 
 @implementation TransportKeyMonitor {
     id                              _monitor;

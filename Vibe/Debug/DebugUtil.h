@@ -14,8 +14,8 @@
 extern "C" {
 #endif
 
-// Installs a notification hook that dumps the frontmost window to a PNG.
-// Trigger from a terminal:
+// Installs a notification hook that dumps the key window (else the main
+// window, else the first visible one) to a PNG. Trigger from a terminal:
 //
 //     notifyutil -p com.vibe.debug.screenshot
 //
@@ -24,11 +24,14 @@ extern "C" {
 //
 //     ~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp/
 //
-// Renders the window's *presentation* layer tree in-process — no window
-// server capture, so it needs no screen-recording permission, works with the
-// display asleep or the window occluded, and captures in-flight Core
-// Animation (e.g. the artwork cross-fade) mid-animation. Metal content (the
-// About window) does not render this way.
+// Renders the window's layer tree in-process — no window server capture, so
+// it needs no screen-recording permission and works with the display asleep
+// or the window occluded. NSGlassEffectView/NSVisualEffectView layers cannot
+// render this way: they are hidden and painted over with an
+// appearance-matched flat proxy fill, and hiding them forces a *model*-tree
+// render on glass-bearing windows (animations land at their target values;
+// glass-free windows still render the presentation tree mid-flight). Metal
+// content (the About window) does not render either.
 void VibeInstallDebugScreenshotHook(void);
 
 // Debug command channel: the Vibe binary doubles as its own CLI client.

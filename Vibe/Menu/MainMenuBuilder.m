@@ -6,6 +6,7 @@
 #import "MainMenuBuilder.h"
 #import "AppDelegate.h"
 #import "MainPlayerController.h"
+#import "MainPlayerController+Transport.h"
 #import "OutputDevicesMenuController.h"
 
 @implementation MainMenuBuilder {
@@ -27,8 +28,8 @@
 static NSMenuItem *VibeMenuItem(NSString *title, SEL action, id target, NSString *key,
                                 NSEventModifierFlags modifiers, NSString *identifier) {
     NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title action:action keyEquivalent:key];
-    // NSMenuItem defaults to a Command modifier; the transport keys (space,
-    // b, n, p, tab) are bare so the mask must be set explicitly every time.
+    // NSMenuItem defaults to a Command modifier; the transport keys are bare
+    // so the mask must be set explicitly every time.
     item.keyEquivalentModifierMask = modifiers;
     item.target = target;
     item.identifier = identifier;
@@ -88,7 +89,7 @@ static NSMenuItem *VibeSubmenuItem(NSMenu *parent, NSString *title) {
     [playbackMenu addItem:VibeSymbolMenuItem(@"Previous Track", @"backward.end.fill", @selector(previous:), player, @"b", 0, @"menu_previous_track")];
     [playbackMenu addItem:VibeSymbolMenuItem(@"Next Track", @"forward.end.fill", @selector(next:), player, @"n", 0, @"menu_next_track")];
     [playbackMenu addItem:[NSMenuItem separatorItem]];
-    // Bare A/S/Z/X, like the other transport keys (mask 0). Actually handled by
+    // Bare A/S/D/Z/X/C, like the other transport keys (mask 0). Actually handled by
     // TransportKeyMonitor; the key equivalents here are for display and as the
     // fallback path. Enabled only with a track loaded (see the Menus category).
     [playbackMenu addItem:VibeSymbolMenuItem(@"Skip Forward", @"forward", @selector(skipForward:), player, @"a", 0, @"menu_skip_forward")];

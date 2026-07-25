@@ -272,9 +272,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:_backgroundGlassView];
 
     // The art-color tint over the glass. NOT the glass's tintColor: AppKit
-    // kills that outright while the window is inactive, and the design calls
-    // for half strength instead (ArtworkDisplayController drives the color
-    // and the active/inactive dimming).
+    // kills that outright while the window is inactive, and the wash must
+    // not change with key state (ArtworkDisplayController drives the color).
     _headerTintView = [[VibePassthroughView alloc] initWithFrame:_backgroundGlassView.frame];
     _headerTintView.wantsLayer = YES;
     _headerTintView.layer.cornerRadius = kMainWindowCornerRadius;
