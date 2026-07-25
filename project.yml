@@ -102,6 +102,17 @@ targets:
           - "-fobjc-arc-exceptions"
       - path: Resources/Assets.xcassets       # .xcassets handled natively by XcodeGen
       - path: Resources/AppIcon.icon          # Icon Composer .icon (handled via options.fileTypes)
+    preBuildScripts:
+      # Writes build/generated/VibeGitInfo.h (commit/branch/dirty) for the
+      # startup log — see NSBundle+BuildInfo. Runs before the compile phase, and
+      # always: the dirty flag changes with edits Xcode wouldn't track as inputs
+      # to this phase, and a no-op run costs ~30ms. Reading .git needs
+      # ENABLE_USER_SCRIPT_SANDBOXING: NO (already set below).
+      - script: '"$SRCROOT/scripts/generate-git-info.sh"'
+        name: Generate Git Info
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - "$(SRCROOT)/build/generated/VibeGitInfo.h"
     info:
       path: Vibe/Common/Info.plist
       properties:
@@ -124,6 +135,25 @@ targets:
         CFBundleDevelopmentRegion: "$(DEVELOPMENT_LANGUAGE)"
         CFBundlePackageType: "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
         CFBundleInfoDictionaryVersion: "6.0"
+
+        # The codegen-relevant build settings, carried into the binary for the
+        # startup log (NSBundle+BuildInfo reads them back). These are the
+        # settings the compile command is DERIVED from, not the literal clang
+        # argv — that exists only in the build log. The warning flags are
+        # deliberately left out: ~40 CLANG_WARN_* keys don't fit a log line and
+        # don't affect codegen.
+        VibeBuild:
+          Configuration: "$(CONFIGURATION)"
+          OptimizationLevel: "-O$(GCC_OPTIMIZATION_LEVEL)"
+          PreprocessorDefinitions: "$(GCC_PREPROCESSOR_DEFINITIONS)"
+          OtherCFlags: "$(OTHER_CFLAGS)"
+          OtherCPlusPlusFlags: "$(OTHER_CPLUSPLUSFLAGS)"
+          OtherLinkerFlags: "$(OTHER_LDFLAGS)"
+          LanguageStandards: "C $(GCC_C_LANGUAGE_STANDARD) / C++ $(CLANG_CXX_LANGUAGE_STANDARD) / $(CLANG_CXX_LIBRARY)"
+          Architectures: "$(ARCHS)"
+          DeadCodeStripping: "$(DEAD_CODE_STRIPPING)"
+          HardenedRuntime: "$(ENABLE_HARDENED_RUNTIME)"
+          AppSandbox: "$(ENABLE_APP_SANDBOX)"
 
         CFBundleDocumentTypes:
           - CFBundleTypeName: "Folder"
@@ -167,6 +197,7 @@ targets:
         EXCLUDED_ARCHS: ""
         HEADER_SEARCH_PATHS:
           - "$(inherited)"
+          - "$(SRCROOT)/build/generated"      # VibeGitInfo.h, written by the pre-build script
           - "$(SRCROOT)/Vibe/ThirdParty/taglib"
           - "$(SRCROOT)/Vibe/ThirdParty/taglib/toolkit"
           - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg"
