@@ -487,7 +487,8 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 }
 
 // Runs on _queue. Opens/closes a send gate: a fast fade on the volume-fade
-// cadence (an instant volume step clicks; 25ms doesn't), then — while the
+// cadence (an instant volume step clicks; kFadeDurationMilliseconds doesn't),
+// then — while the
 // gate stays open — a slow swell up to swellRatio x the base level.
 // Closing cuts only the send — the effect keeps rendering, so its tail
 // decays naturally. A re-toggle mid-ramp preempts (via the counter) and
