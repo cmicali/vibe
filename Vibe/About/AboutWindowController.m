@@ -6,6 +6,7 @@
 #import "AboutWindowController.h"
 #import "VectorBallsView.h"
 #import "Fonts.h"
+#import "NSBundle+BuildInfo.h"
 
 static const CGFloat kAboutWindowWidth = 460;
 static const CGFloat kAboutWindowHeight = 340;
@@ -49,15 +50,7 @@ static const CGFloat kAboutWindowHeight = 340;
         [window.contentView addSubview:recordView];
 
         NSDictionary *info = NSBundle.mainBundle.infoDictionary;
-#if DEBUG
-        NSString *configuration = @"Debug";
-#else
-        NSString *configuration = @"Release";
-#endif
-        NSString *version = [NSString stringWithFormat:@"Version %@ (%@) · %@",
-                                                       info[@"CFBundleShortVersionString"] ?: @"?",
-                                                       info[@"CFBundleVersion"] ?: @"?",
-                                                       configuration];
+        NSString *version = [NSString stringWithFormat:@"Version %@", NSBundle.mainBundle.vibeVersionString];
         [window.contentView addSubview:[self labelWithString:version
                                                     fontSize:11
                                                        alpha:0.55
