@@ -6,17 +6,15 @@
 #import "MainPlayerController+Menus.h"
 #import "AudioFX.h"
 #import "MainWindow.h"
-#import "PlaylistManager.h"
+#import "PlaylistController.h"
 #import "AudioTrack.h"
 #import "AudioWaveformView.h"
 
-// waveformView and playlistTableView are synthesized by the class extension in
-// MainPlayerController.m; re-declared readonly here (same pattern as
-// MainPlayerController+Debug.h) so the waveform-style submenu code and the
-// playlist context-menu validation can read them.
+// waveformView is synthesized by the class extension in MainPlayerController.m;
+// re-declared readonly here (same pattern as MainPlayerController+Debug.h) so
+// the waveform-style submenu code can read it.
 @interface MainPlayerController (MenuOutlets)
 @property (weak, readonly) AudioWaveformView *waveformView;
-@property (weak, readonly) NSTableView *playlistTableView;
 @end
 
 @implementation MainPlayerController (Menus)
@@ -41,10 +39,10 @@
     else if ([menuItem.identifier isEqualToString:@"menu_next_track"]) {
         // Only when there is actually a track after the current one; at the
         // end of the playlist next: is a no-op.
-        return self.playlistManager.hasNextTrack;
+        return self.playlistController.hasNextTrack;
     }
     else if ([menuItem.identifier isEqualToString:@"menu_previous_track"]) {
-        return self.playlistManager.hasPreviousTrack;
+        return self.playlistController.hasPreviousTrack;
     }
     else if ([menuItem.identifier isEqualToString:@"menu_skip_forward"] ||
              [menuItem.identifier isEqualToString:@"menu_skip_forward_more"] ||
@@ -54,7 +52,7 @@
              [menuItem.identifier isEqualToString:@"menu_skip_back_most"]) {
         // Needs a loaded track AND a non-stopped player — after the playlist
         // ends there is no node left to seek (see skipByFileSeconds:).
-        return self.playlistManager.currentTrack != nil && !self.audioPlayer.isStopped;
+        return self.playlistController.currentTrack != nil && !self.audioPlayer.isStopped;
     }
     else if ([menuItem.identifier isEqualToString:@"menu_low_kill"]) {
         menuItem.state = StateForBOOL(self.audioPlayer.fx.lowKillEnabled);
@@ -73,21 +71,17 @@
         menuItem.title = playing ? @"Pause" : @"Play";
         menuItem.image = [NSImage imageWithSystemSymbolName:(playing ? @"pause.fill" : @"play.fill")
                                    accessibilityDescription:menuItem.title];
-        return self.playlistManager.count > 0;
+        return self.playlistController.count > 0;
     }
     else if ([menuItem.identifier isEqualToString:@"menu_close"]) {
-        menuItem.title = self.playlistManager.count > 1 ? @"Close All Files" : @"Close File";
-        return self.playlistManager.count > 0;
+        menuItem.title = self.playlistController.count > 1 ? @"Close All Files" : @"Close File";
+        return self.playlistController.count > 0;
     }
     else if ([menuItem.identifier isEqualToString:@"show_in_finder"]) {
-        return self.playlistManager.currentTrack.url != nil;
+        return self.playlistController.currentTrack.url != nil;
     }
-    else if ([menuItem.identifier isEqualToString:@"show_clicked_track_in_finder"]) {
-        // Right-click on the table's empty area still opens the menu, with
-        // clickedRow -1.
-        NSInteger row = self.playlistTableView.clickedRow;
-        return row >= 0 && row < (NSInteger)self.playlistManager.count;
-    }
+    // show_clicked_track_in_finder (the playlist row context menu) targets
+    // PlaylistController, which validates it.
     return YES;
 }
 

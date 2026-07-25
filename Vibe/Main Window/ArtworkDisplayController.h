@@ -7,21 +7,27 @@
 //  the header glass tint (dominant art color), and the dock icon, plus the
 //  deferred off-main-thread art loads and the full-res art memory lifecycle.
 //
+//  One of the two display controllers (with TrackDisplayController) that
+//  render into MainPlayerContentView's widgets: the content view builds and
+//  owns the hierarchy, each display controller adopts its subset at init and
+//  renders one facet, and MainPlayerController decides what they render.
+//
 
 #import <Cocoa/Cocoa.h>
 
 @class AudioTrack;
-@class ArtworkImageView;
+@class MainPlayerContentView;
 
 NS_ASSUME_NONNULL_BEGIN
 
 // Main thread only.
 @interface ArtworkDisplayController : NSObject
 
-// headerTintView: layer-backed wash over the header glass; this controller
-// sets its background color to the art's dominant color.
-- (instancetype)initWithArtworkView:(ArtworkImageView *)artworkView
-                     headerTintView:(NSView *)headerTintView;
+// Adopts the album-art view and the header tint view (the layer-backed wash
+// over the header glass whose background this controller sets to the art's
+// dominant color) from the content view; the view hierarchy stays owned by
+// MainPlayerContentView.
+- (instancetype)initWithContentView:(MainPlayerContentView *)contentView;
 
 // A deferred art load must re-check which track is current when it completes
 // (the user may have skipped on); the owner answers here. Set once at startup.
@@ -34,7 +40,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Reflect track's art (nil track shows the default). New art replaces old art
 // directly; while the track's art is still unresolved the previous track's
-// art stays on screen — no flash of the default between tracks.
+// art stays on screen — no flash of the default between tracks. Also keeps
+// the art view's drag-out fileURL on the displayed track.
 - (void)updateForTrack:(nullable AudioTrack *)track;
 
 // A slow open crossed the loading-indicator threshold: drop the keep-previous

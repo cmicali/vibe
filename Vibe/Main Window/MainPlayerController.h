@@ -9,7 +9,7 @@
 #import <Cocoa/Cocoa.h>
 
 @class AudioPlayer;
-@class PlaylistManager;
+@class PlaylistController;
 @class AudioTrackMetadataCache;
 @class AudioWaveformCache;
 @class OutputDevicesMenuController;
@@ -27,7 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Output menu's delegate by MainMenuBuilder.
 @property (strong) OutputDevicesMenuController *devicesMenuController;
 @property (strong) AudioPlayer *audioPlayer;
-@property (strong) PlaylistManager *playlistManager;
+@property (strong) PlaylistController *playlistController;
 @property (strong) AudioTrackMetadataCache *metadataCache;
 @property (strong) AudioWaveformCache *waveformCache;
 

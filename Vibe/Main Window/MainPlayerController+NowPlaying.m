@@ -6,7 +6,7 @@
 #import "MainPlayerController+NowPlaying.h"
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
-#import "PlaylistManager.h"
+#import "PlaylistController.h"
 
 @implementation MainPlayerController (NowPlaying)
 
@@ -46,8 +46,8 @@
                                       duration:duration
                                          state:state
                                           rate:1.0
-                                       hasNext:self.playlistManager.hasNextTrack
-                                   hasPrevious:self.playlistManager.hasPreviousTrack];
+                                       hasNext:self.playlistController.hasNextTrack
+                                   hasPrevious:self.playlistController.hasPreviousTrack];
 }
 
 #pragma mark - NowPlayingControllerDelegate (system media keys / Control Center)

@@ -53,7 +53,7 @@ typedef NS_ENUM(NSInteger, NowPlayingPlaybackState) {
 // A nil track clears the now-playing info (nothing loaded) — but only after
 // something has been published: before the first track plays a nil update is
 // a no-op, so Vibe never claims the system Now Playing slot at launch.
-// hasNext/hasPrevious come from PlaylistManager's hasNextTrack/hasPreviousTrack
+// hasNext/hasPrevious come from PlaylistController's hasNextTrack/hasPreviousTrack
 // (the same predicates the in-app Next button and menu items use); they gate
 // the system next/previous commands (and are applied even before the first
 // publish — enabling a command doesn't claim the Now Playing slot).

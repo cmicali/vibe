@@ -88,6 +88,11 @@
     return self.metadata.thumbnailAlbumArt;
 }
 
+- (float)bpm {
+    float tagged = self.metadata.bpm;
+    return tagged > 0 ? tagged : self.detectedBPM;
+}
+
 // _duration is written from the player queue (finishPlayOnQueue publishes
 // the decoded length) while the main thread reads it for cell rendering —
 // same cross-thread shape as the atomic metadata property, guarded here with

@@ -8,6 +8,7 @@
 @class GlyphButton;
 @class ArtworkImageView;
 @class AudioWaveformView;
+@class PlaylistTableView;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -28,8 +29,9 @@ NS_ASSUME_NONNULL_BEGIN
 // the header art tint (ArtworkDisplayController) — can re-derive.
 @property (nonatomic, copy, nullable) void (^appearanceChangedHandler)(void);
 
-@property (readonly) GlyphButton *closeButton;
-@property (readonly) GlyphButton *minimizeButton;
+// Only the buttons the controller drives (glyph/enabled state) are exposed;
+// the traffic lights and playlist toggle are fully self-contained (action
+// wired at build, hover fade internal) and stay private to the view.
 @property (readonly) GlyphButton *playButton;
 @property (readonly) GlyphButton *nextButton;
 
@@ -52,7 +54,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) NSTextField *fileMetadataTextField;
 @property (readonly) NSTextField *bpmTextField;
 
-@property (readonly) NSTableView *playlistTableView;
+@property (readonly) PlaylistTableView *playlistTableView;
 
 @end
 
