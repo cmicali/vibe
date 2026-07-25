@@ -17,7 +17,7 @@
 - (IBAction)openDocument:(id)sender;
 - (IBAction)showAboutWindow:(id)sender;
 
-// Target of the Open Recent menu items MainMenuBuilder creates.
+// Target of the Open Recent menu items OpenRecentMenuController creates.
 - (void)openRecentDocument:(NSMenuItem *)sender;
 @end
 
