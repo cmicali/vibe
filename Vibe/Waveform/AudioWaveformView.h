@@ -12,8 +12,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Pure rendering surface: draws whatever waveform it is handed and reports
 // seek clicks. Loading and caching live in AudioWaveformCache, owned by
-// MainPlayerController — the controller resets this view (prepareForWaveformLoad),
-// asks the cache to load, and forwards the cache's deliveries to showWaveform:.
+// MainPlayerController — the controller asks the cache to load and routes the
+// deliveries through TrackDisplayController's pass-throughs, which reset this
+// view (prepareForWaveformLoad) and hand results to showWaveform:.
 @interface AudioWaveformView : NSView
 
 @property (nullable, weak) id <AudioWaveformViewDelegate> delegate;

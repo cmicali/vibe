@@ -27,7 +27,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (strong, readonly) NowPlayingController *nowPlayingController;
 - (nullable AudioTrack *)displayedTrack;
-- (double)playbackRate;
 
 @end
 

@@ -19,8 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface ArtworkDisplayController : NSObject
 
 // headerTintView: layer-backed wash over the header glass; this controller
-// sets its background color to the art's dominant color (half strength while
-// the window isn't key).
+// sets its background color to the art's dominant color.
 - (instancetype)initWithArtworkView:(ArtworkImageView *)artworkView
                      headerTintView:(NSView *)headerTintView;
 

@@ -34,6 +34,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)play:(NSArray<NSURL *> *)urls;
 - (void)playURL:(NSURL *)url;
 
+// Varispeed playback rate (1.0 + pitch/100): the track plays this much faster
+// or slower than file time; the time labels (and the Now Playing publish)
+// show file time divided by it, and the bar-less skip fallback multiplies by
+// it. Read by the Transport and NowPlaying categories.
+- (double)playbackRate;
+
 // Appends to the current playlist without disturbing playback (plays when the
 // playlist is empty). Later batches of AppDelegate's open burst land here.
 - (void)addURLs:(NSArray<NSURL *> *)urls;
@@ -55,27 +61,8 @@ NS_ASSUME_NONNULL_BEGIN
 // to the empty state.
 - (IBAction)closeFile:(nullable id)sender;
 
-// Seek relative to the current position, in wall-clock seconds (the units the
-// time labels show). Forward past the end advances to the next track or stops
-// at the end of the playlist; back before the start seeks to 0.
-- (IBAction)skipForward:(nullable id)sender;      // +8 bars (+10s without BPM)
-- (IBAction)skipForwardMore:(nullable id)sender;  // +16 bars (+30s without BPM)
-- (IBAction)skipForwardMost:(nullable id)sender;  // +32 bars (+60s without BPM)
-- (IBAction)skipBack:(nullable id)sender;         // −8 bars (−10s without BPM)
-- (IBAction)skipBackMore:(nullable id)sender;     // −16 bars (−30s without BPM)
-- (IBAction)skipBackMost:(nullable id)sender;     // −32 bars (−60s without BPM)
-
-// DJ-style low kill: toggle a high-pass filter on the master bus (bare Q key).
-- (IBAction)toggleLowKill:(nullable id)sender;
-
-// Momentary effects, driven by holding a bare key (down = YES, up = NO):
-// W = low-kill boost (double Q's cutoff), E = reverb send, R = 1/8-note
-// delay echo send, T = the same echo on 1/16 taps. Not IBActions — a hold
-// has no menu-item equivalent.
-- (void)setLowKillBoostActive:(BOOL)active;
-- (void)setReverbSendActive:(BOOL)active;
-- (void)setDelaySendActive:(BOOL)active;
-- (void)setShortDelaySendActive:(BOOL)active;
+// The relative-seek skips and the DJ effect toggles are declared (and
+// implemented) in MainPlayerController+Transport.h.
 
 - (IBAction)setSmallSize:(id)sender;
 - (IBAction)setLargeSize:(id)sender;

@@ -62,7 +62,7 @@ settings:
     GCC_WARN_UNUSED_FUNCTION: YES
     GCC_WARN_UNUSED_VARIABLE: YES
     GCC_PRECOMPILE_PREFIX_HEADER: YES
-    GCC_PREFIX_HEADER: "$(SRCROOT)/Vibe/Common/Vibe-Prefix.pch"   # CASE FIX (was Vibe-prefix.pch)
+    GCC_PREFIX_HEADER: "$(SRCROOT)/Vibe/Common/Vibe-Prefix.pch"
     MACOSX_DEPLOYMENT_TARGET: "26.0"
     MTL_FAST_MATH: YES
     SDKROOT: macosx
@@ -93,8 +93,8 @@ targets:
       - path: Vibe                            # all app + vendored code (incl. .h for header map)
         excludes:
           - "**/.DS_Store"
-          - "**/*.xcprivacy"                  # PIN privacy manifests: keep UNbundled (as today)
-          - "**/*.txt"                        # vendored LICENSE.txt: keep UNbundled (as today)
+          - "**/*.xcprivacy"                  # PIN privacy manifests: keep UNbundled
+          - "**/*.txt"                        # vendored LICENSE.txt: keep UNbundled
           - "**/Info.plist"                   # consumed via INFOPLIST_FILE; must NOT be bundled
           - "**/PINDiskCache.m"               # re-added below with its per-file flag
       - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
