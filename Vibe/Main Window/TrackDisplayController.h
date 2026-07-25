@@ -10,6 +10,11 @@
 //  show (TrackDisplayState + track + times) and this object draws it — it
 //  reads no player or playlist state and never decides state transitions.
 //
+//  One of the two display controllers (with ArtworkDisplayController) that
+//  render into MainPlayerContentView's widgets: the content view builds and
+//  owns the hierarchy, each display controller adopts its subset at init and
+//  renders one facet, and MainPlayerController decides what they render.
+//
 
 #import <Cocoa/Cocoa.h>
 

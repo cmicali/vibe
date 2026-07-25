@@ -7,14 +7,12 @@
 #import "AudioPlayer.h"
 #import "AudioFX.h"
 #import "AudioTrack.h"
-#import "AudioTrackMetadata.h"
-#import "PlaylistManager.h"
+#import "PlaylistController.h"
 
-// Skip distances. When the track's tempo is known (tagged BPM wins over the
-// analyzed one, same precedence as the BPM label) a skip moves by whole bars
-// (4 beats) — a fixed span of *file* time, so the jump stays on the musical
-// grid at any pitch. Without a tempo the fallback is the fixed wall-clock
-// distance.
+// Skip distances. When the track's tempo is known (AudioTrack.bpm)
+// a skip moves by whole bars (4 beats) — a fixed span of *file* time, so the
+// jump stays on the musical grid at any pitch. Without a tempo the fallback
+// is the fixed wall-clock distance.
 static const NSTimeInterval kSkipSeconds = 10.0;
 static const NSTimeInterval kSkipMoreSeconds = 30.0;
 static const NSTimeInterval kSkipMostSeconds = 60.0;
@@ -25,8 +23,8 @@ static const double kSkipMostBars = 32.0;
 @implementation MainPlayerController (Transport)
 
 - (NSTimeInterval)skipFileSecondsForBars:(double)bars fallbackWallClockSeconds:(NSTimeInterval)wallSeconds {
-    AudioTrack *track = self.playlistManager.currentTrack;
-    float bpm = track.metadata.bpm > 0 ? track.metadata.bpm : track.detectedBPM;
+    AudioTrack *track = self.playlistController.currentTrack;
+    float bpm = track.bpm;
     if (bpm > 0) {
         return bars * 4.0 * 60.0 / bpm;
     }
@@ -65,7 +63,7 @@ static const double kSkipMostBars = 32.0;
     // Stopped (end of playlist, post-error): the finished file stays open, so
     // duration alone looks seekable with no node left to seek. Menu validation
     // mirrors this; the guard here covers the bare keys, which bypass it.
-    if (!self.playlistManager.currentTrack || self.audioPlayer.isStopped) {
+    if (!self.playlistController.currentTrack || self.audioPlayer.isStopped) {
         return;
     }
     NSTimeInterval duration = self.audioPlayer.duration;

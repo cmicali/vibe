@@ -3,14 +3,15 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
-#import "PlaylistManager.h"
-#import "Fonts.h"
-#import "NSView+DarkMode.h"
-#import "PlaylistCoverImageView.h"
-#import "PlaylistTextCell.h"
+#import "PlaylistController.h"
+#import "PlaylistTableView.h"
 #import "EqualizerIndicatorView.h"
 
-@implementation PlaylistManager {
+// Validation for the row context menu installed in setTableView:.
+@interface PlaylistController () <NSMenuItemValidation>
+@end
+
+@implementation PlaylistController {
     NSMutableArray<AudioTrack *> *_playlist;
     // Track → row for reloadTrack:. didLoadMetadata fires it once per track
     // during the metadata sweep — a linear scan would make that sweep O(n²)
@@ -18,7 +19,7 @@
     // replaced (play:) and extended by append:; rows never move otherwise,
     // so the recorded indexes stay valid.
     NSMapTable<AudioTrack *, NSNumber *> *_trackIndexes;
-    __weak NSTableView *_tableView;
+    __weak PlaylistTableView *_tableView;
 }
 
 - (NSArray<AudioTrack *> *)playlist {
@@ -31,14 +32,27 @@
     return index < _playlist.count ? _playlist[index] : nil;
 }
 
-- (NSTableView *)tableView {
+- (PlaylistTableView *)tableView {
     return _tableView;
 }
 
-- (void)setTableView:(NSTableView *)tableView {
+- (void)setTableView:(PlaylistTableView *)tableView {
     _tableView = tableView;
+    _tableView.delegate = self;
+    _tableView.dataSource = self;
     [_tableView setTarget:self];
     [_tableView setDoubleAction:@selector(doubleClick:)];
+    // The table gets its own menu (shadowing the window-wide one, whose
+    // "Show in Finder" reveals the CURRENT track) so a right-click on a row
+    // reveals THAT row's track.
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Playlist Menu"];
+    NSMenuItem *showRowInFinder = [[NSMenuItem alloc] initWithTitle:@"Show in Finder"
+                                                             action:@selector(showClickedTrackInFinder:)
+                                                      keyEquivalent:@""];
+    showRowInFinder.identifier = @"show_clicked_track_in_finder";
+    showRowInFinder.target = self;
+    [menu addItem:showRowInFinder];
+    _tableView.menu = menu;
 }
 
 - (instancetype)initWithAudioPlayer:(AudioPlayer *)audioPlayer {
@@ -56,127 +70,15 @@
     return _playlist.count;
 }
 
-#pragma mark - View Construction
+#pragma mark - Cell population
 
-static NSDictionary *numColumnAttributes;
-static NSDictionary *lengthColumnAttributes;
-static NSDictionary *titleAttributes;
-static NSDictionary *artistAttributes;
-
-static void ensureCellAttributes(void) {
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        NSMutableParagraphStyle *center = [[NSParagraphStyle new] mutableCopy];
-        center.alignment = NSTextAlignmentCenter;
-        NSMutableParagraphStyle *left = [[NSParagraphStyle new] mutableCopy];
-        left.alignment = NSTextAlignmentLeft;
-        NSMutableParagraphStyle *right = [[NSParagraphStyle new] mutableCopy];
-        right.alignment = NSTextAlignmentRight;
-        numColumnAttributes = @{
-                NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
-                NSKernAttributeName: @(-1.5),
-                NSFontAttributeName: [Fonts fontForNumbers:12],
-                NSParagraphStyleAttributeName: right,
-        };
-        lengthColumnAttributes = @{
-                NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
-                NSKernAttributeName: @(-1.0),
-                NSFontAttributeName: [Fonts fontForNumbers:12],
-                NSParagraphStyleAttributeName: right,
-        };
-        titleAttributes = @{
-                NSForegroundColorAttributeName: NSColor.labelColor,
-                NSKernAttributeName: @(-0.3),
-                NSFontAttributeName: [Fonts font:14],
-        };
-        artistAttributes = @{
-                NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
-                NSKernAttributeName: @(-0.3),
-                NSFontAttributeName: [Fonts font:14],
-        };
-    });
-}
-
-// Static text field for a table cell, backed by the vertically-centering
-// PlaylistTextCell.
-static NSTextField *makeCellTextField(NSRect frame) {
-    NSTextField *field = [[NSTextField alloc] initWithFrame:frame];
-    PlaylistTextCell *cell = [[PlaylistTextCell alloc] initTextCell:@""];
-    cell.lineBreakMode = NSLineBreakByTruncatingTail;
-    field.cell = cell;
-    field.editable = NO;
-    field.selectable = NO;
-    field.bordered = NO;
-    field.bezeled = NO;
-    field.drawsBackground = NO;
-    field.focusRingType = NSFocusRingTypeNone;
-    field.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    return field;
-}
-
-// Builds the table's cell prototypes in code. makeViewWithIdentifier returns
-// nil until a view of that identifier has been created once; setting the
-// identifier here puts these into the table's normal reuse queue.
-- (NSTableCellView *)makeCellViewWithIdentifier:(NSString *)identifier width:(CGFloat)width {
-    CGFloat rowHeight = _tableView.rowHeight;
-    NSTableCellView *view = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, width, rowHeight)];
-    view.identifier = identifier;
-    if ([identifier isEqualToString:@"trackNum"]) {
-        EqualizerIndicatorView *eqView = [[EqualizerIndicatorView alloc] initWithFrame:NSMakeRect(8, (rowHeight - 14) / 2, 16, 14)];
-        eqView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
-        [view addSubview:eqView];
-        NSTextField *field = makeCellTextField(NSMakeRect(-2, 0, 24, rowHeight));
-        field.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
-        [view addSubview:field];
-        view.textField = field;
-    }
-    else if ([identifier isEqualToString:@"trackArt"]) {
-        // Bleeds past the cell on every side so artwork rows tile seamlessly.
-        PlaylistCoverImageView *imageView = [[PlaylistCoverImageView alloc] initWithFrame:NSInsetRect(view.bounds, -4, -4)];
-        imageView.imageScaling = NSImageScaleAxesIndependently;
-        imageView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-        [view addSubview:imageView];
-        view.imageView = imageView;
-    }
-    else if ([identifier isEqualToString:@"trackName"]) {
-        NSTextField *field = makeCellTextField(NSMakeRect(6, 0, width - 10, rowHeight));
-        [view addSubview:field];
-        view.textField = field;
-    }
-    else if ([identifier isEqualToString:@"trackLength"]) {
-        NSTextField *field = makeCellTextField(NSMakeRect(2, 0, width - 6, rowHeight));
-        [view addSubview:field];
-        view.textField = field;
-    }
-    return view;
-}
-
-// NSTableCellView.imageView is typed NSImageView, so the equalizer view
-// can't ride the built-in outlet; fetch it by class instead.
-static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
-    for (NSView *subview in view.subviews) {
-        if ([subview isKindOfClass:[EqualizerIndicatorView class]]) {
-            return (EqualizerIndicatorView *)subview;
-        }
-    }
-    return nil;
-}
-
-- (NSTableCellView *)cellViewWithIdentifier:(NSString *)identifier column:(NSTableColumn *)column {
-    NSTableCellView *view = [_tableView makeViewWithIdentifier:identifier owner:self];
-    if (!view) {
-        view = [self makeCellViewWithIdentifier:identifier width:column.width];
-    }
-    return view;
-}
-
+// Structure and styling live in PlaylistTableView (cell construction, fonts,
+// column set); this method only decides content.
 - (nullable NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row {
-    ensureCellAttributes();
     AudioTrack *track = _playlist[row];
-    NSTableCellView *view;
+    NSTableCellView *view = [_tableView cellViewForColumn:tableColumn];
     if ([tableColumn.identifier isEqualToString:@"numColumn"]) {
-        view = [self cellViewWithIdentifier:@"trackNum" column:tableColumn];
-        EqualizerIndicatorView *eqView = eqViewInCell(view);
+        EqualizerIndicatorView *eqView = [PlaylistTableView equalizerViewInCell:view];
         if (row == self.currentIndex) {
             view.textField.hidden = YES;
             eqView.hidden = NO;
@@ -186,12 +88,10 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
             view.textField.hidden = NO;
             eqView.hidden = YES;
             eqView.animating = NO;
-            view.textField.attributedStringValue = [[NSAttributedString alloc] initWithString:[NSString stringWithFormat:@"%ld", (long)row+1]
-                                                                                   attributes:numColumnAttributes];
+            view.textField.attributedStringValue = [PlaylistTableView numberCellString:(NSUInteger)row + 1];
         }
     }
     else if ([tableColumn.identifier isEqualToString:@"artColumn"]) {
-        view = [self cellViewWithIdentifier:@"trackArt" column:tableColumn];
         NSImage *image = track.thumbnailAlbumArt;
         if (!image) {
             image = [NSImage imageNamed:@"record-bg"];
@@ -199,23 +99,10 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
         view.imageView.image = image;
     }
     else if ([tableColumn.identifier isEqualToString:@"titleColumn"]) {
-        view = [self cellViewWithIdentifier:@"trackName" column:tableColumn];
-        if (track.hasArtistAndTitle) {
-            NSMutableAttributedString *s = [[NSMutableAttributedString alloc] initWithString:[track.title stringByAppendingString:@" "]
-                                                                                  attributes:titleAttributes];
-            [s appendAttributedString:[[NSAttributedString alloc] initWithString:track.artist
-                                                                      attributes:artistAttributes]];
-            view.textField.attributedStringValue = s;
-        }
-        else {
-            view.textField.attributedStringValue = [[NSAttributedString alloc] initWithString:track.singleLineTitle
-                                                                                    attributes:artistAttributes];
-        }
+        view.textField.attributedStringValue = [PlaylistTableView titleCellStringForTrack:track];
     }
     else if ([tableColumn.identifier isEqualToString:@"lengthColumn"]) {
-        view = [self cellViewWithIdentifier:@"trackLength" column:tableColumn];
-        view.textField.attributedStringValue = [[NSAttributedString alloc] initWithString:track.durationString
-                                                                                attributes:lengthColumnAttributes];
+        view.textField.attributedStringValue = [PlaylistTableView durationCellString:track.durationString];
     }
 
     return view;
@@ -350,6 +237,31 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
     }
 }
 
+// The row context menu's action. clickedRow is read at action time, not
+// captured at menu-open — the playlist can be replaced while the menu is up,
+// so the row is re-bounds-checked here (validation already disabled the item
+// for a click outside the rows).
+- (IBAction)showClickedTrackInFinder:(id)sender {
+    NSInteger row = _tableView.clickedRow;
+    if (row < 0 || row >= (NSInteger)_playlist.count) {
+        return;
+    }
+    NSURL *url = _playlist[(NSUInteger)row].url;
+    if (url) {
+        [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[url]];
+    }
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
+    if ([menuItem.identifier isEqualToString:@"show_clicked_track_in_finder"]) {
+        // Right-click on the table's empty area still opens the menu, with
+        // clickedRow -1.
+        NSInteger row = _tableView.clickedRow;
+        return row >= 0 && row < (NSInteger)_playlist.count;
+    }
+    return YES;
+}
+
 - (NSUInteger)count {
     return _playlist.count;
 }
@@ -359,6 +271,22 @@ static EqualizerIndicatorView *eqViewInCell(NSTableCellView *view) {
     // identity lookup.
     NSNumber *index = track ? [_trackIndexes objectForKey:track] : nil;
     return index ? index.integerValue : -1;
+}
+
+- (BOOL)isCurrentTrack:(AudioTrack *)track {
+    return self.currentTrack == track;
+}
+
+- (AudioTrack *)trackForURL:(NSURL *)url {
+    if (!url) {
+        return nil;
+    }
+    for (AudioTrack *track in _playlist) {
+        if ([track.url isEqual:url]) {
+            return track;
+        }
+    }
+    return nil;
 }
 
 - (void)reloadCurrentTrack {

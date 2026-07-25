@@ -27,8 +27,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)isPitchPanelShown;
 - (void)setPitchPanelShown:(BOOL)shown animate:(BOOL)animate;
 
-- (void)loadSettings;
-
 @end
 
 @protocol FileDropDelegate <NSObject>

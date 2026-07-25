@@ -25,6 +25,13 @@ NS_ASSUME_NONNULL_BEGIN
 // on every load. A tagged tempo (metadata.bpm) takes precedence for display.
 @property(atomic, assign) float detectedBPM;
 
+// The tempo consumers should act on: the file's own tag (metadata.bpm) when
+// present, else the analyzed detectedBPM; 0 when neither is known. The single
+// home of the tag-over-analysis precedence (BPM label, bar-aligned skips,
+// delay tap sync). This is the track's own tempo, NOT pitch-adjusted — a
+// caller that wants the tempo as heard scales it by the varispeed rate.
+- (float)bpm;
+
 - (instancetype)initWithUrl:(NSURL *)url;
 + (AudioTrack *)withURL:(NSURL *)url;
 

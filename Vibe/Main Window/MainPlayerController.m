@@ -11,7 +11,6 @@
 #import "TrackDisplayController.h"
 #import "OutputDevicesMenuController.h"
 #import "AppDelegate.h"
-#import "ArtworkImageView.h"
 #import "AudioDeviceManager.h"
 #import "MainPlayerContentView.h"
 #import "AudioPlayer.h"
@@ -21,7 +20,8 @@
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformView.h"
-#import "PlaylistManager.h"
+#import "PlaylistController.h"
+#import "PlaylistTableView.h"
 #import "MainWindow.h"
 #import "GlyphButton.h"
 #import "PitchControlPanel.h"
@@ -61,11 +61,8 @@
 
 @property (weak) GlyphButton *nextButton;
 @property (weak) GlyphButton *playButton;
-@property (weak) GlyphButton *closeButton;
 
-@property (weak) NSTableView *playlistTableView;
-@property (weak) ArtworkImageView *albumArtImageView;
-@property (weak) NSView *headerTintView;
+@property (weak) PlaylistTableView *playlistTableView;
 @property (weak) MainPlayerContentView *playerContentView;
 // Kept alongside trackDisplay's rendering role: the controller wires the
 // view's delegate/style and appearance (Menus category included); the
@@ -155,11 +152,8 @@
     contentFrame.size.width = kMainWindowContentWidth;
     content.frame = contentFrame;
 
-    self.closeButton = content.closeButton;
     self.playButton = content.playButton;
     self.nextButton = content.nextButton;
-    self.headerTintView = content.headerTintView;
-    self.albumArtImageView = content.albumArtImageView;
     self.waveformView = content.waveformView;
     self.playlistTableView = content.playlistTableView;
 
@@ -177,18 +171,8 @@
     showInFinder.target = self;
     [contextMenu addItem:showInFinder];
     contentView.menu = contextMenu;
-
-    // The playlist table gets its own menu (shadowing the window-wide one
-    // above) so a right-click on a row reveals THAT row's track, not the
-    // current track.
-    NSMenu *playlistMenu = [[NSMenu alloc] initWithTitle:@"Playlist Menu"];
-    NSMenuItem *showRowInFinder = [[NSMenuItem alloc] initWithTitle:@"Show in Finder"
-                                                             action:@selector(showClickedTrackInFinder:)
-                                                      keyEquivalent:@""];
-    showRowInFinder.identifier = @"show_clicked_track_in_finder";
-    showRowInFinder.target = self;
-    [playlistMenu addItem:showRowInFinder];
-    self.playlistTableView.menu = playlistMenu;
+    // The playlist table's own row context menu (shadowing this window-wide
+    // one) is installed by PlaylistController when the table is attached.
 }
 
 - (void)windowDidLoad {
@@ -215,29 +199,28 @@
     self.waveformCache = [[AudioWaveformCache alloc] init];
     self.waveformCache.delegate = self;
 
-    self.playlistManager = [[PlaylistManager alloc] initWithAudioPlayer:self.audioPlayer];
-    self.playlistManager.tableView = self.playlistTableView;
+    self.playlistController = [[PlaylistController alloc] initWithAudioPlayer:self.audioPlayer];
+    self.playlistController.tableView = self.playlistTableView;
     // A double-click starts a play the controller never sees until the
     // player's async events land (up to 0.5 s for a slow open) — refresh the
     // header at initiation so it doesn't keep describing the previous track
     // after the row indicator has already moved.
     __weak MainPlayerController *weakControllerForPlaylist = self;
-    self.playlistManager.userDidChangeTrackHandler = ^{
+    self.playlistController.userDidChangeTrackHandler = ^{
         MainPlayerController *strongSelf = weakControllerForPlaylist;
         if (!strongSelf) {
             return;
         }
         // doubleClick just fully rendered both affected rows; the mark keeps
         // the updateUI below to the play-state cell (see next:).
-        strongSelf->_lastReloadedTrack = strongSelf.playlistManager.currentTrack;
+        strongSelf->_lastReloadedTrack = strongSelf.playlistController.currentTrack;
         [strongSelf updateUI];
     };
 
-    _artworkController = [[ArtworkDisplayController alloc] initWithArtworkView:self.albumArtImageView
-                                                               headerTintView:self.headerTintView];
+    _artworkController = [[ArtworkDisplayController alloc] initWithContentView:self.playerContentView];
     __weak MainPlayerController *weakControllerForArt = self;
     _artworkController.currentTrackProvider = ^AudioTrack *{
-        return weakControllerForArt.playlistManager.currentTrack;
+        return weakControllerForArt.playlistController.currentTrack;
     };
     _artworkController.artDidResolveHandler = ^{
         [weakControllerForArt updateUI];
@@ -260,9 +243,6 @@
 
     self.waveformView.delegate = self;
     self.waveformView.waveformStyle = Settings.waveformStyle;
-
-    self.playlistTableView.delegate = self.playlistManager;
-    self.playlistTableView.dataSource = self.playlistManager;
 
     // Bare transport keys via a local event monitor — see TransportKeyMonitor
     // for the key list and why the menu key-equivalent path can't be trusted
@@ -341,7 +321,7 @@
 // same resolution instead of re-deriving it from the underlying flags
 // (rendering itself lives in TrackDisplayController).
 - (TrackDisplayState)displayState {
-    AudioTrack *track = self.playlistManager.currentTrack;
+    AudioTrack *track = self.playlistController.currentTrack;
     if (!track) {
         // Launch grace: a launch-time open may still be resolving — render a
         // blank header instead of flashing the empty state.
@@ -371,7 +351,7 @@
     switch ([self displayState]) {
         case TrackDisplayStateTrack:
         case TrackDisplayStateLoading:
-            return self.playlistManager.currentTrack;
+            return self.playlistController.currentTrack;
         case TrackDisplayStateEmpty:
         case TrackDisplayStateLaunchGrace:
         case TrackDisplayStateError:
@@ -382,7 +362,7 @@
 - (void)updateUI {
 
     TrackDisplayState state = [self displayState];
-    AudioTrack *track = self.playlistManager.currentTrack;
+    AudioTrack *track = self.playlistController.currentTrack;
     // The masking rule lives in displayedTrack — don't re-derive it here.
     // track is still used deliberately below: the error rendering titles the
     // masked track, and the play-button glyph follows the playlist.
@@ -393,8 +373,8 @@
     // later updateUI would fix the glyph (the update timer is paused).
     self.playButton.glyph = (track && self.audioPlayer.isPlaying) ? GlyphButtonGlyphPause : GlyphButtonGlyphPlay;
 
-    self.playButton.enabled = self.playlistManager.count > 0;
-    self.nextButton.enabled = self.playlistManager.hasNextTrack;
+    self.playButton.enabled = self.playlistController.count > 0;
+    self.nextButton.enabled = self.playlistController.hasNextTrack;
 
     // Error state passes the masked (errored) track — its title renders under
     // the error status; the other states describe displayTrack (nil when
@@ -405,8 +385,6 @@
                               rate:self.playbackRate
                        errorStatus:_errorStatus];
 
-    self.albumArtImageView.fileURL = displayTrack.url;
-
     [self effectiveTempoDidChange];
 
     [_artworkController updateForTrack:displayTrack];
@@ -414,10 +392,10 @@
     if (displayTrack && displayTrack == _lastReloadedTrack) {
         // Same track as last time: only the play/pause indicator can have
         // changed in the playlist row.
-        [self.playlistManager reloadCurrentTrackPlayState];
+        [self.playlistController reloadCurrentTrackPlayState];
     }
     else {
-        [self.playlistManager reloadCurrentTrack];
+        [self.playlistController reloadCurrentTrack];
         _lastReloadedTrack = displayTrack;
     }
     [self updatePlaybackUI];
@@ -442,9 +420,23 @@
                                 state:[self displayState]];
 }
 
+// Every effective-tempo change (track change, BPM delivery, fader tick)
+// funnels through here so both consumers see it: the delay echo's BPM-synced
+// taps and the BPM label. The fx write is unconditional — the label's 0.1 BPM
+// granularity is coarser than the fader's, so it must not gate the audio
+// parameter (the setter no-ops on same value).
+- (void)effectiveTempoDidChange {
+    AudioTrack *track = [self displayedTrack];
+    float baseBPM = track.bpm;
+    float scaledBPM = baseBPM > 0 ? baseBPM * self.playbackRate : 0;
+    self.audioPlayer.fx.delayTapBPM = scaledBPM;
+    // The label shows the same pitch-scaled value; no track clears it.
+    [self.trackDisplay renderBPM:(track ? scaledBPM : 0)];
+}
+
 - (IBAction)playPause:(nullable id)sender {
     if (self.audioPlayer.isStopped) {
-        [self.playlistManager play];
+        [self.playlistController play];
     }
     else {
         [self.audioPlayer playPause];
@@ -464,7 +456,7 @@
 
 - (void)play:(NSArray<NSURL *> *)urls {
     _emptyStateSuppressed = NO; // a real track supersedes the launch grace
-    [self.playlistManager play:urls];
+    [self.playlistController play:urls];
     // Defer the playlist-wide metadata load until playback has actually
     // started: four workers reading every file can starve the player's own
     // file open on slow disks, delaying first sound by seconds. The fallback
@@ -473,19 +465,19 @@
 }
 
 - (void)addURLs:(NSArray<NSURL *> *)urls {
-    if (self.playlistManager.count == 0) {
+    if (self.playlistController.count == 0) {
         [self play:urls]; // nothing to append to — this IS the play
         return;
     }
-    [self.playlistManager append:urls];
+    [self.playlistController append:urls];
     // A still-pending deferred sweep reads the playlist when it fires; once it
     // has started, re-queue the whole list (already-parsed tracks are skipped).
     if (!_metadataLoadPending) {
-        [self.metadataCache loadMetadata:self.playlistManager.playlist];
+        [self.metadataCache loadMetadata:self.playlistController.playlist];
     }
     // The current track may have gained a successor: refresh the parked handle
     // and the Next button/menu state.
-    [self.audioPlayer prefetchTrack:[self.playlistManager trackAtIndex:self.playlistManager.currentIndex + 1]];
+    [self.audioPlayer prefetchTrack:[self.playlistController trackAtIndex:self.playlistController.currentIndex + 1]];
     [self updateUI];
 }
 
@@ -514,7 +506,7 @@
         return;
     }
     _metadataLoadPending = NO;
-    [self.metadataCache loadMetadata:self.playlistManager.playlist];
+    [self.metadataCache loadMetadata:self.playlistController.playlist];
 }
 
 - (void)setErrorMaskForTrack:(AudioTrack *)track status:(NSString *)status {
@@ -535,7 +527,7 @@
     [self.audioPlayer stop];
     [self.audioPlayer prefetchTrack:nil]; // drop the parked next-track handle
     [self.waveformCache cancelLoad];
-    [self.playlistManager clear];
+    [self.playlistController clear];
     // Cancel the deferred playlist-wide metadata load — nothing will play to
     // start it later — and release the scan loader (see cancelAll).
     [self cancelDeferredMetadataLoad];
@@ -548,16 +540,16 @@
 }
 
 - (IBAction)next:(nullable id)sender {
-    [self.playlistManager next];
+    [self.playlistController next];
     // next just fully rendered the outgoing and incoming rows; without the
     // mark, the updateUI below would rebuild the incoming row a second time.
-    _lastReloadedTrack = self.playlistManager.currentTrack;
+    _lastReloadedTrack = self.playlistController.currentTrack;
     [self updateUI];
 }
 
 - (IBAction)previous:(nullable id)sender {
-    [self.playlistManager previous];
-    _lastReloadedTrack = self.playlistManager.currentTrack; // see next:
+    [self.playlistController previous];
+    _lastReloadedTrack = self.playlistController.currentTrack; // see next:
     [self updateUI];
 }
 
@@ -578,28 +570,13 @@
 
 #pragma mark - AudioPlayerDelegate Implementation
 
-// Every effective-tempo change (track change, BPM delivery, fader tick)
-// funnels through here so both consumers see it: the delay echo's BPM-synced
-// taps and the BPM label. The fx write is unconditional — the label's 0.1 BPM
-// granularity is coarser than the fader's, so it must not gate the audio
-// parameter (the setter no-ops on same value).
-- (void)effectiveTempoDidChange {
-    AudioTrack *track = [self displayedTrack];
-    // Tagged tempo wins over the analyzed one — same precedence as the skips.
-    float baseBPM = track.metadata.bpm > 0 ? track.metadata.bpm : track.detectedBPM;
-    float scaledBPM = baseBPM > 0 ? baseBPM * self.playbackRate : 0;
-    self.audioPlayer.fx.delayTapBPM = scaledBPM;
-    // The label shows the same pitch-scaled value; no track clears it.
-    [self.trackDisplay renderBPM:(track ? scaledBPM : 0)];
-}
-
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track {
     [self clearErrorMask];
     // A slow (cloud) open is in flight — the header can still show cached
     // tags/art for the pending track while it materializes. Guarded like
     // didStartPlaying:'s check: a stale delivery from a superseded open must
     // not load for a track the playlist no longer points at.
-    if (track == [self.playlistManager currentTrack]) {
+    if (track == [self.playlistController currentTrack]) {
         [self.metadataCache loadMetadataNow:track];
     }
     // Show the pending track's title/artist while it loads.
@@ -616,7 +593,7 @@
     // shimmer/waveform view, kick a wasted decode+prefetch for the old one,
     // and cache the wrong duration. The new play's own events drive the UI
     // from here.
-    if (track != [self.playlistManager currentTrack]) {
+    if (track != [self.playlistController currentTrack]) {
         return;
     }
     [_artworkController trackDidStartPlaying:track];
@@ -637,7 +614,7 @@
     // open — the dominant transition latency. Recomputed on every track start
     // (next/previous, double-click, re-drop all land here); nil past the last
     // track drops the parked handle.
-    [self.audioPlayer prefetchTrack:[self.playlistManager trackAtIndex:self.playlistManager.currentIndex + 1]];
+    [self.audioPlayer prefetchTrack:[self.playlistController trackAtIndex:self.playlistController.currentIndex + 1]];
     // Whoever initiated this play already fully rendered the row (play:'s
     // reloadData, next/previous's two-row window, doubleClick's pair); the
     // mark makes resumeUIUpdateTimer -> updateUI refresh only the play-state
@@ -645,7 +622,7 @@
     // rebuilding the whole row again.
     _lastReloadedTrack = track;
     // next/previous scroll at the click; this covers the other play paths.
-    [self.playlistManager scrollCurrentTrackToVisible];
+    [self.playlistController scrollCurrentTrackToVisible];
     [self resumeUIUpdateTimer];
 }
 
@@ -666,14 +643,14 @@
     // playlist or double-clicks a new row. Only auto-advance if the finished
     // track is still the playlist's current one, otherwise we'd skip past the
     // track the user just chose.
-    if (track && track != [self.playlistManager currentTrack]) {
+    if (track && track != [self.playlistController currentTrack]) {
         return;
     }
     [self pauseUIUpdateTimer];
     // End of playlist must be read from the playlist BEFORE next: — the play
     // it starts is async on the player queue, so the player still reads
     // Stopped right after an ordinary mid-playlist advance.
-    BOOL hasNextTrack = self.playlistManager.hasNextTrack;
+    BOOL hasNextTrack = self.playlistController.hasNextTrack;
     [self next:self];
     // End of playlist (next: started nothing): the cached duration would go
     // stale against the idle player. Mid-playlist the cache must survive the
@@ -719,7 +696,7 @@
     // header shows the error state, the track stays in the playlist for
     // retry, and the errored mark keeps late metadata/art deliveries from
     // repopulating the header.
-    [self setErrorMaskForTrack:self.playlistManager.currentTrack
+    [self setErrorMaskForTrack:self.playlistController.currentTrack
                         status:[MainPlayerController statusForPlayError:error]];
     [self updateUI];
 }
@@ -775,16 +752,12 @@
 #pragma mark - Metadata and Waveform
 
 - (void)didLoadMetadata:(AudioTrack *)track {
-    if (self.playlistManager.currentTrack == track) {
-        // The metadata changed the row's content, so clear the same-track mark:
-        // updateUI then takes its full-row reload branch (the play-state-only
-        // branch would leave stale title/duration cells). One rebuild total —
-        // calling reloadTrack: here as well would rebuild the row twice.
+    if ([self.playlistController isCurrentTrack:track]) {
         _lastReloadedTrack = nil;
         [self updateUI];
     }
     else {
-        [self.playlistManager reloadTrack:track];
+        [self.playlistController reloadTrack:track];
     }
 }
 
@@ -802,26 +775,14 @@
 - (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url {
     // A delivery usually belongs to the current track, but a late one can
     // land after next: advanced the playlist. The BPM is valid for whichever
-    // track was analyzed, so stamp that track (deliveries are rare — once per
-    // load — so a linear scan is fine) and only refresh the label when the
-    // stamped track is the one it shows.
-    AudioTrack *track = self.playlistManager.currentTrack;
-    if (![track.url isEqual:url]) {
-        track = nil;
-        NSUInteger count = self.playlistManager.count;
-        for (NSUInteger i = 0; i < count; i++) {
-            AudioTrack *candidate = [self.playlistManager trackAtIndex:i];
-            if ([candidate.url isEqual:url]) {
-                track = candidate;
-                break;
-            }
-        }
-    }
+    // track owns that URL, so stamp that track and only refresh the label
+    // when the stamped track is the one it shows.
+    AudioTrack *track = [self.playlistController trackForURL:url];
     if (!track) {
         return;
     }
     track.detectedBPM = bpm;
-    if (track == self.playlistManager.currentTrack) {
+    if ([self.playlistController isCurrentTrack:track]) {
         [self effectiveTempoDidChange];
     }
 }
@@ -880,7 +841,7 @@
 // is deliberately NOT here either: fader gestures publish once at gesture
 // end, and the non-gesture caller (applyPitchRange) publishes for itself.
 - (void)updateRateDependentUI {
-    if (self.playlistManager.currentTrack) {
+    if (self.playlistController.currentTrack) {
         [self.trackDisplay renderTotalDuration:self.audioPlayer.duration rate:self.playbackRate];
     }
     [self effectiveTempoDidChange];
@@ -901,22 +862,7 @@
 }
 
 - (IBAction) showInFinder:(id)sender {
-    NSURL *url = self.playlistManager.currentTrack.url;
-    if (url) {
-        [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[url]];
-    }
-}
-
-// The playlist table's context menu (buildContentInWindow:). clickedRow is
-// read at action time, not captured at menu-open — the playlist can be
-// replaced while the menu is up, so the row is re-bounds-checked here (menu
-// validation already disabled the item for a click outside the rows).
-- (IBAction) showClickedTrackInFinder:(id)sender {
-    NSInteger row = self.playlistTableView.clickedRow;
-    if (row < 0 || row >= (NSInteger)self.playlistManager.count) {
-        return;
-    }
-    NSURL *url = [self.playlistManager trackAtIndex:(NSUInteger)row].url;
+    NSURL *url = self.playlistController.currentTrack.url;
     if (url) {
         [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[url]];
     }
@@ -936,8 +882,7 @@
         }
     }
     self.window.appearance = Settings.windowAppearance;
-    [self.playlistManager reloadCurrentTrack];
-    [self.waveformView updateAppearance];
+    [self.playlistController reloadCurrentTrack];
 }
 
 #if DEBUG

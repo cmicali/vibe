@@ -9,14 +9,19 @@
 #import "AudioTrack.h"
 #import "AudioPlayer.h"
 
+@class PlaylistTableView;
+
 NS_ASSUME_NONNULL_BEGIN
 
-@interface PlaylistManager : NSObject <NSTableViewDataSource, NSTableViewDelegate>
+@interface PlaylistController : NSObject <NSTableViewDataSource, NSTableViewDelegate>
 
 @property NSUInteger currentIndex;
 
 @property (weak) AudioPlayer *audioPlayer;
-@property (weak) NSTableView *tableView;
+// Attaching the table also wires the double-click action and installs the
+// row context menu (the table's construction itself lives in
+// PlaylistTableView).
+@property (weak) PlaylistTableView *tableView;
 
 // Fired after a double-click starts a new track. The player's own events
 // arrive only once its async open makes progress (didBeginLoading is gated on
@@ -59,6 +64,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSUInteger)count;
 
 - (NSInteger)getIndexForTrack:(AudioTrack *)track;
+
+- (BOOL)isCurrentTrack:(AudioTrack *)track;
+- (AudioTrack * _Nullable)trackForURL:(NSURL *)url;
 
 - (void)reloadCurrentTrack;
 - (void)reloadCurrentTrackPlayState;

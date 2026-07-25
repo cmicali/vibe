@@ -69,7 +69,23 @@ One-shot BPM measurement — `scan_bpm` runs in the CLI's own process (no channe
 
 The Vibe binary doubles as its own CLI client (same bundle ID + sandbox, so it shares the app's container tmp). **Prefer this over lldb attach, CGEvent input, or AppleScript menu clicks** — no Accessibility/Automation permission, no frontmost requirement, doesn't pause the process.
 
-**Every command replies with exactly one JSON object** — never scrape text. Filter with `jq` (`-r` for shell substitution, `-e` to assert); drop to python only when the logic outgrows filtering (multi-step transforms, comparing states). Pipe via `printf '%s' "$out"`, not `echo` — zsh's `echo` rewrites `\t` escapes inside the JSON into illegal raw control characters. Errors are `{"error": "…"}` (exit code 2).
+**Every command replies with exactly one JSON object** — never scrape text. Filter with `jq`: `-r` for shell substitution, `-e` to assert (exits nonzero on `false`/`null`, so it doubles as the test). Pipe via `printf '%s' "$out"`, not `echo` — zsh's `echo` rewrites `\t` escapes inside the JSON into illegal raw control characters. Errors are `{"error": "…"}` (exit code 2).
+
+**Use `jq`, not python.** Comparing before/after state is a `jq` job — two `-r` extractions and a shell compare — not a reason to reach for python. Python is warranted only when you need real data structures across many keys at once (walking/diffing whole `dump_view_tree` subtrees); pulling scalars out and comparing them never qualifies:
+
+```bash
+out=$("$V" --debug-cmd dump_state)
+printf '%s' "$out" | jq -r '.currentTrack.title, .ui.currentTime'    # scalars for the shell
+printf '%s' "$out" | jq -e '.player.state == "playing"' >/dev/null   # assert; nonzero if not
+
+# before/after: extract, act, extract, compare — no python
+before=$("$V" --debug-cmd dump_state | jq -r .player.position)
+"$V" --debug-cmd skip_forward >/dev/null
+after=$("$V" --debug-cmd dump_state | jq -r .player.position)
+awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> $after"
+```
+
+`.player.state` is lowercase and only ever `playing` / `paused` / `stopped` — there is **no `loading` value**: an in-flight open reports `playing` (with zero position/duration), matching the transport button. Asserting `== "Playing"` silently never matches.
 
 ```bash
 "$V" --debug-cmd dump_state          # {player, currentTrack, playlist, ui (label text), window, settings}

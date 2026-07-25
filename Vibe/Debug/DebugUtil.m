@@ -25,7 +25,7 @@
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformView.h"
-#import "PlaylistManager.h"
+#import "PlaylistController.h"
 #import "NSURLUtil.h"
 #import "PitchControlPanel.h"
 #import "GlyphButton.h"
@@ -177,7 +177,7 @@ static NSString *VibePlayerStateName(AudioPlayer *player) {
 static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
     AudioPlayer *player = controller.audioPlayer;
     MainWindow *window = (MainWindow *)controller.window;
-    PlaylistManager *playlist = controller.playlistManager;
+    PlaylistController *playlist = controller.playlistController;
     AudioTrack *track = playlist.currentTrack;
 
     NSMutableArray<NSString *> *files = [NSMutableArray array];
@@ -396,8 +396,8 @@ static NSString *VibeActionSummary(MainPlayerController *controller) {
     return VibeJSONString(@{
         @"ok": @YES,
         @"state": VibePlayerStateName(player),
-        @"index": @(controller.playlistManager.currentIndex),
-        @"count": @(controller.playlistManager.count),
+        @"index": @(controller.playlistController.currentIndex),
+        @"count": @(controller.playlistController.count),
         @"position": @(player.position),
         @"pitch": @(player.pitch),
         @"lowKill": @(player.fx.lowKillEnabled),

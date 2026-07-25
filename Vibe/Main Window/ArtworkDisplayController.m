@@ -4,6 +4,7 @@
 //
 
 #import "ArtworkDisplayController.h"
+#import "MainPlayerContentView.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "ArtworkImageView.h"
@@ -51,12 +52,11 @@ static const CGFloat kTintMaxSaturationLight = 0.45;
     BOOL                        _initialized;
 }
 
-- (instancetype)initWithArtworkView:(ArtworkImageView *)artworkView
-                     headerTintView:(NSView *)headerTintView {
+- (instancetype)initWithContentView:(MainPlayerContentView *)contentView {
     self = [super init];
     if (self) {
-        _artworkView = artworkView;
-        _headerTintView = headerTintView;
+        _artworkView = contentView.albumArtImageView;
+        _headerTintView = contentView.headerTintView;
         _dominantColorByTrack = [NSMapTable weakToStrongObjectsMapTable];
     }
     return self;
@@ -145,6 +145,10 @@ static const CGFloat kTintMaxSaturationLight = 0.45;
 // of the default between tracks. The default backdrop is installed only when
 // the track is known to be artless.
 - (void)updateForTrack:(AudioTrack *)track {
+    // The art view doubles as the track's drag-out source; the URL tracks the
+    // displayed track directly (not the keep-previous art policy below — a
+    // drag during the unresolved gap must export the track the header names).
+    _artworkView.fileURL = track.url;
     if (!track) {
         // No file loaded. Without this, a nil track reads as "art unresolved"
         // below and the keep-previous-art policy would leave the closed

@@ -8,6 +8,7 @@
 #import "GlyphButton.h"
 #import "ArtworkImageView.h"
 #import "AudioWaveformView.h"
+#import "PlaylistTableView.h"
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
 #import "Constants.h"
@@ -131,6 +132,10 @@ static const CGFloat kLabelShadowOpacityDark = 0.9;
     NSGlassEffectView *_backgroundGlassView;    // header glass; its tint rides in headerTintView
     NSVisualEffectView *_playlistFrostView;
     NSView *_playlistDimView;
+    // Self-contained buttons (actions wired at build, hover fade internal) —
+    // not exposed in the header; the controller never drives them.
+    GlyphButton *_closeButton;
+    GlyphButton *_minimizeButton;
     GlyphButton *_playlistToggleButton;
     NSTrackingArea *_windowHoverArea;
     __weak NSView *_windowHoverHost;
@@ -450,8 +455,12 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _playlistDimView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [_playlistFrostView addSubview:_playlistDimView];
 
-    [self addSubview:[self buildPlaylistScrollViewWithFrame:
-            NSMakeRect(0, 0, kMainWindowContentWidth, kPlaylistHeight)]];
+    // The table (columns, row metrics, cell construction) is entirely
+    // PlaylistTableView's; only the frame is placed here.
+    NSScrollView *playlistScrollView = [PlaylistTableView scrollViewWithFrame:
+            NSMakeRect(0, 0, kMainWindowContentWidth, kPlaylistHeight)];
+    _playlistTableView = (PlaylistTableView *)playlistScrollView.documentView;
+    [self addSubview:playlistScrollView];
 
     _fileMetadataTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kCodecLabelX, kCodecLabelY, kCodecLabelWidth, kSmallLabelHeight)];
@@ -473,65 +482,6 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _bpmTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
     configureLabelShadow(_bpmTextField, YES);
     [self addSubview:_bpmTextField];
-}
-
-- (NSScrollView *)buildPlaylistScrollViewWithFrame:(NSRect)frame {
-    NSTableView *table = [[NSTableView alloc] initWithFrame:NSMakeRect(0, 0, frame.size.width, frame.size.height)];
-    table.rowHeight = 28;
-    table.headerView = nil;
-    table.allowsMultipleSelection = NO;
-    table.allowsColumnReordering = NO;
-    table.allowsColumnResizing = NO;
-    table.allowsExpansionToolTips = YES;
-    table.backgroundColor = [NSColor clearColor];
-    table.focusRingType = NSFocusRingTypeNone;
-    table.intercellSpacing = NSMakeSize(0, 0);
-    table.columnAutoresizingStyle = NSTableViewSequentialColumnAutoresizingStyle;
-    // Type-select would swallow plain keystrokes (jump to the first row
-    // starting with that letter) before the menu sees them, breaking the
-    // unmodified transport key equivalents (Space/B/N) whenever the table
-    // has focus.
-    table.allowsTypeSelect = NO;
-    // Opt out of the macOS 11+ inset look; we want the selection highlight
-    // and row content flush with the scroll view's left/right edges.
-    table.style = NSTableViewStyleFullWidth;
-
-    struct {
-        NSString *identifier;
-        CGFloat width, minWidth, maxWidth;
-    } columns[] = {
-            {@"numColumn",     32,  32,  32},
-            {@"artColumn",     48,  48,  48},
-            {@"titleColumn",  552, 100, 10000},
-            {@"lengthColumn",  48,  48,  48},
-    };
-    for (size_t i = 0; i < sizeof(columns) / sizeof(columns[0]); i++) {
-        NSTableColumn *column = [[NSTableColumn alloc] initWithIdentifier:columns[i].identifier];
-        column.width = columns[i].width;
-        column.minWidth = columns[i].minWidth;
-        column.maxWidth = columns[i].maxWidth;
-        column.resizingMask = NSTableColumnAutoresizingMask;
-        [table addTableColumn:column];
-    }
-
-    NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:frame];
-    scrollView.borderType = NSNoBorder;
-    scrollView.drawsBackground = NO;
-    scrollView.hasVerticalScroller = YES;
-    scrollView.hasHorizontalScroller = NO;
-    scrollView.autohidesScrollers = YES;
-    scrollView.usesPredominantAxisScrolling = NO;
-    scrollView.horizontalScrollElasticity = NSScrollElasticityNone;
-    scrollView.verticalLineScroll = 28;
-    scrollView.horizontalLineScroll = 28;
-    scrollView.automaticallyAdjustsContentInsets = NO;
-    scrollView.contentInsets = NSEdgeInsetsZero;
-    scrollView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    scrollView.documentView = table;
-    [table sizeToFit];
-
-    _playlistTableView = table;
-    return scrollView;
 }
 
 // Shared config for the borderless icon buttons (close/playlist/play/next):
