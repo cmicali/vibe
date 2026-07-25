@@ -2,9 +2,13 @@
 
 CONFIG ?= Release
 
-.PHONY: project build release install clean run
+.PHONY: setup project build release install clean run
 
-# Generate Vibe.xcodeproj from project.yml (requires: brew install xcodegen).
+# Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
+setup:
+	brew bundle
+
+# Generate Vibe.xcodeproj from project.yml (requires xcodegen — `make setup`).
 project:
 	xcodegen generate
 
