@@ -452,6 +452,312 @@ static NSString *VibeExistingFileArgument(NSArray<NSString *> *tokens, NSString 
     return path;
 }
 
+#pragma mark Input injection
+
+// Synthesized NSEvents posted into the app's own event queue
+// ([NSApp postEvent:atStart:NO]). Unlike --debug-cmd's direct action calls,
+// these exercise the real event dispatch path — local monitors
+// (TransportKeyMonitor) and view mouse handling included — and unlike CGEvent
+// injection (input.swift) they need no Accessibility permission and no
+// frontmost window. Two structural limits versus real window-server events:
+// tracking areas / hover effects don't fire (the window server drives those),
+// and the posted events are processed after the reply is written — poll
+// dump_state to observe the result.
+//
+// Mouse coordinates are MAIN-WINDOW POINTS, ORIGIN TOP-LEFT — the same frame
+// of reference as dump_screenshot (retina pixel / 2). NSEvent wants
+// bottom-left window coords, converted here.
+
+static NSTimeInterval VibeEventTimestamp(void) {
+    return NSProcessInfo.processInfo.systemUptime;
+}
+
+static BOOL VibeParseDouble(NSString *token, double *out) {
+    NSScanner *scanner = [NSScanner scannerWithString:token];
+    return [scanner scanDouble:out] && scanner.isAtEnd;
+}
+
+static NSDictionary<NSString *, NSNumber *> *VibeKeyCodeMap(void) {
+    static NSDictionary<NSString *, NSNumber *> *map;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        // ANSI virtual key codes (HIToolbox Events.h values, stated inline so
+        // Carbon stays unimported).
+        map = @{
+            @"a": @0,  @"s": @1,  @"d": @2,  @"f": @3,  @"h": @4,  @"g": @5,
+            @"z": @6,  @"x": @7,  @"c": @8,  @"v": @9,  @"b": @11, @"q": @12,
+            @"w": @13, @"e": @14, @"r": @15, @"y": @16, @"t": @17,
+            @"1": @18, @"2": @19, @"3": @20, @"4": @21, @"6": @22, @"5": @23,
+            @"9": @25, @"7": @26, @"8": @28, @"0": @29,
+            @"o": @31, @"u": @32, @"i": @34, @"p": @35, @"l": @37, @"j": @38,
+            @"k": @40, @"n": @45, @"m": @46,
+            @"return": @36, @"tab": @48, @"space": @49, @"delete": @51, @"esc": @53,
+            @"left": @123, @"right": @124, @"down": @125, @"up": @126,
+        };
+    });
+    return map;
+}
+
+static NSString *VibeKeyCharacters(NSString *name) {
+    static NSDictionary<NSString *, NSString *> *special;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        special = @{
+            @"return": @"\r", @"tab": @"\t", @"space": @" ",
+            @"delete": @"\x7f", @"esc": @"\x1b",
+            @"left": [NSString stringWithFormat:@"%C", (unichar)NSLeftArrowFunctionKey],
+            @"right": [NSString stringWithFormat:@"%C", (unichar)NSRightArrowFunctionKey],
+            @"up": [NSString stringWithFormat:@"%C", (unichar)NSUpArrowFunctionKey],
+            @"down": [NSString stringWithFormat:@"%C", (unichar)NSDownArrowFunctionKey],
+        };
+    });
+    return special[name] ?: name;
+}
+
+static BOOL VibeKeyIsArrow(NSString *name) {
+    return [@[@"left", @"right", @"up", @"down"] containsObject:name];
+}
+
+// Trailing tokens after the key name are modifier names.
+static BOOL VibeParseModifiers(NSArray<NSString *> *tokens, NSUInteger start,
+                               NSEventModifierFlags *outFlags, NSString **errorJSON) {
+    NSEventModifierFlags flags = 0;
+    for (NSUInteger i = start; i < tokens.count; i++) {
+        NSString *mod = tokens[i].lowercaseString;
+        if ([mod isEqualToString:@"shift"]) {
+            flags |= NSEventModifierFlagShift;
+        }
+        else if ([mod isEqualToString:@"cmd"] || [mod isEqualToString:@"command"]) {
+            flags |= NSEventModifierFlagCommand;
+        }
+        else if ([mod isEqualToString:@"opt"] || [mod isEqualToString:@"option"] || [mod isEqualToString:@"alt"]) {
+            flags |= NSEventModifierFlagOption;
+        }
+        else if ([mod isEqualToString:@"ctrl"] || [mod isEqualToString:@"control"]) {
+            flags |= NSEventModifierFlagControl;
+        }
+        else {
+            *errorJSON = VibeErrorJSON(@"unknown modifier '%@' (shift, cmd, opt, ctrl)", tokens[i]);
+            return NO;
+        }
+    }
+    *outFlags = flags;
+    return YES;
+}
+
+// key = down+up; key_down / key_up post one edge — that split is how the held
+// W/E/R/T momentary FX keys are driven (TransportKeyMonitor releases on keyUp).
+static NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *tokens,
+                               BOOL down, BOOL up) {
+    NSString *verb = tokens.firstObject;
+    if (tokens.count < 2) {
+        return VibeErrorJSON(@"usage: %@ <key> [shift|cmd|opt|ctrl ...]", verb);
+    }
+    NSString *name = tokens[1].lowercaseString;
+    NSNumber *code = VibeKeyCodeMap()[name];
+    if (!code) {
+        return VibeErrorJSON(@"unknown key '%@' (a-z, 0-9, space, tab, return, esc, delete, up, down, left, right)",
+                tokens[1]);
+    }
+    NSEventModifierFlags flags = 0;
+    NSString *errorJSON = nil;
+    if (!VibeParseModifiers(tokens, 2, &flags, &errorJSON)) {
+        return errorJSON;
+    }
+    if (VibeKeyIsArrow(name)) {
+        // Real arrow events carry these; some responders check them.
+        flags |= NSEventModifierFlagFunction | NSEventModifierFlagNumericPad;
+    }
+    NSString *chars = VibeKeyCharacters(name);
+    NSString *charsWithMods = (flags & NSEventModifierFlagShift) ? chars.uppercaseString : chars;
+    NSWindow *window = controller.window;
+    void (^post)(NSEventType) = ^(NSEventType type) {
+        NSEvent *event = [NSEvent keyEventWithType:type
+                                          location:NSZeroPoint
+                                     modifierFlags:flags
+                                         timestamp:VibeEventTimestamp()
+                                      windowNumber:window.windowNumber
+                                           context:nil
+                                        characters:charsWithMods
+                       charactersIgnoringModifiers:chars
+                                         isARepeat:NO
+                                           keyCode:code.unsignedShortValue];
+        [NSApp postEvent:event atStart:NO];
+    };
+    if (down) {
+        post(NSEventTypeKeyDown);
+    }
+    if (up) {
+        post(NSEventTypeKeyUp);
+    }
+    return VibeJSONString(@{@"ok": @YES, @"posted": verb, @"key": name});
+}
+
+// Shared tail for the mouse verbs: convert to bottom-left window coords, post
+// via the block, and reply with the hit-tested view so a missed aim is visible
+// in the reply instead of silently doing nothing.
+static NSString *VibeMouseReply(NSString *verb, NSWindow *window, NSPoint location,
+                                double x, double y) {
+    NSView *content = window.contentView;
+    NSView *hit = (content && content.superview)
+            ? [content hitTest:[content.superview convertPoint:location fromView:nil]]
+            : nil;
+    return VibeJSONString(@{
+        @"ok": @YES,
+        @"posted": verb,
+        @"x": @(x),
+        @"y": @(y),
+        @"hitView": hit ? hit.className : (id)NSNull.null,
+        @"windowKey": @(window.isKeyWindow),
+    });
+}
+
+// A non-key window swallows the first click as activation (click-through
+// protection: acceptsFirstMouse defaults NO), so mouse injection self-
+// activates first — the deprecated force spelling, because the cooperative
+// [NSApp activate] is declined while another app is frontmost (tested), which
+// is exactly the state a shell-driven test runs in. Activation lands
+// asynchronously, so spin the run loop briefly until key status arrives —
+// events posted before that are swallowed. The reply's windowKey reports
+// whether it took.
+static void VibeMakeWindowKeyForInjection(NSWindow *window) {
+    if (window.isKeyWindow) {
+        return;
+    }
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    [NSApp activateIgnoringOtherApps:YES];
+#pragma clang diagnostic pop
+    [window makeKeyAndOrderFront:nil];
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:1.0];
+    while (!window.isKeyWindow && deadline.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode
+                               beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+    }
+}
+
+static NSEvent *VibeMouseEvent(NSEventType type, NSPoint location, NSInteger windowNumber,
+                               NSInteger clickCount, float pressure) {
+    return [NSEvent mouseEventWithType:type
+                              location:location
+                         modifierFlags:0
+                             timestamp:VibeEventTimestamp()
+                          windowNumber:windowNumber
+                               context:nil
+                           eventNumber:0
+                            clickCount:clickCount
+                              pressure:pressure];
+}
+
+// click / mouse_down / mouse_up / mouse_move. mouse_move with a button token
+// posts a *dragged* event (a plain move otherwise). CAUTION: a lone mouse_down
+// on a control that runs a modal mouse-tracking loop stalls the app inside
+// that loop, and the command channel (GCD main queue) can't deliver the
+// matching mouse_up while it spins — use `click` or `drag`, whose events are
+// all queued before the loop starts.
+static NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+    NSString *verb = tokens.firstObject;
+    BOOL isClick = [verb isEqualToString:@"click"];
+    NSString *usage = isClick
+            ? @"usage: click <x> <y> [left|right] [clickCount]"
+            : [NSString stringWithFormat:@"usage: %@ <x> <y> [left|right]", verb];
+    double x = 0, y = 0;
+    if (tokens.count < 3 || !VibeParseDouble(tokens[1], &x) || !VibeParseDouble(tokens[2], &y)) {
+        return VibeErrorJSON(@"%@", usage);
+    }
+    NSUInteger next = 3;
+    BOOL right = NO;
+    BOOL haveButton = NO;
+    if (tokens.count > next) {
+        NSString *button = tokens[next].lowercaseString;
+        if ([button isEqualToString:@"left"] || [button isEqualToString:@"right"]) {
+            right = [button isEqualToString:@"right"];
+            haveButton = YES;
+            next++;
+        }
+    }
+    NSInteger clickCount = 1;
+    if (isClick && tokens.count > next) {
+        clickCount = tokens[next].integerValue;
+        if (clickCount < 1 || clickCount > 3) {
+            return VibeErrorJSON(@"clickCount must be 1-3");
+        }
+        next++;
+    }
+    if (tokens.count > next) {
+        return VibeErrorJSON(@"%@", usage);
+    }
+    NSWindow *window = controller.window;
+    VibeMakeWindowKeyForInjection(window);
+    NSPoint location = NSMakePoint(x, NSHeight(window.frame) - y);
+    NSInteger windowNumber = window.windowNumber;
+    if (isClick) {
+        // A double-click is two full press cycles with ascending clickCount,
+        // exactly as the window server delivers one.
+        for (NSInteger i = 1; i <= clickCount; i++) {
+            [NSApp postEvent:VibeMouseEvent(right ? NSEventTypeRightMouseDown : NSEventTypeLeftMouseDown,
+                                            location, windowNumber, i, 1.0) atStart:NO];
+            [NSApp postEvent:VibeMouseEvent(right ? NSEventTypeRightMouseUp : NSEventTypeLeftMouseUp,
+                                            location, windowNumber, i, 0.0) atStart:NO];
+        }
+    }
+    else if ([verb isEqualToString:@"mouse_down"]) {
+        [NSApp postEvent:VibeMouseEvent(right ? NSEventTypeRightMouseDown : NSEventTypeLeftMouseDown,
+                                        location, windowNumber, 1, 1.0) atStart:NO];
+    }
+    else if ([verb isEqualToString:@"mouse_up"]) {
+        [NSApp postEvent:VibeMouseEvent(right ? NSEventTypeRightMouseUp : NSEventTypeLeftMouseUp,
+                                        location, windowNumber, 1, 0.0) atStart:NO];
+    }
+    else { // mouse_move
+        NSEventType type = !haveButton ? NSEventTypeMouseMoved
+                : (right ? NSEventTypeRightMouseDragged : NSEventTypeLeftMouseDragged);
+        [NSApp postEvent:VibeMouseEvent(type, location, windowNumber, 0, haveButton ? 1.0 : 0.0)
+                 atStart:NO];
+    }
+    return VibeMouseReply(verb, window, location, x, y);
+}
+
+// Full left-button drag gesture queued in one command (down, interpolated
+// dragged steps, up) — the only injection shape that works on tracking-loop
+// controls (see VibeInjectMouse).
+static NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+    NSString *usage = @"usage: drag <x1> <y1> <x2> <y2> [steps]";
+    double x1 = 0, y1 = 0, x2 = 0, y2 = 0;
+    if (tokens.count < 5
+            || !VibeParseDouble(tokens[1], &x1) || !VibeParseDouble(tokens[2], &y1)
+            || !VibeParseDouble(tokens[3], &x2) || !VibeParseDouble(tokens[4], &y2)) {
+        return VibeErrorJSON(@"%@", usage);
+    }
+    NSInteger steps = 12;
+    if (tokens.count >= 6) {
+        steps = tokens[5].integerValue;
+        if (steps < 2 || steps > 200) {
+            return VibeErrorJSON(@"steps must be 2-200");
+        }
+    }
+    if (tokens.count > 6) {
+        return VibeErrorJSON(@"%@", usage);
+    }
+    NSWindow *window = controller.window;
+    VibeMakeWindowKeyForInjection(window);
+    CGFloat height = NSHeight(window.frame);
+    NSInteger windowNumber = window.windowNumber;
+    NSPoint start = NSMakePoint(x1, height - y1);
+    [NSApp postEvent:VibeMouseEvent(NSEventTypeLeftMouseDown, start, windowNumber, 1, 1.0)
+             atStart:NO];
+    for (NSInteger i = 1; i <= steps; i++) {
+        double t = (double)i / steps;
+        NSPoint p = NSMakePoint(x1 + (x2 - x1) * t, height - (y1 + (y2 - y1) * t));
+        [NSApp postEvent:VibeMouseEvent(NSEventTypeLeftMouseDragged, p, windowNumber, 1, 1.0)
+                 atStart:NO];
+    }
+    NSPoint end = NSMakePoint(x2, height - y2);
+    [NSApp postEvent:VibeMouseEvent(NSEventTypeLeftMouseUp, end, windowNumber, 1, 0.0)
+             atStart:NO];
+    return VibeMouseReply(@"drag", window, start, x1, y1);
+}
+
 #pragma mark Command table
 
 // One handler per verb; tokens[0] is the verb itself. Returning nil means the
@@ -518,8 +824,10 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeCmd(@"dump_menu", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeJSONString(@{@"menu": VibeMenuArray(NSApp.mainMenu)});
             }),
-            VibeCmd(@"dump_screenshot [-]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                // "-" is client-side: the CLI streams the PNG bytes to stdout.
+            VibeCmd(@"dump_screenshot [- | <label>]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                // Arguments are client-side: "-" streams the PNG bytes to
+                // stdout; in a script the reply carries the PNG as base64 and
+                // a label names the decoded file (run-script.sh).
                 VibeDumpWindowSnapshot();
                 return VibeJSONString(@{@"path": VibeDebugScreenshotPath()});
             }),
@@ -550,6 +858,30 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeActionCmd(@"low_kill_boost_on", ^(MainPlayerController *controller) { [controller setLowKillBoostActive:YES]; }),
             VibeActionCmd(@"low_kill_boost_off", ^(MainPlayerController *controller) { [controller setLowKillBoostActive:NO]; }),
             VibeActionCmd(@"toggle_size", ^(MainPlayerController *controller) { [controller toggleSize:nil]; }),
+            VibeCmd(@"click <x> <y> [left|right] [clickCount]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeInjectMouse(controller, tokens);
+            }),
+            VibeCmd(@"mouse_down <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeInjectMouse(controller, tokens);
+            }),
+            VibeCmd(@"mouse_up <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeInjectMouse(controller, tokens);
+            }),
+            VibeCmd(@"mouse_move <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeInjectMouse(controller, tokens);
+            }),
+            VibeCmd(@"drag <x1> <y1> <x2> <y2> [steps]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeInjectDrag(controller, tokens);
+            }),
+            VibeCmd(@"key <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeInjectKey(controller, tokens, YES, YES);
+            }),
+            VibeCmd(@"key_down <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeInjectKey(controller, tokens, YES, NO);
+            }),
+            VibeCmd(@"key_up <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeInjectKey(controller, tokens, NO, YES);
+            }),
             VibeCmd(@"set_pitch <percent>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: set_pitch <percent>");
@@ -707,6 +1039,8 @@ static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *
         }
         [usages addObject:@"clear_disk_caches"];
         [usages addObject:@"set_appearance <light|dark|system>"];
+        [usages addObject:@"sleep <seconds>"];
+        [usages addObject:@"script <file | ->"];
         return VibeErrorJSON(@"unknown command '%@'. Commands: %@",
                 verb, [usages componentsJoinedByString:@", "]);
     }
@@ -795,14 +1129,47 @@ void VibeInstallDebugCommandHook(void) {
 
 #pragma mark Client side
 
-int VibeDebugCommandClientMain(int argc, const char *argv[]) {
-    @autoreleasepool {
-        NSMutableArray<NSString *> *args = [NSMutableArray array];
-        for (int i = 2; i < argc; i++) {
-            [args addObject:@(argv[i])];
+// Script-mode replies are re-serialized compact — one line per command — so
+// script output is real NDJSON a wrapper can line-split (run-script.sh does).
+// Top-level replies keep the human-friendly pretty print.
+static void VibeClientPrintReply(NSString *json, BOOL inScript) {
+    if (inScript) {
+        NSData *data = [json dataUsingEncoding:NSUTF8StringEncoding];
+        id object = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+        NSData *compact = object
+                ? [NSJSONSerialization dataWithJSONObject:object options:NSJSONWritingSortedKeys error:nil]
+                : nil;
+        NSString *line = compact ? [[NSString alloc] initWithData:compact encoding:NSUTF8StringEncoding] : nil;
+        if (line) {
+            json = line;
         }
-        if (args.count == 0) {
-            fprintf(stderr, "usage: Vibe --debug-cmd <command> [args...]\n");
+    }
+    printf("%s\n", json.UTF8String);
+}
+
+// Runs one command — local verbs in this process, everything else over the
+// channel — printing its reply line and returning the exit code. Called both
+// by the top-level main and per script line (inScript switches the verbs
+// whose I/O contract can't compose with NDJSON-lines output: dump_screenshot
+// replies carry the PNG as base64 instead of streaming raw bytes, and
+// stdin-streaming scan_bpm - and nested script are rejected).
+static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
+    @autoreleasepool {
+        // Client-side pause, for scripts: the app's main thread never sleeps.
+        if ([args.firstObject isEqualToString:@"sleep"]) {
+            double seconds = 0;
+            BOOL valid = args.count == 2 && VibeParseDouble(args[1], &seconds)
+                    && seconds > 0 && seconds <= 600;
+            if (!valid) {
+                fprintf(stderr, "usage: Vibe --debug-cmd sleep <seconds 0-600>\n");
+                return 64;
+            }
+            usleep((useconds_t)(seconds * 1e6));
+            VibeClientPrintReply(VibeJSONString(@{@"ok": @YES, @"slept": @(seconds)}), inScript);
+            return 0;
+        }
+        if (inScript && [args.firstObject isEqualToString:@"script"]) {
+            fprintf(stderr, "vibe: scripts cannot nest\n");
             return 64;
         }
         // scan_bpm runs IN THIS PROCESS — a pure decode+analyze with no app
@@ -817,6 +1184,11 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
         if ([args.firstObject isEqualToString:@"scan_bpm"]) {
             NSString *json = nil;
             if (args.count == 2 && [args[1] isEqualToString:@"-"]) {
+                if (inScript) {
+                    // The script source may itself be riding stdin.
+                    fprintf(stderr, "vibe: scan_bpm - (stdin) is not available inside a script — pass a file path\n");
+                    return 64;
+                }
                 NSData *audio = [NSFileHandle.fileHandleWithStandardInput readDataToEndOfFile];
                 if (audio.length == 0) {
                     fprintf(stderr, "vibe: empty stdin — usage: Vibe --debug-cmd scan_bpm - < file\n");
@@ -838,7 +1210,7 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
                 fprintf(stderr, "usage: Vibe --debug-cmd scan_bpm <file | ->\n");
                 return 64;
             }
-            printf("%s\n", json.UTF8String);
+            VibeClientPrintReply(json, inScript);
             NSDictionary *reply = [NSJSONSerialization JSONObjectWithData:
                     [json dataUsingEncoding:NSUTF8StringEncoding] ?: NSData.data
                                                                   options:0
@@ -860,7 +1232,7 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
                     [cleared addObject:name];
                 }
             }
-            printf("%s\n", VibeJSONString(@{@"ok": @YES, @"cleared": cleared}).UTF8String);
+            VibeClientPrintReply(VibeJSONString(@{@"ok": @YES, @"cleared": cleared}), inScript);
             return 0;
         }
         // In-process: shell `defaults write` into the container prompts; this
@@ -882,7 +1254,7 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
             Settings.windowAppearanceStyle = value;
             // Short-lived process: force the cfprefsd flush before exit.
             [NSUserDefaults.standardUserDefaults synchronize];
-            printf("%s\n", VibeJSONString(@{@"ok": @YES, @"windowAppearance": args[1]}).UTF8String);
+            VibeClientPrintReply(VibeJSONString(@{@"ok": @YES, @"windowAppearance": args[1]}), inScript);
             return 0;
         }
         NSString *commandId = NSUUID.UUID.UUIDString;
@@ -927,14 +1299,18 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
                                                                       options:0
                                                                         error:nil];
                 BOOL failed = ![reply isKindOfClass:NSDictionary.class] || reply[@"error"] != nil;
-                // dump_screenshot -: stream the PNG over stdout (JSON reply
-                // moves to stderr). Only this process may read the PNG — it
-                // lives in the app container, and another process reading it
-                // trips macOS 14+ app-data protection; the inherited stdout
-                // fd crosses the sandbox, and the caller opens its own
-                // redirect target.
+                // dump_screenshot payload delivery. Only this process may
+                // read the PNG — it lives in the app container, and another
+                // process reading it trips macOS 14+ app-data protection; the
+                // inherited stdout fd crosses the sandbox freely.
+                // Top level, `dump_screenshot -`: raw PNG bytes to stdout
+                // (JSON reply moves to stderr); the caller opens its own
+                // redirect target. In a script: the reply line carries the
+                // PNG base64-encoded (raw bytes can't interleave with
+                // one-JSON-object-per-line output) plus any label argument —
+                // run-script.sh decodes them to numbered files.
                 if (!failed && [args.firstObject isEqualToString:@"dump_screenshot"]
-                            && [args containsObject:@"-"]) {
+                            && (inScript || [args containsObject:@"-"])) {
                     NSString *pngPath = [reply[@"path"] isKindOfClass:NSString.class] ? reply[@"path"] : nil;
                     NSData *png = pngPath ? [NSData dataWithContentsOfFile:pngPath] : nil;
                     if (png.length == 0) {
@@ -942,12 +1318,25 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
                                 pngPath.fileSystemRepresentation ?: "(no path in reply)");
                         return 2;
                     }
+                    if (inScript) {
+                        NSMutableDictionary *out = [NSMutableDictionary dictionary];
+                        out[@"ok"] = @YES;
+                        out[@"pngBase64"] = [png base64EncodedStringWithOptions:0];
+                        for (NSUInteger i = 1; i < args.count; i++) {
+                            if (![args[i] isEqualToString:@"-"]) {
+                                out[@"label"] = args[i];
+                                break;
+                            }
+                        }
+                        VibeClientPrintReply(VibeJSONString(out), YES);
+                        return 0;
+                    }
                     fwrite(png.bytes, 1, png.length, stdout);
                     fprintf(stderr, "%s\n", response.UTF8String);
                     return 0;
                 }
                 if (response.length) {
-                    printf("%s\n", response.UTF8String);
+                    VibeClientPrintReply(response, inScript);
                 }
                 return failed ? 2 : 0;
             }
@@ -955,6 +1344,125 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
         [fileManager removeItemAtPath:commandPath error:nil];
         fprintf(stderr, "vibe: no response after %.0fs — is a debug build of Vibe running?\n", timeout);
         return 1;
+    }
+}
+
+#pragma mark Script mode
+
+// Whitespace-splits one script line into tokens; single or double quotes
+// group a token containing spaces (no escape sequences — this is a command
+// list, not a shell). Returns nil with *error set on an unterminated quote.
+static NSArray<NSString *> *VibeTokenizeScriptLine(NSString *line, NSString **error) {
+    NSMutableArray<NSString *> *tokens = [NSMutableArray array];
+    NSMutableString *current = nil;
+    unichar quote = 0;
+    for (NSUInteger i = 0; i < line.length; i++) {
+        unichar ch = [line characterAtIndex:i];
+        if (quote) {
+            if (ch == quote) {
+                quote = 0;
+            }
+            else {
+                [current appendFormat:@"%C", ch];
+            }
+        }
+        else if (ch == '\'' || ch == '"') {
+            quote = ch;
+            if (!current) {
+                current = [NSMutableString string];
+            }
+        }
+        else if (ch == ' ' || ch == '\t') {
+            if (current) {
+                [tokens addObject:current];
+                current = nil;
+            }
+        }
+        else {
+            if (!current) {
+                current = [NSMutableString string];
+            }
+            [current appendFormat:@"%C", ch];
+        }
+    }
+    if (quote) {
+        *error = @"unterminated quote";
+        return nil;
+    }
+    if (current) {
+        [tokens addObject:current];
+    }
+    return tokens;
+}
+
+// One command per line, run in order; blank lines and full-line # comments
+// are skipped. Output is one JSON reply per command (NDJSON). Stops at the
+// first failing command and returns its exit code, so a script doubles as a
+// test: exit 0 means every command succeeded.
+static int VibeDebugClientRunScript(NSString *source) {
+    NSUInteger lineNumber = 0;
+    for (NSString *rawLine in [source componentsSeparatedByString:@"\n"]) {
+        lineNumber++;
+        NSString *line = [rawLine stringByTrimmingCharactersInSet:
+                NSCharacterSet.whitespaceCharacterSet];
+        if (line.length == 0 || [line hasPrefix:@"#"]) {
+            continue;
+        }
+        NSString *error = nil;
+        NSArray<NSString *> *tokens = VibeTokenizeScriptLine(line, &error);
+        if (!tokens) {
+            fprintf(stderr, "vibe: script line %lu: %s\n", (unsigned long)lineNumber, error.UTF8String);
+            return 64;
+        }
+        if (tokens.count == 0) {
+            continue;
+        }
+        int status = VibeDebugClientRunOne(tokens, YES);
+        if (status != 0) {
+            fprintf(stderr, "vibe: script line %lu failed (exit %d): %s\n",
+                    (unsigned long)lineNumber, status,
+                    [tokens componentsJoinedByString:@" "].UTF8String);
+            return status;
+        }
+    }
+    return 0;
+}
+
+int VibeDebugCommandClientMain(int argc, const char *argv[]) {
+    @autoreleasepool {
+        NSMutableArray<NSString *> *args = [NSMutableArray array];
+        for (int i = 2; i < argc; i++) {
+            [args addObject:@(argv[i])];
+        }
+        if (args.count == 0) {
+            fprintf(stderr, "usage: Vibe --debug-cmd <command> [args...]\n");
+            return 64;
+        }
+        if ([args.firstObject isEqualToString:@"script"]) {
+            if (args.count != 2) {
+                fprintf(stderr, "usage: Vibe --debug-cmd script <file | ->\n");
+                return 64;
+            }
+            NSString *source;
+            if ([args[1] isEqualToString:@"-"]) {
+                NSData *data = [NSFileHandle.fileHandleWithStandardInput readDataToEndOfFile];
+                source = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+            }
+            else {
+                source = [NSString stringWithContentsOfFile:args[1].stringByExpandingTildeInPath
+                                                   encoding:NSUTF8StringEncoding
+                                                      error:nil];
+            }
+            if (!source) {
+                // Usually the sandbox: this process can't read arbitrary user
+                // paths (same as argv audio files). stdin always crosses.
+                fprintf(stderr, "vibe: cannot read script '%s' (sandbox?) — use: script - < %s\n",
+                        [args[1] UTF8String], [args[1] UTF8String]);
+                return 64;
+            }
+            return VibeDebugClientRunScript(source);
+        }
+        return VibeDebugClientRunOne(args, NO);
     }
 }
 

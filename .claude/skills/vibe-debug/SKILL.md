@@ -105,6 +105,26 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 "$V" --debug-cmd scan_bpm - < file   # {ok, bpm} — fresh decode+analyze, runs IN THE CLI PROCESS (no app needed; see Test audio files). Audio rides stdin; prefer the scan-bpm.sh wrapper
 "$V" --debug-cmd clear_disk_caches   # {ok, cleared} — CLI-process deletion of the PINDiskCache dirs, ONLY for when the app is NOT running (prefer clear-caches.sh, which picks the right one)
 "$V" --debug-cmd set_appearance dark # {ok, windowAppearance} — light|dark|system, CLI-process prefs write for the NEXT launch (live toggle: click_menu view_appearance_*)
+"$V" --debug-cmd sleep 0.5           # client-side pause (0–600s, sub-second OK) — for scripts; the app's main thread never sleeps
+"$V" --debug-cmd script - <<'EOF'    # command script: see Command scripts below
+seek 30
+sleep 0.5
+key space
+EOF
+.claude/skills/vibe-debug/scripts/run-script.sh <shots-dir> [file]  # script wrapper that decodes in-script screenshots to numbered PNGs
+```
+
+Input injection (synthesized NSEvents posted into the app's own event queue — see **In-process input injection** below for coordinates and caveats):
+
+```bash
+"$V" --debug-cmd click 75 122        # {ok, posted, hitView, windowKey} — down+up at window point (also: click x y right, click x y left 2 = double-click)
+"$V" --debug-cmd drag 728 219 728 299   # full left-button gesture in ONE command (down, 12 dragged steps, up); optional [steps]
+"$V" --debug-cmd mouse_move 400 200  # plain move; add left|right for a lone dragged event
+"$V" --debug-cmd mouse_down 75 122   # primitives (default left; also right) — see the tracking-loop caveat below
+"$V" --debug-cmd mouse_up 75 122
+"$V" --debug-cmd key p               # keyDown+keyUp through the real dispatch path (TransportKeyMonitor sees it); mods: key p cmd shift
+"$V" --debug-cmd key_down w          # one edge — how the held W/E/R/T momentary FX are driven…
+"$V" --debug-cmd key_up w            # …and released (keys: a-z, 0-9, space, tab, return, esc, delete, up/down/left/right)
 ```
 
 `clear_caches` blocks until both disk caches are actually empty (so a follow-up
@@ -125,6 +145,37 @@ client process, keeping shell `rm` out of the container):
 
 Action replies are a compact `{ok, state, index, count, position, pitch, lowKill, reverbSend, delaySend, shortDelaySend, playlistShown, pitchPanelShown}` object read synchronously, so they can lag async engine work — run `dump_state` afterwards to confirm. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error, 64 usage error. With **two instances running, the channel is racy** (commands travel as per-id files, and either instance may consume one) — quit one first.
 
+### Command scripts
+
+`script <file | ->` runs commands line by line over the same channel: one command per line, blank lines and full-line `#` comments skipped, single/double quotes group arguments with spaces (no escape sequences). Replies stream as **compact one-line JSON objects (real NDJSON)**; the script **stops at the first failing command** and exits with its code, so exit 0 doubles as "every step passed".
+
+**Screenshots inside scripts**: a `dump_screenshot [label]` reply line carries the PNG **base64-encoded** (`{"ok":true,"pngBase64":"…","label":"…"}`) — the sandboxed CLI client is the only process that may read the snapshot from the app container, and the inherited stdout fd is the sanctioned crossing. Don't run that raw (a ~100 KB base64 blob per shot); use the wrapper, which decodes each one to `<shots-dir>/shot-NN[-label].png` in command order and prints `{"ok":true,"screenshot":"<path>"}` in its place — then `Read` the numbered PNGs to verify:
+
+```bash
+.claude/skills/vibe-debug/scripts/run-script.sh /tmp/shots <<'EOF'
+open "/path/with spaces/track.wav"
+sleep 1
+dump_screenshot after-open
+key space
+seek 30
+dump_screenshot after-seek
+dump_state
+EOF
+```
+
+When feeding `"$V" --debug-cmd script` directly, **always use stdin** (`script -` with a heredoc, or `script - < file`) — the CLI client is sandboxed and usually can't read a script file by path (same denial as argv audio files; the error says so). Two verbs are unavailable inside scripts: `scan_bpm -` (stdin is the script) and nested `script`. `sleep` runs client-side (floats fine, e.g. `sleep 0.2`), so the app never blocks between steps.
+
+### In-process input injection
+
+`click` / `drag` / `mouse_*` / `key*` post synthesized NSEvents into the app's own event queue — unlike the other `--debug-cmd` verbs (which call controller actions directly) these exercise the **real event dispatch path**: `TransportKeyMonitor`, view `mouseDown:`/tracking loops, menu key equivalents. Unlike CGEvent injection (`input.swift`) they need no Accessibility permission and no help from the OS frontmost state.
+
+- **Coordinates are main-window points, origin top-left** — the same frame as `dump_screenshot` (retina pixel ÷ 2). Get view frames from `dump_view_tree` (those are AppKit **bottom-left**-origin frames in the superview — convert with the window height).
+- Mouse replies include `hitView` (the hit-tested view class) so a missed aim is visible immediately, and mouse injection **self-activates the app** (brings Vibe frontmost and makes the window key) — a non-key window swallows the first click as activation. Keyboard injection needs no activation: the key monitor sees posted events regardless.
+- Replies are written when the events are *queued*, before they're processed — poll `dump_state` to observe the effect (same lag caveat as the action verbs).
+- **Tracking-loop caveat**: a lone `mouse_down` on a control that runs a modal mouse-tracking loop (the pitch fader, buttons) stalls the app inside that loop, and the command channel can't deliver the matching `mouse_up` while it spins — recovery takes a real physical click. Use `click` or `drag`, which queue the whole gesture before the loop starts. `mouse_down`/`mouse_up` are for views with plain responder-method handling.
+- **Right-click caveat**: `click x y right` on a view with a context menu (playlist rows) opens a *real* menu that blocks the channel until dismissed — only do it when something can dismiss the menu (a human, or a pre-posted `key esc` — post the esc *before* the right-click; it can't be delivered after).
+- Tracking areas / hover effects don't fire from posted events (the window server drives those) — hover styling still needs `input.swift`.
+
 ## Screenshots: two paths, each shows what the other can't
 
 **1. In-process snapshot** — synchronous one-liner (`-` streams the PNG bytes to stdout; the JSON reply goes to stderr):
@@ -133,7 +184,7 @@ Action replies are a compact `{ok, state, index, count, position, pitch, lowKill
 "$V" --debug-cmd dump_screenshot - > shot.png
 ```
 
-Always use the `-` form. Without it the reply carries the PNG's path, but that path is inside the app's sandbox container — reading it with shell tools (`cp`, `cat`) trips macOS's "access data from other apps" TCC prompt against the terminal's host app. The `-` streaming happens in the Vibe CLI client, which owns the container, so no prompt. (`notifyutil -p com.vibe.debug.screenshot` also works but is async and leaves you copying from the container manually — same TCC prompt; avoid it.)
+Always use the `-` form (inside a command script, the reply carries the PNG as base64 instead — see Command scripts). Without either, the reply carries the PNG's path, but that path is inside the app's sandbox container — reading it with shell tools (`cp`, `cat`) trips macOS's "access data from other apps" TCC prompt against the terminal's host app. The `-` streaming happens in the Vibe CLI client, which owns the container, so no prompt. (`notifyutil -p com.vibe.debug.screenshot` also works but is async and leaves you copying from the container manually — same TCC prompt; avoid it.)
 
 Renders the key window's Core Animation layer tree in-process (falls back to the main window, then the first visible one — the app need not be frontmost). No screen-recording permission, works occluded or with the display asleep. **Default to this** for layout, label text/color, artwork, and waveform checks.
 
@@ -169,9 +220,9 @@ The app's appearance setting persists in its defaults; set it for the next launc
 
 Relaunch to apply, or toggle live: `"$V" --debug-cmd click_menu view_appearance_light` (also `view_appearance_dark`, `view_appearance_system_default`). Test both modes for any color/material change; use real capture (path 2) to verify backgrounds. Note the app's window appearance is independent of the system's — a "light" window over a dark system is a supported (and previously buggy) combination.
 
-## Real input path (hotkeys, fader mouse mechanics)
+## OS-level input path (hover states, focus semantics)
 
-`--debug-cmd` calls actions directly, bypassing the key monitor and mouse handling. To test the input path *itself* (a hotkey binding, the fader's drag/double-click-reset behavior), send real events:
+For hotkeys and mouse mechanics (fader drag, double-click reset), prefer the in-process injection verbs (`key`, `click`, `drag` — see above): no permissions, no frontmost requirement, and they drive the same key monitor and view mouse handling. `input.swift` sends **CGEvents through the window server** and remains the only way to test what posted events can't reach: tracking-area/hover effects, OS-level focus/activation semantics, and drop targets:
 
 ```bash
 osascript -e 'tell application "Vibe" to activate'   # events land in the frontmost app
