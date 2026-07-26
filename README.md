@@ -51,15 +51,17 @@ Drag and drop the artwork to copy the currently playing file to another folder.
 
 FX keys can either be tapped to toggle the effect or be held down for momentary.
 
-## Development 
+![Vibe screenshot](Assets/screenshot-playlist-pitch.png)
 
-### Requirements
+# Development 
+
+## Requirements
 
 - macOS 26 or later
 - Xcode 26 or later
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) — the Xcode project is generated from `project.yml`
 
-### Setup
+## Setup
 
 1. Install XcodeGen
 
@@ -84,7 +86,3 @@ FX keys can either be tapped to toggle the effect or be held down for momentary.
 3. Build and run the `Vibe` scheme (⌘R).
 
 Alternatively, run `scripts/build.sh` to build `build/DerivedData/Build/Products/Release/Vibe.app`
-
-## More Screenshots
-
-![Vibe screenshot](Assets/screenshot-playlist-pitch.png)
