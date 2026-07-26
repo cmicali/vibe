@@ -227,11 +227,12 @@ For hotkeys and mouse mechanics (fader drag, double-click reset), prefer the in-
 ```bash
 osascript -e 'tell application "Vibe" to activate'   # events land in the frontmost app
 swift .claude/skills/vibe-debug/scripts/input.swift key p          # a-z, 0-9, space, tab, return, esc
+swift .claude/skills/vibe-debug/scripts/input.swift move 700 200          # plain cursor move — hover states
 swift .claude/skills/vibe-debug/scripts/input.swift drag 882 461 882 552   # x1 y1 x2 y2 [steps]
 swift .claude/skills/vibe-debug/scripts/input.swift dblclick 882 500       # also: click
 ```
 
-Global screen coordinates, origin top-left (`find-window.swift` prints window origin/size in the same space). Needs Accessibility permission; flaky if focus is stolen mid-test — verify the result with `dump_state`, not by assuming the event landed. For everything else, prefer `--debug-cmd`.
+Global screen coordinates, origin top-left (`find-window.swift` prints window origin/size in the same space). `move` is what the transport-button reveal needs (the window-wide `NSTrackingArea` in `MainPlayerContentView`): enter/exit fire only on **boundary crossings**, so move *outside* the window first and then in — a move from one inside point to another changes nothing, and `CGWarpMouseCursorPosition` doesn't drive tracking areas at all. Needs Accessibility permission; flaky if focus is stolen mid-test — verify the result with `dump_state`, not by assuming the event landed. For everything else, prefer `--debug-cmd`.
 
 ## Logs
 
