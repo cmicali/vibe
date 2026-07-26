@@ -5,7 +5,9 @@
 
 #import <Foundation/Foundation.h>
 
-#define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"Oversampling Detailed x4"
+// A renderer's stable styleIdentifier, never its localized display name — see
+// AudioWaveformRenderer.h.
+#define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"oversampling_detailed_x4"
 
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT     @""
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT       @"light"
@@ -31,7 +33,7 @@
 - (NSAppearance *)windowAppearance;
 
 - (NSString *)waveformStyle;
-- (void)setWaveformStyle:(NSString *)name;
+- (void)setWaveformStyle:(NSString *)identifier;
 
 - (BOOL)isPitchPanelShown;
 - (void)setPitchPanelShown:(BOOL)shown;

@@ -143,6 +143,8 @@ client process, keeping shell `rm` out of the container):
 
 `dump_menu` and `click_menu` run the same `validateMenuItem` pass opening the menu would, so enabled/checkmark are live — this replaces AppleScript/System Events menu clicking (no Automation permission, no frontmost requirement). Get identifiers from `dump_menu`.
 
+The waveform style items carry `waveform_style_<identifier>` ids (`waveform_style_basic`, `_detailed`, `_sonic_cirrus`, `_oversampling_detailed_x2|x4|x8`), so they can be clicked without matching their display names. They are built by the submenu's delegate, though, so **run `dump_menu` first in each app run** — until something populates that submenu, `click_menu` can't find them. Matching `dump_state.settings.waveformStyle` uses those same identifiers (`oversampling_detailed_x4`), NOT the menu's display text ("Oversampling Detailed x4") — the two were split so a localized name can never reach NSUserDefaults.
+
 Action replies are a compact `{ok, state, index, count, position, pitch, lowKill, reverbSend, delaySend, shortDelaySend, playlistShown, pitchPanelShown}` object read synchronously, so they can lag async engine work — run `dump_state` afterwards to confirm. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error, 64 usage error. With **two instances running, the channel is racy** (commands travel as per-id files, and either instance may consume one) — quit one first.
 
 ### Command scripts

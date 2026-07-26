@@ -5,6 +5,7 @@
 
 #import "DetailedAudioWaveformRenderer.h"
 #import "WaveformMorphEngine.h"
+#import "Strings.h"
 
 #include <vector>
 #include <cmath>
@@ -41,8 +42,12 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
     WaveformMorphEngine *_morph;
 }
 
++ (NSString *)styleIdentifier {
+    return @"detailed";
+}
+
 + (NSString *)displayName {
-    return @"Detailed";
+    return STR_WAVEFORM_STYLE_DETAILED;
 }
 
 - (NSUInteger)numBars {

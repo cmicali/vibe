@@ -25,7 +25,7 @@
     NSUInteger                  _progressTracker;
     BOOL                        _didClickInside;
     AudioWaveformRenderer*      _currentWaveformRenderer;
-    // Renderer classes keyed by their display name; instantiated on selection.
+    // Renderer classes keyed by styleIdentifier; instantiated on selection.
     NSMutableDictionary<NSString *, Class>* _waveformRenderers;
     CAGradientLayer*            _loadingLayer;
     CALayer*                    _placeholderLayer;
@@ -71,19 +71,30 @@
 }
 
 - (void)addWaveformRenderer:(Class)renderer {
-    _waveformRenderers[[renderer displayName]] = renderer;
+    _waveformRenderers[[renderer styleIdentifier]] = renderer;
 }
 
 - (NSString *)currentWaveformStyle {
-    return [_currentWaveformRenderer.class displayName];
+    return [_currentWaveformRenderer.class styleIdentifier];
 }
 
-- (void)setWaveformStyle:(NSString*)name {
-    if (name.length && _waveformRenderers[name]) {
-        _currentWaveformRenderer = [[_waveformRenderers[name] alloc] initWithLayer:self.layer bounds:self.bounds isDark:self.isDark];
-        [self drawWaveform];
-        [self updateRendererProgress];
+- (void)setWaveformStyle:(NSString*)identifier {
+    Class renderer = identifier.length ? _waveformRenderers[identifier] : nil;
+    if (!renderer) {
+        // Unknown identifier (hand-edited default, or a style dropped in a
+        // later version): fall back rather than leaving a blank waveform.
+        renderer = _waveformRenderers[SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT];
+        if (!renderer) {
+            return;
+        }
     }
+    _currentWaveformRenderer = [[renderer alloc] initWithLayer:self.layer bounds:self.bounds isDark:self.isDark];
+    [self drawWaveform];
+    [self updateRendererProgress];
+}
+
+- (NSString *)displayNameForStyle:(NSString *)identifier {
+    return [_waveformRenderers[identifier] displayName] ?: identifier;
 }
 
 - (void)drawWaveform {

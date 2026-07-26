@@ -6,6 +6,7 @@
 #import "PlaylistController.h"
 #import "PlaylistTableView.h"
 #import "EqualizerIndicatorView.h"
+#import "Strings.h"
 
 // Validation for the row context menu installed in setTableView:.
 @interface PlaylistController () <NSMenuItemValidation>
@@ -45,8 +46,9 @@
     // The table gets its own menu (shadowing the window-wide one, whose
     // "Show in Finder" reveals the CURRENT track) so a right-click on a row
     // reveals THAT row's track.
-    NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Playlist Menu"];
-    NSMenuItem *showRowInFinder = [[NSMenuItem alloc] initWithTitle:@"Show in Finder"
+    // Menu title never drawn — a context menu shows only its items.
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Playlist Menu")];
+    NSMenuItem *showRowInFinder = [[NSMenuItem alloc] initWithTitle:STR_MENU_SHOW_IN_FINDER
                                                              action:@selector(showClickedTrackInFinder:)
                                                       keyEquivalent:@""];
     showRowInFinder.identifier = @"show_clicked_track_in_finder";

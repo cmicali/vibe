@@ -19,6 +19,10 @@
     return self;
 }
 
++ (NSString *)styleIdentifier {
+    return nil;
+}
+
 + (NSString *)displayName {
     return nil;
 }

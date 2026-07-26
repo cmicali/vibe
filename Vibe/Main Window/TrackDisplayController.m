@@ -10,6 +10,7 @@
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
 #import "Fonts.h"
+#import "Strings.h"
 
 @implementation TrackDisplayController {
     __weak AudioWaveformView *_waveformView;
@@ -108,29 +109,27 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
         if (state == TrackDisplayStateLoading) {
             // Open still in flight — duration/position are unknown, not zero,
             // so show placeholders rather than 0:00.
-            setStringValueIfChanged(self.totalTimeTextField, @"--:--");
-            setStringValueIfChanged(self.currentTimeTextField, @"--:--");
+            setStringValueIfChanged(self.totalTimeTextField, STR_LABEL_TIME_UNKNOWN);
+            setStringValueIfChanged(self.currentTimeTextField, STR_LABEL_TIME_UNKNOWN);
             _lastPosition = -1;
         }
         else {
             setStringValueIfChanged(self.totalTimeTextField, [[Formatters sharedInstance] durationStringFromTimeInterval:duration / rate]);
         }
         if (track.metadata.fileType) {
-            // bitrate/sampleRate can be nil even with fileType set — TagLib
-            // can return no audioProperties. Guard so the label never shows
-            // "(null) kbps" / "0.0 kHz".
-            NSString *bitrate = @"";
+            // bitrate/sampleRate can be nil even with fileType set — TagLib can
+            // return no audioProperties — so each part is appended only when
+            // present, and the label never shows "(null) kbps" / "0.0 kHz".
+            NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:track.metadata.fileType];
             if (!track.metadata.isLossless && track.metadata.bitrate) {
-                bitrate = [NSString stringWithFormat:@"%@ kbps | ", track.metadata.bitrate];
+                [parts addObject:[NSString stringWithFormat:STR_LABEL_BITRATE, track.metadata.bitrate]];
             }
-            NSString *sampleRate = @"";
             if (track.metadata.sampleRate) {
-                sampleRate = [NSString stringWithFormat:@"%.1f kHz", [track.metadata.sampleRate doubleValue] / 1000];
+                [parts addObject:[NSString stringWithFormat:STR_LABEL_SAMPLE_RATE,
+                        [[Formatters sharedInstance] decimalString:track.metadata.sampleRate.doubleValue / 1000 fractionDigits:1]]];
             }
-            NSString *fileMetadata = (bitrate.length || sampleRate.length)
-                    ? [NSString stringWithFormat:@"%@ | %@%@", track.metadata.fileType, bitrate, sampleRate]
-                    : track.metadata.fileType;
-            setKernedRightAlignedText(self.fileMetadataTextField, fileMetadata);
+            setKernedRightAlignedText(self.fileMetadataTextField,
+                                      [parts componentsJoinedByString:VibeNotLocalized(@" | ")]);
         }
         else {
             setStringValueIfChanged(self.fileMetadataTextField, @"");
@@ -152,7 +151,8 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
         // Empty state — also the play-error rendering: the error goes on the
         // artist line, over the failed track's title.
         BOOL playError = (state == TrackDisplayStateError);
-        setStringValueIfChanged(self.artistTextField, playError ? (errorStatus ?: @"Playback error") : @"");
+        setStringValueIfChanged(self.artistTextField,
+                playError ? (errorStatus ?: STR_ERROR_PLAYBACK_GENERIC) : @"");
         [self setTitleLabelText:playError ? track.singleLineTitle : @""];
         // The whole empty state sits at half strength; the title matches the
         // waveform's placeholder line (0.275 = half the shimmer's 0.55 peak).
@@ -161,8 +161,8 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
         self.currentTimeTextField.alphaValue = 0.5;
         self.totalTimeTextField.alphaValue = 0.5;
         _dropHintTextField.hidden = NO;
-        setStringValueIfChanged(self.totalTimeTextField, @"--:--");
-        setStringValueIfChanged(self.currentTimeTextField, @"--:--");
+        setStringValueIfChanged(self.totalTimeTextField, STR_LABEL_TIME_UNKNOWN);
+        setStringValueIfChanged(self.currentTimeTextField, STR_LABEL_TIME_UNKNOWN);
         // Poison the position cache so the first tick of the next track always
         // overwrites the placeholder, even from position 0.
         _lastPosition = -1;
@@ -203,7 +203,10 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
 }
 
 - (void)renderBPM:(float)displayBPM {
-    NSString *text = displayBPM > 0 ? [NSString stringWithFormat:@"%.1f BPM", displayBPM] : @"";
+    NSString *text = displayBPM > 0
+            ? [NSString stringWithFormat:STR_LABEL_BPM,
+                    [[Formatters sharedInstance] decimalString:displayBPM fractionDigits:1]]
+            : @"";
     setKernedRightAlignedText(_bpmTextField, text);
 }
 

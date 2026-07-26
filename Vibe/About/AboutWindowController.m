@@ -7,6 +7,7 @@
 #import "VectorBallsView.h"
 #import "Fonts.h"
 #import "NSBundle+BuildInfo.h"
+#import "Strings.h"
 
 static const CGFloat kAboutWindowWidth = 460;
 static const CGFloat kAboutWindowHeight = 340;
@@ -25,7 +26,9 @@ static const CGFloat kAboutWindowHeight = 340;
                                                              NSWindowStyleMaskFullSizeContentView
                                                      backing:NSBackingStoreBuffered
                                                        defer:NO];
-    window.title = @"About Vibe";
+    // Same key as the App menu item that opens this window.
+    window.title = [NSString stringWithFormat:STR_MENU_APP_ABOUT,
+                    [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleName"]];
     window.titleVisibility = NSWindowTitleHidden;
     window.titlebarAppearsTransparent = YES;
     window.movableByWindowBackground = YES;
@@ -49,13 +52,14 @@ static const CGFloat kAboutWindowHeight = 340;
         recordView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
         [window.contentView addSubview:recordView];
 
-        NSDictionary *info = NSBundle.mainBundle.infoDictionary;
-        NSString *version = [NSString stringWithFormat:@"Version %@", NSBundle.mainBundle.vibeVersionString];
+        NSString *version = [NSString stringWithFormat:STR_LABEL_ABOUT_VERSION,
+                             NSBundle.mainBundle.vibeVersionString];
         [window.contentView addSubview:[self labelWithString:version
                                                     fontSize:11
                                                        alpha:0.55
                                                            y:30]];
-        NSString *copyright = info[@"NSHumanReadableCopyright"] ?: @"";
+        // objectForInfoDictionaryKey:, NOT infoDictionary[…] — only the former applies InfoPlist.xcstrings.
+        NSString *copyright = [NSBundle.mainBundle objectForInfoDictionaryKey:@"NSHumanReadableCopyright"] ?: @"";
         [window.contentView addSubview:[self labelWithString:copyright
                                                     fontSize:10
                                                        alpha:0.35

@@ -29,6 +29,7 @@
 #import "NowPlayingController.h"
 #import "MainPlayerController+NowPlaying.h"
 #import "UIUpdateTimer.h"
+#import "Strings.h"
 
 #define UPDATE_HZ 3
 
@@ -163,8 +164,9 @@
 
     // Right-click menu on the whole window body (content view, so it also
     // covers the pitch panel via the responder chain).
-    NSMenu *contextMenu = [[NSMenu alloc] initWithTitle:@"Popup Menu"];
-    NSMenuItem *showInFinder = [[NSMenuItem alloc] initWithTitle:@"Show in Finder"
+    // Menu title never drawn — a context menu shows only its items.
+    NSMenu *contextMenu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Popup Menu")];
+    NSMenuItem *showInFinder = [[NSMenuItem alloc] initWithTitle:STR_MENU_SHOW_IN_FINDER
                                                           action:@selector(showInFinder:)
                                                    keyEquivalent:@""];
     showInFinder.identifier = @"show_in_finder";
@@ -708,18 +710,18 @@
     if ([error.domain isEqualToString:kVibeAudioErrorDomain]) {
         switch ((VibeAudioErrorCode)error.code) {
             case VibeAudioErrorFileOpenTimedOut:
-                return @"Load timed out";
+                return STR_ERROR_LOAD_TIMEOUT;
             case VibeAudioErrorFileOpenFailed:
-                return @"Could not open file";
+                return STR_ERROR_OPEN_FAILED;
             case VibeAudioErrorEngineStartFailed:
-                return @"Could not start playback";
+                return STR_ERROR_ENGINE_START_FAILED;
             case VibeAudioErrorDeviceUnavailable:
-                return @"Audio device unavailable";
+                return STR_ERROR_DEVICE_UNAVAILABLE;
             case VibeAudioErrorNotPlaying:
                 break; // never reaches here (filtered above)
         }
     }
-    return @"Playback error";
+    return STR_ERROR_PLAYBACK_GENERIC;
 }
 
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer {

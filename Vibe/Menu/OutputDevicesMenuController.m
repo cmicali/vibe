@@ -7,6 +7,7 @@
 #import "AudioPlayer.h"
 #import "AudioDevice.h"
 #import "AudioDeviceManager.h"
+#import "Strings.h"
 
 @interface OutputDevicesMenuController () <AudioDeviceManagerObserver>
 @end
@@ -81,8 +82,8 @@
 
     NSMenuItem *systemItem = [menu itemAtIndex:0];
     systemItem.title = systemDevice
-            ? [NSString stringWithFormat:@"System Output (%@)", systemDevice.name]
-            : @"System Output";
+            ? [NSString stringWithFormat:STR_MENU_OUTPUT_SYSTEM_NAMED, systemDevice.name]
+            : STR_MENU_OUTPUT_SYSTEM;
     systemItem.tag = -1;
     systemItem.state = StateForBOOL(requestedId == -1);
     systemItem.enabled = YES;

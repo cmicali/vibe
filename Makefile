@@ -2,7 +2,7 @@
 
 CONFIG ?= Release
 
-.PHONY: setup project build release install clean run
+.PHONY: setup project build release install clean run strings check-strings
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -38,3 +38,12 @@ clean:
 # Launch the app, building it first only if it isn't built yet.
 run:
 	scripts/run.sh $(CONFIG)
+
+# Re-extract UI strings into Resources/Localizable.xcstrings. Run after
+# touching any UI string (no build-time extraction exists for ObjC; see script).
+strings:
+	scripts/extract-strings.sh
+
+# Fail if the catalog doesn't match the source. For review/CI.
+check-strings:
+	scripts/extract-strings.sh --check

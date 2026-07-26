@@ -7,6 +7,7 @@
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
 #import "NSURL+Hash.h"
+#import "Strings.h"
 
 @implementation AudioTrack {
     NSTimeInterval _duration;
@@ -137,7 +138,8 @@
 
 - (NSString *)singleLineTitle {
     if (self.hasArtistAndTitle) {
-        return [NSString stringWithFormat:@"%@ - %@", self.artist, self.title];
+        // Positional specifiers: a translation may want the title first.
+        return [NSString stringWithFormat:STR_LABEL_TRACK_ARTIST_TITLE, self.artist, self.title];
     }
     else {
         // title never carries an extension (both fallbacks strip it), and

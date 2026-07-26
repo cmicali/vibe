@@ -4,6 +4,7 @@
 //
 
 #import "GlyphButton.h"
+#import "Strings.h"
 
 static const CFTimeInterval kFadeDuration = 0.1;
 
@@ -274,12 +275,13 @@ static void addRoundedTriangle(CGMutablePathRef path, CGPoint a, CGPoint b, CGPo
 
 - (NSString *)accessibilityLabel {
     switch (_glyph) {
-        case GlyphButtonGlyphPlay:     return @"Play";
-        case GlyphButtonGlyphPause:    return @"Pause";
-        case GlyphButtonGlyphSkipNext: return @"Next Track";
-        case GlyphButtonGlyphPlaylist: return @"Toggle Playlist";
-        case GlyphButtonGlyphClose:    return @"Close";
-        case GlyphButtonGlyphMinimize: return @"Minimize";
+        // Play/Pause/Next deliberately share the Playback menu's keys.
+        case GlyphButtonGlyphPlay:     return STR_TRANSPORT_PLAY;
+        case GlyphButtonGlyphPause:    return STR_TRANSPORT_PAUSE;
+        case GlyphButtonGlyphSkipNext: return STR_TRANSPORT_NEXT;
+        case GlyphButtonGlyphPlaylist: return STR_A11Y_TOGGLE_PLAYLIST;
+        case GlyphButtonGlyphClose:    return STR_A11Y_WINDOW_CLOSE;
+        case GlyphButtonGlyphMinimize: return STR_A11Y_WINDOW_MINIMIZE;
     }
     return @"";
 }

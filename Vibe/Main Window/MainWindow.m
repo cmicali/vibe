@@ -7,6 +7,7 @@
 #import "NSURLUtil.h"
 #import "MainPlayerController.h"
 #import "PitchControlPanel.h"
+#import "Strings.h"
 
 // The window frame is derived from kMainWindowContentWidth (+ the pitch panel
 // width when revealed) rather than read back, so a stale autosaved/restored
@@ -30,7 +31,9 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
                               backing:NSBackingStoreBuffered
                                 defer:NO];
     if (self) {
-        self.title = @"Vibe";
+        // A borderless window draws no title bar, so this only ever reaches
+        // accessibility and the Window menu.
+        self.title = STR_APP_NAME;
         self.identifier = @"main_window";
         self.releasedWhenClosed = NO;
         self.minSize = NSMakeSize(kMainWindowContentWidth, kMainWindowSmallHeight);

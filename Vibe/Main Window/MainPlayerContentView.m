@@ -12,6 +12,7 @@
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
 #import "Constants.h"
+#import "Strings.h"
 
 // Design-time size; the controller resizes the view to the window's restored
 // frame after adding it, and the autoresizing pass lays subviews out at the
@@ -426,7 +427,12 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _dropHintTextField.font = [Fonts font:13];
     _dropHintTextField.alignment = NSTextAlignmentCenter;
     _dropHintTextField.textColor = dimmedTextColor;
-    _dropHintTextField.stringValue = @"Drop a file or press ⌘O";
+    // The shortcut is a separate argument so a translation can move it in the sentence.
+    _dropHintTextField.stringValue = [NSString stringWithFormat:STR_LABEL_DROP_HINT,
+                                                                VibeNotLocalized(@"⌘O")];
+    // Long translations ellipsize.
+    _dropHintTextField.lineBreakMode = NSLineBreakByTruncatingTail;
+    _dropHintTextField.maximumNumberOfLines = 1;
     // Half strength like the rest of the empty state.
     _dropHintTextField.alphaValue = 0.5;
     _dropHintTextField.hidden = YES;

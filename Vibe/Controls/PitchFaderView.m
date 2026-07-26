@@ -154,8 +154,9 @@ static const float   kDetentPercent   = 0.35f;
         [(major ? tickColor : minorTickColor) setStroke];
         [tick stroke];
 
+        // Engraved instrument scale, not prose — Latin digits in every locale.
         if (value % labelStep == 0 && value != 0) {
-            NSString *label = [NSString stringWithFormat:@"%d", abs(value)];
+            NSString *label = [NSString stringWithFormat:VibeNotLocalized(@"%d"), abs(value)];
             NSSize size = [label sizeWithAttributes:labelAttributes];
             CGFloat x = centerX - tickInnerX - kTickLength - kLabelGap - size.width;
             [label drawAtPoint:NSMakePoint(x, y - size.height / 2) withAttributes:labelAttributes];

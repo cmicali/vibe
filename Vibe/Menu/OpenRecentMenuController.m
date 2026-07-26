@@ -5,6 +5,7 @@
 
 #import "OpenRecentMenuController.h"
 #import "AppDelegate.h"
+#import "Strings.h"
 
 @implementation OpenRecentMenuController {
     __weak AppDelegate *_appDelegate;
@@ -33,7 +34,7 @@
     if (urls.count > 0) {
         [menu addItem:[NSMenuItem separatorItem]];
     }
-    NSMenuItem *clear = [[NSMenuItem alloc] initWithTitle:@"Clear Menu"
+    NSMenuItem *clear = [[NSMenuItem alloc] initWithTitle:STR_MENU_FILE_OPEN_RECENT_CLEAR
                                                    action:@selector(clearRecentDocuments:)
                                             keyEquivalent:@""];
     clear.target = [NSDocumentController sharedDocumentController];

@@ -9,6 +9,7 @@
 #import "PlaylistController.h"
 #import "AudioTrack.h"
 #import "AudioWaveformView.h"
+#import "Strings.h"
 
 // waveformView is synthesized by the class extension in MainPlayerController.m;
 // re-declared readonly here (same pattern as MainPlayerController+Debug.h) so
@@ -83,13 +84,13 @@
         // like standard macOS players (isPlaying covers Loading: a play is
         // committed, so the available action is Pause).
         BOOL playing = self.audioPlayer.isPlaying;
-        menuItem.title = playing ? @"Pause" : @"Play";
+        menuItem.title = playing ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
         menuItem.image = [NSImage imageWithSystemSymbolName:(playing ? @"pause.fill" : @"play.fill")
                                    accessibilityDescription:menuItem.title];
         return self.playlistController.count > 0;
     }
     else if ([menuItem.identifier isEqualToString:@"menu_close"]) {
-        menuItem.title = self.playlistController.count > 1 ? @"Close All Files" : @"Close File";
+        menuItem.title = self.playlistController.count > 1 ? STR_MENU_FILE_CLOSE_ALL : STR_MENU_FILE_CLOSE;
         return self.playlistController.count > 0;
     }
     else if ([menuItem.identifier isEqualToString:@"show_in_finder"]) {
@@ -115,11 +116,22 @@
             [menu insertItem:[NSMenuItem new] atIndex:0];
         while ([menu numberOfItems] > count)
             [menu removeItemAtIndex:0];
-        NSArray<NSString*>* styles = [self.waveformView.availableWaveformStyles sortedArrayUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
+        // Sort by localized display name; localizedStandardCompare: keeps
+        // x2/x4/x8 in numeric order.
+        AudioWaveformView *waveformView = self.waveformView;
+        NSArray<NSString *> *styles = [waveformView.availableWaveformStyles sortedArrayUsingComparator:
+                ^NSComparisonResult(NSString *a, NSString *b) {
+                    return [[waveformView displayNameForStyle:a] localizedStandardCompare:[waveformView displayNameForStyle:b]];
+                }];
         for (NSUInteger i = 0; i < count; ++i) {
             NSMenuItem *item = [menu itemAtIndex:i];
-            item.title = styles[i];
-            item.state = StateForBOOL([item.title isEqualToString:self.waveformView.currentWaveformStyle]);
+            NSString *identifier = styles[i];
+            item.title = [waveformView displayNameForStyle:identifier];
+            // The identifier travels on the item — a localized title can't
+            // round-trip into NSUserDefaults — and gives click_menu a stable id.
+            item.representedObject = identifier;
+            item.identifier = [@"waveform_style_" stringByAppendingString:identifier];
+            item.state = StateForBOOL([identifier isEqualToString:waveformView.currentWaveformStyle]);
             item.enabled = YES;
             item.target = self;
             item.action = @selector(setWaveformStyle:);
@@ -136,9 +148,9 @@
 
 - (IBAction)setWaveformStyle:(id)sender {
     if ([sender isKindOfClass:NSMenuItem.class]) {
-        NSString *title = ((NSMenuItem *)sender).title;
-        self.waveformView.waveformStyle = title;
-        Settings.waveformStyle = title;
+        NSString *identifier = ((NSMenuItem *)sender).representedObject;
+        self.waveformView.waveformStyle = identifier;
+        Settings.waveformStyle = identifier;
     }
 }
 

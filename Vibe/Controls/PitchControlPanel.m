@@ -6,7 +6,9 @@
 #import "PitchControlPanel.h"
 #import "PitchFaderView.h"
 #import "Fonts.h"
+#import "Formatters.h"
 #import "Constants.h" // kMainWindowCornerRadius — the right-edge corners follow the window shape
+#import "Strings.h"
 
 const CGFloat kPitchPanelWidth = 96;
 
@@ -37,10 +39,13 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
-        _titleLabel = [NSTextField labelWithString:@"PITCH"];
+        _titleLabel = [NSTextField labelWithString:STR_LABEL_PITCH];
         _titleLabel.font = [Fonts font:10 bold:YES];
         _titleLabel.textColor = [NSColor colorWithWhite:0.55 alpha:1];
         _titleLabel.alignment = NSTextAlignmentCenter;
+        // The panel is only 96pt wide; long translations ellipsize.
+        _titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        _titleLabel.maximumNumberOfLines = 1;
         [self addSubview:_titleLabel];
 
         _readoutField = [NSTextField labelWithString:@""];
@@ -129,15 +134,9 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
 
 - (void)updateReadout {
     float pitch = _faderView.pitch;
-    NSString *text;
-    if (pitch == 0) {
-        text = @"0.0%";
-    }
-    else {
-        // U+2212 minus sign, wider than a hyphen — matches the fader scale.
-        text = [NSString stringWithFormat:@"%@%.1f%%", pitch > 0 ? @"+" : @"−", fabsf(pitch)];
-    }
-    _readoutField.stringValue = text;
+    // The formatter owns the sign (U+2212, matching the fader scale), the
+    // decimal separator, and the % placement.
+    _readoutField.stringValue = [[Formatters sharedInstance] signedPercentString:pitch];
     _readoutField.textColor = (pitch == 0)
             ? VibeQuartzLockGreen(1)
             : [NSColor colorWithWhite:0.85 alpha:1];

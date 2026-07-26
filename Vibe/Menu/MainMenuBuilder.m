@@ -9,6 +9,7 @@
 #import "MainPlayerController+Transport.h"
 #import "OpenRecentMenuController.h"
 #import "OutputDevicesMenuController.h"
+#import "Strings.h"
 
 @implementation MainMenuBuilder
 
@@ -61,57 +62,65 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 + (void)installMainMenuWithAppDelegate:(AppDelegate *)appDelegate
                       playerController:(MainPlayerController *)player
               openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController {
-    NSMenu *mainMenu = [[NSMenu alloc] initWithTitle:@"Main Menu"];
+    // Never drawn: the root menu's title isn't rendered anywhere.
+    NSMenu *mainMenu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Main Menu")];
 
-    // Vibe (application menu)
-    NSMenu *appMenu = Submenu(mainMenu, @"Vibe").submenu;
-    AddItem(appMenu, @"About Vibe", @selector(showAboutWindow:), appDelegate, @"", 0, nil);
+    NSString *appName = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleName"];
+
+    // Vibe (application menu). macOS draws CFBundleName in bold for the first
+    // menu regardless of the title set here.
+    NSMenu *appMenu = Submenu(mainMenu, STR_APP_NAME).submenu;
+    AddItem(appMenu, [NSString stringWithFormat:STR_MENU_APP_ABOUT, appName],
+            @selector(showAboutWindow:), appDelegate, @"", 0, nil);
     AddSeparator(appMenu);
 
     // AppKit populates the Services submenu once it's registered as
-    // NSApp.servicesMenu.
-    NSMenuItem *servicesItem = Submenu(appMenu, @"Services");
+    // NSApp.servicesMenu — but not its title, which is ours to localize.
+    NSMenuItem *servicesItem = Submenu(appMenu, STR_MENU_APP_SERVICES);
     NSApp.servicesMenu = servicesItem.submenu;
     AddSeparator(appMenu);
 
-    AddItem(appMenu, @"Hide Vibe", @selector(hide:), nil, @"h", NSEventModifierFlagCommand, nil);
-    AddItem(appMenu, @"Hide Others", @selector(hideOtherApplications:), nil, @"h",NSEventModifierFlagCommand | NSEventModifierFlagOption, nil);
-    AddItem(appMenu, @"Show All", @selector(unhideAllApplications:), nil, @"", 0, nil);
+    AddItem(appMenu, [NSString stringWithFormat:STR_MENU_APP_HIDE, appName],
+            @selector(hide:), nil, @"h", NSEventModifierFlagCommand, nil);
+    AddItem(appMenu, STR_MENU_APP_HIDE_OTHERS, @selector(hideOtherApplications:), nil, @"h",NSEventModifierFlagCommand | NSEventModifierFlagOption, nil);
+    AddItem(appMenu, STR_MENU_APP_SHOW_ALL, @selector(unhideAllApplications:), nil, @"", 0, nil);
     AddSeparator(appMenu);
 
-    AddItem(appMenu, @"Quit Vibe", @selector(terminate:), nil, @"q", NSEventModifierFlagCommand, nil);
+    AddItem(appMenu, [NSString stringWithFormat:STR_MENU_APP_QUIT, appName],
+            @selector(terminate:), nil, @"q", NSEventModifierFlagCommand, nil);
 
     // File
-    NSMenu *fileMenu = Submenu(mainMenu, @"File").submenu;
-    AddItem(fileMenu, @"Open…", @selector(openDocument:), nil, @"o", NSEventModifierFlagCommand, nil);
-    NSMenuItem *openRecentItem = Submenu(fileMenu, @"Open Recent");
+    NSMenu *fileMenu = Submenu(mainMenu, STR_MENU_FILE).submenu;
+    AddItem(fileMenu, STR_MENU_FILE_OPEN, @selector(openDocument:), nil, @"o", NSEventModifierFlagCommand, nil);
+    NSMenuItem *openRecentItem = Submenu(fileMenu, STR_MENU_FILE_OPEN_RECENT);
     openRecentItem.submenu.delegate = openRecentMenuController; // populated from NSDocumentController on open
     AddSeparator(fileMenu);
-    AddSymbolItem(fileMenu, @"Close File", @"xmark", @selector(closeFile:), player, @"w", NSEventModifierFlagCommand, @"menu_close");
+    AddSymbolItem(fileMenu, STR_MENU_FILE_CLOSE, @"xmark", @selector(closeFile:), player, @"w", NSEventModifierFlagCommand, @"menu_close");
 
     // Playback
-    NSMenu *playbackMenu = Submenu(mainMenu, @"Playback").submenu;
-    AddSymbolItem(playbackMenu, @"Play", @"play.fill", @selector(playPause:), player, @" ", 0, @"menu_play");
-    AddSymbolItem(playbackMenu, @"Previous Track", @"backward.end.fill", @selector(previous:), player, @"b", 0, @"menu_previous_track");
-    AddSymbolItem(playbackMenu, @"Next Track", @"forward.end.fill", @selector(next:), player, @"n", 0, @"menu_next_track");
+    NSMenu *playbackMenu = Submenu(mainMenu, STR_MENU_PLAYBACK).submenu;
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_PLAY, @"play.fill", @selector(playPause:), player, @" ", 0, @"menu_play");
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_PREVIOUS, @"backward.end.fill", @selector(previous:), player, @"b", 0, @"menu_previous_track");
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_NEXT, @"forward.end.fill", @selector(next:), player, @"n", 0, @"menu_next_track");
     AddSeparator(playbackMenu);
 
     // Bare A/S/D/Z/X/C, like the other transport keys (mask 0). Actually handled by
     // TransportKeyMonitor; the key equivalents here are for display and as the
     // fallback path. Enabled only with a track loaded (see the Menus category).
-    AddSymbolItem(playbackMenu, @"Skip Forward", @"forward", @selector(skipForward:), player, @"a", 0, @"menu_skip_forward");
-    AddSymbolItem(playbackMenu, @"Skip Forward More", @"", @selector(skipForwardMore:), player, @"s", 0, @"menu_skip_forward_more");
-    AddSymbolItem(playbackMenu, @"Skip Forward Most", @"", @selector(skipForwardMost:), player, @"d", 0, @"menu_skip_forward_most");
-    AddSymbolItem(playbackMenu, @"Skip Back", @"backward", @selector(skipBack:), player, @"z", 0, @"menu_skip_back");
-    AddSymbolItem(playbackMenu, @"Skip Back More", @"", @selector(skipBackMore:), player, @"x", 0, @"menu_skip_back_more");
-    AddSymbolItem(playbackMenu, @"Skip Back Most", @"", @selector(skipBackMost:), player, @"c", 0, @"menu_skip_back_most");
+    AddSymbolItem(playbackMenu, STR_MENU_SKIP_FORWARD, @"forward", @selector(skipForward:), player, @"a", 0, @"menu_skip_forward");
+    AddSymbolItem(playbackMenu, STR_MENU_SKIP_FORWARD_MORE, @"", @selector(skipForwardMore:), player, @"s", 0, @"menu_skip_forward_more");
+    AddSymbolItem(playbackMenu, STR_MENU_SKIP_FORWARD_MOST, @"", @selector(skipForwardMost:), player, @"d", 0, @"menu_skip_forward_most");
+    AddSymbolItem(playbackMenu, STR_MENU_SKIP_BACK, @"backward", @selector(skipBack:), player, @"z", 0, @"menu_skip_back");
+    AddSymbolItem(playbackMenu, STR_MENU_SKIP_BACK_MORE, @"", @selector(skipBackMore:), player, @"x", 0, @"menu_skip_back_more");
+    AddSymbolItem(playbackMenu, STR_MENU_SKIP_BACK_MOST, @"", @selector(skipBackMost:), player, @"c", 0, @"menu_skip_back_most");
     AddSeparator(playbackMenu);
 
-    NSMenuItem *pitchRangeItem = Submenu(playbackMenu, @"Pitch Range");
-    pitchRangeItem.image = [NSImage imageWithSystemSymbolName:@"slider.vertical.3" accessibilityDescription:@"Pitch Range"];
+    NSString *pitchRangeTitle = STR_MENU_PITCH_RANGE;
+    NSMenuItem *pitchRangeItem = Submenu(playbackMenu, pitchRangeTitle);
+    pitchRangeItem.image = [NSImage imageWithSystemSymbolName:@"slider.vertical.3" accessibilityDescription:pitchRangeTitle];
     NSMenu *pitchRangeMenu = pitchRangeItem.submenu;
-    AddItem(pitchRangeMenu, @"8%", @selector(setPitchRange:), player, @"", 0, @"pitch_range_8");
-    AddItem(pitchRangeMenu, @"16%", @selector(setPitchRange:), player, @"", 0, @"pitch_range_16");
+    AddItem(pitchRangeMenu, STR_MENU_PITCH_RANGE_8, @selector(setPitchRange:), player, @"", 0, @"pitch_range_8");
+    AddItem(pitchRangeMenu, STR_MENU_PITCH_RANGE_16, @selector(setPitchRange:), player, @"", 0, @"pitch_range_16");
 
     // FX — the DJ performance effects, one item per bare key (Q/W/E/R/T,
     // mask 0). Like the skip keys, the equivalents here are for display and as
@@ -120,32 +129,32 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // (momentary). Always enabled — they are deck controls that persist across
     // tracks and apply to whatever is, or starts, playing. Validation shows
     // each one's state as a checkmark.
-    NSMenu *fxMenu = Submenu(mainMenu, @"FX").submenu;
-    AddSymbolItem(fxMenu, @"Low Kill", @"dial.min", @selector(toggleLowKill:), player, @"q", 0, @"menu_fx_low_kill");
-    AddSymbolItem(fxMenu, @"Low Kill Boost", @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"w", 0, @"menu_fx_low_kill_boost");
+    NSMenu *fxMenu = Submenu(mainMenu, STR_MENU_FX).submenu;
+    AddSymbolItem(fxMenu, STR_MENU_FX_LOW_KILL, @"dial.min", @selector(toggleLowKill:), player, @"q", 0, @"menu_fx_low_kill");
+    AddSymbolItem(fxMenu, STR_MENU_FX_LOW_KILL_BOOST, @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"w", 0, @"menu_fx_low_kill_boost");
     AddSeparator(fxMenu);
-    AddSymbolItem(fxMenu, @"Reverb", @"water.waves", @selector(toggleReverbSend:), player, @"e", 0, @"menu_fx_reverb");
-    AddSymbolItem(fxMenu, @"Delay 1/8", @"repeat", @selector(toggleDelaySend:), player, @"r", 0, @"menu_fx_delay");
-    AddSymbolItem(fxMenu, @"Delay 1/16", @"repeat.circle", @selector(toggleShortDelaySend:), player, @"t", 0, @"menu_fx_short_delay");
+    AddSymbolItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"e", 0, @"menu_fx_reverb");
+    AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_8, @"repeat", @selector(toggleDelaySend:), player, @"r", 0, @"menu_fx_delay");
+    AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_16, @"repeat.circle", @selector(toggleShortDelaySend:), player, @"t", 0, @"menu_fx_short_delay");
 
     // View
-    NSMenu *viewMenu = Submenu(mainMenu, @"View").submenu;
-    AddSymbolItem(viewMenu, @"Show Playlist", @"list.dash", @selector(toggleSize:), player, [NSString stringWithFormat:@"%c", NSTabCharacter], 0, @"menu_show_playlist");
-    AddSymbolItem(viewMenu, @"Show Pitch Control", @"slider.vertical.3", @selector(togglePitchPanel:), player, @"p", 0, @"menu_show_pitch");
+    NSMenu *viewMenu = Submenu(mainMenu, STR_MENU_VIEW).submenu;
+    AddSymbolItem(viewMenu, STR_MENU_VIEW_PLAYLIST, @"list.dash", @selector(toggleSize:), player, [NSString stringWithFormat:@"%c", NSTabCharacter], 0, @"menu_show_playlist");
+    AddSymbolItem(viewMenu, STR_MENU_VIEW_PITCH_CONTROL, @"slider.vertical.3", @selector(togglePitchPanel:), player, @"p", 0, @"menu_show_pitch");
     AddSeparator(viewMenu);
 
-    NSMenu *appearanceMenu = Submenu(viewMenu, @"Appearance").submenu;
-    AddItem(appearanceMenu, @"System default", @selector(setAppearance:), player, @"", 0, @"view_appearance_system_default");
-    AddItem(appearanceMenu, @"Light", @selector(setAppearance:), player, @"", 0, @"view_appearance_light");
-    AddItem(appearanceMenu, @"Dark", @selector(setAppearance:), player, @"", 0, @"view_appearance_dark");
-    NSMenu *waveformMenu = Submenu(viewMenu, @"Waveform").submenu;
+    NSMenu *appearanceMenu = Submenu(viewMenu, STR_MENU_VIEW_APPEARANCE).submenu;
+    AddItem(appearanceMenu, STR_MENU_APPEARANCE_SYSTEM, @selector(setAppearance:), player, @"", 0, @"view_appearance_system_default");
+    AddItem(appearanceMenu, STR_MENU_APPEARANCE_LIGHT, @selector(setAppearance:), player, @"", 0, @"view_appearance_light");
+    AddItem(appearanceMenu, STR_MENU_APPEARANCE_DARK, @selector(setAppearance:), player, @"", 0, @"view_appearance_dark");
+    NSMenu *waveformMenu = Submenu(viewMenu, STR_MENU_VIEW_WAVEFORM).submenu;
     waveformMenu.identifier = @"waveform_style";
     waveformMenu.autoenablesItems = NO;
     waveformMenu.delegate = player; // fills in the renderer styles
 
 
     // Output
-    NSMenu *outputMenu = Submenu(mainMenu, @"Output").submenu;
+    NSMenu *outputMenu = Submenu(mainMenu, STR_MENU_OUTPUT).submenu;
     outputMenu.autoenablesItems = NO;
     outputMenu.delegate = player.devicesMenuController; // builds the device list
 
