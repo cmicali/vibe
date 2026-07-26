@@ -11,16 +11,55 @@ A fast and minimal winamp-inspired native music player for macOS. Built with DJs
 - **Drag & drop playlists** — drop files or folders onto the window or dock icon to play
 - **Metadata & artwork** — Metadata and artwork pulled via TagLib
 - **Performance** — Optimized code and caching keep things quick
-- **Keyboard transport** — `Space` play/pause, `B` previous track, `N` next track
+- **Keyboard transport** — `Space` play/pause, `B`/`N` previous/next track, `A`–`D`/`Z`–`C` skip by bars
+- **Performance FX** — low-kill filter, reverb wash and BPM-synced delays on `Q`–`T`; tap to toggle or hold for momentary
 - **Pitch Adjust** — SL-1200 style optional pitch adjustment
 
-## Requirements
+## Usage
+
+Drop and audio files or a folder onto the window to play. 
+
+Click the waveform to seek/skip in the track.
+
+![Vibe screenshot](Assets/screenshot-playlist.png)
+
+Drag and drop the artwork to copy the currently playing file to another folder.
+
+![Vibe screenshot](Assets/screenshot-pitch.png)
+
+### Key commands
+
+| Key | Action |
+| --- | --- |
+| `Space` | Play / pause |
+| `B` | Previous track |
+| `N` | Next track |
+| `A` / `S` / `D` | Skip forward (8 / 16 / 32 bars when the tempo is known, else 10 / 30 / 60 s) |
+| `Z` / `X` / `C` | Skip back (8 / 16 / 32 bars when the tempo is known, else 10 / 30 / 60 s) |
+| `Tab` | Show / hide playlist |
+| `P` | Show / hide pitch control |
+| `⌘O` | Open file or folder |
+
+#### FX
+| Key | Action                                        |
+| --- |-----------------------------------------------|
+| `Q` | Low-kill filter                               |
+| `W` | Low-kill boost (pushes the `Q` cutoff higher) |
+| `E` | Reverb wash                                   |
+| `R` | Delay, 1/8-note taps                          |
+| `T` | Delay, 1/16-note taps                         |
+
+FX keys can either be tapped to toggle the effect or be held down for momentary.
+
+## Development 
+
+### Requirements
 
 - macOS 26 or later
 - Xcode 26 or later
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) — the Xcode project is generated from `project.yml`
 
-## Setup
+### Setup
 
 1. Install XcodeGen
 
@@ -46,37 +85,6 @@ A fast and minimal winamp-inspired native music player for macOS. Built with DJs
 
 Alternatively, run `scripts/build.sh` to build `build/DerivedData/Build/Products/Release/Vibe.app`
 
-## Usage
-
-Drop audio files or a music folder onto the window to play. Click the waveform to seek/skip in the track.
-
-Drag and drop the artwork to copy the currently playing file to another folder.
-
-### Key commands
-
-| Key | Action |
-| --- | --- |
-| `Space` | Play / pause |
-| `B` | Previous track |
-| `N` | Next track |
-| `A` / `S` / `D` | Skip forward (8 / 16 / 32 bars when the tempo is known) |
-| `Z` / `X` / `C` | Skip back (8 / 16 / 32 bars when the tempo is known) |
-| `Q` | Toggle low-kill filter |
-| `W` `E` `R` `T` (hold) | Momentary FX: low-kill boost, reverb wash, 1/8- and 1/16-note delay |
-| `Tab` | Show / hide playlist |
-| `P` | Show / hide pitch control |
-| `⌘O` | Open file or folder |
-
-## Screenshots
-
-#### Pitch control
-
-![Vibe screenshot](Assets/screenshot-pitch.png)
-
-#### Playlist
-
-![Vibe screenshot](Assets/screenshot-playlist.png)
-
-#### Playlist + Pitch
+## More Screenshots
 
 ![Vibe screenshot](Assets/screenshot-playlist-pitch.png)

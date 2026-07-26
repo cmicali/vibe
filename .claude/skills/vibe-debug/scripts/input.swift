@@ -11,6 +11,7 @@
 //
 // Usage:
 //   swift input.swift key <name>                    # a-z, 0-9, space, tab, return, esc
+//   swift input.swift move <x> <y>                 # plain cursor move (hover states)
 //   swift input.swift click <x> <y>
 //   swift input.swift dblclick <x> <y>
 //   swift input.swift drag <x1> <y1> <x2> <y2> [steps=20]
@@ -58,6 +59,14 @@ case "key":
     post(CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: true))
     post(CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: false))
 
+// A plain cursor move — the only way to drive NSTrackingArea hover states
+// (mouseEntered/Exited): the window server computes those from real cursor
+// motion, so neither --debug-cmd's posted NSEvents nor a bare
+// CGWarpMouseCursorPosition reach them. Enter/exit fire on BOUNDARY crossings,
+// so move outside the target view first if the cursor may already be inside.
+case "move":
+    post(mouse(.mouseMoved, point(2, 3)))
+
 case "click", "dblclick":
     let p = point(2, 3)
     let clicks: Int64 = args[1] == "dblclick" ? 2 : 1
@@ -77,5 +86,5 @@ case "drag":
     post(mouse(.leftMouseUp, b))
 
 default:
-    die("unknown command '\(args[1])' — key, click, dblclick, drag")
+    die("unknown command '\(args[1])' — key, move, click, dblclick, drag")
 }

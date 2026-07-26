@@ -2,7 +2,7 @@
 
 CONFIG ?= Release
 
-.PHONY: setup project build release install clean run
+.PHONY: setup project build release install clean run screenshots
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -38,3 +38,8 @@ clean:
 # Launch the app, building it first only if it isn't built yet.
 run:
 	scripts/run.sh $(CONFIG)
+
+# Regenerate the README screenshots in Assets/ (debug build + real screen
+# capture; needs Screen Recording permission for the terminal).
+screenshots:
+	scripts/generate-screenshots.sh
