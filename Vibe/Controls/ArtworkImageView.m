@@ -37,7 +37,7 @@ static const CGFloat kDragHysteresis = 3;
     CGPoint dragPosition = [self convertPoint:[event locationInWindow] fromView:nil];
 
     // Don't allow drag near buttons — this band must match the transport
-    // GlyphButtons MainPlayerContentView lays over the bottom of the art.
+    // SymbolButtons MainPlayerContentView lays over the bottom of the art.
     if (dragPosition.y < 42) {
         return;
     }

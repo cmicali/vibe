@@ -28,7 +28,7 @@
 #import "PlaylistController.h"
 #import "NSURLUtil.h"
 #import "PitchControlPanel.h"
-#import "GlyphButton.h"
+#import "SymbolButton.h"
 
 static NSString *VibeDebugScreenshotPath(void) {
     return [NSTemporaryDirectory() stringByAppendingPathComponent:@"vibe-screenshot.png"];

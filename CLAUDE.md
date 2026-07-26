@@ -82,7 +82,7 @@ Framework-style imports (`<PINCache/...>`) resolve through target `HEADER_SEARCH
 - **File hashing**: `NSURL+Hash` provides the cache key for metadata and waveform data: `<size>-<mtime_us>-<sha1(path)>` from file attributes only (no content hash — cheap, but misses on rewrite or move).
 - **ObjC++ (.mm files)**: Used only where C++ is actually needed — TagLib integration and the waveform data structures. Everything else (including the whole UI layer) is plain ObjC (.m); don't add C++ types to headers that ObjC files import.
 - **Third-party sources** (`ThirdParty/`): `RSVerticallyCenteredTextFieldCell`, `taglib/`, `PINCache/`, `PINOperation/` — vendored code by other authors; don't restyle it.
-- **Custom-drawn controls** (`Controls/`): the transport/close buttons (`GlyphButton`) and the playing-row indicator (`EqualizerIndicatorView`) draw CAShapeLayer/CALayer glyphs instead of asset-catalog images — resolution independent, state changes composited on the render server.
+- **Custom-drawn controls** (`Controls/`): the transport/close buttons (`SymbolButton`) and the playing-row indicator (`EqualizerIndicatorView`) draw CALayer content instead of asset-catalog images — resolution independent, state changes composited on the render server. `SymbolButton` draws an SF Symbol (`symbolName`, e.g. "play.fill"), rasterized at the backing scale into a CALayer *mask* over a flat color layer: CALayer can't tint its contents, and the mask keeps the hover/press/disabled transitions as animatable color-property fades. Symbol point size is set per button (`symbolPointSize`) and the icon is centered in the frame, so the 50pt transport hit targets carry ~31pt icons.
 
 ### Supported Audio Formats
 

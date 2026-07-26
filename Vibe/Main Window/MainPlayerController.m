@@ -23,7 +23,7 @@
 #import "PlaylistController.h"
 #import "PlaylistTableView.h"
 #import "MainWindow.h"
-#import "GlyphButton.h"
+#import "SymbolButton.h"
 #import "PitchControlPanel.h"
 #import "TransportKeyMonitor.h"
 #import "NowPlayingController.h"
@@ -59,8 +59,8 @@
 // it what to draw; +Debug.h re-declares the accessor for the state dump.
 @property (strong) TrackDisplayController *trackDisplay;
 
-@property (weak) GlyphButton *nextButton;
-@property (weak) GlyphButton *playButton;
+@property (weak) SymbolButton *nextButton;
+@property (weak) SymbolButton *playButton;
 
 @property (weak) PlaylistTableView *playlistTableView;
 @property (weak) MainPlayerContentView *playerContentView;
@@ -365,13 +365,15 @@
     AudioTrack *track = self.playlistController.currentTrack;
     // The masking rule lives in displayedTrack — don't re-derive it here.
     // track is still used deliberately below: the error rendering titles the
-    // masked track, and the play-button glyph follows the playlist.
+    // masked track, and the play-button icon follows the playlist.
     AudioTrack *displayTrack = [self displayedTrack];
 
     // The track check covers Close: the player's stop is async on its queue,
     // so it can still read isPlaying for the instant after closeFile: — and no
-    // later updateUI would fix the glyph (the update timer is paused).
-    self.playButton.glyph = (track && self.audioPlayer.isPlaying) ? GlyphButtonGlyphPause : GlyphButtonGlyphPlay;
+    // later updateUI would fix the icon (the update timer is paused).
+    BOOL showPause = track && self.audioPlayer.isPlaying;
+    self.playButton.symbolName = showPause ? @"pause.fill" : @"play.fill";
+    self.playButton.accessibilityLabel = showPause ? @"Pause" : @"Play";
 
     self.playButton.enabled = self.playlistController.count > 0;
     self.nextButton.enabled = self.playlistController.hasNextTrack;
