@@ -13,6 +13,7 @@
 #import "MainMenuBuilder.h"
 #import "OpenRecentMenuController.h"
 #import "NSBundle+BuildInfo.h"
+#import "DocumentTypes.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <sys/sysctl.h>
 
@@ -20,7 +21,7 @@
 #import "DebugUtil.h"
 #endif
 
-@interface AppDelegate ()
+@interface AppDelegate () <NSMenuItemValidation>
 
 @property (nonatomic, strong) AboutWindowController *aboutWindowController;
 
@@ -256,19 +257,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     panel.allowsMultipleSelection = YES;
     panel.canChooseFiles = YES;
     panel.canChooseDirectories = YES;
-    // Derive the selectable types from the CFBundleDocumentTypes declarations
-    // in Info.plist so the open panel can't drift from what Launch Services
+    // The selectable types are the CFBundleDocumentTypes declarations from
+    // Info.plist, so the open panel can't drift from what Launch Services
     // registers the app for.
-    NSMutableArray<UTType *> *contentTypes = [NSMutableArray new];
-    NSArray *documentTypes = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleDocumentTypes"];
-    for (NSDictionary *documentType in documentTypes) {
-        for (NSString *identifier in documentType[@"LSItemContentTypes"]) {
-            UTType *type = [UTType typeWithIdentifier:identifier];
-            if (type) {
-                [contentTypes addObject:type];
-            }
-        }
-    }
+    NSArray<UTType *> *contentTypes = DocumentTypes.declaredTypes;
     // An empty allowlist would make every file unselectable; fall back to
     // no filter if the plist declarations ever go missing.
     if (contentTypes.count > 0) {
@@ -280,6 +272,29 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
             [self performSelectorOnMainThread:@selector(playURLs) withObject:nil waitUntilDone:NO];
         }
     }];
+}
+
+#pragma mark - Default app
+
+// Vibe > Set Vibe as Default Music Player — claims every audio type declared in
+// Info.plist at once, instead of the user doing Finder's Get Info > Open With >
+// Change All per extension. No alert of our own on either outcome: the system
+// runs its own confirmation panel (and says so when it refuses), and the menu
+// item retitles itself on the next validation pass.
+- (IBAction)makeDefaultMusicPlayer:(id)sender {
+    [DocumentTypes makeDefaultApp];
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
+    if ([menuItem.identifier isEqualToString:@"menu_make_default_app"]) {
+        // Nothing to do once Vibe already holds every type: say so in the
+        // title and disable, rather than offering a no-op.
+        BOOL isDefault = DocumentTypes.isDefaultAppForAllFileTypes;
+        menuItem.title = isDefault ? @"Vibe Is the Default Music Player"
+                                   : @"Set Vibe as Default Music Player";
+        return !isDefault;
+    }
+    return YES;
 }
 
 @end
