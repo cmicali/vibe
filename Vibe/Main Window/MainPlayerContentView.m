@@ -5,7 +5,7 @@
 
 #import "MainPlayerContentView.h"
 #import "MainPlayerController.h" // declares the button action selectors
-#import "GlyphButton.h"
+#import "SymbolButton.h"
 #import "ArtworkImageView.h"
 #import "AudioWaveformView.h"
 #import "PlaylistTableView.h"
@@ -75,9 +75,9 @@ static const CGFloat kCodecLabelY = 325;
 static const CGFloat kBPMLabelY = 307;
 
 // Traffic lights: 13pt dots on 23pt centers like the real macOS controls,
-// left-aligned with the playlist icon's glyph below.
+// left-aligned with the playlist icon below.
 static const CGFloat kTrafficLightSize = 32;
-static const CGFloat kTrafficLightGlyphSize = 13;
+static const CGFloat kTrafficLightSymbolSize = 13;
 static const CGFloat kTrafficLightY = 313;
 static const CGFloat kCloseButtonX = 9;
 static const CGFloat kTrafficLightSpacing = 23;
@@ -88,10 +88,13 @@ static const CGFloat kTransportButtonSize = 50;
 static const CGFloat kTransportButtonY = 203;
 static const CGFloat kTransportRowX = 4;
 static const CGFloat kTransportButtonSpacing = 46;
+// Symbol point size inside those frames. SF Symbol glyphs draw at roughly 0.8x
+// their point size, so this runs larger than the icon's actual height.
+static const CGFloat kTransportSymbolSize = 31;
 
 // All the window's buttons sit hidden and fade in only while the cursor is
 // over the window. The reveal is pure show/hide (full opacity); each button's
-// resting dimness vs. hover brightness lives in its glyph colors, so a hovered
+// resting dimness vs. hover brightness lives in its symbol colors, so a hovered
 // traffic-light dot can reach full saturation like the real macOS controls.
 static const CFTimeInterval kControlFadeDur = 0.2;
 
@@ -134,9 +137,9 @@ static const CGFloat kLabelShadowOpacityDark = 0.9;
     NSView *_playlistDimView;
     // Self-contained buttons (actions wired at build, hover fade internal) —
     // not exposed in the header; the controller never drives them.
-    GlyphButton *_closeButton;
-    GlyphButton *_minimizeButton;
-    GlyphButton *_playlistToggleButton;
+    SymbolButton *_closeButton;
+    SymbolButton *_minimizeButton;
+    SymbolButton *_playlistToggleButton;
     NSTrackingArea *_windowHoverArea;
     __weak NSView *_windowHoverHost;
 }
@@ -329,34 +332,37 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // Hidden until window hover (setControlsShown:animated:).
     _closeButton = [MainPlayerContentView transportButtonWithFrame:
                             NSMakeRect(kCloseButtonX, kTrafficLightY, kTrafficLightSize, kTrafficLightSize)
-                                                             glyph:GlyphButtonGlyphClose
+                                                        symbolName:@"circle.fill"
+                                                             label:@"Close"
                                                             action:@selector(closeApp:)
                                                             target:target];
     _closeButton.alphaValue = 0.0;
-    _closeButton.glyphSize = kTrafficLightGlyphSize;
+    _closeButton.symbolPointSize = kTrafficLightSymbolSize;
     // Dim at rest; lights up to full salmon on hover.
-    _closeButton.glyphNormalColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:0.64];
-    _closeButton.glyphHighlightColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:1.0];
+    _closeButton.symbolNormalColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:0.64];
+    _closeButton.symbolHighlightColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:1.0];
     [self addSubview:_closeButton];
 
     _minimizeButton = [MainPlayerContentView transportButtonWithFrame:
                                NSMakeRect(kCloseButtonX + kTrafficLightSpacing, kTrafficLightY,
                                           kTrafficLightSize, kTrafficLightSize)
-                                                                glyph:GlyphButtonGlyphMinimize
+                                                           symbolName:@"circle.fill"
+                                                                label:@"Minimize"
                                                                action:@selector(minimizeWindow:)
                                                                target:target];
     _minimizeButton.alphaValue = 0.0;
-    _minimizeButton.glyphSize = kTrafficLightGlyphSize; // same dot as close
+    _minimizeButton.symbolPointSize = kTrafficLightSymbolSize; // same dot as close
     // Dim at rest; lights up to full yellow on hover.
-    _minimizeButton.glyphNormalColor = [NSColor colorWithSRGBRed:0.988 green:0.741 blue:0.180 alpha:0.64];
-    _minimizeButton.glyphHighlightColor = [NSColor colorWithSRGBRed:0.988 green:0.741 blue:0.180 alpha:1.0];
+    _minimizeButton.symbolNormalColor = [NSColor colorWithSRGBRed:0.988 green:0.741 blue:0.180 alpha:0.64];
+    _minimizeButton.symbolHighlightColor = [NSColor colorWithSRGBRed:0.988 green:0.741 blue:0.180 alpha:1.0];
     [self addSubview:_minimizeButton];
 
     // Fade in with the traffic lights on window hover.
     _playlistToggleButton = [MainPlayerContentView transportButtonWithFrame:
                                      NSMakeRect(kTransportRowX, kTransportButtonY,
                                                 kTransportButtonSize, kTransportButtonSize)
-                                                                      glyph:GlyphButtonGlyphPlaylist
+                                                                 symbolName:@"list.bullet"
+                                                                      label:@"Toggle Playlist"
                                                                      action:@selector(toggleSize:)
                                                                      target:target];
     _playlistToggleButton.alphaValue = 0.0;
@@ -365,7 +371,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _playButton = [MainPlayerContentView transportButtonWithFrame:
                            NSMakeRect(kTransportRowX + kTransportButtonSpacing, kTransportButtonY,
                                       kTransportButtonSize, kTransportButtonSize)
-                                                            glyph:GlyphButtonGlyphPlay
+                                                       symbolName:@"play.fill"
+                                                            label:@"Play"
                                                            action:@selector(playPause:)
                                                            target:target];
     _playButton.alphaValue = 0.0;
@@ -375,7 +382,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _nextButton = [MainPlayerContentView transportButtonWithFrame:
                            NSMakeRect(kTransportRowX + 2 * kTransportButtonSpacing, kTransportButtonY,
                                       kTransportButtonSize, kTransportButtonSize)
-                                                            glyph:GlyphButtonGlyphSkipNext
+                                                       symbolName:@"forward.end.fill"
+                                                            label:@"Next Track"
                                                            action:@selector(next:)
                                                            target:target];
     _nextButton.alphaValue = 0.0;
@@ -485,12 +493,17 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 }
 
 // Shared config for the borderless icon buttons (close/playlist/play/next):
-// GlyphButton already draws a momentary, white-tinted glyph with a ~100ms
-// highlight fade; only the glyph, action, and resizing behavior vary.
-+ (GlyphButton *)transportButtonWithFrame:(NSRect)frame glyph:(GlyphButtonGlyph)glyph action:(SEL)action target:(id)target {
-    GlyphButton *button = [[GlyphButton alloc] initWithFrame:frame];
-    button.glyph = glyph;
-    button.glyphSize = 26;
+// SymbolButton already draws a momentary, white-tinted SF Symbol with a ~100ms
+// highlight fade; only the symbol, action, and resizing behavior vary.
++ (SymbolButton *)transportButtonWithFrame:(NSRect)frame
+                                symbolName:(NSString *)symbolName
+                                     label:(NSString *)label
+                                    action:(SEL)action
+                                    target:(id)target {
+    SymbolButton *button = [[SymbolButton alloc] initWithFrame:frame];
+    button.symbolName = symbolName;
+    button.symbolPointSize = kTransportSymbolSize;
+    button.accessibilityLabel = label;
     button.target = target;
     button.action = action;
     button.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;

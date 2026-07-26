@@ -5,7 +5,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-@class GlyphButton;
+@class SymbolButton;
 @class ArtworkImageView;
 @class AudioWaveformView;
 @class PlaylistTableView;
@@ -29,11 +29,11 @@ NS_ASSUME_NONNULL_BEGIN
 // the header art tint (ArtworkDisplayController) — can re-derive.
 @property (nonatomic, copy, nullable) void (^appearanceChangedHandler)(void);
 
-// Only the buttons the controller drives (glyph/enabled state) are exposed;
+// Only the buttons the controller drives (symbol/enabled state) are exposed;
 // the traffic lights and playlist toggle are fully self-contained (action
 // wired at build, hover fade internal) and stay private to the view.
-@property (readonly) GlyphButton *playButton;
-@property (readonly) GlyphButton *nextButton;
+@property (readonly) SymbolButton *playButton;
+@property (readonly) SymbolButton *nextButton;
 
 // Tint wash over the header's glass panel; the artwork controller sets its
 // layer background to the current track's dominant art color. A plain view

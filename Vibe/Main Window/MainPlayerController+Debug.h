@@ -12,7 +12,7 @@
 
 #import "MainPlayerController.h"
 
-@class GlyphButton;
+@class SymbolButton;
 @class PitchControlPanel;
 @class TrackDisplayController;
 
@@ -20,8 +20,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface MainPlayerController (Debug)
 
-@property (weak, readonly) GlyphButton *nextButton;
-@property (weak, readonly) GlyphButton *playButton;
+@property (weak, readonly) SymbolButton *nextButton;
+@property (weak, readonly) SymbolButton *playButton;
 // The header labels the state dump reads live behind this
 // (TrackDisplayController exposes them readonly).
 @property (strong, readonly) TrackDisplayController *trackDisplay;
