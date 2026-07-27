@@ -24,6 +24,17 @@ xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Debug \
 
 Convenience wrappers (each runs `xcodegen generate` first and writes to `build/DerivedData`): `make build` (Release; `make build CONFIG=Debug` for debug) or `scripts/build.sh [Debug|Release]`; `make release` (or `scripts/release.sh`) builds Release then signs with Developer ID, notarizes, and staples a distributable app.
 
+There are two distinct release paths and they are not interchangeable — different certificate, different container, different verification:
+
+| | `make release` | `make appstore` / `make appstore-upload` |
+|---|---|---|
+| script | `scripts/release.sh` | `scripts/release-appstore.sh` |
+| certificate | Developer ID Application | Apple Distribution (+ Mac Installer) |
+| output | stapled `.zip` you host yourself | `.pkg` uploaded to App Store Connect |
+| verification | notarize + staple + `spctl` | App Store Connect validation |
+
+The App Store script authenticates with an App Store Connect API key (`ASC_KEY_ID` / `ASC_ISSUER_ID`, read from a gitignored `.release-env` at the repo root) and passes `-allowProvisioningUpdates`, so xcodebuild creates the distribution certificate, App ID, and provisioning profile itself rather than requiring a hand-walked portal. That key must carry the **Admin** role — cloud-managed distribution certificates are Admin-gated, and an App Manager key authenticates and uploads fine but fails the export with a 403; a key's role can't be edited after creation. The archive step deliberately passes no signing overrides (it keeps `CODE_SIGN_IDENTITY: "-"`) and lets the export re-sign for distribution: pinning `CODE_SIGN_IDENTITY="Apple Distribution"` under automatic signing fails the archive outright with "conflicting provisioning settings". `make appstore` stops after validation; only `make appstore-upload` submits. Both signing identities are applied on the xcodebuild command line — `project.yml` deliberately keeps `CODE_SIGN_IDENTITY: "-"` so everyday builds need no credentials at all.
+
 There is no package manager — all third-party code is vendored under `Vibe/ThirdParty/` and compiles as part of the app target (CocoaPods was removed; TagLib and PINCache are now in-tree). Editing `project.yml` (adding files, changing build settings) means running `xcodegen generate` again.
 
 There are no unit tests in this project.
