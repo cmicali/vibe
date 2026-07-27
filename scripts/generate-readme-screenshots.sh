@@ -1,13 +1,14 @@
 #!/bin/bash
 # Regenerate the README screenshots in Assets/.
 #
-#   scripts/generate-screenshots.sh [shot ...]     # no args = all four
+#   scripts/generate-readme-screenshots.sh [shot ...]     # no args = all four
 #   shot names: basic pitch playlist playlist-pitch
 #
 # The App Store shots (2880x1800, composited onto a background image) are a
 # separate tool: scripts/generate-app-store-screenshots.sh. Both share
-# scripts/screenshot-lib.sh, which documents the two permissions this terminal
-# needs (Screen Recording, Accessibility) and the debug build requirement.
+# scripts/screenshots/screenshot-lib.sh, which documents the two permissions
+# this terminal needs (Screen Recording, Accessibility) and the debug build
+# requirement.
 #
 # It moves the mouse cursor around and leaves it parked outside the window.
 #
@@ -20,8 +21,8 @@
 # hidden again.
 set -euo pipefail
 
-# shellcheck source=scripts/screenshot-lib.sh
-source "$(dirname "$0")/screenshot-lib.sh"
+# shellcheck source=scripts/screenshots/screenshot-lib.sh
+source "$(dirname "$0")/screenshots/screenshot-lib.sh"
 
 OUT_DIR="${OUT_DIR:-$ROOT/Assets}"
 APPEARANCE="${APPEARANCE:-dark}"
@@ -29,7 +30,7 @@ APPEARANCE="${APPEARANCE:-dark}"
 CAPTURE="${CAPTURE:-window}"
 # region only: points of screen kept around the window.
 MARGIN="${MARGIN:-40}"
-# Stage scripts/backdrop.swift behind the window — on by default for `merged`,
+# Stage backdrop.swift behind the window — on by default for `merged`,
 # whose whole point is that the glass shows what is behind it. BACKDROP=0 to use
 # whatever is already on screen; BACKDROP=1 to force it on for the other paths.
 BACKDROP="${BACKDROP:-$([ "$CAPTURE" = merged ] && echo 1 || echo 0)}"
@@ -89,11 +90,11 @@ quiet set_appearance "$APPEARANCE"
 
 if [ "$BACKDROP" = 1 ]; then
     if [ -z "$BACKDROP_IMAGE" ]; then
-        BACKDROP_ID="$(swift "$ROOT/scripts/backdrop-window-id.swift" \
+        BACKDROP_ID="$(swift "$SCREENSHOT_DIR/backdrop-window-id.swift" \
                 "$BACKDROP_WINDOW" 2>/dev/null || true)"
         if [ -z "$BACKDROP_ID" ] && [ "$BACKDROP_WINDOW" != wallpaper ]; then
             echo "warning: no '$BACKDROP_WINDOW' window on screen — using the wallpaper" >&2
-            BACKDROP_ID="$(swift "$ROOT/scripts/backdrop-window-id.swift" \
+            BACKDROP_ID="$(swift "$SCREENSHOT_DIR/backdrop-window-id.swift" \
                     wallpaper 2>/dev/null || true)"
         fi
         if [ -n "$BACKDROP_ID" ] \
@@ -125,7 +126,7 @@ fi
 #       around the window.
 capture() { # <output-name>
     local out="$OUT_DIR/$1" x y w h
-    activate_vibe
+    activate_vibe || echo "warning: Vibe window is not key — glass may look dimmed" >&2
     case "$CAPTURE" in
         window)
             capture_window "$out"

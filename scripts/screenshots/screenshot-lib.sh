@@ -1,8 +1,11 @@
 # Shared machinery for the two screenshot generators — sourced, never run:
 #
-#   generate-screenshots.sh            the README shots (Assets/screenshot-*.png)
-#   generate-app-store-screenshots.sh  the App Store shots (2880x1800, on a
-#                                      background image)
+#   ../generate-readme-screenshots.sh     the README shots (Assets/screenshot-*.png)
+#   ../generate-app-store-screenshots.sh  the App Store shots (2880x1800, on a
+#                                         background image)
+#
+# The two generators live in scripts/; everything they lean on — this file and
+# the swift helpers it drives — lives here.
 #
 # Everything here drives or photographs a DEBUG build of the app through the
 # --debug-cmd channel (see .claude/skills/vibe-debug). Both callers need the
@@ -18,7 +21,8 @@
 
 # shellcheck shell=bash
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCREENSHOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCREENSHOT_DIR/../.." && pwd)"
 SKILL="$ROOT/.claude/skills/vibe-debug/scripts"
 APP="${VIBE_APP:-$ROOT/build/DerivedData/Build/Products/Debug/Vibe.app}"
 V="$APP/Contents/MacOS/Vibe"
@@ -57,14 +61,14 @@ screenshot_cleanup() {
     rm -rf "$SHOT_TMP"
 }
 
-# Cover the screen with scripts/backdrop.swift (arguments are that script's:
+# Cover the screen with backdrop.swift (arguments are that script's:
 # an image path, gradient stops, and/or --rect). Merged captures show what is
 # genuinely behind the window through the glass and the playlist frost, which
 # otherwise means "whatever happens to be on your screen" — not reproducible,
 # and not something to publish unexamined.
 start_backdrop() {
     stop_backdrop
-    swift "$ROOT/scripts/backdrop.swift" "$@" &
+    swift "$SCREENSHOT_DIR/backdrop.swift" "$@" &
     BACKDROP_PID=$!
     sleep 5   # swift compiles the script before the window appears
 }
@@ -296,13 +300,48 @@ cursor_hover_window() {
 
 # --- capture ----------------------------------------------------------------
 
-# Bring Vibe to the front and warn if it didn't take: the glass views dim
-# themselves when the window isn't key and there is no public opt-out.
+# Is the app's window above the staged backdrop? A window can be key while
+# another app's window sits on top of it, and the merged capture reads the
+# COMPOSITED screen — so this, not keyWindow, is the check that decides whether
+# a shot is of the app or of the backdrop. Both windows are at layer 0; the
+# backdrop's window belongs to the swift interpreter's child process, hence the
+# pid set rather than a name match. True when no backdrop is staged.
+app_above_backdrop() {
+    [ -n "$BACKDROP_PID" ] || return 0
+    local stack pids app_index backdrop_index
+    pids=" $BACKDROP_PID $(pgrep -P "$BACKDROP_PID" 2>/dev/null | tr '\n' ' ') "
+    stack=$(swift "$SCREENSHOT_DIR/window-stack.swift")
+    app_index=$(awk '$2 == "Vibe" {print $1; exit}' <<<"$stack")
+    backdrop_index=$(awk -v pids="$pids" \
+            '{ if (index(pids, " " $3 " ")) { print $1; exit } }' <<<"$stack")
+    [ -n "$app_index" ] || return 1
+    [ -n "$backdrop_index" ] || return 0
+    [ "$app_index" -lt "$backdrop_index" ]
+}
+
+# Bring Vibe to the front, above any staged backdrop; nonzero if it never got
+# there — callers decide how bad that is. It matters twice over: the glass views
+# dim themselves when the window isn't key (no public opt-out), and a window
+# left under the backdrop photographs as a window-shaped hole.
+#
+# Two traps, both learned the hard way. Activating an app that is ALREADY
+# frontmost is a no-op, and a no-op cannot raise the window back over a backdrop
+# that ordered itself front afterwards — so each attempt bounces through Finder
+# to make the activation a real transition. And it activates the bundle by path
+# rather than `tell application "Vibe"`, whose name lookup goes through Launch
+# Services and is free to resolve to some other installed copy.
 activate_vibe() {
-    osascript -e 'tell application "Vibe" to activate' 2>/dev/null || true
-    quiet sleep 1
-    [ "$(state | jq -r .window.keyWindow)" = true ] \
-        || echo "warning: Vibe window is not key — glass may look dimmed" >&2
+    local attempt
+    for attempt in 1 2 3; do
+        osascript -e 'tell application "Finder" to activate' 2>/dev/null || true
+        sleep 0.3
+        open -a "$APP" 2>/dev/null || true
+        quiet sleep 1
+        if [ "$(state | jq -r .window.keyWindow)" = true ] && app_above_backdrop; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 # screencapture -l<windowID>: the window's own buffer, so it carries a
@@ -326,7 +365,7 @@ capture_merged() { # <out.png>
     read -r _ _ x y w h <<<"$(win_geom)"
     capture_window "$SHOT_TMP/window.png"
     screencapture -x -R"$x,$y,$w,$h" "$SHOT_TMP/region.png"
-    swift "$ROOT/scripts/compose-window-shot.swift" \
+    swift "$SCREENSHOT_DIR/compose-window-shot.swift" \
             "$SHOT_TMP/window.png" "$SHOT_TMP/region.png" "$1" >/dev/null
 }
 
