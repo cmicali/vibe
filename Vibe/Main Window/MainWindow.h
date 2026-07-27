@@ -20,6 +20,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setSmallSize:(BOOL)animate;
 - (void)setLargeSize:(BOOL)animate;
 
+// The player body's width: the window minus the pitch panel's slice. What the
+// View > Size presets set and what their checkmarks compare against, so the
+// number means the same thing whether or not the panel is out.
+@property (readonly) CGFloat contentWidth;
+- (void)setContentWidth:(CGFloat)width animate:(BOOL)animate;
+
 - (IBAction)toggleSize:(id)sender;
 
 // Slide-out pitch panel: the window grows kPitchPanelWidth to the right to

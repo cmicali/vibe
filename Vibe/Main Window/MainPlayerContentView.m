@@ -15,15 +15,17 @@
 
 // Design-time size; the controller resizes the view to the window's restored
 // frame after adding it, and the autoresizing pass lays subviews out at the
-// real size. The width is the shared kMainWindowContentWidth (Constants.h) —
-// the view must lay out at exactly the window's content width.
+// real size. Both axes are flexible at runtime (the window is user-resizable),
+// so every frame below is authored at kMainWindowContentWidth × kDesignHeight
+// and carries the mask that says how it stretches from there.
 static const CGFloat kDesignHeight = 350;
 
 #pragma mark - Layout
 
 // All subview frames are absolute; the numbers live here, not inline in
 // buildSubviewsWithTarget:. Edge-reaching values are derived from
-// kMainWindowContentWidth; the one deliberate overhang is named
+// kMainWindowContentWidth (the design width — a wider window stretches them
+// via the autoresizing masks); the one deliberate overhang is named
 // (kHeaderPanelRightBleed). Two bands split at kPlaylistHeight: the header
 // above, the playlist below.
 
@@ -148,7 +150,7 @@ static const CGFloat kLabelShadowOpacityDark = 0.9;
     self = [super initWithFrame:NSMakeRect(0, 0, kMainWindowContentWidth, kDesignHeight)];
     if (self) {
         self.wantsLayer = YES;
-        self.autoresizingMask = NSViewMaxXMargin | NSViewHeightSizable;
+        self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
         [self buildSubviewsWithTarget:target];
         [self updateMaterialForAppearance];
     }
@@ -276,7 +278,9 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _backgroundGlassView = [[VibePassthroughGlassView alloc] initWithFrame:
             NSMakeRect(kHeaderPanelX, kPlaylistHeight, kHeaderPanelWidth, kHeaderHeight)];
     _backgroundGlassView.cornerRadius = kMainWindowCornerRadius;
-    _backgroundGlassView.autoresizingMask = NSViewMinXMargin | NSViewMaxXMargin | NSViewMinYMargin;
+    // Width-flexible so the bleed stays past the (moving) right edge. Height
+    // must NOT be flexible — see the playlist frost's note below.
+    _backgroundGlassView.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     [self addSubview:_backgroundGlassView];
 
     // The art-color tint over the glass. NOT the glass's tintColor: AppKit
@@ -291,7 +295,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
     _waveformView = [[AudioWaveformView alloc] initWithFrame:
             NSMakeRect(kHeaderContentX, kWaveformY, kHeaderContentWidth, kWaveformHeight)];
-    _waveformView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
+    _waveformView.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     [self addSubview:_waveformView];
 
     _albumArtImageView = [[ArtworkImageView alloc] initWithFrame:
@@ -422,7 +426,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
             NSMakeRect(kHeaderContentX, kTimeRowY, kTimeLabelWidth, kSmallLabelHeight)];
     _currentTimeTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:YES];
     _currentTimeTextField.textColor = dimmedTextColor;
-    _currentTimeTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
+    // Left-anchored, unlike the right-aligned total time it pairs with.
+    _currentTimeTextField.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
     // No rasterization: this field's content changes every second, so
     // rasterization would just force a re-raster on every update.
     configureLabelShadow(_currentTimeTextField, NO);
@@ -438,7 +443,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // Half strength like the rest of the empty state.
     _dropHintTextField.alphaValue = 0.5;
     _dropHintTextField.hidden = YES;
-    _dropHintTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
+    // Spans the gap between the two time labels, so it takes the extra width.
+    _dropHintTextField.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     configureLabelShadow(_dropHintTextField, YES);
     [self addSubview:_dropHintTextField];
 

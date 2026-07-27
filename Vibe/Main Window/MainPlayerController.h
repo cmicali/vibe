@@ -67,6 +67,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)setSmallSize:(id)sender;
 - (IBAction)setLargeSize:(id)sender;
 - (IBAction)toggleSize:(nullable id)sender;
+- (IBAction)setWindowSize:(id)sender;
 
 - (IBAction)togglePitchPanel:(nullable id)sender;
 - (IBAction)setPitchRange:(id)sender;
