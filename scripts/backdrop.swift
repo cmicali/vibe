@@ -3,6 +3,18 @@
 //
 //   swift backdrop.swift <image-path>   # draw an image, aspect-filled
 //   swift backdrop.swift [hex ...]      # or a gradient; default blue → violet
+//   swift backdrop.swift --rect <x> <y> <w> <h> <image-path>
+//
+// `--rect` (global screen points, origin top-left — the space find-window.swift
+// prints and screencapture -R takes) draws a SECOND copy of the content,
+// aspect-filled into exactly that rect, over the full-screen one. That is what
+// generate-app-store-screenshots.sh uses: its output canvas is a scaled
+// rendering of this same image, and the glass is transparent enough to show
+// the backdrop nearly directly, so the pixels behind the window have to be the
+// canvas's pixels at the canvas's scale — otherwise what shows through the
+// window doesn't line up with the background around it. Only the part of the
+// rect behind the window matters; the seam where the rect meets the
+// full-screen fill is outside every capture.
 //
 // Merged captures show what is genuinely behind the window through the glass
 // and the playlist frost, which otherwise means "whatever happens to be on your
@@ -31,7 +43,20 @@ func color(_ hex: String) -> CGColor {
                    alpha: 1)
 }
 
-let arguments = Array(CommandLine.arguments.dropFirst())
+var arguments = Array(CommandLine.arguments.dropFirst())
+
+// --rect x y w h, if present, is peeled off the front.
+var alignedRect: CGRect?
+if arguments.first == "--rect" {
+    let values = arguments.dropFirst().prefix(4).compactMap(Double.init)
+    guard values.count == 4, values[2] > 0, values[3] > 0 else {
+        FileHandle.standardError.write("usage: --rect <x> <y> <w> <h>\n".data(using: .utf8)!)
+        exit(64)
+    }
+    alignedRect = CGRect(x: values[0], y: values[1], width: values[2], height: values[3])
+    arguments = Array(arguments.dropFirst(5))
+}
+
 // A single existing path means image mode; anything else is gradient stops.
 let imagePath = arguments.count == 1 && FileManager.default.fileExists(atPath: arguments[0])
         ? arguments[0] : nil
@@ -53,7 +78,8 @@ window.isOpaque = true
 window.collectionBehavior = [.stationary, .ignoresCycle]
 
 let bounds = CGRect(origin: .zero, size: screen.frame.size)
-let layer: CALayer
+
+var loadedImage: CGImage?
 if let imagePath {
     guard let source = CGImageSourceCreateWithURL(
                 URL(fileURLWithPath: imagePath) as CFURL, nil),
@@ -61,18 +87,39 @@ if let imagePath {
         FileHandle.standardError.write("could not read \(imagePath)\n".data(using: .utf8)!)
         exit(1)
     }
-    let imageLayer = CALayer()
-    imageLayer.contents = image
-    imageLayer.contentsGravity = .resizeAspectFill
-    layer = imageLayer
-} else {
+    loadedImage = image
+}
+
+// One per drawn rect: the full screen, and the aligned rect when there is one.
+func makeContentLayer() -> CALayer {
+    if let loadedImage {
+        let imageLayer = CALayer()
+        imageLayer.contents = loadedImage
+        imageLayer.contentsGravity = .resizeAspectFill
+        imageLayer.masksToBounds = true   // aspect-fill overflows its bounds
+        return imageLayer
+    }
     let gradient = CAGradientLayer()
     gradient.colors = hexes.map(color)
     gradient.startPoint = CGPoint(x: 0, y: 0)
     gradient.endPoint = CGPoint(x: 1, y: 1)
-    layer = gradient
+    return gradient
 }
+
+let layer = makeContentLayer()
 layer.frame = bounds
+
+if let alignedRect {
+    // Global top-left screen points → this window's (bottom-left) layer space.
+    // Single-display assumption, like the rest of the screenshot tooling:
+    // screens[0] carries the menu bar, and CG's global origin is its top-left.
+    let primaryMaxY = (NSScreen.screens.first ?? screen).frame.maxY
+    let sublayer = makeContentLayer()
+    sublayer.frame = CGRect(x: alignedRect.minX - screen.frame.minX,
+                            y: primaryMaxY - alignedRect.maxY - screen.frame.minY,
+                            width: alignedRect.width, height: alignedRect.height)
+    layer.addSublayer(sublayer)
+}
 
 let view = NSView(frame: bounds)
 view.wantsLayer = true

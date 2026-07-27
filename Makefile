@@ -2,7 +2,7 @@
 
 CONFIG ?= Release
 
-.PHONY: setup project build release install clean run screenshots
+.PHONY: setup project build release install clean run screenshots app-store-screenshots
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -43,3 +43,9 @@ run:
 # capture; needs Screen Recording permission for the terminal).
 screenshots:
 	scripts/generate-screenshots.sh
+
+# Regenerate the App Store screenshots (2880x1800, app composited onto a
+# background image) into Assets/app-store/. Same permissions as `screenshots`.
+#   make app-store-screenshots BACKGROUND=path/to/background.png
+app-store-screenshots:
+	scripts/generate-app-store-screenshots.sh "$(BACKGROUND)"
