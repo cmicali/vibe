@@ -65,8 +65,8 @@ for arg in "$@"; do
     esac
 done
 
-# Optional credential file, so a normal run needs no environment fiddling.
-[[ -f .release-env ]] && source .release-env
+# shellcheck source=scripts/asc-auth-lib.sh
+source "$(dirname "$0")/asc-auth-lib.sh"
 
 SCHEME=Vibe
 PRODUCT=Vibe
@@ -83,41 +83,7 @@ PKG="$EXPORT_DIR/$PRODUCT.pkg"
 command -v xcodegen >/dev/null 2>&1 || {
     echo "error: xcodegen not found — install with: brew install xcodegen" >&2; exit 1; }
 
-missing_key() {
-    cat >&2 <<MSG
-error: App Store Connect API credentials not configured.
-
-  Create a key at App Store Connect -> Users and Access -> Integrations ->
-  App Store Connect API -> Team Keys -> (+), with the ADMIN role (App Manager
-  is not enough — distribution certificates are Admin-gated).
-  Download AuthKey_<KEYID>.p8 (offered exactly once) to
-  ~/.appstoreconnect/private_keys/, then write a .release-env in the repo root:
-
-      ASC_KEY_ID=XXXXXXXXXX
-      ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-
-  (.release-env is gitignored — it is a pointer to the key, not the key.)
-MSG
-    exit 1
-}
-
-[[ -n "${ASC_KEY_ID:-}" && -n "${ASC_ISSUER_ID:-}" ]] || missing_key
-
-ASC_KEY_PATH="${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8}"
-if [[ ! -f "$ASC_KEY_PATH" ]]; then
-    echo "error: API private key not found at: $ASC_KEY_PATH" >&2
-    echo "       Put AuthKey_${ASC_KEY_ID}.p8 there, or set ASC_KEY_PATH." >&2
-    exit 1
-fi
-
-# xcodebuild's provisioning flags. -allowProvisioningUpdates lets it create the
-# distribution cert / App ID / profile on this machine the first time.
-AUTH=(
-    -allowProvisioningUpdates
-    -authenticationKeyPath "$(cd "$(dirname "$ASC_KEY_PATH")" && pwd)/$(basename "$ASC_KEY_PATH")"
-    -authenticationKeyID "$ASC_KEY_ID"
-    -authenticationKeyIssuerID "$ASC_ISSUER_ID"
-)
+asc_resolve_credentials
 
 VERSION=$(sed -n 's/^ *MARKETING_VERSION: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' project.yml | head -1)
 BUILD_NUM=$(sed -n 's/^ *CURRENT_PROJECT_VERSION: *\(.*\)$/\1/p' project.yml | head -1)
@@ -143,7 +109,7 @@ xcodegen generate
 # settings" — under automatic signing the identity is Xcode's to choose.
 echo "🔊 archive (Release)"
 xcodebuild -project "$PRODUCT.xcodeproj" -scheme "$SCHEME" -configuration Release \
-    -archivePath "$ARCHIVE" "${AUTH[@]}" \
+    -archivePath "$ARCHIVE" "${ASC_XCODEBUILD_AUTH[@]}" \
     archive
 
 cat > "$BUILD_DIR/ExportOptions.plist" <<PLIST
@@ -172,23 +138,8 @@ PLIST
 echo "🔊 export (App Store package)"
 if ! xcodebuild -exportArchive -archivePath "$ARCHIVE" \
         -exportOptionsPlist "$BUILD_DIR/ExportOptions.plist" \
-        -exportPath "$EXPORT_DIR" "${AUTH[@]}" 2>&1 | tee "$BUILD_DIR/export.log"; then
-    if grep -q "Cloud signing permission error" "$BUILD_DIR/export.log"; then
-        cat >&2 <<'MSG'
-
-error: the App Store Connect API key lacks permission for cloud-managed
-       distribution certificates. Apple's underlying response is:
-
-         403 FORBIDDEN_ERROR — "You haven't been given access to cloud-managed
-         distribution certificates."
-
-       The key needs the ADMIN role. A key's role cannot be changed after it
-       is created, so generate a new one (Users and Access -> Integrations ->
-       App Store Connect API -> Team Keys -> (+) -> Access: Admin), download
-       its .p8 to ~/.appstoreconnect/private_keys/, and point ASC_KEY_ID in
-       .release-env at the new key id.
-MSG
-    fi
+        -exportPath "$EXPORT_DIR" "${ASC_XCODEBUILD_AUTH[@]}" 2>&1 | tee "$BUILD_DIR/export.log"; then
+    asc_explain_export_failure "$BUILD_DIR/export.log"
     exit 1
 fi
 
