@@ -858,6 +858,36 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeActionCmd(@"low_kill_boost_on", ^(MainPlayerController *controller) { [controller setLowKillBoostActive:YES]; }),
             VibeActionCmd(@"low_kill_boost_off", ^(MainPlayerController *controller) { [controller setLowKillBoostActive:NO]; }),
             VibeActionCmd(@"toggle_size", ^(MainPlayerController *controller) { [controller toggleSize:nil]; }),
+            VibeCmd(@"set_window_width <body-points>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: set_window_width <body-points>");
+                }
+                // The window is freely resizable and its width comes back from
+                // the frame autosave, so a screenshot run that wants a
+                // reproducible size has to set one. The argument is the BODY
+                // width — the player without the pitch panel's slice, i.e. what
+                // MainPlayerContentView lays out at and what
+                // kMainWindowContentWidth names — so the number means the same
+                // thing whether or not the panel happens to be out.
+                MainWindow *window = (MainWindow *)controller.window;
+                CGFloat panel = window.isPitchPanelShown ? kPitchPanelWidth : 0;
+                NSRect frame = window.frame;
+                // Grows to the right like a resize-handle drag, floored by the
+                // window's own minSize (which already carries the panel), then
+                // pulled back on-screen — a window hanging off the right edge
+                // captures clipped.
+                frame.size.width = MAX(window.minSize.width, tokens[1].doubleValue + panel);
+                NSRect screenRect = window.screen.visibleFrame;
+                if (screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
+                    frame.origin.x = MAX(NSMinX(screenRect), NSMaxX(screenRect) - frame.size.width);
+                }
+                [window setFrame:frame display:YES];
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"frame": NSStringFromRect(window.frame),
+                    @"bodyWidth": @(window.frame.size.width - panel),
+                });
+            }),
             VibeCmd(@"click <x> <y> [left|right] [clickCount]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectMouse(controller, tokens);
             }),

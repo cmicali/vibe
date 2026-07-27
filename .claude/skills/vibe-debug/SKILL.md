@@ -95,6 +95,7 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 "$V" --debug-cmd click_menu menu_show_pitch   # {ok, clicked, action} — by identifier (preferred) or exact title
 "$V" --debug-cmd dump_screenshot -   # PNG bytes on stdout (redirect to a file), JSON reply on stderr — in-process snapshot
 "$V" --debug-cmd play_pause          # also: next, previous, skip_forward[_more|_most], skip_back[_more|_most], toggle_size, toggle_pitch_panel
+"$V" --debug-cmd set_window_width 900  # {ok, frame, bodyWidth} — body width in points (pitch panel excluded); the window is user-resizable and restores the autosaved width, so a reproducible capture has to set one
 "$V" --debug-cmd toggle_low_kill     # FX, also: low_kill_boost_on/_off, reverb_send_on/_off, delay_send_on/_off, short_delay_send_on/_off (the *_on/_off pairs mirror the hold-down W/E/R/T keys)
 "$V" --debug-cmd set_pitch -4.5      # drives fader (clamps), player, and time labels together
 "$V" --debug-cmd seek 120            # seconds

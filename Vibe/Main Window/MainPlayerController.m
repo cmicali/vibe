@@ -144,13 +144,10 @@
     self.playerContentView = content;
     [contentView addSubview:content];
     // The window already carries the restored (autosaved) frame; setting the
-    // content frame here runs the subview autoresizing pass at the real size.
-    // Width stays pinned at the content width — when the pitch panel state
-    // restored as shown, the window is already kPitchPanelWidth wider than
-    // the content.
-    NSRect contentFrame = contentView.bounds;
-    contentFrame.size.width = kMainWindowContentWidth;
-    content.frame = contentFrame;
+    // body frame here runs the subview autoresizing pass at the real size,
+    // which is where the design-time frames in MainPlayerContentView stretch
+    // to the user's width.
+    content.frame = [self playerBodyFrame];
 
     self.playButton = content.playButton;
     self.nextButton = content.nextButton;
@@ -173,6 +170,26 @@
     contentView.menu = contextMenu;
     // The playlist table's own row context menu (shadowing this window-wide
     // one) is installed by PlaylistController when the table is attached.
+}
+
+// The window's two content-view siblings, in the resizable steady state: the
+// player body fills everything left of the pitch panel's fixed-width slice,
+// and the panel hugs the right edge — parked just past it while hidden, which
+// is exactly where widening the window will expose it. The autoresizing masks
+// below reproduce both frames through a drag-resize; these compute them
+// outright for the build and after a pitch-panel toggle.
+- (NSRect)playerBodyFrame {
+    NSRect frame = self.window.contentView.bounds;
+    if (((MainWindow *)self.window).isPitchPanelShown) {
+        frame.size.width -= kPitchPanelWidth;
+    }
+    return frame;
+}
+
+- (NSRect)pitchPanelFrame {
+    NSRect bounds = self.window.contentView.bounds;
+    CGFloat x = NSMaxX(bounds) - (((MainWindow *)self.window).isPitchPanelShown ? kPitchPanelWidth : 0);
+    return NSMakeRect(x, 0, kPitchPanelWidth, bounds.size.height);
 }
 
 - (void)windowDidLoad {
@@ -259,19 +276,15 @@
     window.dropDelegate = self;
 
     // Built here rather than in MainPlayerContentView: the panel must be a
-    // SIBLING of the content view (which is pinned at the design width), not
-    // a child — it's revealed by widening the window past the content, and
-    // its height comes from the window's restored frame, not the design size.
-    // Parked just past the content's right edge (togglePitchPanel:). Fixed
-    // left offset + flexible right margin keeps it there through width
-    // changes; heightSizable tracks the small/large layout toggle.
-    // Anchored at the content width, NOT the current bounds edge: when the
-    // panel-open state was restored from the autosave the window is already
-    // kPitchPanelWidth wider than the content.
+    // SIBLING of the player body, not a child — it's revealed by widening the
+    // window past the body, and its size comes from the window's restored
+    // frame, not the design size. Right-anchored (fixed width, flexible left
+    // margin) so a drag-resize keeps it on the right edge — or, while hidden,
+    // keeps it parked the same distance past it; heightSizable tracks the
+    // small/large layout toggle.
     NSView *contentView = self.window.contentView;
-    _pitchPanel = [[PitchControlPanel alloc] initWithFrame:
-            NSMakeRect(kMainWindowContentWidth, 0, kPitchPanelWidth, contentView.bounds.size.height)];
-    _pitchPanel.autoresizingMask = NSViewMaxXMargin | NSViewHeightSizable;
+    _pitchPanel = [[PitchControlPanel alloc] initWithFrame:[self pitchPanelFrame]];
+    _pitchPanel.autoresizingMask = NSViewMinXMargin | NSViewHeightSizable;
     _pitchPanel.delegate = self;
     [contentView addSubview:_pitchPanel];
     [self applyPitchRange];
@@ -806,13 +819,53 @@
     [window toggleSize:sender];
 }
 
+// View > Size. The presets are body widths only — the height belongs to the
+// playlist toggle and the user's drag, and the collapsed layout's header band
+// is a fixed design height with nothing to scale. Menu-identifier dispatch,
+// like setAppearance: and setPitchRange:.
++ (CGFloat)contentWidthForSizeIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"view_size_small"]) {
+        return kMainWindowMinContentWidth;
+    }
+    if ([identifier isEqualToString:@"view_size_large"]) {
+        return kMainWindowLargeContentWidth;
+    }
+    return kMainWindowContentWidth;
+}
+
+- (IBAction) setWindowSize:(id)sender {
+    if (![sender isKindOfClass:[NSMenuItem class]]) {
+        return;
+    }
+    MainWindow *window = (MainWindow *)self.window;
+    [window setContentWidth:[MainPlayerController contentWidthForSizeIdentifier:((NSMenuItem *)sender).identifier]
+                    animate:YES];
+}
+
 - (IBAction) togglePitchPanel:(id)sender {
     MainWindow *window = (MainWindow *)self.window;
-    if (!window.isPitchPanelShown) {
+    BOOL show = !window.isPitchPanelShown;
+    if (show) {
         // Sync the fader with the player before the reveal (cheap either way).
         _pitchPanel.pitch = self.audioPlayer.pitch;
     }
-    [window setPitchPanelShown:!window.isPitchPanelShown animate:YES];
+    // The reveal (and its reverse) is the window's right edge sweeping past a
+    // stationary panel, so for the duration of the animation both siblings are
+    // pinned in window coordinates. The resizable-width masks would drag them
+    // along with the edge instead: the body would shrink and re-grow, and the
+    // panel would slide in from over the body rather than being uncovered.
+    MainPlayerContentView *body = self.playerContentView;
+    NSAutoresizingMaskOptions bodyMask = body.autoresizingMask;
+    NSAutoresizingMaskOptions panelMask = _pitchPanel.autoresizingMask;
+    body.autoresizingMask = NSViewMaxXMargin | NSViewHeightSizable;
+    _pitchPanel.autoresizingMask = NSViewMaxXMargin | NSViewHeightSizable;
+    [window setPitchPanelShown:show animate:YES];
+    body.autoresizingMask = bodyMask;
+    _pitchPanel.autoresizingMask = panelMask;
+    // Re-assert the landing frames: a width clamped by the floor leaves the
+    // frozen frames a few points off the finished window.
+    body.frame = [self playerBodyFrame];
+    _pitchPanel.frame = [self pitchPanelFrame];
 }
 
 - (IBAction)setPitchRange:(id)sender {

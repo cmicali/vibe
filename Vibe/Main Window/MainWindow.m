@@ -8,10 +8,12 @@
 #import "MainPlayerController.h"
 #import "PitchControlPanel.h"
 
-// The window frame is derived from kMainWindowContentWidth (+ the pitch panel
-// width when revealed) rather than read back, so a stale autosaved/restored
-// width self-corrects on toggle. The layout constants live in Constants.h
-// (imported via MainWindow.h), shared with MainPlayerContentView.
+// The window is freely resizable in both axes; the frame is the user's, kept
+// by the autosave. This class only enforces the floor (kMainWindowMinContentWidth
+// plus the pitch panel's slice when it's showing, kMainWindowSmallHeight) and
+// applies the two size changes the app makes itself: the playlist toggle's
+// height and the pitch panel's ±kPitchPanelWidth. The layout constants live in
+// Constants.h (imported via MainWindow.h), shared with MainPlayerContentView.
 
 static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
@@ -33,8 +35,11 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         self.title = @"Vibe";
         self.identifier = @"main_window";
         self.releasedWhenClosed = NO;
-        self.minSize = NSMakeSize(kMainWindowContentWidth, kMainWindowSmallHeight);
-        self.maxSize = NSMakeSize(kMainWindowContentWidth, kMainWindowMaxHeight);
+        // Floors only (loadSettings re-applies the width floor once the
+        // pitch-panel state is known); no ceiling — AppKit already keeps a
+        // drag-resize inside the screen.
+        self.minSize = NSMakeSize(kMainWindowMinContentWidth, kMainWindowSmallHeight);
+        self.maxSize = NSMakeSize(CGFLOAT_MAX, CGFLOAT_MAX);
         self.tabbingMode = NSWindowTabbingModeDisallowed;
         self.autorecalculatesKeyViewLoop = NO;
         self.allowsToolTipsWhenApplicationIsInactive = NO;
@@ -158,6 +163,19 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
 #pragma mark - Public API
 
+// Every animated resize the app performs — the playlist toggle, the pitch
+// panel reveal, the View > Size presets — runs at this one duration. AppKit's
+// default scales with the distance (roughly 0.2s per 150pt), which makes the
+// playlist's 250pt jump drag at ~0.27s and would put a Large→Small preset near
+// a full second. These are chrome snapping to a new shape, not content
+// transitions, so a short fixed time reads better and stays consistent
+// whatever the distance.
+static const NSTimeInterval kWindowResizeAnimationDuration = 0.12;
+
+- (NSTimeInterval)animationResizeTime:(NSRect)newFrame {
+    return kWindowResizeAnimationDuration;
+}
+
 - (void)setHeight:(CGFloat)height animate:(BOOL)animate {
     CGFloat delta = height - self.frame.size.height;
     if (delta != 0) {
@@ -193,24 +211,45 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     }
 }
 
+- (CGFloat)contentWidth {
+    return self.frame.size.width - (_pitchPanelShown ? kPitchPanelWidth : 0);
+}
+
+// Grows to the right off the fixed left edge, like dragging the resize handle.
+- (void)setContentWidth:(CGFloat)width animate:(BOOL)animate {
+    NSRect frame = self.frame;
+    frame.size.width = MAX(self.minSize.width,
+                           width + (_pitchPanelShown ? kPitchPanelWidth : 0));
+    if (frame.size.width == self.frame.size.width) {
+        return;
+    }
+    [self setFrame:[self frameKeptOnScreen:frame] display:YES animate:animate];
+}
+
+// A window grown at the right edge can end up hanging off the screen, where
+// the part the growth was for isn't visible; slide it back, but never so far
+// that the left edge (traffic lights, transport) goes off the other side.
+- (NSRect)frameKeptOnScreen:(NSRect)frame {
+    NSRect screenRect = self.screen.visibleFrame;
+    if (screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
+        frame.origin.x = MAX(NSMinX(screenRect), NSMaxX(screenRect) - frame.size.width);
+    }
+    return frame;
+}
+
 - (BOOL)isPitchPanelShown {
     return _pitchPanelShown;
 }
 
-// Window width is a pure function of the pitch-panel state; min/max are
-// pinned to it so user resizes can't reveal or crop the panel (they only
-// constrain the resize cursor, not setFrame, so ordering doesn't matter).
-// Both the toggle and the settings-restore derive their frame width here;
-// how the frame is applied (animated vs silent) stays with the caller.
-- (CGFloat)applyContentWidthForPitchPanelShown:(BOOL)shown {
-    CGFloat width = kMainWindowContentWidth + (shown ? kPitchPanelWidth : 0);
+// The panel is a fixed-width slice of a resizable window, so it moves the
+// width floor rather than fixing the width: the body still has to fit
+// kMainWindowMinContentWidth beside it. Returns the new floor, which both the
+// toggle and the settings-restore clamp their frame against.
+- (CGFloat)applyMinWidthForPitchPanelShown:(BOOL)shown {
     NSSize minSize = self.minSize;
-    NSSize maxSize = self.maxSize;
-    minSize.width = width;
-    maxSize.width = width;
+    minSize.width = kMainWindowMinContentWidth + (shown ? kPitchPanelWidth : 0);
     self.minSize = minSize;
-    self.maxSize = maxSize;
-    return width;
+    return minSize.width;
 }
 
 - (void)setPitchPanelShown:(BOOL)shown animate:(BOOL)animate {
@@ -219,21 +258,24 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     }
     _pitchPanelShown = shown;
     Settings.pitchPanelShown = shown;
+    CGFloat minWidth = [self applyMinWidthForPitchPanelShown:shown];
     NSRect frame = self.frame;
-    frame.size.width = [self applyContentWidthForPitchPanelShown:shown];
+    // Widen/narrow by exactly the panel's slice: the body keeps whatever width
+    // the user resized it to.
+    frame.size.width = MAX(minWidth,
+                           frame.size.width + (shown ? kPitchPanelWidth : -kPitchPanelWidth));
     // Grow to the right, but keep the panel on-screen when the window sits
     // against the screen's right edge.
-    NSRect screenRect = self.screen.visibleFrame;
-    if (screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
-        frame.origin.x = NSMaxX(screenRect) - frame.size.width;
-    }
-    [self setFrame:frame display:YES animate:animate];
+    [self setFrame:[self frameKeptOnScreen:frame] display:YES animate:animate];
 }
 
-// Both shown states are persisted as explicit settings rather than riding on
-// the autosaved frame: NSWindow quietly normalizes the saved width, and a
-// first launch has no saved frame at all (the registered defaults — both
-// hidden — supply the first-launch size).
+// Both shown states are persisted as explicit settings rather than inferred
+// from the autosaved frame: a first launch has no saved frame at all (the
+// registered defaults — both hidden — supply the first-launch size), and with
+// a freely resizable window the saved width no longer identifies the panel
+// state. The restored width already includes the panel when it was showing at
+// save time (the toggle resizes the window and the autosave follows), so the
+// width itself is the user's — only the floor is enforced here.
 - (void)loadSettings {
     NSRect frame = self.frame;
 
@@ -251,7 +293,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     frame.size.height = height;
 
     _pitchPanelShown = Settings.isPitchPanelShown;
-    frame.size.width = [self applyContentWidthForPitchPanelShown:_pitchPanelShown];
+    frame.size.width = MAX(frame.size.width,
+                           [self applyMinWidthForPitchPanelShown:_pitchPanelShown]);
 
     if (!NSEqualRects(frame, self.frame)) {
         [self setFrame:frame display:NO];

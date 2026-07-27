@@ -140,6 +140,14 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSymbolItem(viewMenu, @"Show Pitch Control", @"slider.vertical.3", @selector(togglePitchPanel:), player, @"p", 0, @"menu_show_pitch");
     AddSeparator(viewMenu);
 
+    // Width presets: the drag minimum, the design width, 1.75× the design
+    // width (see setWindowSize:). Height is deliberately untouched — that's
+    // Show Playlist's and the resize handle's.
+    NSMenu *sizeMenu = Submenu(viewMenu, @"Size").submenu;
+    AddItem(sizeMenu, @"Small", @selector(setWindowSize:), player, @"", 0, @"view_size_small");
+    AddItem(sizeMenu, @"Default", @selector(setWindowSize:), player, @"", 0, @"view_size_default");
+    AddItem(sizeMenu, @"Large", @selector(setWindowSize:), player, @"", 0, @"view_size_large");
+
     NSMenu *appearanceMenu = Submenu(viewMenu, @"Appearance").submenu;
     AddItem(appearanceMenu, @"System default", @selector(setAppearance:), player, @"", 0, @"view_appearance_system_default");
     AddItem(appearanceMenu, @"Light", @selector(setAppearance:), player, @"", 0, @"view_appearance_light");

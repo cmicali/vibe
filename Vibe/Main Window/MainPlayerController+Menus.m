@@ -12,9 +12,12 @@
 
 // waveformView is synthesized by the class extension in MainPlayerController.m;
 // re-declared readonly here (same pattern as MainPlayerController+Debug.h) so
-// the waveform-style submenu code can read it.
+// the waveform-style submenu code can read it. contentWidthForSizeIdentifier:
+// is defined next to setWindowSize: — the Size checkmarks have to resolve the
+// same identifier→width mapping the action does.
 @interface MainPlayerController (MenuOutlets)
 @property (weak, readonly) AudioWaveformView *waveformView;
++ (CGFloat)contentWidthForSizeIdentifier:(NSString *)identifier;
 @end
 
 @implementation MainPlayerController (Menus)
@@ -26,6 +29,12 @@
     }
     else if ([menuItem.identifier isEqualToString:@"menu_show_pitch"]) {
         menuItem.state = StateForBOOL(window.isPitchPanelShown);
+    }
+    // Size: checkmark whichever preset the current body width already sits at
+    // (none of them, after a drag-resize).
+    else if ([menuItem.identifier hasPrefix:@"view_size_"]) {
+        menuItem.state = StateForBOOL(window.contentWidth ==
+                [MainPlayerController contentWidthForSizeIdentifier:menuItem.identifier]);
     }
     else if ([menuItem.identifier isEqualToString:@"view_appearance_system_default"]) {
         menuItem.state = StateForString(Settings.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT);
