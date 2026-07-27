@@ -4,6 +4,7 @@
 //   swift backdrop.swift <image-path>   # draw an image, aspect-filled
 //   swift backdrop.swift [hex ...]      # or a gradient; default blue → violet
 //   swift backdrop.swift --rect <x> <y> <w> <h> <image-path>
+//   swift backdrop.swift --no-reassert ...
 //
 // `--rect` (global screen points, origin top-left — the space find-window.swift
 // prints and screencapture -R takes) draws a SECOND copy of the content,
@@ -25,12 +26,16 @@
 // window ends up BEHIND it; activating Vibe afterwards raises Vibe (and only
 // Vibe) above it. It ignores mouse events and stays up until killed.
 //
-// Ordering front ONCE isn't enough: every time the screenshot script kills Vibe,
-// macOS activates whatever app is next in the stack, which raises that app's
-// window above this one — and the next shot then composites its glass against
+// Ordering front ONCE isn't enough when the app is relaunched between shots:
+// macOS then activates whatever app is next in the stack, which raises that
+// app's window above this one — and the next shot composites its glass against
 // that app instead of the backdrop. So the window re-asserts itself on a timer,
-// skipping the tick whenever Vibe is frontmost. That is what keeps it from ever
-// landing on top of the window being photographed.
+// skipping the tick whenever Vibe is frontmost.
+//
+// `--no-reassert` turns that off, and a run that stages a fresh backdrop AFTER
+// the app is already up should use it: re-activating an app that is ALREADY
+// frontmost is a no-op, so it cannot raise the window back over a late tick —
+// the shot would photograph this window through a window-shaped hole.
 import AppKit
 import ImageIO
 
@@ -44,6 +49,12 @@ func color(_ hex: String) -> CGColor {
 }
 
 var arguments = Array(CommandLine.arguments.dropFirst())
+
+var reassert = true
+if let index = arguments.firstIndex(of: "--no-reassert") {
+    reassert = false
+    arguments.remove(at: index)
+}
 
 // --rect x y w h, if present, is peeled off the front.
 var alignedRect: CGRect?
@@ -142,7 +153,9 @@ final class Reasserter: NSObject {
 }
 
 let reasserter = Reasserter(window)
-Timer.scheduledTimer(timeInterval: 0.3, target: reasserter, selector: #selector(Reasserter.tick),
-                     userInfo: nil, repeats: true)
+if reassert {
+    Timer.scheduledTimer(timeInterval: 0.3, target: reasserter,
+                         selector: #selector(Reasserter.tick), userInfo: nil, repeats: true)
+}
 
 app.run()

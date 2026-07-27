@@ -52,10 +52,12 @@ run:
 # Regenerate the README screenshots in Assets/ (debug build + real screen
 # capture; needs Screen Recording permission for the terminal).
 screenshots:
-	scripts/generate-screenshots.sh
+	scripts/generate-readme-screenshots.sh
 
 # Regenerate the App Store screenshots (2880x1800, app composited onto a
 # background image) into Assets/app-store/. Same permissions as `screenshots`.
+# BACKGROUND is one background for all three shots, or three (player, playlist,
+# pitch); it is word-split, so run the script directly for paths with spaces.
 #   make app-store-screenshots BACKGROUND=path/to/background.png
 app-store-screenshots:
-	scripts/generate-app-store-screenshots.sh "$(BACKGROUND)"
+	scripts/generate-app-store-screenshots.sh $(BACKGROUND)

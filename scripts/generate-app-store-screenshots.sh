@@ -34,8 +34,9 @@
 # sit in the output) and only then photographs the window. The composite is a
 # real screen capture of the app over that background, not a mock-up.
 #
-# Needs the same setup as the README shots (see screenshot-lib.sh): a DEBUG
-# build plus Screen Recording and Accessibility permission for this terminal.
+# Needs the same setup as the README shots (see screenshots/screenshot-lib.sh):
+# a DEBUG build plus Screen Recording and Accessibility permission for this
+# terminal.
 # It moves the mouse cursor and covers the screen while it runs; audio is muted
 # (--silent) throughout.
 #
@@ -45,8 +46,8 @@
 # style it found before quitting.
 set -euo pipefail
 
-# shellcheck source=scripts/screenshot-lib.sh
-source "$(dirname "$0")/screenshot-lib.sh"
+# shellcheck source=scripts/screenshots/screenshot-lib.sh
+source "$(dirname "$0")/screenshots/screenshot-lib.sh"
 
 OUT_DIR="${OUT_DIR:-$ROOT/Assets/app-store}"
 APPEARANCE="${APPEARANCE:-dark}"
@@ -161,7 +162,7 @@ measure_backing_scale() {
     local w box
     read -r _ _ _ _ w _ <<<"$(win_geom)"
     capture_window "$SHOT_TMP/measure.png"
-    box=$(swift "$ROOT/scripts/compose-window-shot.swift" --info "$SHOT_TMP/measure.png" \
+    box=$(swift "$SCREENSHOT_DIR/compose-window-shot.swift" --info "$SHOT_TMP/measure.png" \
             | awk '{print $4}' | cut -dx -f1)
     BACKING=$(awk -v box="$box" -v w="$w" 'BEGIN{printf "%.6f", box / w}')
     say "display backing scale: ${BACKING}x (${w}pt window captured ${box}px wide)"
@@ -198,8 +199,23 @@ stage_for_capture() {
     [ -n "$BACKING" ] || measure_backing_scale
     plan_geometry
     say "staging the background (covers the screen until this finishes)"
-    start_backdrop --rect "$RECT_X" "$RECT_Y" "$RECT_W" "$RECT_H" "$BACKGROUND"
-    activate_vibe
+    # --no-reassert: the app is already up, and each shot stages its own
+    # backdrop, so nothing needs re-ordering afterwards — while a late tick
+    # would land the backdrop back on top of the window being photographed.
+    start_backdrop --no-reassert --rect "$RECT_X" "$RECT_Y" "$RECT_W" "$RECT_H" "$BACKGROUND"
+    raise_over_backdrop
+}
+
+# The backdrop is ordered front when it appears, so the window has to be raised
+# back over it. If that fails the merged capture would take its interior from
+# the backdrop — a window-shaped hole with nothing in it — so this is fatal
+# rather than a warning: a silently empty screenshot is worse than a failed run.
+raise_over_backdrop() {
+    activate_vibe || {
+        echo "error: Vibe never came to the front — the capture would photograph" \
+             "the staged backdrop instead of the window" >&2
+        exit 1
+    }
 }
 
 # Set the playhead, photograph the window over the staged background, composite
@@ -208,10 +224,10 @@ stage_for_capture() {
 # it would show the playhead wherever those seconds left it.
 capture_app_store_shot() { # <output-name>
     local out="$OUT_DIR/$1"
-    activate_vibe
+    raise_over_backdrop
     seek_fraction "$SEEK" "$SHUTTER_LEAD"
     capture_merged "$SHOT_TMP/merged.png"
-    swift "$ROOT/scripts/compose-app-store-shot.swift" \
+    swift "$SCREENSHOT_DIR/compose-app-store-shot.swift" \
             "$BACKGROUND" "$SHOT_TMP/merged.png" "$out" \
             "$CANVAS_W" "$CANVAS_H" "$DEST_X" "$DEST_Y" "$DEST_W"
     stop_backdrop
