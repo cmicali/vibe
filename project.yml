@@ -124,6 +124,11 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         LSApplicationCategoryType: "public.app-category.music"
 
+        # Vibe uses no encryption beyond what macOS itself provides. Declaring
+        # this here answers the export-compliance question at build time, so
+        # App Store Connect stops asking on every single upload.
+        ITSAppUsesNonExemptEncryption: false
+
         NSHumanReadableCopyright: "Copyright © 2026 Christopher Micali. All rights reserved."
 
         LSMultipleInstancesProhibited: YES

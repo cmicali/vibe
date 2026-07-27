@@ -2,7 +2,7 @@
 
 CONFIG ?= Release
 
-.PHONY: setup project build release install clean run screenshots app-store-screenshots
+.PHONY: setup project build release appstore appstore-upload install clean run screenshots app-store-screenshots
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -27,9 +27,19 @@ install: build
 	cp -R build/DerivedData/Build/Products/$(CONFIG)/Vibe.app /Applications/Vibe.app
 
 # Build Release, then sign (Developer ID), notarize, and staple a distributable
-# app. See scripts/release.sh for the required credentials.
+# app for direct download. See scripts/release.sh for the required credentials.
 release:
 	scripts/release.sh
+
+# Build Release signed for the Mac App Store and run App Store Connect's
+# validation, WITHOUT submitting. See scripts/release-appstore.sh for the
+# required App Store Connect API credentials.
+appstore:
+	scripts/release-appstore.sh
+
+# Same, then actually upload the build to App Store Connect.
+appstore-upload:
+	scripts/release-appstore.sh --upload
 
 # Remove build/ and the generated Vibe.xcodeproj.
 clean:
