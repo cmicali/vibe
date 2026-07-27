@@ -1,7 +1,7 @@
 #!/bin/bash
 # Generate the Mac App Store screenshots: the app, playing, composited onto a
 # background image at 2880x1800 (one of App Store Connect's accepted macOS
-# sizes, and the size Assets/app-store.psd was authored at).
+# sizes, and the size the backgrounds were authored at.
 #
 #   scripts/generate-app-store-screenshots.sh <background ...> [shot ...]
 #   shot names: player playlist pitch     # no shot arg = all three
