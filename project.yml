@@ -95,6 +95,7 @@ targets:
           - "**/.DS_Store"
           - "**/*.xcprivacy"                  # PIN privacy manifests: keep UNbundled
           - "**/*.txt"                        # vendored LICENSE.txt: keep UNbundled
+          - "**/*.md"                         # nested CLAUDE.md guidance: keep UNbundled
           - "**/Info.plist"                   # consumed via INFOPLIST_FILE; must NOT be bundled
           - "**/PINDiskCache.m"               # re-added below with its per-file flag
       - path: Vibe/ThirdParty/PINCache/PINDiskCache.m

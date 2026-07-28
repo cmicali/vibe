@@ -1,0 +1,3 @@
+# Custom-drawn controls
+
+- The transport/close buttons (`SymbolButton`) and the playing-row indicator (`EqualizerIndicatorView`) draw CALayer content instead of asset-catalog images — resolution independent, state changes composited on the render server. `SymbolButton` draws an SF Symbol (`symbolName`, e.g. "play.fill"), rasterized at the backing scale into a CALayer *mask* over a flat color layer: CALayer can't tint its contents, and the mask keeps the hover/press/disabled transitions as animatable color-property fades. Symbol point size is set per button (`symbolPointSize`) and the icon is centered in the frame, so the 50pt transport hit targets carry ~31pt icons.

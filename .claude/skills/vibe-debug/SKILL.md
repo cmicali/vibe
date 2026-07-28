@@ -237,8 +237,12 @@ Global screen coordinates, origin top-left (`find-window.swift` prints window or
 
 ## Logs
 
-Info/debug aren't persisted — stream live (full path; zsh has a `log` builtin):
+The `LogError`/`LogWarn`/`LogInfo`/`LogDebug` macros (defined in `Vibe-Prefix.pch`) wrap Apple's unified logging (`os_log`) under subsystem `com.commonwealthrecordings.Vibe`. Info/debug aren't persisted to the log store — stream live (full path; zsh has a `log` builtin):
 
 ```bash
 /usr/bin/log stream --level debug --predicate 'subsystem == "com.commonwealthrecordings.Vibe"'
 ```
+
+### Build provenance — which build produced this log?
+
+`applicationDidFinishLaunching` logs a build-provenance block (`AppDelegate.logBuildInfo`) so a log excerpt identifies the exact build it came from: version/config, git commit+branch+dirty, link time, compiler/arch/-O level, the codegen build settings, SDK/Xcode, and host OS. All of it is read back from the binary by `NSBundle+BuildInfo` — the `DT*` keys Xcode injects into Info.plist, a `VibeBuild` settings dictionary declared in `project.yml` (Xcode expands `$(SETTING)` inside it, nested dicts included), clang macros, and the executable's mtime for link time. Only the git fields need build-time help: the `Generate Git Info` pre-build script phase (`scripts/generate-git-info.sh`) writes `build/generated/VibeGitInfo.h` — gitignored under `build/`, on the target's `HEADER_SEARCH_PATHS`, rewritten only when the git state actually changes so it doesn't force recompiles, and falling back to "unknown" in a tree with no git. Reading `.git` from a script phase is why the target sets `ENABLE_USER_SCRIPT_SANDBOXING: NO`. Note the two arch fields differ on a universal Release build and both are correct: the compiler line names the slice that is running, the flags line the whole requested `ARCHS` set. The literal clang argv is NOT recoverable at runtime — it exists only in the build log.
