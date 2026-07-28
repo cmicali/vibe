@@ -6,6 +6,8 @@ A fast and minimal winamp-inspired native music player for macOS. Built with DJs
 
 ## Features
 
+[![Download on the App Store](https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1374883200)](https://apps.apple.com/us/app/vibe-music-player/id1582482361?mt=12)
+
 - **Format support** — MP3, MP2, AAC, FLAC, MP4/M4A, AIFF, and WAV, all decoded natively by CoreAudio
 - **Waveform seek bar** — SoundCloud style waveform with click-to-seek.
 - **Drag & drop playlists** — drop files or folders onto the window or dock icon to play
