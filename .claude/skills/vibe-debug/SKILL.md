@@ -100,6 +100,9 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 "$V" --debug-cmd set_pitch -4.5      # drives fader (clamps), player, and time labels together
 "$V" --debug-cmd seek 120            # seconds
 "$V" --debug-cmd open ~/Music/album  # {ok, opening} — file or dir, same expand/filter/play pipeline as a drop; poll dump_state
+"$V" --debug-cmd drag_hover 520 275  # {ok, well} — synthetic external-file drag-over at a window point (top-left origin, like click): drives the playlist drop zone's wells through the real FileDropDelegate path. NOT an event: a genuine NSDraggingSession can't be synthesized, so these call the delegate directly. well = replace|add|none = what a drop there would hit
+"$V" --debug-cmd drag_drop 520 275 ~/Music/track.wav  # {ok, dropping, well} — completes the synthetic drag: expands + delivers the drop at that point (well routing: replace|add|none→replace), then tears the drag-over UI down. ABSOLUTE path; same sandbox caveat as open; poll dump_state
+"$V" --debug-cmd drag_end            # {ok} — the drag left the window without a drop: back to the rest presentation
 "$V" --debug-cmd file_cache song.flac        # {ok, wasCached, bpm} — decode + cache one file's waveform (UI untouched); waits up to 60s
 "$V" --debug-cmd file_clear_cache song.flac  # {ok, wasPresent} — evict one file's cached waveform
 "$V" --debug-cmd clear_caches        # {ok, cleared} — empties metadata + waveform PINCaches

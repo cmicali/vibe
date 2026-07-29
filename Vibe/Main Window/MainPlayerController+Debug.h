@@ -15,6 +15,7 @@
 @class SymbolButton;
 @class PitchControlPanel;
 @class TrackDisplayController;
+@class MainPlayerContentView;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -25,6 +26,9 @@ NS_ASSUME_NONNULL_BEGIN
 // The header labels the state dump reads live behind this
 // (TrackDisplayController exposes them readonly).
 @property (strong, readonly) TrackDisplayController *trackDisplay;
+// The synthetic drag verbs (drag_hover/drag_drop/drag_end) reach the playlist
+// drop zone through this.
+@property (weak, readonly) MainPlayerContentView *playerContentView;
 
 - (PitchControlPanel *)pitchPanel;
 - (void)debugRefreshUI;

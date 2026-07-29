@@ -26,6 +26,8 @@
 #import "AudioWaveformCache.h"
 #import "AudioWaveformView.h"
 #import "PlaylistController.h"
+#import "PlaylistDropZoneView.h"
+#import "MainPlayerContentView.h"
 #import "NSURLUtil.h"
 #import "PitchControlPanel.h"
 #import "SymbolButton.h"
@@ -758,6 +760,107 @@ static NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSStri
     return VibeMouseReply(@"drag", window, start, x1, y1);
 }
 
+#pragma mark Synthetic file drags
+
+// drag_hover / drag_drop / drag_end drive the SAME FileDropDelegate path a
+// real external file drag takes through MainWindow — a genuine
+// NSDraggingSession can't be synthesized (only the window server can start
+// one), which is what makes the playlist drop zone untestable via the event
+// verbs above. These are direct delegate calls, not posted events.
+// Coordinates are main-window points, origin top-left, like the mouse verbs.
+
+static NSString *VibeWellName(PlaylistDropWellAction action) {
+    switch (action) {
+        case PlaylistDropWellActionReplace: return @"replace";
+        case PlaylistDropWellActionAdd:     return @"add";
+        case PlaylistDropWellActionNone:    return @"none";
+    }
+}
+
+// Shared coordinate parse + conversion for drag_hover/drag_drop. Returns NO
+// with *errorJSON set on a malformed pair.
+static BOOL VibeDragPointArgument(NSArray<NSString *> *tokens, NSWindow *window,
+                                  NSPoint *outLocation, double *outX, double *outY,
+                                  NSString **errorJSON) {
+    NSString *verb = tokens.firstObject;
+    double x = 0, y = 0;
+    if (tokens.count < 3 || !VibeParseDouble(tokens[1], &x) || !VibeParseDouble(tokens[2], &y)) {
+        *errorJSON = VibeErrorJSON(@"usage: %@ <x> <y>%@", verb,
+                [verb isEqualToString:@"drag_drop"] ? @" <file-or-directory>" : @"");
+        return NO;
+    }
+    *outX = x;
+    *outY = y;
+    *outLocation = NSMakePoint(x, NSHeight(window.frame) - y); // → bottom-left window coords
+    return YES;
+}
+
+static NSString *VibeSyntheticDragHover(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+    MainWindow *window = (MainWindow *)controller.window;
+    NSPoint location;
+    double x, y;
+    NSString *errorJSON = nil;
+    if (!VibeDragPointArgument(tokens, window, &location, &x, &y, &errorJSON)) {
+        return errorJSON;
+    }
+    if ([window.dropDelegate respondsToSelector:@selector(mainWindow:fileDraggingUpdatedAtLocation:)]) {
+        [window.dropDelegate mainWindow:window fileDraggingUpdatedAtLocation:location];
+    }
+    // Which well the point resolves to (what a drop here would do) — the
+    // assertable part of the reply.
+    PlaylistDropWellAction well = [controller.playerContentView.playlistDropZoneView
+            dropActionForWindowPoint:location];
+    return VibeJSONString(@{@"ok": @YES, @"posted": @"drag_hover",
+                            @"x": @(x), @"y": @(y), @"well": VibeWellName(well)});
+}
+
+static NSString *VibeSyntheticDragEnd(MainPlayerController *controller) {
+    MainWindow *window = (MainWindow *)controller.window;
+    if ([window.dropDelegate respondsToSelector:@selector(mainWindowFileDraggingEnded:)]) {
+        [window.dropDelegate mainWindowFileDraggingEnded:window];
+    }
+    return VibeJSONString(@{@"ok": @YES, @"posted": @"drag_end"});
+}
+
+static NSString *VibeSyntheticDragDrop(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+    MainWindow *window = (MainWindow *)controller.window;
+    NSPoint location;
+    double x, y;
+    NSString *errorJSON = nil;
+    if (!VibeDragPointArgument(tokens, window, &location, &x, &y, &errorJSON)) {
+        return errorJSON;
+    }
+    if (tokens.count < 4) {
+        return VibeErrorJSON(@"usage: drag_drop <x> <y> <file-or-directory>");
+    }
+    NSString *path = [[tokens subarrayWithRange:NSMakeRange(3, tokens.count - 3)]
+            componentsJoinedByString:@" "].stringByExpandingTildeInPath;
+    if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
+        return VibeErrorJSON(@"no file or directory at '%@'", path);
+    }
+    // Resolved before anything mutates, purely for the reply (the geometry is
+    // drag-state independent — the real delivery below re-resolves it).
+    PlaylistDropWellAction well = [controller.playerContentView.playlistDropZoneView
+            dropActionForWindowPoint:location];
+    // Mirror performDragOperation:'s pipeline and ordering: start the async
+    // expand-and-deliver, then tear the drag-over presentation down (real
+    // drops get draggingEnded right after performDragOperation returns).
+    // Sandbox caveat as with `open`: an ungranted path may be denied at read
+    // time. Poll dump_state for the resulting playlist.
+    [NSURLUtil expandAndFilterList:@[[NSURL fileURLWithPath:path]]
+                        completion:^(NSArray<NSURL *> *expanded) {
+        if (expanded.count > 0 &&
+            [window.dropDelegate respondsToSelector:@selector(mainWindow:filesDropped:atLocation:)]) {
+            [window.dropDelegate mainWindow:window filesDropped:expanded atLocation:location];
+        }
+    }];
+    if ([window.dropDelegate respondsToSelector:@selector(mainWindowFileDraggingEnded:)]) {
+        [window.dropDelegate mainWindowFileDraggingEnded:window];
+    }
+    return VibeJSONString(@{@"ok": @YES, @"dropping": path,
+                            @"x": @(x), @"y": @(y), @"well": VibeWellName(well)});
+}
+
 #pragma mark Command table
 
 // One handler per verb; tokens[0] is the verb itself. Returning nil means the
@@ -899,6 +1002,15 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             }),
             VibeCmd(@"mouse_move <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectMouse(controller, tokens);
+            }),
+            VibeCmd(@"drag_hover <x> <y>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeSyntheticDragHover(controller, tokens);
+            }),
+            VibeCmd(@"drag_drop <x> <y> <file-or-directory>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeSyntheticDragDrop(controller, tokens);
+            }),
+            VibeCmd(@"drag_end", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeSyntheticDragEnd(controller);
             }),
             VibeCmd(@"drag <x1> <y1> <x2> <y2> [steps]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectDrag(controller, tokens);
