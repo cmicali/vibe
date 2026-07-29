@@ -481,7 +481,12 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _fileMetadataTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:NO];
     _fileMetadataTextField.alignment = NSTextAlignmentRight;
     _fileMetadataTextField.textColor = dimmedTextColor;
-    _fileMetadataTextField.alphaValue = 0.5;
+    // Full alpha, unlike the BPM label below: this field also carries the
+    // inline FX symbols, which read at the time labels' full strength while
+    // the codec text stays half-strength. A field-wide 0.5 would dim both, so
+    // the text's own dimming rides in its foreground color instead
+    // (TrackDisplayController's codecTextAttributes).
+    _fileMetadataTextField.alphaValue = 1.0;
     _fileMetadataTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
     configureLabelShadow(_fileMetadataTextField, YES);
     [self addSubview:_fileMetadataTextField];
@@ -492,7 +497,9 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _bpmTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:NO];
     _bpmTextField.alignment = NSTextAlignmentRight;
     _bpmTextField.textColor = dimmedTextColor;
-    _bpmTextField.alphaValue = 0.5;
+    // Matches the codec label above it (full alpha, dimming in the text
+    // color) — the two are one visual pair and drift apart otherwise.
+    _bpmTextField.alphaValue = 1.0;
     _bpmTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
     configureLabelShadow(_bpmTextField, YES);
     [self addSubview:_bpmTextField];
