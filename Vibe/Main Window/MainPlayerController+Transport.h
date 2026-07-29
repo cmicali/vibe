@@ -13,7 +13,19 @@
 
 #import "MainPlayerController.h"
 
+@class TrackDisplayController;
+
 NS_ASSUME_NONNULL_BEGIN
+
+// Main-class surface this category reads — the accessor is synthesized by the
+// class extension in MainPlayerController.m. Deliberately no @implementation
+// for THIS category (same pattern as MainPlayerController+NowPlaying.h), so
+// the compiler doesn't look for it in the Transport implementation below.
+@interface MainPlayerController (TransportSupport)
+
+@property (strong, readonly) TrackDisplayController *trackDisplay;
+
+@end
 
 @interface MainPlayerController (Transport)
 
@@ -53,6 +65,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setDelaySendActive:(BOOL)active;
 - (BOOL)shortDelaySendActive;
 - (void)setShortDelaySendActive:(BOOL)active;
+
+// Pushes the live AudioFX flags to the header's FX indicator symbols. The
+// five setters above call it, so every path that can change an effect —
+// menu item, bare key (tap or hold), debug command — refreshes the display
+// without each caller remembering to. Also called from the updateUI funnel.
+- (void)updateFXIndicators;
 
 @end
 

@@ -24,6 +24,17 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Which performance effects are currently on, for the header's FX indicators
+// (drawn inline at the head of the codec line — see renderFXState:). Mirrors
+// the AudioFX flags; the display controller reads no player state itself.
+typedef struct {
+    BOOL lowKill;       // Q — low-kill high-pass
+    BOOL lowKillBoost;  // W — doubles Q's cutoff (renders as the filled dial)
+    BOOL reverb;        // E
+    BOOL delay;         // R — 1/8-note echo
+    BOOL shortDelay;    // T — 1/16-note echo
+} VibeFXDisplayState;
+
 // The five states the track display can render, resolved in one place
 // (MainPlayerController's displayState) so updateUI, updatePlaybackUI, and
 // the Now Playing publish all see the same world instead of re-deriving it
@@ -73,6 +84,13 @@ typedef NS_ENUM(NSInteger, TrackDisplayState) {
 // The BPM line under the codec label. Takes the pitch-scaled display value
 // (the caller owns tag-vs-analysis precedence and rate scaling); <= 0 clears.
 - (void)renderBPM:(float)displayBPM;
+
+// SF Symbols for the effects that are ON, drawn immediately left of the codec
+// text (same line, so they inherit its right alignment, color, and 50%
+// alpha); nothing is drawn for an effect that is off. Independent of the
+// track — FX persist across tracks — so the codec line is composed from the
+// last-rendered text and the last-rendered FX state, whichever changed.
+- (void)renderFXState:(VibeFXDisplayState)state;
 
 // End-of-playlist parking: pin the finished track's header at its start
 // (progress 0, elapsed 0:00, right label at the full duration) — see the

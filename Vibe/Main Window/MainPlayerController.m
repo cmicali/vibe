@@ -28,6 +28,7 @@
 #import "TransportKeyMonitor.h"
 #import "NowPlayingController.h"
 #import "MainPlayerController+NowPlaying.h"
+#import "MainPlayerController+Transport.h" // updateFXIndicators, from the updateUI funnel
 #import "UIUpdateTimer.h"
 
 #define UPDATE_HZ 3
@@ -414,6 +415,10 @@
                        errorStatus:_errorStatus];
 
     [self effectiveTempoDidChange];
+
+    // The codec line shares its run with the FX symbols — renderState: just
+    // rewrote its text, so re-assert the symbols alongside it.
+    [self updateFXIndicators];
 
     [_artworkController updateForTrack:displayTrack];
 

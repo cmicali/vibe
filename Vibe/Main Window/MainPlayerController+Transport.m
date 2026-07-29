@@ -8,6 +8,7 @@
 #import "AudioFX.h"
 #import "AudioTrack.h"
 #import "PlaylistController.h"
+#import "TrackDisplayController.h"
 
 // Skip distances. When the track's tempo is known (AudioTrack.bpm)
 // a skip moves by whole bars (4 beats) — a fixed span of *file* time, so the
@@ -115,6 +116,7 @@ static const double kSkipMostBars = 32.0;
 
 - (void)setLowKillActive:(BOOL)active {
     self.audioPlayer.fx.lowKillEnabled = active;
+    [self updateFXIndicators];
 }
 
 - (BOOL)lowKillBoostActive {
@@ -123,6 +125,7 @@ static const double kSkipMostBars = 32.0;
 
 - (void)setLowKillBoostActive:(BOOL)active {
     self.audioPlayer.fx.lowKillBoostActive = active;
+    [self updateFXIndicators];
 }
 
 - (BOOL)reverbSendActive {
@@ -131,6 +134,7 @@ static const double kSkipMostBars = 32.0;
 
 - (void)setReverbSendActive:(BOOL)active {
     self.audioPlayer.fx.reverbSendEnabled = active;
+    [self updateFXIndicators];
 }
 
 - (BOOL)delaySendActive {
@@ -139,6 +143,7 @@ static const double kSkipMostBars = 32.0;
 
 - (void)setDelaySendActive:(BOOL)active {
     self.audioPlayer.fx.delaySendEnabled = active;
+    [self updateFXIndicators];
 }
 
 - (BOOL)shortDelaySendActive {
@@ -147,6 +152,21 @@ static const double kSkipMostBars = 32.0;
 
 - (void)setShortDelaySendActive:(BOOL)active {
     self.audioPlayer.fx.shortDelaySendEnabled = active;
+    [self updateFXIndicators];
+}
+
+// Read back from AudioFX rather than from the caller's intent: the FX object
+// enforces its own coupling (clearing lowKillEnabled also clears
+// lowKillBoostActive), so only the live flags describe what is actually on.
+- (void)updateFXIndicators {
+    AudioFX *fx = self.audioPlayer.fx;
+    [self.trackDisplay renderFXState:(VibeFXDisplayState){
+        .lowKill      = fx.lowKillEnabled,
+        .lowKillBoost = fx.lowKillBoostActive,
+        .reverb       = fx.reverbSendEnabled,
+        .delay        = fx.delaySendEnabled,
+        .shortDelay   = fx.shortDelaySendEnabled,
+    }];
 }
 
 @end
