@@ -31,7 +31,9 @@ NS_ASSUME_NONNULL_BEGIN
 // colors live with the cell construction, not the data source.
 + (NSAttributedString *)numberCellString:(NSUInteger)number;
 // Title + dimmed artist, or the single-line fallback when the tags are
-// missing.
+// missing. Styling does not vary with the playing state — the playing row is
+// marked by its equalizer indicator (and the row's neutral wash), not by
+// recolored text.
 + (NSAttributedString *)titleCellStringForTrack:(AudioTrack *)track;
 + (NSAttributedString *)durationCellString:(NSString *)duration;
 

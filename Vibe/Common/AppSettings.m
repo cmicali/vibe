@@ -12,6 +12,7 @@
 #define SETTING_PITCH_PANEL_SHOWN                   @"MainWindow.pitchPanelShown"
 #define SETTING_PLAYLIST_SHOWN                      @"MainWindow.playlistShown"
 #define SETTING_PITCH_RANGE                         @"AudioPlayer.pitchRange"
+#define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"
 
 @implementation AppSettings
 
@@ -41,6 +42,7 @@
             SETTING_PITCH_PANEL_SHOWN:              @(NO),
             SETTING_PLAYLIST_SHOWN:                 @(NO),
             SETTING_PITCH_RANGE:                    @(8),
+            SETTING_SHOW_REMAINING_TIME:            @(NO),
     };
     [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
 }
@@ -112,6 +114,14 @@
 
 - (void)setPlaylistShown:(BOOL)shown {
     [[NSUserDefaults standardUserDefaults] setBool:shown forKey:SETTING_PLAYLIST_SHOWN];
+}
+
+- (BOOL)showRemainingTime {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_REMAINING_TIME];
+}
+
+- (void)setShowRemainingTime:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_REMAINING_TIME];
 }
 
 - (NSInteger)pitchRange {

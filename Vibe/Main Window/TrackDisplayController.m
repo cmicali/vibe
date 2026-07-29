@@ -113,7 +113,10 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
             _lastPosition = -1;
         }
         else {
-            setStringValueIfChanged(self.totalTimeTextField, [[Formatters sharedInstance] durationStringFromTimeInterval:duration / rate]);
+            // -1 poisons the elapsed-label cache, not a position; render as 0.
+            [self renderRightTimeLabelWithDisplayPosition:MAX(0, _lastPosition)
+                                                 duration:duration
+                                                     rate:rate];
         }
         if (track.metadata.fileType) {
             // bitrate/sampleRate can be nil even with fileType set — TagLib
@@ -195,11 +198,37 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
         self.currentTimeTextField.stringValue = [[Formatters sharedInstance] durationStringFromTimeInterval:displayPosition];
         _lastPosition = displayPosition;
     }
+    // In remaining mode the right label counts down with the tick; in total
+    // mode this is a same-string no-op after the first render. Only with a
+    // known duration: at the end-of-playlist park the caller's duration cache
+    // is zeroed, and writing "-0:00" here would clobber the parked full-length
+    // value from resetPlayheadToStartWithDuration:rate:/renderState.
+    if (duration > 0) {
+        [self renderRightTimeLabelWithDisplayPosition:displayPosition duration:duration rate:rate];
+    }
+}
+
+// The right-hand time label: total duration, or — per the persisted setting —
+// the minus-prefixed remaining time at the current position ("-1:50"). Both
+// wall-clock: file time divided by the varispeed rate, like the elapsed
+// label. displayPosition is already wall-clock (position / rate).
+- (void)renderRightTimeLabelWithDisplayPosition:(NSTimeInterval)displayPosition
+                                       duration:(NSTimeInterval)duration
+                                           rate:(double)rate {
+    NSString *text;
+    if (Settings.showRemainingTime) {
+        NSTimeInterval remaining = MAX(0, duration / rate - displayPosition);
+        text = [@"-" stringByAppendingString:
+                [[Formatters sharedInstance] durationStringFromTimeInterval:remaining]];
+    }
+    else {
+        text = [[Formatters sharedInstance] durationStringFromTimeInterval:duration / rate];
+    }
+    setStringValueIfChanged(self.totalTimeTextField, text);
 }
 
 - (void)renderTotalDuration:(NSTimeInterval)duration rate:(double)rate {
-    setStringValueIfChanged(self.totalTimeTextField,
-            [[Formatters sharedInstance] durationStringFromTimeInterval:duration / rate]);
+    [self renderRightTimeLabelWithDisplayPosition:MAX(0, _lastPosition) duration:duration rate:rate];
 }
 
 - (void)renderBPM:(float)displayBPM {
@@ -207,11 +236,14 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
     setKernedRightAlignedText(_bpmTextField, text);
 }
 
-- (void)resetPlayheadToStart {
+- (void)resetPlayheadToStartWithDuration:(NSTimeInterval)duration rate:(double)rate {
     _waveformView.progress = 0;
     _lastPosition = 0;
     setStringValueIfChanged(self.currentTimeTextField,
             [[Formatters sharedInstance] durationStringFromTimeInterval:0]);
+    // In remaining mode the resting label is the full track ("-3:45"); the
+    // caller passes the track's own duration — the player's is mid-teardown.
+    [self renderRightTimeLabelWithDisplayPosition:0 duration:duration rate:rate];
 }
 
 #pragma mark - Waveform rendering states

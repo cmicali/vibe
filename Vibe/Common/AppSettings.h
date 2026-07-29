@@ -39,6 +39,11 @@
 - (BOOL)isPlaylistShown;
 - (void)setPlaylistShown:(BOOL)shown;
 
+// Right-hand time label mode: YES (default) shows minus-prefixed remaining
+// time ("-1:50"), NO the total duration. Toggled by clicking the label.
+- (BOOL)showRemainingTime;
+- (void)setShowRemainingTime:(BOOL)show;
+
 // Pitch fader range in percent (8 or 16, like the SL-1200MK5G's range button).
 - (NSInteger)pitchRange;
 - (void)setPitchRange:(NSInteger)range;

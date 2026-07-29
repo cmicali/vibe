@@ -10,27 +10,43 @@
 #import "ArtworkImageView.h"
 #import "NSDockTile+Util.h"
 #import "NSImage+Util.h"
+#import "NSColor+OKLCH.h"
 #import "NSView+DarkMode.h"
 #import "CrossfadingImageView.h"
 #import <QuartzCore/QuartzCore.h>
 
-// The raw dominant color can be anything from neon to near-black; pulling
-// saturation/brightness into an appearance-specific band keeps the tint
-// recognizable as the art's color without overpowering the glass or
-// silhouetting the labels. Dark glass wants a deeper, fuller wash; the same
-// values over the bright light material read as muddy paint, so light mode
-// forces a brighter, softer pastel instead.
+// The raw dominant color can be anything from neon to near-black; pulling it
+// into an appearance-specific band keeps the tint recognizable as the art's
+// color without overpowering the glass or silhouetting the labels. The clamps
+// are perceptual (OKLCH, NSColor+OKLCH) rather than HSB: the waveform must
+// stay distinguishable from the wash on ANY artwork, and HSB brightness is
+// hue-blind — a yellow at B=0.39 is far lighter to the eye than a blue at
+// B=0.39, so an HSB cap lets bright-hued art wash out the unplayed waveform.
+// Dark glass carries a light waveform: cap perceptual lightness LOW (≤0.30)
+// with a floor so near-black art still shows a hue. The same values over the
+// bright light material read as muddy paint, so light mode — a dark waveform
+// — clamps lightness HIGH instead (same contrast goal, opposite direction).
+// Chroma is capped moderately in both.
 static const CGFloat kTintAlphaDark          = 0.4;
-static const CGFloat kTintMaxBrightnessDark  = 0.39;
-static const CGFloat kTintMinBrightnessDark  = 0.21;
-static const CGFloat kTintMaxSaturationDark  = 0.75;
+static const CGFloat kTintMinLightnessDark   = 0.16;
+static const CGFloat kTintMaxLightnessDark   = 0.30;
+static const CGFloat kTintMaxChromaDark      = 0.09;
 // Light alpha is deliberately high: the light glass shows a warm blur of
 // whatever is behind the window, and a subtle wash loses to it — the wash
 // has to own the header's color for the pastel to read.
 static const CGFloat kTintAlphaLight         = 0.55;
-static const CGFloat kTintMaxBrightnessLight = 0.97;
-static const CGFloat kTintMinBrightnessLight = 0.85;
-static const CGFloat kTintMaxSaturationLight = 0.45;
+static const CGFloat kTintMinLightnessLight  = 0.87;
+static const CGFloat kTintMaxLightnessLight  = 0.94;
+static const CGFloat kTintMaxChromaLight     = 0.10;
+
+// The playlist accent (playing row's equalizer bars + title text) is the same
+// dominant color normalized into a band that reads as colored TEXT over the
+// playlist frost — lighter than the wash in dark mode, darker in light mode.
+static const CGFloat kAccentMinLightnessDark  = 0.72;
+static const CGFloat kAccentMaxLightnessDark  = 0.84;
+static const CGFloat kAccentMinLightnessLight = 0.40;
+static const CGFloat kAccentMaxLightnessLight = 0.52;
+static const CGFloat kAccentMaxChroma         = 0.17;
 
 @implementation ArtworkDisplayController {
     ArtworkImageView            *_artworkView;
@@ -67,20 +83,53 @@ static const CGFloat kTintMaxSaturationLight = 0.45;
 // appearance changes. The wash is this view's own backgroundColor, not the
 // glass's tintColor — AppKit silently discards a glass tint whenever the
 // window isn't key, and the window must look the same active or not.
+// The appearance to clamp against. Resolved from the WINDOW, not from
+// _headerTintView: this method's appearance-change caller is the content
+// view's own viewDidChangeEffectiveAppearance, and at that point a SUBVIEW's
+// effectiveAppearance still reports the outgoing appearance (AppKit updates
+// the tree top-down, one callback per view). Reading the tint view there left
+// both the wash and the accent a full appearance behind on every live
+// light↔dark toggle — a dark-band wash under the light appearance is exactly
+// the waveform-contrast failure the clamps exist to prevent. The window's
+// appearance is set before any of those callbacks, so it is never stale.
+- (BOOL)isDarkAppearance {
+    NSAppearance *appearance = _headerTintView.window.effectiveAppearance
+            ?: _headerTintView.effectiveAppearance;
+    return [NSAppearanceNameDarkAqua isEqualToString:
+            [appearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua,
+                                                            NSAppearanceNameDarkAqua ]]];
+}
+
 - (void)refreshHeaderTint {
     NSColor *color = nil;
+    BOOL dark = [self isDarkAppearance];
     if (_dominantArtColor) {
-        BOOL dark = _headerTintView.isDark;
-        CGFloat maxSat = dark ? kTintMaxSaturationDark : kTintMaxSaturationLight;
-        CGFloat minBri = dark ? kTintMinBrightnessDark : kTintMinBrightnessLight;
-        CGFloat maxBri = dark ? kTintMaxBrightnessDark : kTintMaxBrightnessLight;
-        CGFloat alpha  = dark ? kTintAlphaDark : kTintAlphaLight;
-        CGFloat hue, saturation, brightness;
-        [_dominantArtColor getHue:&hue saturation:&saturation brightness:&brightness alpha:NULL];
-        color = [NSColor colorWithHue:hue
-                           saturation:MIN(saturation, maxSat)
-                           brightness:MAX(minBri, MIN(brightness, maxBri))
-                                alpha:alpha];
+        color = dark
+                ? [_dominantArtColor vibe_colorByClampingOKLCHLightnessMin:kTintMinLightnessDark
+                                                              lightnessMax:kTintMaxLightnessDark
+                                                                 chromaMax:kTintMaxChromaDark
+                                                                     alpha:kTintAlphaDark]
+                : [_dominantArtColor vibe_colorByClampingOKLCHLightnessMin:kTintMinLightnessLight
+                                                              lightnessMax:kTintMaxLightnessLight
+                                                                 chromaMax:kTintMaxChromaLight
+                                                                     alpha:kTintAlphaLight];
+    }
+    // The accent rides the tint's resolution: same source color, same
+    // triggers (track/art change, appearance flip, clear-to-default).
+    if (self.accentColorDidChangeHandler) {
+        NSColor *accent = nil;
+        if (_dominantArtColor) {
+            accent = dark
+                    ? [_dominantArtColor vibe_colorByClampingOKLCHLightnessMin:kAccentMinLightnessDark
+                                                                  lightnessMax:kAccentMaxLightnessDark
+                                                                     chromaMax:kAccentMaxChroma
+                                                                         alpha:1.0]
+                    : [_dominantArtColor vibe_colorByClampingOKLCHLightnessMin:kAccentMinLightnessLight
+                                                                  lightnessMax:kAccentMaxLightnessLight
+                                                                     chromaMax:kAccentMaxChroma
+                                                                         alpha:1.0];
+        }
+        self.accentColorDidChangeHandler(accent);
     }
     // AppKit disables implicit actions on a view's backing layer, so the fade
     // is explicit: set the model value action-free, then animate from the

@@ -20,6 +20,14 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
     return (height / 2) * kBarAmplitude;
 }
 
+// Width of the hover highlight column. A single bar is sub-point wide at
+// these bar counts (1024 and up), so the highlight spans a few of them —
+// wide enough to read as a lit slice of the waveform, narrow enough to stay
+// a line rather than a blob. Rounded to whole device pixels at use (see
+// setHoverHighlightX:): a fractional width leaves a half-lit edge pixel, so
+// the column never actually reaches full brightness.
+static const CGFloat kHoverHighlightWidth = 1.5;
+
 @implementation DetailedAudioWaveformRenderer {
     NSColor *_gradientColor;
 
@@ -35,6 +43,11 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
     // progress indicator — anything inside is clipped to the played region.
     CALayer *_playedClip;
     CAGradientLayer *_playedGradient;
+
+    // Hover highlight: a flat full-brightness column. A sibling INSIDE
+    // _waveformContainer, so the shared bar mask clips it to the waveform's
+    // own envelope — the lit slice is the waveform, not a line drawn over it.
+    CALayer *_hoverColumn;
 
     // Samples: interleaved min/max per bar, normalized. Rebuild callback:
     // rebuildMaskPaths.
@@ -126,6 +139,17 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
     [self configureGradient:_playedGradient];
     [_playedClip addSublayer:_playedGradient];
     [_waveformContainer addSublayer:_playedClip];
+
+    // Added last so it composites over both gradients. Full opacity — unlike
+    // the gradients it does NOT take kWaveformOpacity: this column is meant
+    // to be the brightest thing in the waveform.
+    _hoverColumn = [CALayer layer];
+    _hoverColumn.anchorPoint = CGPointZero;
+    _hoverColumn.actions = @{@"bounds": [NSNull null], @"position": [NSNull null],
+                             @"hidden": [NSNull null], @"backgroundColor": [NSNull null]};
+    _hoverColumn.contentsScale = scale;
+    _hoverColumn.hidden = YES;
+    [_waveformContainer addSublayer:_hoverColumn];
 }
 
 - (void)configureGradient:(CAGradientLayer *)gradient {
@@ -158,6 +182,9 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
     _gradientColor = isDark ? [NSColor whiteColor] : [NSColor blackColor];
     [self setGradientLayerColors:_playedGradient colors:[self playedGradientColors:_gradientColor isDark:isDark]];
     [self setGradientLayerColors:_unplayedGradient colors:[self unplayedGradientColors:_gradientColor isDark:isDark]];
+    // Full alpha, no vertical fade: the played gradient's own top is the
+    // ceiling everywhere else, so this reads as lit at every bar height.
+    _hoverColumn.backgroundColor = _gradientColor.CGColor;
 }
 
 // Slight vertical fade: full color at the top, kBottomAlpha of it at the
@@ -181,6 +208,34 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
             [baseColor colorWithAlphaComponent:kUnplayedTop],
             [baseColor colorWithAlphaComponent:kUnplayedTop * kBottomAlpha],
     ];
+}
+
+- (void)setHoverHighlightX:(CGFloat)x {
+    [super setHoverHighlightX:x];
+    if (!_hoverColumn || !self.parentLayer) {
+        return;
+    }
+    CGRect b = self.parentLayer.bounds;
+    if (x < 0 || b.size.width <= 0) {
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        _hoverColumn.hidden = YES;
+        [CATransaction commit];
+        return;
+    }
+    // Snap both edges to the device-pixel grid: a fractional origin or width
+    // leaves half-lit edge pixels, and the column is supposed to be the
+    // brightest thing in the waveform.
+    CGFloat scale = self.parentLayer.contentsScale > 0 ? self.parentLayer.contentsScale : 2;
+    CGFloat width = MAX(round(kHoverHighlightWidth * scale), 1) / scale;
+    CGFloat left = floor((x - width / 2) * scale) / scale;
+    left = MIN(MAX(left, 0), MAX(0, b.size.width - width));
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _hoverColumn.bounds = CGRectMake(0, 0, width, b.size.height);
+    _hoverColumn.position = CGPointMake(left, 0);
+    _hoverColumn.hidden = NO;
+    [CATransaction commit];
 }
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
@@ -207,6 +262,8 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
     _playedGradient.frame = localBounds;
     [CATransaction commit];
     [self updateProgress:progress waveform:waveform];
+    // A resize changes the column's height (and its clamp) — re-place it.
+    [self setHoverHighlightX:self.hoverHighlightX];
 
     // The x2/x4/x8 styles intentionally draw more rects than device pixels:
     // the sub-pixel overlap accumulates differently per density, which is
