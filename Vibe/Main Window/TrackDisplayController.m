@@ -90,11 +90,13 @@ static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
 
 // The FX indicator symbols, in menu order (Q, W, E, R, T). Low kill shows the
 // filled dial while its boost is latched — the boost is a modifier of that
-// filter, not an effect of its own, so it never gets a symbol of its own. Both
-// delays can be latched at once, and then both symbols show.
+// filter, not an effect of its own, so it never gets a symbol of its own. The
+// boost runs the filter even while lowKill itself is off, so it shows the
+// filled dial alone too. Both delays can be latched at once, and then both
+// symbols show.
 static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     NSMutableArray<NSString *> *names = [NSMutableArray new];
-    if (state.lowKill) {
+    if (state.lowKill || state.lowKillBoost) {
         [names addObject:(state.lowKillBoost ? @"dial.max.fill" : @"dial.min")];
     }
     if (state.reverb) {
