@@ -5,7 +5,12 @@
 
 #import "PlaylistController.h"
 #import "PlaylistTableView.h"
+#import "PlaylistRowView.h"
 #import "EqualizerIndicatorView.h"
+
+// Reuse identifier for the custom row view (cell views reuse their column
+// identifiers; the row view needs its own).
+static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 
 // Validation for the row context menu installed in setTableView:.
 @interface PlaylistController () <NSMenuItemValidation>
@@ -70,16 +75,45 @@
     return _playlist.count;
 }
 
+#pragma mark - Row views
+
+// Custom row view: neutral selection/playing wash instead of the system
+// accent-blue selectedContentBackgroundColor fill.
+- (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {
+    PlaylistRowView *rowView = [tableView makeViewWithIdentifier:kPlaylistRowViewIdentifier owner:self];
+    if (!rowView) {
+        rowView = [[PlaylistRowView alloc] initWithFrame:NSZeroRect];
+        rowView.identifier = kPlaylistRowViewIdentifier;
+    }
+    rowView.playingRow = (row == (NSInteger)self.currentIndex);
+    return rowView;
+}
+
+// reloadDataForRowIndexes: rebuilds cell views but keeps the row views, so
+// every currentIndex change re-stamps the visible rows' playing flag here
+// (rows scrolled in later get theirs from rowViewForRow:).
+- (void)refreshRowViewPlayingStates {
+    NSInteger current = (NSInteger)self.currentIndex;
+    [self.tableView enumerateAvailableRowViewsUsingBlock:^(NSTableRowView *rowView, NSInteger row) {
+        if ([rowView isKindOfClass:[PlaylistRowView class]]) {
+            ((PlaylistRowView *)rowView).playingRow = (row == current);
+        }
+    }];
+}
+
 #pragma mark - Cell population
 
 // Structure and styling live in PlaylistTableView (cell construction, fonts,
 // column set); this method only decides content.
 - (nullable NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row {
     AudioTrack *track = _playlist[row];
+    BOOL isCurrentRow = (row == (NSInteger)self.currentIndex);
     NSTableCellView *view = [_tableView cellViewForColumn:tableColumn];
     if ([tableColumn.identifier isEqualToString:@"numColumn"]) {
         EqualizerIndicatorView *eqView = [PlaylistTableView equalizerViewInCell:view];
-        if (row == self.currentIndex) {
+        // Reset on every population — cells are reused across rows.
+        eqView.barColor = isCurrentRow ? self.accentColor : nil;
+        if (isCurrentRow) {
             view.textField.hidden = YES;
             eqView.hidden = NO;
             eqView.animating = self.audioPlayer.isPlaying;
@@ -109,6 +143,15 @@
 }
 
 #pragma mark - Public API
+
+- (void)setAccentColor:(NSColor *)accentColor {
+    if (_accentColor == accentColor || [_accentColor isEqual:accentColor]) {
+        return;
+    }
+    _accentColor = accentColor;
+    // Only the playing row renders the accent (equalizer bars, title text).
+    [self reloadCurrentTrack];
+}
 
 - (AudioTrack *)currentTrack {
     if (self.currentIndex < _playlist.count) {
@@ -193,6 +236,7 @@
 - (BOOL)next {
     if (self.hasNextTrack) {
         self.currentIndex += 1;
+        [self refreshRowViewPlayingStates];
         [self reloadTrackInRange:NSMakeRange(self.currentIndex - 1, 2)];
         [self scrollCurrentTrackToVisible];
         [self play];
@@ -204,6 +248,7 @@
 - (BOOL)previous {
     if (self.hasPreviousTrack) {
         self.currentIndex -= 1;
+        [self refreshRowViewPlayingStates];
         [self reloadTrackInRange:NSMakeRange(self.currentIndex, 2)];
         [self scrollCurrentTrackToVisible];
         [self play];
@@ -230,6 +275,7 @@
     [self play];
     // Reload both rows: the clicked row must show its playing state now, not
     // after the async didStartPlaying round-trip.
+    [self refreshRowViewPlayingStates];
     [self reloadTrackAtIndex:previousIndex];
     [self reloadTrackAtIndex:self.currentIndex];
     if (self.userDidChangeTrackHandler) {

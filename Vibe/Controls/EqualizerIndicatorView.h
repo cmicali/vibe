@@ -22,6 +22,10 @@ NS_ASSUME_NONNULL_BEGIN
 // YES: bars bounce (track playing). NO: bars hold a static pose (paused).
 @property (nonatomic) BOOL animating;
 
+// Overrides the appearance-derived bar color (the playlist's artwork-derived
+// accent). nil returns to the white/black appearance default.
+@property (nonatomic, strong, nullable) NSColor *barColor;
+
 @end
 
 NS_ASSUME_NONNULL_END

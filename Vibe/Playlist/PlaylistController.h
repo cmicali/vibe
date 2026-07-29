@@ -29,6 +29,13 @@ NS_ASSUME_NONNULL_BEGIN
 // describing the previous track after the row indicator has already moved.
 @property (nonatomic, copy, nullable) void (^userDidChangeTrackHandler)(void);
 
+// Artwork-derived accent for the playing row's equalizer bars (set by the
+// owner from the current track's dominant art color; nil falls back to the
+// appearance default). Deliberately the ONLY accented element in the row —
+// the title text keeps its normal label color and the row background stays
+// neutral (see PlaylistRowView).
+@property (nonatomic, strong, nullable) NSColor *accentColor;
+
 - (NSArray<AudioTrack *> *)playlist;
 
 // Single-element access. Unlike the playlist getter, no defensive copy — use

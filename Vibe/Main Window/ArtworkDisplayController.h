@@ -38,6 +38,14 @@ NS_ASSUME_NONNULL_BEGIN
 // updateForTrack: with the art now decodable).
 @property (nonatomic, copy) void (^artDidResolveHandler)(void);
 
+// Fired (main thread) whenever the artwork-derived accent color changes —
+// with the tint, from the same dominant-color resolution: on track/art
+// changes and appearance flips, nil when no art color is available. The
+// accent is the dominant color normalized (OKLCH) into a lightness band that
+// stays legible over the playlist frost; the owner routes it to the playing
+// row's equalizer indicator.
+@property (nonatomic, copy, nullable) void (^accentColorDidChangeHandler)(NSColor *_Nullable accentColor);
+
 // Reflect track's art (nil track shows the default). New art replaces old art
 // directly; while the track's art is still unresolved the previous track's
 // art stays on screen — no flash of the default between tracks. Also keeps

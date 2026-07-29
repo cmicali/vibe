@@ -54,8 +54,13 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0, 1.25, 0.
     return self;
 }
 
+- (void)setBarColor:(NSColor *)barColor {
+    _barColor = barColor;
+    [self applyAppearanceColor];
+}
+
 - (void)applyAppearanceColor {
-    CGColorRef color = (self.isDark ? NSColor.whiteColor : NSColor.blackColor).CGColor;
+    CGColorRef color = (_barColor ?: (self.isDark ? NSColor.whiteColor : NSColor.blackColor)).CGColor;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (CALayer *bar in _bars) {

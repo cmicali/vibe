@@ -33,6 +33,14 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
     NSColor* _playedColorBottom;
     NSColor* _unPlayedColorBottom;
 
+    NSColor* _hoverColor;
+
+    // Bar index lit by the hover affordance, or -1. Bars here are discrete
+    // layers with gaps between them, so the highlight snaps to a whole bar
+    // (a fixed-width column at the cursor could land in a gap and light
+    // nothing) — it recolors that bar's two layers instead of overlaying.
+    NSInteger _hoverBarIndex;
+
     // Samples: one normalized height per bar. Rebuild callback:
     // rebuildLayerFrames.
     WaveformMorphEngine *_morph;
@@ -45,6 +53,8 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
     self = [super initWithLayer:parentLayer bounds:bounds isDark:isDark];
     if (self) {
+
+        _hoverBarIndex = -1;
 
         __weak __typeof__(self) weakSelf = self;
         _morph = [[WaveformMorphEngine alloc]
@@ -84,6 +94,44 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
     _unPlayedColorTop = [base colorWithAlphaComponent:0.89];
     _playedColorBottom = [NSColor colorWithRed:1 green:0.75 blue:0.585 alpha:0.8];
     _unPlayedColorBottom = [base colorWithAlphaComponent:0.55];
+    // Hover: the base color at full alpha — brighter than both the played
+    // orange and the unplayed bars, in either appearance.
+    _hoverColor = [base colorWithAlphaComponent:1.0];
+}
+
+// The played/unplayed pair a bar index should show right now, ignoring hover.
+- (NSColor *)restingColorForBar:(NSInteger)index top:(BOOL)top {
+    BOOL played = (self.lastProgressBoundary >= 0 && index < self.lastProgressBoundary);
+    if (top) {
+        return played ? _playedColorTop : _unPlayedColorTop;
+    }
+    return played ? _playedColorBottom : _unPlayedColorBottom;
+}
+
+- (void)setHoverHighlightX:(CGFloat)x {
+    [super setHoverHighlightX:x];
+    CGFloat width = self.parentLayer.bounds.size.width;
+    NSInteger index = -1;
+    if (x >= 0 && width > 0) {
+        index = (NSInteger)(x / width * (CGFloat)kVibeBarCount);
+        index = MIN(MAX(index, 0), (NSInteger)kVibeBarCount - 1);
+    }
+    if (index == _hoverBarIndex) {
+        return;
+    }
+    NSInteger previous = _hoverBarIndex;
+    _hoverBarIndex = index;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    if (previous >= 0) {
+        [self setLayerColor:[self restingColorForBar:previous top:YES] atIndex:(NSUInteger)(previous * 2)];
+        [self setLayerColor:[self restingColorForBar:previous top:NO] atIndex:(NSUInteger)(previous * 2 + 1)];
+    }
+    if (index >= 0) {
+        [self setLayerColor:_hoverColor atIndex:(NSUInteger)(index * 2)];
+        [self setLayerColor:_hoverColor atIndex:(NSUInteger)(index * 2 + 1)];
+    }
+    [CATransaction commit];
 }
 
 - (void)addLayers:(NSUInteger)numLayers backgroundColor:(CGColorRef)color {
@@ -145,6 +193,12 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
         [self setLayerColor:colorBottom atIndex:(NSUInteger)(i * 2 + 1)];
     }
     self.lastProgressBoundary = newBoundary;
+    // The playhead crossing the hovered bar (or a full repaint after
+    // updateColors:) just painted over the highlight — restore it.
+    if (_hoverBarIndex >= start && _hoverBarIndex < end) {
+        [self setLayerColor:_hoverColor atIndex:(NSUInteger)(_hoverBarIndex * 2)];
+        [self setLayerColor:_hoverColor atIndex:(NSUInteger)(_hoverBarIndex * 2 + 1)];
+    }
 }
 
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {

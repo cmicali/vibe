@@ -5,7 +5,9 @@
 
 #import "AudioWaveformRenderer.h"
 
-@implementation AudioWaveformRenderer
+@implementation AudioWaveformRenderer {
+    CGFloat _hoverHighlightX;
+}
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
     self = [super init];
@@ -15,8 +17,18 @@
         // Sentinel: force the first updateProgress: to paint every layer's
         // played/unplayed color, not just the boundary delta.
         self.lastProgressBoundary = -1;
+        _hoverHighlightX = -1;
     }
     return self;
+}
+
+- (CGFloat)hoverHighlightX {
+    return _hoverHighlightX;
+}
+
+// Subclasses override to paint, calling super to record the position.
+- (void)setHoverHighlightX:(CGFloat)x {
+    _hoverHighlightX = x;
 }
 
 + (NSString *)displayName {

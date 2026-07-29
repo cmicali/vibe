@@ -64,9 +64,10 @@ typedef NS_ENUM(NSInteger, TrackDisplayState) {
                   rate:(double)rate
                  state:(TrackDisplayState)state;
 
-// Change-guarded refresh of the total-time label alone — the fader-drag
-// path, where the full renderState (let alone the caller's full updateUI)
-// is too heavy to run per tick.
+// Change-guarded refresh of the right-hand time label alone (total duration,
+// or remaining time per the persisted mode) — the fader-drag path, where the
+// full renderState (let alone the caller's full updateUI) is too heavy to
+// run per tick.
 - (void)renderTotalDuration:(NSTimeInterval)duration rate:(double)rate;
 
 // The BPM line under the codec label. Takes the pitch-scaled display value
@@ -74,9 +75,10 @@ typedef NS_ENUM(NSInteger, TrackDisplayState) {
 - (void)renderBPM:(float)displayBPM;
 
 // End-of-playlist parking: pin the finished track's header at its start
-// (progress 0, elapsed 0:00) deterministically — see the caller's
-// didFinishPlaying: for why the resting values can't be read off the player.
-- (void)resetPlayheadToStart;
+// (progress 0, elapsed 0:00, right label at the full duration) — see the
+// caller's didFinishPlaying: for why the resting values can't be read off
+// the player. duration is the finished track's own (file-time) duration.
+- (void)resetPlayheadToStartWithDuration:(NSTimeInterval)duration rate:(double)rate;
 
 // Waveform rendering states, forwarded to the view (which stays a dumb
 // surface). The cache, its deliveries, and style selection stay with the

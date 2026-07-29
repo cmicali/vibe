@@ -29,6 +29,7 @@
     NSMutableDictionary<NSString *, Class>* _waveformRenderers;
     CAGradientLayer*            _loadingLayer;
     CALayer*                    _placeholderLayer;
+    NSTrackingArea*             _hoverTrackingArea;
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -130,6 +131,54 @@
     return NO;
 }
 
+#pragma mark - Hover scrubbing affordance
+
+// Hovering lights the waveform's OWN column under the cursor to full
+// brightness — the renderer does the drawing (each style knows how its bars
+// are built), and nothing is overlaid on top. Click-to-seek is untouched.
+
+- (void)updateTrackingAreas {
+    [super updateTrackingAreas];
+    if (_hoverTrackingArea) {
+        [self removeTrackingArea:_hoverTrackingArea];
+    }
+    // ActiveAlways to match the window's hover-reveal chrome (the borderless
+    // window's controls track the cursor regardless of key state).
+    _hoverTrackingArea = [[NSTrackingArea alloc]
+            initWithRect:NSZeroRect
+                 options:NSTrackingActiveAlways | NSTrackingInVisibleRect |
+                         NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved
+                   owner:self userInfo:nil];
+    [self addTrackingArea:_hoverTrackingArea];
+}
+
+- (void)mouseEntered:(NSEvent *)event {
+    [self updateHoverForEvent:event];
+}
+
+- (void)mouseMoved:(NSEvent *)event {
+    [self updateHoverForEvent:event];
+}
+
+- (void)mouseExited:(NSEvent *)event {
+    [self hideHoverIndicator];
+}
+
+- (void)updateHoverForEvent:(NSEvent *)event {
+    NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
+    // No waveform means nothing to light (and nothing seekable) — the empty,
+    // loading, and parked states all land here.
+    if (!_waveform || !NSPointInRect(p, self.bounds)) {
+        [self hideHoverIndicator];
+        return;
+    }
+    [_currentWaveformRenderer setHoverHighlightX:p.x];
+}
+
+- (void)hideHoverIndicator {
+    [_currentWaveformRenderer setHoverHighlightX:-1];
+}
+
 - (void)setProgress:(CGFloat)progress {
     // Store unconditionally — the bucket tracker below only gates repaints;
     // gating the assignment too would leave the getter stale between repaints.
@@ -155,6 +204,9 @@
 - (void)prepareForWaveformLoad {
     [self hideLoadingIndicator];
     [self hideEmptyPlaceholder];
+    // A stale hover playhead would otherwise sit over the next track's
+    // waveform until the mouse moves again.
+    [self hideHoverIndicator];
     _waveform = nil;
     if (!_currentWaveformRenderer) {
         // Prefer the persisted style, then the app default; allKeys[0] is a
@@ -178,6 +230,7 @@
         return;
     }
     [self hideEmptyPlaceholder];
+    [self hideHoverIndicator];
     // Collapse any previous track's waveform so the shimmer stands alone.
     _waveform = nil;
     self.progress = 0;
@@ -245,6 +298,7 @@
         return;
     }
     [self hideLoadingIndicator];
+    [self hideHoverIndicator];
     _waveform = nil;
     self.progress = 0;
     if (_currentWaveformRenderer) {

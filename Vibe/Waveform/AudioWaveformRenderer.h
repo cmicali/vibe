@@ -37,6 +37,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 
+// Hover scrubbing affordance: light the waveform's OWN column at view x to
+// full brightness (no separate playhead is drawn — the waveform is the
+// affordance). A negative x clears it. Renderers keep the x so a resize or
+// morph rebuild can reposition the highlight; the base implementation stores
+// it and does nothing else.
+- (void)setHoverHighlightX:(CGFloat)x;
+@property (readonly) CGFloat hoverHighlightX; // < 0 when not hovering
+
 @end
 
 NS_ASSUME_NONNULL_END

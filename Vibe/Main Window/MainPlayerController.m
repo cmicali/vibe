@@ -158,6 +158,14 @@
     // track display; this controller keeps only the outlets it drives itself.
     self.trackDisplay = [[TrackDisplayController alloc] initWithContentView:content];
 
+    // The right time label toggles remaining ↔ total on click (persisted in
+    // AppSettings). A gesture recognizer rather than a button: the label
+    // stays a plain text field, styled with its row.
+    NSClickGestureRecognizer *timeModeClick =
+            [[NSClickGestureRecognizer alloc] initWithTarget:self
+                                                      action:@selector(toggleTimeDisplayMode:)];
+    [content.totalTimeTextField addGestureRecognizer:timeModeClick];
+
     // Right-click menu on the whole window body (content view, so it also
     // covers the pitch panel via the responder chain).
     NSMenu *contextMenu = [[NSMenu alloc] initWithTitle:@"Popup Menu"];
@@ -241,6 +249,11 @@
     };
     _artworkController.artDidResolveHandler = ^{
         [weakControllerForArt updateUI];
+    };
+    // The playing row's equalizer bars and title text take the artwork-derived
+    // accent; the playlist controller reloads the row when it changes.
+    _artworkController.accentColorDidChangeHandler = ^(NSColor *accentColor) {
+        weakControllerForArt.playlistController.accentColor = accentColor;
     };
     // The header art tint is appearance-dependent (dark wash vs light
     // pastel); re-derive it whenever the window's appearance flips.
@@ -676,8 +689,11 @@
         // Pin the resting header deterministically: the updateUI inside next:
         // read the player mid-teardown (its position/duration race the async
         // stop), which could leave the waveform pinned at 100% while the
-        // elapsed label read 0:00. Park the finished track at its start.
-        [self.trackDisplay resetPlayheadToStart];
+        // elapsed label read 0:00. Park the finished track at its start; its
+        // metadata duration feeds the resting right label (the player's own
+        // duration is torn down by now).
+        [self.trackDisplay resetPlayheadToStartWithDuration:self.playlistController.currentTrack.duration
+                                                       rate:self.playbackRate];
     }
 }
 
@@ -914,6 +930,13 @@
     // The pitch settled — resync Control Center's duration/position once for
     // the whole gesture.
     [self updateNowPlaying];
+}
+
+// Click on the right time label: flip remaining ↔ total and re-render (the
+// full updateUI funnel keeps the label change-guards coherent).
+- (IBAction)toggleTimeDisplayMode:(id)sender {
+    Settings.showRemainingTime = !Settings.showRemainingTime;
+    [self updateUI];
 }
 
 - (IBAction) showInFinder:(id)sender {

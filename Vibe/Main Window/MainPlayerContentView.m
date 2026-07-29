@@ -321,11 +321,11 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
             NSMakeRect(0, kPlaylistHeight, kArtSize, kArtSize)];
     CAGradientLayer *artGradient = [[CAGradientLayer alloc] init];
     artGradient.colors = @[
-            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.92].CGColor,
-            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.42].CGColor,
+            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.96].CGColor,
+            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.55].CGColor,
             (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0].CGColor
     ];
-    artGradient.locations = @[@0.0, @0.32, @0.55];
+    artGradient.locations = @[@0.0, @0.35, @0.62];
     // Layer-hosting contract: assign the layer BEFORE wantsLayer, or AppKit
     // creates its own backing layer first and the view is layer-backed.
     _albumArtGradientView.layer = artGradient;
