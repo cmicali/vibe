@@ -9,6 +9,7 @@
 #import "ArtworkImageView.h"
 #import "AudioWaveformView.h"
 #import "PlaylistTableView.h"
+#import "PlaylistDropZoneView.h"
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
 #import "Constants.h"
@@ -475,6 +476,15 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
             NSMakeRect(0, 0, kMainWindowContentWidth, kPlaylistHeight)];
     _playlistTableView = (PlaylistTableView *)playlistScrollView.documentView;
     [self addSubview:playlistScrollView];
+
+    // Above the table: the empty-state well takes the clicks, and the
+    // drag-over wells (and their blur) composite over the rows. When neither
+    // presentation is up, the zone is hit-transparent.
+    _playlistDropZoneView = [[PlaylistDropZoneView alloc] initWithFrame:
+            NSMakeRect(0, 0, kMainWindowContentWidth, kPlaylistHeight)];
+    _playlistDropZoneView.hidden = YES;
+    _playlistDropZoneView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [self addSubview:_playlistDropZoneView];
 
     _fileMetadataTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kCodecLabelX, kCodecLabelY, kCodecLabelWidth, kSmallLabelHeight)];

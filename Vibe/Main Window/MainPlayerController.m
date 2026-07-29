@@ -22,6 +22,7 @@
 #import "AudioWaveformView.h"
 #import "PlaylistController.h"
 #import "PlaylistTableView.h"
+#import "PlaylistDropZoneView.h"
 #import "MainWindow.h"
 #import "SymbolButton.h"
 #import "PitchControlPanel.h"
@@ -405,6 +406,13 @@
     self.playButton.enabled = self.playlistController.count > 0;
     self.nextButton.enabled = self.playlistController.hasNextTrack;
 
+    // The playlist pane's drop zone: hidden only under the launch grace (like
+    // the header's empty state, so a launch-time open never flashes the rest
+    // hint); the empty/populated presentation follows the playlist count.
+    self.playerContentView.playlistDropZoneView.hidden = _emptyStateSuppressed;
+    self.playerContentView.playlistDropZoneView.playlistEmpty =
+            self.playlistController.count == 0;
+
     // Error state passes the masked (errored) track — its title renders under
     // the error status; the other states describe displayTrack (nil when
     // empty).
@@ -597,8 +605,29 @@
     [self.window miniaturize:sender];
 }
 
-- (void)mainWindow:(MainWindow *)mainWindow filesDropped:(NSArray<NSURL *> *)urls {
-    [self play:urls];
+- (void)mainWindow:(MainWindow *)mainWindow filesDropped:(NSArray<NSURL *> *)urls
+        atLocation:(NSPoint)location {
+    switch ([self.playerContentView.playlistDropZoneView dropActionForWindowPoint:location]) {
+        case PlaylistDropWellActionAdd:
+            // Appends without touching playback; an empty playlist routes to
+            // play: inside (nothing to append to — replace and add coincide).
+            [self addURLs:urls];
+            break;
+        case PlaylistDropWellActionReplace:
+        case PlaylistDropWellActionNone: // outside the wells: the window-wide default
+            [self play:urls];
+            break;
+    }
+}
+
+// The window's drag-over events, forwarded to the drop zone's wells (the view
+// no-ops while hidden or collapsed).
+- (void)mainWindow:(MainWindow *)mainWindow fileDraggingUpdatedAtLocation:(NSPoint)location {
+    [self.playerContentView.playlistDropZoneView fileDragUpdatedAtWindowPoint:location];
+}
+
+- (void)mainWindowFileDraggingEnded:(MainWindow *)mainWindow {
+    [self.playerContentView.playlistDropZoneView fileDragEnded];
 }
 
 #pragma mark - AudioPlayerDelegate Implementation

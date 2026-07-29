@@ -127,10 +127,14 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
 #pragma mark - Drag and Drop
 
+// External file drags only (a draggingSource means one of our own views — the
+// album art's drag-out — is the source). The delegate is kept abreast of the
+// drag's position so the playlist empty-state wells can track the cursor.
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
     if (sender.draggingSource) {
         return NSDragOperationNone;
     }
+    [self notifyFileDraggingUpdated:sender];
     return NSDragOperationCopy;
 }
 
@@ -138,7 +142,30 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     if (sender.draggingSource) {
         return NSDragOperationNone;
     }
+    [self notifyFileDraggingUpdated:sender];
     return NSDragOperationCopy;
+}
+
+- (void)draggingExited:(nullable id<NSDraggingInfo>)sender {
+    [self notifyFileDraggingEnded];
+}
+
+// Fires after every session ends, drop or no drop — performDragOperation runs
+// first, so the drop resolves its well before this tears the presentation down.
+- (void)draggingEnded:(id<NSDraggingInfo>)sender {
+    [self notifyFileDraggingEnded];
+}
+
+- (void)notifyFileDraggingUpdated:(id<NSDraggingInfo>)sender {
+    if ([self.dropDelegate respondsToSelector:@selector(mainWindow:fileDraggingUpdatedAtLocation:)]) {
+        [self.dropDelegate mainWindow:self fileDraggingUpdatedAtLocation:sender.draggingLocation];
+    }
+}
+
+- (void)notifyFileDraggingEnded {
+    if ([self.dropDelegate respondsToSelector:@selector(mainWindowFileDraggingEnded:)]) {
+        [self.dropDelegate mainWindowFileDraggingEnded:self];
+    }
 }
 
 - (BOOL)performDragOperation:(id<NSDraggingInfo>)sender {
@@ -147,6 +174,9 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     if (urls.count == 0) {
         return NO;
     }
+    // The drop point decides which empty-state well (if any) was hit; captured
+    // now — the delivery below is async and the session is gone by then.
+    NSPoint location = sender.draggingLocation;
     // Accept the drop immediately; expand directories off the main thread and
     // deliver the playable files via the main-thread completion.
     __weak MainWindow *weakSelf = self;
@@ -155,7 +185,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         // Drop contained no playable audio (e.g. an empty folder). Don't
         // forward an empty list, which would clear the current playlist.
         if (strongSelf && expanded.count > 0) {
-            [strongSelf.dropDelegate mainWindow:strongSelf filesDropped:expanded];
+            [strongSelf.dropDelegate mainWindow:strongSelf filesDropped:expanded atLocation:location];
         }
     }];
     return YES;
