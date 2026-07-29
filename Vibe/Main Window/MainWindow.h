@@ -38,7 +38,17 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol FileDropDelegate <NSObject>
 @optional
 
-- (void)mainWindow:(MainWindow *)mainWindow filesDropped:(NSArray<NSURL *>*)urls;
+// location = the drop point (NSDraggingInfo.draggingLocation, window
+// coordinates): the playlist empty-state wells resolve it into their
+// replace/add actions. Delivered async after directory expansion.
+- (void)mainWindow:(MainWindow *)mainWindow filesDropped:(NSArray<NSURL *>*)urls
+        atLocation:(NSPoint)location;
+
+// Drag-over tracking for the empty-state wells, again in window coordinates.
+// Updated fires on every entered/updated event; ended fires on exit AND after
+// a drop (receivers treat it as "leave the drag-over presentation").
+- (void)mainWindow:(MainWindow *)mainWindow fileDraggingUpdatedAtLocation:(NSPoint)location;
+- (void)mainWindowFileDraggingEnded:(MainWindow *)mainWindow;
 
 @end
 

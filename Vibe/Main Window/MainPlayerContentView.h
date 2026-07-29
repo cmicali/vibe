@@ -9,6 +9,7 @@
 @class ArtworkImageView;
 @class AudioWaveformView;
 @class PlaylistTableView;
+@class PlaylistDropZoneView;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -55,6 +56,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) NSTextField *bpmTextField;
 
 @property (readonly) PlaylistTableView *playlistTableView;
+// Drop-target UI spanning the playlist pane (empty-state hint + drag-over
+// wells). Built hidden; the controller drives it from the updateUI funnel
+// (playlistEmpty + launch grace) and forwards the window's drag-over events.
+@property (readonly) PlaylistDropZoneView *playlistDropZoneView;
 
 @end
 
