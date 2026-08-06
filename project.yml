@@ -239,13 +239,96 @@ targets:
       - sdk: QuartzCore.framework
       - sdk: UniformTypeIdentifiers.framework  # AppDelegate file filtering, DebugUtil
 
+  # Host-LESS logic tests: no TEST_HOST, so the suite never launches the app
+  # (which would boot the window, engine and caches on every run) and never
+  # inherits its sandbox (which would block reading fixtures from the repo).
+  # The tradeoff is that sources under test are compiled in rather than linked
+  # from the app — hence the curated list below, which is the point: the
+  # tested surface is a deliberate choice, not whatever the glob swept up.
+  #
+  # Tests live in /Tests, OUTSIDE Vibe/, because the app target's `- path:
+  # Vibe` recurses unconditionally — anything under Vibe/ would be compiled
+  # into the shipping binary.
+  VibeTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+        excludes:
+          - "**/.DS_Store"
+          - "**/*.md"
+      # Sources under test. TagLib is deliberately absent: nothing here needs
+      # it (AudioTrack only ever sends messages to its metadata, never names
+      # the class), and compiling the ~70-file vendored subset would dominate
+      # the build.
+      - path: Vibe/Audio/Waveform/AudioWaveform.mm
+      - path: Vibe/Audio/AudioTrack.m
+      - path: Vibe/Util/Formatters.m
+      - path: Vibe/Util/Categories/NSURL+Hash.m
+    settings:
+      base:
+        PRODUCT_NAME: "$(TARGET_NAME)"
+        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeTests
+        # Synthesized at build time — avoids a second generated plist on disk
+        # needing its own .gitignore entry (cf. Vibe/Common/Info.plist).
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Automatic
+        PROVISIONING_PROFILE_SPECIFIER: ""
+        # Deliberately NOT set: ENABLE_APP_SANDBOX, ENABLE_HARDENED_RUNTIME
+        # (app-target-only — a sandboxed test bundle couldn't read fixtures),
+        # and ENABLE_USER_SCRIPT_SANDBOXING: NO (that override exists for the
+        # app's git-info script phase; tests have none).
+        #
+        # settingPresets: none means XcodeGen injects nothing for this product
+        # type, so the XCTest wiring the preset would normally supply is
+        # spelled out here.
+        FRAMEWORK_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(PLATFORM_DIR)/Developer/Library/Frameworks"
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-framework"
+          - "XCTest"
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@loader_path/../Frameworks"
+          - "$(PLATFORM_DIR)/Developer/Library/Frameworks"
+        # The project-level pch is inherited (its LogError/LogDebug macros are
+        # used by the sources under test), and it imports "AppSettings.h" and
+        # "HelperMacros.h" by bare quoted name — without these paths it won't
+        # precompile. The rest cover the sources under test and their headers.
+        HEADER_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(SRCROOT)/Vibe/Common"
+          - "$(SRCROOT)/Vibe/Util"
+          - "$(SRCROOT)/Vibe/Util/Categories"
+          - "$(SRCROOT)/Vibe/Audio"
+          - "$(SRCROOT)/Vibe/Audio/Metadata"
+          - "$(SRCROOT)/Vibe/Audio/Waveform"
+          # Header-only: the display-state resolver and the skip arithmetic
+          # are static inlines, so the tests reach them without compiling
+          # (or linking against) the controllers they were lifted out of.
+          - "$(SRCROOT)/Vibe/Main Window"
+    dependencies:
+      - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform
+      - sdk: AppKit.framework                # AudioTrack album art (NSImage)
+
 schemes:
   Vibe:
     build:
       parallelizeBuild: true
       targets:
-        Vibe: all
+        # Every action except test. VibeTests is host-less — it compiles the
+        # sources it exercises and never links the app — so building Vibe for
+        # a test run is pure latency. Testables are built regardless of this
+        # list, so `xcodebuild test` still builds the bundle itself.
+        Vibe: [run, profile, analyze, archive]
     run:      { config: Debug }
+    test:
+      config: Debug
+      targets:
+        - VibeTests
     profile:  { config: Release }
     analyze:  { config: Debug }
     archive:  { config: Release }

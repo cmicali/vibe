@@ -9,6 +9,7 @@
 #import "AudioTrack.h"
 #import "PlaylistController.h"
 #import "TrackDisplayController.h"
+#import "TransportMath.h"
 
 // The skip distances. When the track's tempo is known, through AudioTrack.bpm,
 // a skip moves by whole bars of four beats, which is a fixed span of *file*
@@ -23,17 +24,13 @@ static const double kSkipMostBars = 32.0;
 
 @implementation MainPlayerController (Transport)
 
+// The arithmetic is VibeSkipFileSeconds in TransportMath.h; this supplies the
+// track's tempo and the current rate.
 - (NSTimeInterval)skipFileSecondsForBars:(double)bars fallbackWallClockSeconds:(NSTimeInterval)wallSeconds {
-    AudioTrack *track = self.playlistController.currentTrack;
-    float bpm = track.bpm;
-    if (bpm > 0) {
-        return bars * 4.0 * 60.0 / bpm;
-    }
-    // The fallback is expressed in the wall-clock seconds the user reads off
-    // the time label. Convert it to file time, the player's units, with the
-    // same varispeed rate the labels divide by, so that a skip advances the
-    // displayed clock by exactly the stated amount at any pitch.
-    return wallSeconds * self.playbackRate;
+    return VibeSkipFileSeconds(bars,
+                               self.playlistController.currentTrack.bpm,
+                               wallSeconds,
+                               self.playbackRate);
 }
 
 - (IBAction)skipForward:(nullable id)sender {

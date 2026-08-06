@@ -42,9 +42,9 @@ static const CGFloat kTintMinLightnessLight  = 0.87;
 static const CGFloat kTintMaxLightnessLight  = 0.94;
 static const CGFloat kTintMaxChromaLight     = 0.10;
 
-// The playlist accent, on the playing row's equalizer bars and title text, is
-// the same dominant color normalized into a band that reads as colored text
-// over the playlist frost: lighter than the wash in dark mode, darker in light.
+// The playlist accent, on the playing row's equalizer bars, is the same
+// dominant color normalized into a band that reads as color over the playlist
+// frost: lighter than the wash in dark mode, darker in light.
 static const CGFloat kAccentMinLightnessDark  = 0.72;
 static const CGFloat kAccentMaxLightnessDark  = 0.84;
 static const CGFloat kAccentMinLightnessLight = 0.40;

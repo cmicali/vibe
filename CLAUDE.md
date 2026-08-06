@@ -20,7 +20,11 @@ Use the **`vibe-release` skill** (`.claude/skills/vibe-release/`) to sign, notar
 
 There is no package manager. All third-party code is vendored under `Vibe/ThirdParty/` and compiles into the app target; CocoaPods is gone and TagLib and PINCache are now in-tree.
 
-There are no unit tests.
+`make test` runs the unit tests, in `Tests/` at the repo root. They cover pure logic only — sample and geometry math, archive validation, formatting, precedence and fallback rules — and the bundle is host-less, so the suite needs no window server, no audio hardware and no running app. See `Tests/CLAUDE.md` before adding to it: sources under test are compiled into the test target rather than linked from the app, and a test file placed under `Vibe/` would be swept into the shipping binary.
+
+Anything that has to be verified against the *running* app belongs in the debug command channel below, not in a unit test.
+
+GitHub Actions runs the Debug and Release builds and the test suite on every push and pull request (`.github/workflows/build.yml`).
 
 ## Debugging and verification
 
