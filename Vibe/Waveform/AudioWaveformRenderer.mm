@@ -14,8 +14,8 @@
     if (self) {
         self.parentLayer = parentLayer;
         self.isDark = isDark;
-        // Sentinel: force the first updateProgress: to paint every layer's
-        // played/unplayed color, not just the boundary delta.
+        // A sentinel, forcing the first updateProgress: to paint every layer's
+        // played or unplayed color rather than only the boundary delta.
         self.lastProgressBoundary = -1;
         _hoverHighlightX = -1;
     }
@@ -26,7 +26,7 @@
     return _hoverHighlightX;
 }
 
-// Subclasses override to paint, calling super to record the position.
+// Subclasses override this to paint, and call super to record the position.
 - (void)setHoverHighlightX:(CGFloat)x {
     _hoverHighlightX = x;
 }
@@ -37,8 +37,9 @@
 
 - (void)updateColors:(BOOL)isDark {
     self.isDark = isDark;
-    // Colors changed — the cached played/unplayed colors on every layer are
-    // now stale. Force the next updateProgress: to repaint everything.
+    // The colors have changed, so the cached played and unplayed colors on
+    // every layer are stale. Force the next updateProgress: to repaint
+    // everything.
     self.lastProgressBoundary = -1;
 }
 

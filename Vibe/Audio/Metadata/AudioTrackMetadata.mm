@@ -24,11 +24,12 @@
 
 namespace {
 
-// Replaces TagLib::FileRef so only the formats the app plays get linked in —
-// FileRef's detection references every parser in the library (Ogg, ASF, MPC,
-// tracker formats, ...) and would keep them all alive in the binary. Mirrors
-// FileRef's behavior for our formats: extension dispatch, then isValid() as a
-// content check, then magic-byte sniffing when the extension lies.
+// Replaces TagLib::FileRef so that only the formats the app plays are linked
+// in. FileRef's detection references every parser in the library — Ogg, ASF,
+// MPC, the tracker formats and the rest — and would keep them all alive in the
+// binary. This mirrors FileRef's behavior for our formats: extension dispatch,
+// then isValid() as a content check, then magic-byte sniffing when the
+// extension lies.
 class TagLibAudioFile {
 public:
     explicit TagLibAudioFile(const char *path)
@@ -52,11 +53,11 @@ public:
 
 private:
     // The MP4::ItemFactory singleton lazily builds its three lookup maps with
-    // no synchronization, so concurrent cold M4A parses (metadata loader ×4,
-    // plus the art extractor's queue) race map assignment against reads —
-    // use-after-free. Build all three maps once, before any parse; every
-    // access afterwards is const. App-side rather than patching the vendored
-    // TagLib so a re-copy can't silently drop the fix.
+    // no synchronization, so concurrent cold M4A parses — four metadata
+    // loaders, plus the art extractor's queue — race map assignment against
+    // reads, which is a use-after-free. Build all three maps once, before any
+    // parse; every access afterwards is const. The fix lives app-side rather
+    // than in the vendored TagLib, so that a re-copy cannot silently drop it.
     static void warmUpSharedFactories() {
         static dispatch_once_t once;
         dispatch_once(&once, ^{
@@ -66,7 +67,8 @@ private:
         });
     }
 
-    // Extension → format mapping copied from FileRef::detectByExtension.
+    // The extension-to-format mapping, copied from
+    // FileRef::detectByExtension.
     static std::unique_ptr<TagLib::File> openByExtension(const char *path, TagLib::IOStream *stream) {
         NSString *ext = [@(path) pathExtension].uppercaseString;
         if ([ext isEqualToString:@"MP3"] || [ext isEqualToString:@"MP2"] || [ext isEqualToString:@"AAC"])
@@ -84,7 +86,7 @@ private:
         return nullptr;
     }
 
-    // Same sniff order FileRef::detectByContent uses for these formats.
+    // The same sniff order FileRef::detectByContent uses for these formats.
     static std::unique_ptr<TagLib::File> openByContent(TagLib::IOStream *stream) {
         if (TagLib::MPEG::File::isSupported(stream))
             return std::make_unique<TagLib::MPEG::File>(stream);
@@ -109,22 +111,22 @@ static NSString *fileTypeForTagLibFile(TagLib::File *file);
 static NSData *albumArtDataFromTagLibFile(TagLib::File *file);
 static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 
-// Writable inside the class; atomic like every other field here (built on a
-// worker thread, read from main).
+// Writable inside the class, and atomic like every other field here, since it
+// is built on a worker thread and read from main.
 @interface AudioTrackMetadata ()
 @property (assign) BOOL parsedOK;
 @end
 
 @implementation AudioTrackMetadata {
-    // The whole art lifecycle lives in AudioTrackArtwork; the art API below
-    // delegates to it 1:1. Both initializers create it — never nil on a live
-    // instance.
+    // The whole art lifecycle lives in AudioTrackArtwork, and the art API
+    // below delegates to it one for one. Both initializers create it, so it is
+    // never nil on a live instance.
     AudioTrackArtwork *_artwork;
 }
 
-// Art accessors delegate to AudioTrackArtwork, which owns the lazy
-// decode/discard/re-read state machine; contracts are documented in
-// AudioTrackMetadata.h.
+// The art accessors delegate to AudioTrackArtwork, which owns the lazy
+// decode, discard and re-read state machine. AudioTrackMetadata.h documents
+// the contracts.
 - (NSImage *)albumArt {
     return [_artwork albumArt];
 }
@@ -143,7 +145,8 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 
 - (void)discardDecodedAlbumArt {
     [_artwork discardDecodedAlbumArt];
-    // UI-side dispatch flag, main-thread only — stays out of AudioTrackArtwork.
+    // A UI-side dispatch flag, main thread only, which stays out of
+    // AudioTrackArtwork.
     self.albumArtLoadDispatched = NO;
 }
 
@@ -151,10 +154,11 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     return [_artwork thumbnailAlbumArt];
 }
 
-// Archive stays small (~5-20KB/track) so the disk cache holds thousands of
-// tracks: only the thumbnail as compressed JPEG plus scalar fields. Art bytes
-// are deliberately NOT archived — at original sizes they blow the cache's
-// byte limit and every launch becomes a full TagLib re-parse of the library.
+// The archive stays small, at roughly 5-20KB per track, so that the disk cache
+// holds thousands of tracks: it carries only the thumbnail as a compressed
+// JPEG, plus the scalar fields. The art bytes are deliberately not archived,
+// because at their original sizes they blow the cache's byte limit and turn
+// every launch into a full TagLib re-parse of the library.
 - (void)encodeWithCoder:(NSCoder *)coder {
     [coder encodeObject:self.title forKey:@"title"];
     [coder encodeObject:self.artist forKey:@"artist"];
@@ -175,11 +179,11 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     self = [super init];
     if (self) {
         // PINDiskCache unarchives with requiresSecureCoding = NO, so a corrupt
-        // or tampered entry can hand back the wrong class. Validate every field
-        // and treat any mismatch as a cache miss (return nil) rather than
-        // crashing later on the main thread; a persistent bad entry would
-        // otherwise crash on every launch (it's never evicted). nil is allowed —
-        // these are all optional fields.
+        // or tampered entry can hand back the wrong class. Validate every
+        // field and treat any mismatch as a cache miss, returning nil, rather
+        // than crashing later on the main thread. A persistent bad entry is
+        // never evicted and would otherwise crash on every launch. nil is
+        // allowed, since these are all optional fields.
         id title = [coder decodeObjectForKey:@"title"];
         id artist = [coder decodeObjectForKey:@"artist"];
         id thumbnailJPEG = [coder decodeObjectForKey:@"thumbnailJPEG"];
@@ -196,8 +200,8 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
         if (sampleRate && ![sampleRate isKindOfClass:[NSNumber class]]) return nil;
         self.title = title;
         self.artist = artist;
-        // Decodes the thumbnail at a bounded size and derives the
-        // extraction-attempted flag (see adoptArchivedThumbnailJPEG:).
+        // This decodes the thumbnail at a bounded size and derives the
+        // extraction-attempted flag; see adoptArchivedThumbnailJPEG:.
         _artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:sourceFilePath
                                                             extractor:VibeTagLibArtExtractor()];
         [_artwork adoptArchivedThumbnailJPEG:thumbnailJPEG];
@@ -209,8 +213,8 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
             return nil; // corrupt/tampered entry — treat as a cache miss
         }
         self.duration = duration;
-        // Absent in pre-BPM entries (decodes as 0 = untagged) — no version
-        // bump needed.
+        // Absent in entries written before BPM support, where it decodes as 0,
+        // meaning untagged. No version bump is needed.
         float bpm = [coder decodeFloatForKey:@"bpm"];
         self.bpm = isfinite(bpm) && bpm > 0 ? bpm : 0;
         // A cache-hit instance represents a successful prior parse.
@@ -233,19 +237,19 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     }
     if (!rep) {
         // CGImageForProposedRect returns the backing CGImage directly for
-        // CGImage-backed reps (and rasterizes anything else).
+        // CGImage-backed reps, and rasterizes anything else.
         CGImageRef cgImage = [thumbnail CGImageForProposedRect:NULL context:nil hints:nil];
         if (!cgImage) {
             return nil;
         }
         rep = [[NSBitmapImageRep alloc] initWithCGImage:cgImage];
     }
-    // JPEG can't store alpha: transparent art (PNG covers) would render
-    // composited on the fresh-parse session but flattened on every cache-hit
-    // session after. Keep alpha-bearing thumbnails as PNG; everything else
-    // stays JPEG (much smaller for photographic covers). The decode side
-    // (ImageIO) sniffs the bytes, so the "thumbnailJPEG" archive key keeps
-    // reading both.
+    // JPEG cannot store alpha, so transparent art such as a PNG cover would
+    // render composited in the fresh-parse session but flattened in every
+    // cache-hit session afterwards. Keep alpha-bearing thumbnails as PNG;
+    // everything else stays JPEG, which is far smaller for photographic
+    // covers. ImageIO sniffs the bytes on the decode side, so the
+    // "thumbnailJPEG" archive key keeps reading both.
     if (rep.hasAlpha) {
         return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
     }
@@ -272,12 +276,12 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     self.title = [url.path.lastPathComponent stringByDeletingPathExtension];
     self.title = [self.title stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 
-    // C++ exception barrier: a corrupt tag declaring a huge frame size can
-    // make TagLib throw (std::bad_alloc, std::length_error), and this runs on
-    // an NSOperationQueue worker where an uncaught C++ exception is
-    // std::terminate. Catch here — the outermost ObjC-facing boundary — so a
-    // malformed file degrades to a failed parse (parsedOK stays NO, nothing
-    // is cached) instead of unwinding into ObjC frames.
+    // A C++ exception barrier. A corrupt tag declaring a huge frame size can
+    // make TagLib throw std::bad_alloc or std::length_error, and this runs on
+    // an NSOperationQueue worker, where an uncaught C++ exception means
+    // std::terminate. Catch it here, at the outermost ObjC-facing boundary, so
+    // that a malformed file degrades to a failed parse — parsedOK stays NO and
+    // nothing is cached — rather than unwinding into ObjC frames.
     try {
         TagLibAudioFile fileRef([url.path UTF8String]);
         if (fileRef.isNull()) {
@@ -286,9 +290,10 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 
         TagLib::File *file = fileRef.file();
 
-        // Artist/title are the only tag-derived fields; everything below
-        // (audio properties, fileType, art) comes from the file itself, so a
-        // valid tagless file still parses OK with the filename-derived title.
+        // Artist and title are the only tag-derived fields. Everything below —
+        // the audio properties, fileType and art — comes from the file itself,
+        // so a valid tagless file still parses OK, with the filename-derived
+        // title.
         if (TagLib::Tag *tag = fileRef.tag()) {
             NSString *tagArtist = [[NSString stringWithStdString:tag->artist().to8Bit(true)] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
             NSString *tagTitle = [[NSString stringWithStdString:tag->title().to8Bit(true)] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
@@ -302,8 +307,8 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
             self.sampleRate = @(props->sampleRate());
         }
 
-        // TagLib's PropertyMap normalizes every format's tempo tag (ID3
-        // TBPM, MP4 tmpo, Vorbis/FLAC BPM) to the "BPM" key.
+        // TagLib's PropertyMap normalizes every format's tempo tag — ID3 TBPM,
+        // MP4 tmpo, Vorbis and FLAC BPM — to the "BPM" key.
         TagLib::StringList bpmValues = file->properties()["BPM"];
         if (!bpmValues.isEmpty()) {
             float tagBPM = [NSString stringWithStdString:bpmValues.front().to8Bit(true)].floatValue;
@@ -314,10 +319,10 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 
         self.fileType = fileTypeForTagLibFile(file);
         [_artwork adoptParsedArtData:albumArtDataFromTagLibFile(file)];
-        // TagLib opened and recognized the file — this is real metadata, safe
-        // to persist. A null FileRef (dataless cloud placeholder, transient
-        // I/O error) leaves this NO so the loaders won't cache the
-        // filename-only fallback and shadow the real tags for months.
+        // TagLib opened and recognized the file, so this is real metadata and
+        // safe to persist. A null FileRef, from a dataless cloud placeholder
+        // or a transient I/O error, leaves this NO, so the loaders will not
+        // cache the filename-only fallback and shadow the real tags for months.
         self.parsedOK = YES;
     }
     catch (const std::exception &e) {
@@ -328,13 +333,13 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     }
 }
 
-// Codec label for the format dispatch. Free function (not a method) so it
-// can't touch instance state: the on-demand art re-read shares the dispatch
-// and must never mutate the displayed fileType.
+// The codec label for the format dispatch. It is a free function rather than a
+// method so that it cannot touch instance state: the on-demand art re-read
+// shares the dispatch and must never mutate the displayed fileType.
 static NSString *fileTypeForTagLibFile(TagLib::File *file) {
     if (auto mpeg = dynamic_cast<TagLib::MPEG::File*>(file)) {
-        // .mp2/.aac open as MPEG::File too — the header distinguishes them
-        // (ADTS is AAC; layer 2 is MP2; layer 3 is MP3).
+        // .mp2 and .aac open as MPEG::File too, and the header tells them
+        // apart: ADTS is AAC, layer 2 is MP2 and layer 3 is MP3.
         if (auto props = mpeg->audioProperties()) {
             if (props->isADTS()) return FILETYPE_AAC;
             if (props->layer() == 2) return FILETYPE_MP2;
@@ -360,9 +365,9 @@ static NSString *fileTypeForTagLibFile(TagLib::File *file) {
     return nil;
 }
 
-// Raw compressed art bytes (nil when the file has none). Free functions like
-// fileTypeForTagLibFile: no instance state, so the extractor block below can
-// use them without capturing a metadata instance.
+// The raw compressed art bytes, or nil when the file has none. These are free
+// functions, like fileTypeForTagLibFile, and hold no instance state, so the
+// extractor block below can use them without capturing a metadata instance.
 static NSData *getAlbumArtMP3(TagLib::MPEG::File *mp3File);
 static NSData *getAlbumArtFLAC(TagLib::FLAC::File *flacFile);
 static NSData *getAlbumArtMP4(TagLib::MP4::File *mp4File);
@@ -388,17 +393,17 @@ static NSData *albumArtDataFromTagLibFile(TagLib::File *file) {
     return nil;
 }
 
-// Blocking file read, invoked by AudioTrackArtwork without its monitor held.
-// Captures nothing (a global block, no lifetime coupling); TagLib stays here
-// so AudioTrackArtwork compiles as plain ObjC.
+// A blocking file read, invoked by AudioTrackArtwork without its monitor held.
+// It captures nothing, being a global block with no lifetime coupling, and
+// TagLib stays here so that AudioTrackArtwork compiles as plain ObjC.
 static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void) {
     return ^NSData *(NSString *path) {
         if (!path) {
             return nil;
         }
-        // Same barrier as loadFromURL: — this runs on a background art load
-        // and a TagLib throw would terminate the process. A throw here just
-        // means no art.
+        // The same barrier as loadFromURL:. This runs on a background art
+        // load, where a TagLib throw would terminate the process. A throw here
+        // simply means no art.
         try {
             TagLibAudioFile fileRef([path UTF8String]);
             if (fileRef.isNull()) {
@@ -425,10 +430,10 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void) {
 }
 
 static NSData *getAlbumArtID3v2(TagLib::ID3v2::Tag *id3v2Tag) {
-    // TagLib hands back UnknownFrame for frames it couldn't parse, so only
-    // frames that actually cast count. Prefer the FrontCover-typed picture:
-    // files can carry a 32x32 FileIcon ahead of the cover, and taking the
-    // first blindly puts the icon on the 300px header and the dock.
+    // TagLib hands back UnknownFrame for frames it could not parse, so only
+    // frames that actually cast count. Prefer the FrontCover-typed picture: a
+    // file can carry a 32x32 FileIcon ahead of the cover, and taking the first
+    // blindly puts that icon on the 300px header and the dock.
     const TagLib::ID3v2::FrameList &frameList = id3v2Tag->frameList("APIC");
     TagLib::ID3v2::AttachedPictureFrame *fallback = nullptr;
     for (auto it = frameList.begin(); it != frameList.end(); ++it) {
@@ -463,8 +468,8 @@ static NSData *getAlbumArtMP4(TagLib::MP4::File *mp4File) {
 }
 
 static NSData *getAlbumArtFLAC(TagLib::FLAC::File *flacFile) {
-    // Same picture-type preference as getAlbumArtID3v2: the front cover wins
-    // over whatever picture happens to be stored first.
+    // The same picture-type preference as getAlbumArtID3v2: the front cover
+    // beats whatever picture happens to be stored first.
     const TagLib::List<TagLib::FLAC::Picture*>& picList = flacFile->pictureList();
     TagLib::FLAC::Picture *chosen = nullptr;
     for (auto it = picList.begin(); it != picList.end(); ++it) {

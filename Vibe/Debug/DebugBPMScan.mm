@@ -13,18 +13,19 @@
 
 #include <vector>
 
-// Core of the `scan_bpm` debug command: decodes the file and runs
-// AudioBPMAnalyzer in the CALLING process, returning one JSON object. The
-// decode mirrors the waveform loader's (interleaved float32, shared mono mix)
-// so the result is exactly what an in-app load would detect. No app state, no
-// caches — which is why the debug CLI client executes this verb locally
-// (DebugUtil.m) instead of doing the channel round-trip: it works with no app
-// running. The same function backs the app-side table entry for any caller
-// that posts the command file directly.
+// The core of the `scan_bpm` debug command. It decodes the file and runs
+// AudioBPMAnalyzer in the calling process, returning one JSON object. The
+// decode mirrors the waveform loader's — interleaved float32, with the shared
+// mono mix — so the result is exactly what an in-app load would detect.
 //
-// Sandbox: whichever process runs this is sandboxed, so <file> must be
-// somewhere it can read — in practice the app container's tmp (the client's
-// `scan_bpm -` stdin form stages the bytes there; see scan-bpm.sh).
+// It touches no app state and no caches, which is why the debug CLI client in
+// DebugUtil.m runs this verb locally rather than doing the channel round-trip:
+// it works with no app running. The same function backs the app-side table
+// entry for any caller that posts the command file directly.
+//
+// Sandbox note: whichever process runs this is sandboxed, so <file> must sit
+// somewhere it can read, in practice the app container's tmp. The client's
+// `scan_bpm -` stdin form stages the bytes there; see scan-bpm.sh.
 
 static NSString *VibeBPMScanJSONForDictionary(NSDictionary *reply) {
     NSData *data = [NSJSONSerialization dataWithJSONObject:reply options:0 error:nil];
@@ -59,9 +60,10 @@ NSString *VibeDebugBPMScanJSON(NSString *rawPath) {
         if (numChannels > 1) {
             monoScratch.resize(kBlockFrames);
         }
-        // Bounded by framePosition, not read-until-empty: a read issued exactly
-        // at EOF doesn't report a clean zero-length success — it fails with a
-        // nil error (AVAudioFile quirk, verified) — so never issue it.
+        // Bounded by framePosition rather than reading until empty. A read
+        // issued exactly at EOF does not report a clean zero-length success:
+        // it fails with a nil error, an AVAudioFile quirk, verified. So never
+        // issue it.
         while (file.framePosition < file.length) {
             if (![file readIntoBuffer:buffer error:&error]) {
                 return VibeBPMScanJSONForDictionary(@{

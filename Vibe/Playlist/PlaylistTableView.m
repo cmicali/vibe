@@ -10,7 +10,7 @@
 #import "PlaylistTextCell.h"
 #import "EqualizerIndicatorView.h"
 
-// Also the scroll view's line scroll and the cell prototypes' height.
+// This is also the scroll view's line scroll and the cell prototypes' height.
 static const CGFloat kPlaylistRowHeight = 28;
 
 @implementation PlaylistTableView
@@ -28,17 +28,18 @@ static const CGFloat kPlaylistRowHeight = 28;
         self.focusRingType = NSFocusRingTypeNone;
         self.intercellSpacing = NSMakeSize(0, 0);
         self.columnAutoresizingStyle = NSTableViewSequentialColumnAutoresizingStyle;
-        // Type-select would swallow plain keystrokes (jump to the first row
-        // starting with that letter) before the menu sees them, breaking the
-        // unmodified transport key equivalents (Space/B/N) whenever the table
-        // has focus.
+        // Type-select would swallow plain keystrokes, jumping to the first row
+        // starting with that letter, before the menu saw them. That would
+        // break the unmodified transport key equivalents — Space, B and N —
+        // whenever the table had focus.
         self.allowsTypeSelect = NO;
-        // Opt out of the macOS 11+ inset look; we want the selection highlight
-        // and row content flush with the scroll view's left/right edges.
+        // Opt out of the macOS 11 inset look: the selection highlight and the
+        // row content should run flush with the scroll view's left and right
+        // edges.
         self.style = NSTableViewStyleFullWidth;
 
-        // The column set. Cell construction (makeCellViewWithIdentifier:)
-        // keys off these same identifiers — the cells reuse them.
+        // The column set. Cell construction, in makeCellViewWithIdentifier:,
+        // keys off these same identifiers, and the cells reuse them.
         struct {
             NSString *identifier;
             CGFloat width, minWidth, maxWidth;
@@ -92,7 +93,13 @@ static NSDictionary *artistAttributes;
 static void ensureCellAttributes(void) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        NSMutableParagraphStyle *right = [[NSParagraphStyle new] mutableCopy];
+        // Every column's paragraph style truncates. These strings are set as
+        // attributed values, and an attributed string's paragraph style beats
+        // the cell's own line break mode, so leaving the style out left the
+        // default, which is wrapping, and a long title broke the row's layout.
+        NSMutableParagraphStyle *left = [[NSParagraphStyle new] mutableCopy];
+        left.lineBreakMode = NSLineBreakByTruncatingTail;
+        NSMutableParagraphStyle *right = [left mutableCopy];
         right.alignment = NSTextAlignmentRight;
         numColumnAttributes = @{
                 NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
@@ -110,16 +117,18 @@ static void ensureCellAttributes(void) {
                 NSForegroundColorAttributeName: NSColor.labelColor,
                 NSKernAttributeName: @(-0.3),
                 NSFontAttributeName: [Fonts font:14],
+                NSParagraphStyleAttributeName: left,
         };
         artistAttributes = @{
                 NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
                 NSKernAttributeName: @(-0.3),
                 NSFontAttributeName: [Fonts font:14],
+                NSParagraphStyleAttributeName: left,
         };
     });
 }
 
-// Static text field for a table cell, backed by the vertically-centering
+// A static text field for a table cell, backed by the vertically centering
 // PlaylistTextCell.
 static NSTextField *makeCellTextField(NSRect frame) {
     NSTextField *field = [[NSTextField alloc] initWithFrame:frame];
@@ -137,7 +146,7 @@ static NSTextField *makeCellTextField(NSRect frame) {
 }
 
 // Builds the table's cell prototypes in code. makeViewWithIdentifier returns
-// nil until a view of that identifier has been created once; setting the
+// nil until a view of that identifier has been created once, and setting the
 // identifier here puts these into the table's normal reuse queue.
 - (NSTableCellView *)makeCellViewWithIdentifier:(NSString *)identifier width:(CGFloat)width {
     CGFloat rowHeight = self.rowHeight;
@@ -153,7 +162,8 @@ static NSTextField *makeCellTextField(NSRect frame) {
         view.textField = field;
     }
     else if ([identifier isEqualToString:@"artColumn"]) {
-        // Bleeds past the cell on every side so artwork rows tile seamlessly.
+        // It bleeds past the cell on every side, so artwork rows tile
+        // seamlessly.
         PlaylistCoverImageView *imageView = [[PlaylistCoverImageView alloc] initWithFrame:NSInsetRect(view.bounds, -4, -4)];
         imageView.imageScaling = NSImageScaleAxesIndependently;
         imageView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;

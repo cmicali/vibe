@@ -6,9 +6,9 @@
 #import <Foundation/Foundation.h>
 #import <CoreAudio/CoreAudio.h>
 
-// Raw HAL property accessors (one property read/write per method). Device
-// enumeration, AudioDevice model lookup, and device-change notifications
-// live in AudioDeviceManager.
+// Raw HAL property accessors, one property read or write per method. Device
+// enumeration, AudioDevice model lookup and device-change notifications live
+// in AudioDeviceManager.
 @interface CoreAudioUtil : NSObject
 
 // kAudioObjectUnknown when there is no default.

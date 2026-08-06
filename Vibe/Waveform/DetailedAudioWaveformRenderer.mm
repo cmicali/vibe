@@ -9,23 +9,23 @@
 #include <vector>
 #include <cmath>
 
-// Bars reach at most ±kBarAmplitude·(height/2) from the vertical midline.
-// VibeBarVScale is the ONE normalized→pixels scale, shared by the seek hit
-// band (seekHitBandForBounds:), the morph engine's frame-skip heuristic (the
-// vscale block handed to it in init), the drawn mask (rebuildMaskPaths), and
-// the gradient band (configureGradient:) — they silently disagree if any
-// site re-derives it.
+// Bars reach at most ±kBarAmplitude times half the height from the vertical
+// midline. VibeBarVScale is the one normalized-to-pixels scale, shared by the
+// seek hit band in seekHitBandForBounds:, the morph engine's frame-skip
+// heuristic through the vscale block handed to it in init, the drawn mask in
+// rebuildMaskPaths and the gradient band in configureGradient:. They disagree
+// silently if any site re-derives it.
 static const CGFloat kBarAmplitude = 0.75;
 static inline CGFloat VibeBarVScale(CGFloat height) {
     return (height / 2) * kBarAmplitude;
 }
 
-// Width of the hover highlight column. A single bar is sub-point wide at
-// these bar counts (1024 and up), so the highlight spans a few of them —
-// wide enough to read as a lit slice of the waveform, narrow enough to stay
-// a line rather than a blob. Rounded to whole device pixels at use (see
-// setHoverHighlightX:): a fractional width leaves a half-lit edge pixel, so
-// the column never actually reaches full brightness.
+// The width of the hover highlight column. A single bar is sub-point wide at
+// these bar counts, 1,024 and up, so the highlight spans a few of them: wide
+// enough to read as a lit slice of the waveform, narrow enough to stay a line
+// rather than a blob. It is rounded to whole device pixels at use; see
+// setHoverHighlightX:. A fractional width leaves a half-lit edge pixel, so the
+// column never actually reaches full brightness.
 static const CGFloat kHoverHighlightWidth = 1.5;
 
 @implementation DetailedAudioWaveformRenderer {
@@ -33,24 +33,25 @@ static const CGFloat kHoverHighlightWidth = 1.5;
 
     // One bar-shaped mask clips the whole gradient stack. Masking the two
     // gradients separately would rasterize the identical bar path twice per
-    // morph frame — a full-view alpha pass each — and ship the 4096-element
+    // morph frame, a full-view alpha pass each, and ship the 4,096-element
     // path to the render server twice.
     CALayer *_waveformContainer;      // mask: _barMask; holds both gradients
     CAShapeLayer *_barMask;
     CAGradientLayer *_unplayedGradient;
 
-    // Container layer with masksToBounds=YES. Its bounds.size.width is the
-    // progress indicator — anything inside is clipped to the played region.
+    // A container layer with masksToBounds=YES. Its bounds.size.width is the
+    // progress indicator, so anything inside is clipped to the played region.
     CALayer *_playedClip;
     CAGradientLayer *_playedGradient;
 
-    // Hover highlight: a flat full-brightness column. A sibling INSIDE
-    // _waveformContainer, so the shared bar mask clips it to the waveform's
-    // own envelope — the lit slice is the waveform, not a line drawn over it.
+    // The hover highlight: a flat, full-brightness column. It is a sibling
+    // inside _waveformContainer, so the shared bar mask clips it to the
+    // waveform's own envelope, which makes the lit slice the waveform rather
+    // than a line drawn over it.
     CALayer *_hoverColumn;
 
-    // Samples: interleaved min/max per bar, normalized. Rebuild callback:
-    // rebuildMaskPaths.
+    // The samples are a normalized, interleaved min and max per bar, and
+    // rebuildMaskPaths is the rebuild callback.
     WaveformMorphEngine *_morph;
 }
 
@@ -70,8 +71,8 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     return barWidth * (CGFloat)index;
 }
 
-// Matches the drawn band: bars reach at most ±kBarAmplitude·(height/2) from
-// the midline (VibeBarVScale).
+// Matches the drawn band: bars reach at most ±kBarAmplitude times half the
+// height from the midline, through VibeBarVScale.
 - (NSRect)seekHitBandForBounds:(NSRect)bounds {
     CGFloat midY = bounds.size.height / 2;
     CGFloat vscale = VibeBarVScale(bounds.size.height);
@@ -95,18 +96,19 @@ static const CGFloat kHoverHighlightWidth = 1.5;
 }
 
 - (void)setupGradientLayers {
-    // Overall opacity multiplier applied to both gradient layers — tones the
-    // whole waveform down so it sits comfortably over the album-art backdrop.
+    // An overall opacity multiplier applied to both gradient layers. It tones
+    // the whole waveform down, so that it sits comfortably over the album-art
+    // backdrop.
     const float kWaveformOpacity = 0.75f;
 
     CGFloat scale = self.parentLayer.contentsScale;
 
-    // Everything composites inside one container that the bar mask clips:
-    // unplayed gradient across the full width, played gradient above it
-    // revealed by the progress clip. Mask path updates always happen inside
-    // setDisableActions:YES transactions — every visible morph is the
-    // timer-driven rebuild in rebuildMaskPaths, never a Core Animation path
-    // interpolation.
+    // Everything composites inside one container that the bar mask clips: the
+    // unplayed gradient across the full width, and the played gradient above
+    // it, revealed by the progress clip. Mask path updates always happen
+    // inside setDisableActions:YES transactions, because every visible morph
+    // is the timer-driven rebuild in rebuildMaskPaths, never a Core Animation
+    // path interpolation.
     _waveformContainer = [CALayer layer];
     _waveformContainer.anchorPoint = CGPointZero;
     _waveformContainer.actions = @{@"bounds": [NSNull null], @"position": [NSNull null]};
@@ -117,16 +119,17 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     _waveformContainer.mask = _barMask;
     [self.parentLayer addSublayer:_waveformContainer];
 
-    // Unplayed: dim gradient over the full waveform.
+    // Unplayed: a dim gradient over the full waveform.
     _unplayedGradient = [CAGradientLayer layer];
     _unplayedGradient.opacity = kWaveformOpacity;
     _unplayedGradient.contentsScale = scale;
     [self configureGradient:_unplayedGradient];
     [_waveformContainer addSublayer:_unplayedGradient];
 
-    // Played: bright gradient inside a clip container; resize the container
-    // on progress changes to reveal/hide the played portion. Sits on top of
-    // the unplayed gradient so its brighter colors win wherever it's visible.
+    // Played: a bright gradient inside a clip container. Resizing the
+    // container on a progress change reveals or hides the played portion. It
+    // sits on top of the unplayed gradient, so its brighter colors win
+    // wherever it is visible.
     _playedClip = [CALayer layer];
     _playedClip.masksToBounds = YES;
     _playedClip.anchorPoint = CGPointZero;
@@ -140,9 +143,9 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     [_playedClip addSublayer:_playedGradient];
     [_waveformContainer addSublayer:_playedClip];
 
-    // Added last so it composites over both gradients. Full opacity — unlike
-    // the gradients it does NOT take kWaveformOpacity: this column is meant
-    // to be the brightest thing in the waveform.
+    // Added last, so that it composites over both gradients, and at full
+    // opacity. Unlike the gradients it does not take kWaveformOpacity, because
+    // this column is meant to be the brightest thing in the waveform.
     _hoverColumn = [CALayer layer];
     _hoverColumn.anchorPoint = CGPointZero;
     _hoverColumn.actions = @{@"bounds": [NSNull null], @"position": [NSNull null],
@@ -153,14 +156,16 @@ static const CGFloat kHoverHighlightWidth = 1.5;
 }
 
 - (void)configureGradient:(CAGradientLayer *)gradient {
-    // Fade runs top → bottom (layer coords: y=1 is the top, y=0 the bottom),
-    // so colors[0] is the top color and colors[last] the bottom. The start/end
-    // points are pinned to the waveform's vertical band, not the full view, so
-    // the full 100%→70% range lands across the visible bars: bars reach at
-    // most ±kBarAmplitude·(height/2) from the midline (VibeBarVScale), i.e.
-    // the band spans y ∈ [(1∓kBarAmplitude)/2] — computed, so an amplitude
+    // The fade runs from top to bottom. In layer coordinates y=1 is the top
+    // and y=0 the bottom, so colors[0] is the top color and the last entry is
+    // the bottom. The start and end points are pinned to the waveform's
+    // vertical band rather than the full view, so that the whole 100%-to-70%
+    // range lands across the visible bars. Bars reach at most ±kBarAmplitude
+    // times half the height from the midline, through VibeBarVScale, so the
+    // band spans y in [(1∓kBarAmplitude)/2]. It is computed, so an amplitude
     // change re-aims the fade automatically. Mapping the fade to the whole
-    // view instead would swing the bars only ~0.96→0.74 — too subtle to read.
+    // view instead would swing the bars only from about 0.96 to 0.74, too
+    // subtle to read.
     gradient.startPoint = CGPointMake(0.5, (1 + kBarAmplitude) / 2);
     gradient.endPoint = CGPointMake(0.5, (1 - kBarAmplitude) / 2);
 }
@@ -182,16 +187,17 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     _gradientColor = isDark ? [NSColor whiteColor] : [NSColor blackColor];
     [self setGradientLayerColors:_playedGradient colors:[self playedGradientColors:_gradientColor isDark:isDark]];
     [self setGradientLayerColors:_unplayedGradient colors:[self unplayedGradientColors:_gradientColor isDark:isDark]];
-    // Full alpha, no vertical fade: the played gradient's own top is the
+    // Full alpha and no vertical fade. The played gradient's own top is the
     // ceiling everywhere else, so this reads as lit at every bar height.
     _hoverColumn.backgroundColor = _gradientColor.CGColor;
 }
 
-// Slight vertical fade: full color at the top, kBottomAlpha of it at the
-// bottom (same colors + start/end points in light and dark — the direction
-// is fixed by the gradient's startPoint/endPoint, not by the array order).
-// Played is fully opaque at the top; unplayed is half as opaque, so the
-// played region reads clearly brighter where the two meet at the boundary.
+// A slight vertical fade: full color at the top, kBottomAlpha of it at the
+// bottom. The colors and the start and end points are the same in light and
+// dark, because the gradient's startPoint and endPoint fix the direction, not
+// the array order. Played is fully opaque at the top and unplayed is half as
+// opaque, so the played region reads clearly brighter where the two meet at
+// the boundary.
 - (NSArray<NSColor *> *)playedGradientColors:(NSColor *)baseColor isDark:(BOOL)isDark {
     const CGFloat kBottomAlpha = 0.45;
     const CGFloat kPlayedTop = 1.0;
@@ -223,10 +229,10 @@ static const CGFloat kHoverHighlightWidth = 1.5;
         [CATransaction commit];
         return;
     }
-    // Snap both edges to the device-pixel grid: a fractional origin or width
+    // Snap both edges to the device-pixel grid. A fractional origin or width
     // leaves half-lit edge pixels, and the column is supposed to be the
     // brightest thing in the waveform.
-    CGFloat scale = self.parentLayer.contentsScale > 0 ? self.parentLayer.contentsScale : 2;
+    CGFloat scale = VibeBackingScaleForLayer(self.parentLayer);
     CGFloat width = MAX(round(kHoverHighlightWidth * scale), 1) / scale;
     CGFloat left = floor((x - width / 2) * scale) / scale;
     left = MIN(MAX(left, 0), MAX(0, b.size.width - width));
@@ -250,10 +256,10 @@ static const CGFloat kHoverHighlightWidth = 1.5;
 
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
     CGRect localBounds = CGRectMake(0, 0, bounds.size.width, bounds.size.height);
-    // Disabled actions: an animated window resize redraws every frame, and
-    // implicit 0.25s animations on these leave the waveform chasing the
-    // window. (_playedClip needs no wrapper — its actions dict already
-    // disables bounds/position.)
+    // Actions are disabled here. An animated window resize redraws every
+    // frame, and implicit 0.25s animations on these leave the waveform chasing
+    // the window. _playedClip needs no wrapper, because its actions dictionary
+    // already disables bounds and position.
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     _waveformContainer.frame = localBounds;
@@ -262,35 +268,36 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     _playedGradient.frame = localBounds;
     [CATransaction commit];
     [self updateProgress:progress waveform:waveform];
-    // A resize changes the column's height (and its clamp) — re-place it.
+    // A resize changes the column's height, and its clamp, so re-place it.
     [self setHoverHighlightX:self.hoverHighlightX];
 
-    // The x2/x4/x8 styles intentionally draw more rects than device pixels:
-    // the sub-pixel overlap accumulates differently per density, which is
-    // what visually distinguishes the oversampling variants. Don't clamp.
+    // The x2, x4 and x8 styles intentionally draw more rects than there are
+    // device pixels. The sub-pixel overlap accumulates differently at each
+    // density, and that is what visually distinguishes the oversampling
+    // variants. Do not clamp.
     NSUInteger count = self.numBars;
 
-    // The target the bars ease toward: the waveform's per-bar min/max, or
-    // all-zero (collapsed to the midline) when there is no waveform — a
-    // track change morphs the old bars toward zero until the new track's
-    // waveform arrives and retargets them to its shape.
-    std::vector<float> &target = [_morph targetScratchWithCount:count * 2];
-    if (waveform) {
+    // The target the bars ease toward: the waveform's per-bar min and max, or
+    // all-zero, collapsed to the midline, when there is no waveform. A track
+    // change therefore morphs the old bars toward zero until the new track's
+    // waveform arrives and retargets them to its shape. The engine owns the
+    // fast, collapsed and commit scaffold and skips this fill on a live-resize
+    // frame, where the waveform identity and count are unchanged. Only the
+    // sampling itself belongs to this family.
+    [_morph updateTargetForSize:bounds.size identity:waveform count:count * 2
+                           fill:^(std::vector<float> &target) {
         for (NSUInteger i = 0; i < count; i++) {
             AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
             target[i * 2] = m.getMin();
             target[i * 2 + 1] = m.getMax();
         }
-    }
-    else {
-        std::fill(target.begin(), target.end(), 0.0f);
-    }
-    [_morph commitTargetForSize:bounds.size hasWaveform:(waveform != nil)];
+    }];
 }
 
-// Build the bar path for the currently displayed samples and set it on the
-// shared mask (the morph engine's rebuild callback). Pixel-rounding is
-// reserved for the settled state — mid-morph it would quantize the motion
+// Builds the bar path for the currently displayed samples and sets it on the
+// shared mask. It is the morph engine's rebuild callback. Pixel-rounding is
+// reserved for the settled state, because mid-morph it would quantize the
+// motion
 // into visible 1px steps.
 - (void)rebuildMaskPaths {
     const std::vector<float> &samples = [_morph displayedSamples];
@@ -303,10 +310,9 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     CGFloat midY = maskSize.height / 2;
     CGFloat vscale = VibeBarVScale(maskSize.height);
     CGFloat barWidth = [self barWidthForWidth:width barCount:count];
-    // With no waveform, bars are allowed to shrink to nothing; with one,
-    // they keep the 1px floor (silent and not-yet-loaded chunks draw as a
-    // hairline, matching the settled look mid-load).
-    CGFloat minHeight = _morph.hasWaveform ? 1 : 0;
+    // Hairline floor vs. collapse-to-nothing — policy on the engine, shared
+    // with the Sonic Cirrus family.
+    CGFloat minHeight = _morph.barMinHeight;
     BOOL settled = _morph.isSettled;
     CGMutablePathRef path = CGPathCreateMutable();
     for (NSUInteger i = 0; i < count; i++) {

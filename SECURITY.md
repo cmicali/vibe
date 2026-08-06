@@ -1,15 +1,14 @@
-# Security Policy
+# Security policy
 
-## Supported Versions
+## Supported versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+Only the latest release gets security fixes. Version 1.5 and above are supported; anything older is not.
 
-| Version | Supported          |
+| Version | Supported |
 | ------- | ------------------ |
 | >= 1.5  | :white_check_mark: |
 | < 1.5   | :x:                |
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-Please report any security issues via [GitHub issues](https://github.com/cmicali/vibe/issues)
+Report security issues through [GitHub issues](https://github.com/cmicali/vibe/issues).

@@ -8,8 +8,8 @@
 #import "PlaylistRowView.h"
 #import "EqualizerIndicatorView.h"
 
-// Reuse identifier for the custom row view (cell views reuse their column
-// identifiers; the row view needs its own).
+// The reuse identifier for the custom row view. Cell views reuse their column
+// identifiers, so the row view needs one of its own.
 static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 
 // Validation for the row context menu installed in setTableView:.
@@ -18,17 +18,17 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 
 @implementation PlaylistController {
     NSMutableArray<AudioTrack *> *_playlist;
-    // Track → row for reloadTrack:. didLoadMetadata fires it once per track
-    // during the metadata sweep — a linear scan would make that sweep O(n²)
-    // in playlist size on the main thread. Rebuilt whenever the playlist is
-    // replaced (play:) and extended by append:; rows never move otherwise,
-    // so the recorded indexes stay valid.
+    // A track-to-row map for reloadTrack:. didLoadMetadata fires that once per
+    // track during the metadata sweep, and a linear scan would make the sweep
+    // O(n²) in playlist size on the main thread. play: rebuilds the map when
+    // the playlist is replaced and append: extends it; rows never move
+    // otherwise, so the recorded indexes stay valid.
     NSMapTable<AudioTrack *, NSNumber *> *_trackIndexes;
     __weak PlaylistTableView *_tableView;
 }
 
 - (NSArray<AudioTrack *> *)playlist {
-    // Defensive shallow copy: callers iterate the result across async work
+    // A defensive shallow copy. Callers iterate the result across async work
     // while append: can extend the live array on the main thread.
     return [_playlist copy];
 }
@@ -47,9 +47,9 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     _tableView.dataSource = self;
     [_tableView setTarget:self];
     [_tableView setDoubleAction:@selector(doubleClick:)];
-    // The table gets its own menu (shadowing the window-wide one, whose
-    // "Show in Finder" reveals the CURRENT track) so a right-click on a row
-    // reveals THAT row's track.
+    // The table gets its own menu, shadowing the window-wide one, whose "Show
+    // in Finder" reveals the current track, so that a right-click on a row
+    // reveals that row's track instead.
     NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Playlist Menu"];
     NSMenuItem *showRowInFinder = [[NSMenuItem alloc] initWithTitle:@"Show in Finder"
                                                              action:@selector(showClickedTrackInFinder:)
@@ -77,8 +77,8 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 
 #pragma mark - Row views
 
-// Custom row view: neutral selection/playing wash instead of the system
-// accent-blue selectedContentBackgroundColor fill.
+// A custom row view, which gives selection and the playing row a neutral wash
+// in place of the system's accent-blue selectedContentBackgroundColor fill.
 - (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {
     PlaylistRowView *rowView = [tableView makeViewWithIdentifier:kPlaylistRowViewIdentifier owner:self];
     if (!rowView) {
@@ -90,8 +90,8 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 }
 
 // reloadDataForRowIndexes: rebuilds cell views but keeps the row views, so
-// every currentIndex change re-stamps the visible rows' playing flag here
-// (rows scrolled in later get theirs from rowViewForRow:).
+// every currentIndex change re-stamps the visible rows' playing flag here.
+// Rows scrolled in later get theirs from rowViewForRow:.
 - (void)refreshRowViewPlayingStates {
     NSInteger current = (NSInteger)self.currentIndex;
     [self.tableView enumerateAvailableRowViewsUsingBlock:^(NSTableRowView *rowView, NSInteger row) {
@@ -103,15 +103,15 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 
 #pragma mark - Cell population
 
-// Structure and styling live in PlaylistTableView (cell construction, fonts,
-// column set); this method only decides content.
+// Structure and styling — cell construction, fonts and the column set — live
+// in PlaylistTableView. This method decides content alone.
 - (nullable NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row {
     AudioTrack *track = _playlist[row];
     BOOL isCurrentRow = (row == (NSInteger)self.currentIndex);
     NSTableCellView *view = [_tableView cellViewForColumn:tableColumn];
     if ([tableColumn.identifier isEqualToString:@"numColumn"]) {
         EqualizerIndicatorView *eqView = [PlaylistTableView equalizerViewInCell:view];
-        // Reset on every population — cells are reused across rows.
+        // Reset on every population, because cells are reused across rows.
         eqView.barColor = isCurrentRow ? self.accentColor : nil;
         if (isCurrentRow) {
             view.textField.hidden = YES;
@@ -149,7 +149,8 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
         return;
     }
     _accentColor = accentColor;
-    // Only the playing row renders the accent (equalizer bars, title text).
+    // Only the playing row renders the accent, and only on its equalizer bars:
+    // the title text deliberately keeps the normal label color.
     [self reloadCurrentTrack];
 }
 
@@ -166,7 +167,7 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     [self addTracksForURLs:urls];
     self.currentIndex = 0;
     [self.tableView reloadData];
-    // reloadData keeps the scroll offset; a new playlist starts at the top.
+    // reloadData keeps the scroll offset, but a new playlist starts at the top.
     [self scrollCurrentTrackToVisible];
     [self play];
 }
@@ -176,8 +177,8 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
         return;
     }
     [self addTracksForURLs:urls];
-    // Whole-table reload like play: — only visible rows render either way.
-    // Playback and currentIndex are deliberately untouched.
+    // A whole-table reload, as in play:, since only the visible rows render
+    // either way. Playback and currentIndex are deliberately untouched.
     [self.tableView reloadData];
 }
 
@@ -205,10 +206,11 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 }
 
 - (void)reloadTrackAtIndex:(NSUInteger)index {
-    // Guard out-of-range (matches reloadCurrentTrackPlayState): reloadCurrentTrack
-    // fires with currentIndex 0 on an empty playlist (e.g. updateUI at launch),
-    // and doubleClick passes a previous index that a playlist replacement may
-    // have invalidated.
+    // Guard against an out-of-range index, matching
+    // reloadCurrentTrackPlayState. reloadCurrentTrack fires with currentIndex
+    // 0 on an empty playlist, as updateUI does at launch, and doubleClick
+    // passes a previous index that a playlist replacement may have
+    // invalidated.
     if (index >= _playlist.count) {
         return;
     }
@@ -216,8 +218,8 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 }
 
 - (void)reloadTrackInRange:(NSRange)range {
-    // Clamp against the table like reloadTrackAtIndex: guards its index —
-    // next/previous reload a two-row window that can extend past the end.
+    // Clamp against the table, as reloadTrackAtIndex: guards its index. next
+    // and previous reload a two-row window that can extend past the end.
     range = NSIntersectionRange(range, NSMakeRange(0, (NSUInteger)self.tableView.numberOfRows));
     if (range.length == 0) {
         return;
@@ -257,8 +259,9 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     return NO;
 }
 
-// Called only on track changes, and scrollRowToVisible: no-ops while the row
-// is on screen — a user who scrolled away keeps their position until then.
+// Called only on a track change, and scrollRowToVisible: no-ops while the row
+// is on screen, so a user who has scrolled away keeps their position until
+// then.
 - (void)scrollCurrentTrackToVisible {
     if (self.currentIndex >= _playlist.count) {
         return;
@@ -273,8 +276,8 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     NSUInteger previousIndex = self.currentIndex;
     self.currentIndex = (NSUInteger) [_tableView clickedRow];
     [self play];
-    // Reload both rows: the clicked row must show its playing state now, not
-    // after the async didStartPlaying round-trip.
+    // Reload both rows. The clicked row must show its playing state now,
+    // rather than after the async didStartPlaying round-trip.
     [self refreshRowViewPlayingStates];
     [self reloadTrackAtIndex:previousIndex];
     [self reloadTrackAtIndex:self.currentIndex];
@@ -283,10 +286,10 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     }
 }
 
-// The row context menu's action. clickedRow is read at action time, not
-// captured at menu-open — the playlist can be replaced while the menu is up,
-// so the row is re-bounds-checked here (validation already disabled the item
-// for a click outside the rows).
+// The row context menu's action. clickedRow is read at action time rather than
+// captured when the menu opens, because the playlist can be replaced while the
+// menu is up, so the row is bounds-checked again here. Validation has already
+// disabled the item for a click outside the rows.
 - (IBAction)showClickedTrackInFinder:(id)sender {
     NSInteger row = _tableView.clickedRow;
     if (row < 0 || row >= (NSInteger)_playlist.count) {
@@ -300,8 +303,8 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     if ([menuItem.identifier isEqualToString:@"show_clicked_track_in_finder"]) {
-        // Right-click on the table's empty area still opens the menu, with
-        // clickedRow -1.
+        // A right-click on the table's empty area still opens the menu, with a
+        // clickedRow of -1.
         NSInteger row = _tableView.clickedRow;
         return row >= 0 && row < (NSInteger)_playlist.count;
     }
@@ -313,7 +316,7 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 }
 
 - (NSInteger)getIndexForTrack:(AudioTrack *)track {
-    // AudioTrack uses NSObject's identity hash/isEqual, so this is an
+    // AudioTrack uses NSObject's identity hash and isEqual, so this is an
     // identity lookup.
     NSNumber *index = track ? [_trackIndexes objectForKey:track] : nil;
     return index ? index.integerValue : -1;

@@ -15,13 +15,15 @@ static const CGFloat kTitleHeight   = 14;
 static const CGFloat kReadoutHeight = 16;
 static const CGFloat kBottomPadding = 16;
 
-// Collapsed (playlist-hidden) layout: no header, the fader gets everything.
+// The collapsed, playlist-hidden layout: no header, and the fader gets
+// everything.
 static const CGFloat kFaderTopCompact    = 12;
 static const CGFloat kBottomPaddingCompact = 12;
 
-// The header (PITCH + readout) fades and the fader slides as a continuous
-// function of panel height across this band, so the animated window resize
-// carries the panel transition with it — no discrete jump at a threshold.
+// The header, PITCH plus the readout, fades and the fader slides as a
+// continuous function of the panel height across this band, so that the
+// animated window resize carries the panel transition with it, with no
+// discrete jump at a threshold.
 static const CGFloat kHeaderFadeStartHeight = 200;
 static const CGFloat kHeaderFadeEndHeight   = 340;
 
@@ -66,7 +68,8 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
 - (void)layoutPanel {
     CGFloat width = self.bounds.size.width;
     CGFloat height = self.bounds.size.height;
-    // 0 = collapsed (header hidden, full-length fader), 1 = expanded.
+    // 0 is collapsed, with the header hidden and a full-length fader; 1 is
+    // expanded.
     CGFloat t = (height - kHeaderFadeStartHeight) / (kHeaderFadeEndHeight - kHeaderFadeStartHeight);
     t = MAX(0, MIN(1, t));
 
@@ -83,10 +86,10 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
-    // Round only the right corners, with a path that stays strictly inside
-    // bounds. Never draw outside bounds here: the backing layer doesn't mask,
-    // and (at least via CALayer renderInContext, seen on macOS 26) drawing
-    // past the left edge bleeds a dark strip over the main content.
+    // Round only the right corners, with a path that stays strictly inside the
+    // bounds. Never draw outside the bounds here: the backing layer does not
+    // mask, and drawing past the left edge bleeds a dark strip over the main
+    // content — seen on macOS 26, at least through CALayer renderInContext.
     NSRect b = self.bounds;
     CGFloat r = kMainWindowCornerRadius;
     NSBezierPath *background = [NSBezierPath bezierPath];
@@ -104,7 +107,7 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
     [[NSColor colorWithWhite:0.075 alpha:0.97] setFill];
     [background fill];
 
-    // Hairline seam against the main content, like a joined deck panel.
+    // A hairline seam against the main content, like a joined deck panel.
     [[NSColor colorWithWhite:0 alpha:0.8] setFill];
     NSRectFillUsingOperation(NSMakeRect(0, 0, 1, self.bounds.size.height), NSCompositingOperationSourceOver);
 }
@@ -134,7 +137,7 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
         text = @"0.0%";
     }
     else {
-        // U+2212 minus sign, wider than a hyphen — matches the fader scale.
+        // A U+2212 minus sign, wider than a hyphen, matching the fader scale.
         text = [NSString stringWithFormat:@"%@%.1f%%", pitch > 0 ? @"+" : @"−", fabsf(pitch)];
     }
     _readoutField.stringValue = text;

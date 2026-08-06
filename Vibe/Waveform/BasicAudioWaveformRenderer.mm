@@ -23,14 +23,15 @@
 }
 
 - (CGFloat)barXForIndex:(NSUInteger)index width:(CGFloat)width barCount:(NSUInteger)count barWidth:(CGFloat)barWidth {
-    // Fixed-width bars on a width/count pitch, so a gap opens up between
-    // them (unlike Detailed, whose bars tile the width edge to edge).
+    // Fixed-width bars on a width-over-count pitch, so a gap opens between
+    // them, unlike Detailed, whose bars tile the width edge to edge.
     return width * (CGFloat)index / (CGFloat)count;
 }
 
 - (void)configureGradient:(CAGradientLayer *)gradient {
-    // Keep the default vertical axis over the full view — Basic's four-stop
-    // colors below are designed against it, not Detailed's band-pinned fade.
+    // Keep the default vertical axis over the full view. Basic's four-stop
+    // colors below are designed against it, not against Detailed's
+    // band-pinned fade.
 }
 
 - (NSArray<NSColor *> *)playedGradientColors:(NSColor *)baseColor isDark:(BOOL)isDark {

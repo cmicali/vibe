@@ -32,14 +32,18 @@
 #import "PitchControlPanel.h"
 #import "SymbolButton.h"
 
+// The notifyutil hook's fixed output path. dump_screenshot writes a
+// per-command file instead, through VibeDebugScreenshotPathForCommand, so that
+// two clients snapshotting back to back cannot hand one client the other's
+// pixels.
 static NSString *VibeDebugScreenshotPath(void) {
     return [NSTemporaryDirectory() stringByAppendingPathComponent:@"vibe-screenshot.png"];
 }
 
-// Glass views' hosting layers render as opaque white in renderInContext:
-// (their real content is window-server composited), painting over everything
-// below them in the tree — so they must be hidden for the render, not just
-// underpainted.
+// A glass view's hosting layer renders as opaque white in renderInContext:,
+// because its real content is composited by the window server, and it paints
+// over everything below it in the tree. It must therefore be hidden for the
+// render, not merely underpainted.
 static void VibeCollectGlassLayers(NSView *view, NSMutableArray<CALayer *> *out) {
     if ([view isKindOfClass:[NSGlassEffectView class]]) {
         if (view.layer) {
@@ -52,7 +56,7 @@ static void VibeCollectGlassLayers(NSView *view, NSMutableArray<CALayer *> *out)
     }
 }
 
-static void VibeDumpWindowSnapshot(void) {
+static void VibeDumpWindowSnapshot(NSString *path) {
     NSWindow *window = NSApp.keyWindow ?: NSApp.mainWindow;
     if (!window) {
         for (NSWindow *candidate in NSApp.windows) {
@@ -78,10 +82,10 @@ static void VibeDumpWindowSnapshot(void) {
         return;
     }
     CGContextScaleCTM(ctx, scale, scale);
-    // With the glass layers hidden below, their region renders transparent —
-    // paint an appearance-matched proxy background first so dark-mode content
-    // (white text/waveform at low alpha) keeps the window's real contrast
-    // polarity instead of flattening onto white.
+    // With the glass layers hidden below, their region renders transparent, so
+    // paint an appearance-matched proxy background first. Dark-mode content —
+    // white text and waveform at low alpha — then keeps the window's real
+    // contrast polarity rather than flattening onto white.
     NSAppearanceName match = [window.effectiveAppearance
             bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
     BOOL isDark = [match isEqualToString:NSAppearanceNameDarkAqua];
@@ -92,10 +96,11 @@ static void VibeDumpWindowSnapshot(void) {
         NSMutableArray<CALayer *> *glassLayers = [NSMutableArray array];
         VibeCollectGlassLayers(view, glassLayers);
         if (glassLayers.count > 0) {
-            // The hides must stay uncommitted so the on-screen window never
-            // flickers — which forces rendering the model tree (an uncommitted
-            // change is invisible to a presentation copy). Costs mid-flight
-            // animation capture, but only glass-bearing windows pay it.
+            // The hides must stay uncommitted, so that the on-screen window
+            // never flickers. That forces a render of the model tree, since an
+            // uncommitted change is invisible to a presentation copy. It costs
+            // the mid-flight animation capture, but only glass-bearing windows
+            // pay for it.
             [CATransaction begin];
             [CATransaction setDisableActions:YES];
             for (CALayer *glass in glassLayers) {
@@ -108,13 +113,14 @@ static void VibeDumpWindowSnapshot(void) {
             [CATransaction commit];
         }
         else {
-            // Presentation tree when available: captures animations mid-flight.
+            // The presentation tree where available, which captures animations
+            // mid-flight.
             CALayer *presentation = layer.presentationLayer ?: layer;
             [presentation renderInContext:ctx];
         }
     }
     else {
-        // Non-layer-backed fallback: AppKit drawing path.
+        // The non-layer-backed fallback: AppKit's drawing path.
         NSGraphicsContext *gc = [NSGraphicsContext graphicsContextWithCGContext:ctx flipped:NO];
         [NSGraphicsContext saveGraphicsState];
         [NSGraphicsContext setCurrentContext:gc];
@@ -126,7 +132,6 @@ static void VibeDumpWindowSnapshot(void) {
     if (!image) {
         return;
     }
-    NSString *path = VibeDebugScreenshotPath();
     NSURL *url = [NSURL fileURLWithPath:path];
     CGImageDestinationRef dest = CGImageDestinationCreateWithURL((__bridge CFURLRef)url,
             (__bridge CFStringRef)UTTypePNG.identifier, 1, NULL);
@@ -142,7 +147,7 @@ static void VibeDumpWindowSnapshot(void) {
 void VibeInstallDebugScreenshotHook(void) {
     static int token;
     notify_register_dispatch("com.vibe.debug.screenshot", &token, dispatch_get_main_queue(), ^(int t) {
-        VibeDumpWindowSnapshot();
+        VibeDumpWindowSnapshot(VibeDebugScreenshotPath());
     });
 }
 
@@ -154,9 +159,9 @@ static NSString *VibeDebugTmpPath(NSString *name) {
     return [NSTemporaryDirectory() stringByAppendingPathComponent:name];
 }
 
-// Per-command files, like the response side: one fixed command path loses a
-// command when two clients write back-to-back (the second write replaces the
-// first before the app reads it).
+// Per-command files, as on the response side. One fixed command path loses a
+// command when two clients write back to back, because the second write
+// replaces the first before the app reads it.
 static NSString *VibeDebugCommandPath(NSString *commandId) {
     return VibeDebugTmpPath([NSString stringWithFormat:@"vibe-command-%@.json", commandId]);
 }
@@ -165,11 +170,15 @@ static NSString *VibeDebugResponsePath(NSString *commandId) {
     return VibeDebugTmpPath([NSString stringWithFormat:@"vibe-response-%@.txt", commandId]);
 }
 
+static NSString *VibeDebugScreenshotPathForCommand(NSString *commandId) {
+    return VibeDebugTmpPath([NSString stringWithFormat:@"vibe-screenshot-%@.png", commandId]);
+}
+
 #pragma mark App side: command execution
 
 static NSString *VibePlayerStateName(AudioPlayer *player) {
-    // Loading reports isPlaying (with zero position/duration), so this shows
-    // "playing" during an in-flight open — same as the transport button.
+    // Loading reports isPlaying, with a zero position and duration, so this
+    // shows "playing" during an in-flight open, as the transport button does.
     if (player.isPlaying) {
         return @"playing";
     }
@@ -246,8 +255,8 @@ static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
     };
 }
 
-// Every debug command replies with exactly one JSON object; errors are
-// {"error": "..."} (the client maps them to exit code 2).
+// Every debug command replies with exactly one JSON object. An error is
+// {"error": "..."}, which the client maps to exit code 2.
 static NSString *VibeJSONString(NSDictionary *dict) {
     NSData *data = [NSJSONSerialization dataWithJSONObject:dict
                                                    options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys
@@ -311,14 +320,14 @@ static NSString *VibeViewTreeDump(void) {
 }
 
 static NSArray *VibeMenuArray(NSMenu *menu) {
-    // Delegate-built menus (Output devices, Open Recent, waveform styles)
-    // only populate when displayed; ask the delegate directly the way display
-    // would — [menu update] alone does not call menuNeedsUpdate:.
+    // Delegate-built menus — Output devices, Open Recent, waveform styles —
+    // populate only when displayed, so ask the delegate directly, the way
+    // display would. [menu update] alone does not call menuNeedsUpdate:.
     if ([menu.delegate respondsToSelector:@selector(menuNeedsUpdate:)]) {
         [menu.delegate menuNeedsUpdate:menu];
     }
-    // Runs validateMenuItem exactly like opening the menu would, so
-    // enabled/checkmark below are live, not stale defaults.
+    // Runs validateMenuItem exactly as opening the menu would, so that the
+    // enabled state and checkmark below are live rather than stale defaults.
     [menu update];
     NSMutableArray *items = [NSMutableArray array];
     for (NSMenuItem *item in menu.itemArray) {
@@ -389,9 +398,10 @@ static NSString *VibeClickMenuItem(NSString *name) {
     });
 }
 
-// Compact result for action commands: enough to assert on without a second
-// `state` round-trip. Transport actions kick off async engine work, so state
-// here can be a beat behind (it's read synchronously after the call).
+// A compact result for the action commands: enough to assert on without a
+// second `state` round-trip. Transport actions kick off async engine work, so
+// the state here can be a beat behind, since it is read synchronously after
+// the call.
 static NSString *VibeActionSummary(MainPlayerController *controller) {
     AudioPlayer *player = controller.audioPlayer;
     MainWindow *window = (MainWindow *)controller.window;
@@ -411,9 +421,9 @@ static NSString *VibeActionSummary(MainPlayerController *controller) {
     });
 }
 
-// Writes the per-command response file the client polls for. Used both by the
-// synchronous path (VibeHandleDebugCommandFile) and by commands that finish
-// asynchronously and call this from their own completion block.
+// Writes the per-command response file the client polls for. Both the
+// synchronous path, VibeHandleDebugCommandFile, and commands that finish
+// asynchronously and call this from their own completion block use it.
 static void VibeWriteDebugResponse(NSString *commandId, NSString *response) {
     [response writeToFile:VibeDebugResponsePath(commandId)
                atomically:YES
@@ -421,24 +431,24 @@ static void VibeWriteDebugResponse(NSString *commandId, NSString *response) {
                     error:nil];
 }
 
-// tokens[0] is the verb; the rest are its arguments — one token per CLI argv
-// entry, transported verbatim (never re-tokenized). Rejoined with single
-// spaces as a convenience so an unquoted multi-word title still works; a
-// properly QUOTED argument arrives as one token and passes through exactly,
-// consecutive spaces and all.
+// tokens[0] is the verb and the rest are its arguments: one token per CLI argv
+// entry, transported verbatim and never re-tokenized. They are rejoined with
+// single spaces as a convenience, so that an unquoted multi-word title still
+// works. A properly quoted argument arrives as one token and passes through
+// exactly, consecutive spaces and all.
 static NSString *VibeRestArgument(NSArray<NSString *> *tokens) {
     return [[tokens subarrayWithRange:NSMakeRange(1, tokens.count - 1)]
             componentsJoinedByString:@" "];
 }
 
-// Path argument: the rest of the tokens with a leading ~ expanded.
+// A path argument: the rest of the tokens, with a leading ~ expanded.
 static NSString *VibePathArgument(NSArray<NSString *> *tokens) {
     return VibeRestArgument(tokens).stringByExpandingTildeInPath;
 }
 
-// Shared validation for verbs taking one existing-file argument — keeps
-// file_cache and file_clear_cache's argument contracts identical. Returns the
-// path, or nil with *errorJSON set to the reply to send.
+// Shared validation for the verbs that take one existing-file argument, which
+// keeps file_cache's and file_clear_cache's argument contracts identical. It
+// returns the path, or nil with *errorJSON set to the reply to send.
 static NSString *VibeExistingFileArgument(NSArray<NSString *> *tokens, NSString **errorJSON) {
     NSString *verb = tokens.firstObject;
     if (tokens.count < 2) {
@@ -456,19 +466,21 @@ static NSString *VibeExistingFileArgument(NSArray<NSString *> *tokens, NSString 
 
 #pragma mark Input injection
 
-// Synthesized NSEvents posted into the app's own event queue
-// ([NSApp postEvent:atStart:NO]). Unlike --debug-cmd's direct action calls,
-// these exercise the real event dispatch path — local monitors
-// (TransportKeyMonitor) and view mouse handling included — and unlike CGEvent
-// injection (input.swift) they need no Accessibility permission and no
-// frontmost window. Two structural limits versus real window-server events:
-// tracking areas / hover effects don't fire (the window server drives those),
-// and the posted events are processed after the reply is written — poll
+// Synthesized NSEvents posted into the app's own event queue, through
+// [NSApp postEvent:atStart:NO]. Unlike --debug-cmd's direct action calls,
+// these exercise the real event dispatch path, local monitors such as
+// TransportKeyMonitor and view mouse handling included, and unlike CGEvent
+// injection through input.swift they need no Accessibility permission and no
+// frontmost window.
+//
+// They have two structural limits against real window-server events. Tracking
+// areas and hover effects do not fire, because the window server drives those.
+// And the posted events are processed after the reply is written, so poll
 // dump_state to observe the result.
 //
-// Mouse coordinates are MAIN-WINDOW POINTS, ORIGIN TOP-LEFT — the same frame
-// of reference as dump_screenshot (retina pixel / 2). NSEvent wants
-// bottom-left window coords, converted here.
+// Mouse coordinates are main-window points with a top-left origin, the same
+// frame of reference as dump_screenshot, which is the retina pixel divided by
+// two. NSEvent wants bottom-left window coordinates, converted here.
 
 static NSTimeInterval VibeEventTimestamp(void) {
     return NSProcessInfo.processInfo.systemUptime;
@@ -483,8 +495,8 @@ static NSDictionary<NSString *, NSNumber *> *VibeKeyCodeMap(void) {
     static NSDictionary<NSString *, NSNumber *> *map;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        // ANSI virtual key codes (HIToolbox Events.h values, stated inline so
-        // Carbon stays unimported).
+        // The ANSI virtual key codes: HIToolbox Events.h values, stated inline
+        // so that Carbon stays unimported.
         map = @{
             @"a": @0,  @"s": @1,  @"d": @2,  @"f": @3,  @"h": @4,  @"g": @5,
             @"z": @6,  @"x": @7,  @"c": @8,  @"v": @9,  @"b": @11, @"q": @12,
@@ -516,11 +528,26 @@ static NSString *VibeKeyCharacters(NSString *name) {
     return special[name] ?: name;
 }
 
+// What `characters` carries when shift is held. uppercaseString covers letters
+// alone, so the digits get their US-layout shifted forms explicitly. The
+// specials and arrows are shift-invariant either way.
+static NSString *VibeShiftedKeyCharacters(NSString *chars) {
+    static NSDictionary<NSString *, NSString *> *shifted;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        shifted = @{
+            @"1": @"!", @"2": @"@", @"3": @"#", @"4": @"$", @"5": @"%",
+            @"6": @"^", @"7": @"&", @"8": @"*", @"9": @"(", @"0": @")",
+        };
+    });
+    return shifted[chars] ?: chars.uppercaseString;
+}
+
 static BOOL VibeKeyIsArrow(NSString *name) {
     return [@[@"left", @"right", @"up", @"down"] containsObject:name];
 }
 
-// Trailing tokens after the key name are modifier names.
+// Any tokens trailing the key name are modifier names.
 static BOOL VibeParseModifiers(NSArray<NSString *> *tokens, NSUInteger start,
                                NSEventModifierFlags *outFlags, NSString **errorJSON) {
     NSEventModifierFlags flags = 0;
@@ -547,8 +574,9 @@ static BOOL VibeParseModifiers(NSArray<NSString *> *tokens, NSUInteger start,
     return YES;
 }
 
-// key = down+up; key_down / key_up post one edge — that split is how the held
-// W/E/R/T momentary FX keys are driven (TransportKeyMonitor releases on keyUp).
+// key posts a down and an up, while key_down and key_up post one edge each.
+// That split is how the held W, E, R and T momentary FX keys are driven, since
+// TransportKeyMonitor releases on keyUp.
 static NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *tokens,
                                BOOL down, BOOL up) {
     NSString *verb = tokens.firstObject;
@@ -567,11 +595,11 @@ static NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSStrin
         return errorJSON;
     }
     if (VibeKeyIsArrow(name)) {
-        // Real arrow events carry these; some responders check them.
+        // Real arrow events carry these, and some responders check them.
         flags |= NSEventModifierFlagFunction | NSEventModifierFlagNumericPad;
     }
     NSString *chars = VibeKeyCharacters(name);
-    NSString *charsWithMods = (flags & NSEventModifierFlagShift) ? chars.uppercaseString : chars;
+    NSString *charsWithMods = (flags & NSEventModifierFlagShift) ? VibeShiftedKeyCharacters(chars) : chars;
     NSWindow *window = controller.window;
     void (^post)(NSEventType) = ^(NSEventType type) {
         NSEvent *event = [NSEvent keyEventWithType:type
@@ -595,9 +623,10 @@ static NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSStrin
     return VibeJSONString(@{@"ok": @YES, @"posted": verb, @"key": name});
 }
 
-// Shared tail for the mouse verbs: convert to bottom-left window coords, post
-// via the block, and reply with the hit-tested view so a missed aim is visible
-// in the reply instead of silently doing nothing.
+// The shared tail for the mouse verbs. It converts to bottom-left window
+// coordinates, posts through the block, and replies with the hit-tested view,
+// so that a missed aim is visible in the reply rather than silently doing
+// nothing.
 static NSString *VibeMouseReply(NSString *verb, NSWindow *window, NSPoint location,
                                 double x, double y) {
     NSView *content = window.contentView;
@@ -614,14 +643,14 @@ static NSString *VibeMouseReply(NSString *verb, NSWindow *window, NSPoint locati
     });
 }
 
-// A non-key window swallows the first click as activation (click-through
-// protection: acceptsFirstMouse defaults NO), so mouse injection self-
-// activates first — the deprecated force spelling, because the cooperative
-// [NSApp activate] is declined while another app is frontmost (tested), which
-// is exactly the state a shell-driven test runs in. Activation lands
-// asynchronously, so spin the run loop briefly until key status arrives —
-// events posted before that are swallowed. The reply's windowKey reports
-// whether it took.
+// A non-key window swallows the first click as activation, because
+// acceptsFirstMouse defaults to NO as click-through protection, so mouse
+// injection self-activates first. It uses the deprecated force spelling,
+// because the cooperative [NSApp activate] is declined while another app is
+// frontmost — tested — which is exactly the state a shell-driven test runs in.
+// Activation lands asynchronously, so spin the run loop briefly until key
+// status arrives: events posted before that are swallowed. The reply's
+// windowKey reports whether it took.
 static void VibeMakeWindowKeyForInjection(NSWindow *window) {
     if (window.isKeyWindow) {
         return;
@@ -651,12 +680,12 @@ static NSEvent *VibeMouseEvent(NSEventType type, NSPoint location, NSInteger win
                               pressure:pressure];
 }
 
-// click / mouse_down / mouse_up / mouse_move. mouse_move with a button token
-// posts a *dragged* event (a plain move otherwise). CAUTION: a lone mouse_down
-// on a control that runs a modal mouse-tracking loop stalls the app inside
-// that loop, and the command channel (GCD main queue) can't deliver the
-// matching mouse_up while it spins — use `click` or `drag`, whose events are
-// all queued before the loop starts.
+// click, mouse_down, mouse_up and mouse_move. mouse_move with a button token
+// posts a *dragged* event, and a plain move otherwise. CAUTION: a lone
+// mouse_down on a control that runs a modal mouse-tracking loop stalls the app
+// inside that loop, and the command channel, on the GCD main queue, cannot
+// deliver the matching mouse_up while it spins. Use `click` or `drag`, whose
+// events are all queued before the loop starts.
 static NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> *tokens) {
     NSString *verb = tokens.firstObject;
     BOOL isClick = [verb isEqualToString:@"click"];
@@ -694,8 +723,8 @@ static NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSStr
     NSPoint location = NSMakePoint(x, NSHeight(window.frame) - y);
     NSInteger windowNumber = window.windowNumber;
     if (isClick) {
-        // A double-click is two full press cycles with ascending clickCount,
-        // exactly as the window server delivers one.
+        // A double-click is two full press cycles with an ascending
+        // clickCount, exactly as the window server delivers one.
         for (NSInteger i = 1; i <= clickCount; i++) {
             [NSApp postEvent:VibeMouseEvent(right ? NSEventTypeRightMouseDown : NSEventTypeLeftMouseDown,
                                             location, windowNumber, i, 1.0) atStart:NO];
@@ -720,9 +749,9 @@ static NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSStr
     return VibeMouseReply(verb, window, location, x, y);
 }
 
-// Full left-button drag gesture queued in one command (down, interpolated
-// dragged steps, up) — the only injection shape that works on tracking-loop
-// controls (see VibeInjectMouse).
+// A full left-button drag gesture queued in one command: down, interpolated
+// dragged steps, up. It is the only injection shape that works on
+// tracking-loop controls; see VibeInjectMouse.
 static NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *tokens) {
     NSString *usage = @"usage: drag <x1> <y1> <x2> <y2> [steps]";
     double x1 = 0, y1 = 0, x2 = 0, y2 = 0;
@@ -762,12 +791,13 @@ static NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSStri
 
 #pragma mark Synthetic file drags
 
-// drag_hover / drag_drop / drag_end drive the SAME FileDropDelegate path a
-// real external file drag takes through MainWindow — a genuine
-// NSDraggingSession can't be synthesized (only the window server can start
-// one), which is what makes the playlist drop zone untestable via the event
-// verbs above. These are direct delegate calls, not posted events.
-// Coordinates are main-window points, origin top-left, like the mouse verbs.
+// drag_hover, drag_drop and drag_end drive the same FileDropDelegate path a
+// real external file drag takes through MainWindow. A genuine
+// NSDraggingSession cannot be synthesized, because only the window server can
+// start one, which is what makes the playlist drop zone untestable through the
+// event verbs above. These are direct delegate calls rather than posted
+// events. Coordinates are main-window points with a top-left origin, as with
+// the mouse verbs.
 
 static NSString *VibeWellName(PlaylistDropWellAction action) {
     switch (action) {
@@ -777,8 +807,8 @@ static NSString *VibeWellName(PlaylistDropWellAction action) {
     }
 }
 
-// Shared coordinate parse + conversion for drag_hover/drag_drop. Returns NO
-// with *errorJSON set on a malformed pair.
+// The shared coordinate parse and conversion for drag_hover and drag_drop. It
+// returns NO with *errorJSON set on a malformed pair.
 static BOOL VibeDragPointArgument(NSArray<NSString *> *tokens, NSWindow *window,
                                   NSPoint *outLocation, double *outX, double *outY,
                                   NSString **errorJSON) {
@@ -806,8 +836,8 @@ static NSString *VibeSyntheticDragHover(MainPlayerController *controller, NSArra
     if ([window.dropDelegate respondsToSelector:@selector(mainWindow:fileDraggingUpdatedAtLocation:)]) {
         [window.dropDelegate mainWindow:window fileDraggingUpdatedAtLocation:location];
     }
-    // Which well the point resolves to (what a drop here would do) — the
-    // assertable part of the reply.
+    // Which well the point resolves to, meaning what a drop here would do:
+    // the assertable part of the reply.
     PlaylistDropWellAction well = [controller.playerContentView.playlistDropZoneView
             dropActionForWindowPoint:location];
     return VibeJSONString(@{@"ok": @YES, @"posted": @"drag_hover",
@@ -838,15 +868,15 @@ static NSString *VibeSyntheticDragDrop(MainPlayerController *controller, NSArray
     if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
         return VibeErrorJSON(@"no file or directory at '%@'", path);
     }
-    // Resolved before anything mutates, purely for the reply (the geometry is
-    // drag-state independent — the real delivery below re-resolves it).
+    // Resolved before anything mutates, purely for the reply. The geometry is
+    // independent of drag state, and the real delivery below re-resolves it.
     PlaylistDropWellAction well = [controller.playerContentView.playlistDropZoneView
             dropActionForWindowPoint:location];
     // Mirror performDragOperation:'s pipeline and ordering: start the async
-    // expand-and-deliver, then tear the drag-over presentation down (real
-    // drops get draggingEnded right after performDragOperation returns).
-    // Sandbox caveat as with `open`: an ungranted path may be denied at read
-    // time. Poll dump_state for the resulting playlist.
+    // expand and deliver, then tear the drag-over presentation down. A real
+    // drop gets draggingEnded right after performDragOperation returns. The
+    // sandbox caveat is the same as with `open`: an ungranted path may be
+    // denied at read time. Poll dump_state for the resulting playlist.
     [NSURLUtil expandAndFilterList:@[[NSURL fileURLWithPath:path]]
                         completion:^(NSArray<NSURL *> *expanded) {
         if (expanded.count > 0 &&
@@ -863,22 +893,22 @@ static NSString *VibeSyntheticDragDrop(MainPlayerController *controller, NSArray
 
 #pragma mark Command table
 
-// One handler per verb; tokens[0] is the verb itself. Returning nil means the
-// command completes asynchronously and writes its own response later via
-// VibeWriteDebugResponse(commandId, ...) from a completion block.
+// One handler per verb, where tokens[0] is the verb itself. Returning nil
+// means the command completes asynchronously and writes its own response later
+// through VibeWriteDebugResponse(commandId, ...), from a completion block.
 typedef NSString * _Nullable (^VibeDebugCommandHandler)(NSArray<NSString *> *tokens,
                                                         NSString *commandId,
                                                         MainPlayerController *controller);
 
-// usage's first word is the verb. clientTimeout is how long the CLI client
-// waits for this verb's response, in seconds (0 = the default; see
-// VibeDebugCommandClientMain).
+// The first word of usage is the verb. clientTimeout is how long the CLI
+// client waits for this verb's response, in seconds, where 0 means the
+// default; see VibeDebugCommandClientMain.
 static NSDictionary *VibeCmd(NSString *usage, NSTimeInterval clientTimeout, VibeDebugCommandHandler handler) {
     return @{@"usage": usage, @"clientTimeout": @(clientTimeout), @"handler": [handler copy]};
 }
 
-// Transport/toggle verbs: invoke the controller action, reply with the compact
-// action summary.
+// The transport and toggle verbs: invoke the controller action, then reply
+// with the compact action summary.
 static NSDictionary *VibeActionCmd(NSString *usage, void (^action)(MainPlayerController *controller)) {
     return VibeCmd(usage, 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
         action(controller);
@@ -886,9 +916,9 @@ static NSDictionary *VibeActionCmd(NSString *usage, void (^action)(MainPlayerCon
     });
 }
 
-// THE command set — dispatch, the unknown-command usage reply, and the
-// client's per-verb wait all derive from this table, so adding an entry here
-// is the entire app-side hookup (usage docs live in the vibe-debug skill).
+// The command set. Dispatch, the unknown-command usage reply and the client's
+// per-verb wait all derive from this table, so adding an entry here is the
+// entire app-side hookup. The usage docs live in the vibe-debug skill.
 static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
     static NSArray<NSDictionary *> *table;
     static dispatch_once_t once;
@@ -898,9 +928,10 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return VibeJSONString(VibeStateDictionary(controller));
             }),
             VibeCmd(@"dump_now_playing", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                // The state we publish to the system Now Playing UI (Control
-                // Center, media keys). Cross-checks the NowPlayingController
-                // wiring without a private-framework reader.
+                // The state we publish to the system Now Playing UI, in
+                // Control Center and to the media keys. It cross-checks the
+                // NowPlayingController wiring without a private-framework
+                // reader.
                 MPNowPlayingInfoCenter *center = [MPNowPlayingInfoCenter defaultCenter];
                 NSDictionary *info = center.nowPlayingInfo;
                 MPNowPlayingPlaybackState playbackState = center.playbackState;
@@ -928,17 +959,19 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return VibeJSONString(@{@"menu": VibeMenuArray(NSApp.mainMenu)});
             }),
             VibeCmd(@"dump_screenshot [- | <label>]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                // Arguments are client-side: "-" streams the PNG bytes to
-                // stdout; in a script the reply carries the PNG as base64 and
-                // a label names the decoded file (run-script.sh).
-                VibeDumpWindowSnapshot();
-                return VibeJSONString(@{@"path": VibeDebugScreenshotPath()});
+                // The arguments are client-side. "-" streams the PNG bytes to
+                // stdout, and inside a script the reply carries the PNG as
+                // base64, with a label naming the decoded file; see
+                // run-script.sh.
+                NSString *path = VibeDebugScreenshotPathForCommand(commandId);
+                VibeDumpWindowSnapshot(path);
+                return VibeJSONString(@{@"path": path});
             }),
             VibeCmd(@"click_menu <identifier-or-title>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: click_menu <identifier-or-title>");
                 }
-                // Rest of the tokens, so exact titles with spaces work too.
+                // The rest of the tokens, so exact titles with spaces work too.
                 return VibeClickMenuItem(VibeRestArgument(tokens));
             }),
             VibeActionCmd(@"play_pause", ^(MainPlayerController *controller) { [controller playPause:nil]; }),
@@ -967,18 +1000,18 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 }
                 // The window is freely resizable and its width comes back from
                 // the frame autosave, so a screenshot run that wants a
-                // reproducible size has to set one. The argument is the BODY
-                // width — the player without the pitch panel's slice, i.e. what
-                // MainPlayerContentView lays out at and what
-                // kMainWindowContentWidth names — so the number means the same
-                // thing whether or not the panel happens to be out.
+                // reproducible size must set one. The argument is the body
+                // width: the player without the pitch panel's slice, which is
+                // what MainPlayerContentView lays out at and what
+                // kMainWindowContentWidth names. The number therefore means
+                // the same thing whether or not the panel happens to be out.
                 MainWindow *window = (MainWindow *)controller.window;
                 CGFloat panel = window.isPitchPanelShown ? kPitchPanelWidth : 0;
                 NSRect frame = window.frame;
-                // Grows to the right like a resize-handle drag, floored by the
-                // window's own minSize (which already carries the panel), then
-                // pulled back on-screen — a window hanging off the right edge
-                // captures clipped.
+                // It grows to the right like a resize-handle drag, floored by
+                // the window's own minSize, which already carries the panel,
+                // then is pulled back on screen: a window hanging off the
+                // right edge captures clipped.
                 frame.size.width = MAX(window.minSize.width, tokens[1].doubleValue + panel);
                 NSRect screenRect = window.screen.visibleFrame;
                 if (screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
@@ -1028,8 +1061,9 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: set_pitch <percent>");
                 }
-                // Through the panel first so the fader clamps to its range
-                // exactly like a drag, then the player takes the clamped value.
+                // Through the panel first, so that the fader clamps to its
+                // range exactly as a drag would, and then the player takes the
+                // clamped value.
                 controller.pitchPanel.pitch = tokens[1].floatValue;
                 controller.audioPlayer.pitch = controller.pitchPanel.pitch;
                 [controller debugRefreshUI];
@@ -1051,13 +1085,14 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
                     return VibeErrorJSON(@"no file or directory at '%@'", path);
                 }
-                // Same expand/filter/play pipeline as a Finder open or a file
-                // drop: a directory is walked and unsupported files dropped.
-                // Async (a large folder walk shouldn't stall the channel) —
-                // the reply acks the request; poll `dump_state` for the
-                // resulting playlist. Sandbox: an arbitrary path the app
-                // hasn't been granted may be denied at read time (same caveat
-                // as command-line args); `open -a "$APP"` grants access.
+                // The same expand, filter and play pipeline as a Finder open
+                // or a file drop: a directory is walked and unsupported files
+                // are dropped. It is async, because a large folder walk should
+                // not stall the channel, so the reply only acks the request;
+                // poll `dump_state` for the resulting playlist. On the
+                // sandbox: an arbitrary path the app has not been granted may
+                // be denied at read time, the same caveat as with command-line
+                // arguments, and `open -a "$APP"` grants access.
                 [NSURLUtil expandAndFilterList:@[[NSURL fileURLWithPath:path]]
                                     completion:^(NSArray<NSURL *> *expanded) {
                     if (expanded.count > 0) {
@@ -1066,17 +1101,17 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 }];
                 return VibeJSONString(@{@"ok": @YES, @"opening": path});
             }),
-            // Normally never reached from the CLI: the client executes
-            // scan_bpm locally (see VibeDebugCommandClientMain), so this
-            // entry exists for the usage listing and for callers that post
-            // the command file directly. Same core function either way.
+            // This is normally never reached from the CLI, because the client
+            // runs scan_bpm locally; see VibeDebugCommandClientMain. The entry
+            // exists for the usage listing and for callers that post the
+            // command file directly. It is the same core function either way.
             VibeCmd(@"scan_bpm <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *errorJSON = nil;
                 NSString *path = VibeExistingFileArgument(tokens, &errorJSON);
                 if (!path) {
                     return errorJSON;
                 }
-                // Full-file decode — keep it off the main thread.
+                // A full-file decode, so keep it off the main thread.
                 dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
                     VibeWriteDebugResponse(commandId, VibeDebugBPMScanJSON(path));
                 });
@@ -1088,10 +1123,11 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 if (!path) {
                     return errorJSON;
                 }
-                // Decode + persist this file's waveform without disturbing the
-                // current load, then reply with its detected BPM once the entry
-                // is on disk. A cold decode of a long file runs well past the
-                // default client wait — hence this verb's 60s clientTimeout.
+                // Decode and persist this file's waveform without disturbing
+                // the current load, then reply with its detected BPM once the
+                // entry is on disk. A cold decode of a long file runs well
+                // past the default client wait, hence this verb's 60-second
+                // clientTimeout.
                 [controller.waveformCache cacheWaveformForURL:[NSURL fileURLWithPath:path]
                                                    completion:^(BOOL ok, BOOL wasCached, float bpm) {
                     NSString *reply = ok
@@ -1115,13 +1151,14 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 }];
                 return nil; // response written by the completion above
             }),
-            // clientTimeout 20 > the 15s app-side dispatch_group_wait: the
-            // waveform clear queues behind any in-flight waveform load, and a
-            // flat 5s client wait could give up on a clear that succeeds.
+            // A clientTimeout of 20 exceeds the app-side 15-second
+            // dispatch_group_wait. The waveform clear queues behind any
+            // in-flight waveform load, and a flat 5-second client wait could
+            // give up on a clear that then succeeds.
             VibeCmd(@"clear_caches", 20, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                // Blocks the main thread until both PINCache stores are empty —
-                // acceptable for a debug-only command; the clears are file
-                // deletes at utility QoS.
+                // This blocks the main thread until both PINCache stores are
+                // empty, which is acceptable for a debug-only command: the
+                // clears are file deletes at utility QoS.
                 dispatch_group_t group = dispatch_group_create();
                 dispatch_group_enter(group);
                 [controller.metadataCache invalidateWithCompletion:^{
@@ -1136,7 +1173,7 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 }
                 return VibeJSONString(@{
                     @"ok": @YES,
-                    @"cleared": @[@"Audio Track Metadata v4", @"audio_waveform_cache_v4"],
+                    @"cleared": @[AudioTrackMetadataCache.cacheName, AudioWaveformCache.cacheName],
                 });
             }),
         ];
@@ -1159,8 +1196,9 @@ static NSDictionary *VibeCommandSpecForVerb(NSString *verb) {
 }
 
 // Returns the JSON response to write, or nil if the command completes
-// asynchronously and writes its own response via VibeWriteDebugResponse (e.g.
-// file_cache, which runs a full waveform decode off the main thread).
+// asynchronously and writes its own response through VibeWriteDebugResponse.
+// file_cache does that, since it runs a full waveform decode off the main
+// thread.
 static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *commandId) {
     NSString *verb = tokens.firstObject ?: @"";
     AppDelegate *appDelegate = (AppDelegate *)NSApp.delegate;
@@ -1172,9 +1210,9 @@ static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *
     NSDictionary *spec = VibeCommandSpecForVerb(verb);
     if (!spec) {
         // The unknown-command reply is the channel's authoritative command
-        // list (CLAUDE.md points here), so it must also advertise the verbs
-        // the CLI client executes in its own process without ever posting a
-        // command file (see VibeDebugCommandClientMain).
+        // list, and CLAUDE.md points here, so it must also advertise the verbs
+        // the CLI client runs in its own process without ever posting a
+        // command file; see VibeDebugCommandClientMain.
         NSMutableArray<NSString *> *usages = [NSMutableArray array];
         for (NSDictionary *entry in VibeDebugCommandTable()) {
             [usages addObject:entry[@"usage"]];
@@ -1196,9 +1234,9 @@ static void VibeHandleOneDebugCommandFile(NSString *path) {
         return;
     }
     [NSFileManager.defaultManager removeItemAtPath:path error:nil];
-    // Malformed payloads still get an {"error": ...} reply whenever the id is
-    // recoverable — a silent drop leaves the client polling out its window and
-    // blaming a missing debug build.
+    // A malformed payload still gets an {"error": ...} reply whenever the id
+    // is recoverable. A silent drop leaves the client polling out its window
+    // and blaming a missing debug build.
     NSDictionary *payload = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
     NSString *commandId = [payload isKindOfClass:NSDictionary.class] ? payload[@"id"] : nil;
     if (![commandId isKindOfClass:NSString.class] || commandId.length == 0) {
@@ -1228,7 +1266,7 @@ static void VibeHandleOneDebugCommandFile(NSString *path) {
     }
     NSString *response = VibeExecuteDebugCommand(args, commandId);
     // A nil response means the command completes asynchronously and writes its
-    // own response via VibeWriteDebugResponse when done (e.g. file_cache).
+    // own response through VibeWriteDebugResponse when done, as file_cache does.
     if (response) {
         VibeWriteDebugResponse(commandId, response);
     }
@@ -1237,7 +1275,7 @@ static void VibeHandleOneDebugCommandFile(NSString *path) {
 
 // notify_post coalesces back-to-back posts into one delivery, so a single
 // wake-up must drain every pending command file. Each reply pairs with its
-// command via the id.
+// command through the id.
 static void VibeHandleDebugCommandFiles(void) {
     NSString *tmpDir = NSTemporaryDirectory();
     NSArray<NSString *> *names = [NSFileManager.defaultManager contentsOfDirectoryAtPath:tmpDir error:nil];
@@ -1249,15 +1287,17 @@ static void VibeHandleDebugCommandFiles(void) {
 }
 
 void VibeInstallDebugCommandHook(void) {
-    // Sweep responses orphaned by earlier runs: an async verb that outlives
-    // its client's poll window writes a response no one ever deletes (the
-    // client cleans up only its command file), so vibe-response-*.txt litter
-    // accumulates in the container tmp until the OS purges it. Anything
+    // Sweep responses orphaned by earlier runs. An async verb that outlives
+    // its client's poll window writes a response no one ever deletes, because
+    // the client cleans up only its command file, so vibe-response-*.txt
+    // litter accumulates in the container tmp until the OS purges it, as does
+    // any per-command vibe-screenshot-*.png a client never streamed. Anything
     // present before this hook is live belongs to a dead conversation.
     NSString *tmpDir = NSTemporaryDirectory();
     NSArray<NSString *> *names = [NSFileManager.defaultManager contentsOfDirectoryAtPath:tmpDir error:nil];
     for (NSString *name in names) {
-        if ([name hasPrefix:@"vibe-response-"] && [name hasSuffix:@".txt"]) {
+        if (([name hasPrefix:@"vibe-response-"] && [name hasSuffix:@".txt"])
+                || ([name hasPrefix:@"vibe-screenshot-"] && [name hasSuffix:@".png"])) {
             [NSFileManager.defaultManager removeItemAtPath:[tmpDir stringByAppendingPathComponent:name]
                                                      error:nil];
         }
@@ -1455,6 +1495,11 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
                             && (inScript || [args containsObject:@"-"])) {
                     NSString *pngPath = [reply[@"path"] isKindOfClass:NSString.class] ? reply[@"path"] : nil;
                     NSData *png = pngPath ? [NSData dataWithContentsOfFile:pngPath] : nil;
+                    // Consumed here, so delete like the response file — the
+                    // per-command PNGs would otherwise pile up all run long.
+                    if (pngPath) {
+                        [fileManager removeItemAtPath:pngPath error:nil];
+                    }
                     if (png.length == 0) {
                         fprintf(stderr, "vibe: no screenshot at %s\n",
                                 pngPath.fileSystemRepresentation ?: "(no path in reply)");

@@ -6,20 +6,20 @@
 #import "PitchFaderView.h"
 #import "Fonts.h"
 
-// Slot/knob geometry (points).
+// The slot and knob geometry, in points.
 static const CGFloat kSlotWidth       = 6;
 static const CGFloat kKnobWidth       = 40;
 static const CGFloat kKnobHeight      = 22;
 static const CGFloat kTickLength      = 9;
 static const CGFloat kTickGap         = 6;  // gap between slot and ticks
 static const CGFloat kLabelGap        = 4;  // gap between ticks and labels
-// Dragging inside this band snaps to exactly 0 — the center detent.
+// Dragging inside this band snaps to exactly 0: the center detent.
 static const float   kDetentPercent   = 0.35f;
 
 @implementation PitchFaderView {
     BOOL    _dragging;
-    // Offset between the mouse-down point and the knob center, so grabbing
-    // the knob by its edge doesn't make it jump.
+    // The offset between the mouse-down point and the knob center, so that
+    // grabbing the knob by its edge does not make it jump.
     CGFloat _dragOffsetY;
 }
 
@@ -32,13 +32,14 @@ static const float   kDetentPercent   = 0.35f;
 }
 
 - (BOOL)isFlipped {
-    // Flipped so y grows downward: pitch maps top(-) to bottom(+) directly.
+    // Flipped so that y grows downward, which maps pitch directly from minus
+    // at the top to plus at the bottom.
     return YES;
 }
 
 - (BOOL)mouseDownCanMoveWindow {
-    // The window is movable-by-background and this view is non-opaque, so
-    // without this a fader drag ALSO drags the whole window along.
+    // The window is movable by its background and this view is non-opaque, so
+    // without this a fader drag would drag the whole window along too.
     return NO;
 }
 
@@ -60,7 +61,7 @@ static const float   kDetentPercent   = 0.35f;
 
 #pragma mark - Geometry
 
-// Vertical travel of the knob center: inset so the knob never clips.
+// The vertical travel of the knob center, inset so the knob never clips.
 - (CGFloat)travelTop {
     return kKnobHeight / 2 + 2;
 }
@@ -102,9 +103,9 @@ static const float   kDetentPercent   = 0.35f;
 }
 
 - (void)drawScaleAroundCenterX:(CGFloat)centerX {
-    // drawRect: runs on every drag tick — build the immutable pieces once.
-    // Safe: the fader is hardware-styled, nothing follows the effective
-    // appearance. Only geometry is computed per draw.
+    // drawRect: runs on every drag tick, so build the immutable pieces once.
+    // That is safe because the fader is hardware-styled and nothing follows
+    // the effective appearance. Only the geometry is computed per draw.
     static NSColor *tickColor;
     static NSColor *minorTickColor;
     static NSDictionary *labelAttributes;
@@ -123,7 +124,8 @@ static const float   kDetentPercent   = 0.35f;
         };
     });
 
-    // Adapt density to the travel: the short (playlist-hidden) window has only
+    // Adapt the density to the travel. The short, playlist-hidden window has
+    // only
     // a few points per percent, where the full Technics scale turns to mush.
     CGFloat pointsPerPercent = (self.travelBottom - self.travelTop) / (2 * _maxPitch);
     int tickStep = pointsPerPercent >= 4 ? 1 : 2;

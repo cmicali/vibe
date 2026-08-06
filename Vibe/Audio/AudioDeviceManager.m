@@ -26,25 +26,25 @@ static const AudioObjectPropertyAddress kDevicesAddress = {
 @end
 
 @implementation AudioDeviceManager {
-    // Weakly-held observers. AudioPlayer registers from its serial queue while
+    // Weakly held observers. AudioPlayer registers from its serial queue while
     // the menu controller registers from the main thread, so all access goes
     // through _observersLock.
     NSHashTable<id<AudioDeviceManagerObserver>> *_observers;
     os_unfair_lock _observersLock;
-    // Immutable snapshot of the output-device list, guarded by _devicesLock:
-    // the refresh queue publishes while the main thread (menu rebuild,
-    // outputDeviceForId: lookups) and the player queue read.
+    // An immutable snapshot of the output-device list, guarded by
+    // _devicesLock. The refresh queue publishes it while the main thread, for
+    // menu rebuilds and outputDeviceForId: lookups, and the player queue read.
     NSArray<AudioDevice *> *_cachedOutputDevices;
     os_unfair_lock _devicesLock;
-    // Serial, so overlapping HAL notifications can't publish an older sweep
-    // over a newer one; also keeps the enumeration (tens of ms with
-    // Bluetooth/aggregate devices) off the main thread and off the HAL's
-    // notification thread.
+    // Serial, so that overlapping HAL notifications cannot publish an older
+    // sweep over a newer one. It also keeps the enumeration, which takes tens
+    // of ms when Bluetooth or aggregate devices are present, off both the main
+    // thread and the HAL's notification thread.
     dispatch_queue_t _refreshQueue;
 }
 
 // The client data is the singleton, which lives for the whole process, so the
-// unretained pointer can never dangle and the listeners are never removed.
+// unretained pointer can never dangle, and the listeners are never removed.
 static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
                                               UInt32 inNumberAddresses,
                                               const AudioObjectPropertyAddress *inAddresses,
@@ -52,9 +52,9 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     AudioDeviceManager *manager = (__bridge AudioDeviceManager *)inClientData;
     for (UInt32 i = 0; i < inNumberAddresses; i++) {
         switch (inAddresses[i].mSelector) {
-            // Both selectors refresh the cache before notifying — a default
-            // change moves isSystemDefault inside the snapshot, not just the
-            // device list membership.
+            // Both selectors refresh the cache before notifying, because a
+            // default change moves isSystemDefault inside the snapshot, not
+            // just the device list's membership.
             case kAudioHardwarePropertyDefaultOutputDevice:
                 [manager refreshDevicesThenNotify:^(id<AudioDeviceManagerObserver> observer) {
                     if ([observer respondsToSelector:@selector(systemDefaultOutputDeviceDidChange)]) {
@@ -89,26 +89,27 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
         _observers = [NSHashTable weakObjectsHashTable];
         _observersLock = OS_UNFAIR_LOCK_INIT;
         _devicesLock = OS_UNFAIR_LOCK_INIT;
-        // No sweep here: the singleton is first touched on the main thread
-        // (observer registration), and the first outputDevices caller — at
-        // launch, AudioPlayer's async init resolving the saved device on its
-        // own queue — populates the cache off the main path.
+        // No sweep here. The singleton is first touched on the main thread,
+        // during observer registration, and the first outputDevices caller
+        // populates the cache off the main path: at launch that is
+        // AudioPlayer's async init resolving the saved device on its own queue.
         _refreshQueue = dispatch_queue_create("com.vibe.audiodevicemanager.refresh",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
-        // Register the HAL listeners on the refresh queue, not inline: these
-        // are the process's FIRST CoreAudio calls, and bringing up the HAL
-        // client connection to coreaudiod costs ~20ms — the singleton is first
-        // touched on the main thread before first paint (the devices menu
-        // controller's addObserver), which must not pay that. The serial
-        // refresh queue keeps ordering: any refreshDevicesThenNotify queues
-        // behind this block. A device change landing in the sub-100ms window
-        // before the listeners attach is not missed in effect — the first
-        // outputDevices sweep (AudioPlayer's async init) runs after and reads
-        // the then-current device list.
+        // Register the HAL listeners on the refresh queue rather than inline.
+        // These are the process's first CoreAudio calls, and bringing up the
+        // HAL client connection to coreaudiod costs about 20ms. The singleton
+        // is first touched on the main thread before first paint, by the
+        // devices menu controller's addObserver, and that must not pay the
+        // cost. The serial refresh queue keeps the ordering, since any
+        // refreshDevicesThenNotify queues behind this block. In effect nothing
+        // is missed if a device change lands in the sub-100ms window before
+        // the listeners attach: the first outputDevices sweep, in
+        // AudioPlayer's async init, runs afterwards and reads the then-current
+        // device list.
         dispatch_async(_refreshQueue, ^{
-            // Deliver HAL notifications on the HAL's own thread instead of the
-            // main run loop; notifyObserversUsingBlock: hops to the main thread
-            // itself.
+            // Deliver HAL notifications on the HAL's own thread rather than
+            // the main run loop. notifyObserversUsingBlock: hops to the main
+            // thread itself.
             CFRunLoopRef nullRunLoop = NULL;
             AudioObjectPropertyAddress runLoopProperty = { kAudioHardwarePropertyRunLoop, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
             AudioObjectSetPropertyData(kAudioObjectSystemObject, &runLoopProperty, 0, NULL, sizeof(CFRunLoopRef), &nullRunLoop);
@@ -137,10 +138,10 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     os_unfair_lock_unlock(&_observersLock);
 }
 
-// Fans a notification out to every observer on the main thread. Uses the
-// common run-loop modes rather than dispatch_async(main): GCD main-queue
-// blocks don't run while a menu is tracking, and the devices menu needs the
-// callback while it is open.
+// Fans a notification out to every observer on the main thread. It uses the
+// common run-loop modes rather than dispatch_async on main, because GCD
+// main-queue blocks do not run while a menu is tracking, and the devices menu
+// needs the callback while it is open.
 - (void)notifyObserversUsingBlock:(void (^)(id<AudioDeviceManagerObserver> observer))block {
     os_unfair_lock_lock(&_observersLock);
     NSArray<id<AudioDeviceManagerObserver>> *observers = _observers.allObjects;
@@ -157,10 +158,11 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     CFRunLoopWakeUp(mainRunLoop);
 }
 
-// Served from the cached snapshot; the HAL listeners keep it fresh (refresh
-// first, then notify — see refreshDevicesThenNotify:). The first call (cache
-// still empty) sweeps on the calling thread; concurrent first callers may
-// sweep twice, with identical results, and the last store wins.
+// Served from the cached snapshot, which the HAL listeners keep fresh by
+// refreshing first and notifying second; see refreshDevicesThenNotify:. The
+// first call, with the cache still empty, sweeps on the calling thread.
+// Concurrent first callers may sweep twice, with identical results, and the
+// last store wins.
 - (NSArray<AudioDevice *>*)outputDevices {
     os_unfair_lock_lock(&_devicesLock);
     NSArray<AudioDevice *> *devices = _cachedOutputDevices;
@@ -179,10 +181,10 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     return devices;
 }
 
-// Sweeps on the refresh queue FIRST, then fans the observer notification out
-// (notifyObserversUsingBlock: hops to the main thread itself), so observers
-// — AudioPlayer's removed-device fallback, an open devices menu's rebuild —
-// read a cache that already reflects the change they are being told about.
+// Sweeps on the refresh queue first, then fans the observer notification out;
+// notifyObserversUsingBlock: hops to the main thread itself. Observers —
+// AudioPlayer's removed-device fallback, or an open devices menu's rebuild —
+// therefore read a cache that already reflects the change they are told about.
 - (void)refreshDevicesThenNotify:(void (^)(id<AudioDeviceManagerObserver> observer))block {
     dispatch_async(_refreshQueue, ^{
         [self refreshOutputDevicesCache];
@@ -190,10 +192,10 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     });
 }
 
-// The full sweep: the device-list read plus per-device HAL reads (output
-// channels, name, UID) — tens of ms with Bluetooth/aggregate devices present.
-// Callers go through the cache above; this runs only on the refresh queue and
-// on a first-use cache miss.
+// The full sweep: the device-list read plus per-device HAL reads for output
+// channels, name and UID. It takes tens of ms when Bluetooth or aggregate
+// devices are present. Callers go through the cache above, and this runs only
+// on the refresh queue and on a first-use cache miss.
 - (NSArray<AudioDevice *>*)enumerateOutputDevices {
     AudioObjectPropertyAddress addr = {
             kAudioHardwarePropertyDevices,
@@ -210,8 +212,9 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     }
     NSMutableArray *result = [[NSMutableArray alloc] init];
     if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &addr, 0, NULL, &size, deviceIDs) == noErr) {
-        // size is in/out: recompute from what was actually returned so a
-        // device vanishing mid-query can't make us read the buffer tail.
+        // size is an in-out parameter, so recompute from what was actually
+        // returned. Otherwise a device vanishing mid-query could make us read
+        // the buffer's tail.
         UInt32 count = size / sizeof(AudioDeviceID);
         AudioDeviceID defaultID = [CoreAudioUtil systemDefaultOutputDeviceID];
         for (UInt32 i = 0; i < count; i++) {
@@ -235,7 +238,11 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     }
     AudioDevice *device = [[AudioDevice alloc] init];
     device.name = name;
-    device.uid = [CoreAudioUtil uidForDeviceID:deviceID] ?: @"default";
+    // Devices without a UID keep an empty uid rather than a shared sentinel.
+    // Two of them would collide on a sentinel, and a persisted sentinel would
+    // resolve to whichever enumerated first. outputDeviceForUID: skips empty
+    // queries, so resolution for these devices falls through to the name match.
+    device.uid = [CoreAudioUtil uidForDeviceID:deviceID] ?: @"";
     device.deviceId = (NSInteger)deviceID;
     device.isSystemDefault = (deviceID == defaultID);
     return device;

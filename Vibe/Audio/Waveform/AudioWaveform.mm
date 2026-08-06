@@ -10,8 +10,8 @@
 AudioWaveform::AudioWaveform() {
     numChunks = NUM_CHUNKS;
     this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
-    // A NULL alloc would make setChunkAtIndex dereference NULL; a zero count
-    // turns every access into a safe no-op instead.
+    // A NULL allocation would make setChunkAtIndex dereference NULL, whereas a
+    // zero count turns every access into a safe no-op.
     if (!this->chunks) { this->numChunks = 0; }
 }
 
@@ -41,34 +41,37 @@ AudioWaveform::~AudioWaveform() {
 
 AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInteger size)  {
     AudioWaveformCacheChunk result;
-    // A failed calloc leaves chunks NULL / numChunks 0 (see the constructors);
-    // guard here so a renderer read can't deref NULL.
+    // A failed calloc leaves chunks NULL and numChunks 0; see the
+    // constructors. Guard here so that a renderer read cannot dereference NULL.
     if (chunks == nullptr || numChunks == 0) return result;
     if (index >= size) return result;
     if (size == numChunks) { return chunks[index]; }
-    // Column i combines [start(i), start(i+1)) so consecutive columns tile
-    // the source exactly — a floored fixed width skips a source chunk on most
-    // steps of a fractional ratio (transient peaks vanish at some view widths).
+    // Column i combines [start(i), start(i+1)), so consecutive columns tile
+    // the source exactly. A floored fixed width skips a source chunk on most
+    // steps of a fractional ratio, which makes transient peaks vanish at some
+    // view widths.
     NSUInteger startIndex = numChunks * index / size;
     NSUInteger endIndex = numChunks * (index + 1) / size;
     NSUInteger numChunksToCombine = endIndex > startIndex ? endIndex - startIndex : 1;
     if (numChunksToCombine == 1) {
         return chunks[startIndex];
     }
-    // Clamp to avoid reading past the buffer
+    // Clamp so we never read past the buffer.
     if (startIndex + numChunksToCombine > numChunks) {
         numChunksToCombine = numChunks - startIndex;
     }
     if (numChunksToCombine < 16) {
-        // vDSP setup overhead dominates for tiny strided ranges — plain loop
+        // vDSP setup overhead dominates for tiny strided ranges, so use a
+        // plain loop.
         result = chunks[startIndex];
         for (NSUInteger i = 1; i < numChunksToCombine; i++) {
             result.merge(&chunks[startIndex + i]);
         }
         return result;
     }
-    // chunks[] is float[2] pairs: [min0, max0, min1, max1, ...]
-    // Use stride-2 vDSP to find min of all mins and max of all maxes
+    // chunks[] holds float[2] pairs: min0, max0, min1, max1 and so on. Use
+    // stride-2 vDSP to find the minimum of all the minima and the maximum of
+    // all the maxima.
     float *base = reinterpret_cast<float*>(&chunks[startIndex]);
     float minVal, maxVal;
     vDSP_minv(base,     2, &minVal, numChunksToCombine);  // stride 2, starting at values[0]
@@ -77,7 +80,7 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
     return result;
 }
 
-// See the declaration in AudioWaveform.h: also names the disk cache, so a
+// See the declaration in AudioWaveform.h. It also names the disk cache, so a
 // bump invalidates by rename as well as by mismatch.
 const int kCodableAudioWaveformVersion = 4;
 
@@ -93,14 +96,16 @@ const int kCodableAudioWaveformVersion = 4;
 - (instancetype)initWithCoder:(NSCoder *)coder {
     self = [super init];
     if (self) {
-        // Missing/mismatched version (old cache entries decode as 0) or
-        // malformed payloads are rejected; the waveform just re-generates.
+        // A missing or mismatched version, since old cache entries decode as
+        // 0, and a malformed payload are both rejected. The waveform simply
+        // regenerates.
         if ([coder decodeIntForKey:@"version"] != kCodableAudioWaveformVersion) {
             return nil;
         }
-        // Validate the class before messaging: a bit-rotted entry that decodes
-        // numChunks as some other object would otherwise crash (unrecognized
-        // selector) inside the decode, ahead of the payload checks below.
+        // Validate the class before messaging. A bit-rotted entry that decodes
+        // numChunks as some other object would otherwise crash with an
+        // unrecognized selector inside the decode, before the payload checks
+        // below ever ran.
         NSNumber *numChunksValue = [coder decodeObjectForKey:@"numChunks"];
         if (![numChunksValue isKindOfClass:[NSNumber class]]) {
             return nil;
@@ -109,10 +114,22 @@ const int kCodableAudioWaveformVersion = 4;
         NSUInteger length;
         const void* data = [coder decodeBytesForKey:@"chunks" returnedLength:&length];
         // The encoder only ever writes NUM_CHUNKS. Requiring exact equality
-        // rejects corrupt/rot entries and removes the unchecked-multiply
-        // overflow the length comparison would otherwise carry.
+        // rejects corrupt and bit-rotted entries, and removes the unchecked
+        // multiply overflow the length comparison would otherwise carry.
         if (!data || numChunks != NUM_CHUNKS || length != numChunks * sizeof(AudioWaveformCacheChunk)) {
             return nil;
+        }
+        // Generation clamps NaN before chunks are stored; see AudioWaveform.h.
+        // But the archive has no checksum, so a bit-rotted entry can still
+        // decode non-finite floats, which poison the renderers' geometry on
+        // every play until the entry ages out. Reject it like any other
+        // malformed payload.
+        const float *values = (const float *)data;
+        NSUInteger numValues = length / sizeof(float);
+        for (NSUInteger i = 0; i < numValues; i++) {
+            if (!std::isfinite(values[i])) {
+                return nil;
+            }
         }
         self.waveform = new AudioWaveform(numChunks, data);
         float bpm = [coder decodeFloatForKey:@"bpm"];

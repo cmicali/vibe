@@ -10,14 +10,14 @@
 
 @implementation MainPlayerController (NowPlaying)
 
-// Publish the current track + playback state to the system Now Playing UI
-// (Control Center, media keys). Driven off updateUI, plus seek, pitch-range
-// change, and fader-gesture end — the things that move position/rate without
-// an updateUI (a fader drag deliberately publishes once, at gesture end).
-// Cheap and non-blocking.
+// Publishes the current track and the playback state to the system Now Playing
+// UI: Control Center and the media keys. It is driven off updateUI, plus a
+// seek, a pitch-range change and the end of a fader gesture — the things that
+// move position or rate without an updateUI. A fader drag deliberately
+// publishes once, at the end of the gesture. This is cheap and non-blocking.
 - (void)updateNowPlaying {
-    // displayedTrack, not currentTrack: the system sees the header's masked
-    // view, so a play-error state clears the Now Playing slot instead of
+    // displayedTrack, not currentTrack. The system sees the header's masked
+    // view, so a play-error state clears the Now Playing slot rather than
     // advertising a track that never produced audio.
     AudioTrack *track = [self displayedTrack];
     NowPlayingPlaybackState state;
@@ -30,10 +30,10 @@
     else {
         state = NowPlayingPlaybackStateStopped;
     }
-    // Report pitch-adjusted (wall-clock) time so Control Center matches the
-    // app's own time labels. Wall-clock elapsed advances at real time, so the
-    // rate handed to the system is 1.0 — NOT the varispeed rate, which would
-    // double-count against the already-scaled position.
+    // Report pitch-adjusted, wall-clock time, so that Control Center matches
+    // the app's own time labels. Wall-clock elapsed time advances at real
+    // time, so the rate handed to the system is 1.0, not the varispeed rate,
+    // which would double-count against the already-scaled position.
     double rate = self.playbackRate;
     NSTimeInterval duration = self.audioPlayer.duration;
     NSTimeInterval position = self.audioPlayer.position;
@@ -52,19 +52,19 @@
 
 #pragma mark - NowPlayingControllerDelegate (system media keys / Control Center)
 
-// Commands arrive on the main thread; route them through the same transport
-// entry points the on-screen buttons and keyboard use.
+// Commands arrive on the main thread. Route them through the same transport
+// entry points the on-screen buttons and the keyboard use.
 
 - (void)nowPlayingControllerPlay:(NowPlayingController *)controller {
-    // Discrete "play" — start/resume only if not already playing (playPause:
-    // would otherwise pause a playing track).
+    // A discrete play: start or resume only if not already playing, since
+    // playPause: would otherwise pause a playing track.
     if (!self.audioPlayer.isPlaying) {
         [self playPause:nil];
     }
 }
 
 - (void)nowPlayingControllerPause:(NowPlayingController *)controller {
-    // Discrete "pause" — act only when something is actually playing.
+    // A discrete pause: act only when something is actually playing.
     if (self.audioPlayer.isPlaying) {
         [self playPause:nil];
     }
@@ -84,8 +84,8 @@
 
 - (void)nowPlayingController:(NowPlayingController *)controller seekToPosition:(NSTimeInterval)position {
     // The scrubber position arrives in the wall-clock time updateNowPlaying
-    // publishes; the player seeks in file time — convert back with the same
-    // rate.
+    // publishes, while the player seeks in file time, so convert back with the
+    // same rate.
     [self.audioPlayer seekToPosition:position * self.playbackRate];
 }
 

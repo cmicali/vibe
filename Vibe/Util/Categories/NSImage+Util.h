@@ -8,16 +8,16 @@
 
 @interface NSImage (Util)
 
-// Redraws the image at newSize into an sRGB bitmap. Returns nil if the
-// bitmap or its drawing context can't be created — never falls back to the
-// full-size original (callers resize precisely to shed its memory).
+// Redraws the image at newSize into an sRGB bitmap. It returns nil if the
+// bitmap or its drawing context cannot be created, and never falls back to the
+// full-size original, because callers resize precisely to shed its memory.
 - (nullable NSImage *)resizedImage:(NSSize)newSize;
 
-// The image's dominant color, for tinting a backdrop to match album art:
-// the saturation×brightness-weighted average of the most-populated hue band,
-// so a colorful accent wins over a large muted background. Falls back to the
-// plain average for effectively monochrome images (returns their gray).
-// Downsamples internally — cost is independent of image size. Returns nil
-// only if the image can't be rasterized.
+// The image's dominant color, for tinting a backdrop to match album art. It is
+// the average of the most-populated hue band, weighted by saturation times
+// brightness, so that a colorful accent beats a large muted background. For an
+// effectively monochrome image it falls back to the plain average and returns
+// that gray. It downsamples internally, so its cost is independent of image
+// size, and it returns nil only if the image cannot be rasterized.
 - (nullable NSColor *)dominantColor;
 @end

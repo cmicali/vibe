@@ -9,84 +9,90 @@
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>
 
-// Low-kill high-pass cutoff (engaged) — bass and kick gone, mids untouched.
-// The EQ runs TWO cascaded high-pass bands swept together (12 dB/oct each,
-// 24 dB/oct total): a resonant one carrying a small DJ-filter bump at the
-// cutoff, plus a plain 2nd-order Butterworth.
+// Low-kill high-pass cutoff while engaged: bass and kick gone, mids
+// untouched. The EQ runs two cascaded high-pass bands swept together, 12
+// dB/oct each for 24 dB/oct in total — a resonant one carrying a small
+// DJ-filter bump at the cutoff, plus a plain 2nd-order Butterworth.
 static const float kLowKillCutoffHz = 200.0f;
-// Held W drives the same filter to double the toggle's cutoff (400 Hz) —
-// a momentary harder kill that releases back to the Q state.
+// A held W drives the same filter to double the toggle's cutoff, 400 Hz: a
+// momentary harder kill that releases back to the Q state.
 static const float kLowKillBoostMultiplier = 2.0f;
-// Parked (disengaged) cutoff: AUNBandEQ's frequency floor, below the audible
-// band, so the filter is inaudible while parked. The bands are NEVER bypassed
-// — un-bypassing a band dumps its stale delay-line state into the signal (an
-// audible click), so on/off is purely a cutoff sweep between these two.
+// The parked, disengaged cutoff: AUNBandEQ's frequency floor, below the
+// audible band, so the filter is inaudible while parked. The bands are never
+// bypassed, because un-bypassing one dumps its stale delay-line state into the
+// signal and clicks audibly. On and off are purely a cutoff sweep between
+// these two values.
 static const float kLowKillParkedHz = 20.0f;
-// Resonance of the resonant band, as AUNBandEQ bandwidth in octaves
-// (narrower = peakier). A touch of squelch at the cutoff, not a scream.
+// Resonance of the resonant band, as AUNBandEQ bandwidth in octaves, where
+// narrower is peakier. A touch of squelch at the cutoff, not a scream.
 static const float kLowKillResonanceBandwidth = 0.7f;
-// Sweep resolution: much finer than the volume fades — coefficient jumps big
-// enough to hear (zipper/click) need small steps, and a slightly longer total
-// sweep (~80ms) still reads as an instant kill.
+// Sweep resolution, much finer than the volume fades. Coefficient jumps big
+// enough to hear as zipper or click need small steps, and a slightly longer
+// total sweep of about 80ms still reads as an instant kill.
 static const int kLowKillSweepSteps = 40;
 static const uint64_t kLowKillSweepStepMicroseconds = 2000;
 
-// Momentary reverb send (held E key): the master signal is tapped post-low-kill
-// into a gated 100%-wet parallel reverb return, so releasing the key cuts the
-// SEND while the tail rings out naturally. Gate level while engaged — this IS
-// the wet/dry balance (the dry path always runs at unity), so <0.5 keeps the
-// verb sitting under the dry signal.
+// Momentary reverb send, on a held E key. The master signal is tapped
+// post-low-kill into a gated, 100%-wet parallel reverb return, so releasing
+// the key cuts the send while the tail rings out naturally. This gate level
+// while engaged is the wet-dry balance, since the dry path always runs at
+// unity, so anything below 0.5 keeps the verb sitting under the dry signal.
 static const float kReverbSendLevel = 0.3f;
-// High-pass on the reverb OUTPUT so the tail can't muddy the bass — filtering
-// the return (not the send) guarantees even the ringing tail is low-cut.
+// High-pass on the reverb output, so the tail cannot muddy the bass.
+// Filtering the return rather than the send guarantees that even the ringing
+// tail is low-cut.
 static const float kReverbTailLowCutHz = 550.0f;
-// MatrixReverb tuning, applied on top of the Cathedral preset (Reverb2
-// sounds thin/digital by comparison). CAUTION: the ranges documented in
-// AudioUnitParameters.h are STALE — the AU's real LargeSize range (queried
-// via kAudioUnitProperty_ParameterInfo) is 0.005-0.15, not the header's
-// "0.4->10.0 Secs", and an out-of-range value ASSERTS in the render thread
-// (caulk CAVerboseAbort), killing the app on first play. MatrixReverb has no
-// decay-seconds knob at all; size/mix/density maxed out below is the longest
-// tail this engine does (Cathedral ships at LargeSize 0.06, mix 35).
-static const float kReverbLargeSize = 0.15f;     // real max — the tail knob
-static const float kReverbSmallLargeMix = 90.0f; // 0-100: mostly the large (hall) engine
+// MatrixReverb tuning, applied on top of the Cathedral preset; Reverb2 sounds
+// thin and digital by comparison. CAUTION: the ranges documented in
+// AudioUnitParameters.h are stale. The AU's real LargeSize range, queried
+// through kAudioUnitProperty_ParameterInfo, is 0.005-0.15, not the header's
+// "0.4->10.0 Secs", and an out-of-range value asserts in the render thread
+// through caulk CAVerboseAbort, killing the app on first play. MatrixReverb
+// has no decay-seconds knob at all, so the size, mix and density maxed out
+// below give the longest tail this engine does. Cathedral ships at LargeSize
+// 0.06 and mix 35.
+static const float kReverbLargeSize = 0.15f;     // the real max: the tail knob
+static const float kReverbSmallLargeMix = 90.0f; // 0-100: mostly the large hall engine
 static const float kReverbLargeDensity = 0.9f;   // lush, smooth tail
 
-// Momentary delay echo sends (held R and T keys), the same gated send/return
-// pattern as the reverb. The tap is a fraction of a beat of the EFFECTIVE
-// (pitch-scaled) tempo — the controller feeds delayTapBPM from the same
-// tagged/detected BPM the label shows; with no tempo known the default below
-// applies. R and T are the same machine at different clock divisions:
-static const float kDelayTapBeats = 0.5f;       // R: 1/8 note (half a beat)
-static const float kShortDelayTapBeats = 0.25f; // T: 1/16 note (quarter beat)
+// Momentary delay echo sends, on held R and T keys, using the same gated
+// send-return pattern as the reverb. The tap is a fraction of a beat of the
+// effective, pitch-scaled tempo. The controller feeds delayTapBPM from the
+// same tagged or detected BPM the label shows, and with no tempo known the
+// default below applies. R and T are the same machine at different clock
+// divisions:
+static const float kDelayTapBeats = 0.5f;       // R: 1/8 note, half a beat
+static const float kShortDelayTapBeats = 0.25f; // T: 1/16 note, a quarter beat
 static const float kDelaySendLevel = 0.3f;
-// Per-HOP echo decay (L->R counts as one hop). The ping-pong lanes run at
-// twice the tap period (see the graph comment at the ivars), so each lane's
-// own feedback is this squared.
-static const float kDelayFeedbackPercent = 75.0f; // aggressive — a long trail of repeats
-// High-pass on the delay OUTPUT: every repeat re-exits through it, so the
-// echoes never pile up bass under the dry signal. (AVAudioUnitDelay's own
-// in-loop filter is lowpass-only, so the cut lives on the return instead.)
+// Per-hop echo decay, where L->R counts as one hop. The ping-pong lanes run
+// at twice the tap period, as the graph comment at the ivars explains, so each
+// lane's own feedback is this squared.
+static const float kDelayFeedbackPercent = 75.0f; // aggressive: a long trail of repeats
+// High-pass on the delay output. Every repeat re-exits through it, so the
+// echoes never pile up bass under the dry signal. AVAudioUnitDelay's own
+// in-loop filter is lowpass-only, so the cut lives on the return instead.
 static const float kDelayEchoLowCutHz = 450.0f;
 static const float kDelayDefaultBPM = 120.0f; // 0.25s tap until a real tempo arrives
-// Ping-pong width: echoes alternate sides at half pan, not hard L/R.
+// Ping-pong width: echoes alternate sides at half pan, not hard left and right.
 static const float kDelayPingPongPan = 0.5f;
 
-// After a send's fast open, it keeps swelling gently while the key stays
-// held — the effect builds the longer it's ridden, like easing a send fader
-// up. Ratio x base level over 6s, in steps small enough (~0.5% each) to be
-// seamless; releasing the key still closes fast on the normal fade cadence.
+// After a send's fast open, it keeps swelling gently while the key stays held,
+// so the effect builds the longer it is ridden, like easing a send fader up.
+// The ratio multiplies the base level over six seconds, in steps small enough
+// — about 0.5% each — to be seamless. Releasing the key still closes fast, on
+// the normal fade cadence.
 static const float kReverbSwellRatio = 1.8f; // 0.3 -> 0.54
 static const float kDelaySwellRatio = 1.8f;  // 0.3 -> 0.54
 static const int kSendSwellSteps = 120;
 static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 
-// One complete ping-pong delay send/return — built once per tap length, so
-// the 1/8 (R) and 1/16 (T) echoes are the same machine at different clock
-// divisions. AVAudioEngine forbids feedback cycles, so the classic cross-fed
-// ping-pong is impossible — instead two acyclic lanes at TWICE the tap
-// period T, the left lane offset by T, interleave into an exact alternating
-// pattern (all delays 100% wet, per-hop decay f):
+// One complete ping-pong delay send and return, built once per tap length, so
+// that the 1/8-note (R) and 1/16-note (T) echoes are the same machine at
+// different clock divisions. AVAudioEngine forbids feedback cycles, which
+// makes the classic cross-fed ping-pong impossible. Instead two acyclic lanes
+// run at twice the tap period T, with the left lane offset by T, and they
+// interleave into an exact alternating pattern. All delays are 100% wet, with
+// per-hop decay f:
 //
 //   gate -> half(T) ------------------> panLeft (-50%)   L: T
 //           half -> left(2T,f^2) ------> panLeft          L: 3T, 5T ...
@@ -94,25 +100,25 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 //                                                         R: 2T, 4T ...
 //   panLeft/panRight -> sum -> lowCut -> masterMix
 //
-// The pan mixers exist because AVAudioUnitDelay doesn't adopt AVAudioMixing
-// — only a mixer feeding another mixer can pan.
+// The pan mixers exist because AVAudioUnitDelay does not adopt AVAudioMixing:
+// only a mixer feeding another mixer can pan.
 //
-// DELIBERATE non-geometric decay: the left lane's echoes (3T, 5T, ...) start
-// at the lane's own first-tap level — `left`'s first wet tap emerges at
-// unity, and panLeft can't compensate (its bus 0 carries the T tap, which
-// must stay at unity) — so each odd hop >= 3 lands f^2 (~1.8x at f=0.75)
-// hotter than a strict per-hop trail: 1, f, 1, f^3, f^2, ... instead of
-// 1, f, f^2, f^3, f^4. The result is a left-leaning surge on every second
-// repeat rather than a smooth fade; auditioned and kept — it reads as bounce,
-// not as a bug. A strict trail would need a gain stage (small mixer at f^2)
-// between `left` and `sum`.
+// The non-geometric decay is deliberate. The left lane's echoes at 3T, 5T and
+// so on start at the lane's own first-tap level, because `left`'s first wet
+// tap emerges at unity and panLeft cannot compensate: its bus 0 carries the T
+// tap, which must stay at unity. So every odd hop from 3 onwards lands f^2
+// hotter than a strict per-hop trail, about 1.8x at f=0.75, giving
+// 1, f, 1, f^3, f^2, ... rather than 1, f, f^2, f^3, f^4. The result is a
+// left-leaning surge on every second repeat rather than a smooth fade. It was
+// auditioned and kept: it reads as bounce, not as a bug. A strict trail would
+// need a gain stage — a small mixer at f^2 — between `left` and `sum`.
 @interface VibeDelaySend : NSObject {
 @public
-    // The gate's ramp generation, passed by pointer into the shared stepper
-    // (stepSendGateRamp:...counter:) — queue-confined, like AudioFX's own
-    // reverb counter. Public ivar (not a property) so &send->_rampGeneration
-    // is expressible; the send lives for AudioFX's lifetime, so the pointer
-    // can't dangle.
+    // The gate's ramp generation, passed by pointer into the shared stepper,
+    // stepSendGateRamp:...counter:. It is queue-confined, like AudioFX's own
+    // reverb counter. It is a public ivar rather than a property so that
+    // &send->_rampGeneration is expressible, and the send lives for AudioFX's
+    // lifetime, so the pointer cannot dangle.
     uint64_t _rampGeneration;
 }
 @property (nonatomic) float beatsPerTap; // 0.5 = 1/8 note, 0.25 = 1/16
@@ -130,30 +136,31 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 @end
 
 @implementation AudioFX {
-    // The player's serial engine queue (shared, not owned): all graph and
-    // parameter mutation runs here, like every other engine touch in the app.
+    // The player's serial engine queue, shared rather than owned. All graph
+    // and parameter mutation runs here, as every other engine touch in the app
+    // does.
     dispatch_queue_t        _queue;
-    // nil until installInEngine: — the appliers no-op before then and the
+    // nil until installInEngine:. The appliers no-op before then, and the
     // install pass re-applies the recorded intent.
     AVAudioEngine           *_engine;
-    // Guards the intent flags and delayTapBPM (the ramp generations are
-    // queue-confined and need no lock).
+    // Guards the intent flags and delayTapBPM. The ramp generations are
+    // queue-confined and need no lock.
     os_unfair_lock          _stateLock;
 
-    // Master-bus low-kill high-pass — see the class comment for its place in
-    // the graph. _lowKillEnabled/_lowKillBoostActive (lock-guarded) are the
-    // UI-readable intent; the ramp generation (queue-confined) lets a
+    // Master-bus low-kill high-pass; the class comment gives its place in the
+    // graph. _lowKillEnabled and _lowKillBoostActive are lock-guarded and hold
+    // the UI-readable intent. The ramp generation is queue-confined and lets a
     // re-toggle mid-sweep preempt the old sweep.
     AVAudioUnitEQ           *_lowKillEQ;
     BOOL                    _lowKillEnabled;
     BOOL                    _lowKillBoostActive;
     uint64_t                _lowKillRampGeneration;
 
-    // Momentary reverb send/return, parallel to the master chain:
-    // lowKillEQ -> sendGate (outputVolume 0/1) -> reverb (100% wet) -> tail
-    // low-cut EQ -> masterMix, where masterMix also carries the dry path to
-    // the output. The enabled flag is lock-guarded intent, the ramp
-    // generation (queue-confined) preempts an in-flight gate fade.
+    // Momentary reverb send and return, parallel to the master chain:
+    // lowKillEQ -> sendGate, at outputVolume 0 or 1 -> reverb, 100% wet ->
+    // tail low-cut EQ -> masterMix, which also carries the dry path to the
+    // output. The enabled flag is lock-guarded intent, and the ramp
+    // generation, queue-confined, preempts an in-flight gate fade.
     AVAudioMixerNode        *_masterMix;
     AVAudioMixerNode        *_reverbSendGate;
     AVAudioUnitReverb       *_reverb; // wraps MatrixReverb ('aufx'/'mrev')
@@ -161,9 +168,10 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     BOOL                    _reverbSendEnabled;
     uint64_t                _reverbSendRampGeneration;
 
-    // Momentary ping-pong delay sends, parallel returns next to the reverb's
-    // — one VibeDelaySend per tap length (topology in its class comment).
-    // _delayTapBPM (lock-guarded) is the effective tempo both taps follow.
+    // Momentary ping-pong delay sends, with parallel returns beside the
+    // reverb's: one VibeDelaySend per tap length, whose class comment gives
+    // the topology. _delayTapBPM, lock-guarded, is the effective tempo both
+    // taps follow.
     VibeDelaySend           *_delayEighth;    // R key: 1/8-note taps
     VibeDelaySend           *_delaySixteenth; // T key: 1/16-note taps
     BOOL                    _delaySendEnabled;
@@ -185,12 +193,12 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 - (void)installInEngine:(AVAudioEngine *)engine {
     _engine = engine;
 
-    // Master-bus low kill: mainMixer -> EQ -> ... (the explicit connects
-    // below replace the implicit mixer->output one). Both bands stay live
-    // (never bypassed — see kLowKillParkedHz) for the engine's lifetime,
-    // parked inaudibly at 20 Hz; the controls only sweep the cutoff
-    // (applyLowKillTargetOnQueue). The output node converts if a later
-    // device runs at a different sample rate than this format.
+    // Master-bus low kill: mainMixer -> EQ -> and so on. The explicit connects
+    // below replace the implicit mixer-to-output one. Both bands stay live for
+    // the engine's lifetime, never bypassed (see kLowKillParkedHz), parked
+    // inaudibly at 20 Hz, and the controls only sweep the cutoff through
+    // applyLowKillTargetOnQueue. The output node converts if a later device
+    // runs at a different sample rate from this format.
     _lowKillEQ = [[AVAudioUnitEQ alloc] initWithNumberOfBands:2];
     AVAudioUnitEQFilterParameters *resonantBand = _lowKillEQ.bands[0];
     resonantBand.filterType = AVAudioUnitEQFilterTypeResonantHighPass;
@@ -203,21 +211,21 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     }
     [engine attachNode:_lowKillEQ];
 
-    // Momentary reverb send/return (see the ivar comment for the graph).
-    // masterMix exists so the returns have somewhere to re-enter that isn't
-    // mainMixer — returning there would loop each effect back into its own
-    // send. The gate rests closed (volume 0) and the reverb is fully wet:
-    // the dry signal only ever travels the masterMix path, so opening the
-    // gate ADDS reverb on top.
+    // Momentary reverb send and return; the ivar comment gives the graph.
+    // masterMix exists so that the returns have somewhere to re-enter other
+    // than mainMixer, where they would loop each effect back into its own
+    // send. The gate rests closed, at volume 0, and the reverb is fully wet.
+    // The dry signal only ever travels the masterMix path, so opening the gate
+    // adds reverb on top.
     _masterMix = [[AVAudioMixerNode alloc] init];
     _reverbSendGate = [[AVAudioMixerNode alloc] init];
-    // AVAudioUnitReverb wraps MatrixReverb (verified: its component
-    // description is 'aufx'/'mrev'), so the raw kReverbParam_* knobs are
-    // settable through its audioUnit below. Hosting the AU directly via
-    // AVAudioUnitEffect instead ASSERTS in the render thread on the first
-    // pull (caulk CAVerboseAbort inside AudioUnitRender) — the
+    // AVAudioUnitReverb wraps MatrixReverb — verified, since its component
+    // description is 'aufx'/'mrev' — so the raw kReverbParam_* knobs are
+    // settable through its audioUnit below. Hosting the AU directly through
+    // AVAudioUnitEffect instead asserts in the render thread on the first
+    // pull, in caulk CAVerboseAbort inside AudioUnitRender, because the
     // AVAudioUnitReverb wrapper applies configuration the raw hosting path
-    // doesn't. Don't "simplify" back to AVAudioUnitEffect.
+    // does not. Do not "simplify" back to AVAudioUnitEffect.
     _reverb = [[AVAudioUnitReverb alloc] init];
     [_reverb loadFactoryPreset:AVAudioUnitReverbPresetCathedral];
     _reverb.wetDryMix = 100;
@@ -230,25 +238,25 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     [engine attachNode:_reverbSendGate];
     [engine attachNode:_reverb];
     [engine attachNode:_reverbLowCut];
-    // Cathedral is the base character; these push the tail out to the
-    // target length (see the constants).
+    // Cathedral is the base character, and these push the tail out to the
+    // target length. See the constants.
     AudioUnit reverbUnit = _reverb.audioUnit;
     AudioUnitSetParameter(reverbUnit, kReverbParam_SmallLargeMix, kAudioUnitScope_Global, 0, kReverbSmallLargeMix, 0);
     AudioUnitSetParameter(reverbUnit, kReverbParam_LargeSize, kAudioUnitScope_Global, 0, kReverbLargeSize, 0);
     AudioUnitSetParameter(reverbUnit, kReverbParam_LargeDensity, kAudioUnitScope_Global, 0, kReverbLargeDensity, 0);
 
-    // Two ping-pong delay returns — the same machine at different clock
-    // divisions (see VibeDelaySend). Created (attached) here so their gates
-    // exist as fan-out targets below; WIRED after the fan-out, so the dry
-    // path's explicit masterMix bus-0 claim can't disconnect a return that
-    // grabbed bus 0 first.
+    // Two ping-pong delay returns, the same machine at different clock
+    // divisions; see VibeDelaySend. They are created and attached here so that
+    // their gates exist as fan-out targets below, but wired after the fan-out,
+    // so the dry path's explicit claim on masterMix bus 0 cannot disconnect a
+    // return that grabbed bus 0 first.
     _delayEighth = [self createDelaySendWithBeatsPerTap:kDelayTapBeats engine:engine];
     _delaySixteenth = [self createDelaySendWithBeatsPerTap:kShortDelayTapBeats engine:engine];
 
     AVAudioFormat *mixerFormat = [engine.mainMixerNode outputFormatForBus:0];
     [engine connect:engine.mainMixerNode to:_lowKillEQ format:mixerFormat];
-    // One-to-many: the post-low-kill master signal feeds the dry path
-    // (masterMix bus 0) and every send tap in parallel.
+    // One-to-many: the post-low-kill master signal feeds the dry path, on
+    // masterMix bus 0, and every send tap in parallel.
     [engine connect:_lowKillEQ
         toConnectionPoints:@[
             [[AVAudioConnectionPoint alloc] initWithNode:_masterMix bus:0],
@@ -260,22 +268,22 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
                 format:mixerFormat];
     [engine connect:_reverbSendGate to:_reverb format:mixerFormat];
     [engine connect:_reverb to:_reverbLowCut format:mixerFormat];
-    // connect:to:format: routes to a mixer's next available input bus
-    // — the returns land on buses 1..3, after the dry path's bus 0.
+    // connect:to:format: routes to a mixer's next available input bus, so the
+    // returns land on buses 1 to 3, after the dry path's bus 0.
     [engine connect:_reverbLowCut to:_masterMix format:mixerFormat];
     [self wireDelaySend:_delayEighth engine:engine format:mixerFormat];
     [self wireDelaySend:_delaySixteenth engine:engine format:mixerFormat];
     [engine connect:_masterMix to:engine.outputNode format:mixerFormat];
-    // Mixer state only AFTER the nodes are attached and wired:
-    // AVAudioMixerNode's underlying mixer AU doesn't exist until then, and
-    // volume/pan written earlier is dropped — the gates would come up at
-    // their default (1.0) and the app would launch with the effects audibly
-    // stuck on. (The delay sends' gate/pan state is set the same way, at the
-    // end of wireDelaySend:.)
+    // Set mixer state only after the nodes are attached and wired.
+    // AVAudioMixerNode's underlying mixer AU does not exist until then, and a
+    // volume or pan written earlier is dropped: the gates would come up at
+    // their default of 1.0 and the app would launch with the effects audibly
+    // stuck on. The delay sends' gate and pan state is set the same way, at
+    // the end of wireDelaySend:.
     _reverbSendGate.outputVolume = 0;
 
-    // Apply any intent recorded before the engine existed (a key or menu
-    // action racing the async engine init, the controller's first BPM feed).
+    // Apply any intent recorded before the engine existed: a key or menu
+    // action racing the async engine init, or the controller's first BPM feed.
     [self applyLowKillTargetOnQueue];
     [self applyDelayTapOnQueue];
     os_unfair_lock_lock(&_stateLock);
@@ -296,11 +304,11 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     }
 }
 
-// Allocates, configures, and attaches one ping-pong return's nodes (no
-// connections yet — see the wiring note in installInEngine:). Fully wet like
-// the reverb: the dry path never runs through it, the gate only adds echoes
-// on top. Tap times follow delayTapBPM; lane feedback is the per-hop decay
-// squared because each lane repeats every TWO hops.
+// Allocates, configures and attaches one ping-pong return's nodes, with no
+// connections yet; see the wiring note in installInEngine:. It is fully wet
+// like the reverb, so the dry path never runs through it and the gate only
+// adds echoes on top. Tap times follow delayTapBPM, and lane feedback is the
+// per-hop decay squared, because each lane repeats every two hops.
 - (VibeDelaySend *)createDelaySendWithBeatsPerTap:(float)beatsPerTap engine:(AVAudioEngine *)engine {
     float hopDecay = kDelayFeedbackPercent / 100.0f;
     float laneFeedbackPercent = hopDecay * hopDecay * 100.0f;
@@ -338,9 +346,9 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     return send;
 }
 
-// Wires one return's internal chain (topology in VibeDelaySend's comment)
-// and lands it on masterMix's next available input bus. The gate and the
-// half-tap delay each fan out one-to-many.
+// Wires one return's internal chain, whose topology VibeDelaySend's comment
+// gives, and lands it on masterMix's next available input bus. The gate and
+// the half-tap delay each fan out one-to-many.
 - (void)wireDelaySend:(VibeDelaySend *)send engine:(AVAudioEngine *)engine format:(AVAudioFormat *)format {
     [engine connect:send.gate
         toConnectionPoints:@[
@@ -362,14 +370,15 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     [engine connect:send.panRight to:send.sum format:format];
     [engine connect:send.sum to:send.lowCut format:format];
     [engine connect:send.lowCut to:_masterMix format:format];
-    // Mixer state only after attach+wire (see the note in installInEngine:).
+    // Mixer state only after attaching and wiring; see the note in
+    // installInEngine:.
     send.gate.outputVolume = 0;
     send.panLeft.pan = -kDelayPingPongPan;
     send.panRight.pan = kDelayPingPongPan;
-    // One hop of decay on the right lane: its first tap lands at 2T
-    // (hop 2), a full hop after the left lane's T. The left lane's later
-    // echoes get no such compensation — deliberate; see the non-geometric
-    // decay note on VibeDelaySend's topology comment.
+    // One hop of decay on the right lane, whose first tap lands at 2T, hop 2,
+    // a full hop after the left lane's T. The left lane's later echoes get no
+    // such compensation, which is deliberate; see the non-geometric decay note
+    // in VibeDelaySend's topology comment.
     send.panRight.outputVolume = kDelayFeedbackPercent / 100.0f;
 }
 
@@ -389,11 +398,11 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
         return;
     }
     _lowKillEnabled = enabled;
-    // The boost is a modifier of the low kill, not a control of its own, so
-    // killing the filter kills the boost with it — otherwise a latched W
-    // would hold the cutoff up (higher than Q alone) with the low kill
-    // reading off. Cleared under the same lock so the one sweep below
-    // resolves both, rather than racing a second one.
+    // The boost modifies the low kill rather than being a control of its own,
+    // so killing the filter kills the boost with it. Otherwise a latched W
+    // would hold the cutoff above where Q alone would put it while the low
+    // kill read off. It is cleared under the same lock, so the one sweep below
+    // resolves both rather than racing a second one.
     if (!enabled) {
         _lowKillBoostActive = NO;
     }
@@ -423,17 +432,17 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     });
 }
 
-// Runs on _queue. Resolves the ONE cutoff both controls share — the held
-// boost (double cutoff) outranks the Q toggle, which outranks parked — and
-// sweeps there from wherever the filter is: a re-toggle/release mid-sweep
-// bumps the generation, preempting the old sweep, and starts from the
-// current frequency (no jump). Bypass is never touched after installInEngine:
-// un-bypasses the bands once — flipping it dumps stale delay-line state into
-// the signal, an audible click (see kLowKillParkedHz); "off" is purely the
-// cutoff parked below the audible band.
+// Runs on _queue. It resolves the single cutoff both controls share — the held
+// boost, at double cutoff, outranks the Q toggle, which outranks parked — and
+// sweeps there from wherever the filter currently sits. A re-toggle or release
+// mid-sweep bumps the generation, preempting the old sweep, and starts from
+// the current frequency, so there is no jump. Bypass is never touched after
+// installInEngine: un-bypasses the bands once: flipping it dumps stale
+// delay-line state into the signal, an audible click (see kLowKillParkedHz).
+// "Off" is purely the cutoff parked below the audible band.
 - (void)applyLowKillTargetOnQueue {
     if (!_engine) {
-        return; // Not installed yet; installInEngine: re-applies.
+        return; // Not installed yet. installInEngine: re-applies it.
     }
     os_unfair_lock_lock(&_stateLock);
     BOOL enabled = _lowKillEnabled;
@@ -447,10 +456,10 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
                        to:target generation:generation];
 }
 
-// The fade-loop pattern applied to the filter cutoff — both cascaded bands
-// track the same frequency, stepped along a log-frequency curve
-// (multiplicative interpolation, like the volume fades) at the finer
-// low-kill cadence.
+// The fade-loop pattern applied to the filter cutoff. Both cascaded bands
+// track the same frequency, stepped along a log-frequency curve —
+// multiplicative interpolation, as in the volume fades — at the finer low-kill
+// cadence.
 - (void)stepLowKillRamp:(int)step from:(float)start to:(float)target generation:(uint64_t)generation {
     if (generation != _lowKillRampGeneration) {
         return; // A newer toggle owns the cutoff now.
@@ -494,16 +503,16 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     });
 }
 
-// Runs on _queue. Opens/closes a send gate: a fast fade on the volume-fade
-// cadence (an instant volume step clicks; kFadeDurationMilliseconds doesn't),
-// then — while the
-// gate stays open — a slow swell up to swellRatio x the base level.
-// Closing cuts only the send — the effect keeps rendering, so its tail
-// decays naturally. A re-toggle mid-ramp preempts (via the counter) and
-// continues from the current gate level.
+// Runs on _queue. Opens or closes a send gate. Opening is a fast fade on the
+// volume-fade cadence — an instant volume step clicks, whereas
+// kFadeDurationMilliseconds does not — followed, while the gate stays open, by
+// a slow swell up to swellRatio times the base level. Closing cuts only the
+// send: the effect keeps rendering, so its tail decays naturally. A re-toggle
+// mid-ramp preempts through the counter and continues from the current gate
+// level.
 - (void)applySendGateOnQueue:(AVAudioMixerNode *)gate enabled:(BOOL)enabled level:(float)level swellRatio:(float)swellRatio counter:(uint64_t *)counter {
     if (!_engine) {
-        return; // Not installed yet; installInEngine: re-applies.
+        return; // Not installed yet. installInEngine: re-applies it.
     }
     uint64_t generation = ++(*counter);
     if (!enabled) {
@@ -516,19 +525,20 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     [self stepSendGateRamp:gate step:1 of:kFadeSteps stepMicroseconds:kFadeStepMicroseconds
                       from:gate.outputVolume to:level
                 generation:generation counter:counter completion:^{
-        // Same generation: the release (or a re-press) that would invalidate
-        // the swell bumps the counter and the first swell step drops out.
+        // The same generation is used, so the release or re-press that would
+        // invalidate the swell bumps the counter and the first swell step
+        // drops out.
         [weakSelf stepSendGateRamp:gate step:1 of:kSendSwellSteps stepMicroseconds:kSendSwellStepMicroseconds
                               from:level to:level * swellRatio
                         generation:generation counter:counter completion:nil];
     }];
 }
 
-// counter points at the owning send's queue-confined ramp generation ivar, so
-// the two sends preempt independently. Only dereferenced with self alive (the
-// method runs on a strong self), so the pointer can't dangle. The completion
-// fires only on an un-preempted run to the target (a preempted ramp's owner
-// has moved on — its follow-up must not start).
+// counter points at the owning send's queue-confined ramp-generation ivar, so
+// the two sends preempt independently. It is dereferenced only while self is
+// alive, since the method runs on a strong self, so the pointer cannot dangle.
+// The completion fires only on an un-preempted run to the target: a preempted
+// ramp's owner has moved on, and its follow-up must not start.
 - (void)stepSendGateRamp:(AVAudioMixerNode *)gate step:(int)step of:(int)steps stepMicroseconds:(uint64_t)stepMicroseconds from:(float)start to:(float)target generation:(uint64_t)generation counter:(uint64_t *)counter completion:(dispatch_block_t)completion {
     if (generation != *counter) {
         return; // A newer toggle owns the gate now.
@@ -540,8 +550,8 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
         }
         return;
     }
-    // Multiplicative (perceptually log) interpolation, like VibeFadeVolume
-    // but for an arbitrary step count.
+    // Multiplicative, perceptually logarithmic interpolation, as in
+    // VibeFadeVolume but for an arbitrary step count.
     float f = MAX(start, kFadeFloor);
     float t = MAX(target, kFadeFloor);
     gate.outputVolume = f * powf(t / f, (float)step / (float)steps);
@@ -593,11 +603,11 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     });
 }
 
-// Runs on _queue. Both delay sends share the level/swell tuning; only the
-// gate (and its generation counter) differ.
+// Runs on _queue. Both delay sends share the level and swell tuning; only the
+// gate, and its generation counter, differ.
 - (void)applyDelaySend:(VibeDelaySend *)send enabledOnQueue:(BOOL)enabled {
     if (!send) {
-        return; // Not installed yet; installInEngine: re-applies.
+        return; // Not installed yet. installInEngine: re-applies it.
     }
     [self applySendGateOnQueue:send.gate enabled:enabled
                          level:kDelaySendLevel swellRatio:kDelaySwellRatio
@@ -615,7 +625,7 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     os_unfair_lock_lock(&_stateLock);
     if (_delayTapBPM == bpm) {
         os_unfair_lock_unlock(&_stateLock);
-        return; // Called on every fader tick — only real changes touch the queue.
+        return; // Called on every fader tick, so only real changes touch the queue.
     }
     _delayTapBPM = bpm;
     os_unfair_lock_unlock(&_stateLock);
@@ -624,14 +634,14 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     });
 }
 
-// Runs on _queue. The delays sit post-varispeed, so tap time is wall-clock —
-// matching the effective (pitch-scaled) tempo the controller provides. Each
-// send's lanes run at 2x its tap (see the topology comment); AVAudioUnitDelay
-// caps delayTime at 2s, so the 1/8's lanes pin there below 30 BPM effective —
-// beyond any real tempo.
+// Runs on _queue. The delays sit post-varispeed, so tap time is wall-clock and
+// matches the effective, pitch-scaled tempo the controller provides. Each
+// send's lanes run at twice its tap; see the topology comment.
+// AVAudioUnitDelay caps delayTime at two seconds, so the 1/8-note send's lanes
+// pin there below an effective 30 BPM, well beyond any real tempo.
 - (void)applyDelayTapOnQueue {
     if (!_engine) {
-        return; // Not installed yet; installInEngine: re-applies.
+        return; // Not installed yet. installInEngine: re-applies it.
     }
     os_unfair_lock_lock(&_stateLock);
     float bpm = _delayTapBPM;
