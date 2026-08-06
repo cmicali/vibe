@@ -15,15 +15,15 @@
 static NSMenuItem *Item(NSString *title, SEL action, id target, NSString *key,
                                 NSEventModifierFlags modifiers, NSString *identifier) {
     NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title action:action keyEquivalent:key];
-    // NSMenuItem defaults to a Command modifier; the transport keys are bare
-    // so the mask must be set explicitly every time.
+    // NSMenuItem defaults to a Command modifier, and the transport keys are
+    // bare, so the mask must be set explicitly every time.
     item.keyEquivalentModifierMask = modifiers;
     item.target = target;
     item.identifier = identifier;
     return item;
 }
 
-// Same, plus a system-symbol icon.
+// The same, plus a system-symbol icon.
 static NSMenuItem *SymbolItem(NSString *title, NSString *symbolName, SEL action, id target,
                                       NSString *key, NSEventModifierFlags modifiers, NSString *identifier) {
     NSMenuItem *item = Item(title, action, target, key, modifiers, identifier);
@@ -68,13 +68,13 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddItem(appMenu, @"About Vibe", @selector(showAboutWindow:), appDelegate, @"", 0, nil);
     AddSeparator(appMenu);
 
-    // Titled and enabled in AppDelegate's validation: it flips to a disabled
+    // AppDelegate's validation titles and enables this. It flips to a disabled
     // "Vibe Is the Default Music Player" once there is nothing left to do.
     AddSymbolItem(appMenu, @"Set Vibe as Default Music Player", @"app.badge.checkmark",
                   @selector(makeDefaultMusicPlayer:), appDelegate, @"", 0, @"menu_make_default_app");
     AddSeparator(appMenu);
 
-    // AppKit populates the Services submenu once it's registered as
+    // AppKit populates the Services submenu once it is registered as
     // NSApp.servicesMenu.
     NSMenuItem *servicesItem = Submenu(appMenu, @"Services");
     NSApp.servicesMenu = servicesItem.submenu;
@@ -102,15 +102,16 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSymbolItem(playbackMenu, @"Next Track", @"forward.end.fill", @selector(next:), player, @"n", 0, @"menu_next_track");
     AddSeparator(playbackMenu);
 
-    // Bare A/S/D/Z/X/C, like the other transport keys (mask 0). Actually handled by
-    // TransportKeyMonitor; the key equivalents here are for display and as the
-    // fallback path. Enabled only with a track loaded (see the Menus category).
+    // Bare A, S, D, Z, X and C, like the other transport keys, at mask 0.
+    // TransportKeyMonitor actually handles them, and the key equivalents here
+    // are for display and as the fallback path. They are enabled only with a
+    // track loaded; see the Menus category.
     AddSymbolItem(playbackMenu, @"Skip Forward", @"forward", @selector(skipForward:), player, @"a", 0, @"menu_skip_forward");
-    AddSymbolItem(playbackMenu, @"Skip Forward More", @"", @selector(skipForwardMore:), player, @"s", 0, @"menu_skip_forward_more");
-    AddSymbolItem(playbackMenu, @"Skip Forward Most", @"", @selector(skipForwardMost:), player, @"d", 0, @"menu_skip_forward_most");
+    AddItem(playbackMenu, @"Skip Forward More", @selector(skipForwardMore:), player, @"s", 0, @"menu_skip_forward_more");
+    AddItem(playbackMenu, @"Skip Forward Most", @selector(skipForwardMost:), player, @"d", 0, @"menu_skip_forward_most");
     AddSymbolItem(playbackMenu, @"Skip Back", @"backward", @selector(skipBack:), player, @"z", 0, @"menu_skip_back");
-    AddSymbolItem(playbackMenu, @"Skip Back More", @"", @selector(skipBackMore:), player, @"x", 0, @"menu_skip_back_more");
-    AddSymbolItem(playbackMenu, @"Skip Back Most", @"", @selector(skipBackMost:), player, @"c", 0, @"menu_skip_back_most");
+    AddItem(playbackMenu, @"Skip Back More", @selector(skipBackMore:), player, @"x", 0, @"menu_skip_back_more");
+    AddItem(playbackMenu, @"Skip Back Most", @selector(skipBackMost:), player, @"c", 0, @"menu_skip_back_most");
     AddSeparator(playbackMenu);
 
     NSMenuItem *pitchRangeItem = Submenu(playbackMenu, @"Pitch Range");
@@ -119,13 +120,14 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddItem(pitchRangeMenu, @"8%", @selector(setPitchRange:), player, @"", 0, @"pitch_range_8");
     AddItem(pitchRangeMenu, @"16%", @selector(setPitchRange:), player, @"", 0, @"pitch_range_16");
 
-    // FX — the DJ performance effects, one item per bare key (Q/W/E/R/T,
-    // mask 0). Like the skip keys, the equivalents here are for display and as
-    // the fallback path; TransportKeyMonitor actually handles the presses, and
-    // it alone can tell a tap (latches, like these toggles) from a hold
-    // (momentary). Always enabled — they are deck controls that persist across
-    // tracks and apply to whatever is, or starts, playing. Validation shows
-    // each one's state as a checkmark.
+    // FX: the DJ performance effects, one item per bare key — Q, W, E, R and
+    // T, at mask 0. As with the skip keys, the equivalents here are for
+    // display and as the fallback path. TransportKeyMonitor actually handles
+    // the presses, and it alone can tell a tap, which latches like these
+    // toggles, from a hold, which is momentary. They are always enabled,
+    // because they are deck controls that persist across tracks and apply to
+    // whatever is playing or starts to play. Validation shows each one's state
+    // as a checkmark.
     NSMenu *fxMenu = Submenu(mainMenu, @"FX").submenu;
     AddSymbolItem(fxMenu, @"Low Kill", @"dial.min", @selector(toggleLowKill:), player, @"q", 0, @"menu_fx_low_kill");
     AddSymbolItem(fxMenu, @"Low Kill Boost", @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"w", 0, @"menu_fx_low_kill_boost");
@@ -140,9 +142,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSymbolItem(viewMenu, @"Show Pitch Control", @"slider.vertical.3", @selector(togglePitchPanel:), player, @"p", 0, @"menu_show_pitch");
     AddSeparator(viewMenu);
 
-    // Width presets: the drag minimum, the design width, 1.75× the design
-    // width (see setWindowSize:). Height is deliberately untouched — that's
-    // Show Playlist's and the resize handle's.
+    // The width presets: the drag minimum, the design width, and 1.75 times
+    // the design width; see setWindowSize:. The height is deliberately
+    // untouched, since it belongs to Show Playlist and the resize handle.
     NSMenu *sizeMenu = Submenu(viewMenu, @"Size").submenu;
     AddItem(sizeMenu, @"Small", @selector(setWindowSize:), player, @"", 0, @"view_size_small");
     AddItem(sizeMenu, @"Default", @selector(setWindowSize:), player, @"", 0, @"view_size_default");

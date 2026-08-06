@@ -87,6 +87,12 @@ asc_resolve_credentials
 
 VERSION=$(sed -n 's/^ *MARKETING_VERSION: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' project.yml | head -1)
 BUILD_NUM=$(sed -n 's/^ *CURRENT_PROJECT_VERSION: *\(.*\)$/\1/p' project.yml | head -1)
+# The scrape is format-sensitive; a project.yml reformat must fail here, not
+# echo blanks through the rest of the run.
+[[ -n "$VERSION" && -n "$BUILD_NUM" ]] || {
+    echo "error: could not read MARKETING_VERSION / CURRENT_PROJECT_VERSION from project.yml" >&2
+    echo "       (formatting changed? adjust the sed patterns above)" >&2
+    exit 1; }
 
 echo "🔊 team id     : $TEAM_ID"
 echo "🔊 api key     : $ASC_KEY_ID (issuer $ASC_ISSUER_ID)"

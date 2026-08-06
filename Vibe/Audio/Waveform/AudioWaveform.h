@@ -6,11 +6,11 @@
 #include <Accelerate/Accelerate.h>
 #include <cmath>
 
-// Interleaved→mono downmix shared by the waveform chunker and the BPM
-// analyzer — one mix per decode buffer instead of one per consumer. Returns
-// the buffer itself for mono input (no copy); otherwise averages the channels
-// (interleaved: L0 R0 L1 R1 ...) into scratch — which must hold numFrames
-// floats — and returns scratch.
+// The interleaved-to-mono downmix shared by the waveform chunker and the BPM
+// analyzer: one mix per decode buffer rather than one per consumer. For mono
+// input it returns the buffer itself, with no copy. Otherwise it averages the
+// channels, which are interleaved as L0 R0 L1 R1 and so on, into scratch, and
+// returns scratch. scratch must hold numFrames floats.
 static inline const float* AudioWaveformMonoMix(const float* buffer, float* scratch,
                                                 NSUInteger numFrames, NSUInteger channels) {
     if (channels <= 1) {
@@ -48,11 +48,11 @@ struct AudioWaveformCacheChunk {
         vDSP_minv(mono, 1, &minVal, numFrames);
         vDSP_maxv(mono, 1, &maxVal, numFrames);
 
-        // A corrupt file can decode NaN/Inf floats, which vDSP propagates into
-        // min/max. Left unsanitized they produce NaN CGRects in the renderers
-        // (CoreGraphics error spam, blank bars) and — because isComplete stays
-        // YES — get persisted under the file hash, breaking that track
-        // forever. Clamp to 0 here.
+        // A corrupt file can decode NaN or Inf floats, which vDSP propagates
+        // into the min and max. Left unsanitized they produce NaN CGRects in
+        // the renderers, giving CoreGraphics error spam and blank bars, and,
+        // because isComplete stays YES, they get persisted under the file hash
+        // and break that track forever. Clamp them to 0 here.
         if (!std::isfinite(minVal)) minVal = 0.0f;
         if (!std::isfinite(maxVal)) maxVal = 0.0f;
 
@@ -69,9 +69,10 @@ public:
     AudioWaveform();
     AudioWaveform(NSUInteger numChunks, const void* chunks);
     AudioWaveform(const AudioWaveform& other);
-    // Copy-assignment would shallow-copy the raw chunks pointer → double-free.
-    // It's never used (waveforms are always heap-allocated and passed by
-    // pointer); delete it to complete the rule-of-three and keep it that way.
+    // Copy-assignment would shallow-copy the raw chunks pointer and cause a
+    // double free. It is never used, since waveforms are always heap-allocated
+    // and passed by pointer, so delete it to complete the rule of three and
+    // keep matters that way.
     AudioWaveform& operator=(const AudioWaveform&) = delete;
     ~AudioWaveform();
 
@@ -89,28 +90,30 @@ private:
     AudioWaveformCacheChunk* chunks;
 };
 
-// Entry-format version: encoded in every archive AND embedded in the disk
-// cache's name (AudioWaveformCache derives "audio_waveform_cache_v<N>" from
-// it, so both invalidation mechanisms move together). Bump to invalidate
-// every cached entry (chunk-format change, BPM-analyzer change that should
-// re-detect); mismatched entries just re-generate.
+// The entry-format version. It is encoded in every archive and embedded in the
+// disk cache's name, since AudioWaveformCache derives
+// "audio_waveform_cache_v<N>" from it, so both invalidation mechanisms move
+// together. Bump it to invalidate every cached entry, as after a chunk-format
+// change or a BPM-analyzer change that should re-detect. Mismatched entries
+// simply regenerate.
 extern const int kCodableAudioWaveformVersion;
 
 @interface CodableAudioWaveform : NSObject <NSCoding>
 
 @property (nonatomic) AudioWaveform *waveform;
 
-// Detected tempo (0 = unknown/undetectable). Not conceptually waveform data,
-// but it is the product of the same full-file decode pass and shares the
-// waveform's cache key and lifecycle, so it rides along in this archive
-// rather than paying a second decode into its own cache.
+// The detected tempo; 0 means unknown or undetectable. It is not conceptually
+// waveform data, but it is the product of the same full-file decode pass and
+// shares the waveform's cache key and lifecycle, so it rides along in this
+// archive rather than paying for a second decode into a cache of its own.
 @property (nonatomic) float bpm;
 
 - (id)initWithWaveform:(AudioWaveform *)waveform;
 
-// Deep copy of the current chunk buffer, wrapped in a new object that owns it.
-// Handed to the main thread on progress ticks so it renders an immutable copy
-// while the loader keeps writing the live buffer (otherwise a data race).
+// A deep copy of the current chunk buffer, wrapped in a new object that owns
+// it. It is handed to the main thread on progress ticks, so that the main
+// thread renders an immutable copy while the loader keeps writing the live
+// buffer. Sharing the live buffer would be a data race.
 - (CodableAudioWaveform *)snapshot;
 
 @end

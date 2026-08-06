@@ -13,8 +13,8 @@
     return [self font:size bold:NO];
 }
 
-// Cache key: negating the size for bold collides at size 0, so the key spells
-// out both dimensions.
+// The cache key. Negating the size for bold collides at size 0, so the key
+// spells out both dimensions.
 static NSString *fontCacheKey(CGFloat size, BOOL bold) {
     return [NSString stringWithFormat:@"%g%@", size, bold ? @"-bold" : @""];
 }
@@ -26,14 +26,14 @@ static NSString *fontCacheKey(CGFloat size, BOOL bold) {
         cache = [NSMutableDictionary new];
     });
     NSString *key = fontCacheKey(size, bold);
-    // NSMutableDictionary isn't thread-safe and not every caller is on the
-    // main thread; a duplicate create inside the lock is harmless.
+    // NSMutableDictionary is not thread-safe and not every caller is on the
+    // main thread. A duplicate create inside the lock is harmless.
     @synchronized (cache) {
         NSFont *font = cache[key];
         if (!font) {
             font = [NSFont fontWithName:bold ? @"HelveticaNeue-Bold" : @"HelveticaNeue-Medium" size:size];
             if (!font) {
-                // Never return nil: callers put the result straight into
+                // Never return nil. Callers put the result straight into
                 // attribute dictionaries, where nil raises.
                 font = [NSFont systemFontOfSize:size weight:bold ? NSFontWeightBold : NSFontWeightMedium];
             }

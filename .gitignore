@@ -36,6 +36,9 @@ Vibe/Common/Info.plist
 # App Store Connect API key id / issuer id for scripts/release-appstore.sh.
 /.release-env
 
+# App Store Connect API keys must never be committed, wherever they're dropped.
+*.p8
+
 
 
 

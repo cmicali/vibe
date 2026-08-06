@@ -7,28 +7,31 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Quartz-lock green shared by the fader's zero LED and the panel's readout.
-// Alpha-parameterized: the LED glow uses a low-alpha variant.
+// The quartz-lock green shared by the fader's zero LED and the panel's
+// readout. It is parameterized by alpha, and the LED glow uses a low-alpha
+// variant.
 #define VibeQuartzLockGreen(a) [NSColor colorWithRed:0.22 green:0.95 blue:0.40 alpha:(a)]
 
 @class PitchFaderView;
 
 @protocol PitchFaderViewDelegate <NSObject>
 - (void)pitchFaderView:(PitchFaderView *)faderView didChangePitch:(float)pitch;
-// Fired once when a pitch gesture ends (mouse-up after a click/drag, or the
-// double-click reset) — the hook for work too heavy to run on every drag tick.
+// Fires once when a pitch gesture ends, on the mouse-up after a click or drag,
+// or on the double-click reset. It is the hook for work too heavy to run on
+// every drag tick.
 - (void)pitchFaderViewDidEndAdjusting:(PitchFaderView *)faderView;
 @end
 
-// Technics-style vertical pitch fader: minus range at the top, plus at the
-// bottom (slide toward you to speed up), soft detent at 0 with a quartz-lock
-// style green LED. Hardware-styled — draws the same in light and dark mode.
+// A Technics-style vertical pitch fader: the minus range at the top and plus
+// at the bottom, so you slide toward yourself to speed up, with a soft detent
+// at 0 and a quartz-lock-style green LED. It is hardware-styled, and draws the
+// same in light and dark mode.
 @interface PitchFaderView : NSView
 
 @property (nullable, weak) id<PitchFaderViewDelegate> delegate;
 
-// Percent, clamped to ±maxPitch. Setting it programmatically redraws but does
-// NOT fire the delegate (only user interaction does).
+// The pitch in percent, clamped to ±maxPitch. Setting it programmatically
+// redraws but does not fire the delegate; only user interaction does.
 @property (nonatomic) float pitch;
 
 @property (nonatomic) float maxPitch; // default 8

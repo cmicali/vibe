@@ -28,19 +28,22 @@
 @end
 
 
-// How long after an open event the next one still counts as the same burst
-// (see openQueuedURLs): long enough to absorb a split multi-file open, short
-// enough that a deliberate second open replaces rather than appends.
+// How long after an open event the next one still counts as part of the same
+// burst; see openQueuedURLs. It is long enough to absorb a split multi-file
+// open, and short enough that a deliberate second open replaces rather than
+// appends.
 static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
 @implementation AppDelegate {
     BOOL _isLoaded;
     NSMutableArray<NSURL *> *_urlsToOpen;
-    // A batch already played and further batches belong with it (append,
-    // don't replace). Cleared by endOpenBurst after the quiet period.
+    // A batch has already played, and further batches belong with it, so they
+    // append rather than replace. endOpenBurst clears this after the quiet
+    // period.
     BOOL _openBurstActive;
-    // The Open Recent submenu's delegate; owned here because menu delegates
-    // are weak and this object is the target of the items it creates.
+    // The Open Recent submenu's delegate. It is owned here because menu
+    // delegates are weak, and this object is the target of the items it
+    // creates.
     OpenRecentMenuController *_openRecentMenuController;
 }
 
@@ -57,8 +60,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 #pragma mark - Launch
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
-    // Build the controller and menu bar early enough for window state
-    // restoration (which runs before applicationDidFinishLaunching) to find
+    // Build the controller and menu bar early enough that window state
+    // restoration, which runs before applicationDidFinishLaunching, can find
     // the controller.
     self.mainPlayerController = [[MainPlayerController alloc] init];
     _openRecentMenuController = [[OpenRecentMenuController alloc] initWithAppDelegate:self];
@@ -67,7 +70,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                            openRecentMenuController:_openRecentMenuController];
 }
 
-// Target of the Open Recent items OpenRecentMenuController creates.
+// The target of the Open Recent items OpenRecentMenuController creates.
 - (void)openRecentDocument:(NSMenuItem *)sender {
     NSURL *url = sender.representedObject;
     if (url) {
@@ -97,19 +100,19 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
     _isLoaded = YES;
     if (_urlsToOpen.count > 0) {
-        // Through the burst path: the post-launch remainder of an open that
-        // straddled launch must append, not replace.
+        // Through the burst path, because the post-launch remainder of an open
+        // that straddled launch must append rather than replace.
         [self openQueuedURLs];
     }
     else {
-        // No launch-time open queued (Finder/argv events land before this
-        // point), so the empty state may render.
+        // No launch-time open is queued, since Finder and argv events land
+        // before this point, so the empty state may render.
         [self.mainPlayerController revealEmptyState];
     }
 }
 
 // Everything known about how this binary was built, plus the OS it landed on,
-// so a log excerpt identifies the build it came from without a version guess.
+// so that a log excerpt identifies the build it came from without guesswork.
 - (void)logBuildInfo {
     NSBundle *bundle = NSBundle.mainBundle;
     LogInfo(@"    Source: %@", bundle.vibeGitString);
@@ -118,9 +121,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     LogInfo(@"Compiler:  %@", bundle.vibeCompilerString);
     LogInfo(@"Flags:     %@", bundle.vibeBuildFlagsString);
     LogInfo(@"Toolchain: %@", bundle.vibeToolchainString);
-    // operatingSystemVersionString is documented as not appropriate for
-    // parsing (and reads "Version 26.5.1 (Build 25F80)"), so the version comes
-    // from the struct and the build from sysctl.
+    // operatingSystemVersionString is documented as unsuitable for parsing,
+    // and reads "Version 26.5.1 (Build 25F80)", so the version comes from the
+    // struct and the build from sysctl.
     NSOperatingSystemVersion os = NSProcessInfo.processInfo.operatingSystemVersion;
     char osBuild[32] = "?";
     size_t osBuildSize = sizeof(osBuild);
@@ -129,15 +132,16 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 #endif
 }
 
-// Open file/directory paths passed as command-line arguments, e.g.
+// Opens file and directory paths passed as command-line arguments, as in:
 //     Vibe.app/Contents/MacOS/Vibe ~/Music/album /path/to/song.flac
-// Paths resolve relative to the working directory and feed the same
-// expand/filter/play pipeline as dropped files and Finder opens (directories
-// are walked, unsupported files dropped). Dash-prefixed flags are skipped,
-// and each candidate must exist on disk. NOTE: under the App Sandbox this
-// only succeeds for paths the sandbox already permits (the container, or
-// files opened via Launch Services / drag) — arbitrary argv paths may be
-// denied at read time.
+// Paths resolve relative to the working directory and feed the same expand,
+// filter and play pipeline as dropped files and Finder opens, so directories
+// are walked and unsupported files dropped. Dash-prefixed flags are skipped,
+// and each candidate must exist on disk.
+//
+// Note that under the App Sandbox this succeeds only for paths the sandbox
+// already permits — the container, or files opened through Launch Services or
+// a drag — so an arbitrary argv path may be denied at read time.
 - (void)openCommandLineArguments {
     NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
     NSFileManager *fileManager = [NSFileManager defaultManager];
@@ -148,9 +152,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
             continue;
         }
         if ([arg hasPrefix:@"-"]) {
-            // Skip only the flag itself: unconditionally consuming the next
-            // arg would drop the path in `Vibe --someflag song.mp3`. A value
-            // riding an AppKit "-key value" pair fails the exists check below.
+            // Skip only the flag itself. Consuming the next argument
+            // unconditionally would drop the path in
+            // `Vibe --someflag song.mp3`. A value riding an AppKit
+            // "-key value" pair fails the exists check below.
             continue;
         }
         NSString *path = arg.stringByExpandingTildeInPath;
@@ -161,8 +166,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     }
 }
 
-// Superseded cache formats can hold tens of MB that would otherwise linger
-// for months; delete their directories once in the background.
+// Superseded cache formats can hold tens of MB that would otherwise linger for
+// months, so delete their directories once, in the background.
 - (void)cleanupLegacyCaches {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSString *cachesDir = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).firstObject;
@@ -183,14 +188,15 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     });
 }
 
-// Replacing play of everything queued — the ⌘O panel / Open Recent entry point.
+// A replacing play of everything queued: the ⌘O panel and Open Recent entry
+// point.
 - (void)playURLs {
     _openBurstActive = NO; // a deliberate open ends any Finder burst
     [self openQueuedURLsAppending:NO];
 }
 
-// Expands the queue (folders walked, unsupported files dropped) and hands the
-// result to the controller — appended, or as a replacing play.
+// Expands the queue, walking folders and dropping unsupported files, and hands
+// the result to the controller, either appended or as a replacing play.
 - (void)openQueuedURLsAppending:(BOOL)append {
     if (!_isLoaded || _urlsToOpen.count == 0) {
         return;
@@ -198,11 +204,11 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     NSArray<NSURL*>* urls = [_urlsToOpen copy];
     [_urlsToOpen removeAllObjects];
     [NSURLUtil expandAndFilterList:urls completion:^(NSArray<NSURL *> *expanded) {
-        // Nothing playable (e.g. a folder with no audio) — don't wipe the
-        // current playlist with an empty list.
+        // Nothing playable, as with a folder that holds no audio. Do not wipe
+        // the current playlist with an empty list.
         if (expanded.count == 0) {
-            // A launch open that resolved to nothing still has to end the
-            // launch grace, or the header would stay blank forever.
+            // A launch open that resolved to nothing must still end the launch
+            // grace, or the header would stay blank forever.
             [self.mainPlayerController revealEmptyState];
             return;
         }
@@ -219,17 +225,18 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     return YES;
 }
 
-// LaunchServices can split one multi-file open into several openURLs: events
-// (seen reliably right after a rebuild re-registers the bundle).
+// Launch Services can split one multi-file open into several openURLs: events.
+// It happens reliably right after a rebuild re-registers the bundle.
 - (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {
     [_urlsToOpen addObjectsFromArray:urls];
     [self openQueuedURLs];
 }
 
-// Finder/Launch Services entry point (launch-time too — a burst can straddle
-// applicationDidFinishLaunching). The first batch plays immediately, with no
-// coalescing delay; later batches of the same burst append, so a split
-// multi-file open lands as one playlist without restarting the first track.
+// The Finder and Launch Services entry point, including at launch time, since
+// a burst can straddle applicationDidFinishLaunching. The first batch plays
+// immediately, with no coalescing delay, and later batches of the same burst
+// append, so a split multi-file open lands as one playlist without restarting
+// the first track.
 - (void)openQueuedURLs {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(endOpenBurst) object:nil];
     [self performSelector:@selector(endOpenBurst) withObject:nil afterDelay:kOpenBurstQuietPeriod];
@@ -258,11 +265,11 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     panel.canChooseFiles = YES;
     panel.canChooseDirectories = YES;
     // The selectable types are the CFBundleDocumentTypes declarations from
-    // Info.plist, so the open panel can't drift from what Launch Services
+    // Info.plist, so the open panel cannot drift from what Launch Services
     // registers the app for.
     NSArray<UTType *> *contentTypes = DocumentTypes.declaredTypes;
-    // An empty allowlist would make every file unselectable; fall back to
-    // no filter if the plist declarations ever go missing.
+    // An empty allowlist would make every file unselectable, so fall back to
+    // no filter should the plist declarations ever go missing.
     if (contentTypes.count > 0) {
         panel.allowedContentTypes = contentTypes;
     }
@@ -276,19 +283,19 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
 #pragma mark - Default app
 
-// Vibe > Set Vibe as Default Music Player — claims every audio type declared in
-// Info.plist at once, instead of the user doing Finder's Get Info > Open With >
-// Change All per extension. No alert of our own on either outcome: the system
-// runs its own confirmation panel (and says so when it refuses), and the menu
-// item retitles itself on the next validation pass.
+// Vibe > Set Vibe as Default Music Player claims every audio type declared in
+// Info.plist at once, sparing the user Finder's Get Info > Open With > Change
+// All once per extension. There is no alert of our own on either outcome: the
+// system runs its own confirmation panel, and says so when it refuses, and the
+// menu item retitles itself on the next validation pass.
 - (IBAction)makeDefaultMusicPlayer:(id)sender {
     [DocumentTypes makeDefaultApp];
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     if ([menuItem.identifier isEqualToString:@"menu_make_default_app"]) {
-        // Nothing to do once Vibe already holds every type: say so in the
-        // title and disable, rather than offering a no-op.
+        // There is nothing to do once Vibe already holds every type, so say so
+        // in the title and disable the item rather than offer a no-op.
         BOOL isDefault = DocumentTypes.isDefaultAppForAllFileTypes;
         menuItem.title = isDefault ? @"Vibe Is the Default Music Player"
                                    : @"Set Vibe as Default Music Player";

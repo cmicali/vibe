@@ -9,23 +9,23 @@
 #include <vector>
 #include <cmath>
 
-// 128 bars, each drawn with two layers: layers[i*2] is the top bar and
-// layers[i*2 + 1] is the mirrored bottom bar.
+// 128 bars, each drawn with two layers: layers[i*2] is the top bar, and
+// layers[i*2 + 1] the mirrored bottom bar.
 #define kVibeBarCount 128
 
-// Geometry constants shared by the morph engine's frame-skip heuristic (the
-// vscale block handed to it in init), rebuildLayerFrames, and the seek hit
-// band (seekHitBandForBounds:), so they can't disagree on the
-// normalized→pixels scale.
+// The geometry constants shared by the morph engine's frame-skip heuristic,
+// through the vscale block handed to it in init, by rebuildLayerFrames, and by
+// the seek hit band in seekHitBandForBounds:, so that they cannot disagree on
+// the normalized-to-pixels scale.
 static const CGFloat kBarAmplitude = 0.75;     // full bar height as a fraction of the view height
 static const CGFloat kTopLineRatio = 0.70;     // top bar's share of the height; the mirror gets the rest
 static const CGFloat kBlockWidthRatio = 0.75;  // bar width as a fraction of the bar pitch
 static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline and the mirror bars
 
 @implementation SonicCirrusWaveformRenderer {
-    // The only renderer that draws with a flat array of bar layers (the
-    // Detailed family draws gradient+mask layers), so the layer machinery
-    // lives here rather than in the base class.
+    // This is the only renderer that draws with a flat array of bar layers,
+    // since the Detailed family draws gradient and mask layers, so the layer
+    // machinery lives here rather than in the base class.
     NSArray<CALayer*>* _layers;
 
     NSColor* _playedColorTop;
@@ -35,14 +35,14 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
 
     NSColor* _hoverColor;
 
-    // Bar index lit by the hover affordance, or -1. Bars here are discrete
-    // layers with gaps between them, so the highlight snaps to a whole bar
-    // (a fixed-width column at the cursor could land in a gap and light
-    // nothing) — it recolors that bar's two layers instead of overlaying.
+    // The bar index lit by the hover affordance, or -1. Bars here are discrete
+    // layers with gaps between them, so the highlight snaps to a whole bar,
+    // because a fixed-width column at the cursor could land in a gap and light
+    // nothing. It recolors that bar's two layers rather than overlaying them.
     NSInteger _hoverBarIndex;
 
-    // Samples: one normalized height per bar. Rebuild callback:
-    // rebuildLayerFrames.
+    // The samples are one normalized height per bar, and rebuildLayerFrames is
+    // the rebuild callback.
     WaveformMorphEngine *_morph;
 }
 
@@ -61,12 +61,12 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
                 initWithVScale:^CGFloat(CGFloat height) { return height * kBarAmplitude * kTopLineRatio; }
                        rebuild:^{ [weakSelf rebuildLayerFrames]; }];
 
-        // Same derivation as light/dark switches — one source of truth for
-        // the palette.
+        // The same derivation as a light-dark switch uses: one source of truth
+        // for the palette.
         [self updateColors:isDark];
 
         [self addLayers:kVibeBarCount * 2 backgroundColor:_unPlayedColorTop.CGColor];
-        // The mirrored bottom bars are dimmer than the top bars at all times.
+        // The mirrored bottom bars are always dimmer than the top bars.
         for (NSUInteger i = 0; i < kVibeBarCount; i++) {
             _layers[i * 2 + 1].backgroundColor = _unPlayedColorBottom.CGColor;
         }
@@ -84,22 +84,24 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
 }
 
 - (void)updateColors:(BOOL)isDark {
-    // super sets lastProgressBoundary to -1, so the next updateProgress:
+    // super sets lastProgressBoundary to -1, so that the next updateProgress:
     // repaints every bar with the new colors.
     [super updateColors:isDark];
-    // The unplayed bars follow the appearance (fixed white is near-invisible
-    // on a light background); the played orange reads fine on both.
+    // The unplayed bars follow the appearance, because a fixed white is
+    // near-invisible on a light background. The played orange reads fine on
+    // both.
     NSColor *base = isDark ? [NSColor whiteColor] : [NSColor blackColor];
     _playedColorTop = [NSColor colorWithRed:1 green:0.45 blue:0 alpha:1];
     _unPlayedColorTop = [base colorWithAlphaComponent:0.89];
     _playedColorBottom = [NSColor colorWithRed:1 green:0.75 blue:0.585 alpha:0.8];
     _unPlayedColorBottom = [base colorWithAlphaComponent:0.55];
-    // Hover: the base color at full alpha — brighter than both the played
-    // orange and the unplayed bars, in either appearance.
+    // Hover uses the base color at full alpha, which is brighter than both the
+    // played orange and the unplayed bars, in either appearance.
     _hoverColor = [base colorWithAlphaComponent:1.0];
 }
 
-// The played/unplayed pair a bar index should show right now, ignoring hover.
+// The played and unplayed pair a bar index should show right now, ignoring any
+// hover.
 - (NSColor *)restingColorForBar:(NSInteger)index top:(BOOL)top {
     BOOL played = (self.lastProgressBoundary >= 0 && index < self.lastProgressBoundary);
     if (top) {
@@ -155,9 +157,9 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
     }
 }
 
-// Full-amplitude extents from the fixed geometry constants — NOT the bars
-// currently on screen, whose extents collapse to a sliver on quiet tracks
-// and make the seek band impossible to hit.
+// The full-amplitude extents come from the fixed geometry constants, not from
+// the bars currently on screen, whose extents collapse to a sliver on a quiet
+// track and would make the seek band impossible to hit.
 - (NSRect)seekHitBandForBounds:(NSRect)bounds {
     CGFloat totalHeight = bounds.size.height;
     CGFloat topLineY = round(totalHeight * (1 - kTopLineRatio));
@@ -177,7 +179,7 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
     NSInteger oldBoundary = self.lastProgressBoundary;
     NSInteger start, end;
     if (oldBoundary < 0) {
-        // Sentinel after updateColors: — repaint everything.
+        // The sentinel after updateColors:, so repaint everything.
         start = 0;
         end = count;
     } else {
@@ -193,8 +195,8 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
         [self setLayerColor:colorBottom atIndex:(NSUInteger)(i * 2 + 1)];
     }
     self.lastProgressBoundary = newBoundary;
-    // The playhead crossing the hovered bar (or a full repaint after
-    // updateColors:) just painted over the highlight — restore it.
+    // The playhead crossing the hovered bar, or a full repaint after
+    // updateColors:, has just painted over the highlight. Restore it.
     if (_hoverBarIndex >= start && _hoverBarIndex < end) {
         [self setLayerColor:_hoverColor atIndex:(NSUInteger)(_hoverBarIndex * 2)];
         [self setLayerColor:_hoverColor atIndex:(NSUInteger)(_hoverBarIndex * 2 + 1)];
@@ -205,27 +207,31 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
 
     NSUInteger count = kVibeBarCount;
 
+    // A resize changes which bar index sits under the kept x, so re-snap the
+    // highlight. setHoverHighlightX: recomputes the index against the new
+    // width and restores the previous bar's resting color.
+    [self setHoverHighlightX:self.hoverHighlightX];
+
     // Build the morph target: each bar's normalized peak-to-peak height, or
-    // all-zero when there is no waveform — a track change collapses the old
-    // bars toward the baseline until the new waveform retargets them.
-    std::vector<float> &target = [_morph targetScratchWithCount:count];
-    if (waveform) {
+    // all-zero when there is no waveform, so that a track change collapses the
+    // old bars toward the baseline until the new waveform retargets them. The
+    // engine owns the fast, collapsed and commit scaffold and skips this fill
+    // on a live-resize frame, where the waveform identity and count are
+    // unchanged. Only the sampling itself belongs to this family.
+    [_morph updateTargetForSize:bounds.size identity:waveform count:count
+                           fill:^(std::vector<float> &target) {
         for (NSUInteger i = 0; i < count; i++) {
             AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
             target[i] = fabsf(m.getMax() - m.getMin()) / 2;
         }
-    }
-    else {
-        std::fill(target.begin(), target.end(), 0.0f);
-    }
-    [_morph commitTargetForSize:bounds.size hasWaveform:(waveform != nil)];
+    }];
 }
 
-// Lay the bar layers out for the currently displayed samples (the morph
-// engine's rebuild callback). Heights round to the DEVICE-pixel grid on every
-// draw: edges stay crisp, quantization stays at an imperceptible
-// 1-device-pixel step, and the settle draw is identical to the last animation
-// frame — no end-of-morph shift.
+// Lays the bar layers out for the currently displayed samples. It is the morph
+// engine's rebuild callback. Heights round to the device-pixel grid on every
+// draw, which keeps edges crisp, holds quantization to an imperceptible
+// one-device-pixel step, and makes the settle draw identical to the last
+// animation frame, so there is no end-of-morph shift.
 - (void)rebuildLayerFrames {
     const std::vector<float> &samples = [_morph displayedSamples];
     NSUInteger count = samples.size();
@@ -244,11 +250,10 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
     CGFloat topLineY = round(totalHeight * (1 - kTopLineRatio));
     CGFloat bottomLineY = topLineY - kBottomBarSpacing;
 
-    // With no waveform, bars may shrink to nothing; with one, silent and
-    // not-yet-loaded chunks keep a 1px hairline floor.
-    CGFloat minHeight = _morph.hasWaveform ? 1 : 0;
-    CGFloat scale = self.parentLayer.contentsScale;
-    if (scale <= 0) scale = 2;
+    // A hairline floor against collapsing to nothing. The policy lives on the
+    // engine, shared with the Detailed family.
+    CGFloat minHeight = _morph.barMinHeight;
+    CGFloat scale = VibeBackingScaleForLayer(self.parentLayer);
     CGFloat pixel = 1 / scale;
 
     [CATransaction begin];
@@ -257,13 +262,13 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
 
         CGFloat x = barPitch * (CGFloat)i;
 
-        // Top line
+        // The top line.
         CGFloat height = samples[i] * vscale;
         CGFloat topBarHeight = round(height * kTopLineRatio / pixel) * pixel;
         topBarHeight = MAX(topBarHeight, minHeight);
         _layers[i * 2].frame = CGRectMake(x, topLineY, blockWidth, topBarHeight);
 
-        // Mirror line
+        // The mirror line.
         CGFloat bottomBarHeight = round(topBarHeight * (1 - kTopLineRatio) / pixel) * pixel;
         _layers[i * 2 + 1].frame = CGRectMake(x, bottomLineY - bottomBarHeight, blockWidth, bottomBarHeight);
     }

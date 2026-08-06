@@ -18,29 +18,30 @@ NS_ASSUME_NONNULL_BEGIN
 @property NSUInteger currentIndex;
 
 @property (weak) AudioPlayer *audioPlayer;
-// Attaching the table also wires the double-click action and installs the
-// row context menu (the table's construction itself lives in
-// PlaylistTableView).
+// Attaching the table also wires the double-click action and installs the row
+// context menu. The table's construction itself lives in PlaylistTableView.
 @property (weak) PlaylistTableView *tableView;
 
-// Fired after a double-click starts a new track. The player's own events
-// arrive only once its async open makes progress (didBeginLoading is gated on
-// the 0.5 s slow-open threshold), so without this the owner's header keeps
-// describing the previous track after the row indicator has already moved.
+// Fires after a double-click has started a new track. The player's own events
+// arrive only once its async open makes progress, since didBeginLoading is
+// gated on the 0.5-second slow-open threshold. Without this the owner's header
+// would keep describing the previous track after the row indicator had already
+// moved.
 @property (nonatomic, copy, nullable) void (^userDidChangeTrackHandler)(void);
 
-// Artwork-derived accent for the playing row's equalizer bars (set by the
-// owner from the current track's dominant art color; nil falls back to the
-// appearance default). Deliberately the ONLY accented element in the row —
-// the title text keeps its normal label color and the row background stays
-// neutral (see PlaylistRowView).
+// The artwork-derived accent for the playing row's equalizer bars. The owner
+// sets it from the current track's dominant art color, and nil falls back to
+// the appearance default. It is deliberately the only accented element in the
+// row: the title text keeps its normal label color and the row background
+// stays neutral; see PlaylistRowView.
 @property (nonatomic, strong, nullable) NSColor *accentColor;
 
 - (NSArray<AudioTrack *> *)playlist;
 
-// Single-element access. Unlike the playlist getter, no defensive copy — use
-// this for one-off indexed reads on the main thread; use playlist only when
-// holding the whole list across async work. Returns nil out of range.
+// Single-element access. Unlike the playlist getter it makes no defensive
+// copy, so use it for one-off indexed reads on the main thread, and use
+// playlist only when holding the whole list across async work. It returns nil
+// when out of range.
 - (AudioTrack * _Nullable)trackAtIndex:(NSUInteger)index;
 
 - (instancetype)initWithAudioPlayer:(AudioPlayer *)player;
@@ -48,22 +49,22 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)play;
 - (void)play:(NSArray<NSURL *> *)urls;
 
-// Adds tracks to the end without touching playback or currentIndex (play:
-// replaces and restarts). Used by AppDelegate's open burst.
+// Adds tracks to the end without touching playback or currentIndex, whereas
+// play: replaces and restarts. AppDelegate's open burst uses it.
 - (void)append:(NSArray<NSURL *> *)urls;
 
-// Empties the playlist and resets currentIndex. Does not touch the audio
-// player — the caller stops playback itself.
+// Empties the playlist and resets currentIndex. It does not touch the audio
+// player: the caller stops playback itself.
 - (void)clear;
 
 - (BOOL)next;
 
 - (BOOL)previous;
 
-// Playlist-boundary predicates — the single source of truth for "is there a
-// track after/before the current one", shared by next/previous themselves,
-// the transport buttons, menu validation, Now Playing (Control Center)
-// command gating, and the end-of-playlist stop.
+// The playlist-boundary predicates: the single source of truth for whether
+// there is a track after or before the current one. They are shared by next
+// and previous themselves, the transport buttons, menu validation, the Now
+// Playing command gating in Control Center, and the end-of-playlist stop.
 - (BOOL)hasNextTrack;
 - (BOOL)hasPreviousTrack;
 
@@ -80,7 +81,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)reloadTrackAtIndex:(NSUInteger)index;
 - (void)reloadTrack:(AudioTrack *)track;
 
-// Scrolls the playing row into view; no-op while it is already visible.
+// Scrolls the playing row into view. It is a no-op while the row is already
+// visible.
 - (void)scrollCurrentTrackToVisible;
 
 @end

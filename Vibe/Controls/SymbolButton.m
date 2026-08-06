@@ -7,14 +7,14 @@
 
 static const CFTimeInterval kFadeDuration = 0.1;
 
-// Only a fallback — every call site sets its own size.
+// A fallback only: every call site sets its own size.
 static const CGFloat kDefaultSymbolPointSize = 15;
 
 @implementation SymbolButton {
     CALayer *_colorLayer;  // flat wash of the current state color
     CALayer *_maskLayer;   // the symbol, as the alpha mask carving that wash
-    // What _maskLayer's image was built for; skips redundant rasterizations on
-    // every layout pass.
+    // What _maskLayer's image was built for. It skips redundant rasterizations
+    // on every layout pass.
     NSString *_renderedSymbolName;
     CGFloat _renderedPointSize;
     NSFontWeight _renderedWeight;
@@ -29,20 +29,22 @@ static const CGFloat kDefaultSymbolPointSize = 15;
         self.wantsLayer = YES;
         _symbolPointSize = kDefaultSymbolPointSize;
         _symbolWeight = NSFontWeightRegular;
-        // CALayer can't tint its contents, so the symbol becomes a mask and the
-        // state color rides on the layer beneath it — the color then stays an
-        // animatable layer property, as it was with the old shape-layer fill.
+        // CALayer cannot tint its contents, so the symbol becomes a mask and
+        // the state color rides on the layer beneath it. The color then stays
+        // an animatable layer property, as it was with the old shape-layer
+        // fill.
         _colorLayer = [CALayer layer];
         _maskLayer = [CALayer layer];
         _colorLayer.mask = _maskLayer;
         [self.layer addSublayer:_colorLayer];
-        // Idle sits dim; hover fades to the highlight color at full opacity
-        // (no transparency) and a press dims to half that opacity.
+        // Idle sits dim. Hover fades to the highlight color at full opacity,
+        // with no transparency, and a press dims to half that opacity.
         _symbolNormalColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:0.55];
         _symbolHighlightColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:0.8];
         _symbolDisabledColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:0.19];
-        // EnabledDuringMouseDrag: exited/entered don't fire during a drag
-        // without it, and drag-off/drag-back is exactly a mid-drag exit.
+        // EnabledDuringMouseDrag is needed because exited and entered do not
+        // fire during a drag without it, and dragging off and back is exactly
+        // a mid-drag exit.
         [self addTrackingArea:[[NSTrackingArea alloc]
                 initWithRect:self.bounds
                      options:NSTrackingActiveAlways | NSTrackingInVisibleRect |
@@ -53,8 +55,9 @@ static const CGFloat kDefaultSymbolPointSize = 15;
     return self;
 }
 
-// The window is movable-by-background; without this a click on the button
-// would also start a window drag (NSControl is non-opaque, unlike NSButton).
+// The window is movable by its background, and without this a click on the
+// button would also start a window drag, since NSControl is non-opaque, unlike
+// NSButton.
 - (BOOL)mouseDownCanMoveWindow {
     return NO;
 }
@@ -84,9 +87,9 @@ static const CGFloat kDefaultSymbolPointSize = 15;
     [CATransaction commit];
 }
 
-// Rasterizes the configured symbol at the window's backing scale — a mask layer
-// samples only alpha, so the symbol's own black content needs no tinting — and
-// centers the result in the bounds.
+// Rasterizes the configured symbol at the window's backing scale and centers
+// the result in the bounds. A mask layer samples only alpha, so the symbol's
+// own black content needs no tinting.
 - (void)updateMaskLayer {
     CGFloat scale = self.window.backingScaleFactor;
     if (scale <= 0) {
@@ -140,7 +143,8 @@ static const CGFloat kDefaultSymbolPointSize = 15;
     [self centerMaskLayer];
 }
 
-// Integral origin: a half-point offset would soften the symbol's edges.
+// An integral origin, because a half-point offset would soften the symbol's
+// edges.
 - (void)centerMaskLayer {
     CGImageRef image = (__bridge CGImageRef)_maskLayer.contents;
     if (!image) {
@@ -160,10 +164,10 @@ static const CGFloat kDefaultSymbolPointSize = 15;
     if (!self.isEnabled) {
         color = _symbolDisabledColor;
     } else if (_mouseDown && _hovering) {
-        // Pressed: half the highlight's opacity.
+        // Pressed, at half the highlight's opacity.
         color = [_symbolHighlightColor colorWithAlphaComponent:_symbolHighlightColor.alphaComponent * 0.5];
     } else if (_hovering) {
-        // Hover: full highlight color.
+        // Hovered, at the full highlight color.
         color = _symbolHighlightColor;
     } else {
         color = _symbolNormalColor;
@@ -180,7 +184,7 @@ static const CGFloat kDefaultSymbolPointSize = 15;
 
 #pragma mark - Mouse handling (momentary push)
 
-// Disabled buttons are click-through, so a click over them still drags the
+// Disabled buttons are click-through, so a click over one still drags the
 // window.
 - (NSView *)hitTest:(NSPoint)point {
     return self.isEnabled ? [super hitTest:point] : nil;
@@ -213,8 +217,8 @@ static const CGFloat kDefaultSymbolPointSize = 15;
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     _hovering = NSPointInRect(point, self.bounds); // released inside → stay in hover state
     [self applyColorAnimated:YES];
-    // Re-check isEnabled: the button can be disabled mid-press (mouseDown:
-    // only gates the press starting).
+    // Re-check isEnabled, because the button can be disabled mid-press:
+    // mouseDown: only gates the press starting.
     if (_hovering && self.isEnabled) {
         [NSApp sendAction:self.action to:self.target from:self];
     }

@@ -6,6 +6,7 @@
 #import "AudioWaveformCache.h"
 #import "AudioWaveform.h"
 #import "PINCache.h"
+#import "AudioCachePolicy.h"
 #import "AudioTrack.h"
 #import "AVFAudioWaveformLoader.h"
 
@@ -20,46 +21,51 @@
     dispatch_queue_t                _loaderQueue;
     PINCache*                       _waveformCache;
     __weak AudioWaveformLoader*     _currentLoader;
-    // Bumped by invalidateWithCompletion:. A decode captures it when it starts and skips its
-    // disk write if it moved — decodes run on a global queue, so an in-flight
-    // one could otherwise land its setObjectAsync: after removeAllObjects and
-    // repopulate the emptied cache.
+    // Bumped by invalidateWithCompletion:. A decode captures it when it
+    // starts, skips its disk write if it has moved, and re-checks after the
+    // write lands, removing the entry it just wrote if an invalidate raced it.
+    // Decodes run on a global queue, so without this an in-flight one could
+    // land its write after removeAllObjects and repopulate the emptied cache.
     std::atomic<uint64_t>           _cacheGeneration;
+}
+
++ (NSString *)cacheName {
+    // The name embeds the entry format version, so a version bump renames the
+    // cache and unreadable older entries waiting for LRU eviction do not
+    // consume the byte budget.
+    return [NSString stringWithFormat:@"audio_waveform_cache_v%d",
+                                      kCodableAudioWaveformVersion];
 }
 
 - (id)init {
     self = [super init];
     if (self) {
-        // Utility, not user-initiated: the loader blocks on PINCache's own
-        // utility-QoS queues (sync objectForKey:), and a higher class here
-        // just trips the Thread Performance Checker's priority-inversion
-        // warning while stealing P-core time from playback start.
+        // Utility, not user-initiated. The loader blocks on PINCache's own
+        // utility-QoS queues, through a synchronous objectForKey:, and a
+        // higher class here merely trips the Thread Performance Checker's
+        // priority-inversion warning while stealing P-core time from the start
+        // of playback.
         dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
         _loaderQueue = dispatch_queue_create("AudioWaveformCache", queueAttributes);
         _cacheGeneration = 0;
         _currentLoader = nil;
-        // Create the cache on the loader queue: constructing it on the main
+        // Create the cache on the loader queue. Constructing it on the main
         // thread would boost PINCache's internal init-time disk scan to
         // user-initiated QoS, which then priority-inverts against our
-        // utility-QoS cache calls (Thread Performance Checker warning at
-        // first drop). The _waveformCache ivar is only ever read on this
-        // serial queue (decode-side writes go through a pointer snapshotted
-        // here; PINCache itself is thread-safe), so it is always constructed
-        // before first use.
+        // utility-QoS cache calls, and the Thread Performance Checker warns
+        // about it on the first drop. The _waveformCache ivar is only ever
+        // read on this serial queue — decode-side writes go through a pointer
+        // snapshotted here, and PINCache itself is thread-safe — so it is
+        // always constructed before first use.
         dispatch_async(_loaderQueue, ^{
-            // The name embeds the entry format version so a version bump
-            // renames the cache and the byte budget isn't consumed by
-            // unreadable older-version entries waiting for LRU eviction.
-            NSString *cacheName = [NSString stringWithFormat:@"audio_waveform_cache_v%d",
-                                                             kCodableAudioWaveformVersion];
-            self->_waveformCache = [[PINCache alloc] initWithName:cacheName];
-            self->_waveformCache.diskCache.byteLimit = 64 * 1024 * 1024; // 64mb disk cache limit
-            self->_waveformCache.diskCache.ageLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
-            // The memory cache is deliberately unused (load: reads and writes
-            // diskCache directly): on macOS PINMemoryCache never evicts, so it
-            // would pin ~64KB per unique track played for the app's lifetime.
-            // The view retains the one live waveform; replays re-read from
-            // disk in a few ms on this utility queue.
+            self->_waveformCache = [[PINCache alloc] initWithName:AudioWaveformCache.cacheName];
+            self->_waveformCache.diskCache.byteLimit = kAudioCacheByteLimit;
+            self->_waveformCache.diskCache.ageLimit = kAudioCacheAgeLimit;
+            // The memory cache is deliberately unused, and load: reads and
+            // writes diskCache directly. On macOS PINMemoryCache never evicts,
+            // so it would pin about 64KB per unique track played for the app's
+            // lifetime. The view retains the one live waveform, and a replay
+            // re-reads from disk in a few ms on this utility queue.
         });
     }
     return self;
@@ -79,20 +85,20 @@
     [_currentLoader cancel];
     AudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:self];
      _currentLoader = loader;
-    // Captured now, not read back at delivery: the BPM delivery carries the
-    // URL this waveform was loaded for, so a final delivery that lands after
-    // a track change can't be stamped on whatever track is current by then.
+    // Captured now rather than read back at delivery. The BPM delivery carries
+    // the URL this waveform was loaded for, so a final delivery landing after
+    // a track change cannot be stamped on whatever track is current by then.
     NSURL *url = track.url;
-    // The cache key is a file stat, computed OFF the serial loader queue: a
-    // hung network mount could block for minutes and wedge every later
-    // track's waveform behind it — same philosophy as the off-queue
-    // AVAudioFile open in load:. Out-of-order arrival is fine: a superseded
-    // loader was already cancelled above, so its work no-ops.
+    // The cache key is a file stat, computed off the serial loader queue. A
+    // hung network mount could block for minutes and wedge every later track's
+    // waveform behind it, which is the same reasoning as the off-queue
+    // AVAudioFile open in load:. Out-of-order arrival is fine, because a
+    // superseded loader was already cancelled above and its work no-ops.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSString *cacheKey = track.cacheKey;
         if (!cacheKey) {
-            // Unstattable file (see NSURL+Hash): skip the load — the view
-            // keeps what it shows, and the next play retries.
+            // The file cannot be statted; see NSURL+Hash. Skip the load: the
+            // view keeps what it shows, and the next play retries.
             LogWarn(@"No cache key for %@ — skipping waveform load", url.path);
             return;
         }
@@ -101,8 +107,9 @@
                 if (waveform) {
                     [self deliverCompleteWaveform:waveform loader:loader url:url];
                 }
-                // nil (cancelled, failed, or partial): the UI stays at whatever
-                // progress the last in-flight loader callback reported.
+                // nil, meaning cancelled, failed or partial. The UI stays at
+                // whatever progress the last in-flight loader callback
+                // reported.
             }];
         });
     });
@@ -113,16 +120,16 @@
     _currentLoader = nil;
 }
 
-// Lookup-or-decode core, shared by the delegate delivery path above and the
-// debug pre-warm path below. Must be called on _loaderQueue, with the cache
-// key precomputed off-queue by the caller (the stat must not block this
-// serial queue). The completion fires exactly once — waveform nil on a
-// cancelled/failed decode, wasCached YES on a disk hit — on the loader queue
-// (hit / early-out) or a global utility queue (fresh decode). awaitPersist
-// defers a fresh decode's completion until the disk write lands (the debug
-// pre-warm's done-means-persisted guarantee: `file_cache f && kill` must not
-// lose the entry); the delegate path passes NO so UI delivery never queues
-// behind PINDiskCache.
+// The lookup-or-decode core, shared by the delegate delivery path above and
+// the debug pre-warm path below. It must be called on _loaderQueue, with the
+// cache key precomputed off-queue by the caller, since the stat must not block
+// this serial queue. The completion fires exactly once — waveform nil on a
+// cancelled or failed decode, wasCached YES on a disk hit — either on the
+// loader queue, for a hit or an early-out, or on a global utility queue, for a
+// fresh decode. awaitPersist defers a fresh decode's completion until the disk
+// write lands, which gives the debug pre-warm its done-means-persisted
+// guarantee: `file_cache f && kill` must not lose the entry. The delegate path
+// passes NO, so UI delivery never queues behind PINDiskCache.
 - (void)load:(AudioTrack *)track
     cacheKey:(NSString *)cacheKey
   withLoader:(AudioWaveformLoader *)loader
@@ -130,10 +137,11 @@ awaitPersist:(BOOL)awaitPersist
   completion:(void (^)(CodableAudioWaveform *waveform, BOOL wasCached))completion {
     CodableAudioWaveform *cachedWaveform =
             (CodableAudioWaveform *)[self->_waveformCache.diskCache objectForKey:cacheKey];
-    // PINCache unarchives without secure coding, so a corrupt/tampered entry
-    // with a different root class decodes cleanly and would crash
-    // (unrecognized selector) at first use — on every play of this track, since
-    // nothing would ever evict it. Same guard as the metadata cache.
+    // PINCache unarchives without secure coding, so a corrupt or tampered
+    // entry with a different root class decodes cleanly and would crash with
+    // an unrecognized selector at first use — on every play of this track,
+    // since nothing would ever evict it. The metadata cache uses the same
+    // guard.
     if (cachedWaveform && ![cachedWaveform isKindOfClass:[CodableAudioWaveform class]]) {
         [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
         cachedWaveform = nil;
@@ -146,13 +154,14 @@ awaitPersist:(BOOL)awaitPersist
         completion(nil, NO); // superseded while the cache lookup ran — don't start a decode
         return;
     }
-    // Decode OFF this serial queue: AVAudioFile's open has no cancellation
-    // point and blocks until a cloud placeholder materializes (minutes) — on
-    // this queue that would wedge every later track's waveform behind it (the
-    // decode loop is cancellable per chunk; the open isn't). Same tradeoff as
-    // the player's off-queue open in playOnQueue: a truly hung open strands
-    // one global-queue worker instead of the pipeline. Overlap is bounded: a
-    // superseded loader aborts at its next chunk check.
+    // Decode off this serial queue. AVAudioFile's open has no cancellation
+    // point and blocks for minutes until a cloud placeholder materializes; on
+    // this queue that would wedge every later track's waveform behind it. The
+    // decode loop is cancellable per chunk, but the open is not. It is the
+    // same tradeoff as the player's off-queue open in playOnQueue:, where a
+    // truly hung open strands one global-queue worker rather than the
+    // pipeline. Overlap is bounded, because a superseded loader aborts at its
+    // next chunk check.
     PINCache *cache = _waveformCache; // snapshot: the ivar is confined to _loaderQueue
     uint64_t generation = _cacheGeneration.load(std::memory_order_relaxed);
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
@@ -161,29 +170,38 @@ awaitPersist:(BOOL)awaitPersist
             completion(nil, NO); // cancelled, failed, or partial
             return;
         }
-        if (generation == self->_cacheGeneration.load(std::memory_order_relaxed)) {
-            // Cache even when cancelled — a completed decode is worth keeping
-            // for the next play of this track. Skipped when an invalidate
-            // arrived after this decode started: the write would repopulate
-            // the just-emptied cache. The completion below is still valid
-            // either way — the waveform itself is fine, only the persist is.
-            if (awaitPersist) {
-                [cache.diskCache setObjectAsync:waveform forKey:cacheKey
-                                      completion:^(PINDiskCache *diskCache, NSString *key, id<NSCoding> object) {
-                    completion(waveform, NO);
-                }];
-                return;
-            }
-            [cache.diskCache setObjectAsync:waveform forKey:cacheKey completion:nil];
+        if (!awaitPersist) {
+            // Deliver before persisting, so UI delivery never queues behind
+            // PINDiskCache. The waveform is valid whatever the persist below
+            // decides.
+            completion(waveform, NO);
         }
-        completion(waveform, NO);
+        // Cache even when cancelled: a completed decode is worth keeping for
+        // the next play of this track. It is skipped when an invalidate
+        // arrived after this decode started, since the write would repopulate
+        // the just-emptied cache. The write is synchronous and the generation
+        // is re-checked after it lands, because removeAllObjects takes
+        // PINDiskCache's lock directly rather than queueing behind pending
+        // writes, so an invalidate can slip between the check and the write.
+        // The compensating remove is what makes the header's
+        // cannot-repopulate guarantee hold.
+        if (generation == self->_cacheGeneration.load(std::memory_order_relaxed)) {
+            [cache.diskCache setObject:waveform forKey:cacheKey];
+            if (generation != self->_cacheGeneration.load(std::memory_order_relaxed)) {
+                [cache.diskCache removeObjectForKey:cacheKey];
+            }
+        }
+        if (awaitPersist) {
+            completion(waveform, NO);
+        }
     });
 }
 
-// Final 100% delivery (progress ticks go straight from the loader to the
-// delegate). The waveform is captured strongly so the C++ buffer stays valid
-// when the block runs; cancellation is re-checked on the main thread because
-// a cancel (new track selected) may land after the block is enqueued.
+// The final, 100% delivery; progress ticks go straight from the loader to the
+// delegate. The waveform is captured strongly so that the C++ buffer stays
+// valid when the block runs, and cancellation is re-checked on the main
+// thread, because a cancel from a newly selected track may land after the
+// block is enqueued.
 - (void)deliverCompleteWaveform:(CodableAudioWaveform *)waveform loader:(AudioWaveformLoader *)loader url:(NSURL *)url {
     if (loader.isCancelled && waveform.bpm <= 0) {
         return;
@@ -192,13 +210,13 @@ awaitPersist:(BOOL)awaitPersist
         if (!loader.isCancelled) {
             [self.delegate audioWaveform:waveform didLoadData:1];
         }
-        // BPM is computed at the end of the decode pass (or carried by a cache
-        // hit), so it only ever exists on this final delivery — and it is
-        // delivered even when the load was cancelled: a cancelled-but-complete
-        // decode still persisted a BPM that is valid for its file, and the
-        // delegate matches the URL against its playlist, not the current
-        // track. Dropping it here would leave the analyzed track BPM-less
-        // until its next play purely because the cancel won a race.
+        // The BPM is computed at the end of the decode pass, or carried by a
+        // cache hit, so it only ever exists on this final delivery. It is
+        // delivered even when the load was cancelled: a cancelled but complete
+        // decode still persisted a BPM valid for its file, and the delegate
+        // matches the URL against its playlist rather than the current track.
+        // Dropping it here would leave the analyzed track without a BPM until
+        // its next play, purely because the cancel won a race.
         if (waveform.bpm > 0 &&
             [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectBPM:forURL:)]) {
             [self.delegate audioWaveformCache:self didDetectBPM:waveform.bpm forURL:url];
@@ -218,13 +236,13 @@ awaitPersist:(BOOL)awaitPersist
 
 - (void)cacheWaveformForURL:(NSURL *)url completion:(void (^)(BOOL, BOOL, float))completion {
     AudioTrack *track = [AudioTrack withURL:url];
-    // A private loader, never assigned to _currentLoader: the UI's in-flight
-    // load isn't cancelled, and no delegate progress/delivery fires — this
-    // path reports through the completion instead (typed nil delegate local
-    // dodges -Wnonnull).
+    // A private loader, never assigned to _currentLoader. The UI's in-flight
+    // load is not cancelled, and no delegate progress or delivery fires; this
+    // path reports through the completion instead. The typed nil delegate
+    // local dodges -Wnonnull.
     id<AudioWaveformLoaderDelegate> noDelegate = nil;
     AudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:noDelegate];
-    // Key computed off the loader queue (see loadWaveformForTrack:).
+    // The key is computed off the loader queue; see loadWaveformForTrack:.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSString *cacheKey = track.cacheKey;
         if (!cacheKey) {
@@ -243,12 +261,12 @@ awaitPersist:(BOOL)awaitPersist
 
 - (void)clearCachedWaveformForURL:(NSURL *)url completion:(void (^)(BOOL))completion {
     AudioTrack *track = [AudioTrack withURL:url];
-    // Key computed off the loader queue (see loadWaveformForTrack:).
+    // The key is computed off the loader queue; see loadWaveformForTrack:.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSString *cacheKey = track.cacheKey;
         if (!cacheKey) {
-            // Unstattable file — its entry can't be resolved anyway (the key
-            // derives from current size + mtime).
+            // The file cannot be statted, so its entry cannot be resolved
+            // anyway: the key derives from the current size and mtime.
             LogWarn(@"No cache key for %@ — cannot clear waveform entry", url.path);
             run_on_main_thread({ if (completion) completion(NO); });
             return;

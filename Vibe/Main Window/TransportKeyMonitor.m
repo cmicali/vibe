@@ -7,10 +7,10 @@
 #import "MainPlayerController.h"
 #import "MainPlayerController+Transport.h"
 
-// The dual-mode performance-effect keys. Each flips its effect at keyDown;
-// keyUp decides what the press meant: a tap (shorter than
-// kEffectTapMaxDuration) latches the flip like a toggle, a hold reverts to
-// the pre-press state, making the press momentary.
+// The dual-mode performance-effect keys. Each flips its effect at keyDown, and
+// keyUp decides what the press meant: a tap, shorter than
+// kEffectTapMaxDuration, latches the flip like a toggle, while a hold reverts
+// to the pre-press state, making the press momentary.
 typedef NS_ENUM(NSInteger, VibeEffectKey) {
     VibeEffectKeyLowKill = 0,       // Q
     VibeEffectKeyLowKillBoost,      // W
@@ -20,9 +20,9 @@ typedef NS_ENUM(NSInteger, VibeEffectKey) {
     VibeEffectKeyCount
 };
 
-// Longest press that still counts as a tap. Long enough that a lazy tap
-// doesn't accidentally revert, short enough that a deliberate momentary
-// stab (hold-and-release over a beat) never latches.
+// The longest press that still counts as a tap. It is long enough that a lazy
+// tap does not revert by accident, and short enough that a deliberate
+// momentary stab, held and released over a beat, never latches.
 static const NSTimeInterval kEffectTapMaxDuration = 0.35;
 
 static NSInteger VibeEffectKeyForChars(NSString *chars) {
@@ -44,9 +44,9 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
     id                              _resignKeyObserver;
     __weak MainPlayerController    *_controller;
 
-    // Tap-vs-hold state, indexed by VibeEffectKey. isDown gates the keyUp
-    // side: a keyUp whose keyDown we never handled (typed into a text view,
-    // pressed with a modifier down) must pass through untouched.
+    // The tap-against-hold state, indexed by VibeEffectKey. isDown gates the
+    // keyUp side: a keyUp whose keyDown we never handled — typed into a text
+    // view, or pressed with a modifier down — must pass through untouched.
     BOOL                            _effectKeyIsDown[VibeEffectKeyCount];
     NSTimeInterval                  _effectKeyDownTime[VibeEffectKeyCount];
     BOOL                            _effectStateBeforeDown[VibeEffectKeyCount];
@@ -57,17 +57,17 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
     if (self) {
         _controller = controller;
         __weak TransportKeyMonitor *weakSelf = self;
-        // KeyUp too: Q/W/E/R/T are tap-toggle/hold-momentary, so their
-        // releases matter, unlike the other keys.
+        // keyUp too, because Q, W, E, R and T toggle on a tap and are
+        // momentary on a hold, so their releases matter, unlike other keys'.
         _monitor = [NSEvent addLocalMonitorForEventsMatchingMask:(NSEventMaskKeyDown | NSEventMaskKeyUp)
                                                           handler:^NSEvent *(NSEvent *event) {
             TransportKeyMonitor *strongSelf = weakSelf;
             return strongSelf ? [strongSelf handleKeyEvent:event] : event;
         }];
-        // If the window resigns key while an effect key is held (Cmd-Tab, a
-        // panel steals focus), the release lands elsewhere and the flip would
-        // stick — revert every held key to its pre-press state. Latched
-        // (tapped-on) effects are deliberate and persist.
+        // If the window resigns key while an effect key is held, through
+        // Cmd-Tab or a panel stealing focus, the release lands elsewhere and
+        // the flip would stick. Revert every held key to its pre-press state.
+        // Latched effects, turned on by a tap, are deliberate and persist.
         _resignKeyObserver = [[NSNotificationCenter defaultCenter]
                 addObserverForName:NSWindowDidResignKeyNotification
                             object:nil
@@ -115,8 +115,8 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
     }
 }
 
-// Focus left mid-press: treat every held key as a hold release (revert),
-// regardless of how long it was down — there is no keyUp coming to decide.
+// Focus left mid-press. Treat every held key as a hold release, and revert it,
+// however long it was down: no keyUp is coming to decide.
 - (void)revertHeldEffectKeys {
     MainPlayerController *controller = _controller;
     if (!controller) {
@@ -139,22 +139,23 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
         return event;
     }
     if (event.type == NSEventTypeKeyUp) {
-        // Before the modifier guard: a modifier pressed mid-hold must not
-        // make the release invisible and leave the effect stuck flipped.
+        // This runs before the modifier guard, because a modifier pressed
+        // mid-hold must not make the release invisible and leave the effect
+        // stuck flipped.
         NSInteger effectKey = VibeEffectKeyForChars(event.charactersIgnoringModifiers.lowercaseString);
         if (effectKey >= 0 && _effectKeyIsDown[effectKey]) {
             _effectKeyIsDown[effectKey] = NO;
             if (event.timestamp - _effectKeyDownTime[effectKey] >= kEffectTapMaxDuration) {
-                // Held: momentary — restore the state the keyDown flipped.
+                // Held, so momentary: restore the state the keyDown flipped.
                 [self setEffect:effectKey active:_effectStateBeforeDown[effectKey] controller:controller];
             }
-            // Tapped: the keyDown's flip stays latched, like a toggle.
+            // Tapped, so the keyDown's flip stays latched, like a toggle.
             return nil;
         }
         return event;
     }
-    // Leave anything that isn't a bare keypress alone (menu shortcuts,
-    // future text editing in a field editor).
+    // Leave anything that is not a bare keypress alone: menu shortcuts, and
+    // any future text editing in a field editor.
     NSEventModifierFlags mods = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
     if (mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl |
                 NSEventModifierFlagOption | NSEventModifierFlagShift)) {
@@ -180,10 +181,10 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
         [controller togglePitchPanel:nil];
         return nil;
     }
-    // Effect keys: flip the effect right at keyDown so both meanings of the
-    // press get an instant response; the keyUp branch above decides whether
-    // the flip latches (tap) or reverts (hold). Key-repeat downs are
-    // swallowed without touching the state machine.
+    // For the effect keys, flip the effect right at keyDown, so that both
+    // meanings of the press get an instant response. The keyUp branch above
+    // decides whether the flip latches, on a tap, or reverts, on a hold.
+    // Key-repeat downs are swallowed without touching the state machine.
     NSInteger effectKey = VibeEffectKeyForChars(chars);
     if (effectKey >= 0) {
         if (!event.isARepeat) {
@@ -195,9 +196,10 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
         }
         return nil;
     }
-    // Skip seek: A/S/D forward 8/16/32 bars, Z/X/C back 8/16/32 bars
-    // (10s/30s/60s when the track has no BPM). A 2×3 grid on the keyboard —
-    // forward on top, back below; the further the key, the longer the skip.
+    // Skip seek. A, S and D go forward 8, 16 and 32 bars; Z, X and C go back
+    // the same, or 10, 30 and 60 seconds when the track has no BPM. They form
+    // a two-by-three grid on the keyboard, forward on top and back below, and
+    // the further the key, the longer the skip.
     if ([chars isEqualToString:@"a"]) {
         [controller skipForward:nil];
         return nil;
@@ -222,9 +224,9 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
         [controller skipBackMost:nil];
         return nil;
     }
-    // Tab is also a menu key equivalent (installed by MainMenuBuilder),
-    // but that path only fires as a fallback after the focused view
-    // declines the event — handle it here like the other bare keys.
+    // Tab is also a menu key equivalent, installed by MainMenuBuilder, but
+    // that path fires only as a fallback after the focused view declines the
+    // event. Handle it here, like the other bare keys.
     if ([chars isEqualToString:@"\t"]) {
         [controller toggleSize:nil];
         return nil;

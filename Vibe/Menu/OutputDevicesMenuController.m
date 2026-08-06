@@ -12,9 +12,10 @@
 @end
 
 @implementation OutputDevicesMenuController {
-    // The devices menu while it is on screen (nil otherwise). Device
+    // The devices menu while it is on screen, and nil otherwise. Device
     // notifications arrive in the common run-loop modes, so an open menu can
-    // be rebuilt in place when a device is (un)plugged or the default changes.
+    // be rebuilt in place when a device is plugged or unplugged, or the
+    // default changes.
     __weak NSMenu *_openMenu;
 }
 
@@ -39,7 +40,7 @@
 }
 
 - (void)systemDefaultOutputDeviceDidChange {
-    // The System Output item's device name changes even when the list didn't.
+    // The System Output item's device name changes even when the list has not.
     [self refreshOpenMenu];
 }
 
@@ -50,14 +51,14 @@
     }
 }
 
-// Menu layout: [0] "System Output (<default device>)" (tag -1, the default
-// choice), [1] separator, [2..] every output device. Checkmark tracks
-// currentlyRequestedAudioDeviceId: -1 checks System Output, otherwise the
-// explicitly chosen device.
+// The menu layout: [0] is "System Output (<default device>)", tag -1, the
+// default choice; [1] is a separator; [2] onwards is every output device. The
+// checkmark tracks currentlyRequestedAudioDeviceId, where -1 checks System
+// Output and anything else checks the explicitly chosen device.
 - (void)menuNeedsUpdate:(NSMenu *)menu {
-    // Enumerate once and size the menu from the same snapshot: a second
-    // enumeration could disagree (device hotplug mid-update) and overrun
-    // the menu's item count.
+    // Enumerate once and size the menu from that same snapshot. A second
+    // enumeration could disagree, after a device hotplug mid-update, and
+    // overrun the menu's item count.
     NSArray<AudioDevice *> *devices = AudioDeviceManager.sharedInstance.outputDevices;
     NSInteger requestedId = self.audioPlayer.currentlyRequestedAudioDeviceId;
 
@@ -69,7 +70,7 @@
         }
     }
 
-    // Build the fixed header once; the device tail below resizes in place so
+    // Build the fixed header once. The device tail below resizes in place, so
     // an open menu refreshes without losing its tracking state.
     if (menu.numberOfItems < 2 || ![menu itemAtIndex:1].isSeparatorItem) {
         [menu removeAllItems];

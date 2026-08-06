@@ -7,24 +7,24 @@
 #import "AudioTrack.h"
 #import <MediaPlayer/MediaPlayer.h>
 
-// A published position more than this far from what the system's own
-// extrapolation predicts is a jump (seek, pitch rescale) and must be
-// republished; anything inside it is natural playback advance, which the
+// A published position further than this from what the system's own
+// extrapolation predicts is a jump, from a seek or a pitch rescale, and must
+// be republished. Anything inside it is natural playback advance, which the
 // system tracks without a republish.
 static const NSTimeInterval kPositionRepublishTolerance = 1.0;
 
 @implementation NowPlayingController {
     __weak id<NowPlayingControllerDelegate> _delegate;
 
-    // Vibe must not claim the system Now Playing slot at launch: updateUI
-    // runs (with no track) before anything has played, and publishing even a
-    // cleared state would evict the user's current Now Playing app.
+    // Vibe must not claim the system Now Playing slot at launch. updateUI runs
+    // with no track before anything has played, and publishing even a cleared
+    // state would evict the user's current Now Playing app.
     BOOL _hasPublished;
 
-    // Last-published snapshot for the dirty check in updateWithTrack:...
-    // (updateUI runs several times back-to-back on a track transition; only
-    // the first pass with new content should touch MPNowPlayingInfoCenter).
-    // _publishedURL nil means cleared (or never published).
+    // The last published snapshot, for the dirty check in updateWithTrack:....
+    // updateUI runs several times back to back on a track transition, and only
+    // the first pass with new content should touch MPNowPlayingInfoCenter. A
+    // nil _publishedURL means cleared, or never published.
     NSString *_publishedURL;
     NSString *_publishedTitle;
     NSString *_publishedArtist;
@@ -34,14 +34,15 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
     NSTimeInterval _publishedPosition;
     CFAbsoluteTime _publishedAt;
 
-    // Last-applied command availability (registerCommands enables both), so
-    // the MPRemoteCommand .enabled properties are only written on change.
+    // The last applied command availability, which registerCommands enables
+    // for both, so that the MPRemoteCommand .enabled properties are written
+    // only on a change.
     BOOL _publishedHasNext;
     BOOL _publishedHasPrevious;
 
-    // The MPMediaItemArtwork wrapper is reused as long as the caller hands
-    // back the same decoded NSImage; the wrapper's request handler retains
-    // the image either way, so caching it here adds no lifetime.
+    // The MPMediaItemArtwork wrapper is reused for as long as the caller hands
+    // back the same decoded NSImage. The wrapper's request handler retains the
+    // image either way, so caching it here adds no lifetime.
     NSImage *_publishedArtworkImage;
     MPMediaItemArtwork *_publishedArtworkWrapper;
 }
@@ -57,13 +58,15 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
 
 #pragma mark - Remote commands
 
-// Enable the transport commands we implement (this is what routes the hardware
-// media keys, Control Center, and Bluetooth remotes to us) and disable the
-// rest so the system doesn't offer controls we can't service.
-// The handler blocks are retained process-wide by MPRemoteCommandCenter, so
-// each one must tolerate outliving this controller: the strongSelf nil checks
-// are load-bearing (`nil->_delegate` is a NULL+offset dereference, not a
-// harmless nil-message send).
+// Enables the transport commands we implement, which is what routes the
+// hardware media keys, Control Center and Bluetooth remotes to us, and
+// disables the rest, so that the system does not offer controls we cannot
+// service.
+//
+// MPRemoteCommandCenter retains the handler blocks process-wide, so each one
+// must tolerate outliving this controller. The strongSelf nil checks are
+// load-bearing: `nil->_delegate` is a NULL-plus-offset dereference, not a
+// harmless nil-message send.
 - (void)registerCommands {
     MPRemoteCommandCenter *center = [MPRemoteCommandCenter sharedCommandCenter];
     __weak NowPlayingController *weakSelf = self;
@@ -98,8 +101,8 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
         return MPRemoteCommandHandlerStatusSuccess;
     }];
 
-    // Enabled here so a command is never registered-but-dead; every
-    // updateWithTrack: retracks them against the playlist boundaries.
+    // Enabled here, so that a command is never registered but dead. Every
+    // updateWithTrack: re-tracks them against the playlist boundaries.
     center.nextTrackCommand.enabled = YES;
     _publishedHasNext = YES;
     [center.nextTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
@@ -133,8 +136,8 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
         return MPRemoteCommandHandlerStatusSuccess;
     }];
 
-    // Commands the app doesn't model — keep them off so the transport UI shows
-    // only the controls we handle.
+    // Commands the app does not model. Keep them off, so that the transport UI
+    // shows only the controls we handle.
     NSArray<MPRemoteCommand *> *unsupported = @[
         center.stopCommand,
         center.seekForwardCommand,
@@ -165,9 +168,9 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
             hasPrevious:(BOOL)hasPrevious {
     MPNowPlayingInfoCenter *center = [MPNowPlayingInfoCenter defaultCenter];
 
-    // Applied before every early return below: command availability tracks
-    // the playlist boundaries even when the now-playing info itself is
-    // unchanged (or not yet published).
+    // Applied before every early return below, so that command availability
+    // tracks the playlist boundaries even when the now-playing info itself is
+    // unchanged, or not yet published.
     MPRemoteCommandCenter *commands = [MPRemoteCommandCenter sharedCommandCenter];
     if (hasNext != _publishedHasNext) {
         commands.nextTrackCommand.enabled = hasNext;
@@ -179,8 +182,8 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
     }
 
     if (!track) {
-        // Silent until the first track plays (see _hasPublished); after that,
-        // a nil track clears the published state exactly once.
+        // Silent until the first track plays; see _hasPublished. After that, a
+        // nil track clears the published state exactly once.
         if (!_hasPublished || _publishedURL == nil) {
             return;
         }
@@ -192,20 +195,21 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
         return;
     }
 
-    // Same string the in-app header shows for an untagged file — cleaned-up
-    // filename, not the raw title-with-extension.
+    // The same string the in-app header shows for an untagged file: the
+    // cleaned-up filename, not the raw title with its extension.
     NSString *title = track.singleLineTitle ?: @"";
     NSString *artist = track.artist.length > 0 ? track.artist : nil;
-    // albumArt is the already-decoded image or nil — never blocks (no file
-    // read, no decode). When it's still nil the caller refreshes once art
-    // resolves, so the card fills in a moment later rather than stalling here.
+    // albumArt is the already-decoded image, or nil, and never blocks: it does
+    // no file read and no decode. While it is still nil the caller refreshes
+    // once the art resolves, so the card fills in a moment later rather than
+    // stalling here.
     NSImage *artwork = track.albumArt;
 
-    // Elapsed time is never republished at 3 Hz — the system extrapolates it
-    // from the last publish at the published rate — so natural advance since
-    // that publish must not count as dirty. Compare against the same
-    // extrapolation the system runs: only a jump beyond it (seek, pitch
-    // rescale) forces a republish.
+    // The elapsed time is never republished at 3 Hz, because the system
+    // extrapolates it from the last publish at the published rate. Natural
+    // advance since that publish must therefore not count as dirty. Compare
+    // against the same extrapolation the system runs: only a jump beyond it,
+    // from a seek or a pitch rescale, forces a republish.
     if (_publishedURL != nil) {
         double extrapolationRate = _publishedState == NowPlayingPlaybackStatePlaying ? _publishedRate : 0.0;
         NSTimeInterval predicted = _publishedPosition + (CFAbsoluteTimeGetCurrent() - _publishedAt) * extrapolationRate;
@@ -231,10 +235,11 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
         info[MPMediaItemPropertyPlaybackDuration] = @(duration);
     }
     info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = @(MAX(0.0, position));
-    // Rate is how fast `position` advances in real time — it drives the
-    // system's between-update interpolation of the progress bar, and 0 (paused
-    // or stopped) freezes it. The caller chooses position's time base and the
-    // matching rate (Vibe reports wall-clock time, which advances at 1x).
+    // The rate is how fast `position` advances in real time. It drives the
+    // system's between-update interpolation of the progress bar, and 0, when
+    // paused or stopped, freezes it. The caller chooses position's time base
+    // and the matching rate; Vibe reports wall-clock time, which advances at
+    // 1x.
     info[MPNowPlayingInfoPropertyPlaybackRate] = @(state == NowPlayingPlaybackStatePlaying ? rate : 0.0);
     info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = @(1.0);
 

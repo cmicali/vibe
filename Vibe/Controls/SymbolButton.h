@@ -2,18 +2,18 @@
 //  SymbolButton.h
 //  Vibe
 //
-//  Borderless icon button drawing an SF Symbol. The symbol is rendered into an
-//  alpha mask over a flat color layer, so state changes stay color fades
-//  composited on the render server — no asset-catalog images.
+//  A borderless icon button drawing an SF Symbol. The symbol is rendered into
+//  an alpha mask over a flat color layer, so that state changes stay color
+//  fades composited on the render server. No asset-catalog images are involved.
 //
 
 #import <Cocoa/Cocoa.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Momentary push button: fades to its highlight color on hover and dims to
-// half that opacity while pressed (tracking drag-off and drag-back), sends its
-// action on mouse-up inside, and is click-through when disabled.
+// A momentary push button. It fades to its highlight color on hover and dims
+// to half that opacity while pressed, tracking a drag off and back. It sends
+// its action on a mouse-up inside, and is click-through when disabled.
 @interface SymbolButton : NSControl
 
 // SF Symbol name (e.g. "play.fill"). Swapping it redraws instantly, no fade.

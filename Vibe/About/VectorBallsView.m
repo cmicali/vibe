@@ -8,9 +8,10 @@
 #import <simd/simd.h>
 #import "Fonts.h"
 
-// The wordmark, halftoned into dots. "vibe" is rasterised in a rounded font
-// then sampled on a grid: cells with heavy ink coverage become large dots,
-// lighter (edge) cells become small dots — a two-size halftone of the letters.
+// The wordmark, halftoned into dots. "vibe" is rasterised in a rounded font,
+// then sampled on a grid: cells with heavy ink coverage become large dots and
+// lighter edge cells become small ones, giving a two-size halftone of the
+// letters.
 static NSString *const kWord = @"vibe";
 static const NSUInteger kHalftoneRows = 22;    // dot lattice rows spanning the glyph height
 static const float kWordWorldWidth = 18.0f;    // fit the halftone to this many world units wide
@@ -38,8 +39,9 @@ typedef struct {
     vector_float4   lightView;   // xyz: red light position in view space
 } VBUniforms;
 
-// View-space position of the red key light (bottom-left, slightly in front of
-// the dot plane), lighting the dots in the lower-left quarter.
+// The view-space position of the red key light, at the bottom left and
+// slightly in front of the dot plane, lighting the dots in the lower-left
+// quarter.
 static const vector_float3 kRedLightViewPos = { -8.0f, -6.0f, -20.0f };
 
 static NSString *const kShaderSource =
@@ -73,9 +75,10 @@ static NSString *const kShaderSource =
      "    out.centerView = centerView.xyz;\n"
      "    return out;\n"
      "}\n"
-     // Procedural studio environment sampled by the mirror reflection vector,
-     // standing in for a chrome cubemap: a floor->sky gradient, a broad overhead
-     // softbox, and two sharp light streaks that give chrome its signature pop.
+     // A procedural studio environment, sampled by the mirror reflection
+     // vector and standing in for a chrome cubemap: a floor-to-sky gradient, a
+     // broad overhead softbox, and two sharp light streaks that give chrome
+     // its signature pop.
      "float3 vb_env(float3 d) {\n"
      "    d = normalize(d);\n"
      "    float up = d.y * 0.5 + 0.5;\n"
@@ -192,11 +195,11 @@ static float vb_random01(void) {
     return self;
 }
 
-// Compile the shader source once per process: the view is deliberately
-// rebuilt on every About open (see AboutWindowController), and the source
-// front-end compile is the expensive part of setup. Main-thread only (called
-// from view init). The library is device-bound, so a changed default device
-// (eGPU unplug) just recompiles.
+// Compile the shader source once per process. The view is deliberately rebuilt
+// on every About open, in AboutWindowController, and the source front-end
+// compile is the expensive part of the setup. Main thread only, since it is
+// called from the view's init. The library is device-bound, so a changed
+// default device, after an eGPU unplug, simply recompiles.
 static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
     static id<MTLLibrary> cached;
     if (cached && cached.device == device) {
@@ -220,8 +223,8 @@ static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
 
     self.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
     self.depthStencilPixelFormat = MTLPixelFormatDepth32Float;
-    // Transparent clear so the window's background artwork shows through;
-    // only the balls' opaque pixels cover it (MSAA gives blended edges).
+    // A transparent clear, so the window's background artwork shows through.
+    // Only the balls' opaque pixels cover it, and MSAA gives blended edges.
     self.clearColor = MTLClearColorMake(0, 0, 0, 0);
     self.clearDepth = 1.0;
     self.layer.opaque = NO;
@@ -247,8 +250,9 @@ static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
         return;
     }
 
-    // The balls are opaque (depth is a darkening cue, not transparency), so a
-    // plain depth test sorts them correctly with no CPU work.
+    // The balls are opaque, since depth is a darkening cue rather than
+    // transparency, so a plain depth test sorts them correctly with no CPU
+    // work.
     MTLDepthStencilDescriptor *depthDesc = [[MTLDepthStencilDescriptor alloc] init];
     depthDesc.depthCompareFunction = MTLCompareFunctionLess;
     depthDesc.depthWriteEnabled = YES;
@@ -262,7 +266,7 @@ static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
 }
 
 - (void)buildInstances {
-    // Rasterise the wordmark to a grayscale coverage map (white ink on black).
+    // Rasterise the wordmark to a grayscale coverage map: white ink on black.
     NSUInteger bw = 0, bh = 0, bpr = 0;
     uint8_t *coverage = [self rasterizeWord:kWord width:&bw height:&bh bytesPerRow:&bpr];
     if (!coverage) {
@@ -270,14 +274,15 @@ static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
         return;
     }
 
-    // Grid of square cells, sized so ~kHalftoneRows rows span the glyph height.
+    // A grid of square cells, sized so that about kHalftoneRows rows span the
+    // glyph height.
     NSUInteger cell = MAX((NSUInteger)1, (NSUInteger)llround((double)bh / kHalftoneRows));
     NSUInteger cols = bw / cell;
     NSUInteger rows = bh / cell;
     if (cols == 0 || rows == 0) {
-        // Degenerate raster (cell larger than the bitmap): spacing below
-        // would divide by zero, and newBufferWithBytes: would overread the
-        // calloc(0) buffer.
+        // A degenerate raster, where the cell is larger than the bitmap. The
+        // spacing below would divide by zero, and newBufferWithBytes: would
+        // overread the calloc(0) buffer.
         free(coverage);
         _instanceCount = 0;
         return;
@@ -286,12 +291,12 @@ static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
     float bigRadius = spacing * kBigDotFraction;
     float smallRadius = spacing * kSmallDotFraction;
 
-    // Worst case one dot per cell.
+    // In the worst case, one dot per cell.
     VBInstance *instances = calloc(cols * rows, sizeof(VBInstance));
     NSUInteger count = 0;
     for (NSUInteger cy = 0; cy < rows; cy++) {
         for (NSUInteger cx = 0; cx < cols; cx++) {
-            // Average ink coverage over the cell.
+            // The average ink coverage over the cell.
             uint32_t sum = 0;
             for (NSUInteger py = 0; py < cell; py++) {
                 const uint8_t *rowPtr = coverage + (cy * cell + py) * bpr;
@@ -303,7 +308,8 @@ static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
             if (cov < kCoverageOn) {
                 continue;
             }
-            // Bitmap row 0 is the top scanline; flip to world y-up and centre.
+            // Bitmap row 0 is the top scanline, so flip to a world y-up and
+            // centre.
             float x = ((float)cx + 0.5f - cols / 2.0f) * spacing;
             float y = ((float)(rows - 1 - cy) + 0.5f - rows / 2.0f) * spacing;
             instances[count].home = (vector_float4){ x, y, 0, 1 };
@@ -322,8 +328,8 @@ static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
 }
 
 // Draws the word in white on black in a rounded font and returns a malloc'd
-// single-channel (8-bit) coverage buffer. Caller frees. Dimensions and stride
-// are returned via out params.
+// single-channel, 8-bit coverage buffer. The caller frees it. The dimensions
+// and stride come back through out parameters.
 - (uint8_t *)rasterizeWord:(NSString *)word width:(NSUInteger *)outW height:(NSUInteger *)outH bytesPerRow:(NSUInteger *)outBPR {
     CGFloat pointSize = 128.0;
     NSFont *font = [Fonts font:pointSize bold:YES];
@@ -352,8 +358,9 @@ static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
     [NSGraphicsContext restoreGraphicsState];
     CGContextRelease(cg);
 
-    // CGBitmapContext memory row 0 is the top scanline (verified), so no flip:
-    // buildInstances maps low row index -> high world Y (top of screen).
+    // CGBitmapContext memory row 0 is the top scanline, verified, so there is
+    // no flip: buildInstances maps a low row index to a high world Y, at the
+    // top of the screen.
     *outW = w;
     *outH = h;
     *outBPR = w;
@@ -361,7 +368,7 @@ static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
 }
 
 - (vector_float4)randomScatterPosition {
-    // Random point on a spherical shell well outside the camera frustum.
+    // A random point on a spherical shell well outside the camera frustum.
     float z = vb_random01() * 2.0f - 1.0f;
     float theta = vb_random01() * (float)(2.0 * M_PI);
     float r = sqrtf(MAX(0.0f, 1.0f - z * z));
@@ -394,9 +401,9 @@ static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
     VBUniforms uniforms;
     uniforms.projection = vb_perspective(35.0f * (float)M_PI / 180.0f, aspect, 0.1f, 200.0f);
     uniforms.view = vb_translation(0, 0, -kCameraDistance);
-    // Spin continuously, phased so the fly-in lands exactly face-on: the grid
-    // rotates toward the viewer while the dots settle and reads "vibe"
-    // straight-on the moment they land, then keeps turning.
+    // Spin continuously, phased so that the fly-in lands exactly face-on. The
+    // grid rotates toward the viewer while the dots settle, reads "vibe"
+    // straight on the moment they land, and then keeps turning.
     float phase = time - (float)kIntroDuration;
     float yaw = phase * 0.9f;
     float tilt = sinf(phase * 0.43f) * 0.38f + 0.15f;
@@ -422,6 +429,13 @@ static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
     [encoder endEncoding];
     [commandBuffer presentDrawable:drawable];
     [commandBuffer commit];
+}
+
+// Purely decorative, and it spans the whole window on top of everything else,
+// so it must not take the mouse: clicks belong to the version and copyright
+// labels beneath it, and to the window's own background drag.
+- (NSView *)hitTest:(NSPoint)point {
+    return nil;
 }
 
 @end

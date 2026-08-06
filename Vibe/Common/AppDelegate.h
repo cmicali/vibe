@@ -8,7 +8,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-#define SHOW_EXTENDED_BUILD_INFO NO
+#define SHOW_EXTENDED_BUILD_INFO 0
 
 @class MainPlayerController;
 
@@ -20,7 +20,7 @@
 - (IBAction)showAboutWindow:(id)sender;
 - (IBAction)makeDefaultMusicPlayer:(id)sender;
 
-// Target of the Open Recent menu items OpenRecentMenuController creates.
+// The target of the Open Recent menu items OpenRecentMenuController creates.
 - (void)openRecentDocument:(NSMenuItem *)sender;
 @end
 

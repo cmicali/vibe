@@ -6,9 +6,9 @@
 #import "DocumentTypes.h"
 #import <AppKit/AppKit.h>
 
-// App URLs come back from different sources (our own bundle, Launch Services),
-// so compare resolved paths rather than URLs — trailing slashes and symlinked
-// prefixes differ where the location doesn't.
+// App URLs come back from different sources, our own bundle and Launch
+// Services, so compare resolved paths rather than URLs: trailing slashes and
+// symlinked prefixes differ where the location does not.
 static NSString *ResolvedPath(NSURL *_Nullable url) {
     return url.URLByResolvingSymlinksInPath.URLByStandardizingPath.path;
 }
@@ -51,14 +51,15 @@ static void AddResolvedPath(NSMutableSet<NSString *> *paths, NSURL *_Nullable ur
     if (types.count == 0) {
         return NO; // nothing declared: never claim to be the default
     }
-    // Which on-disk locations count as "us": the running copy, plus whichever
-    // copy Launch Services prefers for our bundle identifier. LS registers by
-    // identifier and answers with its preferred copy, so right after a
-    // successful registration it regularly names a DIFFERENT path than the
-    // running one (a build directory vs. /Applications) — comparing only
-    // bundleURL reports "not the default" moments after the system said yes.
-    // Identifiers can't be compared directly instead: that means reading a
-    // foreign bundle's Info.plist, which the App Sandbox denies.
+    // Which on-disk locations count as us: the running copy, plus whichever
+    // copy Launch Services prefers for our bundle identifier. Launch Services
+    // registers by identifier and answers with its preferred copy, so right
+    // after a successful registration it regularly names a different path from
+    // the running one — a build directory against /Applications — and
+    // comparing bundleURL alone reports "not the default" moments after the
+    // system said yes. Comparing identifiers directly is not an option
+    // instead, since that means reading a foreign bundle's Info.plist, which
+    // the App Sandbox denies.
     NSMutableSet<NSString *> *ourLocations = [NSMutableSet new];
     AddResolvedPath(ourLocations, NSBundle.mainBundle.bundleURL);
     AddResolvedPath(ourLocations, [NSWorkspace.sharedWorkspace
@@ -79,11 +80,11 @@ static void AddResolvedPath(NSMutableSet<NSString *> *paths, NSURL *_Nullable ur
 
 #pragma mark - Private
 
-// One type at a time, recursively: a request can raise its own system
+// One type at a time, recursively. A request can raise its own system
 // confirmation panel, and firing all eight at once would stack eight panels on
-// the user. The first failure ends the walk — the likeliest error is the user
-// declining that panel, and re-asking for the remaining types would be nagging.
-// The new default takes a moment to show up in
+// the user. The first failure ends the walk, because the likeliest error is
+// the user declining that panel, and re-asking for the remaining types would
+// be nagging. The new default takes a moment to show up in
 // URLForApplicationToOpenContentType: after the system reports success.
 + (void)setDefaultAppForTypes:(NSArray<UTType *> *)types atIndex:(NSUInteger)index {
     if (index >= types.count) {

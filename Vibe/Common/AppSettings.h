@@ -20,8 +20,9 @@
 - (NSString *)audioOutputDeviceName;
 - (void)setAudioOutputDeviceName:(NSString *)deviceName;
 
-// CoreAudio device UID — more robust than the name (survives duplicate
-// device names); the name is kept as a fallback for older settings.
+// The CoreAudio device UID, which is more robust than the name because it
+// survives duplicate device names. The name is kept as a fallback for older
+// settings.
 - (NSString *)audioOutputDeviceUID;
 - (void)setAudioOutputDeviceUID:(NSString *)deviceUID;
 
@@ -39,12 +40,14 @@
 - (BOOL)isPlaylistShown;
 - (void)setPlaylistShown:(BOOL)shown;
 
-// Right-hand time label mode: YES (default) shows minus-prefixed remaining
-// time ("-1:50"), NO the total duration. Toggled by clicking the label.
+// The right-hand time label's mode. YES shows the minus-prefixed remaining
+// time, such as "-1:50", and NO, the default, shows the total duration.
+// Clicking the label toggles it.
 - (BOOL)showRemainingTime;
 - (void)setShowRemainingTime:(BOOL)show;
 
-// Pitch fader range in percent (8 or 16, like the SL-1200MK5G's range button).
+// The pitch fader's range in percent: 8 or 16, like the SL-1200MK5G's range
+// button.
 - (NSInteger)pitchRange;
 - (void)setPitchRange:(NSInteger)range;
 

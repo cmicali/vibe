@@ -2,13 +2,14 @@
 //  MainPlayerController+NowPlaying.h
 //  Vibe
 //
-//  The system Now Playing bridge — publishing track/timing/state to
-//  NowPlayingController and routing its remote commands back to the transport
-//  actions — split from the main implementation purely for file size, like
-//  MainPlayerController+Menus.
+//  The system Now Playing bridge: it publishes the track, timing and state to
+//  NowPlayingController and routes that controller's remote commands back to
+//  the transport actions. It was split from the main implementation purely for
+//  file size, as MainPlayerController+Menus was.
 //
-//  NowPlayingControllerDelegate conformance is declared on this category (not
-//  the class extension) so the compiler checks its implementation in this file.
+//  The NowPlayingControllerDelegate conformance is declared on this category
+//  rather than the class extension, so that the compiler checks its
+//  implementation in this file.
 //
 
 #import "MainPlayerController.h"
@@ -18,11 +19,11 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Main-class surface the NowPlaying category reads — the accessor is
-// synthesized by the class extension, the methods implemented in
-// MainPlayerController.m. There is deliberately no @implementation for THIS
-// category (same pattern as MainPlayerController+Debug.h), so the compiler
-// doesn't look for these in the NowPlaying implementation below.
+// The main-class surface the NowPlaying category reads. The class extension
+// synthesizes the accessor, and MainPlayerController.m implements the methods.
+// There is deliberately no @implementation for this category, the same pattern
+// as MainPlayerController+Debug.h, so that the compiler does not look for
+// these in the NowPlaying implementation below.
 @interface MainPlayerController (NowPlayingSupport)
 
 @property (strong, readonly) NowPlayingController *nowPlayingController;
@@ -32,9 +33,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface MainPlayerController (NowPlaying) <NowPlayingControllerDelegate>
 
-// Publish the current track + playback state to the system Now Playing UI.
-// Called out of the updateUI funnel and on seek / pitch-range change /
-// fader-gesture end; see the implementation for the full contract.
+// Publishes the current track and the playback state to the system Now Playing
+// UI. It is called from the updateUI funnel, and on a seek, a pitch-range
+// change and the end of a fader gesture. See the implementation for the full
+// contract.
 - (void)updateNowPlaying;
 
 @end

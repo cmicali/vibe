@@ -14,8 +14,8 @@
 
 @interface AudioWaveformView ()
 
-// Strong reference to the wrapper — it owns the underlying C++ AudioWaveform,
-// so holding it keeps the raw pointer handed to renderers valid.
+// A strong reference to the wrapper. It owns the underlying C++ AudioWaveform,
+// so holding it keeps the raw pointer handed to the renderers valid.
 @property (nonatomic, strong, nullable) CodableAudioWaveform* waveform;
 
 @end
@@ -25,7 +25,8 @@
     NSUInteger                  _progressTracker;
     BOOL                        _didClickInside;
     AudioWaveformRenderer*      _currentWaveformRenderer;
-    // Renderer classes keyed by their display name; instantiated on selection.
+    // The renderer classes, keyed by display name and instantiated on
+    // selection.
     NSMutableDictionary<NSString *, Class>* _waveformRenderers;
     CAGradientLayer*            _loadingLayer;
     CALayer*                    _placeholderLayer;
@@ -50,9 +51,9 @@
 
 - (void)setup  {
 
-    // Layer-hosting contract: assign the layer BEFORE setting wantsLayer,
-    // or AppKit first creates its own backing layer and the view is
-    // layer-backed, not layer-hosting.
+    // The layer-hosting contract: assign the layer before setting wantsLayer,
+    // or AppKit first creates its own backing layer and the view ends up
+    // layer-backed rather than layer-hosting.
     self.layer = [[CALayer alloc] init];
     self.wantsLayer = YES;
 
@@ -133,17 +134,17 @@
 
 #pragma mark - Hover scrubbing affordance
 
-// Hovering lights the waveform's OWN column under the cursor to full
-// brightness — the renderer does the drawing (each style knows how its bars
-// are built), and nothing is overlaid on top. Click-to-seek is untouched.
+// Hovering lights the waveform's own column under the cursor to full
+// brightness. The renderer does the drawing, since each style knows how its
+// bars are built, and nothing is overlaid on top. Click-to-seek is untouched.
 
 - (void)updateTrackingAreas {
     [super updateTrackingAreas];
     if (_hoverTrackingArea) {
         [self removeTrackingArea:_hoverTrackingArea];
     }
-    // ActiveAlways to match the window's hover-reveal chrome (the borderless
-    // window's controls track the cursor regardless of key state).
+    // ActiveAlways, to match the window's hover-reveal chrome: the borderless
+    // window's controls track the cursor whatever the key state.
     _hoverTrackingArea = [[NSTrackingArea alloc]
             initWithRect:NSZeroRect
                  options:NSTrackingActiveAlways | NSTrackingInVisibleRect |
@@ -166,8 +167,8 @@
 
 - (void)updateHoverForEvent:(NSEvent *)event {
     NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
-    // No waveform means nothing to light (and nothing seekable) — the empty,
-    // loading, and parked states all land here.
+    // No waveform means nothing to light, and nothing seekable. The empty,
+    // loading and parked states all land here.
     if (!_waveform || !NSPointInRect(p, self.bounds)) {
         [self hideHoverIndicator];
         return;
@@ -180,14 +181,14 @@
 }
 
 - (void)setProgress:(CGFloat)progress {
-    // Store unconditionally — the bucket tracker below only gates repaints;
-    // gating the assignment too would leave the getter stale between repaints.
+    // Store it unconditionally. The bucket tracker below gates repaints alone,
+    // and gating the assignment too would leave the getter stale between them.
     _progress = progress;
     // Repaint whenever the playhead crosses a device pixel. The gate must be
-    // width-based, not a fixed fraction of the track: a duration-proportional
-    // step stalls the played/unplayed boundary for many seconds on an
-    // hour-long mix and swallows sub-step seeks entirely.
-    CGFloat scale = self.window ? self.window.backingScaleFactor : 2.0;
+    // width-based rather than a fixed fraction of the track: a
+    // duration-proportional step stalls the played-unplayed boundary for many
+    // seconds on an hour-long mix, and swallows sub-step seeks entirely.
+    CGFloat scale = VibeBackingScaleForWindow(self.window);
     NSUInteger steps = MAX((NSUInteger)1, (NSUInteger)(self.bounds.size.width * scale));
     NSUInteger p = static_cast<NSUInteger>(progress * steps);
     if (_progressTracker != p) {
@@ -204,14 +205,15 @@
 - (void)prepareForWaveformLoad {
     [self hideLoadingIndicator];
     [self hideEmptyPlaceholder];
-    // A stale hover playhead would otherwise sit over the next track's
-    // waveform until the mouse moves again.
+    // Otherwise a stale hover playhead would sit over the next track's
+    // waveform until the mouse moved again.
     [self hideHoverIndicator];
     _waveform = nil;
     if (!_currentWaveformRenderer) {
-        // Prefer the persisted style, then the app default; allKeys[0] is a
-        // last resort only (NSMutableDictionary key order is unspecified, so
-        // it would otherwise pick an arbitrary renderer run to run).
+        // Prefer the persisted style, then the app default. allKeys[0] is a
+        // last resort only, because NSMutableDictionary key order is
+        // unspecified and it would otherwise pick an arbitrary renderer from
+        // one run to the next.
         NSString *style = [[AppSettings sharedInstance] waveformStyle];
         if (!style.length || !_waveformRenderers[style]) {
             style = SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT;
@@ -231,7 +233,7 @@
     }
     [self hideEmptyPlaceholder];
     [self hideHoverIndicator];
-    // Collapse any previous track's waveform so the shimmer stands alone.
+    // Collapse any previous track's waveform, so the shimmer stands alone.
     _waveform = nil;
     self.progress = 0;
     if (_currentWaveformRenderer) {
@@ -239,21 +241,23 @@
     }
 
     CAGradientLayer *shimmer = [CAGradientLayer layer];
-    shimmer.contentsScale = self.window ? self.window.backingScaleFactor : 2.0;
+    shimmer.contentsScale = VibeBackingScaleForWindow(self.window);
     shimmer.startPoint = CGPointMake(0, 0.5);
     shimmer.endPoint = CGPointMake(1, 0.5);
     shimmer.colors = [self shimmerColors];
     [self.layer addSublayer:shimmer];
     _loadingLayer = shimmer;
 
-    // Frame + sweep depend on the current bounds; a helper keeps them in sync
-    // when the window resizes (or small/large layout toggles) mid-load.
+    // The frame and the sweep both depend on the current bounds, so a helper
+    // keeps them in sync when the window resizes, or the small-large layout
+    // toggles, mid-load.
     [self layoutLoadingLayer];
 }
 
-// Follows the appearance like the renderer palettes do — a fixed white band
-// is near-invisible on a light background. Shared by showLoadingIndicator and
-// updateAppearance so a light↔dark flip mid-load recolors the live shimmer.
+// Follows the appearance, as the renderer palettes do, because a fixed white
+// band is near-invisible on a light background. showLoadingIndicator and
+// updateAppearance share it, so that a light-dark flip mid-load recolors the
+// live shimmer.
 - (NSArray *)shimmerColors {
     NSColor *base = self.isDark ? [NSColor whiteColor] : [NSColor blackColor];
     return @[
@@ -263,7 +267,8 @@
     ];
 }
 
-// Position the shimmer band and (re)install its sweep for the current bounds.
+// Positions the shimmer band and installs, or reinstalls, its sweep for the
+// current bounds.
 - (void)layoutLoadingLayer {
     if (!_loadingLayer) {
         return;
@@ -306,7 +311,7 @@
     }
 
     CALayer *line = [CALayer layer];
-    line.contentsScale = self.window ? self.window.backingScaleFactor : 2.0;
+    line.contentsScale = VibeBackingScaleForWindow(self.window);
     [self.layer addSublayer:line];
     _placeholderLayer = line;
 
@@ -314,7 +319,7 @@
     [self layoutPlaceholderLayer];
 }
 
-// Same 2pt midline band the shimmer sweeps, but full-width and static.
+// The same 2pt midline band the shimmer sweeps, but full-width and static.
 - (void)layoutPlaceholderLayer {
     if (!_placeholderLayer) {
         return;
@@ -328,7 +333,7 @@
 
 - (void)updatePlaceholderColor {
     NSColor *base = self.isDark ? [NSColor whiteColor] : [NSColor blackColor];
-    // Half the shimmer's 0.55 peak, so the empty state recedes.
+    // Half the shimmer's 0.55 peak, so that the empty state recedes.
     _placeholderLayer.backgroundColor = [base colorWithAlphaComponent:0.275].CGColor;
 }
 
@@ -345,11 +350,14 @@
 - (void)setFrameSize:(NSSize)newSize {
     BOOL sizeChanged = !NSEqualSizes(newSize, self.frame.size);
     [super setFrameSize:newSize];
-    if (sizeChanged && _waveform) {
+    if (sizeChanged && _currentWaveformRenderer) {
+        // Sync the geometry even with no waveform. Otherwise the collapse
+        // morph after a track change keeps rebuilding at the old size for the
+        // rest of the collapse.
         [self drawWaveform];
     }
     if (sizeChanged && _loadingLayer) {
-        // Keep the shimmer centered and spanning the new width mid-load.
+        // Keep the shimmer centered, spanning the new width, mid-load.
         [self layoutLoadingLayer];
     }
     if (sizeChanged && _placeholderLayer) {
@@ -366,18 +374,18 @@ static void applyContentsScale(CALayer *layer, CGFloat scale) {
     }
 }
 
-// Keep the manually-created layer tree (renderer sublayers, masks, gradients)
-// at the window's backing scale — the root layer is layer-hosted, so AppKit
-// doesn't manage contentsScale for us.
+// Keeps the manually created layer tree — the renderer sublayers, masks and
+// gradients — at the window's backing scale. The root layer is layer-hosted, so
+// AppKit does not manage contentsScale for us.
 - (void)viewDidChangeBackingProperties {
     [super viewDidChangeBackingProperties];
-    CGFloat scale = self.window ? self.window.backingScaleFactor : 2.0;
+    CGFloat scale = VibeBackingScaleForWindow(self.window);
     applyContentsScale(self.layer, scale);
 }
 
-// Fires when the system switches light/dark (with "System default" appearance
-// the window follows the OS). Without this, the cached renderer colors go
-// stale until a manual View→Appearance toggle.
+// Fires when the system switches between light and dark; under the "System
+// default" appearance the window follows the OS. Without this, the cached
+// renderer colors go stale until a manual View > Appearance toggle.
 - (void)viewDidChangeEffectiveAppearance {
     [super viewDidChangeEffectiveAppearance];
     [self updateAppearance];

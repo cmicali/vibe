@@ -10,11 +10,11 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol AudioWaveformViewDelegate;
 @class CodableAudioWaveform;
 
-// Pure rendering surface: draws whatever waveform it is handed and reports
-// seek clicks. Loading and caching live in AudioWaveformCache, owned by
-// MainPlayerController — the controller asks the cache to load and routes the
-// deliveries through TrackDisplayController's pass-throughs, which reset this
-// view (prepareForWaveformLoad) and hand results to showWaveform:.
+// A pure rendering surface: it draws whatever waveform it is handed and
+// reports seek clicks. Loading and caching live in AudioWaveformCache, which
+// MainPlayerController owns. The controller asks the cache to load and routes
+// the deliveries through TrackDisplayController's pass-throughs, which reset
+// this view with prepareForWaveformLoad and hand results to showWaveform:.
 @interface AudioWaveformView : NSView
 
 @property (nullable, weak) id <AudioWaveformViewDelegate> delegate;
@@ -25,22 +25,22 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setWaveformStyle:(NSString*)name;
 - (NSArray<NSString *> *)availableWaveformStyles;
 
-// Clears the previous track's waveform ahead of a new load (and installs the
-// persisted renderer style on first use).
+// Clears the previous track's waveform ahead of a new load, and installs the
+// persisted renderer style on first use.
 - (void)prepareForWaveformLoad;
 
-// Renders a waveform snapshot — a progressive one mid-load, or the final /
-// cache-hit waveform. Retains it: the wrapper owns the C++ chunk buffer the
-// renderers read.
+// Renders a waveform snapshot: a progressive one mid-load, or the final or
+// cache-hit waveform. It retains the snapshot, because the wrapper owns the
+// C++ chunk buffer the renderers read.
 - (void)showWaveform:(CodableAudioWaveform *)waveform;
 
-// Indeterminate shimmer across the waveform area while a slow file open
-// (e.g. a cloud placeholder downloading) is pending.
+// An indeterminate shimmer across the waveform area while a slow file open is
+// pending, as when a cloud placeholder is downloading.
 - (void)showLoadingIndicator;
 - (void)hideLoadingIndicator;
 
-// No-track empty state: a static full-width line on the waveform midline.
-// Cleared by prepareForWaveformLoad / showLoadingIndicator when a track
+// The no-track empty state: a static full-width line on the waveform midline.
+// prepareForWaveformLoad and showLoadingIndicator clear it when a track
 // arrives.
 - (void)showEmptyPlaceholder;
 

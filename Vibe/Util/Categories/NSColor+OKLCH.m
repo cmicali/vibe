@@ -30,7 +30,7 @@ static VibeOKLab oklabFromSRGB(double r, double g, double b) {
     };
 }
 
-// Returns whether the result landed inside the sRGB gamut (before clipping).
+// Returns whether the result landed inside the sRGB gamut, before clipping.
 static BOOL srgbFromOKLab(VibeOKLab lab, double *outR, double *outG, double *outB) {
     double l = lab.L + 0.3963377774 * lab.a + 0.2158037573 * lab.b;
     double m = lab.L - 0.1055613458 * lab.a - 0.0638541728 * lab.b;
@@ -66,8 +66,9 @@ static BOOL srgbFromOKLab(VibeOKLab lab, double *outR, double *outG, double *out
 
     double r, g, b;
     if (!srgbFromOKLab((VibeOKLab){L, C * cos(hue), C * sin(hue)}, &r, &g, &b)) {
-        // Out of gamut at this L/hue: binary-search the largest chroma that
-        // fits (chroma 0 — pure gray — always fits at any L in [0,1]).
+        // Out of gamut at this lightness and hue, so binary-search the largest
+        // chroma that fits. A chroma of 0, pure gray, always fits at any L in
+        // [0,1].
         double lo = 0, hi = C;
         for (int i = 0; i < 12; i++) {
             double mid = (lo + hi) / 2;

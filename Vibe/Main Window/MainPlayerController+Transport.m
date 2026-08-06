@@ -10,10 +10,10 @@
 #import "PlaylistController.h"
 #import "TrackDisplayController.h"
 
-// Skip distances. When the track's tempo is known (AudioTrack.bpm)
-// a skip moves by whole bars (4 beats) — a fixed span of *file* time, so the
-// jump stays on the musical grid at any pitch. Without a tempo the fallback
-// is the fixed wall-clock distance.
+// The skip distances. When the track's tempo is known, through AudioTrack.bpm,
+// a skip moves by whole bars of four beats, which is a fixed span of *file*
+// time, so the jump stays on the musical grid at any pitch. Without a tempo
+// the fallback is a fixed wall-clock distance.
 static const NSTimeInterval kSkipSeconds = 10.0;
 static const NSTimeInterval kSkipMoreSeconds = 30.0;
 static const NSTimeInterval kSkipMostSeconds = 60.0;
@@ -30,9 +30,9 @@ static const double kSkipMostBars = 32.0;
         return bars * 4.0 * 60.0 / bpm;
     }
     // The fallback is expressed in the wall-clock seconds the user reads off
-    // the time label; convert to file time (the player's units) with the same
-    // varispeed rate the labels divide by, so a skip advances the displayed
-    // clock by exactly the stated amount at any pitch.
+    // the time label. Convert it to file time, the player's units, with the
+    // same varispeed rate the labels divide by, so that a skip advances the
+    // displayed clock by exactly the stated amount at any pitch.
     return wallSeconds * self.playbackRate;
 }
 
@@ -61,9 +61,10 @@ static const double kSkipMostBars = 32.0;
 }
 
 - (void)skipByFileSeconds:(NSTimeInterval)fileDelta {
-    // Stopped (end of playlist, post-error): the finished file stays open, so
-    // duration alone looks seekable with no node left to seek. Menu validation
-    // mirrors this; the guard here covers the bare keys, which bypass it.
+    // When Stopped, at the end of the playlist or after an error, the finished
+    // file stays open, so duration alone looks seekable with no node left to
+    // seek. Menu validation mirrors this, and the guard here covers the bare
+    // keys, which bypass it.
     if (!self.playlistController.currentTrack || self.audioPlayer.isStopped) {
         return;
     }
@@ -73,9 +74,9 @@ static const double kSkipMostBars = 32.0;
     }
     NSTimeInterval target = self.audioPlayer.position + fileDelta;
     if (target >= duration) {
-        // Past the end: finish the track like a natural end — the delegate
-        // (didFinishPlaying:) advances to the next track, or stops at the end
-        // of the playlist.
+        // Past the end, so finish the track as a natural end would. The
+        // delegate's didFinishPlaying: advances to the next track, or stops at
+        // the end of the playlist.
         [self.audioPlayer finishCurrentTrack];
         return;
     }
@@ -87,8 +88,9 @@ static const double kSkipMostBars = 32.0;
 
 #pragma mark - Performance effects (bare-key taps/holds; see TransportKeyMonitor)
 
-// The FX menu's toggles. Written against the pass-throughs below rather than
-// AudioFX directly, so a menu toggle and a bare-key tap are the same flip.
+// The FX menu's toggles. They are written against the pass-throughs below
+// rather than against AudioFX directly, so that a menu toggle and a bare-key
+// tap are the same flip.
 
 - (IBAction)toggleLowKill:(nullable id)sender {
     self.lowKillActive = !self.lowKillActive;
@@ -155,9 +157,9 @@ static const double kSkipMostBars = 32.0;
     [self updateFXIndicators];
 }
 
-// Read back from AudioFX rather than from the caller's intent: the FX object
-// enforces its own coupling (clearing lowKillEnabled also clears
-// lowKillBoostActive), so only the live flags describe what is actually on.
+// Read back from AudioFX rather than from the caller's intent. The FX object
+// enforces its own coupling — clearing lowKillEnabled also clears
+// lowKillBoostActive — so only the live flags describe what is actually on.
 - (void)updateFXIndicators {
     AudioFX *fx = self.audioPlayer.fx;
     [self.trackDisplay renderFXState:(VibeFXDisplayState){

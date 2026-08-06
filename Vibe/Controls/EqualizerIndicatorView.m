@@ -6,20 +6,21 @@
 #import "EqualizerIndicatorView.h"
 #import "NSView+DarkMode.h"
 
-// enum, not static const: a const variable isn't a C constant expression,
-// so using it as an array size would make the tables below VLAs.
+// An enum rather than a static const, because a const variable is not a C
+// constant expression, so using it as an array size would make the tables
+// below variable-length arrays.
 enum { kBarCount = 5 };
 static const CGFloat kBarGap = 1.5;
 
-// Pose shown while paused — the diamond envelope of the app icon's waveform
-// (short, tall, tallest, tall, short); also the model value the animation
-// returns to when it is removed (the keyframes animate transform.scale.y
-// around it).
+// The pose shown while paused: the diamond envelope of the app icon's
+// waveform, running short, tall, tallest, tall, short. It is also the model
+// value the animation returns to when it is removed, since the keyframes
+// animate transform.scale.y around it.
 static const CGFloat kPausedHeights[kBarCount] = {0.4, 0.7, 1.0, 0.7, 0.4};
 
-// Per-bar loops with distinct durations so the combined pattern doesn't
-// visibly repeat. Each sequence ends where it starts for a seamless cycle,
-// and each bar moves independently around its envelope height.
+// Per-bar loops with distinct durations, so that the combined pattern does not
+// visibly repeat. Each sequence ends where it starts, for a seamless cycle, and
+// each bar moves independently around its envelope height.
 static NSArray<NSNumber *> *barValues(NSUInteger bar) {
     switch (bar) {
         case 0:  return @[@0.4, @0.75, @0.3, @0.6, @0.35, @0.85, @0.4];
@@ -42,8 +43,8 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0, 1.25, 0.
         NSMutableArray<CALayer *> *bars = [NSMutableArray arrayWithCapacity:kBarCount];
         for (NSUInteger i = 0; i < kBarCount; i++) {
             CALayer *bar = [CALayer layer];
-            // Centered anchor: bars grow and shrink symmetrically around the
-            // vertical midline, like the app icon's waveform.
+            // A centered anchor, so the bars grow and shrink symmetrically
+            // around the vertical midline, like the app icon's waveform.
             bar.anchorPoint = CGPointMake(0.5, 0.5);
             [self.layer addSublayer:bar];
             [bars addObject:bar];
@@ -92,16 +93,16 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0, 1.25, 0.
 
 - (void)setAnimating:(BOOL)animating {
     _animating = animating;
-    // Full strength while playing; dimmed to half when the current track is
-    // paused so the indicator reads as "stopped".
+    // Full strength while playing, dimmed to half when the current track is
+    // paused, so that the indicator reads as stopped.
     self.alphaValue = animating ? 1.0 : 0.5;
     [self updateAnimations];
 }
 
-// Core Animation strips animations whenever the layer leaves the layer tree
-// (table cell reuse detaches the view); reinstall on re-attach. The color is
-// re-resolved too: attaching to a window can change the effective appearance
-// without a viewDidChangeEffectiveAppearance callback.
+// Core Animation strips animations whenever the layer leaves the layer tree,
+// and table cell reuse detaches the view, so reinstall them on re-attach. The
+// color is re-resolved too, because attaching to a window can change the
+// effective appearance without a viewDidChangeEffectiveAppearance callback.
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
     [self applyAppearanceColor];

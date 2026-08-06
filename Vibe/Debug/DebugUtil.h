@@ -7,9 +7,9 @@
 
 #if DEBUG
 
-// The implementation (DebugUtil.m) and callers (main.m, AppDelegate.m) are
-// plain ObjC today; the C-linkage guard stays so an ObjC++ importer would
-// still agree with them on the unmangled names.
+// The implementation in DebugUtil.m, and the callers in main.m and
+// AppDelegate.m, are all plain ObjC today. The C-linkage guard stays so that
+// an ObjC++ importer would still agree with them on the unmangled names.
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -19,19 +19,20 @@ extern "C" {
 //
 //     notifyutil -p com.vibe.debug.screenshot
 //
-// then read vibe-screenshot.png from the app container's tmp directory
-// (the app is sandboxed, so /tmp is not writable):
+// then read vibe-screenshot.png from the app container's tmp directory. The
+// app is sandboxed, so /tmp is not writable:
 //
 //     ~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp/
 //
-// Renders the window's layer tree in-process — no window server capture, so
-// it needs no screen-recording permission and works with the display asleep
-// or the window occluded. NSGlassEffectView/NSVisualEffectView layers cannot
-// render this way: they are hidden and painted over with an
-// appearance-matched flat proxy fill, and hiding them forces a *model*-tree
-// render on glass-bearing windows (animations land at their target values;
-// glass-free windows still render the presentation tree mid-flight). Metal
-// content (the About window) does not render either.
+// It renders the window's layer tree in-process, with no window server
+// capture, so it needs no screen-recording permission and works with the
+// display asleep or the window occluded. NSGlassEffectView and
+// NSVisualEffectView layers cannot render this way: they are hidden and
+// painted over with an appearance-matched flat proxy fill. Hiding them also
+// forces a *model*-tree render on glass-bearing windows, so animations land at
+// their target values, while glass-free windows still render the presentation
+// tree mid-flight. Metal content, such as the About window, does not render
+// either.
 void VibeInstallDebugScreenshotHook(void);
 
 // Debug command channel: the Vibe binary doubles as its own CLI client.
@@ -39,43 +40,48 @@ void VibeInstallDebugScreenshotHook(void);
 //     .../Vibe.app/Contents/MacOS/Vibe --debug-cmd dump_state
 //     .../Vibe.app/Contents/MacOS/Vibe --debug-cmd set_pitch -4.5
 //
-// Transport: the client writes a JSON command file ({"id", "args": [verb,
-// arg, ...]} — args stay an array end to end, never joined and re-tokenized,
-// so quoted paths with any whitespace survive byte-exact) into the sandbox
-// container's tmp (the direct-exec'd client runs in the SAME container, so no
-// permission is needed), pokes the running app with a darwin notification —
-// the payload can't ride the notification itself, since darwin notifications
-// carry none and a sandboxed process may not post distributed notifications
-// with userInfo — then polls for a per-command response file and prints it.
+// The transport works like this. The client writes a JSON command file,
+// {"id", "args": [verb, arg, ...]}, into the sandbox container's tmp; the
+// direct-exec'd client runs in the same container, so it needs no permission.
+// args stays an array end to end, never joined and re-tokenized, so quoted
+// paths with any whitespace survive byte-exact. The client then pokes the
+// running app with a darwin notification, because the payload cannot ride the
+// notification itself: darwin notifications carry none, and a sandboxed
+// process may not post distributed notifications with userInfo. Finally it
+// polls for a per-command response file and prints it.
 //
-// The command set covers inspection dumps (dump_*), transport/UI actions,
-// opening files, and per-file waveform-cache control. The authoritative list
-// is VibeDebugCommandTable in DebugUtil.m — one entry per verb carrying its
-// usage string, per-verb client wait, and handler; dispatch and the
-// unknown-command reply derive from it. Usage docs live in
+// The command set covers inspection dumps (dump_*), transport and UI actions,
+// opening files, and per-file waveform-cache control. VibeDebugCommandTable in
+// DebugUtil.m is the authoritative list: one entry per verb, carrying its
+// usage string, its per-verb client wait and its handler, and both dispatch
+// and the unknown-command reply derive from it. The usage docs live in
 // .claude/skills/vibe-debug/SKILL.md.
 
-// App side; call at launch. Listens on com.vibe.debug.command (main queue).
+// The app side; call it at launch. It listens on com.vibe.debug.command, on
+// the main queue.
 void VibeInstallDebugCommandHook(void);
 
-// Core of the `scan_bpm` debug command: decodes the file and runs
-// AudioBPMAnalyzer in the calling process, returning one JSON object
-// ({"ok","bpm"} — bpm 0 = no confident tempo — or {"error"}). Pure
-// decode+analyze with no app state, so the CLI client executes this verb
-// locally (`Vibe --debug-cmd scan_bpm <file>` works with no app running and
-// never touches a running instance); the command-table entry runs the same
-// function app-side for callers that post the command file directly. Sandbox
-// caveat: the running process can only read paths it's been granted — the
-// direct-exec'd client is limited to the app container, so scan-bpm.sh
-// streams the file via stdin (the `scan_bpm -` form) and the client stages
-// it in the container tmp. Implemented in DebugBPMScan.mm
-// (needs the C++ waveform mono-mix header, which DebugUtil.m must not
-// import).
+// The core of the `scan_bpm` debug command. It decodes the file and runs
+// AudioBPMAnalyzer in the calling process, returning one JSON object: either
+// {"ok","bpm"}, where a bpm of 0 means no confident tempo, or {"error"}.
+//
+// It is a pure decode and analyze with no app state, so the CLI client runs
+// this verb locally: `Vibe --debug-cmd scan_bpm <file>` works with no app
+// running and never touches a running instance. The command-table entry runs
+// the same function app-side for callers that post the command file directly.
+//
+// Sandbox caveat: the running process can read only the paths it has been
+// granted, and the direct-exec'd client is limited to the app container. So
+// scan-bpm.sh streams the file through stdin, in the `scan_bpm -` form, and
+// the client stages it in the container tmp.
+//
+// It is implemented in DebugBPMScan.mm, which needs the C++ waveform
+// mono-mix header that DebugUtil.m must not import.
 NSString *VibeDebugBPMScanJSON(NSString *rawPath);
 
-// Client side; invoked by main() for `Vibe --debug-cmd ...` before
-// NSApplicationMain, so no second app instance ever starts. Returns the
-// process exit code (0 ok, 1 no response, 2 command error, 64 usage).
+// The client side. main() invokes it for `Vibe --debug-cmd ...` before
+// NSApplicationMain, so no second app instance ever starts. It returns the
+// process exit code: 0 ok, 1 no response, 2 command error, 64 usage.
 int VibeDebugCommandClientMain(int argc, const char *argv[]);
 
 #ifdef __cplusplus

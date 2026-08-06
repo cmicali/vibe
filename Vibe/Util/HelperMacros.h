@@ -6,12 +6,13 @@
 #define StateForBOOL(b) ((b) ? NSControlStateValueOn : NSControlStateValueOff)
 #define StateForString(s1, s2) StateForBOOL([s1 isEqualToString:s2])
 
-// Note: no lowercase min()/max() macros — they shadow std::min/std::max in the
-// ObjC++ (.mm) translation units this prefix header reaches. Use MIN/MAX.
+// Note that there are no lowercase min() or max() macros: they would shadow
+// std::min and std::max in the ObjC++ (.mm) translation units this prefix
+// header reaches. Use MIN and MAX.
 
-// A function, not a macro, so the arguments are evaluated once. Plain C (no
-// templates/overloads) — this header reaches every ObjC (.m) translation
-// unit via the prefix header.
+// A function rather than a macro, so the arguments are evaluated once. It is
+// plain C, with no templates or overloads, because this header reaches every
+// ObjC (.m) translation unit through the prefix header.
 static inline double clampMin(double v, double minValue) {
     return v < minValue ? minValue : v;
 }

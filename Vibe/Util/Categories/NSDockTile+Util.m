@@ -5,9 +5,10 @@
 
 #import "NSDockTile+Util.h"
 
-// Monotonic ticket so a slow background icon composition can't overwrite a
-// newer icon or a reset. Both entry points are main-thread UI calls, so no
-// locking — the async completion re-checks it back on the main thread.
+// A monotonic ticket, so that a slow background icon composition cannot
+// overwrite a newer icon or a reset. Both entry points are main-thread UI
+// calls, so no locking is needed: the async completion re-checks it back on
+// the main thread.
 static NSUInteger VibeDockIconGeneration = 0;
 
 @implementation NSDockTile (Util)
@@ -19,23 +20,24 @@ static NSUInteger VibeDockIconGeneration = 0;
     [dockTile display];
 }
 
-// Compose the artwork into a dock-icon canvas that matches the system icon
+// Composes the artwork into a dock-icon canvas that matches the system icon
 // grid. The Dock renders the tile's contentView edge to edge, and real app
 // icons carry built-in transparent margins: the rounded-rect content of a
-// standard macOS icon spans 824/1024 of its canvas, with a ~22.5% corner
-// radius (185/824). Anything with a smaller margin reads visibly larger
-// than every neighboring icon in the Dock and switcher.
+// standard macOS icon spans 824 of its 1,024-point canvas, with a corner
+// radius of about 22.5%, or 185 of 824. Anything with a smaller margin reads
+// visibly larger than every neighboring icon in the Dock and the switcher.
 //
-// Drawn into an explicit sRGB NSBitmapImageRep context rather than lockFocus
-// (soft-deprecated; its backing rep also picks up the deepest screen's scale)
-// — same pattern as NSImage+Util's resizedImage:. Returns nil if no context.
-NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
+// It draws into an explicit sRGB NSBitmapImageRep context rather than using
+// lockFocus, which is soft-deprecated and whose backing rep also picks up the
+// deepest screen's scale. NSImage+Util's resizedImage: follows the same
+// pattern. It returns nil if there is no context.
+static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
 
     CGFloat size = canvasSize * (824.0 / 1024.0);
     CGFloat margin = (canvasSize - size) / 2;
     CGFloat cornerRadius = size * (185.0 / 824.0);
-    // Rim-light band width — ~1.5 device px at Dock size, like the bevel on
-    // neighboring icons.
+    // The rim-light band width: about 1.5 device pixels at Dock size, like the
+    // bevel on neighboring icons.
     CGFloat rimWidth = size * 0.015;
     CGFloat shadowBlur = size * 0.06;
     CGFloat shadowOffsetY = -size * 0.03;
@@ -60,8 +62,9 @@ NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
     [NSGraphicsContext saveGraphicsState];
     [NSGraphicsContext setCurrentContext:context];
 
-    // Content rect centered on the icon grid. The grid margin comfortably
-    // contains the shadow (blur + |offset| ≈ 0.09 × size < margin).
+    // The content rect, centered on the icon grid. The grid margin comfortably
+    // contains the shadow, since the blur plus the offset comes to about 0.09
+    // times the size, well under the margin.
     NSRect drawingRect = NSMakeRect(margin, margin, size, size);
 
     NSBezierPath *clipPath = [NSBezierPath bezierPathWithRoundedRect:drawingRect
@@ -80,10 +83,10 @@ NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
     [[NSColor clearColor] setFill];
     [clipPath fill];
 
-    // Restore graphics state to remove shadow.
+    // Restore the graphics state to remove the shadow.
     [NSGraphicsContext restoreGraphicsState];
 
-    // Now clip to the rounded rect for the artwork.
+    // Clip to the rounded rect for the artwork.
     [clipPath addClip];
 
     // Scale and center the source image.
@@ -102,7 +105,7 @@ NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
              respectFlipped:YES
                       hints:nil];
 
-    // Liquid Glass-style rim light: a thin inner stroke that is brightest
+    // A Liquid Glass-style rim light: a thin inner stroke that is brightest
     // along the top edge and fades toward the bottom, approximating the
     // bevel the system renders on real (Icon Composer) icons — without it
     // the artwork tile reads flat next to every neighboring icon. Stroking

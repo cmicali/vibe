@@ -10,11 +10,12 @@
 #import "AudioTrack.h"
 #import "AudioWaveformView.h"
 
-// waveformView is synthesized by the class extension in MainPlayerController.m;
-// re-declared readonly here (same pattern as MainPlayerController+Debug.h) so
-// the waveform-style submenu code can read it. contentWidthForSizeIdentifier:
-// is defined next to setWindowSize: — the Size checkmarks have to resolve the
-// same identifier→width mapping the action does.
+// The class extension in MainPlayerController.m synthesizes waveformView, and
+// it is re-declared readonly here, the same pattern as
+// MainPlayerController+Debug.h, so that the waveform-style submenu code can
+// read it. contentWidthForSizeIdentifier: is defined next to setWindowSize:,
+// because the Size checkmarks must resolve the same identifier-to-width
+// mapping the action does.
 @interface MainPlayerController (MenuOutlets)
 @property (weak, readonly) AudioWaveformView *waveformView;
 + (CGFloat)contentWidthForSizeIdentifier:(NSString *)identifier;
@@ -30,8 +31,8 @@
     else if ([menuItem.identifier isEqualToString:@"menu_show_pitch"]) {
         menuItem.state = StateForBOOL(window.isPitchPanelShown);
     }
-    // Size: checkmark whichever preset the current body width already sits at
-    // (none of them, after a drag-resize).
+    // Size: checkmark whichever preset the current body width already sits at,
+    // which after a drag-resize is none of them.
     else if ([menuItem.identifier hasPrefix:@"view_size_"]) {
         menuItem.state = StateForBOOL(window.contentWidth ==
                 [MainPlayerController contentWidthForSizeIdentifier:menuItem.identifier]);
@@ -46,8 +47,8 @@
         menuItem.state = StateForString(Settings.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_next_track"]) {
-        // Only when there is actually a track after the current one; at the
-        // end of the playlist next: is a no-op.
+        // Only when there really is a track after the current one. At the end
+        // of the playlist, next: is a no-op.
         return self.playlistController.hasNextTrack;
     }
     else if ([menuItem.identifier isEqualToString:@"menu_previous_track"]) {
@@ -59,13 +60,14 @@
              [menuItem.identifier isEqualToString:@"menu_skip_back"] ||
              [menuItem.identifier isEqualToString:@"menu_skip_back_more"] ||
              [menuItem.identifier isEqualToString:@"menu_skip_back_most"]) {
-        // Needs a loaded track AND a non-stopped player — after the playlist
-        // ends there is no node left to seek (see skipByFileSeconds:).
+        // This needs both a loaded track and a player that is not stopped:
+        // after the playlist ends there is no node left to seek. See
+        // skipByFileSeconds:.
         return self.playlistController.currentTrack != nil && !self.audioPlayer.isStopped;
     }
-    // FX: one checkmark per effect. Never disabled — the effects are deck
-    // controls that outlive any single track (see the FX menu in
-    // MainMenuBuilder).
+    // FX: one checkmark per effect. They are never disabled, because the
+    // effects are deck controls that outlive any single track; see the FX menu
+    // in MainMenuBuilder.
     else if ([menuItem.identifier isEqualToString:@"menu_fx_low_kill"]) {
         menuItem.state = StateForBOOL(self.audioPlayer.fx.lowKillEnabled);
     }
@@ -88,9 +90,9 @@
         menuItem.state = StateForBOOL(Settings.pitchRange == 16);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_play"]) {
-        // The action is playPause: — mirror the toggle in the title and icon
-        // like standard macOS players (isPlaying covers Loading: a play is
-        // committed, so the available action is Pause).
+        // The action is playPause:, so mirror the toggle in the title and
+        // icon, as standard macOS players do. isPlaying covers Loading: a play
+        // is committed, so the available action is Pause.
         BOOL playing = self.audioPlayer.isPlaying;
         menuItem.title = playing ? @"Pause" : @"Play";
         menuItem.image = [NSImage imageWithSystemSymbolName:(playing ? @"pause.fill" : @"play.fill")
@@ -104,15 +106,15 @@
     else if ([menuItem.identifier isEqualToString:@"show_in_finder"]) {
         return self.playlistController.currentTrack.url != nil;
     }
-    // show_clicked_track_in_finder (the playlist row context menu) targets
-    // PlaylistController, which validates it.
+    // show_clicked_track_in_finder, on the playlist's row context menu,
+    // targets PlaylistController, which validates it.
     return YES;
 }
 
-// Plain helper, deliberately NOT named numberOfItemsInMenu: — that selector
+// A plain helper, deliberately not named numberOfItemsInMenu:. That selector
 // is NSMenuDelegate's opt-in to incremental menu population, which requires
-// the menu:updateItem:atIndex:shouldCancel: companion this class doesn't
-// implement (and would return 0 for every other delegated menu).
+// the menu:updateItem:atIndex:shouldCancel: companion this class does not
+// implement, and it would return 0 for every other delegated menu.
 - (NSInteger)waveformStyleMenuItemCount {
     return self.waveformView.availableWaveformStyles.count;
 }
@@ -136,9 +138,9 @@
     }
 }
 
-// Without this, AppKit's key-equivalent scan calls menuNeedsUpdate: — a full
-// submenu rebuild — on every keyDown (same pattern as
-// OutputDevicesMenuController). The style items carry no key equivalents.
+// Without this, AppKit's key-equivalent scan calls menuNeedsUpdate:, a full
+// submenu rebuild, on every keyDown. OutputDevicesMenuController follows the
+// same pattern. The style items carry no key equivalents.
 - (BOOL)menuHasKeyEquivalent:(NSMenu *)menu forEvent:(NSEvent *)event target:(_Nullable id *_Nonnull)target action:(_Nullable SEL *_Nonnull)action {
     return NO;
 }

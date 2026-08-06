@@ -9,9 +9,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Waveform Cache
 
-// Kept a forward declaration (its header defines C++ classes): importing
-// AudioWaveform.h here would force every transitive importer — most of the
-// UI layer — to compile as ObjC++.
+// Kept as a forward declaration, because its header defines C++ classes.
+// Importing AudioWaveform.h here would force every transitive importer, which
+// means most of the UI layer, to compile as ObjC++.
 @class CodableAudioWaveform;
 @class AudioTrack;
 @protocol AudioWaveformCacheDelegate;
@@ -20,33 +20,39 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nullable, weak) id <AudioWaveformCacheDelegate> delegate;
 
-// Completion fires on the cache's serial loader queue once the disk cache has
-// been emptied. Decodes already in flight (they run on a global queue, not
-// the loader queue) can't repopulate it: their disk writes are dropped by a
-// cache-generation check, though their UI delivery still happens.
+// The PINCache store name, derived from the entry format version; see the
+// implementation. It is the single source for init and for anything that
+// reports the name, such as the debug clear_caches reply.
++ (NSString *)cacheName;
+
+// The completion fires on the cache's serial loader queue once the disk cache
+// has been emptied. Decodes already in flight run on a global queue rather
+// than the loader queue, and they cannot repopulate it: a cache-generation
+// check drops their disk writes, though their UI delivery still happens.
 - (void)invalidateWithCompletion:(nullable dispatch_block_t)completion;
 - (void)loadWaveformForTrack:(AudioTrack *)track;
-// Cancels the in-flight load (if any): no further waveform deliveries until
-// the next loadWaveformForTrack:. A decode that already completed may still
-// persist to disk, and its BPM (URL-tagged, playlist-matched by the receiver)
-// is still delivered; only the waveform UI delivery is dropped.
+// Cancels the in-flight load, if there is one, so there are no further
+// waveform deliveries until the next loadWaveformForTrack:. A decode that has
+// already completed may still persist to disk, and its BPM is still delivered,
+// tagged with its URL for the receiver to match against its playlist. Only the
+// waveform UI delivery is dropped.
 - (void)cancelLoad;
 
 #if DEBUG
-// Debug / pre-warm: decode and persist the waveform (and its detected BPM) for
-// a file WITHOUT cancelling or delivering to the current load — the running UI
-// is left untouched. Runs the same lookup-or-decode path as a normal load, but
-// a fresh decode's completion waits for the disk write, so once it fires the
-// entry is durably cached. completion fires on the main thread: ok is NO on
-// decode failure; wasCached is YES when the entry already existed (no decode
-// ran); bpm is 0 when none was detected.
+// Debug and pre-warm: decodes and persists a file's waveform, and its detected
+// BPM, without cancelling or delivering to the current load, so the running UI
+// is untouched. It runs the same lookup-or-decode path as a normal load, but a
+// fresh decode's completion waits for the disk write, so the entry is durably
+// cached once it fires. The completion fires on the main thread: ok is NO on a
+// decode failure, wasCached is YES when the entry already existed and no
+// decode ran, and bpm is 0 when none was detected.
 - (void)cacheWaveformForURL:(NSURL *)url
                  completion:(void (^)(BOOL ok, BOOL wasCached, float bpm))completion;
 
-// Debug: remove a single file's waveform cache entry. The cache key is derived
-// from the file's current size + mtime, so the file must still exist unchanged
-// to resolve the same entry. completion fires on the main thread with whether
-// an entry was present.
+// Debug: removes a single file's waveform cache entry. The cache key derives
+// from the file's current size and mtime, so the file must still exist
+// unchanged to resolve the same entry. The completion fires on the main thread
+// with whether an entry was present.
 - (void)clearCachedWaveformForURL:(NSURL *)url
                        completion:(void (^)(BOOL wasPresent))completion;
 #endif
@@ -55,18 +61,18 @@ NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioWaveformCacheDelegate <NSObject>
 
-// Passes the ARC-managed wrapper so receivers can retain it — the raw
-// AudioWaveform* is owned by (and dies with) the wrapper.
+// Passes the ARC-managed wrapper so that receivers can retain it. The wrapper
+// owns the raw AudioWaveform*, which dies with it.
 - (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded;
 
 @optional
 
-// Fired once per completed waveform load (fresh analysis or cache hit) when
-// the decode pass detected a tempo — never with 0. Follows the final
-// didLoadData: delivery, on the main thread. url is the file the waveform was
-// loaded for: a final delivery can race a track change (land after next: but
-// before the cancel is observed), so receivers must match it against their
-// current track rather than assume it.
+// Fires once per completed waveform load, whether a fresh analysis or a cache
+// hit, when the decode pass detected a tempo. It never fires with 0. It
+// follows the final didLoadData: delivery, on the main thread. url is the file
+// the waveform was loaded for: a final delivery can race a track change,
+// landing after next: but before the cancel is observed, so receivers must
+// match it against their current track rather than assume it.
 - (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url;
 
 @end

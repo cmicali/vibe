@@ -29,64 +29,72 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 
 @property (nullable, weak) id <AudioPlayerDelegate> delegate;
 
-// Playhead in file seconds (lock-free; reads 0 while Stopped or Loading).
-// Seek with seekToPosition: — the move is asynchronous.
+// Playhead in file seconds. Lock-free, and reads 0 while Stopped or Loading.
+// Seek with seekToPosition:; the move is asynchronous.
 @property (readonly)            NSTimeInterval position;
-@property (nullable, strong)    AudioTrack* currentTrack;
-@property (atomic) NSInteger    currentlyRequestedAudioDeviceId;
+// Readonly because the player is the single writer of both. currentTrack
+// flips on its own queue, and the requested device id changes only through
+// the init and device-switch paths. An external write would desync playback
+// state or blind device recovery.
+@property (nullable, strong, readonly) AudioTrack* currentTrack;
+@property (atomic, readonly)    NSInteger currentlyRequestedAudioDeviceId;
 
-// Turntable-style pitch adjustment in percent (clamped to ±maxPitch): speed
-// and pitch move together, like a Technics pitch fader. 0 = normal speed.
-// Persists across tracks (it's a deck control, not a track property).
+// Turntable-style pitch adjustment in percent, clamped to ±maxPitch. Speed
+// and pitch move together, as on a Technics fader; 0 is normal speed. It
+// persists across tracks, being a deck control rather than a track property.
 @property (nonatomic) float pitch;
 
-// Fader range in percent (default 8). Shrinking it re-clamps the current pitch.
+// Fader range in percent, 8 by default. Shrinking it re-clamps the current
+// pitch.
 @property (nonatomic) float maxPitch;
 
-// The DJ performance effects (low kill/boost, reverb and delay sends, the
-// delay's tempo feed) — see AudioFX.h. Non-nil from init, so callers can set
-// intent immediately; the graph work lands once the async engine init runs.
+// The DJ performance effects: low kill and its boost, the reverb and delay
+// sends, and the delay's tempo feed. See AudioFX.h. Non-nil from init, so a
+// caller can set intent immediately; the graph work lands once the async
+// engine init runs.
 @property (nonatomic, readonly) AudioFX *fx;
 
-// deviceUID/deviceName: the persisted output device (empty or unmatched →
-// follow the system default). Resolved inside the async init on the player's
-// own queue — resolution enumerates CoreAudio devices, which must stay off
-// the launch path's main thread.
+// deviceUID and deviceName name the persisted output device. Empty or
+// unmatched means follow the system default. The async init resolves them on
+// the player's own queue, because resolution enumerates CoreAudio devices and
+// that must stay off the launch path's main thread.
 - (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName delegate:(id <AudioPlayerDelegate>)delegate;
 
 - (void)play:(AudioTrack *)track;
 - (void)playPause;
 
-// Asynchronous declicked seek (file seconds, clamped to the file): position
-// reports the old playhead until it lands; didFinishSeeking: marks completion.
+// Asynchronous declicked seek, in file seconds, clamped to the file.
+// position reports the old playhead until the seek lands, and
+// didFinishSeeking: marks completion.
 - (void)seekToPosition:(NSTimeInterval)position;
 
-// Stops playback and unloads the current track: any in-flight open is
+// Stops playback and unloads the current track. Any in-flight open is
 // superseded, a playing node fades to silence before teardown, and the player
-// reports Stopped with no currentTrack. Fires no delegate callback — this is
-// not a track-end event, so it must not drive auto-advance; the caller owns
-// the UI reset.
+// then reports Stopped with no currentTrack. It fires no delegate callback:
+// this is not a track-end event, so it must not drive auto-advance, and the
+// caller owns the UI reset.
 - (void)stop;
 
-// Ends the current track as if it had played to its end: stops output and
-// notifies the delegate via audioPlayer:didFinishPlaying:. The delegate's
-// handler is what drives auto-advance (or the end-of-playlist stop), so the
-// caller needs no next-vs-stop knowledge — used when a forward skip lands at
-// or past the end. No-op unless a track is playing or paused.
+// Ends the current track as if it had played to its end: it stops output and
+// notifies the delegate through audioPlayer:didFinishPlaying:. That handler
+// drives auto-advance, or the end-of-playlist stop, so the caller needs no
+// knowledge of next against stop. Used when a forward skip lands at or past
+// the end. A no-op unless a track is playing or paused.
 - (void)finishCurrentTrack;
 
-// Pre-opens the track's file so a later play: of it starts without paying
-// the open — the dominant auto-advance/skip latency (and for cloud files it
-// starts the download early). Call with the playlist's next track whenever
-// playback of a track starts; nil drops the parked handle (end of playlist).
-// Single-use: consumed by the next play: of the same path.
+// Pre-opens the track's file so that a later play: of it starts without
+// paying for the open, which dominates auto-advance and skip latency. For a
+// cloud file it also starts the download early. Call it with the playlist's
+// next track whenever a track starts playing; nil drops the parked handle at
+// the end of the playlist. It is single-use, consumed by the next play: of
+// the same path.
 - (void)prefetchTrack:(nullable AudioTrack *)track;
 
 - (BOOL)isPlaying;
 - (BOOL)isPaused;
 - (BOOL)isStopped;
-// The in-flight file open (isPlaying also reports YES in this state);
-// position/duration read 0 here — unknown, not zero.
+// The in-flight file open; isPlaying also reports YES in this state.
+// position and duration read 0 here, meaning unknown rather than zero.
 - (BOOL)isLoading;
 
 - (NSUInteger)numChannels;
@@ -94,39 +102,40 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 
 @end
 
-// The output-device half of the player, implemented in AudioPlayer+Devices.m
-// (declared as a category so the file split compiles cleanly; to callers it
-// is just part of AudioPlayer).
+// The output-device half of the player, implemented in AudioPlayer+Devices.m.
+// It is a category only so the file split compiles cleanly; to callers it is
+// simply part of AudioPlayer.
 @interface AudioPlayer (Devices)
 
 - (NSInteger)currentlyActiveAudioDeviceId;
 
-// outputDeviceID is a CoreAudio AudioDeviceID (as NSInteger), or -1 to follow
-// the system default output — not a menu/array index. Device IDs are transient
-// across reboots; persistence goes by UID/name (see initWithDeviceUID:).
+// outputDeviceID is a CoreAudio AudioDeviceID held as an NSInteger, or -1 to
+// follow the system default output. It is not a menu or array index. Device
+// IDs do not survive a reboot, so persistence goes by UID and name; see
+// initWithDeviceUID:.
 - (void)setOutputDevice:(NSInteger)outputDeviceID;
 
 @end
 
-// All methods are required: the player invokes every one of them
-// unconditionally (no respondsToSelector: guards on the send sites).
+// Every method is required: the player invokes them all unconditionally,
+// with no respondsToSelector: guards at the send sites.
 @protocol AudioPlayerDelegate <NSObject>
 
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer;
 
-// Fired when a play request's file open is still pending after a short grace
-// period (slow disk, cloud placeholder downloading) — show a loading state.
-// Followed by didStartPlaying:, error:, or — when a newer play supersedes the
-// load — the newer track's events (a superseded load gets no terminal
-// callback of its own).
+// Fires when a play request's file open is still pending after a short grace
+// period, as on a slow disk or a downloading cloud placeholder. Show a
+// loading state. It is followed by didStartPlaying:, by error:, or, when a
+// newer play supersedes the load, by the newer track's events. A superseded
+// load gets no terminal callback of its own.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track;
-// track is nil when a seek was requested with nothing playable loaded
-// (e.g. right after a failed play) — the seek is a no-op but the UI still
-// gets the callback to settle the waveform.
+// track is nil when a seek was requested with nothing playable loaded, as
+// right after a failed play. The seek is then a no-op, but the UI still gets
+// the callback so it can settle the waveform.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(nullable AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track;
 

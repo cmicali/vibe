@@ -33,14 +33,16 @@
     _timeFormatter.unitsStyle = NSDateComponentsFormatterUnitsStylePositional;
     _timeFormatter.allowedUnits = NSCalendarUnitMinute | NSCalendarUnitSecond;
     _timeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorNone;
-    // Hour-long files (DJ sets, live recordings) roll over to h:mm:ss instead
-    // of showing "90:00". Separate pre-configured formatter so the sub-hour
-    // rendering (m:ss, no leading zero-hours) stays exactly as it was.
+    // Hour-long files, such as DJ sets and live recordings, roll over to
+    // h:mm:ss rather than showing "90:00". A separate pre-configured formatter
+    // keeps the sub-hour rendering — m:ss, with no leading zero hours —
+    // exactly as it was.
     _hourTimeFormatter = [[NSDateComponentsFormatter alloc] init];
     _hourTimeFormatter.unitsStyle = NSDateComponentsFormatterUnitsStylePositional;
     _hourTimeFormatter.allowedUnits = NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond;
-    // DropLeading renders "1:30:00", not "01:30:00" (the hour is never zero
-    // here — this formatter is only chosen for durations >= an hour).
+    // DropLeading renders "1:30:00" rather than "01:30:00". The hour is never
+    // zero here, because this formatter is chosen only for durations of an
+    // hour or more.
     _hourTimeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorDropLeading;
 }
 

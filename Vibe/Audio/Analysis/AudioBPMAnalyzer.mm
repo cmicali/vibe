@@ -9,10 +9,10 @@
 #include <cmath>
 #include <algorithm>
 
-// 1024-sample analysis frames with a 256 hop: ~172 envelope samples per
-// second at 44.1kHz. Envelope resolution sets raw lag granularity (~1.4 BPM
-// near 120); parabolic interpolation of the score peak recovers sub-BPM
-// precision from it.
+// 1024-sample analysis frames with a 256 hop give about 172 envelope samples
+// per second at 44.1kHz. The envelope's resolution sets the raw lag
+// granularity, roughly 1.4 BPM near 120, and parabolic interpolation of the
+// score peak recovers sub-BPM precision from it.
 static const int kLog2FrameSize = 10;
 static const NSUInteger kFrameSize = 1 << kLog2FrameSize;
 static const NSUInteger kHopSize = 256;
@@ -22,19 +22,19 @@ static const float kMaxBPM = 200.0f;
 // Comb harmonics reach 3x the base lag, so autocorrelation is computed out to
 // 3x the slowest tempo's lag.
 static const int kCombHarmonics = 3;
-// Below this much audio the autocorrelation has too few beat periods to be
-// meaningful (~15 beats at 120 BPM).
+// Below this much audio the autocorrelation has too few beat periods to mean
+// anything: about 15 beats at 120 BPM.
 static const double kMinAnalysisSeconds = 8.0;
-// Peak-prominence gate: the winning comb score must beat the mean score by
-// this factor or the track is reported as having no detectable tempo.
+// The peak-prominence gate. The winning comb score must beat the mean score by
+// this factor, or the track is reported as having no detectable tempo.
 static const float kMinConfidence = 1.3f;
 
 @implementation AudioBPMAnalyzer {
     double _sampleRate;
     FFTSetup _fftSetup;
 
-    // Mono samples not yet consumed by a full analysis frame (< kFrameSize +
-    // kHopSize floats at all times).
+    // Mono samples not yet consumed by a full analysis frame. This always
+    // holds fewer than kFrameSize + kHopSize floats.
     std::vector<float> _pending;
     // Scratch, reused across frames.
     std::vector<float> _window;      // Hann coefficients
@@ -44,7 +44,8 @@ static const float kMinConfidence = 1.3f;
     std::vector<float> _splitReal;
     std::vector<float> _splitImag;
 
-    // Onset-strength envelope, one value per hop (~690KB/hour — fine).
+    // The onset-strength envelope, one value per hop. That is about 690KB an
+    // hour, which is fine.
     std::vector<float> _onsetEnvelope;
 }
 
@@ -74,8 +75,8 @@ static const float kMinConfidence = 1.3f;
     if (!_fftSetup || frameCount == 0) {
         return;
     }
-    // Already mono — the loader downmixes each decode buffer once
-    // (AudioWaveformMonoMix) and shares it with the waveform chunker.
+    // Already mono: the loader downmixes each decode buffer once, through
+    // AudioWaveformMonoMix, and shares it with the waveform chunker.
     size_t base = _pending.size();
     _pending.resize(base + frameCount);
     memcpy(_pending.data() + base, samples, frameCount * sizeof(float));
@@ -98,18 +99,19 @@ static const float kMinConfidence = 1.3f;
     vDSP_ctoz((const DSPComplex *)_windowed.data(), 2, &split, 1, kFrameSize / 2);
     vDSP_fft_zrip(_fftSetup, &split, 1, kLog2FrameSize, kFFTDirection_Forward);
 
-    // Power spectrum (bin 0 holds DC/Nyquist packed — zero it, neither drives
-    // onsets). Squared magnitudes, not linear: energy weighting keeps the
-    // envelope driven by the kick/snare hits that mark the beat — with linear
-    // magnitudes a broadband transient (hi-hat noise) sums across all bins
-    // and drowns out a concentrated low-frequency kick many times its energy.
+    // The power spectrum. Bin 0 holds DC and Nyquist packed together, so zero
+    // it: neither drives onsets. The magnitudes are squared rather than
+    // linear, because energy weighting keeps the envelope driven by the kick
+    // and snare hits that mark the beat. With linear magnitudes a broadband
+    // transient such as hi-hat noise sums across every bin and drowns out a
+    // concentrated low-frequency kick many times its energy.
     split.imagp[0] = 0;
     split.realp[0] = 0;
     vDSP_zvmags(&split, 1, _magnitudes.data(), 1, kFrameSize / 2);
 
-    // Spectral flux: half-wave-rectified magnitude increase since the last
-    // frame, summed across bins. Increases in energy mark onsets; decreases
-    // (note tails) are ignored.
+    // Spectral flux: the half-wave-rectified magnitude increase since the last
+    // frame, summed across bins. Increases in energy mark onsets, and
+    // decreases, which are note tails, are ignored.
     float flux = 0;
     const float *mag = _magnitudes.data();
     const float *prev = _prevMagnitudes.data();
@@ -133,9 +135,10 @@ static const float kMinConfidence = 1.3f;
         return 0;
     }
 
-    // Detrend: subtract a ~0.5s moving average and half-wave rectify, leaving
-    // only transient onset spikes. Slow loudness swells otherwise dominate
-    // the autocorrelation with a huge low-lag ramp.
+    // Detrend by subtracting a moving average of about 0.5 seconds and
+    // half-wave rectifying, which leaves only transient onset spikes. Slow
+    // loudness swells otherwise dominate the autocorrelation with a huge
+    // low-lag ramp.
     const size_t meanWin = (size_t)(fps * 0.5);
     std::vector<float> detrended(n);
     {
@@ -153,7 +156,7 @@ static const float kMinConfidence = 1.3f;
     }
 
     // Autocorrelation over lags covering 60-200 BPM plus the comb's harmonic
-    // reach. Normalized by overlap length so long lags aren't penalized.
+    // reach, normalized by overlap length so that long lags are not penalized.
     const int minLag = std::max(1, (int)std::floor(60.0 * fps / kMaxBPM));
     const int maxLag = (int)std::ceil(60.0 * fps / kMinBPM);
     const int maxCombLag = maxLag * kCombHarmonics;
@@ -167,15 +170,16 @@ static const float kMinConfidence = 1.3f;
         ac[lag] = sum / (float)(n - (size_t)lag);
     }
 
-    // Harmonic comb score: rewards the lag whose multiples also align with
-    // the envelope. This narrows the field but cannot by itself separate a
-    // tempo from its metrical relatives (2:1, 3:2) on dense 8th-note grids —
-    // those are settled by the time-domain phase comb below.
+    // The harmonic comb score rewards the lag whose multiples also align with
+    // the envelope. It narrows the field but cannot by itself separate a tempo
+    // from its metrical relatives, 2:1 and 3:2, on a dense 8th-note grid. The
+    // time-domain phase comb below settles those.
     std::vector<float> score(maxLag + 1, 0.0f);
     double totalScore = 0;
     int bestLag = 0;
     for (int lag = minLag; lag <= maxLag; lag++) {
-        // maxCombLag = kCombHarmonics(3) * maxLag, so 2*lag and 3*lag always fit in ac[].
+        // maxCombLag is kCombHarmonics, 3, times maxLag, so 2*lag and 3*lag
+        // always fit in ac[].
         float s = ac[lag] + 0.5f * ac[2 * lag] + 0.33f * ac[3 * lag];
         score[lag] = s;
         totalScore += s;
@@ -187,15 +191,16 @@ static const float kMinConfidence = 1.3f;
         return 0; // peak pinned to the range edge — not a real maximum
     }
 
-    // Confidence: a real tempo shows up as a prominent peak; a flat score
-    // curve means "no periodicity worth reporting".
+    // Confidence. A real tempo shows up as a prominent peak, whereas a flat
+    // score curve means there is no periodicity worth reporting.
     float meanScore = (float)(totalScore / (double)(maxLag - minLag + 1));
     if (meanScore <= 0 || score[bestLag] < kMinConfidence * meanScore) {
         return 0;
     }
 
-    // Candidates: local maxima of the comb score, strongest first. The true
-    // tempo's metrical relatives (half, double, 2/3, 3/2) all appear here.
+    // The candidates are the local maxima of the comb score, strongest first.
+    // The true tempo's metrical relatives — half, double, 2/3 and 3/2 — all
+    // appear here.
     std::vector<int> candidates;
     for (int lag = minLag + 1; lag < maxLag; lag++) {
         if (score[lag] >= score[lag - 1] && score[lag] >= score[lag + 1] &&
@@ -209,11 +214,12 @@ static const float kMinConfidence = 1.3f;
         candidates.resize(6);
     }
 
-    // The comb can leave the true tempo out of the local-max list entirely:
-    // alternating beat emphasis (kick vs kick+clap on 2 and 4) makes the
-    // two-beat lag dominate while the one-beat lag never even peaks. Add each
-    // top candidate's metrical relatives so the phase comb below judges the
-    // whole family, not just the lags autocorrelation happened to favor.
+    // The comb can leave the true tempo out of the local-maximum list
+    // entirely. Alternating beat emphasis — a kick against a kick and clap on
+    // 2 and 4 — makes the two-beat lag dominate while the one-beat lag never
+    // even peaks. Add each top candidate's metrical relatives, so that the
+    // phase comb below judges the whole family rather than only the lags
+    // autocorrelation happened to favor.
     {
         const size_t seedCount = std::min(candidates.size(), (size_t)3);
         const double factors[] = {0.5, 2.0, 2.0 / 3.0, 1.5};
@@ -239,16 +245,17 @@ static const float kMinConfidence = 1.3f;
         candidates.insert(candidates.end(), relatives.begin(), relatives.end());
     }
 
-    // Time-domain phase comb: for each candidate, sum the envelope at the
-    // beat positions of its best-aligned grid, normalized by sqrt(grid size)
-    // (matched-filter normalization). Unlike autocorrelation this sees which
-    // grid actually lands on the strong onsets: a 3:2 error alternates
-    // beats and offbeats (weak sum), and a half-tempo grid covers only half
-    // the onset energy (sqrt normalization votes it down).
+    // The time-domain phase comb. For each candidate, sum the envelope at the
+    // beat positions of its best-aligned grid, normalized by the square root
+    // of the grid size — matched-filter normalization. Unlike autocorrelation,
+    // this sees which grid actually lands on the strong onsets: a 3:2 error
+    // alternates beats and offbeats, giving a weak sum, and a half-tempo grid
+    // covers only half the onset energy, which the square-root normalization
+    // votes down.
     //
-    // Scored over a bounded window: a fixed grid over many minutes magnifies
-    // any period error (and real music's tempo wobble) into cumulative drift
-    // that walks the grid off the onsets.
+    // It is scored over a bounded window, because a fixed grid over many
+    // minutes magnifies any period error, and real music's tempo wobble, into
+    // cumulative drift that walks the grid off the onsets.
     const size_t winLen = std::min(n, (size_t)(40.0 * fps));
     const float *env = detrended.data() + (n - winLen) / 2;
 
@@ -264,15 +271,17 @@ static const float kMinConfidence = 1.3f;
         }
         double seedLag = (double)cLag + offset;
 
-        // Refine the period against the envelope itself: a lag off by even
-        // 0.2% drifts a full sample every few beats — enough to walk a
-        // 40-second grid off the ~1-sample-wide onset spikes and hand the
-        // win to a slower relative that drifts proportionally less. The ±1
-        // neighborhood max at each position absorbs the residual jitter.
+        // Refine the period against the envelope itself. A lag off by even
+        // 0.2% drifts a full sample every few beats, enough to walk a
+        // 40-second grid off the roughly one-sample-wide onset spikes and hand
+        // the win to a slower relative that drifts proportionally less. The
+        // neighborhood maximum of ±1 at each position absorbs the residual
+        // jitter.
         double bestSum = 0;
         double bestLagF = seedLag;
-        // ±1.0 covers both drift-refinement and the rounding error of the
-        // synthesized relative seeds (a half-lag seed can start ~0.75 off).
+        // A band of ±1.0 covers both the drift refinement and the rounding
+        // error of the synthesized relative seeds, since a half-lag seed can
+        // start about 0.75 off.
         for (double L = seedLag - 1.0; L <= seedLag + 1.0001; L += 0.03) {
             if (L < 2) {
                 continue;
@@ -307,8 +316,8 @@ static const float kMinConfidence = 1.3f;
         }
         double timeScore = bestSum / std::sqrt((double)gridCount);
 
-        // Mild wide prior toward common tempos — a tiebreaker only; the
-        // phase comb has already separated the metrical family.
+        // A mild, wide prior toward common tempos. It is a tiebreaker only,
+        // since the phase comb has already separated the metrical family.
         double bpm = 60.0 * fps / bestLagF;
         double z = (bpm - 120.0) / 80.0;
         double weighted = timeScore * std::exp(-0.5 * z * z);
@@ -321,18 +330,19 @@ static const float kMinConfidence = 1.3f;
         return 0;
     }
 
-    // Fine pass on the winner. The coarse sweep's ±1-frame neighborhood max is
-    // what makes the phase comb robust to onset jitter, but it also flattens
-    // the score into a plateau ~±0.05 frames wide around the true period, and
-    // the coarse winner lands anywhere on it (~±0.1 BPM at 120). Re-score a
-    // narrow band around the winner with linearly interpolated envelope
-    // samples and NO tolerance window: exact sampling turns any period error
-    // into real accumulated drift off the onset blobs, so the score peaks at
-    // the true period instead of plateauing. The blobs themselves are ~2
-    // frames wide (spectral flux spreads each transient across overlapping
-    // frames), which supplies all the jitter tolerance this final ±0.09-frame
-    // band still needs. Only the period is refined — an integer phase offset
-    // shifts every sampled beat equally and cannot bias the slope.
+    // The fine pass on the winner. The coarse sweep's ±1-frame neighborhood
+    // maximum is what makes the phase comb robust to onset jitter, but it also
+    // flattens the score into a plateau about ±0.05 frames wide around the
+    // true period, and the coarse winner lands anywhere on it, roughly ±0.1
+    // BPM at 120. So re-score a narrow band around the winner with linearly
+    // interpolated envelope samples and no tolerance window: exact sampling
+    // turns any period error into real accumulated drift off the onset blobs,
+    // and the score then peaks at the true period rather than plateauing. The
+    // blobs themselves are about two frames wide, because spectral flux
+    // spreads each transient across overlapping frames, and that supplies all
+    // the jitter tolerance this final ±0.09-frame band still needs. Only the
+    // period is refined: an integer phase offset shifts every sampled beat
+    // equally and cannot bias the slope.
     {
         double bestSum = -1;
         double refined = bestCandidateLag;

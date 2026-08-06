@@ -23,9 +23,10 @@
                                                          colorSpaceName:NSCalibratedRGBColorSpace
                                                             bytesPerRow:0
                                                            bitsPerPixel:0];
-    // Retag (no pixel conversion — the buffer is still empty) so the draw
-    // below color-matches into sRGB. Leaving the rep calibrated ("generic"
-    // RGB) shifts gamma/saturation for sRGB and P3 sources.
+    // Retag the rep, with no pixel conversion, since the buffer is still
+    // empty, so that the draw below color-matches into sRGB. Leaving the rep
+    // calibrated, as generic RGB, shifts the gamma and saturation of sRGB and
+    // P3 sources.
     rep = [rep bitmapImageRepByRetaggingWithColorSpace:NSColorSpace.sRGBColorSpace];
     if (!rep) {
         return nil;
@@ -52,11 +53,11 @@
     if (![rep isKindOfClass:[NSBitmapImageRep class]]) {
         return nil;
     }
-    // Direct buffer iteration: colorAtX:y: allocates an NSColor and runs
-    // colorspace conversions per pixel — orders of magnitude more work than
-    // reading the layout resizedImage always produces (meshed 8-bit RGBA,
-    // alpha last). The guards make the layout assumption explicit rather
-    // than trusted.
+    // Iterate the buffer directly. colorAtX:y: allocates an NSColor and runs
+    // colorspace conversions per pixel, orders of magnitude more work than
+    // reading the layout resizedImage always produces: meshed 8-bit RGBA, with
+    // alpha last. The guards make the layout assumption explicit rather than
+    // merely trusted.
     unsigned char *data = rep.bitmapData;
     if (!data || rep.isPlanar || rep.bitsPerPixel != 32 || rep.samplesPerPixel != 4
             || (rep.bitmapFormat & (NSBitmapFormatAlphaFirst | NSBitmapFormatFloatingPointSamples))) {
@@ -64,9 +65,9 @@
     }
     BOOL premultiplied = !(rep.bitmapFormat & NSBitmapFormatAlphaNonpremultiplied);
     NSInteger bytesPerRow = rep.bytesPerRow;
-    // Weighted hue histogram: vivid pixels (saturated AND not near-black)
-    // vote for their hue band; grays and shadows abstain but still feed the
-    // monochrome fallback average.
+    // A weighted hue histogram. Vivid pixels — saturated and not near-black —
+    // vote for their hue band, while grays and shadows abstain but still feed
+    // the monochrome fallback average.
     double binWeight[kHueBins], binR[kHueBins], binG[kHueBins], binB[kHueBins];
     memset(binWeight, 0, sizeof(binWeight));
     memset(binR, 0, sizeof(binR));
@@ -97,17 +98,18 @@
             if (saturation < 0.15 || brightness < 0.1) {
                 continue;
             }
-            // saturation >= 0.15 guarantees maxc > minc, so delta > 0.
+            // A saturation of 0.15 or more guarantees maxc > minc, so delta is
+            // above 0.
             double delta = maxc - minc;
             double hue;
             if (maxc == r)      hue = fmod((g - b) / delta + 6.0, 6.0) / 6.0;
             else if (maxc == g) hue = ((b - r) / delta + 2.0) / 6.0;
             else                hue = ((r - g) / delta + 4.0) / 6.0;
             double weight = saturation * brightness;
-            // Hue wraps: red straddles the 0.0/1.0 seam, so round to the
-            // nearest bin center and fold with a modulo — both edges land in
-            // bin 0. Flooring instead split red's vote across the first and
-            // last bins, uniquely penalizing red covers in the election.
+            // Hue wraps, and red straddles the 0.0-to-1.0 seam, so round to
+            // the nearest bin center and fold with a modulo, which lands both
+            // edges in bin 0. Flooring instead split red's vote across the
+            // first and last bins, penalizing red covers alone in the election.
             NSInteger bin = ((NSInteger)lround(hue * kHueBins)) % kHueBins;
             binWeight[bin] += weight;
             binR[bin] += r * weight;
@@ -124,8 +126,9 @@
             best = i;
         }
     }
-    // Under ~2% of pixels vivid: a monochrome cover — its overall gray is the
-    // honest answer (a hue teased out of noise would tint it a random color).
+    // With under about 2% of pixels vivid, this is a monochrome cover, and its
+    // overall gray is the honest answer. A hue teased out of the noise would
+    // tint it a random color.
     if (binWeight[best] < 0.02 * kSide * kSide) {
         return [NSColor colorWithSRGBRed:avgR / avgCount
                                    green:avgG / avgCount

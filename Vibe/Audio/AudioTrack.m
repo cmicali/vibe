@@ -8,9 +8,16 @@
 #import "Formatters.h"
 #import "NSURL+Hash.h"
 
+@interface AudioTrack ()
+// cacheKey's memo. It is atomic so that the lock-free fast-path read below is
+// race-free against the first store. A plain ivar read racing the
+// @synchronized writer is formally a torn read, even though an aligned pointer
+// store makes it benign in practice.
+@property (atomic, copy, nullable) NSString *memoizedCacheKey;
+@end
+
 @implementation AudioTrack {
     NSTimeInterval _duration;
-    NSString *_cacheKey;
     NSString *_durationString;
     NSTimeInterval _durationStringDuration;
 }
@@ -20,7 +27,6 @@
     if (self) {
         self.url = url;
         _duration = -1;
-        _cacheKey = nil;
     }
     return self;
 }
@@ -30,25 +36,29 @@
 }
 
 - (nullable NSString *)cacheKey {
-    // Double-checked: fast path avoids the lock once the key is computed
-    NSString *key = _cacheKey;
+    // Double-checked, so the fast path avoids the monitor once the key is
+    // computed. The atomic property read makes it race-free; see the
+    // declaration.
+    NSString *key = self.memoizedCacheKey;
     if (!key) {
-        // Compute OUTSIDE the lock: the file-attribute stat can block
-        // indefinitely on a hung network mount or dataless cloud file, and
-        // holding the monitor through it would wedge every other caller
-        // (metadata and waveform loaders both key off this). Concurrent
-        // callers may compute twice; results are identical, first store wins.
+        // Compute outside the lock. The file-attribute stat can block
+        // indefinitely on a hung network mount or a dataless cloud file, and
+        // holding the monitor through it would wedge every other caller, since
+        // the metadata and waveform loaders both key off this. Concurrent
+        // callers may compute twice, but the results are identical and the
+        // first store wins, because the monitor makes the check-then-store
+        // atomic.
         key = [self.url cacheKey];
         if (!key) {
-            // Stat failed (see NSURL+Hash) — likely transient, so don't
-            // memoize; the next call retries.
+            // The stat failed; see NSURL+Hash. That is probably transient, so
+            // do not memoize, and the next call retries.
             return nil;
         }
         @synchronized (self) {
-            if (!_cacheKey) {
-                _cacheKey = key;
+            if (!self.memoizedCacheKey) {
+                self.memoizedCacheKey = key;
             }
-            key = _cacheKey;
+            key = self.memoizedCacheKey;
         }
     }
     return key;
@@ -59,9 +69,9 @@
         return self.metadata.title;
     }
     else if (self.url) {
-        // Filename fallback until metadata loads; strip/trim exactly like
-        // AudioTrackMetadata's filename-derived title so the row doesn't
-        // change when metadata arrives for a tagless file.
+        // A filename fallback until metadata loads. It strips and trims
+        // exactly as AudioTrackMetadata's filename-derived title does, so the
+        // row does not change when metadata arrives for a tagless file.
         NSString *name = [[[self.url standardizedURL] lastPathComponent] stringByDeletingPathExtension];
         return [name stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     }
@@ -78,9 +88,9 @@
 }
 
 - (NSImage *)albumArt {
-    // Non-blocking on purpose: this is read from the main thread (updateUI,
-    // dock icon). Extraction that needs a file read happens via the
-    // background load MainPlayerController kicks off when albumArtNeedsLoad.
+    // Non-blocking on purpose, because the main thread reads it in updateUI
+    // and for the dock icon. Extraction that needs a file read happens in the
+    // background load MainPlayerController starts when albumArtNeedsLoad.
     return self.metadata.albumArtIfLoaded;
 }
 
@@ -93,10 +103,10 @@
     return tagged > 0 ? tagged : self.detectedBPM;
 }
 
-// _duration is written from the player queue (finishPlayOnQueue publishes
-// the decoded length) while the main thread reads it for cell rendering —
-// same cross-thread shape as the atomic metadata property, guarded here with
-// the monitor the file already uses for cacheKey.
+// _duration is written from the player queue, where finishPlayOnQueue
+// publishes the decoded length, while the main thread reads it for cell
+// rendering. That is the same cross-thread shape as the atomic metadata
+// property, guarded here with the monitor the file already uses for cacheKey.
 - (NSTimeInterval)duration {
     NSTimeInterval duration;
     @synchronized (self) {
@@ -119,9 +129,10 @@
     if (duration <= 0) {
         return @"";
     }
-    // Memoized per duration value; hot path during table cell rebuilds.
-    // MAIN THREAD ONLY (unlike duration): Formatters has no documented thread
-    // safety, and the monitor guards only the memo pair — not the formatter.
+    // Memoized per duration value, since this is a hot path during table cell
+    // rebuilds. Main thread only, unlike duration: Formatters has no
+    // documented thread safety, and the monitor guards only the memo pair, not
+    // the formatter.
     @synchronized (self) {
         if (!_durationString || _durationStringDuration != duration) {
             _durationString = [[Formatters sharedInstance] durationStringFromTimeInterval:duration];
@@ -140,8 +151,9 @@
         return [NSString stringWithFormat:@"%@ - %@", self.artist, self.title];
     }
     else {
-        // title never carries an extension (both fallbacks strip it), and
-        // re-stripping a real tagged title would mangle names like "Vol. 2".
+        // The title never carries an extension, since both fallbacks strip it,
+        // and re-stripping a real tagged title would mangle names like
+        // "Vol. 2".
         return [self.title stringByReplacingOccurrencesOfString:@"_" withString:@" "];
     }
 }

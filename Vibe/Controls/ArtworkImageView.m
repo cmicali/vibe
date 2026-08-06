@@ -5,13 +5,14 @@
 
 #import "ArtworkImageView.h"
 #import "NSDraggingImageComponent+Util.h"
+#import "Constants.h"
 
 // Movement (points) before a pressed mouse becomes a drag.
 static const CGFloat kDragHysteresis = 3;
 
 @implementation ArtworkImageView {
     // The exact URL instance startAccessingSecurityScopedResource was called
-    // on; fileURL may be reassigned (it's a copy property) before drag end.
+    // on. fileURL is a copy property and may be reassigned before the drag ends.
     NSURL *_securityScopedURL;
     // The mouseDown that may become a drag; nil once consumed or released.
     NSEvent *_pendingDragEvent;
@@ -36,13 +37,14 @@ static const CGFloat kDragHysteresis = 3;
 
     CGPoint dragPosition = [self convertPoint:[event locationInWindow] fromView:nil];
 
-    // Don't allow drag near buttons — this band must match the transport
-    // SymbolButtons MainPlayerContentView lays over the bottom of the art.
-    if (dragPosition.y < 42) {
+    // Do not allow a drag near the buttons: the band where
+    // MainPlayerContentView lays the transport SymbolButtons over the bottom
+    // of the art.
+    if (dragPosition.y < kArtworkTransportExclusionHeight) {
         return;
     }
 
-    // Record only; mouseDragged: starts the session once the pointer moves —
+    // Record only. mouseDragged: starts the session once the pointer moves;
     // starting here would flash a drag ghost on a plain click.
     _pendingDragEvent = event;
 }
@@ -70,9 +72,10 @@ static const CGFloat kDragHysteresis = 3;
     CGPoint dragPosition = [self convertPoint:[event locationInWindow] fromView:nil];
 
     NSURL *fileURL = self.fileURL;
-    // Record for the drag-end stop only when the start took: stop must
-    // balance a SUCCESSFUL start (an unbalanced stop over-releases the
-    // sandbox extension). NO — URL not security-scoped — still drags fine.
+    // Record for the drag-end stop only when the start took. The stop must
+    // balance a successful start, since an unbalanced stop over-releases the
+    // sandbox extension. A NO here, meaning the URL is not security-scoped,
+    // still drags fine.
     if ([fileURL startAccessingSecurityScopedResource]) {
         _securityScopedURL = fileURL;
     }
@@ -103,9 +106,9 @@ static const CGFloat kDragHysteresis = 3;
                                   event:event
                                  source:self];
 
-    // Note: we do *not* stop the security-scoped access here. The drag is
-    // async — stopping now would revoke the URL before the receiving app
-    // has finished reading it. We release access in
+    // Note that the security-scoped access is deliberately *not* stopped here.
+    // The drag is async, and stopping now would revoke the URL before the
+    // receiving app had finished reading it. Access is released in
     // draggingSession:endedAtPoint:operation: below.
 }
 

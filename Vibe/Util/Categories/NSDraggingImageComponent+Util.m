@@ -26,8 +26,8 @@
                                                            }
     ];
 
-    // Sized from the string's metrics; drawing in a rect (not at a point) is
-    // what makes the centered alignment apply.
+    // Sized from the string's metrics. Drawing in a rect, rather than at a
+    // point, is what makes the centered alignment apply.
     NSSize textSize = [attrStr size];
     NSSize labelSize = NSMakeSize(ceil(textSize.width), ceil(textSize.height));
 
@@ -38,8 +38,8 @@
 
     NSDraggingImageComponent *labelComponent = [NSDraggingImageComponent draggingImageComponentWithKey:NSDraggingImageComponentLabelKey];
     labelComponent.contents = stringImage;
-    // Centered 8pt below the icon (component frames are in the dragging
-    // item's space, so this hangs below draggingFrame).
+    // Centered 8pt below the icon. Component frames sit in the dragging item's
+    // space, so this hangs below draggingFrame.
     labelComponent.frame = NSMakeRect(NSMidX(imageRect) - labelSize.width / 2.0,
                                       NSMinY(imageRect) - labelSize.height - 8,
                                       labelSize.width, labelSize.height);

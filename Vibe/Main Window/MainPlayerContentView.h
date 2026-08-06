@@ -13,34 +13,35 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The main window's whole UI: builds artwork, waveform, transport buttons,
-// track labels, and the playlist table,
-// exposing them for the controller to drive. The view itself is transparent —
-// the window's Liquid Glass backdrop (NSGlassEffectView, installed by
-// MainPlayerController behind this view) provides the background.
-// Button/menu actions are sent to `target` (the controller). The view is
-// pinned at its design width (flexible right margin) so the window can widen
-// past it to reveal the pitch panel.
+// The main window's whole UI. It builds the artwork, waveform, transport
+// buttons, track labels and playlist table, and exposes them for the
+// controller to drive. The view itself is transparent: the window's Liquid
+// Glass backdrop, an NSGlassEffectView that MainPlayerController installs
+// behind this view, provides the background. Button and menu actions are sent
+// to `target`, the controller. The view is pinned at its design width, with a
+// flexible right margin, so that the window can widen past it to reveal the
+// pitch panel.
 @interface MainPlayerContentView : NSView
 
 - (instancetype)initWithTarget:(id)target;
 
-// Fired from the effective-appearance funnel (after the view's own
-// material/tint updates) so appearance-dependent state owned elsewhere —
-// the header art tint (ArtworkDisplayController) — can re-derive.
+// Fires from the effective-appearance funnel, after the view's own material
+// and tint updates, so that appearance-dependent state owned elsewhere — the
+// header art tint, in ArtworkDisplayController — can re-derive itself.
 @property (nonatomic, copy, nullable) void (^appearanceChangedHandler)(void);
 
-// Only the buttons the controller drives (symbol/enabled state) are exposed;
-// the traffic lights and playlist toggle are fully self-contained (action
-// wired at build, hover fade internal) and stay private to the view.
+// Only the buttons the controller drives, through their symbol and enabled
+// state, are exposed. The traffic lights and the playlist toggle are entirely
+// self-contained — their action is wired at build and their hover fade is
+// internal — so they stay private to the view.
 @property (readonly) SymbolButton *playButton;
 @property (readonly) SymbolButton *nextButton;
 
-// Tint wash over the header's glass panel; the artwork controller sets its
-// layer background to the current track's dominant art color. A plain view
-// rather than the glass's own tintColor because NSGlassEffectView drops its
-// tint entirely while the window is inactive — the wash must not change
-// with key state (ArtworkDisplayController).
+// The tint wash over the header's glass panel. The artwork controller sets its
+// layer background to the current track's dominant art color. It is a plain
+// view rather than the glass's own tintColor, because NSGlassEffectView drops
+// its tint entirely while the window is inactive, and the wash must not change
+// with key state; see ArtworkDisplayController.
 @property (readonly) NSView *headerTintView;
 @property (readonly) ArtworkImageView *albumArtImageView;
 @property (readonly) AudioWaveformView *waveformView;
@@ -49,17 +50,24 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) NSTextField *titleTextField;
 @property (readonly) NSTextField *totalTimeTextField;
 @property (readonly) NSTextField *currentTimeTextField;
-// Empty-state hint ("Drop a file or press ⌘O"); shown only while no track
+// The empty-state hint, "Drop a file or press ⌘O", shown only while no track
 // is loaded.
 @property (readonly) NSTextField *dropHintTextField;
 @property (readonly) NSTextField *fileMetadataTextField;
 @property (readonly) NSTextField *bpmTextField;
 
 @property (readonly) PlaylistTableView *playlistTableView;
-// Drop-target UI spanning the playlist pane (empty-state hint + drag-over
-// wells). Built hidden; the controller drives it from the updateUI funnel
-// (playlistEmpty + launch grace) and forwards the window's drag-over events.
+// The drop-target UI spanning the playlist pane: the empty-state hint and the
+// drag-over wells. It is built hidden. The controller drives it from the
+// updateUI funnel, on playlistEmpty and the launch grace, and forwards the
+// window's drag-over events.
 @property (readonly) PlaylistDropZoneView *playlistDropZoneView;
+
+// Re-caps the artist line's width so that it truncates clear of the codec
+// line's text rather than running under it. The view calls this itself on every
+// resize; TrackDisplayController calls it whenever the codec line's content
+// changes, since the clearance depends on how wide that text renders.
+- (void)layoutArtistLineClearOfCodecLine;
 
 @end
 

@@ -1,3 +1,3 @@
 # About window
 
-- `About/` contains the About window: `AboutWindowController` plus `VectorBallsView`, an MTKView Metal animation (paused while the window is occluded).
+- `About/` holds the About window: `AboutWindowController` and `VectorBallsView`, an MTKView Metal animation that pauses while the window is occluded.
