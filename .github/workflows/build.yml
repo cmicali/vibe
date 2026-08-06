@@ -1,0 +1,49 @@
+name: Build
+
+# Compile check on a clean checkout. Vibe.xcodeproj is generated from
+# project.yml and not tracked, so CI is the only place that regularly proves a
+# fresh clone still builds. There are no unit tests; this is a build gate.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch supersedes an in-flight run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # macOS 26 SDK: project.yml sets MACOSX_DEPLOYMENT_TARGET 26.0, so an
+    # older image's Xcode cannot build this.
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcrun --show-sdk-version --sdk macosx
+
+      # Only XcodeGen is missing from the runner image; jq ships with macOS 15+.
+      # `brew bundle` would reinstall jq for no reason, so install directly.
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # Signs ad-hoc (project.yml CODE_SIGN_IDENTITY: "-"), so no certificates
+      # or secrets are needed. Distribution signing lives in scripts/release.sh.
+      - name: Build ${{ matrix.configuration }}
+        run: make build CONFIG=${{ matrix.configuration }}
+
+      - name: Verify code signature
+        run: |
+          codesign --verify --deep --strict --verbose=2 \
+            "build/DerivedData/Build/Products/${{ matrix.configuration }}/Vibe.app"
