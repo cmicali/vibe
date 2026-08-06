@@ -48,6 +48,45 @@ typedef NS_ENUM(NSInteger, TrackDisplayState) {
     TrackDisplayStateError,       // play failed: error text over the track title
 };
 
+// The resolution itself, as a function of the flags rather than of the
+// controller, so it can be reasoned about — and tested — on its own.
+// MainPlayerController's displayState is the only caller; it reads the inputs
+// off its collaborators and every consumer routes through the result. Writing
+// a label without consulting it is how a stale time gets composited over the
+// error placeholder.
+//
+// The track arguments are compared by identity only, never messaged.
+static inline TrackDisplayState VibeResolveTrackDisplayState(
+        AudioTrack *_Nullable currentTrack,     // what the playlist says is current
+        AudioTrack *_Nullable playerTrack,      // what the player is actually on
+        AudioTrack *_Nullable erroredTrack,     // the track whose play last failed
+        BOOL emptyStateSuppressed,
+        BOOL playerIsStopped,
+        BOOL playerIsLoading) {
+    if (!currentTrack) {
+        // Launch grace: a launch-time open may still be resolving, so render a
+        // blank header instead of flashing the empty state.
+        return emptyStateSuppressed ? TrackDisplayStateLaunchGrace : TrackDisplayStateEmpty;
+    }
+    // Gated on stopped so that a retry's Loading or Playing state instantly
+    // lifts the error mask.
+    if (currentTrack == erroredTrack && playerIsStopped) {
+        return TrackDisplayStateError;
+    }
+    // A just-initiated track change is still queued on the player's serial
+    // queue: the player's currentTrack — and its position and duration — still
+    // describe the PREVIOUS file, because currentTrack flips to the new track
+    // only at didStartPlaying. Render the gap as Loading so the new track's
+    // tags are never composited over the old file's times; it is visible on
+    // slow cloud opens and instant on prefetched ones. Stopped is excluded,
+    // since an idle player at the end of the playlist legitimately parks on
+    // the playlist's last track.
+    if (!playerIsStopped && playerTrack != currentTrack) {
+        return TrackDisplayStateLoading;
+    }
+    return playerIsLoading ? TrackDisplayStateLoading : TrackDisplayStateTrack;
+}
+
 // Main thread only.
 @interface TrackDisplayController : NSObject
 

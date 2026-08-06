@@ -258,8 +258,8 @@
     _artworkController.artDidResolveHandler = ^{
         [weakControllerForArt updateUI];
     };
-    // The playing row's equalizer bars and title text take the artwork-derived
-    // accent, and the playlist controller reloads the row when it changes.
+    // The playing row's equalizer bars take the artwork-derived accent, and
+    // the playlist controller reloads the row when it changes.
     _artworkController.accentColorDidChangeHandler = ^(NSColor *accentColor) {
         weakControllerForArt.playlistController.accentColor = accentColor;
     };
@@ -381,30 +381,17 @@
 // updateUI, updatePlaybackUI and the Now Playing publish all read this same
 // resolution rather than re-deriving it from the underlying flags. The
 // rendering itself lives in TrackDisplayController.
+// The decision itself is VibeResolveTrackDisplayState, in
+// TrackDisplayController.h beside the enum it returns; this gathers its
+// inputs. Sampling isStopped once rather than per-branch also resolves the
+// whole state against one consistent view of the player.
 - (TrackDisplayState)displayState {
-    AudioTrack *track = self.playlistController.currentTrack;
-    if (!track) {
-        // The launch grace. A launch-time open may still be resolving, so
-        // render a blank header rather than flashing the empty state.
-        return _emptyStateSuppressed ? TrackDisplayStateLaunchGrace : TrackDisplayStateEmpty;
-    }
-    // The error mask is gated on isStopped, so that a retry's Loading or
-    // Playing state lifts it instantly.
-    if (track == _erroredTrack && self.audioPlayer.isStopped) {
-        return TrackDisplayStateError;
-    }
-    // A just-initiated track change is still queued on the player's serial
-    // queue, so the player's currentTrack, and its position and duration,
-    // still describe the previous file: currentTrack flips to the new track
-    // only at didStartPlaying. Render the gap as Loading, so that the new
-    // track's tags are never composited over the old file's times. The gap is
-    // visible on a slow cloud open and instant on a prefetched one. Stopped is
-    // excluded, because an idle player at the end of the playlist legitimately
-    // parks with the playlist's last track.
-    if (!self.audioPlayer.isStopped && self.audioPlayer.currentTrack != track) {
-        return TrackDisplayStateLoading;
-    }
-    return self.audioPlayer.isLoading ? TrackDisplayStateLoading : TrackDisplayStateTrack;
+    return VibeResolveTrackDisplayState(self.playlistController.currentTrack,
+                                        self.audioPlayer.currentTrack,
+                                        _erroredTrack,
+                                        _emptyStateSuppressed,
+                                        self.audioPlayer.isStopped,
+                                        self.audioPlayer.isLoading);
 }
 
 // The track the header should describe: the playlist's current track, or nil

@@ -1,8 +1,8 @@
-name: Build
+name: CI
 
-# Compile check on a clean checkout. Vibe.xcodeproj is generated from
-# project.yml and not tracked, so CI is the only place that regularly proves a
-# fresh clone still builds. There are no unit tests; this is a build gate.
+# Compile check and unit tests on a clean checkout. Vibe.xcodeproj is
+# generated from project.yml and not tracked, so CI is the only place that
+# regularly proves a fresh clone still builds.
 on:
   push:
     branches: [main]
@@ -47,3 +47,26 @@ jobs:
         run: |
           codesign --verify --deep --strict --verbose=2 \
             "build/DerivedData/Build/Products/${{ matrix.configuration }}/Vibe.app"
+
+  # A job of its own rather than a step on the build matrix: the suite is
+  # Debug-only, so hanging it off a two-configuration matrix would either run
+  # it twice or run it in a leg where it doesn't belong. Separate also means it
+  # reports as its own check and runs alongside the builds rather than behind
+  # them.
+  test:
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # The VibeTests bundle is host-less pure logic: no app launch, no window
+      # server, no audio hardware, no permissions — so it needs nothing from
+      # the runner that a build doesn't already need. Anything requiring the
+      # running app lives in the vibe-debug command channel, which is not
+      # suited to unattended CI (it drives a real window and needs Screen
+      # Recording and Accessibility grants).
+      - name: Run unit tests
+        run: make test

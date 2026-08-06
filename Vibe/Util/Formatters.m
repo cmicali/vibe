@@ -47,7 +47,10 @@
 }
 
 - (NSString *)durationStringFromTimeInterval:(NSTimeInterval)duration {
-    if (isnan(duration) || duration < 0) {
+    // stringFromTimeInterval: raises on a non-finite interval, and infinity
+    // reaches here from a zero sample rate the same way NaN reaches it from a
+    // failed open — isfinite covers both, plus -infinity.
+    if (!isfinite(duration) || duration < 0) {
         duration = 0;
     }
     NSDateComponentsFormatter *formatter = duration >= 3600 ? _hourTimeFormatter : _timeFormatter;
