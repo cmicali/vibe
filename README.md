@@ -84,3 +84,9 @@ xcodegen generate && open Vibe.xcodeproj
 Build and run the `Vibe` scheme with ⌘R. Re-run `xcodegen generate` after every pull or edit to `project.yml`.
 
 To build from the command line instead, run `scripts/build.sh`. It writes `build/DerivedData/Build/Products/Release/Vibe.app`.
+
+# License
+
+Vibe is licensed under the [Apache License 2.0](LICENSE).
+
+There is no package manager: all third-party code is vendored under `Vibe/ThirdParty/` and compiled into the app target. [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists every component and the license it is used under — most notably TagLib, which is dual-licensed and which Vibe uses under the Mozilla Public License 1.1 rather than the LGPL, because it is statically linked.

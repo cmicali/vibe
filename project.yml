@@ -95,6 +95,7 @@ targets:
           - "**/.DS_Store"
           - "**/*.xcprivacy"                  # PIN privacy manifests: keep UNbundled
           - "**/*.txt"                        # vendored LICENSE.txt: keep UNbundled
+          - "**/LICENSE.MPL"                  # TagLib's MPL 1.1 text: same, but not a .txt
           - "**/*.md"                         # nested CLAUDE.md guidance: keep UNbundled
           - "**/Info.plist"                   # consumed via INFOPLIST_FILE; must NOT be bundled
           - "**/PINDiskCache.m"               # re-added below with its per-file flag
