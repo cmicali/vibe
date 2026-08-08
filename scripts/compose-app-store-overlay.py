@@ -20,7 +20,9 @@ vignetted. Each shot therefore carries the colour of the music it is showing.
 
 import argparse
 import os
+import subprocess
 import sys
+import tempfile
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
@@ -51,6 +53,19 @@ FONT = "/System/Library/Fonts/SFNS.ttf"
 HEADLINE_WEIGHT, SUBHEAD_WEIGHT = "Semibold", "Regular"
 # Tracking as a fraction of the point size. SF tightens at display sizes.
 HEADLINE_TRACKING, SUBHEAD_TRACKING = -0.014, 0.0
+
+# Optional row of SF Symbols above the headline (--glyphs). Height and gap are
+# fractions of the canvas width; the height is deliberately larger than the
+# headline's point size, so the row reads as artwork rather than as a caption.
+SYMBOL_RENDERER = os.path.join(ROOT, "scripts", "screenshots", "render-symbols.swift")
+GLYPH_H_FRAC = 0.050
+GLYPH_GAP_FRAC = 0.030
+GLYPH_BLOCK_GAP_FRAC = 0.026
+GLYPH_ALPHA = 235
+GLYPH_WEIGHT = "regular"
+# Point size handed to the rasterizer. Symbols are vector, so this only sets
+# resolution -- keep it comfortably above the drawn height.
+GLYPH_RENDER_PT = 220
 
 
 # --- the window -------------------------------------------------------------
@@ -156,6 +171,49 @@ def build_background(art, w, h):
     return ImageEnhance.Contrast(bg).enhance(1.06).convert("RGBA")
 
 
+# --- SF Symbol row ----------------------------------------------------------
+
+
+def render_glyphs(names, out_dir):
+    """Rasterize SF Symbols through AppKit -- PIL cannot reach them."""
+    subprocess.run(
+        ["swift", SYMBOL_RENDERER, out_dir, str(GLYPH_RENDER_PT), GLYPH_WEIGHT, *names],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    return [Image.open(os.path.join(out_dir, f"{n}.png")).convert("RGBA") for n in names]
+
+
+def layout_glyphs(images, w):
+    """Scale the row uniformly and lay it out centred. Uniform scaling matters:
+    the symbols were rasterized at one point size, so their differing natural
+    heights are SF Symbols' own optical sizing, and normalizing each to the same
+    height would distort the set relative to how the app draws them."""
+    target = w * GLYPH_H_FRAC
+    scale = target / max(im.height for im in images)
+    scaled = [
+        im.resize((max(1, round(im.width * scale)), max(1, round(im.height * scale))), Image.LANCZOS)
+        for im in images
+    ]
+    gap = w * GLYPH_GAP_FRAC
+    total = sum(im.width for im in scaled) + gap * (len(scaled) - 1)
+    return scaled, total, max(im.height for im in scaled)
+
+
+def draw_glyphs(canvas, y, images, w):
+    """Draw the row centred on the canvas at top y. Returns the height used."""
+    scaled, total, row_h = layout_glyphs(images, w)
+    x = (w - total) / 2
+    for im in scaled:
+        if GLYPH_ALPHA < 255:
+            im.putalpha(im.getchannel("A").point(lambda v: v * GLYPH_ALPHA // 255))
+        # Centre each symbol on the row's midline rather than its top, so the
+        # shorter ones (water.waves) sit level with the taller ones.
+        canvas.alpha_composite(im, (round(x), round(y + (row_h - im.height) / 2)))
+        x += im.width + w * GLYPH_GAP_FRAC
+    return row_h
+
+
 # --- text -------------------------------------------------------------------
 
 # Point size and leading of each line, as fractions of the canvas width.
@@ -215,7 +273,7 @@ def text_height(headline, subhead, w):
 # --- run --------------------------------------------------------------------
 
 
-def compose(shot, out, headline, subhead, canvas_w, canvas_h, width_frac):
+def compose(shot, out, headline, subhead, canvas_w, canvas_h, width_frac, glyphs=()):
     win, header = load_window(shot)
     art = win.crop((0, 0, header, header))
 
@@ -225,9 +283,22 @@ def compose(shot, out, headline, subhead, canvas_w, canvas_h, width_frac):
 
     canvas = build_background(art, canvas_w, canvas_h)
 
+    glyph_images = []
+    glyph_h = glyph_gap = 0
+    if glyphs:
+        with tempfile.TemporaryDirectory() as tmp:
+            glyph_images = render_glyphs(glyphs, tmp)
+        glyph_h = layout_glyphs(glyph_images, canvas_w)[2]
+        glyph_gap = canvas_w * GLYPH_BLOCK_GAP_FRAC
+
     block_h = text_height(headline, subhead, canvas_w)
     gap = canvas_w * 0.032 if block_h else 0
-    top = (canvas_h - (block_h + gap + win.height)) * BLOCK_Y_FRAC
+    stack = glyph_h + glyph_gap + block_h + gap + win.height
+    top = (canvas_h - stack) * BLOCK_Y_FRAC
+
+    if glyph_images:
+        draw_glyphs(canvas, top, glyph_images, canvas_w)
+        top += glyph_h + glyph_gap
     if block_h:
         draw_text(canvas, top, headline, subhead, canvas_w)
 
@@ -249,9 +320,15 @@ def main():
     p.add_argument("--subhead", default="")
     p.add_argument("--width", type=float, default=WINDOW_W_FRAC)
     p.add_argument("--canvas", default=f"{CANVAS_W}x{CANVAS_H}")
+    p.add_argument(
+        "--glyphs",
+        default="",
+        help="comma-separated SF Symbol names drawn in a row above the headline",
+    )
     a = p.parse_args()
     cw, ch = (int(v) for v in a.canvas.split("x"))
-    compose(a.shot, a.out, a.headline, a.subhead, cw, ch, a.width)
+    glyphs = [g.strip() for g in a.glyphs.split(",") if g.strip()]
+    compose(a.shot, a.out, a.headline, a.subhead, cw, ch, a.width, glyphs)
 
 
 if __name__ == "__main__":
