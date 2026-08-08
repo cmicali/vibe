@@ -1,12 +1,12 @@
 # Vibe
 
-A fast, minimal, Winamp-inspired music player for macOS. It is built for DJs: big local libraries, lossless files, and the need to sort and scrub through tracks in a hurry.
+A fast, minimal music player for the Mac. No third-party engine, no account, no subscription. Just a simple, fast player for your files. 
 
 ![Vibe screenshot](Assets/screenshot-basic.png)
 
-## Features
-
 [![Download on the App Store](https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1374883200)](https://apps.apple.com/us/app/vibe-music-player/id1582482361?mt=12)
+
+## Features
 
 - **Formats** — MP3, MP2, AAC, FLAC, MP4/M4A, AIFF and WAV, all decoded natively by CoreAudio
 - **Waveform seek bar** — a SoundCloud-style waveform; click it to seek
@@ -16,17 +16,13 @@ A fast, minimal, Winamp-inspired music player for macOS. It is built for DJs: bi
 - **Performance FX** — a low-kill filter, a reverb wash and BPM-synced delays on `Q`–`T`; tap to latch, hold for momentary
 - **Pitch adjust** — an optional SL-1200-style pitch fader
 
-## Usage
-
-Drop audio files or a folder on the window to play them.
-
-Click the waveform to seek.
-
 ![Vibe screenshot](Assets/screenshot-playlist.png)
 
-Drag the artwork out to copy the playing file somewhere else.
+## Usage
 
-![Vibe screenshot](Assets/screenshot-pitch.png)
+Drop audio files or a folder on the window to play them. Click the waveform to seek.
+
+Drag the artwork out to copy the playing file somewhere else.
 
 ### Key commands
 
@@ -53,9 +49,15 @@ Drag the artwork out to copy the playing file somewhere else.
 
 Tap an FX key to latch the effect; hold it for momentary.
 
+![Vibe screenshot](Assets/screenshot-pitch.png)
+
 ![Vibe screenshot](Assets/screenshot-playlist-pitch.png)
 
 # Development
+
+Vibe is written in Objective-C/C++ and is focused on performance and speed. It uses CoreAudio directly
+and avoids 3rd-party libraries where possible. TagLib 1.3 is included in-tree and used for reading 
+metadata and artwork.
 
 ## Requirements
 

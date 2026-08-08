@@ -16,14 +16,17 @@
 # the window is the picture, at the cost of being a composite. See the header
 # of compose-app-store-overlay.py.
 #
-# The headline copy lives here rather than in the compositor: it is marketing
-# text, and it is the thing most likely to be revised.
+# The headline copy lives in docs/app-store-screenshot-copy.sh rather than in
+# the compositor or this script: it is marketing text, and it is the thing
+# most likely to be revised.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IN="$ROOT/Assets"
 OUT="${1:-$ROOT/Assets/app-store}"
 COMPOSE="$ROOT/scripts/compose-app-store-overlay.py"
+
+source "$ROOT/docs/app-store-screenshot-copy.sh"
 
 mkdir -p "$OUT"
 
@@ -32,20 +35,9 @@ shot() { # <source> <output> <headline> <subhead>
     python3 "$COMPOSE" "$IN/$1" "$OUT/$2" --headline "$3" --subhead "$4"
 }
 
-shot screenshot-basic.png 01-player.png \
-    "Your files, played instantly" \
-    "MP3, FLAC, AIFF, WAV and more. Click the waveform to seek."
-
-shot screenshot-playlist.png 02-playlist.png \
-    "Drop a folder, start playing" \
-    "Artwork, tags and BPM read on the fly, cached for speed."
-
-shot screenshot-playlist-pitch.png 03-pitch.png \
-    "DJs will feel at home" \
-    "An SL-1200-style pitch fader, bar-accurate skips, and performance FX on the keys."
-
-shot screenshot-pitch.png 04-keys.png \
-    "Hands on the keyboard" \
-    "Transport, bar skips, performance FX and pitch — no modifier keys."
+shot screenshot-basic.png          01-player.png   "$COPY_PLAYER_HEADLINE"   "$COPY_PLAYER_SUBHEAD"
+shot screenshot-playlist.png       02-playlist.png "$COPY_PLAYLIST_HEADLINE" "$COPY_PLAYLIST_SUBHEAD"
+shot screenshot-playlist-pitch.png 03-pitch.png    "$COPY_PITCH_HEADLINE"    "$COPY_PITCH_SUBHEAD"
+shot screenshot-pitch.png          04-keys.png     "$COPY_KEYS_HEADLINE"     "$COPY_KEYS_SUBHEAD"
 
 echo "done — $OUT"
