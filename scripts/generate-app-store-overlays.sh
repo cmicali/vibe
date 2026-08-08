@@ -30,12 +30,13 @@ source "$ROOT/docs/app-store-screenshot-copy.sh"
 
 mkdir -p "$OUT"
 
-shot() { # <source> <output> <headline> <subhead>
+shot() { # <source> <output> <headline> <subhead> [glyphs]
     [ -f "$IN/$1" ] || { echo "missing: $IN/$1 — run generate-readme-screenshots.sh" >&2; exit 1; }
-    python3 "$COMPOSE" "$IN/$1" "$OUT/$2" --headline "$3" --subhead "$4"
+    python3 "$COMPOSE" "$IN/$1" "$OUT/$2" --headline "$3" --subhead "$4" --glyphs "${5:-}"
 }
 
-shot screenshot-basic.png          01-player.png   "$COPY_PLAYER_HEADLINE"   "$COPY_PLAYER_SUBHEAD"
+shot screenshot-basic.png          01-player.png   "$COPY_PLAYER_HEADLINE"   "$COPY_PLAYER_SUBHEAD" \
+                                                   "$COPY_PLAYER_GLYPHS"
 shot screenshot-playlist.png       02-playlist.png "$COPY_PLAYLIST_HEADLINE" "$COPY_PLAYLIST_SUBHEAD"
 shot screenshot-playlist-pitch.png 03-pitch.png    "$COPY_PITCH_HEADLINE"    "$COPY_PITCH_SUBHEAD"
 shot screenshot-pitch.png          04-keys.png     "$COPY_KEYS_HEADLINE"     "$COPY_KEYS_SUBHEAD"
