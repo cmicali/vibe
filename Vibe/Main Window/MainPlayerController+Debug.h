@@ -12,6 +12,8 @@
 #if DEBUG
 
 #import "MainPlayerController.h"
+// For the convert_to_flac, undo and redo verbs.
+#import "MainPlayerController+Convert.h"
 
 @class SymbolButton;
 @class PitchControlPanel;

@@ -34,6 +34,12 @@ NS_ASSUME_NONNULL_BEGIN
 // C++ chunk buffer the renderers read.
 - (void)showWaveform:(CodableAudioWaveform *)waveform;
 
+// Convert to FLAC progress: the bars between the previous fraction and this
+// one collapse to the midline and ease back — a brush moving through the
+// waveform. A smaller value just moves the front back; prepareForWaveformLoad
+// and the empty and loading states reset it.
+@property (nonatomic) double convertSweepFraction;
+
 // An indeterminate shimmer across the waveform area while a slow file open is
 // pending, as when a cloud placeholder is downloading.
 - (void)showLoadingIndicator;

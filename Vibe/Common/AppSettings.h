@@ -51,4 +51,9 @@
 - (NSInteger)pitchRange;
 - (void)setPitchRange:(NSInteger)range;
 
+// Convert > Delete Original: YES sends a converted source file to the Trash
+// once its FLAC is in place. Governs every conversion path.
+- (BOOL)deleteOriginalAfterConvert;
+- (void)setDeleteOriginalAfterConvert:(BOOL)deleteOriginal;
+
 @end

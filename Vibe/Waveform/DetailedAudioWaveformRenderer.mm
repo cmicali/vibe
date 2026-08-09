@@ -294,6 +294,10 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     }];
 }
 
+- (void)dipBarsFromFraction:(double)from toFraction:(double)to {
+    [_morph dipDisplayedSamplesFromFraction:from toFraction:to];
+}
+
 // Builds the bar path for the currently displayed samples and sets it on the
 // shared mask. It is the morph engine's rebuild callback. Pixel-rounding is
 // reserved for the settled state, because mid-morph it would quantize the

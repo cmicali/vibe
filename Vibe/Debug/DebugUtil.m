@@ -25,6 +25,7 @@
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformView.h"
+#import "AudioFileConverter.h"
 #import "PlaylistController.h"
 #import "PlaylistDropZoneView.h"
 #import "MainPlayerContentView.h"
@@ -238,6 +239,10 @@ static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"playButtonEnabled": @(controller.playButton.isEnabled),
             @"nextButtonEnabled": @(controller.nextButton.isEnabled),
             @"pitchFader": @(controller.pitchPanel.pitch),
+            @"converting": @(controller.fileConverter.isConverting),
+            @"convertSweep": @(controller.trackDisplay.convertSweepFraction),
+            @"canUndo": @(window.undoManager.canUndo),
+            @"canRedo": @(window.undoManager.canRedo),
         },
         @"window": @{
             @"frame": NSStringFromRect(window.frame),
@@ -251,6 +256,7 @@ static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"pitchPanelShown": @(Settings.isPitchPanelShown),
             @"waveformStyle": Settings.waveformStyle ?: @"",
             @"outputDeviceName": Settings.audioOutputDeviceName ?: @"",
+            @"deleteOriginalAfterConvert": @(Settings.deleteOriginalAfterConvert),
         },
     };
 }
@@ -916,6 +922,33 @@ static NSDictionary *VibeActionCmd(NSString *usage, void (^action)(MainPlayerCon
     });
 }
 
+// The undo and redo verbs. A conversion's file moves settle after the manager
+// call returns, so the reply waits on the controller's one-shot settled hook
+// rather than racing the Trash; a reply outliving the client's timeout writes
+// one orphan response and cannot fire on a later menu-driven undo.
+static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerController *controller, BOOL redo) {
+    NSUndoManager *undoManager = controller.window.undoManager;
+    if (redo ? !undoManager.canRedo : !undoManager.canUndo) {
+        return VibeErrorJSON(redo ? @"nothing to redo" : @"nothing to undo");
+    }
+    NSString *actionName = redo ? undoManager.redoActionName : undoManager.undoActionName;
+    controller.conversionUndoRedoSettledHandler = ^{
+        VibeWriteDebugResponse(commandId, VibeJSONString(@{
+            @"ok": @YES,
+            (redo ? @"redid" : @"undid"): actionName ?: @"",
+            @"canUndo": @(undoManager.canUndo),
+            @"canRedo": @(undoManager.canRedo),
+        }));
+    };
+    if (redo) {
+        [undoManager redo];
+    }
+    else {
+        [undoManager undo];
+    }
+    return nil; // response written by the settled hook
+}
+
 // The command set. Dispatch, the unknown-command usage reply and the client's
 // per-verb wait all derive from this table, so adding an entry here is the
 // entire app-side hookup. The usage docs live in the vibe-debug skill.
@@ -1136,6 +1169,57 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     VibeWriteDebugResponse(commandId, reply);
                 }];
                 return nil; // response written by the completion above
+            }),
+            // The whole Convert to FLAC path on the current track, swap and
+            // disposal included. The optional keep|delete token writes
+            // Convert > Delete Original, as the menu item does, and leaves it
+            // written — applied only once the command will actually convert,
+            // so a usage error or missing track mutates nothing. The
+            // 120-second clientTimeout covers a long encode.
+            VibeCmd(@"convert_to_flac [keep|delete]", 120, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                NSString *mode = tokens.count > 1 ? tokens[1].lowercaseString : nil;
+                if (tokens.count > 2 ||
+                        (mode && !([mode isEqualToString:@"keep"] || [mode isEqualToString:@"delete"]))) {
+                    return VibeErrorJSON(@"usage: convert_to_flac [keep|delete]");
+                }
+                AudioTrack *track = controller.playlistController.currentTrack;
+                if (!track) {
+                    return VibeErrorJSON(@"no track to convert");
+                }
+                if (mode) {
+                    Settings.deleteOriginalAfterConvert = [mode isEqualToString:@"delete"];
+                }
+                // Read before the swap replaces the track; reported back so a
+                // test can assert the deletion without reading the Trash,
+                // which TCC denies a terminal.
+                NSString *sourcePath = track.url.path;
+                [controller convertTrackToFLAC:track
+                                    completion:^(NSURL *outputURL, BOOL sourceDeleted, NSError *error) {
+                    if (!outputURL) {
+                        VibeWriteDebugResponse(commandId,
+                                VibeErrorJSON(@"convert failed: %@", error.localizedDescription));
+                        return;
+                    }
+                    AudioTrack *swapped = [controller.playlistController trackForURL:outputURL];
+                    // The completion runs after the disposal settles, so this
+                    // stat is a verdict, not a race.
+                    BOOL sourceRemains = [NSFileManager.defaultManager fileExistsAtPath:sourcePath];
+                    VibeWriteDebugResponse(commandId, VibeJSONString(@{
+                        @"ok": @YES,
+                        @"output": outputURL.path,
+                        @"row": @([controller.playlistController getIndexForTrack:swapped]),
+                        @"source": sourcePath ?: @"",
+                        @"sourceDeleted": @(sourceDeleted),
+                        @"sourceRemains": @(sourceRemains),
+                    }));
+                }];
+                return nil; // response written by the completion above
+            }),
+            VibeCmd(@"undo", 30, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeRunUndoRedoCommand(commandId, controller, NO);
+            }),
+            VibeCmd(@"redo", 30, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeRunUndoRedoCommand(commandId, controller, YES);
             }),
             VibeCmd(@"file_clear_cache <file>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *errorJSON = nil;

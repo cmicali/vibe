@@ -13,6 +13,7 @@
 #define SETTING_PLAYLIST_SHOWN                      @"MainWindow.playlistShown"
 #define SETTING_PITCH_RANGE                         @"AudioPlayer.pitchRange"
 #define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"
+#define SETTING_DELETE_ORIGINAL_AFTER_CONVERT       @"Convert.deleteOriginal"
 
 @implementation AppSettings
 
@@ -43,6 +44,7 @@
             SETTING_PLAYLIST_SHOWN:                 @(NO),
             SETTING_PITCH_RANGE:                    @(8),
             SETTING_SHOW_REMAINING_TIME:            @(NO),
+            SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
     };
     [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
 }
@@ -130,6 +132,14 @@
 
 - (void)setPitchRange:(NSInteger)range {
     [[NSUserDefaults standardUserDefaults] setInteger:range forKey:SETTING_PITCH_RANGE];
+}
+
+- (BOOL)deleteOriginalAfterConvert {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_DELETE_ORIGINAL_AFTER_CONVERT];
+}
+
+- (void)setDeleteOriginalAfterConvert:(BOOL)deleteOriginal {
+    [[NSUserDefaults standardUserDefaults] setBool:deleteOriginal forKey:SETTING_DELETE_ORIGINAL_AFTER_CONVERT];
 }
 
 @end

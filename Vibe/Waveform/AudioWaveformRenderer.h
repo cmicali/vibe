@@ -56,6 +56,11 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 
+// The Convert to FLAC sweep: collapse the bars in the x-fraction span
+// [from, to) to the midline and let the shared morph ease them back. The base
+// does nothing; the families forward to their morph engine.
+- (void)dipBarsFromFraction:(double)from toFraction:(double)to;
+
 // The hover scrubbing affordance: light the waveform's own column at view x to
 // full brightness. No separate playhead is drawn, because the waveform is the
 // affordance. A negative x clears it. Renderers keep the x, so that a resize

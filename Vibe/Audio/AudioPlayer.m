@@ -110,6 +110,12 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // contains. Otherwise row state, artwork and end-of-track advance all
     // mismatch.
     AudioTrack *_pendingOpenTrack;
+    // Where the in-flight open should start, and whether it parks there. Ride
+    // with _pendingOpenTrack: written by play:atPosition:startPaused:,
+    // consumed once by finishPlayOnQueue:, cleared with the track when an
+    // open is abandoned. Queue-confined.
+    NSTimeInterval          _pendingStartPosition;
+    BOOL                    _pendingStartPaused;
     // Pre-opened handle for the playlist's likely-next track, from
     // prefetchTrack:. Queue-confined, and consumed once by a play: of the same
     // path, which skips the file open and so the dominant transition latency.
@@ -273,7 +279,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 #pragma mark - Playback
 
 - (void)play:(AudioTrack *)track {
+    [self play:track atPosition:0 startPaused:NO];
+}
+
+- (void)play:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused {
     dispatch_async(_queue, ^{
+        self->_pendingStartPosition = MAX(0, position);
+        self->_pendingStartPaused = startPaused;
         [self playOnQueue:track];
     });
 }
@@ -395,6 +407,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         track = _pendingOpenTrack;
     }
     _pendingOpenTrack = nil;
+    NSTimeInterval startPosition = _pendingStartPosition;
+    BOOL startPaused = _pendingStartPaused;
+    _pendingStartPosition = 0;
+    _pendingStartPaused = NO;
 
     if (!file || file.length <= 0) {
         [self resetToStoppedStateOnQueue];
@@ -413,28 +429,44 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         return;
     }
 
-    [self scheduleFile:file onNode:node fromFrame:0];
+    // Clamp as seekToPosition: does: a start past the end lands on the last
+    // frame rather than scheduling an empty segment.
+    double sampleRate = file.processingFormat.sampleRate;
+    AVAudioFramePosition startFrame = (AVAudioFramePosition)(startPosition * sampleRate);
+    startFrame = MAX(0, MIN(startFrame, file.length - 1));
+    NSTimeInterval framePosition = (NSTimeInterval)startFrame / sampleRate;
+
+    [self scheduleFile:file onNode:node fromFrame:startFrame];
     node.volume = 0; // fade in from silence (see the ramp below)
 
-    NSError *startError = nil;
-    if (![self startEngineAndPlayNode:node error:&startError]) {
-        _generation++; // drop the scheduled segment's stop-fired completion
-        [node stop];
-        [_engine detachNode:node];
-        [self resetToStoppedStateOnQueue];
-        [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-                @"Could not start audio engine", startError)];
-        return;
+    if (startPaused) {
+        // A scheduled, silent, never-played node is exactly what a pause
+        // leaves behind, so playPause's resume branch takes it from here.
+        [self publishPlaybackState:VibePlayerStatePaused node:node file:file
+                      segmentStart:startFrame position:framePosition];
     }
+    else {
+        NSError *startError = nil;
+        if (![self startEngineAndPlayNode:node error:&startError]) {
+            _generation++; // drop the scheduled segment's stop-fired completion
+            [node stop];
+            [_engine detachNode:node];
+            [self resetToStoppedStateOnQueue];
+            [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
+                    @"Could not start audio engine", startError)];
+            return;
+        }
 
-    [self publishPlaybackState:VibePlayerStatePlaying node:node file:file segmentStart:0 position:0];
+        [self publishPlaybackState:VibePlayerStatePlaying node:node file:file
+                      segmentStart:startFrame position:framePosition];
 
-    // Fade the new track in from silence. Its first frame is rarely a zero
-    // crossing, so starting at full volume clicks, which is why the seek fades
-    // in too. This uses the current ramp generation rather than a fresh one,
-    // so it rises in step with the outgoing track's fade-out — a real
-    // crossfade — and neither ramp cancels the other.
-    [self rampNodeAsync:node step:1 from:0 to:1.0 generation:_rampGeneration completion:nil];
+        // Fade the new track in from silence. Its first frame is rarely a zero
+        // crossing, so starting at full volume clicks, which is why the seek fades
+        // in too. This uses the current ramp generation rather than a fresh one,
+        // so it rises in step with the outgoing track's fade-out — a real
+        // crossfade — and neither ramp cancels the other.
+        [self rampNodeAsync:node step:1 from:0 to:1.0 generation:_rampGeneration completion:nil];
+    }
 
     self.currentTrack = track;
     track.duration = self.duration;
@@ -613,6 +645,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _openRequestId++;
     _currentOpenPath = nil;
     _pendingOpenTrack = nil;
+    // The abandoned open's start request goes with its track.
+    _pendingStartPosition = 0;
+    _pendingStartPaused = NO;
     // Detach the varispeed that playOnQueue: attached for the failed track.
     // Otherwise it stays attached across Stopped until the next play or stop;
     // stopOnQueue arrives here with it already nil. The detach must not throw,

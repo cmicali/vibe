@@ -59,6 +59,12 @@ NS_ASSUME_NONNULL_BEGIN
                       count:(NSUInteger)count
                        fill:(void (^)(std::vector<float> &target))fill;
 
+// The Convert to FLAC sweep: zeroes the displayed samples in the x-fraction
+// span and ensures the ease is running, so they grow back toward the
+// unchanged target. Samples run left to right in both families, so the
+// fraction maps to the array linearly. A no-op without a waveform.
+- (void)dipDisplayedSamplesFromFraction:(double)from toFraction:(double)to;
+
 // For the rebuild callback. settled is YES when no morph is running, and the
 // Detailed family pixel-rounds only then: mid-morph it would quantize the
 // motion into visible one-pixel steps.

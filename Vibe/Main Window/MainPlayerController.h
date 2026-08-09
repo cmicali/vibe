@@ -12,6 +12,7 @@
 @class PlaylistController;
 @class AudioTrackMetadataCache;
 @class AudioWaveformCache;
+@class AudioFileConverter;
 @class OutputDevicesMenuController;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -31,6 +32,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (strong) PlaylistController *playlistController;
 @property (strong) AudioTrackMetadataCache *metadataCache;
 @property (strong) AudioWaveformCache *waveformCache;
+// Convert to FLAC's engine. The controller owns it because it also owns the
+// swap afterwards, and every menu's item validates against it.
+@property (strong) AudioFileConverter *fileConverter;
 
 - (void)play:(NSArray<NSURL *> *)urls;
 - (void)playURL:(NSURL *)url;
@@ -75,6 +79,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)setPitchRange:(id)sender;
 
 - (IBAction)showInFinder:(id)sender;
+
+// The Convert to FLAC and undo/redo actions live in
+// MainPlayerController+Convert.h, like the Transport actions.
 
 - (IBAction)setAppearance:(id)sender;
 

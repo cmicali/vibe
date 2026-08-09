@@ -180,6 +180,17 @@ targets:
               - "org.xiph.flac"
               - "com.apple.m4a-audio"
               - "public.mpeg-4-audio"
+          # Sandbox plumbing, not an offer to open anything — flac is covered
+          # above. NSIsRelatedItemType lets Convert to FLAC claim foo.flac as
+          # a related item of an opened foo.wav and write it beside a
+          # single-file grant. DocumentTypes.declaredTypes skips such entries,
+          # keeping this out of the ⌘O filter and the default-player claim.
+          - CFBundleTypeName: "Converted FLAC"
+            CFBundleTypeRole: "Editor"
+            LSHandlerRank: "None"
+            NSIsRelatedItemType: true
+            LSItemContentTypes:
+              - "org.xiph.flac"
 
     settings:
       base:
@@ -307,10 +318,12 @@ targets:
           - "$(SRCROOT)/Vibe/Audio"
           - "$(SRCROOT)/Vibe/Audio/Metadata"
           - "$(SRCROOT)/Vibe/Audio/Waveform"
-          # Header-only: the display-state resolver and the skip arithmetic
-          # are static inlines, so the tests reach them without compiling
-          # (or linking against) the controllers they were lifted out of.
+          # Header-only: the display-state resolver, the skip arithmetic and
+          # the Convert to FLAC rules are static inlines, so the tests reach
+          # them without compiling (or linking against) the controllers and
+          # the converter they were lifted out of.
           - "$(SRCROOT)/Vibe/Main Window"
+          - "$(SRCROOT)/Vibe/Audio/Convert"
     dependencies:
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform
       - sdk: AppKit.framework                # AudioTrack album art (NSImage)
