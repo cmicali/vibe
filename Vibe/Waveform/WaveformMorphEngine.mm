@@ -92,6 +92,29 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     return _displayedSamples;
 }
 
+- (void)dipDisplayedSamplesFromFraction:(double)from toFraction:(double)to {
+    if (!_hasWaveform || _displayedSamples.empty()) {
+        return;
+    }
+    double count = (double)_displayedSamples.size();
+    size_t start = (size_t)MAX(floor(from * count), 0.0);
+    size_t end = (size_t)MIN(ceil(to * count), count);
+    BOOL dipped = NO;
+    for (size_t i = start; i < end; i++) {
+        if (_displayedSamples[i] != 0.0f) {
+            _displayedSamples[i] = 0.0f;
+            dipped = YES;
+        }
+    }
+    if (!dipped) {
+        return;
+    }
+    // Draw the notch this frame — the timer's first tick would otherwise ease
+    // it partway back before it was ever seen at zero.
+    [self runRebuild];
+    [self startMorphTimer];
+}
+
 - (CGSize)size {
     return _size;
 }

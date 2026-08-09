@@ -6,6 +6,7 @@
 #import "MainMenuBuilder.h"
 #import "AppDelegate.h"
 #import "MainPlayerController.h"
+#import "MainPlayerController+Convert.h"
 #import "MainPlayerController+Transport.h"
 #import "OpenRecentMenuController.h"
 #import "OutputDevicesMenuController.h"
@@ -95,6 +96,12 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSeparator(fileMenu);
     AddSymbolItem(fileMenu, @"Close File", @"xmark", @selector(closeFile:), player, @"w", NSEventModifierFlagCommand, @"menu_close");
 
+    // Edit: undo and redo only — the app has no selection and no clipboard.
+    // Validation retitles them from NSUndoManager.
+    NSMenu *editMenu = Submenu(mainMenu, @"Edit").submenu;
+    AddSymbolItem(editMenu, @"Undo", @"arrow.uturn.backward", @selector(undo:), player, @"z", NSEventModifierFlagCommand, @"menu_edit_undo");
+    AddSymbolItem(editMenu, @"Redo", @"arrow.uturn.forward", @selector(redo:), player, @"z", NSEventModifierFlagCommand | NSEventModifierFlagShift, @"menu_edit_redo");
+
     // Playback
     NSMenu *playbackMenu = Submenu(mainMenu, @"Playback").submenu;
     AddSymbolItem(playbackMenu, @"Play", @"play.fill", @selector(playPause:), player, @" ", 0, @"menu_play");
@@ -159,6 +166,14 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     waveformMenu.autoenablesItems = NO;
     waveformMenu.delegate = player; // fills in the renderer styles
 
+    // Convert
+    NSMenu *convertMenu = Submenu(mainMenu, @"Convert").submenu;
+    // Enabled only for an uncompressed current track with no FLAC beside it
+    // yet; validation retitles it with the reason otherwise.
+    AddSymbolItem(convertMenu, @"Convert to FLAC", @"arrow.triangle.2.circlepath", @selector(convertCurrentTrackToFLAC:), player, @"", 0, @"menu_convert_to_flac");
+    AddSeparator(convertMenu);
+    // A checkmarked preference rather than an action, so it is always enabled.
+    AddSymbolItem(convertMenu, @"Delete Original After Convert", @"trash", @selector(toggleDeleteOriginalAfterConvert:), player, @"", 0, @"menu_convert_delete_original");
 
     // Output
     NSMenu *outputMenu = Submenu(mainMenu, @"Output").submenu;

@@ -20,6 +20,7 @@
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformView.h"
+#import "AudioFileConverter.h"
 #import "PlaylistController.h"
 #import "PlaylistTableView.h"
 #import "PlaylistDropZoneView.h"
@@ -28,6 +29,7 @@
 #import "PitchControlPanel.h"
 #import "TransportKeyMonitor.h"
 #import "NowPlayingController.h"
+#import "MainPlayerController+Convert.h" // convertCurrentTrackToFLAC:, for the context menu
 #import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerController+Transport.h" // updateFXIndicators, from the updateUI funnel
 #import "UIUpdateTimer.h"
@@ -38,12 +40,13 @@
 // buildContentInWindow:, and the protocol conformances are internal. Nothing
 // outside this file needs them except the debug command channel and the
 // split-out categories, which re-declare what they read — in
-// MainPlayerController+Debug.h, MainPlayerController+Menus.m and
-// MainPlayerController+NowPlaying.h — against these synthesized accessors.
-// NSMenuItemValidation lives on the Menus category and
-// NowPlayingControllerDelegate on the NowPlaying category, where each is
-// implemented, and MainPlayerController+Transport implements the skip and FX
-// transport actions.
+// MainPlayerController+Debug.h, MainPlayerController+Menus.m,
+// MainPlayerController+NowPlaying.h and MainPlayerController+Convert.m —
+// against these synthesized accessors. NSMenuItemValidation lives on the
+// Menus category and NowPlayingControllerDelegate on the NowPlaying category,
+// where each is implemented; MainPlayerController+Transport implements the
+// skip and FX transport actions, and MainPlayerController+Convert the
+// conversion funnel, swap and undo round trip.
 @interface MainPlayerController () <NSWindowDelegate,
                                     NSWindowRestoration,
                                     FileDropDelegate,
@@ -72,6 +75,10 @@
 // view's delegate, style and appearance, the Menus category included, while
 // the per-track rendering states go through trackDisplay.
 @property (weak) AudioWaveformView *waveformView;
+
+// The undo/redo settled hook MainPlayerController+Convert re-declares and
+// fires; synthesized here because a category cannot synthesize storage.
+@property (copy) void (^conversionUndoRedoSettledHandler)(void);
 
 @end
 
@@ -174,14 +181,27 @@
     [content.totalTimeTextField addGestureRecognizer:timeModeClick];
 
     // A right-click menu on the whole window body. It is on the content view,
-    // so the responder chain carries it to the pitch panel too.
+    // so the responder chain carries it to the pitch panel too. Both items act
+    // on the current track; the Convert item shares the Convert menu's
+    // identifier and so its validation and retitling.
     NSMenu *contextMenu = [[NSMenu alloc] initWithTitle:@"Popup Menu"];
     NSMenuItem *showInFinder = [[NSMenuItem alloc] initWithTitle:@"Show in Finder"
                                                           action:@selector(showInFinder:)
                                                    keyEquivalent:@""];
     showInFinder.identifier = @"show_in_finder";
     showInFinder.target = self;
+    showInFinder.image = [NSImage imageWithSystemSymbolName:@"folder"
+                                   accessibilityDescription:showInFinder.title];
     [contextMenu addItem:showInFinder];
+    [contextMenu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem *convertCurrent = [[NSMenuItem alloc] initWithTitle:@"Convert to FLAC"
+                                                            action:@selector(convertCurrentTrackToFLAC:)
+                                                     keyEquivalent:@""];
+    convertCurrent.identifier = @"menu_convert_to_flac";
+    convertCurrent.target = self;
+    convertCurrent.image = [NSImage imageWithSystemSymbolName:@"arrow.triangle.2.circlepath"
+                                     accessibilityDescription:convertCurrent.title];
+    [contextMenu addItem:convertCurrent];
     contentView.menu = contextMenu;
     // PlaylistController installs the playlist table's own row context menu,
     // which shadows this window-wide one, when the table is attached.
@@ -232,8 +252,20 @@
     self.waveformCache = [[AudioWaveformCache alloc] init];
     self.waveformCache.delegate = self;
 
+    self.fileConverter = [[AudioFileConverter alloc] init];
+
     self.playlistController = [[PlaylistController alloc] initWithAudioPlayer:self.audioPlayer];
     self.playlistController.tableView = self.playlistTableView;
+    // The brush-through-the-waveform progress, gated on the converting track
+    // still being on screen, so a track change mid-conversion stops the sweep
+    // at the next report.
+    __weak MainPlayerController *weakControllerForConvert = self;
+    self.fileConverter.progressHandler = ^(AudioTrack *track, double fraction) {
+        MainPlayerController *strongSelf = weakControllerForConvert;
+        if (strongSelf && track == [strongSelf displayedTrack]) {
+            [strongSelf.trackDisplay setConvertSweepFraction:fraction];
+        }
+    };
     // A double-click starts a play the controller does not see until the
     // player's async events land, which can take up to half a second on a slow
     // open. Refresh the header at initiation, so that it does not keep
@@ -711,7 +743,16 @@
     _lastReloadedTrack = track;
     // next and previous scroll at the click; this covers the other play paths.
     [self.playlistController scrollCurrentTrackToVisible];
+    // The Convert items name this track from here on; their validation reads
+    // a cache rather than statting on the main thread.
+    [self.fileConverter refreshDestinationStateForTrack:track];
     [self resumeUIUpdateTimer];
+    // A track can start already parked — the convert swap of a paused track —
+    // and then no didPausePlaying: comes to stop the tick. The resume above
+    // still runs, for its updateUI and visibility-gate refresh.
+    if (!self.audioPlayer.isPlaying) {
+        [self pauseUIUpdateTimer];
+    }
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track {

@@ -10,6 +10,14 @@ The view also draws the two non-waveform states: a sweeping shimmer while a slow
 
 The renderer hierarchy runs from the `AudioWaveformRenderer` base to `SonicCirrusWaveformRenderer`, whose display name is "Sonic Cirrus", and `DetailedAudioWaveformRenderer`. `BasicAudioWaveformRenderer` and the `x2`, `x4` and `x8OversamplingDetailedAudioWaveformRenderer` classes, all in one shared file, subclass `DetailedAudioWaveformRenderer`. Both families animate through a shared `WaveformMorphEngine`, which owns the displayed and target sample vectors, the 60 Hz easing timer and the retarget decision tree; renderers supply only target-building and layer geometry. The default style is "Oversampling Detailed x4", configurable in `AppSettings`.
 
+## The convert sweep
+
+Convert to FLAC's progress is drawn *with the waveform itself*: the bars the sweep front crosses collapse to the midline and ease back, a brush moving through the waveform at conversion pace. There is no separate progress element.
+
+It rides on the morph engine's displayed-vs-target split. `WaveformMorphEngine.dipDisplayedSamplesFromFraction:toFraction:` zeroes the displayed samples in the newly crossed span, rebuilds once so the notch is seen at zero, and starts the standard ease back toward the unchanged target — bars dipped earlier have recovered more, so the graded trail behind the front falls out for free. Both families forward `dipBarsFromFraction:toFraction:` to their engine; an x fraction maps to the raw sample array linearly in both layouts, because samples run left to right.
+
+`AudioWaveformView.convertSweepFraction` keeps the front and dips only the span since the last set, so bars behind the front are never re-zeroed mid-recovery. It gates on having a waveform, like hover, and resets in `prepareForWaveformLoad` and the empty and loading states. A value at or below the front just moves the front — that is the post-conversion reset.
+
 ## Hover scrubbing
 
 While the cursor is over a loaded waveform, the waveform's own column under the cursor is lit to full brightness. Nothing is drawn on top of it, and there is no tooltip.

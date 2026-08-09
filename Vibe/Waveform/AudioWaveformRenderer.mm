@@ -57,4 +57,8 @@
 
 }
 
+- (void)dipBarsFromFraction:(double)from toFraction:(double)to {
+
+}
+
 @end

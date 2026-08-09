@@ -56,6 +56,8 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
                                                       keyEquivalent:@""];
     showRowInFinder.identifier = @"show_clicked_track_in_finder";
     showRowInFinder.target = self;
+    showRowInFinder.image = [NSImage imageWithSystemSymbolName:@"folder"
+                                      accessibilityDescription:showRowInFinder.title];
     [menu addItem:showRowInFinder];
     _tableView.menu = menu;
 }
@@ -286,19 +288,22 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     }
 }
 
-// The row context menu's action. clickedRow is read at action time rather than
-// captured when the menu opens, because the playlist can be replaced while the
-// menu is up, so the row is bounds-checked again here. Validation has already
-// disabled the item for a click outside the rows.
 - (IBAction)showClickedTrackInFinder:(id)sender {
-    NSInteger row = _tableView.clickedRow;
-    if (row < 0 || row >= (NSInteger)_playlist.count) {
-        return;
-    }
-    NSURL *url = _playlist[(NSUInteger)row].url;
+    NSURL *url = [self clickedTrack].url;
     if (url) {
         [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[url]];
     }
+}
+
+// The row under the right-click, or nil for a click on the table's empty area
+// or a row a playlist replacement has invalidated. Read at action time, not
+// menu-open, because the playlist can be replaced while the menu is up.
+- (AudioTrack *)clickedTrack {
+    NSInteger row = _tableView.clickedRow;
+    if (row < 0 || row >= (NSInteger)_playlist.count) {
+        return nil;
+    }
+    return _playlist[(NSUInteger)row];
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
@@ -320,6 +325,39 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     // identity lookup.
     NSNumber *index = track ? [_trackIndexes objectForKey:track] : nil;
     return index ? index.integerValue : -1;
+}
+
+- (NSIndexSet *)indexesOfTracksWithURL:(NSURL *)url {
+    NSMutableIndexSet *indexes = [NSMutableIndexSet indexSet];
+    if (!url) {
+        return indexes;
+    }
+    [_playlist enumerateObjectsUsingBlock:^(AudioTrack *track, NSUInteger index, BOOL *stop) {
+        if ([track.url isEqual:url]) {
+            [indexes addIndex:index];
+        }
+    }];
+    return indexes;
+}
+
+- (AudioTrack *)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url {
+    if (index >= _playlist.count || !url) {
+        return nil;
+    }
+    AudioTrack *outgoing = _playlist[index];
+    AudioTrack *incoming = [AudioTrack withURL:url];
+    incoming.duration = outgoing.duration;
+    incoming.detectedBPM = outgoing.detectedBPM;
+    // Remove the outgoing key: entries are never otherwise removed, and a
+    // departed track still resolving to this row would let its late metadata
+    // delivery redraw a row it no longer occupies.
+    [_trackIndexes removeObjectForKey:outgoing];
+    [_trackIndexes setObject:@(index) forKey:incoming];
+    _playlist[index] = incoming;
+    // Row views are untouched by a cell reload, so the playing row's marking
+    // survives and currentIndex, being positional, needs no adjustment.
+    [self reloadTrackAtIndex:index];
+    return incoming;
 }
 
 - (BOOL)isCurrentTrack:(AudioTrack *)track {

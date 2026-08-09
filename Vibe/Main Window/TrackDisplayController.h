@@ -158,6 +158,10 @@ static inline TrackDisplayState VibeResolveTrackDisplayState(
 - (void)showWaveform:(CodableAudioWaveform *)waveform;
 - (void)showWaveformLoadingIndicator;
 - (void)hideWaveformLoadingIndicator;
+// Convert to FLAC's brush-through-the-waveform progress; 0 resets the front.
+// The getter serves the debug state dump.
+- (void)setConvertSweepFraction:(double)fraction;
+- (double)convertSweepFraction;
 
 // The rendered fields, exposed for the debug command channel's state dump; see
 // MainPlayerController+Debug.h and DebugUtil.

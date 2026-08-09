@@ -9,6 +9,7 @@
 #import "PlaylistController.h"
 #import "AudioTrack.h"
 #import "AudioWaveformView.h"
+#import "AudioFileConverter.h"
 
 // The class extension in MainPlayerController.m synthesizes waveformView, and
 // it is re-declared readonly here, the same pattern as
@@ -105,6 +106,26 @@
     }
     else if ([menuItem.identifier isEqualToString:@"show_in_finder"]) {
         return self.playlistController.currentTrack.url != nil;
+    }
+    else if ([menuItem.identifier isEqualToString:@"menu_convert_to_flac"]) {
+        // The Convert menu's item and the window-body context menu's share
+        // this identifier; the converter owns the enable-and-retitle rule.
+        return [self.fileConverter validateConvertMenuItem:menuItem
+                                                  forTrack:self.playlistController.currentTrack];
+    }
+    // NSUndoManager's own state and titles, never a stat; an emptied Trash
+    // surfaces only when the restore runs.
+    else if ([menuItem.identifier isEqualToString:@"menu_edit_undo"]) {
+        menuItem.title = self.window.undoManager.undoMenuItemTitle;
+        return self.window.undoManager.canUndo;
+    }
+    else if ([menuItem.identifier isEqualToString:@"menu_edit_redo"]) {
+        menuItem.title = self.window.undoManager.redoMenuItemTitle;
+        return self.window.undoManager.canRedo;
+    }
+    // A preference, not an action, so never disabled.
+    else if ([menuItem.identifier isEqualToString:@"menu_convert_delete_original"]) {
+        menuItem.state = StateForBOOL(Settings.deleteOriginalAfterConvert);
     }
     // show_clicked_track_in_finder, on the playlist's row context menu,
     // targets PlaylistController, which validates it.

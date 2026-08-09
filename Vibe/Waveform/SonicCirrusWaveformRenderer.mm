@@ -227,6 +227,10 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
     }];
 }
 
+- (void)dipBarsFromFraction:(double)from toFraction:(double)to {
+    [_morph dipDisplayedSamplesFromFraction:from toFraction:to];
+}
+
 // Lays the bar layers out for the currently displayed samples. It is the morph
 // engine's rebuild callback. Heights round to the device-pixel grid on every
 // draw, which keeps edges crisp, holds quantization to an imperceptible

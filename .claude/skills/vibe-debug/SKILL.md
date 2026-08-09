@@ -109,6 +109,9 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 "$V" --debug-cmd drag_end            # {ok} — the drag left the window without a drop: back to the rest presentation
 "$V" --debug-cmd file_cache song.flac        # {ok, wasCached, bpm} — decode + cache one file's waveform (UI untouched); waits up to 60s
 "$V" --debug-cmd file_clear_cache song.flac  # {ok, wasPresent} — evict one file's cached waveform
+"$V" --debug-cmd convert_to_flac [keep|delete]  # {ok, output, row, source, sourceDeleted, sourceRemains} — the whole Convert to FLAC path on the CURRENT track, swap and source disposal included; default: current setting. Waits up to 120s
+"$V" --debug-cmd undo                # {ok, undid, canUndo, canRedo} — Edit > Undo; replies once the file moves have settled. {"error": "nothing to undo"} on an empty stack
+"$V" --debug-cmd redo                # {ok, redid, canUndo, canRedo} — Edit > Redo, same contract, {"error": "nothing to redo"}
 "$V" --debug-cmd clear_caches        # {ok, cleared} — empties metadata + waveform PINCaches
 "$V" --debug-cmd scan_bpm - < file   # {ok, bpm} — fresh decode+analyze, runs IN THE CLI PROCESS (no app needed; see Test audio files). Audio rides stdin; prefer the scan-bpm.sh wrapper
 "$V" --debug-cmd clear_disk_caches   # {ok, cleared} — CLI-process deletion of the PINDiskCache dirs, ONLY for when the app is NOT running (prefer clear-caches.sh, which picks the right one)
@@ -139,6 +142,21 @@ Input injection posts synthesized NSEvents into the app's own event queue. See *
 
 ```bash
 .claude/skills/vibe-debug/scripts/clear-caches.sh   # prints {ok, cleared: [...]}
+```
+
+`convert_to_flac` runs the same funnel the menu items use, so its reply describes the settled result — where the FLAC landed and which row now points at it, or `row: -1` when the playlist was replaced during the encode. It acts on the **current track**, the only thing the app converts, so load the file you mean to convert first. While one runs, `dump_state`'s `ui.converting` is true and `ui.convertSweep` is the encode fraction driving the waveform's brush-through progress — poll it to watch a conversion move. It converts **in place beside the source**, so point it at a working copy rather than at `Assets/test_audio_files/`. A source the app opened as a single file, rather than as part of a folder, exercises the related-item sandbox rung; watch for it in the log, which names the rung it fell through to.
+
+**Testing Convert > Delete Original.** The optional `keep|delete` token writes the setting before converting, exactly as clicking the menu item does, and **leaves it written** — restore it if a later test depends on the default (off); `dump_state.settings.deleteOriginalAfterConvert` reports it. Assert from the reply, not the filesystem: `sourceDeleted` is what the disposal actually did and `sourceRemains` stats the original path, both only after the Trash move has settled — and `ls ~/.Trash` from a terminal trips the same TCC denial as reading the app container.
+
+```bash
+"$V" --debug-cmd convert_to_flac delete | jq -e '.sourceRemains == false' >/dev/null
+"$V" --debug-cmd convert_to_flac keep   | jq -e '.sourceRemains == true'  >/dev/null
+```
+
+`undo` and `redo` drive the window's NSUndoManager, whose only registered action is Convert to FLAC: undo restores the trashed original, returns its playlist row to it, and trashes the FLAC; redo reverses that from the Trash without re-encoding. Both reply only once the file moves have settled, so assert file state directly from the reply's ordering, and read the live stack from `dump_state`'s `ui.canUndo`/`ui.canRedo`. To exercise the menu path instead use `click_menu menu_edit_undo` / `menu_edit_redo`; validation retitles the items from the manager ("Undo Convert to FLAC") and `dump_menu` shows the live titles and enables — but the menu action has no settled signal, so prefer the verbs when a follow-up step depends on the moves having landed.
+
+```bash
+undo_enabled() { "$V" --debug-cmd dump_menu | jq -r '.menu[]|select(.title=="Edit")|.items[]|select(.id=="menu_edit_undo")|.enabled'; }
 ```
 
 `file_cache` and `file_clear_cache` operate on the **waveform** cache for one file, keyed by size and mtime, independently of the current track. Use them to force a cold decode when testing the waveform loader or the BPM analyzer: run `file_clear_cache foo.flac`, then `file_cache foo.flac` reports the freshly detected `bpm`. The reply lands only once the entry is on disk, so a follow-up relaunch is guaranteed the cache hit. Quote paths as usual; arguments travel to the app as an array and are never re-tokenized, so filenames with whitespace are safe. `open` and `file_cache` read the path directly, so the App Sandbox may deny a file the app has not been granted — the same caveat as command-line arguments. Launching with `open -a "$APP" <file>` grants access, so prefer paths already opened this session.

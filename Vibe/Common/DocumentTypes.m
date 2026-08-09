@@ -26,6 +26,12 @@ static void AddResolvedPath(NSMutableSet<NSString *> *paths, NSURL *_Nullable ur
     NSMutableArray<UTType *> *types = [NSMutableArray new];
     NSArray *documentTypes = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleDocumentTypes"];
     for (NSDictionary *documentType in documentTypes) {
+        // Related-item declarations are sandbox plumbing (Convert to FLAC's
+        // sibling write), not types the app offers to open; including one
+        // would double-list a type in the ⌘O filter and default-player claim.
+        if ([documentType[@"NSIsRelatedItemType"] boolValue]) {
+            continue;
+        }
         for (NSString *identifier in documentType[@"LSItemContentTypes"]) {
             UTType *type = [UTType typeWithIdentifier:identifier];
             if (type) {

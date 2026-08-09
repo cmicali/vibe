@@ -175,9 +175,19 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
 - (BOOL)performDragOperation:(id<NSDraggingInfo>)sender {
     NSPasteboard *pboard = [sender draggingPasteboard];
-    NSArray<NSURL*> *urls = [pboard readObjectsForClasses:@[[NSURL class]] options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
-    if (urls.count == 0) {
+    NSArray<NSURL*> *pasteboardURLs = [pboard readObjectsForClasses:@[[NSURL class]] options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
+    if (pasteboardURLs.count == 0) {
         return NO;
+    }
+    // TRAP: a Finder drag delivers file-reference URLs (file:///.file/id=…),
+    // whose .path re-resolves to wherever the file currently is. Everything
+    // downstream treats a track's URL as a fixed path — cache keys hash it,
+    // and the convert-undo record restores to it — so pin every drop to the
+    // path it has right now.
+    NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:pasteboardURLs.count];
+    for (NSURL *url in pasteboardURLs) {
+        NSString *path = url.path;
+        [urls addObject:path ? [NSURL fileURLWithPath:path] : url];
     }
     // The drop point decides which empty-state well, if any, was hit. It is
     // captured now, because the delivery below is async and the session has

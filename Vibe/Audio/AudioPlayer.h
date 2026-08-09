@@ -63,6 +63,12 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 - (void)play:(AudioTrack *)track;
 - (void)playPause;
 
+// Starts a track at position (file seconds, clamped), optionally parked:
+// with startPaused the track loads but nothing renders until playPause.
+// Exists for Convert to FLAC's swap. Everything else — crossfade, delegate
+// callbacks, prefetch — is an ordinary play:, which is this with (0, NO).
+- (void)play:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused;
+
 // Asynchronous declicked seek, in file seconds, clamped to the file.
 // position reports the old playhead until the seek lands, and
 // didFinishSeeking: marks completion.

@@ -23,6 +23,8 @@
 @implementation AudioWaveformView {
     CGFloat                     _progress;
     NSUInteger                  _progressTracker;
+    // The convert sweep's front: bars left of it have already been dipped.
+    double                      _convertSweepFraction;
     BOOL                        _didClickInside;
     AudioWaveformRenderer*      _currentWaveformRenderer;
     // The renderer classes, keyed by display name and instantiated on
@@ -202,12 +204,30 @@
     return _progress;
 }
 
+- (double)convertSweepFraction {
+    return _convertSweepFraction;
+}
+
+// Only the span newly crossed since the last set is dipped: bars behind the
+// front are already easing home and must not be re-zeroed.
+- (void)setConvertSweepFraction:(double)fraction {
+    if (fraction <= _convertSweepFraction) {
+        _convertSweepFraction = MAX(0.0, fraction);
+        return;
+    }
+    if (_waveform && _currentWaveformRenderer) {
+        [_currentWaveformRenderer dipBarsFromFraction:_convertSweepFraction toFraction:fraction];
+    }
+    _convertSweepFraction = fraction;
+}
+
 - (void)prepareForWaveformLoad {
     [self hideLoadingIndicator];
     [self hideEmptyPlaceholder];
     // Otherwise a stale hover playhead would sit over the next track's
     // waveform until the mouse moved again.
     [self hideHoverIndicator];
+    _convertSweepFraction = 0;
     _waveform = nil;
     if (!_currentWaveformRenderer) {
         // Prefer the persisted style, then the app default. allKeys[0] is a
@@ -234,6 +254,7 @@
     [self hideEmptyPlaceholder];
     [self hideHoverIndicator];
     // Collapse any previous track's waveform, so the shimmer stands alone.
+    _convertSweepFraction = 0;
     _waveform = nil;
     self.progress = 0;
     if (_currentWaveformRenderer) {
@@ -304,6 +325,7 @@
     }
     [self hideLoadingIndicator];
     [self hideHoverIndicator];
+    _convertSweepFraction = 0;
     _waveform = nil;
     self.progress = 0;
     if (_currentWaveformRenderer) {

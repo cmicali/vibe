@@ -73,8 +73,20 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSInteger)getIndexForTrack:(AudioTrack *)track;
 
+// Points a row at a different file, returning the fresh AudioTrack now in it,
+// or nil when index is out of range. Mints a new track rather than
+// reassigning the old one's url: AudioTrack memoizes its cache key, and a
+// track carrying the old key would file the new file's waveform and metadata
+// under the old entries. Duration and detected BPM carry across — same audio.
+// Playback is untouched; a caller replacing the playing row restarts it.
+- (AudioTrack * _Nullable)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url;
+
 - (BOOL)isCurrentTrack:(AudioTrack *)track;
 - (AudioTrack * _Nullable)trackForURL:(NSURL *)url;
+
+// Every row holding url — the same file can sit in the playlist more than
+// once, and a caller acting on a file has to reach all of them.
+- (NSIndexSet *)indexesOfTracksWithURL:(NSURL *)url;
 
 - (void)reloadCurrentTrack;
 - (void)reloadCurrentTrackPlayState;
