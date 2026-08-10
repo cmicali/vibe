@@ -1,0 +1,1 @@
+Un player nativ și rapid pentru fișierele tale de muzică. Formă de undă clicabilă, fader de pitch ca pe platan și FX de DJ. Fără bibliotecă, fără cont, fără abonament.

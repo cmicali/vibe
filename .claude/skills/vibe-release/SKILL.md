@@ -1,6 +1,6 @@
 ---
 name: vibe-release
-description: Build, sign, notarize, and ship Vibe — the Developer ID (make release) and App Store (make appstore) paths, the shared App Store Connect API key and its Admin-role requirement, and the signing traps each script preflights. Use when cutting a release, distributing a build, or debugging a signing/notarization/upload failure.
+description: Build, sign, notarize, and ship Vibe — the Developer ID (make release) and App Store (make appstore-build) paths, the localized product-page metadata upload (make appstore-upload-metadata), the shared App Store Connect API key and its Admin-role requirement, and the signing traps each script preflights. Use when cutting a release, distributing a build, updating App Store copy or screenshots, or debugging a signing/notarization/upload failure.
 ---
 
 # Releasing Vibe
@@ -9,12 +9,33 @@ description: Build, sign, notarize, and ship Vibe — the Developer ID (make rel
 
 There are two release paths and they are not interchangeable. Each uses a different certificate, a different container and a different verification:
 
-| | `make release` | `make appstore` / `make appstore-upload` |
+| | `make release` | `make appstore-build` / `make appstore-upload-signed-build` |
 |---|---|---|
 | script | `scripts/release.sh` | `scripts/release-appstore.sh` |
 | certificate | Developer ID Application | Apple Distribution (+ Mac Installer) |
 | output | stapled `.zip` you host yourself | `.pkg` uploaded to App Store Connect |
 | verification | notarize + staple + `spctl` | App Store Connect validation |
+
+## Product-page metadata
+
+The build upload carries no product-page content. Localized copy and screenshots live in `Assets/app-store/` (per-locale format: its README) and upload separately with `make appstore-upload-metadata` — `scripts/appstore-upload-metadata.sh` driving the Swift/Bagbutik tool in `scripts/asc-upload/`, authenticated by the same shared key (metadata itself needs only App Manager, so the Admin key more than covers it).
+
+The loop:
+
+1. Edit `Assets/app-store/copy/<lang>/` — every catalog language, not just `en`; nothing auto-translates.
+2. `make appstore-validate-copy` — ASC character limits, markdown that would upload verbatim, captions that overflow the screenshot layout. (`appstore-upload-metadata` runs this first anyway.)
+3. `make appstore-generate-store-screenshots-all` — only if `screenshots.json` captions or the window captures changed.
+4. `make appstore-upload-metadata ARGS="--dry-run"`, then without.
+
+Flags via `ARGS`: `--locales de,fr`, `--skip-screenshots`, `--skip-text`, `--create-version <v>`.
+
+Traps and semantics:
+
+- **It targets the one *editable* macOS version.** After a release goes live there is none — the tool errors, listing every version's state. `--create-version <next>` opens the next version's page (the same version record a later `make appstore-upload-signed-build` build attaches to, so metadata-first is the normal order).
+- **Text is diffed, screenshots are not.** Unchanged text fields are skipped; each locale's `APP_DESKTOP` screenshot set is deleted and re-uploaded wholesale, ordered by file name. Don't read "uploaded 4 screenshots" as "they changed".
+- **`bg` is skipped by design** — the App Store has no Bulgarian product page; the translation ships in-app only. Catalog `nb` maps to ASC `no`. A new catalog language fails loudly until added to `ascLocale` in `ASCUpload.swift`.
+- **Out of scope, on purpose:** app name and subtitle (`appInfoLocalizations`, rarely change — edit in ASC by hand) and "What's New" release notes (not in the copy tree yet).
+- `description.txt` uploads *verbatim* — plain text only; `appstore-validate-copy` rejects leftover markdown markers.
 
 ## The shared API key
 
@@ -30,4 +51,4 @@ Each was learned the hard way, and each is now guarded by a preflight or an erro
 - **The Developer ID certificate cannot be automated.** Apple gates `DEVELOPER_ID_APPLICATION_MANAGED` to the team's *Account Holder*, a person role no API key can hold, so `-allowProvisioningUpdates` gets a 403 even with an Admin key that signs App Store builds fine. Create it once in Xcode → Settings → Accounts → Manage Certificates, where the cap is five per account. `release.sh` preflights for it, so this fails instantly rather than after a full archive.
 - **xcodebuild hides the reason.** A cloud-signing denial surfaces only as "Cloud signing permission error", with Apple's real 403 buried in a temporary `.xcdistributionlogs` bundle. `asc_explain_export_failure` reprints it, with different guidance per certificate type.
 
-`make appstore` stops after validation; only `make appstore-upload` submits. Both signing identities are applied on the xcodebuild command line, because `project.yml` deliberately keeps `CODE_SIGN_IDENTITY: "-"` so that everyday builds need no credentials at all.
+`make appstore-build` stops after validation; only `make appstore-upload-signed-build` submits. Both signing identities are applied on the xcodebuild command line, because `project.yml` deliberately keeps `CODE_SIGN_IDENTITY: "-"` so that everyday builds need no credentials at all.

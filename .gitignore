@@ -33,6 +33,14 @@ Vibe/Common/Info.plist
 # Generated test audio (.claude/skills/vibe-debug/scripts/generate-test-audio.sh)
 /Assets/test_audio_files/
 
+# Localized App Store screenshots are regenerated, not tracked; the English
+# set stays tracked. Assets/app-store/copy/ is the source of truth and tracked.
+/Assets/app-store/screenshots/*/
+!/Assets/app-store/screenshots/en/
+
+# Swift build products of the App Store metadata uploader.
+/scripts/asc-upload/.build/
+
 # App Store Connect API key id / issuer id for scripts/release-appstore.sh.
 /.release-env
 

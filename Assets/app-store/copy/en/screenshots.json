@@ -1,0 +1,22 @@
+[
+  {
+    "id": "player",
+    "headline": "Play local files fast",
+    "subhead": "MP3, FLAC, AIFF, WAV, and more. Click the waveform to seek."
+  },
+  {
+    "id": "playlist",
+    "headline": "Drop a folder, start playing",
+    "subhead": "Artwork, tags, and BPM read in the background, cached for speed."
+  },
+  {
+    "id": "pitch",
+    "headline": "DJs will feel at home",
+    "subhead": "A turntable-style pitch fader, bar-accurate skips, and performance FX on the keys."
+  },
+  {
+    "id": "keys",
+    "headline": "Hands on the keyboard",
+    "subhead": "Transport, bar skips, performance FX, and pitch — no modifier keys."
+  }
+]

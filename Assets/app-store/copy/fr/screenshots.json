@@ -1,0 +1,22 @@
+[
+  {
+    "id": "player",
+    "headline": "Vos fichiers, lus en un éclair",
+    "subhead": "MP3, FLAC, AIFF, WAV et plus. Cliquez sur la forme d’onde pour naviguer."
+  },
+  {
+    "id": "playlist",
+    "headline": "Déposez un dossier, ça joue",
+    "subhead": "Pochettes, tags et BPM lus en arrière-plan et mis en cache."
+  },
+  {
+    "id": "pitch",
+    "headline": "Les DJs sont chez eux",
+    "subhead": "Fader de pitch façon platine, sauts calés à la mesure et FX au clavier."
+  },
+  {
+    "id": "keys",
+    "headline": "Les mains sur le clavier",
+    "subhead": "Transport, sauts par mesures, FX et pitch — sans touche de modification."
+  }
+]

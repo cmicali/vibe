@@ -2,7 +2,7 @@
 
 CONFIG ?= Release
 
-.PHONY: setup project build test release appstore appstore-upload install clean run screenshots app-store-overlays app-store-screenshots
+.PHONY: setup project build test release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -46,11 +46,11 @@ release:
 # Build Release signed for the Mac App Store and run App Store Connect's
 # validation, WITHOUT submitting. See scripts/release-appstore.sh for the
 # required App Store Connect API credentials.
-appstore:
+appstore-build:
 	scripts/release-appstore.sh
 
 # Same, then actually upload the build to App Store Connect.
-appstore-upload:
+appstore-upload-signed-build:
 	scripts/release-appstore.sh --upload
 
 # Remove build/ and the generated Vibe.xcodeproj.
@@ -66,24 +66,47 @@ run:
 screenshots:
 	scripts/generate-readme-screenshots.sh
 
-# Regenerate the App Store screenshots (2880x1800) into Assets/app-store/ by
-# compositing the captures `screenshots` leaves in Assets/ onto generated
-# backgrounds. This is the path the shipped shots use. It needs no app, no
-# debug build and no permissions — only those captures, so run `screenshots`
-# first if the UI has changed. Headline copy lives in the script.
-app-store-overlays:
-	scripts/generate-app-store-overlays.sh
+# Regenerate the App Store screenshots (2880x1800) by compositing the window
+# captures `screenshots` leaves in Assets/ onto generated backgrounds — the
+# captures show nothing localized, so every language shares them. This is the
+# path the shipped shots use. It needs no app, no debug build and no
+# permissions — only those captures, so run `screenshots` first if the UI has
+# changed. LOCALE deliberately, not LANG or LANGUAGE — both are real
+# environment variables make would silently import.
+#   make appstore-generate-store-screenshots               # English → Assets/app-store/screenshots/en/
+#   make appstore-generate-store-screenshots LOCALE=de     # copy/de captions → Assets/app-store/screenshots/de/
+appstore-generate-store-screenshots:
+	scripts/appstore-generate-store-screenshots.sh $(LOCALE)
+
+# Every catalog language (list read from Resources/Localizable.xcstrings).
+appstore-generate-store-screenshots-all:
+	scripts/appstore-generate-store-screenshots.sh --all
+
+# Fail unless every catalog language has complete App Store copy in
+# Assets/app-store/copy/, within ASC limits, and every caption fits the
+# screenshot layout. For review/CI.
+appstore-validate-copy:
+	scripts/appstore-validate-copy.sh
+
+# Upload the localized App Store copy and screenshots to App Store Connect
+# (the editable macOS version's product page — no build is involved). Runs
+# appstore-validate-copy first. See scripts/appstore-upload-metadata.sh for flags:
+#   make appstore-upload-metadata                          # everything
+#   make appstore-upload-metadata ARGS="--dry-run"
+#   make appstore-upload-metadata ARGS="--locales de,fr --skip-screenshots"
+appstore-upload-metadata: appstore-validate-copy
+	scripts/appstore-upload-metadata.sh $(ARGS)
 
 # The other App Store path: photograph the window over a staged desktop, so the
 # Liquid Glass shows a real backdrop rather than a composited one. Honest, but
 # it can only show the window at its captured size, which leaves the UI small
-# on a 2880x1800 canvas — hence `app-store-overlays` above. Same permissions as
-# `screenshots`. BACKGROUND is one background for all three shots, or three
-# (player, playlist, pitch); it is word-split, so run the script directly for
-# paths with spaces.
-#   make app-store-screenshots BACKGROUND=path/to/background.png
-app-store-screenshots:
-	scripts/generate-app-store-screenshots.sh $(BACKGROUND)
+# on a 2880x1800 canvas — hence `appstore-generate-store-screenshots` above. Same
+# permissions as `screenshots`. BACKGROUND is one background for all three
+# shots, or three (player, playlist, pitch); it is word-split, so run the
+# script directly for paths with spaces.
+#   make appstore-capture-app-screenshots BACKGROUND=path/to/background.png
+appstore-capture-app-screenshots:
+	scripts/appstore-capture-app-screenshots.sh $(BACKGROUND)
 
 # Re-extract UI strings into Resources/Localizable.xcstrings. Run after
 # touching any UI string (no build-time extraction exists for ObjC; see script).

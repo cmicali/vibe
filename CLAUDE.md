@@ -16,7 +16,7 @@ Then build in Xcode — open `Vibe.xcodeproj`, pick the `Vibe` scheme, press ⌘
 
 Two wrappers regenerate the project first and write to `build/DerivedData`: `make build` (Release, or `make build CONFIG=Debug`) and `scripts/build.sh [Debug|Release]`.
 
-Use the **`vibe-release` skill** (`.claude/skills/vibe-release/`) to sign, notarize or ship a build. It covers the Developer ID path (`make release`), the App Store path (`make appstore` and `make appstore-upload`), the shared App Store Connect API key and the signing traps each script preflights. The two paths are not interchangeable, so do not improvise from the scripts.
+Use the **`vibe-release` skill** (`.claude/skills/vibe-release/`) to sign, notarize or ship a build. It covers the Developer ID path (`make release`), the App Store path (`make appstore-build` and `make appstore-upload-signed-build`), the shared App Store Connect API key and the signing traps each script preflights. The two paths are not interchangeable, so do not improvise from the scripts.
 
 There is no package manager. All third-party code is vendored under `Vibe/ThirdParty/` and compiles into the app target; CocoaPods is gone and TagLib and PINCache are now in-tree.
 
@@ -89,6 +89,8 @@ Extraction is deliberately NOT a build phase: Xcode has **no build-time String C
 **Display names are never identifiers.** `AudioWaveformRenderer` splits `+styleIdentifier` (stable; the registry key, the `NSUserDefaults` value, the menu item's `waveform_style_*` identifier) from `+displayName` (localized, display only); `AppSettings` migrates the English display names persisted before the split. `FILETYPE_*` is the inverse case — never localized, because it is compared with `isEqualToString:` and archived into the metadata cache. Locale-dependent numbers (kHz, BPM, pitch %) go through `Formatters`' `decimalString:fractionDigits:` / `signedPercentString:`, not `%.1f`.
 
 To find strings that escaped: build a pseudolocale from the catalog (bracket + accent + pad every value, copying format specifiers verbatim), `xcstringstool compile … -l en-XA` it into the built app's `Contents/Resources`, rename the output to `Localizable.strings`, re-sign (`codesign -f -s - --preserve-metadata=entitlements`), and launch with `--args -AppleLanguages '(en-XA)'`. Anything rendering *without* brackets never went through the bundle. Padding also surfaces layout overflow — the menu bar and the 96pt `PITCH` label are the tightest spots.
+
+The App Store product page is localized too, from `Assets/app-store/` (copy, screenshot captions, and generated screenshots per catalog language — format in its README). `make appstore-validate-copy` validates it; `make appstore-upload-metadata` uploads it via the **vibe-release** skill's shared API key. The catalog remains the source of which languages exist; `bg` ships in-app only, because the App Store has no Bulgarian product page.
 
 ### Key patterns
 

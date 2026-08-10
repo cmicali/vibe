@@ -113,6 +113,10 @@ Build and run the `Vibe` scheme with ⌘R. Re-run `xcodegen generate` after ever
 
 To build from the command line instead, run `scripts/build.sh`. It writes `build/DerivedData/Build/Products/Release/Vibe.app`.
 
+## Releasing
+
+The full Mac App Store release process — credentials, localized product-page assets, metadata upload, and shipping a build — is documented in [RELEASING.md](RELEASING.md).
+
 # License
 
 Vibe is licensed under the [Apache License 2.0](LICENSE).

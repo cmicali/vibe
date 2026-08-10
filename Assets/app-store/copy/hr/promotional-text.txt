@@ -1,0 +1,1 @@
+Brz, nativni player za vaše glazbene datoteke. Valni oblik s premotavanjem, pitch fader kao na gramofonu i DJ FX. Bez biblioteke, računa i pretplate.

@@ -1,0 +1,1 @@
+A fast, native player for your music files. Seekable waveform, turntable-style pitch fader, and DJ FX. No library, no account, no subscription.

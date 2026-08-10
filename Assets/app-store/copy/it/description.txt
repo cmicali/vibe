@@ -1,0 +1,12 @@
+Vibe è un lettore musicale veloce ed essenziale per Mac. Nessun motore di terze parti, nessun account, nessun abbonamento. Solo un player semplice e veloce per i tuoi file.
+
+Forma d’onda
+Vibe disegna ogni traccia come una forma d’onda a tutta finestra. Clicca in un punto qualsiasi per spostarti lì. Nessuna libreria da importare, nessun database da ricostruire: trascina un file o una cartella sulla finestra e parte la riproduzione. Vibe legge tag, copertine e BPM in background e li salva in cache, così la prossima apertura è istantanea.
+
+Formati
+MP3, MP2, AAC, FLAC, MP4/M4A, AIFF e WAV, tutti decodificati direttamente da macOS. I file lossless suonano a piena risoluzione, e formato e frequenza di campionamento di ogni traccia compaiono accanto al titolo.
+
+I DJ si sentiranno a casa
+• Un fader del pitch disposto come quello di un giradischi, nascosto finché non ti serve.
+• Salti misurati in battute, non in secondi. Quando il tempo è noto, salta di 8, 16 o 32 battute restando sulla griglia; quando non lo è, gli stessi tasti spostano di 10, 30 o 60 secondi.
+• FX da performance sotto una mano: taglio bassi, un tappeto di riverbero e delay agganciati ai BPM della traccia. Tocca un tasto per bloccare un effetto; tienilo premuto per l’effetto momentaneo.

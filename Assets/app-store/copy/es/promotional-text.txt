@@ -1,0 +1,1 @@
+Un reproductor nativo y veloz para tus archivos de música. Forma de onda con búsqueda, fader de pitch estilo giradiscos y FX de DJ. Sin biblioteca, cuenta ni suscripción.

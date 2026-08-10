@@ -1,0 +1,12 @@
+Vibe to szybki, minimalistyczny odtwarzacz muzyki na Maca. Bez zewnętrznych silników, konta i subskrypcji. Po prostu prosty, szybki odtwarzacz Twoich plików.
+
+Kształt fali
+Vibe rysuje każdy utwór jako kształt fali na całą szerokość okna. Kliknij w dowolnym miejscu, aby przewinąć. Nie ma biblioteki do importowania ani bazy do przebudowywania. Upuść plik lub teczkę na okno — i gra. Tagi, okładki i BPM wczytywane są w tle i buforowane, więc następne otwarcie jest natychmiastowe.
+
+Formaty
+MP3, MP2, AAC, FLAC, MP4/M4A, AIFF i WAV — wszystkie dekodowane przez sam macOS. Pliki bezstratne grają w pełnej rozdzielczości, a format i częstotliwość próbkowania utworu widać obok tytułu.
+
+DJ-e poczują się jak w domu
+• Suwak pitcha ułożony jak w gramofonie, ukryty, dopóki go nie potrzebujesz.
+• Skoki mierzone w taktach, nie sekundach. Gdy tempo jest znane, przeskakuj o 8, 16 lub 32 takty, nie wypadając z siatki; gdy nie jest — te same klawisze przewijają o 10, 30 lub 60 sekund.
+• Performance FX pod jedną ręką: filtr Low Kill, fala pogłosu i delaye zsynchronizowane z BPM utworu. Stuknij klawisz, aby zatrzasnąć efekt; przytrzymaj, aby działał chwilowo.

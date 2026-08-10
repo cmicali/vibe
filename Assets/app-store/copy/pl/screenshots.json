@@ -1,0 +1,22 @@
+[
+  {
+    "id": "player",
+    "headline": "Twoje pliki, od razu",
+    "subhead": "MP3, FLAC, AIFF, WAV i inne. Kliknij kształt fali, aby przewinąć."
+  },
+  {
+    "id": "playlist",
+    "headline": "Upuść teczkę i graj",
+    "subhead": "Okładki, tagi i BPM wczytywane w tle i buforowane dla szybkości."
+  },
+  {
+    "id": "pitch",
+    "headline": "DJ-e poczują się jak w domu",
+    "subhead": "Suwak pitcha jak w gramofonie, skoki o takty i FX na klawiszach."
+  },
+  {
+    "id": "keys",
+    "headline": "Ręce na klawiaturze",
+    "subhead": "Transport, skoki o takty, FX i pitch — bez klawiszy modyfikujących."
+  }
+]

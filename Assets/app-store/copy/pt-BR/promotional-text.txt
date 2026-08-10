@@ -1,0 +1,1 @@
+Um player nativo e rápido para seus arquivos de música. Forma de onda clicável, fader de pitch estilo toca-discos e FX de DJ. Sem biblioteca, sem conta, sem assinatura.

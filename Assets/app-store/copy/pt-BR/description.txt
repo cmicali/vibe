@@ -1,0 +1,12 @@
+O Vibe é um player de música rápido e minimalista para o Mac. Sem motor de terceiros, sem conta, sem assinatura. Só um player simples e rápido para seus arquivos.
+
+Forma de onda
+O Vibe desenha cada faixa como uma forma de onda ao longo da janela. Clique em qualquer ponto para pular até ele. Não há biblioteca para importar nem banco de dados para reconstruir: solte um arquivo ou uma pasta na janela e a música toca. O Vibe lê tags, capas e BPM em segundo plano e guarda tudo em cache, então a próxima abertura é instantânea.
+
+Formatos
+MP3, MP2, AAC, FLAC, MP4/M4A, AIFF e WAV, todos decodificados pelo próprio macOS. Arquivos lossless tocam em resolução completa, e o formato e a taxa de amostragem de cada faixa ficam ao lado do título.
+
+DJ vai se sentir em casa
+• Um fader de pitch no estilo de um toca-discos, escondido até você precisar dele.
+• Saltos medidos em compassos, não em segundos. Quando o tempo é conhecido, pule 8, 16 ou 32 compassos sem sair do grid; quando não é, as mesmas teclas movem 10, 30 ou 60 segundos.
+• FX de performance sob uma mão: low kill, uma camada de reverb e delays travados no BPM da faixa. Toque uma tecla para fixar um efeito; segure para efeito momentâneo.

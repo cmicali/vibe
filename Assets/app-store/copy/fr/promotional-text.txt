@@ -1,0 +1,1 @@
+Un lecteur natif et rapide pour vos fichiers musicaux. Forme d’onde cliquable, fader de pitch façon platine et FX de DJ. Ni bibliothèque, ni compte, ni abonnement.

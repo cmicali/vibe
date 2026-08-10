@@ -1,0 +1,12 @@
+Vibe är en snabb, minimalistisk musikspelare för Mac. Ingen tredjepartsmotor, inget konto, ingen prenumeration. Bara en enkel, snabb spelare för dina filer.
+
+Vågform
+Vibe ritar varje spår som en hel vågform tvärs över fönstret. Klicka var som helst på den för att söka. Det finns inget bibliotek att importera och ingen databas att bygga om. Släpp en fil eller en mapp på fönstret så spelas den. Taggar, omslag och BPM läses i bakgrunden och cachas, så nästa öppning är omedelbar.
+
+Format
+MP3, MP2, AAC, FLAC, MP4/M4A, AIFF och WAV — alla avkodade av macOS självt. Lossless-filer spelas i full upplösning, och varje spårs format och samplingsfrekvens står bredvid titeln.
+
+DJs känner sig hemma
+• En pitchfader upplagd som på en skivspelare, dold tills du vill ha den.
+• Hopp mätta i takter, inte sekunder. När tempot är känt hoppar du 8, 16 eller 32 takter och stannar i gridden; när det inte är det flyttar samma tangenter 10, 30 eller 60 sekunder.
+• Performance-FX under en hand: ett low kill-filter, en reverb-wash och delays låsta till spårets BPM. Tryck på en tangent för att låsa en effekt; håll den intryckt för tillfällig effekt.

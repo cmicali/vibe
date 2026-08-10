@@ -1,0 +1,1 @@
+Um leitor nativo e rápido para os seus ficheiros de música. Forma de onda clicável, fader de pitch estilo gira-discos e FX de DJ. Sem biblioteca, conta ou subscrição.

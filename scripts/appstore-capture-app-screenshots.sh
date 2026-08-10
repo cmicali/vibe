@@ -3,7 +3,7 @@
 # background image at 2880x1800 (one of App Store Connect's accepted macOS
 # sizes, and the size the backgrounds were authored at.
 #
-#   scripts/generate-app-store-screenshots.sh <background ...> [shot ...]
+#   scripts/appstore-capture-app-screenshots.sh <background ...> [shot ...]
 #   shot names: player playlist pitch     # no shot arg = all three
 #
 #   1. player    default state — playlist and pitch panel hidden, transport
@@ -49,7 +49,7 @@ set -euo pipefail
 # shellcheck source=scripts/screenshots/screenshot-lib.sh
 source "$(dirname "$0")/screenshots/screenshot-lib.sh"
 
-OUT_DIR="${OUT_DIR:-$ROOT/Assets/app-store}"
+OUT_DIR="${OUT_DIR:-$ROOT/Assets/app-store/screenshots/en}"
 APPEARANCE="${APPEARANCE:-dark}"
 
 # Canvas — 2880x1800 is the 16:10 macOS screenshot size App Store Connect
