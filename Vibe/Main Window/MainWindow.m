@@ -7,6 +7,7 @@
 #import "NSURLUtil.h"
 #import "MainPlayerController.h"
 #import "PitchControlPanel.h"
+#import "Strings.h"
 
 // The window is freely resizable in both axes, and the frame belongs to the
 // user, kept by the autosave. This class enforces only the floors —
@@ -34,7 +35,9 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
                               backing:NSBackingStoreBuffered
                                 defer:NO];
     if (self) {
-        self.title = @"Vibe";
+        // A borderless window draws no title bar, so this only ever reaches
+        // accessibility and the Window menu.
+        self.title = VibeAppName();
         self.identifier = @"main_window";
         self.releasedWhenClosed = NO;
         // Floors only; loadSettings re-applies the width floor once the

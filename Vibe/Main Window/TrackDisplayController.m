@@ -10,6 +10,7 @@
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
 #import "Fonts.h"
+#import "Strings.h"
 
 @implementation TrackDisplayController {
     __weak AudioWaveformView *_waveformView;
@@ -186,8 +187,8 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         if (state == TrackDisplayStateLoading) {
             // The open is still in flight, so the duration and position are
             // unknown rather than zero. Show placeholders, not 0:00.
-            setStringValueIfChanged(self.totalTimeTextField, @"--:--");
-            setStringValueIfChanged(self.currentTimeTextField, @"--:--");
+            setStringValueIfChanged(self.totalTimeTextField, STR_LABEL_TIME_UNKNOWN);
+            setStringValueIfChanged(self.currentTimeTextField, STR_LABEL_TIME_UNKNOWN);
             _lastPosition = -1;
         }
         else {
@@ -199,20 +200,19 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         }
         if (track.metadata.fileType) {
             // The bitrate and sample rate can be nil even with fileType set,
-            // because TagLib can return no audioProperties. Guard them, so the
-            // label never shows "(null) kbps" or "0.0 kHz".
-            NSString *bitrate = @"";
+            // because TagLib can return no audioProperties. Each part is
+            // appended only when present, so the label never shows
+            // "(null) kbps" or "0.0 kHz".
+            NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:track.metadata.fileType];
             if (!track.metadata.isLossless && track.metadata.bitrate) {
-                bitrate = [NSString stringWithFormat:@"%@ kbps | ", track.metadata.bitrate];
+                [parts addObject:[NSString stringWithFormat:STR_LABEL_BITRATE,
+                        [[Formatters sharedInstance] decimalString:track.metadata.bitrate.doubleValue fractionDigits:0]]];
             }
-            NSString *sampleRate = @"";
             if (track.metadata.sampleRate) {
-                sampleRate = [NSString stringWithFormat:@"%.1f kHz", [track.metadata.sampleRate doubleValue] / 1000];
+                [parts addObject:[NSString stringWithFormat:STR_LABEL_SAMPLE_RATE,
+                        [[Formatters sharedInstance] decimalString:track.metadata.sampleRate.doubleValue / 1000 fractionDigits:1]]];
             }
-            NSString *fileMetadata = (bitrate.length || sampleRate.length)
-                    ? [NSString stringWithFormat:@"%@ | %@%@", track.metadata.fileType, bitrate, sampleRate]
-                    : track.metadata.fileType;
-            [self setFileMetadataText:fileMetadata];
+            [self setFileMetadataText:[parts componentsJoinedByString:VibeNotLocalized(@" | ")]];
         }
         else {
             [self setFileMetadataText:@""];
@@ -236,7 +236,8 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         // The empty state, which also serves the play-error rendering: the
         // error goes on the artist line, over the failed track's title.
         BOOL playError = (state == TrackDisplayStateError);
-        setStringValueIfChanged(self.artistTextField, playError ? (errorStatus ?: @"Playback error") : @"");
+        setStringValueIfChanged(self.artistTextField,
+                playError ? (errorStatus ?: STR_ERROR_PLAYBACK_GENERIC) : @"");
         [self setTitleLabelText:playError ? track.singleLineTitle : @""];
         // The whole empty state sits at half strength, and the title matches
         // the waveform's placeholder line: 0.275 is half the shimmer's 0.55
@@ -246,8 +247,8 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         self.currentTimeTextField.alphaValue = 0.5;
         self.totalTimeTextField.alphaValue = 0.5;
         _dropHintTextField.hidden = NO;
-        setStringValueIfChanged(self.totalTimeTextField, @"--:--");
-        setStringValueIfChanged(self.currentTimeTextField, @"--:--");
+        setStringValueIfChanged(self.totalTimeTextField, STR_LABEL_TIME_UNKNOWN);
+        setStringValueIfChanged(self.currentTimeTextField, STR_LABEL_TIME_UNKNOWN);
         // Poison the position cache, so that the first tick of the next track
         // always overwrites the placeholder, even from position 0.
         _lastPosition = -1;
@@ -303,7 +304,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     NSString *text;
     if (Settings.showRemainingTime) {
         NSTimeInterval remaining = MAX(0, duration / rate - displayPosition);
-        text = [@"-" stringByAppendingString:
+        text = [VibeNotLocalized(@"-") stringByAppendingString:
                 [[Formatters sharedInstance] durationStringFromTimeInterval:remaining]];
     }
     else {
@@ -324,7 +325,10 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 }
 
 - (void)renderBPM:(float)displayBPM {
-    NSString *text = displayBPM > 0 ? [NSString stringWithFormat:@"%.1f BPM", displayBPM] : @"";
+    NSString *text = displayBPM > 0
+            ? [NSString stringWithFormat:STR_LABEL_BPM,
+                    [[Formatters sharedInstance] decimalString:displayBPM fractionDigits:1]]
+            : @"";
     setKernedRightAlignedText(_bpmTextField, text);
 }
 

@@ -4,12 +4,18 @@
 //
 
 #import "OversamplingDetailedAudioWaveformRenderer.h"
+#import "Strings.h"
 
 
 @implementation x2OversamplingDetailedAudioWaveformRenderer
 
++ (NSString *)styleIdentifier {
+    return @"oversampling_detailed_x2";
+}
+
+// Three separate keys, not one format string — each reaches the translator in context.
 + (NSString *)displayName {
-    return @"Oversampling Detailed x2";
+    return STR_WAVEFORM_STYLE_OVERSAMPLING_X2;
 }
 
 - (NSUInteger)numBars {
@@ -20,8 +26,12 @@
 
 @implementation x4OversamplingDetailedAudioWaveformRenderer
 
++ (NSString *)styleIdentifier {
+    return @"oversampling_detailed_x4";
+}
+
 + (NSString *)displayName {
-    return @"Oversampling Detailed x4";
+    return STR_WAVEFORM_STYLE_OVERSAMPLING_X4;
 }
 
 - (NSUInteger)numBars {
@@ -32,8 +42,12 @@
 
 @implementation x8OversamplingDetailedAudioWaveformRenderer
 
++ (NSString *)styleIdentifier {
+    return @"oversampling_detailed_x8";
+}
+
 + (NSString *)displayName {
-    return @"Oversampling Detailed x8";
+    return STR_WAVEFORM_STYLE_OVERSAMPLING_X8;
 }
 
 - (NSUInteger)numBars {

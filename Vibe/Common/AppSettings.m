@@ -94,12 +94,37 @@
     return nil;
 }
 
-- (NSString *)waveformStyle {
-    return [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_STYLE];
+// Versions before the styleIdentifier/displayName split stored the renderer's
+// English display name in this setting. Frozen list of every value ever written.
+static NSString *NormalizedWaveformStyle(NSString *stored) {
+    static NSDictionary<NSString *, NSString *> *legacy;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        legacy = @{
+            @"Basic":                    @"basic",
+            @"Detailed":                 @"detailed",
+            @"Sonic Cirrus":             @"sonic_cirrus",
+            @"Oversampling Detailed x2": @"oversampling_detailed_x2",
+            @"Oversampling Detailed x4": @"oversampling_detailed_x4",
+            @"Oversampling Detailed x8": @"oversampling_detailed_x8",
+        };
+    });
+    return stored ? (legacy[stored] ?: stored) : nil;
 }
 
-- (void)setWaveformStyle:(NSString *)name {
-    [[NSUserDefaults standardUserDefaults] setObject:name forKey:SETTING_WAVEFORM_STYLE];
+- (NSString *)waveformStyle {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSString *stored = [defaults stringForKey:SETTING_WAVEFORM_STYLE];
+    NSString *normalized = NormalizedWaveformStyle(stored);
+    // Migrate a legacy value in place on first read.
+    if (stored && ![normalized isEqualToString:stored]) {
+        [defaults setObject:normalized forKey:SETTING_WAVEFORM_STYLE];
+    }
+    return normalized;
+}
+
+- (void)setWaveformStyle:(NSString *)identifier {
+    [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_STYLE];
 }
 
 - (BOOL)isPitchPanelShown {

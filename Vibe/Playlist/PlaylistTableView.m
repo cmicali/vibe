@@ -202,9 +202,11 @@ static NSTextField *makeCellTextField(NSRect frame) {
 
 #pragma mark - Cell content
 
+// A row index, not a quantity — a locale group separator past 1,000 tracks
+// would widen the tabular-figure column.
 + (NSAttributedString *)numberCellString:(NSUInteger)number {
     ensureCellAttributes();
-    return [[NSAttributedString alloc] initWithString:[NSString stringWithFormat:@"%lu", (unsigned long)number]
+    return [[NSAttributedString alloc] initWithString:[NSString stringWithFormat:VibeNotLocalized(@"%lu"), (unsigned long)number]
                                            attributes:numColumnAttributes];
 }
 

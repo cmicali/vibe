@@ -49,14 +49,16 @@ static NSString *const kVibeBuildAssertions = @"NSAssert on";
 
 @implementation NSBundle (BuildInfo)
 
+// Not localized: a diagnostic identity string shared verbatim with the
+// startup log.
 - (NSString *)vibeVersionString {
 #if DEBUG
-    NSString *configuration = @"Debug";
+    NSString *configuration = VibeNotLocalized(@"Debug");
 #else
-    NSString *configuration = @"Release";
+    NSString *configuration = VibeNotLocalized(@"Release");
 #endif
     NSDictionary *info = self.infoDictionary;
-    return [NSString stringWithFormat:@"%@ (%@) · %@",
+    return [NSString stringWithFormat:VibeNotLocalized(@"%@ (%@) · %@"),
                                       info[@"CFBundleShortVersionString"] ?: @"?",
                                       info[@"CFBundleVersion"] ?: @"?",
                                       configuration];

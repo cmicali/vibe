@@ -7,6 +7,7 @@
 #import "VectorBallsView.h"
 #import "Fonts.h"
 #import "NSBundle+BuildInfo.h"
+#import "Strings.h"
 
 static const CGFloat kAboutWindowWidth = 460;
 static const CGFloat kAboutWindowHeight = 340;
@@ -86,7 +87,8 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
                                                              NSWindowStyleMaskFullSizeContentView
                                                      backing:NSBackingStoreBuffered
                                                        defer:NO];
-    window.title = @"About Vibe";
+    // Same key as the App menu item that opens this window.
+    window.title = [NSString stringWithFormat:STR_MENU_APP_ABOUT, VibeAppName()];
     window.titleVisibility = NSWindowTitleHidden;
     window.titlebarAppearsTransparent = YES;
     window.movableByWindowBackground = YES;
@@ -111,13 +113,14 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
         recordView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
         [window.contentView addSubview:recordView];
 
-        NSDictionary *info = NSBundle.mainBundle.infoDictionary;
-        NSString *version = [NSString stringWithFormat:@"Version %@", NSBundle.mainBundle.vibeVersionString];
+        NSString *version = [NSString stringWithFormat:STR_LABEL_ABOUT_VERSION,
+                             NSBundle.mainBundle.vibeVersionString];
         [window.contentView addSubview:[self labelWithString:version
                                                     fontSize:kAboutTextFontSize
                                                        alpha:0.55
                                                            y:36]];
-        NSString *copyright = info[@"NSHumanReadableCopyright"] ?: @"";
+        // objectForInfoDictionaryKey:, NOT infoDictionary[…] — only the former applies InfoPlist.xcstrings.
+        NSString *copyright = [NSBundle.mainBundle objectForInfoDictionaryKey:@"NSHumanReadableCopyright"] ?: @"";
         [window.contentView addSubview:[self copyrightLabelWithString:copyright
                                                             fontSize:kAboutTextFontSize
                                                                alpha:0.35

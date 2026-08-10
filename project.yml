@@ -6,6 +6,13 @@ options:
     macOS: "26.0"
   createIntermediateGroups: true
   settingPresets: none
+  developmentLanguage: en       # base language of the String Catalogs; also what
+                                # $(DEVELOPMENT_LANGUAGE) expands to in Info.plist.
+  # knownRegions stays at XcodeGen's default (Base, en): it doesn't gate what
+  # ships — the XCStrings compiler emits every language in the catalogs
+  # (verified) — and a spec key for it is ignored (XcodeGen derives it from
+  # localized file references). It only affects Xcode's project UI and the
+  # -exportLocalizations default (pass -exportLanguage explicitly there).
   fileTypes:
     icon:                     # Icon Composer AppIcon.icon: treat the .icon package as a single
       file: true              # file reference (not a group to recurse into) so actool compiles it.
@@ -67,6 +74,7 @@ settings:
     MTL_FAST_MATH: YES
     SDKROOT: macosx
     STRING_CATALOG_GENERATE_SYMBOLS: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES   # Export/Import Localizations round-trips .xcstrings
   configs:
     Debug:
       DEBUG_INFORMATION_FORMAT: dwarf
@@ -104,6 +112,13 @@ targets:
           - "-fobjc-arc-exceptions"
       - path: Resources/Assets.xcassets       # .xcassets handled natively by XcodeGen
       - path: Resources/AppIcon.icon          # Icon Composer .icon (handled via options.fileTypes)
+      # String Catalogs. The build only COMPILES these; keys are extracted by
+      # `make strings` (no build-time extraction exists for ObjC — see
+      # scripts/extract-strings.sh, deliberately not a build phase).
+      - path: Resources/Localizable.xcstrings
+        buildPhase: resources
+      - path: Resources/InfoPlist.xcstrings
+        buildPhase: resources
     preBuildScripts:
       # Writes build/generated/VibeGitInfo.h (commit/branch/dirty) for the
       # startup log — see NSBundle+BuildInfo. Runs before the compile phase, and

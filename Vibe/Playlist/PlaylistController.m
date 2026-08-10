@@ -7,6 +7,7 @@
 #import "PlaylistTableView.h"
 #import "PlaylistRowView.h"
 #import "EqualizerIndicatorView.h"
+#import "Strings.h"
 
 // The reuse identifier for the custom row view. Cell views reuse their column
 // identifiers, so the row view needs one of its own.
@@ -50,8 +51,9 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     // The table gets its own menu, shadowing the window-wide one, whose "Show
     // in Finder" reveals the current track, so that a right-click on a row
     // reveals that row's track instead.
-    NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Playlist Menu"];
-    NSMenuItem *showRowInFinder = [[NSMenuItem alloc] initWithTitle:@"Show in Finder"
+    // Menu title never drawn — a context menu shows only its items.
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Playlist Menu")];
+    NSMenuItem *showRowInFinder = [[NSMenuItem alloc] initWithTitle:STR_MENU_SHOW_IN_FINDER
                                                              action:@selector(showClickedTrackInFinder:)
                                                       keyEquivalent:@""];
     showRowInFinder.identifier = @"show_clicked_track_in_finder";

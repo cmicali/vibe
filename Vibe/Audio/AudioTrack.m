@@ -7,6 +7,7 @@
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
 #import "NSURL+Hash.h"
+#import "Strings.h"
 
 @interface AudioTrack ()
 // cacheKey's memo. It is atomic so that the lock-free fast-path read below is
@@ -148,7 +149,8 @@
 
 - (NSString *)singleLineTitle {
     if (self.hasArtistAndTitle) {
-        return [NSString stringWithFormat:@"%@ - %@", self.artist, self.title];
+        // Positional specifiers: a translation may want the title first.
+        return [NSString stringWithFormat:STR_LABEL_TRACK_ARTIST_TITLE, self.artist, self.title];
     }
     else {
         // The title never carries an extension, since both fallbacks strip it,
