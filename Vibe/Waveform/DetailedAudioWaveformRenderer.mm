@@ -10,15 +10,15 @@
 #include <vector>
 #include <cmath>
 
-// Bars reach at most ±kBarAmplitude times half the height from the vertical
+// Bars reach at most ±kBarAmplitudeOfHalfHeight times half the height from the vertical
 // midline. VibeBarVScale is the one normalized-to-pixels scale, shared by the
 // seek hit band in seekHitBandForBounds:, the morph engine's frame-skip
 // heuristic through the vscale block handed to it in init, the drawn mask in
 // rebuildMaskPaths and the gradient band in configureGradient:. They disagree
 // silently if any site re-derives it.
-static const CGFloat kBarAmplitude = 0.75;
+static const CGFloat kBarAmplitudeOfHalfHeight = 0.75;
 static inline CGFloat VibeBarVScale(CGFloat height) {
-    return (height / 2) * kBarAmplitude;
+    return (height / 2) * kBarAmplitudeOfHalfHeight;
 }
 
 // The width of the hover highlight column. A single bar is sub-point wide at
@@ -76,7 +76,7 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     return barWidth * (CGFloat)index;
 }
 
-// Matches the drawn band: bars reach at most ±kBarAmplitude times half the
+// Matches the drawn band: bars reach at most ±kBarAmplitudeOfHalfHeight times half the
 // height from the midline, through VibeBarVScale.
 - (NSRect)seekHitBandForBounds:(NSRect)bounds {
     CGFloat midY = bounds.size.height / 2;
@@ -166,14 +166,14 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     // and y=0 the bottom, so colors[0] is the top color and the last entry is
     // the bottom. The start and end points are pinned to the waveform's
     // vertical band rather than the full view, so that the whole 100%-to-70%
-    // range lands across the visible bars. Bars reach at most ±kBarAmplitude
+    // range lands across the visible bars. Bars reach at most ±kBarAmplitudeOfHalfHeight
     // times half the height from the midline, through VibeBarVScale, so the
-    // band spans y in [(1∓kBarAmplitude)/2]. It is computed, so an amplitude
+    // band spans y in [(1∓kBarAmplitudeOfHalfHeight)/2]. It is computed, so an amplitude
     // change re-aims the fade automatically. Mapping the fade to the whole
     // view instead would swing the bars only from about 0.96 to 0.74, too
     // subtle to read.
-    gradient.startPoint = CGPointMake(0.5, (1 + kBarAmplitude) / 2);
-    gradient.endPoint = CGPointMake(0.5, (1 - kBarAmplitude) / 2);
+    gradient.startPoint = CGPointMake(0.5, (1 + kBarAmplitudeOfHalfHeight) / 2);
+    gradient.endPoint = CGPointMake(0.5, (1 - kBarAmplitudeOfHalfHeight) / 2);
 }
 
 - (void)dealloc {

@@ -159,9 +159,11 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
 
 // Served from the cached snapshot, which the HAL listeners keep fresh by
 // refreshing first and notifying second; see refreshDevicesThenNotify:. The
-// first call, with the cache still empty, sweeps on the calling thread.
-// Concurrent first callers may sweep twice, with identical results, and the
-// last store wins.
+// first call, with the cache still empty, sweeps on the calling thread — but
+// its store yields once the cache is populated: a HAL change landing
+// mid-sweep publishes a fresher refresh-queue sweep, already fanned out to
+// observers, and this sweep's result must not overwrite it after the fact.
+// Concurrent first callers likewise settle on whichever stored first.
 - (NSArray<AudioDevice *>*)outputDevices {
     os_unfair_lock_lock(&_devicesLock);
     NSArray<AudioDevice *> *devices = _cachedOutputDevices;
@@ -169,15 +171,23 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     if (devices) {
         return devices;
     }
-    return [self refreshOutputDevicesCache];
+    NSArray<AudioDevice *> *swept = [self enumerateOutputDevices];
+    os_unfair_lock_lock(&_devicesLock);
+    if (!_cachedOutputDevices) {
+        _cachedOutputDevices = swept;
+    }
+    devices = _cachedOutputDevices;
+    os_unfair_lock_unlock(&_devicesLock);
+    return devices;
 }
 
-- (NSArray<AudioDevice *> *)refreshOutputDevicesCache {
+// Runs only on the serial refresh queue, which orders the stores, so a newer
+// sweep can never be overwritten by an older one here.
+- (void)refreshOutputDevicesCache {
     NSArray<AudioDevice *> *devices = [self enumerateOutputDevices];
     os_unfair_lock_lock(&_devicesLock);
     _cachedOutputDevices = devices;
     os_unfair_lock_unlock(&_devicesLock);
-    return devices;
 }
 
 // Sweeps on the refresh queue first, then fans the observer notification out;

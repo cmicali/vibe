@@ -212,7 +212,9 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
         self.bitrate = bitrate;
         self.sampleRate = sampleRate;
         double duration = [coder decodeDoubleForKey:@"duration"];
-        if (!isfinite(duration)) {
+        // The parse path can only produce non-negative durations, so a
+        // negative one is as corrupt as a non-finite one.
+        if (!isfinite(duration) || duration < 0) {
             return nil; // corrupt/tampered entry — treat as a cache miss
         }
         self.duration = duration;

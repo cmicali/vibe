@@ -78,9 +78,21 @@
 // the per-track rendering states go through trackDisplay.
 @property (weak) AudioWaveformView *waveformView;
 
+#if DEBUG
 // The undo/redo settled hook MainPlayerController+Convert re-declares and
 // fires; synthesized here because a category cannot synthesize storage.
+// Debug-channel plumbing only, so it compiles out of Release.
 @property (copy) void (^conversionUndoRedoSettledHandler)(void);
+#endif
+
+// The convert swap's resume hint: the swapped-in track and the file-time
+// playhead its replay resumes at, so the Now Playing publish in the swap's
+// Loading gap carries the resume position instead of rewinding to 0. +Convert
+// writes it at the swap, +NowPlaying reads it gated on the track identity, and
+// didStartPlaying: clears it. Weak, like the other track marks, so a replaced
+// playlist dissolves the hint.
+@property (weak) AudioTrack *convertSwapResumeTrack;
+@property NSTimeInterval convertSwapResumePosition;
 
 @end
 
@@ -537,10 +549,6 @@
     }
 }
 
-- (void)playURL:(NSURL *)url {
-    [self play:@[url]];
-}
-
 - (void)revealEmptyState {
     if (_emptyStateSuppressed) {
         _emptyStateSuppressed = NO;
@@ -714,6 +722,9 @@
     if (track != [self.playlistController currentTrack]) {
         return;
     }
+    // The convert swap's Now Playing resume hint is spent: the live position
+    // republishes from here.
+    self.convertSwapResumeTrack = nil;
     [_artworkController trackDidStartPlaying:track];
     [self clearErrorMask];
     [self.trackDisplay hideWaveformLoadingIndicator];
@@ -938,16 +949,6 @@
 }
 
 #pragma mark - Actions
-
-- (IBAction) setSmallSize:(id)sender {
-    MainWindow *window = (MainWindow *)self.window;
-    [window setSmallSize:YES];
-}
-
-- (IBAction) setLargeSize:(id)sender {
-    MainWindow *window = (MainWindow *)self.window;
-    [window setLargeSize:YES];
-}
 
 - (IBAction) toggleSize:(id)sender {
     MainWindow *window = (MainWindow *)self.window;

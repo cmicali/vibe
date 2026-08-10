@@ -37,7 +37,8 @@
     double rate = self.playbackRate;
     NSTimeInterval duration;
     NSTimeInterval position;
-    if ([self displayState] == TrackDisplayStateLoading) {
+    BOOL loadingGap = [self displayState] == TrackDisplayStateLoading;
+    if (loadingGap) {
         // The same gate the header renders --:-- under: during a track change
         // the player's live position and duration still describe the previous
         // file, or read 0, so publishing them would pair the new track's
@@ -46,7 +47,11 @@
         // its known duration (metadata, or a prior play) when it has one.
         // didStartPlaying:'s updateUI republishes the live times.
         duration = track.duration;
-        position = 0;
+        // A convert swap replays the same audio at the old playhead, so its
+        // gap carries the resume position rather than rewinding the scrubber
+        // to 0 and snapping back at didStartPlaying:.
+        position = (track && track == self.convertSwapResumeTrack)
+                ? self.convertSwapResumePosition : 0;
     }
     else {
         duration = self.audioPlayer.duration;
@@ -56,11 +61,16 @@
         duration /= rate;
         position /= rate;
     }
+    // The MediaPlayer rate is how fast the published elapsed advances: 1.0
+    // while playing, since wall-clock elapsed advances at real time — except
+    // in the Loading gap, whose state maps to Playing while the published
+    // position is a placeholder, so freeze the readout there until
+    // didStartPlaying:'s republish flips it live.
     [self.nowPlayingController updateWithTrack:track
                                       position:position
                                       duration:duration
                                          state:state
-                                          rate:1.0
+                                          rate:loadingGap ? 0.0 : 1.0
                                        hasNext:self.playlistController.hasNextTrack
                                    hasPrevious:self.playlistController.hasPreviousTrack];
 }

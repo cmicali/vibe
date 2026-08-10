@@ -333,8 +333,13 @@
     if (current) {
         // Carry the running sweep's phase over, so the retargeted band keeps
         // moving from its current spot rather than snapping to the left edge.
+        // The phase is elapsed time plus the previous carry-over: animationForKey:
+        // returns a copy that preserves timeOffset, so dropping it here would lose
+        // the phase on every reinstall after the first. beginTime is 0 until the
+        // first transaction commit stamps it; treat elapsed as 0 then.
         CFTimeInterval now = [_loadingLayer convertTime:CACurrentMediaTime() fromLayer:nil];
-        sweep.timeOffset = fmod(MAX(now - current.beginTime, 0), sweep.duration);
+        CFTimeInterval elapsed = current.beginTime > 0 ? MAX(now - current.beginTime, 0) : 0;
+        sweep.timeOffset = fmod(elapsed + current.timeOffset, sweep.duration);
     }
     [_loadingLayer addAnimation:sweep forKey:@"sweep"];
 }

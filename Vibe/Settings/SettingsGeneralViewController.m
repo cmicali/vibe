@@ -25,6 +25,11 @@ static const CGFloat kOutputPopUpWidth = 280;
     OutputDevicesMenuController *_outputMenuController;
     NSPopUpButton *_outputPopUp;
     NSButton *_defaultPlayerButton;
+    // The last answer from the async default-app check, shown immediately on
+    // refresh while the fresh one is fetched; the generation drops a stale
+    // reply that lands after a newer refresh.
+    BOOL _lastKnownIsDefaultPlayer;
+    NSUInteger _defaultPlayerCheckGeneration;
 }
 
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController {
@@ -93,10 +98,25 @@ static const CGFloat kOutputPopUpWidth = 280;
     [DefaultAppClaim makeDefaultApp];
 }
 
+// The check walks Launch Services off the main thread, so show the last-known
+// state now and correct it when the fresh answer lands.
 - (void)refreshDefaultPlayerButton {
+    [self renderDefaultPlayerState:_lastKnownIsDefaultPlayer];
+    NSUInteger generation = ++_defaultPlayerCheckGeneration;
+    __weak __typeof(self) weakSelf = self;
+    [DefaultAppClaim checkIsDefaultAppForAllFileTypes:^(BOOL isDefault) {
+        __typeof(self) strongSelf = weakSelf;
+        if (!strongSelf || generation != strongSelf->_defaultPlayerCheckGeneration) {
+            return;
+        }
+        strongSelf->_lastKnownIsDefaultPlayer = isDefault;
+        [strongSelf renderDefaultPlayerState:isDefault];
+    }];
+}
+
+- (void)renderDefaultPlayerState:(BOOL)isDefault {
     // Nothing to do once Vibe already holds every type, so say so in the
     // title and disable the button rather than offer a no-op.
-    BOOL isDefault = DefaultAppClaim.isDefaultAppForAllFileTypes;
     _defaultPlayerButton.title = [NSString stringWithFormat:
             isDefault ? STR_SETTINGS_DEFAULT_PLAYER_IS : STR_SETTINGS_DEFAULT_PLAYER_SET, VibeAppName()];
     _defaultPlayerButton.enabled = !isDefault;

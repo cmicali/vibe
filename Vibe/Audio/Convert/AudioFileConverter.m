@@ -459,6 +459,8 @@ static NSString *VibeFileStat(NSURL *url) {
                                                        interleaved:NO
                                                              error:error];
     if (!destination) {
+        // initForWriting: can fail after creating the file at tempURL.
+        [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];
         return nil;
     }
 

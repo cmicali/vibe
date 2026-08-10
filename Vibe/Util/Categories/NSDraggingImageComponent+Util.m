@@ -31,10 +31,31 @@
     NSSize textSize = [attrStr size];
     NSSize labelSize = NSMakeSize(ceil(textSize.width), ceil(textSize.height));
 
+    // An explicit sRGB bitmap context rather than lockFocus, which is
+    // soft-deprecated and whose backing rep picks up the deepest screen's
+    // scale. Same pattern as NSDockTile+Util and NSImage+Util.
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc]
+                                               initWithBitmapDataPlanes:NULL
+                                                             pixelsWide:(NSInteger)labelSize.width
+                                                             pixelsHigh:(NSInteger)labelSize.height
+                                                          bitsPerSample:8
+                                                        samplesPerPixel:4
+                                                               hasAlpha:YES
+                                                               isPlanar:NO
+                                                         colorSpaceName:NSCalibratedRGBColorSpace
+                                                            bytesPerRow:0
+                                                           bitsPerPixel:0];
+    rep = [rep bitmapImageRepByRetaggingWithColorSpace:NSColorSpace.sRGBColorSpace];
+    NSGraphicsContext *context = rep ? [NSGraphicsContext graphicsContextWithBitmapImageRep:rep] : nil;
     NSImage *stringImage = [[NSImage alloc] initWithSize:labelSize];
-    [stringImage lockFocus];
-    [attrStr drawInRect:NSMakeRect(0, 0, labelSize.width, labelSize.height)];
-    [stringImage unlockFocus];
+    if (context) {
+        rep.size = labelSize;
+        [NSGraphicsContext saveGraphicsState];
+        [NSGraphicsContext setCurrentContext:context];
+        [attrStr drawInRect:NSMakeRect(0, 0, labelSize.width, labelSize.height)];
+        [NSGraphicsContext restoreGraphicsState];
+        [stringImage addRepresentation:rep];
+    }
 
     NSDraggingImageComponent *labelComponent = [NSDraggingImageComponent draggingImageComponentWithKey:NSDraggingImageComponentLabelKey];
     labelComponent.contents = stringImage;

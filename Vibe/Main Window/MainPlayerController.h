@@ -37,7 +37,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (strong) AudioFileConverter *fileConverter;
 
 - (void)play:(NSArray<NSURL *> *)urls;
-- (void)playURL:(NSURL *)url;
 
 // The varispeed playback rate, 1.0 + pitch/100: the track plays this much
 // faster or slower than file time. The time labels, and the Now Playing
@@ -70,8 +69,6 @@ NS_ASSUME_NONNULL_BEGIN
 // MainPlayerController+Transport.h declares, and implements, the
 // relative-seek skips and the DJ effect toggles.
 
-- (IBAction)setSmallSize:(id)sender;
-- (IBAction)setLargeSize:(id)sender;
 - (IBAction)toggleSize:(nullable id)sender;
 - (IBAction)setWindowSize:(id)sender;
 

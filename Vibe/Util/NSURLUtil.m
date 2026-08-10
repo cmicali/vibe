@@ -18,12 +18,16 @@
     return (st.st_flags & SF_DATALESS) != 0;
 }
 
-// A static set, consulted once per file in a folder drop.
+// A static set, consulted once per file in a folder drop. Must cover every
+// spelling the CFBundleDocumentTypes claim admits: com.microsoft.waveform-audio
+// declares wav, wave, AND bwf, so dropping one here would let Finder offer
+// Vibe for a file the filter then silently discards.
 + (NSSet<NSString*>*) supportedExtensions {
     static NSSet<NSString*> *extensions;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        extensions = [NSSet setWithObjects:@"mp2", @"mp3", @"aac", @"aif", @"aiff", @"wav", @"flac", @"m4a", @"mp4", nil];
+        extensions = [NSSet setWithObjects:@"mp2", @"mp3", @"aac", @"aif", @"aiff",
+                                           @"wav", @"wave", @"bwf", @"flac", @"m4a", @"mp4", nil];
     });
     return extensions;
 }
