@@ -24,11 +24,11 @@ V="$APP/Contents/MacOS/Vibe"
 
 `launch.sh` relaunches the build and polls the debug channel until the app answers, then prints its `dump_state` JSON. No guessed sleeps. It honors `$VIBE_APP` when the app lives somewhere other than `build/DerivedData`.
 
-**It launches with audio output muted.** The debug-only `--silent` argv flag zeroes the engine's main mixer, so playback, position, waveform and FX state all behave normally but nothing reaches the speakers; `dump_state` reports it as `player.silent`. Set `VIBE_AUDIBLE=1` to hear playback.
+**It launches with audio off the hardware.** Two independent debug-only argv flags, and `launch.sh` passes both by default: `--no-audio-hw` runs the engine in manual rendering mode with a real-time-paced render pump — no CoreAudio output device is ever opened, so a test run cannot trigger macOS's automatic AirPods switching, while playback, position, waveform and FX state all behave normally — and `--silent` zeroes the main mixer, which mutes playback but still opens and drives the real output device. Use both (the default) unless a test genuinely needs hardware: `--silent` alone for real-HAL behavior without noise (device switching against real devices, engine config-change notifications, output-latency-dependent timing), neither for audible playback. `dump_state` reports them as `player.silent` and `player.noAudioHw`. Set `VIBE_AUDIBLE=1` to use real hardware and hear playback.
 
 To launch by hand instead:
 
-- **Mute manual launches too**: `open -a "$APP" <files> --args --silent`. `--args` must come last, since everything after it becomes the app's argv. The direct-exec second-instance path takes argv natively: `"$V" --silent &`.
+- **Keep manual launches off the hardware too**: `open -a "$APP" <files> --args --no-audio-hw --silent`. `--args` must come last, since everything after it becomes the app's argv. The direct-exec second-instance path takes argv natively: `"$V" --no-audio-hw --silent &`.
 - **Feed it a file with `open -a "$APP" <file>`.** The App Sandbox denies reading raw `argv` paths, because there is no Launch Services grant, so `"$V" <file>` parses the path but the open fails. `open` grants access properly. An already-running instance can also load files with `--debug-cmd open <path>`, but that grants no sandbox access either, so it suits container paths or paths already granted. `open -a` works mid-session too and remains the way to feed arbitrary files.
 - **Check which binary is running before you trust any observation.** If the user has Vibe running from Xcode, Launch Services routes `open -a` and `open -n` to that instance, and you will test a stale build with no error at all. Verify with:
   ```bash

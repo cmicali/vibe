@@ -5,8 +5,10 @@
 #
 # Usage: launch.sh [audio-file ...]
 # App path: $VIBE_APP if set, else <repo>/build/DerivedData/Build/Products/Debug/Vibe.app
-# Audio output is MUTED by default (launches with --silent); set VIBE_AUDIBLE=1
-# to actually hear playback. Set VIBE_LANGUAGE=de (a catalog code) to launch
+# Audio is OFF-HARDWARE by default (launches with --no-audio-hw --silent), so
+# no output device is opened and macOS's automatic AirPods switching can't
+# trigger; set VIBE_AUDIBLE=1 to use real hardware and hear playback.
+# Set VIBE_LANGUAGE=de (a catalog code) to launch
 # the app in that language via -AppleLanguages — per-launch only, no prefs
 # reset needed.
 set -euo pipefail
@@ -31,7 +33,7 @@ for _ in 1 2 3 4 5 6; do
         # array is empty, hence the ${ARGS[@]+...} idiom.
         ARGS=()
         [ -n "${VIBE_LANGUAGE:-}" ] && ARGS+=(-AppleLanguages "(${VIBE_LANGUAGE})")
-        [ -z "${VIBE_AUDIBLE:-}" ] && ARGS+=(--silent)
+        [ -z "${VIBE_AUDIBLE:-}" ] && ARGS+=(--no-audio-hw --silent)
         if [ "${#ARGS[@]}" -gt 0 ]; then
             open -a "$APP" "$@" --args ${ARGS[@]+"${ARGS[@]}"}
         else

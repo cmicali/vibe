@@ -203,6 +203,7 @@ static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"numChannels": @(player.numChannels),
             @"outputDeviceId": @(player.currentlyActiveAudioDeviceId),
             @"silent": @([NSProcessInfo.processInfo.arguments containsObject:@"--silent"]),
+            @"noAudioHw": @([NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"]),
         },
         @"currentTrack": track ? @{
             @"url": track.url.path ?: @"",

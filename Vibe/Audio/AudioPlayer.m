@@ -73,6 +73,16 @@ static const NSTimeInterval kEngineIdleStopDelaySeconds = 2.0;
 // Default pitch fader range in percent: ±8%, matching a stock SL-1200.
 static const float kDefaultMaxPitchPercent = 8.0f;
 
+#if DEBUG
+// --no-audio-hw render pump: tick interval, the per-renderOffline chunk (also
+// the engine's manual-rendering maximumFrameCount), and the largest wall-clock
+// gap credited per tick, so a debugger pause or queue stall does not render
+// the backlog in one burst and teleport the position.
+static const NSTimeInterval kManualPumpIntervalSeconds = 0.02;
+static const AVAudioFrameCount kManualPumpMaxFrames = 4096;
+static const NSTimeInterval kManualPumpMaxCatchUpSeconds = 0.25;
+#endif
+
 // Queue-specific key marking _queue, so dealloc can tell whether it is
 // already running on the queue, as it is when a queued block drops the last
 // reference. dispatch_sync onto the current queue deadlocks.
@@ -179,6 +189,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // for up to the full crossfade; declick-length retires never register.
     NSMutableArray<VibeRetiredFade *> *_retiredFades;
     id                      _configChangeObserver;
+#if DEBUG
+    // --no-audio-hw manual-rendering pump; see startManualRenderPumpOnQueue.
+    // Queue-confined, except the source itself which dealloc cancels.
+    dispatch_source_t       _manualPump;
+    AVAudioPCMBuffer        *_manualPumpBuffer;
+    uint64_t                _manualPumpLastNs;
+    double                  _manualPumpFrameDebt;
+#endif
 }
 
 #pragma mark - Init
@@ -218,19 +236,54 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
             self->_engine = [[AVAudioEngine alloc] init];
 
+#if DEBUG
+            // --no-audio-hw, for testing: put the engine in manual rendering
+            // mode so it never opens a CoreAudio output device. Starting the
+            // hardware IO — even with the mixer muted — counts as the Mac
+            // playing audio, which is enough for macOS to yank auto-switching
+            // AirPods over from another device mid-test. In manual mode the
+            // graph, scheduling, fades, FX, completions and position all
+            // behave normally; startManualRenderPumpOnQueue below pulls
+            // frames at real-time pace and discards them. Must be enabled
+            // while the engine is stopped and before the graph is wired.
+            BOOL noAudioHW = [NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"];
+            BOOL manualRendering = NO;
+            if (noAudioHW) {
+                NSError *manualError = nil;
+                AVAudioFormat *renderFormat = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100.0
+                                                                                             channels:2];
+                manualRendering = [self->_engine
+                        enableManualRenderingMode:AVAudioEngineManualRenderingModeOffline
+                                           format:renderFormat
+                                maximumFrameCount:kManualPumpMaxFrames
+                                            error:&manualError];
+                if (!manualRendering) {
+                    // The engine will open the output device as it always
+                    // does; pair --no-audio-hw with --silent, as launch.sh
+                    // does, and playback at least stays inaudible.
+                    LogError(@"AudioPlayer: --no-audio-hw manual rendering unavailable (%@)", manualError);
+                }
+            }
+#endif
+
             // The FX segment — low kill, and the reverb and delay returns —
             // owns everything between the main mixer and the output node.
             // See AudioFX.
             [self->_fx installInEngine:self->_engine];
 
 #if DEBUG
-            // --silent, for testing: zero the main mixer so that playback runs
-            // normally but nothing reaches the output device. It sits
-            // downstream of all fade ramps, which are player-node volumes, and
-            // upstream of the FX returns, so wet tails are silenced too. It
-            // must run after installInEngine:, because a mixer volume written
-            // before the node is attached and wired is silently dropped. See
-            // AudioFX.m.
+            if (manualRendering) {
+                [self startManualRenderPumpOnQueue];
+                LogInfo(@"AudioPlayer: --no-audio-hw, manual rendering, no output device");
+            }
+            // --silent, for testing: zero the main mixer so that playback
+            // runs normally but nothing audible reaches the output device,
+            // which still gets opened and driven — use --no-audio-hw to keep
+            // hardware untouched. It sits downstream of all fade ramps, which
+            // are player-node volumes, and upstream of the FX returns, so wet
+            // tails are silenced too. It must run after installInEngine:,
+            // because a mixer volume written before the node is attached and
+            // wired is silently dropped. See AudioFX.m.
             if ([NSProcessInfo.processInfo.arguments containsObject:@"--silent"]) {
                 self->_engine.mainMixerNode.outputVolume = 0;
                 LogInfo(@"AudioPlayer: --silent, output muted");
@@ -291,10 +344,61 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     return self;
 }
 
+#if DEBUG
+// Runs on _queue. Stands in for the HAL IO thread that --no-audio-hw's manual
+// rendering mode never starts: a timer pulls frames through the engine at
+// real-time pace and discards them, so scheduled segments are consumed,
+// completion handlers fire and lastRenderTime advances exactly as they would
+// against hardware. Rendering only while the engine is running keeps the pump
+// inert across the idle stop, device rebinds and teardown, and the clock
+// re-baseline on every tick means a stopped stretch is never credited as
+// playback when the engine comes back.
+- (void)startManualRenderPumpOnQueue {
+    _manualPumpBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:_engine.manualRenderingFormat
+                                                      frameCapacity:kManualPumpMaxFrames];
+    _manualPumpLastNs = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    _manualPump = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, _queue);
+    dispatch_source_set_timer(_manualPump, DISPATCH_TIME_NOW,
+            (uint64_t)(kManualPumpIntervalSeconds * NSEC_PER_SEC), 5 * NSEC_PER_MSEC);
+    __weak AudioPlayer *weakSelf = self;
+    dispatch_source_set_event_handler(_manualPump, ^{
+        [weakSelf manualPumpTickOnQueue];
+    });
+    dispatch_resume(_manualPump);
+}
+
+- (void)manualPumpTickOnQueue {
+    uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    NSTimeInterval elapsed = (NSTimeInterval)(now - _manualPumpLastNs) / NSEC_PER_SEC;
+    _manualPumpLastNs = now;
+    if (!_engine.isRunning) {
+        _manualPumpFrameDebt = 0;
+        return;
+    }
+    _manualPumpFrameDebt += MIN(elapsed, kManualPumpMaxCatchUpSeconds) * _engine.manualRenderingFormat.sampleRate;
+    while (_manualPumpFrameDebt >= 1) {
+        AVAudioFrameCount frames = (AVAudioFrameCount)MIN(_manualPumpFrameDebt, (double)kManualPumpMaxFrames);
+        NSError *renderError = nil;
+        if ([_engine renderOffline:frames toBuffer:_manualPumpBuffer error:&renderError]
+                != AVAudioEngineManualRenderingStatusSuccess) {
+            LogError(@"AudioPlayer: manual render pump failed (%@)", renderError);
+            _manualPumpFrameDebt = 0;
+            return;
+        }
+        _manualPumpFrameDebt -= frames;
+    }
+}
+#endif
+
 - (void)dealloc {
     if (_configChangeObserver) {
         [[NSNotificationCenter defaultCenter] removeObserver:_configChangeObserver];
     }
+#if DEBUG
+    if (_manualPump) {
+        dispatch_source_cancel(_manualPump);
+    }
+#endif
     [[AudioDeviceManager sharedInstance] removeObserver:self];
     // Engine mutation belongs on _queue, as everywhere else. dispatch_sync
     // from here cannot deadlock against in-flight queue work: a queued block
@@ -591,12 +695,23 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 - (void)scheduleFile:(AVAudioFile *)file onNode:(AVAudioPlayerNode *)node fromFrame:(AVAudioFramePosition)startFrame {
     uint64_t gen = _generation;
     AVAudioFrameCount frames = (AVAudioFrameCount)MAX(file.length - startFrame, 1);
+    AVAudioPlayerNodeCompletionCallbackType completionType = AVAudioPlayerNodeCompletionDataPlayedBack;
+#if DEBUG
+    // DataPlayedBack never fires under --no-audio-hw's manual rendering:
+    // "played back" is computed against the output device's timeline, which
+    // doesn't exist. DataRendered is the same moment at manual mode's zero
+    // output latency, and without it track end — and so auto-advance — never
+    // fires.
+    if (_engine.isInManualRenderingMode) {
+        completionType = AVAudioPlayerNodeCompletionDataRendered;
+    }
+#endif
     __weak AudioPlayer *weakSelf = self;
     [node scheduleSegment:file
             startingFrame:startFrame
                frameCount:frames
                    atTime:nil
-   completionCallbackType:AVAudioPlayerNodeCompletionDataPlayedBack
+   completionCallbackType:completionType
         completionHandler:^(AVAudioPlayerNodeCompletionCallbackType callbackType) {
             AudioPlayer *strongSelf = weakSelf;
             if (strongSelf) {
