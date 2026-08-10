@@ -62,14 +62,6 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
                                       accessibilityDescription:showRowInFinder.title];
     [menu addItem:showRowInFinder];
     [menu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem *copyRowFile = [[NSMenuItem alloc] initWithTitle:STR_MENU_EDIT_COPY_FILE
-                                                         action:@selector(copyClickedTrackFile:)
-                                                  keyEquivalent:@""];
-    copyRowFile.identifier = @"copy_clicked_track_file";
-    copyRowFile.target = self;
-    copyRowFile.image = [NSImage imageWithSystemSymbolName:@"doc.on.doc"
-                                  accessibilityDescription:copyRowFile.title];
-    [menu addItem:copyRowFile];
     NSMenuItem *copyRowName = [[NSMenuItem alloc] initWithTitle:STR_MENU_EDIT_COPY_NAME
                                                          action:@selector(copyClickedTrackName:)
                                                   keyEquivalent:@""];
@@ -78,6 +70,14 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     copyRowName.image = [NSImage imageWithSystemSymbolName:@"textformat"
                                   accessibilityDescription:copyRowName.title];
     [menu addItem:copyRowName];
+    NSMenuItem *copyRowFile = [[NSMenuItem alloc] initWithTitle:STR_MENU_EDIT_COPY_FILE
+                                                         action:@selector(copyClickedTrackFile:)
+                                                  keyEquivalent:@""];
+    copyRowFile.identifier = @"copy_clicked_track_file";
+    copyRowFile.target = self;
+    copyRowFile.image = [NSImage imageWithSystemSymbolName:@"doc.on.doc"
+                                  accessibilityDescription:copyRowFile.title];
+    [menu addItem:copyRowFile];
     _tableView.menu = menu;
 }
 
