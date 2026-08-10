@@ -94,6 +94,7 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 ```bash
 "$V" --debug-cmd dump_state          # {player, currentTrack, playlist, ui (label text), window, settings}
 "$V" --debug-cmd dump_now_playing    # {playbackState, hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — what we publish to the system Now Playing UI (Control Center / media keys)
+"$V" --debug-cmd dump_stats          # {filesOpened, foldersOpened, secondsPlayed} — AppStats lifetime counters, live (secondsPlayed includes the in-progress run)
 "$V" --debug-cmd dump_view_tree      # {windows: [{class, frame, visible, key, contentView: {…, subviews}}]}
 "$V" --debug-cmd dump_menu           # {menu: [{title, id, key, action, enabled, state, items}]} — LIVE enabled/checkmark
 "$V" --debug-cmd click_menu menu_show_pitch   # {ok, clicked, action} — by identifier (preferred) or exact title

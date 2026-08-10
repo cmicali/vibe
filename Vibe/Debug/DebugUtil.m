@@ -30,6 +30,7 @@
 #import "PlaylistDropZoneView.h"
 #import "MainPlayerContentView.h"
 #import "NSURLUtil.h"
+#import "AppStats.h"
 #import "PitchControlPanel.h"
 #import "SymbolButton.h"
 
@@ -888,7 +889,7 @@ static NSString *VibeSyntheticDragDrop(MainPlayerController *controller, NSArray
     // sandbox caveat is the same as with `open`: an ungranted path may be
     // denied at read time. Poll dump_state for the resulting playlist.
     [NSURLUtil expandAndFilterList:@[[NSURL fileURLWithPath:path]]
-                        completion:^(NSArray<NSURL *> *expanded) {
+                        completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
         if (expanded.count > 0 &&
             [window.dropDelegate respondsToSelector:@selector(mainWindow:filesDropped:atLocation:)]) {
             [window.dropDelegate mainWindow:window filesDropped:expanded atLocation:location];
@@ -988,6 +989,14 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     out[@"hasArtwork"] = @(info[MPMediaItemPropertyArtwork] != nil);
                 }
                 return VibeJSONString(out);
+            }),
+            VibeCmd(@"dump_stats", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                AppStats *stats = [AppStats sharedInstance];
+                return VibeJSONString(@{
+                    @"filesOpened": @(stats.totalFilesOpened),
+                    @"foldersOpened": @(stats.totalFoldersOpened),
+                    @"secondsPlayed": @(stats.totalSecondsPlayed),
+                });
             }),
             VibeCmd(@"dump_view_tree", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeViewTreeDump();
@@ -1131,7 +1140,7 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 // be denied at read time, the same caveat as with command-line
                 // arguments, and `open -a "$APP"` grants access.
                 [NSURLUtil expandAndFilterList:@[[NSURL fileURLWithPath:path]]
-                                    completion:^(NSArray<NSURL *> *expanded) {
+                                    completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
                     if (expanded.count > 0) {
                         [controller play:expanded];
                     }

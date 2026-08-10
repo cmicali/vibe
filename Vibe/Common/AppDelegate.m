@@ -15,6 +15,7 @@
 #import "OpenBurstCoalescer.h"
 #import "OpenRecentMenuController.h"
 #import "NSBundle+BuildInfo.h"
+#import "AppStats.h"
 #import "DocumentTypes.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -189,7 +190,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 // unsupported files, and hands the result to the controller, either appended
 // or as a replacing play.
 - (void)openURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append {
-    [NSURLUtil expandAndFilterList:urls completion:^(NSArray<NSURL *> *expanded) {
+    [NSURLUtil expandAndFilterList:urls completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
+        [[AppStats sharedInstance] recordOpenedFiles:expanded.count folders:folderCount];
         // Nothing playable, as with a folder that holds no audio. Do not wipe
         // the current playlist with an empty list.
         if (expanded.count == 0) {
@@ -209,6 +211,11 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
     return YES;
+}
+
+- (void)applicationWillTerminate:(NSNotification *)notification {
+    // Persist the in-progress listening run; quitting fires no player callback.
+    [[AppStats sharedInstance] playbackStopped];
 }
 
 // Launch Services can split one multi-file open into several openURLs: events.

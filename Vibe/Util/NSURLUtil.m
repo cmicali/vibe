@@ -89,17 +89,23 @@
     return queue;
 }
 
-+ (void) expandAndFilterList:(NSArray<NSURL*>*)list completion:(void (^)(NSArray<NSURL*>*))completion {
++ (void) expandAndFilterList:(NSArray<NSURL*>*)list
+                  completion:(void (^)(NSArray<NSURL*>*, NSUInteger))completion {
     dispatch_async([self expansionQueue], ^{
-        NSArray<NSURL*> *results = [self expandAndFilterList:list];
+        NSUInteger folderCount = 0;
+        NSArray<NSURL*> *results = [self expandAndFilterList:list folderCount:&folderCount];
         dispatch_async(dispatch_get_main_queue(), ^{
-            completion(results);
+            completion(results, folderCount);
         });
     });
 }
 
 + (NSArray<NSURL*>*) expandAndFilterList:(NSArray<NSURL*>*)list {
-    list = [NSURLUtil expandFileList:list];
+    return [self expandAndFilterList:list folderCount:NULL];
+}
+
++ (NSArray<NSURL*>*) expandAndFilterList:(NSArray<NSURL*>*)list folderCount:(NSUInteger *)folderCount {
+    list = [NSURLUtil expandFileList:list folderCount:folderCount];
     NSSet<NSString*> *supported = [NSURLUtil supportedExtensions];
     list = [list filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSURL *url, NSDictionary* bindings) {
         return [supported containsObject:[url.pathExtension lowercaseString]];
@@ -108,6 +114,10 @@
 }
 
 + (NSArray<NSURL*>*) expandFileList:(NSArray<NSURL*>*)list {
+    return [self expandFileList:list folderCount:NULL];
+}
+
++ (NSArray<NSURL*>*) expandFileList:(NSArray<NSURL*>*)list folderCount:(NSUInteger *)folderCount {
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] initWithCapacity:list.count];
     for (NSURL *url in list) {
         // Ask the filesystem rather than the URL. hasDirectoryPath inspects
@@ -119,6 +129,9 @@
                 ? isDirectory.boolValue
                 : url.hasDirectoryPath; // resource read failed; fall back to the slash
         if (isDir) {
+            if (folderCount) {
+                (*folderCount)++;
+            }
             [results addObjectsFromArray:[self expandDirectory:url]];
         }
         else {
