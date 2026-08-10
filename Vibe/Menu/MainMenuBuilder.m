@@ -12,6 +12,32 @@
 #import "OutputDevicesMenuController.h"
 #import "Strings.h"
 
+// Strips what macOS force-appends to any menu it takes for an Edit menu —
+// AutoFill, Start Dictation and Emoji & Symbols, all inert in an app with no
+// text input. There is no supported opt-out: AppKit's only suppression
+// defaults cover Dictation and the character palette, nothing covers
+// AutoFill, so the one uniform, public-API path is a delegate that drops
+// every item the builder didn't add. Ours all carry menu_edit_* identifiers;
+// anything else, the system's separators included, goes. Deliberately NOT
+// implementing menuHasKeyEquivalent:…, unlike the app's other menu
+// delegates: this menu carries real key equivalents (⌘Z, ⇧⌘Z, ⌘C, ⇧⌘C),
+// and that override would answer for them instead of letting AppKit walk
+// the items.
+@interface VibeEditMenuCleaner : NSObject <NSMenuDelegate>
+@end
+
+@implementation VibeEditMenuCleaner
+
+- (void)menuNeedsUpdate:(NSMenu *)menu {
+    for (NSMenuItem *item in [menu.itemArray copy]) {
+        if (![item.identifier hasPrefix:@"menu_edit"]) {
+            [menu removeItem:item];
+        }
+    }
+}
+
+@end
+
 @implementation MainMenuBuilder
 
 static NSMenuItem *Item(NSString *title, SEL action, id target, NSString *key,
@@ -108,8 +134,24 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // Edit: undo and redo only — the app has no selection and no clipboard.
     // Validation retitles them from NSUndoManager.
     NSMenu *editMenu = Submenu(mainMenu, STR_MENU_EDIT).submenu;
+    static VibeEditMenuCleaner *editMenuCleaner;
+    editMenuCleaner = editMenuCleaner ?: [VibeEditMenuCleaner new];
+    editMenu.delegate = editMenuCleaner;
     AddSymbolItem(editMenu, STR_MENU_EDIT_UNDO, @"arrow.uturn.backward", @selector(undo:), player, @"z", NSEventModifierFlagCommand, @"menu_edit_undo");
-    AddSymbolItem(editMenu, STR_MENU_EDIT_REDO, @"arrow.uturn.forward", @selector(redo:), player, @"z", NSEventModifierFlagCommand | NSEventModifierFlagShift, @"menu_edit_redo");
+    // ⇧⌘Z — capital "Z", same contract as Copy Name's "C" below.
+    AddSymbolItem(editMenu, STR_MENU_EDIT_REDO, @"arrow.uturn.forward", @selector(redo:), player, @"Z", NSEventModifierFlagCommand, @"menu_edit_redo");
+    // The cleaner keeps only menu_edit_*-identified items, the separator
+    // included.
+    AddSeparator(editMenu).identifier = @"menu_edit_separator";
+
+    // Copy File puts the current track's file URL on the general pasteboard,
+    // so a Finder paste duplicates the file; Copy Name copies the header's
+    // "Artist - Title" line as text.
+    AddSymbolItem(editMenu, STR_MENU_EDIT_COPY_FILE, @"doc.on.doc", @selector(copyFile:), player, @"c", NSEventModifierFlagCommand, @"menu_edit_copy_file");
+    // ⇧⌘C. Shift rides in the capital "C", per the NSMenuItem contract — a
+    // lowercase key with Shift in the mask draws right but never matches a
+    // real key press (charactersIgnoringModifiers arrives uppercase).
+    AddSymbolItem(editMenu, STR_MENU_EDIT_COPY_NAME, @"textformat", @selector(copyName:), player, @"C", NSEventModifierFlagCommand, @"menu_edit_copy_name");
 
     // Playback
     NSMenu *playbackMenu = Submenu(mainMenu, STR_MENU_PLAYBACK).submenu;

@@ -79,6 +79,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)setPitchRange:(id)sender;
 
 - (IBAction)showInFinder:(id)sender;
+- (IBAction)copyFile:(id)sender;
+- (IBAction)copyName:(id)sender;
 
 // The Convert to FLAC and undo/redo actions live in
 // MainPlayerController+Convert.h, like the Transport actions.

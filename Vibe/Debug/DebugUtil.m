@@ -605,6 +605,10 @@ static NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSStrin
         flags |= NSEventModifierFlagFunction | NSEventModifierFlagNumericPad;
     }
     NSString *chars = VibeKeyCharacters(name);
+    // charactersIgnoringModifiers ignores Option, NOT Shift: hardware delivers
+    // the shifted character in BOTH fields, and AppKit's menu key-equivalent
+    // matching reads it — a lowercase char there makes ⇧⌘C match a plain ⌘C
+    // equivalent instead of the ⇧⌘C one.
     NSString *charsWithMods = (flags & NSEventModifierFlagShift) ? VibeShiftedKeyCharacters(chars) : chars;
     NSWindow *window = controller.window;
     void (^post)(NSEventType) = ^(NSEventType type) {
@@ -615,7 +619,7 @@ static NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSStrin
                                       windowNumber:window.windowNumber
                                            context:nil
                                         characters:charsWithMods
-                       charactersIgnoringModifiers:chars
+                       charactersIgnoringModifiers:charsWithMods
                                          isARepeat:NO
                                            keyCode:code.unsignedShortValue];
         [NSApp postEvent:event atStart:NO];
