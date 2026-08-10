@@ -57,9 +57,9 @@
             }
         }
         else {
-            // Log it and treat it as a file, the same fallback expandFileList:
-            // uses, so that it still reaches the extension filter rather than
-            // vanishing.
+            // Log it and treat it as a file, the same fallback
+            // expandFileList:folderCount: uses, so that it still reaches the
+            // extension filter rather than vanishing.
             LogWarn(@"Could not read directory flag for %@: %@", url, error);
             [results addObject:url];
         }
@@ -68,7 +68,7 @@
     // The enumerator returns APFS hash order, which is effectively random, so
     // sort by full path with Finder's comparator, which is numeric and groups
     // subfolders. An explicit multi-file drop keeps its pasteboard order; see
-    // expandFileList:.
+    // expandFileList:folderCount:.
     [results sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
         return [a.path localizedStandardCompare:b.path];
     }];
@@ -100,10 +100,6 @@
     });
 }
 
-+ (NSArray<NSURL*>*) expandAndFilterList:(NSArray<NSURL*>*)list {
-    return [self expandAndFilterList:list folderCount:NULL];
-}
-
 + (NSArray<NSURL*>*) expandAndFilterList:(NSArray<NSURL*>*)list folderCount:(NSUInteger *)folderCount {
     list = [NSURLUtil expandFileList:list folderCount:folderCount];
     NSSet<NSString*> *supported = [NSURLUtil supportedExtensions];
@@ -111,10 +107,6 @@
         return [supported containsObject:[url.pathExtension lowercaseString]];
     }]];
     return list;
-}
-
-+ (NSArray<NSURL*>*) expandFileList:(NSArray<NSURL*>*)list {
-    return [self expandFileList:list folderCount:NULL];
 }
 
 + (NSArray<NSURL*>*) expandFileList:(NSArray<NSURL*>*)list folderCount:(NSUInteger *)folderCount {

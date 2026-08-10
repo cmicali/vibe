@@ -550,11 +550,7 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
         }
         return;
     }
-    // Multiplicative, perceptually logarithmic interpolation, as in
-    // VibeFadeVolume but for an arbitrary step count.
-    float f = MAX(start, kFadeFloor);
-    float t = MAX(target, kFadeFloor);
-    gate.outputVolume = f * powf(t / f, (float)step / (float)steps);
+    gate.outputVolume = VibeFadeVolumeOverSteps(start, target, step, steps);
     __weak AudioFX *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(stepMicroseconds * NSEC_PER_USEC)), _queue, ^{
         [weakSelf stepSendGateRamp:gate step:step + 1 of:steps stepMicroseconds:stepMicroseconds from:start to:target generation:generation counter:counter completion:completion];

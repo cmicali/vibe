@@ -34,7 +34,16 @@ COMPOSE="$ROOT/scripts/compose-app-store-overlay.py"
 LANGS="$ROOT/scripts/catalog-languages.sh"
 
 if [ "${1:-}" = --all ]; then
-    while read -r l; do "$0" "$l"; done < <("$LANGS")
+    # Each child derives its per-language output dir, and an exported OUT_DIR
+    # would send every language into the same directory — so scope it: an
+    # override becomes the base, gaining a /<lang> suffix per child.
+    while read -r l; do
+        if [ -n "${OUT_DIR:-}" ]; then
+            OUT_DIR="$OUT_DIR/$l" "$0" "$l"
+        else
+            "$0" "$l"
+        fi
+    done < <("$LANGS")
     exit 0
 fi
 

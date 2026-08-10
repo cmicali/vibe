@@ -100,12 +100,11 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
         // HAL client connection to coreaudiod costs about 20ms. The singleton
         // is first touched on the main thread before first paint, by the
         // devices menu controller's addObserver, and that must not pay the
-        // cost. The serial refresh queue keeps the ordering, since any
-        // refreshDevicesThenNotify queues behind this block. In effect nothing
-        // is missed if a device change lands in the sub-100ms window before
-        // the listeners attach: the first outputDevices sweep, in
-        // AudioPlayer's async init, runs afterwards and reads the then-current
-        // device list.
+        // cost. The first outputDevices sweep runs on its caller's thread,
+        // not this queue, so it is not ordered after this registration: a
+        // device change landing in the sub-100ms window before the listeners
+        // attach can be missed, and the cache stays stale until the next HAL
+        // notification refreshes it.
         dispatch_async(_refreshQueue, ^{
             // Deliver HAL notifications on the HAL's own thread rather than
             // the main run loop. notifyObserversUsingBlock: hops to the main

@@ -20,13 +20,9 @@
 
 + (NSArray<NSURL *> *)expandDirectory:(NSURL *)dir;
 
-+ (NSArray<NSURL *> *)expandAndFilterList:(NSArray<NSURL *> *)list;
-
 // folderCount is how many of the top-level URLs resolved as directories,
 // counted here because the check stats the file system and so belongs on the
 // expansion queue, not the main-thread caller. Completion runs on main.
 + (void)expandAndFilterList:(NSArray<NSURL *> *)list
                  completion:(void (^)(NSArray<NSURL *> *files, NSUInteger folderCount))completion;
-
-+ (NSArray<NSURL *> *)expandFileList:(NSArray<NSURL *> *)list;
 @end

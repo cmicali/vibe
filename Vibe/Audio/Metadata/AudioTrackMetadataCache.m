@@ -303,7 +303,7 @@
     // cacheKey is re-read here, memoized on the track, because a transient
     // stat failure at cache-check time may have healed by the end of the parse.
     NSString *cacheKey = track.cacheKey;
-    if (metadata.parsedOK && cacheKey && !self.isCancelled) {
+    if (metadata.parsedOK && cacheKey) {
         // Skip failed parses, whether from a dataless cloud file or a
         // transient I/O error: caching the filename-only fallback would shadow
         // the real tags until the size-and-mtime cache key changed, which can
@@ -320,8 +320,13 @@
     [self publishTrack:track];
 }
 
+// Deliberately not gated on isCancelled: once a parse has landed on the track,
+// every later loader's parsedOK checks skip it, so this publish is the only one
+// the delegate will ever get — the cross-lane claim's "the winner's publish
+// reaches the delegate either way". The art-byte discard must run for the same
+// reason, and a departed track is dropped by the delegate's own checks.
 - (void)publishTrack:(AudioTrack *)track {
-    if (track.metadata && !self.isCancelled) {
+    if (track.metadata) {
         // The thumbnail was pre-warmed before publish, so drop the full-size
         // art bytes and a large first import will not pin hundreds of MB.
         // Cache-hit instances never carried them, and freshly parsed ones now
@@ -329,9 +334,7 @@
         // at full resolution.
         [track.metadata discardAlbumArtData];
         run_on_main_thread({
-            if (!self.isCancelled) {
-                [self.delegate didLoadMetadata:track];
-            }
+            [self.delegate didLoadMetadata:track];
         });
     }
 }

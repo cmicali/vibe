@@ -34,12 +34,6 @@ static inline float VibeFadeVolumeOverSteps(float from, float to, int step, int 
     return f * powf(t / f, (float)step / (float)totalSteps);
 }
 
-// The default-cadence fade, kFadeSteps over kFadeDurationMilliseconds — every
-// declick ramp and AudioFX's send gates.
-static inline float VibeFadeVolume(float from, float to, int step) {
-    return VibeFadeVolumeOverSteps(from, to, step, kFadeSteps);
-}
-
 // Step count for a fade of `milliseconds` total: the default cadence at the
 // declick length, ~10ms per step beyond it, so a long crossfade ramps in
 // small volume increments instead of ten audible stair-steps.
@@ -47,7 +41,9 @@ static inline int VibeFadeStepsForMilliseconds(uint64_t milliseconds) {
     if (milliseconds <= kFadeDurationMilliseconds) {
         return kFadeSteps;
     }
-    return (int)(milliseconds / 10);
+    // Round up: truncation gave 11-19ms a single step, and a 1-step ramp
+    // snaps straight to the target — the click a fade exists to avoid.
+    return (int)((milliseconds + 9) / 10);
 }
 
 static inline uint64_t VibeFadeStepMicrosecondsForMilliseconds(uint64_t milliseconds) {

@@ -97,9 +97,11 @@ SHUTTER_LEAD="${SHUTTER_LEAD:-2.5}"
 PITCH="${PITCH:-0}"
 
 # Waveform style per shot: the app's default for the first two, and the one the
-# third shot is about. Names are the renderers' +displayName.
-STYLE_DEFAULT="${STYLE_DEFAULT:-Oversampling Detailed x4}"
-STYLE_PITCH="${STYLE_PITCH:-Sonic Cirrus}"
+# third shot is about. Values are the renderers' +styleIdentifier (what the
+# menu item identifiers and the state dump use); +displayName is localized and
+# display-only.
+STYLE_DEFAULT="${STYLE_DEFAULT:-oversampling_detailed_x4}"
+STYLE_PITCH="${STYLE_PITCH:-sonic_cirrus}"
 
 # Seconds to let the playlist metadata scan (artwork, titles, durations)
 # finish before capturing the folder shot. Cold, off Dropbox, 67 files takes
@@ -310,8 +312,16 @@ if [ -n "$(pgrep -x Vibe || true)" ]; then
     ensure_pitch 0
     ensure_playlist 0
     if [ -n "$ORIGINAL_STYLE" ]; then
-        quiet dump_menu   # builds the delegate submenu so the title resolves
-        quiet click_menu "$ORIGINAL_STYLE" || true
+        quiet dump_menu   # builds the delegate submenu so the item resolves
+        # ORIGINAL_STYLE is a styleIdentifier (that is what the state dump
+        # reports); the menu item's identifier carries the waveform_style_
+        # prefix. Best effort, but never silently: verify and warn.
+        quiet click_menu "waveform_style_$ORIGINAL_STYLE" || true
+        if [ "$(state | jq -r .settings.waveformStyle)" != "$ORIGINAL_STYLE" ]; then
+            echo "warning: waveform style left as" \
+                 "'$(state | jq -r .settings.waveformStyle)' — could not restore" \
+                 "'$ORIGINAL_STYLE'" >&2
+        fi
     fi
     if [ "$ORIGINAL_WIDTH" -gt 0 ]; then
         ensure_body_width "$ORIGINAL_WIDTH"

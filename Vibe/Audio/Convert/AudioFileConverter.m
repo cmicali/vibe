@@ -467,6 +467,8 @@ static NSString *VibeFileStat(NSURL *url) {
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:source.processingFormat
                                                             frameCapacity:kConvertBufferFrames];
     if (!buffer) {
+        // initForWriting: already created the file at tempURL.
+        [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];
         if (error) {
             *error = [self errorWithCode:VibeConvertErrorNotConvertible
                              description:@"Could not allocate an audio buffer for that format."];

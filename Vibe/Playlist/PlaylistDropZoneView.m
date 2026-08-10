@@ -254,8 +254,10 @@ static NSColor *HexColor(uint32_t rgb) {
 
 #pragma mark - Accessibility
 
+// Same gate as hitTest:, so VoiceOver cannot press a well the squashed pane
+// gives no visual presence.
 - (BOOL)isAccessibilityElement {
-    return _playlistEmpty && ![self isHidden];
+    return _playlistEmpty && [self isEffectivelyVisible];
 }
 
 - (NSAccessibilityRole)accessibilityRole {

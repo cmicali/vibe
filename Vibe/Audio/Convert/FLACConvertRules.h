@@ -12,14 +12,14 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The extensions of the uncompressed containers Vibe accepts — wave included,
-// because com.microsoft.waveform-audio, the UTType the app claims, declares
-// both spellings. .aifc is left out: AIFF-C carries a compression type and
-// may hold anything, so it is only ever eligible once TagLib has classified
-// it as FILETYPE_AIFF.
+// The extensions of the uncompressed containers Vibe accepts. .wave is left
+// out because every open path filters through NSURLUtil.supportedExtensions,
+// which does not admit it, so such a file can never reach the playlist. .aifc
+// is left out: AIFF-C carries a compression type and may hold anything, so it
+// is only ever eligible once TagLib has classified it as FILETYPE_AIFF.
 static inline BOOL VibeExtensionIsUncompressed(NSString *_Nullable ext) {
     NSString *e = ext.lowercaseString;
-    return [e isEqualToString:@"wav"] || [e isEqualToString:@"wave"] ||
+    return [e isEqualToString:@"wav"] ||
            [e isEqualToString:@"aif"] || [e isEqualToString:@"aiff"];
 }
 

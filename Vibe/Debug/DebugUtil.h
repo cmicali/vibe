@@ -7,9 +7,10 @@
 
 #if DEBUG
 
-// The implementation in DebugUtil.m, and the callers in main.m and
-// AppDelegate.m, are all plain ObjC today. The C-linkage guard stays so that
-// an ObjC++ importer would still agree with them on the unmangled names.
+// The implementations in DebugUtil.m and DebugClient.m, and the callers in
+// main.m and AppDelegate.m, are all plain ObjC today. The C-linkage guard
+// stays so that an ObjC++ importer would still agree with them on the
+// unmangled names.
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -79,9 +80,10 @@ void VibeInstallDebugCommandHook(void);
 // mono-mix header that DebugUtil.m must not import.
 NSString *VibeDebugBPMScanJSON(NSString *rawPath);
 
-// The client side. main() invokes it for `Vibe --debug-cmd ...` before
-// NSApplicationMain, so no second app instance ever starts. It returns the
-// process exit code: 0 ok, 1 no response, 2 command error, 64 usage.
+// The client side, in DebugClient.m. main() invokes it for
+// `Vibe --debug-cmd ...` before NSApplicationMain, so no second app instance
+// ever starts. It returns the process exit code: 0 ok, 1 no response,
+// 2 command error, 64 usage.
 int VibeDebugCommandClientMain(int argc, const char *argv[]);
 
 #ifdef __cplusplus

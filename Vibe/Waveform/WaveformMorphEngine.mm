@@ -44,6 +44,7 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     if (self) {
         _vscale = [vscale copy];
         _rebuild = [rebuild copy];
+        _samplesPerBar = 1;
     }
     return self;
 }
@@ -99,6 +100,11 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     double count = (double)_displayedSamples.size();
     size_t start = (size_t)MAX(floor(from * count), 0.0);
     size_t end = (size_t)MIN(ceil(to * count), count);
+    // Round outward to bar boundaries: an odd edge index in the Detailed
+    // family's interleaved layout would zero only half of the edge bar.
+    size_t stride = MAX(_samplesPerBar, (NSUInteger)1);
+    start -= start % stride;
+    end = MIN(end + (stride - end % stride) % stride, _displayedSamples.size());
     BOOL dipped = NO;
     for (size_t i = start; i < end; i++) {
         if (_displayedSamples[i] != 0.0f) {
@@ -155,6 +161,10 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     if (targetChanged) {
         [self startMorphTimer];
     }
+}
+
+- (void)rebuildNow {
+    [self runRebuild];
 }
 
 - (void)runRebuild {

@@ -93,6 +93,7 @@ static const CGFloat kHoverHighlightWidth = 1.5;
         _morph = [[WaveformMorphEngine alloc]
                 initWithVScale:^CGFloat(CGFloat height) { return VibeBarVScale(height); }
                        rebuild:^{ [weakSelf rebuildMaskPaths]; }];
+        _morph.samplesPerBar = 2; // interleaved [min, max] per bar
         [self setupGradientLayers];
         [self updateColors:isDark];
         [self updateWaveform:bounds progress:0 waveform:nil];
@@ -303,11 +304,16 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     [_morph dipDisplayedSamplesFromFraction:from toFraction:to];
 }
 
+- (void)backingScaleDidChange {
+    [_morph rebuildNow];
+    // Re-snap the hover column to the new device-pixel grid.
+    [self setHoverHighlightX:self.hoverHighlightX];
+}
+
 // Builds the bar path for the currently displayed samples and sets it on the
 // shared mask. It is the morph engine's rebuild callback. Pixel-rounding is
 // reserved for the settled state, because mid-morph it would quantize the
-// motion
-// into visible 1px steps.
+// motion into visible one-pixel steps.
 - (void)rebuildMaskPaths {
     const std::vector<float> &samples = [_morph displayedSamples];
     NSUInteger count = samples.size() / 2;
@@ -323,6 +329,7 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     // with the Sonic Cirrus family.
     CGFloat minHeight = _morph.barMinHeight;
     BOOL settled = _morph.isSettled;
+    CGFloat scale = VibeBackingScaleForLayer(self.parentLayer);
     CGMutablePathRef path = CGPathCreateMutable();
     for (NSUInteger i = 0; i < count; i++) {
         // y-up layer coords: the bar's top comes from the positive peak (max),
@@ -331,8 +338,8 @@ static const CGFloat kHoverHighlightWidth = 1.5;
         CGFloat top = midY + samples[i * 2 + 1] * vscale;
         CGFloat bottom = midY + samples[i * 2] * vscale;
         if (settled) {
-            top = round(top);
-            bottom = round(bottom);
+            top = round(top * scale) / scale;
+            bottom = round(bottom * scale) / scale;
         }
         CGFloat height = MAX(top - bottom, minHeight);
         CGFloat x = [self barXForIndex:i width:width barCount:count barWidth:barWidth];

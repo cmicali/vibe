@@ -29,7 +29,7 @@
 #import "PitchControlPanel.h"
 #import "TransportKeyMonitor.h"
 #import "NowPlayingController.h"
-#import "MainPlayerController+Convert.h" // convertCurrentTrackToFLAC:, for the context menu
+#import "MainMenuBuilder.h" // vends the context-menu items shared with the main menu
 #import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerController+Transport.h" // updateFXIndicators, from the updateUI funnel
 #import "UIUpdateTimer.h"
@@ -184,44 +184,21 @@
 
     // A right-click menu on the whole window body. It is on the content view,
     // so the responder chain carries it to the pitch panel too. Every item
-    // acts on the current track; the Copy and Convert items share the main
-    // menu's identifiers and so their validation (and the Convert retitling).
+    // acts on the current track; the Copy and Convert items are the ones
+    // MainMenuBuilder vends for the main menu, so they share its identifiers
+    // and so their validation (and the Convert retitling).
     // Menu title never drawn — a context menu shows only its items.
     NSMenu *contextMenu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Popup Menu")];
-    NSMenuItem *showInFinder = [[NSMenuItem alloc] initWithTitle:STR_MENU_SHOW_IN_FINDER
-                                                          action:@selector(showInFinder:)
-                                                   keyEquivalent:@""];
-    showInFinder.identifier = @"show_in_finder";
-    showInFinder.target = self;
-    showInFinder.image = [NSImage imageWithSystemSymbolName:@"folder"
-                                   accessibilityDescription:showInFinder.title];
-    [contextMenu addItem:showInFinder];
+    [contextMenu addItem:[MainMenuBuilder symbolItemWithTitle:STR_MENU_SHOW_IN_FINDER
+                                                   symbolName:@"folder"
+                                                       action:@selector(showInFinder:)
+                                                       target:self
+                                                   identifier:@"show_in_finder"]];
     [contextMenu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem *copyNameItem = [[NSMenuItem alloc] initWithTitle:STR_MENU_EDIT_COPY_NAME
-                                                          action:@selector(copyName:)
-                                                   keyEquivalent:@""];
-    copyNameItem.identifier = @"menu_edit_copy_name";
-    copyNameItem.target = self;
-    copyNameItem.image = [NSImage imageWithSystemSymbolName:@"textformat"
-                                   accessibilityDescription:copyNameItem.title];
-    [contextMenu addItem:copyNameItem];
-    NSMenuItem *copyFileItem = [[NSMenuItem alloc] initWithTitle:STR_MENU_EDIT_COPY_FILE
-                                                          action:@selector(copyFile:)
-                                                   keyEquivalent:@""];
-    copyFileItem.identifier = @"menu_edit_copy_file";
-    copyFileItem.target = self;
-    copyFileItem.image = [NSImage imageWithSystemSymbolName:@"doc.on.doc"
-                                   accessibilityDescription:copyFileItem.title];
-    [contextMenu addItem:copyFileItem];
+    [contextMenu addItem:[MainMenuBuilder copyNameItemWithTarget:self]];
+    [contextMenu addItem:[MainMenuBuilder copyFileItemWithTarget:self]];
     [contextMenu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem *convertCurrent = [[NSMenuItem alloc] initWithTitle:STR_MENU_CONVERT_TO_FLAC
-                                                            action:@selector(convertCurrentTrackToFLAC:)
-                                                     keyEquivalent:@""];
-    convertCurrent.identifier = @"menu_convert_to_flac";
-    convertCurrent.target = self;
-    convertCurrent.image = [NSImage imageWithSystemSymbolName:@"arrow.triangle.2.circlepath"
-                                     accessibilityDescription:convertCurrent.title];
-    [contextMenu addItem:convertCurrent];
+    [contextMenu addItem:[MainMenuBuilder convertToFLACItemWithTarget:self]];
     contentView.menu = contextMenu;
     // PlaylistController installs the playlist table's own row context menu,
     // which shadows this window-wide one, when the table is attached.
@@ -837,6 +814,13 @@
         return;
     }
     LogError(@"%@", error.localizedDescription);
+    // Play-path errors carry the failing track's URL. A delivery can race a
+    // re-drop's track change, so an error for a departed track is dropped
+    // outright — the new track's own callbacks own the UI from here.
+    NSURL *failedURL = error.userInfo[kVibeAudioErrorTrackURLKey];
+    if (failedURL && ![failedURL isEqual:self.playlistController.currentTrack.url]) {
+        return;
+    }
     // Only a Stopped player takes the play-failure path below. That serves two
     // purposes. It guards against staleness, because play-path errors are
     // published as Stopped before delivery, so a stale error after a re-drop

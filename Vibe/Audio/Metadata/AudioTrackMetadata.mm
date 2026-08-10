@@ -217,9 +217,10 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
         }
         self.duration = duration;
         // Absent in entries written before BPM support, where it decodes as 0,
-        // meaning untagged. No version bump is needed.
+        // meaning untagged. No version bump is needed. Same bounds as the
+        // fresh-parse path, so a doctored entry cannot smuggle in an absurd BPM.
         float bpm = [coder decodeFloatForKey:@"bpm"];
-        self.bpm = isfinite(bpm) && bpm > 0 ? bpm : 0;
+        self.bpm = isfinite(bpm) && bpm > 0 && bpm < 1000 ? bpm : 0;
         // A cache-hit instance represents a successful prior parse.
         self.parsedOK = YES;
     }

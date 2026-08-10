@@ -155,12 +155,15 @@ ensure_body_width() { # <points>
 
 # The style submenu is delegate-built, and click_menu's lookup does NOT ask the
 # delegate — dump_menu does, and the items it builds stay in the menu, so the
-# dump is what makes the title findable. Style names come from each renderer's
-# +displayName ("Sonic Cirrus", "Detailed", "Oversampling Detailed x4", …).
-ensure_waveform_style() { # <display name>
+# dump is what makes the item findable. Takes the renderer's +styleIdentifier
+# ("sonic_cirrus", "detailed", "oversampling_detailed_x4", …), NOT the localized
+# +displayName: the menu item's identifier is "waveform_style_<id>" and the
+# state dump reports the identifier, so the identifier is the stable handle for
+# both the click and the check.
+ensure_waveform_style() { # <style identifier>
     local want=$1 got
     quiet dump_menu
-    quiet click_menu "$want"
+    quiet click_menu "waveform_style_$want"
     got=$(state | jq -r .settings.waveformStyle)
     [ "$got" = "$want" ] || { echo "waveform style is '$got', wanted '$want'" >&2; exit 1; }
     quiet sleep "$SETTLE"   # the new renderer morphs in

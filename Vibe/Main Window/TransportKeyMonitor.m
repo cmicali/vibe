@@ -42,6 +42,8 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
 @implementation TransportKeyMonitor {
     id                              _monitor;
     id                              _resignKeyObserver;
+    id                              _menuTrackingObserver;
+    id                              _windowMoveObserver;
     __weak MainPlayerController    *_controller;
 
     // The tap-against-hold state, indexed by VibeEffectKey. isDown gates the
@@ -79,6 +81,28 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
                 [strongSelf revertHeldEffectKeys];
             }
         }];
+        // Nested event-tracking loops also swallow the release: menu tracking,
+        // and a window drag through movableByWindowBackground. The keyUp never
+        // reaches the monitor, so a momentary hold would stay flipped with the
+        // isDown state stale. Treat the loop's start like losing key status.
+        _menuTrackingObserver = [[NSNotificationCenter defaultCenter]
+                addObserverForName:NSMenuDidBeginTrackingNotification
+                            object:nil
+                             queue:[NSOperationQueue mainQueue]
+                        usingBlock:^(NSNotification *note) {
+            [weakSelf revertHeldEffectKeys];
+        }];
+        _windowMoveObserver = [[NSNotificationCenter defaultCenter]
+                addObserverForName:NSWindowWillMoveNotification
+                            object:nil
+                             queue:[NSOperationQueue mainQueue]
+                        usingBlock:^(NSNotification *note) {
+            TransportKeyMonitor *strongSelf = weakSelf;
+            MainPlayerController *strongController = strongSelf ? strongSelf->_controller : nil;
+            if (strongController && note.object == strongController.window) {
+                [strongSelf revertHeldEffectKeys];
+            }
+        }];
     }
     return self;
 }
@@ -89,6 +113,12 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
     }
     if (_resignKeyObserver) {
         [[NSNotificationCenter defaultCenter] removeObserver:_resignKeyObserver];
+    }
+    if (_menuTrackingObserver) {
+        [[NSNotificationCenter defaultCenter] removeObserver:_menuTrackingObserver];
+    }
+    if (_windowMoveObserver) {
+        [[NSNotificationCenter defaultCenter] removeObserver:_windowMoveObserver];
     }
 }
 
@@ -196,7 +226,8 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
         }
         return nil;
     }
-    // Skip seek. A, S and D go forward 8, 16 and 32 bars; Z, X and C go back
+    // Skip seek. A, S and D go forward by the base bar count
+    // (Settings.skipBaseBars), twice it and four times it; Z, X and C go back
     // the same, or 10, 30 and 60 seconds when the track has no BPM. They form
     // a two-by-three grid on the keyboard, forward on top and back below, and
     // the further the key, the longer the skip.
