@@ -13,6 +13,7 @@
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
 #import "Constants.h"
+#import "Strings.h"
 
 // The design-time size, kMainWindowContentWidth by kMainWindowDesignHeight
 // from Constants.h, which is what the window opens at too. The controller
@@ -396,7 +397,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _closeButton = [MainPlayerContentView transportButtonWithFrame:
                             NSMakeRect(kCloseButtonX, kTrafficLightY, kTrafficLightSize, kTrafficLightSize)
                                                         symbolName:@"circle.fill"
-                                                             label:@"Close"
+                                                             label:STR_A11Y_WINDOW_CLOSE
                                                             action:@selector(closeApp:)
                                                             target:target];
     _closeButton.alphaValue = 0.0;
@@ -410,7 +411,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
                                NSMakeRect(kCloseButtonX + kTrafficLightSpacing, kTrafficLightY,
                                           kTrafficLightSize, kTrafficLightSize)
                                                            symbolName:@"circle.fill"
-                                                                label:@"Minimize"
+                                                                label:STR_A11Y_WINDOW_MINIMIZE
                                                                action:@selector(minimizeWindow:)
                                                                target:target];
     _minimizeButton.alphaValue = 0.0;
@@ -425,7 +426,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
                                      NSMakeRect(kTransportRowX, kTransportButtonY,
                                                 kTransportButtonSize, kTransportButtonSize)
                                                                  symbolName:@"list.bullet"
-                                                                      label:@"Toggle Playlist"
+                                                                      label:STR_A11Y_TOGGLE_PLAYLIST
                                                                      action:@selector(toggleSize:)
                                                                      target:target];
     _playlistToggleButton.alphaValue = 0.0;
@@ -435,7 +436,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
                            NSMakeRect(kTransportRowX + kTransportButtonSpacing, kTransportButtonY,
                                       kTransportButtonSize, kTransportButtonSize)
                                                        symbolName:@"play.fill"
-                                                            label:@"Play"
+                                                            label:STR_TRANSPORT_PLAY
                                                            action:@selector(playPause:)
                                                            target:target];
     _playButton.alphaValue = 0.0;
@@ -446,7 +447,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
                            NSMakeRect(kTransportRowX + 2 * kTransportButtonSpacing, kTransportButtonY,
                                       kTransportButtonSize, kTransportButtonSize)
                                                        symbolName:@"forward.end.fill"
-                                                            label:@"Next Track"
+                                                            label:STR_TRANSPORT_NEXT
                                                            action:@selector(next:)
                                                            target:target];
     _nextButton.alphaValue = 0.0;
@@ -502,7 +503,12 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _dropHintTextField.font = [Fonts font:13];
     _dropHintTextField.alignment = NSTextAlignmentCenter;
     _dropHintTextField.textColor = dimmedTextColor;
-    _dropHintTextField.stringValue = @"Drop a file or press ⌘O";
+    // The shortcut is a separate argument so a translation can move it in the sentence.
+    _dropHintTextField.stringValue = [NSString stringWithFormat:STR_LABEL_DROP_HINT,
+                                                                VibeNotLocalized(@"⌘O")];
+    // Long translations ellipsize.
+    _dropHintTextField.lineBreakMode = NSLineBreakByTruncatingTail;
+    _dropHintTextField.maximumNumberOfLines = 1;
     // At half strength, like the rest of the empty state.
     _dropHintTextField.alphaValue = 0.5;
     _dropHintTextField.hidden = YES;

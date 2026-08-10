@@ -5,6 +5,7 @@
 
 #import "DetailedAudioWaveformRenderer.h"
 #import "WaveformMorphEngine.h"
+#import "Strings.h"
 
 #include <vector>
 #include <cmath>
@@ -55,8 +56,12 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     WaveformMorphEngine *_morph;
 }
 
++ (NSString *)styleIdentifier {
+    return @"detailed";
+}
+
 + (NSString *)displayName {
-    return @"Detailed";
+    return STR_WAVEFORM_STYLE_DETAILED;
 }
 
 - (NSUInteger)numBars {

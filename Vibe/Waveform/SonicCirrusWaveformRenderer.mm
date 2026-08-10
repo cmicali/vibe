@@ -5,6 +5,7 @@
 
 #import "SonicCirrusWaveformRenderer.h"
 #import "WaveformMorphEngine.h"
+#import "Strings.h"
 
 #include <vector>
 #include <cmath>
@@ -46,8 +47,12 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
     WaveformMorphEngine *_morph;
 }
 
++ (NSString *)styleIdentifier {
+    return @"sonic_cirrus";
+}
+
 + (NSString *)displayName {
-    return @"Sonic Cirrus";
+    return STR_WAVEFORM_STYLE_SONIC_CIRRUS;
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {

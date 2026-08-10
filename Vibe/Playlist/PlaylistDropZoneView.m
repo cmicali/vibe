@@ -7,6 +7,7 @@
 #import "PlaylistDropZoneView.h"
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
+#import "Strings.h"
 
 #pragma mark - Layout
 
@@ -27,6 +28,7 @@ static const CGFloat kKeycapGap = 5;         // after "or press"
 // The drag-over wells: an SF Symbol above the label.
 static const CGFloat kDropIconPointSize = 26;
 static const CGFloat kDropIconLabelGap = 10;
+static const CGFloat kWellLabelInset = 12;   // label text from the well border
 
 // The swap between rest and drag-over: a fast fade, deliberately not springy.
 static const CFTimeInterval kStateFadeDuration = 0.12;
@@ -261,7 +263,7 @@ static NSColor *HexColor(uint32_t rgb) {
 }
 
 - (NSString *)accessibilityLabel {
-    return @"Open songs or folders";
+    return STR_A11Y_PLAYLIST_OPEN;
 }
 
 - (BOOL)accessibilityPerformPress {
@@ -281,11 +283,11 @@ static NSColor *HexColor(uint32_t rgb) {
         if (!_playlistEmpty) {
             [self drawDropWell:PlaylistDropWellActionReplace
                         symbol:@"arrow.triangle.2.circlepath"
-                         label:@"Drop to replace playlist"];
+                         label:STR_LABEL_PLAYLIST_DROP_REPLACE];
         }
         [self drawDropWell:PlaylistDropWellActionAdd
                     symbol:@"plus"
-                     label:@"Drop to add to playlist"];
+                     label:STR_LABEL_PLAYLIST_DROP_ADD];
     }
     else if (_playlistEmpty) {
         [self drawRestWell];
@@ -317,18 +319,27 @@ static NSDictionary *textAttributes(NSFont *font, NSColor *color) {
     return @{ NSFontAttributeName: font, NSForegroundColorAttributeName: color };
 }
 
+// drawAtPoint: has no truncation, so a long translation would overhang its
+// well. Ellipsize instead: cap the width and let string drawing truncate.
+static void drawTextCenteredAt(NSAttributedString *text, CGFloat centerX, CGFloat y, CGFloat maxWidth) {
+    CGFloat width = MIN(ceil(text.size.width), maxWidth);
+    [text drawWithRect:NSMakeRect(centerX - width / 2, y, width, ceil(text.size.height))
+               options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingTruncatesLastVisibleLine
+               context:nil];
+}
+
 - (void)drawRestWell {
     NSRect well = [self fullWellRect];
     strokeWellBorder(well, HexColor(0x62646E), nil);
 
     NSAttributedString *line1 = [[NSAttributedString alloc]
-            initWithString:@"Drag songs or folders here"
+            initWithString:STR_LABEL_PLAYLIST_DRAG_HINT
                 attributes:textAttributes([Fonts font:14], HexColor(0x85878F))];
     NSAttributedString *orPress = [[NSAttributedString alloc]
-            initWithString:@"or press"
+            initWithString:STR_LABEL_PLAYLIST_OR_PRESS
                 attributes:textAttributes([Fonts font:13], HexColor(0x64666F))];
     NSAttributedString *keycapText = [[NSAttributedString alloc]
-            initWithString:@"⌘O"
+            initWithString:VibeNotLocalized(@"⌘O")
                 attributes:textAttributes([Fonts font:12], HexColor(0x85878F))];
 
     NSSize line1Size = line1.size;
@@ -344,7 +355,7 @@ static NSDictionary *textAttributes(NSFont *font, NSColor *color) {
     CGFloat line2Y = NSMidY(well) - totalHeight / 2;
     CGFloat line1Y = line2Y + line2Height + kRestLineGap;
 
-    [line1 drawAtPoint:NSMakePoint(midX - line1Size.width / 2, line1Y)];
+    drawTextCenteredAt(line1, midX, line1Y, NSWidth(well) - 2 * kWellLabelInset);
 
     CGFloat line2Width = orPressSize.width + kKeycapGap + keycapSize.width;
     CGFloat line2X = midX - line2Width / 2;
@@ -398,7 +409,7 @@ static NSDictionary *textAttributes(NSFont *font, NSColor *color) {
             fraction:1.0
       respectFlipped:YES
                hints:nil];
-    [text drawAtPoint:NSMakePoint(NSMidX(well) - textSize.width / 2, textY)];
+    drawTextCenteredAt(text, NSMidX(well), textY, NSWidth(well) - 2 * kWellLabelInset);
 }
 
 - (NSImage *)symbolImage:(NSString *)name color:(NSColor *)color {

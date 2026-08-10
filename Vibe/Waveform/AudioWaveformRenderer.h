@@ -40,6 +40,12 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
 
 @property (strong) CALayer* parentLayer;
 
+// Stable, never-localized key for this renderer: the NSUserDefaults value, the
+// AudioWaveformView registry key, and the stem of the menu item's identifier.
+// displayName is the localized name and must never be used as a key.
++ (NSString *)styleIdentifier;
+
+// Localized, user-visible name. Display only.
 + (NSString *)displayName;
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark;

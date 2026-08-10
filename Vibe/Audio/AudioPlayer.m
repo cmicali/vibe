@@ -26,7 +26,9 @@
 NSString *const kVibeAudioErrorDomain = @"com.commonwealthrecordings.Vibe";
 
 // Not static, because AudioPlayer+Devices.m uses it too; AudioPlayerInternal.h
-// declares it.
+// declares it. Descriptions are NOT localized: every consumer is a log site —
+// the UI status comes from +[MainPlayerController statusForPlayError:], which
+// maps the error code and localizes there.
 NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError *underlying) {
     NSMutableDictionary *info = [NSMutableDictionary new];
     if (underlying) {

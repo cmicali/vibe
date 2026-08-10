@@ -4,14 +4,19 @@
 //
 
 #import "BasicAudioWaveformRenderer.h"
+#import "Strings.h"
 
 #define kBasicBarCount 128
 #define kBasicBarWidth 3
 
 @implementation BasicAudioWaveformRenderer
 
++ (NSString *)styleIdentifier {
+    return @"basic";
+}
+
 + (NSString *)displayName {
-    return @"Basic";
+    return STR_WAVEFORM_STYLE_BASIC;
 }
 
 - (NSUInteger)numBars {

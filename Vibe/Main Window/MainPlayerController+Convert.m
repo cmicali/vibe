@@ -6,6 +6,7 @@
 #import "MainPlayerController+Convert.h"
 
 #import "AudioFileConverter.h"
+#import "Strings.h"
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
@@ -195,7 +196,7 @@
 - (void)registerUndoOfConversion:(VibeFLACConversionRecord *)record {
     NSUndoManager *undoManager = self.window.undoManager;
     [[undoManager prepareWithInvocationTarget:self] undoConversion:record];
-    [undoManager setActionName:@"Convert to FLAC"];
+    [undoManager setActionName:STR_MENU_CONVERT_TO_FLAC];
 }
 
 // Edit > Undo of a conversion: put the trashed original back, return its
@@ -209,7 +210,7 @@
     // reality against the record rather than trusting that the moves landed.
     NSUndoManager *undoManager = self.window.undoManager;
     [[undoManager prepareWithInvocationTarget:self] redoConversion:record];
-    [undoManager setActionName:@"Convert to FLAC"];
+    [undoManager setActionName:STR_MENU_CONVERT_TO_FLAC];
 
     LogInfo(@"Undo conversion: source=%@ (trash: %@), output=%@ (trash: %@)",
             record.sourceURL.path, record.sourceTrashURL.path ?: @"-",
@@ -272,7 +273,7 @@
     // this registration land back on the undo stack.
     NSUndoManager *undoManager = self.window.undoManager;
     [[undoManager prepareWithInvocationTarget:self] undoConversion:record];
-    [undoManager setActionName:@"Convert to FLAC"];
+    [undoManager setActionName:STR_MENU_CONVERT_TO_FLAC];
 
     LogInfo(@"Redo conversion: source=%@ (trash: %@), output=%@ (trash: %@)",
             record.sourceURL.path, record.sourceTrashURL.path ?: @"-",

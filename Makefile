@@ -84,3 +84,12 @@ app-store-overlays:
 #   make app-store-screenshots BACKGROUND=path/to/background.png
 app-store-screenshots:
 	scripts/generate-app-store-screenshots.sh $(BACKGROUND)
+
+# Re-extract UI strings into Resources/Localizable.xcstrings. Run after
+# touching any UI string (no build-time extraction exists for ObjC; see script).
+strings:
+	scripts/extract-strings.sh
+
+# Fail if the catalog doesn't match the source. For review/CI.
+check-strings:
+	scripts/extract-strings.sh --check

@@ -6,7 +6,9 @@
 # Usage: launch.sh [audio-file ...]
 # App path: $VIBE_APP if set, else <repo>/build/DerivedData/Build/Products/Debug/Vibe.app
 # Audio output is MUTED by default (launches with --silent); set VIBE_AUDIBLE=1
-# to actually hear playback.
+# to actually hear playback. Set VIBE_LANGUAGE=de (a catalog code) to launch
+# the app in that language via -AppleLanguages — per-launch only, no prefs
+# reset needed.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -24,8 +26,14 @@ pkill -x Vibe 2>/dev/null && sleep 1 || true
 for _ in 1 2 3 4 5 6; do
     if ! pgrep -x Vibe >/dev/null; then
         # --args must come last; everything after it becomes the app's argv.
-        if [ -z "${VIBE_AUDIBLE:-}" ]; then
-            open -a "$APP" "$@" --args --silent
+        # The -AppleLanguages value must be one argv element shaped like a
+        # plist array: (de). bash 3.2 + set -u dies on "${ARGS[@]}" when the
+        # array is empty, hence the ${ARGS[@]+...} idiom.
+        ARGS=()
+        [ -n "${VIBE_LANGUAGE:-}" ] && ARGS+=(-AppleLanguages "(${VIBE_LANGUAGE})")
+        [ -z "${VIBE_AUDIBLE:-}" ] && ARGS+=(--silent)
+        if [ "${#ARGS[@]}" -gt 0 ]; then
+            open -a "$APP" "$@" --args ${ARGS[@]+"${ARGS[@]}"}
         else
             open -a "$APP" "$@"
         fi

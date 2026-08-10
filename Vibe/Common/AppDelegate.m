@@ -14,6 +14,7 @@
 #import "OpenRecentMenuController.h"
 #import "NSBundle+BuildInfo.h"
 #import "DocumentTypes.h"
+#import "Strings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <sys/sysctl.h>
 
@@ -297,8 +298,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         // There is nothing to do once Vibe already holds every type, so say so
         // in the title and disable the item rather than offer a no-op.
         BOOL isDefault = DocumentTypes.isDefaultAppForAllFileTypes;
-        menuItem.title = isDefault ? @"Vibe Is the Default Music Player"
-                                   : @"Set Vibe as Default Music Player";
+        NSString *appName = VibeAppName();
+        menuItem.title = [NSString stringWithFormat:
+                isDefault ? STR_MENU_APP_IS_DEFAULT : STR_MENU_APP_MAKE_DEFAULT, appName];
         return !isDefault;
     }
     return YES;

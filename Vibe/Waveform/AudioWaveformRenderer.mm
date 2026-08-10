@@ -31,6 +31,10 @@
     _hoverHighlightX = x;
 }
 
++ (NSString *)styleIdentifier {
+    return nil;
+}
+
 + (NSString *)displayName {
     return nil;
 }

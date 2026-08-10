@@ -33,6 +33,7 @@
 #import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerController+Transport.h" // updateFXIndicators, from the updateUI funnel
 #import "UIUpdateTimer.h"
+#import "Strings.h"
 
 #define UPDATE_HZ 3
 
@@ -184,8 +185,9 @@
     // so the responder chain carries it to the pitch panel too. Both items act
     // on the current track; the Convert item shares the Convert menu's
     // identifier and so its validation and retitling.
-    NSMenu *contextMenu = [[NSMenu alloc] initWithTitle:@"Popup Menu"];
-    NSMenuItem *showInFinder = [[NSMenuItem alloc] initWithTitle:@"Show in Finder"
+    // Menu title never drawn — a context menu shows only its items.
+    NSMenu *contextMenu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Popup Menu")];
+    NSMenuItem *showInFinder = [[NSMenuItem alloc] initWithTitle:STR_MENU_SHOW_IN_FINDER
                                                           action:@selector(showInFinder:)
                                                    keyEquivalent:@""];
     showInFinder.identifier = @"show_in_finder";
@@ -194,7 +196,7 @@
                                    accessibilityDescription:showInFinder.title];
     [contextMenu addItem:showInFinder];
     [contextMenu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem *convertCurrent = [[NSMenuItem alloc] initWithTitle:@"Convert to FLAC"
+    NSMenuItem *convertCurrent = [[NSMenuItem alloc] initWithTitle:STR_MENU_CONVERT_TO_FLAC
                                                             action:@selector(convertCurrentTrackToFLAC:)
                                                      keyEquivalent:@""];
     convertCurrent.identifier = @"menu_convert_to_flac";
@@ -454,7 +456,7 @@
     // later updateUI would fix the icon, since the update timer is paused.
     BOOL showPause = track && self.audioPlayer.isPlaying;
     self.playButton.symbolName = showPause ? @"pause.fill" : @"play.fill";
-    self.playButton.accessibilityLabel = showPause ? @"Pause" : @"Play";
+    self.playButton.accessibilityLabel = showPause ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
 
     self.playButton.enabled = self.playlistController.count > 0;
     self.nextButton.enabled = self.playlistController.hasNextTrack;
@@ -841,18 +843,18 @@
     if ([error.domain isEqualToString:kVibeAudioErrorDomain]) {
         switch ((VibeAudioErrorCode)error.code) {
             case VibeAudioErrorFileOpenTimedOut:
-                return @"Load timed out";
+                return STR_ERROR_LOAD_TIMEOUT;
             case VibeAudioErrorFileOpenFailed:
-                return @"Could not open file";
+                return STR_ERROR_OPEN_FAILED;
             case VibeAudioErrorEngineStartFailed:
-                return @"Could not start playback";
+                return STR_ERROR_ENGINE_START_FAILED;
             case VibeAudioErrorDeviceUnavailable:
-                return @"Audio device unavailable";
+                return STR_ERROR_DEVICE_UNAVAILABLE;
             case VibeAudioErrorNotPlaying:
                 break; // never reaches here (filtered above)
         }
     }
-    return @"Playback error";
+    return STR_ERROR_PLAYBACK_GENERIC;
 }
 
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer {

@@ -47,4 +47,10 @@ static inline os_log_t VibeLog(void) {
 
 #define Settings [AppSettings sharedInstance]
 
+// Marks a user-visible string deliberately NOT localized (format acronyms,
+// layout punctuation, product names, titles AppKit never draws). No runtime
+// effect: an unwrapped @"..." in UI code is either a bug or declared
+// intentional at the site.
+#define VibeNotLocalized(s) (s)
+
 #endif

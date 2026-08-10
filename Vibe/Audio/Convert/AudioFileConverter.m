@@ -11,6 +11,7 @@
 #import "AudioTrack.h"
 #import "FLACConvertRules.h"
 #import "FLACTagCopier.h"
+#import "Strings.h"
 
 NSString *const kVibeConvertErrorDomain = @"com.commonwealthrecordings.Vibe.convert";
 
@@ -125,10 +126,10 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
 
 - (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem forTrack:(AudioTrack *)track {
     if (self.converting) {
-        menuItem.title = @"Converting…";
+        menuItem.title = STR_MENU_CONVERT_CONVERTING;
         return NO;
     }
-    menuItem.title = @"Convert to FLAC";
+    menuItem.title = STR_MENU_CONVERT_TO_FLAC;
     if (!track.url.isFileURL) {
         return NO;
     }
@@ -143,7 +144,7 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
     [self refreshDestinationStateForTrack:track];
     if (destinationExists) {
         // Disabled rather than auto-renamed; the title says why.
-        menuItem.title = @"FLAC Already Exists";
+        menuItem.title = STR_MENU_CONVERT_FLAC_EXISTS;
         return NO;
     }
     return YES;
@@ -578,8 +579,8 @@ static NSString *VibeFileStat(NSURL *url) {
                      window:(NSWindow *)window
                  completion:(void (^)(NSURL *_Nullable, NSError *_Nullable))completion {
     NSSavePanel *panel = [NSSavePanel savePanel];
-    panel.title = @"Convert to FLAC";
-    panel.message = @"Choose where to save the converted FLAC.";
+    panel.title = STR_MENU_CONVERT_TO_FLAC;
+    panel.message = STR_LABEL_CONVERT_SAVE_MESSAGE;
     panel.directoryURL = destinationURL.URLByDeletingLastPathComponent;
     panel.nameFieldStringValue = destinationURL.lastPathComponent;
     // FLAC has no UTType constant of its own; org.xiph.flac is the identifier
