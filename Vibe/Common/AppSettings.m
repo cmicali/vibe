@@ -66,9 +66,11 @@
 }
 
 - (void)applicationDidFinishLaunching {
+#if TARGET_OS_OSX
     [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"NSQuitAlwaysKeepsWindows"];
     [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"NSFullScreenMenuItemEverywhere"];
     [NSApplication sharedApplication].automaticCustomizeTouchBarMenuItemEnabled = NO;
+#endif
 }
 
 - (NSString *)windowAppearanceStyle {
@@ -79,6 +81,7 @@
     [[NSUserDefaults standardUserDefaults] setObject:name forKey:SETTING_WINDOW_APPEARANCE_STYLE];
 }
 
+#if TARGET_OS_OSX
 - (NSAppearance *)windowAppearance {
     return [self appearanceForSettingValue:self.windowAppearanceStyle];
 }
@@ -93,6 +96,7 @@
     // System default: a nil window appearance tracks the OS light/dark setting.
     return nil;
 }
+#endif
 
 // Versions before the styleIdentifier/displayName split stored the renderer's
 // English display name in this setting. Frozen list of every value ever written.

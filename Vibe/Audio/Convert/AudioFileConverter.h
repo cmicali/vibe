@@ -7,11 +7,12 @@
 //
 
 #import <Foundation/Foundation.h>
-#import <AppKit/AppKit.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
 @class AudioTrack;
+@class NSWindow;
+@class NSMenuItem;
 
 extern NSString *const kVibeConvertErrorDomain;
 

@@ -5,6 +5,10 @@
 
 #import <Foundation/Foundation.h>
 
+#if TARGET_OS_OSX
+@class NSAppearance;
+#endif
+
 // A renderer's stable styleIdentifier, never its localized display name — see
 // AudioWaveformRenderer.h.
 #define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"oversampling_detailed_x4"
@@ -31,7 +35,9 @@
 - (NSString *)windowAppearanceStyle;
 - (void)setWindowAppearanceStyle:(NSString *)name;
 
+#if TARGET_OS_OSX
 - (NSAppearance *)windowAppearance;
+#endif
 
 - (NSString *)waveformStyle;
 - (void)setWaveformStyle:(NSString *)identifier;
