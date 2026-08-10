@@ -59,11 +59,22 @@ NS_ASSUME_NONNULL_BEGIN
                       count:(NSUInteger)count
                        fill:(void (^)(std::vector<float> &target))fill;
 
+// The number of consecutive samples that make up one drawn bar: 1, the
+// default, for Sonic Cirrus, 2 for the Detailed family's interleaved
+// [min, max] pairs. The dip rounds its span outward to this stride, so an
+// edge bar is never half-zeroed.
+@property (nonatomic) NSUInteger samplesPerBar;
+
 // The Convert to FLAC sweep: zeroes the displayed samples in the x-fraction
 // span and ensures the ease is running, so they grow back toward the
 // unchanged target. Samples run left to right in both families, so the
 // fraction maps to the array linearly. A no-op without a waveform.
 - (void)dipDisplayedSamplesFromFraction:(double)from toFraction:(double)to;
+
+// Redraws the caller's layers from the current displayed samples, for a change
+// the updateTargetForSize: fast path cannot see: a backing-scale flip leaves
+// size, identity and count untouched but re-snaps settled pixel rounding.
+- (void)rebuildNow;
 
 // For the rebuild callback. settled is YES when no morph is running, and the
 // Detailed family pixel-rounds only then: mid-morph it would quantize the

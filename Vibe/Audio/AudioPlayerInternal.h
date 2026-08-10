@@ -29,6 +29,7 @@ typedef NS_ENUM(NSInteger, VibePlayerState) {
 
 // Defined in AudioPlayer.m.
 NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError * _Nullable underlying);
+NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, NSError * _Nullable underlying, NSURL * _Nullable trackURL);
 
 @interface AudioPlayer () {
     // Only the ivars AudioPlayer+Devices.m also touches live here in the class

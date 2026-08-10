@@ -101,6 +101,10 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 #pragma mark - Playlist observer
 
 - (void)playlistDidReplaceAllTracks:(Playlist *)playlist {
+    // reloadData keeps selection by row index, which would land a stale
+    // selection wash on an unrelated row of the new playlist. The append path
+    // needs no clearing: its indexes stay valid.
+    [self.tableView deselectAll:nil];
     [self.tableView reloadData];
 }
 

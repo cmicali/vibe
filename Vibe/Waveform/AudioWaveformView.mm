@@ -314,13 +314,28 @@
     _loadingLayer.frame = CGRectMake(0, midY - 1, bandWidth, 2);
     [CATransaction commit];
 
-    [_loadingLayer removeAnimationForKey:@"sweep"];
+    // Reinstall the sweep only when its endpoints actually change. Live resize
+    // lands here every frame, and an unconditional remove-and-re-add restarts
+    // the 1.2s sweep each time, freezing it at the left edge.
+    NSNumber *fromValue = @(-bandWidth / 2);
+    NSNumber *toValue = @(width + bandWidth / 2);
+    CABasicAnimation *current = (CABasicAnimation *)[_loadingLayer animationForKey:@"sweep"];
+    if ([current isKindOfClass:CABasicAnimation.class] &&
+        [current.fromValue isEqual:fromValue] && [current.toValue isEqual:toValue]) {
+        return;
+    }
     CABasicAnimation *sweep = [CABasicAnimation animationWithKeyPath:@"position.x"];
-    sweep.fromValue = @(-bandWidth / 2);
-    sweep.toValue = @(width + bandWidth / 2);
+    sweep.fromValue = fromValue;
+    sweep.toValue = toValue;
     sweep.duration = 1.2;
     sweep.repeatCount = HUGE_VALF;
     sweep.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+    if (current) {
+        // Carry the running sweep's phase over, so the retargeted band keeps
+        // moving from its current spot rather than snapping to the left edge.
+        CFTimeInterval now = [_loadingLayer convertTime:CACurrentMediaTime() fromLayer:nil];
+        sweep.timeOffset = fmod(MAX(now - current.beginTime, 0), sweep.duration);
+    }
     [_loadingLayer addAnimation:sweep forKey:@"sweep"];
 }
 
@@ -414,6 +429,10 @@ static void applyContentsScale(CALayer *layer, CGFloat scale) {
     [super viewDidChangeBackingProperties];
     CGFloat scale = VibeBackingScaleForWindow(self.window);
     applyContentsScale(self.layer, scale);
+    // Settled geometry is snapped to the old display's pixel grid, and the
+    // same-size draw path skips the rebuild; ask for it explicitly. Must run
+    // after the scale re-stamp above, which the rebuild reads.
+    [_currentWaveformRenderer backingScaleDidChange];
 }
 
 // Fires when the system switches between light and dark; under the "System

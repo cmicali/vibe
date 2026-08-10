@@ -47,6 +47,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // delegates are weak, and this object is the target of the items it
     // creates.
     OpenRecentMenuController *_openRecentMenuController;
+    // The live ⌘O panel, so repeated opens re-front it instead of stacking
+    // independent panels whose completions each do a replacing play.
+    NSOpenPanel *_openPanel;
 }
 
 - (instancetype)init {
@@ -74,6 +77,12 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [MainMenuBuilder installMainMenuWithAppDelegate:self
                                    playerController:self.mainPlayerController
                            openRecentMenuController:_openRecentMenuController];
+}
+
+// The app opts into window restoration (NSQuitAlwaysKeepsWindows); without
+// this, AppKit uses legacy insecure decoding for the restorable state.
+- (BOOL)applicationSupportsSecureRestorableState:(NSApplication *)app {
+    return YES;
 }
 
 // The target of the Open Recent items OpenRecentMenuController creates.
@@ -243,6 +252,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 }
 
 - (IBAction)openDocument:(id)sender {
+    if (_openPanel) {
+        [_openPanel makeKeyAndOrderFront:sender];
+        return;
+    }
     NSOpenPanel* panel = [NSOpenPanel openPanel];
     panel.allowsMultipleSelection = YES;
     panel.canChooseFiles = YES;
@@ -256,7 +269,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     if (contentTypes.count > 0) {
         panel.allowedContentTypes = contentTypes;
     }
+    _openPanel = panel;
     [panel beginWithCompletionHandler:^(NSInteger result){
+        self->_openPanel = nil;
         if (result == NSModalResponseOK) {
             [self->_openBurstCoalescer openReplacingURLs:panel.URLs];
         }

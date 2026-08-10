@@ -35,8 +35,23 @@
     // time, so the rate handed to the system is 1.0, not the varispeed rate,
     // which would double-count against the already-scaled position.
     double rate = self.playbackRate;
-    NSTimeInterval duration = self.audioPlayer.duration;
-    NSTimeInterval position = self.audioPlayer.position;
+    NSTimeInterval duration;
+    NSTimeInterval position;
+    if ([self displayState] == TrackDisplayStateLoading) {
+        // The same gate the header renders --:-- under: during a track change
+        // the player's live position and duration still describe the previous
+        // file, or read 0, so publishing them would pair the new track's
+        // identity with the old track's elapsed for as long as a slow open
+        // runs. Publish the displayed track's own values — zero elapsed, and
+        // its known duration (metadata, or a prior play) when it has one.
+        // didStartPlaying:'s updateUI republishes the live times.
+        duration = track.duration;
+        position = 0;
+    }
+    else {
+        duration = self.audioPlayer.duration;
+        position = self.audioPlayer.position;
+    }
     if (rate > 0) {
         duration /= rate;
         position /= rate;

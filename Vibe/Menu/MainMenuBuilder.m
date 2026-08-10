@@ -86,6 +86,31 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     return item;
 }
 
+#pragma mark - Items shared with context menus
+
++ (NSMenuItem *)symbolItemWithTitle:(NSString *)title
+                         symbolName:(NSString *)symbolName
+                             action:(SEL)action
+                             target:(id)target
+                         identifier:(NSString *)identifier {
+    return SymbolItem(title, symbolName, action, target, @"", 0, identifier);
+}
+
++ (NSMenuItem *)copyNameItemWithTarget:(id)target {
+    return SymbolItem(STR_MENU_EDIT_COPY_NAME, @"textformat", @selector(copyName:),
+                      target, @"", 0, @"menu_edit_copy_name");
+}
+
++ (NSMenuItem *)copyFileItemWithTarget:(id)target {
+    return SymbolItem(STR_MENU_EDIT_COPY_FILE, @"doc.on.doc", @selector(copyFile:),
+                      target, @"", 0, @"menu_edit_copy_file");
+}
+
++ (NSMenuItem *)convertToFLACItemWithTarget:(id)target {
+    return SymbolItem(STR_MENU_CONVERT_TO_FLAC, @"arrow.triangle.2.circlepath",
+                      @selector(convertCurrentTrackToFLAC:), target, @"", 0, @"menu_convert_to_flac");
+}
+
 + (void)installMainMenuWithAppDelegate:(AppDelegate *)appDelegate
                       playerController:(MainPlayerController *)player
               openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController {
@@ -146,12 +171,20 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 
     // Copy Name copies the header's "Artist - Title" line as text; Copy File
     // puts the current track's file URL on the general pasteboard, so a
-    // Finder paste duplicates the file. Copy Name's ⇧⌘ rides in the capital
-    // "C", per the NSMenuItem contract — a lowercase key with Shift in the
-    // mask draws right but never matches a real key press
-    // (charactersIgnoringModifiers arrives uppercase).
-    AddSymbolItem(editMenu, STR_MENU_EDIT_COPY_NAME, @"textformat", @selector(copyName:), player, @"C", NSEventModifierFlagCommand, @"menu_edit_copy_name");
-    AddSymbolItem(editMenu, STR_MENU_EDIT_COPY_FILE, @"doc.on.doc", @selector(copyFile:), player, @"c", NSEventModifierFlagCommand, @"menu_edit_copy_file");
+    // Finder paste duplicates the file. The items are the vended ones the
+    // window-body context menu also uses; only the key equivalents are the
+    // menu bar's own. Copy Name's ⇧⌘ rides in the capital "C", per the
+    // NSMenuItem contract — a lowercase key with Shift in the mask draws
+    // right but never matches a real key press (charactersIgnoringModifiers
+    // arrives uppercase).
+    NSMenuItem *copyNameItem = [self copyNameItemWithTarget:player];
+    copyNameItem.keyEquivalent = @"C";
+    copyNameItem.keyEquivalentModifierMask = NSEventModifierFlagCommand;
+    [editMenu addItem:copyNameItem];
+    NSMenuItem *copyFileItem = [self copyFileItemWithTarget:player];
+    copyFileItem.keyEquivalent = @"c";
+    copyFileItem.keyEquivalentModifierMask = NSEventModifierFlagCommand;
+    [editMenu addItem:copyFileItem];
 
     // Playback
     NSMenu *playbackMenu = Submenu(mainMenu, STR_MENU_PLAYBACK).submenu;
@@ -222,7 +255,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenu *convertMenu = Submenu(mainMenu, STR_MENU_CONVERT).submenu;
     // Enabled only for an uncompressed current track with no FLAC beside it
     // yet; validation retitles it with the reason otherwise.
-    AddSymbolItem(convertMenu, STR_MENU_CONVERT_TO_FLAC, @"arrow.triangle.2.circlepath", @selector(convertCurrentTrackToFLAC:), player, @"", 0, @"menu_convert_to_flac");
+    [convertMenu addItem:[self convertToFLACItemWithTarget:player]];
     AddSeparator(convertMenu);
     // A checkmarked preference rather than an action, so it is always enabled.
     AddSymbolItem(convertMenu, STR_MENU_CONVERT_DELETE_ORIGINAL, @"trash", @selector(toggleDeleteOriginalAfterConvert:), player, @"", 0, @"menu_convert_delete_original");

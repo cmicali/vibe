@@ -24,6 +24,7 @@
 // declaration.
 
 NSString *const kVibeAudioErrorDomain = @"com.commonwealthrecordings.Vibe";
+NSString *const kVibeAudioErrorTrackURLKey = @"VibeAudioErrorTrackURL";
 
 // Not static, because AudioPlayer+Devices.m uses it too; AudioPlayerInternal.h
 // declares it. Descriptions are NOT localized: every consumer is a log site —
@@ -39,6 +40,18 @@ NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError 
     }
     info[NSLocalizedDescriptionKey] = description;
     return [NSError errorWithDomain:kVibeAudioErrorDomain code:code userInfo:info];
+}
+
+// Play-path variant: stamps the failing track's URL so the delegate can drop
+// a delivery a track change has outrun (see kVibeAudioErrorTrackURLKey).
+NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, NSError *underlying, NSURL *trackURL) {
+    NSError *error = VibeAudioError(code, description, underlying);
+    if (!trackURL) {
+        return error;
+    }
+    NSMutableDictionary *info = [error.userInfo mutableCopy];
+    info[kVibeAudioErrorTrackURLKey] = trackURL;
+    return [NSError errorWithDomain:error.domain code:error.code userInfo:info];
 }
 
 // How long a file open may block, since cloud placeholders download on
@@ -67,6 +80,18 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 // AudioPlayer+Devices.h declares the AudioDeviceManagerObserver conformance on
 // the (Devices) category, which implements the observer callbacks.
+
+// A retired node/varispeed pair whose crossfade-length fade-out is in flight.
+// Queue-confined through _retiredFades: membership is the ramp's liveness, so
+// removing the entry cancels the ramp, and the remover then owns the pair's
+// teardown.
+@interface VibeRetiredFade : NSObject
+@property (nonatomic, strong) AVAudioPlayerNode *node;
+@property (nonatomic, strong) AVAudioUnitVarispeed *varispeed;
+@end
+
+@implementation VibeRetiredFade
+@end
 
 @implementation AudioPlayer {
     // AudioPlayerInternal.h's class extension declares the ivars the
@@ -148,6 +173,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // twice. The fade's completion clears it, and runs on preemption too, as
     // does preemptRampsOnQueue eagerly.
     BOOL                    _pausePending;
+    // Crossfade-length retired fades in flight, registered by retireNode:.
+    // Queue-confined. Stop, pause and the failure reset preempt them through
+    // preemptRetiredFadesOnQueue, so an outgoing track cannot stay audible
+    // for up to the full crossfade; declick-length retires never register.
+    NSMutableArray<VibeRetiredFade *> *_retiredFades;
     id                      _configChangeObserver;
 }
 
@@ -180,6 +210,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // caller's first moment. Intent set early, by a key press or the BPM
         // feed, is recorded and applied when installInEngine: runs below.
         _fx = [[AudioFX alloc] initWithQueue:_queue];
+        _retiredFades = [NSMutableArray array];
         self.delegate = delegate;
         dispatch_async(_queue, ^{
 
@@ -442,11 +473,12 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     BOOL startPaused = _pendingStartPaused;
     _pendingStartPosition = 0;
     _pendingStartPaused = NO;
+    _pendingDeclick = NO;
 
     if (!file || file.length <= 0) {
         [self resetToStoppedStateOnQueue];
-        [self sendDelegateError:VibeAudioError(VibeAudioErrorFileOpenFailed,
-                [NSString stringWithFormat:@"Could not open %@", track.url.lastPathComponent], error)];
+        [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorFileOpenFailed,
+                [NSString stringWithFormat:@"Could not open %@", track.url.lastPathComponent], error, track.url)];
         return;
     }
 
@@ -455,8 +487,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     if (![self connectNode:node throughVarispeedWithFormat:file.processingFormat]) {
         [self detachNodeAfterFailedConnect:node];
         [self resetToStoppedStateOnQueue];
-        [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-                [NSString stringWithFormat:@"Could not play %@ (unsupported format)", track.url.lastPathComponent], nil)];
+        [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
+                [NSString stringWithFormat:@"Could not play %@ (unsupported format)", track.url.lastPathComponent], nil, track.url)];
         return;
     }
 
@@ -483,8 +515,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             [node stop];
             [_engine detachNode:node];
             [self resetToStoppedStateOnQueue];
-            [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-                    @"Could not start audio engine", startError)];
+            [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
+                    @"Could not start audio engine", startError, track.url)];
             return;
         }
 
@@ -591,9 +623,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _pendingOpenTrack = nil;
     LogError(@"Timed out opening %@", track.url.path);
     [self resetToStoppedStateOnQueue];
-    [self sendDelegateError:VibeAudioError(VibeAudioErrorFileOpenTimedOut,
+    [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorFileOpenTimedOut,
             [NSString stringWithFormat:@"Timed out opening %@ — it may still be downloading from iCloud/Dropbox or the network may be unavailable",
-                                       track.url.lastPathComponent], nil)];
+                                       track.url.lastPathComponent], nil, track.url)];
 }
 
 - (void)prefetchTrack:(AudioTrack *)track {
@@ -685,6 +717,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // The abandoned open's start request goes with its track.
     _pendingStartPosition = 0;
     _pendingStartPaused = NO;
+    _pendingDeclick = NO;
     // Detach the varispeed that playOnQueue: attached for the failed track.
     // Otherwise it stays attached across Stopped until the next play or stop;
     // stopOnQueue arrives here with it already nil. The detach must not throw,
@@ -694,6 +727,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         [self detachNodeAfterFailedConnect:_varispeed];
         _varispeed = nil;
     }
+    // Stop and every failure path land here — a crossfade whose incoming open
+    // failed included — so the outgoing fade must not ring on for up to the
+    // full crossfade length.
+    [self preemptRetiredFadesOnQueue];
     [self publishPlaybackState:VibePlayerStateStopped node:nil file:nil segmentStart:0 position:0];
     // Release the output device once genuinely idle. A quick follow-up play,
     // such as auto-advance past a bad file, reuses the running engine.
@@ -879,6 +916,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                 return;
             }
             uint64_t rampGen = [self preemptRampsOnQueue]; // cancel any in-flight resume fade-in
+            // A pause must silence a crossfade's outgoing tail too, not just
+            // the current node.
+            [self preemptRetiredFadesOnQueue];
             // Fade out asynchronously, then pause in the completion. The queue
             // must not block for the fade, or a skip or seek issued right
             // behind a pause would stall behind it. The state stays Playing
@@ -990,12 +1030,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     [self stepRampAsync:node step:step from:start to:target totalSteps:kFadeSteps stepMicroseconds:kFadeStepMicroseconds preemptable:YES generation:generation completion:completion];
 }
 
-// Fade to silence for a retired node, the crossfade's outgoing side. It is
-// deliberately not preemptable. Once playOnQueue: retires a node nothing
-// re-targets it, since the only remaining reference is this fade's completion,
-// so no later operation needs to preempt it. Preemption would hard-stop the
-// node at mid-fade volume, an audible click on rapid skips. This always
-// reaches silence, then runs the completion — stop and detach — exactly once.
+// Declick-length fade to silence for a retired node — the short retires, the
+// skip-past-end fade in finishCurrentTrack, and the replacement fades
+// preemptRetiredFadesOnQueue starts. It is deliberately not preemptable:
+// preemption would hard-stop the node at mid-fade volume, an audible click,
+// and at this length nothing needs to cut it short. It always reaches
+// silence, then runs the completion exactly once. Crossfade-length retires go
+// through the registered stepper below instead, so stop and pause can preempt
+// them.
 - (void)rampRetiredNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start milliseconds:(uint64_t)milliseconds completion:(dispatch_block_t)completion {
     [self stepRampAsync:node step:step from:start to:0
              totalSteps:VibeFadeStepsForMilliseconds(milliseconds)
@@ -1003,25 +1045,84 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             preemptable:NO generation:0 completion:completion];
 }
 
+// The crossfade-length retired fade's stepping loop. Deliberately not tagged
+// with _rampGeneration — a rapid skip must never cut the outgoing track's
+// crossfade short — but cancellable by removing its entry from _retiredFades,
+// after which the remover owns the pair's teardown and this loop halts
+// without touching the node.
+- (void)stepRetiredFadeAsync:(VibeRetiredFade *)fade step:(int)step from:(float)start totalSteps:(int)totalSteps stepMicroseconds:(uint64_t)stepMicroseconds {
+    if (![_retiredFades containsObject:fade]) {
+        return; // Preempted: stop, pause or reset tears the pair down.
+    }
+    fade.node.volume = VibeFadeVolumeOverSteps(start, 0, step, totalSteps);
+    if (step >= totalSteps) {
+        [_retiredFades removeObject:fade];
+        [self detachRetiredFadePair:fade];
+        return;
+    }
+    __weak AudioPlayer *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(stepMicroseconds * NSEC_PER_USEC)), _queue, ^{
+        [weakSelf stepRetiredFadeAsync:fade step:step + 1 from:start totalSteps:totalSteps stepMicroseconds:stepMicroseconds];
+    });
+}
+
+// Runs on _queue. Stops and detaches a retired pair, exactly once per pair:
+// the caller owns it either through the natural ramp completion, which
+// removes the entry itself, or by having removed the entry to cancel the
+// ramp.
+- (void)detachRetiredFadePair:(VibeRetiredFade *)fade {
+    [fade.node stop];
+    [_engine detachNode:fade.node];
+    if (fade.varispeed) {
+        [_engine detachNode:fade.varispeed];
+    }
+}
+
+// Runs on _queue. Cuts every in-flight crossfade-length retired fade down to
+// the declick minimum: stop, pause and the failure reset must not leave an
+// outgoing track audible for up to the full crossfade. Removing the entries
+// cancels their long ramps; each replacement fade is unregistered, always
+// reaches silence, and detaches its pair exactly once. Skips never call
+// this, so rapid skips keep the full crossfade fade-out.
+- (void)preemptRetiredFadesOnQueue {
+    if (_retiredFades.count == 0) {
+        return;
+    }
+    NSArray<VibeRetiredFade *> *fades = [_retiredFades copy];
+    [_retiredFades removeAllObjects];
+    for (VibeRetiredFade *fade in fades) {
+        [self rampRetiredNodeAsync:fade.node step:1 from:fade.node.volume milliseconds:kFadeDurationMilliseconds completion:^{
+            [self detachRetiredFadePair:fade];
+        }];
+    }
+}
+
 // Tears down a node and varispeed pair the caller has already pulled out of
 // the live state. Runs on _queue, and either may be nil. When the pair is
 // audible — the engine running and the state still Playing — the node fades
-// out on its own varispeed through the retired-node ramp above, and both are
-// detached once silent. It is not the generation-tagged ramp, because a second
-// skip, pause or seek inside the fade window must not preempt it: its
-// completion would then stop the node at mid-fade volume, which clicks.
-// Otherwise, when paused or stopped or on a first play, both are torn down
-// immediately, at silence, so there is nothing to click.
+// out on its own varispeed and both are detached once silent. It is not the
+// generation-tagged ramp, because a second skip inside the fade window must
+// not preempt it: its completion would then stop the node at mid-fade volume,
+// which clicks. A crossfade-length fade registers in _retiredFades so stop,
+// pause and reset can still silence it early. Otherwise, when paused or
+// stopped or on a first play, both are torn down immediately, at silence, so
+// there is nothing to click.
 - (void)retireNode:(AVAudioPlayerNode *)node varispeed:(AVAudioUnitVarispeed *)varispeed milliseconds:(uint64_t)milliseconds {
     AVAudioEngine *engine = _engine;
     if (node && engine.isRunning && _state == VibePlayerStatePlaying) {
-        [self rampRetiredNodeAsync:node step:1 from:node.volume milliseconds:milliseconds completion:^{
-            [node stop];
-            [engine detachNode:node];
-            if (varispeed) {
-                [engine detachNode:varispeed];
-            }
-        }];
+        VibeRetiredFade *fade = [[VibeRetiredFade alloc] init];
+        fade.node = node;
+        fade.varispeed = varispeed;
+        if (milliseconds <= kFadeDurationMilliseconds) {
+            [self rampRetiredNodeAsync:node step:1 from:node.volume milliseconds:milliseconds completion:^{
+                [self detachRetiredFadePair:fade];
+            }];
+            return;
+        }
+        [_retiredFades addObject:fade];
+        [self stepRetiredFadeAsync:fade step:1 from:node.volume
+                        totalSteps:VibeFadeStepsForMilliseconds(milliseconds)
+                  stepMicroseconds:VibeFadeStepMicrosecondsForMilliseconds(milliseconds)];
     }
     else {
         if (node) {

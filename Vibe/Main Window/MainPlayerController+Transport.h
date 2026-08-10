@@ -30,15 +30,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface MainPlayerController (Transport)
 
-// Seeks relative to the current position, in wall-clock seconds, the units the
-// time labels show. Going forward past the end advances to the next track, or
-// stops at the end of the playlist; going back before the start seeks to 0.
-- (IBAction)skipForward:(nullable id)sender;      // +8 bars (+10s without BPM)
-- (IBAction)skipForwardMore:(nullable id)sender;  // +16 bars (+30s without BPM)
-- (IBAction)skipForwardMost:(nullable id)sender;  // +32 bars (+60s without BPM)
-- (IBAction)skipBack:(nullable id)sender;         // −8 bars (−10s without BPM)
-- (IBAction)skipBackMore:(nullable id)sender;     // −16 bars (−30s without BPM)
-- (IBAction)skipBackMost:(nullable id)sender;     // −32 bars (−60s without BPM)
+// Seeks relative to the current position. With a known tempo the three sizes
+// are Settings.skipBaseBars, twice it and four times it; without one they fall
+// back to fixed wall-clock distances, the units the time labels show. Going
+// forward past the end advances to the next track, or stops at the end of the
+// playlist; going back before the start seeks to 0.
+- (IBAction)skipForward:(nullable id)sender;      // +base bars (+10s without BPM)
+- (IBAction)skipForwardMore:(nullable id)sender;  // +2× base (+30s without BPM)
+- (IBAction)skipForwardMost:(nullable id)sender;  // +4× base (+60s without BPM)
+- (IBAction)skipBack:(nullable id)sender;         // −base bars (−10s without BPM)
+- (IBAction)skipBackMore:(nullable id)sender;     // −2× base (−30s without BPM)
+- (IBAction)skipBackMost:(nullable id)sender;     // −4× base (−60s without BPM)
 
 // One toggle per performance effect, for the FX menu. The bare keys do not use
 // these: they go through the getter and setter pairs below, so that their hold

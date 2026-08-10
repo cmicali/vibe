@@ -27,6 +27,23 @@ NS_ASSUME_NONNULL_BEGIN
                       playerController:(MainPlayerController *)playerController
               openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController;
 
+// One symbol-carrying item with no key equivalent, for context menus that
+// want the main menu's item style without duplicating its SF Symbol wiring.
++ (NSMenuItem *)symbolItemWithTitle:(NSString *)title
+                         symbolName:(NSString *)symbolName
+                             action:(SEL)action
+                             target:(nullable id)target
+                         identifier:(nullable NSString *)identifier;
+
+// The items the window-body context menu shares with the main menu: same
+// title, symbol, identifier and, through the identifier, the same validation
+// branch. Vending them keeps each identifier and symbol in exactly one file.
+// They carry no key equivalent — that is the menu bar's concern, and
+// installMainMenuWithAppDelegate: adds it to its own copies.
++ (NSMenuItem *)copyNameItemWithTarget:(nullable id)target;
++ (NSMenuItem *)copyFileItemWithTarget:(nullable id)target;
++ (NSMenuItem *)convertToFLACItemWithTarget:(nullable id)target;
+
 @end
 
 NS_ASSUME_NONNULL_END

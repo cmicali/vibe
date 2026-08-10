@@ -70,3 +70,17 @@ jobs:
       # Recording and Accessibility grants).
       - name: Run unit tests
         run: make test
+
+  # Fails when Resources/Localizable.xcstrings is stale against the STR_*
+  # registry — a reworded string whose `make strings` run was forgotten. Its
+  # own job: it needs no XcodeGen, no generated project and no build, only
+  # clang + xcstringstool (Xcode) and jq (ships with macOS 15+), and it
+  # reports as its own check.
+  check-strings:
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check string catalog is in sync
+        run: make check-strings

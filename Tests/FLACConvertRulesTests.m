@@ -42,9 +42,9 @@
     // A row is eligible from the moment it is dropped, not when the background
     // scan reaches it.
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"wav"));
-    // com.microsoft.waveform-audio, the UTType the app claims, declares both
-    // WAV spellings, so a .wave is openable and must be convertible too.
-    XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"wave"));
+    // The "wave" spelling never passes the open filter (NSURLUtil's
+    // supportedExtensions lacks it), so eligibility must not claim it either.
+    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(nil, @"wave"));
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"aif"));
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"aiff"));
     XCTAssertFalse(VibeTrackIsConvertibleToFLAC(nil, @"mp3"));
@@ -53,7 +53,6 @@
 
 - (void)testExtensionFallbackIsCaseInsensitive {
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"WAV"));
-    XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"WAVE"));
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"AIFF"));
 }
 

@@ -14,6 +14,7 @@
 
 #import "MainPlayerController.h"
 #import "NowPlayingController.h"
+#import "TrackDisplayController.h" // TrackDisplayState
 
 @class AudioTrack;
 
@@ -27,6 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MainPlayerController (NowPlayingSupport)
 
 @property (strong, readonly) NowPlayingController *nowPlayingController;
+- (TrackDisplayState)displayState;
 - (nullable AudioTrack *)displayedTrack;
 
 @end

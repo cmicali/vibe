@@ -67,6 +67,8 @@ done
 
 # shellcheck source=scripts/asc-auth-lib.sh
 source "$(dirname "$0")/asc-auth-lib.sh"
+# shellcheck source=scripts/asc-build-lib.sh
+source "$(dirname "$0")/asc-build-lib.sh"
 
 SCHEME=Vibe
 PRODUCT=Vibe
@@ -80,8 +82,7 @@ PKG="$EXPORT_DIR/$PRODUCT.pkg"
 # ---------------------------------------------------------------------------
 # Preflight — fail early with actionable messages.
 # ---------------------------------------------------------------------------
-command -v xcodegen >/dev/null 2>&1 || {
-    echo "error: xcodegen not found — install with: brew install xcodegen" >&2; exit 1; }
+asc_require_xcodegen
 
 asc_resolve_credentials
 
@@ -100,23 +101,10 @@ echo "🔊 version     : $VERSION ($BUILD_NUM)"
 echo "🔊 upload      : $([[ $UPLOAD == 1 ]] && echo yes || echo 'no (validate only)')"
 
 # ---------------------------------------------------------------------------
-# Generate + archive + export.
+# Generate + archive + export — shared mechanics in asc-build-lib.sh, which
+# documents why the archive carries no signing overrides.
 # ---------------------------------------------------------------------------
-rm -rf "$BUILD_DIR"
-
-echo "🔊 xcodegen generate"
-xcodegen generate
-
-# No signing overrides here, deliberately. The archive keeps project.yml's
-# CODE_SIGN_IDENTITY "-" (sign to run locally); distribution signing happens at
-# the export step below, which re-signs the app outright. This mirrors Xcode's
-# own Archive -> Distribute App flow. Pinning CODE_SIGN_IDENTITY="Apple
-# Distribution" here instead fails the archive with "conflicting provisioning
-# settings" — under automatic signing the identity is Xcode's to choose.
-echo "🔊 archive (Release)"
-xcodebuild -project "$PRODUCT.xcodeproj" -scheme "$SCHEME" -configuration Release \
-    -archivePath "$ARCHIVE" "${ASC_XCODEBUILD_AUTH[@]}" \
-    archive
+asc_generate_and_archive
 
 cat > "$BUILD_DIR/ExportOptions.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -138,16 +126,7 @@ PLIST
 
 # Produces a signed installer package. The export also strips
 # get-task-allow from the entitlements — an App Store build must not carry it.
-# xcodebuild reports cloud-signing failures as a bare "Cloud signing permission
-# error" and buries Apple's actual 403 in a temp .xcdistributionlogs bundle, so
-# surface the real reason here rather than making the next person go digging.
-echo "🔊 export (App Store package)"
-if ! xcodebuild -exportArchive -archivePath "$ARCHIVE" \
-        -exportOptionsPlist "$BUILD_DIR/ExportOptions.plist" \
-        -exportPath "$EXPORT_DIR" "${ASC_XCODEBUILD_AUTH[@]}" 2>&1 | tee "$BUILD_DIR/export.log"; then
-    asc_explain_export_failure "$BUILD_DIR/export.log"
-    exit 1
-fi
+asc_export_archive "App Store package" ""
 
 [[ -f "$PKG" ]] || {
     echo "error: expected $PKG, but the export produced:" >&2

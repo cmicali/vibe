@@ -215,6 +215,29 @@ static const CGFloat kLabelShadowOpacityDark = 0.9;
     }
 }
 
+// The rasterizing layers pin their scale, so re-stamp it from the window
+// whenever the backing scale can change — on attach, and when the window lands
+// on a display with a different scale — or the rasterized text renders soft.
+// Same pattern as SymbolButton. Construction runs windowless, so the layers
+// start on NSScreen.mainScreen's scale until the attach re-stamps them.
+- (void)updateRasterizationScales {
+    CGFloat scale = self.window.backingScaleFactor;
+    if (scale <= 0) {
+        scale = NSScreen.mainScreen.backingScaleFactor;
+    }
+    _albumArtImageView.layer.rasterizationScale = scale;
+    for (NSTextField *field in @[ _artistTextField, _titleTextField,
+                                  _totalTimeTextField, _dropHintTextField,
+                                  _fileMetadataTextField, _bpmTextField ]) {
+        field.layer.rasterizationScale = scale;
+    }
+}
+
+- (void)viewDidChangeBackingProperties {
+    [super viewDidChangeBackingProperties];
+    [self updateRasterizationScales];
+}
+
 #pragma mark - The artist line's right edge
 
 // The one frame the autoresizing pass cannot place, because what it has to
@@ -253,6 +276,7 @@ static const CGFloat kLabelShadowOpacityDark = 0.9;
 // 680-wide player body, so hovering any part of the window keeps them visible.
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
+    [self updateRasterizationScales]; // the backing scale is only known once we have a window
     if (_windowHoverArea) {
         [_windowHoverHost removeTrackingArea:_windowHoverArea];
         _windowHoverArea = nil;

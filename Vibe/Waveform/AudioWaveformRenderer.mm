@@ -65,4 +65,8 @@
 
 }
 
+- (void)backingScaleDidChange {
+
+}
+
 @end

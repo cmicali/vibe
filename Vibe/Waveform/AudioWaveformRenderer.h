@@ -62,6 +62,12 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
 - (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 
+// The window moved to a display with a different backing scale. The base does
+// nothing; the families rebuild their settled geometry, whose device-pixel
+// snapping baked in the old scale and which a same-size updateWaveform: pass
+// skips.
+- (void)backingScaleDidChange;
+
 // The Convert to FLAC sweep: collapse the bars in the x-fraction span
 // [from, to) to the midline and let the shared morph ease them back. The base
 // does nothing; the families forward to their morph engine.
