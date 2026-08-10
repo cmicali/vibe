@@ -124,6 +124,13 @@
         menuItem.title = self.window.undoManager.redoMenuItemTitle;
         return self.window.undoManager.canRedo;
     }
+    // The Copy items act on the current track, like Show in Finder.
+    else if ([menuItem.identifier isEqualToString:@"menu_edit_copy_file"]) {
+        return self.playlistController.currentTrack.url != nil;
+    }
+    else if ([menuItem.identifier isEqualToString:@"menu_edit_copy_name"]) {
+        return self.playlistController.currentTrack != nil;
+    }
     // A preference, not an action, so never disabled.
     else if ([menuItem.identifier isEqualToString:@"menu_convert_delete_original"]) {
         menuItem.state = StateForBOOL(Settings.deleteOriginalAfterConvert);

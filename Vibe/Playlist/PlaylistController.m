@@ -61,6 +61,23 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     showRowInFinder.image = [NSImage imageWithSystemSymbolName:@"folder"
                                       accessibilityDescription:showRowInFinder.title];
     [menu addItem:showRowInFinder];
+    [menu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem *copyRowFile = [[NSMenuItem alloc] initWithTitle:STR_MENU_EDIT_COPY_FILE
+                                                         action:@selector(copyClickedTrackFile:)
+                                                  keyEquivalent:@""];
+    copyRowFile.identifier = @"copy_clicked_track_file";
+    copyRowFile.target = self;
+    copyRowFile.image = [NSImage imageWithSystemSymbolName:@"doc.on.doc"
+                                  accessibilityDescription:copyRowFile.title];
+    [menu addItem:copyRowFile];
+    NSMenuItem *copyRowName = [[NSMenuItem alloc] initWithTitle:STR_MENU_EDIT_COPY_NAME
+                                                         action:@selector(copyClickedTrackName:)
+                                                  keyEquivalent:@""];
+    copyRowName.identifier = @"copy_clicked_track_name";
+    copyRowName.target = self;
+    copyRowName.image = [NSImage imageWithSystemSymbolName:@"textformat"
+                                  accessibilityDescription:copyRowName.title];
+    [menu addItem:copyRowName];
     _tableView.menu = menu;
 }
 
@@ -297,6 +314,26 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     }
 }
 
+// The clicked row's counterparts of the Edit menu's Copy File / Copy Name,
+// which act on the current track (MainPlayerController).
+- (IBAction)copyClickedTrackFile:(id)sender {
+    NSURL *url = [self clickedTrack].url;
+    if (url) {
+        NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
+        [pasteboard clearContents];
+        [pasteboard writeObjects:@[url]];
+    }
+}
+
+- (IBAction)copyClickedTrackName:(id)sender {
+    NSString *name = [self clickedTrack].singleLineTitle;
+    if (name.length) {
+        NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
+        [pasteboard clearContents];
+        [pasteboard writeObjects:@[name]];
+    }
+}
+
 // The row under the right-click, or nil for a click on the table's empty area
 // or a row a playlist replacement has invalidated. Read at action time, not
 // menu-open, because the playlist can be replaced while the menu is up.
@@ -309,7 +346,9 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
-    if ([menuItem.identifier isEqualToString:@"show_clicked_track_in_finder"]) {
+    if ([menuItem.identifier isEqualToString:@"show_clicked_track_in_finder"] ||
+        [menuItem.identifier isEqualToString:@"copy_clicked_track_file"] ||
+        [menuItem.identifier isEqualToString:@"copy_clicked_track_name"]) {
         // A right-click on the table's empty area still opens the menu, with a
         // clickedRow of -1.
         NSInteger row = _tableView.clickedRow;

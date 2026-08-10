@@ -83,9 +83,11 @@ static inline NSString *VibeAppName(void) {
 // ("Undo Convert to FLAC"), which draws the localized prefix from AppKit and
 // the action name from STR_MENU_CONVERT_TO_FLAC.
 
-#define STR_MENU_EDIT      NSLS(@"menu.edit",      @"Edit", @"Menu bar: the Edit menu. Holds only Undo and Redo.")
-#define STR_MENU_EDIT_UNDO NSLS(@"menu.edit.undo", @"Undo", @"Edit menu item: undoes the last action. macOS uses this same name in every app.")
-#define STR_MENU_EDIT_REDO NSLS(@"menu.edit.redo", @"Redo", @"Edit menu item: redoes the last undone action. macOS uses this same name in every app.")
+#define STR_MENU_EDIT           NSLS(@"menu.edit",           @"Edit",      @"Menu bar: the Edit menu. Holds Undo, Redo, and the two Copy items.")
+#define STR_MENU_EDIT_UNDO      NSLS(@"menu.edit.undo",      @"Undo",      @"Edit menu item: undoes the last action. macOS uses this same name in every app.")
+#define STR_MENU_EDIT_REDO      NSLS(@"menu.edit.redo",      @"Redo",      @"Edit menu item: redoes the last undone action. macOS uses this same name in every app.")
+#define STR_MENU_EDIT_COPY_FILE NSLS(@"menu.edit.copy_file", @"Copy File", @"Edit menu item: puts the current track's audio file on the clipboard, ready to paste in the Finder. Use the same verb as the system's Edit > Copy.")
+#define STR_MENU_EDIT_COPY_NAME NSLS(@"menu.edit.copy_name", @"Copy Name", @"Edit menu item: copies the current track's display name — 'Artist - Title' — as text. Use the same verb as the system's Edit > Copy.")
 
 #pragma mark - Transport
 

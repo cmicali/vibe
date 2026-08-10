@@ -182,9 +182,9 @@
     [content.totalTimeTextField addGestureRecognizer:timeModeClick];
 
     // A right-click menu on the whole window body. It is on the content view,
-    // so the responder chain carries it to the pitch panel too. Both items act
-    // on the current track; the Convert item shares the Convert menu's
-    // identifier and so its validation and retitling.
+    // so the responder chain carries it to the pitch panel too. Every item
+    // acts on the current track; the Copy and Convert items share the main
+    // menu's identifiers and so their validation (and the Convert retitling).
     // Menu title never drawn — a context menu shows only its items.
     NSMenu *contextMenu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Popup Menu")];
     NSMenuItem *showInFinder = [[NSMenuItem alloc] initWithTitle:STR_MENU_SHOW_IN_FINDER
@@ -195,6 +195,23 @@
     showInFinder.image = [NSImage imageWithSystemSymbolName:@"folder"
                                    accessibilityDescription:showInFinder.title];
     [contextMenu addItem:showInFinder];
+    [contextMenu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem *copyFileItem = [[NSMenuItem alloc] initWithTitle:STR_MENU_EDIT_COPY_FILE
+                                                          action:@selector(copyFile:)
+                                                   keyEquivalent:@""];
+    copyFileItem.identifier = @"menu_edit_copy_file";
+    copyFileItem.target = self;
+    copyFileItem.image = [NSImage imageWithSystemSymbolName:@"doc.on.doc"
+                                   accessibilityDescription:copyFileItem.title];
+    [contextMenu addItem:copyFileItem];
+    NSMenuItem *copyNameItem = [[NSMenuItem alloc] initWithTitle:STR_MENU_EDIT_COPY_NAME
+                                                          action:@selector(copyName:)
+                                                   keyEquivalent:@""];
+    copyNameItem.identifier = @"menu_edit_copy_name";
+    copyNameItem.target = self;
+    copyNameItem.image = [NSImage imageWithSystemSymbolName:@"textformat"
+                                   accessibilityDescription:copyNameItem.title];
+    [contextMenu addItem:copyNameItem];
     [contextMenu addItem:[NSMenuItem separatorItem]];
     NSMenuItem *convertCurrent = [[NSMenuItem alloc] initWithTitle:STR_MENU_CONVERT_TO_FLAC
                                                             action:@selector(convertCurrentTrackToFLAC:)
@@ -1051,6 +1068,26 @@
     NSURL *url = self.playlistController.currentTrack.url;
     if (url) {
         [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[url]];
+    }
+}
+
+// The file URL itself goes on the pasteboard, so a Finder paste duplicates
+// the file.
+- (IBAction) copyFile:(id)sender {
+    NSURL *url = self.playlistController.currentTrack.url;
+    if (url) {
+        NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
+        [pasteboard clearContents];
+        [pasteboard writeObjects:@[url]];
+    }
+}
+
+- (IBAction) copyName:(id)sender {
+    NSString *name = self.playlistController.currentTrack.singleLineTitle;
+    if (name.length) {
+        NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
+        [pasteboard clearContents];
+        [pasteboard writeObjects:@[name]];
     }
 }
 
