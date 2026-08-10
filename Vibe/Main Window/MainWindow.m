@@ -110,9 +110,9 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     }
 }
 
-// There is no performClose: override. ⌘W is the player's closeFile:, which
-// closes the loaded files rather than the window, and nothing sends
-// performClose:.
+// There is no performClose: override. ⌘W is nil-targeted closeFile:, which
+// this window's chain resolves to the player — it closes the loaded files
+// rather than the window — and nothing sends this window performClose:.
 
 - (void)syncPlaylistShownFromHeight {
     BOOL shown = (self.frame.size.height > kMainWindowSmallHeight);

@@ -189,6 +189,13 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
     [self.window.contentView addSubview:_ballsView positioned:NSWindowAbove relativeTo:nil];
 }
 
+// File > Close (⌘W) is nil-targeted closeFile:; catching it while this window
+// is key closes it, instead of falling through to the player's version, which
+// clears the playlist.
+- (IBAction)closeFile:(nullable id)sender {
+    [self.window performClose:sender];
+}
+
 - (void)windowWillClose:(NSNotification *)notification {
     // Drop the Metal view and its resources. showWindow rebuilds it next time.
     [_ballsView removeFromSuperview];

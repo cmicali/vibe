@@ -129,7 +129,10 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenuItem *openRecentItem = Submenu(fileMenu, STR_MENU_FILE_OPEN_RECENT);
     openRecentItem.submenu.delegate = openRecentMenuController; // populated from NSDocumentController on open
     AddSeparator(fileMenu);
-    AddSymbolItem(fileMenu, STR_MENU_FILE_CLOSE, @"xmark", @selector(closeFile:), player, @"w", NSEventModifierFlagCommand, @"menu_close");
+    // Nil-targeted so ⌘W follows the key window: the main window's chain
+    // reaches the player's closeFile:; Settings and About intercept it and
+    // close themselves instead.
+    AddSymbolItem(fileMenu, STR_MENU_FILE_CLOSE, @"xmark", @selector(closeFile:), nil, @"w", NSEventModifierFlagCommand, @"menu_close");
 
     // Edit: undo and redo only — the app has no selection and no clipboard.
     // Validation retitles them from NSUndoManager.
