@@ -64,4 +64,27 @@
 - (BOOL)deleteOriginalAfterConvert;
 - (void)setDeleteOriginalAfterConvert:(BOOL)deleteOriginal;
 
+// The smallest skip's bar count: 4, 8 or 16. The three skip sizes are this,
+// twice it and four times it; the tempo-unknown wall-clock fallbacks
+// (10/30/60s) do not scale with it.
+- (NSInteger)skipBaseBars;
+- (void)setSkipBaseBars:(NSInteger)bars;
+
+// Track-change crossfade length: 10 (instant, the declick minimum), 500 or
+// 2000. Applied to AudioPlayer.crossfadeMilliseconds by whoever writes it;
+// pause, seek and stop declicks never scale with it.
+- (NSInteger)crossfadeMilliseconds;
+- (void)setCrossfadeMilliseconds:(NSInteger)milliseconds;
+
+// NO skips tempo detection on the waveform decode pass. A file scanned while
+// off caches a waveform with no BPM, so re-enabling only affects files not
+// yet cached. Tagged BPM is unaffected either way.
+- (BOOL)analyzeBPM;
+- (void)setAnalyzeBPM:(BOOL)analyze;
+
+// YES makes Convert to FLAC always run the save panel instead of writing the
+// FLAC silently beside the source.
+- (BOOL)convertAsksWhereToSave;
+- (void)setConvertAsksWhereToSave:(BOOL)ask;
+
 @end

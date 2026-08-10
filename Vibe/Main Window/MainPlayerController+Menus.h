@@ -23,6 +23,13 @@ NS_ASSUME_NONNULL_BEGIN
 // submenu.
 - (IBAction)setWaveformStyle:(id)sender;
 
+// The waveform-style registry, re-exposed for the Settings pane's popup:
+// stable identifiers in, localized names for display only. applyWaveformStyle:
+// is the one write path the menu action funnels through too.
+- (NSArray<NSString *> *)availableWaveformStyleIdentifiers;
+- (NSString *)displayNameForWaveformStyle:(NSString *)identifier;
+- (void)applyWaveformStyle:(NSString *)identifier;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -66,14 +66,12 @@ static inline NSString *VibeAppName(void) {
 #pragma mark - Application menu
 
 #define STR_MENU_APP_ABOUT       NSLS(@"menu.app.about",       @"About %@",    @"App menu item: opens the About window. %@ is the app name. Also the About window's title.")
+#define STR_MENU_APP_SETTINGS    NSLS(@"menu.app.settings",    @"Settings…",   @"App menu item: opens the Settings window. macOS uses this same name in every app. Ends with a real ellipsis character (…), not three periods.")
 #define STR_MENU_APP_SERVICES    NSLS(@"menu.app.services",    @"Services",    @"App menu: submenu of system Services. macOS uses this same name in every app.")
 #define STR_MENU_APP_HIDE        NSLS(@"menu.app.hide",        @"Hide %@",     @"App menu item: hides the app. %@ is the app name.")
 #define STR_MENU_APP_HIDE_OTHERS NSLS(@"menu.app.hide_others", @"Hide Others", @"App menu item: hides every other application.")
 #define STR_MENU_APP_SHOW_ALL    NSLS(@"menu.app.show_all",    @"Show All",    @"App menu item: unhides all applications.")
 #define STR_MENU_APP_QUIT        NSLS(@"menu.app.quit",        @"Quit %@",     @"App menu item: quits the app. %@ is the app name.")
-
-#define STR_MENU_APP_MAKE_DEFAULT NSLS(@"menu.app.make_default",    @"Set %@ as Default Music Player", @"App menu item: claims every supported audio type for the app. %@ is the app name.")
-#define STR_MENU_APP_IS_DEFAULT   NSLS(@"menu.app.is_default",      @"%@ Is the Default Music Player", @"App menu item, disabled: replaces 'Set … as Default Music Player' once the app already holds every audio type. %@ is the app name.")
 
 #pragma mark - File menu
 
@@ -197,6 +195,44 @@ static inline NSString *VibeAppName(void) {
 #define STR_LABEL_PLAYLIST_DROP_REPLACE NSLS(@"label.playlist.drop_replace", @"Drop to replace playlist",   @"Drop-target label shown while dragging files over a populated playlist: dropping here replaces the whole playlist.")
 #define STR_LABEL_PLAYLIST_DROP_ADD     NSLS(@"label.playlist.drop_add",     @"Drop to add to playlist",    @"Drop-target label shown while dragging files over the playlist: dropping here appends to the playlist.")
 #define STR_LABEL_ABOUT_VERSION      NSLS(@"label.about.version",      @"Version %@",              @"About window: %@ is the version number, e.g. '1.5 (15) · Release'.")
+
+#pragma mark - Settings window
+
+// The default-player pair moved here from the app menu; their keys stay
+// menu.app.* so the existing translations carry over.
+
+#define STR_SETTINGS_GENERAL            NSLS(@"settings.general",              @"General",                        @"Settings window: the General pane's toolbar item, and the window's title while that pane is selected. macOS uses this same name in every app's settings.")
+#define STR_SETTINGS_ADVANCED           NSLS(@"settings.advanced",             @"Advanced",                       @"Settings window: the Advanced pane's toolbar item, and the window's title while that pane is selected. macOS uses this same name in every app's settings.")
+#define STR_SETTINGS_OUTPUT_LABEL       NSLS(@"settings.general.output_label", @"Output:",                        @"Settings, General pane: label beside the dropdown selecting the audio output device. Ends with a colon.")
+#define STR_SETTINGS_DEFAULT_PLAYER_SET NSLS(@"menu.app.make_default",         @"Set %@ as Default Music Player", @"Settings, General pane: button that claims every supported audio type for the app. %@ is the app name.")
+#define STR_SETTINGS_DEFAULT_PLAYER_IS  NSLS(@"menu.app.is_default",           @"%@ Is the Default Music Player", @"Settings, General pane: disabled button title replacing 'Set … as Default Music Player' once the app already holds every audio type. %@ is the app name.")
+
+#define STR_SETTINGS_PITCH_RANGE_LABEL   NSLS(@"settings.playback.pitch_range_label",           @"Pitch range:",             @"Settings, Playback pane: label beside the pitch fader range choice (8% or 16%). Ends with a colon.")
+#define STR_SETTINGS_SKIP_STEPS_LABEL    NSLS(@"settings.playback.skip_steps_label",            @"Skip steps:",              @"Settings, Playback pane: label beside the dropdown choosing how many bars the three skip actions jump. Ends with a colon.")
+#define STR_SETTINGS_SKIP_STEPS_OPTION   NSLS(@"settings.playback.skip_steps_option",           @"%1$ld / %2$ld / %3$ld bars", @"Settings, Playback pane: one skip-size choice, e.g. '8 / 16 / 32 bars' — the three jump sizes of the small, medium and large skip. %1$ld, %2$ld and %3$ld are the bar counts; 'bars' is the musical unit.")
+#define STR_SETTINGS_CROSSFADE_LABEL     NSLS(@"settings.playback.crossfade_label",             @"Crossfade:",               @"Settings, Playback pane: label beside the dropdown choosing how long one track blends into the next on a track change. Ends with a colon.")
+#define STR_SETTINGS_CROSSFADE_INSTANT   NSLS(@"settings.playback.crossfade.instant",           @"Instant",                  @"Settings, Playback pane, crossfade choice: no audible blend — the next track starts immediately. The default.")
+#define STR_SETTINGS_CROSSFADE_SHORT     NSLS(@"settings.playback.crossfade.short",             @"Short (0.5s)",             @"Settings, Playback pane, crossfade choice: a half-second blend into the next track. Localize the decimal separator; 's' abbreviates seconds.")
+#define STR_SETTINGS_CROSSFADE_LONG      NSLS(@"settings.playback.crossfade.long",              @"Long (2s)",                @"Settings, Playback pane, crossfade choice: a two-second blend into the next track. 's' abbreviates seconds.")
+#define STR_SETTINGS_DETECT_BPM         NSLS(@"settings.playback.detect_bpm",                   @"Detect BPM automatically", @"Settings, Playback pane: checkbox enabling tempo analysis of loaded files. BPM is beats per minute; a tempo already tagged in the file always shows regardless.")
+
+#define STR_SETTINGS_APPEARANCE_LABEL   NSLS(@"settings.appearance.appearance_label",           @"Appearance:",              @"Settings, Appearance pane: label beside the light/dark appearance choice. Ends with a colon.")
+#define STR_SETTINGS_WAVEFORM_LABEL     NSLS(@"settings.appearance.waveform_label",             @"Waveform style:",          @"Settings, Appearance pane: label beside the dropdown choosing the waveform drawing style. Ends with a colon.")
+#define STR_SETTINGS_TIME_LABEL         NSLS(@"settings.appearance.time_label",                 @"Time display:",            @"Settings, Appearance pane: label beside the choice between showing the track's total duration or the remaining time. Ends with a colon.")
+#define STR_SETTINGS_TIME_TOTAL         NSLS(@"settings.appearance.time_total",                 @"Total duration",           @"Settings, Appearance pane, time display choice: the right time label shows the track's full length.")
+#define STR_SETTINGS_TIME_REMAINING     NSLS(@"settings.appearance.time_remaining",             @"Remaining time",           @"Settings, Appearance pane, time display choice: the right time label counts down the time left, e.g. '-1:50'.")
+
+#define STR_SETTINGS_CONVERT_DEST_LABEL  NSLS(@"settings.convert.destination_label",            @"Save converted files:",    @"Settings, Convert pane: label beside the dropdown choosing where Convert to FLAC writes its output. Ends with a colon.")
+#define STR_SETTINGS_CONVERT_DEST_BESIDE NSLS(@"settings.convert.destination.beside",           @"Next to original",         @"Settings, Convert pane, converted-file destination choice: the FLAC is written into the same folder as the source file. The default.")
+#define STR_SETTINGS_CONVERT_DEST_ASK    NSLS(@"settings.convert.destination.ask",              @"Ask where to save",        @"Settings, Convert pane, converted-file destination choice: every conversion shows a save panel asking where to put the FLAC.")
+#define STR_SETTINGS_DELETE_ORIGINAL     NSLS(@"settings.convert.delete_original",              @"Delete original after convert", @"Settings, Convert pane: checkbox — when on, a successful conversion moves the original file to the Trash. The same setting as the Convert menu's 'Delete Original After Convert' item, in sentence case per checkbox convention.")
+
+#define STR_SETTINGS_CACHE_LABEL          NSLS(@"settings.advanced.cache_label",                @"Cache size:",              @"Settings, Advanced pane: label beside the readout of the metadata and waveform caches' current size. Ends with a colon.")
+#define STR_SETTINGS_CACHE_VALUE          NSLS(@"settings.advanced.cache_value",                @"%1$@ files, %2$@ MB",      @"Settings, Advanced pane: the cache-size readout, e.g. '312 files, 48.2 MB'. %1$@ is the already-formatted file count, %2$@ the already-formatted megabytes.")
+#define STR_SETTINGS_CLEAR_CACHE          NSLS(@"settings.advanced.clear_cache",                @"Clear Cache",              @"Settings, Advanced pane: button that empties the metadata and waveform caches.")
+#define STR_SETTINGS_FILES_OPENED_LABEL   NSLS(@"settings.advanced.files_opened_label",         @"Files opened:",            @"Settings, Advanced pane, playback statistics: label beside the lifetime count of files opened. Ends with a colon.")
+#define STR_SETTINGS_FOLDERS_OPENED_LABEL NSLS(@"settings.advanced.folders_opened_label",       @"Folders opened:",          @"Settings, Advanced pane, playback statistics: label beside the lifetime count of folders opened. Ends with a colon.")
+#define STR_SETTINGS_AUDIO_PLAYED_LABEL   NSLS(@"settings.advanced.audio_played_label",         @"Audio played:",            @"Settings, Advanced pane, playback statistics: label beside the total listening time, shown in words like '3 days, 4 hours'. Ends with a colon.")
 
 #pragma mark - Accessibility labels
 

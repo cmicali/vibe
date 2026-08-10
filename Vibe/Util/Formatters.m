@@ -9,8 +9,10 @@
 @implementation Formatters {
     NSDateComponentsFormatter *_timeFormatter;
     NSDateComponentsFormatter *_hourTimeFormatter;
+    NSDateComponentsFormatter *_spelledDurationFormatter;
     NSNumberFormatter         *_decimalFormatter;
     NSNumberFormatter         *_signedPercentFormatter;
+    NSNumberFormatter         *_countFormatter;
 }
 
 + (Formatters*)sharedInstance {
@@ -62,6 +64,19 @@
     _signedPercentFormatter.maximumFractionDigits = 1;
     _signedPercentFormatter.positivePrefix = [@"+" stringByAppendingString:_signedPercentFormatter.positivePrefix ?: @""];
     _signedPercentFormatter.minusSign = @"−";
+
+    // Grouped whole numbers for counts, unlike _decimalFormatter, whose
+    // grouping is deliberately off for the kHz/BPM readouts.
+    _countFormatter = [[NSNumberFormatter alloc] init];
+    _countFormatter.numberStyle = NSNumberFormatterDecimalStyle;
+    _countFormatter.maximumFractionDigits = 0;
+
+    // Two significant units keep any magnitude readable: seconds-only while
+    // small, "3 days, 4 hours" at the top end.
+    _spelledDurationFormatter = [[NSDateComponentsFormatter alloc] init];
+    _spelledDurationFormatter.unitsStyle = NSDateComponentsFormatterUnitsStyleFull;
+    _spelledDurationFormatter.allowedUnits = NSCalendarUnitDay | NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond;
+    _spelledDurationFormatter.maximumUnitCount = 2;
 }
 
 - (NSString *)durationStringFromTimeInterval:(NSTimeInterval)duration {
@@ -98,6 +113,17 @@
         return zero ?: @"";
     }
     return [_signedPercentFormatter stringFromNumber:@(percent)] ?: @"";
+}
+
+- (NSString *)countString:(unsigned long long)count {
+    return [_countFormatter stringFromNumber:@(count)] ?: @"";
+}
+
+- (NSString *)spelledDurationString:(NSTimeInterval)duration {
+    if (!isfinite(duration) || duration < 0) {
+        duration = 0;
+    }
+    return [_spelledDurationFormatter stringFromTimeInterval:duration] ?: @"";
 }
 
 @end

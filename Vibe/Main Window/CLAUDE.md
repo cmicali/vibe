@@ -24,13 +24,13 @@ A 3 Hz `UIUpdateTimer` (`Util/`) drives `updatePlaybackUI`, only while playback 
 
 ## Skipping and closing
 
-The skip actions seek by 8/16/32 bars when the tempo is known — tagged BPM beats analyzed, same precedence as the BPM label. Bars are fixed spans of file time, so the jump stays on the musical grid at any pitch. Without a tempo: 10/30/60 seconds in the pitch-adjusted wall-clock seconds the labels show.
+The skip actions seek by bars when the tempo is known — tagged BPM beats analyzed, same precedence as the BPM label. The three sizes are `AppSettings.skipBaseBars` (Settings > Playback: 4, 8 or 16, default 8), twice it and four times it. Bars are fixed spans of file time, so the jump stays on the musical grid at any pitch. Without a tempo: 10/30/60 seconds in the pitch-adjusted wall-clock seconds the labels show.
 
 A forward skip past the end calls `AudioPlayer.finishCurrentTrack`, which fires `didFinishPlaying:`, so the usual auto-advance / end-of-playlist path handles it — no bespoke branch.
 
 Skips need a player that is not Stopped, gated in both `skipByFileSeconds:` (bare keys bypass validation) and menu validation. After the playlist ends the finished file stays open, so `duration` alone still looks seekable while no node exists.
 
-File > Close (⌘W, `closeFile:`, retitled "Close File" / "Close All Files" in validation) calls `AudioPlayer.stop`, which fires no delegate event, then clears the playlist, cancels the deferred metadata load, drops the scan loader with `cancelAll` — a cancelled loader still strongly holds every queued track, thumbnails included — and returns to the empty state.
+File > Close (⌘W, `closeFile:`, retitled "Close File" / "Close All Files" in validation, enabled only while the player window is key so ⌘W in Settings or About never unloads the playlist) calls `AudioPlayer.stop`, which fires no delegate event, then clears the playlist, cancels the deferred metadata load, drops the scan loader with `cancelAll` — a cancelled loader still strongly holds every queued track, thumbnails included — and returns to the empty state.
 
 ## Convert to FLAC: the swap
 

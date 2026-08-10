@@ -42,6 +42,10 @@ NS_ASSUME_NONNULL_BEGIN
 // may still write entries after the clear.
 - (void)invalidateWithCompletion:(nullable dispatch_block_t)completion;
 
+// The backing store's entry count and total bytes on disk, enumerated off the
+// calling thread; the completion runs on the main thread.
+- (void)diskUsageWithCompletion:(void (^)(NSUInteger fileCount, unsigned long long totalBytes))completion;
+
 @end
 
 @protocol AudioTrackMetadataCacheDelegate <NSObject>

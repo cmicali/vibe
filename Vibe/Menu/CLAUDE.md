@@ -10,16 +10,6 @@ The live submenus belong to per-menu delegates, each owned by the object it work
 
 Bare key equivalents must set `keyEquivalentModifierMask = 0` explicitly, since `NSMenuItem` defaults to Command.
 
-## Vibe > Set Vibe as Default Music Player
-
-This claims every audio type the app declares, so the user never has to walk Finder's Get Info > Open With > Change All once per extension.
-
-`DocumentTypes` (in `Common/`, stateless, AppKit-free) reads the `CFBundleDocumentTypes` declarations out of Info.plist as `UTType`s. It is the single source of truth shared by the ⌘O panel's filter, the types offered to Launch Services and the already-default check. `DefaultAppClaim` (here in `Menu/`) is the `NSWorkspace` half: it hands the types to `NSWorkspace.setDefaultApplicationAtURL:toOpenContentType:` one at a time, because a request can raise its own system confirmation panel, and a refusal then stops the walk rather than nagging for the remaining types.
-
-The app puts up no alert of its own on either outcome. The system's panel is the whole conversation, and the menu title reports the result. `AppDelegate.validateMenuItem:` flips the item to a disabled "Vibe Is the Default Music Player" once it holds them all.
-
-The folder declaration is excluded on purpose: `declaredFileTypes` drops directory-conforming types. Vibe accepts a dropped folder, but it should never become the system's default folder handler.
-
 ## Menu items
 
 Menu items carry SF Symbol icons through the `SymbolItem()` and `AddSymbolItem()` static helpers in `MainMenuBuilder.m`. The Play item's icon flips with its Play/Pause title in validation.
@@ -38,6 +28,6 @@ The top-level **FX** menu is one checkmarked toggle per performance effect: Low 
 
 ## Output devices
 
-`OutputDevicesMenuController` populates the audio device menu from the `AudioDeviceManager` singleton and, as an `AudioDeviceManagerObserver`, rebuilds the menu in place when devices change while it is open.
+`OutputDevicesMenuController` populates the audio device menu from the `AudioDeviceManager` singleton and, as an `AudioDeviceManagerObserver`, rebuilds the menu in place when devices change while it is open. A second instance serves the Output popup in Settings > General (`Settings/CLAUDE.md`), so the two layouts cannot drift.
 
 The layout is "System Output (<default device>)" — tag -1, the default choice — then a separator, then every output device. The checkmark tracks `AudioPlayer.currentlyRequestedAudioDeviceId`. An explicitly chosen device that disappears, whether mid-playback, while idle or at launch, falls back to System Output, and the fallback is persisted.

@@ -13,16 +13,20 @@
 
 // The skip distances. When the track's tempo is known, through AudioTrack.bpm,
 // a skip moves by whole bars of four beats, which is a fixed span of *file*
-// time, so the jump stays on the musical grid at any pitch. Without a tempo
-// the fallback is a fixed wall-clock distance.
+// time, so the jump stays on the musical grid at any pitch. The bar counts
+// are the settings' base (4, 8 or 16), twice it and four times it. Without a
+// tempo the fallback is a fixed wall-clock distance that does not scale with
+// the base.
 static const NSTimeInterval kSkipSeconds = 10.0;
 static const NSTimeInterval kSkipMoreSeconds = 30.0;
 static const NSTimeInterval kSkipMostSeconds = 60.0;
-static const double kSkipBars = 8.0;
-static const double kSkipMoreBars = 16.0;
-static const double kSkipMostBars = 32.0;
 
 @implementation MainPlayerController (Transport)
+
+static double SkipBaseBars(void) {
+    NSInteger base = Settings.skipBaseBars;
+    return base > 0 ? (double)base : 8.0;
+}
 
 // The arithmetic is VibeSkipFileSeconds in TransportMath.h; this supplies the
 // track's tempo and the current rate.
@@ -34,27 +38,27 @@ static const double kSkipMostBars = 32.0;
 }
 
 - (IBAction)skipForward:(nullable id)sender {
-    [self skipByFileSeconds:[self skipFileSecondsForBars:kSkipBars fallbackWallClockSeconds:kSkipSeconds]];
+    [self skipByFileSeconds:[self skipFileSecondsForBars:SkipBaseBars() fallbackWallClockSeconds:kSkipSeconds]];
 }
 
 - (IBAction)skipForwardMore:(nullable id)sender {
-    [self skipByFileSeconds:[self skipFileSecondsForBars:kSkipMoreBars fallbackWallClockSeconds:kSkipMoreSeconds]];
+    [self skipByFileSeconds:[self skipFileSecondsForBars:SkipBaseBars() * 2 fallbackWallClockSeconds:kSkipMoreSeconds]];
 }
 
 - (IBAction)skipForwardMost:(nullable id)sender {
-    [self skipByFileSeconds:[self skipFileSecondsForBars:kSkipMostBars fallbackWallClockSeconds:kSkipMostSeconds]];
+    [self skipByFileSeconds:[self skipFileSecondsForBars:SkipBaseBars() * 4 fallbackWallClockSeconds:kSkipMostSeconds]];
 }
 
 - (IBAction)skipBack:(nullable id)sender {
-    [self skipByFileSeconds:-[self skipFileSecondsForBars:kSkipBars fallbackWallClockSeconds:kSkipSeconds]];
+    [self skipByFileSeconds:-[self skipFileSecondsForBars:SkipBaseBars() fallbackWallClockSeconds:kSkipSeconds]];
 }
 
 - (IBAction)skipBackMore:(nullable id)sender {
-    [self skipByFileSeconds:-[self skipFileSecondsForBars:kSkipMoreBars fallbackWallClockSeconds:kSkipMoreSeconds]];
+    [self skipByFileSeconds:-[self skipFileSecondsForBars:SkipBaseBars() * 2 fallbackWallClockSeconds:kSkipMoreSeconds]];
 }
 
 - (IBAction)skipBackMost:(nullable id)sender {
-    [self skipByFileSeconds:-[self skipFileSecondsForBars:kSkipMostBars fallbackWallClockSeconds:kSkipMostSeconds]];
+    [self skipByFileSeconds:-[self skipFileSecondsForBars:SkipBaseBars() * 4 fallbackWallClockSeconds:kSkipMostSeconds]];
 }
 
 - (void)skipByFileSeconds:(NSTimeInterval)fileDelta {

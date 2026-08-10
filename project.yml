@@ -134,6 +134,8 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/About
         excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/Settings
+        excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Debug
         excludes: ["**/.DS_Store", "**/*.md"]
       - path: Resources/Assets.xcassets       # .xcassets handled natively by XcodeGen

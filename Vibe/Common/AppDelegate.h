@@ -18,7 +18,7 @@
 
 - (IBAction)openDocument:(id)sender;
 - (IBAction)showAboutWindow:(id)sender;
-- (IBAction)makeDefaultMusicPlayer:(id)sender;
+- (IBAction)showSettingsWindow:(id)sender;
 
 // The target of the Open Recent menu items OpenRecentMenuController creates.
 - (void)openRecentDocument:(NSMenuItem *)sender;

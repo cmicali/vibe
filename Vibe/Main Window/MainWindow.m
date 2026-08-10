@@ -215,15 +215,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
 #pragma mark - Public API
 
-// Every animated resize the app performs — the playlist toggle, the pitch
-// panel reveal, the View > Size presets — runs at this one duration. AppKit's
-// default scales with the distance, at roughly 0.2s per 150pt, which makes the
-// playlist's 250pt jump drag at about 0.27s and would put a Large-to-Small
-// preset near a full second. These are chrome snapping to a new shape rather
-// than content transitions, so a short fixed time reads better and stays
-// consistent whatever the distance.
-static const NSTimeInterval kWindowResizeAnimationDuration = 0.12;
-
+// kWindowResizeAnimationDuration and its rationale live in Constants.h; the
+// settings window shares it.
 - (NSTimeInterval)animationResizeTime:(NSRect)newFrame {
     return kWindowResizeAnimationDuration;
 }

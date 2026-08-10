@@ -10,7 +10,7 @@
 #import "MainPlayerController.h"
 #import "NSURLUtil.h"
 #import "AboutWindowController.h"
-#import "DefaultAppClaim.h"
+#import "SettingsWindowController.h"
 #import "MainMenuBuilder.h"
 #import "OpenBurstCoalescer.h"
 #import "OpenRecentMenuController.h"
@@ -25,9 +25,10 @@
 #import "DebugUtil.h"
 #endif
 
-@interface AppDelegate () <NSMenuItemValidation>
+@interface AppDelegate ()
 
 @property (nonatomic, strong) AboutWindowController *aboutWindowController;
+@property (nonatomic, strong) SettingsWindowController *settingsWindowController;
 
 @end
 
@@ -233,6 +234,14 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [self.aboutWindowController showWindow:sender];
 }
 
+- (IBAction)showSettingsWindow:(id)sender {
+    if (!self.settingsWindowController) {
+        self.settingsWindowController = [[SettingsWindowController alloc]
+                initWithPlayerController:self.mainPlayerController];
+    }
+    [self.settingsWindowController showWindow:sender];
+}
+
 - (IBAction)openDocument:(id)sender {
     NSOpenPanel* panel = [NSOpenPanel openPanel];
     panel.allowsMultipleSelection = YES;
@@ -252,30 +261,6 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
             [self->_openBurstCoalescer openReplacingURLs:panel.URLs];
         }
     }];
-}
-
-#pragma mark - Default app
-
-// Vibe > Set Vibe as Default Music Player claims every audio type declared in
-// Info.plist at once, sparing the user Finder's Get Info > Open With > Change
-// All once per extension. There is no alert of our own on either outcome: the
-// system runs its own confirmation panel, and says so when it refuses, and the
-// menu item retitles itself on the next validation pass.
-- (IBAction)makeDefaultMusicPlayer:(id)sender {
-    [DefaultAppClaim makeDefaultApp];
-}
-
-- (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
-    if ([menuItem.identifier isEqualToString:@"menu_make_default_app"]) {
-        // There is nothing to do once Vibe already holds every type, so say so
-        // in the title and disable the item rather than offer a no-op.
-        BOOL isDefault = DefaultAppClaim.isDefaultAppForAllFileTypes;
-        NSString *appName = VibeAppName();
-        menuItem.title = [NSString stringWithFormat:
-                isDefault ? STR_MENU_APP_IS_DEFAULT : STR_MENU_APP_MAKE_DEFAULT, appName];
-        return !isDefault;
-    }
-    return YES;
 }
 
 @end
