@@ -423,6 +423,25 @@
     });
 }
 
+- (void)diskUsageWithCompletion:(void (^)(NSUInteger fileCount, unsigned long long totalBytes))completion {
+    // The serial queue guarantees the cache exists and keeps the blocking
+    // enumeration off the caller's thread.
+    dispatch_async(_cacheQueue, ^{
+        __block NSUInteger count = 0;
+        __block unsigned long long bytes = 0;
+        [self.metadataCache.diskCache enumerateObjectsWithBlock:^(NSString *key, NSURL *fileURL, BOOL *stop) {
+            count++;
+            NSNumber *size = nil;
+            if ([fileURL getResourceValue:&size forKey:NSURLFileSizeKey error:nil]) {
+                bytes += size.unsignedLongLongValue;
+            }
+        }];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(count, bytes);
+        });
+    });
+}
+
 - (void)cancelAll {
     // Release it, rather than merely cancelling. _queuedTracks strongly holds
     // every queued track, pinning the old playlist until a next loadMetadata:

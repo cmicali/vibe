@@ -140,7 +140,10 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
     // The cached answer, never a stat (see refreshDestinationStateForTrack:),
     // re-warmed each validation. A stale cache lets the item through, and the
     // conversion's own check refuses the write — a beep, not an overwrite.
-    BOOL destinationExists = _destinationExists &&
+    // Irrelevant in ask-mode: the save panel handles an existing name itself,
+    // and the conversion lifts its refusal to match.
+    BOOL destinationExists = !Settings.convertAsksWhereToSave &&
+            _destinationExists &&
             [_destinationCheckedURL isEqual:[self.class flacDestinationForURL:track.url]];
     [self refreshDestinationStateForTrack:track];
     if (destinationExists) {
@@ -159,6 +162,11 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
     // Refusals report asynchronously too, so a caller is never re-entered
     // before this method returns.
     NSURL *sourceURL = track.url;
+    // Snapshot like the delete toggle: a setting flipped mid-encode applies
+    // to the next conversion, never the one in flight. Ask-mode also lifts
+    // the destination-exists refusal below — the panel can save under
+    // another name, or replace atomically after its own prompt.
+    BOOL askWhereToSave = Settings.convertAsksWhereToSave && window != nil;
     NSError *refusal = nil;
     if (self.converting) {
         refusal = [self errorWithCode:VibeConvertErrorBusy
@@ -174,7 +182,7 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
                           description:@"Only an uncompressed file converts to FLAC."];
     }
     NSURL *destinationURL = refusal ? nil : [self.class flacDestinationForURL:sourceURL];
-    if (!refusal && [NSFileManager.defaultManager fileExistsAtPath:destinationURL.path]) {
+    if (!refusal && !askWhereToSave && [NSFileManager.defaultManager fileExistsAtPath:destinationURL.path]) {
         refusal = [self errorWithCode:VibeConvertErrorDestinationExists
                           description:@"A FLAC of that name already exists."];
     }
@@ -210,12 +218,13 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
         VibeCopyTagsToFLAC(sourceURL.path, tempURL.path);
         // Both silent rungs stay off the main thread: file coordination blocks
         // until every other presenter of the URL relinquishes it, unbounded on
-        // a cloud or network folder.
+        // a cloud or network folder. When the setting says always ask, skip
+        // them and go straight to the panel.
         NSError *placeError = nil;
-        NSURL *placedURL = [self moveTemp:tempURL
-                                   source:sourceURL
-                              destination:destinationURL
-                                    error:&placeError];
+        NSURL *placedURL = askWhereToSave ? nil : [self moveTemp:tempURL
+                                                          source:sourceURL
+                                                     destination:destinationURL
+                                                           error:&placeError];
         run_on_main_thread({
             if (placedURL) {
                 self->_converting = NO;
@@ -228,7 +237,12 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
                 completion(nil, placeError);
                 return;
             }
-            LogInfo(@"Neither silent write worked; asking the user where to put it");
+            if (askWhereToSave) {
+                LogInfo(@"Settings say ask where to save the converted FLAC");
+            }
+            else {
+                LogInfo(@"Neither silent write worked; asking the user where to put it");
+            }
             [self runSavePanelForTemp:tempURL
                           destination:destinationURL
                                window:window

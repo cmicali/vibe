@@ -20,4 +20,11 @@
 // per locale; the minus is U+2212, matching the fader's printed scale.
 - (NSString *)signedPercentString:(double)percent;
 
+// Grouped whole number for counts: "1,234" in en, "1.234" in de.
+- (NSString *)countString:(unsigned long long)count;
+
+// Elapsed time in words, at most two units — "3 days, 4 hours", "12 minutes,
+// 5 seconds" — localized by NSDateComponentsFormatter.
+- (NSString *)spelledDurationString:(NSTimeInterval)duration;
+
 @end

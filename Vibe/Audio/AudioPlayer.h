@@ -48,6 +48,13 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // pitch.
 @property (nonatomic) float maxPitch;
 
+// Track-change crossfade length in milliseconds, 10 (the declick minimum) by
+// default. It applies only when a play replaces an audibly playing track —
+// first plays, and the pause, seek and stop declicks, always use the minimum
+// so transport stays instant. Atomic: the UI writes it, the player queue
+// reads it per crossfade.
+@property (atomic) NSInteger crossfadeMilliseconds;
+
 // The DJ performance effects: low kill and its boost, the reverb and delay
 // sends, and the delay's tempo feed. See AudioFX.h. Non-nil from init, so a
 // caller can set intent immediately; the graph work lands once the async
@@ -65,8 +72,10 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 
 // Starts a track at position (file seconds, clamped), optionally parked:
 // with startPaused the track loads but nothing renders until playPause.
-// Exists for Convert to FLAC's swap. Everything else — crossfade, delegate
-// callbacks, prefetch — is an ordinary play:, which is this with (0, NO).
+// Exists for Convert to FLAC's swap, and therefore always declicks rather
+// than crossfades: it replaces a track with the same audio at the same
+// position, which a crossfade would only dip. Everything else — crossfade,
+// delegate callbacks, prefetch — is an ordinary play:.
 - (void)play:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused;
 
 // Asynchronous declicked seek, in file seconds, clamped to the file.

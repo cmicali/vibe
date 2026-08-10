@@ -80,8 +80,14 @@
 
     // Tempo detection rides the same decode pass: the analyzer consumes each
     // buffer right after the waveform chunk does, so BPM never costs a second
-    // full-file read, which matters for cloud-backed files.
-    AudioBPMAnalyzer *bpmAnalyzer = [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate];
+    // full-file read, which matters for cloud-backed files. With the setting
+    // off there is no analyzer, and the waveform caches with no BPM — a file
+    // scanned while off is not re-analyzed on re-enable until its cache entry
+    // goes. The explicit scan_bpm debug path runs the analyzer directly and
+    // ignores this.
+    AudioBPMAnalyzer *bpmAnalyzer = Settings.analyzeBPM
+            ? [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate]
+            : nil;
 
     // Scratch for the shared interleaved-to-mono mix. Each decode buffer is
     // downmixed once here and fed to both the waveform chunk and the BPM
@@ -214,7 +220,7 @@
             waveform->setChunkAtIndex(waveform->getChunkAtIndex(src, numChunks), (NSUInteger)i);
         }
     }
-    if (self.isComplete) {
+    if (self.isComplete && bpmAnalyzer) {
         result.bpm = [bpmAnalyzer finish];
     }
     return result;

@@ -30,6 +30,11 @@ NS_ASSUME_NONNULL_BEGIN
 // than the loader queue, and they cannot repopulate it: a cache-generation
 // check drops their disk writes, though their UI delivery still happens.
 - (void)invalidateWithCompletion:(nullable dispatch_block_t)completion;
+
+// The backing store's entry count and total bytes on disk, enumerated off the
+// calling thread; the completion runs on the main thread.
+- (void)diskUsageWithCompletion:(void (^)(NSUInteger fileCount, unsigned long long totalBytes))completion;
+
 - (void)loadWaveformForTrack:(AudioTrack *)track;
 // Cancels the in-flight load, if there is one, so there are no further
 // waveform deliveries until the next loadWaveformForTrack:. A decode that has

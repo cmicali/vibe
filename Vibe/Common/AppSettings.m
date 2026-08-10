@@ -14,6 +14,10 @@
 #define SETTING_PITCH_RANGE                         @"AudioPlayer.pitchRange"
 #define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"
 #define SETTING_DELETE_ORIGINAL_AFTER_CONVERT       @"Convert.deleteOriginal"
+#define SETTING_SKIP_BASE_BARS                      @"Transport.skipBaseBars"
+#define SETTING_CROSSFADE_MILLISECONDS              @"AudioPlayer.crossfadeMilliseconds"
+#define SETTING_ANALYZE_BPM                         @"Audio.analyzeBPM"
+#define SETTING_CONVERT_ASKS_WHERE_TO_SAVE          @"Convert.asksWhereToSave"
 
 @implementation AppSettings
 
@@ -45,6 +49,10 @@
             SETTING_PITCH_RANGE:                    @(8),
             SETTING_SHOW_REMAINING_TIME:            @(NO),
             SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
+            SETTING_SKIP_BASE_BARS:                 @(8),
+            SETTING_CROSSFADE_MILLISECONDS:         @(10),
+            SETTING_ANALYZE_BPM:                    @(YES),
+            SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
     };
     [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
 }
@@ -169,6 +177,38 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 
 - (void)setDeleteOriginalAfterConvert:(BOOL)deleteOriginal {
     [[NSUserDefaults standardUserDefaults] setBool:deleteOriginal forKey:SETTING_DELETE_ORIGINAL_AFTER_CONVERT];
+}
+
+- (NSInteger)skipBaseBars {
+    return [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_SKIP_BASE_BARS];
+}
+
+- (void)setSkipBaseBars:(NSInteger)bars {
+    [[NSUserDefaults standardUserDefaults] setInteger:bars forKey:SETTING_SKIP_BASE_BARS];
+}
+
+- (NSInteger)crossfadeMilliseconds {
+    return [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_CROSSFADE_MILLISECONDS];
+}
+
+- (void)setCrossfadeMilliseconds:(NSInteger)milliseconds {
+    [[NSUserDefaults standardUserDefaults] setInteger:milliseconds forKey:SETTING_CROSSFADE_MILLISECONDS];
+}
+
+- (BOOL)analyzeBPM {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_ANALYZE_BPM];
+}
+
+- (void)setAnalyzeBPM:(BOOL)analyze {
+    [[NSUserDefaults standardUserDefaults] setBool:analyze forKey:SETTING_ANALYZE_BPM];
+}
+
+- (BOOL)convertAsksWhereToSave {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_CONVERT_ASKS_WHERE_TO_SAVE];
+}
+
+- (void)setConvertAsksWhereToSave:(BOOL)ask {
+    [[NSUserDefaults standardUserDefaults] setBool:ask forKey:SETTING_CONVERT_ASKS_WHERE_TO_SAVE];
 }
 
 @end

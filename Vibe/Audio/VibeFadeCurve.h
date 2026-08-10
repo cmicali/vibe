@@ -22,14 +22,37 @@ static const uint64_t kFadeDurationMilliseconds = 10;
 static const uint64_t kFadeStepMicroseconds = kFadeDurationMilliseconds * 1000 / kFadeSteps;
 static const float kFadeFloor = 0.001f; // -60 dB
 
-// The volume at `step` of a from-to fade. It lands exactly on `to` at the
-// final step, and the floor keeps the log interpolation defined through
-// silence.
-static inline float VibeFadeVolume(float from, float to, int step) {
-    if (step >= kFadeSteps) {
+// The volume at `step` of a from-to fade over `totalSteps`. It lands exactly
+// on `to` at the final step, and the floor keeps the log interpolation
+// defined through silence.
+static inline float VibeFadeVolumeOverSteps(float from, float to, int step, int totalSteps) {
+    if (step >= totalSteps) {
         return to;
     }
     float f = MAX(from, kFadeFloor);
     float t = MAX(to, kFadeFloor);
-    return f * powf(t / f, (float)step / (float)kFadeSteps);
+    return f * powf(t / f, (float)step / (float)totalSteps);
+}
+
+// The default-cadence fade, kFadeSteps over kFadeDurationMilliseconds — every
+// declick ramp and AudioFX's send gates.
+static inline float VibeFadeVolume(float from, float to, int step) {
+    return VibeFadeVolumeOverSteps(from, to, step, kFadeSteps);
+}
+
+// Step count for a fade of `milliseconds` total: the default cadence at the
+// declick length, ~10ms per step beyond it, so a long crossfade ramps in
+// small volume increments instead of ten audible stair-steps.
+static inline int VibeFadeStepsForMilliseconds(uint64_t milliseconds) {
+    if (milliseconds <= kFadeDurationMilliseconds) {
+        return kFadeSteps;
+    }
+    return (int)(milliseconds / 10);
+}
+
+static inline uint64_t VibeFadeStepMicrosecondsForMilliseconds(uint64_t milliseconds) {
+    if (milliseconds <= kFadeDurationMilliseconds) {
+        return kFadeStepMicroseconds;
+    }
+    return milliseconds * 1000 / (uint64_t)VibeFadeStepsForMilliseconds(milliseconds);
 }

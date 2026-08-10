@@ -101,11 +101,8 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
             @selector(showAboutWindow:), appDelegate, @"", 0, nil);
     AddSeparator(appMenu);
 
-    // AppDelegate's validation titles and enables this. It flips to a disabled
-    // "Vibe Is the Default Music Player" once there is nothing left to do.
-    AddSymbolItem(appMenu, [NSString stringWithFormat:STR_MENU_APP_MAKE_DEFAULT, appName],
-                  @"app.badge.checkmark",
-                  @selector(makeDefaultMusicPlayer:), appDelegate, @"", 0, @"menu_make_default_app");
+    AddSymbolItem(appMenu, STR_MENU_APP_SETTINGS, @"gearshape",
+                  @selector(showSettingsWindow:), appDelegate, @",", NSEventModifierFlagCommand, @"menu_settings");
     AddSeparator(appMenu);
 
     // AppKit populates the Services submenu once it is registered as

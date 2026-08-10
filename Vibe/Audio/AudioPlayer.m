@@ -118,6 +118,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // open is abandoned. Queue-confined.
     NSTimeInterval          _pendingStartPosition;
     BOOL                    _pendingStartPaused;
+    // Forces the declick minimum on this play's crossfade — the convert
+    // swap's same-audio replace. Rides with _pendingStartPosition.
+    BOOL                    _pendingDeclick;
+    // The fade-in length for the play in flight: the user-set crossfade when
+    // it replaced an audibly playing track, the declick minimum otherwise.
+    // Written by playOnQueue: alongside the matching retire, read by
+    // finishPlayOnQueue:'s fade-in. Queue-confined.
+    uint64_t                _incomingFadeMilliseconds;
     // Pre-opened handle for the playlist's likely-next track, from
     // prefetchTrack:. Queue-confined, and consumed once by a play: of the same
     // path, which skips the file open and so the dominant transition latency.
@@ -151,6 +159,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _stateLock = OS_UNFAIR_LOCK_INIT;
         _state = VibePlayerStateStopped;
         _maxPitch = kDefaultMaxPitchPercent;
+        _crossfadeMilliseconds = kFadeDurationMilliseconds;
         // Meaningful before the async init block resolves the saved device:
         // -1 means follow the system default, rather than a bogus device id 0.
         self.currentlyRequestedAudioDeviceId = -1;
@@ -281,13 +290,21 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 #pragma mark - Playback
 
 - (void)play:(AudioTrack *)track {
-    [self play:track atPosition:0 startPaused:NO];
+    [self playTrack:track atPosition:0 startPaused:NO declick:NO];
 }
 
+// The convert swap's entry: the same audio resumes at the same position, so
+// the replace declicks rather than crossfades — a crossfade of a signal with
+// itself only dips the volume for the fade length.
 - (void)play:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused {
+    [self playTrack:track atPosition:position startPaused:startPaused declick:YES];
+}
+
+- (void)playTrack:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused declick:(BOOL)declick {
     dispatch_async(_queue, ^{
         self->_pendingStartPosition = MAX(0, position);
         self->_pendingStartPaused = startPaused;
+        self->_pendingDeclick = declick;
         [self playOnQueue:track];
     });
 }
@@ -322,6 +339,18 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // connectNode:throughVarispeedWithFormat:.
     AVAudioPlayerNode *oldNode = _node;
     AVAudioUnitVarispeed *oldVarispeed = _varispeed;
+    // Whether this play replaces an audibly playing track — the only case the
+    // user-set crossfade length applies to. Decided before the state flips to
+    // Loading below; retireNode re-makes the same check. Everything else — a
+    // first play, a play from pause or stop — fades at the declick minimum,
+    // so transport stays instant. Both sides of the crossfade ride
+    // _incomingFadeMilliseconds: the retire here, the fade-in when the open
+    // lands in finishPlayOnQueue:.
+    BOOL crossfading = (oldNode && _engine.isRunning && _state == VibePlayerStatePlaying
+                        && !_pendingDeclick);
+    _incomingFadeMilliseconds = crossfading
+            ? (uint64_t)MAX(self.crossfadeMilliseconds, (NSInteger)kFadeDurationMilliseconds)
+            : kFadeDurationMilliseconds;
     os_unfair_lock_lock(&_stateLock);
     _node = nil;
     os_unfair_lock_unlock(&_stateLock);
@@ -333,7 +362,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // The retire fades the outgoing side out while the incoming node fades in
     // concurrently on the new varispeed, in finishPlayOnQueue: — an audible,
     // true crossfade.
-    [self retireNode:oldNode varispeed:oldVarispeed];
+    [self retireNode:oldNode varispeed:oldVarispeed milliseconds:_incomingFadeMilliseconds];
 
     self.currentTrack = nil;
 
@@ -466,8 +495,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // crossing, so starting at full volume clicks, which is why the seek fades
         // in too. This uses the current ramp generation rather than a fresh one,
         // so it rises in step with the outgoing track's fade-out — a real
-        // crossfade — and neither ramp cancels the other.
-        [self rampNodeAsync:node step:1 from:0 to:1.0 generation:_rampGeneration completion:nil];
+        // crossfade — and neither ramp cancels the other. The length matches
+        // that fade-out: the crossfade setting when one is running, the
+        // declick minimum otherwise (see playOnQueue:).
+        uint64_t fadeMs = _incomingFadeMilliseconds ?: kFadeDurationMilliseconds;
+        [self stepRampAsync:node step:1 from:0 to:1.0
+                     totalSteps:VibeFadeStepsForMilliseconds(fadeMs)
+               stepMicroseconds:VibeFadeStepMicrosecondsForMilliseconds(fadeMs)
+                    preemptable:YES generation:_rampGeneration completion:nil];
     }
 
     self.currentTrack = track;
@@ -779,7 +814,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             // pause or seek mid-fade must not preempt it and strand the node
             // audible.
             __weak AudioPlayer *weakSelf = self;
-            [self rampRetiredNodeAsync:node step:1 from:node.volume completion:^{
+            [self rampRetiredNodeAsync:node step:1 from:node.volume milliseconds:kFadeDurationMilliseconds completion:^{
                 AudioPlayer *strongSelf = weakSelf;
                 if (!strongSelf || strongSelf->_node != node) {
                     return; // A play/stop during the fade owns playback now.
@@ -811,7 +846,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     os_unfair_lock_unlock(&_stateLock);
     _varispeed = nil;
 
-    [self retireNode:oldNode varispeed:oldVarispeed];
+    // The declick minimum, never the crossfade length: a stop should land
+    // immediately.
+    [self retireNode:oldNode varispeed:oldVarispeed milliseconds:kFadeDurationMilliseconds];
 
     self.currentTrack = nil;
     // This supersedes any in-flight open, publishes Stopped and schedules the
@@ -926,30 +963,31 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // completion-side bookkeeping is not lost: the pause fade's _pausePending
 // clear, and the seek's reschedule and didFinishSeeking settle. Those
 // completions re-check the generation themselves and yield to the preemptor.
-- (void)stepRampAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target preemptable:(BOOL)preemptable generation:(uint64_t)generation completion:(dispatch_block_t)completion {
+- (void)stepRampAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target totalSteps:(int)totalSteps stepMicroseconds:(uint64_t)stepMicroseconds preemptable:(BOOL)preemptable generation:(uint64_t)generation completion:(dispatch_block_t)completion {
     if (preemptable && generation != _rampGeneration) {
         if (completion) {
             completion();
         }
         return;
     }
-    node.volume = VibeFadeVolume(start, target, step);
-    if (step >= kFadeSteps) {
+    node.volume = VibeFadeVolumeOverSteps(start, target, step, totalSteps);
+    if (step >= totalSteps) {
         if (completion) {
             completion();
         }
         return;
     }
     __weak AudioPlayer *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFadeStepMicroseconds * NSEC_PER_USEC)), _queue, ^{
-        [weakSelf stepRampAsync:node step:step + 1 from:start to:target preemptable:preemptable generation:generation completion:completion];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(stepMicroseconds * NSEC_PER_USEC)), _queue, ^{
+        [weakSelf stepRampAsync:node step:step + 1 from:start to:target totalSteps:totalSteps stepMicroseconds:stepMicroseconds preemptable:preemptable generation:generation completion:completion];
     });
 }
 
-// Generation-tagged fade for the current node. A pause, seek, skip, device
-// switch or new play bumps _rampGeneration and preempts it.
+// Generation-tagged declick fade for the current node, at the default
+// cadence. A pause, seek, skip, device switch or new play bumps
+// _rampGeneration and preempts it.
 - (void)rampNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target generation:(uint64_t)generation completion:(dispatch_block_t)completion {
-    [self stepRampAsync:node step:step from:start to:target preemptable:YES generation:generation completion:completion];
+    [self stepRampAsync:node step:step from:start to:target totalSteps:kFadeSteps stepMicroseconds:kFadeStepMicroseconds preemptable:YES generation:generation completion:completion];
 }
 
 // Fade to silence for a retired node, the crossfade's outgoing side. It is
@@ -958,8 +996,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // so no later operation needs to preempt it. Preemption would hard-stop the
 // node at mid-fade volume, an audible click on rapid skips. This always
 // reaches silence, then runs the completion — stop and detach — exactly once.
-- (void)rampRetiredNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start completion:(dispatch_block_t)completion {
-    [self stepRampAsync:node step:step from:start to:0 preemptable:NO generation:0 completion:completion];
+- (void)rampRetiredNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start milliseconds:(uint64_t)milliseconds completion:(dispatch_block_t)completion {
+    [self stepRampAsync:node step:step from:start to:0
+             totalSteps:VibeFadeStepsForMilliseconds(milliseconds)
+       stepMicroseconds:VibeFadeStepMicrosecondsForMilliseconds(milliseconds)
+            preemptable:NO generation:0 completion:completion];
 }
 
 // Tears down a node and varispeed pair the caller has already pulled out of
@@ -971,10 +1012,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // completion would then stop the node at mid-fade volume, which clicks.
 // Otherwise, when paused or stopped or on a first play, both are torn down
 // immediately, at silence, so there is nothing to click.
-- (void)retireNode:(AVAudioPlayerNode *)node varispeed:(AVAudioUnitVarispeed *)varispeed {
+- (void)retireNode:(AVAudioPlayerNode *)node varispeed:(AVAudioUnitVarispeed *)varispeed milliseconds:(uint64_t)milliseconds {
     AVAudioEngine *engine = _engine;
     if (node && engine.isRunning && _state == VibePlayerStatePlaying) {
-        [self rampRetiredNodeAsync:node step:1 from:node.volume completion:^{
+        [self rampRetiredNodeAsync:node step:1 from:node.volume milliseconds:milliseconds completion:^{
             [node stop];
             [engine detachNode:node];
             if (varispeed) {

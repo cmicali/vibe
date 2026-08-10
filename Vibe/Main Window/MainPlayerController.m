@@ -361,6 +361,7 @@
     _pitchPanel.delegate = self;
     [contentView addSubview:_pitchPanel];
     [self applyPitchRange];
+    self.audioPlayer.crossfadeMilliseconds = Settings.crossfadeMilliseconds;
 
     __weak MainPlayerController *weakSelf = self;
     _uiTimer = [[UIUpdateTimer alloc] initWithHz:UPDATE_HZ handler:^{
@@ -1073,6 +1074,10 @@
 // coherent.
 - (IBAction)toggleTimeDisplayMode:(id)sender {
     Settings.showRemainingTime = !Settings.showRemainingTime;
+    [self updateUI];
+}
+
+- (void)refreshTimeDisplay {
     [self updateUI];
 }
 

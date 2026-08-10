@@ -164,8 +164,16 @@ normalize() {
                               if .key == "en" then .
                               else .value.stringUnit.state = "needs_review" end))
                    else . end)
-                | (if .extractionState == "stale"
-                   then .
+                # Delete-then-append, never update in place: sync mints a new
+                # key with extractionState in alphabetical position, and jq
+                # assignment would keep it there, while the --check round trip
+                # (unshield deletes it, this re-adds it) appends it — same
+                # content, different key order, spurious diff on every fresh
+                # key.
+                | .extractionState as $st
+                | del(.extractionState)
+                | (if $st == "stale"
+                   then .extractionState = "stale"
                    else .extractionState = "manual" end)
             )
         )

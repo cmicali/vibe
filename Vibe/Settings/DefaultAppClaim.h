@@ -2,7 +2,7 @@
 //  DefaultAppClaim.h
 //  Vibe
 //
-//  Vibe > Set Vibe as Default Music Player: asking Launch Services to make
+//  Settings > General's default-player button: asking Launch Services to make
 //  Vibe the default app for every audio type DocumentTypes declares, so the
 //  user need not walk Finder's Get Info > Open With > Change All once per
 //  extension. The type list itself lives in DocumentTypes (Common); this is

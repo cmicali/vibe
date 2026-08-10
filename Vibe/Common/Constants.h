@@ -26,6 +26,16 @@ static const CGFloat kMainWindowMinContentWidth = 480;
 // has chosen.
 static const CGFloat kMainWindowLargeContentWidth = kMainWindowContentWidth * 1.75;
 
+// Every animated window resize the app performs — the playlist toggle, the
+// pitch panel reveal, the View > Size presets, and the settings window's
+// tab-switch resize — runs at this one duration: the main window through its
+// animationResizeTime: override, the settings window through its tab-switch
+// NSAnimationContext. AppKit's default scales with the distance, at roughly
+// 0.2s per 150pt, which makes larger jumps drag. These are chrome snapping
+// to a new shape rather than content transitions, so a short fixed time
+// reads better and stays consistent whatever the distance.
+static const NSTimeInterval kWindowResizeAnimationDuration = 0.12;
+
 // The corner radius of the main window, shared by the contentView layer mask
 // in MainWindow, which is the one that actually shapes the window, the Liquid
 // Glass backdrop, the header glass panel and its tint layer, and the pitch

@@ -78,6 +78,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)togglePitchPanel:(nullable id)sender;
 - (IBAction)setPitchRange:(id)sender;
 
+// Pushes Settings.pitchRange to the player and the fader UI. The Settings
+// pane calls it after writing the setting; the menu action funnels through it
+// too.
+- (void)applyPitchRange;
+
+// Re-renders the time labels after Settings.showRemainingTime changes
+// somewhere other than the label click, i.e. the Settings pane.
+- (void)refreshTimeDisplay;
+
 - (IBAction)showInFinder:(id)sender;
 - (IBAction)copyFile:(id)sender;
 - (IBAction)copyName:(id)sender;
