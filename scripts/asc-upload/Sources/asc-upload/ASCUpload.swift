@@ -1,8 +1,8 @@
 // Uploads the localized App Store product-page metadata — promotional text,
-// description, keywords, and screenshots — from Assets/app-store/ to App Store
-// Connect. Copy format and tree layout: Assets/app-store/README.md. Run via
-// scripts/appstore-upload-metadata.sh (or `make appstore-upload-metadata`), which
-// resolves the shared API key.
+// description, keywords, what's new, the support URL, and screenshots — from
+// Assets/app-store/ to App Store Connect. Copy format and tree layout:
+// Assets/app-store/README.md. Run via scripts/appstore-upload-metadata.sh (or
+// `make appstore-upload-metadata`), which resolves the shared API key.
 //
 // Targets the one editable macOS version (Prepare for Submission or a rejected
 // state). Text fields are PATCHed only when they differ; screenshots replace
@@ -86,6 +86,9 @@ struct LocaleCopy {
     let promotionalText: String
     let description: String
     let keywords: String
+    let whatsNew: String
+    let supportUrl: String     // shared across locales (copy/support-url.txt)
+    let marketingUrl: String   // shared across locales (copy/marketing-url.txt)
     let screenshots: [URL]     // ordered
 }
 
@@ -94,6 +97,18 @@ func loadCopy(root: URL, options: Options) throws -> [LocaleCopy] {
     let copyDir = root.appendingPathComponent("copy")
     let languages = try fm.contentsOfDirectory(atPath: copyDir.path).sorted()
         .filter { fm.fileExists(atPath: copyDir.appendingPathComponent($0).path + "/description.txt") }
+
+    // One support and one marketing URL for every locale. ASC requires the
+    // support URL per localization — a localization created without one blocks
+    // submission; the marketing URL is optional but kept uniform the same way.
+    func sharedURL(_ name: String) throws -> String {
+        let url = try String(contentsOf: copyDir.appendingPathComponent(name), encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty else { throw Fail("copy/\(name) is empty") }
+        return url
+    }
+    let supportUrl = try sharedURL("support-url.txt")
+    let marketingUrl = try sharedURL("marketing-url.txt")
 
     var out: [LocaleCopy] = []
     for language in languages {
@@ -128,6 +143,9 @@ func loadCopy(root: URL, options: Options) throws -> [LocaleCopy] {
             promotionalText: try field("promotional-text.txt"),
             description: try field("description.txt"),
             keywords: try field("keywords.txt"),
+            whatsNew: try field("whats-new.txt"),
+            supportUrl: supportUrl,
+            marketingUrl: marketingUrl,
             screenshots: screenshots))
     }
     return out
@@ -212,7 +230,10 @@ struct ASCUpload {
             let changed = !options.skipText &&
                 (a?.promotionalText != copy.promotionalText ||
                  a?.description != copy.description ||
-                 a?.keywords != copy.keywords)
+                 a?.keywords != copy.keywords ||
+                 a?.whatsNew != copy.whatsNew ||
+                 a?.supportUrl != copy.supportUrl ||
+                 a?.marketingUrl != copy.marketingUrl)
             if changed {
                 print("\(copy.locale): updating text")
                 if !options.dryRun {
@@ -223,12 +244,17 @@ struct ASCUpload {
                             attributes: .init(
                                 description: copy.description,
                                 keywords: copy.keywords,
-                                promotionalText: copy.promotionalText)))))
+                                marketingUrl: copy.marketingUrl,
+                                promotionalText: copy.promotionalText,
+                                supportUrl: copy.supportUrl,
+                                whatsNew: copy.whatsNew)))))
                 }
             } else if !options.skipText {
                 print("\(copy.locale): text unchanged")
             }
         } else {
+            // whatsNew rides along here too; note ASC rejects it on an app's
+            // first-ever version, where there is nothing to be new against.
             print("\(copy.locale): creating localization")
             if options.dryRun {
                 localizationId = nil
@@ -239,7 +265,10 @@ struct ASCUpload {
                             description: copy.description,
                             keywords: copy.keywords,
                             locale: copy.locale,
-                            promotionalText: copy.promotionalText),
+                            marketingUrl: copy.marketingUrl,
+                            promotionalText: copy.promotionalText,
+                            supportUrl: copy.supportUrl,
+                            whatsNew: copy.whatsNew),
                         relationships: .init(appStoreVersion: .init(data: .init(id: version.id)))))))
                 localizationId = created.data.id
             }

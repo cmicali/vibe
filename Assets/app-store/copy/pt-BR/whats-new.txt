@@ -1,0 +1,3 @@
+* Localizado em 23 idiomas
+* Converta o arquivo em reprodução para FLAC (com desfazer/refazer)
+* Novos itens de menu: "Copiar Arquivo" e "Copiar Nome"

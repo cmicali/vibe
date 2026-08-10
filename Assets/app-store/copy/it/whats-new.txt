@@ -1,0 +1,3 @@
+* Localizzato in 23 lingue
+* Converti il file in riproduzione in FLAC (con annulla/ripristina)
+* Nuove voci di menu: "Copia file" e "Copia nome"

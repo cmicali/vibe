@@ -1,0 +1,3 @@
+* 23 dile yerelleştirildi
+* Çalan dosyayı FLAC biçimine dönüştürme (geri al/yinele destekli)
+* Yeni menü öğeleri: "Dosyayı Kopyala" ve "Adı Kopyala"

@@ -1,0 +1,3 @@
+* In 23 Sprachen lokalisiert
+* Wiedergegebene Datei in FLAC konvertieren (mit Widerrufen/Wiederholen)
+* Neue Menüpunkte: „Datei kopieren“ und „Namen kopieren“

@@ -1,0 +1,3 @@
+* Lokaliserad till 23 språk
+* Konvertera filen som spelas upp till FLAC (med ångra/gör om)
+* Nya menyval: "Kopiera fil" och "Kopiera namn"

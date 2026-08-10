@@ -1,10 +1,11 @@
 #!/bin/bash
 # Fail unless every catalog language has complete App Store copy in
-# Assets/app-store/copy/<lang>/ and it holds up: the three text fields present,
+# Assets/app-store/copy/<lang>/ and it holds up: the four text fields present,
 # non-empty and within ASC's character limits (counted in characters, not
-# bytes), description free of leftover markdown, and screenshots.json holding a
-# non-empty headline and subhead for every shot, each fitting the screenshot
-# layout (compose-app-store-overlay.py --measure).
+# bytes), description free of leftover markdown, the shared support-url.txt a
+# bare URL, and screenshots.json holding a non-empty headline and subhead for
+# every shot, each fitting the screenshot layout
+# (compose-app-store-overlay.py --measure).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -15,11 +16,12 @@ err() { echo "appstore-validate-copy: $*" >&2; FAIL=1; }
 
 check_text() { # <lang> <dir>
     local f path len limit
-    for f in promotional-text keywords description; do
+    for f in promotional-text keywords description whats-new; do
         case "$f" in # ASC field limits
             promotional-text) limit=170 ;;
             keywords)         limit=100 ;;
             description)      limit=4000 ;;
+            whats-new)        limit=4000 ;;
         esac
         path="$2/$f.txt"
         [ -f "$path" ] || { err "$1: missing $path"; continue; }
@@ -46,6 +48,18 @@ check_captions() { # <lang> <screenshots.json>
             || err "$1: shot '$id' captions do not fit the layout"
     done
 }
+
+# Shared across locales. ASC requires a support URL per localization — one
+# created without it blocks submission; the marketing URL is optional but kept
+# uniform the same way.
+for u in support-url marketing-url; do
+    URL_FILE="$ROOT/Assets/app-store/copy/$u.txt"
+    if [ ! -f "$URL_FILE" ]; then
+        err "missing copy/$u.txt"
+    elif ! grep -qE '^https?://[^[:space:]]+$' "$URL_FILE"; then
+        err "copy/$u.txt must be a single bare URL"
+    fi
+done
 
 while read -r l; do
     DIR="$ROOT/Assets/app-store/copy/$l"

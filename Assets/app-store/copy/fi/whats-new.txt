@@ -1,0 +1,3 @@
+* Lokalisoitu 23 kielelle
+* Muunna toistettava tiedosto FLAC-muotoon (kumoa/tee uudelleen -toiminnoilla)
+* Uudet valikkokohteet: "Kopioi tiedosto" ja "Kopioi nimi"

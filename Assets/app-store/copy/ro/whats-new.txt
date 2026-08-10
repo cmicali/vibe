@@ -1,0 +1,3 @@
+* Localizat în 23 de limbi
+* Convertiți fișierul în redare în FLAC (cu anulare/refacere)
+* Elemente de meniu noi: „Copiați fișierul” și „Copiați numele”

@@ -1,0 +1,3 @@
+* Localisé en 23 langues
+* Convertissez le fichier en cours de lecture en FLAC (avec annuler/rétablir)
+* Nouveaux éléments de menu : « Copier le fichier » et « Copier le nom »

@@ -1,0 +1,3 @@
+* Localized into 23 languages
+* Add ability to convert playing file to FLAC (w/ undo/redo)
+* Add copy file and copy name menu items
