@@ -1,0 +1,3 @@
+* Kini tersedia dalam 23 bahasa
+* Konversi file yang sedang diputar ke FLAC (dengan urungkan/ulangi)
+* Item menu baru: Salin File dan Salin Nama

@@ -1,6 +1,6 @@
 # Unreleased
 
-* TBD
+* Added Czech, Slovak, Hungarian, Greek, Vietnamese, Indonesian, and Thai localizations (now 30 languages)
 
 # v1.7
 

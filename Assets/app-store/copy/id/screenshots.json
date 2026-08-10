@@ -1,0 +1,22 @@
+[
+  {
+    "id": "player",
+    "headline": "Putar file lokal dengan cepat",
+    "subhead": "MP3, FLAC, AIFF, WAV, dan lainnya. Klik bentuk gelombang untuk berpindah posisi."
+  },
+  {
+    "id": "playlist",
+    "headline": "Letakkan folder, langsung putar",
+    "subhead": "Artwork, tag, dan BPM dibaca di latar belakang dan di-cache agar cepat."
+  },
+  {
+    "id": "pitch",
+    "headline": "DJ akan merasa seperti di rumah",
+    "subhead": "Fader pitch gaya turntable, lompatan akurat per bar, dan FX performa di keyboard."
+  },
+  {
+    "id": "keys",
+    "headline": "Tangan di keyboard",
+    "subhead": "Transport, lompatan bar, FX performa, dan pitch — tanpa tombol modifier."
+  }
+]

@@ -1,0 +1,12 @@
+A Vibe gyors, minimalista zenelejátszó Macre. Nincs külső lejátszómotor, nincs fiók, nincs előfizetés. Csak egy egyszerű, gyors lejátszó a fájljaidhoz.
+
+Hullámforma
+A Vibe minden számot teljes hullámformaként rajzol ki az ablak teljes szélességében. Kattints bárhová rajta a tekeréshez. Nincs importálandó könyvtár és nincs újraépítendő adatbázis. Húzz egy fájlt vagy mappát az ablakra, és már szól is. A Vibe a tageket, a borítókat és a BPM-et a háttérben olvassa be és gyorsítótárazza, így a következő megnyitás azonnali.
+
+Formátumok
+MP3, MP2, AAC, FLAC, MP4/M4A, AIFF és WAV — mindet maga a macOS dekódolja. A veszteségmentes fájlok teljes felbontásban szólnak, a szám formátuma és mintavételi frekvenciája pedig ott áll a cím mellett.
+
+A DJ-k otthon érzik majd magukat
+• Gramofonszerűen elrendezett pitch-csúszka, amely rejtve marad, amíg nem kell.
+• Az ugrások ütemekben mérve, nem másodpercekben. Ha ismert a tempó, ugorj 8, 16 vagy 32 ütemet, és maradj a rácson; ha nem, ugyanazok a billentyűk 10, 30 vagy 60 másodpercet lépnek.
+• Performance FX egy kéz alatt: Low Kill szűrő, zengő reverb és a szám BPM-jéhez igazított delayek. Koppints egy billentyűre az effekt rögzítéséhez; tartsd lenyomva, hogy csak addig szóljon.

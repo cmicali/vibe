@@ -1,0 +1,3 @@
+* Đã bản địa hóa sang 23 ngôn ngữ
+* Thêm khả năng chuyển đổi tệp đang phát sang FLAC (có hoàn tác/làm lại)
+* Thêm mục menu "Sao chép tệp" và "Sao chép tên"

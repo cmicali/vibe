@@ -1,0 +1,22 @@
+[
+  {
+    "id": "player",
+    "headline": "Helyi fájlok, azonnal",
+    "subhead": "MP3, FLAC, AIFF, WAV és több más. Kattints a hullámformára a tekeréshez."
+  },
+  {
+    "id": "playlist",
+    "headline": "Húzz be egy mappát, és szól",
+    "subhead": "Borítók, tagek és BPM a háttérben beolvasva, gyorsítótárazva."
+  },
+  {
+    "id": "pitch",
+    "headline": "A DJ-k otthon érzik magukat",
+    "subhead": "Gramofonszerű pitch-csúszka, ütempontos ugrások és FX a billentyűkön."
+  },
+  {
+    "id": "keys",
+    "headline": "Kéz a billentyűzeten",
+    "subhead": "Transzport, ütemugrások, FX és pitch — módosítóbillentyűk nélkül."
+  }
+]
