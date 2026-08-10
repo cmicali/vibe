@@ -8,6 +8,7 @@
 #import "PlaylistTableView.h"
 #import "PlaylistRowView.h"
 #import "EqualizerIndicatorView.h"
+#import "MainMenuBuilder.h" // vends the row context menu's symbol items
 #import "VibeStrings.h"
 
 // The reuse identifier for the custom row view. Cell views reuse their column
@@ -55,32 +56,27 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     // in Finder" reveals the current track, so that a right-click on a row
     // reveals that row's track instead.
     // Menu title never drawn — a context menu shows only its items.
+    // The items share their titles and SF Symbols with the main menu's, vended
+    // so the symbol wiring lives in MainMenuBuilder — but they act on the
+    // CLICKED row, not the current track, so they carry this controller's own
+    // selectors and identifiers rather than reusing the vended copy pair.
     NSMenu *menu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Playlist Menu")];
-    NSMenuItem *showRowInFinder = [[NSMenuItem alloc] initWithTitle:STR_MENU_SHOW_IN_FINDER
-                                                             action:@selector(showClickedTrackInFinder:)
-                                                      keyEquivalent:@""];
-    showRowInFinder.identifier = @"show_clicked_track_in_finder";
-    showRowInFinder.target = self;
-    showRowInFinder.image = [NSImage imageWithSystemSymbolName:@"folder"
-                                      accessibilityDescription:showRowInFinder.title];
-    [menu addItem:showRowInFinder];
+    [menu addItem:[MainMenuBuilder symbolItemWithTitle:STR_MENU_SHOW_IN_FINDER
+                                            symbolName:@"folder"
+                                                action:@selector(showClickedTrackInFinder:)
+                                                target:self
+                                            identifier:@"show_clicked_track_in_finder"]];
     [menu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem *copyRowName = [[NSMenuItem alloc] initWithTitle:STR_MENU_EDIT_COPY_NAME
-                                                         action:@selector(copyClickedTrackName:)
-                                                  keyEquivalent:@""];
-    copyRowName.identifier = @"copy_clicked_track_name";
-    copyRowName.target = self;
-    copyRowName.image = [NSImage imageWithSystemSymbolName:@"textformat"
-                                  accessibilityDescription:copyRowName.title];
-    [menu addItem:copyRowName];
-    NSMenuItem *copyRowFile = [[NSMenuItem alloc] initWithTitle:STR_MENU_EDIT_COPY_FILE
-                                                         action:@selector(copyClickedTrackFile:)
-                                                  keyEquivalent:@""];
-    copyRowFile.identifier = @"copy_clicked_track_file";
-    copyRowFile.target = self;
-    copyRowFile.image = [NSImage imageWithSystemSymbolName:@"doc.on.doc"
-                                  accessibilityDescription:copyRowFile.title];
-    [menu addItem:copyRowFile];
+    [menu addItem:[MainMenuBuilder symbolItemWithTitle:STR_MENU_EDIT_COPY_NAME
+                                            symbolName:@"textformat"
+                                                action:@selector(copyClickedTrackName:)
+                                                target:self
+                                            identifier:@"copy_clicked_track_name"]];
+    [menu addItem:[MainMenuBuilder symbolItemWithTitle:STR_MENU_EDIT_COPY_FILE
+                                            symbolName:@"doc.on.doc"
+                                                action:@selector(copyClickedTrackFile:)
+                                                target:self
+                                            identifier:@"copy_clicked_track_file"]];
     _tableView.menu = menu;
 }
 

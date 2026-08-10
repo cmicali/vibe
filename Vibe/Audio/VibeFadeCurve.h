@@ -2,11 +2,16 @@
 //  VibeFadeCurve.h
 //  Vibe
 //
-//  The one fade curve: kFadeDurationMilliseconds in total, across kFadeSteps
-//  equal multiplicative, perceptually logarithmic volume steps, shared by
-//  AudioPlayer's node fades and AudioFX's send gates. Each keeps its own
-//  stepper loop, because the preemption bookkeeping differs, but a change to
-//  the curve or cadence here lands everywhere.
+//  The fade curves and cadence shared by AudioPlayer's node fades and
+//  AudioFX's send gates. Two curves, split by fade length: declick-length
+//  fades (kFadeDurationMilliseconds) step multiplicatively — perceptually
+//  logarithmic, click-free down to the -60 dB floor — while crossfade-length
+//  fades interpolate power linearly, so the two sides of a crossfade sum to
+//  ~constant power instead of both sitting near -30 dB at the midpoint.
+//  AudioFX's send gates are gates, not crossfades, and always ride the log
+//  curve. Each caller keeps its own stepper loop, because the preemption
+//  bookkeeping differs, but a change to a curve or the cadence here lands
+//  everywhere.
 //
 
 #import <Foundation/Foundation.h>
@@ -22,9 +27,10 @@ static const uint64_t kFadeDurationMilliseconds = 10;
 static const uint64_t kFadeStepMicroseconds = kFadeDurationMilliseconds * 1000 / kFadeSteps;
 static const float kFadeFloor = 0.001f; // -60 dB
 
-// The volume at `step` of a from-to fade over `totalSteps`. It lands exactly
-// on `to` at the final step, and the floor keeps the log interpolation
-// defined through silence.
+// Declick (log) curve: the volume at `step` of a from-to fade over
+// `totalSteps`, in equal multiplicative steps. It lands exactly on `to` at
+// the final step, and the floor keeps the log interpolation defined through
+// silence.
 static inline float VibeFadeVolumeOverSteps(float from, float to, int step, int totalSteps) {
     if (step >= totalSteps) {
         return to;
@@ -32,6 +38,27 @@ static inline float VibeFadeVolumeOverSteps(float from, float to, int step, int 
     float f = MAX(from, kFadeFloor);
     float t = MAX(to, kFadeFloor);
     return f * powf(t / f, (float)step / (float)totalSteps);
+}
+
+// Crossfade (equal-power) curve: power, volume squared, interpolates
+// linearly, so a fade-out and a fade-in over the same steps are complementary
+// and their power sum stays ~1. It lands exactly on `to` at the final step.
+static inline float VibeCrossfadeVolumeOverSteps(float from, float to, int step, int totalSteps) {
+    if (step >= totalSteps) {
+        return to;
+    }
+    float t = (float)step / (float)totalSteps;
+    return sqrtf(from * from * (1.0f - t) + to * to * t);
+}
+
+// Curve selection by fade length: the log curve at the declick length —
+// pause, seek, stop and transport declicks — and equal power beyond it, since
+// every longer fade is one side of a crossfade.
+static inline float VibeFadeVolumeForFadeLength(uint64_t milliseconds, float from, float to, int step, int totalSteps) {
+    if (milliseconds <= kFadeDurationMilliseconds) {
+        return VibeFadeVolumeOverSteps(from, to, step, totalSteps);
+    }
+    return VibeCrossfadeVolumeOverSteps(from, to, step, totalSteps);
 }
 
 // Step count for a fade of `milliseconds` total: the default cadence at the

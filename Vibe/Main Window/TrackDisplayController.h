@@ -78,10 +78,12 @@ static inline TrackDisplayState VibeResolveTrackDisplayState(
     // describe the PREVIOUS file, because currentTrack flips to the new track
     // only at didStartPlaying. Render the gap as Loading so the new track's
     // tags are never composited over the old file's times; it is visible on
-    // slow cloud opens and instant on prefetched ones. Stopped is excluded,
-    // since an idle player at the end of the playlist legitimately parks on
-    // the playlist's last track.
-    if (!playerIsStopped && playerTrack != currentTrack) {
+    // slow cloud opens and instant on prefetched ones. Stopped does not
+    // exempt the gap: play flips the player's state asynchronously, so a
+    // change initiated from the end-of-playlist park still reads Stopped
+    // here. The park itself is not the gap, because an idle player parks on
+    // the track it just finished — playerTrack == currentTrack.
+    if (playerTrack != currentTrack) {
         return TrackDisplayStateLoading;
     }
     return playerIsLoading ? TrackDisplayStateLoading : TrackDisplayStateTrack;

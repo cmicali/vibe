@@ -11,9 +11,16 @@
 
 @implementation AppStats {
     // systemUptime when the current playback run began, or 0 while not
-    // playing. Monotonic, and frozen during system sleep, which is right:
-    // sleep silences the engine without a pause callback.
+    // playing. Monotonic, but NOT frozen during system sleep on Apple Silicon,
+    // so sleep — which silences the engine without a pause callback — would
+    // count the whole night as listening. The workspace sleep/wake observers
+    // below bracket the run instead: will-sleep folds and zeroes the baseline,
+    // did-wake restarts it.
     NSTimeInterval _playbackStartUptime;
+    // A run folded at will-sleep and awaiting its did-wake restart. While set,
+    // the run is logically still active — playbackStopped must still balance
+    // the sudden-termination hold, and playbackStarted must not re-take it.
+    BOOL _sleepPausedRun;
 }
 
 + (AppStats *)sharedInstance {
@@ -23,6 +30,25 @@
         instance = [[AppStats alloc] init];
     });
     return instance;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        // Process-lifetime singleton, so the observers are never removed.
+        // Workspace notifications arrive on the main thread, matching this
+        // class's main-thread-only contract.
+        NSNotificationCenter *center = NSWorkspace.sharedWorkspace.notificationCenter;
+        [center addObserver:self
+                   selector:@selector(workspaceWillSleep:)
+                       name:NSWorkspaceWillSleepNotification
+                     object:nil];
+        [center addObserver:self
+                   selector:@selector(workspaceDidWake:)
+                       name:NSWorkspaceDidWakeNotification
+                     object:nil];
+    }
+    return self;
 }
 
 - (NSUInteger)totalFilesOpened {
@@ -54,23 +80,45 @@
 }
 
 - (void)playbackStarted {
-    if (_playbackStartUptime <= 0) {
+    if (![self runActive]) {
         // The app supports sudden termination, under which quit is a SIGKILL
         // and applicationWillTerminate: never runs. Holding it off while the
         // clock runs is what lets the quit-time flush actually happen.
         [NSProcessInfo.processInfo disableSuddenTermination];
     }
     [self foldElapsedPlayback];
+    _sleepPausedRun = NO;
     _playbackStartUptime = NSProcessInfo.processInfo.systemUptime;
 }
 
 - (void)playbackStopped {
+    if (![self runActive]) {
+        return;
+    }
+    [self foldElapsedPlayback];
+    _playbackStartUptime = 0;
+    _sleepPausedRun = NO;
+    [NSProcessInfo.processInfo enableSuddenTermination];
+}
+
+- (BOOL)runActive {
+    return _playbackStartUptime > 0 || _sleepPausedRun;
+}
+
+- (void)workspaceWillSleep:(NSNotification *)notification {
     if (_playbackStartUptime <= 0) {
         return;
     }
     [self foldElapsedPlayback];
     _playbackStartUptime = 0;
-    [NSProcessInfo.processInfo enableSuddenTermination];
+    _sleepPausedRun = YES;
+}
+
+- (void)workspaceDidWake:(NSNotification *)notification {
+    if (_sleepPausedRun) {
+        _sleepPausedRun = NO;
+        _playbackStartUptime = NSProcessInfo.processInfo.systemUptime;
+    }
 }
 
 - (void)foldElapsedPlayback {

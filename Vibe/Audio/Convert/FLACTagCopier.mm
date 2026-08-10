@@ -24,7 +24,8 @@ namespace {
 std::unique_ptr<TagLib::File> openUncompressedSource(NSString *path, TagLib::IOStream *stream) {
     NSString *ext = path.pathExtension.uppercaseString;
     std::unique_ptr<TagLib::File> file;
-    if ([ext isEqualToString:@"WAV"]) {
+    if ([ext isEqualToString:@"WAV"] || [ext isEqualToString:@"WAVE"] || [ext isEqualToString:@"BWF"]) {
+        // All three spellings are plain RIFF WAVE; RIFF::WAV::File reads them.
         file = std::make_unique<TagLib::RIFF::WAV::File>(stream);
     } else if ([ext isEqualToString:@"AIF"] || [ext isEqualToString:@"AIFF"] ||
                [ext isEqualToString:@"AFC"] || [ext isEqualToString:@"AIFC"]) {

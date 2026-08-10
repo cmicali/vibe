@@ -61,6 +61,11 @@ for u in support-url marketing-url; do
     fi
 done
 
+# Capture first: a process substitution's exit status is never checked, so a
+# failing catalog-languages.sh would yield zero iterations and a vacuous OK.
+LANGS="$("$ROOT/scripts/catalog-languages.sh")"
+[ -n "$LANGS" ] || { echo "appstore-validate-copy: catalog-languages.sh returned no languages" >&2; exit 1; }
+
 while read -r l; do
     DIR="$ROOT/Assets/app-store/copy/$l"
     [ -d "$DIR" ] || { err "$l: missing $DIR"; continue; }
@@ -70,6 +75,6 @@ while read -r l; do
     else
         err "$l: missing $DIR/screenshots.json"
     fi
-done < <("$ROOT/scripts/catalog-languages.sh")
+done <<< "$LANGS"
 
 [ "$FAIL" = 0 ] && echo "appstore-validate-copy: OK" || exit 1

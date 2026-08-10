@@ -15,13 +15,16 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface DefaultAppClaim : NSObject
 
-// YES when Vibe is already the default app for every declaredFileTypes entry.
-@property (class, readonly) BOOL isDefaultAppForAllFileTypes;
+// Answers YES when Vibe is already the default app for every
+// declaredFileTypes entry. The per-type Launch Services lookups are
+// synchronous XPC calls, so the walk runs on a background queue; the
+// completion arrives on the main thread.
++ (void)checkIsDefaultAppForAllFileTypes:(void (^)(BOOL isDefault))completion;
 
 // Requests default-app status for every declaredFileTypes entry. It returns
 // immediately: the system asks the user to confirm and reports the outcome
-// itself, and the result shows up in isDefaultAppForAllFileTypes and in the
-// log.
+// itself, and the result shows up in checkIsDefaultAppForAllFileTypes: and in
+// the log.
 + (void)makeDefaultApp;
 
 @end

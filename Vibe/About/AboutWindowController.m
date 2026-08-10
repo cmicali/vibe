@@ -64,7 +64,13 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
     }
 }
 
+// Claim the down rather than forwarding to super — only a claimed down routes
+// the matching mouseUp here — and open on the up, with the cursor still over
+// the link, like any standard link.
 - (void)mouseDown:(NSEvent *)event {
+}
+
+- (void)mouseUp:(NSEvent *)event {
     NSPoint local = [self convertPoint:event.locationInWindow fromView:nil];
     if (self.linkURL && NSMouseInRect(local, [self linkRect], self.isFlipped)) {
         [NSWorkspace.sharedWorkspace openURL:self.linkURL];

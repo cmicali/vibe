@@ -23,6 +23,17 @@ static void AddResolvedPath(NSMutableSet<NSString *> *paths, NSURL *_Nullable ur
 
 @implementation DefaultAppClaim
 
++ (void)checkIsDefaultAppForAllFileTypes:(void (^)(BOOL isDefault))completion {
+    // Off the main thread: URLForApplicationToOpenContentType: is a
+    // synchronous Launch Services XPC lookup, and the walk makes one per type.
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        BOOL isDefault = [self isDefaultAppForAllFileTypes];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(isDefault);
+        });
+    });
+}
+
 + (BOOL)isDefaultAppForAllFileTypes {
     NSArray<UTType *> *types = DocumentTypes.declaredFileTypes;
     if (types.count == 0) {

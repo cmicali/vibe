@@ -31,6 +31,14 @@ typedef NS_ENUM(NSInteger, VibePlayerState) {
 NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError * _Nullable underlying);
 NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, NSError * _Nullable underlying, NSURL * _Nullable trackURL);
 
+// Seconds → start frame for scheduling, clamped to [0, fileLength - 1]: a
+// past-the-end start lands on the last frame rather than scheduling an empty
+// segment.
+static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds, double sampleRate, AVAudioFramePosition fileLength) {
+    AVAudioFramePosition frame = (AVAudioFramePosition)(seconds * sampleRate);
+    return MAX(0, MIN(frame, fileLength - 1));
+}
+
 @interface AudioPlayer () {
     // Only the ivars AudioPlayer+Devices.m also touches live here in the class
     // extension. Everything the device code never reaches stays declared, with

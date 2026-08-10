@@ -19,7 +19,7 @@
 // mono mix — so the result is exactly what an in-app load would detect.
 //
 // It touches no app state and no caches, which is why the debug CLI client in
-// DebugUtil.m runs this verb locally rather than doing the channel round-trip:
+// DebugClient.m runs this verb locally rather than doing the channel round-trip:
 // it works with no app running. The same function backs the app-side table
 // entry for any caller that posts the command file directly.
 //

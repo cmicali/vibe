@@ -28,6 +28,11 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MainPlayerController (NowPlayingSupport)
 
 @property (strong, readonly) NowPlayingController *nowPlayingController;
+// The convert swap's resume hint; see the class extension in
+// MainPlayerController.m. Read gated on the track identity, because a track
+// change can race the swap's replay.
+@property (weak, readonly) AudioTrack *convertSwapResumeTrack;
+@property (readonly) NSTimeInterval convertSwapResumePosition;
 - (TrackDisplayState)displayState;
 - (nullable AudioTrack *)displayedTrack;
 

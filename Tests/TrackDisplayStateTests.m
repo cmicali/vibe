@@ -82,11 +82,29 @@
 }
 
 - (void)testEndOfPlaylistParkIsNotTheGap {
-    // A stopped player legitimately parks on the playlist's last track, which
-    // is why the gap check excludes Stopped — otherwise the end of a playlist
-    // would sit in a permanent Loading state.
-    XCTAssertEqual(VibeResolveTrackDisplayState(_track, _otherTrack, nil, NO, YES, NO),
+    // A stopped player legitimately parks on the track it just finished, so
+    // the park always has playerTrack == currentTrack and never reads as the
+    // gap — no Stopped exemption needed.
+    XCTAssertEqual(VibeResolveTrackDisplayState(_track, _track, nil, NO, YES, NO),
                    TrackDisplayStateTrack);
+}
+
+- (void)testTrackChangeFromTheStoppedParkIsTheGap {
+    // Double-clicking a new row from the end-of-playlist park: the playlist
+    // notifies synchronously, while play flips the player's state on its
+    // serial queue, so the player still reads Stopped — on the OLD track,
+    // with the old file's duration. Stopped must not exempt the gap, or the
+    // new track's tags would render, and publish to Now Playing, with the
+    // finished file's times.
+    XCTAssertEqual(VibeResolveTrackDisplayState(_track, _otherTrack, nil, NO, YES, NO),
+                   TrackDisplayStateLoading);
+}
+
+- (void)testStoppedPlayerWithNoTrackOpenIsTheGap {
+    // Same rule with nothing open at all: a current track the stopped player
+    // has not reached yet is a queued change, not a settled header.
+    XCTAssertEqual(VibeResolveTrackDisplayState(_track, nil, nil, NO, YES, NO),
+                   TrackDisplayStateLoading);
 }
 
 #pragma mark - Loading and Track

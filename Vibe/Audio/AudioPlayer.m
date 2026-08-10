@@ -596,11 +596,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         return;
     }
 
-    // Clamp as seekToPosition: does: a start past the end lands on the last
-    // frame rather than scheduling an empty segment.
     double sampleRate = file.processingFormat.sampleRate;
-    AVAudioFramePosition startFrame = (AVAudioFramePosition)(startPosition * sampleRate);
-    startFrame = MAX(0, MIN(startFrame, file.length - 1));
+    AVAudioFramePosition startFrame = VibeClampedStartFrame(startPosition, sampleRate, file.length);
     NSTimeInterval framePosition = (NSTimeInterval)startFrame / sampleRate;
 
     [self scheduleFile:file onNode:node fromFrame:startFrame];
@@ -633,11 +630,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // so it rises in step with the outgoing track's fade-out — a real
         // crossfade — and neither ramp cancels the other. The length matches
         // that fade-out: the crossfade setting when one is running, the
-        // declick minimum otherwise (see playOnQueue:).
+        // declick minimum otherwise (see playOnQueue:). The curve follows the
+        // length too, so both sides ride equal power (VibeFadeCurve.h).
         uint64_t fadeMs = _incomingFadeMilliseconds ?: kFadeDurationMilliseconds;
         [self stepRampAsync:node step:1 from:0 to:1.0
                      totalSteps:VibeFadeStepsForMilliseconds(fadeMs)
                stepMicroseconds:VibeFadeStepMicrosecondsForMilliseconds(fadeMs)
+                fadeMilliseconds:fadeMs
                     preemptable:YES generation:_rampGeneration completion:nil];
     }
 
@@ -953,28 +952,42 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         if (state != VibePlayerStatePlaying && state != VibePlayerStatePaused) {
             return;
         }
-        // [node stop] inside finishPlaybackOnQueue fires the scheduled
-        // completion, so bump _generation to make
-        // segmentDidCompleteWithGeneration: drop it, and preempt any in-flight
-        // fade. Seek, skip and device-switch perform the same dance.
-        self->_generation++;
-        [self preemptRampsOnQueue];
+        uint64_t rampGen = [self preemptRampsOnQueue];
         if (state == VibePlayerStatePlaying && node && self->_engine.isRunning) {
             // A natural end is already silent, but this path can arrive at
             // full volume, on a forward skip past the end, so fade first or
-            // the bare [node stop] clicks. It uses the retired-node ramp: a
-            // pause or seek mid-fade must not preempt it and strand the node
-            // audible.
+            // the bare [node stop] clicks. The fade is the generation-tagged
+            // ramp, so transport during the window preempts the pending
+            // finish cleanly: a pause pauses in place instead of advancing,
+            // and a new play retires the node with a single volume driver.
+            // The node is still _node here, so every preemptor takes it over
+            // and preemption cannot strand it audible. _generation is
+            // deliberately not bumped until the finish lands: a cancelled
+            // finish leaves the scheduled segment's completion live, so the
+            // natural track end still fires after a resume.
             __weak AudioPlayer *weakSelf = self;
-            [self rampRetiredNodeAsync:node step:1 from:node.volume milliseconds:kFadeDurationMilliseconds completion:^{
+            [self rampNodeAsync:node step:1 from:node.volume to:0 generation:rampGen completion:^{
                 AudioPlayer *strongSelf = weakSelf;
-                if (!strongSelf || strongSelf->_node != node) {
-                    return; // A play/stop during the fade owns playback now.
+                if (!strongSelf) {
+                    return;
                 }
+                // Preempted — a play, pause, seek, stop or device switch owns
+                // playback now — or the track ended naturally mid-fade and
+                // finishPlaybackOnQueue already ran and cleared _node. Either
+                // way this finish must not fire: didFinishPlaying: is
+                // exactly-once, and the node's teardown belongs to whoever
+                // superseded it.
+                if (rampGen != strongSelf->_rampGeneration || strongSelf->_node != node) {
+                    return;
+                }
+                // [node stop] inside finishPlaybackOnQueue fires the scheduled
+                // segment's completion; bump so it reads as stale.
+                strongSelf->_generation++;
                 [strongSelf finishPlaybackOnQueue];
             }];
             return;
         }
+        self->_generation++; // the [node stop] below fires the segment's completion
         [self finishPlaybackOnQueue];
     });
 }
@@ -1112,20 +1125,23 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 // The player's one fade-stepping loop, kept non-blocking by dispatch_after on
 // the player queue. Both ramp flavors below are thin entries into it. The
-// curve and cadence live in VibeFadeCurve.h, shared with AudioFX's send-gate
-// stepper. A preemptable ramp stops stepping the volume once _rampGeneration
+// curves and cadence live in VibeFadeCurve.h, shared with AudioFX's send-gate
+// stepper; fadeMilliseconds picks the curve by fade length — log at the
+// declick minimum, equal power for crossfade-length fades — matching the
+// registered retired-fade stepper, so both sides of a crossfade ride the same
+// curve. A preemptable ramp stops stepping the volume once _rampGeneration
 // moves past its generation, but still runs its completion, so that
 // completion-side bookkeeping is not lost: the pause fade's _pausePending
 // clear, and the seek's reschedule and didFinishSeeking settle. Those
 // completions re-check the generation themselves and yield to the preemptor.
-- (void)stepRampAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target totalSteps:(int)totalSteps stepMicroseconds:(uint64_t)stepMicroseconds preemptable:(BOOL)preemptable generation:(uint64_t)generation completion:(dispatch_block_t)completion {
+- (void)stepRampAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target totalSteps:(int)totalSteps stepMicroseconds:(uint64_t)stepMicroseconds fadeMilliseconds:(uint64_t)fadeMilliseconds preemptable:(BOOL)preemptable generation:(uint64_t)generation completion:(dispatch_block_t)completion {
     if (preemptable && generation != _rampGeneration) {
         if (completion) {
             completion();
         }
         return;
     }
-    node.volume = VibeFadeVolumeOverSteps(start, target, step, totalSteps);
+    node.volume = VibeFadeVolumeForFadeLength(fadeMilliseconds, start, target, step, totalSteps);
     if (step >= totalSteps) {
         if (completion) {
             completion();
@@ -1134,7 +1150,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     }
     __weak AudioPlayer *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(stepMicroseconds * NSEC_PER_USEC)), _queue, ^{
-        [weakSelf stepRampAsync:node step:step + 1 from:start to:target totalSteps:totalSteps stepMicroseconds:stepMicroseconds preemptable:preemptable generation:generation completion:completion];
+        [weakSelf stepRampAsync:node step:step + 1 from:start to:target totalSteps:totalSteps stepMicroseconds:stepMicroseconds fadeMilliseconds:fadeMilliseconds preemptable:preemptable generation:generation completion:completion];
     });
 }
 
@@ -1142,21 +1158,21 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // cadence. A pause, seek, skip, device switch or new play bumps
 // _rampGeneration and preempts it.
 - (void)rampNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target generation:(uint64_t)generation completion:(dispatch_block_t)completion {
-    [self stepRampAsync:node step:step from:start to:target totalSteps:kFadeSteps stepMicroseconds:kFadeStepMicroseconds preemptable:YES generation:generation completion:completion];
+    [self stepRampAsync:node step:step from:start to:target totalSteps:kFadeSteps stepMicroseconds:kFadeStepMicroseconds fadeMilliseconds:kFadeDurationMilliseconds preemptable:YES generation:generation completion:completion];
 }
 
-// Declick-length fade to silence for a retired node — the short retires, the
-// skip-past-end fade in finishCurrentTrack, and the replacement fades
-// preemptRetiredFadesOnQueue starts. It is deliberately not preemptable:
-// preemption would hard-stop the node at mid-fade volume, an audible click,
-// and at this length nothing needs to cut it short. It always reaches
-// silence, then runs the completion exactly once. Crossfade-length retires go
-// through the registered stepper below instead, so stop and pause can preempt
-// them.
+// Declick-length fade to silence for a retired node — the short retires, and
+// the replacement fades preemptRetiredFadesOnQueue starts. It is deliberately
+// not preemptable: preemption would hard-stop the node at mid-fade volume, an
+// audible click, and at this length nothing needs to cut it short. It always
+// reaches silence, then runs the completion exactly once. Crossfade-length
+// retires go through the registered stepper below instead, so stop and pause
+// can preempt them.
 - (void)rampRetiredNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start milliseconds:(uint64_t)milliseconds completion:(dispatch_block_t)completion {
     [self stepRampAsync:node step:step from:start to:0
              totalSteps:VibeFadeStepsForMilliseconds(milliseconds)
        stepMicroseconds:VibeFadeStepMicrosecondsForMilliseconds(milliseconds)
+        fadeMilliseconds:milliseconds
             preemptable:NO generation:0 completion:completion];
 }
 
@@ -1169,7 +1185,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     if (![_retiredFades containsObject:fade]) {
         return; // Preempted: stop, pause or reset tears the pair down.
     }
-    fade.node.volume = VibeFadeVolumeOverSteps(start, 0, step, totalSteps);
+    // Registered fades are crossfade-length by construction (retireNode:), so
+    // this is always the equal-power side of a crossfade; see VibeFadeCurve.h.
+    fade.node.volume = VibeCrossfadeVolumeOverSteps(start, 0, step, totalSteps);
     if (step >= totalSteps) {
         [_retiredFades removeObject:fade];
         [self detachRetiredFadePair:fade];
@@ -1184,10 +1202,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // Runs on _queue. Stops and detaches a retired pair, exactly once per pair:
 // the caller owns it either through the natural ramp completion, which
 // removes the entry itself, or by having removed the entry to cancel the
-// ramp.
+// ramp, or by retiring an already-silent pair outright. Either half may be
+// nil.
 - (void)detachRetiredFadePair:(VibeRetiredFade *)fade {
-    [fade.node stop];
-    [_engine detachNode:fade.node];
+    if (fade.node) {
+        [fade.node stop];
+        [_engine detachNode:fade.node];
+    }
     if (fade.varispeed) {
         [_engine detachNode:fade.varispeed];
     }
@@ -1223,11 +1244,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // stopped or on a first play, both are torn down immediately, at silence, so
 // there is nothing to click.
 - (void)retireNode:(AVAudioPlayerNode *)node varispeed:(AVAudioUnitVarispeed *)varispeed milliseconds:(uint64_t)milliseconds {
-    AVAudioEngine *engine = _engine;
-    if (node && engine.isRunning && _state == VibePlayerStatePlaying) {
-        VibeRetiredFade *fade = [[VibeRetiredFade alloc] init];
-        fade.node = node;
-        fade.varispeed = varispeed;
+    VibeRetiredFade *fade = [[VibeRetiredFade alloc] init];
+    fade.node = node;
+    fade.varispeed = varispeed;
+    if (node && _engine.isRunning && _state == VibePlayerStatePlaying) {
         if (milliseconds <= kFadeDurationMilliseconds) {
             [self rampRetiredNodeAsync:node step:1 from:node.volume milliseconds:milliseconds completion:^{
                 [self detachRetiredFadePair:fade];
@@ -1238,16 +1258,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         [self stepRetiredFadeAsync:fade step:1 from:node.volume
                         totalSteps:VibeFadeStepsForMilliseconds(milliseconds)
                   stepMicroseconds:VibeFadeStepMicrosecondsForMilliseconds(milliseconds)];
+        return;
     }
-    else {
-        if (node) {
-            [node stop];
-            [engine detachNode:node];
-        }
-        if (varispeed) {
-            [engine detachNode:varispeed];
-        }
-    }
+    [self detachRetiredFadePair:fade];
 }
 
 #pragma mark - Properties
@@ -1380,8 +1393,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         }
         double sampleRate = file.processingFormat.sampleRate;
         BOOL wasPlaying = (self->_state == VibePlayerStatePlaying);
-        AVAudioFramePosition startFrame = (AVAudioFramePosition)(pos * sampleRate);
-        startFrame = MAX(0, MIN(startFrame, file.length - 1));
+        AVAudioFramePosition startFrame = VibeClampedStartFrame(pos, sampleRate, file.length);
         NSTimeInterval framePosition = (NSTimeInterval)startFrame / sampleRate;
         self->_generation++; // drop the current segment's stop-fired completion
 

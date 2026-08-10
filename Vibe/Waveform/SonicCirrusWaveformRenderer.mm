@@ -18,10 +18,10 @@
 // through the vscale block handed to it in init, by rebuildLayerFrames, and by
 // the seek hit band in seekHitBandForBounds:, so that they cannot disagree on
 // the normalized-to-pixels scale.
-static const CGFloat kBarAmplitude = 0.75;     // full bar height as a fraction of the view height
-static const CGFloat kTopLineRatio = 0.70;     // top bar's share of the height; the mirror gets the rest
-static const CGFloat kBlockWidthRatio = 0.75;  // bar width as a fraction of the bar pitch
-static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline and the mirror bars
+static const CGFloat kBarAmplitudeOfHeight = 0.75;  // full bar height as a fraction of the view height
+static const CGFloat kTopLineRatio = 0.70;          // top bar's share of the height; the mirror gets the rest
+static const CGFloat kBlockWidthRatio = 0.75;       // bar width as a fraction of the bar pitch
+static const CGFloat kBottomBarSpacing = 2;         // gap between the top baseline and the mirror bars
 
 @implementation SonicCirrusWaveformRenderer {
     // This is the only renderer that draws with a flat array of bar layers,
@@ -63,7 +63,7 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
 
         __weak __typeof__(self) weakSelf = self;
         _morph = [[WaveformMorphEngine alloc]
-                initWithVScale:^CGFloat(CGFloat height) { return height * kBarAmplitude * kTopLineRatio; }
+                initWithVScale:^CGFloat(CGFloat height) { return height * kBarAmplitudeOfHeight * kTopLineRatio; }
                        rebuild:^{ [weakSelf rebuildLayerFrames]; }];
 
         // The same derivation as a light-dark switch uses: one source of truth
@@ -169,7 +169,7 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
     CGFloat totalHeight = bounds.size.height;
     CGFloat topLineY = round(totalHeight * (1 - kTopLineRatio));
     CGFloat bottomLineY = topLineY - kBottomBarSpacing;
-    CGFloat maxTopBarHeight = totalHeight * kBarAmplitude * kTopLineRatio;
+    CGFloat maxTopBarHeight = totalHeight * kBarAmplitudeOfHeight * kTopLineRatio;
     CGFloat topY = topLineY + maxTopBarHeight;
     CGFloat bottomY = bottomLineY - maxTopBarHeight * (1 - kTopLineRatio);
     return NSMakeRect(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
@@ -257,7 +257,7 @@ static const CGFloat kBottomBarSpacing = 2;    // gap between the top baseline a
     CGFloat totalHeight = _morph.size.height;
     CGFloat width = _morph.size.width;
 
-    CGFloat vscale = totalHeight * kBarAmplitude;
+    CGFloat vscale = totalHeight * kBarAmplitudeOfHeight;
 
     CGFloat barPitch = width / (CGFloat)count;
     CGFloat blockWidth = clampMin(barPitch * kBlockWidthRatio, 1);

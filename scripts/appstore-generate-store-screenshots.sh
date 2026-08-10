@@ -34,6 +34,10 @@ COMPOSE="$ROOT/scripts/compose-app-store-overlay.py"
 LANGS="$ROOT/scripts/catalog-languages.sh"
 
 if [ "${1:-}" = --all ]; then
+    # Capture first: a process substitution's exit status is never checked, so
+    # a failing catalog-languages.sh would silently generate nothing.
+    ALL_LANGS="$("$LANGS")"
+    [ -n "$ALL_LANGS" ] || { echo "catalog-languages.sh returned no languages" >&2; exit 1; }
     # Each child derives its per-language output dir, and an exported OUT_DIR
     # would send every language into the same directory — so scope it: an
     # override becomes the base, gaining a /<lang> suffix per child.
@@ -43,7 +47,7 @@ if [ "${1:-}" = --all ]; then
         else
             "$0" "$l"
         fi
-    done < <("$LANGS")
+    done <<< "$ALL_LANGS"
     exit 0
 fi
 

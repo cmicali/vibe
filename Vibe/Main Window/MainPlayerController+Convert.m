@@ -34,13 +34,19 @@
 // as MainPlayerController+Menus' MenuOutlets.
 @interface MainPlayerController (ConvertSupport)
 @property (strong, readonly) TrackDisplayController *trackDisplay;
+// The Now Playing resume hint for the swap's Loading gap; see the class
+// extension. The NowPlaying category reads it, didStartPlaying: clears it.
+@property (weak) AudioTrack *convertSwapResumeTrack;
+@property NSTimeInterval convertSwapResumePosition;
 - (void)updateUI;
 @end
 
 @implementation MainPlayerController (Convert)
 
+#if DEBUG
 // Storage is the class extension's synthesized pair.
 @dynamic conversionUndoRedoSettledHandler;
+#endif
 
 #pragma mark - Convert to FLAC
 
@@ -169,6 +175,11 @@
     }
 
     if (wasLoaded) {
+        // The replay's open renders as the Loading gap, whose Now Playing
+        // publish would otherwise rewind Control Center's elapsed to 0 until
+        // didStartPlaying: republishes the live position.
+        self.convertSwapResumeTrack = converted;
+        self.convertSwapResumePosition = position;
         // Replay the identical audio under the new URL, same playhead, same
         // play state. The entry is already swapped, so didStartPlaying:'s
         // identity guard passes and the per-track refresh comes free.
@@ -336,7 +347,10 @@
     }
 }
 
+// A no-op in Release: the handler is debug-channel plumbing and nothing else
+// can set it.
 - (void)conversionUndoRedoDidSettle {
+#if DEBUG
     void (^handler)(void) = self.conversionUndoRedoSettledHandler;
     // One shot, cleared before it runs: a handler a timed-out debug command
     // left behind must not fire on a later menu-driven undo.
@@ -344,6 +358,7 @@
     if (handler) {
         handler();
     }
+#endif
 }
 
 // Convert > Delete Original. A preference, not an action: it takes effect on

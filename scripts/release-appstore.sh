@@ -66,9 +66,9 @@ for arg in "$@"; do
 done
 
 # shellcheck source=scripts/asc-auth-lib.sh
-source "$(dirname "$0")/asc-auth-lib.sh"
+source scripts/asc-auth-lib.sh
 # shellcheck source=scripts/asc-build-lib.sh
-source "$(dirname "$0")/asc-build-lib.sh"
+source scripts/asc-build-lib.sh
 
 SCHEME=Vibe
 PRODUCT=Vibe

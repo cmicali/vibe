@@ -42,9 +42,11 @@
     // A row is eligible from the moment it is dropped, not when the background
     // scan reaches it.
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"wav"));
-    // The "wave" spelling never passes the open filter (NSURLUtil's
-    // supportedExtensions lacks it), so eligibility must not claim it either.
-    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(nil, @"wave"));
+    // The claimed UTType (com.microsoft.waveform-audio) declares wav, wave,
+    // AND bwf — all plain RIFF WAVE — and the open filter admits all three,
+    // so eligibility claims them too.
+    XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"wave"));
+    XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"bwf"));
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"aif"));
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"aiff"));
     XCTAssertFalse(VibeTrackIsConvertibleToFLAC(nil, @"mp3"));
@@ -96,8 +98,9 @@
     XCTAssertEqualObjects(VibeFLACDestinationName(@"foo"), @"foo.flac");
 }
 
-- (void)testWaveExtensionIsReplacedLikeWav {
+- (void)testWaveAndBwfExtensionsAreReplacedLikeWav {
     XCTAssertEqualObjects(VibeFLACDestinationName(@"foo.wave"), @"foo.flac");
+    XCTAssertEqualObjects(VibeFLACDestinationName(@"foo.bwf"), @"foo.flac");
 }
 
 - (void)testTrailingDotIsKeptNotTreatedAsAnExtension {
