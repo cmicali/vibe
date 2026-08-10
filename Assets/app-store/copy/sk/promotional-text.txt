@@ -1,0 +1,1 @@
+Rýchly natívny prehrávač vašich hudobných súborov. Klikateľný vlnový priebeh, pitch fader ako na gramofóne a DJ FX. Bez knižnice, účtu a predplatného.

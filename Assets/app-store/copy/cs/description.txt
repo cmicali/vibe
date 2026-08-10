@@ -1,0 +1,12 @@
+Vibe je rychlý, minimalistický hudební přehrávač pro Mac. Žádný externí engine, žádný účet, žádné předplatné. Prostě jednoduchý a rychlý přehrávač vašich souborů.
+
+Tvar vlny
+Vibe vykreslí každou skladbu jako tvar vlny přes celé okno. Kliknutím kamkoli do něj skočíte na dané místo. Vibe nemá žádnou knihovnu k importu ani databázi k přestavování. Přetáhněte soubor nebo složku na okno a hraje. Tagy, obaly a BPM čte Vibe na pozadí a ukládá do mezipaměti, takže příští otevření je okamžité.
+
+Formáty
+MP3, MP2, AAC, FLAC, MP4/M4A, AIFF a WAV — vše dekóduje samotný macOS. Bezztrátové soubory hrají v plném rozlišení a formát i vzorkovací frekvence každé skladby jsou vidět hned vedle názvu.
+
+DJové se budou cítit jako doma
+• Pitch fader rozvržený jako na gramofonu, skrytý, dokud ho nepotřebujete.
+• Skoky měřené v taktech, ne v sekundách. Když je tempo známé, skáčete o 8, 16 nebo 32 taktů a zůstáváte v mřížce; když známé není, posunou stejné klávesy o 10, 30 nebo 60 sekund.
+• Performance FX pod jednou rukou: filtr Low Kill, vlna reverbu a delaye zamknuté na BPM skladby. Ťuknutím na klávesu efekt zapnete natrvalo; podržením působí jen dočasně.

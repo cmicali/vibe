@@ -1,0 +1,12 @@
+Vibe adalah pemutar musik yang cepat dan minimal untuk Mac. Tanpa engine pihak ketiga, tanpa akun, tanpa langganan. Hanya pemutar sederhana dan cepat untuk file Anda.
+
+Bentuk Gelombang
+Vibe menggambar setiap trek sebagai bentuk gelombang penuh di sepanjang jendela. Klik di mana saja untuk berpindah posisi. Vibe tidak punya library untuk diimpor dan tidak ada database yang harus dibangun ulang. Letakkan file atau folder di jendela dan musik langsung diputar. Vibe membaca tag, artwork, dan BPM di latar belakang lalu menyimpannya dalam cache, sehingga pembukaan berikutnya berlangsung instan.
+
+Format
+MP3, MP2, AAC, FLAC, MP4/M4A, AIFF, dan WAV, semuanya didekode langsung oleh macOS. File lossless diputar dalam resolusi penuh, dan format serta sample rate setiap trek tampil di samping judulnya.
+
+DJ Akan Merasa Seperti di Rumah
+• Fader pitch yang ditata seperti pada turntable, tersembunyi sampai Anda membutuhkannya.
+• Lompatan diukur dalam bar, bukan detik. Saat tempo diketahui, lompatlah 8, 16, atau 32 bar dan tetap di grid; saat tidak, tombol yang sama bergerak 10, 30, atau 60 detik.
+• FX performa dalam satu genggaman: filter low-kill, sapuan reverb, dan delay yang terkunci ke BPM trek. Ketuk tombol untuk mengunci efek; tahan untuk efek sesaat.

@@ -1,0 +1,3 @@
+* Lokalizované do 23 jazykov
+* Konvertujte prehrávaný súbor do FLAC (s funkciou odvolať/znova)
+* Nové položky menu: „Kopírovať súbor“ a „Kopírovať názov“

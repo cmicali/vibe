@@ -1,0 +1,22 @@
+[
+  {
+    "id": "player",
+    "headline": "Vaše soubory, okamžitě",
+    "subhead": "MP3, FLAC, AIFF, WAV a další. Kliknutím na vlnu přetočíte."
+  },
+  {
+    "id": "playlist",
+    "headline": "Přetáhněte složku a hrajte",
+    "subhead": "Obaly, tagy a BPM se čtou na pozadí a ukládají do mezipaměti."
+  },
+  {
+    "id": "pitch",
+    "headline": "DJové se budou cítit jako doma",
+    "subhead": "Pitch fader jako na gramofonu, skoky po taktech a FX na klávesách."
+  },
+  {
+    "id": "keys",
+    "headline": "Ruce na klávesnici",
+    "subhead": "Transport, skoky po taktech, FX a pitch — bez modifikačních kláves."
+  }
+]

@@ -1,0 +1,3 @@
+* 23 nyelvre lokalizálva
+* A lejátszott fájl konvertálható FLAC formátumba (visszavonás/újra támogatással)
+* Új menüpontok: „Fájl másolása” és „Név másolása”

@@ -1,0 +1,12 @@
+Vibe là trình phát nhạc nhanh, tối giản cho máy Mac. Không engine bên thứ ba, không tài khoản, không thuê bao. Chỉ là một trình phát đơn giản, nhanh cho tệp nhạc của bạn.
+
+Dạng sóng
+Vibe vẽ mỗi bản nhạc thành một dạng sóng đầy đủ trải khắp cửa sổ. Bấm vào bất kỳ điểm nào trên đó để tua. Vibe không có thư viện phải nhập và không có cơ sở dữ liệu phải dựng lại. Thả một tệp hoặc thư mục vào cửa sổ là nhạc phát ngay. Vibe đọc tag, ảnh bìa và BPM ở chế độ nền rồi lưu vào bộ nhớ đệm, nên lần mở sau là tức thì.
+
+Định dạng
+MP3, MP2, AAC, FLAC, MP4/M4A, AIFF và WAV, tất cả do chính macOS giải mã. Tệp lossless phát ở độ phân giải đầy đủ, và định dạng cùng tần số lấy mẫu của mỗi bản nhạc hiển thị ngay cạnh tiêu đề.
+
+DJ sẽ thấy như ở nhà
+• Thanh pitch bố trí như trên turntable, ẩn đi cho đến khi bạn cần.
+• Tua theo ô nhịp thay vì giây. Khi đã biết tempo, nhảy 8, 16 hoặc 32 ô nhịp mà vẫn đúng lưới nhịp; khi chưa biết, cùng những phím đó tua 10, 30 hoặc 60 giây.
+• FX biểu diễn trong tầm một bàn tay: bộ lọc cắt bass, lớp reverb và delay khóa theo BPM của bản nhạc. Gõ phím để giữ hiệu ứng; nhấn giữ để chỉ dùng tạm thời.

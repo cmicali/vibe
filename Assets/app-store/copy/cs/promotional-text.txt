@@ -1,0 +1,1 @@
+Rychlý nativní přehrávač vašich hudebních souborů. Tvar vlny s přetáčením, pitch fader jako na gramofonu a DJ FX. Bez knihovny, účtu a předplatného.

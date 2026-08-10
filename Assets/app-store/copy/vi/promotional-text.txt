@@ -1,0 +1,1 @@
+Trình phát gốc, nhanh cho tệp nhạc của bạn. Dạng sóng bấm để tua, thanh pitch kiểu turntable và FX cho DJ. Không thư viện, không tài khoản, không thuê bao.

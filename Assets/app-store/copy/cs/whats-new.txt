@@ -1,0 +1,3 @@
+* Lokalizováno do 23 jazyků
+* Přidána možnost převést přehrávaný soubor do FLAC (s funkcí odvolat/opakovat)
+* Nové položky menu „Kopírovat soubor“ a „Kopírovat název“

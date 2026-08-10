@@ -11,6 +11,12 @@
             "value": "Аудиофайлове"
           }
         },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zvukové soubory"
+          }
+        },
         "da": {
           "stringUnit": {
             "state": "translated",
@@ -21,6 +27,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Audiodateien"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αρχεία ήχου"
           }
         },
         "en": {
@@ -51,6 +63,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Audio datoteke"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hangfájlok"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File Audio"
           }
         },
         "it": {
@@ -113,10 +137,22 @@
             "value": "Аудиофайлы"
           }
         },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio súbory"
+          }
+        },
         "sv": {
           "stringUnit": {
             "state": "translated",
             "value": "Ljudfiler"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไฟล์เสียง"
           }
         },
         "tr": {
@@ -129,6 +165,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Аудіофайли"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tệp âm thanh"
           }
         },
         "zh-Hans": {
@@ -155,6 +197,12 @@
             "value": "Vibe"
           }
         },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe"
+          }
+        },
         "da": {
           "stringUnit": {
             "state": "translated",
@@ -162,6 +210,12 @@
           }
         },
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe"
+          }
+        },
+        "el": {
           "stringUnit": {
             "state": "translated",
             "value": "Vibe"
@@ -192,6 +246,18 @@
           }
         },
         "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe"
+          }
+        },
+        "id": {
           "stringUnit": {
             "state": "translated",
             "value": "Vibe"
@@ -257,7 +323,19 @@
             "value": "Vibe"
           }
         },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe"
+          }
+        },
         "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe"
+          }
+        },
+        "th": {
           "stringUnit": {
             "state": "translated",
             "value": "Vibe"
@@ -270,6 +348,12 @@
           }
         },
         "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe"
+          }
+        },
+        "vi": {
           "stringUnit": {
             "state": "translated",
             "value": "Vibe"
@@ -299,6 +383,12 @@
             "value": "Конвертиран FLAC"
           }
         },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Převedený soubor FLAC"
+          }
+        },
         "da": {
           "stringUnit": {
             "state": "translated",
@@ -309,6 +399,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Konvertierte FLAC-Datei"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FLAC από μετατροπή"
           }
         },
         "en": {
@@ -339,6 +435,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Konvertirani FLAC"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konvertált FLAC-fájl"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FLAC Hasil Konversi"
           }
         },
         "it": {
@@ -401,10 +509,22 @@
             "value": "Конвертированный FLAC"
           }
         },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skonvertovaný FLAC"
+          }
+        },
         "sv": {
           "stringUnit": {
             "state": "translated",
             "value": "Konverterad FLAC"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FLAC ที่แปลงแล้ว"
           }
         },
         "tr": {
@@ -417,6 +537,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Конвертований FLAC"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FLAC đã chuyển đổi"
           }
         },
         "zh-Hans": {
@@ -443,6 +569,12 @@
             "value": "Папка"
           }
         },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Složka"
+          }
+        },
         "da": {
           "stringUnit": {
             "state": "translated",
@@ -453,6 +585,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ordner"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Φάκελος"
           }
         },
         "en": {
@@ -483,6 +621,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mapa"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mappa"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder"
           }
         },
         "it": {
@@ -545,10 +695,22 @@
             "value": "Папка"
           }
         },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Priečinok"
+          }
+        },
         "sv": {
           "stringUnit": {
             "state": "translated",
             "value": "Mapp"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "โฟลเดอร์"
           }
         },
         "tr": {
@@ -561,6 +723,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Папка"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thư mục"
           }
         },
         "zh-Hans": {
@@ -587,6 +755,12 @@
             "value": "Copyright © 2026 Christopher Micali. Всички права запазени."
           }
         },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copyright © 2026 Christopher Micali. Všechna práva vyhrazena."
+          }
+        },
         "da": {
           "stringUnit": {
             "state": "translated",
@@ -597,6 +771,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copyright © 2026 Christopher Micali. Alle Rechte vorbehalten."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copyright © 2026 Christopher Micali. Με επιφύλαξη παντός δικαιώματος."
           }
         },
         "en": {
@@ -627,6 +807,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copyright © 2026 Christopher Micali. Sva prava pridržana."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copyright © 2026 Christopher Micali. Minden jog fenntartva."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copyright © 2026 Christopher Micali. Seluruh hak cipta dilindungi undang-undang."
           }
         },
         "it": {
@@ -689,10 +881,22 @@
             "value": "Copyright © 2026 Christopher Micali. Все права защищены."
           }
         },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copyright © 2026 Christopher Micali. Všetky práva vyhradené."
+          }
+        },
         "sv": {
           "stringUnit": {
             "state": "translated",
             "value": "Copyright © 2026 Christopher Micali. Med ensamrätt."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copyright © 2026 Christopher Micali. สงวนลิขสิทธิ์"
           }
         },
         "tr": {
@@ -705,6 +909,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copyright © 2026 Christopher Micali. Усі права застережено."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản quyền © 2026 Christopher Micali. Bảo lưu mọi quyền."
           }
         },
         "zh-Hans": {
