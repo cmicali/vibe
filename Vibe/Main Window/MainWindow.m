@@ -7,7 +7,7 @@
 #import "NSURLUtil.h"
 #import "MainPlayerController.h"
 #import "PitchControlPanel.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 // The window is freely resizable in both axes, and the frame belongs to the
 // user, kept by the autosave. This class enforces only the floors —

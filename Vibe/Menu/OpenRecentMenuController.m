@@ -5,7 +5,7 @@
 
 #import "OpenRecentMenuController.h"
 #import "AppDelegate.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 @implementation OpenRecentMenuController {
     __weak AppDelegate *_appDelegate;

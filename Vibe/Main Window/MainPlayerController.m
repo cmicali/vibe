@@ -33,7 +33,7 @@
 #import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerController+Transport.h" // updateFXIndicators, from the updateUI funnel
 #import "UIUpdateTimer.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 #define UPDATE_HZ 3
 

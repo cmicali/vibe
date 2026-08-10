@@ -5,7 +5,7 @@
 
 #import "DetailedAudioWaveformRenderer.h"
 #import "WaveformMorphEngine.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 #include <vector>
 #include <cmath>

@@ -4,7 +4,7 @@
 //
 
 #import "OversamplingDetailedAudioWaveformRenderer.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 
 @implementation x2OversamplingDetailedAudioWaveformRenderer

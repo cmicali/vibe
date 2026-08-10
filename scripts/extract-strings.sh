@@ -27,7 +27,7 @@ set -euo pipefail
 
 REPO_ROOT="${SRCROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 CATALOG="$REPO_ROOT/Resources/Localizable.xcstrings"
-REGISTRY="$REPO_ROOT/Vibe/Common/Strings.h"
+REGISTRY="$REPO_ROOT/Vibe/Common/VibeStrings.h"
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -35,7 +35,7 @@ trap 'rm -rf "$WORK"' EXIT
 # ---------------------------------------------------------------------------
 # 1. Expand the registry through the C preprocessor.
 #
-# Strings.h declares its entries as NSLS(key, value, comment) — a three-argument
+# VibeStrings.h declares its entries as NSLS(key, value, comment) — a three-argument
 # shape the extractor cannot see: xcstringstool matches localization macros by
 # name AND arity, and even `-s NSLS` only teaches it the stock shapes
 # ((key, comment), (key, tbl, comment), (key, tbl, bundle, val, comment)). A
@@ -58,7 +58,7 @@ if ! grep -q 'STR_' "$WORK/registry.m"; then
     exit 1
 fi
 
-# VIBE_STRINGS_EXTRACTION keeps Strings.h from importing Foundation:
+# VIBE_STRINGS_EXTRACTION keeps VibeStrings.h from importing Foundation:
 # NSLocalizedStringWithDefaultValue is itself a Foundation macro, and with
 # Foundation in the TU the preprocessor would expand every entry past the
 # shape the extractor matches, yielding zero keys.
@@ -69,7 +69,7 @@ xcrun clang -E -P -x objective-c -DVIBE_STRINGS_EXTRACTION=1 "$WORK/registry.m" 
 #
 # The expanded registry supplies every real key. Every other first-party source
 # is still swept so a stray inline NSLocalizedString outside the registry can't
-# hide from the catalog — Strings.h itself is excluded because its unexpanded
+# hide from the catalog — VibeStrings.h itself is excluded because its unexpanded
 # NSLS lines only produce "non-literal key" warnings.
 #
 # ThirdParty/ is vendored (not ours to restyle) and Debug/ is the
@@ -113,7 +113,7 @@ fi
 # sandwich: unshield() strips the manual marks so sync treats every key as
 # extraction-managed, sync updates comments / adds keys / marks dead keys
 # stale, and normalize() re-shields every key that is not stale. A stale key
-# (its Strings.h entry was deleted) stays visible — in --check diffs and as a
+# (its VibeStrings.h entry was deleted) stays visible — in --check diffs and as a
 # single honest Xcode warning — until someone deletes it from the catalog.
 unshield() {
     local file="$1" tmp="$1.tmp"
@@ -126,7 +126,7 @@ unshield() {
 
 # The extracted English defaults, key → value, for the en enforcement below.
 # sync only stamps a key's en value on FIRST sight — rewording the default in
-# Strings.h afterwards changes nothing in the catalog (verified), so runtime
+# VibeStrings.h afterwards changes nothing in the catalog (verified), so runtime
 # would keep serving the old English forever while the macro fallback never
 # fires. normalize() closes that hole by copying the extracted value over the
 # catalog's en unit whenever they differ.
@@ -137,7 +137,7 @@ jq -s '[.[].tables.Localizable // [] | .[]] | map({(.key): .value}) | add // {}'
 # compiler emits a .strings file only for units marked "translated" — so
 # without this the app would ship no en.lproj/Localizable.strings at all and
 # every lookup would fall through to the macro's default value. The English
-# here IS the reviewed source (it was written by hand in Strings.h), so promote
+# here IS the reviewed source (it was written by hand in VibeStrings.h), so promote
 # it and let the catalog be authoritative at runtime too — including on a
 # reword: en is overwritten from the extraction, and every OTHER language is
 # flipped to "needs_review" so the drift lands in front of a translator

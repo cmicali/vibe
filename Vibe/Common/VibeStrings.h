@@ -22,9 +22,16 @@
 // The key-prefix families and the rest of the localization conventions —
 // terminology, testing, the extraction pipeline — live in CLAUDE.md's
 // Localization section, the single place they are documented.
+//
+// TRAP: named VibeStrings.h, NOT Strings.h. On the case-insensitive
+// filesystem "Strings.h" shadows POSIX <strings.h> during explicit-modules
+// dependency scanning (Xcode 26.6+ / CI): the SDK's CoreServices module
+// includes <strings.h>, resolves it to this file, and this file's Foundation
+// import completes a Foundation → CoreServices → Foundation cycle that fails
+// every module build in the target.
 
-#ifndef Strings_h
-#define Strings_h
+#ifndef VibeStrings_h
+#define VibeStrings_h
 
 // TRAP: extract-strings.sh preprocesses this header and needs
 // NSLocalizedStringWithDefaultValue to survive -E unexpanded — it is itself a
@@ -212,4 +219,4 @@ static inline NSString *VibeAppName(void) {
 #define STR_ERROR_DEVICE_UNAVAILABLE  NSLS(@"error.device_unavailable",  @"Audio device unavailable", @"Inline playback error: no usable audio output device.")
 #define STR_ERROR_PLAYBACK_GENERIC    NSLS(@"error.playback_generic",    @"Playback error",           @"Inline playback error: fallback for an unrecognized failure.")
 
-#endif /* Strings_h */
+#endif /* VibeStrings_h */

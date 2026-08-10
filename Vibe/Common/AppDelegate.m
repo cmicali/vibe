@@ -14,7 +14,7 @@
 #import "OpenRecentMenuController.h"
 #import "NSBundle+BuildInfo.h"
 #import "DocumentTypes.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <sys/sysctl.h>
 

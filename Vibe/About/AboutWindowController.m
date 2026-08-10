@@ -7,7 +7,7 @@
 #import "VectorBallsView.h"
 #import "Fonts.h"
 #import "NSBundle+BuildInfo.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 static const CGFloat kAboutWindowWidth = 460;
 static const CGFloat kAboutWindowHeight = 340;

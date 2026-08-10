@@ -11,7 +11,7 @@
 #import "AudioTrack.h"
 #import "FLACConvertRules.h"
 #import "FLACTagCopier.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 NSString *const kVibeConvertErrorDomain = @"com.commonwealthrecordings.Vibe.convert";
 
