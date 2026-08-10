@@ -13,7 +13,7 @@
 # It moves the mouse cursor around and leaves it parked outside the window.
 #
 # Track paths are hardcoded below — this is a one-off authoring tool, not a
-# test. Audio is muted (--silent) throughout.
+# test. Audio is off-hardware (--no-audio-hw --silent, via launch.sh) throughout.
 #
 # Side effects: pins the app's window appearance to $APPEARANCE (default dark)
 # so the shots match, and leaves the autosaved window frame wherever the last

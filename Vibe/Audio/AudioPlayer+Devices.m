@@ -49,6 +49,14 @@
 }
 
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID {
+#if DEBUG
+    // --no-audio-hw manual rendering: there is no output unit and no device
+    // to bind. Report success so device selection keeps its menu and
+    // persistence behavior without tripping the failure paths.
+    if (_engine.isInManualRenderingMode) {
+        return YES;
+    }
+#endif
     AudioUnit outputUnit = _engine.outputNode.audioUnit;
     if (!outputUnit) {
         LogError(@"AudioPlayer: output unit unavailable");

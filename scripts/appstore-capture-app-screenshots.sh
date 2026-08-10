@@ -37,8 +37,8 @@
 # Needs the same setup as the README shots (see screenshots/screenshot-lib.sh):
 # a DEBUG build plus Screen Recording and Accessibility permission for this
 # terminal.
-# It moves the mouse cursor and covers the screen while it runs; audio is muted
-# (--silent) throughout.
+# It moves the mouse cursor and covers the screen while it runs; audio is off-hardware
+# (--no-audio-hw --silent, via launch.sh) throughout.
 #
 # Track paths are hardcoded below — this is a one-off authoring tool, not a
 # test. Side effects: pins the app's window appearance to $APPEARANCE (default
