@@ -6,9 +6,13 @@
 //  Copyright © 2019 Christopher Micali. All rights reserved.
 //
 
+#include <TargetConditionals.h>
+
 #ifdef __OBJC__
 
+#if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
+#endif
 #import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
 

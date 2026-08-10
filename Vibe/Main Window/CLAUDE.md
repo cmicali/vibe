@@ -64,7 +64,7 @@ All header rendering resolves through one five-state `TrackDisplayState` — tra
 
 ## Now Playing
 
-`NowPlayingController` bridges to the system Now Playing UI (Control Center, media keys, AirPods/Bluetooth transport) via `MPRemoteCommandCenter` and `MPNowPlayingInfoCenter`. The controller calls `updateNowPlaying` from the `updateUI` funnel plus the seek and pitch-change paths, publishing title, artist, artwork, duration, elapsed, rate and state; command handlers route back through `NowPlayingControllerDelegate` to the same `playPause:`, `next:`, `previous:` and seek entry points the buttons use.
+`NowPlayingController` (in `Common/` — MediaPlayer's Now Playing API is platform-shared) bridges to the system Now Playing UI (Control Center, media keys, AirPods/Bluetooth transport) via `MPRemoteCommandCenter` and `MPNowPlayingInfoCenter`; the republish position rule is header-only in `NowPlayingMath.h`, tested. The controller calls `updateNowPlaying` from the `updateUI` funnel plus the seek and pitch-change paths, publishing title, artist, artwork, duration, elapsed, rate and state; command handlers route back through `NowPlayingControllerDelegate` to the same `playPause:`, `next:`, `previous:` and seek entry points the buttons use.
 
 Position and duration are wall-clock, pitch-adjusted (file time ÷ varispeed `playbackRate`), matching the app's own labels, so Control Center tracks the pitch fader; the MediaPlayer rate is 1.0 while playing (wall-clock elapsed advances at real time), 0 paused. Nothing is published until the first track plays, so Vibe does not steal Now Playing at launch. Artwork reads non-blocking (`albumArt` returns only already-decoded art or nil) and refreshes when art resolves. Inspect with `Vibe --debug-cmd dump_now_playing`.
 

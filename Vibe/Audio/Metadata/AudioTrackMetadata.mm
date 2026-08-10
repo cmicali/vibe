@@ -7,6 +7,9 @@
 #import "NSString+CPPStrings.h"
 #import "AudioTrackArtwork.h"
 
+#import <ImageIO/ImageIO.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+
 #include <exception>
 #include <memory>
 #include <tfilestream.h>
@@ -228,21 +231,11 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     if (!thumbnail) {
         return nil;
     }
-    NSBitmapImageRep *rep = nil;
-    for (NSImageRep *candidate in thumbnail.representations) {
-        if ([candidate isKindOfClass:[NSBitmapImageRep class]]) {
-            rep = (NSBitmapImageRep *)candidate;
-            break;
-        }
-    }
-    if (!rep) {
-        // CGImageForProposedRect returns the backing CGImage directly for
-        // CGImage-backed reps, and rasterizes anything else.
-        CGImageRef cgImage = [thumbnail CGImageForProposedRect:NULL context:nil hints:nil];
-        if (!cgImage) {
-            return nil;
-        }
-        rep = [[NSBitmapImageRep alloc] initWithCGImage:cgImage];
+    // CGImageForProposedRect returns the backing CGImage directly for
+    // CGImage-backed images, and rasterizes anything else.
+    CGImageRef cgImage = [thumbnail CGImageForProposedRect:NULL context:nil hints:nil];
+    if (!cgImage) {
+        return nil;
     }
     // JPEG cannot store alpha, so transparent art such as a PNG cover would
     // render composited in the fresh-parse session but flattened in every
@@ -250,11 +243,23 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     // everything else stays JPEG, which is far smaller for photographic
     // covers. ImageIO sniffs the bytes on the decode side, so the
     // "thumbnailJPEG" archive key keeps reading both.
-    if (rep.hasAlpha) {
-        return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    CGImageAlphaInfo alphaInfo = CGImageGetAlphaInfo(cgImage);
+    BOOL hasAlpha = !(alphaInfo == kCGImageAlphaNone ||
+                      alphaInfo == kCGImageAlphaNoneSkipFirst ||
+                      alphaInfo == kCGImageAlphaNoneSkipLast);
+    NSString *type = hasAlpha ? UTTypePNG.identifier : UTTypeJPEG.identifier;
+    NSMutableData *encoded = [NSMutableData data];
+    CGImageDestinationRef destination =
+        CGImageDestinationCreateWithData((__bridge CFMutableDataRef)encoded,
+                                         (__bridge CFStringRef)type, 1, NULL);
+    if (!destination) {
+        return nil;
     }
-    return [rep representationUsingType:NSBitmapImageFileTypeJPEG
-                             properties:@{NSImageCompressionFactor: @0.85}];
+    NSDictionary *options = hasAlpha ? @{} : @{(id)kCGImageDestinationLossyCompressionQuality: @0.85};
+    CGImageDestinationAddImage(destination, cgImage, (__bridge CFDictionaryRef)options);
+    BOOL finalized = CGImageDestinationFinalize(destination);
+    CFRelease(destination);
+    return finalized ? encoded : nil;
 }
 
 - (instancetype)initWithURL:(NSURL *)url {

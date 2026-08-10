@@ -10,7 +10,9 @@
 #import "MainPlayerController.h"
 #import "NSURLUtil.h"
 #import "AboutWindowController.h"
+#import "DefaultAppClaim.h"
 #import "MainMenuBuilder.h"
+#import "OpenBurstCoalescer.h"
 #import "OpenRecentMenuController.h"
 #import "NSBundle+BuildInfo.h"
 #import "DocumentTypes.h"
@@ -30,18 +32,15 @@
 
 
 // How long after an open event the next one still counts as part of the same
-// burst; see openQueuedURLs. It is long enough to absorb a split multi-file
-// open, and short enough that a deliberate second open replaces rather than
-// appends.
+// burst. It is long enough to absorb a split multi-file open, and short
+// enough that a deliberate second open replaces rather than appends.
 static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
 @implementation AppDelegate {
-    BOOL _isLoaded;
-    NSMutableArray<NSURL *> *_urlsToOpen;
-    // A batch has already played, and further batches belong with it, so they
-    // append rather than replace. endOpenBurst clears this after the quiet
-    // period.
-    BOOL _openBurstActive;
+    // Burst coalescing — replace vs append, the quiet period, the pre-launch
+    // queue — lives in the coalescer; this object supplies the sink that
+    // expands and plays each drained batch.
+    OpenBurstCoalescer *_openBurstCoalescer;
     // The Open Recent submenu's delegate. It is owned here because menu
     // delegates are weak, and this object is the target of the items it
     // creates.
@@ -51,8 +50,12 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _urlsToOpen = [[NSMutableArray alloc] init];
-        _isLoaded = NO;
+        __weak __typeof(self) weakSelf = self;
+        _openBurstCoalescer = [[OpenBurstCoalescer alloc]
+                initWithQuietPeriod:kOpenBurstQuietPeriod
+                               sink:^(NSArray<NSURL *> *urls, BOOL append) {
+                                   [weakSelf openURLs:urls appending:append];
+                               }];
         LogInfo(@"Vibe %@ starting", NSBundle.mainBundle.vibeVersionString);
     }
     return self;
@@ -75,8 +78,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 - (void)openRecentDocument:(NSMenuItem *)sender {
     NSURL *url = sender.representedObject;
     if (url) {
-        [_urlsToOpen addObject:url];
-        [self playURLs];
+        [_openBurstCoalescer openReplacingURLs:@[url]];
     }
 }
 
@@ -99,13 +101,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
     [self openCommandLineArguments];
 
-    _isLoaded = YES;
-    if (_urlsToOpen.count > 0) {
-        // Through the burst path, because the post-launch remainder of an open
-        // that straddled launch must append rather than replace.
-        [self openQueuedURLs];
-    }
-    else {
+    if (![_openBurstCoalescer startAndDrainQueue]) {
         // No launch-time open is queued, since Finder and argv events land
         // before this point, so the empty state may render.
         [self.mainPlayerController revealEmptyState];
@@ -161,7 +157,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         }
         NSString *path = arg.stringByExpandingTildeInPath;
         if ([fileManager fileExistsAtPath:path]) {
-            [_urlsToOpen addObject:[NSURL fileURLWithPath:path]];
+            [_openBurstCoalescer enqueueURLs:@[[NSURL fileURLWithPath:path]]];
             LogInfo(@"Opening command-line path: %@", path);
         }
     }
@@ -189,21 +185,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     });
 }
 
-// A replacing play of everything queued: the ⌘O panel and Open Recent entry
-// point.
-- (void)playURLs {
-    _openBurstActive = NO; // a deliberate open ends any Finder burst
-    [self openQueuedURLsAppending:NO];
-}
-
-// Expands the queue, walking folders and dropping unsupported files, and hands
-// the result to the controller, either appended or as a replacing play.
-- (void)openQueuedURLsAppending:(BOOL)append {
-    if (!_isLoaded || _urlsToOpen.count == 0) {
-        return;
-    }
-    NSArray<NSURL*>* urls = [_urlsToOpen copy];
-    [_urlsToOpen removeAllObjects];
+// The coalescer's sink: expands a drained batch, walking folders and dropping
+// unsupported files, and hands the result to the controller, either appended
+// or as a replacing play.
+- (void)openURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append {
     [NSURLUtil expandAndFilterList:urls completion:^(NSArray<NSURL *> *expanded) {
         // Nothing playable, as with a folder that holds no audio. Do not wipe
         // the current playlist with an empty list.
@@ -227,30 +212,11 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 }
 
 // Launch Services can split one multi-file open into several openURLs: events.
-// It happens reliably right after a rebuild re-registers the bundle.
+// It happens reliably right after a rebuild re-registers the bundle. The
+// coalescer lands a split open as one playlist without restarting the first
+// track.
 - (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {
-    [_urlsToOpen addObjectsFromArray:urls];
-    [self openQueuedURLs];
-}
-
-// The Finder and Launch Services entry point, including at launch time, since
-// a burst can straddle applicationDidFinishLaunching. The first batch plays
-// immediately, with no coalescing delay, and later batches of the same burst
-// append, so a split multi-file open lands as one playlist without restarting
-// the first track.
-- (void)openQueuedURLs {
-    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(endOpenBurst) object:nil];
-    [self performSelector:@selector(endOpenBurst) withObject:nil afterDelay:kOpenBurstQuietPeriod];
-    if (!_isLoaded || _urlsToOpen.count == 0) {
-        return; // pre-launch: applicationDidFinishLaunching drains the queue
-    }
-    BOOL append = _openBurstActive;
-    _openBurstActive = YES;
-    [self openQueuedURLsAppending:append];
-}
-
-- (void)endOpenBurst {
-    _openBurstActive = NO;
+    [_openBurstCoalescer openBurstURLs:urls];
 }
 
 - (IBAction)showAboutWindow:(id)sender {
@@ -276,8 +242,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     }
     [panel beginWithCompletionHandler:^(NSInteger result){
         if (result == NSModalResponseOK) {
-            [self->_urlsToOpen addObjectsFromArray:panel.URLs];
-            [self performSelectorOnMainThread:@selector(playURLs) withObject:nil waitUntilDone:NO];
+            [self->_openBurstCoalescer openReplacingURLs:panel.URLs];
         }
     }];
 }
@@ -290,14 +255,14 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 // system runs its own confirmation panel, and says so when it refuses, and the
 // menu item retitles itself on the next validation pass.
 - (IBAction)makeDefaultMusicPlayer:(id)sender {
-    [DocumentTypes makeDefaultApp];
+    [DefaultAppClaim makeDefaultApp];
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     if ([menuItem.identifier isEqualToString:@"menu_make_default_app"]) {
         // There is nothing to do once Vibe already holds every type, so say so
         // in the title and disable the item rather than offer a no-op.
-        BOOL isDefault = DocumentTypes.isDefaultAppForAllFileTypes;
+        BOOL isDefault = DefaultAppClaim.isDefaultAppForAllFileTypes;
         NSString *appName = VibeAppName();
         menuItem.title = [NSString stringWithFormat:
                 isDefault ? STR_MENU_APP_IS_DEFAULT : STR_MENU_APP_MAKE_DEFAULT, appName];

@@ -3,8 +3,12 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
+#include <TargetConditionals.h>
+
+#if TARGET_OS_OSX
 #define StateForBOOL(b) ((b) ? NSControlStateValueOn : NSControlStateValueOff)
 #define StateForString(s1, s2) StateForBOOL([s1 isEqualToString:s2])
+#endif
 
 // Note that there are no lowercase min() or max() macros: they would shadow
 // std::min and std::max in the ObjC++ (.mm) translation units this prefix

@@ -98,18 +98,44 @@ targets:
     platform: macOS
     sources:
       - path: main.m                          # repo root, outside Vibe/
-      - path: Vibe                            # all app + vendored code (incl. .h for header map)
+      # Per-directory entries (identical file set to the old recursive
+      # `- path: Vibe`) so a future iOS target can pick the shared subset.
+      # Future-shared: no AppKit outside TARGET_OS_OSX guards.
+      - path: Vibe/Audio
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/Common
         excludes:
           - "**/.DS_Store"
+          - "**/*.md"
+          - "**/Info.plist"                   # consumed via INFOPLIST_FILE; must NOT be bundled
+      - path: Vibe/Util
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/Waveform
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/ThirdParty
+        excludes:
+          - "**/.DS_Store"
+          - "**/*.md"                         # nested CLAUDE.md guidance: keep UNbundled
           - "**/*.xcprivacy"                  # PIN privacy manifests: keep UNbundled
           - "**/*.txt"                        # vendored LICENSE.txt: keep UNbundled
           - "**/LICENSE.MPL"                  # TagLib's MPL 1.1 text: same, but not a .txt
-          - "**/*.md"                         # nested CLAUDE.md guidance: keep UNbundled
-          - "**/Info.plist"                   # consumed via INFOPLIST_FILE; must NOT be bundled
           - "**/PINDiskCache.m"               # re-added below with its per-file flag
       - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
         compilerFlags:
           - "-fobjc-arc-exceptions"
+      # macOS-only.
+      - path: Vibe/Main Window
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/Playlist
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/Controls
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/Menu
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/About
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/Debug
+        excludes: ["**/.DS_Store", "**/*.md"]
       - path: Resources/Assets.xcassets       # .xcassets handled natively by XcodeGen
       - path: Resources/AppIcon.icon          # Icon Composer .icon (handled via options.fileTypes)
       # String Catalogs. The build only COMPILES these; keys are extracted by
@@ -290,6 +316,8 @@ targets:
       # the build.
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
       - path: Vibe/Audio/AudioTrack.m
+      - path: Vibe/Common/OpenBurstCoalescer.m
+      - path: Vibe/Common/Playlist.m
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Util/Categories/NSURL+Hash.m
     settings:
@@ -333,10 +361,11 @@ targets:
           - "$(SRCROOT)/Vibe/Audio"
           - "$(SRCROOT)/Vibe/Audio/Metadata"
           - "$(SRCROOT)/Vibe/Audio/Waveform"
-          # Header-only: the display-state resolver, the skip arithmetic and
-          # the Convert to FLAC rules are static inlines, so the tests reach
-          # them without compiling (or linking against) the controllers and
-          # the converter they were lifted out of.
+          # Header-only: the display-state resolver ("Main Window") and the
+          # Convert to FLAC rules are static inlines, so the tests reach them
+          # without compiling (or linking against) the controllers and the
+          # converter they were lifted out of. The skip arithmetic
+          # (TransportMath.h) is the same pattern, under Common above.
           - "$(SRCROOT)/Vibe/Main Window"
           - "$(SRCROOT)/Vibe/Audio/Convert"
     dependencies:

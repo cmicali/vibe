@@ -3,7 +3,8 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
-#import <AppKit/AppKit.h>
+#import <Foundation/Foundation.h>
+#import "PlatformTypes.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -56,12 +57,12 @@ NS_ASSUME_NONNULL_BEGIN
 // and unreadable files. It is readonly because art only ever comes from the
 // file itself, through a parse or an on-demand re-extraction; there is
 // deliberately no injection path.
-@property (readonly, strong, nullable) NSImage *albumArt;
+@property (readonly, strong, nullable) VibeImage *albumArt;
 
 // Non-blocking: it returns the art only if it has already been decoded, and
 // never does decode work, since a full-resolution ImageIO decode is a 10-100ms
 // hitch on the main thread.
-- (nullable NSImage *)albumArtIfLoaded;
+- (nullable VibeImage *)albumArtIfLoaded;
 
 // YES when producing albumArt still needs background work: a file read, which
 // may block, or a decode of in-memory art bytes. In other words, YES means a
@@ -93,7 +94,7 @@ NS_ASSUME_NONNULL_BEGIN
 // A downscaled copy of albumArt, suited to small table cells. It is generated
 // lazily on first read and serialized to the on-disk cache, so cache hits get
 // it for free.
-- (nullable NSImage *)thumbnailAlbumArt;
+- (nullable VibeImage *)thumbnailAlbumArt;
 
 + (AudioTrackMetadata *)metadataWithURL:(NSURL *)url;
 

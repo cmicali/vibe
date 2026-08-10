@@ -4,6 +4,7 @@
 //
 
 #import "PlaylistController.h"
+#import "Playlist.h"
 #import "PlaylistTableView.h"
 #import "PlaylistRowView.h"
 #import "EqualizerIndicatorView.h"
@@ -14,28 +15,30 @@
 static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 
 // Validation for the row context menu installed in setTableView:.
-@interface PlaylistController () <NSMenuItemValidation>
+@interface PlaylistController () <NSMenuItemValidation, PlaylistObserver>
 @end
 
 @implementation PlaylistController {
-    NSMutableArray<AudioTrack *> *_playlist;
-    // A track-to-row map for reloadTrack:. didLoadMetadata fires that once per
-    // track during the metadata sweep, and a linear scan would make the sweep
-    // O(n²) in playlist size on the main thread. play: rebuilds the map when
-    // the playlist is replaced and append: extends it; rows never move
-    // otherwise, so the recorded indexes stay valid.
-    NSMapTable<AudioTrack *, NSNumber *> *_trackIndexes;
+    // The ordered-list model, view-free; this controller is its observer and
+    // maps its change notifications onto table reloads.
+    Playlist *_model;
     __weak PlaylistTableView *_tableView;
 }
 
 - (NSArray<AudioTrack *> *)playlist {
-    // A defensive shallow copy. Callers iterate the result across async work
-    // while append: can extend the live array on the main thread.
-    return [_playlist copy];
+    return [_model tracks];
 }
 
 - (AudioTrack *)trackAtIndex:(NSUInteger)index {
-    return index < _playlist.count ? _playlist[index] : nil;
+    return [_model trackAtIndex:index];
+}
+
+- (NSUInteger)currentIndex {
+    return _model.currentIndex;
+}
+
+- (void)setCurrentIndex:(NSUInteger)currentIndex {
+    _model.currentIndex = currentIndex;
 }
 
 - (PlaylistTableView *)tableView {
@@ -84,16 +87,51 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 - (instancetype)initWithAudioPlayer:(AudioPlayer *)audioPlayer {
     self = [super init];
     if (self) {
-        _playlist = [NSMutableArray new];
-        _trackIndexes = [NSMapTable strongToStrongObjectsMapTable];
-        self.currentIndex = 0;
+        _model = [Playlist new];
+        _model.observer = self;
         self.audioPlayer = audioPlayer;
     }
     return self;
 }
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    return _playlist.count;
+    return (NSInteger)_model.count;
+}
+
+#pragma mark - Playlist observer
+
+- (void)playlistDidReplaceAllTracks:(Playlist *)playlist {
+    [self.tableView reloadData];
+}
+
+- (void)playlist:(Playlist *)playlist didAppendTracksAtIndexes:(NSIndexSet *)indexes {
+    // A whole-table reload, since only the visible rows render either way.
+    [self.tableView reloadData];
+}
+
+- (void)playlist:(Playlist *)playlist didReplaceTrackAtIndex:(NSUInteger)index {
+    // Row views are untouched by a cell reload, so the playing row's marking
+    // survives.
+    [self reloadTrackAtIndex:index];
+}
+
+- (void)playlist:(Playlist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {
+    [self refreshRowViewPlayingStates];
+    // Reload both rows: the departed row must drop its playing state and the
+    // new one must show its own now, rather than after the async
+    // didStartPlaying round-trip.
+    NSMutableIndexSet *rows = [NSMutableIndexSet indexSet];
+    if (previousIndex < _model.count) {
+        [rows addIndex:previousIndex];
+    }
+    if (_model.currentIndex < _model.count) {
+        [rows addIndex:_model.currentIndex];
+    }
+    if (rows.count == 0) {
+        return;
+    }
+    [self.tableView reloadDataForRowIndexes:rows
+                              columnIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, (NSUInteger)self.tableView.numberOfColumns)]];
 }
 
 #pragma mark - Row views
@@ -127,7 +165,7 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 // Structure and styling — cell construction, fonts and the column set — live
 // in PlaylistTableView. This method decides content alone.
 - (nullable NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row {
-    AudioTrack *track = _playlist[row];
+    AudioTrack *track = [_model trackAtIndex:(NSUInteger)row];
     BOOL isCurrentRow = (row == (NSInteger)self.currentIndex);
     NSTableCellView *view = [_tableView cellViewForColumn:tableColumn];
     if ([tableColumn.identifier isEqualToString:@"numColumn"]) {
@@ -176,40 +214,20 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 }
 
 - (AudioTrack *)currentTrack {
-    if (self.currentIndex < _playlist.count) {
-        return _playlist[self.currentIndex];
-    }
-    return nil;
+    return [_model currentTrack];
 }
 
 - (void)play:(NSArray<NSURL *> *)urls {
-    _playlist = [NSMutableArray new];
-    _trackIndexes = [NSMapTable strongToStrongObjectsMapTable];
-    [self addTracksForURLs:urls];
-    self.currentIndex = 0;
-    [self.tableView reloadData];
-    // reloadData keeps the scroll offset, but a new playlist starts at the top.
+    [_model replaceAllWithURLs:urls];
+    // The observer's reloadData keeps the scroll offset, but a new playlist
+    // starts at the top.
     [self scrollCurrentTrackToVisible];
     [self play];
 }
 
 - (void)append:(NSArray<NSURL *> *)urls {
-    if (!urls.count) {
-        return;
-    }
-    [self addTracksForURLs:urls];
-    // A whole-table reload, as in play:, since only the visible rows render
-    // either way. Playback and currentIndex are deliberately untouched.
-    [self.tableView reloadData];
-}
-
-// Appends tracks for urls to _playlist, recording each one's row.
-- (void)addTracksForURLs:(NSArray<NSURL *> *)urls {
-    for (NSURL *url in urls) {
-        AudioTrack *track = [AudioTrack withURL:url];
-        [_trackIndexes setObject:@(_playlist.count) forKey:track];
-        [_playlist addObject:track];
-    }
+    // Playback and currentIndex are deliberately untouched.
+    [_model appendURLs:urls];
 }
 
 - (void)play {
@@ -220,47 +238,29 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 }
 
 - (void)clear {
-    _playlist = [NSMutableArray new];
-    _trackIndexes = [NSMapTable strongToStrongObjectsMapTable];
-    self.currentIndex = 0;
-    [self.tableView reloadData];
+    [_model clear];
 }
 
 - (void)reloadTrackAtIndex:(NSUInteger)index {
     // Guard against an out-of-range index, matching
     // reloadCurrentTrackPlayState. reloadCurrentTrack fires with currentIndex
-    // 0 on an empty playlist, as updateUI does at launch, and doubleClick
-    // passes a previous index that a playlist replacement may have
-    // invalidated.
-    if (index >= _playlist.count) {
+    // 0 on an empty playlist, as updateUI does at launch.
+    if (index >= _model.count) {
         return;
     }
     [self.tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndex:index] columnIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, (NSUInteger)self.tableView.numberOfColumns)]];
 }
 
-- (void)reloadTrackInRange:(NSRange)range {
-    // Clamp against the table, as reloadTrackAtIndex: guards its index. next
-    // and previous reload a two-row window that can extend past the end.
-    range = NSIntersectionRange(range, NSMakeRange(0, (NSUInteger)self.tableView.numberOfRows));
-    if (range.length == 0) {
-        return;
-    }
-    [self.tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndexesInRange:range] columnIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, (NSUInteger)self.tableView.numberOfColumns)]];
-}
-
 - (BOOL)hasNextTrack {
-    return self.currentIndex + 1 < _playlist.count;
+    return _model.hasNextTrack;
 }
 
 - (BOOL)hasPreviousTrack {
-    return _playlist.count > 0 && self.currentIndex > 0;
+    return _model.hasPreviousTrack;
 }
 
 - (BOOL)next {
-    if (self.hasNextTrack) {
-        self.currentIndex += 1;
-        [self refreshRowViewPlayingStates];
-        [self reloadTrackInRange:NSMakeRange(self.currentIndex - 1, 2)];
+    if ([_model next]) {
         [self scrollCurrentTrackToVisible];
         [self play];
         return YES;
@@ -269,10 +269,7 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 }
 
 - (BOOL)previous {
-    if (self.hasPreviousTrack) {
-        self.currentIndex -= 1;
-        [self refreshRowViewPlayingStates];
-        [self reloadTrackInRange:NSMakeRange(self.currentIndex, 2)];
+    if ([_model previous]) {
         [self scrollCurrentTrackToVisible];
         [self play];
         return YES;
@@ -284,7 +281,7 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 // is on screen, so a user who has scrolled away keeps their position until
 // then.
 - (void)scrollCurrentTrackToVisible {
-    if (self.currentIndex >= _playlist.count) {
+    if (self.currentIndex >= _model.count) {
         return;
     }
     [self.tableView scrollRowToVisible:(NSInteger)self.currentIndex];
@@ -294,14 +291,11 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     if ([_tableView clickedRow] < 0) {
         return;
     }
-    NSUInteger previousIndex = self.currentIndex;
+    // The model's index-change notification reloads the departed and clicked
+    // rows immediately, rather than after the async didStartPlaying
+    // round-trip.
     self.currentIndex = (NSUInteger) [_tableView clickedRow];
     [self play];
-    // Reload both rows. The clicked row must show its playing state now,
-    // rather than after the async didStartPlaying round-trip.
-    [self refreshRowViewPlayingStates];
-    [self reloadTrackAtIndex:previousIndex];
-    [self reloadTrackAtIndex:self.currentIndex];
     if (self.userDidChangeTrackHandler) {
         self.userDidChangeTrackHandler();
     }
@@ -339,10 +333,10 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 // menu-open, because the playlist can be replaced while the menu is up.
 - (AudioTrack *)clickedTrack {
     NSInteger row = _tableView.clickedRow;
-    if (row < 0 || row >= (NSInteger)_playlist.count) {
+    if (row < 0) {
         return nil;
     }
-    return _playlist[(NSUInteger)row];
+    return [_model trackAtIndex:(NSUInteger)row];
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
@@ -352,69 +346,33 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
         // A right-click on the table's empty area still opens the menu, with a
         // clickedRow of -1.
         NSInteger row = _tableView.clickedRow;
-        return row >= 0 && row < (NSInteger)_playlist.count;
+        return row >= 0 && row < (NSInteger)_model.count;
     }
     return YES;
 }
 
 - (NSUInteger)count {
-    return _playlist.count;
+    return _model.count;
 }
 
 - (NSInteger)getIndexForTrack:(AudioTrack *)track {
-    // AudioTrack uses NSObject's identity hash and isEqual, so this is an
-    // identity lookup.
-    NSNumber *index = track ? [_trackIndexes objectForKey:track] : nil;
-    return index ? index.integerValue : -1;
+    return [_model getIndexForTrack:track];
 }
 
 - (NSIndexSet *)indexesOfTracksWithURL:(NSURL *)url {
-    NSMutableIndexSet *indexes = [NSMutableIndexSet indexSet];
-    if (!url) {
-        return indexes;
-    }
-    [_playlist enumerateObjectsUsingBlock:^(AudioTrack *track, NSUInteger index, BOOL *stop) {
-        if ([track.url isEqual:url]) {
-            [indexes addIndex:index];
-        }
-    }];
-    return indexes;
+    return [_model indexesOfTracksWithURL:url];
 }
 
 - (AudioTrack *)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url {
-    if (index >= _playlist.count || !url) {
-        return nil;
-    }
-    AudioTrack *outgoing = _playlist[index];
-    AudioTrack *incoming = [AudioTrack withURL:url];
-    incoming.duration = outgoing.duration;
-    incoming.detectedBPM = outgoing.detectedBPM;
-    // Remove the outgoing key: entries are never otherwise removed, and a
-    // departed track still resolving to this row would let its late metadata
-    // delivery redraw a row it no longer occupies.
-    [_trackIndexes removeObjectForKey:outgoing];
-    [_trackIndexes setObject:@(index) forKey:incoming];
-    _playlist[index] = incoming;
-    // Row views are untouched by a cell reload, so the playing row's marking
-    // survives and currentIndex, being positional, needs no adjustment.
-    [self reloadTrackAtIndex:index];
-    return incoming;
+    return [_model replaceTrackAtIndex:index withURL:url];
 }
 
 - (BOOL)isCurrentTrack:(AudioTrack *)track {
-    return self.currentTrack == track;
+    return [_model isCurrentTrack:track];
 }
 
 - (AudioTrack *)trackForURL:(NSURL *)url {
-    if (!url) {
-        return nil;
-    }
-    for (AudioTrack *track in _playlist) {
-        if ([track.url isEqual:url]) {
-            return track;
-        }
-    }
-    return nil;
+    return [_model trackForURL:url];
 }
 
 - (void)reloadCurrentTrack {
@@ -423,7 +381,7 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 
 - (void)reloadCurrentTrackPlayState {
     NSInteger column = [self.tableView columnWithIdentifier:@"numColumn"];
-    if (column < 0 || self.currentIndex >= _playlist.count) {
+    if (column < 0 || self.currentIndex >= _model.count) {
         return;
     }
     [self.tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndex:self.currentIndex]

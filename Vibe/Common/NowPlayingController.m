@@ -5,13 +5,8 @@
 
 #import "NowPlayingController.h"
 #import "AudioTrack.h"
+#import "NowPlayingMath.h"
 #import <MediaPlayer/MediaPlayer.h>
-
-// A published position further than this from what the system's own
-// extrapolation predicts is a jump, from a seek or a pitch rescale, and must
-// be republished. Anything inside it is natural playback advance, which the
-// system tracks without a republish.
-static const NSTimeInterval kPositionRepublishTolerance = 1.0;
 
 @implementation NowPlayingController {
     __weak id<NowPlayingControllerDelegate> _delegate;
@@ -41,9 +36,9 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
     BOOL _publishedHasPrevious;
 
     // The MPMediaItemArtwork wrapper is reused for as long as the caller hands
-    // back the same decoded NSImage. The wrapper's request handler retains the
+    // back the same decoded image. The wrapper's request handler retains the
     // image either way, so caching it here adds no lifetime.
-    NSImage *_publishedArtworkImage;
+    VibeImage *_publishedArtworkImage;
     MPMediaItemArtwork *_publishedArtworkWrapper;
 }
 
@@ -203,16 +198,13 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
     // no file read and no decode. While it is still nil the caller refreshes
     // once the art resolves, so the card fills in a moment later rather than
     // stalling here.
-    NSImage *artwork = track.albumArt;
+    VibeImage *artwork = track.albumArt;
 
     // The elapsed time is never republished at 3 Hz, because the system
     // extrapolates it from the last publish at the published rate. Natural
-    // advance since that publish must therefore not count as dirty. Compare
-    // against the same extrapolation the system runs: only a jump beyond it,
-    // from a seek or a pitch rescale, forces a republish.
+    // advance since that publish must therefore not count as dirty; the rule
+    // is VibeNowPlayingPositionIsDirty in NowPlayingMath.h.
     if (_publishedURL != nil) {
-        double extrapolationRate = _publishedState == NowPlayingPlaybackStatePlaying ? _publishedRate : 0.0;
-        NSTimeInterval predicted = _publishedPosition + (CFAbsoluteTimeGetCurrent() - _publishedAt) * extrapolationRate;
         BOOL unchanged = [_publishedURL isEqualToString:track.url.absoluteString]
                 && [title isEqualToString:_publishedTitle]
                 && (artist == _publishedArtist || [artist isEqualToString:_publishedArtist])
@@ -220,7 +212,10 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
                 && rate == _publishedRate
                 && duration == _publishedDuration
                 && artwork == _publishedArtworkImage
-                && fabs(position - predicted) <= kPositionRepublishTolerance;
+                && !VibeNowPlayingPositionIsDirty(_publishedPosition, _publishedAt, _publishedRate,
+                                                  _publishedState == NowPlayingPlaybackStatePlaying,
+                                                  position, CFAbsoluteTimeGetCurrent(),
+                                                  kVibeNowPlayingRepublishTolerance);
         if (unchanged) {
             return;
         }
@@ -247,7 +242,7 @@ static const NSTimeInterval kPositionRepublishTolerance = 1.0;
         if (artwork != _publishedArtworkImage || _publishedArtworkWrapper == nil) {
             _publishedArtworkWrapper =
                 [[MPMediaItemArtwork alloc] initWithBoundsSize:artwork.size
-                                                requestHandler:^NSImage *(CGSize size) {
+                                                requestHandler:^VibeImage *(CGSize size) {
                                                     return artwork;
                                                 }];
         }

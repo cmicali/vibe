@@ -4,7 +4,7 @@
 //
 
 #import <Foundation/Foundation.h>
-#import <AppKit/AppKit.h>
+#import "PlatformTypes.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -52,8 +52,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)durationString;
 // Non-blocking, through metadata.albumArtIfLoaded: nil until the art is
 // decoded.
-- (nullable NSImage *)albumArt;
-- (nullable NSImage *)thumbnailAlbumArt;
+- (nullable VibeImage *)albumArt;
+- (nullable VibeImage *)thumbnailAlbumArt;
 
 - (BOOL)hasArtistAndTitle;
 

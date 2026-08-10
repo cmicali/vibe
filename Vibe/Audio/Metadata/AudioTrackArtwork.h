@@ -10,7 +10,8 @@
 // and blocking.
 //
 
-#import <AppKit/AppKit.h>
+#import <Foundation/Foundation.h>
+#import "PlatformTypes.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -44,14 +45,14 @@ typedef NSData * _Nullable (^AudioTrackArtworkExtractor)(NSString *path);
 
 // The AudioTrackMetadata art API, delegated here verbatim. The contracts sit
 // on the matching AudioTrackMetadata.h declarations.
-- (nullable NSImage *)albumArt;
-- (nullable NSImage *)albumArtIfLoaded;
+- (nullable VibeImage *)albumArt;
+- (nullable VibeImage *)albumArtIfLoaded;
 - (BOOL)albumArtNeedsLoad;
 - (void)discardAlbumArtData;
 // This does not touch albumArtLoadDispatched. That UI-side flag stays with the
 // metadata object.
 - (void)discardDecodedAlbumArt;
-- (nullable NSImage *)thumbnailAlbumArt;
+- (nullable VibeImage *)thumbnailAlbumArt;
 
 @end
 

@@ -20,4 +20,4 @@ Attaching the table with `setTableView:`, from `MainPlayerController.windowDidLo
 
 ## Launch Services bursts
 
-`AppDelegate` handles Launch Services opens as a *burst*. The first batch plays immediately, because a double-clicked file must not wait out a coalescing delay, and later batches within a 0.3-second quiet period are appended through `MainPlayerController.addURLs:`. A multi-file open that Launch Services splits across events therefore still lands as one playlist, without restarting the first track. The ⌘O panel and Open Recent bypass the burst and always replace.
+`AppDelegate` handles Launch Services opens as a *burst*, through `OpenBurstCoalescer` (`Common/`, tested). The first batch plays immediately, because a double-clicked file must not wait out a coalescing delay, and later batches within a 0.3-second quiet period are appended through `MainPlayerController.addURLs:`. A multi-file open that Launch Services splits across events therefore still lands as one playlist, without restarting the first track. The ⌘O panel and Open Recent bypass the burst and always replace.
