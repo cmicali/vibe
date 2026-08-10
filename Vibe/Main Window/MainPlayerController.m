@@ -196,14 +196,6 @@
                                    accessibilityDescription:showInFinder.title];
     [contextMenu addItem:showInFinder];
     [contextMenu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem *copyFileItem = [[NSMenuItem alloc] initWithTitle:STR_MENU_EDIT_COPY_FILE
-                                                          action:@selector(copyFile:)
-                                                   keyEquivalent:@""];
-    copyFileItem.identifier = @"menu_edit_copy_file";
-    copyFileItem.target = self;
-    copyFileItem.image = [NSImage imageWithSystemSymbolName:@"doc.on.doc"
-                                   accessibilityDescription:copyFileItem.title];
-    [contextMenu addItem:copyFileItem];
     NSMenuItem *copyNameItem = [[NSMenuItem alloc] initWithTitle:STR_MENU_EDIT_COPY_NAME
                                                           action:@selector(copyName:)
                                                    keyEquivalent:@""];
@@ -212,6 +204,14 @@
     copyNameItem.image = [NSImage imageWithSystemSymbolName:@"textformat"
                                    accessibilityDescription:copyNameItem.title];
     [contextMenu addItem:copyNameItem];
+    NSMenuItem *copyFileItem = [[NSMenuItem alloc] initWithTitle:STR_MENU_EDIT_COPY_FILE
+                                                          action:@selector(copyFile:)
+                                                   keyEquivalent:@""];
+    copyFileItem.identifier = @"menu_edit_copy_file";
+    copyFileItem.target = self;
+    copyFileItem.image = [NSImage imageWithSystemSymbolName:@"doc.on.doc"
+                                   accessibilityDescription:copyFileItem.title];
+    [contextMenu addItem:copyFileItem];
     [contextMenu addItem:[NSMenuItem separatorItem]];
     NSMenuItem *convertCurrent = [[NSMenuItem alloc] initWithTitle:STR_MENU_CONVERT_TO_FLAC
                                                             action:@selector(convertCurrentTrackToFLAC:)

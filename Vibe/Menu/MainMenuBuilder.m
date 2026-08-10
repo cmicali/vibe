@@ -144,14 +144,14 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // included.
     AddSeparator(editMenu).identifier = @"menu_edit_separator";
 
-    // Copy File puts the current track's file URL on the general pasteboard,
-    // so a Finder paste duplicates the file; Copy Name copies the header's
-    // "Artist - Title" line as text.
-    AddSymbolItem(editMenu, STR_MENU_EDIT_COPY_FILE, @"doc.on.doc", @selector(copyFile:), player, @"c", NSEventModifierFlagCommand, @"menu_edit_copy_file");
-    // ⇧⌘C. Shift rides in the capital "C", per the NSMenuItem contract — a
-    // lowercase key with Shift in the mask draws right but never matches a
-    // real key press (charactersIgnoringModifiers arrives uppercase).
+    // Copy Name copies the header's "Artist - Title" line as text; Copy File
+    // puts the current track's file URL on the general pasteboard, so a
+    // Finder paste duplicates the file. Copy Name's ⇧⌘ rides in the capital
+    // "C", per the NSMenuItem contract — a lowercase key with Shift in the
+    // mask draws right but never matches a real key press
+    // (charactersIgnoringModifiers arrives uppercase).
     AddSymbolItem(editMenu, STR_MENU_EDIT_COPY_NAME, @"textformat", @selector(copyName:), player, @"C", NSEventModifierFlagCommand, @"menu_edit_copy_name");
+    AddSymbolItem(editMenu, STR_MENU_EDIT_COPY_FILE, @"doc.on.doc", @selector(copyFile:), player, @"c", NSEventModifierFlagCommand, @"menu_edit_copy_file");
 
     // Playback
     NSMenu *playbackMenu = Submenu(mainMenu, STR_MENU_PLAYBACK).submenu;
