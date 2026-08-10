@@ -1,0 +1,3 @@
+* Zlokalizowano na 23 języki
+* Konwertuj odtwarzany plik do FLAC (z funkcją cofnij/przywróć)
+* Nowe polecenia menu: "Kopiuj plik" i "Kopiuj nazwę"

@@ -1,0 +1,3 @@
+* Lokalizirano na 23 jezika
+* Konvertirajte datoteku koja se reproducira u FLAC (uz poništi/ponovi)
+* Nove stavke izbornika: "Kopiraj datoteku" i "Kopiraj naziv"

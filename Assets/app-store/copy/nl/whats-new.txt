@@ -1,0 +1,3 @@
+* Gelokaliseerd in 23 talen
+* Converteer het afspelende bestand naar FLAC (met ongedaan maken/opnieuw uitvoeren)
+* Nieuwe menuonderdelen: "Kopieer bestand" en "Kopieer naam"

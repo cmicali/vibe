@@ -1,0 +1,3 @@
+* Oversat til 23 sprog
+* Konverter den afspillede fil til FLAC (med fortryd/gentag)
+* Nye menupunkter: "Kopiér fil" og "Kopiér navn"

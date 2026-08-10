@@ -1,0 +1,3 @@
+* Oversatt til 23 språk
+* Konverter filen som spilles av, til FLAC (med angre/gjenta)
+* Nye menyvalg: "Kopier fil" og "Kopier navn"
