@@ -33,6 +33,7 @@
 #import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerController+Transport.h" // updateFXIndicators, from the updateUI funnel
 #import "UIUpdateTimer.h"
+#import "AppStats.h"
 #import "VibeStrings.h"
 
 #define UPDATE_HZ 3
@@ -640,6 +641,7 @@
 // didFinishPlaying:'s stale-track guard drops any end-of-track callback
 // already in flight.
 - (IBAction)closeFile:(nullable id)sender {
+    [[AppStats sharedInstance] playbackStopped]; // stop fires no delegate callback
     [self.audioPlayer stop];
     [self.audioPlayer prefetchTrack:nil]; // drop the parked next-track handle
     [self.waveformCache cancelLoad];
@@ -772,9 +774,13 @@
     if (!self.audioPlayer.isPlaying) {
         [self pauseUIUpdateTimer];
     }
+    else {
+        [[AppStats sharedInstance] playbackStarted];
+    }
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track {
+    [[AppStats sharedInstance] playbackStopped];
     [self pauseUIUpdateTimer];
     [self updateUI];
 }
@@ -783,6 +789,7 @@
     // A device-loss error can mask a track the player merely parked as Paused;
     // see audioPlayer:error:. Resuming proves the mask wrong.
     [self clearErrorMask];
+    [[AppStats sharedInstance] playbackStarted];
     [self resumeUIUpdateTimer];
 }
 
@@ -794,6 +801,10 @@
     if (track && track != [self.playlistController currentTrack]) {
         return;
     }
+    // Folds the finished run. Deliberately after the stale guard: in the stale
+    // case the replacing track is already playing, and its own didStartPlaying:
+    // restarts the clock, so stopping here would drop listening time.
+    [[AppStats sharedInstance] playbackStopped];
     [self pauseUIUpdateTimer];
     // The end of the playlist must be read from the playlist before next:,
     // because the play it starts is async on the player queue, so the player
@@ -838,6 +849,7 @@
         return;
     }
     [self startPendingMetadataLoad];
+    [[AppStats sharedInstance] playbackStopped];
     [self pauseUIUpdateTimer];
     // Playback failed, so the duration cached at the last didStartPlaying no
     // longer describes anything the player holds.

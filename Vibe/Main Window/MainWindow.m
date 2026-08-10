@@ -5,6 +5,7 @@
 
 #import "MainWindow.h"
 #import "NSURLUtil.h"
+#import "AppStats.h"
 #import "MainPlayerController.h"
 #import "PitchControlPanel.h"
 #import "VibeStrings.h"
@@ -199,7 +200,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     // Accept the drop immediately, expand directories off the main thread, and
     // deliver the playable files through the main-thread completion.
     __weak MainWindow *weakSelf = self;
-    [NSURLUtil expandAndFilterList:urls completion:^(NSArray<NSURL *> *expanded) {
+    [NSURLUtil expandAndFilterList:urls completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
+        [[AppStats sharedInstance] recordOpenedFiles:expanded.count folders:folderCount];
         MainWindow *strongSelf = weakSelf;
         // The drop contained no playable audio, as an empty folder would not.
         // Do not forward an empty list, which would clear the current playlist.
