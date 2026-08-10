@@ -13,7 +13,7 @@
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
 #import "Constants.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 // The design-time size, kMainWindowContentWidth by kMainWindowDesignHeight
 // from Constants.h, which is what the window opens at too. The controller

@@ -4,7 +4,7 @@
 //
 
 #import "BasicAudioWaveformRenderer.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 #define kBasicBarCount 128
 #define kBasicBarWidth 3

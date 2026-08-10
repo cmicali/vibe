@@ -6,7 +6,7 @@
 #import "MainPlayerController+Convert.h"
 
 #import "AudioFileConverter.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"

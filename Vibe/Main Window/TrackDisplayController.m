@@ -10,7 +10,7 @@
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
 #import "Fonts.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 @implementation TrackDisplayController {
     __weak AudioWaveformView *_waveformView;

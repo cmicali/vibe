@@ -20,15 +20,15 @@ A fast, minimal music player for the Mac. No third-party engine, no account, no 
 
 ## Localization
 
-English is the source language. All user-facing strings live in `Vibe/Common/Strings.h`; translations live in `Resources/Localizable.xcstrings` (plus `Resources/InfoPlist.xcstrings` for the bundle name, copyright, and document-type names). The app ships every language present in those catalogs — to see the current set, run `jq -r '[.strings[].localizations | keys] | flatten | unique' Resources/Localizable.xcstrings`.
+English is the source language. All user-facing strings live in `Vibe/Common/VibeStrings.h`; translations live in `Resources/Localizable.xcstrings` (plus `Resources/InfoPlist.xcstrings` for the bundle name, copyright, and document-type names). The app ships every language present in those catalogs — to see the current set, run `jq -r '[.strings[].localizations | keys] | flatten | unique' Resources/Localizable.xcstrings`.
 
 ### Adding or changing a string
 
-1. Add (or edit) a one-line `NSLS(key, value, comment)` entry in `Vibe/Common/Strings.h` — symbolic key (`menu.file`), English text, translator comment. Use the `STR_*` macro at the call site; never an inline `NSLocalizedString` or bare literal (mark deliberately-English strings `VibeNotLocalized(...)`).
+1. Add (or edit) a one-line `NSLS(key, value, comment)` entry in `Vibe/Common/VibeStrings.h` — symbolic key (`menu.file`), English text, translator comment. Use the `STR_*` macro at the call site; never an inline `NSLocalizedString` or bare literal (mark deliberately-English strings `VibeNotLocalized(...)`).
 2. Run `make strings` to sync the catalog (needs `jq` — `make setup`). This is a manual step; the build does not extract strings.
 3. Translate the new key into every shipping language in `Resources/Localizable.xcstrings` (Xcode's catalog editor, or edit the JSON). Extraction never touches the *text* of non-English translations; rewording a string's English flips them to `needs_review` (they keep shipping until re-reviewed).
 
-`make check-strings` fails if the catalog is out of sync (including keys whose last call site was removed — delete their `Strings.h` entries).
+`make check-strings` fails if the catalog is out of sync (including keys whose last call site was removed — delete their `VibeStrings.h` entries).
 
 ### Adding a language
 

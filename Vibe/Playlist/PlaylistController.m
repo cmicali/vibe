@@ -7,7 +7,7 @@
 #import "PlaylistTableView.h"
 #import "PlaylistRowView.h"
 #import "EqualizerIndicatorView.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 // The reuse identifier for the custom row view. Cell views reuse their column
 // identifiers, so the row view needs one of its own.

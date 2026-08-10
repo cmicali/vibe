@@ -7,7 +7,7 @@
 #import "PlaylistDropZoneView.h"
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 #pragma mark - Layout
 

@@ -10,7 +10,7 @@
 #import "AudioTrack.h"
 #import "AudioWaveformView.h"
 #import "AudioFileConverter.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 // The class extension in MainPlayerController.m synthesizes waveformView, and
 // it is re-declared readonly here, the same pattern as

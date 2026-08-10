@@ -10,7 +10,7 @@
 #import "MainPlayerController+Transport.h"
 #import "OpenRecentMenuController.h"
 #import "OutputDevicesMenuController.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 // Strips what macOS force-appends to any menu it takes for an Edit menu —
 // AutoFill, Start Dictation and Emoji & Symbols, all inert in an app with no

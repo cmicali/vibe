@@ -7,7 +7,7 @@
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
 #import "NSURL+Hash.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 @interface AudioTrack ()
 // cacheKey's memo. It is atomic so that the lock-free fast-path read below is

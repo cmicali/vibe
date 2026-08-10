@@ -7,7 +7,7 @@
 #import "AudioPlayer.h"
 #import "AudioDevice.h"
 #import "AudioDeviceManager.h"
-#import "Strings.h"
+#import "VibeStrings.h"
 
 @interface OutputDevicesMenuController () <AudioDeviceManagerObserver>
 @end
