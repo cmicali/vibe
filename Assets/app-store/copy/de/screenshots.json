@@ -1,0 +1,22 @@
+[
+  {
+    "id": "player",
+    "headline": "Lokale Dateien, sofort abgespielt",
+    "subhead": "MP3, FLAC, AIFF, WAV und mehr. Ein Klick in die Wellenform springt an die Stelle."
+  },
+  {
+    "id": "playlist",
+    "headline": "Ordner ablegen, Musik hören",
+    "subhead": "Artwork, Tags und BPM werden im Hintergrund gelesen und für Tempo gecacht."
+  },
+  {
+    "id": "pitch",
+    "headline": "DJs fühlen sich zu Hause",
+    "subhead": "Tempo-Regler im Turntable-Stil, taktgenaue Sprünge und Performance-FX auf den Tasten."
+  },
+  {
+    "id": "keys",
+    "headline": "Hände auf der Tastatur",
+    "subhead": "Transport, Takt-Sprünge, Performance-FX und Tempo — ganz ohne Sondertasten."
+  }
+]

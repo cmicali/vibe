@@ -1,0 +1,12 @@
+Vibe on nopea, minimalistinen musiikkisoitin Macille. Ei kolmannen osapuolen moottoria, ei tiliä, ei tilausta. Vain yksinkertainen, nopea soitin tiedostoillesi.
+
+Aaltomuoto
+Vibe piirtää jokaisen kappaleen koko ikkunan levyisenä aaltomuotona. Klikkaa mitä tahansa kohtaa hypätäksesi siihen. Kirjastoa ei tarvitse tuoda eikä tietokantaa rakentaa uudelleen. Pudota tiedosto tai kansio ikkunaan, ja se soi. Tagit, kansikuvat ja BPM luetaan taustalla ja tallennetaan välimuistiin, joten seuraava avaus on välitön.
+
+Formaatit
+MP3, MP2, AAC, FLAC, MP4/M4A, AIFF ja WAV — kaikki macOS:n itsensä dekoodaamia. Häviöttömät tiedostot soivat täydellä resoluutiolla, ja jokaisen kappaleen formaatti ja näytteenottotaajuus näkyvät otsikon vieressä.
+
+DJ tuntee olonsa kotoisaksi
+• Levysoittimen tapaan aseteltu pitch-säädin, piilossa kunnes tarvitset sitä.
+• Hypyt tahdeissa, ei sekunneissa. Kun tempo tunnetaan, hyppäät 8, 16 tai 32 tahtia ja pysyt gridissä; kun ei, samat näppäimet siirtävät 10, 30 tai 60 sekuntia.
+• Performance-FX yhden käden alla: low kill -suodin, reverb-huntu ja kappaleen BPM:ään lukitut delayt. Näpäytä näppäintä lukitaksesi efektin; pidä pohjassa hetkelliseen käyttöön.

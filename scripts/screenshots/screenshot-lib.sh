@@ -1,7 +1,7 @@
 # Shared machinery for the two screenshot generators — sourced, never run:
 #
 #   ../generate-readme-screenshots.sh     the README shots (Assets/screenshot-*.png)
-#   ../generate-app-store-screenshots.sh  the App Store shots (2880x1800, on a
+#   ../appstore-capture-app-screenshots.sh  the App Store shots (2880x1800, on a
 #                                         background image)
 #
 # The two generators live in scripts/; everything they lean on — this file and

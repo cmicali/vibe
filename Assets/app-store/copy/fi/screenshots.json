@@ -1,0 +1,22 @@
+[
+  {
+    "id": "player",
+    "headline": "Paikalliset tiedostot soimaan heti",
+    "subhead": "MP3, FLAC, AIFF, WAV ja muut. Klikkaa aaltomuotoa ja hyppää haluamaasi kohtaan."
+  },
+  {
+    "id": "playlist",
+    "headline": "Pudota kansio, musiikki soi",
+    "subhead": "Kansikuvat, tagit ja BPM luetaan taustalla ja pidetään välimuistissa."
+  },
+  {
+    "id": "pitch",
+    "headline": "DJ tuntee olonsa kotoisaksi",
+    "subhead": "Levysoitintyylinen pitch-säädin, tahtitarkat hypyt ja performance-FX näppäimillä."
+  },
+  {
+    "id": "keys",
+    "headline": "Kädet näppäimistöllä",
+    "subhead": "Toisto, tahtihypyt, performance-FX ja pitch — ilman muuntonäppäimiä."
+  }
+]

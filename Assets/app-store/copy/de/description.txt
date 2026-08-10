@@ -1,0 +1,12 @@
+Vibe ist ein schneller, minimalistischer Musikplayer für den Mac. Keine fremde Engine, kein Account, kein Abo. Einfach ein schneller Player für deine Dateien.
+
+Wellenform
+Vibe zeichnet jeden Titel als komplette Wellenform über das Fenster. Ein Klick an eine beliebige Stelle springt dorthin. Es gibt keine Mediathek zu importieren und keine Datenbank, die neu aufgebaut werden muss. Lege eine Datei oder einen Ordner auf das Fenster, und sie spielt. Tags, Artwork und BPM liest Vibe im Hintergrund und cacht sie — das nächste Öffnen geht sofort.
+
+Formate
+MP3, MP2, AAC, FLAC, MP4/M4A, AIFF und WAV, alle direkt von macOS dekodiert. Lossless-Dateien spielen in voller Auflösung, und Format und Abtastrate stehen bei jedem Titel direkt neben dem Namen.
+
+DJs fühlen sich zu Hause
+• Ein Tempo-Regler wie am Turntable, verborgen, bis du ihn brauchst.
+• Sprünge in Takten statt Sekunden. Ist das Tempo bekannt, springst du 8, 16 oder 32 Takte und bleibst im Raster; wenn nicht, bewegen dieselben Tasten 10, 30 oder 60 Sekunden.
+• Performance-FX unter einer Hand: ein Low-Kill-Filter, ein Hall-Wash und Delays im BPM-Takt des Titels. Taste antippen rastet einen Effekt ein; gedrückt halten wirkt nur solange.

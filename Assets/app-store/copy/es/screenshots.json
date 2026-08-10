@@ -1,0 +1,22 @@
+[
+  {
+    "id": "player",
+    "headline": "Tus archivos, al instante",
+    "subhead": "MP3, FLAC, AIFF, WAV y más. Haz clic en la forma de onda para saltar."
+  },
+  {
+    "id": "playlist",
+    "headline": "Suelta una carpeta y a sonar",
+    "subhead": "Carátulas, etiquetas y BPM leídos en segundo plano y guardados en caché."
+  },
+  {
+    "id": "pitch",
+    "headline": "Los DJs se sentirán en casa",
+    "subhead": "Fader de pitch estilo giradiscos, saltos por compases y FX en el teclado."
+  },
+  {
+    "id": "keys",
+    "headline": "Las manos en el teclado",
+    "subhead": "Transporte, saltos por compases, FX y pitch, sin teclas modificadoras."
+  }
+]

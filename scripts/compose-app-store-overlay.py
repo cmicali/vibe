@@ -3,7 +3,7 @@
 
     scripts/compose-app-store-overlay.py <shot.png> <out.png> [--headline ...]
 
-Unlike generate-app-store-screenshots.sh, which photographs the window over a
+Unlike appstore-capture-app-screenshots.sh, which photographs the window over a
 staged desktop so the Liquid Glass shows a real backdrop, this is a pure
 mock-up: it takes an already-captured window (the alpha-channel PNGs in
 Assets/, produced by generate-readme-screenshots.sh) and lays it over a
@@ -48,10 +48,33 @@ BLOCK_Y_FRAC = 0.5
 GROOVE = os.path.join(ROOT, "Assets", "record background.png")
 
 # SF Pro, the system font, as a variable font -- named instances rather than
-# separate faces. Matches the type inside the window.
+# separate faces. Matches the type inside the window. PIL does no font
+# fallback, so CJK languages must name a real face: PingFang is unreachable
+# (only the Reserved PingFangUI.ttc exists, and PIL cannot open it), so
+# zh-Hans uses Hiragino Sans GB, the system's PIL-openable Simplified face.
+# The ttc entries are static fonts -- set_variation_by_name would raise.
 FONT = "/System/Library/Fonts/SFNS.ttf"
 HEADLINE_WEIGHT, SUBHEAD_WEIGHT = "Semibold", "Regular"
-# Tracking as a fraction of the point size. SF tightens at display sizes.
+CJK_FONTS = {  # (path, ttc index) per role
+    "ja": {
+        "headline": ("/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc", 0),
+        "subhead": ("/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", 0),
+    },
+    "ko": {
+        "headline": ("/System/Library/Fonts/AppleSDGothicNeo.ttc", 4),  # SemiBold
+        "subhead": ("/System/Library/Fonts/AppleSDGothicNeo.ttc", 0),  # Regular
+    },
+    "zh-Hans": {
+        "headline": ("/System/Library/Fonts/Hiragino Sans GB.ttc", 2),  # W6
+        "subhead": ("/System/Library/Fonts/Hiragino Sans GB.ttc", 0),  # W3
+    },
+    "zh-Hant": {  # Heiti TC — the only PIL-openable Traditional sans
+        "headline": ("/System/Library/Fonts/STHeiti Medium.ttc", 0),
+        "subhead": ("/System/Library/Fonts/STHeiti Light.ttc", 0),
+    },
+}
+# Tracking as a fraction of the point size. SF tightens at display sizes;
+# negative tracking is a Latin display convention, so CJK stays at 0.
 HEADLINE_TRACKING, SUBHEAD_TRACKING = -0.014, 0.0
 
 # Optional row of SF Symbols above the headline (--glyphs). Height and gap are
@@ -218,13 +241,22 @@ def draw_glyphs(canvas, y, images, w):
 
 # Point size and leading of each line, as fractions of the canvas width.
 LINES = (("headline", 0.0330, 1.30, 255), ("subhead", 0.0180, 1.40, 195))
+# Widest a text line may run, as a fraction of the canvas. When a translation
+# exceeds it the point size shrinks (headline) or the line wraps then shrinks
+# (subhead, max two lines); below MIN_SHRINK of nominal the copy is too long
+# to read at store size, so fail and shorten the translation instead.
+MAX_TEXT_W_FRAC = 0.92
+MIN_SHRINK = 0.72
+SHRINK_STEP = 0.96
 
 
-def font_for(kind, w):
-    line = next(l for l in LINES if l[0] == kind)
-    font = ImageFont.truetype(FONT, int(w * line[1]))
+def make_font(kind, size, lang):
+    if lang in CJK_FONTS:
+        path, index = CJK_FONTS[lang][kind]
+        return ImageFont.truetype(path, size, index=index)
+    font = ImageFont.truetype(FONT, size)
     font.set_variation_by_name(HEADLINE_WEIGHT if kind == "headline" else SUBHEAD_WEIGHT)
-    return font, line
+    return font
 
 
 def tracked(draw, xy, text, font, fill, tracking):
@@ -238,42 +270,86 @@ def tracked(draw, xy, text, font, fill, tracking):
         x += cw + tracking
 
 
-def draw_text(canvas, y, headline, subhead, w):
+def line_width(draw, text, font, tracking):
+    widths = [draw.textlength(c, font=font) for c in text]
+    return sum(widths) + tracking * (len(text) - 1)
+
+
+def wrap_two(draw, text, font, tracking, max_w, lang):
+    """Greedy wrap into at most two lines; None if two don't fit. ja/zh-Hans
+    have no spaces, so they may break at any character (kinsoku deliberately
+    not implemented -- two marketing lines don't warrant it)."""
+    if line_width(draw, text, font, tracking) <= max_w:
+        return [text]
+    units, joiner = (
+        (list(text), "") if lang in ("ja", "zh-Hans", "zh-Hant") else (text.split(" "), " ")
+    )
+    for cut in range(len(units) - 1, 0, -1):
+        first = joiner.join(units[:cut]).rstrip()
+        if line_width(draw, first, font, tracking) <= max_w:
+            second = joiner.join(units[cut:]).lstrip()
+            if line_width(draw, second, font, tracking) <= max_w:
+                return [first, second]
+            break
+    return None
+
+
+def layout_text(headline, subhead, w, lang):
+    """Resolve both strings into rendered lines: (text, font, tracking_px,
+    leading_px, alpha) each. draw_text and text_height both consume this, so
+    the drawn stack and the vertical centering can never disagree."""
+    draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    max_w = w * MAX_TEXT_W_FRAC
+    headline_tracking = 0.0 if lang in CJK_FONTS else HEADLINE_TRACKING
+    out = []
+    for (kind, size_frac, leading, alpha), content, tracking_frac in zip(
+        LINES, (headline, subhead), (headline_tracking, SUBHEAD_TRACKING)
+    ):
+        if not content:
+            continue
+        nominal = int(w * size_frac)
+        size = nominal
+        while True:
+            font = make_font(kind, size, lang)
+            tracking = tracking_frac * size
+            if kind == "headline":
+                fits = line_width(draw, content, font, tracking) <= max_w
+                lines = [content] if fits else None
+            else:
+                lines = wrap_two(draw, content, font, tracking, max_w, lang)
+            if lines:
+                break
+            size = int(size * SHRINK_STEP)
+            if size < nominal * MIN_SHRINK:
+                sys.exit(f"{lang}: {kind} too long even at {MIN_SHRINK:.0%} size: {content!r}")
+        out.extend((line, font, tracking, size * leading, alpha) for line in lines)
+    return out
+
+
+def draw_text(canvas, y, layout, w):
     """Centred headline block, over a soft dark halo so it stays legible
     wherever the artwork wash happens to be bright."""
     halo = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
     text = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
     hd, td = ImageDraw.Draw(halo), ImageDraw.Draw(text)
 
-    top = y
-    for kind, content, tracking in (
-        ("headline", headline, HEADLINE_TRACKING),
-        ("subhead", subhead, SUBHEAD_TRACKING),
-    ):
-        if not content:
-            continue
-        font, (_, _, leading, alpha) = font_for(kind, w)
+    for line, font, tracking, leading, alpha in layout:
         for draw, fill in ((hd, (0, 0, 0, 150)), (td, (255, 255, 255, alpha))):
-            tracked(draw, (w / 2, y), content, font, fill, tracking * font.size)
-        y += font.size * leading
+            tracked(draw, (w / 2, y), line, font, fill, tracking)
+        y += leading
 
     canvas.alpha_composite(halo.filter(ImageFilter.GaussianBlur(w * 0.012)))
     canvas.alpha_composite(text)
-    return y - top
 
 
-def text_height(headline, subhead, w):
-    return sum(
-        int(w * size) * leading
-        for (kind, size, leading, _), content in zip(LINES, (headline, subhead))
-        if content
-    )
+def text_height(layout):
+    return sum(leading for _, _, _, leading, _ in layout)
 
 
 # --- run --------------------------------------------------------------------
 
 
-def compose(shot, out, headline, subhead, canvas_w, canvas_h, width_frac, glyphs=()):
+def compose(shot, out, headline, subhead, canvas_w, canvas_h, width_frac, glyphs=(), lang="en"):
     win, header = load_window(shot)
     art = win.crop((0, 0, header, header))
 
@@ -291,7 +367,8 @@ def compose(shot, out, headline, subhead, canvas_w, canvas_h, width_frac, glyphs
         glyph_h = layout_glyphs(glyph_images, canvas_w)[2]
         glyph_gap = canvas_w * GLYPH_BLOCK_GAP_FRAC
 
-    block_h = text_height(headline, subhead, canvas_w)
+    layout = layout_text(headline, subhead, canvas_w, lang)
+    block_h = text_height(layout)
     gap = canvas_w * 0.032 if block_h else 0
     stack = glyph_h + glyph_gap + block_h + gap + win.height
     top = (canvas_h - stack) * BLOCK_Y_FRAC
@@ -300,7 +377,7 @@ def compose(shot, out, headline, subhead, canvas_w, canvas_h, width_frac, glyphs
         draw_glyphs(canvas, top, glyph_images, canvas_w)
         top += glyph_h + glyph_gap
     if block_h:
-        draw_text(canvas, top, headline, subhead, canvas_w)
+        draw_text(canvas, top, layout, canvas_w)
 
     x = (canvas_w - win.width) // 2
     y = int(top + block_h + gap)
@@ -314,10 +391,11 @@ def compose(shot, out, headline, subhead, canvas_w, canvas_h, width_frac, glyphs
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("shot")
-    p.add_argument("out")
+    p.add_argument("shot", nargs="?")
+    p.add_argument("out", nargs="?")
     p.add_argument("--headline", default="")
     p.add_argument("--subhead", default="")
+    p.add_argument("--lang", default="en")
     p.add_argument("--width", type=float, default=WINDOW_W_FRAC)
     p.add_argument("--canvas", default=f"{CANVAS_W}x{CANVAS_H}")
     p.add_argument(
@@ -325,10 +403,20 @@ def main():
         default="",
         help="comma-separated SF Symbol names drawn in a row above the headline",
     )
+    p.add_argument(
+        "--measure",
+        action="store_true",
+        help="lay the text out and exit; nonzero if it cannot fit (no image written)",
+    )
     a = p.parse_args()
     cw, ch = (int(v) for v in a.canvas.split("x"))
+    if a.measure:
+        layout_text(a.headline, a.subhead, cw, a.lang)
+        return
+    if not (a.shot and a.out):
+        p.error("shot and out are required unless --measure")
     glyphs = [g.strip() for g in a.glyphs.split(",") if g.strip()]
-    compose(a.shot, a.out, a.headline, a.subhead, cw, ch, a.width, glyphs)
+    compose(a.shot, a.out, a.headline, a.subhead, cw, ch, a.width, glyphs, a.lang)
 
 
 if __name__ == "__main__":

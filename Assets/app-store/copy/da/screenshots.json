@@ -1,0 +1,22 @@
+[
+  {
+    "id": "player",
+    "headline": "Afspil lokale filer lynhurtigt",
+    "subhead": "MP3, FLAC, AIFF, WAV og mere. Klik på bølgeformen for at spole."
+  },
+  {
+    "id": "playlist",
+    "headline": "Slip en mappe, og musikken spiller",
+    "subhead": "Artwork, tags og BPM læses i baggrunden og caches, så det går hurtigt."
+  },
+  {
+    "id": "pitch",
+    "headline": "DJs vil føle sig hjemme",
+    "subhead": "Pitchfader som på en pladespiller, taktfaste hop og performance-FX på tasterne."
+  },
+  {
+    "id": "keys",
+    "headline": "Hænderne på tastaturet",
+    "subhead": "Transport, takthop, performance-FX og pitch — helt uden specialtaster."
+  }
+]

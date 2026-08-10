@@ -1,0 +1,22 @@
+[
+  {
+    "id": "player",
+    "headline": "極速播放本機檔案",
+    "subhead": "支援 MP3、FLAC、AIFF、WAV 等格式。點按波形即可跳轉。"
+  },
+  {
+    "id": "playlist",
+    "headline": "拖入資料夾，立即播放",
+    "subhead": "封面、標籤與 BPM 於背景讀取並快取，下次打開更快。"
+  },
+  {
+    "id": "pitch",
+    "headline": "DJ 的熟悉手感",
+    "subhead": "唱盤式音高推桿、按小節跳轉，還有鍵盤上的表演 FX。"
+  },
+  {
+    "id": "keys",
+    "headline": "雙手不離鍵盤",
+    "subhead": "播放控制、小節跳轉、FX 與音高，無需修飾鍵。"
+  }
+]

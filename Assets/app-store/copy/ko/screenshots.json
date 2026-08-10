@@ -1,0 +1,22 @@
+[
+  {
+    "id": "player",
+    "headline": "로컬 파일을 빠르게 재생",
+    "subhead": "MP3, FLAC, AIFF, WAV 등 지원. 파형을 클릭해 원하는 위치로 이동."
+  },
+  {
+    "id": "playlist",
+    "headline": "폴더를 드롭하면 바로 재생",
+    "subhead": "아트워크, 태그, BPM을 백그라운드에서 읽고 캐시해 다음 실행은 더 빠르게."
+  },
+  {
+    "id": "pitch",
+    "headline": "DJ에게 익숙한 감각",
+    "subhead": "턴테이블 스타일 피치 페이더, 마디 단위 스킵, 키로 조작하는 퍼포먼스 FX."
+  },
+  {
+    "id": "keys",
+    "headline": "손은 키보드 위에",
+    "subhead": "재생, 마디 스킵, FX, 피치까지. 보조 키 없이."
+  }
+]

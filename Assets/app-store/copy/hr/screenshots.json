@@ -1,0 +1,22 @@
+[
+  {
+    "id": "player",
+    "headline": "Vaše datoteke, odmah",
+    "subhead": "MP3, FLAC, AIFF, WAV i drugi. Kliknite valni oblik za premotavanje."
+  },
+  {
+    "id": "playlist",
+    "headline": "Ispustite mapu i svira",
+    "subhead": "Omoti, oznake i BPM učitavaju se u pozadini i keširaju za brzinu."
+  },
+  {
+    "id": "pitch",
+    "headline": "DJ-i će biti kao doma",
+    "subhead": "Pitch fader kao na gramofonu, skokovi po taktovima i FX na tipkama."
+  },
+  {
+    "id": "keys",
+    "headline": "Ruke na tipkovnici",
+    "subhead": "Transport, skokovi po taktovima, FX i pitch — bez modifikatora."
+  }
+]

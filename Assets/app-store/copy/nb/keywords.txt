@@ -1,0 +1,1 @@
+audiofil,musikk,flac,bølgeform,dj,mp3,aiff,lossless,bpm,winamp,mappe,offline,platespiller,wav,aac

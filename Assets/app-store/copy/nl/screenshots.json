@@ -1,0 +1,22 @@
+[
+  {
+    "id": "player",
+    "headline": "Lokale bestanden, direct geluid",
+    "subhead": "MP3, FLAC, AIFF, WAV en meer. Klik op de golfvorm en spring naar elk punt."
+  },
+  {
+    "id": "playlist",
+    "headline": "Sleep een map, muziek speelt",
+    "subhead": "Artwork, tags en BPM worden op de achtergrond gelezen en gecachet voor snelheid."
+  },
+  {
+    "id": "pitch",
+    "headline": "DJs voelen zich thuis",
+    "subhead": "Een pitchfader als op een draaitafel, maatvaste sprongen en performance-FX op de toetsen."
+  },
+  {
+    "id": "keys",
+    "headline": "Handen op het toetsenbord",
+    "subhead": "Transport, maatsprongen, performance-FX en pitch — zonder speciale toetsen."
+  }
+]

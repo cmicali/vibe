@@ -1,0 +1,1 @@
+En rask, native spiller for musikkfilene dine. Klikkbar bølgeform, pitchfader som på en platespiller og DJ-FX. Intet bibliotek, ingen konto, intet abonnement.

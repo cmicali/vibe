@@ -1,0 +1,12 @@
+Vibe je brz, minimalistički glazbeni player za Mac. Bez vanjskih enginea, bez računa, bez pretplate. Samo jednostavan, brz player za vaše datoteke.
+
+Valni oblik
+Vibe iscrtava svaku pjesmu kao valni oblik preko cijelog prozora. Kliknite bilo gdje na njemu za premotavanje. Nema biblioteke za uvoz ni baze koju treba obnavljati. Ispustite datoteku ili mapu na prozor — i svira. Oznake, omote i BPM Vibe učitava u pozadini i kešira, pa je sljedeće otvaranje trenutačno.
+
+Formati
+MP3, MP2, AAC, FLAC, MP4/M4A, AIFF i WAV — sve dekodira sam macOS. Lossless datoteke sviraju u punoj rezoluciji, a format i frekvencija uzorkovanja pjesme stoje uz naslov.
+
+DJ-i će se osjećati kao doma
+• Pitch fader postavljen kao na gramofonu, skriven dok ga ne zatrebate.
+• Skokovi mjereni u taktovima, ne sekundama. Kad je tempo poznat, skačite 8, 16 ili 32 takta i ostanite na mreži; kad nije, iste tipke pomiču 10, 30 ili 60 sekundi.
+• Performance FX pod jednom rukom: Low Kill filtar, val reverba i delayi zaključani na BPM pjesme. Dodirnite tipku da zadržite efekt; držite je za trenutni.

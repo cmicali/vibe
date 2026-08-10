@@ -5,7 +5,7 @@
 #   shot names: basic pitch playlist playlist-pitch
 #
 # The App Store shots (2880x1800, composited onto a background image) are a
-# separate tool: scripts/generate-app-store-screenshots.sh. Both share
+# separate tool: scripts/appstore-capture-app-screenshots.sh. Both share
 # scripts/screenshots/screenshot-lib.sh, which documents the two permissions
 # this terminal needs (Screen Recording, Accessibility) and the debug build
 # requirement.

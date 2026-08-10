@@ -9,7 +9,7 @@
 // `--rect` (global screen points, origin top-left — the space find-window.swift
 // prints and screencapture -R takes) draws a SECOND copy of the content,
 // aspect-filled into exactly that rect, over the full-screen one. That is what
-// generate-app-store-screenshots.sh uses: its output canvas is a scaled
+// appstore-capture-app-screenshots.sh uses: its output canvas is a scaled
 // rendering of this same image, and the glass is transparent enough to show
 // the backdrop nearly directly, so the pixels behind the window have to be the
 // canvas's pixels at the canvas's scale — otherwise what shows through the

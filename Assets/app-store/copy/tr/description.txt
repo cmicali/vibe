@@ -1,0 +1,15 @@
+Vibe, Mac için hızlı ve sade bir müzik çalardır. Üçüncü taraf motor yok, hesap yok, abonelik yok. Dosyalarınız için yalnızca basit ve hızlı bir çalar.
+
+Dalga Biçimi
+
+Vibe her parçayı pencere boyunca tam bir dalga biçimi olarak çizer. Üzerinde herhangi bir yere tıklayarak o noktaya atlayın. İçe aktarılacak bir kitaplık, yeniden oluşturulacak bir veritabanı yoktur. Bir dosyayı veya klasörü pencereye bırakın, çalmaya başlasın. Vibe etiketleri, kapakları ve BPM'yi arka planda okuyup önbelleğe alır; bir sonraki açılış anında olur.
+
+Biçimler
+
+MP3, MP2, AAC, FLAC, MP4/M4A, AIFF ve WAV; tümünün kodunu macOS'in kendisi çözer. Kayıpsız dosyalar tam çözünürlükte çalar ve her parçanın biçimi ile örnekleme hızı başlığın hemen yanında görünür.
+
+DJ'ler Kendini Evinde Hissedecek
+
+• Pikaptaki gibi yerleştirilmiş, siz isteyene dek gizli kalan bir pitch fader.
+• Saniye değil ölçü cinsinden atlamalar. Tempo biliniyorsa 8, 16 veya 32 ölçü atlayıp ritim ızgarasında kalın; bilinmiyorsa aynı tuşlar 10, 30 veya 60 saniye hareket eder.
+• Tek elin altında performans FX'leri: low kill filtresi, reverb dalgası ve parçanın BPM'ine kilitli delay'ler. Efekti kalıcı açmak için tuşa dokunun; anlık kullanım için basılı tutun.
