@@ -27,13 +27,6 @@ static const double kMinAnalysisSeconds = 3.0;
 // correlates far above this; drum loops, noise and speech sit below it.
 static const double kMinCorrelation = 0.55;
 
-// Only spectral peaks vote, and only those at least this fraction of the
-// frame's loudest peak; 0 admits every bin. Measured at 0 — restricting to
-// peaks was worse at every threshold tried, because a 32768-point frame
-// already resolves partials and the discarded energy between them carries
-// real harmonic content.
-static const double kPeakThreshold = 0.0;
-
 // How much of a peak's energy is credited to the fundamentals it could be a
 // harmonic of, rather than to its own pitch class alone. A peak may be the
 // 3rd harmonic of the note a fifth below it, or the 5th harmonic of the note
@@ -94,31 +87,44 @@ static double VibeChromaCorrelation(const double *chroma, const double *profile,
     return den > 0 ? num / den : 0;
 }
 
+// One semitone's run of voting bins. Within the band the bins that vote for a
+// semitone are contiguous — they are the ones inside kMaxCentsFromSemitone of
+// its center — and the bins between semitones weigh 0 and separate one run
+// from the next. So the whole spectrum-to-chroma fold is one vDSP reduction
+// per semitone rather than a scatter-add per bin, which is also why nothing
+// finer-grained than a run, such as peak picking, can ride along here.
+struct VibeChromaRun {
+    uint32_t start;
+    uint32_t count;
+    uint32_t bassCount;  // leading bins of the run inside the bass band
+    int pitchClass;
+};
+
 @implementation AudioKeyAnalyzer {
     double _sampleRate;
-    FFTSetup _fftSetup;
-    int _log2FrameSize;
+    vDSP_DFT_Setup _dftSetup;
     NSUInteger _frameSize;
     NSUInteger _hopSize;
 
-    // Mono samples not yet consumed by a full analysis frame.
+    // Mono samples not yet consumed by a full analysis frame. Only the frames
+    // straddling a buffer boundary are read out of it, so it holds fewer than
+    // _frameSize floats between calls and twice that within one.
     std::vector<float> _pending;
     // Scratch, reused across frames.
     std::vector<float> _window;      // Hann coefficients
     std::vector<float> _windowed;
-    std::vector<float> _magnitudes;
+    std::vector<float> _magnitudes;  // written over the chroma band only
+    std::vector<float> _weighted;    // magnitudes scaled by their bin weights
     std::vector<float> _splitReal;
     std::vector<float> _splitImag;
 
-    // Per-bin chroma routing, precomputed once: which pitch class each FFT
-    // bin votes for and with what weight, or weight 0 outside the band and
-    // between semitones.
-    std::vector<int> _binPitchClass;
-    std::vector<float> _binWeight;
-    // Which bins fall in the bass band, and each bin's signed distance from
-    // its semitone, for the tuning estimate.
-    std::vector<uint8_t> _binIsBass;
-    std::vector<float> _binCents;
+    // The chroma fold, precomputed once. The runs cover the band in bin order;
+    // _bandFirst and _bandCount span all of them, for the whole-band sums.
+    std::vector<VibeChromaRun> _chromaRuns;
+    NSUInteger _bandFirst;
+    NSUInteger _bandCount;
+    std::vector<float> _binWeight;  // 0 outside the band and between semitones
+    std::vector<float> _binCents;   // signed distance from the semitone center
 
     double _chroma[12];
     double _bassChroma[12];
@@ -139,22 +145,27 @@ static double VibeChromaCorrelation(const double *chroma, const double *profile,
         // in Hz — what separates neighboring semitones down at A1 — does not
         // degrade for 88.2/96k files.
         double bins = 0.74 * sampleRate;
-        _log2FrameSize = (int)std::lround(std::log2(bins));
-        _log2FrameSize = std::max(13, std::min(17, _log2FrameSize));
-        _frameSize = (NSUInteger)1 << _log2FrameSize;
+        int log2FrameSize = (int)std::lround(std::log2(bins));
+        log2FrameSize = std::max(13, std::min(17, log2FrameSize));
+        _frameSize = (NSUInteger)1 << log2FrameSize;
         _hopSize = _frameSize / 2;
-        _fftSetup = vDSP_create_fftsetup(_log2FrameSize, kFFTRadix2);
+        _dftSetup = vDSP_DFT_zrop_CreateSetup(NULL, _frameSize, vDSP_DFT_FORWARD);
+        if (!_dftSetup) {
+            return self; // finish() reports none; appends are ignored
+        }
+        _pending.reserve(_frameSize * 2);
         _window.resize(_frameSize);
         vDSP_hann_window(_window.data(), _frameSize, vDSP_HANN_NORM);
         _windowed.resize(_frameSize);
         _magnitudes.resize(_frameSize / 2);
+        _weighted.resize(_frameSize / 2);
         _splitReal.resize(_frameSize / 2);
         _splitImag.resize(_frameSize / 2);
 
         const double binHz = sampleRate / (double)_frameSize;
-        _binPitchClass.assign(_frameSize / 2, 0);
+        std::vector<int> binPitchClass(_frameSize / 2, 0);
+        std::vector<uint8_t> binIsBass(_frameSize / 2, 0);
         _binWeight.assign(_frameSize / 2, 0.0f);
-        _binIsBass.assign(_frameSize / 2, 0);
         _binCents.assign(_frameSize / 2, 0.0f);
         for (NSUInteger k = 1; k < _frameSize / 2; k++) {
             double f = k * binHz;
@@ -168,10 +179,30 @@ static double VibeChromaCorrelation(const double *chroma, const double *profile,
             if (cents > kMaxCentsFromSemitone) {
                 continue;
             }
-            _binPitchClass[k] = (int)(((long)nearest % 12) + 12) % 12;
+            binPitchClass[k] = (int)(((long)nearest % 12) + 12) % 12;
             _binWeight[k] = (float)(1.0 - cents / 50.0);
-            _binIsBass[k] = f <= kBassMaxHz;
+            binIsBass[k] = f <= kBassMaxHz;
             _binCents[k] = (float)signedCents;
+        }
+        for (NSUInteger k = 1; k < _frameSize / 2;) {
+            if (_binWeight[k] <= 0) {
+                k++;
+                continue;
+            }
+            NSUInteger start = k, bassCount = 0;
+            while (k < _frameSize / 2 && _binWeight[k] > 0 &&
+                   binPitchClass[k] == binPitchClass[start]) {
+                if (binIsBass[k] && bassCount == k - start) {
+                    bassCount++;
+                }
+                k++;
+            }
+            _chromaRuns.push_back({(uint32_t)start, (uint32_t)(k - start),
+                                   (uint32_t)bassCount, binPitchClass[start]});
+        }
+        if (!_chromaRuns.empty()) {
+            _bandFirst = _chromaRuns.front().start;
+            _bandCount = _chromaRuns.back().start + _chromaRuns.back().count - _bandFirst;
         }
         memset(_chroma, 0, sizeof(_chroma));
         memset(_bassChroma, 0, sizeof(_bassChroma));
@@ -180,8 +211,8 @@ static double VibeChromaCorrelation(const double *chroma, const double *profile,
 }
 
 - (void)dealloc {
-    if (_fftSetup) {
-        vDSP_destroy_fftsetup(_fftSetup);
+    if (_dftSetup) {
+        vDSP_DFT_DestroySetup(_dftSetup);
     }
 }
 
@@ -190,21 +221,32 @@ static double VibeChromaCorrelation(const double *chroma, const double *profile,
 }
 
 - (void)appendMonoSamples:(const float *)samples frameCount:(NSUInteger)frameCount {
-    if (!_fftSetup || frameCount == 0) {
+    if (!_dftSetup || _chromaRuns.empty() || frameCount == 0) {
         return;
     }
-    size_t base = _pending.size();
-    _pending.resize(base + frameCount);
-    memcpy(_pending.data() + base, samples, frameCount * sizeof(float));
-
-    size_t consumed = 0;
-    while (_pending.size() - consumed >= _frameSize) {
-        [self processFrame:_pending.data() + consumed];
-        consumed += _hopSize;
+    // Only the frames straddling the buffer boundary are spliced into
+    // _pending; every later frame is read in place out of the caller's buffer,
+    // so a decode buffer is never copied whole.
+    const size_t carried = _pending.size();
+    size_t offset = 0;
+    if (carried > 0) {
+        _pending.insert(_pending.end(), samples,
+                        samples + std::min((size_t)frameCount, (size_t)_frameSize));
+        while (offset < carried && offset + _frameSize <= _pending.size()) {
+            [self processFrame:_pending.data() + offset];
+            offset += _hopSize;
+        }
+        if (offset < carried) { // not even the first straddling frame is whole yet
+            _pending.erase(_pending.begin(), _pending.begin() + (long)offset);
+            return;
+        }
     }
-    if (consumed > 0) {
-        _pending.erase(_pending.begin(), _pending.begin() + (long)consumed);
+    size_t base = offset - carried;
+    while (base + _frameSize <= frameCount) {
+        [self processFrame:samples + base];
+        base += _hopSize;
     }
+    _pending.assign(samples + base, samples + frameCount);
 }
 
 - (void)processFrame:(const float *)frame {
@@ -212,55 +254,60 @@ static double VibeChromaCorrelation(const double *chroma, const double *profile,
 
     DSPSplitComplex split = { _splitReal.data(), _splitImag.data() };
     vDSP_ctoz((const DSPComplex *)_windowed.data(), 2, &split, 1, _frameSize / 2);
-    vDSP_fft_zrip(_fftSetup, &split, 1, _log2FrameSize, kFFTDirection_Forward);
-    split.realp[0] = 0; // DC and Nyquist, packed together — neither is a pitch
-    split.imagp[0] = 0;
-    vDSP_zvabs(&split, 1, _magnitudes.data(), 1, _frameSize / 2);
+    // vDSP_DFT beats vDSP_fft_zrip by about a third at this frame size, where
+    // for the BPM analyzer's 1024-point frames it loses; the crossover is why
+    // the two analyzers do not use the same call.
+    vDSP_DFT_Execute(_dftSetup, split.realp, split.imagp, split.realp, split.imagp);
+
+    // Only the chroma band's magnitudes are ever read, and it is a sixth of the
+    // spectrum, so the square root runs over that slice alone. Bin 0, where DC
+    // and Nyquist arrive packed together, is below the band and never voted.
+    DSPSplitComplex band = { split.realp + _bandFirst, split.imagp + _bandFirst };
+    vDSP_zvabs(&band, 1, _magnitudes.data() + _bandFirst, 1, _bandCount);
 
     // Fold the spectrum onto the frame's chroma. The per-frame normalization
     // at the accumulate below is what keeps one loud passage from
     // steamrolling the whole track's profile.
+    //
+    // Each semitone's bins are one contiguous run, so the fold is a reduction
+    // per run rather than a scatter-add per bin. A non-finite magnitude is no
+    // longer skipped bin by bin — it poisons the frame's total instead, which
+    // the guard below drops.
     double frameChroma[12] = {0};
     double frameBass[12] = {0};
-    const float *mag = _magnitudes.data();
-    float peakFloor = 0;
-    if (kPeakThreshold > 0) {
-        float loudest = 0;
-        vDSP_maxv(mag + 1, 1, &loudest, _frameSize / 2 - 1);
-        peakFloor = (float)(loudest * kPeakThreshold);
+    double rawChroma[12] = {0};
+    vDSP_vmul(_magnitudes.data() + _bandFirst, 1, _binWeight.data() + _bandFirst, 1,
+              _weighted.data() + _bandFirst, 1, _bandCount);
+    for (const VibeChromaRun &run : _chromaRuns) {
+        float sum = 0;
+        vDSP_sve(_weighted.data() + run.start, 1, &sum, run.count);
+        rawChroma[run.pitchClass] += sum;
+        if (run.bassCount > 0) {
+            // No harmonic weighting on the bass chroma: the bass band holds
+            // fundamentals, and crediting notes below them is exactly the
+            // wrong direction.
+            float bass = 0;
+            vDSP_sve(_weighted.data() + run.start, 1, &bass, run.bassCount);
+            frameBass[run.pitchClass] += bass;
+        }
     }
-    const NSUInteger lastBin = _frameSize / 2 - 1;
-    for (NSUInteger k = 1; k < _frameSize / 2; k++) {
-        float w = _binWeight[k];
-        if (w <= 0 || !std::isfinite(mag[k])) {
-            continue;
-        }
-        if (kPeakThreshold > 0) {
-            // A pitch shows up as a local maximum; anything else in the band
-            // is noise sitting under it.
-            if (mag[k] < peakFloor) {
-                continue;
-            }
-            if (mag[k] < mag[k - 1] || (k < lastBin && mag[k] < mag[k + 1])) {
-                continue;
-            }
-        }
-        int pc = _binPitchClass[k];
-        double energy = w * mag[k];
-        frameChroma[pc] += energy;
+    for (int pc = 0; pc < 12; pc++) {
+        frameChroma[pc] += rawChroma[pc];
         if (kHarmonicWeight > 0) {
             // A fifth below is pc - 7, a major third below pc - 4, both mod 12.
-            frameChroma[(pc + 5) % 12] += energy * kHarmonicWeight;
-            frameChroma[(pc + 8) % 12] += energy * kHarmonicWeight * kHarmonicWeight;
+            // Spreading a pitch class's whole energy at once is the same sum as
+            // spreading each bin's, twelve operations instead of two per bin.
+            frameChroma[(pc + 5) % 12] += rawChroma[pc] * kHarmonicWeight;
+            frameChroma[(pc + 8) % 12] += rawChroma[pc] * kHarmonicWeight * kHarmonicWeight;
         }
-        if (_binIsBass[k]) {
-            // No harmonic weighting here: the bass band holds fundamentals,
-            // and crediting notes below them is exactly the wrong direction.
-            frameBass[pc] += energy;
-        }
-        _tuningWeightedCents += energy * _binCents[k];
-        _tuningWeight += energy;
     }
+    float weightSum = 0, centsSum = 0;
+    vDSP_sve(_weighted.data() + _bandFirst, 1, &weightSum, _bandCount);
+    vDSP_dotpr(_weighted.data() + _bandFirst, 1, _binCents.data() + _bandFirst, 1,
+               &centsSum, _bandCount);
+    _tuningWeightedCents += centsSum;
+    _tuningWeight += weightSum;
+
     double total = 0;
     for (int i = 0; i < 12; i++) {
         total += frameChroma[i];

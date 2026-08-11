@@ -51,18 +51,76 @@ static const double kTempoPriorSpreadBPM = 80.0;
 // to settle an octave, leaving the prior to break genuine ties.
 static const double kGridNormExponent = 0.5;
 
+// The phase comb's inner sweep: the best-aligned grid of period L, scored over
+// `winLen` envelope samples. Both passes in finish share one reformulation. A
+// phase offset is an integer, so a grid index round(p + k*L) is exactly
+// p + round(k*L): every phase reads the same beat offsets, shifted. Scoring
+// them a beat at a time rather than a phase at a time therefore makes each beat
+// one vDSP add of an envelope slice onto the running phase scores, and scores
+// every phase at once. A phase's own terms are still summed in k order, as in
+// the scalar loop this replaces, and still in double.
+//
+// Later phases run off the end of the window first, so each beat's slice is a
+// prefix of the phase range — which is also the original's per-phase break.
+//
+// `acc` is caller-owned scratch, so a sweep allocates nothing.
+static double VibeCombPhaseBest(const double *env, size_t winLen, double L,
+                                std::vector<double> &acc) {
+    const size_t phases = (size_t)L;
+    acc.assign(phases, 0.0);
+    for (size_t k = 0;; k++) {
+        const long offset = (long)llround((double)k * L);
+        long len = (long)winLen - 1 - offset;
+        if (len <= 0) {
+            break;
+        }
+        len = std::min(len, (long)phases);
+        vDSP_vaddD(acc.data(), 1, env + offset, 1, acc.data(), 1, (vDSP_Length)len);
+    }
+    double best = 0;
+    vDSP_maxvD(acc.data(), 1, &best, phases);
+    return best;
+}
+
+// The same sweep with linearly interpolated envelope samples and no tolerance
+// window. The interpolation weights depend on the fractional part of k*L alone,
+// which the integer phase offset leaves untouched, so each beat is two scaled
+// adds of a slice.
+static double VibeCombPhaseBestInterpolated(const double *env, size_t winLen, double L,
+                                            std::vector<double> &acc) {
+    const size_t phases = (size_t)L;
+    acc.assign(phases, 0.0);
+    for (size_t k = 0;; k++) {
+        const double pos = (double)k * L;
+        const long offset = (long)pos;
+        long len = (long)winLen - 1 - offset;
+        if (len <= 0) {
+            break;
+        }
+        len = std::min(len, (long)phases);
+        double upper = pos - (double)offset, lower = 1.0 - upper;
+        vDSP_vsmaD(env + offset, 1, &lower, acc.data(), 1, acc.data(), 1, (vDSP_Length)len);
+        vDSP_vsmaD(env + offset + 1, 1, &upper, acc.data(), 1, acc.data(), 1, (vDSP_Length)len);
+    }
+    double best = 0;
+    vDSP_maxvD(acc.data(), 1, &best, phases);
+    return best;
+}
+
 @implementation AudioBPMAnalyzer {
     double _sampleRate;
     FFTSetup _fftSetup;
 
-    // Mono samples not yet consumed by a full analysis frame. This always
-    // holds fewer than kFrameSize + kHopSize floats.
+    // The tail of earlier buffers, from the next frame's first sample on. Only
+    // the frames straddling a buffer boundary are read out of it, so it holds
+    // fewer than kFrameSize floats between calls and twice that within one.
     std::vector<float> _pending;
     // Scratch, reused across frames.
     std::vector<float> _window;      // Hann coefficients
     std::vector<float> _windowed;    // windowed frame
     std::vector<float> _magnitudes;  // current frame magnitude spectrum
     std::vector<float> _prevMagnitudes;
+    std::vector<float> _binDelta;    // per-bin magnitude change since the last frame
     std::vector<float> _splitReal;
     std::vector<float> _splitImag;
 
@@ -76,11 +134,13 @@ static const double kGridNormExponent = 0.5;
     if (self) {
         _sampleRate = sampleRate;
         _fftSetup = vDSP_create_fftsetup(kLog2FrameSize, kFFTRadix2);
+        _pending.reserve(kFrameSize * 2);
         _window.resize(kFrameSize);
         vDSP_hann_window(_window.data(), kFrameSize, vDSP_HANN_NORM);
         _windowed.resize(kFrameSize);
         _magnitudes.assign(kFrameSize / 2, 0.0f);
         _prevMagnitudes.assign(kFrameSize / 2, 0.0f);
+        _binDelta.resize(kFrameSize / 2);
         _splitReal.resize(kFrameSize / 2);
         _splitImag.resize(kFrameSize / 2);
     }
@@ -99,19 +159,30 @@ static const double kGridNormExponent = 0.5;
     }
     // Already mono: the loader downmixes each decode buffer once, through
     // AudioWaveformMonoMix, and shares it with the waveform chunker.
-    size_t base = _pending.size();
-    _pending.resize(base + frameCount);
-    memcpy(_pending.data() + base, samples, frameCount * sizeof(float));
-
-    // Consume full frames, advancing by the hop.
-    size_t consumed = 0;
-    while (_pending.size() - consumed >= kFrameSize) {
-        [self processFrame:_pending.data() + consumed];
-        consumed += kHopSize;
+    //
+    // Only the frames straddling the buffer boundary are spliced into
+    // _pending; every later frame is read in place out of the caller's buffer,
+    // so a decode buffer is never copied whole.
+    const size_t carried = _pending.size();
+    size_t offset = 0;
+    if (carried > 0) {
+        _pending.insert(_pending.end(), samples,
+                        samples + std::min((size_t)frameCount, (size_t)kFrameSize));
+        while (offset < carried && offset + kFrameSize <= _pending.size()) {
+            [self processFrame:_pending.data() + offset];
+            offset += kHopSize;
+        }
+        if (offset < carried) { // not even the first straddling frame is whole yet
+            _pending.erase(_pending.begin(), _pending.begin() + (long)offset);
+            return;
+        }
     }
-    if (consumed > 0) {
-        _pending.erase(_pending.begin(), _pending.begin() + (long)consumed);
+    size_t base = offset - carried;
+    while (base + kFrameSize <= frameCount) {
+        [self processFrame:samples + base];
+        base += kHopSize;
     }
+    _pending.assign(samples + base, samples + frameCount);
 }
 
 - (void)processFrame:(const float *)frame {
@@ -133,16 +204,17 @@ static const double kGridNormExponent = 0.5;
 
     // Spectral flux: the half-wave-rectified magnitude increase since the last
     // frame, summed across bins. Increases in energy mark onsets, and
-    // decreases, which are note tails, are ignored.
-    float flux = 0;
-    const float *mag = _magnitudes.data();
-    const float *prev = _prevMagnitudes.data();
-    for (NSUInteger k = 1; k < kFrameSize / 2; k++) {
-        float d = mag[k] - prev[k];
-        if (d > 0) {
-            flux += d;
-        }
-    }
+    // decreases, which are note tails, are ignored. Summing the changes and
+    // their magnitudes gives twice that rectified sum, which keeps the whole
+    // reduction inside vDSP. The per-bin loop this replaces cost several times
+    // the FFT ahead of it: its branch is unpredictable and its single
+    // accumulator serializes on float-add latency, so it neither vectorized nor
+    // pipelined.
+    vDSP_vsub(_prevMagnitudes.data(), 1, _magnitudes.data(), 1, _binDelta.data(), 1, kFrameSize / 2);
+    float signedSum = 0, absSum = 0;
+    vDSP_sve(_binDelta.data() + 1, 1, &signedSum, kFrameSize / 2 - 1);
+    vDSP_svemg(_binDelta.data() + 1, 1, &absSum, kFrameSize / 2 - 1);
+    float flux = 0.5f * (signedSum + absSum);
     if (!std::isfinite(flux)) {
         flux = 0; // corrupt decode (NaN/Inf samples) — drop the frame's onset
     }
@@ -281,6 +353,22 @@ static const double kGridNormExponent = 0.5;
     const size_t winLen = std::min(n, (size_t)(40.0 * fps));
     const float *env = detrended.data() + (n - winLen) / 2;
 
+    // The two envelopes the sweeps read, in double because their sums are. The
+    // coarse one carries the ±1-sample neighborhood maximum that absorbs onset
+    // jitter, taken once here rather than per candidate per lag and per phase.
+    // Its last element is never addressed: a beat is only scored when the
+    // sample after it is in the window too.
+    std::vector<double> envWide(winLen, 0.0), envExact(winLen);
+    {
+        std::vector<float> pairMax(winLen), wide(winLen);
+        vDSP_vmax(env, 1, env + 1, 1, pairMax.data(), 1, winLen - 1);
+        wide[0] = pairMax[0];
+        vDSP_vmax(pairMax.data() + 1, 1, env, 1, wide.data() + 1, 1, winLen - 2);
+        vDSP_vspdp(wide.data(), 1, envWide.data(), 1, winLen - 1);
+        vDSP_vspdp(env, 1, envExact.data(), 1, winLen);
+    }
+    std::vector<double> phaseScores;
+
     double bestFinal = -1;
     double bestCandidateLag = 0;
     for (int cLag : candidates) {
@@ -308,24 +396,7 @@ static const double kGridNormExponent = 0.5;
             if (L < 2) {
                 continue;
             }
-            double phaseBest = 0;
-            int phases = (int)L;
-            for (int phase = 0; phase < phases; phase++) {
-                double sum = 0;
-                for (size_t k = 0;; k++) {
-                    size_t idx = (size_t)llround((double)phase + (double)k * L);
-                    if (idx + 1 >= winLen) {
-                        break;
-                    }
-                    float v = env[idx];
-                    if (idx > 0 && env[idx - 1] > v) v = env[idx - 1];
-                    if (env[idx + 1] > v) v = env[idx + 1];
-                    sum += v;
-                }
-                if (sum > phaseBest) {
-                    phaseBest = sum;
-                }
-            }
+            double phaseBest = VibeCombPhaseBest(envWide.data(), winLen, L, phaseScores);
             if (phaseBest > bestSum) {
                 bestSum = phaseBest;
                 bestLagF = L;
@@ -372,23 +443,7 @@ static const double kGridNormExponent = 0.5;
             if (L < 2) {
                 continue;
             }
-            int phases = (int)L;
-            double phaseBest = 0;
-            for (int phase = 0; phase < phases; phase++) {
-                double sum = 0;
-                for (size_t k = 0;; k++) {
-                    double pos = (double)phase + (double)k * L;
-                    size_t idx = (size_t)pos;
-                    if (idx + 1 >= winLen) {
-                        break;
-                    }
-                    double frac = pos - (double)idx;
-                    sum += env[idx] * (1.0 - frac) + env[idx + 1] * frac;
-                }
-                if (sum > phaseBest) {
-                    phaseBest = sum;
-                }
-            }
+            double phaseBest = VibeCombPhaseBestInterpolated(envExact.data(), winLen, L, phaseScores);
             if (phaseBest > bestSum) {
                 bestSum = phaseBest;
                 refined = L;
