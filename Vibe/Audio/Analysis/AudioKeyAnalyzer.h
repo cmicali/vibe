@@ -8,9 +8,9 @@
 //  finish once at end of file.
 //
 //  The method: a chromagram accumulates during streaming — a vDSP FFT over
-//  ~0.75-second Hann frames at a half-frame hop, each bin's magnitude
-//  log-compressed and folded onto the pitch class of its nearest semitone
-//  within the 55–3520 Hz band. finish() correlates the accumulated 12-bin
+//  ~0.75-second Hann frames at a half-frame hop, each bin's magnitude folded
+//  onto the pitch class of its nearest semitone within the 55–3520 Hz band,
+//  each frame normalized to one vote. finish() correlates the accumulated 12-bin
 //  chroma against the 24 rotations of a major and a minor key profile
 //  (Sha'ath's EDM-tuned revision of the Krumhansl-Schmuckler profiles) and
 //  returns the best-correlated key, or VibeMusicalKeyNone when the best

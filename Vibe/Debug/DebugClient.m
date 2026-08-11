@@ -178,8 +178,8 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
             return 0;
         }
         // The analysis toggles — a CLI-process prefs write that, like
-        // set_key_display above, a running app's reads see immediately
-        // (verified): the next waveform decode picks the new values up, no
+        // set_key_display above, a running app's reads see immediately:
+        // the next waveform decode picks the new values up, no
         // relaunch needed. This exists to make the analyzers' cost
         // measurable: each decode pass reads these, so A/B timing needs them
         // settable without the UI.

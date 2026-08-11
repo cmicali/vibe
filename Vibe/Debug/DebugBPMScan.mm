@@ -73,8 +73,7 @@ static NSString *VibeScanDecode(NSString *rawPath, double *outSampleRate,
     }
     // Bounded by framePosition rather than reading until empty. A read
     // issued exactly at EOF does not report a clean zero-length success:
-    // it fails with a nil error, an AVAudioFile quirk, verified. So never
-    // issue it.
+    // it fails with a nil error, an AVAudioFile quirk. So never issue it.
     while (file.framePosition < file.length) {
         uint64_t phaseStart = VibeLoadClockNow();
         if (![file readIntoBuffer:buffer error:&error]) {

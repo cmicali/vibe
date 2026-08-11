@@ -2,8 +2,8 @@
 //  AudioPlayer+Devices.m
 //  Vibe
 //
-//  See AudioPlayer+Devices.h. This was moved verbatim from AudioPlayer.m, and
-//  the shared ivars and queue-side helpers come from AudioPlayerInternal.h.
+//  See AudioPlayer+Devices.h. The shared ivars and queue-side helpers come
+//  from AudioPlayerInternal.h.
 //
 
 #import "AudioPlayer+Devices.h"

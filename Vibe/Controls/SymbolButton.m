@@ -31,8 +31,7 @@ static const CGFloat kDefaultSymbolPointSize = 15;
         _symbolWeight = NSFontWeightRegular;
         // CALayer cannot tint its contents, so the symbol becomes a mask and
         // the state color rides on the layer beneath it. The color then stays
-        // an animatable layer property, as it was with the old shape-layer
-        // fill.
+        // an animatable layer property.
         _colorLayer = [CALayer layer];
         _maskLayer = [CALayer layer];
         _colorLayer.mask = _maskLayer;
