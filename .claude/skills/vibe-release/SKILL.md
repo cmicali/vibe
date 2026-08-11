@@ -1,11 +1,11 @@
 ---
 name: vibe-release
-description: Build, sign, notarize, and ship Vibe — the Developer ID (make release) and App Store (make appstore-build) paths, the localized product-page metadata upload (make appstore-upload-metadata), the shared App Store Connect API key and its Admin-role requirement, and the signing traps each script preflights. Use when cutting a release, distributing a build, updating App Store copy or screenshots, or debugging a signing/notarization/upload failure.
+description: Build, sign, notarize, and ship Vibe — the Developer ID (make release) and App Store (make appstore-build) paths, the GitHub release publish (make github-release), the localized product-page metadata upload (make appstore-upload-metadata), the shared App Store Connect API key and its Admin-role requirement, and the signing traps each script preflights. Use when cutting a release, distributing a build, updating App Store copy or screenshots, or debugging a signing/notarization/upload failure.
 ---
 
 # Releasing Vibe
 
-`make release`, or `scripts/release.sh`, builds Release, then signs it with Developer ID, notarizes it and staples a distributable app.
+`make release`, or `scripts/release.sh`, builds Release, then signs it with Developer ID, notarizes it and staples a distributable app. `make github-release` (`scripts/github-release.sh`, `--draft` for a review pass) then publishes that artifact as a GitHub release: it re-verifies the staple on the zip's contents, tags HEAD as `v<MARKETING_VERSION>` (read from the built app, never from git), attaches `vibe-macos-<arch>-<version>.zip` (arch read from the binary via `lipo`), and takes the release notes from the same `Assets/app-store/copy/en/whats-new.txt` the App Store upload requires — publishing needs `gh` authenticated (`gh auth login`; `brew bundle` installs it) and a pushed HEAD, and it refuses an existing release for the same version.
 
 There are two release paths and they are not interchangeable. Each uses a different certificate, a different container and a different verification:
 
