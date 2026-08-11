@@ -1,3 +1,6 @@
-* Lokalizované do 23 jazykov
-* Konvertujte prehrávaný súbor do FLAC (s funkciou odvolať/znova)
-* Nové položky menu: „Kopírovať súbor“ a „Kopírovať názov“
+* Lokalizované do 30 jazykov — novo čeština, slovenčina, maďarčina, gréčtina, vietnamčina, indonézština a thajčina
+* Nové okno Nastavenia (prehrávanie, vzhľad, konverzia a rozšírené možnosti)
+* Zobrazenie tóniny s voliteľnou detekciou — hudobná alebo Camelot notácia
+* Rýchlejšia analýza BPM a tóniny a rýchlejšie načítanie priebehu skladby
+* Pauza teraz uvoľňuje zvukové zariadenie
+* Opravy chýb a vylepšenia

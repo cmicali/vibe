@@ -1,3 +1,6 @@
-* 23 nyelvre lokalizálva
-* A lejátszott fájl konvertálható FLAC formátumba (visszavonás/újra támogatással)
-* Új menüpontok: „Fájl másolása” és „Név másolása”
+* Mostantól 30 nyelvre lokalizálva — új a cseh, szlovák, magyar, görög, vietnámi, indonéz és thai
+* Új Beállítások ablak (lejátszás, megjelenés, konvertálás és speciális beállítások)
+* Hangnem megjelenítése választható felismeréssel — zenei vagy Camelot-jelölés
+* Gyorsabb BPM- és hangnemelemzés, gyorsabb hullámforma-betöltés
+* A szünet mostantól felszabadítja a hangeszközt
+* Hibajavítások és fejlesztések

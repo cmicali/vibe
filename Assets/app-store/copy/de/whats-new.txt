@@ -1,3 +1,6 @@
-* In 23 Sprachen lokalisiert
-* Wiedergegebene Datei in FLAC konvertieren (mit Widerrufen/Wiederholen)
-* Neue Menüpunkte: „Datei kopieren“ und „Namen kopieren“
+* Jetzt in 30 Sprachen lokalisiert — neu: Tschechisch, Slowakisch, Ungarisch, Griechisch, Vietnamesisch, Indonesisch und Thailändisch
+* Neues Einstellungsfenster (Wiedergabe, Erscheinungsbild, Konvertierung und erweiterte Optionen)
+* Anzeige der Tonart mit optionaler Erkennung — musikalische oder Camelot-Notation
+* Schnellere BPM- und Tonart-Analyse, schnelleres Laden der Wellenform
+* Pause gibt jetzt das Audiogerät frei
+* Fehlerbehebungen und Verbesserungen

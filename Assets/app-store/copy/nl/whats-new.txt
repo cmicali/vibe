@@ -1,3 +1,6 @@
-* Gelokaliseerd in 23 talen
-* Converteer het afspelende bestand naar FLAC (met ongedaan maken/opnieuw uitvoeren)
-* Nieuwe menuonderdelen: "Kopieer bestand" en "Kopieer naam"
+* Nu gelokaliseerd in 30 talen — nieuw: Tsjechisch, Slowaaks, Hongaars, Grieks, Vietnamees, Indonesisch en Thai
+* Nieuw instellingenvenster (afspelen, weergave, conversie en geavanceerde opties)
+* Toonsoortweergave met optionele detectie — muzikale of Camelot-notatie
+* Snellere BPM- en toonsoortanalyse en sneller laden van de golfvorm
+* Pauze geeft nu het audioapparaat vrij
+* Bugfixes en verbeteringen
