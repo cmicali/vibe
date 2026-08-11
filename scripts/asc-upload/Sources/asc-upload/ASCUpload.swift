@@ -19,11 +19,12 @@ import Foundation
 // stays the source of which languages exist (CLAUDE.md).
 let ascLocale: [String: String?] = [
     "bg": nil,
-    "da": "da", "de": "de-DE", "en": "en-US", "es": "es-ES", "fi": "fi",
-    "fr": "fr-FR", "hr": "hr", "it": "it", "ja": "ja", "ko": "ko",
+    "cs": "cs", "da": "da", "de": "de-DE", "el": "el", "en": "en-US",
+    "es": "es-ES", "fi": "fi", "fr": "fr-FR", "hr": "hr", "hu": "hu",
+    "id": "id", "it": "it", "ja": "ja", "ko": "ko",
     "nb": "no", "nl": "nl-NL", "pl": "pl", "pt-BR": "pt-BR", "pt-PT": "pt-PT",
-    "ro": "ro", "ru": "ru", "sv": "sv", "tr": "tr", "uk": "uk",
-    "zh-Hans": "zh-Hans", "zh-Hant": "zh-Hant",
+    "ro": "ro", "ru": "ru", "sk": "sk", "sv": "sv", "th": "th", "tr": "tr",
+    "uk": "uk", "vi": "vi", "zh-Hans": "zh-Hans", "zh-Hant": "zh-Hant",
 ]
 
 // States whose metadata App Store Connect still allows editing.
