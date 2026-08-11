@@ -1,3 +1,6 @@
-* Lokalizováno do 23 jazyků
-* Přidána možnost převést přehrávaný soubor do FLAC (s funkcí odvolat/opakovat)
-* Nové položky menu „Kopírovat soubor“ a „Kopírovat název“
+* Lokalizováno do 30 jazyků — nově čeština, slovenština, maďarština, řečtina, vietnamština, indonéština a thajština
+* Nové okno Nastavení (přehrávání, vzhled, převod a pokročilé volby)
+* Zobrazení tóniny s volitelnou detekcí — hudební nebo Camelot notace
+* Rychlejší analýza BPM a tóniny a rychlejší načítání průběhu skladby
+* Pauza nyní uvolňuje zvukové zařízení
+* Opravy chyb a vylepšení

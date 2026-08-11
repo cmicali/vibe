@@ -1,3 +1,6 @@
-* Zlokalizowano na 23 języki
-* Konwertuj odtwarzany plik do FLAC (z funkcją cofnij/przywróć)
-* Nowe polecenia menu: "Kopiuj plik" i "Kopiuj nazwę"
+* Teraz dostępne w 30 językach — nowe: czeski, słowacki, węgierski, grecki, wietnamski, indonezyjski i tajski
+* Nowe okno Ustawień (odtwarzanie, wygląd, konwersja i opcje zaawansowane)
+* Wyświetlanie tonacji z opcjonalnym wykrywaniem — notacja muzyczna lub Camelot
+* Szybsza analiza BPM i tonacji oraz szybsze wczytywanie przebiegu fali
+* Pauza zwalnia teraz urządzenie audio
+* Poprawki błędów i ulepszenia

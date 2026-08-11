@@ -1,3 +1,6 @@
-* Localizado em 23 idiomas
-* Converta o arquivo em reprodução para FLAC (com desfazer/refazer)
-* Novos itens de menu: "Copiar Arquivo" e "Copiar Nome"
+* Agora localizado em 30 idiomas — adicionados tcheco, eslovaco, húngaro, grego, vietnamita, indonésio e tailandês
+* Nova janela de Ajustes (reprodução, aparência, conversão e opções avançadas)
+* Exibição do tom musical com detecção opcional — notação musical ou Camelot
+* Análise de BPM e tom mais rápida e carregamento mais rápido da forma de onda
+* A pausa agora libera o dispositivo de áudio
+* Correções de bugs e melhorias

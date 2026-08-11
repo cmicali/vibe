@@ -1,3 +1,6 @@
-* Localized into 23 languages
-* Add ability to convert playing file to FLAC (w/ undo/redo)
-* Add copy file and copy name menu items
+* Now localized into 30 languages — adding Czech, Slovak, Hungarian, Greek, Vietnamese, Indonesian, and Thai
+* New Settings window (playback, appearance, conversion, and advanced options)
+* Musical key display with optional key detection — musical or Camelot notation
+* Faster BPM and key analysis and faster waveform loading
+* Pause now releases the audio output device
+* Bug fixes and improvements

@@ -1,3 +1,6 @@
-* Kini tersedia dalam 23 bahasa
-* Konversi file yang sedang diputar ke FLAC (dengan urungkan/ulangi)
-* Item menu baru: Salin File dan Salin Nama
+* Kini dilokalkan ke 30 bahasa — baru: Ceko, Slovakia, Hungaria, Yunani, Vietnam, Indonesia, dan Thai
+* Jendela Pengaturan baru (pemutaran, tampilan, konversi, dan opsi lanjutan)
+* Tampilan kunci nada dengan deteksi opsional — notasi musik atau Camelot
+* Analisis BPM dan kunci nada lebih cepat serta pemuatan waveform lebih cepat
+* Jeda kini melepaskan perangkat audio
+* Perbaikan bug dan peningkatan

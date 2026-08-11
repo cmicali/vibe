@@ -1,3 +1,6 @@
-* Lokalizirano na 23 jezika
-* Konvertirajte datoteku koja se reproducira u FLAC (uz poništi/ponovi)
-* Nove stavke izbornika: "Kopiraj datoteku" i "Kopiraj naziv"
+* Sada lokalizirano na 30 jezika — dodani su češki, slovački, mađarski, grčki, vijetnamski, indonezijski i tajlandski
+* Novi prozor Postavke (reprodukcija, izgled, pretvorba i napredne opcije)
+* Prikaz tonaliteta s neobaveznim prepoznavanjem — glazbena ili Camelot notacija
+* Brža analiza BPM-a i tonaliteta te brže učitavanje valnog oblika
+* Pauza sada oslobađa audiouređaj
+* Ispravci grešaka i poboljšanja

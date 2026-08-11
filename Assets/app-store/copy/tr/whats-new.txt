@@ -1,3 +1,6 @@
-* 23 dile yerelleştirildi
-* Çalan dosyayı FLAC biçimine dönüştürme (geri al/yinele destekli)
-* Yeni menü öğeleri: "Dosyayı Kopyala" ve "Adı Kopyala"
+* Artık 30 dile yerelleştirildi — Çekçe, Slovakça, Macarca, Yunanca, Vietnamca, Endonezce ve Tayca eklendi
+* Yeni Ayarlar penceresi (çalma, görünüm, dönüştürme ve gelişmiş seçenekler)
+* İsteğe bağlı algılamayla ton gösterimi — müzikal veya Camelot notasyonu
+* Daha hızlı BPM ve ton analizi, daha hızlı dalga formu yükleme
+* Duraklatma artık ses aygıtını serbest bırakıyor
+* Hata düzeltmeleri ve iyileştirmeler

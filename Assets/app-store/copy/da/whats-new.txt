@@ -1,3 +1,6 @@
-* Oversat til 23 sprog
-* Konverter den afspillede fil til FLAC (med fortryd/gentag)
-* Nye menupunkter: "Kopiér fil" og "Kopiér navn"
+* Nu oversat til 30 sprog — nyt: tjekkisk, slovakisk, ungarsk, græsk, vietnamesisk, indonesisk og thai
+* Nyt indstillingsvindue (afspilning, udseende, konvertering og avancerede indstillinger)
+* Visning af toneart med valgfri registrering — musikalsk eller Camelot-notation
+* Hurtigere BPM- og toneartsanalyse og hurtigere indlæsning af waveform
+* Pause frigiver nu lydenheden
+* Fejlrettelser og forbedringer

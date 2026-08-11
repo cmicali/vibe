@@ -1,3 +1,6 @@
-* Localizat în 23 de limbi
-* Convertiți fișierul în redare în FLAC (cu anulare/refacere)
-* Elemente de meniu noi: „Copiați fișierul” și „Copiați numele”
+* Acum localizat în 30 de limbi — adăugate cehă, slovacă, maghiară, greacă, vietnameză, indoneziană și thailandeză
+* Fereastră nouă de Setări (redare, aspect, conversie și opțiuni avansate)
+* Afișarea tonalității cu detectare opțională — notație muzicală sau Camelot
+* Analiză BPM și tonalitate mai rapidă și încărcare mai rapidă a formei de undă
+* Pauza eliberează acum dispozitivul audio
+* Remedieri de erori și îmbunătățiri

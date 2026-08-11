@@ -1,3 +1,6 @@
-* Lokaliserad till 23 språk
-* Konvertera filen som spelas upp till FLAC (med ångra/gör om)
-* Nya menyval: "Kopiera fil" och "Kopiera namn"
+* Nu lokaliserat till 30 språk — nytt: tjeckiska, slovakiska, ungerska, grekiska, vietnamesiska, indonesiska och thailändska
+* Nytt inställningsfönster (uppspelning, utseende, konvertering och avancerade alternativ)
+* Visning av tonart med valfri identifiering — musikalisk eller Camelot-notation
+* Snabbare BPM- och tonartsanalys och snabbare inläsning av vågform
+* Paus frigör nu ljudenheten
+* Buggfixar och förbättringar

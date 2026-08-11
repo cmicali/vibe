@@ -1,3 +1,6 @@
-* Đã bản địa hóa sang 23 ngôn ngữ
-* Thêm khả năng chuyển đổi tệp đang phát sang FLAC (có hoàn tác/làm lại)
-* Thêm mục menu "Sao chép tệp" và "Sao chép tên"
+* Hiện đã bản địa hóa sang 30 ngôn ngữ — thêm tiếng Séc, Slovakia, Hungary, Hy Lạp, Việt, Indonesia và Thái
+* Cửa sổ Cài đặt mới (phát lại, giao diện, chuyển đổi và tùy chọn nâng cao)
+* Hiển thị giọng (key) với tính năng nhận diện tùy chọn — ký hiệu nhạc lý hoặc Camelot
+* Phân tích BPM và giọng nhanh hơn, tải dạng sóng nhanh hơn
+* Tạm dừng giờ đây sẽ giải phóng thiết bị âm thanh
+* Sửa lỗi và cải tiến
