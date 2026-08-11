@@ -152,6 +152,7 @@
     AudioTrack *incoming = [AudioTrack withURL:url];
     incoming.duration = outgoing.duration;
     incoming.detectedBPM = outgoing.detectedBPM;
+    incoming.detectedKey = outgoing.detectedKey;
     // Remove the outgoing key: entries are never otherwise removed, and a
     // departed track still resolving to this row would let its late metadata
     // delivery redraw a row it no longer occupies.

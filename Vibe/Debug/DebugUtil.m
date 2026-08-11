@@ -1397,17 +1397,22 @@ static void VibeHandleDebugCommandFiles(void) {
 }
 
 void VibeInstallDebugCommandHook(void) {
-    // Sweep responses orphaned by earlier runs. An async verb that outlives
-    // its client's poll window writes a response no one ever deletes, because
-    // the client cleans up only its command file, so vibe-response-*.txt
-    // litter accumulates in the container tmp until the OS purges it, as does
-    // any per-command vibe-screenshot-*.png a client never streamed. Anything
-    // present before this hook is live belongs to a dead conversation.
+    // Sweep files orphaned by earlier runs. An async verb that outlives its
+    // client's poll window writes a response no one ever deletes, because the
+    // client cleans up only its command file, so vibe-response-*.txt litter
+    // accumulates in the container tmp until the OS purges it, as does any
+    // per-command vibe-screenshot-*.png a client never streamed. Stale
+    // vibe-command-*.json files are the dangerous ones: a client killed
+    // mid-poll leaves its command behind, and the next notification's drain
+    // would EXECUTE it — a days-old convert_to_flac delete, out of nowhere.
+    // Anything present before this hook is live belongs to a dead
+    // conversation, so delete all three kinds.
     NSString *tmpDir = NSTemporaryDirectory();
     NSArray<NSString *> *names = [NSFileManager.defaultManager contentsOfDirectoryAtPath:tmpDir error:nil];
     for (NSString *name in names) {
         if (([name hasPrefix:@"vibe-response-"] && [name hasSuffix:@".txt"])
-                || ([name hasPrefix:@"vibe-screenshot-"] && [name hasSuffix:@".png"])) {
+                || ([name hasPrefix:@"vibe-screenshot-"] && [name hasSuffix:@".png"])
+                || ([name hasPrefix:@"vibe-command-"] && [name hasSuffix:@".json"])) {
             [NSFileManager.defaultManager removeItemAtPath:[tmpDir stringByAppendingPathComponent:name]
                                                      error:nil];
         }

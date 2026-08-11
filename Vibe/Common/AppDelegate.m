@@ -152,26 +152,39 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 // a drag — so an arbitrary argv path may be denied at read time.
 - (void)openCommandLineArguments {
     NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
-    NSFileManager *fileManager = [NSFileManager defaultManager];
-    for (NSUInteger i = 1; i < args.count; i++) { // skip argv[0] (the executable)
-        NSString *arg = args[i];
-        if ([arg isEqualToString:@"--debug-cmd"]) {
-            i++; // the only flag that takes a value (see main.m)
-            continue;
+    // The exists checks run off the main thread: a stat can block for an
+    // automounter timeout on an unreachable mount, and this is launch time.
+    // The survivors hop back to main for the coalescer, whose burst window
+    // absorbs the extra hop.
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+        NSFileManager *fileManager = [NSFileManager defaultManager];
+        for (NSUInteger i = 1; i < args.count; i++) { // skip argv[0] (the executable)
+            NSString *arg = args[i];
+            if ([arg isEqualToString:@"--debug-cmd"]) {
+                i++; // the only flag that takes a value (see main.m)
+                continue;
+            }
+            if ([arg hasPrefix:@"-"]) {
+                // Skip only the flag itself. Consuming the next argument
+                // unconditionally would drop the path in
+                // `Vibe --someflag song.mp3`. A value riding an AppKit
+                // "-key value" pair fails the exists check below.
+                continue;
+            }
+            NSString *path = arg.stringByExpandingTildeInPath;
+            if ([fileManager fileExistsAtPath:path]) {
+                [urls addObject:[NSURL fileURLWithPath:path]];
+                LogInfo(@"Opening command-line path: %@", path);
+            }
         }
-        if ([arg hasPrefix:@"-"]) {
-            // Skip only the flag itself. Consuming the next argument
-            // unconditionally would drop the path in
-            // `Vibe --someflag song.mp3`. A value riding an AppKit
-            // "-key value" pair fails the exists check below.
-            continue;
+        if (urls.count == 0) {
+            return;
         }
-        NSString *path = arg.stringByExpandingTildeInPath;
-        if ([fileManager fileExistsAtPath:path]) {
-            [_openBurstCoalescer enqueueURLs:@[[NSURL fileURLWithPath:path]]];
-            LogInfo(@"Opening command-line path: %@", path);
-        }
-    }
+        run_on_main_thread({
+            [self->_openBurstCoalescer enqueueURLs:urls];
+        });
+    });
 }
 
 // Superseded cache formats can hold tens of MB that would otherwise linger for

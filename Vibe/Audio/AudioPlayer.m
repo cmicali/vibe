@@ -68,7 +68,7 @@ static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
 // transition pay an output-unit stop and start of 10-50ms, worse on
 // Bluetooth. The delay is long enough to absorb even a slow next-track open,
 // and short enough to release the device promptly when playback really ends.
-static const NSTimeInterval kEngineIdleStopDelaySeconds = 2.0;
+static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
 
 // Default pitch fader range in percent: ±8%, matching a stock SL-1200.
 static const float kDefaultMaxPitchPercent = 8.0f;
@@ -586,13 +586,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         return;
     }
 
-    AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
-    [_engine attachNode:node];
-    if (![self connectNode:node throughVarispeedWithFormat:file.processingFormat]) {
-        [self detachNodeAfterFailedConnect:node];
-        [self resetToStoppedStateOnQueue];
-        [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
-                [NSString stringWithFormat:@"Could not play %@ (unsupported format)", track.url.lastPathComponent], nil, track.url)];
+    AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat
+            failureDescription:[NSString stringWithFormat:@"Could not play %@ (unsupported format)",
+                                track.url.lastPathComponent]
+                           url:track.url];
+    if (!node) {
         return;
     }
 
@@ -608,16 +606,17 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // leaves behind, so playPause's resume branch takes it from here.
         [self publishPlaybackState:VibePlayerStatePaused node:node file:file
                       segmentStart:startFrame position:framePosition];
+        // Paused is idle; see completePauseOfNode:. The engine may be running
+        // from the track this one replaced, and nothing else will stop it.
+        [self scheduleEngineIdleStopOnQueue];
     }
     else {
         NSError *startError = nil;
         if (![self startEngineAndPlayNode:node error:&startError]) {
-            _generation++; // drop the scheduled segment's stop-fired completion
-            [node stop];
-            [_engine detachNode:node];
-            [self resetToStoppedStateOnQueue];
-            [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
-                    @"Could not start audio engine", startError, track.url)];
+            [self abandonNodeAfterFailedStart:node
+                           failureDescription:@"Could not start audio engine"
+                                        error:startError
+                                          url:track.url];
             return;
         }
 
@@ -684,6 +683,35 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     @catch (NSException *exception) {
         LogError(@"AudioPlayer: detach after failed connect: %@", exception);
     }
+}
+
+// See AudioPlayerInternal.h. Shared by finishPlayOnQueue: and the device
+// restore, whose failure handling must not drift apart.
+- (AVAudioPlayerNode *)attachConnectedNodeForFormat:(AVAudioFormat *)format
+                                 failureDescription:(NSString *)description
+                                                url:(NSURL *)url {
+    AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
+    [_engine attachNode:node];
+    if (![self connectNode:node throughVarispeedWithFormat:format]) {
+        [self detachNodeAfterFailedConnect:node];
+        [self resetToStoppedStateOnQueue];
+        [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
+                description, nil, url)];
+        return nil;
+    }
+    return node;
+}
+
+- (void)abandonNodeAfterFailedStart:(AVAudioPlayerNode *)node
+                 failureDescription:(NSString *)description
+                              error:(NSError *)error
+                                url:(NSURL *)url {
+    _generation++; // drop the scheduled segment's stop-fired completion
+    [node stop];
+    [_engine detachNode:node];
+    [self resetToStoppedStateOnQueue];
+    [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
+            description, error, url)];
 }
 
 // Schedules the remainder of the file from startFrame, with a completion
@@ -852,8 +880,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 }
 
 // Runs on _queue. Stops the engine after a grace period if playback is still
-// Stopped, which releases the output device. Any start or restart of playback
-// in the interim bumps the generation and the pending stop dissolves;
+// idle — Stopped or Paused — which releases the output device. Any start or
+// restart of playback in the interim bumps the generation and the pending
+// stop dissolves;
 // startEngineAndPlayNode: is the single funnel for that.
 - (void)scheduleEngineIdleStopOnQueue {
     uint64_t generation = ++_engineIdleStopGeneration;
@@ -866,10 +895,32 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         os_unfair_lock_lock(&strongSelf->_stateLock);
         VibePlayerState state = strongSelf->_state;
         os_unfair_lock_unlock(&strongSelf->_stateLock);
-        // Only a still-Stopped player stops the engine. Loading counts as
-        // busy, because the in-flight open's finish path wants a warm engine.
+        // Only a still-idle player — Stopped or Paused — stops the engine.
+        // Loading counts as busy, because the in-flight open's finish path
+        // wants a warm engine.
         if (state == VibePlayerStateStopped) {
             [strongSelf->_engine stop];
+        }
+        else if (state == VibePlayerStatePaused && strongSelf->_node && strongSelf->_file) {
+            // The paused node still carries its scheduled segment, and pause
+            // deliberately leaves _generation current — so the stops below
+            // would fire that segment's completion as a natural track end and
+            // auto-advance out of a pause (observed, not hypothetical).
+            // Retire it, silence the node, stop the engine, and reschedule in
+            // place from the paused frame, exactly the paused seek's ballet:
+            // scheduling needs no running engine, and the resume's
+            // startEngineAndPlayNode: then plays the fresh segment.
+            NSTimeInterval position = strongSelf.position; // Paused: the published value
+            strongSelf->_generation++;
+            AVAudioPlayerNode *node = strongSelf->_node;
+            AVAudioFile *file = strongSelf->_file;
+            [node stop];
+            [strongSelf->_engine stop];
+            double sampleRate = file.processingFormat.sampleRate;
+            AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, file.length);
+            [strongSelf scheduleFile:file onNode:node fromFrame:startFrame];
+            [strongSelf publishPlaybackState:VibePlayerStatePaused node:node file:file
+                                segmentStart:startFrame position:position];
         }
     });
 }
@@ -1105,6 +1156,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     NSTimeInterval position = self.position;
     [node pause];
     [self publishPlaybackState:VibePlayerStatePaused node:node file:_file segmentStart:_segmentStartFrame position:position];
+    // Paused is idle: without this the engine renders silence and holds the
+    // output device for as long as the user stays paused. Resume restarts it
+    // through startEngineAndPlayNode:, which also dissolves this pending stop.
+    [self scheduleEngineIdleStopOnQueue];
     AudioTrack *track = self.currentTrack;
     run_on_main_thread({
         [self.delegate audioPlayer:self didPausePlaying:track];

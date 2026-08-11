@@ -8,6 +8,16 @@
 
 @interface NSImage (Util)
 
+// Runs draw inside a fresh explicit-sRGB RGBA8 bitmap context of `size`
+// pixels (one point per pixel) and returns the image wrapping that bitmap,
+// or nil when the rep or context cannot be built. This — not lockFocus,
+// which is soft-deprecated and whose backing rep picks up the deepest
+// screen's scale, and not imageWithSize:flipped:drawingHandler:, whose
+// deferred handler re-renders per destination and yields no readable bitmap
+// — is the one home of the rep-retagging ballet shared by resizedImage:,
+// the dock icon, and the drag label.
++ (nullable NSImage *)imageWithSize:(NSSize)size drawnBy:(void (NS_NOESCAPE ^ _Nonnull)(void))draw;
+
 // Redraws the image at newSize into an sRGB bitmap. It returns nil if the
 // bitmap or its drawing context cannot be created, and never falls back to the
 // full-size original, because callers resize precisely to shed its memory.

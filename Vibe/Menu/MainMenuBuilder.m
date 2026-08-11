@@ -156,8 +156,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // close themselves instead.
     AddSymbolItem(fileMenu, STR_MENU_FILE_CLOSE, @"xmark", @selector(closeFile:), nil, @"w", NSEventModifierFlagCommand, @"menu_close");
 
-    // Edit: undo and redo only — the app has no selection and no clipboard.
-    // Validation retitles them from NSUndoManager.
+    // Edit: undo, redo, and the two copy items below — the app has no text
+    // selection, so none of the standard editing items. Validation retitles
+    // undo and redo from NSUndoManager.
     NSMenu *editMenu = Submenu(mainMenu, STR_MENU_EDIT).submenu;
     static VibeEditMenuCleaner *editMenuCleaner;
     editMenuCleaner = editMenuCleaner ?: [VibeEditMenuCleaner new];

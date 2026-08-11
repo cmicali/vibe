@@ -124,13 +124,10 @@
                     @"Could not restore track on the new audio device", nil)];
             return NO;
         }
-        AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
-        [_engine attachNode:node];
-        if (![self connectNode:node throughVarispeedWithFormat:file.processingFormat]) {
-            [self detachNodeAfterFailedConnect:node];
-            [self resetToStoppedStateOnQueue];
-            [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-                    @"Could not restore track on the new audio device", nil)];
+        AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat
+                failureDescription:@"Could not restore track on the new audio device"
+                               url:nil];
+        if (!node) {
             return NO;
         }
         double sampleRate = file.processingFormat.sampleRate;
@@ -147,12 +144,10 @@
         if (wasPlaying) {
             NSError *startError = nil;
             if (![self startEngineAndPlayNode:node error:&startError]) {
-                _generation++;
-                [node stop];
-                [_engine detachNode:node];
-                [self resetToStoppedStateOnQueue];
-                [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-                        @"Could not restart playback on the new audio device", startError)];
+                [self abandonNodeAfterFailedStart:node
+                               failureDescription:@"Could not restart playback on the new audio device"
+                                            error:startError
+                                              url:nil];
                 return NO;
             }
         }
