@@ -315,6 +315,8 @@ targets:
       # it (AudioTrack only ever sends messages to its metadata, never names
       # the class), and compiling the ~70-file vendored subset would dominate
       # the build.
+      - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
+      - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Common/OpenBurstCoalescer.m
