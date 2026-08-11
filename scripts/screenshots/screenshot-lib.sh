@@ -231,38 +231,26 @@ select_playing_row() {
 # overlaps, so the scroll offset is pinned to within (instantiated span -
 # viewport height) — a 2pt window on a 28pt row, plenty to aim a click.
 playing_row_point() { # <0-based row>
-    "$V" --debug-cmd dump_view_tree | python3 -c '
-import json, sys
-
-def find(node, cls):
-    if node["class"] == cls:
-        return node
-    for child in node.get("subviews") or []:
-        hit = find(child, cls)
-        if hit:
-            return hit
-    return None
-
-def rect(s):  # "{{0, 0}, {680, 250}}" -> [0.0, 0.0, 680.0, 250.0]
-    return [float(v) for v in s.replace("{", "").replace("}", "").split(", ")]
-
-row = int(sys.argv[1])
-window = json.load(sys.stdin)["windows"][0]
-_, _, _, win_h = rect(window["frame"])
-scroll = find(window["contentView"], "NSScrollView")
-_, sv_y, sv_w, sv_h = rect(scroll["frame"])
-table = find(scroll, "PlaylistTableView")
-rows = [rect(r["frame"]) for r in (table.get("subviews") or [])
-        if r["class"] == "NSTableRowView"]
-if not rows:
-    sys.exit("no playlist rows in the view tree")
-row_h = rows[0][3]
-lo = min(r[1] for r in rows)
-hi = max(r[1] for r in rows) + row_h
-offset = (lo + (hi - sv_h)) / 2                 # scrolled-to position
-top = win_h - (sv_y + sv_h)                     # scroll view top edge
-print("%d %d" % (sv_w / 2, top + row * row_h + row_h / 2 - offset))
-' "$1"
+    "$V" --debug-cmd dump_view_tree | jq -r --argjson row "$1" '
+        def rect: gsub("[{}]"; "") | split(", ") | map(tonumber);  # "{{0, 0}, {680, 250}}" -> [0, 0, 680, 250]
+        def find(cls): first(recurse(.subviews[]?) | select(.class == cls))
+            // error("no \(cls) in the view tree");
+        .windows[0] as $win
+        | ($win.frame | rect | .[3]) as $winH
+        | ($win.contentView | find("NSScrollView")) as $scroll
+        | ($scroll.frame | rect) as $sv                            # [x, y, w, h]
+        | [($scroll | find("PlaylistTableView")).subviews[]?
+           # The app subclasses NSTableRowView (PlaylistRowView), so match the
+           # suffix rather than the AppKit name.
+           | select(.class | endswith("RowView")) | .frame | rect] as $rows
+        | if $rows == [] then error("no playlist rows in the view tree") else . end
+        | $rows[0][3] as $rowH
+        | ([$rows[] | .[1]] | min) as $lo
+        | (([$rows[] | .[1]] | max) + $rowH) as $hi
+        | (($lo + ($hi - $sv[3])) / 2) as $offset                  # scrolled-to position
+        | ($winH - ($sv[1] + $sv[3])) as $top                      # scroll view top edge
+        | "\($sv[2] / 2 | floor) \($top + $row * $rowH + $rowH / 2 - $offset | floor)"
+    '
 }
 
 # --- cursor -----------------------------------------------------------------

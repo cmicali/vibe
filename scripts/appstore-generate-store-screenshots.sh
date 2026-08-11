@@ -21,7 +21,7 @@
 # honest one, but it can only show the window at its captured size, which on a
 # 2880x1800 canvas leaves the UI small. This one upscales the capture ~1.6x so
 # the window is the picture, at the cost of being a composite. See the header
-# of compose-app-store-overlay.py.
+# of compose-app-store-overlay.swift.
 #
 # The captions live in Assets/app-store/copy/ rather than here: they are
 # marketing text, revised alongside the rest of the App Store copy. The shot
@@ -30,8 +30,18 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-COMPOSE="$ROOT/scripts/compose-app-store-overlay.py"
+COMPOSE="$ROOT/scripts/compose-app-store-overlay.swift"
 LANGS="$ROOT/scripts/catalog-languages.sh"
+
+# Compile the compositor once and reuse the binary — `swift file.swift`
+# recompiles per run, and --all invokes it four times per language. The
+# exported path survives the --all recursion so children skip the compile.
+if [ -z "${COMPOSE_BIN:-}" ]; then
+    COMPOSE_BIN="$(mktemp -d)/compose"
+    export COMPOSE_BIN
+    trap 'rm -rf "$(dirname "$COMPOSE_BIN")"' EXIT
+    xcrun swiftc -O -o "$COMPOSE_BIN" "$COMPOSE"
+fi
 
 if [ "${1:-}" = --all ]; then
     # Capture first: a process substitution's exit status is never checked, so
@@ -78,8 +88,8 @@ mkdir -p "$OUT"
 #
 # Any names used here must stay identical to the ones the FX menu passes to
 # NSImage(systemSymbolName:) in Vibe/Menu/MainMenuBuilder.m, so the shot shows
-# the app's own artwork rather than a lookalike. The rendering path is
-# scripts/screenshots/render-symbols.swift.
+# the app's own artwork rather than a lookalike. The compositor renders them
+# through that same API.
 PLAYER_GLYPHS=""
 
 caption() { # <id> <headline|subhead>
@@ -92,7 +102,7 @@ caption() { # <id> <headline|subhead>
 
 shot() { # <id> <source> <output> [glyphs]
     [ -f "$IN/$2" ] || { echo "missing: $IN/$2 — run generate-readme-screenshots.sh" >&2; exit 1; }
-    python3 "$COMPOSE" "$IN/$2" "$OUT/$3" --lang "$L" \
+    "$COMPOSE_BIN" "$IN/$2" "$OUT/$3" --lang "$L" \
         --headline "$(caption "$1" headline)" \
         --subhead "$(caption "$1" subhead)" \
         --glyphs "${4:-}"

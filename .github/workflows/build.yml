@@ -84,3 +84,9 @@ jobs:
 
       - name: Check string catalog is in sync
         run: make check-strings
+
+      # The caption-fit measurement compiles scripts/compose-app-store-overlay.swift
+      # (swiftc, no project) — no pip installs since the compositor moved off
+      # Python/PIL.
+      - name: Validate App Store copy
+        run: make appstore-validate-copy
