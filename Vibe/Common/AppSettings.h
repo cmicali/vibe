@@ -21,6 +21,15 @@
 #define SETTINGS_VALUE_KEY_NOTATION_CAMELOT                 @"camelot"
 #define SETTINGS_VALUE_KEY_NOTATION_MUSICAL                 @"musical"
 
+// The preset ladders Settings > Playback offers, shared with the pane that
+// builds its popups from them. The getters snap a persisted value that
+// matches no preset — an external defaults write — to the nearest one,
+// normalize-on-read like keyNotation, so the pane's selection, the engine,
+// and the skip math always agree instead of the pane displaying one value
+// while the audio uses another.
+static const NSInteger kVibeSkipBasePresets[] = {4, 8, 16};
+static const NSInteger kVibeCrossfadePresets[] = {10, 500, 2000};
+
 @interface AppSettings : NSObject
 
 + (AppSettings*)sharedInstance;

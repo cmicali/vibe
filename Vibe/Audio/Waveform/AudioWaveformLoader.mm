@@ -17,14 +17,10 @@
     return self;
 }
 
-- (BOOL)cancel {
+- (void)cancel {
     // Always set isCancelled — even after completion — so a completed-but-
     // undelivered waveform for a previous track is dropped at delivery time.
-    if (self.isCancelled) {
-        return NO;
-    }
     self.isCancelled = YES;
-    return YES;
 }
 
 - (CodableAudioWaveform *)load:(NSString *)filename {

@@ -953,28 +953,33 @@
 
 - (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url {
     // A delivery usually belongs to the current track, but a late one can land
-    // after next: has advanced the playlist. The BPM is valid for whichever
-    // track owns that URL, so stamp that track, and refresh the label only
-    // when the stamped track is the one it shows.
-    AudioTrack *track = [self.playlistController trackForURL:url];
-    if (!track) {
-        return;
-    }
-    track.detectedBPM = bpm;
-    if ([self.playlistController isCurrentTrack:track]) {
+    // after next: has advanced the playlist, and the same file can occupy more
+    // than one row. The BPM is valid for every track owning that URL — the
+    // first match alone would strand a duplicate row that happens to be the
+    // one playing — so stamp them all, and refresh the label only when one of
+    // them is on display.
+    __block BOOL refresh = NO;
+    [[self.playlistController indexesOfTracksWithURL:url]
+            enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
+        AudioTrack *track = [self.playlistController trackAtIndex:index];
+        track.detectedBPM = bpm;
+        refresh |= [self.playlistController isCurrentTrack:track];
+    }];
+    if (refresh) {
         [self effectiveTempoDidChange];
     }
 }
 
 - (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectKey:(NSInteger)key forURL:(NSURL *)url {
-    // Same late-delivery contract as didDetectBPM: above: stamp the track
-    // that owns the URL, refresh only if it is the one on display.
-    AudioTrack *track = [self.playlistController trackForURL:url];
-    if (!track) {
-        return;
-    }
-    track.detectedKey = key;
-    if ([self.playlistController isCurrentTrack:track]) {
+    // Same late-delivery and duplicate-row contract as didDetectBPM: above.
+    __block BOOL refresh = NO;
+    [[self.playlistController indexesOfTracksWithURL:url]
+            enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
+        AudioTrack *track = [self.playlistController trackAtIndex:index];
+        track.detectedKey = key;
+        refresh |= [self.playlistController isCurrentTrack:track];
+    }];
+    if (refresh) {
         [self effectiveTempoDidChange];
     }
 }

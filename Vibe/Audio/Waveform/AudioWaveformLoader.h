@@ -22,7 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (atomic) BOOL isComplete;
 @property (atomic) BOOL isCancelled;
 
-- (BOOL)cancel;
+- (void)cancel;
 - (nullable CodableAudioWaveform *)load:(NSString *)filename;
 
 @end

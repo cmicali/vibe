@@ -92,12 +92,28 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
         [_appearancePopUp selectItemWithTag:VibeAppearanceTagSystem];
     }
 
+    // An unknown persisted identifier renders as the default style — the
+    // waveform view's own fallback — so the popup shows that rather than
+    // leaving whatever was selected before standing, which would misreport
+    // what is on screen.
     NSString *current = Settings.waveformStyle;
+    NSMenuItem *match = nil;
     for (NSMenuItem *item in _waveformPopUp.itemArray) {
         if ([item.representedObject isEqualToString:current]) {
-            [_waveformPopUp selectItem:item];
+            match = item;
             break;
         }
+    }
+    if (!match) {
+        for (NSMenuItem *item in _waveformPopUp.itemArray) {
+            if ([item.representedObject isEqualToString:SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT]) {
+                match = item;
+                break;
+            }
+        }
+    }
+    if (match) {
+        [_waveformPopUp selectItem:match];
     }
 
     BOOL remaining = Settings.showRemainingTime;

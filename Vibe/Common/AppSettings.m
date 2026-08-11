@@ -185,8 +185,22 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     [[NSUserDefaults standardUserDefaults] setBool:deleteOriginal forKey:SETTING_DELETE_ORIGINAL_AFTER_CONVERT];
 }
 
+// See the preset declarations in the header: an out-of-list persisted value
+// reads as the nearest preset, so display and behavior cannot disagree.
+static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, size_t count) {
+    NSInteger best = presets[0];
+    for (size_t i = 1; i < count; i++) {
+        if (llabs((long long)(value - presets[i])) < llabs((long long)(value - best))) {
+            best = presets[i];
+        }
+    }
+    return best;
+}
+
 - (NSInteger)skipBaseBars {
-    return [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_SKIP_BASE_BARS];
+    NSInteger stored = [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_SKIP_BASE_BARS];
+    return VibeNearestPreset(stored, kVibeSkipBasePresets,
+                             sizeof(kVibeSkipBasePresets) / sizeof(kVibeSkipBasePresets[0]));
 }
 
 - (void)setSkipBaseBars:(NSInteger)bars {
@@ -194,7 +208,9 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 }
 
 - (NSInteger)crossfadeMilliseconds {
-    return [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_CROSSFADE_MILLISECONDS];
+    NSInteger stored = [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_CROSSFADE_MILLISECONDS];
+    return VibeNearestPreset(stored, kVibeCrossfadePresets,
+                             sizeof(kVibeCrossfadePresets) / sizeof(kVibeCrossfadePresets[0]));
 }
 
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds {

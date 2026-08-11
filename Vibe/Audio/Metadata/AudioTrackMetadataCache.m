@@ -3,6 +3,8 @@
 // Copyright (c) 2020 Christopher Micali. All rights reserved.
 //
 
+#import <stdatomic.h>
+
 #import "AudioTrackMetadataCache.h"
 #import "PINCache.h"
 #import "AudioCachePolicy.h"
@@ -15,12 +17,22 @@
 // the loader's worker threads, and re-read per track; see
 // loadTrackFromDiskCache: and parseOneTrack:.
 @property (atomic, strong) PINCache *metadataCache;
-// A cross-lane parse claim. The scan's stage-2 op and the priority lane can
-// both pass their parsedOK entry checks before either finishes, as on a folder
-// drop with auto-play, paying for the full TagLib parse, thumbnail decode and
-// disk write twice for the same track. The claim spans one parseOneTrack:, so
-// the loser skips, and the winner's publish reaches the delegate either way.
-- (BOOL)claimParse:(AudioTrack *)track;
+// The invalidation generation; see the waveform cache's _cacheGeneration for
+// the full contract. A parse captures it when it starts, skips its disk write
+// if it has moved, and re-checks after the write lands — otherwise a parse in
+// flight during Settings > Clear Cache would repopulate the emptied cache.
+- (uint64_t)cacheGeneration;
+// A cross-lane parse claim, keyed on the file URL rather than the track
+// object, because the same file can occupy several playlist rows as distinct
+// AudioTracks. The scan's stage-2 op and the priority lane can both pass
+// their parsedOK entry checks before either finishes, as on a folder drop
+// with auto-play, paying for the full TagLib parse, thumbnail decode and disk
+// write twice for the same file. The claim spans one parseOneTrack:. A loser
+// holding the SAME track skips outright — the winner's publish lands on that
+// object either way — while a loser holding a different track for the same
+// URL must retry through the cache instead; see parseOneTrack:. outHolder
+// reports which track holds the claim on failure.
+- (BOOL)claimParse:(AudioTrack *)track currentHolder:(AudioTrack *__autoreleasing *)outHolder;
 - (void)releaseParse:(AudioTrack *)track;
 @end
 
@@ -267,11 +279,35 @@
     if (self.isCancelled) {
         return;
     }
-    // The cross-lane claim; see the owner's declaration. Skip rather than
-    // wait: the claiming lane publishes on completion, and this lane's parse
-    // of the same file would only fail the same way.
+    // The cross-lane claim; see the owner's declaration. When the holder is
+    // this same track object, skip outright: the claiming lane publishes to
+    // this object on completion, and a second parse would only fail the same
+    // way. When the holder is a DIFFERENT track for the same file — the same
+    // file on two playlist rows — skipping would leave this row bare, since
+    // the winner's result lands on its own track. Retry through the cache
+    // after a damping delay instead: by then the winner's write is usually on
+    // disk and the retry publishes from it without a second parse. A wedged
+    // winner (a cloud download) costs one small re-queued op per delay tick,
+    // never a second concurrent parse.
     AudioTrackMetadataCache *owner = _owner;
-    if (owner && ![owner claimParse:track]) {
+    AudioTrack *holder = nil;
+    if (owner && ![owner claimParse:track currentHolder:&holder]) {
+        if (holder != track) {
+            __weak __typeof(self) weakSelf = self;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)),
+                           dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                __typeof(self) strongSelf = weakSelf;
+                if (!strongSelf || strongSelf.isCancelled) {
+                    return;
+                }
+                [strongSelf->_queue addOperationWithBlock:^{
+                    __typeof(self) opSelf = weakSelf;
+                    if (opSelf && !opSelf.isCancelled) {
+                        [opSelf cacheCheckOneTrack:track];
+                    }
+                }];
+            });
+        }
         return;
     }
     // Re-checked under the claim, because the other lane may have finished
@@ -280,6 +316,9 @@
         [owner releaseParse:track];
         return;
     }
+    // Captured before the parse, which can block for minutes on a cloud file:
+    // an invalidate arriving mid-parse makes this result stale for the cache.
+    uint64_t generation = owner.cacheGeneration;
     AudioTrackMetadata *metadata = [AudioTrackMetadata metadataWithURL:track.url];
     // Pre-warm the playlist-cell thumbnail before the metadata becomes
     // visible. The table delegate, on the main thread, reads thumbnailAlbumArt
@@ -313,7 +352,17 @@
         // stall the workers' next objectForKey: behind the backlog. The cache
         // is re-read fresh here, since it may have finished constructing
         // during the parse above, and nil no-ops harmlessly if it has not.
-        [_owner.metadataCache.diskCache setObject:metadata forKey:cacheKey];
+        // The generation guard mirrors the waveform cache's: skip the write
+        // after an invalidate, and re-check after it lands, because
+        // removeAllObjects takes PINDiskCache's lock directly and can slip
+        // between the check and the write. The compensating remove is what
+        // keeps Settings > Clear Cache genuinely empty.
+        if (generation == owner.cacheGeneration) {
+            [_owner.metadataCache.diskCache setObject:metadata forKey:cacheKey];
+            if (generation != owner.cacheGeneration) {
+                [_owner.metadataCache.diskCache removeObjectForKey:cacheKey];
+            }
+        }
     }
     // Released rather than kept, so a failed parse stays eligible for a retry.
     [owner releaseParse:track];
@@ -356,24 +405,47 @@
     // Exists only to construct the cache off the main thread at utility QoS;
     // see init.
     dispatch_queue_t            _cacheQueue;
-    // Tracks with a parse in flight in either lane; see claimParse:. Guarded by
-    // @synchronized(self), since both lanes' workers claim and release it.
-    NSMutableSet<AudioTrack *>* _parsesInFlight;
+    // URL → the track whose parse is in flight, either lane; see claimParse:.
+    // Guarded by @synchronized(self), since both lanes' workers claim and
+    // release it.
+    NSMutableDictionary<NSURL *, AudioTrack *>* _parsesInFlight;
+    // Bumped by invalidateWithCompletion:; see the class-extension comment.
+    atomic_uint_fast64_t        _cacheGeneration;
 }
 
-- (BOOL)claimParse:(AudioTrack *)track {
+- (uint64_t)cacheGeneration {
+    return atomic_load_explicit(&_cacheGeneration, memory_order_relaxed);
+}
+
+- (BOOL)claimParse:(AudioTrack *)track currentHolder:(AudioTrack *__autoreleasing *)outHolder {
+    NSURL *url = track.url;
+    if (!url) {
+        return YES; // no identity to contend on; parse unguarded
+    }
     @synchronized (self) {
-        if ([_parsesInFlight containsObject:track]) {
+        AudioTrack *holder = _parsesInFlight[url];
+        if (holder) {
+            if (outHolder) {
+                *outHolder = holder;
+            }
             return NO;
         }
-        [_parsesInFlight addObject:track];
+        _parsesInFlight[url] = track;
         return YES;
     }
 }
 
 - (void)releaseParse:(AudioTrack *)track {
+    NSURL *url = track.url;
+    if (!url) {
+        return;
+    }
     @synchronized (self) {
-        [_parsesInFlight removeObject:track];
+        // Only the claim holder releases; a raced loser must not free the
+        // winner's claim.
+        if (_parsesInFlight[url] == track) {
+            [_parsesInFlight removeObjectForKey:url];
+        }
     }
 }
 
@@ -391,7 +463,7 @@
     self = [super init];
     if (self) {
         _currentLoader = nil;
-        _parsesInFlight = [NSMutableSet set];
+        _parsesInFlight = [NSMutableDictionary dictionary];
         _cacheQueue = dispatch_queue_create("com.vibe.metadatacache",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
         // Create the cache at utility QoS. Constructing it on the main thread
@@ -402,16 +474,8 @@
         // deferred until playback begins, but a launch by double-click can
         // beat this block. The loader re-reads the property at each use.
         dispatch_async(_cacheQueue, ^{
-            PINCache *cache = [[PINCache alloc] initWithName:AudioTrackMetadataCache.cacheName];
-            cache.diskCache.byteLimit = kAudioCacheByteLimit;
-            cache.diskCache.ageLimit = kAudioCacheAgeLimit;
-            // The memory cache is deliberately unused, and the loaders read
-            // and write diskCache directly. On macOS PINMemoryCache never
-            // evicts: costLimit needs per-entry costs, disk hits repopulate at
-            // cost 0, and its memory-pressure hooks are iOS-only. It would
-            // therefore pin every loaded track's metadata and thumbnail
-            // indefinitely.
-            self.metadataCache = cache;
+            // Why the memory cache goes unused is with the shared policy.
+            self.metadataCache = VibeAudioCacheCreate(AudioTrackMetadataCache.cacheName);
         });
     }
     return self;
@@ -421,6 +485,7 @@
     // The queue is serial, so this runs after the deferred cache construction
     // in init and self.metadataCache is always set when this block executes.
     dispatch_async(_cacheQueue, ^{
+        atomic_fetch_add_explicit(&self->_cacheGeneration, 1, memory_order_relaxed);
         [self.metadataCache removeAllObjects];
         if (completion) {
             completion();
@@ -432,18 +497,7 @@
     // The serial queue guarantees the cache exists and keeps the blocking
     // enumeration off the caller's thread.
     dispatch_async(_cacheQueue, ^{
-        __block NSUInteger count = 0;
-        __block unsigned long long bytes = 0;
-        [self.metadataCache.diskCache enumerateObjectsWithBlock:^(NSString *key, NSURL *fileURL, BOOL *stop) {
-            count++;
-            NSNumber *size = nil;
-            if ([fileURL getResourceValue:&size forKey:NSURLFileSizeKey error:nil]) {
-                bytes += size.unsignedLongLongValue;
-            }
-        }];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            completion(count, bytes);
-        });
+        VibeAudioCacheDiskUsage(self.metadataCache, completion);
     });
 }
 

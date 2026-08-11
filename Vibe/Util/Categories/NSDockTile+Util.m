@@ -4,6 +4,7 @@
 //
 
 #import "NSDockTile+Util.h"
+#import "NSImage+Util.h"
 
 // A monotonic ticket, so that a slow background icon composition cannot
 // overwrite a newer icon or a reset. Both entry points are main-thread UI
@@ -27,10 +28,9 @@ static NSUInteger VibeDockIconGeneration = 0;
 // radius of about 22.5%, or 185 of 824. Anything with a smaller margin reads
 // visibly larger than every neighboring icon in the Dock and the switcher.
 //
-// It draws into an explicit sRGB NSBitmapImageRep context rather than using
-// lockFocus, which is soft-deprecated and whose backing rep also picks up the
-// deepest screen's scale. NSImage+Util's resizedImage: follows the same
-// pattern. It returns nil if there is no context.
+// It draws through NSImage+Util's shared sRGB bitmap-context helper (one
+// point per pixel: the Dock scales it itself) and returns nil if there is no
+// context.
 static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
 
     CGFloat size = canvasSize * (824.0 / 1024.0);
@@ -42,93 +42,71 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
     CGFloat shadowBlur = size * 0.06;
     CGFloat shadowOffsetY = -size * 0.03;
 
-    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc]
-                                               initWithBitmapDataPlanes:NULL
-                                                             pixelsWide:(NSInteger)canvasSize
-                                                             pixelsHigh:(NSInteger)canvasSize
-                                                          bitsPerSample:8
-                                                        samplesPerPixel:4
-                                                               hasAlpha:YES
-                                                               isPlanar:NO
-                                                         colorSpaceName:NSCalibratedRGBColorSpace
-                                                            bytesPerRow:0
-                                                           bitsPerPixel:0];
-    rep = [rep bitmapImageRepByRetaggingWithColorSpace:NSColorSpace.sRGBColorSpace];
-    NSGraphicsContext *context = rep ? [NSGraphicsContext graphicsContextWithBitmapImageRep:rep] : nil;
-    if (!context) {
-        return nil;
-    }
-    rep.size = NSMakeSize(canvasSize, canvasSize); // 1 point per pixel: the Dock scales it itself
-    [NSGraphicsContext saveGraphicsState];
-    [NSGraphicsContext setCurrentContext:context];
+    return [NSImage imageWithSize:NSMakeSize(canvasSize, canvasSize) drawnBy:^{
 
-    // The content rect, centered on the icon grid. The grid margin comfortably
-    // contains the shadow, since the blur plus the offset comes to about 0.09
-    // times the size, well under the margin.
-    NSRect drawingRect = NSMakeRect(margin, margin, size, size);
+        // The content rect, centered on the icon grid. The grid margin comfortably
+        // contains the shadow, since the blur plus the offset comes to about 0.09
+        // times the size, well under the margin.
+        NSRect drawingRect = NSMakeRect(margin, margin, size, size);
 
-    NSBezierPath *clipPath = [NSBezierPath bezierPathWithRoundedRect:drawingRect
-                                                              xRadius:cornerRadius
-                                                              yRadius:cornerRadius];
+        NSBezierPath *clipPath = [NSBezierPath bezierPathWithRoundedRect:drawingRect
+                                                                  xRadius:cornerRadius
+                                                                  yRadius:cornerRadius];
 
-    [NSGraphicsContext saveGraphicsState];
+        [NSGraphicsContext saveGraphicsState];
 
-    NSShadow *shadow = [[NSShadow alloc] init];
-    [shadow setShadowBlurRadius:shadowBlur];
-    [shadow setShadowOffset:NSMakeSize(0, shadowOffsetY)];
-    [shadow setShadowColor:[[NSColor blackColor] colorWithAlphaComponent:1]];
-    [shadow set];
+        NSShadow *shadow = [[NSShadow alloc] init];
+        [shadow setShadowBlurRadius:shadowBlur];
+        [shadow setShadowOffset:NSMakeSize(0, shadowOffsetY)];
+        [shadow setShadowColor:[[NSColor blackColor] colorWithAlphaComponent:1]];
+        [shadow set];
     
-    // Filling the path triggers the shadow drawing.
-    [[NSColor clearColor] setFill];
-    [clipPath fill];
+        // Filling the path triggers the shadow drawing.
+        [[NSColor clearColor] setFill];
+        [clipPath fill];
 
-    // Restore the graphics state to remove the shadow.
-    [NSGraphicsContext restoreGraphicsState];
+        // Restore the graphics state to remove the shadow.
+        [NSGraphicsContext restoreGraphicsState];
 
-    [clipPath addClip];
+        [clipPath addClip];
 
-    NSSize srcSize = [sourceImage size];
-    CGFloat scale = MIN(size / srcSize.width, size / srcSize.height);
-    NSRect targetRect;
-    targetRect.size.width = srcSize.width * scale;
-    targetRect.size.height = srcSize.height * scale;
-    targetRect.origin.x = drawingRect.origin.x + (drawingRect.size.width - targetRect.size.width) / 2.0;
-    targetRect.origin.y = drawingRect.origin.y + (drawingRect.size.height - targetRect.size.height) / 2.0;
+        NSSize srcSize = [sourceImage size];
+        CGFloat scale = MIN(size / srcSize.width, size / srcSize.height);
+        NSRect targetRect;
+        targetRect.size.width = srcSize.width * scale;
+        targetRect.size.height = srcSize.height * scale;
+        targetRect.origin.x = drawingRect.origin.x + (drawingRect.size.width - targetRect.size.width) / 2.0;
+        targetRect.origin.y = drawingRect.origin.y + (drawingRect.size.height - targetRect.size.height) / 2.0;
 
-    [sourceImage drawInRect:targetRect
-                   fromRect:NSZeroRect
-                  operation:NSCompositingOperationSourceOver
-                   fraction:1.0
-             respectFlipped:YES
-                      hints:nil];
+        [sourceImage drawInRect:targetRect
+                       fromRect:NSZeroRect
+                      operation:NSCompositingOperationSourceOver
+                       fraction:1.0
+                 respectFlipped:YES
+                          hints:nil];
 
-    // A Liquid Glass-style rim light: a thin inner stroke that is brightest
-    // along the top edge and fades toward the bottom, approximating the
-    // bevel the system renders on real (Icon Composer) icons — without it
-    // the artwork tile reads flat next to every neighboring icon. Stroking
-    // the clip path at double width while clipped to the icon shape leaves
-    // exactly the inner rimWidth-wide band visible.
-    CGContextRef ctx = [NSGraphicsContext currentContext].CGContext;
-    CGContextSaveGState(ctx);
-    CGPathRef rimPath = CGPathCreateWithRoundedRect(drawingRect, cornerRadius, cornerRadius, NULL);
-    CGContextAddPath(ctx, rimPath);
-    CGContextSetLineWidth(ctx, rimWidth * 2);
-    CGContextReplacePathWithStrokedPath(ctx);
-    CGContextClip(ctx);
-    // Mostly uniform with a brighter top, matching the system bevel (which
-    // stays visible along an icon's bottom edge too).
-    NSGradient *rim = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithWhite:1 alpha:0.28]
-                                                    endingColor:[NSColor colorWithWhite:1 alpha:0.55]];
-    [rim drawInRect:drawingRect angle:90]; // 90° = bottom → top: brightest on top
-    CGPathRelease(rimPath);
-    CGContextRestoreGState(ctx);
+        // A Liquid Glass-style rim light: a thin inner stroke that is brightest
+        // along the top edge and fades toward the bottom, approximating the
+        // bevel the system renders on real (Icon Composer) icons — without it
+        // the artwork tile reads flat next to every neighboring icon. Stroking
+        // the clip path at double width while clipped to the icon shape leaves
+        // exactly the inner rimWidth-wide band visible.
+        CGContextRef ctx = [NSGraphicsContext currentContext].CGContext;
+        CGContextSaveGState(ctx);
+        CGPathRef rimPath = CGPathCreateWithRoundedRect(drawingRect, cornerRadius, cornerRadius, NULL);
+        CGContextAddPath(ctx, rimPath);
+        CGContextSetLineWidth(ctx, rimWidth * 2);
+        CGContextReplacePathWithStrokedPath(ctx);
+        CGContextClip(ctx);
+        // Mostly uniform with a brighter top, matching the system bevel (which
+        // stays visible along an icon's bottom edge too).
+        NSGradient *rim = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithWhite:1 alpha:0.28]
+                                                        endingColor:[NSColor colorWithWhite:1 alpha:0.55]];
+        [rim drawInRect:drawingRect angle:90]; // 90° = bottom → top: brightest on top
+        CGPathRelease(rimPath);
+        CGContextRestoreGState(ctx);
 
-    [NSGraphicsContext restoreGraphicsState];
-
-    NSImage *finalImage = [[NSImage alloc] initWithSize:NSMakeSize(canvasSize, canvasSize)];
-    [finalImage addRepresentation:rep];
-    return finalImage;
+    }];
 }
 
 + (void)setDockIcon:(NSImage*)image {

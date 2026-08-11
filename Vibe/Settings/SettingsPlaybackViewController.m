@@ -11,13 +11,11 @@
 static const CGFloat kPlaybackPaneHeight = 240;
 static const CGFloat kPlaybackPopUpWidth = 200;
 
-// The skip presets: the smallest skip's bar count; the three sizes are the
-// base, twice it and four times it.
-static const NSInteger kSkipBasePresets[] = {4, 8, 16};
-
-// The crossfade presets, in milliseconds. 10 is the declick minimum the
-// engine always applies — effectively instant.
-static const NSInteger kCrossfadePresets[] = {10, 500, 2000};
+// The preset values live in AppSettings.h (kVibeSkipBasePresets: the smallest
+// skip's bar count, the three sizes being the base, twice and four times it;
+// kVibeCrossfadePresets in milliseconds, 10 the declick minimum the engine
+// always applies — effectively instant), because the getters snap persisted
+// values to them.
 
 @implementation SettingsPlaybackViewController {
     NSButton *_pitchRange8;
@@ -41,8 +39,8 @@ static const NSInteger kCrossfadePresets[] = {10, 500, 2000};
     pitchRadios.spacing = 12;
 
     _skipStepsPopUp = [self popUpButtonWithWidth:kPlaybackPopUpWidth action:@selector(skipStepsChanged:)];
-    for (size_t i = 0; i < sizeof(kSkipBasePresets) / sizeof(kSkipBasePresets[0]); i++) {
-        NSInteger base = kSkipBasePresets[i];
+    for (size_t i = 0; i < sizeof(kVibeSkipBasePresets) / sizeof(kVibeSkipBasePresets[0]); i++) {
+        NSInteger base = kVibeSkipBasePresets[i];
         [_skipStepsPopUp addItemWithTitle:[NSString stringWithFormat:STR_SETTINGS_SKIP_STEPS_OPTION,
                                            (long)base, (long)(base * 2), (long)(base * 4)]];
         _skipStepsPopUp.lastItem.tag = base;
@@ -54,7 +52,7 @@ static const NSInteger kCrossfadePresets[] = {10, 500, 2000};
                                              STR_SETTINGS_CROSSFADE_LONG];
     for (NSUInteger i = 0; i < crossfadeTitles.count; i++) {
         [_crossfadePopUp addItemWithTitle:crossfadeTitles[i]];
-        _crossfadePopUp.lastItem.tag = kCrossfadePresets[i];
+        _crossfadePopUp.lastItem.tag = kVibeCrossfadePresets[i];
     }
 
     _detectBPMCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_DETECT_BPM
@@ -78,12 +76,9 @@ static const NSInteger kCrossfadePresets[] = {10, 500, 2000};
     NSInteger range = Settings.pitchRange;
     _pitchRange8.state = range != 16 ? NSControlStateValueOn : NSControlStateValueOff;
     _pitchRange16.state = range == 16 ? NSControlStateValueOn : NSControlStateValueOff;
-    if (![_skipStepsPopUp selectItemWithTag:Settings.skipBaseBars]) {
-        [_skipStepsPopUp selectItemWithTag:8];
-    }
-    if (![_crossfadePopUp selectItemWithTag:Settings.crossfadeMilliseconds]) {
-        [_crossfadePopUp selectItemWithTag:kCrossfadePresets[0]];
-    }
+    // The getters snap to a preset, so these always match an item.
+    [_skipStepsPopUp selectItemWithTag:Settings.skipBaseBars];
+    [_crossfadePopUp selectItemWithTag:Settings.crossfadeMilliseconds];
     _detectBPMCheckbox.state = Settings.analyzeBPM ? NSControlStateValueOn : NSControlStateValueOff;
     _detectKeyCheckbox.state = Settings.analyzeKey ? NSControlStateValueOn : NSControlStateValueOff;
 }

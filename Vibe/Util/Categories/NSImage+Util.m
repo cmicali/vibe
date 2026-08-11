@@ -7,15 +7,14 @@
 
 @implementation NSImage (Util)
 
-- (NSImage *)resizedImage:(NSSize)newSize
-{
++ (NSImage *)imageWithSize:(NSSize)size drawnBy:(void (NS_NOESCAPE ^)(void))draw {
     // A zero dimension produces a nil bitmap rep, which crashes downstream.
-    newSize.width = MAX(1.0, newSize.width);
-    newSize.height = MAX(1.0, newSize.height);
+    size.width = MAX(1.0, size.width);
+    size.height = MAX(1.0, size.height);
     NSBitmapImageRep *rep = [[NSBitmapImageRep alloc]
                                                initWithBitmapDataPlanes:NULL
-                                                             pixelsWide:newSize.width
-                                                             pixelsHigh:newSize.height
+                                                             pixelsWide:(NSInteger)size.width
+                                                             pixelsHigh:(NSInteger)size.height
                                                           bitsPerSample:8
                                                         samplesPerPixel:4
                                                                hasAlpha:YES
@@ -31,18 +30,28 @@
     if (!rep) {
         return nil;
     }
-    rep.size = newSize;
+    rep.size = size;
     NSGraphicsContext *context = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
     if (!context) {
         return nil;
     }
     [NSGraphicsContext saveGraphicsState];
     [NSGraphicsContext setCurrentContext:context];
-    [self drawInRect:NSMakeRect(0, 0, newSize.width, newSize.height) fromRect:NSZeroRect operation:NSCompositingOperationCopy fraction:1.0];
+    draw();
     [NSGraphicsContext restoreGraphicsState];
-    NSImage *newImage = [[NSImage alloc] initWithSize:newSize];
-    [newImage addRepresentation:rep];
-    return newImage;
+    NSImage *image = [[NSImage alloc] initWithSize:size];
+    [image addRepresentation:rep];
+    return image;
+}
+
+- (NSImage *)resizedImage:(NSSize)newSize
+{
+    return [NSImage imageWithSize:newSize drawnBy:^{
+        [self drawInRect:NSMakeRect(0, 0, MAX(1.0, newSize.width), MAX(1.0, newSize.height))
+                fromRect:NSZeroRect
+               operation:NSCompositingOperationCopy
+                fraction:1.0];
+    }];
 }
 
 - (NSColor *)dominantColor {

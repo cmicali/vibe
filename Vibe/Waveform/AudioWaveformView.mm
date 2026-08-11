@@ -232,14 +232,23 @@
     _convertSweepFraction = fraction;
 }
 
-- (void)prepareForWaveformLoad {
-    [self hideLoadingIndicator];
-    [self hideEmptyPlaceholder];
-    // Otherwise a stale hover playhead would sit over the next track's
-    // waveform until the mouse moved again.
+// The teardown shared by every presentation reset — prepareForWaveformLoad,
+// showLoadingIndicator and showEmptyPlaceholder — kept in one place so the
+// three cannot drift: clear the previous track's waveform, sweep and hover
+// state (a stale hover playhead would otherwise sit over the next
+// presentation until the mouse moved). Callers hide whichever overlay layers
+// must not survive, and redraw, themselves.
+- (void)resetWaveformContentState {
     [self hideHoverIndicator];
     _convertSweepFraction = 0;
     _waveform = nil;
+    self.progress = 0;
+}
+
+- (void)prepareForWaveformLoad {
+    [self hideLoadingIndicator];
+    [self hideEmptyPlaceholder];
+    [self resetWaveformContentState];
     if (!_currentWaveformRenderer) {
         // Prefer the persisted style, then the app default. allKeys[0] is a
         // last resort only, because NSMutableDictionary key order is
@@ -254,7 +263,6 @@
         }
         [self setWaveformStyle:style];
     }
-    self.progress = 0;
     [self drawWaveform];
 }
 
@@ -263,11 +271,8 @@
         return;
     }
     [self hideEmptyPlaceholder];
-    [self hideHoverIndicator];
     // Collapse any previous track's waveform, so the shimmer stands alone.
-    _convertSweepFraction = 0;
-    _waveform = nil;
-    self.progress = 0;
+    [self resetWaveformContentState];
     if (_currentWaveformRenderer) {
         [self drawWaveform];
     }
@@ -355,10 +360,7 @@
         return;
     }
     [self hideLoadingIndicator];
-    [self hideHoverIndicator];
-    _convertSweepFraction = 0;
-    _waveform = nil;
-    self.progress = 0;
+    [self resetWaveformContentState];
     if (_currentWaveformRenderer) {
         [self drawWaveform];
     }

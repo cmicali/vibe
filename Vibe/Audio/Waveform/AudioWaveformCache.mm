@@ -58,14 +58,10 @@
         // snapshotted here, and PINCache itself is thread-safe — so it is
         // always constructed before first use.
         dispatch_async(_loaderQueue, ^{
-            self->_waveformCache = [[PINCache alloc] initWithName:AudioWaveformCache.cacheName];
-            self->_waveformCache.diskCache.byteLimit = kAudioCacheByteLimit;
-            self->_waveformCache.diskCache.ageLimit = kAudioCacheAgeLimit;
-            // The memory cache is deliberately unused, and load: reads and
-            // writes diskCache directly. On macOS PINMemoryCache never evicts,
-            // so it would pin about 64KB per unique track played for the app's
-            // lifetime. The view retains the one live waveform, and a replay
-            // re-reads from disk in a few ms on this utility queue.
+            // Why the memory cache goes unused is with the shared policy. The
+            // view retains the one live waveform, and a replay re-reads from
+            // disk in a few ms on this utility queue.
+            self->_waveformCache = VibeAudioCacheCreate(AudioWaveformCache.cacheName);
         });
     }
     return self;
@@ -85,18 +81,7 @@
     // The serial queue guarantees the cache exists and keeps the blocking
     // enumeration off the caller's thread.
     dispatch_async(_loaderQueue, ^{
-        __block NSUInteger count = 0;
-        __block unsigned long long bytes = 0;
-        [self->_waveformCache.diskCache enumerateObjectsWithBlock:^(NSString *key, NSURL *fileURL, BOOL *stop) {
-            count++;
-            NSNumber *size = nil;
-            if ([fileURL getResourceValue:&size forKey:NSURLFileSizeKey error:nil]) {
-                bytes += size.unsignedLongLongValue;
-            }
-        }];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            completion(count, bytes);
-        });
+        VibeAudioCacheDiskUsage(self->_waveformCache, completion);
     });
 }
 
