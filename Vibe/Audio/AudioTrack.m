@@ -28,6 +28,7 @@
     if (self) {
         self.url = url;
         _duration = -1;
+        _detectedKey = VibeMusicalKeyNone; // the zero-filled default is C major
     }
     return self;
 }
@@ -102,6 +103,14 @@
 - (float)bpm {
     float tagged = self.metadata.bpm;
     return tagged > 0 ? tagged : self.detectedBPM;
+}
+
+- (VibeMusicalKey)key {
+    // The nil check is load-bearing: messaging a nil metadata returns 0 for
+    // NSInteger, and 0 is C major, not "no key".
+    AudioTrackMetadata *metadata = self.metadata;
+    VibeMusicalKey tagged = metadata ? metadata.key : VibeMusicalKeyNone;
+    return tagged >= 0 ? tagged : self.detectedKey;
 }
 
 // _duration is written from the player queue, where finishPlayOnQueue

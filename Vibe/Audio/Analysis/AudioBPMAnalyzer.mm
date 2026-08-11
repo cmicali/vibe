@@ -29,6 +29,28 @@ static const double kMinAnalysisSeconds = 8.0;
 // this factor, or the track is reported as having no detectable tempo.
 static const float kMinConfidence = 1.3f;
 
+// The tie-breaking tempo prior applied to the phase comb's candidates, as a
+// Gaussian over BPM. Only the center decides which way an octave pair falls:
+// a candidate T beats its half exactly when T < 4/3 of the center, so the
+// center places that crossover — here at 187 BPM, which keeps drum and bass at
+// 174 rather than halving it to 87 — and the spread only sets how hard the
+// prior can override the comb. Both were swept against GiantSteps; see
+// Audio/CLAUDE.md. The center is the sensitive one: 120 costs 9 points of
+// Accuracy1, and widening the spread to 160, or dropping the prior entirely,
+// costs 6 and 11 — the prior is load-bearing, not decoration.
+static const double kTempoPriorCenterBPM = 140.0;
+static const double kTempoPriorSpreadBPM = 80.0;
+
+// How the phase comb's grid sum is normalized for grid size: score = sum /
+// count^exponent. This, not the prior, is the evidence-based half-against-
+// double test, and the exponent sets its threshold. Comparing a grid against
+// its half — which hits only the strong beats, skipping the ones between —
+// the faster grid wins exactly when the in-between beats average more than
+// 2^-(1-exponent) of the strong ones: 41% at 0.5, 62% at 0.3. Lower therefore
+// favors the faster reading on beat evidence alone, which is the right place
+// to settle an octave, leaving the prior to break genuine ties.
+static const double kGridNormExponent = 0.5;
+
 @implementation AudioBPMAnalyzer {
     double _sampleRate;
     FFTSetup _fftSetup;
@@ -314,12 +336,12 @@ static const float kMinConfidence = 1.3f;
         if (gridCount < 4) {
             continue;
         }
-        double timeScore = bestSum / std::sqrt((double)gridCount);
+        double timeScore = bestSum / std::pow((double)gridCount, kGridNormExponent);
 
         // A mild, wide prior toward common tempos. It is a tiebreaker only,
         // since the phase comb has already separated the metrical family.
         double bpm = 60.0 * fps / bestLagF;
-        double z = (bpm - 120.0) / 80.0;
+        double z = (bpm - kTempoPriorCenterBPM) / kTempoPriorSpreadBPM;
         double weighted = timeScore * std::exp(-0.5 * z * z);
         if (weighted > bestFinal) {
             bestFinal = weighted;

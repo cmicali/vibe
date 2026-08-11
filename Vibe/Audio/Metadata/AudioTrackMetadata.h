@@ -5,6 +5,7 @@
 
 #import <Foundation/Foundation.h>
 #import "PlatformTypes.h"
+#import "MusicalKey.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -39,6 +40,14 @@ NS_ASSUME_NONNULL_BEGIN
 // and 0 when the file carries none. A tagged value beats the decode-pass
 // analysis in AudioTrack.detectedBPM, because DJs curate their tags.
 @property (assign) float bpm;
+
+// The producer-tagged musical key, parsed from ID3 TKEY, Vorbis and FLAC
+// INITIALKEY, or the MP4 initialkey freeform atom, in any of the notations
+// VibeMusicalKeyFromString reads. VibeMusicalKeyNone (-1) when the file
+// carries none or the tag is unparseable — the ivar default of 0 would read
+// as C major, so every init path must set it. A tagged value beats the
+// decode-pass analysis in AudioTrack.detectedKey, like bpm.
+@property (assign) VibeMusicalKey key;
 
 // YES only when TagLib actually opened the file and read its tag. NO means the
 // parse failed, on a dataless cloud placeholder or a transient I/O error, and

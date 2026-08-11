@@ -6,6 +6,8 @@
 #import "AVFAudioWaveformLoader.h"
 #import "AudioWaveform.h"
 #import "AudioBPMAnalyzer.h"
+#import "AudioKeyAnalyzer.h"
+#import "AudioLoadTiming.h"
 #import <AVFoundation/AVFoundation.h>
 
 #include <vector>
@@ -13,6 +15,11 @@
 @implementation AVFAudioWaveformLoader
 
 - (CodableAudioWaveform *)load:(NSString *)filename {
+
+    // Phase timings for this pass. The clock reads compile to constants in
+    // Release, where nothing consumes them; see AudioLoadTiming.h.
+    VibeLoadPhaseNanos nanos = {};
+    uint64_t loadStart = VibeLoadClockNow();
 
     // A cancel may have arrived while this load was queued, so honor it.
     if (self.isCancelled) {
@@ -78,15 +85,18 @@
         return nil;
     }
 
-    // Tempo detection rides the same decode pass: the analyzer consumes each
-    // buffer right after the waveform chunk does, so BPM never costs a second
-    // full-file read, which matters for cloud-backed files. With the setting
-    // off there is no analyzer, and the waveform caches with no BPM — a file
-    // scanned while off is not re-analyzed on re-enable until its cache entry
-    // goes. The explicit scan_bpm debug path runs the analyzer directly and
-    // ignores this.
+    // Tempo and key detection ride the same decode pass: each analyzer
+    // consumes the buffer right after the waveform chunk does, so neither
+    // costs a second full-file read, which matters for cloud-backed files.
+    // With a setting off there is no analyzer, and the waveform caches with
+    // no BPM or key — a file scanned while off is not re-analyzed on
+    // re-enable until its cache entry goes. The explicit scan_bpm and
+    // scan_key debug paths run the analyzers directly and ignore this.
     AudioBPMAnalyzer *bpmAnalyzer = Settings.analyzeBPM
             ? [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate]
+            : nil;
+    AudioKeyAnalyzer *keyAnalyzer = Settings.analyzeKey
+            ? [[AudioKeyAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate]
             : nil;
 
     // Scratch for the shared interleaved-to-mono mix. Each decode buffer is
@@ -116,22 +126,35 @@
         AVAudioFrameCount toRead = (AVAudioFrameCount)MIN(
                 (AVAudioFramePosition)kReadBlockFrames, totalFrames - framesRead);
         // A sequential read: AVAudioFile advances its framePosition.
+        uint64_t phaseStart = VibeLoadClockNow();
         if (![file readIntoBuffer:buffer frameCount:toRead error:&error]) {
             LogError(@"AVAudioFile read failed at frame %lld of %lld in %@: %@",
                      framesRead, totalFrames, filename, error);
             readError = YES;
             break;
         }
+        nanos.read += VibeLoadClockNow() - phaseStart;
         if (buffer.frameLength == 0) {
             break; // EOF; the completeness thresholds below decide what it means
         }
         NSUInteger numFrames = buffer.frameLength;
+        // The downmix counts as baseline: the chunker needs it whether or not
+        // an analyzer is running.
+        phaseStart = VibeLoadClockNow();
         const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], monoScratch.data(),
                                                  numFrames, numChannels);
+        nanos.chunk += VibeLoadClockNow() - phaseStart;
+
+        phaseStart = VibeLoadClockNow();
         [bpmAnalyzer appendMonoSamples:mono frameCount:numFrames];
+        nanos.bpmAppend += VibeLoadClockNow() - phaseStart;
+        phaseStart = VibeLoadClockNow();
+        [keyAnalyzer appendMonoSamples:mono frameCount:numFrames];
+        nanos.keyAppend += VibeLoadClockNow() - phaseStart;
 
         // Slice the block at chunk boundaries, merging each segment into the
         // chunk it belongs to.
+        phaseStart = VibeLoadClockNow();
         NSUInteger offset = 0;
         while (offset < numFrames && chunkIndex < effectiveChunks) {
             AVAudioFramePosition pos = framesRead + (AVAudioFramePosition)offset;
@@ -149,6 +172,7 @@
                         / (AVAudioFramePosition)effectiveChunks;
             }
         }
+        nanos.chunk += VibeLoadClockNow() - phaseStart;
         framesRead += numFrames;
 
         // Throttle delegate notifications to about 10 Hz, because each one
@@ -221,8 +245,23 @@
         }
     }
     if (self.isComplete && bpmAnalyzer) {
+        uint64_t phaseStart = VibeLoadClockNow();
         result.bpm = [bpmAnalyzer finish];
+        nanos.bpmFinish = VibeLoadClockNow() - phaseStart;
     }
+    if (self.isComplete && keyAnalyzer) {
+        uint64_t phaseStart = VibeLoadClockNow();
+        result.key = [keyAnalyzer finish];
+        nanos.keyFinish = VibeLoadClockNow() - phaseStart;
+    }
+    nanos.total = VibeLoadClockNow() - loadStart;
+#if DEBUG
+    [AudioLoadTiming recordPath:filename
+                   audioSeconds:(NSTimeInterval)totalFrames / file.processingFormat.sampleRate
+                     bpmEnabled:bpmAnalyzer != nil
+                     keyEnabled:keyAnalyzer != nil
+                          nanos:nanos];
+#endif
     return result;
 }
 

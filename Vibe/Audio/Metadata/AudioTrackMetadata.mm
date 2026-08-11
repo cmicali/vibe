@@ -6,6 +6,7 @@
 #import "AudioTrackMetadata.h"
 #import "NSString+CPPStrings.h"
 #import "AudioTrackArtwork.h"
+#import "MusicalKey.h"
 
 #import <ImageIO/ImageIO.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -172,6 +173,9 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     [coder encodeObject:self.sampleRate forKey:@"sampleRate"];
     [coder encodeDouble:self.duration forKey:@"duration"];
     [coder encodeFloat:self.bpm forKey:@"bpm"];
+    // As an object, not encodeInteger: an absent integer decodes as 0, which
+    // as a key means C major, whereas an absent object is unambiguously nil.
+    [coder encodeObject:@(self.key) forKey:@"key"];
 }
 
 + (BOOL)supportsSecureCoding {
@@ -223,6 +227,10 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
         // fresh-parse path, so a doctored entry cannot smuggle in an absurd BPM.
         float bpm = [coder decodeFloatForKey:@"bpm"];
         self.bpm = isfinite(bpm) && bpm > 0 && bpm < 1000 ? bpm : 0;
+        id keyValue = [coder decodeObjectForKey:@"key"];
+        if (keyValue && ![keyValue isKindOfClass:[NSNumber class]]) return nil;
+        NSInteger key = keyValue ? [keyValue integerValue] : -1;
+        self.key = (key >= 0 && key < 24) ? key : -1;
         // A cache-hit instance represents a successful prior parse.
         self.parsedOK = YES;
     }
@@ -268,6 +276,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 - (instancetype)initWithURL:(NSURL *)url {
     self = [super init];
     if (self) {
+        self.key = VibeMusicalKeyNone; // the zero-filled default is C major
         [self loadFromURL:url];
     }
     return self;
@@ -323,6 +332,21 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
             if (isfinite(tagBPM) && tagBPM > 0 && tagBPM < 1000) {
                 self.bpm = tagBPM;
             }
+        }
+
+        // The tagged key. ID3 TKEY normalizes to "INITIALKEY", and Vorbis and
+        // FLAC INITIALKEY fields arrive under the same name — but MP4 has no
+        // item-factory mapping, so the common `----:com.apple.iTunes:initialkey`
+        // freeform atom passes through with its name verbatim; check it
+        // second. An unparseable value leaves key at -1 by the parser's own
+        // contract, so analysis fills in rather than a bad tag blanking it.
+        TagLib::StringList keyValues = file->properties()["INITIALKEY"];
+        if (keyValues.isEmpty()) {
+            keyValues = file->properties()["initialkey"];
+        }
+        if (!keyValues.isEmpty()) {
+            self.key = VibeMusicalKeyFromString(
+                    [NSString stringWithStdString:keyValues.front().to8Bit(true)]);
         }
 
         self.fileType = fileTypeForTagLibFile(file);

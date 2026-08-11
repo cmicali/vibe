@@ -126,10 +126,18 @@ static inline TrackDisplayState VibeResolveTrackDisplayState(
 // --:--.
 - (void)renderTotalDuration:(NSTimeInterval)duration rate:(double)rate state:(TrackDisplayState)state;
 
-// The BPM line under the codec label. It takes the pitch-scaled display value,
-// since the caller owns both the tag-against-analysis precedence and the rate
-// scaling. A value of 0 or less clears it.
-- (void)renderBPM:(float)displayBPM;
+// The BPM line under the codec label, which also carries the musical key. It
+// takes the pitch-scaled display value, since the caller owns both the
+// tag-against-analysis precedence and the rate scaling, and the key already
+// formatted in the user's chosen notation, since the caller owns that choice
+// too. A BPM of 0 or less and an empty key text clear their halves; with
+// both absent the line is empty.
+//
+// colorKey is the VibeMusicalKey whose CDJ color the key text should be drawn
+// in, bold, or -1 to draw it like the rest of the line. The caller passes the
+// key rather than a color because the palette is a display concern; it passes
+// -1 when the setting is off.
+- (void)renderBPM:(float)displayBPM keyText:(NSString *)keyText colorKey:(NSInteger)colorKey;
 
 // SF Symbols for the effects that are on, drawn immediately left of the codec
 // text, on the same line, so they inherit its right alignment, color and 50%

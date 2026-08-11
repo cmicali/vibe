@@ -17,6 +17,9 @@
 #define SETTING_SKIP_BASE_BARS                      @"Transport.skipBaseBars"
 #define SETTING_CROSSFADE_MILLISECONDS              @"AudioPlayer.crossfadeMilliseconds"
 #define SETTING_ANALYZE_BPM                         @"Audio.analyzeBPM"
+#define SETTING_ANALYZE_KEY                         @"Audio.analyzeKey"
+#define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
+#define SETTING_KEY_COLORS                          @"Appearance.keyColors"
 #define SETTING_CONVERT_ASKS_WHERE_TO_SAVE          @"Convert.asksWhereToSave"
 
 @implementation AppSettings
@@ -52,6 +55,9 @@
             SETTING_SKIP_BASE_BARS:                 @(8),
             SETTING_CROSSFADE_MILLISECONDS:         @(10),
             SETTING_ANALYZE_BPM:                    @(YES),
+            SETTING_ANALYZE_KEY:                    @(NO),
+            SETTING_KEY_NOTATION:                   SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
+            SETTING_KEY_COLORS:                     @(NO),
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
     };
     [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
@@ -201,6 +207,35 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 
 - (void)setAnalyzeBPM:(BOOL)analyze {
     [[NSUserDefaults standardUserDefaults] setBool:analyze forKey:SETTING_ANALYZE_BPM];
+}
+
+- (BOOL)analyzeKey {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_ANALYZE_KEY];
+}
+
+- (void)setAnalyzeKey:(BOOL)analyze {
+    [[NSUserDefaults standardUserDefaults] setBool:analyze forKey:SETTING_ANALYZE_KEY];
+}
+
+- (NSString *)keyNotation {
+    NSString *notation = [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_KEY_NOTATION];
+    // An unrecognized persisted value renders as Camelot rather than nothing.
+    if (![notation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]) {
+        return SETTINGS_VALUE_KEY_NOTATION_CAMELOT;
+    }
+    return notation;
+}
+
+- (void)setKeyNotation:(NSString *)notation {
+    [[NSUserDefaults standardUserDefaults] setObject:notation forKey:SETTING_KEY_NOTATION];
+}
+
+- (BOOL)keyColorsEnabled {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_KEY_COLORS];
+}
+
+- (void)setKeyColorsEnabled:(BOOL)enabled {
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_KEY_COLORS];
 }
 
 - (BOOL)convertAsksWhereToSave {

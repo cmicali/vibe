@@ -30,6 +30,7 @@
 #import "TransportKeyMonitor.h"
 #import "NowPlayingController.h"
 #import "MainMenuBuilder.h" // vends the context-menu items shared with the main menu
+#import "MusicalKey.h"
 #import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerController+Transport.h" // updateFXIndicators, from the updateUI funnel
 #import "UIUpdateTimer.h"
@@ -530,14 +531,31 @@
 // — funnels through here, so that both consumers see it: the delay echo's
 // BPM-synced taps and the BPM label. The fx write is unconditional, because
 // the label's 0.1 BPM granularity is coarser than the fader's and must not
-// gate the audio parameter. The setter no-ops on the same value.
+// gate the audio parameter. The setter no-ops on the same value. The key
+// shares the label line, so its changes — a key delivery, a notation change
+// — funnel through here too.
 - (void)effectiveTempoDidChange {
     AudioTrack *track = [self displayedTrack];
     float baseBPM = track.bpm;
     float scaledBPM = baseBPM > 0 ? baseBPM * self.playbackRate : 0;
     self.audioPlayer.fx.delayTapBPM = scaledBPM;
     // The label shows the same pitch-scaled value, and no track clears it.
-    [self.trackDisplay renderBPM:(track ? scaledBPM : 0)];
+    // The key is the track's own, deliberately not shifted with the fader:
+    // the varispeed's shift only reaches a semitone at the extreme of the
+    // 16% range, and a flickering key label would misread as a data change.
+    // The notation governs every key the app shows, a tagged one included: the
+    // tag was parsed to a VibeMusicalKey when it was read, so a file tagged
+    // "Bbm" renders as "3A" under Camelot rather than as written.
+    NSInteger key = track ? track.key : -1;
+    NSString *keyText = @"";
+    if (key >= 0) {
+        keyText = [Settings.keyNotation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]
+                ? VibeMusicalKeyMusicalName(key)
+                : VibeMusicalKeyCamelotName(key);
+    }
+    [self.trackDisplay renderBPM:(track ? scaledBPM : 0)
+                         keyText:keyText
+                        colorKey:(Settings.keyColorsEnabled ? key : -1)];
 }
 
 - (IBAction)playPause:(nullable id)sender {
@@ -948,6 +966,19 @@
     }
 }
 
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectKey:(NSInteger)key forURL:(NSURL *)url {
+    // Same late-delivery contract as didDetectBPM: above: stamp the track
+    // that owns the URL, refresh only if it is the one on display.
+    AudioTrack *track = [self.playlistController trackForURL:url];
+    if (!track) {
+        return;
+    }
+    track.detectedKey = key;
+    if ([self.playlistController isCurrentTrack:track]) {
+        [self effectiveTempoDidChange];
+    }
+}
+
 #pragma mark - Actions
 
 - (IBAction) toggleSize:(id)sender {
@@ -1064,6 +1095,10 @@
 
 - (void)refreshTimeDisplay {
     [self updateUI];
+}
+
+- (void)refreshKeyDisplay {
+    [self effectiveTempoDidChange];
 }
 
 - (IBAction) showInFinder:(id)sender {

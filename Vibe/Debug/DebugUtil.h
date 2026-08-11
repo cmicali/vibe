@@ -62,23 +62,26 @@ void VibeInstallDebugScreenshotHook(void);
 // the main queue.
 void VibeInstallDebugCommandHook(void);
 
-// The core of the `scan_bpm` debug command. It decodes the file and runs
-// AudioBPMAnalyzer in the calling process, returning one JSON object: either
-// {"ok","bpm"}, where a bpm of 0 means no confident tempo, or {"error"}.
+// The cores of the `scan_bpm` and `scan_key` debug commands. Each decodes the
+// file and runs its analyzer in the calling process, returning one JSON
+// object: {"ok","bpm"} where bpm 0 means no confident tempo, {"ok","key",
+// "camelot","index"} where empty strings and index -1 mean no confident key,
+// or {"error"}.
 //
-// It is a pure decode and analyze with no app state, so the CLI client runs
-// this verb locally: `Vibe --debug-cmd scan_bpm <file>` works with no app
-// running and never touches a running instance. The command-table entry runs
-// the same function app-side for callers that post the command file directly.
+// They are pure decode and analyze with no app state, so the CLI client runs
+// these verbs locally: `Vibe --debug-cmd scan_bpm <file>` works with no app
+// running and never touches a running instance. The command-table entries run
+// the same functions app-side for callers that post the command file directly.
 //
 // Sandbox caveat: the running process can read only the paths it has been
 // granted, and the direct-exec'd client is limited to the app container. So
-// scan-bpm.sh streams the file through stdin, in the `scan_bpm -` form, and
-// the client stages it in the container tmp.
+// scan-bpm.sh and scan-key.sh stream the file through stdin, in the
+// `scan_bpm -` form, and the client stages it in the container tmp.
 //
-// It is implemented in DebugBPMScan.mm, which needs the C++ waveform
+// They are implemented in DebugBPMScan.mm, which needs the C++ waveform
 // mono-mix header that DebugUtil.m must not import.
 NSString *VibeDebugBPMScanJSON(NSString *rawPath);
+NSString *VibeDebugKeyScanJSON(NSString *rawPath);
 
 // The client side, in DebugClient.m. main() invokes it for
 // `Vibe --debug-cmd ...` before NSApplicationMain, so no second app instance

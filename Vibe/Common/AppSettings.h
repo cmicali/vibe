@@ -17,6 +17,10 @@
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT       @"light"
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK        @"dark"
 
+// Key-label notation identifiers, never display names.
+#define SETTINGS_VALUE_KEY_NOTATION_CAMELOT                 @"camelot"
+#define SETTINGS_VALUE_KEY_NOTATION_MUSICAL                 @"musical"
+
 @interface AppSettings : NSObject
 
 + (AppSettings*)sharedInstance;
@@ -81,6 +85,27 @@
 // yet cached. Tagged BPM is unaffected either way.
 - (BOOL)analyzeBPM;
 - (void)setAnalyzeBPM:(BOOL)analyze;
+
+// NO skips key detection on the waveform decode pass; same caching caveat as
+// analyzeBPM, and a tagged key is likewise unaffected. Defaults OFF, unlike
+// analyzeBPM: detection is right about half the time on real dance music
+// (see Audio/CLAUDE.md), which is not good enough to put in front of someone
+// unasked, while a key the file already carries always shows.
+- (BOOL)analyzeKey;
+- (void)setAnalyzeKey:(BOOL)analyze;
+
+// YES draws the key label in the CDJ-style color of its Camelot number, in
+// bold. Default off — the plain dimmed label matches the rest of the corner.
+- (BOOL)keyColorsEnabled;
+- (void)setKeyColorsEnabled:(BOOL)enabled;
+
+// How the key label renders: VibeKeyNotationCamelot ("8A") or
+// VibeKeyNotationMusical ("Am"). Stable identifiers, never display names.
+// It governs every key the app shows, including one read from the file's own
+// tag: a tagged "Bbm" displays as "3A" under Camelot, because the tag is
+// parsed to a VibeMusicalKey at the boundary and never shown as written.
+- (NSString *)keyNotation;
+- (void)setKeyNotation:(NSString *)notation;
 
 // YES makes Convert to FLAC always run the save panel instead of writing the
 // FLAC silently beside the source.

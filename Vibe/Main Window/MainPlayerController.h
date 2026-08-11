@@ -84,6 +84,10 @@ NS_ASSUME_NONNULL_BEGIN
 // somewhere other than the label click, i.e. the Settings pane.
 - (void)refreshTimeDisplay;
 
+// Re-renders the key half of the BPM line after Settings.keyNotation changes,
+// i.e. from the Settings pane.
+- (void)refreshKeyDisplay;
+
 - (IBAction)showInFinder:(id)sender;
 - (IBAction)copyFile:(id)sender;
 - (IBAction)copyName:(id)sender;
@@ -91,7 +95,7 @@ NS_ASSUME_NONNULL_BEGIN
 // The Convert to FLAC and undo/redo actions live in
 // MainPlayerController+Convert.h, like the Transport actions.
 
-- (IBAction)setAppearance:(id)sender;
+- (IBAction)setAppearance:(nullable id)sender;
 
 @end
 
