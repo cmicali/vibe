@@ -2,7 +2,7 @@
 
 CONFIG ?= Release
 
-.PHONY: setup project build test release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings
+.PHONY: setup project build test release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -42,6 +42,12 @@ install: build
 # app for direct download. See scripts/release.sh for the required credentials.
 release:
 	scripts/release.sh
+
+# Publish the notarized zip from `make release` as a GitHub release: tags HEAD
+# as v<MARKETING_VERSION>, attaches vibe-macos-<arch>-<version>.zip, notes from
+# the App Store whats-new.txt. See scripts/github-release.sh.
+github-release:
+	scripts/github-release.sh
 
 # Build Release signed for the Mac App Store and run App Store Connect's
 # validation, WITHOUT submitting. See scripts/release-appstore.sh for the

@@ -8,3 +8,6 @@ brew "xcodegen"
 # JSON filtering for the vibe-debug skill's --debug-cmd replies. macOS 15+
 # ships /usr/bin/jq, so this just guarantees a modern copy everywhere.
 brew "jq"
+
+# GitHub CLI — `make github-release` publishes the notarized build with it.
+brew "gh"
