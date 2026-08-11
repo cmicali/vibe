@@ -5,12 +5,18 @@
 # bytes), description free of leftover markdown, the shared support-url.txt a
 # bare URL, and screenshots.json holding a non-empty headline and subhead for
 # every shot, each fitting the screenshot layout
-# (compose-app-store-overlay.py --measure).
+# (compose-app-store-overlay.swift --measure).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-COMPOSE="$ROOT/scripts/compose-app-store-overlay.py"
+COMPOSE="$ROOT/scripts/compose-app-store-overlay.swift"
 FAIL=0
+
+# Compile the compositor once — this measures ~120 captions, and `swift
+# file.swift` would recompile on every one.
+COMPOSE_BIN="$(mktemp -d)/compose"
+trap 'rm -rf "$(dirname "$COMPOSE_BIN")"' EXIT
+xcrun swiftc -O -o "$COMPOSE_BIN" "$COMPOSE"
 
 err() { echo "appstore-validate-copy: $*" >&2; FAIL=1; }
 
@@ -44,7 +50,7 @@ check_captions() { # <lang> <screenshots.json>
         h="$(jq -r --arg id "$id" 'first(.[] | select(.id == $id)) | .headline // empty' "$2")"
         s="$(jq -r --arg id "$id" 'first(.[] | select(.id == $id)) | .subhead // empty' "$2")"
         [ -n "$h" ] && [ -n "$s" ] || { err "$1: shot '$id' missing headline or subhead"; continue; }
-        python3 "$COMPOSE" --measure --lang "$1" --headline "$h" --subhead "$s" \
+        "$COMPOSE_BIN" --measure --lang "$1" --headline "$h" --subhead "$s" \
             || err "$1: shot '$id' captions do not fit the layout"
     done
 }
