@@ -17,6 +17,8 @@
 
 // Nanoseconds spent in each phase of one decode pass. read and chunk are the
 // baseline every load pays; the analyzer phases are what a setting turns off.
+// The loader pipelines the read against everything downstream, so the phases
+// can sum past total: each is that phase's own CPU, total is the wall.
 typedef struct {
     uint64_t read;       // AVAudioFile readIntoBuffer — the decode itself
     uint64_t chunk;      // the shared mono downmix plus min/max chunk merging

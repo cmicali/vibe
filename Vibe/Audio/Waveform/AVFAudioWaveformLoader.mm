@@ -77,11 +77,24 @@
     // reads of 5-10KB, some 8,200 per file, each cross the ExtAudioFile and
     // AudioConverter boundary, and that per-call overhead dominates a cold
     // scan. The output is identical, because min/max merging is associative.
+    //
+    // Two buffers, because the decode and the processing are pipelined: block
+    // N+1 decodes on this thread while block N runs through the mono mix, the
+    // analyzers and the chunker on a serial queue one block behind. The pass
+    // is decode-bound — CoreAudio's MP3 and FLAC codecs cost 3-5x everything
+    // downstream combined — so overlapping them takes the wall time down to
+    // roughly the decode alone, 12-17% measured with both analyzers on. A
+    // slot's buffer is reused only after its semaphore signals, so the decode
+    // never writes a buffer the processor is still reading, and the serial
+    // queue preserves stream order, which the analyzers' framing depends on.
     const AVAudioFrameCount kReadBlockFrames = 65536; // ~512KB stereo float32 per read
-    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat
-                                                             frameCapacity:kReadBlockFrames];
-    if (!buffer) {
-        LogError(@"Could not allocate PCM buffer for %@", filename);
+    AVAudioPCMBuffer *buffers[2];
+    buffers[0] = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat
+                                               frameCapacity:kReadBlockFrames];
+    buffers[1] = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat
+                                               frameCapacity:kReadBlockFrames];
+    if (!buffers[0] || !buffers[1]) {
+        LogError(@"Could not allocate PCM buffers for %@", filename);
         return nil;
     }
 
@@ -99,104 +112,140 @@
             ? [[AudioKeyAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate]
             : nil;
 
-    // Scratch for the shared interleaved-to-mono mix. Each decode buffer is
-    // downmixed once here and fed to both the waveform chunk and the BPM
-    // analyzer. Mono files skip the mix entirely, since AudioWaveformMonoMix
-    // returns the buffer itself.
-    std::vector<float> monoScratch;
+    // Scratch for the shared interleaved-to-mono mix, one per pipeline slot.
+    // Each decode buffer is downmixed once and fed to both the waveform chunk
+    // and the analyzers. Mono files skip the mix entirely, since
+    // AudioWaveformMonoMix returns the buffer itself.
+    std::vector<float> monoScratches[2];
     if (numChannels > 1) {
-        monoScratch.resize(kReadBlockFrames);
+        monoScratches[0].resize(kReadBlockFrames);
+        monoScratches[1].resize(kReadBlockFrames);
     }
 
-    CFAbsoluteTime lastProgressTime = 0;
-    NSUInteger chunksFilled = 0;
-    BOOL readError = NO;
-
-    AVAudioFramePosition framesRead = 0;
-    NSUInteger chunkIndex = 0;
+    // Everything the processing blocks touch. They run one at a time on the
+    // serial queue and the decode loop never reads these until the final
+    // drain, so no lock is needed. The phase accumulators are split by
+    // ownership for the same reason: the processing side writes procNanos,
+    // the decode loop writes only nanos.read.
+    dispatch_queue_t processQueue = dispatch_queue_create("com.vibe.waveform.process",
+            dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
+    __block VibeLoadPhaseNanos procNanos = {};
+    __block CFAbsoluteTime lastProgressTime = 0;
+    __block NSUInteger chunksFilled = 0;
+    __block NSUInteger chunkIndex = 0;
+    __block AVAudioFramePosition framesProcessed = 0;
     // Proportional boundaries, with a variance of one frame in chunk size:
     // chunk i ends at frame (i+1)*T/N.
-    AVAudioFramePosition chunkEnd = totalFrames / (AVAudioFramePosition)effectiveChunks;
+    __block AVAudioFramePosition chunkEnd = totalFrames / (AVAudioFramePosition)effectiveChunks;
     // Accumulates a chunk across block boundaries, since a chunk rarely aligns
     // with a block edge.
-    AudioWaveformCacheChunk currentChunk;
-    BOOL currentChunkHasFrames = NO;
+    __block AudioWaveformCacheChunk currentChunk;
+    __block BOOL currentChunkHasFrames = NO;
+
+    dispatch_semaphore_t slotFree[2] = { dispatch_semaphore_create(1), dispatch_semaphore_create(1) };
+    int slot = 0;
+    BOOL readError = NO;
+    AVAudioFramePosition framesRead = 0;
 
     while (framesRead < totalFrames && !self.isCancelled) {
+        // Wait for this slot's previous processing to finish before reusing
+        // its buffer. With two slots the decode runs at most one block ahead.
+        dispatch_semaphore_wait(slotFree[slot], DISPATCH_TIME_FOREVER);
+        AVAudioPCMBuffer *buffer = buffers[slot];
+        float *scratch = monoScratches[slot].data();
+
         AVAudioFrameCount toRead = (AVAudioFrameCount)MIN(
                 (AVAudioFramePosition)kReadBlockFrames, totalFrames - framesRead);
         // A sequential read: AVAudioFile advances its framePosition.
         uint64_t phaseStart = VibeLoadClockNow();
-        if (![file readIntoBuffer:buffer frameCount:toRead error:&error]) {
+        BOOL readOK = [file readIntoBuffer:buffer frameCount:toRead error:&error];
+        nanos.read += VibeLoadClockNow() - phaseStart;
+        if (!readOK) {
             LogError(@"AVAudioFile read failed at frame %lld of %lld in %@: %@",
                      framesRead, totalFrames, filename, error);
             readError = YES;
+            dispatch_semaphore_signal(slotFree[slot]);
             break;
         }
-        nanos.read += VibeLoadClockNow() - phaseStart;
         if (buffer.frameLength == 0) {
-            break; // EOF; the completeness thresholds below decide what it means
+            // EOF; the completeness thresholds below decide what it means.
+            dispatch_semaphore_signal(slotFree[slot]);
+            break;
         }
         NSUInteger numFrames = buffer.frameLength;
-        // The downmix counts as baseline: the chunker needs it whether or not
-        // an analyzer is running.
-        phaseStart = VibeLoadClockNow();
-        const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], monoScratch.data(),
-                                                 numFrames, numChannels);
-        nanos.chunk += VibeLoadClockNow() - phaseStart;
-
-        phaseStart = VibeLoadClockNow();
-        [bpmAnalyzer appendMonoSamples:mono frameCount:numFrames];
-        nanos.bpmAppend += VibeLoadClockNow() - phaseStart;
-        phaseStart = VibeLoadClockNow();
-        [keyAnalyzer appendMonoSamples:mono frameCount:numFrames];
-        nanos.keyAppend += VibeLoadClockNow() - phaseStart;
-
-        // Slice the block at chunk boundaries, merging each segment into the
-        // chunk it belongs to.
-        phaseStart = VibeLoadClockNow();
-        NSUInteger offset = 0;
-        while (offset < numFrames && chunkIndex < effectiveChunks) {
-            AVAudioFramePosition pos = framesRead + (AVAudioFramePosition)offset;
-            NSUInteger take = (NSUInteger)MIN((AVAudioFramePosition)(numFrames - offset),
-                                              chunkEnd - pos);
-            currentChunk.mergeFromMonoBuffer(mono + offset, take);
-            currentChunkHasFrames = YES;
-            offset += take;
-            if (framesRead + (AVAudioFramePosition)offset >= chunkEnd) {
-                waveform->setChunkAtIndex(currentChunk, chunkIndex);
-                chunksFilled = ++chunkIndex;
-                currentChunk = AudioWaveformCacheChunk();
-                currentChunkHasFrames = NO;
-                chunkEnd = totalFrames * (AVAudioFramePosition)(chunkIndex + 1)
-                        / (AVAudioFramePosition)effectiveChunks;
-            }
-        }
-        nanos.chunk += VibeLoadClockNow() - phaseStart;
         framesRead += numFrames;
 
-        // Throttle delegate notifications to about 10 Hz, because each one
-        // triggers a full path rebuild on the main thread. AudioWaveformCache
-        // delivers the final completion callback separately.
-        if (!self.isCancelled) {
-            CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
-            if (now - lastProgressTime >= 0.1) {
-                lastProgressTime = now;
-                float percentComplete = (float)chunksFilled / (float)effectiveChunks;
-                // Snapshot on the loader thread, the only writer, so that the
-                // main thread renders an immutable copy. Reading the live
-                // buffer would be a data race, because this loop keeps calling
-                // setChunkAtIndex and the stretch pass below remaps it in
-                // place.
-                CodableAudioWaveform *snapshot = [result snapshot];
-                dispatch_async(dispatch_get_main_queue(), ^(void) {
-                    if (!self.isCancelled) {
-                        [self.delegate audioWaveformLoader:self waveform:snapshot didLoadData:percentComplete];
-                    }
-                });
+        dispatch_semaphore_t slotDone = slotFree[slot];
+        dispatch_async(processQueue, ^{
+            // The downmix counts as baseline: the chunker needs it whether or
+            // not an analyzer is running.
+            uint64_t procStart = VibeLoadClockNow();
+            const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], scratch,
+                                                     numFrames, numChannels);
+            procNanos.chunk += VibeLoadClockNow() - procStart;
+
+            procStart = VibeLoadClockNow();
+            [bpmAnalyzer appendMonoSamples:mono frameCount:numFrames];
+            procNanos.bpmAppend += VibeLoadClockNow() - procStart;
+            procStart = VibeLoadClockNow();
+            [keyAnalyzer appendMonoSamples:mono frameCount:numFrames];
+            procNanos.keyAppend += VibeLoadClockNow() - procStart;
+
+            // Slice the block at chunk boundaries, merging each segment into
+            // the chunk it belongs to.
+            procStart = VibeLoadClockNow();
+            NSUInteger offset = 0;
+            while (offset < numFrames && chunkIndex < effectiveChunks) {
+                AVAudioFramePosition pos = framesProcessed + (AVAudioFramePosition)offset;
+                NSUInteger take = (NSUInteger)MIN((AVAudioFramePosition)(numFrames - offset),
+                                                  chunkEnd - pos);
+                currentChunk.mergeFromMonoBuffer(mono + offset, take);
+                currentChunkHasFrames = YES;
+                offset += take;
+                if (framesProcessed + (AVAudioFramePosition)offset >= chunkEnd) {
+                    waveform->setChunkAtIndex(currentChunk, chunkIndex);
+                    chunksFilled = ++chunkIndex;
+                    currentChunk = AudioWaveformCacheChunk();
+                    currentChunkHasFrames = NO;
+                    chunkEnd = totalFrames * (AVAudioFramePosition)(chunkIndex + 1)
+                            / (AVAudioFramePosition)effectiveChunks;
+                }
             }
-        }
+            procNanos.chunk += VibeLoadClockNow() - procStart;
+            framesProcessed += numFrames;
+
+            // Throttle delegate notifications to about 10 Hz, because each one
+            // triggers a full path rebuild on the main thread.
+            // AudioWaveformCache delivers the final completion callback
+            // separately.
+            if (!self.isCancelled) {
+                CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+                if (now - lastProgressTime >= 0.1) {
+                    lastProgressTime = now;
+                    float percentComplete = (float)chunksFilled / (float)effectiveChunks;
+                    // Snapshot on this queue, the only writer, so that the
+                    // main thread renders an immutable copy. Reading the live
+                    // buffer would be a data race, because this queue keeps
+                    // calling setChunkAtIndex and the stretch pass below
+                    // remaps it in place.
+                    CodableAudioWaveform *snapshot = [result snapshot];
+                    dispatch_async(dispatch_get_main_queue(), ^(void) {
+                        if (!self.isCancelled) {
+                            [self.delegate audioWaveformLoader:self waveform:snapshot didLoadData:percentComplete];
+                        }
+                    });
+                }
+            }
+            dispatch_semaphore_signal(slotDone);
+        });
+        slot ^= 1;
     }
+    // Drain the pipeline. After this the processing state above is safe to
+    // read and the pass is single-threaded again.
+    dispatch_sync(processQueue, ^{});
+    nanos.chunk = procNanos.chunk;
+    nanos.bpmAppend = procNanos.bpmAppend;
+    nanos.keyAppend = procNanos.keyAppend;
 
     // EOF with a partly accumulated chunk: keep it.
     if (currentChunkHasFrames && chunkIndex < effectiveChunks) {
