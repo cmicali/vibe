@@ -86,10 +86,8 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
     // Restore the graphics state to remove the shadow.
     [NSGraphicsContext restoreGraphicsState];
 
-    // Clip to the rounded rect for the artwork.
     [clipPath addClip];
 
-    // Scale and center the source image.
     NSSize srcSize = [sourceImage size];
     CGFloat scale = MIN(size / srcSize.width, size / srcSize.height);
     NSRect targetRect;

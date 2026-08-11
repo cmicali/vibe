@@ -637,7 +637,7 @@ static NSString *VibeMouseReply(NSString *verb, NSWindow *window, NSPoint locati
 // acceptsFirstMouse defaults to NO as click-through protection, so mouse
 // injection self-activates first. It uses the deprecated force spelling,
 // because the cooperative [NSApp activate] is declined while another app is
-// frontmost — tested — which is exactly the state a shell-driven test runs in.
+// frontmost, which is exactly the state a shell-driven test runs in.
 // Activation lands asynchronously, so spin the run loop briefly until key
 // status arrives: events posted before that are swallowed. The reply's
 // windowKey reports whether it took.

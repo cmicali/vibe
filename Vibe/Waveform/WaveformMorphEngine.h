@@ -13,9 +13,8 @@ NS_ASSUME_NONNULL_BEGIN
 // The morph engine shared by both renderer families. It owns the displayed,
 // target and scratch sample vectors and the 60Hz easing timer, and runs the
 // retarget decision tree. Renderers keep only what differs: building a target
-// from the waveform, and turning displayed samples into layer geometry. It was
-// extracted because the two copies ran to some 90 near-identical lines — the
-// classic silently-diverging pair.
+// from the waveform, and turning displayed samples into layer geometry. Do not
+// duplicate it per family — near-identical copies silently diverge.
 //
 // This header carries C++ types, so import it from .mm renderers only.
 //

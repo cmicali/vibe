@@ -83,7 +83,7 @@ static NSDictionary *kernedRightAlignedAttributes(void) {
 
 // The dimming for both corner labels, the codec line and the BPM line beneath
 // it. It lives in the text color rather than the fields' alphaValue, which is
-// now 1.0 on both — see MainPlayerContentView — because the codec field also
+// 1.0 on both — see MainPlayerContentView — because the codec field also
 // carries the FX symbols, and a field-wide alpha would dim those too. The two
 // labels are a matched pair, so they take the same treatment or they visibly
 // drift apart.

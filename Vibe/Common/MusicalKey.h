@@ -88,8 +88,8 @@ static inline VibeMusicalKey VibeMusicalKeyFromString(NSString *raw) {
     }
     NSString *s = [raw stringByTrimmingCharactersInSet:
             NSCharacterSet.whitespaceAndNewlineCharacterSet];
-    s = [s stringByReplacingOccurrencesOfString:@"♯" withString:@"#"]; // ♯
-    s = [s stringByReplacingOccurrencesOfString:@"♭" withString:@"b"]; // ♭
+    s = [s stringByReplacingOccurrencesOfString:@"♯" withString:@"#"];
+    s = [s stringByReplacingOccurrencesOfString:@"♭" withString:@"b"];
     if (s.length == 0 || s.length > 16) {
         return VibeMusicalKeyNone;
     }

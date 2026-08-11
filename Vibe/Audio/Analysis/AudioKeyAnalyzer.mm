@@ -217,11 +217,9 @@ static double VibeChromaCorrelation(const double *chroma, const double *profile,
     split.imagp[0] = 0;
     vDSP_zvabs(&split, 1, _magnitudes.data(), 1, _frameSize / 2);
 
-    // Fold the spectrum onto the frame's chroma, then log-compress it before
-    // accumulating. The compression is what keeps one loud chord from
-    // steamrolling the whole track's profile, and it flattens the harmonic
-    // series enough that a note's fifth partial does not outvote another
-    // note's fundamental.
+    // Fold the spectrum onto the frame's chroma. The per-frame normalization
+    // at the accumulate below is what keeps one loud passage from
+    // steamrolling the whole track's profile.
     double frameChroma[12] = {0};
     double frameBass[12] = {0};
     const float *mag = _magnitudes.data();

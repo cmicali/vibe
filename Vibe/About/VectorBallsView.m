@@ -358,9 +358,9 @@ static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
     [NSGraphicsContext restoreGraphicsState];
     CGContextRelease(cg);
 
-    // CGBitmapContext memory row 0 is the top scanline, verified, so there is
-    // no flip: buildInstances maps a low row index to a high world Y, at the
-    // top of the screen.
+    // CGBitmapContext memory row 0 is the top scanline, so there is no flip:
+    // buildInstances maps a low row index to a high world Y, at the top of the
+    // screen.
     *outW = w;
     *outH = h;
     *outBPR = w;

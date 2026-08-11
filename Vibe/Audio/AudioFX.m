@@ -219,9 +219,9 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     // adds reverb on top.
     _masterMix = [[AVAudioMixerNode alloc] init];
     _reverbSendGate = [[AVAudioMixerNode alloc] init];
-    // AVAudioUnitReverb wraps MatrixReverb — verified, since its component
-    // description is 'aufx'/'mrev' — so the raw kReverbParam_* knobs are
-    // settable through its audioUnit below. Hosting the AU directly through
+    // AVAudioUnitReverb wraps MatrixReverb (component description
+    // 'aufx'/'mrev'), so the raw kReverbParam_* knobs are settable through its
+    // audioUnit below. Hosting the AU directly through
     // AVAudioUnitEffect instead asserts in the render thread on the first
     // pull, in caulk CAVerboseAbort inside AudioUnitRender, because the
     // AVAudioUnitReverb wrapper applies configuration the raw hosting path
