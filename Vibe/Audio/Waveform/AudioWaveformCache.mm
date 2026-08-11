@@ -222,23 +222,28 @@ awaitPersist:(BOOL)awaitPersist
 // thread, because a cancel from a newly selected track may land after the
 // block is enqueued.
 - (void)deliverCompleteWaveform:(CodableAudioWaveform *)waveform loader:(AudioWaveformLoader *)loader url:(NSURL *)url {
-    if (loader.isCancelled && waveform.bpm <= 0) {
+    if (loader.isCancelled && waveform.bpm <= 0 && waveform.key < 0) {
         return;
     }
     run_on_main_thread({
         if (!loader.isCancelled) {
             [self.delegate audioWaveform:waveform didLoadData:1];
         }
-        // The BPM is computed at the end of the decode pass, or carried by a
-        // cache hit, so it only ever exists on this final delivery. It is
-        // delivered even when the load was cancelled: a cancelled but complete
-        // decode still persisted a BPM valid for its file, and the delegate
-        // matches the URL against its playlist rather than the current track.
-        // Dropping it here would leave the analyzed track without a BPM until
-        // its next play, purely because the cancel won a race.
+        // The BPM and key are computed at the end of the decode pass, or
+        // carried by a cache hit, so they only ever exist on this final
+        // delivery. They are delivered even when the load was cancelled: a
+        // cancelled but complete decode still persisted values valid for its
+        // file, and the delegate matches the URL against its playlist rather
+        // than the current track. Dropping them here would leave the analyzed
+        // track without them until its next play, purely because the cancel
+        // won a race.
         if (waveform.bpm > 0 &&
             [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectBPM:forURL:)]) {
             [self.delegate audioWaveformCache:self didDetectBPM:waveform.bpm forURL:url];
+        }
+        if (waveform.key >= 0 &&
+            [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectKey:forURL:)]) {
+            [self.delegate audioWaveformCache:self didDetectKey:waveform.key forURL:url];
         }
     });
 }
@@ -253,7 +258,7 @@ awaitPersist:(BOOL)awaitPersist
 
 #pragma mark - Debug: per-file cache control
 
-- (void)cacheWaveformForURL:(NSURL *)url completion:(void (^)(BOOL, BOOL, float))completion {
+- (void)cacheWaveformForURL:(NSURL *)url completion:(void (^)(BOOL, BOOL, float, NSInteger))completion {
     AudioTrack *track = [AudioTrack withURL:url];
     // A private loader, never assigned to _currentLoader. The UI's in-flight
     // load is not cancelled, and no delegate progress or delivery fires; this
@@ -266,13 +271,16 @@ awaitPersist:(BOOL)awaitPersist
         NSString *cacheKey = track.cacheKey;
         if (!cacheKey) {
             LogWarn(@"No cache key for %@ — cannot cache waveform", url.path);
-            run_on_main_thread({ if (completion) completion(NO, NO, 0); });
+            run_on_main_thread({ if (completion) completion(NO, NO, 0, -1); });
             return;
         }
         dispatch_async(self->_loaderQueue, ^{
             [self load:track cacheKey:cacheKey withLoader:loader awaitPersist:YES completion:^(CodableAudioWaveform *waveform, BOOL wasCached) {
                 float bpm = waveform.bpm; // nil → 0
-                run_on_main_thread({ if (completion) completion(waveform != nil, wasCached, bpm); });
+                // Explicitly -1 for nil: messaging nil returns 0, which as a
+                // key would read as C major.
+                NSInteger key = waveform ? waveform.key : -1;
+                run_on_main_thread({ if (completion) completion(waveform != nil, wasCached, bpm, key); });
             }];
         });
     });

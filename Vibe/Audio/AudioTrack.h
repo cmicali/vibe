@@ -5,6 +5,7 @@
 
 #import <Foundation/Foundation.h>
 #import "PlatformTypes.h"
+#import "MusicalKey.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -33,6 +34,18 @@ NS_ASSUME_NONNULL_BEGIN
 // own tempo and is not pitch-adjusted, so a caller who wants the tempo as
 // heard scales it by the varispeed rate.
 - (float)bpm;
+
+// The musical key from the waveform decode pass; VibeMusicalKeyNone (-1)
+// means not yet analyzed or undetectable. Transient like detectedBPM, and
+// every init path must set it to -1, because the zero-filled ivar default
+// reads as C major. A tagged key, metadata.key, takes precedence for display.
+@property(atomic, assign) VibeMusicalKey detectedKey;
+
+// The key consumers should act on: the file's own tag, metadata.key, when
+// present, otherwise the analyzed detectedKey, and VibeMusicalKeyNone when
+// neither is known. The single home of the tag-over-analysis precedence,
+// mirroring bpm.
+- (VibeMusicalKey)key;
 
 - (instancetype)initWithUrl:(NSURL *)url;
 + (AudioTrack *)withURL:(NSURL *)url;

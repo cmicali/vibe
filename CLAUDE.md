@@ -28,7 +28,7 @@ GitHub Actions runs the Debug and Release builds and the test suite on every pus
 
 ## Debugging and verification
 
-Use the **`vibe-debug` skill** (`.claude/skills/vibe-debug/`) to launch, drive, inspect or screenshot the app — anything that verifies a change against the running app. It is the canonical reference for the debug command channel (`Vibe --debug-cmd <command>`, debug builds only, implemented in `Vibe/Debug/`): inspection dumps of player and UI state, the view tree, menus, Now Playing and screenshots; transport, FX and UI driving; opening files; per-file waveform-cache control; and the BPM scan (`scan_bpm` and `scan-bpm.sh`, which run in the CLI process itself and need no running app). It also covers the two screenshot paths and their blind spots, sandbox launch pitfalls, the bundled capture and pixel-probing scripts, log streaming and the launch-time build-provenance block.
+Use the **`vibe-debug` skill** (`.claude/skills/vibe-debug/`) to launch, drive, inspect or screenshot the app — anything that verifies a change against the running app. It is the canonical reference for the debug command channel (`Vibe --debug-cmd <command>`, debug builds only, implemented in `Vibe/Debug/`): inspection dumps of player and UI state, the view tree, menus, Now Playing and screenshots; transport, FX and UI driving; opening files; per-file waveform-cache control; and the BPM and key scans (`scan_bpm`/`scan-bpm.sh` and `scan_key`/`scan-key.sh`, which run in the CLI process itself and need no running app). It also covers the two screenshot paths and their blind spots, sandbox launch pitfalls, the bundled capture and pixel-probing scripts, log streaming and the launch-time build-provenance block.
 
 For test audio, use the generated files in `Assets/test_audio_files/` (gitignored). If they are missing, generate them with the skill's `generate-test-audio.sh` rather than synthesizing your own.
 
@@ -42,7 +42,7 @@ Vibe is a native macOS music player written in Objective-C and Objective-C++. Pl
 
 Nested `CLAUDE.md` files hold the detail for each directory and load only when you work under it. **Read the relevant one before changing anything it covers.**
 
-- **`Vibe/Audio/`** — the playback engine and the audio data pipeline. `AudioPlayer` runs `AVAudioEngine` with a fresh player node and `AVAudioUnitVarispeed` per track, and handles click-free crossfades, seeks and fades, next-track prefetch and a deferred idle engine stop. `AudioFX` puts the DJ performance effects on the master bus. `Metadata/` extracts tags with TagLib and caches them in PINCache behind a two-stage playlist scan. `Waveform/` is the waveform *data* layer, `Analysis/` detects BPM, and `AudioDeviceManager` and `AudioPlayer+Devices` manage output devices. UI code relies on the threading contract: every engine mutation runs on a serial player queue, the UI-facing getters (`position`, `duration`, `isPlaying`) never block, and delegate callbacks arrive on the main thread.
+- **`Vibe/Audio/`** — the playback engine and the audio data pipeline. `AudioPlayer` runs `AVAudioEngine` with a fresh player node and `AVAudioUnitVarispeed` per track, and handles click-free crossfades, seeks and fades, next-track prefetch and a deferred idle engine stop. `AudioFX` puts the DJ performance effects on the master bus. `Metadata/` extracts tags with TagLib and caches them in PINCache behind a two-stage playlist scan. `Waveform/` is the waveform *data* layer, `Analysis/` detects BPM and musical key, and `AudioDeviceManager` and `AudioPlayer+Devices` manage output devices. UI code relies on the threading contract: every engine mutation runs on a serial player queue, the UI-facing getters (`position`, `duration`, `isPlaying`) never block, and delegate callbacks arrive on the main thread.
 - **`Vibe/Waveform/`** — the waveform *rendering* layer: `AudioWaveformView`, a pure rendering surface whose controller owns the cache and forwards the data; the renderer strategy hierarchy; and the shared `WaveformMorphEngine`.
 - **`Vibe/Main Window/`** — `MainPlayerController` is the central coordinator. It implements the player, waveform and metadata-cache delegate protocols, resolves all header rendering through a single five-state `TrackDisplayState`, and owns `TransportKeyMonitor` for the bare transport and FX keys. The directory also holds `MainWindow` (drag-and-drop and resize behavior), the programmatic layout and the Liquid Glass chrome — the layout, chrome and rendering detail is split into that directory's `APPEARANCE.md`, its `CLAUDE.md` covering behavior.
 - **`Vibe/Menu/`** — app bootstrap (`main.m` and `AppDelegate`), menu bar construction, View > Size, the FX menu and the output devices menu.
@@ -50,14 +50,15 @@ Nested `CLAUDE.md` files hold the detail for each directory and load only when y
 - **`Vibe/Controls/`** — controls drawn in CALayer rather than shipped as images: `SymbolButton`, `EqualizerIndicatorView` and the pitch fader.
 - **`Vibe/ThirdParty/`** — the vendored TagLib subset and PINCache/PINOperation: what is included and why, how to update it and how the header search paths are wired.
 - **`Vibe/About/`** — the About window and its Metal animation.
-- **`Vibe/Settings/`** — the Settings window (Vibe > Settings…, ⌘,): a toolbar-style `NSTabViewController` in the standard macOS settings-window shape, owned lazily by `AppDelegate`. Five panes — General (output device, default-player claim via `DefaultAppClaim`), Playback (pitch range, skip steps, crossfade, BPM analysis), Appearance, Convert, and Advanced (cache size and clear, `AppStats` readouts) — one `SettingsPaneViewController` subclass each.
+- **`Vibe/Settings/`** — the Settings window (Vibe > Settings…, ⌘,): a toolbar-style `NSTabViewController` in the standard macOS settings-window shape, owned lazily by `AppDelegate`. Five panes — General (output device, default-player claim via `DefaultAppClaim`), Playback (pitch range, skip steps, crossfade, BPM and key analysis), Appearance (including key notation and CDJ key colors), Convert, and Advanced (cache size and clear, `AppStats` readouts) — one `SettingsPaneViewController` subclass each.
 
 ### Cross-directory invariants
 
 Each side is documented in its own directory's file. The coupling itself lives here.
 
-- **BPM precedence**: a file's tagged tempo (`AudioTrackMetadata.bpm`) always beats the analyzed one (`AudioTrack.detectedBPM`). The BPM label and the bar-based skip actions share the rule.
-- **Async deliveries race track changes**: waveform, BPM and metadata cache deliveries can arrive after the track has changed, so a receiver must match the delivered URL or track against the current one before applying it.
+- **Tag-over-analysis precedence**: a file's tagged tempo (`AudioTrackMetadata.bpm`) always beats the analyzed one (`AudioTrack.detectedBPM`) — the BPM label and the bar-based skip actions share the rule — and the tagged key (`AudioTrackMetadata.key`) likewise beats `AudioTrack.detectedKey`. `AudioTrack.bpm` and `.key` are the single homes of both rules.
+- **Async deliveries race track changes**: waveform, BPM, key and metadata cache deliveries can arrive after the track has changed, so a receiver must match the delivered URL or track against the current one before applying it.
+- **A `VibeMusicalKey` of 0 is C major, not "none"**: every fresh holder must be set to `VibeMusicalKeyNone` (-1) explicitly, because a zero-filled ivar or a message to nil reads as tagged C major.
 - **`AudioPlayer.stop` fires no delegate callback.** It is not a track-end event, so it must never drive auto-advance, and the caller owns the UI reset. Track-end and skip-past-end both funnel through `didFinishPlaying:` instead.
 
 ### Logging
@@ -74,7 +75,7 @@ English is the source language; **every other language is whatever the catalogs 
 
 ```objc
 NSMenu *fileMenu = Submenu(mainMenu, STR_MENU_FILE).submenu;
-setKernedRightAlignedText(_bpmTextField, [NSString stringWithFormat:STR_LABEL_BPM, formatted]);
+NSString *bpmText = [NSString stringWithFormat:STR_LABEL_BPM, formatted];
 ```
 
 Each entry is one line: `NSLS(key, value, comment)`, a local macro that lifts out the invariant `NSLocalizedStringWithDefaultValue(key, nil, NSBundle.mainBundle, …)` scaffolding, with columns padded per `#pragma mark` section so the file reads as a table. Keys are **symbolic and stable** (`menu.file`, `label.bpm`, `waveform.style.detailed`), never the English text, so rewording a button doesn't orphan its translations: extraction rewrites the catalog's `en` from the new default and flips every other language to `needs_review` — they keep shipping while awaiting review — rather than minting a new key. The English lives in the macro's *default value*: it is the enforced source of the catalog's `en` values (`xcstringstool sync` alone only stamps `en` on first sight, so the script copies a changed default over it) AND the fallback if a lookup ever misses, so the app can never render a raw `menu.file`. Key prefixes: `menu.*`, `transport.*` (shared by menu items and the transport buttons' a11y labels), `label.*`, `a11y.*`, `error.*`, `waveform.style.*`, `settings.*`.

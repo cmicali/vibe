@@ -10,6 +10,7 @@
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
 #import "Fonts.h"
+#import "MusicalKey.h"
 #import "VibeStrings.h"
 
 @implementation TrackDisplayController {
@@ -27,6 +28,10 @@
     // object-replacement character.
     NSString                *_fileMetadataText;
     VibeFXDisplayState       _fxState;
+    // The key the BPM line was last colored for, part of that line's change
+    // guard: the text alone is not enough, since toggling the color setting
+    // leaves it identical while the attributes must change. -1 is "uncolored".
+    NSInteger                _lastKeyColorKey;
     // The label width the title's shrink-to-fit was computed against. The
     // label is width-flexible, so a window resize invalidates the fit; see
     // refitTitleIfWidthChanged.
@@ -51,6 +56,7 @@
         _lastPosition = -1;
         _fileMetadataText = @"";
         _fxState = (VibeFXDisplayState){0};
+        _lastKeyColorKey = -1;
     }
     return self;
 }
@@ -94,12 +100,41 @@ static NSDictionary *cornerTextAttributes(void) {
     return attributes;
 }
 
-static void setKernedRightAlignedText(NSTextField *field, NSString *value) {
-    if ([field.stringValue isEqualToString:value]) {
-        return;
+// The Camelot wheel's own colors: one hue per wheel number, stepping once
+// around the color wheel as the number steps around the Camelot wheel, and
+// anchored so that 1 is green — which is what puts 3 in teal, 5 in blue, 7 in
+// violet, 9 in red and 11 in yellow, close to the printed wheel. Keys one
+// step apart, the harmonically compatible ones, therefore land in neighboring
+// hues, and a relative major/minor pair (8A and 8B) shares a hue because it
+// shares a number. The hues approximate the published wheel rather than
+// sampling it. Saturation and brightness differ per appearance so the label
+// stays legible on both the light and the dark chrome; neither is taken to
+// full brightness, which reads as garish next to the dimmed corner text.
+static const CGFloat kCamelotHueOfNumberOne = 1.0 / 3.0;
+
+static NSColor *camelotColor(NSInteger key) {
+    NSInteger number = VibeMusicalKeyCamelotNumber(key);
+    if (number < 1 || number > 12) {
+        return nil; // no key, or coloring switched off
     }
-    field.attributedStringValue = [[NSAttributedString alloc] initWithString:value
-                                                                  attributes:cornerTextAttributes()];
+    static NSColor *palette[13];
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        for (NSInteger i = 1; i <= 12; i++) {
+            CGFloat hue = fmod(kCamelotHueOfNumberOne + (CGFloat)(i - 1) / 12.0, 1.0);
+            palette[i] = [NSColor colorWithName:nil dynamicProvider:^NSColor *(NSAppearance *appearance) {
+                NSAppearanceName matched = [appearance bestMatchFromAppearancesWithNames:@[
+                    NSAppearanceNameAqua, NSAppearanceNameDarkAqua,
+                ]];
+                BOOL dark = [matched isEqualToString:NSAppearanceNameDarkAqua];
+                return [NSColor colorWithHue:hue
+                                  saturation:dark ? 0.62 : 0.90
+                                  brightness:dark ? 0.82 : 0.60
+                                       alpha:1.0];
+            }];
+        }
+    });
+    return palette[number];
 }
 
 // The FX indicator symbols, in menu order: Q, W, E, R and T. Low kill shows
@@ -324,12 +359,40 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     [self renderRightTimeLabelWithDisplayPosition:MAX(0, _lastPosition) duration:duration rate:rate];
 }
 
-- (void)renderBPM:(float)displayBPM {
-    NSString *text = displayBPM > 0
+- (void)renderBPM:(float)displayBPM keyText:(NSString *)keyText colorKey:(NSInteger)colorKey {
+    NSString *bpmText = displayBPM > 0
             ? [NSString stringWithFormat:STR_LABEL_BPM,
                     [[Formatters sharedInstance] decimalString:displayBPM fractionDigits:1]]
             : @"";
-    setKernedRightAlignedText(_bpmTextField, text);
+    NSString *text;
+    if (bpmText.length > 0 && keyText.length > 0) {
+        // Layout punctuation between two readouts, not prose — and the same
+        // rule the codec line above uses to separate its two fields.
+        text = [NSString stringWithFormat:VibeNotLocalized(@"%@ | %@"), bpmText, keyText];
+    }
+    else {
+        text = bpmText.length > 0 ? bpmText : keyText;
+    }
+    // The text alone cannot gate the redraw here: toggling the color setting
+    // leaves it identical while the attributes must change.
+    if ([_bpmTextField.stringValue isEqualToString:text] && colorKey == _lastKeyColorKey) {
+        return;
+    }
+    _lastKeyColorKey = colorKey;
+
+    NSMutableAttributedString *line =
+            [[NSMutableAttributedString alloc] initWithString:text
+                                                  attributes:cornerTextAttributes()];
+    NSColor *keyColor = camelotColor(colorKey);
+    if (keyColor && keyText.length > 0) {
+        // The key sits at the tail, after the separator when both are shown.
+        NSRange range = NSMakeRange(text.length - keyText.length, keyText.length);
+        [line addAttribute:NSForegroundColorAttributeName value:keyColor range:range];
+        [line addAttribute:NSFontAttributeName
+                     value:[Fonts fontForNumbers:_bpmTextField.font.pointSize bold:YES]
+                     range:range];
+    }
+    _bpmTextField.attributedStringValue = line;
 }
 
 #pragma mark - Codec line (FX symbols + file metadata)

@@ -108,6 +108,13 @@ extern const int kCodableAudioWaveformVersion;
 // archive rather than paying for a second decode into a cache of its own.
 @property (nonatomic) float bpm;
 
+// The detected musical key (VibeMusicalKey; MusicalKey.h is not imported
+// here to keep this C++ header out of that dependency's reverse closure);
+// -1, VibeMusicalKeyNone, means unknown or undetectable. Same ride-along
+// rationale as bpm. Note the default for a freshly inited object must be -1,
+// not the zero-filled ivar default, because 0 is a valid key (C major).
+@property (nonatomic) NSInteger key;
+
 - (id)initWithWaveform:(AudioWaveform *)waveform;
 
 // A deep copy of the current chunk buffer, wrapped in a new object that owns

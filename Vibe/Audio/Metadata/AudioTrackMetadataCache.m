@@ -382,7 +382,9 @@
     // archived fields or their meaning change, as fileType labeling did, since
     // stale entries otherwise persist until the size-and-mtime cache key
     // changes, which can take up to the age limit.
-    return @"Audio Track Metadata v4";
+    // v5: the tagged musical key joined the archive; older entries would
+    // otherwise show no key until their cache key changed.
+    return @"Audio Track Metadata v5";
 }
 
 - (instancetype)init {

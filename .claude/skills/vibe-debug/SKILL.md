@@ -50,7 +50,8 @@ Use the generated files in `Assets/test_audio_files/` (gitignored) rather than s
 | `tone-long.wav` | seek and skip tests (120s — skips reach ±60s) |
 | `tone.flac` | FLAC/codec-label coverage |
 | `tone-art-red.m4a` / `tone-art-blue.m4a` | tagged metadata (titles "Red Art Test"/"Blue Art Test", artist "Art Tester") with solid red/blue covers — art, header-tint, and dock-icon tests; play one then the other to exercise the art crossfade and tint animation |
-| `bpm-85.wav`, `bpm-120.wav`, `bpm-128.wav`, `bpm-140.wav`, `bpm-174.wav` | 30s kick+hat loops at exactly the named tempo — BPM-analyzer tests (see `scan-bpm.sh` below; compare against the filename) |
+| `bpm-85.wav`, `bpm-120.wav`, `bpm-128.wav`, `bpm-140.wav`, `bpm-174.wav` | 30s kick+hat loops at exactly the named tempo — BPM-analyzer tests (see `scan-bpm.sh` below; compare against the filename). Atonal, so they double as the key analyzer's negative case: `scan-key.sh` must report no key |
+| `key-am.wav`, `key-c.wav`, `key-fsm.wav`, `key-eb.wav` | 24s chord-progression loops in the named key (Am, C, F#m, Eb) — key-analyzer tests (see `scan-key.sh` below) |
 
 The short files end after eight seconds. Pause early, or use `tone-long.wav`, when a test needs playback still running at capture time.
 
@@ -63,11 +64,14 @@ The short files end after eight seconds. Pause early, or use `tone-long.wav`, wh
 
 It opens a named pipe in the app container's tmp. `AVAudioFile`'s open blocks reading it forever, exactly as it would on an undownloaded iCloud or Dropbox placeholder.
 
-**One-shot BPM measurement.** `scan_bpm` runs in the CLI's own process with no channel round-trip: no app launch, no window, no caches. It works with no app running and leaves a running Vibe instance untouched. The script streams the file through stdin (`scan_bpm - < file`) because the direct-exec'd binary is still sandboxed and cannot read arbitrary argv paths, for the same reason argv opens fail. The client stages the bytes in its own container tmp, which keeps shell processes out of `~/Library/Containers/` and so avoids the TCC prompt described under Screenshots:
+**One-shot BPM and key measurement.** `scan_bpm` (and its twin `scan_key`) runs in the CLI's own process with no channel round-trip: no app launch, no window, no caches. It works with no app running and leaves a running Vibe instance untouched. The script streams the file through stdin (`scan_bpm - < file`) because the direct-exec'd binary is still sandboxed and cannot read arbitrary argv paths, for the same reason argv opens fail. The client stages the bytes in its own container tmp, which keeps shell processes out of `~/Library/Containers/` and so avoids the TCC prompt described under Screenshots:
 
 ```bash
 .claude/skills/vibe-debug/scripts/scan-bpm.sh <audio-file>   # {"ok":true,"bpm":120.01} — bpm 0 = no confident tempo
+.claude/skills/vibe-debug/scripts/scan-key.sh <audio-file>   # {"ok":true,"key":"Am","camelot":"8A","index":21} — empty strings / index -1 = no confident key
 ```
+
+`scan_key` has the same contract as `scan_bpm` throughout: it runs in the CLI process, needs no app, ignores caches and tags (it reports pure analysis — the app's own display prefers a tagged key), and streams the file via stdin for the same sandbox reasons.
 
 ## Driving and inspecting the running app: `--debug-cmd`
 
@@ -108,15 +112,20 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 "$V" --debug-cmd drag_hover 520 275  # {ok, well} — synthetic external-file drag-over at a window point (top-left origin, like click): drives the playlist drop zone's wells through the real FileDropDelegate path. NOT an event: a genuine NSDraggingSession can't be synthesized, so these call the delegate directly. well = replace|add|none = what a drop there would hit
 "$V" --debug-cmd drag_drop 520 275 ~/Music/track.wav  # {ok, dropping, well} — completes the synthetic drag: expands + delivers the drop at that point (well routing: replace|add|none→replace), then tears the drag-over UI down. ABSOLUTE path; same sandbox caveat as open; poll dump_state
 "$V" --debug-cmd drag_end            # {ok} — the drag left the window without a drop: back to the rest presentation
-"$V" --debug-cmd file_cache song.flac        # {ok, wasCached, bpm} — decode + cache one file's waveform (UI untouched); waits up to 60s
+"$V" --debug-cmd file_cache song.flac        # {ok, wasCached, bpm, key, camelot, timing} — decode + cache one file's waveform (UI untouched); waits up to 60s. `timing` is that decode's own phase breakdown, absent on a cache hit
+"$V" --debug-cmd dump_timing                 # {loads: [...]} — in-process phase timings of recent waveform decodes, newest first: readSeconds (the decode), chunkSeconds, bpmSeconds/keySeconds (each split into Append + Finish), otherSeconds, realtimeFactor. Covers every load, from playing a track as well as from file_cache
+"$V" --debug-cmd clear_timing                # {ok} — empties that store before a measurement run
 "$V" --debug-cmd file_clear_cache song.flac  # {ok, wasPresent} — evict one file's cached waveform
 "$V" --debug-cmd convert_to_flac [keep|delete]  # {ok, output, row, source, sourceDeleted, sourceRemains} — the whole Convert to FLAC path on the CURRENT track, swap and source disposal included; default: current setting. Waits up to 120s
 "$V" --debug-cmd undo                # {ok, undid, canUndo, canRedo} — Edit > Undo; replies once the file moves have settled. {"error": "nothing to undo"} on an empty stack
 "$V" --debug-cmd redo                # {ok, redid, canUndo, canRedo} — Edit > Redo, same contract, {"error": "nothing to redo"}
 "$V" --debug-cmd clear_caches        # {ok, cleared} — empties metadata + waveform PINCaches
 "$V" --debug-cmd scan_bpm - < file   # {ok, bpm} — fresh decode+analyze, runs IN THE CLI PROCESS (no app needed; see Test audio files). Audio rides stdin; prefer the scan-bpm.sh wrapper
+"$V" --debug-cmd scan_key - < file   # {ok, key, camelot, index} — the key-analyzer twin of scan_bpm, same contract; prefer scan-key.sh. Ignores tags: dump_state's currentTrack.key/.camelot show the app's tag-over-analysis resolution instead
 "$V" --debug-cmd clear_disk_caches   # {ok, cleared} — CLI-process deletion of the PINDiskCache dirs, ONLY for when the app is NOT running (prefer clear-caches.sh, which picks the right one)
 "$V" --debug-cmd set_appearance dark # {ok, windowAppearance} — light|dark|system, CLI-process prefs write for the NEXT launch (live toggle: click_menu view_appearance_*)
+"$V" --debug-cmd set_analysis bpm off # {ok, analyzeBPM, analyzeKey} — <bpm|key> <on|off>, CLI-process prefs write a running app sees immediately (the next waveform decode reads it — no relaunch), so this is how you A/B the analyzers' cost; dump_state.settings reports the live values
+"$V" --debug-cmd set_key_display musical colors # {ok, keyNotation, keyColors} — <camelot|musical> <colors|plain>, same live prefs write; the label repaints at its next re-render (key delivery, fader tick, or track change), not on the write itself
 "$V" --debug-cmd sleep 0.5           # client-side pause (0–600s, sub-second OK) — for scripts; the app's main thread never sleeps
 "$V" --debug-cmd script - <<'EOF'    # command script: see Command scripts below
 seek 30

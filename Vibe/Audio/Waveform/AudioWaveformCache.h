@@ -45,14 +45,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 #if DEBUG
 // Debug and pre-warm: decodes and persists a file's waveform, and its detected
-// BPM, without cancelling or delivering to the current load, so the running UI
-// is untouched. It runs the same lookup-or-decode path as a normal load, but a
-// fresh decode's completion waits for the disk write, so the entry is durably
-// cached once it fires. The completion fires on the main thread: ok is NO on a
-// decode failure, wasCached is YES when the entry already existed and no
-// decode ran, and bpm is 0 when none was detected.
+// BPM and key, without cancelling or delivering to the current load, so the
+// running UI is untouched. It runs the same lookup-or-decode path as a normal
+// load, but a fresh decode's completion waits for the disk write, so the entry
+// is durably cached once it fires. The completion fires on the main thread: ok
+// is NO on a decode failure, wasCached is YES when the entry already existed
+// and no decode ran, bpm is 0 and key is -1 when none was detected.
 - (void)cacheWaveformForURL:(NSURL *)url
-                 completion:(void (^)(BOOL ok, BOOL wasCached, float bpm))completion;
+                 completion:(void (^)(BOOL ok, BOOL wasCached, float bpm, NSInteger key))completion;
 
 // Debug: removes a single file's waveform cache entry. The cache key derives
 // from the file's current size and mtime, so the file must still exist
@@ -79,6 +79,11 @@ NS_ASSUME_NONNULL_BEGIN
 // landing after next: but before the cancel is observed, so receivers must
 // match it against their current track rather than assume it.
 - (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url;
+
+// The key detection twin of didDetectBPM:, with the same timing, threading
+// and URL-matching contract. key is a valid VibeMusicalKey — it never fires
+// with VibeMusicalKeyNone.
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectKey:(NSInteger)key forURL:(NSURL *)url;
 
 @end
 

@@ -25,6 +25,7 @@ static const NSInteger kCrossfadePresets[] = {10, 500, 2000};
     NSPopUpButton *_skipStepsPopUp;
     NSPopUpButton *_crossfadePopUp;
     NSButton *_detectBPMCheckbox;
+    NSButton *_detectKeyCheckbox;
 }
 
 - (void)loadView {
@@ -58,12 +59,17 @@ static const NSInteger kCrossfadePresets[] = {10, 500, 2000};
 
     _detectBPMCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_DETECT_BPM
                                               target:self action:@selector(toggleDetectBPM:)];
+    _detectKeyCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_DETECT_KEY
+                                              target:self action:@selector(toggleDetectKey:)];
 
+    // How the key is written and colored is Appearance's business; this pane
+    // only decides whether it is detected at all.
     NSGridView *grid = [self.class formGridWithRows:@[
         @[[NSTextField labelWithString:STR_SETTINGS_PITCH_RANGE_LABEL], pitchRadios],
         @[[NSTextField labelWithString:STR_SETTINGS_SKIP_STEPS_LABEL], _skipStepsPopUp],
         @[[NSTextField labelWithString:STR_SETTINGS_CROSSFADE_LABEL], _crossfadePopUp],
         @[NSGridCell.emptyContentView, _detectBPMCheckbox],
+        @[NSGridCell.emptyContentView, _detectKeyCheckbox],
     ]];
     [self loadPaneWithSize:NSMakeSize(kSettingsPaneWidth, kPlaybackPaneHeight) grid:grid];
 }
@@ -79,6 +85,7 @@ static const NSInteger kCrossfadePresets[] = {10, 500, 2000};
         [_crossfadePopUp selectItemWithTag:kCrossfadePresets[0]];
     }
     _detectBPMCheckbox.state = Settings.analyzeBPM ? NSControlStateValueOn : NSControlStateValueOff;
+    _detectKeyCheckbox.state = Settings.analyzeKey ? NSControlStateValueOn : NSControlStateValueOff;
 }
 
 - (void)pitchRangeChanged:(NSButton *)sender {
@@ -99,6 +106,10 @@ static const NSInteger kCrossfadePresets[] = {10, 500, 2000};
 
 - (void)toggleDetectBPM:(id)sender {
     Settings.analyzeBPM = (_detectBPMCheckbox.state == NSControlStateValueOn);
+}
+
+- (void)toggleDetectKey:(id)sender {
+    Settings.analyzeKey = (_detectKeyCheckbox.state == NSControlStateValueOn);
 }
 
 @end

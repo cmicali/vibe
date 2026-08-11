@@ -24,14 +24,30 @@ static const NSUInteger kEncodedChunkCount = 4096 * 2;
 
 #pragma mark - Helpers
 
-// Builds an archive with hand-chosen values for the four keys initWithCoder:
-// reads, so each validation branch can be exercised in isolation.
+// Builds an archive with hand-chosen values for the keys initWithCoder:
+// reads, so each validation branch can be exercised in isolation. No "key"
+// entry is written, which is byte-honest for a pre-key entry — the archives
+// current builds write carry one (see ArchiveWithMusicalKey).
 static NSData *ArchiveWithKeys(int version, id numChunks, NSData *chunkBytes, float bpm) {
     NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initRequiringSecureCoding:NO];
     [archiver encodeInt:version forKey:@"version"];
     [archiver encodeObject:numChunks forKey:@"numChunks"];
     [archiver encodeBytes:(const uint8_t *)chunkBytes.bytes length:chunkBytes.length forKey:@"chunks"];
     [archiver encodeFloat:bpm forKey:@"bpm"];
+    [archiver finishEncoding];
+    return archiver.encodedData;
+}
+
+// The same archive plus a "key" entry, for exercising the musical-key
+// branches with hand-chosen (including malformed) values.
+static NSData *ArchiveWithMusicalKey(int version, id numChunks, NSData *chunkBytes,
+                                     float bpm, id key) {
+    NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initRequiringSecureCoding:NO];
+    [archiver encodeInt:version forKey:@"version"];
+    [archiver encodeObject:numChunks forKey:@"numChunks"];
+    [archiver encodeBytes:(const uint8_t *)chunkBytes.bytes length:chunkBytes.length forKey:@"chunks"];
+    [archiver encodeFloat:bpm forKey:@"bpm"];
+    [archiver encodeObject:key forKey:@"key"];
     [archiver finishEncoding];
     return archiver.encodedData;
 }
@@ -78,6 +94,7 @@ static NSData *ValidChunkBytes(void) {
     marker.set(-0.75f, 0.5f);
     original.waveform->setChunkAtIndex(marker, 7);
     original.bpm = 174.0f;
+    original.key = 21; // Am
 
     NSError *error = nil;
     NSData *data = [NSKeyedArchiver archivedDataWithRootObject:original
@@ -92,6 +109,7 @@ static NSData *ValidChunkBytes(void) {
 
     XCTAssertNotNil(decoded);
     XCTAssertEqualWithAccuracy(decoded.bpm, 174.0f, 1e-4);
+    XCTAssertEqual(decoded.key, 21);
     NSUInteger count = decoded.waveform->getNumChunks();
     XCTAssertEqual(count, original.waveform->getNumChunks());
     XCTAssertEqual(decoded.waveform->getChunkAtIndex(7, count).getMin(), -0.75f);
@@ -177,6 +195,48 @@ static NSData *ValidChunkBytes(void) {
     }
 }
 
+#pragma mark - Musical key coercion (not rejection)
+
+- (void)testAbsentKeyDecodesAsNone {
+    // A pre-key entry carries no "key" at all. It must decode as unknown, not
+    // as the 0 an integer decode would fabricate — 0 is C major. This is the
+    // contract that lets those entries stay valid without a version bump.
+    CodableAudioWaveform *decoded =
+            DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, @(kEncodedChunkCount),
+                                          ValidChunkBytes(), 120));
+    XCTAssertNotNil(decoded);
+    XCTAssertEqual(decoded.key, -1);
+}
+
+- (void)testValidKeyDecodes {
+    CodableAudioWaveform *decoded = DecodeArchive(
+            ArchiveWithMusicalKey(kCodableAudioWaveformVersion, @(kEncodedChunkCount),
+                                  ValidChunkBytes(), 120, @(21)));
+    XCTAssertNotNil(decoded);
+    XCTAssertEqual(decoded.key, 21);
+}
+
+- (void)testOutOfRangeOrWrongClassKeyIsCoercedToNone {
+    // Like bpm: a bad key degrades to "unknown" rather than throwing away
+    // good waveform data. 0 stays a valid key (C major), so the coercion
+    // must come only from range and class checks, never from a nil-ish read.
+    for (id bad in @[@(24), @(-2), @"8A", @[@(3)]]) {
+        CodableAudioWaveform *decoded = DecodeArchive(
+                ArchiveWithMusicalKey(kCodableAudioWaveformVersion, @(kEncodedChunkCount),
+                                      ValidChunkBytes(), 120, bad));
+        XCTAssertNotNil(decoded, @"key %@ must not reject the entry", bad);
+        XCTAssertEqual(decoded.key, -1, @"key %@ must coerce to none", bad);
+    }
+}
+
+- (void)testCMajorKeyIsPreservedNotMistakenForAbsent {
+    CodableAudioWaveform *decoded = DecodeArchive(
+            ArchiveWithMusicalKey(kCodableAudioWaveformVersion, @(kEncodedChunkCount),
+                                  ValidChunkBytes(), 120, @(0)));
+    XCTAssertNotNil(decoded);
+    XCTAssertEqual(decoded.key, 0);
+}
+
 #pragma mark - snapshot
 
 - (void)testSnapshotIsIndependentOfTheLiveBuffer {
@@ -185,6 +245,7 @@ static NSData *ValidChunkBytes(void) {
     CodableAudioWaveform *live =
             [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform()];
     live.bpm = 90.0f;
+    live.key = 5; // F
     CodableAudioWaveform *snapshot = [live snapshot];
 
     AudioWaveformCacheChunk written;
@@ -196,6 +257,7 @@ static NSData *ValidChunkBytes(void) {
     XCTAssertEqual(snapshot.waveform->getChunkAtIndex(3, count).getMax(), 0.0f);
     XCTAssertEqual(live.waveform->getChunkAtIndex(3, count).getMax(), 1.0f);
     XCTAssertEqual(snapshot.bpm, 90.0f, @"bpm rides along with the snapshot");
+    XCTAssertEqual(snapshot.key, 5, @"key rides along with the snapshot");
 }
 
 - (void)testSnapshotOfAnEmptyWaveformIsNil {

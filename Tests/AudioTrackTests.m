@@ -16,12 +16,20 @@
 @property (nonatomic, copy) NSString *title;
 @property (nonatomic, copy) NSString *artist;
 @property (nonatomic) float bpm;
+@property (nonatomic) NSInteger key;
 @property (nonatomic) NSTimeInterval duration;
 @property (nonatomic, strong) NSImage *albumArtIfLoaded;
 @property (nonatomic, strong) NSImage *thumbnailAlbumArt;
 @end
 
 @implementation FakeTrackMetadata
+- (instancetype)init {
+    self = [super init];
+    // The real AudioTrackMetadata inits key to -1 (0 would be C major); the
+    // fake must match or every untagged fixture would read as tagged C.
+    _key = -1;
+    return self;
+}
 @end
 
 @interface AudioTrackTests : XCTestCase
@@ -70,6 +78,49 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
 
 - (void)testTempoIsZeroWhenNeitherSourceKnowsIt {
     XCTAssertEqual(TrackNamed(@"song.mp3").bpm, 0.0f);
+}
+
+#pragma mark - Key precedence
+
+- (void)testTaggedKeyBeatsAnalyzedKey {
+    // Same cross-directory invariant as tempo: the file's own tag wins.
+    AudioTrack *track = TrackNamed(@"song.mp3");
+    FakeTrackMetadata *tagged = [FakeTrackMetadata new];
+    tagged.key = 21; // Am
+    Attach(track, tagged);
+    track.detectedKey = 0; // C — a valid key, so precedence must not treat it as absent
+
+    XCTAssertEqual(track.key, 21);
+}
+
+- (void)testTaggedCMajorIsNotMistakenForUntagged {
+    // 0 is C major, the value nil-messaging would fabricate — the classic trap.
+    AudioTrack *track = TrackNamed(@"song.mp3");
+    FakeTrackMetadata *tagged = [FakeTrackMetadata new];
+    tagged.key = 0; // C
+    Attach(track, tagged);
+    track.detectedKey = 21;
+
+    XCTAssertEqual(track.key, 0);
+}
+
+- (void)testAnalyzedKeyIsUsedWhenTheFileIsUntagged {
+    AudioTrack *track = TrackNamed(@"song.mp3");
+    FakeTrackMetadata *untagged = [FakeTrackMetadata new];
+    Attach(track, untagged); // fake inits key to -1
+    track.detectedKey = 18; // F#m
+
+    XCTAssertEqual(track.key, 18);
+}
+
+- (void)testAnalyzedKeyIsUsedBeforeMetadataArrives {
+    AudioTrack *track = TrackNamed(@"song.mp3");
+    track.detectedKey = 3; // Eb
+    XCTAssertEqual(track.key, 3);
+}
+
+- (void)testKeyIsNoneWhenNeitherSourceKnowsIt {
+    XCTAssertEqual(TrackNamed(@"song.mp3").key, -1);
 }
 
 #pragma mark - Title fallback

@@ -15,13 +15,15 @@
 
 @class MainPlayerController;
 
+NS_ASSUME_NONNULL_BEGIN
+
 // The design width of a pane; the actual width grows to the form grid's
 // fitting width when a localization needs more.
 static const CGFloat kSettingsPaneWidth = 480;
 
 @interface SettingsPaneViewController : NSViewController
 
-@property (weak, readonly) MainPlayerController *playerController;
+@property (weak, readonly, nullable) MainPlayerController *playerController;
 
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController;
 
@@ -42,3 +44,5 @@ static const CGFloat kSettingsPaneWidth = 480;
 - (void)refreshFromSettings;
 
 @end
+
+NS_ASSUME_NONNULL_END

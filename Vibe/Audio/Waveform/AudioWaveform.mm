@@ -81,7 +81,9 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
 }
 
 // See the declaration in AudioWaveform.h. It also names the disk cache, so a
-// bump invalidates by rename as well as by mismatch.
+// bump invalidates by rename as well as by mismatch. The key rode in without
+// a bump: it is encoded as an object, so a pre-key entry decodes nil — never
+// a fabricated C major — and everyone's cached waveforms and BPMs survive.
 const int kCodableAudioWaveformVersion = 4;
 
 @implementation CodableAudioWaveform
@@ -91,6 +93,10 @@ const int kCodableAudioWaveformVersion = 4;
     [coder encodeObject:@(self.waveform->getNumChunks()) forKey:@"numChunks"];
     [coder encodeBytes:(const uint8_t*)self.waveform->getBytes() length:self.waveform->getNumBytes() forKey:@"chunks"];
     [coder encodeFloat:self.bpm forKey:@"bpm"];
+    // As an object, not encodeInteger: an absent integer decodes as 0, which
+    // as a key means C major, whereas an absent object is unambiguously nil.
+    // That is what lets pre-key archives stay valid without a version bump.
+    [coder encodeObject:@(self.key) forKey:@"key"];
 }
 
 - (instancetype)initWithCoder:(NSCoder *)coder {
@@ -134,6 +140,12 @@ const int kCodableAudioWaveformVersion = 4;
         self.waveform = new AudioWaveform(numChunks, data);
         float bpm = [coder decodeFloatForKey:@"bpm"];
         self.bpm = std::isfinite(bpm) && bpm > 0 ? bpm : 0;
+        // Like bpm, a bad key degrades to "unknown" rather than rejecting the
+        // entry — it is not a reason to throw away good waveform data. Absent
+        // (a pre-key entry) decodes nil, and nil falls to -1, never C major.
+        id keyValue = [coder decodeObjectForKey:@"key"];
+        NSInteger key = [keyValue isKindOfClass:[NSNumber class]] ? [keyValue integerValue] : -1;
+        self.key = (key >= 0 && key < 24) ? key : -1;
     }
     return self;
 }
@@ -142,6 +154,7 @@ const int kCodableAudioWaveformVersion = 4;
     self = [super init];
     if (self) {
         self.waveform = waveform;
+        self.key = -1; // 0 is C major; see the property comment
     }
     return self;
 }
@@ -152,6 +165,7 @@ const int kCodableAudioWaveformVersion = 4;
     }
     CodableAudioWaveform *copy = [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform(*self.waveform)];
     copy.bpm = self.bpm;
+    copy.key = self.key;
     return copy;
 }
 

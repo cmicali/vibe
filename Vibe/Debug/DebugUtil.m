@@ -25,6 +25,8 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
+#import "AudioLoadTiming.h"
+#import "MusicalKey.h"
 #import "AudioWaveformView.h"
 #import "AudioFileConverter.h"
 #import "PlaylistController.h"
@@ -209,6 +211,9 @@ static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"url": track.url.path ?: @"",
             @"title": track.title ?: @"",
             @"artist": track.artist ?: @"",
+            // The resolved key (tag over analysis); empty strings when unknown.
+            @"key": VibeMusicalKeyMusicalName(track.key),
+            @"camelot": VibeMusicalKeyCamelotName(track.key),
         } : (id)NSNull.null,
         @"playlist": @{
             @"count": @(playlist.count),
@@ -243,6 +248,10 @@ static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"waveformStyle": Settings.waveformStyle ?: @"",
             @"outputDeviceName": Settings.audioOutputDeviceName ?: @"",
             @"deleteOriginalAfterConvert": @(Settings.deleteOriginalAfterConvert),
+            @"analyzeBPM": @(Settings.analyzeBPM),
+            @"analyzeKey": @(Settings.analyzeKey),
+            @"keyNotation": Settings.keyNotation ?: @"",
+            @"keyColors": @(Settings.keyColorsEnabled),
         },
     };
 }
@@ -1117,10 +1126,11 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 }];
                 return VibeJSONString(@{@"ok": @YES, @"opening": path});
             }),
-            // This is normally never reached from the CLI, because the client
-            // runs scan_bpm locally; see VibeDebugCommandClientMain. The entry
-            // exists for the usage listing and for callers that post the
-            // command file directly. It is the same core function either way.
+            // These are normally never reached from the CLI, because the
+            // client runs scan_bpm and scan_key locally; see
+            // VibeDebugCommandClientMain. The entries exist for the usage
+            // listing and for callers that post the command file directly.
+            // They are the same core functions either way.
             VibeCmd(@"scan_bpm <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *errorJSON = nil;
                 NSString *path = VibeExistingFileArgument(tokens, &errorJSON);
@@ -1133,6 +1143,29 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 });
                 return nil; // response written by the block above
             }),
+            // The in-process phase timings of recent waveform decodes, newest
+            // first — every load, whether it came from playing a track or from
+            // file_cache. This is the accurate measure of what the BPM and key
+            // analyzers cost: the app's total CPU also carries the render pump,
+            // the metadata scan and the UI.
+            VibeCmd(@"dump_timing", 5, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeJSONString(@{@"loads": [AudioLoadTiming recentJSON]});
+            }),
+            VibeCmd(@"clear_timing", 5, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                [AudioLoadTiming reset];
+                return VibeJSONString(@{@"ok": @YES});
+            }),
+            VibeCmd(@"scan_key <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                NSString *errorJSON = nil;
+                NSString *path = VibeExistingFileArgument(tokens, &errorJSON);
+                if (!path) {
+                    return errorJSON;
+                }
+                dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                    VibeWriteDebugResponse(commandId, VibeDebugKeyScanJSON(path));
+                });
+                return nil; // response written by the block above
+            }),
             VibeCmd(@"file_cache <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *errorJSON = nil;
                 NSString *path = VibeExistingFileArgument(tokens, &errorJSON);
@@ -1140,14 +1173,22 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     return errorJSON;
                 }
                 // Decode and persist this file's waveform without disturbing
-                // the current load, then reply with its detected BPM once the
-                // entry is on disk. A cold decode of a long file runs well
-                // past the default client wait, hence this verb's 60-second
-                // clientTimeout.
+                // the current load, then reply with its detected BPM and key
+                // once the entry is on disk. A cold decode of a long file
+                // runs well past the default client wait, hence this verb's
+                // 60-second clientTimeout.
                 [controller.waveformCache cacheWaveformForURL:[NSURL fileURLWithPath:path]
-                                                   completion:^(BOOL ok, BOOL wasCached, float bpm) {
-                    NSString *reply = ok
-                            ? VibeJSONString(@{@"ok": @YES, @"path": path, @"wasCached": @(wasCached), @"bpm": @(bpm)})
+                                                   completion:^(BOOL ok, BOOL wasCached, float bpm, NSInteger key) {
+                    // The decode's own phase timings, measured in-process, or
+                    // absent on a cache hit, where no decode ran.
+                    NSDictionary *timing = [AudioLoadTiming newestJSONForPath:path];
+                    NSMutableDictionary *body = [@{@"ok": @YES, @"path": path, @"wasCached": @(wasCached),
+                                                   @"bpm": @(bpm), @"key": VibeMusicalKeyMusicalName(key),
+                                                   @"camelot": VibeMusicalKeyCamelotName(key)} mutableCopy];
+                    if (timing && !wasCached) {
+                        body[@"timing"] = timing;
+                    }
+                    NSString *reply = ok ? VibeJSONString(body)
                             : VibeErrorJSON(@"waveform decode failed for '%@'", path);
                     VibeWriteDebugResponse(commandId, reply);
                 }];
@@ -1286,6 +1327,8 @@ static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *
         }
         [usages addObject:@"clear_disk_caches"];
         [usages addObject:@"set_appearance <light|dark|system>"];
+        [usages addObject:@"set_analysis <bpm|key> <on|off>"];
+        [usages addObject:@"set_key_display <camelot|musical> <colors|plain>"];
         [usages addObject:@"sleep <seconds>"];
         [usages addObject:@"script <file | ->"];
         return VibeErrorJSON(@"unknown command '%@'. Commands: %@",

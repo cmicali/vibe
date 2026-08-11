@@ -24,6 +24,8 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     NSPopUpButton *_waveformPopUp;
     NSButton *_timeTotalRadio;
     NSButton *_timeRemainingRadio;
+    NSPopUpButton *_keyNotationPopUp;
+    NSButton *_keyColorsCheckbox;
 }
 
 - (void)loadView {
@@ -57,10 +59,23 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     NSStackView *timeRadios = [NSStackView stackViewWithViews:@[_timeTotalRadio, _timeRemainingRadio]];
     timeRadios.spacing = 12;
 
+    // Identifiers in representedObject, localized names in the titles — the
+    // same split as the waveform styles above.
+    _keyNotationPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(keyNotationChanged:)];
+    [_keyNotationPopUp addItemWithTitle:STR_SETTINGS_KEY_NOTATION_CAMELOT];
+    _keyNotationPopUp.lastItem.representedObject = SETTINGS_VALUE_KEY_NOTATION_CAMELOT;
+    [_keyNotationPopUp addItemWithTitle:STR_SETTINGS_KEY_NOTATION_MUSICAL];
+    _keyNotationPopUp.lastItem.representedObject = SETTINGS_VALUE_KEY_NOTATION_MUSICAL;
+
+    _keyColorsCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_KEY_COLORS
+                                              target:self action:@selector(toggleKeyColors:)];
+
     NSGridView *grid = [self.class formGridWithRows:@[
         @[[NSTextField labelWithString:STR_SETTINGS_APPEARANCE_LABEL], _appearancePopUp],
         @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_LABEL], _waveformPopUp],
         @[[NSTextField labelWithString:STR_SETTINGS_TIME_LABEL], timeRadios],
+        @[[NSTextField labelWithString:STR_SETTINGS_KEY_NOTATION_LABEL], _keyNotationPopUp],
+        @[NSGridCell.emptyContentView, _keyColorsCheckbox],
     ]];
     [self loadPaneWithSize:NSMakeSize(kSettingsPaneWidth, kAppearancePaneHeight) grid:grid];
 }
@@ -88,6 +103,15 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     BOOL remaining = Settings.showRemainingTime;
     _timeTotalRadio.state = remaining ? NSControlStateValueOff : NSControlStateValueOn;
     _timeRemainingRadio.state = remaining ? NSControlStateValueOn : NSControlStateValueOff;
+
+    NSString *notation = Settings.keyNotation;
+    for (NSMenuItem *item in _keyNotationPopUp.itemArray) {
+        if ([item.representedObject isEqualToString:notation]) {
+            [_keyNotationPopUp selectItem:item];
+            break;
+        }
+    }
+    _keyColorsCheckbox.state = Settings.keyColorsEnabled ? NSControlStateValueOn : NSControlStateValueOff;
 }
 
 - (void)appearanceChanged:(id)sender {
@@ -113,6 +137,16 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
 - (void)timeDisplayChanged:(NSButton *)sender {
     Settings.showRemainingTime = (sender == _timeRemainingRadio);
     [self.playerController refreshTimeDisplay];
+}
+
+- (void)keyNotationChanged:(id)sender {
+    Settings.keyNotation = _keyNotationPopUp.selectedItem.representedObject;
+    [self.playerController refreshKeyDisplay];
+}
+
+- (void)toggleKeyColors:(id)sender {
+    Settings.keyColorsEnabled = (_keyColorsCheckbox.state == NSControlStateValueOn);
+    [self.playerController refreshKeyDisplay];
 }
 
 @end

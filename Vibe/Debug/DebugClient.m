@@ -72,33 +72,36 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
         // protection, while inherited fds cross the sandbox freely. The
         // staged file carries no extension: CoreAudio identifies the format
         // by content (verified for WAV/FLAC/MP4/ADTS).
-        if ([args.firstObject isEqualToString:@"scan_bpm"]) {
+        BOOL isScanBPM = [args.firstObject isEqualToString:@"scan_bpm"];
+        if (isScanBPM || [args.firstObject isEqualToString:@"scan_key"]) {
+            const char *verb = args.firstObject.UTF8String;
+            NSString *(*scan)(NSString *) = isScanBPM ? VibeDebugBPMScanJSON : VibeDebugKeyScanJSON;
             NSString *json = nil;
             if (args.count == 2 && [args[1] isEqualToString:@"-"]) {
                 if (inScript) {
                     // The script source may itself be riding stdin.
-                    fprintf(stderr, "vibe: scan_bpm - (stdin) is not available inside a script — pass a file path\n");
+                    fprintf(stderr, "vibe: %s - (stdin) is not available inside a script — pass a file path\n", verb);
                     return 64;
                 }
                 NSData *audio = [NSFileHandle.fileHandleWithStandardInput readDataToEndOfFile];
                 if (audio.length == 0) {
-                    fprintf(stderr, "vibe: empty stdin — usage: Vibe --debug-cmd scan_bpm - < file\n");
+                    fprintf(stderr, "vibe: empty stdin — usage: Vibe --debug-cmd %s - < file\n", verb);
                     return 64;
                 }
                 NSString *staged = [NSTemporaryDirectory() stringByAppendingPathComponent:
-                        [NSString stringWithFormat:@"bpm-scan-%@", NSUUID.UUID.UUIDString]];
+                        [NSString stringWithFormat:@"analysis-scan-%@", NSUUID.UUID.UUIDString]];
                 if (![audio writeToFile:staged atomically:YES]) {
                     fprintf(stderr, "vibe: cannot write %s\n", staged.fileSystemRepresentation);
                     return 1;
                 }
-                json = VibeDebugBPMScanJSON(staged);
+                json = scan(staged);
                 [NSFileManager.defaultManager removeItemAtPath:staged error:nil];
             }
             else if (args.count == 2) {
-                json = VibeDebugBPMScanJSON(args[1]);
+                json = scan(args[1]);
             }
             else {
-                fprintf(stderr, "usage: Vibe --debug-cmd scan_bpm <file | ->\n");
+                fprintf(stderr, "usage: Vibe --debug-cmd %s <file | ->\n", verb);
                 return 64;
             }
             VibeClientPrintReply(json, inScript);
@@ -146,6 +149,59 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
             // Short-lived process: force the cfprefsd flush before exit.
             [NSUserDefaults.standardUserDefaults synchronize];
             VibeClientPrintReply(VibeJSONString(@{@"ok": @YES, @"windowAppearance": args[1]}), inScript);
+            return 0;
+        }
+        // The key-label appearance settings. A CLI-process write reaches a
+        // running app's reads immediately (same bundle ID and container, so
+        // cfprefsd shares the domain — verified with dump_state), but nothing
+        // repaints on the write itself: the label picks the change up at its
+        // next re-render (a key delivery, fader tick, track change, or
+        // updateUI). The Settings pane that owns these cannot be driven over
+        // this channel.
+        if ([args.firstObject isEqualToString:@"set_key_display"]) {
+            NSDictionary<NSString *, NSString *> *notations = @{
+                @"camelot": SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
+                @"musical": SETTINGS_VALUE_KEY_NOTATION_MUSICAL,
+            };
+            NSString *notation = args.count == 3 ? notations[args[1]] : nil;
+            BOOL colorsOn = args.count == 3 && [args[2] isEqualToString:@"colors"];
+            BOOL colorsOff = args.count == 3 && [args[2] isEqualToString:@"plain"];
+            if (!notation || (!colorsOn && !colorsOff)) {
+                fprintf(stderr, "usage: Vibe --debug-cmd set_key_display <camelot|musical> <colors|plain>\n");
+                return 64;
+            }
+            Settings.keyNotation = notation;
+            Settings.keyColorsEnabled = colorsOn;
+            [NSUserDefaults.standardUserDefaults synchronize];
+            VibeClientPrintReply(VibeJSONString(@{@"ok": @YES, @"keyNotation": notation,
+                                                  @"keyColors": @(colorsOn)}), inScript);
+            return 0;
+        }
+        // The analysis toggles — a CLI-process prefs write that, like
+        // set_key_display above, a running app's reads see immediately
+        // (verified): the next waveform decode picks the new values up, no
+        // relaunch needed. This exists to make the analyzers' cost
+        // measurable: each decode pass reads these, so A/B timing needs them
+        // settable without the UI.
+        if ([args.firstObject isEqualToString:@"set_analysis"]) {
+            BOOL on = args.count == 3 && [args[2] isEqualToString:@"on"];
+            BOOL off = args.count == 3 && [args[2] isEqualToString:@"off"];
+            BOOL isBPM = args.count == 3 && [args[1] isEqualToString:@"bpm"];
+            BOOL isKey = args.count == 3 && [args[1] isEqualToString:@"key"];
+            if ((!on && !off) || (!isBPM && !isKey)) {
+                fprintf(stderr, "usage: Vibe --debug-cmd set_analysis <bpm|key> <on|off>\n");
+                return 64;
+            }
+            if (isBPM) {
+                Settings.analyzeBPM = on;
+            }
+            else {
+                Settings.analyzeKey = on;
+            }
+            [NSUserDefaults.standardUserDefaults synchronize];
+            VibeClientPrintReply(VibeJSONString(@{@"ok": @YES,
+                                                  @"analyzeBPM": @(Settings.analyzeBPM),
+                                                  @"analyzeKey": @(Settings.analyzeKey)}), inScript);
             return 0;
         }
         NSString *commandId = NSUUID.UUID.UUIDString;

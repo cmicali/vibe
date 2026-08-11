@@ -1,6 +1,7 @@
-# Unreleased
+# v1.8
 
 * Added settings window
+* Added key tag display and optional key detection (default: off)
 * Added Czech, Slovak, Hungarian, Greek, Vietnamese, Indonesian, and Thai localizations (now 30 languages)
 * Fixed ⌘W not closing the Settings and About windows
 
