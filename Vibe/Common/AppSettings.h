@@ -61,6 +61,13 @@ static const NSInteger kVibeCrossfadePresets[] = {10, 500, 2000};
 - (BOOL)isPlaylistShown;
 - (void)setPlaylistShown:(BOOL)shown;
 
+// YES keeps the player window above every other app's windows
+// (NSFloatingWindowLevel). View > Always on Top and Settings > General share
+// this setting; MainPlayerController's applyAlwaysOnTop is the one place that
+// acts on it.
+- (BOOL)alwaysOnTop;
+- (void)setAlwaysOnTop:(BOOL)onTop;
+
 // The right-hand time label's mode. YES shows the minus-prefixed remaining
 // time, such as "-1:50", and NO, the default, shows the total duration.
 // Clicking the label toggles it.

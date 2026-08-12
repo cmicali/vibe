@@ -320,6 +320,7 @@
     // the appearance and layout at construction.
 
     self.window.appearance = Settings.windowAppearance;
+    [self applyAlwaysOnTop];
 
     self.waveformView.delegate = self;
     self.waveformView.waveformStyle = Settings.waveformStyle;
@@ -1039,6 +1040,17 @@
     // frozen frames a few points off the finished window.
     body.frame = [self playerBodyFrame];
     _pitchPanel.frame = [self pitchPanelFrame];
+}
+
+- (IBAction) toggleAlwaysOnTop:(id)sender {
+    Settings.alwaysOnTop = !Settings.alwaysOnTop;
+    [self applyAlwaysOnTop];
+}
+
+- (void)applyAlwaysOnTop {
+    self.window.level = Settings.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel;
+    // About and Settings follow the player's level, or it would bury them.
+    [(AppDelegate *)NSApp.delegate applyAuxiliaryWindowLevels];
 }
 
 - (IBAction)setPitchRange:(id)sender {

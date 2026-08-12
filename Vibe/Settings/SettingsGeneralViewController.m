@@ -25,6 +25,7 @@ static const CGFloat kOutputPopUpWidth = 280;
     OutputDevicesMenuController *_outputMenuController;
     NSPopUpButton *_outputPopUp;
     NSButton *_defaultPlayerButton;
+    NSButton *_alwaysOnTopCheckbox;
     // The last answer from the async default-app check, shown immediately on
     // refresh while the fresh one is fetched; the generation drops a stale
     // reply that lands after a newer refresh.
@@ -48,9 +49,13 @@ static const CGFloat kOutputPopUpWidth = 280;
 
     _defaultPlayerButton = [NSButton buttonWithTitle:@"" target:self action:@selector(makeDefaultPlayer:)];
 
+    _alwaysOnTopCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_ALWAYS_ON_TOP
+                                                target:self action:@selector(toggleAlwaysOnTop:)];
+
     NSGridView *grid = [self.class formGridWithRows:@[
         @[[NSTextField labelWithString:STR_SETTINGS_OUTPUT_LABEL], _outputPopUp],
         @[NSGridCell.emptyContentView, _defaultPlayerButton],
+        @[NSGridCell.emptyContentView, _alwaysOnTopCheckbox],
     ]];
     [self loadPaneWithSize:NSMakeSize(kSettingsPaneWidth, kGeneralPaneHeight) grid:grid];
 }
@@ -58,6 +63,12 @@ static const CGFloat kOutputPopUpWidth = 280;
 - (void)refreshFromSettings {
     [self refreshOutputPopUp];
     [self refreshDefaultPlayerButton];
+    _alwaysOnTopCheckbox.state = Settings.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
+}
+
+- (void)toggleAlwaysOnTop:(id)sender {
+    Settings.alwaysOnTop = (_alwaysOnTopCheckbox.state == NSControlStateValueOn);
+    [self.playerController applyAlwaysOnTop];
 }
 
 #pragma mark - Output device

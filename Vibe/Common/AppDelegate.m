@@ -253,6 +253,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     if (!self.aboutWindowController) {
         self.aboutWindowController = [[AboutWindowController alloc] init];
     }
+    [self applyAuxiliaryWindowLevels];
     [self.aboutWindowController showWindow:sender];
 }
 
@@ -261,7 +262,14 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         self.settingsWindowController = [[SettingsWindowController alloc]
                 initWithPlayerController:self.mainPlayerController];
     }
+    [self applyAuxiliaryWindowLevels];
     [self.settingsWindowController showWindow:sender];
+}
+
+- (void)applyAuxiliaryWindowLevels {
+    NSWindowLevel level = Settings.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel;
+    self.aboutWindowController.window.level = level;
+    self.settingsWindowController.window.level = level;
 }
 
 - (IBAction)openDocument:(id)sender {
