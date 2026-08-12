@@ -2,9 +2,10 @@
 //  AudioPlayerInternal.h
 //  Vibe
 //
-//  The private surface shared between AudioPlayer.m and AudioPlayer+Devices.m:
-//  the player state enum, the error constructor, and the class extension
-//  holding the ivars and queue-side helpers the output-device category needs.
+//  The private surface shared between AudioPlayer.m and its platform
+//  categories — AudioPlayer+Devices.m on macOS, Vibe/iOS/AudioPlayer+Recovery.m
+//  on iOS: the player state enum, the error constructor, and the class
+//  extension holding the ivars and queue-side helpers those categories need.
 //  Do not use it outside the AudioPlayer implementation files; everything else
 //  goes through AudioPlayer.h.
 //
@@ -40,9 +41,9 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 }
 
 @interface AudioPlayer () {
-    // Only the ivars AudioPlayer+Devices.m also touches live here in the class
-    // extension. Everything the device code never reaches stays declared, with
-    // its commentary, in AudioPlayer.m's @implementation block.
+    // Only the ivars the platform categories also touch live here in the
+    // class extension. Everything they never reach stays declared, with its
+    // commentary, in AudioPlayer.m's @implementation block.
     dispatch_queue_t        _queue;
     AVAudioEngine           *_engine;
     AVAudioPlayerNode       *_node;
@@ -56,6 +57,12 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     uint64_t                _rampGeneration;
     VibePlayerState         _state;
     os_unfair_lock          _stateLock;
+    // A pause fade is in flight. Queue-confined. A second playPause during the
+    // fade-out cancels the pending pause and ramps back up rather than pausing
+    // twice. The fade's completion clears it, and runs on preemption too, as
+    // does preemptRampsOnQueue eagerly. Here because the iOS config-change
+    // recovery must yield to a pending pause, which owns the transport.
+    BOOL                    _pausePending;
 }
 
 // Readwrite here, readonly in AudioPlayer.h. Only the player itself writes
@@ -92,6 +99,12 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 - (void)maybeArmGaplessOnQueue;
 - (BOOL)startEngineAndPlayNode:(AVAudioPlayerNode *)node error:(NSError * _Nullable * _Nullable)outError;
 - (void)resetToStoppedStateOnQueue;
+- (void)scheduleEngineIdleStopOnQueue;
+- (void)rampNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target
+           generation:(uint64_t)generation completion:(nullable dispatch_block_t)completion;
+// Forgets every reference bound to the current engine without messaging it;
+// the iOS media-services-reset rebuild's first half.
+- (void)dropEngineBoundStateOnQueue;
 - (void)publishPlaybackState:(VibePlayerState)state
                         node:(nullable AVAudioPlayerNode *)node
                         file:(nullable AVAudioFile *)file

@@ -5,6 +5,7 @@
 
 #import "PlayerViewController.h"
 #import "AudioPlayer.h"
+#import "AudioPlayer+Recovery.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"

@@ -204,11 +204,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // playback, to dissolve the deferred idle engine stop scheduled by
     // scheduleEngineIdleStopOnQueue. Queue-confined.
     uint64_t                _engineIdleStopGeneration;
-    // A pause fade is in flight. Queue-confined. A second playPause during the
-    // fade-out cancels the pending pause and ramps back up rather than pausing
-    // twice. The fade's completion clears it, and runs on preemption too, as
-    // does preemptRampsOnQueue eagerly.
-    BOOL                    _pausePending;
     // Crossfade-length retired fades in flight, registered by retireNode:.
     // Queue-confined. Stop, pause and the failure reset preempt them through
     // preemptRetiredFadesOnQueue, so an outgoing track cannot stay audible
@@ -1184,6 +1179,26 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     });
 }
 
+// Runs on _queue. Forgets every reference bound to the current engine without
+// messaging it — the caller may hold a defunct engine whose graph must not be
+// touched, as after an iOS media-services reset (see AudioPlayer+Recovery.m).
+// Emptying the retired-fade registry halts the steppers; the open and
+// prefetch state goes because a parked AVAudioFile dies with the media
+// server.
+- (void)dropEngineBoundStateOnQueue {
+    [_retiredFades removeAllObjects];
+    _varispeed = nil;
+    _openRequestId++;
+    _currentOpenPath = nil;
+    _pendingOpenTrack = nil;
+    _pendingStartPosition = 0;
+    _pendingStartPaused = NO;
+    _pendingDeclick = NO;
+    _prefetchRequestId++;
+    _prefetchedPath = nil;
+    _prefetchedFile = nil;
+}
+
 // [AVAudioPlayerNode play] throws an NSException if the engine stopped between
 // our isRunning check and the call, and the engine stops itself on device and
 // format changes. Start the engine if needed, and absorb the race.
@@ -1470,87 +1485,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     AudioTrack *track = self.currentTrack;
     run_on_main_thread({
         [self.delegate audioPlayer:self didPausePlaying:track];
-    });
-}
-
-#pragma mark - iOS session recovery
-
-// See AudioPlayer.h. The in-place restart is the same ballet as the paused
-// idle stop's reschedule: [node stop] fires the old segment's completion, so
-// _generation bumps first; scheduling needs no running engine; and
-// startEngineAndPlayNode: restarts it. The output node converts if the new
-// route runs at a different sample rate from the wired format, so no
-// reconnection is needed (see AudioFX's wiring note).
-- (void)recoverFromEngineConfigurationChange {
-    dispatch_async(_queue, ^{
-        if (self->_state != VibePlayerStatePlaying || self->_pausePending) {
-            // Paused and stopped recover lazily on the next start, and a
-            // pending pause owns the transport: its completion pauses in
-            // place, engine running or not.
-            return;
-        }
-        AVAudioPlayerNode *node = self->_node;
-        AVAudioFile *file = self->_file;
-        if (!node || !file || self->_engine.isRunning) {
-            return; // Loading, or the engine survived the change.
-        }
-        // The getter serves the last-valid cache here: lastRenderTime went
-        // nil when the engine stopped itself.
-        NSTimeInterval position = self.position;
-        self->_generation++; // the [node stop] below fires the old segment's completion
-        uint64_t rampGen = [self preemptRampsOnQueue];
-        [node stop];
-        double sampleRate = file.processingFormat.sampleRate;
-        AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, file.length);
-        [self scheduleFile:file onNode:node fromFrame:startFrame];
-        NSError *startError = nil;
-        if (![self startEngineAndPlayNode:node error:&startError]) {
-            // No output to restart on. Park Paused at the same position, so
-            // the next resume restarts the engine, and say why.
-            LogError(@"AudioPlayer: config-change restart failed (%@)", startError);
-            [self publishPlaybackState:VibePlayerStatePaused node:node file:file
-                          segmentStart:startFrame position:position];
-            [self scheduleEngineIdleStopOnQueue];
-            AudioTrack *track = self.currentTrack;
-            run_on_main_thread({
-                [self.delegate audioPlayer:self didPausePlaying:track];
-            });
-            return;
-        }
-        [self publishPlaybackState:VibePlayerStatePlaying node:node file:file
-                      segmentStart:startFrame position:position];
-        [self rampNodeAsync:node step:1 from:node.volume to:1.0 generation:rampGen completion:nil];
-    });
-}
-
-// See AudioPlayer.h. Dead objects are dropped, never stopped or detached —
-// messaging the defunct engine's graph is what must not happen here — and
-// installInEngine: mints fresh FX nodes and re-applies the recorded intent,
-// so the rebuilt graph comes up with the same effect state.
-- (void)reinitializeAfterMediaServicesReset {
-    dispatch_async(_queue, ^{
-        LogWarn(@"AudioPlayer: rebuilding engine after media services reset");
-        self->_generation++;
-        [self preemptRampsOnQueue];
-        // Emptying the registry halts the retired-fade steppers without
-        // touching the dead pairs.
-        [self->_retiredFades removeAllObjects];
-        self->_varispeed = nil;
-        // Invalidate any in-flight open and drop the parked prefetch handle:
-        // its AVAudioFile died with the server.
-        self->_openRequestId++;
-        self->_currentOpenPath = nil;
-        self->_pendingOpenTrack = nil;
-        self->_pendingStartPosition = 0;
-        self->_pendingStartPaused = NO;
-        self->_pendingDeclick = NO;
-        self->_prefetchRequestId++;
-        self->_prefetchedPath = nil;
-        self->_prefetchedFile = nil;
-        self.currentTrack = nil;
-        [self publishPlaybackState:VibePlayerStateStopped node:nil file:nil segmentStart:0 position:0];
-        self->_engine = [[AVAudioEngine alloc] init];
-        [self->_fx installInEngine:self->_engine];
     });
 }
 
