@@ -267,4 +267,9 @@ static inline NSString *VibeAppName(void) {
 #define STR_ERROR_DEVICE_UNAVAILABLE  NSLS(@"error.device_unavailable",  @"Audio device unavailable", @"Inline playback error: no usable audio output device.")
 #define STR_ERROR_PLAYBACK_GENERIC    NSLS(@"error.playback_generic",    @"Playback error",           @"Inline playback error: fallback for an unrecognized failure.")
 
+#pragma mark - Playlist files (CUE, M3U)
+
+#define STR_PLAYLIST_GRANT_MESSAGE NSLS(@"playlist.grant.message", @"Vibe needs permission to read the audio files listed in “%@”. Select the folder that contains them.", @"Message atop the folder-picker panel shown when a playlist file's (CUE, M3U) audio files are not readable under the sandbox. %@ is the playlist file's name.")
+#define STR_PLAYLIST_GRANT_BUTTON  NSLS(@"playlist.grant.button",  @"Grant Access", @"Confirm button of the folder-picker panel that grants access to a playlist file's folder.")
+
 #endif /* VibeStrings_h */

@@ -15,7 +15,9 @@
 // is not the same as dataless.
 + (BOOL)isDatalessFile:(NSURL *)url;
 
-// Expands folders, filters to playable extensions, and preserves submission
+// Expands folders and top-level playlist files (the files a .cue/.m3u/.m3u8
+// lists, in list order, raising a folder-access grant when the sandbox
+// requires one), filters to playable extensions, and preserves submission
 // order: expansion runs on a serial queue, so overlapping drops complete in
 // the order they were submitted and a slow folder walk cannot finish after a
 // later drop's and replace the newer playlist. folderCount is how many of the

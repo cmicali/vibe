@@ -14893,6 +14893,30 @@
       },
       "extractionState": "manual"
     },
+    "playlist.grant.button": {
+      "comment": "Confirm button of the folder-picker panel that grants access to a playlist file's folder.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grant Access"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "playlist.grant.message": {
+      "comment": "Message atop the folder-picker panel shown when a playlist file's (CUE, M3U) audio files are not readable under the sandbox. %@ is the playlist file's name.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe needs permission to read the audio files listed in “%@”. Select the folder that contains them."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.advanced": {
       "comment": "Settings window: the Advanced pane's toolbar item, and the window's title while that pane is selected. macOS uses this same name in every app's settings.",
       "localizations": {
