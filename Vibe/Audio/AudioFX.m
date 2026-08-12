@@ -239,11 +239,16 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     [engine attachNode:_reverb];
     [engine attachNode:_reverbLowCut];
     // Cathedral is the base character, and these push the tail out to the
-    // target length. See the constants.
+    // target length. See the constants. macOS-only: there AVAudioUnitReverb
+    // wraps MatrixReverb ('mrev'), whose raw kReverbParam_* knobs these are;
+    // on iOS it wraps Reverb2, which has no equivalents, so iOS keeps the
+    // plain Cathedral tail.
+#if TARGET_OS_OSX
     AudioUnit reverbUnit = _reverb.audioUnit;
     AudioUnitSetParameter(reverbUnit, kReverbParam_SmallLargeMix, kAudioUnitScope_Global, 0, kReverbSmallLargeMix, 0);
     AudioUnitSetParameter(reverbUnit, kReverbParam_LargeSize, kAudioUnitScope_Global, 0, kReverbLargeSize, 0);
     AudioUnitSetParameter(reverbUnit, kReverbParam_LargeDensity, kAudioUnitScope_Global, 0, kReverbLargeDensity, 0);
+#endif
 
     // Two ping-pong delay returns, the same machine at different clock
     // divisions; see VibeDelaySend. They are created and attached here so that

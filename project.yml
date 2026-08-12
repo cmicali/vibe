@@ -4,6 +4,7 @@ options:
   bundleIdPrefix: com.commonwealthrecordings
   deploymentTarget:
     macOS: "26.0"
+    iOS: "26.0"
   createIntermediateGroups: true
   settingPresets: none
   developmentLanguage: en       # base language of the String Catalogs; also what
@@ -20,6 +21,30 @@ options:
 configs:
   Debug: debug
   Release: release
+
+# Shared between the app targets so a second platform cannot drift from the
+# first on where TagLib, PINCache and the generated git-info header live.
+settingGroups:
+  vibe-header-paths:
+    HEADER_SEARCH_PATHS:
+      - "$(inherited)"
+      - "$(SRCROOT)/build/generated"      # VibeGitInfo.h, written by the pre-build script
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/toolkit"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg/id3v1"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg/id3v2"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg/id3v2/frames"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/ape"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/mp4"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/flac"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff/aiff"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff/wav"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/ogg"
+      - "$(SRCROOT)/Vibe/ThirdParty"
+      - "$(SRCROOT)/Vibe/ThirdParty/PINCache"
+      - "$(SRCROOT)/Vibe/ThirdParty/PINOperation"
 
 # ---- PROJECT-LEVEL settings (== PBXProject build configs) ----
 settings:
@@ -262,6 +287,7 @@ targets:
                 - "cue"
 
     settings:
+      groups: [vibe-header-paths]
       base:
         PRODUCT_NAME: "$(TARGET_NAME)"
         MARKETING_VERSION: "1.9"
@@ -281,25 +307,6 @@ targets:
         ENABLE_USER_SCRIPT_SANDBOXING: NO           # target overrides project-level YES
         ENABLE_USER_SELECTED_FILES: readwrite
         EXCLUDED_ARCHS: ""
-        HEADER_SEARCH_PATHS:
-          - "$(inherited)"
-          - "$(SRCROOT)/build/generated"      # VibeGitInfo.h, written by the pre-build script
-          - "$(SRCROOT)/Vibe/ThirdParty/taglib"
-          - "$(SRCROOT)/Vibe/ThirdParty/taglib/toolkit"
-          - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg"
-          - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg/id3v1"
-          - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg/id3v2"
-          - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg/id3v2/frames"
-          - "$(SRCROOT)/Vibe/ThirdParty/taglib/ape"
-          - "$(SRCROOT)/Vibe/ThirdParty/taglib/mp4"
-          - "$(SRCROOT)/Vibe/ThirdParty/taglib/flac"
-          - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff"
-          - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff/aiff"
-          - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff/wav"
-          - "$(SRCROOT)/Vibe/ThirdParty/taglib/ogg"
-          - "$(SRCROOT)/Vibe/ThirdParty"
-          - "$(SRCROOT)/Vibe/ThirdParty/PINCache"
-          - "$(SRCROOT)/Vibe/ThirdParty/PINOperation"
         LD_RUNPATH_SEARCH_PATHS:
           - "$(inherited)"
           - "@executable_path/../Frameworks"
@@ -318,6 +325,160 @@ targets:
       - sdk: MetalKit.framework             # VectorBallsView (About window)
       - sdk: QuartzCore.framework
       - sdk: UniformTypeIdentifiers.framework  # AppDelegate file filtering, DebugUtil
+
+  # The iOS app: the shared subset (Audio minus the HAL device layer and
+  # Convert, Common, the portable half of Util, Waveform minus the AppKit
+  # view, ThirdParty) plus the UIKit app layer in Vibe/iOS. Same bundle ID as
+  # the mac app: two platforms may share one, and it is the prerequisite for
+  # App Store universal purchase.
+  VibeiOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: Vibe/iOS
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/Audio
+        excludes:
+          - "**/.DS_Store"
+          - "**/*.md"
+          - "AudioDevice.h"                   # CoreAudio HAL device layer:
+          - "AudioDevice.m"                   # iOS routing is AVAudioSession's,
+          - "AudioDeviceManager.h"            # handled in Vibe/iOS
+          - "AudioDeviceManager.m"
+          - "AudioPlayer+Devices.h"
+          - "AudioPlayer+Devices.m"
+          - "Convert/**"                      # NSSavePanel path; deferred
+      - path: Vibe/Common
+        excludes:
+          - "**/.DS_Store"
+          - "**/*.md"
+          - "**/Info.plist"
+          - "AppStats.h"                      # NSWorkspace sleep/wake; mac-only callers
+          - "AppStats.m"
+      - path: Vibe/Util
+        excludes:
+          - "**/.DS_Store"
+          - "**/*.md"
+          - "CoreAudioUtil.h"                 # HAL property accessors
+          - "CoreAudioUtil.m"
+          - "Fonts.h"                         # AppKit-bound; iOS uses UIFont directly
+          - "Fonts.m"
+          - "Categories/NSColor+OKLCH.*"      # AppKit categories; the iOS
+          - "Categories/NSImage+Util.*"       # counterparts live in Vibe/iOS
+          - "Categories/NSView+DarkMode.*"    # as they become needed
+          - "Categories/NSDockTile+Util.*"
+          - "Categories/NSDraggingImageComponent+Util.*"
+      - path: Vibe/Waveform
+        excludes:
+          - "**/.DS_Store"
+          - "**/*.md"
+          - "AudioWaveformView.*"             # NSView; the iOS scrubber lives in Vibe/iOS
+      - path: Vibe/ThirdParty
+        excludes:
+          - "**/.DS_Store"
+          - "**/*.md"
+          - "**/*.xcprivacy"
+          - "**/*.txt"
+          - "**/LICENSE.MPL"
+          - "**/PINDiskCache.m"
+      - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
+        compilerFlags:
+          - "-fobjc-arc-exceptions"
+      - path: Resources/AppIcon.icon
+      - path: Resources/Localizable.xcstrings
+        buildPhase: resources
+      - path: Resources/InfoPlist.xcstrings
+        buildPhase: resources
+    preBuildScripts:
+      - script: '"$SRCROOT/scripts/generate-git-info.sh"'
+        name: Generate Git Info
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - "$(SRCROOT)/build/generated/VibeGitInfo.h"
+    info:
+      path: Vibe/iOS/Info.plist
+      properties:
+        CFBundleName: "$(PRODUCT_NAME)"
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleDevelopmentRegion: "$(DEVELOPMENT_LANGUAGE)"
+        CFBundlePackageType: "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
+        CFBundleInfoDictionaryVersion: "6.0"
+        LSRequiresIPhoneOS: true
+        LSApplicationCategoryType: "public.app-category.music"
+        ITSAppUsesNonExemptEncryption: false
+        NSHumanReadableCopyright: "Copyright © 2026 Christopher Micali. All rights reserved."
+        UILaunchScreen: {}                    # system launch screen; no storyboard
+        UIBackgroundModes: [audio]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default
+                UISceneDelegateClassName: VibeiOSSceneDelegate
+        # Files-app integration: open-in-place from Files/share sheet, and a
+        # visible on-device Documents folder (also the simulator test loop).
+        LSSupportsOpeningDocumentsInPlace: true
+        UIFileSharingEnabled: true
+        # Same key and UTIs as the mac target's "Audio Files" entry, so
+        # InfoPlist.xcstrings localizes both. No Folder claim (Launch Services
+        # folder handling is a mac concept) and no related-item FLAC entry
+        # (Convert is not compiled on iOS).
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: "Audio Files"
+            CFBundleTypeRole: "Viewer"
+            LSHandlerRank: "Default"
+            LSItemContentTypes:
+              - "public.mp2"
+              - "public.mp3"
+              - "public.aac-audio"
+              - "public.aiff-audio"
+              - "com.microsoft.waveform-audio"
+              - "org.xiph.flac"
+              - "com.apple.m4a-audio"
+              - "public.mpeg-4-audio"
+        VibeBuild:
+          Configuration: "$(CONFIGURATION)"
+          OptimizationLevel: "-O$(GCC_OPTIMIZATION_LEVEL)"
+          PreprocessorDefinitions: "$(GCC_PREPROCESSOR_DEFINITIONS)"
+          OtherCFlags: "$(OTHER_CFLAGS)"
+          OtherCPlusPlusFlags: "$(OTHER_CPLUSPLUSFLAGS)"
+          OtherLinkerFlags: "$(OTHER_LDFLAGS)"
+          LanguageStandards: "C $(GCC_C_LANGUAGE_STANDARD) / C++ $(CLANG_CXX_LANGUAGE_STANDARD) / $(CLANG_CXX_LIBRARY)"
+          Architectures: "$(ARCHS)"
+          DeadCodeStripping: "$(DEAD_CODE_STRIPPING)"
+          HardenedRuntime: "$(ENABLE_HARDENED_RUNTIME)"
+          AppSandbox: "$(ENABLE_APP_SANDBOX)"
+    settings:
+      groups: [vibe-header-paths]
+      base:
+        PRODUCT_NAME: Vibe
+        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.Vibe
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: 1
+        SDKROOT: iphoneos
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"  # settingPresets: none injects neither
+        IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_USER_SCRIPT_SANDBOXING: NO     # generate-git-info.sh reads .git
+        PROVISIONING_PROFILE_SPECIFIER: ""
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/Frameworks"
+    dependencies:
+      - sdk: AVFoundation.framework
+      - sdk: Accelerate.framework
+      - sdk: AudioToolbox.framework
+      - sdk: ImageIO.framework
+      - sdk: MediaPlayer.framework
+      - sdk: QuartzCore.framework
+      - sdk: UniformTypeIdentifiers.framework
 
   # Host-LESS logic tests: no TEST_HOST, so the suite never launches the app
   # (which would boot the window, engine and caches on every run) and never
@@ -404,6 +565,15 @@ targets:
       - sdk: AppKit.framework                # AudioTrack album art (NSImage)
 
 schemes:
+  VibeiOS:
+    build:
+      parallelizeBuild: true
+      targets:
+        VibeiOS: all
+    run:      { config: Debug }
+    profile:  { config: Release }
+    analyze:  { config: Debug }
+    archive:  { config: Release }
   Vibe:
     build:
       parallelizeBuild: true
