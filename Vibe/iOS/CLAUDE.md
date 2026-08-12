@@ -26,9 +26,16 @@ xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -configuration Debug \
 
 ```bash
 xcrun simctl install booted build/DerivedData/Build/Products/Debug-iphonesimulator/Vibe.app
-xcrun simctl launch booted com.commonwealthrecordings.Vibe
+# The mac app's debug audio flags work verbatim — the engine code is shared:
+# --no-audio-hw runs manual rendering (real-time pump, no output device),
+# --silent zeroes the mixer. Default to both for test runs, like launch.sh
+# does on macOS, so a test session never plays through the mac's speakers.
+xcrun simctl launch booted com.commonwealthrecordings.Vibe --no-audio-hw --silent
 xcrun simctl io booted screenshot shot.png
-xcrun simctl spawn booted /usr/bin/log stream --level debug \
+# Stream from the HOST: simulator processes log into the mac's unified log,
+# and `log stream` inside the simulator (simctl spawn) is refused as
+# non-admin. Info/debug are not persisted, so stream, don't `log show`.
+/usr/bin/log stream --level debug \
     --predicate 'subsystem == "com.commonwealthrecordings.Vibe"'
 ```
 
