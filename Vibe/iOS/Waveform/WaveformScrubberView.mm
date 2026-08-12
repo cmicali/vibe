@@ -74,9 +74,10 @@
     if (_renderer) {
         return;
     }
-    // Phase 1 hard-wires the SoundCloud look — no iOS style picker yet. The
-    // registry fallback keeps this safe if the style is ever renamed.
-    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:@"sonic_cirrus"];
+    // The app default style (Oversampling Detailed x4), same as the mac's —
+    // no iOS style picker yet. The registry fallback keeps this safe if the
+    // identifier is ever renamed.
+    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT];
     Class rendererClass = [WaveformRendererRegistry rendererClassForIdentifier:style];
     if (!rendererClass) {
         return;

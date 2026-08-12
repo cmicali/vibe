@@ -3943,6 +3943,18 @@
       },
       "extractionState": "manual"
     },
+    "label.search": {
+      "comment": "iOS: title and placeholder of the search screen that filters the current folder's tracks.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "label.time.unknown": {
       "comment": "Placeholder in the elapsed/total time labels when the time is not yet known.",
       "localizations": {

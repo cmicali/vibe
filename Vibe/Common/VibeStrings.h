@@ -277,6 +277,7 @@ static inline NSString *VibeAppName(void) {
 #pragma mark - iOS
 
 #define STR_LABEL_CHOOSE_FOLDER NSLS(@"label.choose_folder", @"Choose Folder…",              @"iOS: row in the track list sheet that opens the system document picker to pick a different folder or file.")
+#define STR_LABEL_SEARCH        NSLS(@"label.search",        @"Search",                      @"iOS: title and placeholder of the search screen that filters the current folder's tracks.")
 #define STR_LABEL_OPEN_HINT_IOS NSLS(@"label.open_hint.ios", @"Tap to choose a folder or file", @"iOS empty-state hint on the player screen when nothing is loaded. Tapping anywhere opens the system file picker.")
 #define STR_ERROR_FOLDER_EMPTY  NSLS(@"error.folder_empty",  @"No audio files in this folder",  @"iOS: shown after picking a folder that contains no playable audio files.")
 

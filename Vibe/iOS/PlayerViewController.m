@@ -13,6 +13,7 @@
 #import "FolderSession.h"
 #import "Playlist.h"
 #import "NowPlayingController.h"
+#import "SearchViewController.h"
 #import "TrackListViewController.h"
 #import "UIUpdateTimer.h"
 #import "Formatters.h"
@@ -24,7 +25,8 @@ static const NSUInteger kUIUpdateHz = 3;
 @interface PlayerViewController () <AudioPlayerDelegate, PlaylistObserver,
         AudioTrackMetadataCacheDelegate, AudioWaveformCacheDelegate,
         WaveformScrubberViewDelegate, NowPlayingControllerDelegate,
-        AudioSessionControllerDelegate, FolderSessionDelegate>
+        AudioSessionControllerDelegate, FolderSessionDelegate,
+        UIGestureRecognizerDelegate>
 @end
 
 @implementation PlayerViewController {
@@ -37,15 +39,22 @@ static const NSUInteger kUIUpdateHz = 3;
     FolderSession           *_folderSession;
     UIUpdateTimer           *_updateTimer;
 
-    UIImageView             *_artworkView;
+    // The blurred album art behind everything, Apple Music style: the art
+    // aspect-fills the screen under a blur. The screen is forced dark so
+    // text and the waveform read over any art.
+    UIImageView             *_backgroundArtView;
+    UIVisualEffectView      *_backgroundBlurView;
+
+    UILabel                 *_artistLabel;      // small, top-left, above the title
     UILabel                 *_titleLabel;
-    UILabel                 *_artistLabel;
+    UILabel                 *_fileInfoLabel;    // the codec corner, top-right
     WaveformScrubberView    *_waveformView;
     UILabel                 *_elapsedLabel;
     UILabel                 *_remainingLabel;
-    UIButton                *_playlistButton;
     UIButton                *_playPauseButton;
     UIButton                *_nextButton;
+    UIButton                *_searchBarButton;  // Messages-style glass search bar
+    UIButton                *_folderButton;     // the compose-position circle
     UITapGestureRecognizer  *_emptyStateTap;
 
     TrackListViewController *_trackListController;
@@ -62,6 +71,9 @@ static const NSUInteger kUIUpdateHz = 3;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    // Forced dark, like the Apple Music and SoundCloud player screens: every
+    // label and the waveform must read over arbitrary blurred art.
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.backgroundColor = [UIColor systemBackgroundColor];
     [self buildUI];
 
@@ -112,27 +124,35 @@ static const NSUInteger kUIUpdateHz = 3;
 - (void)buildUI {
     UIView *root = self.view;
 
-    _artworkView = [[UIImageView alloc] init];
-    _artworkView.contentMode = UIViewContentModeScaleAspectFit;
-    _artworkView.layer.cornerRadius = 12;
-    _artworkView.clipsToBounds = YES;
-    _artworkView.backgroundColor = [UIColor tertiarySystemFillColor];
-    _artworkView.translatesAutoresizingMaskIntoConstraints = NO;
-    [root addSubview:_artworkView];
+    _backgroundArtView = [[UIImageView alloc] init];
+    _backgroundArtView.contentMode = UIViewContentModeScaleAspectFill;
+    _backgroundArtView.clipsToBounds = YES;
+    _backgroundArtView.translatesAutoresizingMaskIntoConstraints = NO;
+    [root addSubview:_backgroundArtView];
 
-    _titleLabel = [[UILabel alloc] init];
-    _titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleTitle3];
-    _titleLabel.textAlignment = NSTextAlignmentCenter;
-    _titleLabel.numberOfLines = 2;
-    _titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    [root addSubview:_titleLabel];
+    _backgroundBlurView = [[UIVisualEffectView alloc] initWithEffect:
+            [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterialDark]];
+    _backgroundBlurView.translatesAutoresizingMaskIntoConstraints = NO;
+    [root addSubview:_backgroundBlurView];
 
     _artistLabel = [[UILabel alloc] init];
     _artistLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
     _artistLabel.textColor = [UIColor secondaryLabelColor];
-    _artistLabel.textAlignment = NSTextAlignmentCenter;
     _artistLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [root addSubview:_artistLabel];
+
+    _titleLabel = [[UILabel alloc] init];
+    _titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleTitle2];
+    _titleLabel.numberOfLines = 2;
+    _titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [root addSubview:_titleLabel];
+
+    _fileInfoLabel = [[UILabel alloc] init];
+    _fileInfoLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+    _fileInfoLabel.textColor = [UIColor secondaryLabelColor];
+    _fileInfoLabel.textAlignment = NSTextAlignmentRight;
+    _fileInfoLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [root addSubview:_fileInfoLabel];
 
     _waveformView = [[WaveformScrubberView alloc] initWithFrame:CGRectZero];
     _waveformView.delegate = self;
@@ -145,59 +165,118 @@ static const NSUInteger kUIUpdateHz = 3;
     [root addSubview:_elapsedLabel];
     [root addSubview:_remainingLabel];
 
-    _playlistButton = [self makeTransportButton:@"list.bullet" pointSize:22
-                                         action:@selector(playlistTapped)];
-    _playlistButton.accessibilityLabel = STR_A11Y_TOGGLE_PLAYLIST;
-    _playPauseButton = [self makeTransportButton:@"play.fill" pointSize:40
+    _playPauseButton = [self makeTransportButton:@"play.fill" pointSize:44
                                           action:@selector(playPauseTapped)];
     _playPauseButton.accessibilityLabel = STR_TRANSPORT_PLAY;
-    _nextButton = [self makeTransportButton:@"forward.fill" pointSize:22
+    _nextButton = [self makeTransportButton:@"forward.fill" pointSize:26
                                      action:@selector(nextTapped)];
     _nextButton.accessibilityLabel = STR_TRANSPORT_NEXT;
 
     UIStackView *transport = [[UIStackView alloc] initWithArrangedSubviews:@[
-            _playlistButton, _playPauseButton, _nextButton]];
+            _playPauseButton, _nextButton]];
     transport.axis = UILayoutConstraintAxisHorizontal;
     transport.alignment = UIStackViewAlignmentCenter;
-    transport.distribution = UIStackViewDistributionEqualCentering;
+    transport.spacing = 56;
     transport.translatesAutoresizingMaskIntoConstraints = NO;
     [root addSubview:transport];
+
+    // The Messages-style bottom bar: a wide glass search field, and the
+    // folder button in the compose position beside it.
+    UIButtonConfiguration *searchConfig = [UIButtonConfiguration glassButtonConfiguration];
+    searchConfig.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
+    searchConfig.image = [UIImage systemImageNamed:@"magnifyingglass"];
+    searchConfig.title = STR_LABEL_SEARCH;
+    searchConfig.imagePadding = 8;
+    searchConfig.baseForegroundColor = [UIColor secondaryLabelColor];
+    searchConfig.contentInsets = NSDirectionalEdgeInsetsMake(14, 18, 14, 18);
+    _searchBarButton = [UIButton buttonWithConfiguration:searchConfig primaryAction:nil];
+    _searchBarButton.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeading;
+    _searchBarButton.accessibilityLabel = STR_LABEL_SEARCH;
+    [_searchBarButton addTarget:self action:@selector(searchTapped)
+               forControlEvents:UIControlEventTouchUpInside];
+    _searchBarButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [root addSubview:_searchBarButton];
+
+    UIButtonConfiguration *folderConfig = [UIButtonConfiguration glassButtonConfiguration];
+    folderConfig.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
+    folderConfig.image = [UIImage systemImageNamed:@"list.bullet"];
+    folderConfig.baseForegroundColor = [UIColor labelColor];
+    _folderButton = [UIButton buttonWithConfiguration:folderConfig primaryAction:nil];
+    _folderButton.accessibilityLabel = STR_A11Y_TOGGLE_PLAYLIST;
+    [_folderButton addTarget:self action:@selector(playlistTapped)
+            forControlEvents:UIControlEventTouchUpInside];
+    _folderButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [root addSubview:_folderButton];
 
     _emptyStateTap = [[UITapGestureRecognizer alloc] initWithTarget:self
                                                              action:@selector(emptyStateTapped)];
     [root addGestureRecognizer:_emptyStateTap];
 
+    // Directory navigation: swipe left for the next track, right for the
+    // previous, anywhere that is not the waveform (which owns its pans).
+    UISwipeGestureRecognizer *swipeLeft = [[UISwipeGestureRecognizer alloc]
+            initWithTarget:self action:@selector(swipeNext)];
+    swipeLeft.direction = UISwipeGestureRecognizerDirectionLeft;
+    swipeLeft.delegate = self;
+    [root addGestureRecognizer:swipeLeft];
+    UISwipeGestureRecognizer *swipeRight = [[UISwipeGestureRecognizer alloc]
+            initWithTarget:self action:@selector(swipePrevious)];
+    swipeRight.direction = UISwipeGestureRecognizerDirectionRight;
+    swipeRight.delegate = self;
+    [root addGestureRecognizer:swipeRight];
+
     UILayoutGuide *safe = root.safeAreaLayoutGuide;
+    // The band between the header and the waveform; the transport centers in
+    // it vertically.
+    UILayoutGuide *middle = [[UILayoutGuide alloc] init];
+    [root addLayoutGuide:middle];
+
     [NSLayoutConstraint activateConstraints:@[
-        [_artworkView.topAnchor constraintEqualToAnchor:safe.topAnchor constant:32],
-        [_artworkView.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
-        [_artworkView.widthAnchor constraintEqualToAnchor:root.widthAnchor multiplier:0.62],
-        [_artworkView.heightAnchor constraintEqualToAnchor:_artworkView.widthAnchor],
+        [_backgroundArtView.topAnchor constraintEqualToAnchor:root.topAnchor],
+        [_backgroundArtView.bottomAnchor constraintEqualToAnchor:root.bottomAnchor],
+        [_backgroundArtView.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
+        [_backgroundArtView.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
+        [_backgroundBlurView.topAnchor constraintEqualToAnchor:root.topAnchor],
+        [_backgroundBlurView.bottomAnchor constraintEqualToAnchor:root.bottomAnchor],
+        [_backgroundBlurView.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
+        [_backgroundBlurView.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
 
-        [_titleLabel.topAnchor constraintEqualToAnchor:_artworkView.bottomAnchor constant:24],
-        [_titleLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:24],
-        [_titleLabel.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-24],
+        // The mac header's arrangement: artist small over the title on the
+        // left, the codec corner right-aligned on the artist line.
+        [_artistLabel.topAnchor constraintEqualToAnchor:safe.topAnchor constant:12],
+        [_artistLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:20],
+        [_fileInfoLabel.firstBaselineAnchor constraintEqualToAnchor:_artistLabel.firstBaselineAnchor],
+        [_fileInfoLabel.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-20],
+        [_fileInfoLabel.leadingAnchor
+                constraintGreaterThanOrEqualToAnchor:_artistLabel.trailingAnchor constant:12],
+        [_titleLabel.topAnchor constraintEqualToAnchor:_artistLabel.bottomAnchor constant:2],
+        [_titleLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:20],
+        [_titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-20],
 
-        [_artistLabel.topAnchor constraintEqualToAnchor:_titleLabel.bottomAnchor constant:4],
-        [_artistLabel.leadingAnchor constraintEqualToAnchor:_titleLabel.leadingAnchor],
-        [_artistLabel.trailingAnchor constraintEqualToAnchor:_titleLabel.trailingAnchor],
+        [middle.topAnchor constraintEqualToAnchor:_titleLabel.bottomAnchor],
+        [middle.bottomAnchor constraintEqualToAnchor:_waveformView.topAnchor],
+        [transport.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
+        [transport.centerYAnchor constraintEqualToAnchor:middle.centerYAnchor],
 
-        [transport.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:48],
-        [transport.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-48],
-        [transport.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor constant:-24],
-        [transport.heightAnchor constraintEqualToConstant:72],
-
-        // Full-bleed, like the SoundCloud player: the waveform runs edge to
-        // edge, above the time labels and transport.
+        // Full-bleed waveform above the time labels and the bottom bar.
         [_waveformView.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
         [_waveformView.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
-        [_waveformView.bottomAnchor constraintEqualToAnchor:transport.topAnchor constant:-48],
+        [_waveformView.bottomAnchor constraintEqualToAnchor:_searchBarButton.topAnchor constant:-44],
         [_waveformView.heightAnchor constraintEqualToConstant:90],
 
         [_elapsedLabel.topAnchor constraintEqualToAnchor:_waveformView.bottomAnchor constant:6],
         [_elapsedLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
         [_remainingLabel.topAnchor constraintEqualToAnchor:_elapsedLabel.topAnchor],
         [_remainingLabel.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
+
+        [_searchBarButton.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
+        [_searchBarButton.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor constant:-4],
+        [_searchBarButton.heightAnchor constraintEqualToConstant:52],
+        [_folderButton.leadingAnchor constraintEqualToAnchor:_searchBarButton.trailingAnchor constant:12],
+        [_folderButton.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
+        [_folderButton.centerYAnchor constraintEqualToAnchor:_searchBarButton.centerYAnchor],
+        [_folderButton.widthAnchor constraintEqualToConstant:52],
+        [_folderButton.heightAnchor constraintEqualToConstant:52],
     ]];
 }
 
@@ -226,13 +305,33 @@ static const NSUInteger kUIUpdateHz = 3;
     return button;
 }
 
+#pragma mark - Gestures
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+       shouldReceiveTouch:(UITouch *)touch {
+    // The waveform owns horizontal drags for scrubbing; directory swipes
+    // apply everywhere else.
+    return !CGRectContainsPoint(_waveformView.frame, [touch locationInView:self.view]);
+}
+
+- (void)swipeNext {
+    [self nextTapped];
+}
+
+- (void)swipePrevious {
+    if ([_playlist previous]) {
+        [self playCurrentTrack];
+    }
+}
+
 #pragma mark - Header rendering
 
 - (void)showEmptyState {
     _titleLabel.text = STR_LABEL_OPEN_HINT_IOS;
     _titleLabel.textColor = [UIColor secondaryLabelColor];
     _artistLabel.text = @"";
-    _artworkView.image = nil;
+    _fileInfoLabel.text = @"";
+    [self setBackgroundArt:nil];
     _elapsedLabel.text = STR_LABEL_TIME_UNKNOWN;
     _remainingLabel.text = STR_LABEL_TIME_UNKNOWN;
     [_waveformView showEmptyPlaceholder];
@@ -242,8 +341,8 @@ static const NSUInteger kUIUpdateHz = 3;
 - (void)renderHeaderForTrack:(AudioTrack *)track {
     _emptyStateTap.enabled = NO;
     _titleLabel.textColor = [UIColor labelColor];
-    // The artist has its own line here, unlike the mac's single-line header,
-    // so the title line carries the title alone when both are tagged.
+    // The artist has its own line, so the title line carries the title alone
+    // when both are tagged.
     _titleLabel.text = track.hasArtistAndTitle ? track.title : track.singleLineTitle;
     if (_errorText) {
         _artistLabel.text = _errorText;
@@ -253,16 +352,48 @@ static const NSUInteger kUIUpdateHz = 3;
         _artistLabel.text = track.hasArtistAndTitle ? track.artist : @"";
         _artistLabel.textColor = [UIColor secondaryLabelColor];
     }
-    VibeImage *art = track.albumArt ?: track.thumbnailAlbumArt;
-    _artworkView.image = art;
-    _artworkView.contentMode = UIViewContentModeScaleAspectFit;
+    _fileInfoLabel.text = [self fileInfoTextForTrack:track];
+    [self setBackgroundArt:(track.albumArt ?: track.thumbnailAlbumArt)];
+}
+
+// The mac codec line's composition: each part appended only when present, so
+// the label never shows "(null) kbps" or "0.0 kHz".
+- (NSString *)fileInfoTextForTrack:(AudioTrack *)track {
+    if (!track.metadata.fileType) {
+        return @"";
+    }
+    NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:track.metadata.fileType];
+    if (!track.metadata.isLossless && track.metadata.bitrate) {
+        [parts addObject:[NSString stringWithFormat:STR_LABEL_BITRATE,
+                [[Formatters sharedInstance] decimalString:track.metadata.bitrate.doubleValue
+                                            fractionDigits:0]]];
+    }
+    if (track.metadata.sampleRate) {
+        [parts addObject:[NSString stringWithFormat:STR_LABEL_SAMPLE_RATE,
+                [[Formatters sharedInstance] decimalString:track.metadata.sampleRate.doubleValue / 1000
+                                            fractionDigits:1]]];
+    }
+    return [parts componentsJoinedByString:VibeNotLocalized(@" | ")];
+}
+
+- (void)setBackgroundArt:(VibeImage *)art {
+    if (_backgroundArtView.image == art) {
+        return;
+    }
+    [UIView transitionWithView:_backgroundArtView
+                      duration:0.35
+                       options:UIViewAnimationOptionTransitionCrossDissolve
+                    animations:^{
+                        self->_backgroundArtView.image = art;
+                    }
+                    completion:nil];
 }
 
 - (void)updatePlayButton {
     BOOL playing = _player.isPlaying;
     NSString *symbol = playing ? @"pause.fill" : @"play.fill";
     UIImageSymbolConfiguration *config =
-        [UIImageSymbolConfiguration configurationWithPointSize:40
+        [UIImageSymbolConfiguration configurationWithPointSize:44
                                                         weight:UIImageSymbolWeightMedium];
     [_playPauseButton setImage:[UIImage systemImageNamed:symbol withConfiguration:config]
                       forState:UIControlStateNormal];
@@ -374,6 +505,25 @@ static const NSUInteger kUIUpdateHz = 3;
     }
 }
 
+- (void)searchTapped {
+    if (_playlist.count == 0) {
+        [_folderSession presentPickerFromViewController:self];
+        return;
+    }
+    SearchViewController *search = [[SearchViewController alloc] initWithPlaylist:_playlist];
+    __weak PlayerViewController *weakSelf = self;
+    search.onSelectTrack = ^(NSUInteger index) {
+        PlayerViewController *self = weakSelf;
+        if (self) {
+            self->_playlist.currentIndex = index;
+            [self playCurrentTrack];
+        }
+    };
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:search];
+    nav.modalPresentationStyle = UIModalPresentationPageSheet;
+    [self presentViewController:nav animated:YES completion:nil];
+}
+
 - (void)presentTrackList {
     TrackListViewController *list = [[TrackListViewController alloc] initWithPlaylist:_playlist];
     list.folderName = _folderSession.folderDisplayName;
@@ -469,13 +619,21 @@ static const NSUInteger kUIUpdateHz = 3;
     NSUInteger nextIndex = _playlist.currentIndex + 1;
     [_player prefetchTrack:_playlist.hasNextTrack ? [_playlist trackAtIndex:nextIndex] : nil];
     _folderSession.persistedTrackFileName = track.url.lastPathComponent;
-    _updateTimer.wanted = YES;
+    // The landing can be parked — a pause verdict during the load, or the
+    // media-reset re-park — in which case playback is idle, so the session is
+    // released just as a pause releases it.
+    BOOL playing = _player.isPlaying;
+    _updateTimer.wanted = playing;
+    if (!playing) {
+        [_audioSession deactivateWhenIdle];
+    }
     [self updatePlayButton];
     [self updatePlaybackUI];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track {
     _updateTimer.wanted = NO;
+    [_audioSession deactivateWhenIdle];
     [self updatePlayButton];
     [self updatePlaybackUI];
 }
@@ -498,6 +656,7 @@ static const NSUInteger kUIUpdateHz = 3;
     // End of playlist: park on the last track, ready to replay.
     _parked = YES;
     _updateTimer.wanted = NO;
+    [_audioSession deactivateWhenIdle];
     _waveformView.progress = 0;
     [self updatePlayButton];
     [self updatePlaybackUI];
@@ -519,6 +678,7 @@ static const NSUInteger kUIUpdateHz = 3;
         [self renderHeaderForTrack:current];
     }
     _updateTimer.wanted = NO;
+    [_audioSession deactivateWhenIdle];
     [self updatePlayButton];
     [self publishNowPlaying];
 }
@@ -641,17 +801,45 @@ static const NSUInteger kUIUpdateHz = 3;
 
 #pragma mark - AudioSessionControllerDelegate
 
-- (void)audioSessionShouldPause:(AudioSessionController *)controller {
-    controller.wasPlayingAtInterruption = _player.isPlaying;
-    if (_player.isPlaying) {
+- (BOOL)audioSessionShouldPause:(AudioSessionController *)controller {
+    BOOL wasPlaying = _player.isPlaying;
+    if (wasPlaying) {
+        // While Loading this toggles the landing to parked instead: the
+        // engine never starts against the interrupted session, and
+        // shouldResume's isLoading branch flips it back.
+        [_player playPause];
+    }
+    return wasPlaying;
+}
+
+- (void)audioSessionShouldResume:(AudioSessionController *)controller {
+    if (_player.isPaused || _player.isLoading) {
+        [_audioSession activate];
         [_player playPause];
     }
 }
 
-- (void)audioSessionShouldResume:(AudioSessionController *)controller {
-    if (_player.isPaused) {
-        [_audioSession activate];
-        [_player playPause];
+- (void)audioSessionEngineConfigurationChanged:(AudioSessionController *)controller {
+    [_player recoverFromEngineConfigurationChange];
+}
+
+- (void)audioSessionMediaServicesWereReset:(AudioSessionController *)controller {
+    // Every live audio object died with the media server. Capture the
+    // playhead (the position getter serves its last-valid cache), rebuild the
+    // engine, and re-park the current track there — paused, never blasting
+    // back into playback after a server crash. The park's didStartPlaying:
+    // settles the header, waveform and Now Playing card.
+    AudioTrack *track = _playlist.currentTrack;
+    NSTimeInterval position = _player.position;
+    [_player reinitializeAfterMediaServicesReset];
+    _updateTimer.wanted = NO;
+    if (track) {
+        _parked = YES;
+        [_player play:track atPosition:position startPaused:YES];
+    }
+    else {
+        [self updatePlayButton];
+        [self updatePlaybackUI];
     }
 }
 
