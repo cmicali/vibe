@@ -22,5 +22,13 @@
 
 // The target of the Open Recent menu items OpenRecentMenuController creates.
 - (void)openRecentDocument:(NSMenuItem *)sender;
+
+// Re-levels the About and Settings windows to match Settings.alwaysOnTop.
+// They must ride at the player's level: left at normal level, the floating
+// player would bury them — Settings being where the very checkbox that turns
+// the mode off lives. MainPlayerController's applyAlwaysOnTop calls it on
+// every change; the show methods apply it to a window created while the mode
+// is already on.
+- (void)applyAuxiliaryWindowLevels;
 @end
 

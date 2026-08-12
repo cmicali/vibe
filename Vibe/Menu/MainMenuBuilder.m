@@ -252,6 +252,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     waveformMenu.autoenablesItems = NO;
     waveformMenu.delegate = player; // fills in the renderer styles
 
+    AddSeparator(viewMenu);
+    AddSymbolItem(viewMenu, STR_MENU_VIEW_ALWAYS_ON_TOP, @"pin", @selector(toggleAlwaysOnTop:), player, @"", 0, @"menu_always_on_top");
+
     // Convert
     NSMenu *convertMenu = Submenu(mainMenu, STR_MENU_CONVERT).submenu;
     // Enabled only for an uncompressed current track with no FLAC beside it
