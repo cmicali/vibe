@@ -15,11 +15,12 @@
 // translated so the play position sits at the view's horizontal center.
 static const CGFloat kWaveformVisibleFraction = 0.075;
 
-// Momentum: UIScrollView's normal deceleration (per millisecond), the flick
-// floor below which a release settles immediately, and the speed (in view
-// points/second of content motion) at which a decelerating scroll stops and
-// commits the seek.
-static const CGFloat kDecelerationPerMillisecond = 0.998;
+// Momentum: the per-millisecond deceleration (higher friction than
+// UIScrollView's 0.998 normal rate, so a throw settles noticeably faster —
+// this is a scrubber, not a scroll view), the flick floor below which a
+// release settles immediately, and the speed (in view points/second of
+// content motion) at which a decelerating scroll stops and commits the seek.
+static const CGFloat kDecelerationPerMillisecond = 0.994;
 static const CGFloat kMomentumMinimumFlick = 60.0;
 static const CGFloat kMomentumSettleSpeed = 25.0;
 

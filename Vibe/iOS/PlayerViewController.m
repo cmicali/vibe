@@ -16,6 +16,7 @@
 #import "NowPlayingController.h"
 #import "SearchViewController.h"
 #import "TrackListViewController.h"
+#import "TrackPageCell.h"
 #import "UIUpdateTimer.h"
 #import "Formatters.h"
 #import "VibeStrings.h"
@@ -27,7 +28,8 @@ static const NSUInteger kUIUpdateHz = 3;
         AudioTrackMetadataCacheDelegate, AudioWaveformCacheDelegate,
         WaveformScrubberViewDelegate, NowPlayingControllerDelegate,
         AudioSessionControllerDelegate, FolderSessionDelegate,
-        UIGestureRecognizerDelegate>
+        UIGestureRecognizerDelegate, UICollectionViewDataSource,
+        UICollectionViewDelegateFlowLayout>
 @end
 
 @implementation PlayerViewController {
@@ -49,15 +51,13 @@ static const NSUInteger kUIUpdateHz = 3;
     float                   _pendingSeekProgress;
     BOOL                    _seekInFlight;
 
-    // The blurred album art behind everything, Apple Music style: the art
-    // aspect-fills the screen under a blur. The screen is forced dark so
-    // text and the waveform read over any art.
-    UIImageView             *_backgroundArtView;
-    UIVisualEffectView      *_backgroundBlurView;
-
-    UILabel                 *_artistLabel;      // small, top-left, above the title
-    UILabel                 *_titleLabel;
-    UILabel                 *_fileInfoLabel;    // the codec corner, top-right
+    // The track pager, Photos-style: one full-screen cell per track (blurred
+    // art + header), interactively draggable to the neighbors. The chrome —
+    // waveform, transport, time, bottom bar — overlays it and never scrolls.
+    // The screen is forced dark so text and the waveform read over any art.
+    UICollectionView        *_pagesView;
+    UICollectionViewFlowLayout *_pagesLayout;
+    UILabel                 *_emptyHintLabel;
     WaveformScrubberView    *_waveformView;
     UILabel                 *_elapsedLabel;
     UILabel                 *_remainingLabel;
@@ -151,35 +151,34 @@ static const NSUInteger kUIUpdateHz = 3;
 - (void)buildUI {
     UIView *root = self.view;
 
-    _backgroundArtView = [[UIImageView alloc] init];
-    _backgroundArtView.contentMode = UIViewContentModeScaleAspectFill;
-    _backgroundArtView.clipsToBounds = YES;
-    _backgroundArtView.translatesAutoresizingMaskIntoConstraints = NO;
-    [root addSubview:_backgroundArtView];
+    _pagesLayout = [[UICollectionViewFlowLayout alloc] init];
+    _pagesLayout.scrollDirection = UICollectionViewScrollDirectionHorizontal;
+    _pagesLayout.minimumLineSpacing = 0;
+    _pagesLayout.minimumInteritemSpacing = 0;
+    _pagesView = [[UICollectionView alloc] initWithFrame:CGRectZero
+                                    collectionViewLayout:_pagesLayout];
+    _pagesView.pagingEnabled = YES;
+    _pagesView.showsHorizontalScrollIndicator = NO;
+    _pagesView.allowsSelection = NO;
+    _pagesView.backgroundColor = [UIColor clearColor];
+    // Pages must be exactly screen-sized; safe-area adjustment would shrink
+    // the content and break the paging math.
+    _pagesView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
+    _pagesView.dataSource = self;
+    _pagesView.delegate = self;
+    [_pagesView registerClass:TrackPageCell.class
+        forCellWithReuseIdentifier:TrackPageCell.reuseIdentifier];
+    _pagesView.translatesAutoresizingMaskIntoConstraints = NO;
+    [root addSubview:_pagesView];
 
-    _backgroundBlurView = [[UIVisualEffectView alloc] initWithEffect:
-            [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterialDark]];
-    _backgroundBlurView.translatesAutoresizingMaskIntoConstraints = NO;
-    [root addSubview:_backgroundBlurView];
-
-    _artistLabel = [[UILabel alloc] init];
-    _artistLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
-    _artistLabel.textColor = [UIColor secondaryLabelColor];
-    _artistLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    [root addSubview:_artistLabel];
-
-    _titleLabel = [[UILabel alloc] init];
-    _titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleTitle2];
-    _titleLabel.numberOfLines = 2;
-    _titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    [root addSubview:_titleLabel];
-
-    _fileInfoLabel = [[UILabel alloc] init];
-    _fileInfoLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
-    _fileInfoLabel.textColor = [UIColor secondaryLabelColor];
-    _fileInfoLabel.textAlignment = NSTextAlignmentRight;
-    _fileInfoLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    [root addSubview:_fileInfoLabel];
+    _emptyHintLabel = [[UILabel alloc] init];
+    _emptyHintLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleTitle3];
+    _emptyHintLabel.textColor = [UIColor secondaryLabelColor];
+    _emptyHintLabel.textAlignment = NSTextAlignmentCenter;
+    _emptyHintLabel.numberOfLines = 0;
+    _emptyHintLabel.text = STR_LABEL_OPEN_HINT_IOS;
+    _emptyHintLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [root addSubview:_emptyHintLabel];
 
     _waveformView = [[WaveformScrubberView alloc] initWithFrame:CGRectZero];
     _waveformView.delegate = self;
@@ -195,7 +194,7 @@ static const NSUInteger kUIUpdateHz = 3;
     _playPauseButton = [self makeTransportButton:@"play.fill" pointSize:44
                                           action:@selector(playPauseTapped)];
     _playPauseButton.accessibilityLabel = STR_TRANSPORT_PLAY;
-    _nextButton = [self makeTransportButton:@"forward.fill" pointSize:26
+    _nextButton = [self makeTransportButton:@"forward.end.fill" pointSize:26
                                      action:@selector(nextTapped)];
     _nextButton.accessibilityLabel = STR_TRANSPORT_NEXT;
 
@@ -238,42 +237,18 @@ static const NSUInteger kUIUpdateHz = 3;
     _emptyStateTap.delegate = self;
     [root addGestureRecognizer:_emptyStateTap];
 
-    // Directory navigation: swipe left for the next track, right for the
-    // previous, anywhere that is not the waveform (which owns its pans).
-    UISwipeGestureRecognizer *swipeLeft = [[UISwipeGestureRecognizer alloc]
-            initWithTarget:self action:@selector(swipeNext)];
-    swipeLeft.direction = UISwipeGestureRecognizerDirectionLeft;
-    swipeLeft.delegate = self;
-    [root addGestureRecognizer:swipeLeft];
-    UISwipeGestureRecognizer *swipeRight = [[UISwipeGestureRecognizer alloc]
-            initWithTarget:self action:@selector(swipePrevious)];
-    swipeRight.direction = UISwipeGestureRecognizerDirectionRight;
-    swipeRight.delegate = self;
-    [root addGestureRecognizer:swipeRight];
-
     UILayoutGuide *safe = root.safeAreaLayoutGuide;
 
     [NSLayoutConstraint activateConstraints:@[
-        [_backgroundArtView.topAnchor constraintEqualToAnchor:root.topAnchor],
-        [_backgroundArtView.bottomAnchor constraintEqualToAnchor:root.bottomAnchor],
-        [_backgroundArtView.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
-        [_backgroundArtView.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
-        [_backgroundBlurView.topAnchor constraintEqualToAnchor:root.topAnchor],
-        [_backgroundBlurView.bottomAnchor constraintEqualToAnchor:root.bottomAnchor],
-        [_backgroundBlurView.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
-        [_backgroundBlurView.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
+        [_pagesView.topAnchor constraintEqualToAnchor:root.topAnchor],
+        [_pagesView.bottomAnchor constraintEqualToAnchor:root.bottomAnchor],
+        [_pagesView.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
+        [_pagesView.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
 
-        // The mac header's arrangement: artist small over the title on the
-        // left, the codec corner right-aligned on the artist line.
-        [_artistLabel.topAnchor constraintEqualToAnchor:safe.topAnchor constant:12],
-        [_artistLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:20],
-        [_fileInfoLabel.firstBaselineAnchor constraintEqualToAnchor:_artistLabel.firstBaselineAnchor],
-        [_fileInfoLabel.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-20],
-        [_fileInfoLabel.leadingAnchor
-                constraintGreaterThanOrEqualToAnchor:_artistLabel.trailingAnchor constant:12],
-        [_titleLabel.topAnchor constraintEqualToAnchor:_artistLabel.bottomAnchor constant:2],
-        [_titleLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:20],
-        [_titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-20],
+        [_emptyHintLabel.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
+        [_emptyHintLabel.centerYAnchor constraintEqualToAnchor:root.centerYAnchor],
+        [_emptyHintLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor constant:24],
+        [_emptyHintLabel.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-24],
 
         // Play/pause on the screen's center line, next to its right, sitting
         // just above the waveform.
@@ -334,8 +309,7 @@ static const NSUInteger kUIUpdateHz = 3;
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
        shouldReceiveTouch:(UITouch *)touch {
     // The waveform owns horizontal drags and taps for scrubbing, and the
-    // controls own their touches; directory swipes and the screen tap apply
-    // everywhere else.
+    // controls own their touches; the screen tap applies everywhere else.
     if (CGRectContainsPoint(_waveformView.frame, [touch locationInView:self.view])) {
         return NO;
     }
@@ -347,61 +321,112 @@ static const NSUInteger kUIUpdateHz = 3;
     return YES;
 }
 
-// The Photos-style slide: the whole screen's content pushes out and the new
-// track's pushes in from the swipe direction. A push transition on the root
-// layer covers header, art, and waveform in one move.
-- (void)slideTransitionFromRight:(BOOL)fromRight {
-    CATransition *slide = [CATransition animation];
-    slide.type = kCATransitionPush;
-    slide.subtype = fromRight ? kCATransitionFromRight : kCATransitionFromLeft;
-    slide.duration = 0.3;
-    slide.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
-    [self.view.layer addAnimation:slide forKey:@"trackSlide"];
+#pragma mark - Track pager
+
+- (NSInteger)collectionView:(UICollectionView *)collectionView
+     numberOfItemsInSection:(NSInteger)section {
+    return (NSInteger)_playlist.count;
 }
 
-- (void)swipeNext {
-    if ([_playlist next]) {
-        [self slideTransitionFromRight:YES];
+- (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView
+                  cellForItemAtIndexPath:(NSIndexPath *)indexPath {
+    TrackPageCell *cell = [collectionView
+            dequeueReusableCellWithReuseIdentifier:TrackPageCell.reuseIdentifier
+                                      forIndexPath:indexPath];
+    AudioTrack *track = [_playlist trackAtIndex:(NSUInteger)indexPath.item];
+    BOOL isCurrent = (NSUInteger)indexPath.item == _playlist.currentIndex;
+    BOOL showError = isCurrent && _errorText;
+    // Neighbors show their cached thumbnail — under the blur the 128px
+    // thumbnail and the full decode are indistinguishable, and only the
+    // current track ever decodes full art.
+    [cell configureWithTitle:(track.hasArtistAndTitle ? track.title : track.singleLineTitle)
+                  titleColor:[UIColor labelColor]
+                      artist:(showError ? _errorText
+                                        : (track.hasArtistAndTitle ? track.artist : @""))
+                 artistColor:(showError ? [UIColor systemRedColor]
+                                        : [UIColor secondaryLabelColor])
+                    fileInfo:[self fileInfoTextForTrack:track]
+                         art:(track.albumArt ?: track.thumbnailAlbumArt)];
+    return cell;
+}
+
+- (CGSize)collectionView:(UICollectionView *)collectionView
+                  layout:(UICollectionViewLayout *)layout
+  sizeForItemAtIndexPath:(NSIndexPath *)indexPath {
+    return _pagesView.bounds.size;
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    // Page size follows the view, and the offset must stay page-aligned
+    // through the first layout after a restore.
+    [_pagesLayout invalidateLayout];
+    if (!_pagesView.isDragging && !_pagesView.isDecelerating) {
+        [self scrollToCurrentPageAnimated:NO];
+    }
+}
+
+- (void)scrollToCurrentPageAnimated:(BOOL)animated {
+    CGFloat width = _pagesView.bounds.size.width;
+    if (width <= 0 || _playlist.count == 0) {
+        return;
+    }
+    CGPoint target = CGPointMake(width * (CGFloat)_playlist.currentIndex, 0);
+    if (!CGPointEqualToPoint(_pagesView.contentOffset, target)) {
+        [_pagesView setContentOffset:target animated:animated];
+    }
+}
+
+- (void)refreshPageAtIndex:(NSUInteger)index {
+    if (index < _playlist.count) {
+        [_pagesView reloadItemsAtIndexPaths:
+                @[[NSIndexPath indexPathForItem:(NSInteger)index inSection:0]]];
+    }
+}
+
+// The grab-and-pull commit, Photos semantics: whatever page the drag settles
+// on becomes the current track; pulling back to the same page changes
+// nothing.
+- (void)commitVisiblePage {
+    CGFloat width = _pagesView.bounds.size.width;
+    if (width <= 0 || _playlist.count == 0) {
+        return;
+    }
+    NSUInteger page = (NSUInteger)MAX(0.0, round(_pagesView.contentOffset.x / width));
+    page = MIN(page, _playlist.count - 1);
+    if (page != _playlist.currentIndex) {
+        _playlist.currentIndex = page;
         [self playCurrentTrack];
     }
 }
 
-- (void)swipePrevious {
-    if ([_playlist previous]) {
-        [self slideTransitionFromRight:NO];
-        [self playCurrentTrack];
+- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
+    [self commitVisiblePage];
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView
+                  willDecelerate:(BOOL)decelerate {
+    if (!decelerate) {
+        [self commitVisiblePage];
     }
 }
 
 #pragma mark - Header rendering
 
 - (void)showEmptyState {
-    _titleLabel.text = STR_LABEL_OPEN_HINT_IOS;
-    _titleLabel.textColor = [UIColor secondaryLabelColor];
-    _artistLabel.text = @"";
-    _fileInfoLabel.text = @"";
-    [self setBackgroundArt:nil];
+    _emptyHintLabel.text = STR_LABEL_OPEN_HINT_IOS;
+    _emptyHintLabel.hidden = NO;
     _elapsedLabel.text = STR_LABEL_TIME_UNKNOWN;
     _remainingLabel.text = STR_LABEL_TIME_UNKNOWN;
     [_waveformView showEmptyPlaceholder];
     [self updatePlayButton];
 }
 
+// The pager owns the header and art; rendering the current track means
+// refreshing its page.
 - (void)renderHeaderForTrack:(AudioTrack *)track {
-    _titleLabel.textColor = [UIColor labelColor];
-    // The artist has its own line, so the title line carries the title alone
-    // when both are tagged.
-    _titleLabel.text = track.hasArtistAndTitle ? track.title : track.singleLineTitle;
-    if (_errorText) {
-        _artistLabel.text = _errorText;
-        _artistLabel.textColor = [UIColor systemRedColor];
-    }
-    else {
-        _artistLabel.text = track.hasArtistAndTitle ? track.artist : @"";
-        _artistLabel.textColor = [UIColor secondaryLabelColor];
-    }
-    _fileInfoLabel.text = [self fileInfoTextForTrack:track];
-    [self setBackgroundArt:(track.albumArt ?: track.thumbnailAlbumArt)];
+    _emptyHintLabel.hidden = YES;
+    [self refreshPageAtIndex:_playlist.currentIndex];
 }
 
 // The mac codec line's composition: each part appended only when present, so
@@ -422,19 +447,6 @@ static const NSUInteger kUIUpdateHz = 3;
                                             fractionDigits:1]]];
     }
     return [parts componentsJoinedByString:VibeNotLocalized(@" | ")];
-}
-
-- (void)setBackgroundArt:(VibeImage *)art {
-    if (_backgroundArtView.image == art) {
-        return;
-    }
-    [UIView transitionWithView:_backgroundArtView
-                      duration:0.35
-                       options:UIViewAnimationOptionTransitionCrossDissolve
-                    animations:^{
-                        self->_backgroundArtView.image = art;
-                    }
-                    completion:nil];
 }
 
 - (void)updatePlayButton {
@@ -530,6 +542,7 @@ static const NSUInteger kUIUpdateHz = 3;
     _seekInFlight = NO;
     [_audioSession activate];
     [self renderHeaderForTrack:track];
+    [self scrollToCurrentPageAnimated:YES];
     [_waveformView prepareForWaveformLoad];
     [_waveformCache cancelLoad];
     [_waveformCache loadWaveformForTrack:track];
@@ -547,6 +560,7 @@ static const NSUInteger kUIUpdateHz = 3;
     _parked = YES;
     _seekInFlight = NO;
     [self renderHeaderForTrack:track];
+    [self scrollToCurrentPageAnimated:NO];
     [_waveformView prepareForWaveformLoad];
     [_waveformCache cancelLoad];
     [_waveformCache loadWaveformForTrack:track];
@@ -644,6 +658,7 @@ static const NSUInteger kUIUpdateHz = 3;
             folderURL:(NSURL *)folderURL
              restored:(BOOL)restored {
     [_playlist replaceAllWithURLs:urls];
+    [_pagesView reloadData];
     [_metadataCache cancelAll];
     [_metadataCache loadMetadata:_playlist.tracks];
 
@@ -668,8 +683,7 @@ static const NSUInteger kUIUpdateHz = 3;
 - (void)folderSessionDidOpenEmptyFolder:(FolderSession *)session {
     if (_playlist.count == 0) {
         [self showEmptyState];
-        _artistLabel.text = STR_ERROR_FOLDER_EMPTY;
-        _artistLabel.textColor = [UIColor secondaryLabelColor];
+        _emptyHintLabel.text = STR_ERROR_FOLDER_EMPTY;
     }
 }
 
@@ -799,6 +813,7 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)playlist:(Playlist *)playlist didAppendTracksAtIndexes:(NSIndexSet *)indexes {
+    [_pagesView reloadData];
     [_trackListController reloadAll];
 }
 
@@ -817,9 +832,9 @@ static const NSUInteger kUIUpdateHz = 3;
     NSInteger row = [_playlist getIndexForTrack:track];
     if (row >= 0) {
         [_trackListController reloadTrackAtIndex:(NSUInteger)row];
+        [self refreshPageAtIndex:(NSUInteger)row];
     }
     if ([_playlist isCurrentTrack:track]) {
-        [self renderHeaderForTrack:track];
         [self publishNowPlaying];
     }
 }
