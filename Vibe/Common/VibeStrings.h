@@ -134,6 +134,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_MENU_VIEW               NSLS(@"menu.view",                   @"View",               @"Menu bar: the View menu.")
 #define STR_MENU_VIEW_PLAYLIST      NSLS(@"menu.view.playlist",          @"Show Playlist",      @"View menu item: expands the window to show the playlist.")
 #define STR_MENU_VIEW_PITCH_CONTROL NSLS(@"menu.view.pitch_control",     @"Show Pitch Control", @"View menu item: shows the pitch fader panel.")
+#define STR_MENU_VIEW_ALWAYS_ON_TOP NSLS(@"menu.view.always_on_top",     @"Always on Top",      @"View menu item: checkmarked toggle that keeps the player window above all other apps' windows.")
 #define STR_MENU_VIEW_APPEARANCE    NSLS(@"menu.view.appearance",        @"Appearance",         @"View menu: submenu choosing the light/dark appearance.")
 #define STR_MENU_APPEARANCE_SYSTEM  NSLS(@"menu.view.appearance.system", @"System default",     @"Appearance menu item: follow the system's light/dark setting.")
 #define STR_MENU_APPEARANCE_LIGHT   NSLS(@"menu.view.appearance.light",  @"Light",              @"Appearance menu item: always use the light appearance.")
@@ -201,11 +202,12 @@ static inline NSString *VibeAppName(void) {
 // The default-player pair moved here from the app menu; their keys stay
 // menu.app.* so the existing translations carry over.
 
-#define STR_SETTINGS_GENERAL            NSLS(@"settings.general",              @"General",                        @"Settings window: the General pane's toolbar item, and the window's title while that pane is selected. macOS uses this same name in every app's settings.")
-#define STR_SETTINGS_ADVANCED           NSLS(@"settings.advanced",             @"Advanced",                       @"Settings window: the Advanced pane's toolbar item, and the window's title while that pane is selected. macOS uses this same name in every app's settings.")
-#define STR_SETTINGS_OUTPUT_LABEL       NSLS(@"settings.general.output_label", @"Output:",                        @"Settings, General pane: label beside the dropdown selecting the audio output device. Ends with a colon.")
-#define STR_SETTINGS_DEFAULT_PLAYER_SET NSLS(@"menu.app.make_default",         @"Set %@ as Default Music Player", @"Settings, General pane: button that claims every supported audio type for the app. %@ is the app name.")
-#define STR_SETTINGS_DEFAULT_PLAYER_IS  NSLS(@"menu.app.is_default",           @"%@ Is the Default Music Player", @"Settings, General pane: disabled button title replacing 'Set … as Default Music Player' once the app already holds every audio type. %@ is the app name.")
+#define STR_SETTINGS_GENERAL            NSLS(@"settings.general",               @"General",                        @"Settings window: the General pane's toolbar item, and the window's title while that pane is selected. macOS uses this same name in every app's settings.")
+#define STR_SETTINGS_ADVANCED           NSLS(@"settings.advanced",              @"Advanced",                       @"Settings window: the Advanced pane's toolbar item, and the window's title while that pane is selected. macOS uses this same name in every app's settings.")
+#define STR_SETTINGS_OUTPUT_LABEL       NSLS(@"settings.general.output_label",  @"Output:",                        @"Settings, General pane: label beside the dropdown selecting the audio output device. Ends with a colon.")
+#define STR_SETTINGS_DEFAULT_PLAYER_SET NSLS(@"menu.app.make_default",          @"Set %@ as Default Music Player", @"Settings, General pane: button that claims every supported audio type for the app. %@ is the app name.")
+#define STR_SETTINGS_DEFAULT_PLAYER_IS  NSLS(@"menu.app.is_default",            @"%@ Is the Default Music Player", @"Settings, General pane: disabled button title replacing 'Set … as Default Music Player' once the app already holds every audio type. %@ is the app name.")
+#define STR_SETTINGS_ALWAYS_ON_TOP      NSLS(@"settings.general.always_on_top", @"Always on top",                  @"Settings, General pane: checkbox that keeps the player window above all other apps' windows. The same setting as the View menu's 'Always on Top' item, in sentence case per checkbox convention.")
 
 #define STR_SETTINGS_PITCH_RANGE_LABEL   NSLS(@"settings.playback.pitch_range_label",           @"Pitch range:",             @"Settings, Playback pane: label beside the pitch fader range choice (8% or 16%). Ends with a colon.")
 #define STR_SETTINGS_SKIP_STEPS_LABEL    NSLS(@"settings.playback.skip_steps_label",            @"Skip steps:",              @"Settings, Playback pane: label beside the dropdown choosing how many bars the three skip actions jump. Ends with a colon.")
