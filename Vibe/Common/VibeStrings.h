@@ -274,4 +274,10 @@ static inline NSString *VibeAppName(void) {
 #define STR_PLAYLIST_GRANT_MESSAGE NSLS(@"playlist.grant.message", @"Vibe needs permission to read the audio files listed in “%@”. Select the folder that contains them.", @"Message atop the folder-picker panel shown when a playlist file's (CUE, M3U) audio files are not readable under the sandbox. %@ is the playlist file's name.")
 #define STR_PLAYLIST_GRANT_BUTTON  NSLS(@"playlist.grant.button",  @"Grant Access", @"Confirm button of the folder-picker panel that grants access to a playlist file's folder.")
 
+#pragma mark - iOS
+
+#define STR_LABEL_CHOOSE_FOLDER NSLS(@"label.choose_folder", @"Choose Folder…",              @"iOS: row in the track list sheet that opens the system document picker to pick a different folder or file.")
+#define STR_LABEL_OPEN_HINT_IOS NSLS(@"label.open_hint.ios", @"Tap to choose a folder or file", @"iOS empty-state hint on the player screen when nothing is loaded. Tapping anywhere opens the system file picker.")
+#define STR_ERROR_FOLDER_EMPTY  NSLS(@"error.folder_empty",  @"No audio files in this folder",  @"iOS: shown after picking a folder that contains no playable audio files.")
+
 #endif /* VibeStrings_h */
