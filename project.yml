@@ -349,6 +349,7 @@ targets:
       - path: Vibe/Common/Playlist.m
       - path: Vibe/Util/PlaylistFile.m
       - path: Vibe/Util/Formatters.m
+      - path: Vibe/Util/NSURLUtil.m
       - path: Vibe/Util/Categories/NSURL+Hash.m
     settings:
       base:

@@ -8,12 +8,14 @@
 
 #import "AudioPlayer.h"
 #import "AudioPlayerInternal.h"
-#import "AudioPlayer+Devices.h"
 #import "AudioFX.h"
 #import "AudioTrack.h"
+#if TARGET_OS_OSX
+#import "AudioPlayer+Devices.h"
 #import "AudioDeviceManager.h"
 #import "AudioDevice.h"
 #import "CoreAudioUtil.h"
+#endif
 #import "VibeFadeCurve.h"
 #import "GaplessSpliceMath.h"
 #import <AVFoundation/AVFoundation.h>
@@ -314,6 +316,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             }
 #endif
 
+#if TARGET_OS_OSX
             // Resolve the saved device here rather than on the main thread.
             // This is the app's first CoreAudio device enumeration, a set of
             // per-device HAL property reads that take tens of ms when
@@ -358,6 +361,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                                     });
                                 }
                             }];
+#endif
+            // On iOS there is no HAL device layer: routing belongs to
+            // AVAudioSession, and engine-config-change handling lives with the
+            // session observer in the iOS app layer.
 
             run_on_main_thread({
                 [self.delegate audioPlayerDidInitialize:self];
@@ -423,7 +430,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         dispatch_source_cancel(_manualPump);
     }
 #endif
+#if TARGET_OS_OSX
     [[AudioDeviceManager sharedInstance] removeObserver:self];
+#endif
     // Engine mutation belongs on _queue, as everywhere else. dispatch_sync
     // from here cannot deadlock against in-flight queue work: a queued block
     // either holds a strongSelf, in which case the retain count is nonzero and

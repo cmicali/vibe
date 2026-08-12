@@ -131,11 +131,11 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 // The art accessors delegate to AudioTrackArtwork, which owns the lazy
 // decode, discard and re-read state machine. AudioTrackMetadata.h documents
 // the contracts.
-- (NSImage *)albumArt {
+- (VibeImage *)albumArt {
     return [_artwork albumArt];
 }
 
-- (NSImage *)albumArtIfLoaded {
+- (VibeImage *)albumArtIfLoaded {
     return [_artwork albumArtIfLoaded];
 }
 
@@ -154,7 +154,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     self.albumArtLoadDispatched = NO;
 }
 
-- (NSImage *)thumbnailAlbumArt {
+- (VibeImage *)thumbnailAlbumArt {
     return [_artwork thumbnailAlbumArt];
 }
 
@@ -238,13 +238,17 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 }
 
 - (NSData *)thumbnailJPEGData {
-    NSImage *thumbnail = self.thumbnailAlbumArt;
+    VibeImage *thumbnail = self.thumbnailAlbumArt;
     if (!thumbnail) {
         return nil;
     }
+#if TARGET_OS_OSX
     // CGImageForProposedRect returns the backing CGImage directly for
     // CGImage-backed images, and rasterizes anything else.
     CGImageRef cgImage = [thumbnail CGImageForProposedRect:NULL context:nil hints:nil];
+#else
+    CGImageRef cgImage = thumbnail.CGImage;
+#endif
     if (!cgImage) {
         return nil;
     }

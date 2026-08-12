@@ -89,14 +89,14 @@
     }
 }
 
-- (NSImage *)albumArt {
+- (VibeImage *)albumArt {
     // Non-blocking on purpose, because the main thread reads it in updateUI
     // and for the dock icon. Extraction that needs a file read happens in the
     // background load MainPlayerController starts when albumArtNeedsLoad.
     return self.metadata.albumArtIfLoaded;
 }
 
-- (NSImage *)thumbnailAlbumArt {
+- (VibeImage *)thumbnailAlbumArt {
     return self.metadata.thumbnailAlbumArt;
 }
 

@@ -26,4 +26,13 @@
 // caller. Completion runs on main.
 + (void)expandAndFilterList:(NSArray<NSURL *> *)list
                  completion:(void (^)(NSArray<NSURL *> *files, NSUInteger folderCount))completion;
+
+// Every playable extension, lowercase. Must cover every spelling the
+// CFBundleDocumentTypes claim admits; see the implementation's comment.
++ (NSSet<NSString *> *)supportedExtensions;
+
+// The directory-as-playlist listing rule, in its single home: the folder's
+// audio files, non-recursive, hidden files skipped, sorted by filename with
+// Finder's comparator. Synchronous — callers own the threading.
++ (NSArray<NSURL *> *)audioFilesInDirectory:(NSURL *)dir;
 @end

@@ -183,7 +183,11 @@
             return;
         }
         center.nowPlayingInfo = nil;
+#if TARGET_OS_OSX
+        // playbackState is macOS-only; iOS derives it from the audio session
+        // and the published rate.
         center.playbackState = MPNowPlayingPlaybackStateStopped;
+#endif
         _publishedURL = nil;
         _publishedArtworkImage = nil;
         _publishedArtworkWrapper = nil;
@@ -263,6 +267,7 @@
     _publishedDuration = duration;
     _publishedPosition = position;
     _publishedAt = CFAbsoluteTimeGetCurrent();
+#if TARGET_OS_OSX
     switch (state) {
         case NowPlayingPlaybackStatePlaying:
             center.playbackState = MPNowPlayingPlaybackStatePlaying;
@@ -274,6 +279,7 @@
             center.playbackState = MPNowPlayingPlaybackStateStopped;
             break;
     }
+#endif
 }
 
 @end

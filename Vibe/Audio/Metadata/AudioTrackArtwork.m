@@ -10,7 +10,6 @@
 //
 
 #import "AudioTrackArtwork.h"
-#import "NSImage+Util.h"
 #import <ImageIO/ImageIO.h>
 
 // The pixel size for the playlist-cell thumbnail. It is generous for Retina at
@@ -26,7 +25,7 @@ static const CGFloat kDisplayArtMaxDimension = 1024.0;
 // Decodes image data directly at a bounded pixel size through ImageIO. Unlike
 // NSImage initWithData: followed by a resize, this never materializes the
 // full-size bitmap.
-static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
+static VibeImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     if (!data) {
         return nil;
     }
@@ -45,14 +44,18 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     if (!cgImage) {
         return nil;
     }
-    NSImage *image = [[NSImage alloc] initWithCGImage:cgImage size:NSZeroSize];
+#if TARGET_OS_OSX
+    VibeImage *image = [[NSImage alloc] initWithCGImage:cgImage size:NSZeroSize];
+#else
+    VibeImage *image = [UIImage imageWithCGImage:cgImage];
+#endif
     CGImageRelease(cgImage);
     return image;
 }
 
 @implementation AudioTrackArtwork {
-    NSImage *_thumbnailAlbumArt;
-    NSImage *_albumArt;
+    VibeImage *_thumbnailAlbumArt;
+    VibeImage *_albumArt;
     NSData *_albumArtData;
     AudioTrackArtworkExtractor _extractor;
     BOOL _albumArtExtractionAttempted;
@@ -90,7 +93,7 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 - (void)adoptArchivedThumbnailJPEG:(NSData *)jpegData {
     // Decode outside the monitor, per the file's discipline, though in
     // practice this runs during unarchiving, before the object is shared.
-    NSImage *thumbnail = jpegData ? VibeDecodeImageData(jpegData, kThumbnailDimension) : nil;
+    VibeImage *thumbnail = jpegData ? VibeDecodeImageData(jpegData, kThumbnailDimension) : nil;
     @synchronized (self) {
         _thumbnailAlbumArt = thumbnail;
         // A track with embedded art always produced a thumbnail, so an entry
@@ -105,7 +108,7 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
 // pay the decode and memory cost. Cache-hit instances carry no art bytes,
 // which are not archived, and re-extract from the audio file on demand. Only
 // the current track ever takes that path.
-- (NSImage *)albumArt {
+- (VibeImage *)albumArt {
     NSString *pathToExtract = nil;
     NSData *dataToDecode = nil;
     BOOL dataWasInMemory = NO;
@@ -134,7 +137,7 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     if (!dataToDecode && pathToExtract) {
         dataToDecode = _extractor ? _extractor(pathToExtract) : nil;
     }
-    NSImage *decoded = dataToDecode ? VibeDecodeImageData(dataToDecode, kDisplayArtMaxDimension) : nil;
+    VibeImage *decoded = dataToDecode ? VibeDecodeImageData(dataToDecode, kDisplayArtMaxDimension) : nil;
     @synchronized (self) {
         if (dataToDecode && !decoded) {
             // The bytes exist but cannot be decoded, which is permanent for
@@ -169,7 +172,7 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     }
 }
 
-- (NSImage *)albumArtIfLoaded {
+- (VibeImage *)albumArtIfLoaded {
     // No decode here: this is the main thread's updateUI accessor, and
     // decoding happens on the background albumArt path, via albumArtNeedsLoad.
     @synchronized (self) {
@@ -232,7 +235,7 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
     }
 }
 
-- (NSImage *)thumbnailAlbumArt {
+- (VibeImage *)thumbnailAlbumArt {
     NSData *dataToDecode = nil;
     @synchronized (self) {
         if (_thumbnailAlbumArt) return _thumbnailAlbumArt;
@@ -242,7 +245,7 @@ static NSImage *VibeDecodeImageData(NSData *data, CGFloat maxPixelSize) {
         dataToDecode = _albumArtData;
     }
     // Decode outside the lock; see the file's discipline above.
-    NSImage *thumbnail = VibeDecodeImageData(dataToDecode, kThumbnailDimension);
+    VibeImage *thumbnail = VibeDecodeImageData(dataToDecode, kThumbnailDimension);
     @synchronized (self) {
         if (!thumbnail) {
             // The same undecodable marking as the full-resolution path.

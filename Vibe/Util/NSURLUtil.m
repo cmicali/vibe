@@ -91,6 +91,39 @@
     return results;
 }
 
++ (NSArray<NSURL*>*) audioFilesInDirectory:(NSURL*)dir {
+    // Non-recursive, unlike expandDirectory:. Skipping hidden files also
+    // drops the AppleDouble "._Song.mp3" sidecars; see expandDirectory:.
+    NSError *error = nil;
+    NSArray<NSURL*> *contents = [[NSFileManager defaultManager]
+            contentsOfDirectoryAtURL:dir
+          includingPropertiesForKeys:@[NSURLIsDirectoryKey]
+                             options:NSDirectoryEnumerationSkipsHiddenFiles
+                               error:&error];
+    if (!contents) {
+        LogWarn(@"Error listing %@: %@", dir, error);
+        return @[];
+    }
+    NSSet<NSString*> *supported = [self supportedExtensions];
+    NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
+    for (NSURL *url in contents) {
+        if (![supported containsObject:[url.pathExtension lowercaseString]]) {
+            continue;
+        }
+        NSNumber *isDirectory = nil;
+        BOOL isDir = [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL]
+                ? isDirectory.boolValue
+                : url.hasDirectoryPath;
+        if (!isDir) {
+            [results addObject:url];
+        }
+    }
+    [results sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
+        return [a.lastPathComponent localizedStandardCompare:b.lastPathComponent];
+    }];
+    return results;
+}
+
 // Serial, so that overlapping drops complete in submission order. Expanded
 // concurrently, a slow folder walk could finish after a later single file's and
 // replace the newer playlist mid-listen.
