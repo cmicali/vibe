@@ -103,6 +103,26 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // the end. A no-op unless a track is playing or paused.
 - (void)finishCurrentTrack;
 
+// iOS session recovery, called by the app layer's AVAudioSession observer.
+// On macOS the AudioPlayer+Devices category owns the equivalent paths.
+//
+// The engine stopped itself because the output configuration changed — a new
+// route or sample rate, as when headphones or Bluetooth connect — not because
+// output was lost. Restarts playback in place at the current position,
+// preserving the play state. A no-op unless actually playing with a stopped
+// engine: paused and stopped players recover lazily through the next
+// startEngineAndPlayNode:, and the route-loss pause is the session
+// controller's separate verdict.
+- (void)recoverFromEngineConfigurationChange;
+
+// Media services crashed and were relaunched: the engine, its nodes and every
+// open AVAudioFile are invalid and must be recreated, per AVAudioSession's
+// contract for AVAudioSessionMediaServicesWereResetNotification. Drops them
+// all, recreates the engine and reinstalls the FX graph, then reports Stopped
+// with no currentTrack. Like stop, it fires no delegate callback; the caller
+// owns re-parking or replaying the track.
+- (void)reinitializeAfterMediaServicesReset;
+
 // Pre-opens the track's file so that a later play: of it starts without
 // paying for the open, which dominates auto-advance and skip latency. For a
 // cloud file it also starts the download early. Call it with the playlist's
