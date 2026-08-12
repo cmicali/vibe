@@ -19,10 +19,26 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
 @implementation FolderSession {
     // The URL whose security scope is currently open. Held for the session:
     // the player, TagLib, and the waveform loader all read files under it at
-    // arbitrary later times.
+    // arbitrary later times. Main-confined, like _folderURL; the work queue
+    // gets a snapshot.
     NSURL *_scopedURL;
     BOOL _scopeActive;
     NSURL *_folderURL;
+    // Bookmark resolution and the directory listing are file-provider IPC —
+    // seconds on a large cloud folder — so adoption runs here, serially (so
+    // overlapping opens deliver in submission order), and only the delegate
+    // delivery returns to main.
+    dispatch_queue_t _workQueue;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
+                DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
+        _workQueue = dispatch_queue_create("FolderSession", attributes);
+    }
+    return self;
 }
 
 - (void)dealloc {
@@ -73,22 +89,28 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     if (!bookmark) {
         return NO;
     }
-    BOOL stale = NO;
-    NSError *error = nil;
-    NSURL *url = [NSURL URLByResolvingBookmarkData:bookmark
-                                           options:0
-                                     relativeToURL:nil
-                               bookmarkDataIsStale:&stale
-                                             error:&error];
-    if (!url) {
-        LogWarn(@"FolderSession: bookmark no longer resolves (%@)", error);
-        [NSUserDefaults.standardUserDefaults removeObjectForKey:kFolderBookmarkKey];
-        return NO;
-    }
-    if (stale) {
-        [self persistBookmarkForURL:url];
-    }
-    return [self adoptURL:url restored:YES];
+    dispatch_async(_workQueue, ^{
+        BOOL stale = NO;
+        NSError *error = nil;
+        NSURL *url = [NSURL URLByResolvingBookmarkData:bookmark
+                                               options:0
+                                         relativeToURL:nil
+                                   bookmarkDataIsStale:&stale
+                                                 error:&error];
+        if (!url) {
+            LogWarn(@"FolderSession: bookmark no longer resolves (%@)", error);
+            run_on_main_thread({
+                [NSUserDefaults.standardUserDefaults removeObjectForKey:kFolderBookmarkKey];
+                [self.delegate folderSessionRestoreDidFail:self];
+            });
+            return;
+        }
+        // No pre-adopt refresh of a stale bookmark: minting bookmark data
+        // needs the security scope OPEN, and adoption re-persists after the
+        // scope starts anyway — the refresh before it always failed.
+        [self adoptOnWorkQueue:url restored:YES sessionFolder:nil sessionScopedURL:nil];
+    });
+    return YES;
 }
 
 - (NSString *)persistedTrackFileName {
@@ -106,7 +128,8 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
 
 - (void)persistBookmarkForURL:(NSURL *)url {
     // iOS has no WithSecurityScope option: a default bookmark of a
-    // picker-granted URL round-trips the scope by itself.
+    // picker-granted URL round-trips the scope by itself. Requires the URL's
+    // scope to be open, which every caller guarantees.
     NSError *error = nil;
     NSData *bookmark = [url bookmarkDataWithOptions:0
                      includingResourceValuesForKeys:nil
@@ -122,11 +145,23 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
 
 #pragma mark - Adoption
 
-// The one funnel for a URL from any source: opens its scope, lists it if it
-// is a folder, persists it, and delivers. Returns NO when nothing playable
-// came of it (the delegate hears folderSessionDidOpenEmptyFolder: only for a
-// genuinely empty folder pick, not a failed restore).
-- (BOOL)adoptURL:(NSURL *)url restored:(BOOL)restored {
+// The one funnel for a URL from any source. The scope open, the listing, and
+// the bookmark work all happen on the work queue; only delivery lands on
+// main. The caller snapshots the main-confined session state, because a
+// file-pick expansion consults the live folder grant.
+- (void)adoptURL:(NSURL *)url restored:(BOOL)restored {
+    NSURL *sessionFolder = _folderURL;
+    NSURL *sessionScopedURL = _scopeActive ? _scopedURL : nil;
+    dispatch_async(_workQueue, ^{
+        [self adoptOnWorkQueue:url restored:restored
+                 sessionFolder:sessionFolder sessionScopedURL:sessionScopedURL];
+    });
+}
+
+- (void)adoptOnWorkQueue:(NSURL *)url
+                restored:(BOOL)restored
+           sessionFolder:(NSURL *)sessionFolder
+        sessionScopedURL:(NSURL *)sessionScopedURL {
     // A NO return is not failure: the app's own container and open-in-place
     // inbox URLs are not security-scoped. Track what we actually started so
     // the paired stop is balanced.
@@ -146,10 +181,15 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
             if (scoped) {
                 [url stopAccessingSecurityScopedResource];
             }
-            if (!restored) {
-                [self.delegate folderSessionDidOpenEmptyFolder:self];
-            }
-            return NO;
+            run_on_main_thread({
+                if (restored) {
+                    [self.delegate folderSessionRestoreDidFail:self];
+                }
+                else {
+                    [self.delegate folderSessionDidOpenEmptyFolder:self];
+                }
+            });
+            return;
         }
     }
     else {
@@ -161,21 +201,21 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
         // file in a never-granted folder stays a one-track playlist.
         BOOL grantScopeStarted = NO;
         NSURL *granted = [self grantedFolderCoveringFileURL:url
-                                          startedScope:&grantScopeStarted];
+                                              sessionFolder:sessionFolder
+                                               startedScope:&grantScopeStarted];
         if (granted) {
             NSArray<NSURL *> *siblings = [NSURLUtil audioFilesInDirectory:granted];
             if (siblings.count > 0) {
                 if (scoped) {
                     [url stopAccessingSecurityScopedResource]; // the folder grant covers it
                 }
-                [self deliverTracks:siblings
-                          folderURL:granted
-                        selectedURL:url
-                           restored:restored
-                          scopedURL:(grantScopeStarted ? granted
-                                     : (_scopeActive ? _scopedURL : nil))];
+                NSURL *scopedURL = grantScopeStarted ? granted : sessionScopedURL;
+                run_on_main_thread({
+                    [self deliverTracks:siblings folderURL:granted selectedURL:url
+                               restored:restored scopedURL:scopedURL];
+                });
                 [self persistBookmarkForURL:granted];
-                return YES;
+                return;
             }
             if (grantScopeStarted) {
                 [granted stopAccessingSecurityScopedResource];
@@ -184,15 +224,18 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
         tracks = @[url];
     }
 
-    [self deliverTracks:tracks folderURL:folderURL selectedURL:selectedURL
-               restored:restored scopedURL:(scoped ? url : nil)];
+    NSURL *scopedURL = scoped ? url : nil;
+    run_on_main_thread({
+        [self deliverTracks:tracks folderURL:folderURL selectedURL:selectedURL
+                   restored:restored scopedURL:scopedURL];
+    });
     // A one-track file open must not clobber a FOLDER bookmark: the folder
     // grant is what powers file-pick expansion and the relaunch restore, and
-    // a stray single file is worth less than either.
+    // a stray single file is worth less than either. Persisting here, after
+    // the scope opened, is also what refreshes a stale bookmark.
     if (isDir || ![self persistedBookmarkIsFolder]) {
         [self persistBookmarkForURL:url];
     }
-    return YES;
 }
 
 - (BOOL)persistedBookmarkIsFolder {
@@ -211,17 +254,19 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     return isDirectory.boolValue;
 }
 
-// The folder grant covering url's DIRECT parent, or nil: first the live
-// session folder (its scope is already open), then the persisted bookmark —
-// a cold-start "Open in Vibe" arrives before any restore ran. Paths are
-// compared standardized; a match through the bookmark starts that folder's
-// scope and reports it via startedScope so the caller hands it to
-// deliverTracks for the balanced release.
-- (NSURL *)grantedFolderCoveringFileURL:(NSURL *)url startedScope:(BOOL *)startedScope {
+// The folder grant covering url's DIRECT parent, or nil: first the caller's
+// snapshot of the live session folder (its scope is already open), then the
+// persisted bookmark — a cold-start "Open in Vibe" arrives before any
+// restore ran. Paths are compared standardized; a match through the bookmark
+// starts that folder's scope and reports it via startedScope so the caller
+// hands it to deliverTracks for the balanced release.
+- (NSURL *)grantedFolderCoveringFileURL:(NSURL *)url
+                          sessionFolder:(NSURL *)sessionFolder
+                           startedScope:(BOOL *)startedScope {
     *startedScope = NO;
     NSString *parent = url.URLByStandardizingPath.URLByDeletingLastPathComponent.path;
-    if (_folderURL && [parent isEqualToString:_folderURL.URLByStandardizingPath.path]) {
-        return _folderURL;
+    if (sessionFolder && [parent isEqualToString:sessionFolder.URLByStandardizingPath.path]) {
+        return sessionFolder;
     }
     NSData *bookmark = [NSUserDefaults.standardUserDefaults dataForKey:kFolderBookmarkKey];
     if (!bookmark) {
@@ -240,6 +285,8 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     return resolved;
 }
 
+// Main thread only: the session state is main-confined, and the delegate is
+// the UI.
 - (void)deliverTracks:(NSArray<NSURL *> *)tracks
             folderURL:(NSURL *)folderURL
           selectedURL:(NSURL *)selectedURL

@@ -23,11 +23,17 @@
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
     self.window.rootViewController = player;
     [self.window makeKeyAndVisible];
+    // The view must exist before the player screen can adopt anything.
+    // Exactly one of the two launch paths runs: a cold "Open in Vibe" adopts
+    // the arriving URL directly, everything else restores the persisted
+    // session — never both, so the open does not pay for a restore it
+    // immediately replaces.
+    [player loadViewIfNeeded];
     if (connectionOptions.URLContexts.count > 0) {
-        // Cold launch from "Open in Vibe": the view must exist before the
-        // player screen can adopt the URL.
-        [player loadViewIfNeeded];
         [player handleOpenURLContexts:connectionOptions.URLContexts];
+    }
+    else {
+        [player restorePersistedSession];
     }
 }
 

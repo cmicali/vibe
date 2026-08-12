@@ -31,6 +31,11 @@ NS_ASSUME_NONNULL_BEGIN
 // The picked location held no audio files.
 - (void)folderSessionDidOpenEmptyFolder:(FolderSession *)session;
 
+// A restore restorePersistedFolder returned YES for came to nothing: the
+// bookmark no longer resolves, or the folder has emptied. The player shows
+// the empty state it would have shown for a NO return.
+- (void)folderSessionRestoreDidFail:(FolderSession *)session;
+
 @end
 
 @interface FolderSession : NSObject
@@ -49,9 +54,12 @@ NS_ASSUME_NONNULL_BEGIN
 // or the share sheet). openInPlace mirrors UIOpenURLContext.options.
 - (void)openExternalURL:(NSURL *)url openInPlace:(BOOL)openInPlace;
 
-// Resolves the persisted bookmark and re-delivers the folder through the
-// delegate with restored:YES. NO when nothing was persisted or the bookmark
-// no longer resolves.
+// Kicks off resolving the persisted bookmark; the folder re-delivers through
+// the delegate with restored:YES. NO means nothing was persisted and no
+// attempt starts. YES means an attempt is in flight — resolution and the
+// directory listing are provider I/O and run off the main thread, so the
+// outcome arrives later: folderSession:didOpenTracks:… on success,
+// folderSessionRestoreDidFail: otherwise. All delegate calls land on main.
 - (BOOL)restorePersistedFolder;
 
 // The last track filename the player screen wants restored next launch.

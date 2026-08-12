@@ -55,6 +55,11 @@ static const NSTimeInterval kDeactivateDelaySeconds = 10.0;
 
 - (BOOL)activate {
     _activationGeneration++; // cancel any pending idle deactivation
+    // Apple does not guarantee every Began a matching Ended (the app can be
+    // suspended, or the session deactivated mid-interruption). A play is the
+    // user declaring the interruption over; without this reset one orphaned
+    // Began would wedge every future idle deactivation for the process's life.
+    _interruptionActive = NO;
     AVAudioSession *session = [AVAudioSession sharedInstance];
     NSError *error = nil;
     if (![session setCategory:AVAudioSessionCategoryPlayback error:&error]) {
@@ -118,7 +123,12 @@ static const NSTimeInterval kDeactivateDelaySeconds = 10.0;
         NSUInteger options = [note.userInfo[AVAudioSessionInterruptionOptionKey] unsignedIntegerValue];
         [self onMain:^{
             self->_interruptionActive = NO;
-            if ((options & AVAudioSessionInterruptionOptionShouldResume) && self->_wasPlayingAtInterruption) {
+            BOOL wasPlaying = self->_wasPlayingAtInterruption;
+            // Consumed: a duplicate or Began-less Ended (documented after a
+            // foregrounding) must not replay a stale YES and resume audio the
+            // user has since paused by hand.
+            self->_wasPlayingAtInterruption = NO;
+            if ((options & AVAudioSessionInterruptionOptionShouldResume) && wasPlaying) {
                 [self.delegate audioSessionShouldResume:self];
             }
             else {

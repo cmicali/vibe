@@ -73,6 +73,9 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     // The scrub-tick haptic and the last virtual-x bucket that fired it.
     UISelectionFeedbackGenerator *_scrubHaptics;
     NSInteger               _lastTickBucket;
+    // Kept so a content reset can cancel an in-flight drag; see
+    // resetWaveformContentState.
+    UIPanGestureRecognizer  *_panRecognizer;
     // The settled fast path: the envelope baked into one bitmap, shown by two
     // image layers — unplayed across the full width, played stacked on top of
     // it (the same compositing order as the live tree's played clip) and
@@ -111,9 +114,9 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     _trailingBaseline.hidden = YES;
     [self.layer addSublayer:_trailingBaseline];
 
-    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self
-                                                                          action:@selector(handlePan:)];
-    [self addGestureRecognizer:pan];
+    _panRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self
+                                                             action:@selector(handlePan:)];
+    [self addGestureRecognizer:_panRecognizer];
     UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self
                                                                           action:@selector(handleTap:)];
     [self addGestureRecognizer:tap];
@@ -200,17 +203,21 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     if (!_renderer || virtualWidth <= 0) {
         return;
     }
+    // The timer writers push raw position/duration, which can land a hair
+    // past 1.0 at track end; an out-of-unit contentsRect smears the baked
+    // image's edge pixels across the excess.
+    CGFloat progress = MAX(0.0, MIN(1.0, _progress));
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    CGPoint origin = CGPointMake(self.bounds.size.width / 2 - _progress * virtualWidth, 0);
+    CGPoint origin = CGPointMake(self.bounds.size.width / 2 - progress * virtualWidth, 0);
     if (_bakedHost) {
         _bakedHost.position = origin;
-        _bakedPlayed.bounds = CGRectMake(0, 0, _progress * virtualWidth, _bakedHost.bounds.size.height);
-        _bakedPlayed.contentsRect = CGRectMake(0, 0, _progress, 1);
+        _bakedPlayed.bounds = CGRectMake(0, 0, progress * virtualWidth, _bakedHost.bounds.size.height);
+        _bakedPlayed.contentsRect = CGRectMake(0, 0, progress, 1);
     }
     else {
         _rendererHost.position = origin;
-        [_renderer updateProgress:_progress waveform:self.waveform.waveform];
+        [_renderer updateProgress:progress waveform:self.waveform.waveform];
     }
     // The 1pt height and midY placement match the settled hairline's pixel
     // rows exactly, in both the live tree's flipped space and the bake.
@@ -262,6 +269,15 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 - (void)resetWaveformContentState {
     [self teardownBakedWaveform];
     [self cancelMomentum];
+    // A drag straddling a track change must not keep scrubbing the new
+    // track from the old track's start progress: cancel the touch outright
+    // (the toggle fires handlePan's cancelled branch), so the finger has to
+    // re-begin against the new content.
+    if (_panRecognizer.state == UIGestureRecognizerStateBegan
+            || _panRecognizer.state == UIGestureRecognizerStateChanged) {
+        _panRecognizer.enabled = NO;
+        _panRecognizer.enabled = YES;
+    }
     _isScrubbing = NO;
     self.waveform = nil;
     // Force the repaint even when the bucket is already 0, so the reset
@@ -314,11 +330,18 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     if (!_bakedHost) {
         return;
     }
+    // Same transaction discipline as the install: these are manual sublayers,
+    // so unhiding the live tree without disabling actions picks up the
+    // implicit fade and blanks the waveform for a frame on every delivery,
+    // rotation, and appearance flip.
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
     [_bakedHost removeFromSuperlayer];
     _bakedHost = nil;
     _bakedUnplayed = nil;
     _bakedPlayed = nil;
     _rendererHost.hidden = NO;
+    [CATransaction commit];
 }
 
 - (void)scheduleEnvelopeBake {
@@ -344,6 +367,19 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     }
     DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)_renderer;
     CGFloat scale = [self displayScale];
+    // A CALayer whose contents exceed the GPU texture ceiling renders BLANK,
+    // and the virtual width crosses 16384px on wide iPad windows (view width
+    // / 0.15 × scale). Bake at a reduced scale instead — the layers' default
+    // resize gravity stretches it back, softening the bars slightly, which
+    // beats an invisible waveform. A width that cannot fit even at 1x would
+    // need a ~2500pt view; bail to the live tree if it ever happens.
+    static const CGFloat kMaxBakeImagePixels = 16384;
+    if (size.width * scale > kMaxBakeImagePixels) {
+        scale = kMaxBakeImagePixels / size.width;
+        if (scale < 1) {
+            return;
+        }
+    }
     // Samples come out on the main thread — the same access updateWaveform:
     // performs — so only the pixel work leaves it.
     NSData *samples = [renderer envelopeSamplesForWaveform:self.waveform.waveform];
@@ -353,6 +389,10 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
         dispatch_async(dispatch_get_main_queue(), ^{
             [weakSelf installEnvelopeImage:image size:size generation:generation];
             CGImageRelease(image);
+            // Deliberately captured: if the view died during the bake, the
+            // background block above must not do the renderer's final
+            // release — its dealloc tears down layers, main-thread work.
+            (void)renderer;
         });
     });
 }
@@ -580,8 +620,14 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 // the haptic when a waveform line crosses the fixed playhead.
 - (void)scrubToProgress:(CGFloat)progress {
     _progress = MAX(0.0, MIN(1.0, progress));
-    _progressTracker = [self progressBucket];
-    [self applyScrollAndProgress];
+    // The same device-pixel gate as setProgress:. It matters most in the
+    // pre-bake window, where every repaint re-composites the masked live
+    // tree offscreen in full.
+    NSUInteger p = [self progressBucket];
+    if (_progressTracker != p) {
+        _progressTracker = p;
+        [self applyScrollAndProgress];
+    }
     NSInteger bucket = [self tickBucket];
     if (bucket != _lastTickBucket) {
         _lastTickBucket = bucket;

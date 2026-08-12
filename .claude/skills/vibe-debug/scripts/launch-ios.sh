@@ -39,14 +39,26 @@ xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
 # REBUILT mid-session is not installed by this script either, so warn when
 # the built binary is newer than the installed one — the fix is rerunning
 # `drive-ios.sh start`, whose xcodebuild installs the fresh build.
-if [ ! -f "$ROOT/build/ios-driver/$UDID/vibe-driver-ready" ]; then
-    xcrun simctl install "$UDID" "$APP"
-else
+#
+# "Live" means the runner PROCESS exists, not just the ready marker: the
+# marker outlives a driver that died without cleanup (crash, kill, simctl
+# erase, reboot), and trusting it skipped installs onto a device with no app.
+# A stale marker is removed so drive-ios.sh status stops believing it too.
+driver_is_live() {
+    local marker="$ROOT/build/ios-driver/$UDID/vibe-driver-ready"
+    [ -f "$marker" ] || return 1
+    pgrep -f "Devices/$UDID/.*VibeiOSDriver-Runner" >/dev/null 2>&1 && return 0
+    rm -f "$marker"
+    return 1
+}
+if driver_is_live; then
     INSTALLED="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" app 2>/dev/null || true)"
     if [ -n "$INSTALLED" ] && [ "$APP/Vibe" -nt "$INSTALLED/Vibe" ]; then
         echo "WARNING: built app is newer than the installed one, but a driver session" >&2
         echo "is live so the install is skipped — rerun drive-ios.sh start to install it" >&2
     fi
+else
+    xcrun simctl install "$UDID" "$APP"
 fi
 
 if [ "$#" -gt 0 ]; then

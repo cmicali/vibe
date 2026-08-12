@@ -61,10 +61,9 @@
 
 // Dead objects are dropped, never stopped or detached — messaging the defunct
 // engine's graph is what must not happen here, which is
-// dropEngineBoundStateOnQueue's contract — and installMasterBusOnQueue mints
-// fresh FX nodes and re-applies the recorded intent (or, with FX disabled,
-// rewires the bare mixer -> output bus), so the rebuilt graph comes up with
-// the same effect state.
+// dropEngineBoundStateOnQueue's contract — and createEngineAndMasterBusOnQueue
+// rebuilds exactly what init built: fresh FX nodes with the recorded intent
+// re-applied (or the bare mixer -> output wire), and the debug argv modes.
 - (void)reinitializeAfterMediaServicesReset {
     dispatch_async(_queue, ^{
         LogWarn(@"AudioPlayer: rebuilding engine after media services reset");
@@ -73,8 +72,7 @@
         [self dropEngineBoundStateOnQueue];
         self.currentTrack = nil;
         [self publishPlaybackState:VibePlayerStateStopped node:nil file:nil segmentStart:0 position:0];
-        self->_engine = [[AVAudioEngine alloc] init];
-        [self installMasterBusOnQueue];
+        [self createEngineAndMasterBusOnQueue];
     });
 }
 

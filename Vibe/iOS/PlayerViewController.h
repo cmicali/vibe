@@ -16,6 +16,11 @@
 // delegate.
 - (void)handleOpenURLContexts:(NSSet<UIOpenURLContext *> *)contexts;
 
+// Restores the persisted folder session, or shows the empty state. The scene
+// delegate calls exactly one of this and handleOpenURLContexts: at launch —
+// a cold "Open in Vibe" must not pay for (and then discard) a full restore.
+- (void)restorePersistedSession;
+
 @end
 
 #if DEBUG

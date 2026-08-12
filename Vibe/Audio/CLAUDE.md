@@ -2,7 +2,7 @@
 
 ## Playback engine
 
-`AudioPlayer` drives an `AVAudioEngine` with a fresh `AVAudioPlayerNode` per track. State machine `{Stopped, Playing, Paused, Loading}`; `Loading` covers the in-flight file open, reports `isPlaying`, and gives position and duration of zero.
+`AudioPlayer` drives an `AVAudioEngine` with a fresh `AVAudioPlayerNode` per track. State machine `{Stopped, Playing, Paused, Loading}`; `Loading` covers the in-flight file open, reports `isPlaying` — unless the landing is parked paused (`_pendingStartPaused`), which reports not playing so a pause verdict cannot un-park it — and gives position and duration of zero.
 
 **Threading.** Every engine mutation runs on a serial `dispatch_queue` (`com.vibe.audioplayer`, default QoS). The UI-facing getters — `position`, `duration`, `isPlaying` — read under an `os_unfair_lock` and never block. Two generation counters sort out async work: `_generation` discards stale `scheduleSegment` completions, and `_rampGeneration` cancels in-flight volume fades, which stop, seek, skip and device switches all bump first. Every fade is asynchronous, so the queue never sleeps. `run_on_main_thread()` dispatches UI updates back.
 

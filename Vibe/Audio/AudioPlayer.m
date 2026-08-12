@@ -264,62 +264,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
             LogDebug(@"AudioPlayer init");
 
-            self->_engine = [[AVAudioEngine alloc] init];
-
-#if DEBUG
-            // --no-audio-hw, for testing: put the engine in manual rendering
-            // mode so it never opens a CoreAudio output device. Starting the
-            // hardware IO — even with the mixer muted — counts as the Mac
-            // playing audio, which is enough for macOS to yank auto-switching
-            // AirPods over from another device mid-test. In manual mode the
-            // graph, scheduling, fades, FX, completions and position all
-            // behave normally; startManualRenderPumpOnQueue below pulls
-            // frames at real-time pace and discards them. Must be enabled
-            // while the engine is stopped and before the graph is wired.
-            BOOL noAudioHW = [NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"];
-            BOOL manualRendering = NO;
-            if (noAudioHW) {
-                NSError *manualError = nil;
-                AVAudioFormat *renderFormat = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100.0
-                                                                                             channels:2];
-                manualRendering = [self->_engine
-                        enableManualRenderingMode:AVAudioEngineManualRenderingModeOffline
-                                           format:renderFormat
-                                maximumFrameCount:kManualPumpMaxFrames
-                                            error:&manualError];
-                if (!manualRendering) {
-                    // The engine will open the output device as it always
-                    // does; pair --no-audio-hw with --silent, as launch.sh
-                    // does, and playback at least stays inaudible.
-                    LogError(@"AudioPlayer: --no-audio-hw manual rendering unavailable (%@)", manualError);
-                }
-            }
-#endif
-
-            // The FX segment — low kill, and the reverb and delay returns —
-            // owns everything between the main mixer and the output node.
-            // See AudioFX. With FX disabled the mixer wires straight to the
-            // output instead.
-            [self installMasterBusOnQueue];
-
-#if DEBUG
-            if (manualRendering) {
-                [self startManualRenderPumpOnQueue];
-                LogInfo(@"AudioPlayer: --no-audio-hw, manual rendering, no output device");
-            }
-            // --silent, for testing: zero the main mixer so that playback
-            // runs normally but nothing audible reaches the output device,
-            // which still gets opened and driven — use --no-audio-hw to keep
-            // hardware untouched. It sits downstream of all fade ramps, which
-            // are player-node volumes, and upstream of the FX returns, so wet
-            // tails are silenced too. It must run after installInEngine:,
-            // because a mixer volume written before the node is attached and
-            // wired is silently dropped. See AudioFX.m.
-            if ([NSProcessInfo.processInfo.arguments containsObject:@"--silent"]) {
-                self->_engine.mainMixerNode.outputVolume = 0;
-                LogInfo(@"AudioPlayer: --silent, output muted");
-            }
-#endif
+            [self createEngineAndMasterBusOnQueue];
 
 #if TARGET_OS_OSX
             // Resolve the saved device here rather than on the main thread.
@@ -378,6 +323,72 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         });
     }
     return self;
+}
+
+// Runs on _queue. Creates the engine and wires the master bus, applying the
+// debug argv flags exactly as first init does. The iOS media-services rebuild
+// calls this too, so a rebuilt engine comes back in the same mode — without
+// that, --no-audio-hw's pump would renderOffline: against a non-manual
+// engine, and a --silent run would turn audible after a reset.
+- (void)createEngineAndMasterBusOnQueue {
+    _engine = [[AVAudioEngine alloc] init];
+
+#if DEBUG
+    // --no-audio-hw, for testing: put the engine in manual rendering
+    // mode so it never opens a CoreAudio output device. Starting the
+    // hardware IO — even with the mixer muted — counts as the Mac
+    // playing audio, which is enough for macOS to yank auto-switching
+    // AirPods over from another device mid-test. In manual mode the
+    // graph, scheduling, fades, FX, completions and position all
+    // behave normally; startManualRenderPumpOnQueue below pulls
+    // frames at real-time pace and discards them. Must be enabled
+    // while the engine is stopped and before the graph is wired.
+    BOOL noAudioHW = [NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"];
+    BOOL manualRendering = NO;
+    if (noAudioHW) {
+        NSError *manualError = nil;
+        AVAudioFormat *renderFormat = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100.0
+                                                                                     channels:2];
+        manualRendering = [_engine
+                enableManualRenderingMode:AVAudioEngineManualRenderingModeOffline
+                                   format:renderFormat
+                        maximumFrameCount:kManualPumpMaxFrames
+                                    error:&manualError];
+        if (!manualRendering) {
+            // The engine will open the output device as it always
+            // does; pair --no-audio-hw with --silent, as launch.sh
+            // does, and playback at least stays inaudible.
+            LogError(@"AudioPlayer: --no-audio-hw manual rendering unavailable (%@)", manualError);
+        }
+    }
+#endif
+
+    // The FX segment — low kill, and the reverb and delay returns —
+    // owns everything between the main mixer and the output node.
+    // See AudioFX. With FX disabled the mixer wires straight to the
+    // output instead.
+    [self installMasterBusOnQueue];
+
+#if DEBUG
+    if (manualRendering && !_manualPump) {
+        // The pump reads _engine live each tick, so one pump serves every
+        // engine this player ever creates.
+        [self startManualRenderPumpOnQueue];
+        LogInfo(@"AudioPlayer: --no-audio-hw, manual rendering, no output device");
+    }
+    // --silent, for testing: zero the main mixer so that playback
+    // runs normally but nothing audible reaches the output device,
+    // which still gets opened and driven — use --no-audio-hw to keep
+    // hardware untouched. It sits downstream of all fade ramps, which
+    // are player-node volumes, and upstream of the FX returns, so wet
+    // tails are silenced too. It must run after installInEngine:,
+    // because a mixer volume written before the node is attached and
+    // wired is silently dropped. See AudioFX.m.
+    if ([NSProcessInfo.processInfo.arguments containsObject:@"--silent"]) {
+        _engine.mainMixerNode.outputVolume = 0;
+        LogInfo(@"AudioPlayer: --silent, output muted");
+    }
+#endif
 }
 
 #if DEBUG
@@ -476,7 +487,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 - (void)playTrack:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused declick:(BOOL)declick {
     dispatch_async(_queue, ^{
         self->_pendingStartPosition = MAX(0, position);
-        self->_pendingStartPaused = startPaused;
+        [self setPendingStartPausedOnQueue:startPaused];
         self->_pendingDeclick = declick;
         [self playOnQueue:track];
     });
@@ -628,7 +639,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     NSTimeInterval startPosition = _pendingStartPosition;
     BOOL startPaused = _pendingStartPaused;
     _pendingStartPosition = 0;
-    _pendingStartPaused = NO;
+    [self setPendingStartPausedOnQueue:NO];
     _pendingDeclick = NO;
 
     if (!file || file.length <= 0) {
@@ -1137,7 +1148,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _pendingOpenTrack = nil;
     // The abandoned open's start request goes with its track.
     _pendingStartPosition = 0;
-    _pendingStartPaused = NO;
+    [self setPendingStartPausedOnQueue:NO];
     _pendingDeclick = NO;
     [self clearGaplessOnQueue]; // any queued segment died with the node
     // Detach the varispeed that playOnQueue: attached for the failed track.
@@ -1220,7 +1231,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _currentOpenPath = nil;
     _pendingOpenTrack = nil;
     _pendingStartPosition = 0;
-    _pendingStartPaused = NO;
+    [self setPendingStartPausedOnQueue:NO];
     _pendingDeclick = NO;
     _prefetchRequestId++;
     _prefetchedPath = nil;
@@ -1412,7 +1423,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             // which never starts the engine, so an interrupted session is
             // not fought), and a second toggle flips it back. No delegate
             // event fires here; the landing publishes the state.
-            self->_pendingStartPaused = !self->_pendingStartPaused;
+            [self setPendingStartPausedOnQueue:!self->_pendingStartPaused];
             return;
         }
         AVAudioPlayerNode *node = self->_node;
@@ -1610,11 +1621,16 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // ramp, or by retiring an already-silent pair outright. Either half may be
 // nil.
 - (void)detachRetiredFadePair:(VibeRetiredFade *)fade {
-    if (fade.node) {
+    // Engine identity, not just nil-ness: an unregistered declick retire is
+    // unstoppable by design, so its completion can land after the iOS
+    // media-services rebuild swapped _engine — detachNode: there raises,
+    // because the pair was never attached to the new engine. The dead pair
+    // needs no teardown; it died with its engine.
+    if (fade.node && fade.node.engine == _engine) {
         [fade.node stop];
         [_engine detachNode:fade.node];
     }
-    if (fade.varispeed) {
+    if (fade.varispeed && fade.varispeed.engine == _engine) {
         [_engine detachNode:fade.varispeed];
     }
 }
@@ -1674,8 +1690,12 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     os_unfair_lock_lock(&_stateLock);
     // Loading counts as playing, because a play is committed and imminent, so
     // the UI holds the pause icon rather than flashing the play icon during
-    // the open.
-    BOOL playing = (_state == VibePlayerStatePlaying || _state == VibePlayerStateLoading);
+    // the open — UNLESS the landing is parked paused (play:atPosition:
+    // startPaused:, or a pause verdict mid-load): that open ends in Paused,
+    // and reporting it as playing made the iOS interruption verdict "pause" a
+    // track that was never going to play, which un-parked it.
+    BOOL playing = _state == VibePlayerStatePlaying
+            || (_state == VibePlayerStateLoading && !_pendingStartPaused);
     os_unfair_lock_unlock(&_stateLock);
     return playing;
 }
@@ -2040,6 +2060,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _lastValidPosition = position;
     _positionEpoch++;
     _state = state;
+    os_unfair_lock_unlock(&_stateLock);
+}
+
+// Runs on _queue. The flag rides the state lock because isPlaying reads it
+// off-queue to tell a parked-paused landing from a real one.
+- (void)setPendingStartPausedOnQueue:(BOOL)pendingStartPaused {
+    os_unfair_lock_lock(&_stateLock);
+    _pendingStartPaused = pendingStartPaused;
     os_unfair_lock_unlock(&_stateLock);
 }
 

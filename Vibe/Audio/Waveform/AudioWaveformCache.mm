@@ -163,10 +163,18 @@ static const NSUInteger kMaxDetachedWaveformLoads = 2;
 - (void)detachCurrentLoader {
     AudioWaveformLoader *loader = _currentLoader;
     _currentLoader = nil;
-    if (!loader || loader.isCancelled || loader.isComplete) {
+    if (!loader || loader.isCancelled) {
         return;
     }
+    // Detach even a completed loader: isComplete is set on the decode thread
+    // BEFORE its final delivery block reaches the main queue, so "complete"
+    // can still have a live delivery in flight, and the detach flag is what
+    // deliverCompleteWaveform checks on main. Skipping the detach here let
+    // that delivery land as a live one on whatever track superseded it.
     [loader detach];
+    if (loader.isComplete) {
+        return; // nothing to pool — the decode is done and persists on its own
+    }
     [_detachedLoaders addObject:loader];
     while (_detachedLoaders.count > kMaxDetachedWaveformLoads) {
         AudioWaveformLoader *oldest = _detachedLoaders.firstObject;
@@ -202,6 +210,10 @@ awaitPersist:(BOOL)awaitPersist
         cachedWaveform = nil;
     }
     if (cachedWaveform) {
+        // A hit finishes this loader as surely as a decode does; without the
+        // mark, a detach pools it and a same-file re-request reattaches a
+        // loader that will never deliver again.
+        loader.isComplete = YES;
         completion(cachedWaveform, YES);
         return;
     }

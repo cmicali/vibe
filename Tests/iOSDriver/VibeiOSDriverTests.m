@@ -203,7 +203,13 @@ static void DisableQuiescenceWaits(void) {
     }
     [NSFileManager.defaultManager removeItemAtPath:path error:nil];
     NSDictionary *payload = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-    NSString *commandId = [payload isKindOfClass:NSDictionary.class] ? payload[@"id"] : nil;
+    // The dictionary check must gate EVERY keyed read: a JSON array at the
+    // top level would take objectForKeyedSubscript: outside the @try below
+    // and abort the whole session.
+    if (![payload isKindOfClass:NSDictionary.class]) {
+        return NO;
+    }
+    NSString *commandId = payload[@"id"];
     NSArray *args = payload[@"args"];
     if (![commandId isKindOfClass:NSString.class] || commandId.length == 0
             || ![args isKindOfClass:NSArray.class] || args.count == 0) {

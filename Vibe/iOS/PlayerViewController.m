@@ -30,6 +30,34 @@
 
 static const NSUInteger kUIUpdateHz = 3;
 
+// CADisplayLink retains its target for the link's lifetime; aiming it through
+// a weak proxy keeps the controller's dealloc reachable, so the invalidate
+// there is real rather than aspirational.
+@interface VibeWeakProxy : NSProxy
++ (instancetype)proxyWithTarget:(id)target;
+@end
+
+@implementation VibeWeakProxy {
+    __weak id _target;
+}
+
++ (instancetype)proxyWithTarget:(id)target {
+    VibeWeakProxy *proxy = [self alloc];
+    proxy->_target = target;
+    return proxy;
+}
+
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)selector {
+    return [_target methodSignatureForSelector:selector]
+            ?: [NSMethodSignature signatureWithObjCTypes:"v@:"];
+}
+
+- (void)forwardInvocation:(NSInvocation *)invocation {
+    [invocation invokeWithTarget:_target]; // nil target: the invocation no-ops
+}
+
+@end
+
 // The in-cell geometry's NOMINAL numbers, duplicated from TrackPageCell so
 // the overlay chrome lines up without constraining across the cell boundary:
 // the empty-state line sits at the nominal center of the cell's waveform
@@ -116,6 +144,9 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     // A size transition (rotation, iPad window resize) is animating: the
     // pager's offset is not page-aligned at the new width, so commits hold.
     BOOL                    _windowResizeInFlight;
+    // The last root size the pager was laid out for; layout passes at an
+    // unchanged size skip the flow-layout invalidation.
+    CGSize                  _lastLayoutSize;
 }
 
 #pragma mark - Lifecycle
@@ -156,7 +187,8 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     _updateTimer.windowVisible = YES;
 
     _foreground = YES;
-    _scrollLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(scrollTick:)];
+    _scrollLink = [CADisplayLink displayLinkWithTarget:[VibeWeakProxy proxyWithTarget:self]
+                                              selector:@selector(scrollTick:)];
     // ~1pt/frame of motion gains nothing at 120 Hz; spare ProMotion the work.
     _scrollLink.preferredFrameRateRange = CAFrameRateRangeMake(30, 60, 60);
     _scrollLink.paused = YES;
@@ -171,6 +203,12 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     [center addObserver:self selector:@selector(sceneWillEnterForeground)
                    name:UISceneWillEnterForegroundNotification object:nil];
 
+    // No restore here: the scene delegate calls restorePersistedSession or
+    // handleOpenURLContexts: once the window is up, so a cold "Open in Vibe"
+    // never pays for a restore it immediately replaces.
+}
+
+- (void)restorePersistedSession {
     if (![_folderSession restorePersistedFolder]) {
         [self showEmptyState];
     }
@@ -189,8 +227,8 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     [self updatePlaybackUI];
 }
 
-// CADisplayLink retains its target; without this the controller would leak.
-// The root controller never deallocs in practice, but keep it correct.
+// Reachable because the display link holds the weak proxy, not the
+// controller; the invalidate releases the link's run-loop registration.
 - (void)dealloc {
     [_scrollLink invalidate];
 }
@@ -334,13 +372,23 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
             : -(kWaveformBottomInset + kWaveformHeight / 2);
 }
 
-- (UILabel *)makeTimeLabel {
-    UILabel *label = [[UILabel alloc] init];
-    label.font = [UIFont monospacedDigitSystemFontOfSize:13 weight:UIFontWeightRegular];
-    label.textColor = [UIColor secondaryLabelColor];
-    label.text = STR_LABEL_TIME_UNKNOWN;
-    label.translatesAutoresizingMaskIntoConstraints = NO;
-    return label;
+// The at-rest time rendering shared by neighbor pages, a pending track
+// start, and a parked track the player has not opened: 0:00 elapsed, the
+// full duration once metadata knows it.
++ (void)renderRestingTimesForTrack:(AudioTrack *)track
+                           elapsed:(UILabel *)elapsed
+                         remaining:(UILabel *)remaining {
+    BOOL known = track.duration > 0;
+    elapsed.text = known
+            ? [[Formatters sharedInstance] durationStringFromTimeInterval:0]
+            : STR_LABEL_TIME_UNKNOWN;
+    remaining.text = known ? track.durationString : STR_LABEL_TIME_UNKNOWN;
+}
+
+- (void)renderRestingTimesForTrack:(AudioTrack *)track {
+    [PlayerViewController renderRestingTimesForTrack:track
+                                              elapsed:_elapsedLabel
+                                            remaining:_remainingLabel];
 }
 
 #pragma mark - Gestures
@@ -403,6 +451,22 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     [_waveformCache loadWaveformForTrack:track];
 }
 
+// Snapshots exist to re-hydrate nearby pages instantly; distant ones reload
+// from the disk cache in milliseconds, so the dictionary stays a window
+// around the current page instead of growing one full waveform per track
+// ever visited. The in-flight load's target is kept wherever it is.
+- (void)prunePageWaveformsAroundIndex:(NSUInteger)index {
+    static const NSUInteger kKeepRadius = 2;
+    for (NSNumber *key in _pageWaveforms.allKeys) {
+        NSUInteger page = key.unsignedIntegerValue;
+        if (page != _waveformLoadIndex
+                && (page > index + kKeepRadius || index > page + kKeepRadius)) {
+            [_pageWaveforms removeObjectForKey:key];
+            [_completePages removeIndex:page];
+        }
+    }
+}
+
 // Reloaded and recycled cells come back blank; the latest snapshot puts the
 // waveform straight back without waiting for a fresh decode. With no
 // snapshot in hand the page animates the loading line instead of sitting
@@ -459,12 +523,9 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     else {
         // A neighbor at rest: track start, and the duration once metadata
         // knows it.
-        AudioTrack *track = [_playlist trackAtIndex:index];
-        BOOL known = track.duration > 0;
-        page.elapsedLabel.text = known
-                ? [[Formatters sharedInstance] durationStringFromTimeInterval:0]
-                : STR_LABEL_TIME_UNKNOWN;
-        page.remainingLabel.text = known ? track.durationString : STR_LABEL_TIME_UNKNOWN;
+        [PlayerViewController renderRestingTimesForTrack:[_playlist trackAtIndex:index]
+                                                  elapsed:page.elapsedLabel
+                                                remaining:page.remainingLabel];
     }
 }
 
@@ -508,7 +569,15 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     [super viewDidLayoutSubviews];
     [self aimEmptyLine];
     // Page size follows the view, and the offset must stay page-aligned
-    // through the first layout after a restore.
+    // through the first layout after a restore. Only on a real size change:
+    // this runs on every root layout pass (sheet presentations, safe-area
+    // churn), and an unconditional invalidation re-prepares the whole layout
+    // each time.
+    CGSize size = self.view.bounds.size;
+    if (CGSizeEqualToSize(size, _lastLayoutSize)) {
+        return;
+    }
+    _lastLayoutSize = size;
     [_pagesLayout invalidateLayout];
     if (!_pagesView.isDragging && !_pagesView.isDecelerating) {
         [self scrollToCurrentPageAnimated:NO];
@@ -610,7 +679,21 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     _emptyHintLabel.hidden = YES;
     _emptyLineView.hidden = YES;
     [self refreshPageAtIndex:_playlist.currentIndex];
-    [self bindChromeToCell:[self cellAtIndex:_playlist.currentIndex]];
+    TrackPageCell *cell = [self cellAtIndex:_playlist.currentIndex];
+    if (cell) {
+        [self bindChromeToCell:cell];
+    }
+    else {
+        // A far jump: the target page has no live cell yet. Drop the bindings
+        // rather than keep the old page's — the incoming track's rest state
+        // and loading shimmer must not write into the outgoing track's still-
+        // visible cell during the scroll. willDisplayCell rebinds on arrival.
+        _boundPage = nil;
+        _waveformView = nil;
+        _elapsedLabel = nil;
+        _remainingLabel = nil;
+        _playPauseButton = nil;
+    }
 }
 
 // The mac codec line's composition: each part appended only when present, so
@@ -679,15 +762,12 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
 }
 
 - (void)updatePlaybackUI {
-    if (_trackStartPending) {
-        // The incoming track at rest — the neighbor-page treatment — never
-        // the outgoing track's position, which the player still reports.
-        AudioTrack *track = _playlist.currentTrack;
-        BOOL known = track.duration > 0;
-        _elapsedLabel.text = known
-                ? [[Formatters sharedInstance] durationStringFromTimeInterval:0]
-                : STR_LABEL_TIME_UNKNOWN;
-        _remainingLabel.text = known ? track.durationString : STR_LABEL_TIME_UNKNOWN;
+    if (_trackStartPending || (_parked && _player.duration <= 0)) {
+        // The current track at rest — the neighbor-page treatment. Pending: the
+        // player's getters still serve the OUTGOING track. Parked-unopened (a
+        // relaunch restore): the player has nothing loaded, and without this
+        // the labels sat at --:-- even after metadata delivered the duration.
+        [self renderRestingTimesForTrack:_playlist.currentTrack];
         if (!_waveformView.isScrubbing) {
             _waveformView.progress = 0;
         }
@@ -726,9 +806,12 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     if (track) {
         [self dispatchAlbumArtLoadForTrack:track];
     }
+    // The player's duration is 0 while pending or parked-unopened; the
+    // track's metadata duration keeps the card's timeline real there.
+    NSTimeInterval playerDuration = _player.duration;
     [_nowPlaying updateWithTrack:track
                         position:(_trackStartPending ? 0 : _player.position)
-                        duration:(_trackStartPending ? track.duration : _player.duration)
+                        duration:(playerDuration > 0 ? playerDuration : track.duration)
                            state:state
                             rate:1.0
                          hasNext:_playlist.hasNextTrack
@@ -787,6 +870,7 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     [self renderHeaderForTrack:track];
     [self scrollToCurrentPageAnimated:YES];
     [self requestWaveformForIndex:_playlist.currentIndex];
+    [self prunePageWaveformsAroundIndex:_playlist.currentIndex];
     [_metadataCache loadMetadataNow:track];
     [_player play:track];
     [self updatePlayButton];
@@ -846,6 +930,18 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     [self playPauseTapped];
 }
 
+// The one selection funnel for the track-list and search sheets. Clamped
+// because a sheet's rows can be stale — an external "Open in Vibe" replaces
+// the playlist underneath an open sheet, and Playlist.setCurrentIndex does
+// not range-check, so a stale index would strand the cursor past the end.
+- (void)selectTrackAtIndex:(NSUInteger)index {
+    if (index >= _playlist.count) {
+        return;
+    }
+    _playlist.currentIndex = index;
+    [self playCurrentTrack];
+}
+
 - (void)searchTapped {
     if (_playlist.count == 0) {
         [_folderSession presentPickerFromViewController:self];
@@ -854,11 +950,7 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     SearchViewController *search = [[SearchViewController alloc] initWithPlaylist:_playlist];
     __weak PlayerViewController *weakSelf = self;
     search.onSelectTrack = ^(NSUInteger index) {
-        PlayerViewController *self = weakSelf;
-        if (self) {
-            self->_playlist.currentIndex = index;
-            [self playCurrentTrack];
-        }
+        [weakSelf selectTrackAtIndex:index];
     };
     UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:search];
     nav.modalPresentationStyle = UIModalPresentationPageSheet;
@@ -870,11 +962,7 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     list.folderName = _folderSession.folderDisplayName;
     __weak PlayerViewController *weakSelf = self;
     list.onSelectTrack = ^(NSUInteger index) {
-        PlayerViewController *self = weakSelf;
-        if (self) {
-            self->_playlist.currentIndex = index;
-            [self playCurrentTrack];
-        }
+        [weakSelf selectTrackAtIndex:index];
     };
     list.onChooseFolder = ^{
         PlayerViewController *self = weakSelf;
@@ -941,6 +1029,12 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     if (_playlist.count == 0) {
         [self showEmptyState];
         _emptyHintLabel.text = STR_ERROR_FOLDER_EMPTY;
+    }
+}
+
+- (void)folderSessionRestoreDidFail:(FolderSession *)session {
+    if (_playlist.count == 0) {
+        [self showEmptyState];
     }
 }
 
@@ -1024,6 +1118,9 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track {
+    // A resume from a media-reset (or interrupted-load) park goes through
+    // playPause directly, never playCurrentTrack, so the flag clears here.
+    _parked = NO;
     _updateTimer.wanted = YES;
     [self updateScrollLinkState];
     [self updatePlayButton];
@@ -1125,7 +1222,9 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
         [self refreshPageAtIndex:(NSUInteger)row];
     }
     if ([_playlist isCurrentTrack:track]) {
-        [self publishNowPlaying];
+        // The full refresh, not just the publish: a parked track's time
+        // labels render from this delivery's duration.
+        [self updatePlaybackUI];
     }
 }
 
@@ -1146,18 +1245,22 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     [[self cellAtIndex:_waveformLoadIndex].waveformView showWaveform:waveform];
 }
 
+// The mac's late-delivery and duplicate-row contract: the value is valid for
+// every row owning this URL, so stamp them all. Matching only the CURRENT
+// track dropped a neighbor preview's delivery, and the commit's skip-reload
+// path never re-fires it — that track then had no BPM/key for the session.
 - (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url {
-    AudioTrack *current = _playlist.currentTrack;
-    if (current && [current.url isEqual:url]) {
-        current.detectedBPM = bpm;
-    }
+    [[_playlist indexesOfTracksWithURL:url]
+            enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
+        [self->_playlist trackAtIndex:index].detectedBPM = bpm;
+    }];
 }
 
 - (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectKey:(NSInteger)key forURL:(NSURL *)url {
-    AudioTrack *current = _playlist.currentTrack;
-    if (current && [current.url isEqual:url]) {
-        current.detectedKey = (VibeMusicalKey)key;
-    }
+    [[_playlist indexesOfTracksWithURL:url]
+            enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
+        [self->_playlist trackAtIndex:index].detectedKey = (VibeMusicalKey)key;
+    }];
 }
 
 #pragma mark - WaveformScrubberViewDelegate

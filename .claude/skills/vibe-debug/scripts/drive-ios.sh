@@ -75,10 +75,23 @@ start)
     exit 1
     ;;
 status)
-    if [ -f "$TMP/$READY_NAME" ]; then echo '{"ready": true}'; else echo '{"ready": false}'; exit 1; fi
+    # The marker alone lies after a driver dies without cleanup (crash, kill,
+    # simctl erase): ready means marker AND runner process. A stale marker is
+    # cleaned so launch-ios.sh's install-skip stops believing it too.
+    if [ -f "$TMP/$READY_NAME" ] && pgrep -f "Devices/$UDID/.*VibeiOSDriver-Runner" >/dev/null 2>&1; then
+        echo '{"ready": true}'
+    else
+        rm -f "$TMP/$READY_NAME"
+        echo '{"ready": false}'
+        exit 1
+    fi
     ;;
 *)
-    [ -f "$TMP/$READY_NAME" ] || { echo '{"error": "driver not running — drive-ios.sh start first"}'; exit 1; }
+    if [ ! -f "$TMP/$READY_NAME" ] || ! pgrep -f "Devices/$UDID/.*VibeiOSDriver-Runner" >/dev/null 2>&1; then
+        rm -f "$TMP/$READY_NAME"   # same stale-marker cleanup as status
+        echo '{"error": "driver not running — drive-ios.sh start first"}'
+        exit 1
+    fi
     ID="$(uuidgen)"
     CMD="$TMP/vibe-touch-$ID.json"
     RESPONSE="$TMP/vibe-touch-response-$ID.txt"
