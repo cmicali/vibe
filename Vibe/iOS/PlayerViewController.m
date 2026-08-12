@@ -39,6 +39,15 @@ static const NSUInteger kUIUpdateHz = 3;
     AudioSessionController  *_audioSession;
     FolderSession           *_folderSession;
     UIUpdateTimer           *_updateTimer;
+    // Drives the scrolling waveform at display rate while playing in the
+    // foreground; the 3 Hz timer is far too coarse for a moving waveform.
+    CADisplayLink           *_scrollLink;
+    BOOL                    _foreground;
+    // seekToPosition: fades down before rescheduling, so position briefly
+    // reports the pre-seek value; holding the target until didFinishSeeking:
+    // keeps the waveform from snapping back for those frames.
+    float                   _pendingSeekProgress;
+    BOOL                    _seekInFlight;
 
     // The blurred album art behind everything, Apple Music style: the art
     // aspect-fills the screen under a blur. The screen is forced dark so
@@ -97,6 +106,13 @@ static const NSUInteger kUIUpdateHz = 3;
     }];
     _updateTimer.windowVisible = YES;
 
+    _foreground = YES;
+    _scrollLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(scrollTick:)];
+    // ~1pt/frame of motion gains nothing at 120 Hz; spare ProMotion the work.
+    _scrollLink.preferredFrameRateRange = CAFrameRateRangeMake(30, 60, 60);
+    _scrollLink.paused = YES;
+    [_scrollLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+
     // In the background the system extrapolates position from the last Now
     // Playing publish, so the 3 Hz tick is pure waste there — the same rule
     // as the mac window's occlusion gate.
@@ -113,11 +129,21 @@ static const NSUInteger kUIUpdateHz = 3;
 
 - (void)sceneDidEnterBackground {
     _updateTimer.windowVisible = NO;
+    _foreground = NO;
+    [self updateScrollLinkState];
 }
 
 - (void)sceneWillEnterForeground {
     _updateTimer.windowVisible = YES;
+    _foreground = YES;
+    [self updateScrollLinkState];
     [self updatePlaybackUI];
+}
+
+// CADisplayLink retains its target; without this the controller would leak.
+// The root controller never deallocs in practice, but keep it correct.
+- (void)dealloc {
+    [_scrollLink invalidate];
 }
 
 #pragma mark - UI construction
@@ -173,13 +199,8 @@ static const NSUInteger kUIUpdateHz = 3;
                                      action:@selector(nextTapped)];
     _nextButton.accessibilityLabel = STR_TRANSPORT_NEXT;
 
-    UIStackView *transport = [[UIStackView alloc] initWithArrangedSubviews:@[
-            _playPauseButton, _nextButton]];
-    transport.axis = UILayoutConstraintAxisHorizontal;
-    transport.alignment = UIStackViewAlignmentCenter;
-    transport.spacing = 56;
-    transport.translatesAutoresizingMaskIntoConstraints = NO;
-    [root addSubview:transport];
+    [root addSubview:_playPauseButton];
+    [root addSubview:_nextButton];
 
     // The Messages-style bottom bar: a wide glass search field, and the
     // folder button in the compose position beside it.
@@ -209,8 +230,12 @@ static const NSUInteger kUIUpdateHz = 3;
     _folderButton.translatesAutoresizingMaskIntoConstraints = NO;
     [root addSubview:_folderButton];
 
+    // Tap anywhere (off the waveform and the controls): choose a folder when
+    // empty, otherwise toggle play/pause — the transport hides while playing,
+    // so the tap IS the pause control.
     _emptyStateTap = [[UITapGestureRecognizer alloc] initWithTarget:self
-                                                             action:@selector(emptyStateTapped)];
+                                                             action:@selector(screenTapped)];
+    _emptyStateTap.delegate = self;
     [root addGestureRecognizer:_emptyStateTap];
 
     // Directory navigation: swipe left for the next track, right for the
@@ -256,14 +281,17 @@ static const NSUInteger kUIUpdateHz = 3;
 
         [middle.topAnchor constraintEqualToAnchor:_titleLabel.bottomAnchor],
         [middle.bottomAnchor constraintEqualToAnchor:_waveformView.topAnchor],
-        [transport.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
-        [transport.centerYAnchor constraintEqualToAnchor:middle.centerYAnchor],
+        // Play/pause on the screen's center line, next to its right.
+        [_playPauseButton.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
+        [_playPauseButton.centerYAnchor constraintEqualToAnchor:middle.centerYAnchor],
+        [_nextButton.leadingAnchor constraintEqualToAnchor:_playPauseButton.trailingAnchor constant:40],
+        [_nextButton.centerYAnchor constraintEqualToAnchor:_playPauseButton.centerYAnchor],
 
         // Full-bleed waveform above the time labels and the bottom bar.
         [_waveformView.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
         [_waveformView.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
-        [_waveformView.bottomAnchor constraintEqualToAnchor:_searchBarButton.topAnchor constant:-44],
-        [_waveformView.heightAnchor constraintEqualToConstant:90],
+        [_waveformView.bottomAnchor constraintEqualToAnchor:_searchBarButton.topAnchor constant:-134],
+        [_waveformView.heightAnchor constraintEqualToConstant:180],
 
         [_elapsedLabel.topAnchor constraintEqualToAnchor:_waveformView.bottomAnchor constant:6],
         [_elapsedLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
@@ -310,17 +338,42 @@ static const NSUInteger kUIUpdateHz = 3;
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
        shouldReceiveTouch:(UITouch *)touch {
-    // The waveform owns horizontal drags for scrubbing; directory swipes
-    // apply everywhere else.
-    return !CGRectContainsPoint(_waveformView.frame, [touch locationInView:self.view]);
+    // The waveform owns horizontal drags and taps for scrubbing, and the
+    // controls own their touches; directory swipes and the screen tap apply
+    // everywhere else.
+    if (CGRectContainsPoint(_waveformView.frame, [touch locationInView:self.view])) {
+        return NO;
+    }
+    for (UIView *view = touch.view; view && view != self.view; view = view.superview) {
+        if ([view isKindOfClass:[UIControl class]]) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
+// The Photos-style slide: the whole screen's content pushes out and the new
+// track's pushes in from the swipe direction. A push transition on the root
+// layer covers header, art, and waveform in one move.
+- (void)slideTransitionFromRight:(BOOL)fromRight {
+    CATransition *slide = [CATransition animation];
+    slide.type = kCATransitionPush;
+    slide.subtype = fromRight ? kCATransitionFromRight : kCATransitionFromLeft;
+    slide.duration = 0.3;
+    slide.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+    [self.view.layer addAnimation:slide forKey:@"trackSlide"];
 }
 
 - (void)swipeNext {
-    [self nextTapped];
+    if ([_playlist next]) {
+        [self slideTransitionFromRight:YES];
+        [self playCurrentTrack];
+    }
 }
 
 - (void)swipePrevious {
     if ([_playlist previous]) {
+        [self slideTransitionFromRight:NO];
         [self playCurrentTrack];
     }
 }
@@ -336,11 +389,10 @@ static const NSUInteger kUIUpdateHz = 3;
     _elapsedLabel.text = STR_LABEL_TIME_UNKNOWN;
     _remainingLabel.text = STR_LABEL_TIME_UNKNOWN;
     [_waveformView showEmptyPlaceholder];
-    _emptyStateTap.enabled = YES;
+    [self updatePlayButton];
 }
 
 - (void)renderHeaderForTrack:(AudioTrack *)track {
-    _emptyStateTap.enabled = NO;
     _titleLabel.textColor = [UIColor labelColor];
     // The artist has its own line, so the title line carries the title alone
     // when both are tagged.
@@ -399,6 +451,42 @@ static const NSUInteger kUIUpdateHz = 3;
     [_playPauseButton setImage:[UIImage systemImageNamed:symbol withConfiguration:config]
                       forState:UIControlStateNormal];
     _playPauseButton.accessibilityLabel = playing ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
+    [self updateChrome];
+}
+
+// Playing is immersive: sharp art, no transport — a screen tap pauses.
+// Paused (and parked, stopped, empty) brings the blur and the buttons back.
+- (void)updateChrome {
+    BOOL playing = _player.isPlaying;
+    UIVisualEffect *effect = playing ? nil
+            : [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterialDark];
+    CGFloat buttonAlpha = playing ? 0 : 1;
+    if (_backgroundBlurView.effect == effect && _playPauseButton.alpha == buttonAlpha) {
+        return;
+    }
+    [UIView animateWithDuration:0.3 animations:^{
+        self->_backgroundBlurView.effect = effect;
+        self->_playPauseButton.alpha = buttonAlpha;
+        self->_nextButton.alpha = buttonAlpha;
+    }];
+}
+
+- (void)updateScrollLinkState {
+    _scrollLink.paused = !(_player.isPlaying && _foreground);
+}
+
+- (void)scrollTick:(CADisplayLink *)link {
+    if (_waveformView.isScrubbing) {
+        return;
+    }
+    if (_seekInFlight) {
+        _waveformView.progress = _pendingSeekProgress;
+        return;
+    }
+    NSTimeInterval duration = _player.duration;  // non-blocking, like position
+    if (duration > 0) {
+        _waveformView.progress = _player.position / duration;
+    }
 }
 
 - (void)updatePlaybackUI {
@@ -408,7 +496,9 @@ static const NSUInteger kUIUpdateHz = 3;
         Formatters *formatters = [Formatters sharedInstance];
         _elapsedLabel.text = [formatters durationStringFromTimeInterval:position];
         _remainingLabel.text = [formatters durationStringFromTimeInterval:MAX(0, duration - position)];
-        if (!_waveformView.isScrubbing) {
+        // The display link owns the waveform while playing; this 3 Hz write
+        // is the only one while paused or parked, and they agree otherwise.
+        if (!_waveformView.isScrubbing && !_seekInFlight) {
             _waveformView.progress = position / duration;
         }
     }
@@ -445,6 +535,7 @@ static const NSUInteger kUIUpdateHz = 3;
     }
     _errorText = nil;
     _parked = NO;
+    _seekInFlight = NO;
     [_audioSession activate];
     [self renderHeaderForTrack:track];
     [_waveformView prepareForWaveformLoad];
@@ -462,6 +553,7 @@ static const NSUInteger kUIUpdateHz = 3;
         return;
     }
     _parked = YES;
+    _seekInFlight = NO;
     [self renderHeaderForTrack:track];
     [_waveformView prepareForWaveformLoad];
     [_waveformCache cancelLoad];
@@ -500,10 +592,12 @@ static const NSUInteger kUIUpdateHz = 3;
     }
 }
 
-- (void)emptyStateTapped {
+- (void)screenTapped {
     if (_playlist.count == 0) {
         [_folderSession presentPickerFromViewController:self];
+        return;
     }
+    [self playPauseTapped];
 }
 
 - (void)searchTapped {
@@ -625,6 +719,7 @@ static const NSUInteger kUIUpdateHz = 3;
     // released just as a pause releases it.
     BOOL playing = _player.isPlaying;
     _updateTimer.wanted = playing;
+    [self updateScrollLinkState];
     if (!playing) {
         [_audioSession deactivateWhenIdle];
     }
@@ -634,6 +729,7 @@ static const NSUInteger kUIUpdateHz = 3;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track {
     _updateTimer.wanted = NO;
+    [self updateScrollLinkState];
     [_audioSession deactivateWhenIdle];
     [self updatePlayButton];
     [self updatePlaybackUI];
@@ -641,11 +737,13 @@ static const NSUInteger kUIUpdateHz = 3;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track {
     _updateTimer.wanted = YES;
+    [self updateScrollLinkState];
     [self updatePlayButton];
     [self updatePlaybackUI];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {
+    _seekInFlight = NO;
     [self updatePlaybackUI];
 }
 
@@ -657,6 +755,7 @@ static const NSUInteger kUIUpdateHz = 3;
     // End of playlist: park on the last track, ready to replay.
     _parked = YES;
     _updateTimer.wanted = NO;
+    [self updateScrollLinkState];
     [_audioSession deactivateWhenIdle];
     _waveformView.progress = 0;
     [self updatePlayButton];
@@ -674,11 +773,13 @@ static const NSUInteger kUIUpdateHz = 3;
         return;  // a stale delivery racing a track change
     }
     _errorText = [self statusForPlayError:error];
+    _seekInFlight = NO;
     [_waveformView hideLoadingIndicator];
     if (current) {
         [self renderHeaderForTrack:current];
     }
     _updateTimer.wanted = NO;
+    [self updateScrollLinkState];
     [_audioSession deactivateWhenIdle];
     [self updatePlayButton];
     [self publishNowPlaying];
@@ -758,6 +859,8 @@ static const NSUInteger kUIUpdateHz = 3;
 - (void)waveformScrubberView:(WaveformScrubberView *)view didSeek:(float)percentage {
     NSTimeInterval duration = _player.duration;
     if (duration > 0) {
+        _pendingSeekProgress = percentage;
+        _seekInFlight = YES;
         [_player seekToPosition:duration * percentage];
     }
     else if (_parked) {
@@ -833,7 +936,9 @@ static const NSUInteger kUIUpdateHz = 3;
     AudioTrack *track = _playlist.currentTrack;
     NSTimeInterval position = _player.position;
     [_player reinitializeAfterMediaServicesReset];
+    _seekInFlight = NO;
     _updateTimer.wanted = NO;
+    [self updateScrollLinkState];
     if (track) {
         _parked = YES;
         [_player play:track atPosition:position startPaused:YES];

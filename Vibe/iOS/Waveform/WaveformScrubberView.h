@@ -3,9 +3,10 @@
 //  Vibe (iOS)
 //
 //  The iOS counterpart of AudioWaveformView: the same registry, renderers,
-//  morph engine and waveform data, hosted in a UIView with touch scrubbing
-//  instead of mouse seek. SoundCloud semantics: drag lights the column under
-//  the finger and seeks on release; a tap seeks immediately.
+//  morph engine and waveform data, hosted in a UIView. DJ semantics: the
+//  play position is fixed at the view's horizontal center and the zoomed
+//  waveform scrolls beneath it; a drag moves the content 1:1 and seeks on
+//  release, a tap nudges to the tapped point in the visible window.
 //
 
 #import <UIKit/UIKit.h>
@@ -25,8 +26,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nullable, weak) id<WaveformScrubberViewDelegate> delegate;
 
-// The playhead as a 0-1 fraction. Repaints are gated per device pixel, so a
-// 3 Hz timer can write it unconditionally.
+// The playhead as a 0-1 fraction. Repaints are gated per device pixel of the
+// virtual (scrolled) axis, so a timer can write it unconditionally.
 @property (nonatomic) CGFloat progress;
 
 // YES while a scrub drag is in flight. The owner suppresses timer-driven
