@@ -17,6 +17,7 @@
 #import "NSBundle+BuildInfo.h"
 #import "AppStats.h"
 #import "DocumentTypes.h"
+#import "FolderAccessManager.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <sys/sysctl.h>
@@ -100,6 +101,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [self logBuildInfo];
 
     [[AppSettings sharedInstance] applicationDidFinishLaunching];
+
+    // Before the open queue drains: a launch-time open of a remembered folder
+    // (Open Recent, restored state) may depend on a restored grant.
+    [[FolderAccessManager sharedInstance] restoreGrantedAccess];
 
 #if DEBUG
     VibeInstallDebugScreenshotHook();
@@ -213,6 +218,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 // unsupported files, and hands the result to the controller, either appended
 // or as a replacing play.
 - (void)openURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append {
+    // Folders arrive here holding a live sandbox grant; bookmark them now so
+    // the grant survives relaunch (see FolderAccessManager).
+    [[FolderAccessManager sharedInstance] noteOpenedURLs:urls];
     [NSURLUtil expandAndFilterList:urls completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
         [[AppStats sharedInstance] recordOpenedFiles:expanded.count folders:folderCount];
         // Nothing playable, as with a folder that holds no audio. Do not wipe

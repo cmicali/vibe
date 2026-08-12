@@ -6,6 +6,7 @@
 #import "MainWindow.h"
 #import "NSURLUtil.h"
 #import "AppStats.h"
+#import "FolderAccessManager.h"
 #import "MainPlayerController.h"
 #import "PitchControlPanel.h"
 #import "VibeStrings.h"
@@ -197,6 +198,10 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     // captured now, because the delivery below is async and the session has
     // gone by then.
     NSPoint location = sender.draggingLocation;
+    // Dropped folders carry a live sandbox grant; bookmark them so the grant
+    // survives relaunch. Drops bypass the AppDelegate open funnel, so this
+    // hook mirrors the one there.
+    [[FolderAccessManager sharedInstance] noteOpenedURLs:urls];
     // Accept the drop immediately, expand directories off the main thread, and
     // deliver the playable files through the main-thread completion.
     __weak MainWindow *weakSelf = self;
