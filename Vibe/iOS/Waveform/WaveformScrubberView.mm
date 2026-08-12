@@ -14,7 +14,7 @@
 // Fraction of the track visible across the view: the DJ zoom level. The
 // renderer draws the full track at width / fraction and the host layer is
 // translated so the play position sits at the view's horizontal center.
-static const CGFloat kWaveformVisibleFraction = 0.15;
+static const CGFloat kWaveformVisibleFraction = 0.2;
 
 // Momentum: the per-millisecond deceleration (much higher friction than
 // UIScrollView's 0.998 normal rate, so a throw settles noticeably faster —

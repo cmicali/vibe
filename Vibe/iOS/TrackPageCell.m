@@ -15,6 +15,7 @@
 static const CGFloat kCellWaveformHeight = 180;
 static const CGFloat kCellBottomBarClearance = 56;  // the glass bar's slice of the safe area
 static const CGFloat kCellBoxGap = 32;              // padding between the two boxes
+static const CGFloat kCellArtTopPadding = 16;       // pushes art + labels down inside the group; taken back out of kCellBoxGap so the waveform box stays put
 static const CGFloat kCellTimeWaveformGap = 3;
 static const CGFloat kArtCornerRadius = 12;
 static const CGFloat kCellGlyphPointSize = 41;
@@ -217,7 +218,8 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         [band.topAnchor constraintEqualToAnchor:safe.topAnchor],
         [band.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor
                                           constant:-kCellBottomBarClearance],
-        [group.topAnchor constraintEqualToAnchor:_artCard.topAnchor],
+        [_artCard.topAnchor constraintEqualToAnchor:group.topAnchor
+                                           constant:kCellArtTopPadding],
         [group.bottomAnchor constraintEqualToAnchor:_elapsedLabel.bottomAnchor],
         groupCentered,
         [_artCard.topAnchor constraintGreaterThanOrEqualToAnchor:band.topAnchor constant:12],
@@ -245,7 +247,7 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         // gap, and the stack's required bottom bound keeps the time
         // labels clear of the glass bar at any text size.
         [_waveformView.topAnchor constraintEqualToAnchor:_fileInfoLabel.bottomAnchor
-                                                constant:kCellBoxGap],
+                                                constant:kCellBoxGap - kCellArtTopPadding],
         [_elapsedLabel.topAnchor constraintEqualToAnchor:_waveformView.bottomAnchor
                                                 constant:kCellTimeWaveformGap],
         [_elapsedLabel.bottomAnchor constraintLessThanOrEqualToAnchor:band.bottomAnchor
