@@ -5,10 +5,8 @@
 
 #import "AudioWaveformView.h"
 #import "AudioWaveform.h"
-#import "DetailedAudioWaveformRenderer.h"
-#import "SonicCirrusWaveformRenderer.h"
-#import "BasicAudioWaveformRenderer.h"
-#import "OversamplingDetailedAudioWaveformRenderer.h"
+#import "AudioWaveformRenderer.h"
+#import "WaveformRendererRegistry.h"
 #import "NSView+DarkMode.h"
 #import "AppSettings.h"
 
@@ -27,9 +25,6 @@
     double                      _convertSweepFraction;
     BOOL                        _didClickInside;
     AudioWaveformRenderer*      _currentWaveformRenderer;
-    // The renderer classes, keyed by styleIdentifier and instantiated on
-    // selection.
-    NSMutableDictionary<NSString *, Class>* _waveformRenderers;
     CAGradientLayer*            _loadingLayer;
     CALayer*                    _placeholderLayer;
     NSTrackingArea*             _hoverTrackingArea;
@@ -62,20 +57,6 @@
     _progress = 0;
     _progressTracker = 0;
     _didClickInside = NO;
-
-    _waveformRenderers = [NSMutableDictionary new];
-
-    [self addWaveformRenderer:BasicAudioWaveformRenderer.class];
-    [self addWaveformRenderer:SonicCirrusWaveformRenderer.class];
-    [self addWaveformRenderer:DetailedAudioWaveformRenderer.class];
-    [self addWaveformRenderer:x2OversamplingDetailedAudioWaveformRenderer.class];
-    [self addWaveformRenderer:x4OversamplingDetailedAudioWaveformRenderer.class];
-    [self addWaveformRenderer:x8OversamplingDetailedAudioWaveformRenderer.class];
-
-}
-
-- (void)addWaveformRenderer:(Class)renderer {
-    _waveformRenderers[[renderer styleIdentifier]] = renderer;
 }
 
 - (NSString *)currentWaveformStyle {
@@ -83,11 +64,11 @@
 }
 
 - (void)setWaveformStyle:(NSString*)identifier {
-    Class renderer = identifier.length ? _waveformRenderers[identifier] : nil;
+    Class renderer = [WaveformRendererRegistry rendererClassForIdentifier:identifier];
     if (!renderer) {
         // Unknown identifier (hand-edited default, or a style dropped in a
         // later version): fall back rather than leaving a blank waveform.
-        renderer = _waveformRenderers[SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT];
+        renderer = [WaveformRendererRegistry rendererClassForIdentifier:SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT];
         if (!renderer) {
             return;
         }
@@ -98,7 +79,7 @@
 }
 
 - (NSString *)displayNameForStyle:(NSString *)identifier {
-    return [_waveformRenderers[identifier] displayName] ?: identifier;
+    return [WaveformRendererRegistry displayNameForIdentifier:identifier];
 }
 
 - (void)drawWaveform {
@@ -113,7 +94,7 @@
 }
 
 - (NSArray<NSString*>*)availableWaveformStyles {
-    return _waveformRenderers.allKeys;
+    return [WaveformRendererRegistry availableIdentifiers];
 }
 
 - (void)mouseDown:(NSEvent *)event {
@@ -250,18 +231,10 @@
     [self hideEmptyPlaceholder];
     [self resetWaveformContentState];
     if (!_currentWaveformRenderer) {
-        // Prefer the persisted style, then the app default. allKeys[0] is a
-        // last resort only, because NSMutableDictionary key order is
-        // unspecified and it would otherwise pick an arbitrary renderer from
-        // one run to the next.
-        NSString *style = [[AppSettings sharedInstance] waveformStyle];
-        if (!style.length || !_waveformRenderers[style]) {
-            style = SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT;
-        }
-        if (!_waveformRenderers[style]) {
-            style = _waveformRenderers.allKeys.firstObject;
-        }
-        [self setWaveformStyle:style];
+        // Prefer the persisted style, then the app default; the registry owns
+        // the chain.
+        [self setWaveformStyle:[WaveformRendererRegistry
+                resolveStyleIdentifier:[[AppSettings sharedInstance] waveformStyle]]];
     }
     [self drawWaveform];
 }

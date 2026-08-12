@@ -24,9 +24,9 @@
 // The gradient styling: its direction and extent, and the played and unplayed
 // color stops. baseColor is white in dark mode and black in light.
 - (void)configureGradient:(CAGradientLayer *)gradient;
-- (NSArray<NSColor *> *)playedGradientColors:(NSColor *)baseColor isDark:(BOOL)isDark;
-- (NSArray<NSColor *> *)unplayedGradientColors:(NSColor *)baseColor isDark:(BOOL)isDark;
+- (NSArray<VibeColor *> *)playedGradientColors:(VibeColor *)baseColor isDark:(BOOL)isDark;
+- (NSArray<VibeColor *> *)unplayedGradientColors:(VibeColor *)baseColor isDark:(BOOL)isDark;
 
-- (void)setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<NSColor*>*)colors;
+- (void)setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<VibeColor*>*)colors;
 
 @end

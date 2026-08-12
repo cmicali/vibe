@@ -3,7 +3,9 @@
 // Copyright (c) 2020 Christopher Micali. All rights reserved.
 //
 
-#import <AppKit/AppKit.h>
+#import <Foundation/Foundation.h>
+#import <QuartzCore/QuartzCore.h>
+#import "PlatformTypes.h"
 // AudioWaveform.h brings C++ types in, so import this header from .mm files
 // only.
 #import "AudioWaveform.h"
@@ -19,9 +21,11 @@ static const CGFloat kVibeDefaultBackingScale = 2;
 // authority on what the scale should be, and renderers ask a layer they have
 // already stamped, guarding the unset-0 case. Both live here, so that the
 // fallback cannot drift between sites.
+#if TARGET_OS_OSX
 static inline CGFloat VibeBackingScaleForWindow(NSWindow * _Nullable window) {
     return window ? window.backingScaleFactor : kVibeDefaultBackingScale;
 }
+#endif
 static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
     CGFloat scale = layer.contentsScale;
     return scale > 0 ? scale : kVibeDefaultBackingScale;
@@ -57,9 +61,9 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
 // given bounds alone: a pure function rather than per-draw mutable state, so
 // each renderer has exactly one band definition. The base is the middle 50% of
 // the height, and renderers with a known drawn extent override it.
-- (NSRect)seekHitBandForBounds:(NSRect)bounds;
+- (CGRect)seekHitBandForBounds:(CGRect)bounds;
 
-- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
+- (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 
 // The window moved to a display with a different backing scale. The base does

@@ -12,7 +12,11 @@
 #if TARGET_OS_OSX
 @class NSImage;
 typedef NSImage VibeImage;
+@class NSColor;
+typedef NSColor VibeColor;
 #else
 @class UIImage;
 typedef UIImage VibeImage;
+@class UIColor;
+typedef UIColor VibeColor;
 #endif
