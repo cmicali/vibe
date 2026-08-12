@@ -54,8 +54,8 @@ static const CGFloat kOutputPopUpWidth = 280;
 
     NSGridView *grid = [self.class formGridWithRows:@[
         @[[NSTextField labelWithString:STR_SETTINGS_OUTPUT_LABEL], _outputPopUp],
-        @[NSGridCell.emptyContentView, _defaultPlayerButton],
         @[NSGridCell.emptyContentView, _alwaysOnTopCheckbox],
+        @[NSGridCell.emptyContentView, _defaultPlayerButton],
     ]];
     [self loadPaneWithSize:NSMakeSize(kSettingsPaneWidth, kGeneralPaneHeight) grid:grid];
 }
