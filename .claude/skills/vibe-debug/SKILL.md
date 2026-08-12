@@ -1,6 +1,6 @@
 ---
 name: vibe-debug
-description: Launch, drive, inspect, and visually verify the Vibe app. Use whenever a change needs end-to-end verification, a screenshot of the running app, playback/UI state inspection, or appearance (light/dark) testing.
+description: Launch, drive, inspect, and visually verify the Vibe app — macOS, and the iOS simulator loop (launch-ios.sh, silent flags, screenshots, host-side log streaming). Use whenever a change needs end-to-end verification, a screenshot of the running app, playback/UI state inspection, or appearance (light/dark) testing.
 ---
 
 # Debugging and verifying Vibe
@@ -49,7 +49,7 @@ Use the generated files in `Assets/test_audio_files/` (gitignored) rather than s
 | `tone-short-1.wav` / `-2` / `-3` | single-file and playlist/multi-file tests (8s, distinct pitches) |
 | `tone-long.wav` | seek and skip tests (120s — skips reach ±60s) |
 | `tone.flac` | FLAC/codec-label coverage |
-| `tone-art-red.m4a` / `tone-art-blue.m4a` | tagged metadata (titles "Red Art Test"/"Blue Art Test", artist "Art Tester") with solid red/blue covers — art, header-tint, and dock-icon tests; play one then the other to exercise the art crossfade and tint animation |
+| `tone-art-red.m4a` / `tone-art-blue.m4a` | tagged metadata (titles "Red Art Test"/"Blue Art Test", artist "Art Tester") with solid red/blue covers — art, header-tint, and dock-icon tests; play one then the other to exercise the art crossfade and tint animation. 180s, so scrubbing is testable (added for iOS) |
 | `bpm-85.wav`, `bpm-120.wav`, `bpm-128.wav`, `bpm-140.wav`, `bpm-174.wav` | 30s kick+hat loops at exactly the named tempo — BPM-analyzer tests (see `scan-bpm.sh` below; compare against the filename). Atonal, so they double as the key analyzer's negative case: `scan-key.sh` must report no key |
 | `key-am.wav`, `key-c.wav`, `key-fsm.wav`, `key-eb.wav` | 24s chord-progression loops in the named key (Am, C, F#m, Eb) — key-analyzer tests (see `scan-key.sh` below) |
 
@@ -72,6 +72,34 @@ It opens a named pipe in the app container's tmp. `AVAudioFile`'s open blocks re
 ```
 
 `scan_key` has the same contract as `scan_bpm` throughout: it runs in the CLI process, needs no app, ignores caches and tags (it reports pure analysis — the app's own display prefers a tagged key), and streams the file via stdin for the same sandbox reasons.
+
+## iOS: the simulator loop
+
+**There is no debug command channel on iOS** — every `--debug-cmd` verb below is mac-only. Verification is `simctl`, the log stream, and looking at screenshots. The build is the `VibeiOS` scheme (`xcodebuild -scheme VibeiOS -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build`); products land in `Debug-iphonesimulator/`.
+
+```bash
+.claude/skills/vibe-debug/scripts/launch-ios.sh [audio-file ...]   # boot if needed, install, relaunch
+```
+
+`launch-ios.sh` is `launch.sh`'s iOS counterpart: it boots the first available iPhone simulator when none is booted (`bootstatus -b`, no guessed sleeps), installs the app from `build/DerivedData` (`$VIBE_IOS_APP` overrides), and relaunches it. **Audio is silent by default**: the shared engine honors the same debug argv flags as macOS, and the script passes `--no-audio-hw --silent` unless `VIBE_AUDIBLE=1` — so a simulator test never plays through the mac's speakers. `VIBE_LANGUAGE=de` works as on macOS. The flags apply only at `simctl launch`; a later `openurl` reuses the running process, so relaunch to change them.
+
+**Feeding it audio.** Files passed to the script are copied into the app container's `Documents/Music` — with `UIFileSharingEnabled` that is the folder the in-app picker reaches via Browse > On My iPhone > Vibe > Music — and the first is then opened via `openurl` (the open-in-place path). That makes a **one-track playlist**: a single-file open grants no siblings on iOS. To test the directory-as-playlist behavior, seed the files and pick the Music *folder* in-app.
+
+```bash
+DATA=$(xcrun simctl get_app_container booted com.commonwealthrecordings.Vibe data)
+xcrun simctl openurl booted "file://$DATA/Documents/Music/tone-long.wav"   # open-in-place a seeded file
+xcrun simctl io booted screenshot shot.png    # device pixels (3x), top-left origin
+```
+
+**Logs stream from the HOST.** Simulator processes write into the mac's unified log, and `log stream` *inside* the simulator (`simctl spawn`) is refused as non-admin. Info and debug are not persisted (same as macOS), so stream, don't `log show`:
+
+```bash
+/usr/bin/log stream --level debug --predicate 'subsystem == "com.commonwealthrecordings.Vibe"'
+```
+
+**Driving the UI.** With no command channel, taps are real clicks on the Simulator window: `input.swift click/drag` (OS-level input path below) after `tell application "Simulator" to activate` — the window must be frontmost or clicks land elsewhere. Map device pixels to mac screen points by calibrating against a landmark visible in both a `simctl` screenshot and a `screencapture` of the window; the window's scale is not a round fraction of the device's 3x, so measure, don't assume. This is inherently more manual than `--debug-cmd`; prefer flows a screenshot can verify without input, and verify every injected tap's effect from the next screenshot rather than assuming it landed.
+
+**Simulator blind spots.** Interruptions (calls/Siri), route changes (headphone unplug), background audio past lock, and the lock-screen card need a real device. The `AVAudioSession` code runs but the simulator does not exercise it faithfully.
 
 ## Driving and inspecting the running app: `--debug-cmd`
 
