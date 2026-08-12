@@ -252,10 +252,6 @@ static const NSUInteger kUIUpdateHz = 3;
     [root addGestureRecognizer:swipeRight];
 
     UILayoutGuide *safe = root.safeAreaLayoutGuide;
-    // The band between the header and the waveform; the transport centers in
-    // it vertically.
-    UILayoutGuide *middle = [[UILayoutGuide alloc] init];
-    [root addLayoutGuide:middle];
 
     [NSLayoutConstraint activateConstraints:@[
         [_backgroundArtView.topAnchor constraintEqualToAnchor:root.topAnchor],
@@ -279,11 +275,10 @@ static const NSUInteger kUIUpdateHz = 3;
         [_titleLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:20],
         [_titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-20],
 
-        [middle.topAnchor constraintEqualToAnchor:_titleLabel.bottomAnchor],
-        [middle.bottomAnchor constraintEqualToAnchor:_waveformView.topAnchor],
-        // Play/pause on the screen's center line, next to its right.
+        // Play/pause on the screen's center line, next to its right, sitting
+        // just above the waveform.
         [_playPauseButton.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
-        [_playPauseButton.centerYAnchor constraintEqualToAnchor:middle.centerYAnchor],
+        [_playPauseButton.bottomAnchor constraintEqualToAnchor:_waveformView.topAnchor constant:-16],
         [_nextButton.leadingAnchor constraintEqualToAnchor:_playPauseButton.trailingAnchor constant:40],
         [_nextButton.centerYAnchor constraintEqualToAnchor:_playPauseButton.centerYAnchor],
 
@@ -454,18 +449,15 @@ static const NSUInteger kUIUpdateHz = 3;
     [self updateChrome];
 }
 
-// Playing is immersive: sharp art, no transport — a screen tap pauses.
-// Paused (and parked, stopped, empty) brings the blur and the buttons back.
+// Playing hides the transport — a screen tap pauses — and pausing (parked,
+// stopped, and empty included) brings the buttons back. The art stays
+// blurred in every state.
 - (void)updateChrome {
-    BOOL playing = _player.isPlaying;
-    UIVisualEffect *effect = playing ? nil
-            : [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterialDark];
-    CGFloat buttonAlpha = playing ? 0 : 1;
-    if (_backgroundBlurView.effect == effect && _playPauseButton.alpha == buttonAlpha) {
+    CGFloat buttonAlpha = _player.isPlaying ? 0 : 1;
+    if (_playPauseButton.alpha == buttonAlpha) {
         return;
     }
     [UIView animateWithDuration:0.3 animations:^{
-        self->_backgroundBlurView.effect = effect;
         self->_playPauseButton.alpha = buttonAlpha;
         self->_nextButton.alpha = buttonAlpha;
     }];
