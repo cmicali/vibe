@@ -11,6 +11,7 @@
 #define SETTING_AUDIO_PLAYER_DEVICE_UID             @"AudioPlayer.deviceUID"
 #define SETTING_PITCH_PANEL_SHOWN                   @"MainWindow.pitchPanelShown"
 #define SETTING_PLAYLIST_SHOWN                      @"MainWindow.playlistShown"
+#define SETTING_ALWAYS_ON_TOP                       @"MainWindow.alwaysOnTop"
 #define SETTING_PITCH_RANGE                         @"AudioPlayer.pitchRange"
 #define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"
 #define SETTING_DELETE_ORIGINAL_AFTER_CONVERT       @"Convert.deleteOriginal"
@@ -49,6 +50,7 @@
             SETTING_WAVEFORM_STYLE:                 SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
             SETTING_PITCH_PANEL_SHOWN:              @(NO),
             SETTING_PLAYLIST_SHOWN:                 @(NO),
+            SETTING_ALWAYS_ON_TOP:                  @(NO),
             SETTING_PITCH_RANGE:                    @(8),
             SETTING_SHOW_REMAINING_TIME:            @(NO),
             SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
@@ -159,6 +161,14 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 
 - (void)setPlaylistShown:(BOOL)shown {
     [[NSUserDefaults standardUserDefaults] setBool:shown forKey:SETTING_PLAYLIST_SHOWN];
+}
+
+- (BOOL)alwaysOnTop {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_ALWAYS_ON_TOP];
+}
+
+- (void)setAlwaysOnTop:(BOOL)onTop {
+    [[NSUserDefaults standardUserDefaults] setBool:onTop forKey:SETTING_ALWAYS_ON_TOP];
 }
 
 - (BOOL)showRemainingTime {

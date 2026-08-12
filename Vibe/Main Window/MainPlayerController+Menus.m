@@ -33,6 +33,10 @@
     else if ([menuItem.identifier isEqualToString:@"menu_show_pitch"]) {
         menuItem.state = StateForBOOL(window.isPitchPanelShown);
     }
+    // A preference, not an action, so never disabled.
+    else if ([menuItem.identifier isEqualToString:@"menu_always_on_top"]) {
+        menuItem.state = StateForBOOL(Settings.alwaysOnTop);
+    }
     // Size: checkmark whichever preset the current body width already sits at,
     // which after a drag-resize is none of them.
     else if ([menuItem.identifier hasPrefix:@"view_size_"]) {

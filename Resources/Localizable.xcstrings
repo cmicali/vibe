@@ -12835,6 +12835,18 @@
       },
       "extractionState": "manual"
     },
+    "menu.view.always_on_top": {
+      "comment": "View menu item: checkmarked toggle that keeps the player window above all other apps' windows.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Always on Top"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "menu.view.appearance": {
       "comment": "View menu: submenu choosing the light/dark appearance.",
       "localizations": {
@@ -18782,6 +18794,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "一般"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.always_on_top": {
+      "comment": "Settings, General pane: checkbox that keeps the player window above all other apps' windows. The same setting as the View menu's 'Always on Top' item, in sentence case per checkbox convention.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Always on top"
           }
         }
       },

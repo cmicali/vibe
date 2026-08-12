@@ -75,6 +75,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)togglePitchPanel:(nullable id)sender;
 - (IBAction)setPitchRange:(id)sender;
 
+- (IBAction)toggleAlwaysOnTop:(nullable id)sender;
+
+// Pushes Settings.alwaysOnTop to the window's level. The Settings pane calls
+// it after writing the setting; the menu action funnels through it too.
+- (void)applyAlwaysOnTop;
+
 // Pushes Settings.pitchRange to the player and the fader UI. The Settings
 // pane calls it after writing the setting; the menu action funnels through it
 // too.
