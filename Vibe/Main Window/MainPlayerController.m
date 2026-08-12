@@ -522,6 +522,15 @@
 // in the Loading gap, and the cache keeps the waveform progress pinned rather
 // than frozen.
 - (void)updatePlaybackUI {
+    // A gapless promote publishes the next track's position a beat before
+    // didAutoAdvanceFromTrack: lands and runs the full refresh; a tick inside
+    // that gap would draw the old track's header against the new track's
+    // near-zero position. Skip it — the imminent refresh redraws everything.
+    // (Loading keeps ticking: the player's track is nil then, not different.)
+    AudioTrack *playerTrack = self.audioPlayer.currentTrack;
+    if (playerTrack && playerTrack != self.playlistController.currentTrack) {
+        return;
+    }
     [self.trackDisplay renderPosition:self.audioPlayer.position
                              duration:_currentTrackDuration
                                  rate:self.playbackRate
@@ -835,6 +844,35 @@
         [self.trackDisplay resetPlayheadToStartWithDuration:self.playlistController.currentTrack.duration
                                                        rate:self.playbackRate];
     }
+}
+
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didAutoAdvanceFromTrack:(AudioTrack *)finishedTrack
+                    toTrack:(AudioTrack *)startedTrack {
+    // The player spliced into the pre-scheduled next track; audio never
+    // stopped. This handler's job is the bookkeeping half of an auto-advance:
+    // move the playlist index and run the per-track refresh, without play:.
+    // Same stale guard as didFinishPlaying:: a boundary that raced a re-drop
+    // or a double-click belongs to the operation that superseded it.
+    if (finishedTrack != [self.playlistController currentTrack]) {
+        return;
+    }
+    // The playlist owns what "next" means. If its next row is no longer the
+    // track the player spliced into — a swap or re-target raced the boundary —
+    // correctness beats gaplessness: treat it as an ordinary track end, whose
+    // next: plays the real successor and replaces the spliced audio.
+    NSUInteger nextIndex = self.playlistController.currentIndex + 1;
+    if (startedTrack != [self.playlistController trackAtIndex:nextIndex]) {
+        [self audioPlayer:audioPlayer didFinishPlaying:finishedTrack];
+        return;
+    }
+    [[AppStats sharedInstance] playbackStopped]; // fold the finished track's run
+    [self.playlistController advanceToNextTrackWithoutPlaying];
+    // The whole per-track refresh — metadata, waveform, duration cache,
+    // recents, prefetch of the new next (which re-arms the splice), stats and
+    // the UI timer — is exactly didStartPlaying:'s body, and its identity
+    // guard now passes.
+    [self audioPlayer:audioPlayer didStartPlaying:startedTrack];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {

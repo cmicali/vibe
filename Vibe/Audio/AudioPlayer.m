@@ -15,6 +15,7 @@
 #import "AudioDevice.h"
 #import "CoreAudioUtil.h"
 #import "VibeFadeCurve.h"
+#import "GaplessSpliceMath.h"
 #import <AVFoundation/AVFoundation.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>
@@ -121,6 +122,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     float                   _pitch;
     float                   _maxPitch;
     NSTimeInterval          _pausedPosition;
+    // Unclamped twin of _pausedPosition, written by every publish and
+    // overridden by completePauseOfNode: with the true rendered position. The
+    // position getter clamps to the file's duration, so a pause that lands
+    // just after a gapless boundary records the frames already rendered into
+    // the queued next track only here; promoteGaplessOnQueue's paused
+    // fallback reads it. Queue-confined.
+    NSTimeInterval          _pausedRawPosition;
     // Last position computed from a valid playerTime, guarded by _stateLock.
     // When the engine stops itself, on a device unplug or format change,
     // lastRenderTime goes nil before the recovery path can read the position.
@@ -174,6 +182,25 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     NSString                *_prefetchedPath;
     AVAudioFile             *_prefetchedFile;
     uint64_t                _prefetchRequestId;
+    // Gapless auto-advance. With crossfade off and a format-matching next
+    // track, the next file is scheduled as a second segment on the current
+    // node, so the boundary renders back-to-back with no teardown between;
+    // see maybeArmGaplessOnQueue and promoteGaplessOnQueue. _gaplessFile is a
+    // private handle opened separately from the prefetch park: AVAudioFile
+    // has one stateful read position and the node pre-reads scheduled files
+    // on its own worker, so the armed segment must never share the instance a
+    // play: would consume. All queue-confined; _gaplessQueued additionally
+    // mirrors to _gaplessArmedForUI (under _stateLock) for the lock-free
+    // isGaplessArmed, through setGaplessQueuedOnQueue:, the flag's sole
+    // writer. INVARIANT: every [node stop] of the current node drops its
+    // queued segment, so every such site clears the flag first and, when it
+    // keeps playing the same file, re-arms after its reschedule.
+    AudioTrack              *_gaplessTrack;
+    AVAudioFile             *_gaplessFile;
+    BOOL                    _gaplessQueued;
+    uint64_t                _gaplessOpenRequestId;
+    NSString                *_gaplessOpenPath; // in-flight open's claim, the prefetch pattern
+    BOOL                    _gaplessArmedForUI; // _stateLock
     // Bumped by startEngineAndPlayNode:, the single funnel for starting
     // playback, to dissolve the deferred idle engine stop scheduled by
     // scheduleEngineIdleStopOnQueue. Queue-confined.
@@ -462,6 +489,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
     _generation++;
     [self preemptRampsOnQueue]; // preempt any in-flight resume fade-in
+    // Any armed splice dies with the node this play retires; the retiring
+    // node's fading tail may graze the queued segment's first frames for the
+    // declick length, which is inaudible at that volume. Remembered before the
+    // clear: the graze reasoning holds only at declick length, so a queued
+    // segment forces the retire below down to it (see the crossfade decision).
+    BOOL segmentWasQueued = _gaplessQueued;
+    [self clearGaplessOnQueue];
 
     // Dual-varispeed crossfade: the incoming track gets a brand-new varispeed,
     // and the outgoing node retires together with its old one. The outgoing
@@ -481,8 +515,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // so transport stays instant. Both sides of the crossfade ride
     // _incomingFadeMilliseconds: the retire here, the fade-in when the open
     // lands in finishPlayOnQueue:.
+    // A queued splice segment forces the declick minimum even when the
+    // crossfade setting was raised after it was armed: a crossfade-length
+    // retire would let the queued file start sounding on the retiring node
+    // mid-crossfade, doubled under the incoming track. (Raising the setting
+    // normally unqueues via setCrossfadeMilliseconds:, but a play can land in
+    // that hook's async window.)
     BOOL crossfading = (oldNode && _engine.isRunning && _state == VibePlayerStatePlaying
-                        && !_pendingDeclick);
+                        && !_pendingDeclick && !segmentWasQueued);
     _incomingFadeMilliseconds = crossfading
             ? (uint64_t)MAX(self.crossfadeMilliseconds, (NSInteger)kFadeDurationMilliseconds)
             : kFadeDurationMilliseconds;
@@ -785,8 +825,30 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // the track is due.
 - (void)prefetchOnQueue:(AudioTrack *)track {
     NSString *path = track.url.path;
+    // The armed splice must track the prefetch target. When the playlist's
+    // next changes under it — a convert swap of that row, or the parked
+    // handle being dropped — the queued segment would play the wrong file at
+    // the boundary, so unqueue it (parked-only material just drops).
+    if (_gaplessTrack && (!path || ![path isEqualToString:_gaplessTrack.url.path])) {
+        [self unscheduleGaplessOnQueue];
+    }
     if (path && [path isEqualToString:_prefetchedPath]) {
-        return; // already prefetched, or that open is still in flight
+        // Already prefetched, or that open is still in flight. The gapless
+        // material can still be missing — a park made before the current
+        // track started has no format to arm against — so acquire off the
+        // parked handle now; and a same-path re-prefetch can carry a fresh
+        // AudioTrack object, which the promote must deliver.
+        if (_gaplessTrack) {
+            _gaplessTrack = track;
+            // Parked material can be dormant when a transiently closed gate
+            // blocked the arm (crossfade toggled on and back off); idempotent
+            // when already queued.
+            [self maybeArmGaplessOnQueue];
+        }
+        else if (_prefetchedFile && !_gaplessQueued) {
+            [self maybeOpenGaplessFileForTrack:track prefetchedFile:_prefetchedFile];
+        }
+        return;
     }
     if (path && [path isEqualToString:_currentOpenPath]) {
         return; // being opened for playback right now
@@ -836,6 +898,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             }
             if (file && file.length > 0) {
                 strongSelf->_prefetchedFile = file;
+                [strongSelf maybeOpenGaplessFileForTrack:track prefetchedFile:file];
             }
             else {
                 // The open failed. Release the claim so that a play of this
@@ -844,6 +907,180 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             }
         });
     });
+}
+
+#pragma mark - Gapless auto-advance
+
+// Sole writer of _gaplessQueued, keeping the lock-free mirror in step.
+- (void)setGaplessQueuedOnQueue:(BOOL)queued {
+    _gaplessQueued = queued;
+    os_unfair_lock_lock(&_stateLock);
+    _gaplessArmedForUI = queued;
+    os_unfair_lock_unlock(&_stateLock);
+}
+
+// Drops the armed material entirely. Safe only where the queued segment is
+// dead or dying — the node stopped, retiring or detached — or was never
+// scheduled; unscheduleGaplessOnQueue is the path for a live one.
+- (void)clearGaplessOnQueue {
+    [self setGaplessQueuedOnQueue:NO];
+    _gaplessTrack = nil;
+    _gaplessFile = nil;
+    _gaplessOpenPath = nil;
+    _gaplessOpenRequestId++; // supersede any in-flight gapless open
+}
+
+// Runs on _queue when a prefetch open lands. Acquires the splice's private
+// handle for the prefetched next track, then arms. The gates are checked
+// here only to skip a pointless open; maybeArmGaplessOnQueue re-checks them
+// at scheduling time.
+- (void)maybeOpenGaplessFileForTrack:(AudioTrack *)track prefetchedFile:(AVAudioFile *)prefetchedFile {
+    if ([track.url.path isEqualToString:_gaplessOpenPath]) {
+        return; // this open is already in flight; re-kicking it would only churn fds
+    }
+    if (!VibeGaplessArmAllowed(self.crossfadeMilliseconds)) {
+        return;
+    }
+    AVAudioFile *currentFile = _file;
+    if (!currentFile || !VibeGaplessFormatsMatch(currentFile.processingFormat.sampleRate,
+                                                 currentFile.processingFormat.channelCount,
+                                                 prefetchedFile.processingFormat.sampleRate,
+                                                 prefetchedFile.processingFormat.channelCount)) {
+        return;
+    }
+    uint64_t openId = ++_gaplessOpenRequestId;
+    _gaplessOpenPath = track.url.path;
+    __weak AudioPlayer *weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        // The prefetch open just materialized this file, so the second open is
+        // cheap and cannot stall on a cloud placeholder.
+        NSError *error = nil;
+        AVAudioFile *file = [[AVAudioFile alloc] initForReading:track.url error:&error];
+        AudioPlayer *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        dispatch_async(strongSelf->_queue, ^{
+            if (openId != strongSelf->_gaplessOpenRequestId) {
+                return; // superseded: a clear, a newer target, or a promote
+            }
+            strongSelf->_gaplessOpenPath = nil; // spent, success or not
+            if (!file || file.length <= 0) {
+                return; // the classic transition still works off the prefetch park
+            }
+            strongSelf->_gaplessTrack = track;
+            strongSelf->_gaplessFile = file;
+            [strongSelf maybeArmGaplessOnQueue];
+        });
+    });
+}
+
+// Schedules the pre-opened next file as a second segment on the current node,
+// which AVAudioPlayerNode renders back-to-back with the current one, sample-
+// accurately. Callable from any queue-side point that has just (re)scheduled
+// the current segment; it no-ops unless every gate holds. The segment is
+// tagged with the current generation deliberately: a stop, seek, skip or
+// device switch invalidates both segments' completions together.
+- (void)maybeArmGaplessOnQueue {
+    if (_gaplessQueued || !_gaplessFile || !_node || !_file) {
+        return;
+    }
+    if (_state != VibePlayerStatePlaying && _state != VibePlayerStatePaused) {
+        return;
+    }
+    if (!VibeGaplessArmAllowed(self.crossfadeMilliseconds)) {
+        return;
+    }
+    if (!VibeGaplessFormatsMatch(_file.processingFormat.sampleRate,
+                                 _file.processingFormat.channelCount,
+                                 _gaplessFile.processingFormat.sampleRate,
+                                 _gaplessFile.processingFormat.channelCount)) {
+        return;
+    }
+    [self scheduleFile:_gaplessFile onNode:_node fromFrame:0];
+    [self setGaplessQueuedOnQueue:YES];
+}
+
+// The boundary passed: the finished segment's completion fired while the next
+// track's segment — already sounding — sits queued on the same node. Promote
+// it to current in place: no node stop, no fade, no graph mutation, and no
+// idle-stop schedule, because nothing went idle. _generation is deliberately
+// not bumped — the now-current segment's completion carries it, and will
+// route the next boundary or the natural end. The published segment start
+// goes negative (see GaplessSpliceMath.h); the position getter's math is
+// signed and correct on both sides of the publish.
+- (void)promoteGaplessOnQueue {
+    AVAudioPlayerNode *node = _node;
+    AVAudioFile *finishedFile = _file;
+    AVAudioFile *startedFile = _gaplessFile;
+    AudioTrack *finishedTrack = self.currentTrack;
+    AudioTrack *startedTrack = _gaplessTrack;
+    [self clearGaplessOnQueue];
+
+    double sampleRate = startedFile.processingFormat.sampleRate;
+    AVAudioFramePosition newStart = VibeGaplessPromotedSegmentStart(_segmentStartFrame, finishedFile.length);
+    AVAudioTime *playerTime = nil;
+    @try {
+        AVAudioTime *nodeTime = node.lastRenderTime;
+        playerTime = nodeTime ? [node playerTimeForNodeTime:nodeTime] : nil;
+    }
+    @catch (NSException *exception) {
+        playerTime = nil;
+    }
+    NSTimeInterval position;
+    if (playerTime && playerTime.sampleTimeValid) {
+        position = (NSTimeInterval)(newStart + playerTime.sampleTime) / sampleRate;
+    }
+    else {
+        // Paused at the boundary, or nothing rendered since: map the last
+        // captured position into the promoted timeline. The raw twin keeps
+        // the frames the pause's duration clamp discarded past the finished
+        // file's end, so resume audio and the label agree.
+        NSTimeInterval basis = (_state == VibePlayerStatePaused) ? _pausedRawPosition : self.position;
+        position = basis - (NSTimeInterval)finishedFile.length / finishedFile.processingFormat.sampleRate;
+    }
+    position = MAX(position, 0);
+    [self publishPlaybackState:_state node:node file:startedFile segmentStart:newStart position:position];
+    self.currentTrack = startedTrack;
+    startedTrack.duration = self.duration;
+    // Snapshot-guarded like finishPlaybackOnQueue's delivery: a play or stop
+    // queued behind this promote rewrites currentTrack before the hop lands,
+    // and advancing the playlist for a superseded splice would strand it one
+    // row ahead of what that operation actually plays.
+    run_on_main_thread({
+        if (self.currentTrack != startedTrack) {
+            return;
+        }
+        [self.delegate audioPlayer:self didAutoAdvanceFromTrack:finishedTrack toTrack:startedTrack];
+    });
+}
+
+// The armed next track is no longer the playlist's next. The only way to
+// unqueue a segment from a node is [node stop] plus a reschedule of the
+// current remainder, and a bare stop mid-render clicks — so reuse the seek
+// path wholesale, which already does the fade-down/reschedule/fade-up dance
+// while playing and the silent in-place reschedule while paused. Costs one
+// spurious didFinishSeeking:, which only settles the UI.
+- (void)unscheduleGaplessOnQueue {
+    BOOL wasQueued = _gaplessQueued;
+    [self clearGaplessOnQueue];
+    if (wasQueued) {
+        // The stale segment stays physically queued until the seek's stop
+        // lands (a queue hop plus the fade). A boundary inside that window
+        // must not finish the track — finishPlaybackOnQueue would bare-stop
+        // the node just as the wrong file starts sounding, a blip plus a
+        // click — so stale it now; the seek replays the current remainder
+        // from here and the re-run boundary advances normally, unarmed.
+        _generation++;
+        [self seekToPosition:self.position];
+    }
+}
+
+- (BOOL)isGaplessArmed {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL armed = _gaplessArmedForUI;
+    os_unfair_lock_unlock(&_stateLock);
+    return armed;
 }
 
 // Marks playback fully stopped after a failure, so that isPlaying and duration
@@ -860,6 +1097,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _pendingStartPosition = 0;
     _pendingStartPaused = NO;
     _pendingDeclick = NO;
+    [self clearGaplessOnQueue]; // any queued segment died with the node
     // Detach the varispeed that playOnQueue: attached for the failed track.
     // Otherwise it stays attached across Stopped until the next play or stop;
     // stopOnQueue arrives here with it already nil. The detach must not throw,
@@ -912,6 +1150,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             // startEngineAndPlayNode: then plays the fresh segment.
             NSTimeInterval position = strongSelf.position; // Paused: the published value
             strongSelf->_generation++;
+            [strongSelf setGaplessQueuedOnQueue:NO]; // the stop below drops the queued segment
             AVAudioPlayerNode *node = strongSelf->_node;
             AVAudioFile *file = strongSelf->_file;
             [node stop];
@@ -921,6 +1160,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             [strongSelf scheduleFile:file onNode:node fromFrame:startFrame];
             [strongSelf publishPlaybackState:VibePlayerStatePaused node:node file:file
                                 segmentStart:startFrame position:position];
+            [strongSelf maybeArmGaplessOnQueue]; // scheduling needs no running engine
         }
     });
 }
@@ -958,6 +1198,12 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     if (generation != _generation) {
         return; // Stale: a stop, seek, skip or device switch superseded this segment.
     }
+    if (_gaplessQueued) {
+        // Not an end: the next track's segment is queued behind this one and
+        // already sounding. Splice, don't tear down.
+        [self promoteGaplessOnQueue];
+        return;
+    }
     [self finishPlaybackOnQueue];
 }
 
@@ -970,6 +1216,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // reuses the running engine rather than paying an output-unit stop and start
 // on every consecutive-track transition.
 - (void)finishPlaybackOnQueue {
+    // Un-armed material (format mismatch, crossfade on) dies with the node;
+    // the next track's play re-acquires through its own prefetch.
+    [self clearGaplessOnQueue];
     os_unfair_lock_lock(&_stateLock);
     _state = VibePlayerStateStopped;
     AVAudioPlayerNode *finishedNode = _node;
@@ -992,10 +1241,19 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 }
 
 - (void)finishCurrentTrack {
+    // Snapshot the caller's intent: a gapless boundary can promote the next
+    // track before the block runs, and finishing then would end the track the
+    // skip meant to *reach* — one skip landing two tracks ahead. (The
+    // mid-fade flavor of the same race is caught by the _file check below.)
+    AudioTrack *intendedTrack = self.currentTrack;
     dispatch_async(_queue, ^{
+        if (self.currentTrack != intendedTrack) {
+            return; // the boundary already advanced playback; the skip's goal is met
+        }
         os_unfair_lock_lock(&self->_stateLock);
         VibePlayerState state = self->_state;
         AVAudioPlayerNode *node = self->_node;
+        AVAudioFile *file = self->_file;
         os_unfair_lock_unlock(&self->_stateLock);
         // Only a live track can finish. Stopped has nothing to do, and Loading
         // has no node yet, so both are no-ops. The skip path never reaches
@@ -1029,6 +1287,16 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                 // exactly-once, and the node's teardown belongs to whoever
                 // superseded it.
                 if (rampGen != strongSelf->_rampGeneration || strongSelf->_node != node) {
+                    return;
+                }
+                if (strongSelf->_file != file) {
+                    // The boundary promoted mid-fade: the splice already
+                    // advanced playback into the next track, which is what
+                    // this skip wanted. Finishing now would kill the promoted
+                    // track and advance a second time; instead restore the
+                    // volume the fade took.
+                    [strongSelf rampNodeAsync:node step:1 from:node.volume to:1.0
+                                   generation:rampGen completion:nil];
                     return;
                 }
                 // [node stop] inside finishPlaybackOnQueue fires the scheduled
@@ -1154,8 +1422,22 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // playerTimeForNodeTime: stops reporting.
 - (void)completePauseOfNode:(AVAudioPlayerNode *)node {
     NSTimeInterval position = self.position;
+    // The unclamped rendered position, read before [node pause] stops
+    // playerTime reporting; see _pausedRawPosition.
+    NSTimeInterval rawPosition = position;
+    @try {
+        AVAudioTime *nodeTime = node.lastRenderTime;
+        AVAudioTime *playerTime = nodeTime ? [node playerTimeForNodeTime:nodeTime] : nil;
+        double sampleRate = _file.processingFormat.sampleRate;
+        if (playerTime && playerTime.sampleTimeValid && sampleRate > 0) {
+            rawPosition = (NSTimeInterval)(_segmentStartFrame + playerTime.sampleTime) / sampleRate;
+        }
+    }
+    @catch (NSException *exception) {
+    }
     [node pause];
     [self publishPlaybackState:VibePlayerStatePaused node:node file:_file segmentStart:_segmentStartFrame position:position];
+    _pausedRawPosition = rawPosition; // after the publish, which resets it to the clamped value
     // Paused is idle: without this the engine renders silence and holds the
     // output device for as long as the user stays paused. Resume restarts it
     // through startEngineAndPlayNode:, which also dissolves this pending stop.
@@ -1436,8 +1718,21 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 }
 
 - (void)seekToPosition:(NSTimeInterval)pos {
+    // The caller computed pos against the track that is current NOW — a
+    // scrubber fraction of its duration, a bar skip from its tempo. A gapless
+    // boundary can promote the next track before the block below runs, and
+    // applying the stale target to the promoted file would jump it to a
+    // meaningless spot (or clamp to its last frame and end it). Snapshot the
+    // intent and drop the seek if the track moved on.
+    AudioTrack *intendedTrack = self.currentTrack;
     dispatch_async(_queue, ^{
         AudioTrack *track = self.currentTrack;
+        if (track != intendedTrack) {
+            run_on_main_thread({
+                [self.delegate audioPlayer:self didFinishSeeking:track];
+            });
+            return;
+        }
         AVAudioPlayerNode *node = self->_node;
         AVAudioFile *file = self->_file;
         if (!node || !file) {
@@ -1458,9 +1753,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             // resume fades in from the seeked frame. The faded volume is kept,
             // and the resume ramps it back up.
             [self preemptRampsOnQueue];
+            [self setGaplessQueuedOnQueue:NO]; // the stop drops the queued segment
             [node stop];
             [self scheduleFile:file onNode:node fromFrame:startFrame];
             [self publishPlaybackState:self->_state node:node file:file segmentStart:startFrame position:framePosition];
+            [self maybeArmGaplessOnQueue];
             run_on_main_thread({
                 [self.delegate audioPlayer:self didFinishSeeking:track];
             });
@@ -1496,12 +1793,18 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             framePosition:(NSTimeInterval)framePosition
            rampGeneration:(uint64_t)rampGen
                     track:(AudioTrack *)track {
-    if (_node != node) {
+    if (_node != node || _file != file) {
         // A new play, track change, stop or device switch replaced the
         // node while this faded. That operation owns playback and this
         // seek's target is moot. The seek is dropped, but the request
         // still settles the UI: the header promises didFinishSeeking:
         // for every seek request, and Control Center resyncs off it.
+        // Same node but a different file is the gapless boundary promoting
+        // mid-fade; rescheduling the captured file would resurrect the
+        // finished track, so drop the seek and restore the fade's volume.
+        if (_node == node && rampGen == _rampGeneration) {
+            [self rampNodeAsync:node step:1 from:node.volume to:1.0 generation:rampGen completion:nil];
+        }
         run_on_main_thread({
             [self.delegate audioPlayer:self didFinishSeeking:track];
         });
@@ -1518,8 +1821,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // retired. Re-bump immediately before the stop, or that completion
     // reads as current and "finishes" the track.
     _generation++;
+    [self setGaplessQueuedOnQueue:NO]; // the stop drops the queued segment
     [node stop];
     [self scheduleFile:file onNode:node fromFrame:startFrame];
+    [self maybeArmGaplessOnQueue]; // re-queue the splice behind the new segment
     if (preempted) {
         [self publishPlaybackState:_state node:node file:file segmentStart:startFrame position:framePosition];
         BOOL stillPlaying = (_state == VibePlayerStatePlaying);
@@ -1541,7 +1846,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     node.volume = 0; // ramp back up from silence
     NSError *startError = nil;
     if (![self startEngineAndPlayNode:node error:&startError]) {
-        _generation++; // drop the stop-fired completion
+        // The rescheduled segment stays at the live generation deliberately:
+        // it is parked, not superseded, and a later resume plays it out — its
+        // completion must still fire the natural track end. (A bump here used
+        // to orphan it: resume played to the end, no didFinishPlaying:, the
+        // position pinned at the duration with the state stuck Playing.)
         // Keep the seeked frame, and report paused so the UI recovers.
         [self publishPlaybackState:VibePlayerStatePaused node:node file:file segmentStart:startFrame position:framePosition];
         [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
@@ -1556,6 +1865,36 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     [self rampNodeAsync:node step:1 from:0 to:1.0 generation:fadeInGen completion:nil];
     run_on_main_thread({
         [self.delegate audioPlayer:self didFinishSeeking:track];
+    });
+}
+
+#pragma mark - Crossfade
+
+// Manual accessors so the write can keep the armed splice honest: raising the
+// setting past the declick minimum unqueues an armed segment (the user now
+// wants overlapped transitions, and playOnQueue:'s graze reasoning only holds
+// at declick length), and lowering it back re-arms parked material that a
+// closed gate left dormant.
+@synthesize crossfadeMilliseconds = _crossfadeMilliseconds;
+
+- (NSInteger)crossfadeMilliseconds {
+    os_unfair_lock_lock(&_stateLock);
+    NSInteger milliseconds = _crossfadeMilliseconds;
+    os_unfair_lock_unlock(&_stateLock);
+    return milliseconds;
+}
+
+- (void)setCrossfadeMilliseconds:(NSInteger)milliseconds {
+    os_unfair_lock_lock(&_stateLock);
+    _crossfadeMilliseconds = milliseconds;
+    os_unfair_lock_unlock(&_stateLock);
+    dispatch_async(_queue, ^{
+        if (VibeGaplessArmAllowed(milliseconds)) {
+            [self maybeArmGaplessOnQueue];
+        }
+        else if (self->_gaplessQueued) {
+            [self unscheduleGaplessOnQueue];
+        }
     });
 }
 
@@ -1622,6 +1961,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _file = file;
     _segmentStartFrame = segmentStart;
     _pausedPosition = position;
+    _pausedRawPosition = position; // completePauseOfNode: overrides with the unclamped value
     _lastValidPosition = position;
     _positionEpoch++;
     _state = state;

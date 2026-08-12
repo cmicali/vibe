@@ -86,6 +86,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
                               error:(nullable NSError *)error
                                 url:(nullable NSURL *)url;
 - (void)scheduleFile:(AVAudioFile *)file onNode:(AVAudioPlayerNode *)node fromFrame:(AVAudioFramePosition)startFrame;
+// The gapless splice's disarm and re-arm, for every site that stops and
+// reschedules the current node; contracts in AudioPlayer.m.
+- (void)setGaplessQueuedOnQueue:(BOOL)queued;
+- (void)maybeArmGaplessOnQueue;
 - (BOOL)startEngineAndPlayNode:(AVAudioPlayerNode *)node error:(NSError * _Nullable * _Nullable)outError;
 - (void)resetToStoppedStateOnQueue;
 - (void)publishPlaybackState:(VibePlayerState)state

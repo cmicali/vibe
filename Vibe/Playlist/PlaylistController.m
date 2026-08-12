@@ -277,6 +277,14 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     return NO;
 }
 
+- (BOOL)advanceToNextTrackWithoutPlaying {
+    if ([_model next]) {
+        [self scrollCurrentTrackToVisible];
+        return YES;
+    }
+    return NO;
+}
+
 // Called only on a track change, and scrollRowToVisible: no-ops while the row
 // is on screen, so a user who has scrolled away keeps their position until
 // then.

@@ -61,6 +61,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (BOOL)previous;
 
+// The gapless auto-advance's bookkeeping half: the player has already spliced
+// into the next track, so advance the index and scroll without starting a
+// play. Row repaint rides the currentIndexDidChange observer, as with next.
+- (BOOL)advanceToNextTrackWithoutPlaying;
+
 // The playlist-boundary predicates: the single source of truth for whether
 // there is a track after or before the current one. They are shared by next
 // and previous themselves, the transport buttons, menu validation, the Now

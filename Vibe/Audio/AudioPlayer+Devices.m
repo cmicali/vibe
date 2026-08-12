@@ -90,6 +90,7 @@
 
     _generation++;
     [self preemptRampsOnQueue];
+    [self setGaplessQueuedOnQueue:NO]; // the queued segment dies with the old node
 
     // Unpublish the node before detaching it. The position getter reads _node
     // lock-free on the main thread, and calling into a detached node raises.
@@ -151,6 +152,7 @@
                 return NO;
             }
         }
+        [self maybeArmGaplessOnQueue]; // re-queue the splice behind the restored segment
     }
 
     return YES;
