@@ -223,6 +223,20 @@ targets:
               - "org.xiph.flac"
               - "com.apple.m4a-audio"
               - "public.mpeg-4-audio"
+          # Playlist files open as the ordered list of audio files they name
+          # (NSURLUtil's expansion). Alternate rank: Vibe offers to open them
+          # without stealing the extension's default handler — the Settings
+          # default-player claim still claims them explicitly.
+          - CFBundleTypeName: "CUE Sheet"
+            CFBundleTypeRole: "Viewer"
+            LSHandlerRank: "Alternate"
+            LSItemContentTypes:
+              - "com.commonwealthrecordings.cue-sheet"
+          - CFBundleTypeName: "M3U Playlist"
+            CFBundleTypeRole: "Viewer"
+            LSHandlerRank: "Alternate"
+            LSItemContentTypes:
+              - "public.m3u-playlist"
           # Sandbox plumbing, not an offer to open anything — flac is covered
           # above. NSIsRelatedItemType lets Convert to FLAC claim foo.flac as
           # a related item of an opened foo.wav and write it beside a
@@ -234,6 +248,18 @@ targets:
             NSIsRelatedItemType: true
             LSItemContentTypes:
               - "org.xiph.flac"
+
+        # macOS has no system UTI for cue sheets — files come up as dyn.* — so
+        # the identifier is minted in our namespace and exported. Plain text,
+        # which is what a cue sheet is.
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: "com.commonwealthrecordings.cue-sheet"
+            UTTypeDescription: "CUE Sheet"
+            UTTypeConformsTo:
+              - "public.plain-text"
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - "cue"
 
     settings:
       base:
@@ -321,6 +347,7 @@ targets:
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Common/OpenBurstCoalescer.m
       - path: Vibe/Common/Playlist.m
+      - path: Vibe/Util/PlaylistFile.m
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Util/Categories/NSURL+Hash.m
     settings:

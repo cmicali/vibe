@@ -4,8 +4,15 @@
 //
 
 #import "NSURLUtil.h"
+#import "PlaylistFile.h"
+#import "VibeStrings.h"
+
+#if TARGET_OS_OSX
+#import <AppKit/AppKit.h>
+#endif
 
 #include <sys/stat.h>
+#include <unistd.h>
 
 
 @implementation NSURLUtil
@@ -130,11 +137,108 @@
             }
             [results addObjectsFromArray:[self expandDirectory:url]];
         }
+        else if ([PlaylistFile isPlaylistExtension:[url.pathExtension lowercaseString]]) {
+            [results addObjectsFromArray:[self expandPlaylistFile:url]];
+        }
         else {
             [results addObject:url];
         }
     }
     return results;
 }
+
+#pragma mark - Playlist files (CUE, M3U)
+
+typedef NS_ENUM(NSInteger, VibeReadAccess) {
+    VibeReadAccessReadable,
+    VibeReadAccessMissing,
+    VibeReadAccessDenied,
+};
+
+// access(2) rather than NSFileManager, because the errno is the only way to
+// tell a file that is not there from one the sandbox will not let us read —
+// and only the latter is worth interrupting the user with a grant prompt.
+static VibeReadAccess ReadAccessForURL(NSURL *url) {
+    if (access(url.fileSystemRepresentation, R_OK) == 0) {
+        return VibeReadAccessReadable;
+    }
+    return (errno == EPERM || errno == EACCES) ? VibeReadAccessDenied : VibeReadAccessMissing;
+}
+
+// A top-level playlist file (.cue, .m3u, .m3u8) expands like a directory: the
+// audio files it lists, in list order. Only explicitly opened ones expand —
+// one found inside a folder walk is dropped by the extension filter, since
+// the walk already yields the folder's audio and expanding it too would
+// double every track.
+//
+// Opening a playlist file grants sandbox access to it alone, not to the files
+// it names, so a denied entry raises a one-shot folder-picker grant; selecting
+// the folder is what extends the sandbox, and the re-resolve then also gets a
+// working basename fallback. Entries unreadable after all that are skipped.
++ (NSArray<NSURL *> *)expandPlaylistFile:(NSURL *)playlistURL {
+    NSArray<NSURL *> *resolved = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlistURL];
+#if TARGET_OS_OSX
+    BOOL anyUnreadable = NO;
+    BOOL anyDenied = NO;
+    for (NSURL *url in resolved) {
+        VibeReadAccess access = ReadAccessForURL(url);
+        anyUnreadable |= (access != VibeReadAccessReadable);
+        anyDenied |= (access == VibeReadAccessDenied);
+    }
+    // A missing-looking entry still warrants the grant prompt while the
+    // playlist's own folder is denied: unresolved entries fall back to their
+    // as-written path, which can be genuinely absent (a foreign subfolder
+    // spelling) and so read as "missing" — but with the folder unreadable,
+    // the fallback candidates beside the playlist could not be probed at all,
+    // so "missing" cannot be trusted until the folder opens up.
+    BOOL folderDenied =
+            ReadAccessForURL(playlistURL.URLByDeletingLastPathComponent) == VibeReadAccessDenied;
+    if (anyUnreadable && (anyDenied || folderDenied)
+            && [self requestFolderAccessForPlaylist:playlistURL]) {
+        resolved = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlistURL];
+    }
+#endif
+    NSMutableArray<NSURL *> *readable = [NSMutableArray arrayWithCapacity:resolved.count];
+    for (NSURL *url in resolved) {
+        if (ReadAccessForURL(url) == VibeReadAccessReadable) {
+            [readable addObject:url];
+        }
+        else {
+            LogWarn(@"Skipping unreadable playlist entry: %@", url.path);
+        }
+    }
+    LogInfo(@"Playlist file %@ expanded to %lu of %lu entries", playlistURL.lastPathComponent,
+            (unsigned long)readable.count, (unsigned long)resolved.count);
+    return readable;
+}
+
+#if TARGET_OS_OSX
+// Runs the folder picker on the main thread and blocks the expansion queue
+// until it closes. Safe to block on main here: every caller enters this queue
+// with dispatch_async, never the reverse. Overlapping opens simply queue up
+// behind the panel, in submission order as always.
++ (BOOL)requestFolderAccessForPlaylist:(NSURL *)playlistURL {
+    __block BOOL granted = NO;
+    dispatch_sync(dispatch_get_main_queue(), ^{
+        NSOpenPanel *panel = [NSOpenPanel openPanel];
+        panel.canChooseFiles = NO;
+        panel.canChooseDirectories = YES;
+        panel.allowsMultipleSelection = NO;
+        panel.directoryURL = playlistURL.URLByDeletingLastPathComponent;
+        panel.message = [NSString stringWithFormat:STR_PLAYLIST_GRANT_MESSAGE, playlistURL.lastPathComponent];
+        panel.prompt = STR_PLAYLIST_GRANT_BUTTON;
+        // Reading panel.URL is what attaches the powerbox's sandbox extension
+        // to the process, not just running the panel.
+        granted = [panel runModal] == NSModalResponseOK && panel.URL != nil;
+        if (granted) {
+            LogInfo(@"Playlist folder access granted: %@", panel.URL.path);
+        }
+        else {
+            LogInfo(@"Playlist folder access declined for %@", playlistURL.lastPathComponent);
+        }
+    });
+    return granted;
+}
+#endif
 
 @end

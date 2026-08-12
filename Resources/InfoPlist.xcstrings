@@ -373,6 +373,18 @@
         }
       }
     },
+    "CUE Sheet": {
+      "comment": "CFBundleDocumentTypes name for CUE sheets, which open as the list of audio files they reference. Shown by the Finder in Get Info and the Open With menu. Keyed on the English type name — that is how Launch Services looks a document type up.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CUE Sheet"
+          }
+        }
+      }
+    },
     "Converted FLAC": {
       "comment": "CFBundleDocumentTypes name for the FLAC files the app writes when converting. Shown by the Finder in Get Info and the Open With menu. Keyed on the English type name — that is how Launch Services looks a document type up. FLAC is a format name — keep it.",
       "extractionState": "manual",
@@ -741,6 +753,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "資料夾"
+          }
+        }
+      }
+    },
+    "M3U Playlist": {
+      "comment": "CFBundleDocumentTypes name for M3U playlists, which open as the list of audio files they reference. Shown by the Finder in Get Info and the Open With menu. Keyed on the English type name — that is how Launch Services looks a document type up.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "M3U Playlist"
           }
         }
       }
