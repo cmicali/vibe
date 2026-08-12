@@ -5,6 +5,9 @@
 
 #import "VibeiOSAppDelegate.h"
 #import "NSBundle+BuildInfo.h"
+#if DEBUG
+#import "DebugCommands.h"
+#endif
 
 @implementation VibeiOSAppDelegate
 
@@ -15,6 +18,9 @@
     LogInfo(@"    Source: %@", bundle.vibeGitString);
     LogInfo(@"     Built: %@", bundle.vibeBuildTimeString);
     [[AppSettings sharedInstance] applicationDidFinishLaunching];
+#if DEBUG
+    VibeiOSInstallDebugCommandHook();
+#endif
     return YES;
 }
 

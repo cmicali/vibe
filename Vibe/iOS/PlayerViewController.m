@@ -21,8 +21,20 @@
 #import "Formatters.h"
 #import "VibeStrings.h"
 #import "WaveformScrubberView.h"
+#if DEBUG
+// The Debug category's state dump only.
+#import "AppSettings.h"
+#import "MusicalKey.h"
+#endif
 
 static const NSUInteger kUIUpdateHz = 3;
+
+// The waveform strip's geometry against the safe-area bottom, shared by the
+// in-cell attachment and the transport buttons anchored above it on the
+// overlay: the strip reparents between pages, so nothing may constrain
+// across that boundary.
+static const CGFloat kWaveformHeight = 180;
+static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe.bottom
 
 @interface PlayerViewController () <AudioPlayerDelegate, PlaylistObserver,
         AudioTrackMetadataCacheDelegate, AudioWaveformCacheDelegate,
@@ -58,6 +70,13 @@ static const NSUInteger kUIUpdateHz = 3;
     UICollectionView        *_pagesView;
     UICollectionViewFlowLayout *_pagesLayout;
     UILabel                 *_emptyHintLabel;
+    // The waveform and its time labels travel together as a strip that
+    // reparents into the current track's page cell, so a page drag carries
+    // the waveform with it. There is only one live waveform, so an outgoing
+    // page keeps it until the cell leaves the screen, and the strip parks
+    // detached between homes.
+    UIView                  *_waveformStrip;
+    NSArray<NSLayoutConstraint *> *_stripOuterConstraints;
     WaveformScrubberView    *_waveformView;
     UILabel                 *_elapsedLabel;
     UILabel                 *_remainingLabel;
@@ -180,16 +199,32 @@ static const NSUInteger kUIUpdateHz = 3;
     _emptyHintLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [root addSubview:_emptyHintLabel];
 
+    _waveformStrip = [[UIView alloc] init];
+    _waveformStrip.translatesAutoresizingMaskIntoConstraints = NO;
+
     _waveformView = [[WaveformScrubberView alloc] initWithFrame:CGRectZero];
     _waveformView.delegate = self;
     _waveformView.translatesAutoresizingMaskIntoConstraints = NO;
-    [root addSubview:_waveformView];
+    [_waveformStrip addSubview:_waveformView];
 
     _elapsedLabel = [self makeTimeLabel];
     _remainingLabel = [self makeTimeLabel];
     _remainingLabel.textAlignment = NSTextAlignmentRight;
-    [root addSubview:_elapsedLabel];
-    [root addSubview:_remainingLabel];
+    [_waveformStrip addSubview:_elapsedLabel];
+    [_waveformStrip addSubview:_remainingLabel];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [_waveformView.topAnchor constraintEqualToAnchor:_waveformStrip.topAnchor],
+        [_waveformView.leadingAnchor constraintEqualToAnchor:_waveformStrip.leadingAnchor],
+        [_waveformView.trailingAnchor constraintEqualToAnchor:_waveformStrip.trailingAnchor],
+        [_waveformView.heightAnchor constraintEqualToConstant:kWaveformHeight],
+        [_elapsedLabel.topAnchor constraintEqualToAnchor:_waveformView.bottomAnchor constant:6],
+        [_elapsedLabel.leadingAnchor constraintEqualToAnchor:_waveformStrip.leadingAnchor constant:16],
+        [_remainingLabel.topAnchor constraintEqualToAnchor:_elapsedLabel.topAnchor],
+        [_remainingLabel.trailingAnchor constraintEqualToAnchor:_waveformStrip.trailingAnchor constant:-16],
+        [_waveformStrip.bottomAnchor constraintEqualToAnchor:_elapsedLabel.bottomAnchor],
+    ]];
+    [self attachWaveformStripToView:root];
 
     _playPauseButton = [self makeTransportButton:@"play.fill" pointSize:44
                                           action:@selector(playPauseTapped)];
@@ -251,22 +286,13 @@ static const NSUInteger kUIUpdateHz = 3;
         [_emptyHintLabel.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-24],
 
         // Play/pause on the screen's center line, next to its right, sitting
-        // just above the waveform.
+        // just above where the waveform strip rides in the pages. Anchored to
+        // the root, not the strip — the strip reparents between cells.
         [_playPauseButton.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
-        [_playPauseButton.bottomAnchor constraintEqualToAnchor:_waveformView.topAnchor constant:-16],
+        [_playPauseButton.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor
+                constant:-(kWaveformBottomInset + kWaveformHeight + 16)],
         [_nextButton.leadingAnchor constraintEqualToAnchor:_playPauseButton.trailingAnchor constant:40],
         [_nextButton.centerYAnchor constraintEqualToAnchor:_playPauseButton.centerYAnchor],
-
-        // Full-bleed waveform above the time labels and the bottom bar.
-        [_waveformView.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
-        [_waveformView.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
-        [_waveformView.bottomAnchor constraintEqualToAnchor:_searchBarButton.topAnchor constant:-134],
-        [_waveformView.heightAnchor constraintEqualToConstant:180],
-
-        [_elapsedLabel.topAnchor constraintEqualToAnchor:_waveformView.bottomAnchor constant:6],
-        [_elapsedLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
-        [_remainingLabel.topAnchor constraintEqualToAnchor:_elapsedLabel.topAnchor],
-        [_remainingLabel.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
 
         [_searchBarButton.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
         [_searchBarButton.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor constant:-4],
@@ -310,7 +336,9 @@ static const NSUInteger kUIUpdateHz = 3;
        shouldReceiveTouch:(UITouch *)touch {
     // The waveform owns horizontal drags and taps for scrubbing, and the
     // controls own their touches; the screen tap applies everywhere else.
-    if (CGRectContainsPoint(_waveformView.frame, [touch locationInView:self.view])) {
+    // Membership, not frames: the strip lives inside whichever page cell is
+    // current, so its frame is in another view's coordinates.
+    if ([touch.view isDescendantOfView:_waveformStrip]) {
         return NO;
     }
     for (UIView *view = touch.view; view && view != self.view; view = view.superview) {
@@ -321,11 +349,76 @@ static const NSUInteger kUIUpdateHz = 3;
     return YES;
 }
 
+#pragma mark - Waveform strip attachment
+
+// Moves the strip into a new home — the current track's page cell, or the
+// root for the empty state — pinning the waveform's bottom to the home's
+// safe-area bottom so the geometry is identical everywhere. Cells are
+// screen-sized, so their safe area is the screen's.
+- (void)attachWaveformStripToView:(UIView *)parent {
+    if (_waveformStrip.superview == parent) {
+        return;
+    }
+    if (_stripOuterConstraints) {
+        [NSLayoutConstraint deactivateConstraints:_stripOuterConstraints];
+    }
+    [_waveformStrip removeFromSuperview];
+    [parent addSubview:_waveformStrip];
+    _stripOuterConstraints = @[
+        [_waveformStrip.leadingAnchor constraintEqualToAnchor:parent.leadingAnchor],
+        [_waveformStrip.trailingAnchor constraintEqualToAnchor:parent.trailingAnchor],
+        [_waveformView.bottomAnchor constraintEqualToAnchor:parent.safeAreaLayoutGuide.bottomAnchor
+                                                   constant:-kWaveformBottomInset],
+    ];
+    [NSLayoutConstraint activateConstraints:_stripOuterConstraints];
+}
+
+// Between homes — the outgoing page left the screen and the incoming cell
+// does not exist yet. A parked strip renders nowhere but keeps all state.
+- (void)parkWaveformStrip {
+    if (_stripOuterConstraints) {
+        [NSLayoutConstraint deactivateConstraints:_stripOuterConstraints];
+        _stripOuterConstraints = nil;
+    }
+    [_waveformStrip removeFromSuperview];
+}
+
+- (void)attachWaveformStripToCurrentPage {
+    if (_playlist.count == 0) {
+        [self attachWaveformStripToView:self.view];
+        return;
+    }
+    UICollectionViewCell *cell = [_pagesView cellForItemAtIndexPath:
+            [NSIndexPath indexPathForItem:(NSInteger)_playlist.currentIndex inSection:0]];
+    if (cell) {
+        [self attachWaveformStripToView:cell.contentView];
+    }
+    // No cell yet: collectionView:willDisplayCell: attaches when it appears.
+}
+
 #pragma mark - Track pager
 
 - (NSInteger)collectionView:(UICollectionView *)collectionView
      numberOfItemsInSection:(NSInteger)section {
     return (NSInteger)_playlist.count;
+}
+
+- (void)collectionView:(UICollectionView *)collectionView
+       willDisplayCell:(UICollectionViewCell *)cell
+    forItemAtIndexPath:(NSIndexPath *)indexPath {
+    if ((NSUInteger)indexPath.item == _playlist.currentIndex) {
+        [self attachWaveformStripToView:cell.contentView];
+    }
+}
+
+- (void)collectionView:(UICollectionView *)collectionView
+  didEndDisplayingCell:(UICollectionViewCell *)cell
+    forItemAtIndexPath:(NSIndexPath *)indexPath {
+    // The strip must never ride a cell into the reuse pool — it would
+    // resurface inside some other track's page.
+    if ([_waveformStrip isDescendantOfView:cell]) {
+        [self parkWaveformStrip];
+    }
 }
 
 - (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView
@@ -416,6 +509,7 @@ static const NSUInteger kUIUpdateHz = 3;
 - (void)showEmptyState {
     _emptyHintLabel.text = STR_LABEL_OPEN_HINT_IOS;
     _emptyHintLabel.hidden = NO;
+    [self attachWaveformStripToView:self.view];
     _elapsedLabel.text = STR_LABEL_TIME_UNKNOWN;
     _remainingLabel.text = STR_LABEL_TIME_UNKNOWN;
     [_waveformView showEmptyPlaceholder];
@@ -423,10 +517,11 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 // The pager owns the header and art; rendering the current track means
-// refreshing its page.
+// refreshing its page and making sure the waveform strip rides in it.
 - (void)renderHeaderForTrack:(AudioTrack *)track {
     _emptyHintLabel.hidden = YES;
     [self refreshPageAtIndex:_playlist.currentIndex];
+    [self attachWaveformStripToCurrentPage];
 }
 
 // The mac codec line's composition: each part appended only when present, so
@@ -957,3 +1052,114 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 @end
+
+#if DEBUG
+
+#pragma mark - Debug command surface
+
+// In the class's own file so the category reads the ivars directly; the verbs
+// live in DebugCommands.m.
+
+@implementation PlayerViewController (Debug)
+
+- (NSDictionary *)debugStateDictionary {
+    AudioTrack *track = _playlist.currentTrack;
+    NSMutableArray<NSString *> *files = [NSMutableArray array];
+    for (AudioTrack *t in _playlist.tracks) {
+        if (files.count == 100) {
+            [files addObject:[NSString stringWithFormat:@"… %lu more",
+                    (unsigned long)(_playlist.count - 100)]];
+            break;
+        }
+        [files addObject:t.url.lastPathComponent ?: @""];
+    }
+    return @{
+        @"player": @{
+            @"state": _player.isPlaying ? @"playing" : (_player.isPaused ? @"paused" : @"stopped"),
+            @"position": @(_player.position),
+            @"duration": @(_player.duration),
+            @"numChannels": @(_player.numChannels),
+            @"silent": @([NSProcessInfo.processInfo.arguments containsObject:@"--silent"]),
+            @"noAudioHw": @([NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"]),
+        },
+        @"currentTrack": track ? @{
+            @"url": track.url.path ?: @"",
+            @"title": track.title ?: @"",
+            @"artist": track.artist ?: @"",
+            @"bpm": @(track.bpm),
+            // The resolved key (tag over analysis); empty strings when unknown.
+            @"key": VibeMusicalKeyMusicalName(track.key),
+            @"camelot": VibeMusicalKeyCamelotName(track.key),
+        } : (id)NSNull.null,
+        @"playlist": @{
+            @"count": @(_playlist.count),
+            @"currentIndex": @(_playlist.currentIndex),
+            @"files": files,
+        },
+        @"ui": @{
+            @"elapsed": _elapsedLabel.text ?: @"",
+            @"remaining": _remainingLabel.text ?: @"",
+            @"emptyHintShown": @(!_emptyHintLabel.isHidden),
+            @"transportShown": @(_playPauseButton.alpha > 0),
+            @"waveformProgress": @(_waveformView.progress),
+            @"isScrubbing": @(_waveformView.isScrubbing),
+            @"parked": @(_parked),
+            @"foreground": @(_foreground),
+            @"error": _errorText ?: @"",
+        },
+        @"settings": @{
+            @"waveformStyle": Settings.waveformStyle ?: @"",
+            @"analyzeBPM": @(Settings.analyzeBPM),
+            @"analyzeKey": @(Settings.analyzeKey),
+        },
+    };
+}
+
+- (NSDictionary *)debugActionSummary {
+    return @{
+        @"ok": @YES,
+        @"state": _player.isPlaying ? @"playing" : (_player.isPaused ? @"paused" : @"stopped"),
+        @"index": @(_playlist.currentIndex),
+        @"count": @(_playlist.count),
+        @"position": @(_player.position),
+        @"parked": @(_parked),
+    };
+}
+
+- (void)debugPlayPause {
+    [self playPauseTapped];
+}
+
+- (void)debugNext {
+    [self nextTapped];
+}
+
+- (void)debugPrevious {
+    if ([_playlist previous]) {
+        [self playCurrentTrack];
+    }
+}
+
+- (void)debugSeekToSeconds:(NSTimeInterval)seconds {
+    NSTimeInterval duration = _player.duration;
+    if (duration > 0) {
+        float p = (float)MAX(0.0, MIN(1.0, seconds / duration));
+        [self waveformScrubberView:_waveformView didSeek:p];
+    }
+}
+
+- (void)debugOpenPath:(NSString *)path {
+    [_folderSession openExternalURL:[NSURL fileURLWithPath:path] openInPlace:YES];
+}
+
+- (AudioTrackMetadataCache *)debugMetadataCache {
+    return _metadataCache;
+}
+
+- (AudioWaveformCache *)debugWaveformCache {
+    return _waveformCache;
+}
+
+@end
+
+#endif

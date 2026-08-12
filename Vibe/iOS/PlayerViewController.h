@@ -17,3 +17,30 @@
 - (void)handleOpenURLContexts:(NSSet<UIOpenURLContext *> *)contexts;
 
 @end
+
+#if DEBUG
+
+@class AudioTrackMetadataCache;
+@class AudioWaveformCache;
+
+// Extra surface for the debug command channel (DebugCommands.m), the iOS twin
+// of MainPlayerController+Debug.h. Implemented at the bottom of the class's
+// own .m for ivar access. Debug builds only.
+@interface PlayerViewController (Debug)
+
+- (NSDictionary *)debugStateDictionary;
+// The compact reply the transport verbs share.
+- (NSDictionary *)debugActionSummary;
+- (void)debugPlayPause;
+- (void)debugNext;
+- (void)debugPrevious;
+// Routes through the scrubber's didSeek path so the seek-in-flight guard
+// behaves exactly as a real drag's release.
+- (void)debugSeekToSeconds:(NSTimeInterval)seconds;
+- (void)debugOpenPath:(NSString *)path;
+- (AudioTrackMetadataCache *)debugMetadataCache;
+- (AudioWaveformCache *)debugWaveformCache;
+
+@end
+
+#endif
