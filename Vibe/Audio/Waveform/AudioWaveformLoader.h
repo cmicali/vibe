@@ -21,8 +21,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (atomic) BOOL isComplete;
 @property (atomic) BOOL isCancelled;
+// Superseded but still decoding: deliveries stop, the decode runs on and the
+// cache persists the result for the next request. Set by detach, cleared by
+// reattach when the same file is requested again mid-decode.
+@property (atomic) BOOL isDetached;
+// The path this loader decodes, stamped by the cache when it starts the
+// load; the detached-loader pool is keyed on it for reattachment.
+@property (nullable, atomic, copy) NSString *trackPath;
 
 - (void)cancel;
+- (void)detach;
+- (void)reattach;
 - (nullable CodableAudioWaveform *)load:(NSString *)filename;
 
 @end

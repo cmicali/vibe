@@ -534,6 +534,7 @@ targets:
         excludes:
           - "**/.DS_Store"
           - "**/*.md"
+          - "iOSDriver/**"                    # VibeiOSDriver's XCUI sources: iOS-only API
       # Sources under test. TagLib is deliberately absent: nothing here needs
       # it (AudioTrack only ever sends messages to its metadata, never names
       # the class), and compiling the ~70-file vendored subset would dominate

@@ -23,6 +23,14 @@
     self.isCancelled = YES;
 }
 
+- (void)detach {
+    self.isDetached = YES;
+}
+
+- (void)reattach {
+    self.isDetached = NO;
+}
+
 - (CodableAudioWaveform *)load:(NSString *)filename {
     @throw [NSException exceptionWithName:NSInternalInconsistencyException
                                    reason:[NSString stringWithFormat:@"You must override %@ in a subclass", NSStringFromSelector(_cmd)]
