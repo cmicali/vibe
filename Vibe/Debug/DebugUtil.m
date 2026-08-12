@@ -203,6 +203,7 @@ static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"shortDelaySend": @(player.fx.shortDelaySendEnabled),
             @"delayTapBPM": @(player.fx.delayTapBPM),
             @"numChannels": @(player.numChannels),
+            @"gaplessArmed": @(player.isGaplessArmed),
             @"outputDeviceId": @(player.currentlyActiveAudioDeviceId),
             @"silent": @([NSProcessInfo.processInfo.arguments containsObject:@"--silent"]),
             @"noAudioHw": @([NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"]),

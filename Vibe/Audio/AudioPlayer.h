@@ -56,7 +56,9 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // default. It applies only when a play replaces an audibly playing track —
 // first plays, and the pause, seek and stop declicks, always use the minimum
 // so transport stays instant. Atomic: the UI writes it, the player queue
-// reads it per crossfade.
+// reads it per crossfade. The write also keeps the gapless splice honest:
+// raising it past the minimum unqueues an armed next-track segment, and
+// lowering it back re-arms parked material.
 @property (atomic) NSInteger crossfadeMilliseconds;
 
 // The DJ performance effects: low kill and its boost, the reverb and delay
@@ -107,7 +109,18 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // next track whenever a track starts playing; nil drops the parked handle at
 // the end of the playlist. It is single-use, consumed by the next play: of
 // the same path.
+//
+// It is also the gapless arm point: with the crossfade off and the next
+// file's format matching the current one, the player pre-schedules the
+// prefetched track on the current node and splices at the boundary instead
+// of tearing down — see audioPlayer:didAutoAdvanceFromTrack:toTrack:. The
+// track passed here is the one that promote delivers, so it must always be
+// the playlist's own next-track object.
 - (void)prefetchTrack:(nullable AudioTrack *)track;
+
+// Whether the next track is pre-scheduled on the current node for a gapless
+// splice at the boundary. Observability (the debug channel); lock-free.
+@property (readonly, getter=isGaplessArmed) BOOL gaplessArmed;
 
 - (BOOL)isPlaying;
 - (BOOL)isPaused;
@@ -157,6 +170,13 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // the callback so it can settle the waveform.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(nullable AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track;
+// Playback advanced gaplessly into the pre-scheduled next track: startedTrack
+// — the object the delegate handed to prefetchTrack: — is already sounding.
+// Advance the playlist index WITHOUT calling play:. A track's end fires
+// exactly one of didFinishPlaying: or this, never both.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didAutoAdvanceFromTrack:(AudioTrack *)finishedTrack
+                    toTrack:(AudioTrack *)startedTrack;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceID;
 
