@@ -373,6 +373,17 @@ targets:
           - "**/.DS_Store"
           - "**/*.md"
           - "AudioWaveformView.*"             # NSView; the iOS scrubber lives in Vibe/iOS
+      # The debug command channel's shared transport only. The mac command
+      # table, CLI client, and scan cores stay mac-side; the iOS table is
+      # Vibe/iOS/DebugCommands.m. All of it compiles empty outside DEBUG.
+      - path: Vibe/Debug
+        excludes:
+          - "**/.DS_Store"
+          - "**/*.md"
+          - "DebugUtil.h"
+          - "DebugUtil.m"
+          - "DebugClient.m"
+          - "DebugBPMScan.mm"
       - path: Vibe/ThirdParty
         excludes:
           - "**/.DS_Store"
@@ -480,6 +491,31 @@ targets:
       - sdk: QuartzCore.framework
       - sdk: UniformTypeIdentifiers.framework
 
+  # Not a test suite: the interactive touch driver for agentic workflows —
+  # the iOS counterpart of the debug channel's key/click injection, which
+  # UIKit cannot do in-process (no public UITouch synthesis). One resident
+  # XCUITest command loop; drive-ios.sh in the vibe-debug skill starts it and
+  # sends gestures. Sources live under Tests/ for the same reason VibeTests'
+  # do: anything under Vibe/ is swept into the app targets.
+  VibeiOSDriver:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/iOSDriver
+    dependencies:
+      - target: VibeiOS
+    settings:
+      base:
+        PRODUCT_NAME: "$(TARGET_NAME)"
+        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeiOSDriver
+        TEST_TARGET_NAME: VibeiOS
+        SDKROOT: iphoneos
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        GCC_PREFIX_HEADER: ""               # no app pch; XCTest only
+
   # Host-LESS logic tests: no TEST_HOST, so the suite never launches the app
   # (which would boot the window, engine and caches on every run) and never
   # inherits its sandbox (which would block reading fixtures from the repo).
@@ -574,6 +610,17 @@ schemes:
     profile:  { config: Release }
     analyze:  { config: Debug }
     archive:  { config: Release }
+  # The touch driver: `xcodebuild test -scheme VibeiOSDriver` is how
+  # drive-ios.sh starts the resident command loop.
+  VibeiOSDriver:
+    build:
+      parallelizeBuild: true
+      targets:
+        VibeiOSDriver: [test]
+    test:
+      config: Debug
+      targets:
+        - VibeiOSDriver
   Vibe:
     build:
       parallelizeBuild: true

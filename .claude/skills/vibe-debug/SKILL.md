@@ -1,6 +1,6 @@
 ---
 name: vibe-debug
-description: Launch, drive, inspect, and visually verify the Vibe app — macOS, and the iOS simulator loop (launch-ios.sh, silent flags, screenshots, host-side log streaming). Use whenever a change needs end-to-end verification, a screenshot of the running app, playback/UI state inspection, or appearance (light/dark) testing.
+description: Launch, drive, inspect, and visually verify the Vibe app — macOS, and the iOS simulator loop (launch-ios.sh, the debug-ios.sh command channel, silent flags, screenshots, host-side log streaming). Use whenever a change needs end-to-end verification, a screenshot of the running app, playback/UI state inspection, or appearance (light/dark) testing.
 ---
 
 # Debugging and verifying Vibe
@@ -75,7 +75,7 @@ It opens a named pipe in the app container's tmp. `AVAudioFile`'s open blocks re
 
 ## iOS: the simulator loop
 
-**There is no debug command channel on iOS** — every `--debug-cmd` verb below is mac-only. Verification is `simctl`, the log stream, and looking at screenshots. The build is the `VibeiOS` scheme (`xcodebuild -scheme VibeiOS -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build`); products land in `Debug-iphonesimulator/`.
+iOS has its **own debug command channel** (below); the `--debug-cmd` verbs in the mac section are still mac-only. The build is the `VibeiOS` scheme (`xcodebuild -scheme VibeiOS -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build`); products land in `Debug-iphonesimulator/`.
 
 ```bash
 .claude/skills/vibe-debug/scripts/launch-ios.sh [audio-file ...]   # boot if needed, install, relaunch
@@ -91,13 +91,30 @@ xcrun simctl openurl booted "file://$DATA/Documents/Music/tone-long.wav"   # ope
 xcrun simctl io booted screenshot shot.png    # device pixels (3x), top-left origin
 ```
 
+**The iOS debug command channel.** Same file protocol and one-JSON-object contract as the mac's, but with **no CLI client**: the simulator app's container tmp is a plain host directory, so the wrapper writes the command file and reads the reply directly, and the app's own tmp-directory watcher (no notification needed) answers. Debug builds only. All the mac channel's jq guidance applies verbatim.
+
+```bash
+S=.claude/skills/vibe-debug/scripts/debug-ios.sh
+"$S" dump_state          # {player, currentTrack, playlist, ui, settings} — ui includes waveformProgress, isScrubbing, parked, foreground
+"$S" dump_view_tree      # {windows: [{class, frame, keyWindow, rootViewController, contentView: {…, subviews}}]} — UILabel text and button labels included
+"$S" dump_screenshot     # {ok, path, pointWidth, pointHeight, scale} — in-process render written into the container; the HOST can read the path directly (no TCC)
+"$S" play_pause          # compact {ok, state, index, count, position, parked} summary; also: next, previous
+"$S" seek 90             # seconds; routes through the scrubber's didSeek path, so the seek-in-flight guard behaves as a real drag release
+"$S" open <path>         # file INSIDE the container (seed via launch-ios.sh); the FolderSession open-in-place path
+VIBE_DEBUG_TIMEOUT=20 "$S" clear_caches   # blocks until both PINCaches are empty, like the mac verb
+```
+
+Exit codes match the mac client: 0 ok, 1 no response (no debug build running), 2 command error. The unknown-command reply is the authoritative verb list. Replies to action verbs are read synchronously and can lag async engine work — the same caveat as the mac: a `seek` or `play_pause` reply may show the pre-action state, so follow with `dump_state`. The app side is `Vibe/iOS/DebugCommands.m` over the shared transport in `Vibe/Debug/DebugChannel.m`; adding a verb there is the entire hookup.
+
+**What the iOS channel cannot do**: input injection — no public API synthesizes `UITouch`es, so gestures (the waveform drag, the track pager pull) are tested manually or via XCUITest — and the mac's menu, window, FX, pitch, convert, and file_cache verbs have no iOS counterparts yet. `dump_screenshot` renders in-process (UIVisualEffectView blurs only approximate); `simctl io booted screenshot` remains the ground truth for real pixels.
+
 **Logs stream from the HOST.** Simulator processes write into the mac's unified log, and `log stream` *inside* the simulator (`simctl spawn`) is refused as non-admin. Info and debug are not persisted (same as macOS), so stream, don't `log show`:
 
 ```bash
 /usr/bin/log stream --level debug --predicate 'subsystem == "com.commonwealthrecordings.Vibe"'
 ```
 
-**Driving the UI.** With no command channel, taps are real clicks on the Simulator window: `input.swift click/drag` (OS-level input path below) after `tell application "Simulator" to activate` — the window must be frontmost or clicks land elsewhere. Map device pixels to mac screen points by calibrating against a landmark visible in both a `simctl` screenshot and a `screencapture` of the window; the window's scale is not a round fraction of the device's 3x, so measure, don't assume. This is inherently more manual than `--debug-cmd`; prefer flows a screenshot can verify without input, and verify every injected tap's effect from the next screenshot rather than assuming it landed.
+**Driving the UI.** Prefer the channel's verbs (`play_pause`, `seek`, `open`, …) — they need no window focus and reply with state. Only a genuine *gesture* (the waveform drag, the track pager pull) needs real clicks on the Simulator window: `input.swift click/drag` (OS-level input path below) after `tell application "Simulator" to activate` — the window must be frontmost or clicks land elsewhere. Map device pixels to mac screen points by calibrating against a landmark visible in both a `simctl` screenshot and a `screencapture` of the window; the window's scale is not a round fraction of the device's 3x, so measure, don't assume. Verify every injected tap's effect with `dump_state` or the next screenshot rather than assuming it landed.
 
 **Simulator blind spots.** Interruptions (calls/Siri), route changes (headphone unplug), background audio past lock, and the lock-screen card need a real device. The `AVAudioSession` code runs but the simulator does not exercise it faithfully.
 

@@ -48,8 +48,20 @@ ARGS=()
 [ -z "${VIBE_AUDIBLE:-}" ] && ARGS+=(--no-audio-hw --silent)
 xcrun simctl launch booted "$BUNDLE_ID" ${ARGS[@]+"${ARGS[@]}"}
 
+# Poll the debug channel until the app answers, as launch.sh does — no guessed
+# sleeps. Short per-attempt timeouts because a command written during startup
+# is swept as stale by the channel install; a fresh one lands. Falls back to a
+# flat 2s for a channel that never answers (a non-debug build).
+READY=""
+for _ in $(seq 1 15); do
+    if VIBE_DEBUG_TIMEOUT=1 "$DIR/debug-ios.sh" dump_state 2>/dev/null; then
+        READY=1
+        break
+    fi
+done
+[ -n "$READY" ] || sleep 2
+
 if [ "$#" -gt 0 ]; then
-    sleep 2   # the scene must connect before openurl can deliver
     FIRST="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
     DATA="$(xcrun simctl get_app_container booted "$BUNDLE_ID" data)"
     xcrun simctl openurl booted "file://$DATA/Documents/Music/$(basename "$FIRST")"

@@ -4,6 +4,13 @@
 //
 
 #import "TrackPageCell.h"
+#import "VibeStrings.h"
+#import "WaveformScrubberView.h"
+
+// The waveform's geometry against the safe-area bottom — the same values
+// PlayerViewController uses to anchor the transport above it on the overlay.
+static const CGFloat kCellWaveformHeight = 180;
+static const CGFloat kCellWaveformBottomInset = 190;
 
 @implementation TrackPageCell {
     UIImageView        *_artView;
@@ -51,6 +58,16 @@
         _fileInfoLabel.translatesAutoresizingMaskIntoConstraints = NO;
         [content addSubview:_fileInfoLabel];
 
+        _waveformView = [[WaveformScrubberView alloc] initWithFrame:CGRectZero];
+        _waveformView.translatesAutoresizingMaskIntoConstraints = NO;
+        [content addSubview:_waveformView];
+
+        _elapsedLabel = [self makeTimeLabel];
+        [content addSubview:_elapsedLabel];
+        _remainingLabel = [self makeTimeLabel];
+        _remainingLabel.textAlignment = NSTextAlignmentRight;
+        [content addSubview:_remainingLabel];
+
         // Cells span the full screen, so their safe area is the screen's.
         UILayoutGuide *safe = content.safeAreaLayoutGuide;
         [NSLayoutConstraint activateConstraints:@[
@@ -74,9 +91,37 @@
             [_titleLabel.topAnchor constraintEqualToAnchor:_artistLabel.bottomAnchor constant:2],
             [_titleLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:20],
             [_titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-20],
+
+            [_waveformView.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+            [_waveformView.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
+            [_waveformView.heightAnchor constraintEqualToConstant:kCellWaveformHeight],
+            [_waveformView.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor
+                                                       constant:-kCellWaveformBottomInset],
+            [_elapsedLabel.topAnchor constraintEqualToAnchor:_waveformView.bottomAnchor constant:6],
+            [_elapsedLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
+            [_remainingLabel.topAnchor constraintEqualToAnchor:_elapsedLabel.topAnchor],
+            [_remainingLabel.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
         ]];
     }
     return self;
+}
+
+- (UILabel *)makeTimeLabel {
+    UILabel *label = [[UILabel alloc] init];
+    label.font = [UIFont monospacedDigitSystemFontOfSize:13 weight:UIFontWeightRegular];
+    label.textColor = [UIColor secondaryLabelColor];
+    label.text = STR_LABEL_TIME_UNKNOWN;
+    label.translatesAutoresizingMaskIntoConstraints = NO;
+    return label;
+}
+
+// A recycled cell must never show the previous track's waveform or times —
+// the new page's load repopulates both.
+- (void)prepareForReuse {
+    [super prepareForReuse];
+    [_waveformView prepareForWaveformLoad];
+    _elapsedLabel.text = STR_LABEL_TIME_UNKNOWN;
+    _remainingLabel.text = STR_LABEL_TIME_UNKNOWN;
 }
 
 - (void)configureWithTitle:(NSString *)title

@@ -24,6 +24,10 @@ xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -configuration Debug \
     -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
 ```
 
-Use the **`vibe-debug` skill** (its "iOS: the simulator loop" section) to launch, feed, screenshot, and log the app — `launch-ios.sh` boots/installs/relaunches with audio silent by default (the mac's `--no-audio-hw --silent` flags work verbatim; the engine is shared), seeds audio into the container, and the log streams from the host. **There is no debug command channel on iOS** — verification is `simctl` + the log stream + looking — and the skill is the canonical home of that loop, deliberately not duplicated here, so it cannot drift.
+Use the **`vibe-debug` skill** (its "iOS: the simulator loop" section) to launch, feed, screenshot, and log the app — `launch-ios.sh` boots/installs/relaunches with audio silent by default (the mac's `--no-audio-hw --silent` flags work verbatim; the engine is shared), seeds audio into the container, and the log streams from the host.
+
+**The debug command channel exists on iOS** (debug builds only): `debug-ios.sh <verb>` from the host writes a command file straight into the simulator app's container tmp — a plain host directory, so no CLI client is needed — and the app's directory watcher answers with one JSON object, same file protocol as the mac. The transport is `Vibe/Debug/DebugChannel.m` (shared with the mac verbatim); the iOS command table is `DebugCommands.m` here, and `PlayerViewController (Debug)` — declared in the class header, implemented at the bottom of its .m for ivar access — is the state and action surface, the iOS twin of `MainPlayerController+Debug.h`. The verb list lives in the skill and the channel's own unknown-command reply, deliberately not here. What the channel cannot do on iOS: input injection (no public API synthesizes `UITouch`es — gestures stay manual or XCUITest) and the mac's menu/window/FX verbs. Real-pixel screenshots stay `simctl io booted screenshot`; the channel's `dump_screenshot` is the in-process render.
+
+The skill is the canonical home of the whole loop, deliberately not duplicated here, so it cannot drift.
 
 Interruptions, route changes (headphone unplug), background audio past lock, and the lock-screen card need a real device — the simulator exercises none of them faithfully.

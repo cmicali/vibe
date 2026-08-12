@@ -201,6 +201,10 @@ static const CGFloat kScrubTickSpacing = 8.0;
 }
 
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
+    // A fresh view may receive data before anyone called
+    // prepareForWaveformLoad (per-page cells hydrate directly); the renderer
+    // must exist before the draw.
+    [self installRendererIfNeeded];
     self.waveform = waveform;
     [self drawWaveform];
 }

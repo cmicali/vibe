@@ -70,16 +70,20 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     UICollectionView        *_pagesView;
     UICollectionViewFlowLayout *_pagesLayout;
     UILabel                 *_emptyHintLabel;
-    // The waveform and its time labels travel together as a strip that
-    // reparents into the current track's page cell, so a page drag carries
-    // the waveform with it. There is only one live waveform, so an outgoing
-    // page keeps it until the cell leaves the screen, and the strip parks
-    // detached between homes.
-    UIView                  *_waveformStrip;
-    NSArray<NSLayoutConstraint *> *_stripOuterConstraints;
+    // Every page cell carries its own waveform view; these are BINDINGS to
+    // the current page's views, rebound when the current cell appears or is
+    // recreated, so the live-update paths (and the debug channel) keep one
+    // stable name for "the playing track's waveform and time labels".
     WaveformScrubberView    *_waveformView;
     UILabel                 *_elapsedLabel;
     UILabel                 *_remainingLabel;
+    // The one in-flight waveform load's target page, the latest snapshot per
+    // page for re-hydrating reloaded cells, and which pages have their full
+    // waveform. One load exists at a time (the cache's contract): showing a
+    // neighbor retargets it, and a drag-back retargets it back.
+    NSUInteger              _waveformLoadIndex;
+    NSMutableDictionary<NSNumber *, CodableAudioWaveform *> *_pageWaveforms;
+    NSMutableIndexSet       *_completePages;
     UIButton                *_playPauseButton;
     UIButton                *_nextButton;
     UIButton                *_searchBarButton;  // Messages-style glass search bar
@@ -105,6 +109,10 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.backgroundColor = [UIColor systemBackgroundColor];
     [self buildUI];
+
+    _waveformLoadIndex = NSNotFound;
+    _pageWaveforms = [NSMutableDictionary dictionary];
+    _completePages = [NSMutableIndexSet indexSet];
 
     _playlist = [[Playlist alloc] init];
     _playlist.observer = self;
@@ -199,32 +207,8 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     _emptyHintLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [root addSubview:_emptyHintLabel];
 
-    _waveformStrip = [[UIView alloc] init];
-    _waveformStrip.translatesAutoresizingMaskIntoConstraints = NO;
-
-    _waveformView = [[WaveformScrubberView alloc] initWithFrame:CGRectZero];
-    _waveformView.delegate = self;
-    _waveformView.translatesAutoresizingMaskIntoConstraints = NO;
-    [_waveformStrip addSubview:_waveformView];
-
-    _elapsedLabel = [self makeTimeLabel];
-    _remainingLabel = [self makeTimeLabel];
-    _remainingLabel.textAlignment = NSTextAlignmentRight;
-    [_waveformStrip addSubview:_elapsedLabel];
-    [_waveformStrip addSubview:_remainingLabel];
-
-    [NSLayoutConstraint activateConstraints:@[
-        [_waveformView.topAnchor constraintEqualToAnchor:_waveformStrip.topAnchor],
-        [_waveformView.leadingAnchor constraintEqualToAnchor:_waveformStrip.leadingAnchor],
-        [_waveformView.trailingAnchor constraintEqualToAnchor:_waveformStrip.trailingAnchor],
-        [_waveformView.heightAnchor constraintEqualToConstant:kWaveformHeight],
-        [_elapsedLabel.topAnchor constraintEqualToAnchor:_waveformView.bottomAnchor constant:6],
-        [_elapsedLabel.leadingAnchor constraintEqualToAnchor:_waveformStrip.leadingAnchor constant:16],
-        [_remainingLabel.topAnchor constraintEqualToAnchor:_elapsedLabel.topAnchor],
-        [_remainingLabel.trailingAnchor constraintEqualToAnchor:_waveformStrip.trailingAnchor constant:-16],
-        [_waveformStrip.bottomAnchor constraintEqualToAnchor:_elapsedLabel.bottomAnchor],
-    ]];
-    [self attachWaveformStripToView:root];
+    // The waveform and time labels live in the page cells; the bindings are
+    // established as cells appear.
 
     _playPauseButton = [self makeTransportButton:@"play.fill" pointSize:44
                                           action:@selector(playPauseTapped)];
@@ -334,66 +318,62 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
        shouldReceiveTouch:(UITouch *)touch {
-    // The waveform owns horizontal drags and taps for scrubbing, and the
+    // The waveforms own horizontal drags and taps for scrubbing, and the
     // controls own their touches; the screen tap applies everywhere else.
-    // Membership, not frames: the strip lives inside whichever page cell is
-    // current, so its frame is in another view's coordinates.
-    if ([touch.view isDescendantOfView:_waveformStrip]) {
-        return NO;
-    }
+    // Class membership, not frames: every page cell carries a waveform view
+    // in its own coordinate space.
     for (UIView *view = touch.view; view && view != self.view; view = view.superview) {
-        if ([view isKindOfClass:[UIControl class]]) {
+        if ([view isKindOfClass:[UIControl class]]
+                || [view isKindOfClass:[WaveformScrubberView class]]) {
             return NO;
         }
     }
     return YES;
 }
 
-#pragma mark - Waveform strip attachment
+#pragma mark - Per-page waveforms
 
-// Moves the strip into a new home — the current track's page cell, or the
-// root for the empty state — pinning the waveform's bottom to the home's
-// safe-area bottom so the geometry is identical everywhere. Cells are
-// screen-sized, so their safe area is the screen's.
-- (void)attachWaveformStripToView:(UIView *)parent {
-    if (_waveformStrip.superview == parent) {
-        return;
-    }
-    if (_stripOuterConstraints) {
-        [NSLayoutConstraint deactivateConstraints:_stripOuterConstraints];
-    }
-    [_waveformStrip removeFromSuperview];
-    [parent addSubview:_waveformStrip];
-    _stripOuterConstraints = @[
-        [_waveformStrip.leadingAnchor constraintEqualToAnchor:parent.leadingAnchor],
-        [_waveformStrip.trailingAnchor constraintEqualToAnchor:parent.trailingAnchor],
-        [_waveformView.bottomAnchor constraintEqualToAnchor:parent.safeAreaLayoutGuide.bottomAnchor
-                                                   constant:-kWaveformBottomInset],
-    ];
-    [NSLayoutConstraint activateConstraints:_stripOuterConstraints];
+- (TrackPageCell *)cellAtIndex:(NSUInteger)index {
+    return (TrackPageCell *)[_pagesView cellForItemAtIndexPath:
+            [NSIndexPath indexPathForItem:(NSInteger)index inSection:0]];
 }
 
-// Between homes — the outgoing page left the screen and the incoming cell
-// does not exist yet. A parked strip renders nowhere but keeps all state.
-- (void)parkWaveformStrip {
-    if (_stripOuterConstraints) {
-        [NSLayoutConstraint deactivateConstraints:_stripOuterConstraints];
-        _stripOuterConstraints = nil;
-    }
-    [_waveformStrip removeFromSuperview];
-}
-
-- (void)attachWaveformStripToCurrentPage {
-    if (_playlist.count == 0) {
-        [self attachWaveformStripToView:self.view];
+// Points the live-update bindings at the current page's views.
+- (void)bindChromeToCell:(TrackPageCell *)cell {
+    if (!cell) {
         return;
     }
-    UICollectionViewCell *cell = [_pagesView cellForItemAtIndexPath:
-            [NSIndexPath indexPathForItem:(NSInteger)_playlist.currentIndex inSection:0]];
-    if (cell) {
-        [self attachWaveformStripToView:cell.contentView];
+    _waveformView = cell.waveformView;
+    _elapsedLabel = cell.elapsedLabel;
+    _remainingLabel = cell.remainingLabel;
+}
+
+// Retargets the single waveform load at a page. An index the pipeline is
+// already pointed at is left ALONE — a load is in flight or has delivered,
+// and restarting it on every cell reload would keep killing the decode so
+// no waveform ever completes. A retargeted-back page with its full snapshot
+// in hand needs no reload at all; hydration shows it.
+- (void)requestWaveformForIndex:(NSUInteger)index {
+    AudioTrack *track = [_playlist trackAtIndex:index];
+    if (!track || _waveformLoadIndex == index) {
+        return;
     }
-    // No cell yet: collectionView:willDisplayCell: attaches when it appears.
+    _waveformLoadIndex = index;
+    [_waveformCache cancelLoad];
+    if ([_completePages containsIndex:index] && _pageWaveforms[@(index)]) {
+        return;
+    }
+    [_completePages removeIndex:index];
+    [_waveformCache loadWaveformForTrack:track];
+}
+
+// Reloaded and recycled cells come back blank; the latest snapshot puts the
+// waveform straight back without waiting for a fresh decode.
+- (void)hydrateWaveformInCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
+    CodableAudioWaveform *snapshot = _pageWaveforms[@(index)];
+    if (snapshot) {
+        [cell.waveformView showWaveform:snapshot];
+    }
 }
 
 #pragma mark - Track pager
@@ -403,21 +383,44 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     return (NSInteger)_playlist.count;
 }
 
+// A page coming on screen: hydrate its waveform from the latest snapshot,
+// and start (or re-target) the load so a neighbor pulled into view arrives
+// with its own track's waveform loading. Playback does NOT switch here —
+// only the settled page commits, in commitVisiblePage.
 - (void)collectionView:(UICollectionView *)collectionView
        willDisplayCell:(UICollectionViewCell *)cell
     forItemAtIndexPath:(NSIndexPath *)indexPath {
-    if ((NSUInteger)indexPath.item == _playlist.currentIndex) {
-        [self attachWaveformStripToView:cell.contentView];
-    }
-}
+    TrackPageCell *page = (TrackPageCell *)cell;
+    NSUInteger index = (NSUInteger)indexPath.item;
 
-- (void)collectionView:(UICollectionView *)collectionView
-  didEndDisplayingCell:(UICollectionViewCell *)cell
-    forItemAtIndexPath:(NSIndexPath *)indexPath {
-    // The strip must never ride a cell into the reuse pool — it would
-    // resurface inside some other track's page.
-    if ([_waveformStrip isDescendantOfView:cell]) {
-        [self parkWaveformStrip];
+    if (page.waveformView.delegate != self) {
+        page.waveformView.delegate = self;
+        // The pager yields horizontal drags on the waveform surface to the
+        // scrubber; page-drag starts anywhere else.
+        for (UIGestureRecognizer *recognizer in page.waveformView.gestureRecognizers) {
+            if ([recognizer isKindOfClass:[UIPanGestureRecognizer class]]) {
+                [_pagesView.panGestureRecognizer requireGestureRecognizerToFail:recognizer];
+            }
+        }
+    }
+
+    [self hydrateWaveformInCell:page atIndex:index];
+    if (![_completePages containsIndex:index]) {
+        [self requestWaveformForIndex:index];
+    }
+
+    if (index == _playlist.currentIndex) {
+        [self bindChromeToCell:page];
+    }
+    else {
+        // A neighbor at rest: track start, and the duration once metadata
+        // knows it.
+        AudioTrack *track = [_playlist trackAtIndex:index];
+        BOOL known = track.duration > 0;
+        page.elapsedLabel.text = known
+                ? [[Formatters sharedInstance] durationStringFromTimeInterval:0]
+                : STR_LABEL_TIME_UNKNOWN;
+        page.remainingLabel.text = known ? track.durationString : STR_LABEL_TIME_UNKNOWN;
     }
 }
 
@@ -491,6 +494,12 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
         _playlist.currentIndex = page;
         [self playCurrentTrack];
     }
+    else if (_waveformLoadIndex != page) {
+        // Pulled a neighbor into view and let go: the preview load retargeted
+        // the pipeline, so point it back at the current page (a no-op reload
+        // when its waveform had already fully arrived).
+        [self requestWaveformForIndex:page];
+    }
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
@@ -509,19 +518,15 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 - (void)showEmptyState {
     _emptyHintLabel.text = STR_LABEL_OPEN_HINT_IOS;
     _emptyHintLabel.hidden = NO;
-    [self attachWaveformStripToView:self.view];
-    _elapsedLabel.text = STR_LABEL_TIME_UNKNOWN;
-    _remainingLabel.text = STR_LABEL_TIME_UNKNOWN;
-    [_waveformView showEmptyPlaceholder];
     [self updatePlayButton];
 }
 
-// The pager owns the header and art; rendering the current track means
-// refreshing its page and making sure the waveform strip rides in it.
+// The pager owns the header, art, and waveform; rendering the current track
+// means refreshing its page and rebinding the live chrome to it.
 - (void)renderHeaderForTrack:(AudioTrack *)track {
     _emptyHintLabel.hidden = YES;
     [self refreshPageAtIndex:_playlist.currentIndex];
-    [self attachWaveformStripToCurrentPage];
+    [self bindChromeToCell:[self cellAtIndex:_playlist.currentIndex]];
 }
 
 // The mac codec line's composition: each part appended only when present, so
@@ -638,9 +643,7 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     [_audioSession activate];
     [self renderHeaderForTrack:track];
     [self scrollToCurrentPageAnimated:YES];
-    [_waveformView prepareForWaveformLoad];
-    [_waveformCache cancelLoad];
-    [_waveformCache loadWaveformForTrack:track];
+    [self requestWaveformForIndex:_playlist.currentIndex];
     [_metadataCache loadMetadataNow:track];
     [_player play:track];
     [self updatePlayButton];
@@ -656,9 +659,7 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     _seekInFlight = NO;
     [self renderHeaderForTrack:track];
     [self scrollToCurrentPageAnimated:NO];
-    [_waveformView prepareForWaveformLoad];
-    [_waveformCache cancelLoad];
-    [_waveformCache loadWaveformForTrack:track];
+    [self requestWaveformForIndex:_playlist.currentIndex];
     [_metadataCache loadMetadataNow:track];
     [self updatePlayButton];
 }
@@ -753,6 +754,9 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
             folderURL:(NSURL *)folderURL
              restored:(BOOL)restored {
     [_playlist replaceAllWithURLs:urls];
+    _waveformLoadIndex = NSNotFound;
+    [_pageWaveforms removeAllObjects];
+    [_completePages removeAllIndexes];
     [_pagesView reloadData];
     [_metadataCache cancelAll];
     [_metadataCache loadMetadata:_playlist.tracks];
@@ -937,9 +941,18 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 #pragma mark - AudioWaveformCacheDelegate
 
 - (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded {
-    // No URL rides on this delivery; cancelLoad before every new load is the
-    // race guard, per the cache's contract.
-    [_waveformView showWaveform:waveform];
+    // No URL rides on this delivery; the pipeline has one load at a time and
+    // _waveformLoadIndex names its target page (cancelLoad before every
+    // retarget is the race guard, per the cache's contract). The snapshot is
+    // kept for re-hydrating that page if its cell reloads or recycles.
+    if (_waveformLoadIndex == NSNotFound) {
+        return;
+    }
+    _pageWaveforms[@(_waveformLoadIndex)] = waveform;
+    if (percentLoaded >= 1.0f) {
+        [_completePages addIndex:_waveformLoadIndex];
+    }
+    [[self cellAtIndex:_waveformLoadIndex].waveformView showWaveform:waveform];
 }
 
 - (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url {
@@ -959,6 +972,9 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 #pragma mark - WaveformScrubberViewDelegate
 
 - (void)waveformScrubberView:(WaveformScrubberView *)view didSeek:(float)percentage {
+    if (view != _waveformView) {
+        return;  // a neighbor page's preview waveform does not drive the player
+    }
     NSTimeInterval duration = _player.duration;
     if (duration > 0) {
         _pendingSeekProgress = percentage;

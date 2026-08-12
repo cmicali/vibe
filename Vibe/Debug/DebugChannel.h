@@ -10,7 +10,7 @@
 // The platform-neutral half of the debug command channel: the command-file
 // drain, payload validation, response writing, the stale-file sweep, and the
 // wake-up listeners. The platform command tables — DebugUtil.m on macOS,
-// DebugCommandsiOS.m on iOS — supply the executor and own every verb.
+// Vibe/iOS/DebugCommands.m on iOS — supply the executor and own every verb.
 //
 // Same C-linkage guard rationale as DebugUtil.h.
 
