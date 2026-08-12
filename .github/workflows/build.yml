@@ -71,6 +71,29 @@ jobs:
       - name: Run unit tests
         run: make test
 
+  # Compile coverage for the shared subset against the iOS SDK. One
+  # configuration and no signing (CODE_SIGNING_ALLOWED=NO): the point is that
+  # a TARGET_OS_OSX guard or an AppKit leak into a shared directory fails
+  # here, not when someone next opens the iOS target. The generic simulator
+  # destination builds without booting a simulator.
+  build-ios:
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Build VibeiOS (Debug, simulator)
+        run: |
+          xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
+
   # Fails when Resources/Localizable.xcstrings is stale against the STR_*
   # registry — a reworded string whose `make strings` run was forgotten. Its
   # own job: it needs no XcodeGen, no generated project and no build, only

@@ -44,7 +44,8 @@ Nested `CLAUDE.md` files hold the detail for each directory and load only when y
 - **`Vibe/Controls/`** — controls drawn in CALayer rather than shipped as images: `SymbolButton`, `EqualizerIndicatorView` and the pitch fader.
 - **`Vibe/ThirdParty/`** — the vendored TagLib subset and PINCache/PINOperation: what is included and why, how to update it and how the header search paths are wired.
 - **`Vibe/About/`** — the About window and its Metal animation.
-- **`Vibe/Settings/`** — the Settings window and its six panes; `FolderAccessManager` persists sandbox folder grants as app-scoped security bookmarks, and folders auto-add from the open and drop funnels.
+- **`Vibe/iOS/`** — the iPhone app (`VibeiOS` target): the UIKit app layer over the shared subset — player screen, waveform scrubber on the shared renderers, AVAudioSession lifecycle, and the document-picker/security-scope/bookmark folder session. Its `CLAUDE.md` covers the target shape and the no-debug-channel verification story (`simctl` + log stream).
+- **`Vibe/Settings/`** — the Settings window (Vibe > Settings…, ⌘,): a toolbar-style `NSTabViewController` in the standard macOS settings-window shape, owned lazily by `AppDelegate`. Six panes — General (output device, default-player claim via `DefaultAppClaim`, always-on-top), Playback (pitch range, skip steps, crossfade, BPM and key analysis), Appearance (including key notation and CDJ key colors), Convert, Permissions (the granted-folder list over `FolderAccessManager`, which persists sandbox folder grants as app-scoped security bookmarks; folders auto-add from the open and drop funnels, and ~/Music is covered standing by the music-assets entitlement), and Advanced (cache size and clear, `AppStats` readouts) — one `SettingsPaneViewController` subclass each.
 
 ### Cross-directory invariants
 
