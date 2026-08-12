@@ -9,6 +9,7 @@
 #import "SettingsAppearanceViewController.h"
 #import "SettingsConvertViewController.h"
 #import "SettingsGeneralViewController.h"
+#import "SettingsPermissionsViewController.h"
 #import "SettingsPlaybackViewController.h"
 #import "VibeStrings.h"
 
@@ -81,6 +82,8 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *label, NSString
     // The Convert tab reuses the Convert menu's string too.
     [tabs addTabViewItem:PaneItem([[SettingsConvertViewController alloc] initWithPlayerController:playerController],
                                   STR_MENU_CONVERT, @"arrow.triangle.2.circlepath")];
+    [tabs addTabViewItem:PaneItem([[SettingsPermissionsViewController alloc] initWithPlayerController:playerController],
+                                  STR_SETTINGS_PERMISSIONS, @"folder.badge.person.crop")];
     [tabs addTabViewItem:PaneItem([[SettingsAdvancedViewController alloc] initWithPlayerController:playerController],
                                   STR_SETTINGS_ADVANCED, @"gearshape.2")];
 

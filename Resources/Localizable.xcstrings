@@ -18997,6 +18997,54 @@
       },
       "extractionState": "manual"
     },
+    "settings.permissions": {
+      "comment": "Settings window: the Permissions pane's toolbar item, and the window's title while that pane is selected. The pane lists the folders the app keeps access to.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permissions"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.permissions.add_folder": {
+      "comment": "Settings, Permissions pane: button that opens a folder chooser to grant the app access to another folder. Ends with a real ellipsis character (…), not three periods.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Folder…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.permissions.explain": {
+      "comment": "Settings, Permissions pane: explanatory text above the list of granted folders.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe always has access to your Music folder. Other folders are added here when you open them or drag them onto Vibe, and stay accessible after a relaunch."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.permissions.remove": {
+      "comment": "Settings, Permissions pane: button that removes the selected folder from the granted list, giving up the app's access to it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.playback.crossfade.instant": {
       "comment": "Settings, Playback pane, crossfade choice: no audible blend — the next track starts immediately. The default.",
       "localizations": {
