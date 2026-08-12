@@ -1147,6 +1147,35 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     [self updatePlaybackUI];
 }
 
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didAutoAdvanceFromTrack:(AudioTrack *)finishedTrack
+                    toTrack:(AudioTrack *)startedTrack {
+    // The player spliced into the pre-scheduled next track; audio never
+    // stopped. This handler's job is the bookkeeping half of an auto-advance:
+    // move the playlist cursor and run the per-track refresh, without play:.
+    // A boundary that raced a track change belongs to the operation that
+    // superseded it.
+    if (![_playlist isCurrentTrack:finishedTrack]) {
+        return;
+    }
+    // The playlist owns what "next" means. If its next row is no longer the
+    // track the player spliced into — a replace raced the boundary —
+    // correctness beats gaplessness: treat it as an ordinary track end, whose
+    // play replaces the spliced audio with the real successor.
+    if (startedTrack != [_playlist trackAtIndex:_playlist.currentIndex + 1]) {
+        [self audioPlayer:audioPlayer didFinishPlaying:finishedTrack];
+        return;
+    }
+    [_playlist next];
+    [self scrollToCurrentPageAnimated:YES];
+    [self requestWaveformForIndex:_playlist.currentIndex];
+    [self prunePageWaveformsAroundIndex:_playlist.currentIndex];
+    // The rest of the per-track refresh — header, metadata, prefetch of the
+    // new next (which re-arms the splice), Now Playing — is exactly
+    // didStartPlaying:'s body, and its identity guard now passes.
+    [self audioPlayer:audioPlayer didStartPlaying:startedTrack];
+}
+
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceID {
     // macOS-only path; never sent on iOS.
 }
@@ -1389,6 +1418,7 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
             @"position": @(_player.position),
             @"duration": @(_player.duration),
             @"numChannels": @(_player.numChannels),
+            @"gaplessArmed": @(_player.isGaplessArmed),
             @"silent": @([NSProcessInfo.processInfo.arguments containsObject:@"--silent"]),
             @"noAudioHw": @([NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"]),
         },

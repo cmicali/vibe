@@ -35,10 +35,12 @@
         NSTimeInterval position = self.position;
         self->_generation++; // the [node stop] below fires the old segment's completion
         uint64_t rampGen = [self preemptRampsOnQueue];
+        [self setGaplessQueuedOnQueue:NO]; // the stop below drops the queued segment
         [node stop];
         double sampleRate = file.processingFormat.sampleRate;
         AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, file.length);
         [self scheduleFile:file onNode:node fromFrame:startFrame];
+        [self maybeArmGaplessOnQueue]; // re-queue the splice behind the restored segment
         NSError *startError = nil;
         if (![self startEngineAndPlayNode:node error:&startError]) {
             // No output to restart on. Park Paused at the same position, so

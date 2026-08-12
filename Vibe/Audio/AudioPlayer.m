@@ -1221,9 +1221,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // Runs on _queue. Forgets every reference bound to the current engine without
 // messaging it — the caller may hold a defunct engine whose graph must not be
 // touched, as after an iOS media-services reset (see AudioPlayer+Recovery.m).
-// Emptying the retired-fade registry halts the steppers; the open and
-// prefetch state goes because a parked AVAudioFile dies with the media
-// server.
+// Emptying the retired-fade registry halts the steppers; the open, prefetch
+// and gapless state goes because a parked AVAudioFile — the prefetched handle
+// and the splice's private one alike — dies with the media server.
 - (void)dropEngineBoundStateOnQueue {
     [_retiredFades removeAllObjects];
     _varispeed = nil;
@@ -1236,6 +1236,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _prefetchRequestId++;
     _prefetchedPath = nil;
     _prefetchedFile = nil;
+    [self clearGaplessOnQueue];
 }
 
 // [AVAudioPlayerNode play] throws an NSException if the engine stopped between
