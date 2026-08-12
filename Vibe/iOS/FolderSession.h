@@ -17,11 +17,15 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol FolderSessionDelegate <NSObject>
 
 // A pick or a restore resolved to a playable URL list. urls is never empty.
-// folderURL is nil for a single-file pick or an open-in-place file. restored
-// distinguishes a relaunch restore (park, don't autoplay) from a user pick.
+// folderURL is nil for a single-file pick or an open-in-place file whose
+// directory no held grant covers. selectedURL names the specific file the
+// user chose when a file pick expanded to its directory — play that one, not
+// the first; nil otherwise. restored distinguishes a relaunch restore (park,
+// don't autoplay) from a user pick.
 - (void)folderSession:(FolderSession *)session
         didOpenTracks:(NSArray<NSURL *> *)urls
             folderURL:(nullable NSURL *)folderURL
+          selectedURL:(nullable NSURL *)selectedURL
              restored:(BOOL)restored;
 
 // The picked location held no audio files.

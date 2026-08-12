@@ -55,7 +55,13 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 
 // How long a file open may block, since cloud placeholders download on
 // demand, before the play request is abandoned with an error.
+#if TARGET_OS_OSX
 static const NSTimeInterval kFileOpenTimeoutSeconds = 20.0;
+#else
+// iOS opens are almost always Files-provider downloads over a mobile
+// network, where 20s abandons loads that would have landed.
+static const NSTimeInterval kFileOpenTimeoutSeconds = 60.0;
+#endif
 
 // An open still pending after this long is worth a visible loading state.
 static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
@@ -222,7 +228,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 #pragma mark - Init
 
-- (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName delegate:(id <AudioPlayerDelegate>)delegate {
+- (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName
+                         enableFX:(BOOL)enableFX delegate:(id <AudioPlayerDelegate>)delegate {
     self = [super init];
     if (self) {
         _stateLock = OS_UNFAIR_LOCK_INIT;
@@ -248,7 +255,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // Created before the async engine init so that fx is non-nil from the
         // caller's first moment. Intent set early, by a key press or the BPM
         // feed, is recorded and applied when installInEngine: runs below.
-        _fx = [[AudioFX alloc] initWithQueue:_queue];
+        // Without enableFX it stays nil forever: no FX node is ever minted,
+        // and installMasterBusOnQueue wires the mixer straight to the output.
+        _fx = enableFX ? [[AudioFX alloc] initWithQueue:_queue] : nil;
         _retiredFades = [NSMutableArray array];
         self.delegate = delegate;
         dispatch_async(_queue, ^{
@@ -289,8 +298,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
             // The FX segment — low kill, and the reverb and delay returns —
             // owns everything between the main mixer and the output node.
-            // See AudioFX.
-            [self->_fx installInEngine:self->_engine];
+            // See AudioFX. With FX disabled the mixer wires straight to the
+            // output instead.
+            [self installMasterBusOnQueue];
 
 #if DEBUG
             if (manualRendering) {
@@ -686,6 +696,24 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     run_on_main_thread({
         [self.delegate audioPlayer:self didStartPlaying:track];
     });
+}
+
+// Wires the master bus — everything from the main mixer to the output — on a
+// fresh engine: the FX segment when FX is enabled, otherwise a direct
+// mixer -> output connection. The explicit connect stands in for the implicit
+// one AVAudioEngine makes on mainMixerNode access, so the wiring is the same
+// deterministic step in both configurations (a mixer volume write, like
+// --silent's, is silently dropped before the mixer is attached and wired).
+// Runs on _queue; the engine init and the iOS media-services-reset rebuild
+// are the callers.
+- (void)installMasterBusOnQueue {
+    if (_fx) {
+        [_fx installInEngine:_engine];
+    }
+    else {
+        [_engine connect:_engine.mainMixerNode to:_engine.outputNode
+                  format:[_engine.mainMixerNode outputFormatForBus:0]];
+    }
 }
 
 // Wires node -> varispeed -> mixer for a track's format. Runs on _queue.

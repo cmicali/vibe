@@ -22,6 +22,7 @@ static const CGFloat kPlaybackPopUpWidth = 200;
     NSButton *_pitchRange16;
     NSPopUpButton *_skipStepsPopUp;
     NSPopUpButton *_crossfadePopUp;
+    NSButton *_enableFXCheckbox;
     NSButton *_detectBPMCheckbox;
     NSButton *_detectKeyCheckbox;
 }
@@ -55,6 +56,15 @@ static const CGFloat kPlaybackPopUpWidth = 200;
         _crossfadePopUp.lastItem.tag = kVibeCrossfadePresets[i];
     }
 
+    // The player reads this once at init, so the toggle lands on the next
+    // launch; the caption below says so.
+    _enableFXCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_ENABLE_FX
+                                             target:self action:@selector(toggleEnableFX:)];
+    NSTextField *fxRestartCaption = [NSTextField labelWithString:
+            [NSString stringWithFormat:STR_SETTINGS_ENABLE_FX_RESTART, VibeAppName()]];
+    fxRestartCaption.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+    fxRestartCaption.textColor = [NSColor secondaryLabelColor];
+
     _detectBPMCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_DETECT_BPM
                                               target:self action:@selector(toggleDetectBPM:)];
     _detectKeyCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_DETECT_KEY
@@ -66,6 +76,8 @@ static const CGFloat kPlaybackPopUpWidth = 200;
         @[[NSTextField labelWithString:STR_SETTINGS_PITCH_RANGE_LABEL], pitchRadios],
         @[[NSTextField labelWithString:STR_SETTINGS_SKIP_STEPS_LABEL], _skipStepsPopUp],
         @[[NSTextField labelWithString:STR_SETTINGS_CROSSFADE_LABEL], _crossfadePopUp],
+        @[NSGridCell.emptyContentView, _enableFXCheckbox],
+        @[NSGridCell.emptyContentView, fxRestartCaption],
         @[NSGridCell.emptyContentView, _detectBPMCheckbox],
         @[NSGridCell.emptyContentView, _detectKeyCheckbox],
     ]];
@@ -79,6 +91,7 @@ static const CGFloat kPlaybackPopUpWidth = 200;
     // The getters snap to a preset, so these always match an item.
     [_skipStepsPopUp selectItemWithTag:Settings.skipBaseBars];
     [_crossfadePopUp selectItemWithTag:Settings.crossfadeMilliseconds];
+    _enableFXCheckbox.state = Settings.audioFXEnabled ? NSControlStateValueOn : NSControlStateValueOff;
     _detectBPMCheckbox.state = Settings.analyzeBPM ? NSControlStateValueOn : NSControlStateValueOff;
     _detectKeyCheckbox.state = Settings.analyzeKey ? NSControlStateValueOn : NSControlStateValueOff;
 }
@@ -97,6 +110,10 @@ static const CGFloat kPlaybackPopUpWidth = 200;
     NSInteger milliseconds = _crossfadePopUp.selectedTag;
     Settings.crossfadeMilliseconds = milliseconds;
     self.playerController.audioPlayer.crossfadeMilliseconds = milliseconds;
+}
+
+- (void)toggleEnableFX:(id)sender {
+    Settings.audioFXEnabled = (_enableFXCheckbox.state == NSControlStateValueOn);
 }
 
 - (void)toggleDetectBPM:(id)sender {

@@ -532,6 +532,10 @@ static NSAttributedString *symbolRun(NSString *symbolName, NSFont *font) {
     [_waveformView hideLoadingIndicator];
 }
 
+- (void)setWaveformLoadingProgress:(float)fraction {
+    [_waveformView setLoadingProgress:fraction];
+}
+
 - (void)setConvertSweepFraction:(double)fraction {
     _waveformView.convertSweepFraction = fraction;
 }

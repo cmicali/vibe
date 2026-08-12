@@ -6,6 +6,8 @@
 #import <Foundation/Foundation.h>
 #import "AudioWaveformRenderer.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 @interface DetailedAudioWaveformRenderer : AudioWaveformRenderer
 
 // The subclass hooks. The Oversampling x2, x4 and x8 variants override
@@ -29,4 +31,26 @@
 
 - (void)setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<VibeColor*>*)colors;
 
+// The iOS scrubber's settled fast path (see WaveformScrubberView): the whole
+// envelope rendered once into a bitmap — the settled bar geometry filled with
+// the played gradient, overall opacity included — so scrolling can translate
+// a texture instead of re-compositing the masked live tree every frame. The
+// unplayed presentation is the same bitmap at unplayedOverPlayedOpacity,
+// which holds because this family's unplayed stops are the played stops
+// scaled by one constant. Extract samples on the main thread; the bake itself
+// touches no layer state and may run on any queue.
+- (NSData *)envelopeSamplesForWaveform:(AudioWaveform *)waveform;
+- (nullable CGImageRef)newEnvelopeImageForSize:(CGSize)size
+                                         scale:(CGFloat)scale
+                                       samples:(NSData *)samples CF_RETURNS_RETAINED;
+- (CGFloat)unplayedOverPlayedOpacity;
+
+// The effective alpha of the hairline baseline at the vertical midline — the
+// gradient's midpoint stop times the overall waveform opacity. The iOS
+// scrubber colors its off-track baseline segments with it, so they read as
+// the waveform's own centerline continuing past the track's ends.
+- (CGFloat)baselineAlphaForPlayed:(BOOL)played;
+
 @end
+
+NS_ASSUME_NONNULL_END

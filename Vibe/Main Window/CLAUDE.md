@@ -16,7 +16,7 @@ Layout geometry, the Liquid Glass chrome, the art-tint/accent color pipeline and
 - `+Convert` — the Convert to FLAC funnel, the playlist swap and the undo round trip, with `VibeFLACConversionRecord` riding along; the actions are declared in the category header, the Transport pattern. The engine is `Audio/Convert/`.
 - `+Debug.h` — the debug command channel's extra surface.
 
-`TransportKeyMonitor` handles the bare keys: Space, B, N, P, Tab; A/S/D skip forward, Z/X/C skip back; and the dual-mode effect keys Q, W, E, R, T (R = 1/8-note delay taps, T = 1/16). A tap toggles, a hold is momentary: the effect flips at keyDown, and keyUp reverts to the pre-press state when the press ran past the ~0.35 s tap threshold — keyUp is what decides tap vs hold.
+`TransportKeyMonitor` handles the bare keys: Space, B, N, P, Tab; A/S/D skip forward, Z/X/C skip back; and the dual-mode effect keys Q, W, E, R, T (R = 1/8-note delay taps, T = 1/16). A tap toggles, a hold is momentary: the effect flips at keyDown, and keyUp reverts to the pre-press state when the press ran past the ~0.35 s tap threshold — keyUp is what decides tap vs hold. With FX disabled (`AppSettings.audioFXEnabled` off, applied at relaunch) Q/W/E/R/T pass through unhandled and `MainMenuBuilder` omits the FX menu entirely.
 
 The five effect-state setters in `+Transport` are the single funnel for menus, bare-key taps and holds, and debug commands; each calls `updateFXIndicators`, which re-reads the live `AudioFX` flags rather than trusting the caller's intent. The codec line doubles as the FX indicator; its rendering is in `APPEARANCE.md`.
 

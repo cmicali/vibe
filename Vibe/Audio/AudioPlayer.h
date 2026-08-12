@@ -62,16 +62,21 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 @property (atomic) NSInteger crossfadeMilliseconds;
 
 // The DJ performance effects: low kill and its boost, the reverb and delay
-// sends, and the delay's tempo feed. See AudioFX.h. Non-nil from init, so a
-// caller can set intent immediately; the graph work lands once the async
-// engine init runs.
-@property (nonatomic, readonly) AudioFX *fx;
+// sends, and the delay's tempo feed. See AudioFX.h. With enableFX it is
+// non-nil from init, so a caller can set intent immediately; the graph work
+// lands once the async engine init runs. Without enableFX it is nil for the
+// player's lifetime — no FX node is ever created or attached, the main mixer
+// wires straight to the output, and every fx message is a safe no-op —
+// which is how the macOS FX-off setting and the FX-less iOS app run.
+@property (nonatomic, readonly, nullable) AudioFX *fx;
 
 // deviceUID and deviceName name the persisted output device. Empty or
 // unmatched means follow the system default. The async init resolves them on
 // the player's own queue, because resolution enumerates CoreAudio devices and
-// that must stay off the launch path's main thread.
-- (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName delegate:(id <AudioPlayerDelegate>)delegate;
+// that must stay off the launch path's main thread. enableFX decides for the
+// player's lifetime whether the FX graph segment exists at all; see fx.
+- (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName
+                         enableFX:(BOOL)enableFX delegate:(id <AudioPlayerDelegate>)delegate;
 
 - (void)play:(AudioTrack *)track;
 - (void)playPause;

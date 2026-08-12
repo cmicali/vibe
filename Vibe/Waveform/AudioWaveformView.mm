@@ -26,6 +26,9 @@
     BOOL                        _didClickInside;
     AudioWaveformRenderer*      _currentWaveformRenderer;
     CAGradientLayer*            _loadingLayer;
+    // The determinate download fill beneath the shimmer; nil while progress
+    // is unknown. Same presentation as the iOS scrubber's.
+    CALayer*                    _loadingProgressLayer;
     CALayer*                    _placeholderLayer;
     NSTrackingArea*             _hoverTrackingArea;
 }
@@ -326,6 +329,36 @@
     [_loadingLayer removeAllAnimations];
     [_loadingLayer removeFromSuperlayer];
     _loadingLayer = nil;
+    [_loadingProgressLayer removeFromSuperlayer];
+    _loadingProgressLayer = nil;
+}
+
+// Determinate download progress under the shimmer, fed by
+// DownloadProgressMonitor: the midline fills from the left as the provider
+// materializes the file. A negative fraction hides it (back to
+// indeterminate); the shimmer keeps sweeping either way, since a stalled
+// provider reports no movement.
+- (void)setLoadingProgress:(float)fraction {
+    if (!_loadingLayer || fraction < 0) {
+        [_loadingProgressLayer removeFromSuperlayer];
+        _loadingProgressLayer = nil;
+        return;
+    }
+    if (!_loadingProgressLayer) {
+        CALayer *fill = [CALayer layer];
+        fill.contentsScale = VibeBackingScaleForWindow(self.window);
+        NSColor *base = self.isDark ? [NSColor whiteColor] : [NSColor blackColor];
+        fill.backgroundColor = [base colorWithAlphaComponent:0.85].CGColor;
+        // Below the shimmer, so the sweep still reads over the filled span.
+        [self.layer insertSublayer:fill below:_loadingLayer];
+        _loadingProgressLayer = fill;
+    }
+    CGFloat midY = self.bounds.size.height / 2;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _loadingProgressLayer.frame = CGRectMake(0, midY - 1,
+            self.bounds.size.width * MIN(1.0f, fraction), 2);
+    [CATransaction commit];
 }
 
 - (void)showEmptyPlaceholder {

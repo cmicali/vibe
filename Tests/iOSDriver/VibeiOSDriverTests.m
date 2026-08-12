@@ -19,6 +19,7 @@
 //
 
 #import <XCTest/XCTest.h>
+#import <objc/runtime.h>
 
 static NSString *const kAppBundleID = @"com.commonwealthrecordings.Vibe";
 static NSString *const kReadyMarker = @"vibe-driver-ready";
@@ -53,16 +54,60 @@ static BOOL ParseDouble(NSString *token, double *out) {
     return [scanner scanDouble:out] && scanner.isAtEnd;
 }
 
+// XCTest waits for the target to quiesce before AND after every synthesized
+// event, and Vibe's display link means a PLAYING app never idles — measured
+// cost: 60s timeout each side, ~2 minutes per gesture. Disabling the waits is
+// the standard move for interactive drivers (WebDriverAgent, Appium do
+// exactly this); it reaches XCTest internals, so everything is defensive —
+// if an Xcode update renames them, gestures still run, just slowly, and the
+// miss is logged rather than fatal. This is test-harness-only code: it never
+// ships in any app binary.
+static void ForceYesMethod(Class cls, NSString *name) {
+    Method method = cls ? class_getInstanceMethod(cls, NSSelectorFromString(name)) : NULL;
+    if (method) {
+        method_setImplementation(method, imp_implementationWithBlock(^BOOL(id target) {
+            return YES;
+        }));
+    }
+}
+
+static void NoOpMethod(Class cls, NSString *name) {
+    Method method = cls ? class_getInstanceMethod(cls, NSSelectorFromString(name)) : NULL;
+    if (method) {
+        // Extra arguments are simply never read by the no-op.
+        method_setImplementation(method, imp_implementationWithBlock(^(id target) {}));
+    }
+}
+
+static void DisableQuiescenceWaits(void) {
+    Class process = NSClassFromString(@"XCUIApplicationProcess");
+    Class application = NSClassFromString(@"XCUIApplication");
+    // The getters this Xcode's XCUIAutomation consults per event; forcing
+    // both skips the waits wholesale.
+    ForceYesMethod(process, @"shouldSkipPreEventQuiescence");
+    ForceYesMethod(process, @"shouldSkipPostEventQuiescence");
+    // Belt and braces for the names other Xcode versions used.
+    NoOpMethod(application, @"_waitForQuiescence");
+    NoOpMethod(application, @"_waitForQuiescenceAsPreEvent:");
+    NoOpMethod(process, @"waitForQuiescenceIncludingAnimationsIdle:");
+    NoOpMethod(process, @"waitForQuiescenceIncludingAnimationsIdle:isPreEvent:");
+}
+
 - (XCUICoordinate *)coordinateAtX:(double)x y:(double)y {
     return [[_app coordinateWithNormalizedOffset:CGVectorMake(0, 0)]
             coordinateWithOffset:CGVectorMake(x, y)];
 }
 
-// Foregrounds the app if something else is. Lazy, per command: activate on a
-// not-running app launches it (without launch-ios.sh's audio-silencing argv),
-// so the intended order is launch-ios.sh first, driver second.
+// Foregrounds the app if something else is, relaunching a dead one with the
+// same audio-silencing argv launch-ios.sh uses, so a self-heal never plays
+// through the mac's speakers.
 - (void)ensureForeground {
-    if (_app.state != XCUIApplicationStateRunningForeground) {
+    XCUIApplicationState state = _app.state;
+    if (state == XCUIApplicationStateNotRunning) {
+        _app.launchArguments = @[@"--no-audio-hw", @"--silent"];
+        [_app launch];
+    }
+    else if (state != XCUIApplicationStateRunningForeground) {
         [_app activate];
     }
 }
@@ -79,6 +124,22 @@ static BOOL ParseDouble(NSString *token, double *out) {
     if ([verb isEqualToString:@"home"]) {
         [XCUIDevice.sharedDevice pressButton:XCUIDeviceButtonHome];
         return JSONString(@{@"ok": @YES});
+    }
+    if ([verb isEqualToString:@"rotate"]) {
+        // Named by the DEVICE's physical rotation, like the Simulator menu:
+        // "left" turns the device counterclockwise (home side on the right).
+        NSDictionary *orientations = @{
+            @"portrait": @(UIDeviceOrientationPortrait),
+            @"left": @(UIDeviceOrientationLandscapeLeft),
+            @"right": @(UIDeviceOrientationLandscapeRight),
+        };
+        NSNumber *orientation = tokens.count == 2 ? orientations[tokens[1]] : nil;
+        if (!orientation) {
+            return JSONString(@{@"error": @"rotate needs: portrait|left|right"});
+        }
+        [self ensureForeground];
+        XCUIDevice.sharedDevice.orientation = (UIDeviceOrientation)orientation.integerValue;
+        return JSONString(@{@"ok": @YES, @"orientation": tokens[1]});
     }
     if ([verb isEqualToString:@"tap"] || [verb isEqualToString:@"double_tap"]) {
         if (tokens.count != 3 || !ParseDouble(tokens[1], &a1) || !ParseDouble(tokens[2], &a2)) {
@@ -130,7 +191,8 @@ static BOOL ParseDouble(NSString *token, double *out) {
     }
     return JSONString(@{@"error": [NSString stringWithFormat:
             @"unknown command '%@'. Commands: tap <x> <y>, double_tap <x> <y>, "
-            @"press <x> <y> <seconds>, drag <x1> <y1> <x2> <y2> [seconds], home, quit", verb]});
+            @"press <x> <y> <seconds>, drag <x1> <y1> <x2> <y2> [seconds], "
+            @"rotate portrait|left|right, home, quit", verb]});
 }
 
 // Returns YES when the command asked the session to end.
@@ -170,6 +232,7 @@ static BOOL ParseDouble(NSString *token, double *out) {
         return;
     }
     _app = [[XCUIApplication alloc] initWithBundleIdentifier:kAppBundleID];
+    DisableQuiescenceWaits();
 
     NSFileManager *fm = NSFileManager.defaultManager;
     // A command left behind by a dead client must not fire out of nowhere —

@@ -1,6 +1,6 @@
 ---
 name: vibe-debug
-description: Launch, drive, inspect, and visually verify the Vibe app — macOS, and the iOS simulator loop (launch-ios.sh, the debug-ios.sh command channel, silent flags, screenshots, host-side log streaming). Use whenever a change needs end-to-end verification, a screenshot of the running app, playback/UI state inspection, or appearance (light/dark) testing.
+description: Launch, drive, inspect, and visually verify the Vibe app — macOS, and the iOS simulator loop (launch-ios.sh, the debug-ios.sh command channel, the drive-ios.sh touch driver for taps and drags, silent flags, screenshots, host-side log streaming). Use whenever a change needs end-to-end verification, a screenshot of the running app, playback/UI state inspection, or appearance (light/dark) testing.
 ---
 
 # Debugging and verifying Vibe
@@ -77,18 +77,31 @@ It opens a named pipe in the app container's tmp. `AVAudioFile`'s open blocks re
 
 iOS has its **own debug command channel** (below); the `--debug-cmd` verbs in the mac section are still mac-only. The build is the `VibeiOS` scheme (`xcodebuild -scheme VibeiOS -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build`); products land in `Debug-iphonesimulator/`.
 
+**Simulator only — never a connected phone.** All iOS building, installing, launching, and testing targets the simulator, even when an iPhone or iPad is plugged in. Never pass a device destination (`platform=iOS`, a physical device's UDID or name), never use `devicectl`/`ios-deploy`, and never let `xcodebuild` auto-resolve a destination — always give it an explicit simulator one, as above. A connected phone is the user's personal device: installing on it consumes provisioning, can interrupt whatever they are doing, and leaves the app behind. The bundled scripts are already simulator-only (`simctl` cannot reach a physical device), so this rule binds ad-hoc commands. If the user **explicitly asks** for an on-device run, that authorization covers **that one run only** — it is not standing permission; the very next task returns to the simulator, and on-device use must never be recorded as a default in scripts, docs, or memory.
+
+**Each session gets its own simulator device.** The scripts never target `booted` — `scripts/sim-udid.sh` prints the UDID of a device named `Vibe-<dir>-<hash>`, keyed to the checkout path plus `CLAUDE_CODE_SESSION_ID` (one stable device per checkout when run outside Claude Code); `launch-ios.sh` and `drive-ios.sh start` create and boot it on first use, everything else requires it to exist. Concurrent agent sessions therefore never collide on the simulator, even in the same checkout: each has its own device, app container, debug channel, and touch driver (the driver's command dir is `build/ios-driver/<UDID>` and its session kills are scoped to that device). What same-checkout sessions still share is `build/DerivedData` and the built `.app` — one session rebuilding while another installs is a race only separate worktrees remove. Stale devices from ended sessions are GC'd on the next create (Shutdown + untouched for a day). `VIBE_SIM_UDID` pins a specific device (the value `booted` is the escape hatch for a manually managed one); `VIBE_SIM_NAME` renames. Raw `simctl` commands must target `"$(sim-udid.sh)"`, never `booted`, which is ambiguous once several devices are booted.
+
+**iPad.** The target is device family `1,2`, and the app is a resizable iPadOS 26 window (min 320×480, set in `VibeiOSSceneDelegate`): wider-than-tall shows the landscape layout, taller-than-wide the portrait one. `sim-udid.sh` models iPhones only, so iPad testing means `xcrun simctl create` an iPad device and exporting `VIBE_SIM_UDID` — `launch-ios.sh`, `debug-ios.sh`, and `drive-ios.sh` all honor it. `drive-ios.sh rotate left|right|portrait` flips orientation (there is no simctl rotation); assert the result from `dump_screenshot`'s `pointWidth`/`pointHeight` and check the current track index survived the transition. iPadOS windowed mode (floating windows, corner-drag resize) must be enabled per device in Settings → Multitasking & Gestures — not scriptable via `simctl`, so window-resize testing is manual.
+
+**Which tool for which job** — three tiers, cheapest first; most verification never needs the third:
+
+1. **Looking and reading**: `launch-ios.sh` + `simctl io "$(sim-udid.sh)" screenshot` + `debug-ios.sh dump_state`/`dump_view_tree`. Layout, rendering, state after a code change — start and end here when nothing needs to *happen* mid-run.
+2. **Making things happen without touches**: the channel's action verbs (`play_pause`, `seek`, `next`, `open`). They exercise the same controller paths as the UI at ~instant speed. A seek test does NOT need a real drag — `seek` routes through the scrubber's own didSeek path.
+3. **Real gestures**: `drive-ios.sh` (below), ONLY when the gesture itself is the thing under test — the waveform drag's 1:1 tracking, the pager pull, tap targets, gesture arbitration. A driver session costs a 1–2 minute spin-up and an app reinstall, so don't start one speculatively; once started, keep it for the whole work session rather than cycling it per test.
+
 ```bash
 .claude/skills/vibe-debug/scripts/launch-ios.sh [audio-file ...]   # boot if needed, install, relaunch
 ```
 
-`launch-ios.sh` is `launch.sh`'s iOS counterpart: it boots the first available iPhone simulator when none is booted (`bootstatus -b`, no guessed sleeps), installs the app from `build/DerivedData` (`$VIBE_IOS_APP` overrides), and relaunches it. **Audio is silent by default**: the shared engine honors the same debug argv flags as macOS, and the script passes `--no-audio-hw --silent` unless `VIBE_AUDIBLE=1` — so a simulator test never plays through the mac's speakers. `VIBE_LANGUAGE=de` works as on macOS. The flags apply only at `simctl launch`; a later `openurl` reuses the running process, so relaunch to change them.
+`launch-ios.sh` is `launch.sh`'s iOS counterpart: it creates and boots this checkout's dedicated simulator as needed (`sim-udid.sh` + `bootstatus -b`, no guessed sleeps), installs the app from `build/DerivedData` (`$VIBE_IOS_APP` overrides), and relaunches it. **Audio is silent by default**: the shared engine honors the same debug argv flags as macOS, and the script passes `--no-audio-hw --silent` unless `VIBE_AUDIBLE=1` — so a simulator test never plays through the mac's speakers. `VIBE_LANGUAGE=de` works as on macOS. The flags apply only at `simctl launch`; a later `openurl` reuses the running process, so relaunch to change them.
 
 **Feeding it audio.** Files passed to the script are copied into the app container's `Documents/Music` — with `UIFileSharingEnabled` that is the folder the in-app picker reaches via Browse > On My iPhone > Vibe > Music — and the first is then opened via `openurl` (the open-in-place path). That makes a **one-track playlist**: a single-file open grants no siblings on iOS. To test the directory-as-playlist behavior, seed the files and pick the Music *folder* in-app.
 
 ```bash
-DATA=$(xcrun simctl get_app_container booted com.commonwealthrecordings.Vibe data)
-xcrun simctl openurl booted "file://$DATA/Documents/Music/tone-long.wav"   # open-in-place a seeded file
-xcrun simctl io booted screenshot shot.png    # device pixels (3x), top-left origin
+UDID=$(.claude/skills/vibe-debug/scripts/sim-udid.sh)     # this checkout's device
+DATA=$(xcrun simctl get_app_container "$UDID" com.commonwealthrecordings.Vibe data)
+xcrun simctl openurl "$UDID" "file://$DATA/Documents/Music/tone-long.wav"   # open-in-place a seeded file
+xcrun simctl io "$UDID" screenshot shot.png   # device pixels (3x), top-left origin
 ```
 
 **The iOS debug command channel.** Same file protocol and one-JSON-object contract as the mac's, but with **no CLI client**: the simulator app's container tmp is a plain host directory, so the wrapper writes the command file and reads the reply directly, and the app's own tmp-directory watcher (no notification needed) answers. Debug builds only. All the mac channel's jq guidance applies verbatim.
@@ -96,6 +109,7 @@ xcrun simctl io booted screenshot shot.png    # device pixels (3x), top-left ori
 ```bash
 S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" dump_state          # {player, currentTrack, playlist, ui, settings} — ui includes waveformProgress, isScrubbing, parked, foreground
+"$S" dump_now_playing    # {hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — the mac verb minus playbackState (macOS-only)
 "$S" dump_view_tree      # {windows: [{class, frame, keyWindow, rootViewController, contentView: {…, subviews}}]} — UILabel text and button labels included
 "$S" dump_screenshot     # {ok, path, pointWidth, pointHeight, scale} — in-process render written into the container; the HOST can read the path directly (no TCC)
 "$S" play_pause          # compact {ok, state, index, count, position, parked} summary; also: next, previous
@@ -106,7 +120,7 @@ VIBE_DEBUG_TIMEOUT=20 "$S" clear_caches   # blocks until both PINCaches are empt
 
 Exit codes match the mac client: 0 ok, 1 no response (no debug build running), 2 command error. The unknown-command reply is the authoritative verb list. Replies to action verbs are read synchronously and can lag async engine work — the same caveat as the mac: a `seek` or `play_pause` reply may show the pre-action state, so follow with `dump_state`. The app side is `Vibe/iOS/DebugCommands.m` over the shared transport in `Vibe/Debug/DebugChannel.m`; adding a verb there is the entire hookup.
 
-**What the iOS channel cannot do**: input injection — no public API synthesizes `UITouch`es, so gestures (the waveform drag, the track pager pull) are tested manually or via XCUITest — and the mac's menu, window, FX, pitch, convert, and file_cache verbs have no iOS counterparts yet. `dump_screenshot` renders in-process (UIVisualEffectView blurs only approximate); `simctl io booted screenshot` remains the ground truth for real pixels.
+**What the iOS channel cannot do**: input injection — no public API synthesizes `UITouch`es in-process; real gestures go through the touch driver below — and the mac's menu, window, FX, pitch, convert, and file_cache verbs have no iOS counterparts yet. `dump_screenshot` renders in-process (UIVisualEffectView blurs only approximate); `simctl io "$(sim-udid.sh)" screenshot` remains the ground truth for real pixels.
 
 **Logs stream from the HOST.** Simulator processes write into the mac's unified log, and `log stream` *inside* the simulator (`simctl spawn`) is refused as non-admin. Info and debug are not persisted (same as macOS), so stream, don't `log show`:
 
@@ -114,9 +128,26 @@ Exit codes match the mac client: 0 ok, 1 no response (no debug build running), 2
 /usr/bin/log stream --level debug --predicate 'subsystem == "com.commonwealthrecordings.Vibe"'
 ```
 
-**Driving the UI.** Prefer the channel's verbs (`play_pause`, `seek`, `open`, …) — they need no window focus and reply with state. Only a genuine *gesture* (the waveform drag, the track pager pull) needs real clicks on the Simulator window: `input.swift click/drag` (OS-level input path below) after `tell application "Simulator" to activate` — the window must be frontmost or clicks land elsewhere. Map device pixels to mac screen points by calibrating against a landmark visible in both a `simctl` screenshot and a `screencapture` of the window; the window's scale is not a round fraction of the device's 3x, so measure, don't assume. Verify every injected tap's effect with `dump_state` or the next screenshot rather than assuming it landed.
+**Driving the UI: the touch driver.** For state changes, prefer the channel's verbs (`play_pause`, `seek`, `open`, …) — instant, no focus needed, reply with state. For genuine *gestures* (the waveform drag, the track pager pull, tapping buttons), use the touch driver: a resident XCUITest (`VibeiOSDriver`, sources in `Tests/iOSDriver/`) that executes gesture commands over the same file protocol — the only sanctioned touch-synthesis path on iOS. The Simulator window does NOT need to be frontmost, and coordinates are app-window POINTS (top-left origin; `simctl` screenshot pixels ÷ the scale `dump_screenshot` reports).
 
-**Simulator blind spots.** Interruptions (calls/Siri), route changes (headphone unplug), background audio past lock, and the lock-screen card need a real device. The `AVAudioSession` code runs but the simulator does not exercise it faithfully.
+```bash
+D=.claude/skills/vibe-debug/scripts/drive-ios.sh
+"$D" start                    # builds + installs + spins up the runner (~1-2 min);
+                              #   START BEFORE launch-ios.sh — its xcodebuild installs the
+                              #   app, and launch-ios.sh skips its own install while the
+                              #   driver is live (competing installs bounce the running app)
+"$D" tap 201 250              # also: double_tap x y, press x y seconds, home
+"$D" drag 300 560 100 560 1.0 # x1 y1 x2 y2 [seconds] — give seconds for a 1:1 scrub
+                              #   (the waveform drag), omit for a flick
+"$D" status                   # {"ready": true|false}
+"$D" stop                     # end the session
+```
+
+Latency: ~1s per gesture at steady state; the FIRST gesture after a start or an app relaunch pays the accessibility attach (can run tens of seconds — send a throwaway `tap` on dead space as a warm-up). If the app is dead, the next gesture relaunches it with the audio-silencing flags. The reply means the gesture was *performed*, not that it landed where intended — verify with `debug-ios.sh dump_state` or a screenshot. One session at a time; `start` kills a previous one. **Stale-build trap**: while a driver session is live, `launch-ios.sh` skips its own install (see above), so a rebuilt app does NOT reach the simulator until you rerun `drive-ios.sh start` (which installs the fresh build) — after any app rebuild mid-session, restart the driver first; `launch-ios.sh` warns when it detects the built binary is newer than the installed one. The runner disables XCTest's per-event quiescence waits (Vibe's display link means a playing app never idles; without this every gesture costs ~2 minutes) — that reaches XCTest internals, harness-only, never shipped, and degrades to slow-but-working if an Xcode update renames them (see `Tests/iOSDriver/VibeiOSDriverTests.m`).
+
+`input.swift` clicks on the Simulator *window* are obsolete for this — no calibration, no frontmost dance.
+
+**Simulator blind spots.** Interruptions (calls/Siri), route changes (headphone unplug), background audio past lock, and the lock-screen card need a real device. The `AVAudioSession` code runs but the simulator does not exercise it faithfully. Per the simulator-only rule above, do not drive a connected phone to close these gaps — report them as unverified and let the user test on their own device, unless they explicitly ask for a one-time on-device run.
 
 ## Driving and inspecting the running app: `--debug-cmd`
 

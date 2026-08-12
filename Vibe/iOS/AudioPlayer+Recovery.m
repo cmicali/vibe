@@ -8,7 +8,6 @@
 
 #import "AudioPlayer+Recovery.h"
 #import "AudioPlayerInternal.h"
-#import "AudioFX.h"
 
 @implementation AudioPlayer (Recovery)
 
@@ -62,9 +61,10 @@
 
 // Dead objects are dropped, never stopped or detached — messaging the defunct
 // engine's graph is what must not happen here, which is
-// dropEngineBoundStateOnQueue's contract — and installInEngine: mints fresh
-// FX nodes and re-applies the recorded intent, so the rebuilt graph comes up
-// with the same effect state.
+// dropEngineBoundStateOnQueue's contract — and installMasterBusOnQueue mints
+// fresh FX nodes and re-applies the recorded intent (or, with FX disabled,
+// rewires the bare mixer -> output bus), so the rebuilt graph comes up with
+// the same effect state.
 - (void)reinitializeAfterMediaServicesReset {
     dispatch_async(_queue, ^{
         LogWarn(@"AudioPlayer: rebuilding engine after media services reset");
@@ -74,7 +74,7 @@
         self.currentTrack = nil;
         [self publishPlaybackState:VibePlayerStateStopped node:nil file:nil segmentStart:0 position:0];
         self->_engine = [[AVAudioEngine alloc] init];
-        [self.fx installInEngine:self->_engine];
+        [self installMasterBusOnQueue];
     });
 }
 

@@ -34,6 +34,10 @@ NS_ASSUME_NONNULL_BEGIN
 // progress writes so the playhead does not fight the finger.
 @property (nonatomic, readonly) BOOL isScrubbing;
 
+// YES while the settled envelope bitmap is standing in for the live renderer
+// tree (the scroll/scrub fast path). Diagnostic; surfaced in dump_state.
+@property (nonatomic, readonly) BOOL isShowingBakedWaveform;
+
 // Same contract as the mac view: reset ahead of a load (installing the
 // persisted style on first use), then hand snapshots to showWaveform:.
 - (void)prepareForWaveformLoad;
@@ -43,6 +47,10 @@ NS_ASSUME_NONNULL_BEGIN
 // the static midline for the no-track empty state.
 - (void)showLoadingIndicator;
 - (void)hideLoadingIndicator;
+// Determinate download progress while the loading indicator shows: the
+// midline fills to fraction. Negative reverts to indeterminate. No-op
+// unless the loading indicator is up.
+- (void)setLoadingProgress:(float)fraction;
 - (void)showEmptyPlaceholder;
 
 @end

@@ -1,9 +1,11 @@
 #!/bin/bash
-# Run one debug command against the iOS app in the booted simulator and print
-# its JSON reply. The iOS counterpart of `Vibe --debug-cmd`: there is no CLI
-# client — the simulator app's container tmp is a plain host directory, so
-# this writes the command file and reads the reply directly. The app watches
-# its tmp with a vnode source (DebugChannel.m), so no notification is needed.
+# Run one debug command against the iOS app in this checkout's simulator
+# (sim-udid.sh — never `booted`, which is ambiguous with several devices up)
+# and print its JSON reply. The iOS counterpart of `Vibe --debug-cmd`: there
+# is no CLI client — the simulator app's container tmp is a plain host
+# directory, so this writes the command file and reads the reply directly.
+# The app watches its tmp with a vnode source (DebugChannel.m), so no
+# notification is needed.
 #
 # Usage: debug-ios.sh <verb> [args ...]         (e.g. debug-ios.sh dump_state)
 # Timeout: 10s default; VIBE_DEBUG_TIMEOUT=<seconds> overrides (clear_caches
@@ -14,9 +16,12 @@ set -euo pipefail
 
 [ "$#" -ge 1 ] || { echo "usage: debug-ios.sh <verb> [args ...]" >&2; exit 64; }
 
+DIR="$(cd "$(dirname "$0")" && pwd)"
 BUNDLE_ID="com.commonwealthrecordings.Vibe"
-DATA="$(xcrun simctl get_app_container booted "$BUNDLE_ID" data 2>/dev/null)" \
-    || { echo '{"error": "no booted simulator with the app installed"}'; exit 1; }
+UDID="$("$DIR/sim-udid.sh" 2>/dev/null)" \
+    || { echo '{"error": "no simulator for this checkout — run launch-ios.sh first (or set VIBE_SIM_UDID)"}'; exit 1; }
+DATA="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data 2>/dev/null)" \
+    || { echo '{"error": "app not installed on this checkout'"'"'s simulator — run launch-ios.sh"}'; exit 1; }
 TMP="$DATA/tmp"
 [ -d "$TMP" ] || { echo '{"error": "app container has no tmp directory"}'; exit 1; }
 

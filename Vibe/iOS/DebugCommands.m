@@ -8,6 +8,7 @@
 #if DEBUG
 
 #import <UIKit/UIKit.h>
+#import <MediaPlayer/MediaPlayer.h>
 #import "DebugChannel.h"
 #import "DebugShared.h"
 #import "PlayerViewController.h"
@@ -148,6 +149,23 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
         table = @[
             VibeCmd(@"dump_state", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlayerViewController *controller) {
                 return VibeJSONString(controller.debugStateDictionary);
+            }),
+            VibeCmd(@"dump_now_playing", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlayerViewController *controller) {
+                // What we publish to the system Now Playing UI — the mac verb
+                // minus playbackState, which is macOS-only (iOS derives it
+                // from the audio session and the published rate).
+                NSDictionary *info = MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo;
+                NSMutableDictionary *out = [NSMutableDictionary dictionary];
+                out[@"hasInfo"] = @(info != nil);
+                if (info) {
+                    out[@"title"] = info[MPMediaItemPropertyTitle] ?: NSNull.null;
+                    out[@"artist"] = info[MPMediaItemPropertyArtist] ?: NSNull.null;
+                    out[@"duration"] = info[MPMediaItemPropertyPlaybackDuration] ?: NSNull.null;
+                    out[@"elapsed"] = info[MPNowPlayingInfoPropertyElapsedPlaybackTime] ?: NSNull.null;
+                    out[@"rate"] = info[MPNowPlayingInfoPropertyPlaybackRate] ?: NSNull.null;
+                    out[@"hasArtwork"] = @(info[MPMediaItemPropertyArtwork] != nil);
+                }
+                return VibeJSONString(out);
             }),
             VibeCmd(@"dump_view_tree", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlayerViewController *controller) {
                 return VibeViewTreeDump();

@@ -21997,6 +21997,30 @@
       },
       "extractionState": "manual"
     },
+    "settings.playback.enable_fx": {
+      "comment": "Settings, Playback pane: checkbox keeping the DJ performance effects (low kill, reverb, delay) available. When off, the effect processing is removed from the audio engine entirely. 'FX' is the DJ term for effects, left untranslated.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable audio FX"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.playback.enable_fx_restart": {
+      "comment": "Settings, Playback pane: small caption under the 'Enable audio FX' checkbox explaining that toggling it applies on the next launch. %@ is the app name.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takes effect after %@ is reopened."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.playback.pitch_range_label": {
       "comment": "Settings, Playback pane: label beside the pitch fader range choice (8% or 16%). Ends with a colon.",
       "localizations": {

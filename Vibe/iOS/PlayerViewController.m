@@ -11,6 +11,7 @@
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "AudioSessionController.h"
+#import "DownloadProgressMonitor.h"
 #import "FolderSession.h"
 #import "Playlist.h"
 #import "NowPlayingController.h"
@@ -29,12 +30,16 @@
 
 static const NSUInteger kUIUpdateHz = 3;
 
-// The waveform strip's geometry against the safe-area bottom, shared by the
-// in-cell attachment and the transport buttons anchored above it on the
-// overlay: the strip reparents between pages, so nothing may constrain
-// across that boundary.
+// The in-cell geometry's NOMINAL numbers, duplicated from TrackPageCell so
+// the overlay chrome lines up without constraining across the cell boundary:
+// the empty-state line sits at the nominal center of the cell's waveform
+// box — where the two-box stack's centering puts it at standard text size.
+// One pair per orientation; landscape's waveform is bottom-anchored, so its
+// inset is exact rather than centering slack.
 static const CGFloat kWaveformHeight = 180;
-static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe.bottom
+static const CGFloat kWaveformBottomInset = 118;   // nominal: bar clearance + time row + centering slack
+static const CGFloat kWaveformHeightLandscape = 120;
+static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + time row
 
 @interface PlayerViewController () <AudioPlayerDelegate, PlaylistObserver,
         AudioTrackMetadataCacheDelegate, AudioWaveformCacheDelegate,
@@ -62,6 +67,11 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     // keeps the waveform from snapping back for those frames.
     float                   _pendingSeekProgress;
     BOOL                    _seekInFlight;
+    // The same guard for a track change: until didStartPlaying: lands, the
+    // player's getters still serve the OUTGOING track, so the new page's
+    // waveform and time labels render the incoming track at rest instead of
+    // the stale position (which then snapped to zero when the open landed).
+    BOOL                    _trackStartPending;
 
     // The track pager, Photos-style: one full-screen cell per track (blurred
     // art + header), interactively draggable to the neighbors. The chrome —
@@ -70,6 +80,8 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     UICollectionView        *_pagesView;
     UICollectionViewFlowLayout *_pagesLayout;
     UILabel                 *_emptyHintLabel;
+    UIView                  *_emptyLineView;
+    NSLayoutConstraint      *_emptyLineCenterY;  // re-aimed per orientation
     // Every page cell carries its own waveform view; these are BINDINGS to
     // the current page's views, rebound when the current cell appears or is
     // recreated, so the live-update paths (and the debug channel) keep one
@@ -84,20 +96,26 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     NSUInteger              _waveformLoadIndex;
     NSMutableDictionary<NSNumber *, CodableAudioWaveform *> *_pageWaveforms;
     NSMutableIndexSet       *_completePages;
-    UIButton                *_playPauseButton;
-    UIButton                *_nextButton;
+    TrackPageCell           *_boundPage;        // the current page the chrome bindings point into
+    UIButton                *_playPauseButton;  // bound: the current page's glyph
     UIButton                *_searchBarButton;  // Messages-style glass search bar
     UIButton                *_folderButton;     // the compose-position circle
     UITapGestureRecognizer  *_emptyStateTap;
 
     TrackListViewController *_trackListController;
 
+    // Polls a materializing cloud file's size while the loading indicator is
+    // up; nil otherwise.
+    DownloadProgressMonitor *_downloadMonitor;
     // An inline playback error, shown on the artist line until the next track
     // event, exactly like the mac header.
     NSString                *_errorText;
     // A restored track is parked: header, waveform, and metadata are loaded,
     // but nothing plays until the user asks.
     BOOL                    _parked;
+    // A size transition (rotation, iPad window resize) is animating: the
+    // pager's offset is not page-aligned at the new width, so commits hold.
+    BOOL                    _windowResizeInFlight;
 }
 
 #pragma mark - Lifecycle
@@ -125,7 +143,11 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     _folderSession = [[FolderSession alloc] init];
     _folderSession.delegate = self;
     _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
-    _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@"" delegate:self];
+    // No FX on iOS: nothing surfaces them, so the FX graph segment is never
+    // created or attached — the mixer wires straight to the output. A hard
+    // NO, not the shared audioFXEnabled setting, so the mac default cannot
+    // reach in here.
+    _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@"" enableFX:NO delegate:self];
 
     __weak PlayerViewController *weakSelf = self;
     _updateTimer = [[UIUpdateTimer alloc] initWithHz:kUIUpdateHz handler:^{
@@ -187,7 +209,20 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     _pagesView.pagingEnabled = YES;
     _pagesView.showsHorizontalScrollIndicator = NO;
     _pagesView.allowsSelection = NO;
+    // Photos-style edge give: pulling past the first or last page reveals the
+    // backdrop and springs back. alwaysBounce keeps the pull alive on a
+    // one-track playlist too, where content exactly fills the bounds.
+    _pagesView.bounces = YES;
+    _pagesView.alwaysBounceHorizontal = YES;
     _pagesView.backgroundColor = [UIColor clearColor];
+    // What an edge pull (and the empty state) reveals behind the pages: the
+    // record texture, full-bleed. backgroundView pins it behind the cells
+    // without scrolling.
+    UIImageView *backdrop = [[UIImageView alloc]
+            initWithImage:[UIImage imageNamed:@"record-bg"]];
+    backdrop.contentMode = UIViewContentModeScaleAspectFill;
+    backdrop.clipsToBounds = YES;
+    _pagesView.backgroundView = backdrop;
     // Pages must be exactly screen-sized; safe-area adjustment would shrink
     // the content and break the paging math.
     _pagesView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
@@ -200,6 +235,7 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 
     _emptyHintLabel = [[UILabel alloc] init];
     _emptyHintLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleTitle3];
+    _emptyHintLabel.adjustsFontForContentSizeCategory = YES;
     _emptyHintLabel.textColor = [UIColor secondaryLabelColor];
     _emptyHintLabel.textAlignment = NSTextAlignmentCenter;
     _emptyHintLabel.numberOfLines = 0;
@@ -207,18 +243,19 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     _emptyHintLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [root addSubview:_emptyHintLabel];
 
-    // The waveform and time labels live in the page cells; the bindings are
-    // established as cells appear.
+    // The empty state's midline — the mac view's placeholder line, drawn in
+    // the chrome because with no tracks there are no page cells to host it.
+    // Geometry and color mirror the scrubber's own placeholder (2pt at the
+    // waveform strip's vertical center; the screen is forced dark).
+    _emptyLineView = [[UIView alloc] init];
+    _emptyLineView.backgroundColor = [UIColor.whiteColor colorWithAlphaComponent:0.275];
+    _emptyLineView.hidden = YES;
+    _emptyLineView.translatesAutoresizingMaskIntoConstraints = NO;
+    [root addSubview:_emptyLineView];
 
-    _playPauseButton = [self makeTransportButton:@"play.fill" pointSize:44
-                                          action:@selector(playPauseTapped)];
-    _playPauseButton.accessibilityLabel = STR_TRANSPORT_PLAY;
-    _nextButton = [self makeTransportButton:@"forward.end.fill" pointSize:26
-                                     action:@selector(nextTapped)];
-    _nextButton.accessibilityLabel = STR_TRANSPORT_NEXT;
-
-    [root addSubview:_playPauseButton];
-    [root addSubview:_nextButton];
+    // The waveform, time labels, and play glyph live in the page cells; the
+    // bindings are established as cells appear. Next lives in the page
+    // swipe, the track list, and the lock screen.
 
     // The Messages-style bottom bar: a wide glass search field, and the
     // folder button in the compose position beside it.
@@ -248,9 +285,9 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     _folderButton.translatesAutoresizingMaskIntoConstraints = NO;
     [root addSubview:_folderButton];
 
-    // Tap anywhere (off the waveform and the controls): choose a folder when
-    // empty, otherwise toggle play/pause — the transport hides while playing,
-    // so the tap IS the pause control.
+    // Tap anywhere (off the waveform and the controls) — the art card
+    // included: choose a folder when empty, otherwise toggle play/pause —
+    // the glyph hides while playing, so the tap IS the pause control.
     _emptyStateTap = [[UITapGestureRecognizer alloc] initWithTarget:self
                                                              action:@selector(screenTapped)];
     _emptyStateTap.delegate = self;
@@ -269,14 +306,9 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
         [_emptyHintLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor constant:24],
         [_emptyHintLabel.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-24],
 
-        // Play/pause on the screen's center line, next to its right, sitting
-        // just above where the waveform strip rides in the pages. Anchored to
-        // the root, not the strip — the strip reparents between cells.
-        [_playPauseButton.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
-        [_playPauseButton.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor
-                constant:-(kWaveformBottomInset + kWaveformHeight + 16)],
-        [_nextButton.leadingAnchor constraintEqualToAnchor:_playPauseButton.trailingAnchor constant:40],
-        [_nextButton.centerYAnchor constraintEqualToAnchor:_playPauseButton.centerYAnchor],
+        [_emptyLineView.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
+        [_emptyLineView.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
+        [_emptyLineView.heightAnchor constraintEqualToConstant:2],
 
         [_searchBarButton.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
         [_searchBarButton.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor constant:-4],
@@ -287,6 +319,19 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
         [_folderButton.widthAnchor constraintEqualToConstant:52],
         [_folderButton.heightAnchor constraintEqualToConstant:52],
     ]];
+
+    _emptyLineCenterY = [_emptyLineView.centerYAnchor constraintEqualToAnchor:safe.bottomAnchor];
+    _emptyLineCenterY.active = YES;
+    [self aimEmptyLine];
+}
+
+// Keeps the empty-state line on the nominal waveform midline of whichever
+// cell layout the current orientation uses.
+- (void)aimEmptyLine {
+    BOOL landscape = self.view.bounds.size.width > self.view.bounds.size.height;
+    _emptyLineCenterY.constant = landscape
+            ? -(kWaveformBottomInsetLandscape + kWaveformHeightLandscape / 2)
+            : -(kWaveformBottomInset + kWaveformHeight / 2);
 }
 
 - (UILabel *)makeTimeLabel {
@@ -296,22 +341,6 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     label.text = STR_LABEL_TIME_UNKNOWN;
     label.translatesAutoresizingMaskIntoConstraints = NO;
     return label;
-}
-
-- (UIButton *)makeTransportButton:(NSString *)symbol pointSize:(CGFloat)pointSize
-                           action:(SEL)action {
-    UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
-    UIImageSymbolConfiguration *config =
-        [UIImageSymbolConfiguration configurationWithPointSize:pointSize
-                                                        weight:UIImageSymbolWeightMedium];
-    [button setImage:[UIImage systemImageNamed:symbol withConfiguration:config]
-            forState:UIControlStateNormal];
-    button.tintColor = [UIColor labelColor];
-    [button addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
-    button.translatesAutoresizingMaskIntoConstraints = NO;
-    [button.widthAnchor constraintGreaterThanOrEqualToConstant:64].active = YES;
-    [button.heightAnchor constraintEqualToConstant:72].active = YES;
-    return button;
 }
 
 #pragma mark - Gestures
@@ -343,9 +372,16 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     if (!cell) {
         return;
     }
+    _boundPage = cell;
     _waveformView = cell.waveformView;
     _elapsedLabel = cell.elapsedLabel;
     _remainingLabel = cell.remainingLabel;
+    _playPauseButton = cell.playPauseButton;
+    // A rebind means a fresh (or reloaded) cell whose labels came back at
+    // their reuse defaults; while paused no timer tick will repopulate them,
+    // so refresh now — the play glyph's symbol and visibility included.
+    [self updatePlaybackUI];
+    [self updatePlayButton];
 }
 
 // Retargets the single waveform load at a page. An index the pipeline is
@@ -368,11 +404,17 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 }
 
 // Reloaded and recycled cells come back blank; the latest snapshot puts the
-// waveform straight back without waiting for a fresh decode.
+// waveform straight back without waiting for a fresh decode. With no
+// snapshot in hand the page animates the loading line instead of sitting
+// blank — on a network folder the decode behind it is routinely slow — and
+// showWaveform: ends the line when data arrives.
 - (void)hydrateWaveformInCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
     CodableAudioWaveform *snapshot = _pageWaveforms[@(index)];
     if (snapshot) {
         [cell.waveformView showWaveform:snapshot];
+    }
+    else {
+        [cell.waveformView showLoadingIndicator];
     }
 }
 
@@ -402,6 +444,8 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
                 [_pagesView.panGestureRecognizer requireGestureRecognizerToFail:recognizer];
             }
         }
+        [page.playPauseButton addTarget:self action:@selector(playPauseTapped)
+                       forControlEvents:UIControlEventTouchUpInside];
     }
 
     [self hydrateWaveformInCell:page atIndex:index];
@@ -424,17 +468,13 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     }
 }
 
-- (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView
-                  cellForItemAtIndexPath:(NSIndexPath *)indexPath {
-    TrackPageCell *cell = [collectionView
-            dequeueReusableCellWithReuseIdentifier:TrackPageCell.reuseIdentifier
-                                      forIndexPath:indexPath];
-    AudioTrack *track = [_playlist trackAtIndex:(NSUInteger)indexPath.item];
-    BOOL isCurrent = (NSUInteger)indexPath.item == _playlist.currentIndex;
-    BOOL showError = isCurrent && _errorText;
+- (void)configurePage:(TrackPageCell *)cell atIndex:(NSUInteger)index {
+    AudioTrack *track = [_playlist trackAtIndex:index];
+    BOOL showError = index == _playlist.currentIndex && _errorText;
     // Neighbors show their cached thumbnail — under the blur the 128px
     // thumbnail and the full decode are indistinguishable, and only the
-    // current track ever decodes full art.
+    // current track ever decodes full art. A track with no art gets the
+    // mac's vinyl placeholder.
     [cell configureWithTitle:(track.hasArtistAndTitle ? track.title : track.singleLineTitle)
                   titleColor:[UIColor labelColor]
                       artist:(showError ? _errorText
@@ -442,7 +482,19 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
                  artistColor:(showError ? [UIColor systemRedColor]
                                         : [UIColor secondaryLabelColor])
                     fileInfo:[self fileInfoTextForTrack:track]
-                         art:(track.albumArt ?: track.thumbnailAlbumArt)];
+                         art:(track.albumArt ?: track.thumbnailAlbumArt
+                                              ?: [UIImage imageNamed:@"record-bg"])];
+}
+
+- (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView
+                  cellForItemAtIndexPath:(NSIndexPath *)indexPath {
+    TrackPageCell *cell = [collectionView
+            dequeueReusableCellWithReuseIdentifier:TrackPageCell.reuseIdentifier
+                                      forIndexPath:indexPath];
+    [self configurePage:cell atIndex:(NSUInteger)indexPath.item];
+    // Reuse hands back the glyph at its resting look; stamp the live chrome
+    // state so a page never appears with the wrong visibility.
+    cell.playPauseButton.alpha = [self chromeAlpha];
     return cell;
 }
 
@@ -454,12 +506,30 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
+    [self aimEmptyLine];
     // Page size follows the view, and the offset must stay page-aligned
     // through the first layout after a restore.
     [_pagesLayout invalidateLayout];
     if (!_pagesView.isDragging && !_pagesView.isDecelerating) {
         [self scrollToCurrentPageAnimated:NO];
     }
+}
+
+// Rotation and window resize: re-page alongside the transition so the
+// current page stays centered instead of the offset landing between pages at
+// the new width. The in-flight flag keeps commitVisiblePage from rounding a
+// mid-resize offset to a neighbor page — which would switch tracks.
+- (void)viewWillTransitionToSize:(CGSize)size
+       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
+    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+    _windowResizeInFlight = YES;
+    [coordinator animateAlongsideTransition:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+        [self->_pagesLayout invalidateLayout];
+        [self scrollToCurrentPageAnimated:NO];
+    } completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+        self->_windowResizeInFlight = NO;
+        [self scrollToCurrentPageAnimated:NO];
+    }];
 }
 
 - (void)scrollToCurrentPageAnimated:(BOOL)animated {
@@ -473,8 +543,20 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     }
 }
 
+// In place when the page has a live cell: reloadItemsAtIndexPaths: swaps the
+// full-screen cell with a crossfade — the whole blurred backdrop dims on
+// every track commit and metadata/art delivery — and recycles the waveform
+// with it. Pages without a cell reload so a prefetched one cannot come on
+// screen stale.
 - (void)refreshPageAtIndex:(NSUInteger)index {
-    if (index < _playlist.count) {
+    if (index >= _playlist.count) {
+        return;
+    }
+    TrackPageCell *cell = [self cellAtIndex:index];
+    if (cell) {
+        [self configurePage:cell atIndex:index];
+    }
+    else {
         [_pagesView reloadItemsAtIndexPaths:
                 @[[NSIndexPath indexPathForItem:(NSInteger)index inSection:0]]];
     }
@@ -485,7 +567,7 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 // nothing.
 - (void)commitVisiblePage {
     CGFloat width = _pagesView.bounds.size.width;
-    if (width <= 0 || _playlist.count == 0) {
+    if (width <= 0 || _playlist.count == 0 || _windowResizeInFlight) {
         return;
     }
     NSUInteger page = (NSUInteger)MAX(0.0, round(_pagesView.contentOffset.x / width));
@@ -518,6 +600,7 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 - (void)showEmptyState {
     _emptyHintLabel.text = STR_LABEL_OPEN_HINT_IOS;
     _emptyHintLabel.hidden = NO;
+    _emptyLineView.hidden = NO;
     [self updatePlayButton];
 }
 
@@ -525,6 +608,7 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 // means refreshing its page and rebinding the live chrome to it.
 - (void)renderHeaderForTrack:(AudioTrack *)track {
     _emptyHintLabel.hidden = YES;
+    _emptyLineView.hidden = YES;
     [self refreshPageAtIndex:_playlist.currentIndex];
     [self bindChromeToCell:[self cellAtIndex:_playlist.currentIndex]];
 }
@@ -550,28 +634,25 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 }
 
 - (void)updatePlayButton {
-    BOOL playing = _player.isPlaying;
-    NSString *symbol = playing ? @"pause.fill" : @"play.fill";
-    UIImageSymbolConfiguration *config =
-        [UIImageSymbolConfiguration configurationWithPointSize:44
-                                                        weight:UIImageSymbolWeightMedium];
-    [_playPauseButton setImage:[UIImage systemImageNamed:symbol withConfiguration:config]
-                      forState:UIControlStateNormal];
-    _playPauseButton.accessibilityLabel = playing ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
+    [_boundPage setGlyphPlaying:_player.isPlaying];
     [self updateChrome];
 }
 
-// Playing hides the transport — a screen tap pauses — and pausing (parked,
-// stopped, and empty included) brings the buttons back. The art stays
-// blurred in every state.
+// Playing hides the play glyph — a screen tap pauses — and pausing (parked
+// and stopped included) brings it back between the time labels. The empty
+// state shows no glyph either: there is nothing to play until a folder is
+// chosen.
+- (CGFloat)chromeAlpha {
+    return (_player.isPlaying || _playlist.count == 0) ? 0 : 1;
+}
+
 - (void)updateChrome {
-    CGFloat buttonAlpha = _player.isPlaying ? 0 : 1;
+    CGFloat buttonAlpha = [self chromeAlpha];
     if (_playPauseButton.alpha == buttonAlpha) {
         return;
     }
     [UIView animateWithDuration:0.3 animations:^{
         self->_playPauseButton.alpha = buttonAlpha;
-        self->_nextButton.alpha = buttonAlpha;
     }];
 }
 
@@ -581,6 +662,10 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 
 - (void)scrollTick:(CADisplayLink *)link {
     if (_waveformView.isScrubbing) {
+        return;
+    }
+    if (_trackStartPending) {
+        _waveformView.progress = 0;
         return;
     }
     if (_seekInFlight) {
@@ -594,6 +679,21 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 }
 
 - (void)updatePlaybackUI {
+    if (_trackStartPending) {
+        // The incoming track at rest — the neighbor-page treatment — never
+        // the outgoing track's position, which the player still reports.
+        AudioTrack *track = _playlist.currentTrack;
+        BOOL known = track.duration > 0;
+        _elapsedLabel.text = known
+                ? [[Formatters sharedInstance] durationStringFromTimeInterval:0]
+                : STR_LABEL_TIME_UNKNOWN;
+        _remainingLabel.text = known ? track.durationString : STR_LABEL_TIME_UNKNOWN;
+        if (!_waveformView.isScrubbing) {
+            _waveformView.progress = 0;
+        }
+        [self publishNowPlaying];
+        return;
+    }
     NSTimeInterval position = _player.position;
     NSTimeInterval duration = _player.duration;
     if (duration > 0) {
@@ -621,13 +721,54 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     else if (_player.isPaused) {
         state = NowPlayingPlaybackStatePaused;
     }
-    [_nowPlaying updateWithTrack:(_parked || _player.currentTrack) ? _playlist.currentTrack : nil
-                        position:_player.position
-                        duration:_player.duration
+    AudioTrack *track = (_parked || _trackStartPending || _player.currentTrack)
+            ? _playlist.currentTrack : nil;
+    if (track) {
+        [self dispatchAlbumArtLoadForTrack:track];
+    }
+    [_nowPlaying updateWithTrack:track
+                        position:(_trackStartPending ? 0 : _player.position)
+                        duration:(_trackStartPending ? track.duration : _player.duration)
                            state:state
                             rate:1.0
                          hasNext:_playlist.hasNextTrack
                      hasPrevious:_playlist.hasPreviousTrack];
+}
+
+// Cache-hit metadata does not carry the art bytes, and extracting them
+// re-reads the audio file, which can block on an undownloaded cloud file, so
+// the decode runs off the main thread — the mac's ArtworkDisplayController
+// dispatch. Until it lands, albumArt reads nil and the Now Playing card and
+// the current page show no full-res art; the resolve republishes both.
+- (void)dispatchAlbumArtLoadForTrack:(AudioTrack *)track {
+    AudioTrackMetadata *metadata = track.metadata;
+    if (!metadata.albumArtNeedsLoad || metadata.albumArtLoadDispatched) {
+        return;
+    }
+    metadata.albumArtLoadDispatched = YES;
+    __weak PlayerViewController *weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        VibeImage *loaded = metadata.albumArt;  // may block; background thread
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // Resolved either way; albumArtNeedsLoad is NO after any
+            // completion, so no duplicate dispatch can follow.
+            metadata.albumArtLoadDispatched = NO;
+            PlayerViewController *self = weakSelf;
+            if (!self) {
+                return;
+            }
+            if (![self->_playlist isCurrentTrack:track]) {
+                // Skipped away before the load resolved; nothing else would
+                // demote the full-resolution decode this load just pinned.
+                [metadata discardDecodedAlbumArt];
+                return;
+            }
+            if (loaded) {
+                [self refreshPageAtIndex:self->_playlist.currentIndex];
+                [self publishNowPlaying];
+            }
+        });
+    });
 }
 
 #pragma mark - Playback
@@ -640,6 +781,8 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     _errorText = nil;
     _parked = NO;
     _seekInFlight = NO;
+    // Before the header render, so the bind's refresh already draws at rest.
+    _trackStartPending = YES;
     [_audioSession activate];
     [self renderHeaderForTrack:track];
     [self scrollToCurrentPageAnimated:YES];
@@ -657,6 +800,7 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     }
     _parked = YES;
     _seekInFlight = NO;
+    _trackStartPending = NO;
     [self renderHeaderForTrack:track];
     [self scrollToCurrentPageAnimated:NO];
     [self requestWaveformForIndex:_playlist.currentIndex];
@@ -752,6 +896,7 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 - (void)folderSession:(FolderSession *)session
         didOpenTracks:(NSArray<NSURL *> *)urls
             folderURL:(NSURL *)folderURL
+          selectedURL:(NSURL *)selectedURL
              restored:(BOOL)restored {
     [_playlist replaceAllWithURLs:urls];
     _waveformLoadIndex = NSNotFound;
@@ -761,9 +906,22 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     [_metadataCache cancelAll];
     [_metadataCache loadMetadata:_playlist.tracks];
 
+    if (selectedURL) {
+        // A file pick that expanded to its directory: play the picked file,
+        // not the folder's first.
+        NSString *selectedPath = selectedURL.URLByStandardizingPath.path;
+        NSArray<AudioTrack *> *tracks = _playlist.tracks;
+        for (NSUInteger i = 0; i < tracks.count; i++) {
+            if ([tracks[i].url.URLByStandardizingPath.path isEqualToString:selectedPath]) {
+                _playlist.currentIndex = i;
+                break;
+            }
+        }
+    }
+
     if (restored) {
         NSString *fileName = session.persistedTrackFileName;
-        if (fileName) {
+        if (!selectedURL && fileName) {
             NSArray<AudioTrack *> *tracks = _playlist.tracks;
             for (NSUInteger i = 0; i < tracks.count; i++) {
                 if ([tracks[i].url.lastPathComponent isEqualToString:fileName]) {
@@ -803,6 +961,20 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
         return;
     }
     [_waveformView showLoadingIndicator];
+    // Best-effort determinate fill while the provider materializes the file;
+    // the URL is re-matched at delivery because the monitor outlives fast
+    // track changes.
+    [_downloadMonitor cancel];
+    DownloadProgressMonitor *monitor = [[DownloadProgressMonitor alloc] initWithURL:track.url];
+    _downloadMonitor = monitor;
+    NSURL *url = track.url;
+    __weak PlayerViewController *weakSelf = self;
+    [monitor startWithHandler:^(float fraction) {
+        PlayerViewController *self = weakSelf;
+        if (self && [self->_playlist.currentTrack.url isEqual:url]) {
+            [self->_waveformView setLoadingProgress:fraction];
+        }
+    }];
     [self publishNowPlaying];
 }
 
@@ -811,8 +983,19 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
         return;
     }
     _errorText = nil;
-    [_waveformView hideLoadingIndicator];
+    _trackStartPending = NO;
+    // The open landed, so the file is materialized; the monitor's work is
+    // done whatever it last reported.
+    [_downloadMonitor cancel];
+    _downloadMonitor = nil;
     [self renderHeaderForTrack:track];
+    // Not a blanket hideLoadingIndicator: the open landing says nothing about
+    // the waveform decode, which may still be streaming over the network.
+    // Re-hydration repaints a snapshot already in hand (ending the slow-open
+    // shimmer that replaced it); otherwise the line keeps animating until
+    // showWaveform: delivers.
+    [self hydrateWaveformInCell:[self cellAtIndex:_playlist.currentIndex]
+                        atIndex:_playlist.currentIndex];
     // The dataless-placeholder retry: a cache miss skipped while the player's
     // own open was materializing the file parses now.
     [_metadataCache loadMetadataNow:track];
@@ -879,6 +1062,9 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
     }
     _errorText = [self statusForPlayError:error];
     _seekInFlight = NO;
+    _trackStartPending = NO;
+    [_downloadMonitor cancel];
+    _downloadMonitor = nil;
     [_waveformView hideLoadingIndicator];
     if (current) {
         [self renderHeaderForTrack:current];
@@ -921,6 +1107,11 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
 }
 
 - (void)playlist:(Playlist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {
+    if (previousIndex != playlist.currentIndex) {
+        // Only the current track holds decoded full-res art; the thumbnail
+        // stays and the on-demand load re-arms if the track comes back.
+        [[playlist trackAtIndex:previousIndex].metadata discardDecodedAlbumArt];
+    }
     [_trackListController reloadTrackAtIndex:previousIndex];
     [_trackListController reloadTrackAtIndex:playlist.currentIndex];
 }
@@ -1118,8 +1309,10 @@ static const CGFloat kWaveformBottomInset = 190;   // waveform.bottom above safe
             @"emptyHintShown": @(!_emptyHintLabel.isHidden),
             @"transportShown": @(_playPauseButton.alpha > 0),
             @"waveformProgress": @(_waveformView.progress),
+            @"waveformBaked": @(_waveformView.isShowingBakedWaveform),
             @"isScrubbing": @(_waveformView.isScrubbing),
             @"parked": @(_parked),
+            @"trackStartPending": @(_trackStartPending),
             @"foreground": @(_foreground),
             @"error": _errorText ?: @"",
         },

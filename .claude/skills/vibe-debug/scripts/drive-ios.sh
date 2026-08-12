@@ -16,6 +16,7 @@
 #   drive-ios.sh press 201 640 1.5
 #   drive-ios.sh drag 300 640 100 640 1.0    # x1 y1 x2 y2 [seconds]; give
 #                               # seconds for 1:1 scrubs, omit for a flick
+#   drive-ios.sh rotate left    # device orientation: portrait|left|right
 #   drive-ios.sh home
 #
 # Verify every gesture's effect with debug-ios.sh dump_state or a screenshot —
@@ -27,41 +28,40 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$DIR/../../../.." && pwd)"
-BUNDLE_ID="com.commonwealthrecordings.Vibe"
 READY_NAME="vibe-driver-ready"
-LOG="$ROOT/build/driver-ios.log"
 
-container_tmp() {
-    local data
-    data="$(xcrun simctl get_app_container booted "$BUNDLE_ID" data 2>/dev/null)" || return 1
-    echo "$data/tmp"
-}
+# This checkout's dedicated device (sim-udid.sh): start creates and boots it,
+# every other verb requires it to already exist.
+if [ "$1" = "start" ]; then
+    UDID="$("$DIR/sim-udid.sh" --create)"
+    xcrun simctl bootstatus "$UDID" -b >/dev/null
+else
+    UDID="$("$DIR/sim-udid.sh" 2>/dev/null)" \
+        || { echo '{"error": "no simulator for this checkout — drive-ios.sh start first"}'; exit 1; }
+fi
+
+# A stable HOST directory, not the app container: the runner is unsandboxed on
+# the simulator and reads host paths directly, and every `simctl install`
+# rotates the app's data-container UUID — a driver holding the old path would
+# silently stop seeing commands the moment launch-ios.sh reinstalls the app.
+# Per-device, so concurrent sessions on other simulators have their own.
+TMP="$ROOT/build/ios-driver/$UDID"
+LOG="$TMP/driver.log"
 
 # stop is the quit verb by another name; macOS bash has no ;;& fallthrough.
 [ "$1" = "stop" ] && set -- quit
 
 case "$1" in
 start)
-    if ! xcrun simctl list devices booted | grep -q "(Booted)"; then
-        UDID="$(xcrun simctl list devices available | grep -m1 "iPhone" \
-                | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')"
-        [ -n "$UDID" ] || { echo "no available iPhone simulator" >&2; exit 1; }
-        xcrun simctl bootstatus "$UDID" -b >/dev/null
-    fi
-    UDID="$(xcrun simctl list devices booted | grep -m1 "(Booted)" \
-            | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')"
-    # xcodebuild test installs the app fresh, terminating any running
-    # instance — hence start-then-launch. The app must be installed before the
-    # container tmp exists, so build first, then resolve the directory.
+    # One driver per DEVICE: kill only this device's xcodebuild and runner, so
+    # sessions driving other simulators are untouched.
+    pkill -f "VibeiOSDriver -destination id=$UDID" 2>/dev/null || true
+    pkill -f "Devices/$UDID/.*VibeiOSDriver-Runner" 2>/dev/null || true
+    mkdir -p "$TMP"
+    rm -f "$TMP/$READY_NAME" "$TMP"/vibe-touch-*
     ( cd "$ROOT" && xcodegen generate >/dev/null )
-    TMP="$(container_tmp || true)"
-    if [ -z "$TMP" ]; then
-        # First run on a fresh simulator: install the app so the container exists.
-        APP="$ROOT/build/DerivedData/Build/Products/Debug-iphonesimulator/Vibe.app"
-        [ -d "$APP" ] && xcrun simctl install booted "$APP" 2>/dev/null || true
-        TMP="$(container_tmp)" || { echo "app not installed — build VibeiOS and run launch-ios.sh once" >&2; exit 1; }
-    fi
-    rm -f "$TMP/$READY_NAME"
+    # xcodebuild test installs the app fresh, terminating any running
+    # instance — hence start-then-launch.
     ( cd "$ROOT" && TEST_RUNNER_VIBE_DRIVER_DIR="$TMP" \
         nohup xcodebuild test -project Vibe.xcodeproj -scheme VibeiOSDriver \
             -destination "id=$UDID" -derivedDataPath build/DerivedData \
@@ -75,11 +75,9 @@ start)
     exit 1
     ;;
 status)
-    TMP="$(container_tmp)" || { echo '{"ready": false}'; exit 1; }
     if [ -f "$TMP/$READY_NAME" ]; then echo '{"ready": true}'; else echo '{"ready": false}'; exit 1; fi
     ;;
 *)
-    TMP="$(container_tmp)" || { echo '{"error": "no booted simulator with the app installed"}'; exit 1; }
     [ -f "$TMP/$READY_NAME" ] || { echo '{"error": "driver not running — drive-ios.sh start first"}'; exit 1; }
     ID="$(uuidgen)"
     CMD="$TMP/vibe-touch-$ID.json"
@@ -88,9 +86,10 @@ status)
     # command read mid-write is deleted unexecuted.
     jq -cn --arg id "$ID" '{id: $id, args: $ARGS.positional}' --args -- "$@" > "$CMD.part"
     mv "$CMD.part" "$CMD"
-    # Gestures take real wall-clock time (a slow drag can run several seconds,
-    # activation on a first gesture longer still).
-    TIMEOUT="${VIBE_DEBUG_TIMEOUT:-30}"
+    # Gestures take real wall-clock time: a slow drag runs several seconds,
+    # the first gesture after a start or app relaunch pays the accessibility
+    # attach (up to ~60s), and a self-heal relaunch pays a full app launch.
+    TIMEOUT="${VIBE_DEBUG_TIMEOUT:-90}"
     DEADLINE=$(( $(date +%s) + TIMEOUT ))
     while [ ! -f "$RESPONSE" ]; do
         if [ "$(date +%s)" -ge "$DEADLINE" ]; then

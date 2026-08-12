@@ -6,6 +6,7 @@
 #import "WaveformScrubberView.h"
 #import "AudioWaveform.h"
 #import "AudioWaveformRenderer.h"
+#import "DetailedAudioWaveformRenderer.h"
 #import "WaveformRendererRegistry.h"
 #import "UIView+DarkMode.h"
 #import "AppSettings.h"
@@ -15,18 +16,25 @@
 // translated so the play position sits at the view's horizontal center.
 static const CGFloat kWaveformVisibleFraction = 0.15;
 
-// Momentum: the per-millisecond deceleration (higher friction than
+// Momentum: the per-millisecond deceleration (much higher friction than
 // UIScrollView's 0.998 normal rate, so a throw settles noticeably faster —
 // this is a scrubber, not a scroll view), the flick floor below which a
 // release settles immediately, and the speed (in view points/second of
 // content motion) at which a decelerating scroll stops and commits the seek.
-static const CGFloat kDecelerationPerMillisecond = 0.994;
+static const CGFloat kDecelerationPerMillisecond = 0.992;
 static const CGFloat kMomentumMinimumFlick = 60.0;
 static const CGFloat kMomentumSettleSpeed = 25.0;
 
-// One haptic tick per this many points of virtual (zoomed) travel — the
-// waveform's lines clicking past the fixed playhead.
-static const CGFloat kScrubTickSpacing = 8.0;
+// One haptic tick per this many points of virtual (zoomed) travel. Kept just
+// a few bars apart so a scrub reads as a continuous ripple — the finger
+// dragging across the waveform's lines — rather than discrete detents; the
+// per-frame bucket check caps delivery at display rate on fast throws.
+static const CGFloat kScrubTickSpacing = 2.0;
+
+// How long after the last waveform delivery the settled bitmap is baked: past
+// the morph engine's ease (about 95% settled at 0.2s), so the swap from live
+// tree to bitmap lands on identical pixels.
+static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 
 @interface WaveformScrubberView ()
 @property (nonatomic, strong, nullable) CodableAudioWaveform *waveform;
@@ -46,7 +54,17 @@ static const CGFloat kScrubTickSpacing = 8.0;
     BOOL                    _isScrubbing;
     CGFloat                 _dragStartProgress;
     CAGradientLayer         *_loadingLayer;
+    // The determinate download fill beneath the shimmer; nil while progress
+    // is unknown.
+    CALayer                 *_loadingProgressLayer;
     CALayer                 *_placeholderLayer;
+    // The centerline past the track's ends: two hairline segments continuing
+    // the waveform's silence baseline across the off-track space — left of
+    // the content before the start (played styling, it sits on the playhead's
+    // played side) and right of it near the end (unplayed). Repositioned with
+    // every host translation; hidden without a waveform.
+    CALayer                 *_leadingBaseline;
+    CALayer                 *_trailingBaseline;
     // The flick's decay: progress/second, stepped by a display link until it
     // falls below the settle speed — only then does the seek commit.
     CADisplayLink           *_momentumLink;
@@ -55,6 +73,15 @@ static const CGFloat kScrubTickSpacing = 8.0;
     // The scrub-tick haptic and the last virtual-x bucket that fired it.
     UISelectionFeedbackGenerator *_scrubHaptics;
     NSInteger               _lastTickBucket;
+    // The settled fast path: the envelope baked into one bitmap, shown by two
+    // image layers — unplayed across the full width, played stacked on top of
+    // it (the same compositing order as the live tree's played clip) and
+    // cropped by contentsRect. Non-nil _bakedHost means the fast path is in
+    // and _rendererHost is hidden. The generation invalidates in-flight bakes.
+    CALayer                 *_bakedHost;
+    CALayer                 *_bakedUnplayed;
+    CALayer                 *_bakedPlayed;
+    NSUInteger              _bakeGeneration;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -77,6 +104,13 @@ static const CGFloat kScrubTickSpacing = 8.0;
     _rendererHost.position = CGPointZero;
     [self.layer addSublayer:_rendererHost];
 
+    _leadingBaseline = [CALayer layer];
+    _leadingBaseline.hidden = YES;
+    [self.layer addSublayer:_leadingBaseline];
+    _trailingBaseline = [CALayer layer];
+    _trailingBaseline.hidden = YES;
+    [self.layer addSublayer:_trailingBaseline];
+
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self
                                                                           action:@selector(handlePan:)];
     [self addGestureRecognizer:pan];
@@ -93,6 +127,10 @@ static const CGFloat kScrubTickSpacing = 8.0;
 
 - (BOOL)isScrubbing {
     return _isScrubbing;
+}
+
+- (BOOL)isShowingBakedWaveform {
+    return _bakedHost != nil;
 }
 
 #pragma mark - Renderer lifecycle
@@ -130,6 +168,21 @@ static const CGFloat kScrubTickSpacing = 8.0;
     _renderer = [[rendererClass alloc] initWithLayer:_rendererHost
                                               bounds:[self virtualBounds]
                                               isDark:self.isDark];
+    [self updateBaselineColors];
+}
+
+// The baseline segments take the waveform's own midline alpha per side, so
+// they join the silence hairline with no visible seam.
+- (void)updateBaselineColors {
+    if (![_renderer isKindOfClass:DetailedAudioWaveformRenderer.class]) {
+        return;
+    }
+    DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)_renderer;
+    UIColor *base = self.isDark ? UIColor.whiteColor : UIColor.blackColor;
+    _leadingBaseline.backgroundColor =
+            [base colorWithAlphaComponent:[renderer baselineAlphaForPlayed:YES]].CGColor;
+    _trailingBaseline.backgroundColor =
+            [base colorWithAlphaComponent:[renderer baselineAlphaForPlayed:NO]].CGColor;
 }
 
 - (void)drawWaveform {
@@ -139,7 +192,9 @@ static const CGFloat kScrubTickSpacing = 8.0;
 
 // Host translation and played-clip width move in one transaction so the
 // played/unplayed boundary sits exactly at the view's center every frame:
-// position.x + progress * virtualWidth == centerX.
+// position.x + progress * virtualWidth == centerX. On the baked fast path the
+// same frame is pure texture work — translate the host, crop the played
+// image — with the live masked tree hidden and untouched.
 - (void)applyScrollAndProgress {
     CGFloat virtualWidth = [self virtualWidth];
     if (!_renderer || virtualWidth <= 0) {
@@ -147,8 +202,30 @@ static const CGFloat kScrubTickSpacing = 8.0;
     }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    _rendererHost.position = CGPointMake(self.bounds.size.width / 2 - _progress * virtualWidth, 0);
-    [_renderer updateProgress:_progress waveform:self.waveform.waveform];
+    CGPoint origin = CGPointMake(self.bounds.size.width / 2 - _progress * virtualWidth, 0);
+    if (_bakedHost) {
+        _bakedHost.position = origin;
+        _bakedPlayed.bounds = CGRectMake(0, 0, _progress * virtualWidth, _bakedHost.bounds.size.height);
+        _bakedPlayed.contentsRect = CGRectMake(0, 0, _progress, 1);
+    }
+    else {
+        _rendererHost.position = origin;
+        [_renderer updateProgress:_progress waveform:self.waveform.waveform];
+    }
+    // The 1pt height and midY placement match the settled hairline's pixel
+    // rows exactly, in both the live tree's flipped space and the bake.
+    CGFloat midY = self.bounds.size.height / 2;
+    CGFloat trailingStart = origin.x + virtualWidth;
+    CGFloat trailingWidth = self.bounds.size.width - trailingStart;
+    BOOL show = self.waveform != nil;
+    _leadingBaseline.hidden = !show || origin.x <= 0;
+    _trailingBaseline.hidden = !show || trailingWidth <= 0;
+    if (!_leadingBaseline.hidden) {
+        _leadingBaseline.frame = CGRectMake(0, midY - 1, origin.x, 1);
+    }
+    if (!_trailingBaseline.hidden) {
+        _trailingBaseline.frame = CGRectMake(trailingStart, midY - 1, trailingWidth, 1);
+    }
     [CATransaction commit];
 }
 
@@ -183,6 +260,7 @@ static const CGFloat kScrubTickSpacing = 8.0;
 }
 
 - (void)resetWaveformContentState {
+    [self teardownBakedWaveform];
     [self cancelMomentum];
     _isScrubbing = NO;
     self.waveform = nil;
@@ -201,12 +279,112 @@ static const CGFloat kScrubTickSpacing = 8.0;
 }
 
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
+    // Data arrival is what genuinely ends the loading and empty
+    // presentations — the audio open landing does not (its decode may still
+    // be streaming over the network), so owners no longer hide the line;
+    // this does.
+    [self hideLoadingIndicator];
+    [self hideEmptyPlaceholder];
     // A fresh view may receive data before anyone called
     // prepareForWaveformLoad (per-page cells hydrate directly); the renderer
     // must exist before the draw.
     [self installRendererIfNeeded];
+    // New data retargets the morph, so the live tree takes back over until it
+    // settles again — a mid-load delivery keeps growing bars, and the bake
+    // lands once deliveries stop.
+    [self teardownBakedWaveform];
     self.waveform = waveform;
     [self drawWaveform];
+    [self scheduleEnvelopeBake];
+}
+
+#pragma mark - Settled bitmap fast path
+
+// Scrolling and scrubbing pay the live tree's price every frame: the
+// renderer's thousands-of-rects shape mask covers the whole multi-screen
+// virtual layer, and a masked group re-composites offscreen, in full, on any
+// change of translation or played-clip width. Once the load morph settles the
+// picture is static, so it is baked into a single bitmap and the per-frame
+// work collapses to translating textures. The live tree remains the morph
+// surface: every reset, delivery, and geometry or trait change tears the fast
+// path down first, and the bake re-lands after the morph has settled.
+
+- (void)teardownBakedWaveform {
+    _bakeGeneration++;
+    if (!_bakedHost) {
+        return;
+    }
+    [_bakedHost removeFromSuperlayer];
+    _bakedHost = nil;
+    _bakedUnplayed = nil;
+    _bakedPlayed = nil;
+    _rendererHost.hidden = NO;
+}
+
+- (void)scheduleEnvelopeBake {
+    _bakeGeneration++;
+    if (!self.waveform || ![_renderer isKindOfClass:DetailedAudioWaveformRenderer.class]) {
+        return;
+    }
+    NSUInteger generation = _bakeGeneration;
+    __weak WaveformScrubberView *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kEnvelopeBakeDelay * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        [weakSelf bakeEnvelopeForGeneration:generation];
+    });
+}
+
+- (void)bakeEnvelopeForGeneration:(NSUInteger)generation {
+    if (generation != _bakeGeneration || !self.waveform) {
+        return;
+    }
+    CGSize size = [self virtualBounds].size;
+    if (size.width <= 0 || size.height <= 0) {
+        return;
+    }
+    DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)_renderer;
+    CGFloat scale = [self displayScale];
+    // Samples come out on the main thread — the same access updateWaveform:
+    // performs — so only the pixel work leaves it.
+    NSData *samples = [renderer envelopeSamplesForWaveform:self.waveform.waveform];
+    __weak WaveformScrubberView *weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        CGImageRef image = [renderer newEnvelopeImageForSize:size scale:scale samples:samples];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [weakSelf installEnvelopeImage:image size:size generation:generation];
+            CGImageRelease(image);
+        });
+    });
+}
+
+- (void)installEnvelopeImage:(CGImageRef)image size:(CGSize)size generation:(NSUInteger)generation {
+    if (!image || generation != _bakeGeneration ||
+        !CGSizeEqualToSize(size, [self virtualBounds].size)) {
+        return;
+    }
+    CGFloat unplayedOpacity = [(DetailedAudioWaveformRenderer *)_renderer unplayedOverPlayedOpacity];
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    // No geometryFlipped here: the bake draws in CG's y-up space, whose top
+    // row lands at the layer's top, matching what the flipped live tree shows.
+    _bakedHost = [CALayer layer];
+    _bakedHost.anchorPoint = CGPointZero;
+    _bakedHost.bounds = (CGRect){CGPointZero, size};
+    _bakedUnplayed = [CALayer layer];
+    _bakedUnplayed.anchorPoint = CGPointZero;
+    _bakedUnplayed.frame = (CGRect){CGPointZero, size};
+    _bakedUnplayed.contents = (__bridge id)image;
+    _bakedUnplayed.opacity = (float)unplayedOpacity;
+    [_bakedHost addSublayer:_bakedUnplayed];
+    _bakedPlayed = [CALayer layer];
+    _bakedPlayed.anchorPoint = CGPointZero;
+    _bakedPlayed.position = CGPointZero;
+    _bakedPlayed.contents = (__bridge id)image;
+    [_bakedHost addSublayer:_bakedPlayed];
+    [self.layer insertSublayer:_bakedHost above:_rendererHost];
+    _rendererHost.hidden = YES;
+    [CATransaction commit];
+    [self applyScrollAndProgress];
 }
 
 - (void)showLoadingIndicator {
@@ -277,6 +455,37 @@ static const CGFloat kScrubTickSpacing = 8.0;
     [_loadingLayer removeAllAnimations];
     [_loadingLayer removeFromSuperlayer];
     _loadingLayer = nil;
+    [_loadingProgressLayer removeFromSuperlayer];
+    _loadingProgressLayer = nil;
+}
+
+// Determinate download progress under the shimmer: the midline fills from
+// the left as the provider materializes the file. Fed by whatever source
+// knows a fraction — today the allocated-size monitor, later the Dropbox
+// API client. A negative fraction hides it (back to indeterminate); the
+// shimmer keeps sweeping either way, since a stalled provider reports no
+// movement.
+- (void)setLoadingProgress:(float)fraction {
+    if (!_loadingLayer || fraction < 0) {
+        [_loadingProgressLayer removeFromSuperlayer];
+        _loadingProgressLayer = nil;
+        return;
+    }
+    if (!_loadingProgressLayer) {
+        CALayer *fill = [CALayer layer];
+        fill.contentsScale = [self displayScale];
+        UIColor *base = self.isDark ? [UIColor whiteColor] : [UIColor blackColor];
+        fill.backgroundColor = [base colorWithAlphaComponent:0.85].CGColor;
+        // Below the shimmer, so the sweep still reads over the filled span.
+        [self.layer insertSublayer:fill below:_loadingLayer];
+        _loadingProgressLayer = fill;
+    }
+    CGFloat midY = self.bounds.size.height / 2;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _loadingProgressLayer.frame = CGRectMake(0, midY - 1,
+            self.bounds.size.width * MIN(1.0f, fraction), 2);
+    [CATransaction commit];
 }
 
 - (void)showEmptyPlaceholder {
@@ -435,6 +644,11 @@ static const CGFloat kScrubTickSpacing = 8.0;
     [super layoutSubviews];
     CGRect virtualBounds = [self virtualBounds];
     BOOL sizeChanged = !CGSizeEqualToSize(_rendererHost.bounds.size, virtualBounds.size);
+    if (sizeChanged) {
+        // The bitmap is baked for the old size; the live tree carries the
+        // resize and the bake re-lands at the new one.
+        [self teardownBakedWaveform];
+    }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     _rendererHost.bounds = virtualBounds;
@@ -444,6 +658,7 @@ static const CGFloat kScrubTickSpacing = 8.0;
         // Sync geometry even with no waveform, as the mac view does, so a
         // mid-collapse morph rebuilds at the new size.
         [self drawWaveform];
+        [self scheduleEnvelopeBake];
     }
     if (sizeChanged) {
         [self layoutLoadingLayer];
@@ -461,17 +676,27 @@ static void applyContentsScale(CALayer *layer, CGFloat scale) {
 }
 
 - (void)traitsDidChange:(UITraitCollection *)previous {
-    if (previous.displayScale != self.traitCollection.displayScale) {
+    BOOL scaleChanged = previous.displayScale != self.traitCollection.displayScale;
+    BOOL styleChanged = previous.userInterfaceStyle != self.traitCollection.userInterfaceStyle;
+    if (scaleChanged || styleChanged) {
+        // The bitmap baked the old scale's pixel grid or the old colors.
+        [self teardownBakedWaveform];
+    }
+    if (scaleChanged) {
         applyContentsScale(self.layer, [self displayScale]);
         [_renderer backingScaleDidChange];
     }
-    if (previous.userInterfaceStyle != self.traitCollection.userInterfaceStyle) {
+    if (styleChanged) {
         [_renderer updateColors:self.isDark];
-        [self applyScrollAndProgress];
         if (_loadingLayer) {
             _loadingLayer.colors = [self shimmerColors];
         }
         [self updatePlaceholderColor];
+        [self updateBaselineColors];
+    }
+    if (scaleChanged || styleChanged) {
+        [self applyScrollAndProgress];
+        [self scheduleEnvelopeBake];
     }
 }
 

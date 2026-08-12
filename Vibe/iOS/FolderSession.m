@@ -60,7 +60,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     if (!openInPlace) {
         // Not open-in-place: the system handed a copy in our own inbox
         // container, readable without a scope.
-        [self deliverTracks:@[url] folderURL:nil restored:NO scopedURL:nil];
+        [self deliverTracks:@[url] folderURL:nil selectedURL:nil restored:NO scopedURL:nil];
         return;
     }
     [self adoptURL:url restored:NO];
@@ -138,6 +138,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
 
     NSArray<NSURL *> *tracks;
     NSURL *folderURL = nil;
+    NSURL *selectedURL = nil;
     if (isDir) {
         tracks = [NSURLUtil audioFilesInDirectory:url];
         folderURL = url;
@@ -153,18 +154,95 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     }
     else {
         // A single-file grant reaches only that file — iOS grants no sibling
-        // access — so the directory-as-playlist rule applies to folder picks
-        // alone and a file pick is a one-track playlist.
+        // access — but a FOLDER grant already in hand may cover it: the live
+        // session folder, or the persisted bookmark on a cold open-in-place.
+        // Then "tap a file in Dropbox" expands back into the
+        // directory-as-playlist model, with the tapped file selected. Only a
+        // file in a never-granted folder stays a one-track playlist.
+        BOOL grantScopeStarted = NO;
+        NSURL *granted = [self grantedFolderCoveringFileURL:url
+                                          startedScope:&grantScopeStarted];
+        if (granted) {
+            NSArray<NSURL *> *siblings = [NSURLUtil audioFilesInDirectory:granted];
+            if (siblings.count > 0) {
+                if (scoped) {
+                    [url stopAccessingSecurityScopedResource]; // the folder grant covers it
+                }
+                [self deliverTracks:siblings
+                          folderURL:granted
+                        selectedURL:url
+                           restored:restored
+                          scopedURL:(grantScopeStarted ? granted
+                                     : (_scopeActive ? _scopedURL : nil))];
+                [self persistBookmarkForURL:granted];
+                return YES;
+            }
+            if (grantScopeStarted) {
+                [granted stopAccessingSecurityScopedResource];
+            }
+        }
         tracks = @[url];
     }
 
-    [self deliverTracks:tracks folderURL:folderURL restored:restored scopedURL:(scoped ? url : nil)];
-    [self persistBookmarkForURL:url];
+    [self deliverTracks:tracks folderURL:folderURL selectedURL:selectedURL
+               restored:restored scopedURL:(scoped ? url : nil)];
+    // A one-track file open must not clobber a FOLDER bookmark: the folder
+    // grant is what powers file-pick expansion and the relaunch restore, and
+    // a stray single file is worth less than either.
+    if (isDir || ![self persistedBookmarkIsFolder]) {
+        [self persistBookmarkForURL:url];
+    }
     return YES;
+}
+
+- (BOOL)persistedBookmarkIsFolder {
+    NSData *bookmark = [NSUserDefaults.standardUserDefaults dataForKey:kFolderBookmarkKey];
+    if (!bookmark) {
+        return NO;
+    }
+    BOOL stale = NO;
+    NSURL *resolved = [NSURL URLByResolvingBookmarkData:bookmark
+                                                options:0
+                                          relativeToURL:nil
+                                    bookmarkDataIsStale:&stale
+                                                  error:NULL];
+    NSNumber *isDirectory = nil;
+    [resolved getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
+    return isDirectory.boolValue;
+}
+
+// The folder grant covering url's DIRECT parent, or nil: first the live
+// session folder (its scope is already open), then the persisted bookmark —
+// a cold-start "Open in Vibe" arrives before any restore ran. Paths are
+// compared standardized; a match through the bookmark starts that folder's
+// scope and reports it via startedScope so the caller hands it to
+// deliverTracks for the balanced release.
+- (NSURL *)grantedFolderCoveringFileURL:(NSURL *)url startedScope:(BOOL *)startedScope {
+    *startedScope = NO;
+    NSString *parent = url.URLByStandardizingPath.URLByDeletingLastPathComponent.path;
+    if (_folderURL && [parent isEqualToString:_folderURL.URLByStandardizingPath.path]) {
+        return _folderURL;
+    }
+    NSData *bookmark = [NSUserDefaults.standardUserDefaults dataForKey:kFolderBookmarkKey];
+    if (!bookmark) {
+        return nil;
+    }
+    BOOL stale = NO;
+    NSURL *resolved = [NSURL URLByResolvingBookmarkData:bookmark
+                                                options:0
+                                          relativeToURL:nil
+                                    bookmarkDataIsStale:&stale
+                                                  error:NULL];
+    if (!resolved || ![parent isEqualToString:resolved.URLByStandardizingPath.path]) {
+        return nil;
+    }
+    *startedScope = [resolved startAccessingSecurityScopedResource];
+    return resolved;
 }
 
 - (void)deliverTracks:(NSArray<NSURL *> *)tracks
             folderURL:(NSURL *)folderURL
+          selectedURL:(NSURL *)selectedURL
              restored:(BOOL)restored
             scopedURL:(NSURL *)scopedURL {
     // Release the previous grant only after the new one is in hand, so a
@@ -175,7 +253,8 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     _scopedURL = scopedURL;
     _scopeActive = (scopedURL != nil);
     _folderURL = folderURL;
-    [self.delegate folderSession:self didOpenTracks:tracks folderURL:folderURL restored:restored];
+    [self.delegate folderSession:self didOpenTracks:tracks folderURL:folderURL
+                     selectedURL:selectedURL restored:restored];
 }
 
 @end

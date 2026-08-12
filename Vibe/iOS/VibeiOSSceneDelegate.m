@@ -14,8 +14,13 @@
     if (![scene isKindOfClass:[UIWindowScene class]]) {
         return;
     }
+    UIWindowScene *windowScene = (UIWindowScene *)scene;
+    // iPadOS 26 windowing: 320x480 is the portrait layout's floor (waveform
+    // band + bottom bar leave no room below it). sizeRestrictions is nil on
+    // iPhone, so this is a no-op there.
+    windowScene.sizeRestrictions.minimumSize = CGSizeMake(320, 480);
     PlayerViewController *player = [[PlayerViewController alloc] init];
-    self.window = [[UIWindow alloc] initWithWindowScene:(UIWindowScene *)scene];
+    self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
     self.window.rootViewController = player;
     [self.window makeKeyAndVisible];
     if (connectionOptions.URLContexts.count > 0) {

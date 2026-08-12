@@ -10,6 +10,8 @@ The view also draws the two non-waveform states: a sweeping shimmer while a slow
 
 Both renderer families animate through a shared `WaveformMorphEngine`, which owns the displayed and target sample vectors, the 60 Hz easing timer and the retarget decision tree; renderers supply only target-building and layer geometry. The default style is "Oversampling Detailed x4", configurable in `AppSettings`.
 
+`DetailedAudioWaveformRenderer` also exposes an envelope-bitmap API — `envelopeSamplesForWaveform:` (main thread) plus `newEnvelopeImageForSize:scale:samples:` (any queue) and `unplayedOverPlayedOpacity` — that renders the settled bar geometry and played gradient into one image. It exists for the iOS scrubber's settled fast path (its `CLAUDE.md` has the why); the bitmap bakes this family's band-pinned gradient, so `Basic`'s re-aimed fade would need its own bake. The mac view does not use it. Keep it pixel-identical to the live layers: it duplicates `rebuildMaskPaths`' settled rounding and `configureGradient:`'s band on purpose, and a change to either must land in both.
+
 ## The convert sweep
 
 Convert to FLAC's progress is drawn *with the waveform itself*: the bars the sweep front crosses collapse to the midline and ease back, a brush moving through the waveform at conversion pace. There is no separate progress element.

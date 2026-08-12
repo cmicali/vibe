@@ -18,6 +18,7 @@
 #define SETTING_DELETE_ORIGINAL_AFTER_CONVERT       @"Convert.deleteOriginal"
 #define SETTING_SKIP_BASE_BARS                      @"Transport.skipBaseBars"
 #define SETTING_CROSSFADE_MILLISECONDS              @"AudioPlayer.crossfadeMilliseconds"
+#define SETTING_AUDIO_FX_ENABLED                    @"AudioPlayer.fxEnabled"
 #define SETTING_ANALYZE_BPM                         @"Audio.analyzeBPM"
 #define SETTING_ANALYZE_KEY                         @"Audio.analyzeKey"
 #define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
@@ -58,6 +59,7 @@
             SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
             SETTING_SKIP_BASE_BARS:                 @(8),
             SETTING_CROSSFADE_MILLISECONDS:         @(10),
+            SETTING_AUDIO_FX_ENABLED:               @(YES),
             SETTING_ANALYZE_BPM:                    @(YES),
             SETTING_ANALYZE_KEY:                    @(NO),
             SETTING_KEY_NOTATION:                   SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
@@ -235,6 +237,14 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds {
     [[NSUserDefaults standardUserDefaults] setInteger:milliseconds forKey:SETTING_CROSSFADE_MILLISECONDS];
+}
+
+- (BOOL)audioFXEnabled {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_AUDIO_FX_ENABLED];
+}
+
+- (void)setAudioFXEnabled:(BOOL)enabled {
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_AUDIO_FX_ENABLED];
 }
 
 - (BOOL)analyzeBPM {

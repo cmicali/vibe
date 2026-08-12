@@ -396,6 +396,7 @@ targets:
         compilerFlags:
           - "-fobjc-arc-exceptions"
       - path: Resources/AppIcon.icon
+      - path: Resources/Assets.xcassets       # record-bg, the no-art vinyl placeholder
       - path: Resources/Localizable.xcstrings
         buildPhase: resources
       - path: Resources/InfoPlist.xcstrings
@@ -423,8 +424,14 @@ targets:
         NSHumanReadableCopyright: "Copyright © 2026 Christopher Micali. All rights reserved."
         UILaunchScreen: {}                    # system launch screen; no storyboard
         UIBackgroundModes: [audio]
-        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        # All four on iPad: required for a non-fullscreen app, and iPadOS 26
+        # windowing lets the user give the window any aspect.
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UIApplicationSceneManifest:
+          # One scene, deliberately: PlayerViewController owns the audio
+          # engine per-instance, so a second scene would spawn a second
+          # engine. The single scene is still freely resizable on iPadOS 26.
           UIApplicationSupportsMultipleScenes: false
           UISceneConfigurations:
             UIWindowSceneSessionRoleApplication:
@@ -473,7 +480,7 @@ targets:
         SDKROOT: iphoneos
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"  # settingPresets: none injects neither
         IPHONEOS_DEPLOYMENT_TARGET: "26.0"
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         CODE_SIGN_STYLE: Automatic
@@ -512,7 +519,7 @@ targets:
         SDKROOT: iphoneos
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         IPHONEOS_DEPLOYMENT_TARGET: "26.0"
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"       # the driver must install beside the app on iPad sims too
         CODE_SIGN_STYLE: Automatic
         GCC_PREFIX_HEADER: ""               # no app pch; XCTest only
 
