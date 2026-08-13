@@ -725,14 +725,16 @@
 #pragma mark - AudioPlayerDelegate Implementation
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track {
+    // Guarded like didStartPlaying:'s check: a stale delivery from a
+    // superseded open must not load metadata, paint loading UI, or clear an
+    // error mask for a track the playlist no longer points at.
+    if (track != [self.playlistController currentTrack]) {
+        return;
+    }
     [self clearErrorMask];
     // A slow cloud open is in flight, and the header can still show cached
-    // tags and art for the pending track while it materializes. It is guarded
-    // like didStartPlaying:'s check: a stale delivery from a superseded open
-    // must not load for a track the playlist no longer points at.
-    if (track == [self.playlistController currentTrack]) {
-        [self.metadataCache loadMetadataNow:track];
-    }
+    // tags and art for the pending track while it materializes.
+    [self.metadataCache loadMetadataNow:track];
     // Show the pending track's title and artist while it loads.
     [self updateUI];
     [self.trackDisplay showWaveformLoadingIndicator];

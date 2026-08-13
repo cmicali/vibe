@@ -181,6 +181,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // races it with its own open.
     NSString                *_prefetchedPath;
     AVAudioFile             *_prefetchedFile;
+    AudioTrack              *_prefetchedTrack;
     uint64_t                _prefetchRequestId;
     // Gapless auto-advance. With crossfade off and a format-matching next
     // track, the next file is scheduled as a second segment on the current
@@ -556,6 +557,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         AVAudioFile *prefetchedFile = _prefetchedFile;
         _prefetchedFile = nil;
         _prefetchedPath = nil;
+        _prefetchedTrack = nil;
         _currentOpenPath = path;
         _pendingOpenTrack = track;
         [self finishPlayOnQueue:track file:prefetchedFile error:nil openRequestId:++_openRequestId];
@@ -838,6 +840,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // track started has no format to arm against — so acquire off the
         // parked handle now; and a same-path re-prefetch can carry a fresh
         // AudioTrack object, which the promote must deliver.
+        _prefetchedTrack = track;
         if (_gaplessTrack) {
             _gaplessTrack = track;
             // Parked material can be dormant when a transiently closed gate
@@ -854,10 +857,19 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         return; // being opened for playback right now
     }
     _prefetchRequestId++; // supersede any in-flight prefetch open
+    if (_gaplessOpenPath) {
+        // The second-handle open tracks the prefetch target too. While it is
+        // in flight _gaplessTrack is still nil, so the unschedule guard above
+        // could not see the retarget; left alive, the stale track would arm
+        // at completion and the boundary would render the wrong file.
+        _gaplessOpenRequestId++;
+        _gaplessOpenPath = nil;
+    }
     // Claimed at request time rather than at completion, so that repeated
     // prefetches of the same path do not stack opens. _prefetchedFile stays
     // nil until the open lands.
     _prefetchedPath = path;
+    _prefetchedTrack = track;
     _prefetchedFile = nil;
     if (!path) {
         return; // nil track means end of playlist: just drop the parked handle
@@ -886,6 +898,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                 // empty park.
                 if (prefetchId == strongSelf->_prefetchRequestId) {
                     strongSelf->_prefetchedPath = nil;
+                    strongSelf->_prefetchedTrack = nil;
                 }
                 if (file && file.length > 0) {
                     [strongSelf finishPlayOnQueue:track file:file error:error
@@ -904,6 +917,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                 // The open failed. Release the claim so that a play of this
                 // track runs its own open and reports the error the usual way.
                 strongSelf->_prefetchedPath = nil;
+                strongSelf->_prefetchedTrack = nil;
             }
         });
     });
@@ -1890,6 +1904,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{
         if (VibeGaplessArmAllowed(milliseconds)) {
+            if (!self->_gaplessFile && self->_prefetchedFile && self->_prefetchedTrack) {
+                // A raise dropped the splice material outright, so lowering
+                // must reacquire the second handle off the parked prefetch;
+                // maybeArmGaplessOnQueue alone only re-arms dormant material.
+                [self maybeOpenGaplessFileForTrack:self->_prefetchedTrack
+                                    prefetchedFile:self->_prefetchedFile];
+            }
             [self maybeArmGaplessOnQueue];
         }
         else if (self->_gaplessQueued) {

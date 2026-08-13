@@ -38,8 +38,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)loadMetadataNow:(AudioTrack *)track;
 
 // Empties the disk cache. The completion fires on the cache's internal queue
-// once the entries are gone. A load already in flight keeps its snapshot and
-// may still write entries after the clear.
+// once the entries are gone. A parse already in flight cannot repopulate it:
+// a cache-generation check drops its disk write, though its UI delivery
+// still happens.
 - (void)invalidateWithCompletion:(nullable dispatch_block_t)completion;
 
 // The backing store's entry count and total bytes on disk, enumerated off the

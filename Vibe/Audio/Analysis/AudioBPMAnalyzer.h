@@ -13,12 +13,11 @@
 //  then detrends the envelope, autocorrelates it over the 60-200 BPM lag
 //  range, scores each candidate with a harmonic comb at the lag and twice and
 //  three times it, which suppresses half- and double-tempo errors, rescores
-//  the candidate family with a time-domain phase comb under a mild prior
-//  centered near 120 BPM, and sharpens the winner's fractional period with a
-//  tolerance-free interpolated fine pass, landing within about ±0.01 BPM on a
-//  steady tempo. It returns 0 when the track is too short, or when the tempo
-//  peak is not prominent enough to trust, as with ambient music, rubato or
-//  speech.
+//  the candidate family with a time-domain phase comb, and sharpens the
+//  winner's fractional period with a tolerance-free interpolated fine pass,
+//  landing within about ±0.01 BPM on a steady tempo. It returns 0 when the
+//  track is too short, or when the tempo peak is not prominent enough to
+//  trust, as with ambient music, rubato or speech.
 //
 
 #import <Foundation/Foundation.h>
