@@ -23,6 +23,14 @@
 // full-size original, because callers resize precisely to shed its memory.
 - (nullable NSImage *)resizedImage:(NSSize)newSize;
 
+// The largest centered square of the image, redrawn into an sRGB bitmap.
+// An already-square image is returned unchanged, so the common case costs
+// nothing. Album art is displayed and composed in square frames — the header
+// view, the dock tile — which all aspect-*fit*, so a wide or tall cover would
+// otherwise letterbox inside them. Returns nil only if the crop cannot be
+// rasterized.
+- (nullable NSImage *)squareCroppedImage;
+
 // The image's dominant color, for tinting a backdrop to match album art. It is
 // the average of the most-populated hue band, weighted by saturation times
 // brightness, so that a colorful accent beats a large muted background. For an
