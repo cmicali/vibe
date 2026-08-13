@@ -34,6 +34,10 @@
         menuItem.state = StateForBOOL(window.isPitchPanelShown);
     }
     // A preference, not an action, so never disabled.
+    else if ([menuItem.identifier isEqualToString:@"menu_show_file_info"]) {
+        menuItem.state = StateForBOOL(Settings.showFileInfo);
+    }
+    // A preference, not an action, so never disabled.
     else if ([menuItem.identifier isEqualToString:@"menu_always_on_top"]) {
         menuItem.state = StateForBOOL(Settings.alwaysOnTop);
     }

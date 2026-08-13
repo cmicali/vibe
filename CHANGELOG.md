@@ -4,6 +4,7 @@
 * Added playlist file support: .cue and .m3u open as ordered track lists
 * Added Permissions settings pane; folder access now persists across launches
 * Added Always on Top option
+* Added "Show file info" option
 * Fixed opening files passed on the command line
 
 # v1.8

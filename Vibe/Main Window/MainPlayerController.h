@@ -94,6 +94,13 @@ NS_ASSUME_NONNULL_BEGIN
 // i.e. from the Settings pane.
 - (void)refreshKeyDisplay;
 
+- (IBAction)toggleFileInfo:(nullable id)sender;
+
+// Re-renders the codec and BPM/key lines after Settings.showFileInfo changes.
+// The Settings pane calls it after writing the setting; the menu action
+// funnels through it too.
+- (void)refreshFileInfoDisplay;
+
 - (IBAction)showInFinder:(id)sender;
 - (IBAction)copyFile:(id)sender;
 - (IBAction)copyName:(id)sender;

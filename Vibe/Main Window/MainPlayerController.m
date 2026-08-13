@@ -1087,6 +1087,17 @@
     [self applyAlwaysOnTop];
 }
 
+- (IBAction) toggleFileInfo:(id)sender {
+    Settings.showFileInfo = !Settings.showFileInfo;
+    [self refreshFileInfoDisplay];
+}
+
+- (void)refreshFileInfoDisplay {
+    // updateUI re-runs renderState: (the codec line) and
+    // effectiveTempoDidChange (the BPM/key line); both read the setting.
+    [self updateUI];
+}
+
 - (void)applyAlwaysOnTop {
     self.window.level = Settings.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel;
     // About and Settings follow the player's level, or it would bury them.

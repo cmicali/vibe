@@ -14,6 +14,7 @@
 #define SETTING_ALWAYS_ON_TOP                       @"MainWindow.alwaysOnTop"
 #define SETTING_PITCH_RANGE                         @"AudioPlayer.pitchRange"
 #define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"
+#define SETTING_SHOW_FILE_INFO                      @"MainWindow.showFileInfo"
 #define SETTING_DELETE_ORIGINAL_AFTER_CONVERT       @"Convert.deleteOriginal"
 #define SETTING_SKIP_BASE_BARS                      @"Transport.skipBaseBars"
 #define SETTING_CROSSFADE_MILLISECONDS              @"AudioPlayer.crossfadeMilliseconds"
@@ -53,6 +54,7 @@
             SETTING_ALWAYS_ON_TOP:                  @(NO),
             SETTING_PITCH_RANGE:                    @(8),
             SETTING_SHOW_REMAINING_TIME:            @(NO),
+            SETTING_SHOW_FILE_INFO:                 @(YES),
             SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
             SETTING_SKIP_BASE_BARS:                 @(8),
             SETTING_CROSSFADE_MILLISECONDS:         @(10),
@@ -177,6 +179,14 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 
 - (void)setShowRemainingTime:(BOOL)show {
     [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_REMAINING_TIME];
+}
+
+- (BOOL)showFileInfo {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_FILE_INFO];
+}
+
+- (void)setShowFileInfo:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_FILE_INFO];
 }
 
 - (NSInteger)pitchRange {
