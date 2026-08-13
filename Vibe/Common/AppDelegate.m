@@ -102,10 +102,6 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
     [[AppSettings sharedInstance] applicationDidFinishLaunching];
 
-    // Before the open queue drains: a launch-time open of a remembered folder
-    // (Open Recent, restored state) may depend on a restored grant.
-    [[FolderAccessManager sharedInstance] restoreGrantedAccess];
-
 #if DEBUG
     VibeInstallDebugScreenshotHook();
     VibeInstallDebugCommandHook();
@@ -117,12 +113,18 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
     [self openCommandLineArguments];
 
-    if (![_openBurstCoalescer startAndDrainQueue]) {
-        // No launch-time open is queued: Finder events land before this
-        // point, so the empty state may render. Argv paths arrive a beat
-        // later, off their exists checks, and replace it as a burst open.
-        [self.mainPlayerController revealEmptyState];
-    }
+    // A launch-time open of a remembered folder (Open Recent, restored state)
+    // may depend on a restored grant, so the queue drains only once the
+    // grants are back — bounded, see restoreGrantedAccessWithCompletion:.
+    // Opens that land in the meantime queue in the coalescer.
+    [[FolderAccessManager sharedInstance] restoreGrantedAccessWithCompletion:^{
+        if (![self->_openBurstCoalescer startAndDrainQueue]) {
+            // No launch-time open is queued: Finder events land before this
+            // point, so the empty state may render. Argv paths arrive a beat
+            // later, off their exists checks, and replace it as a burst open.
+            [self.mainPlayerController revealEmptyState];
+        }
+    }];
 }
 
 // Everything known about how this binary was built, plus the OS it landed on,
@@ -160,10 +162,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
     // The exists checks run off the main thread: a stat can block for an
     // automounter timeout on an unreachable mount, and this is launch time.
-    // The survivors land strictly after startAndDrainQueue — that drain runs
-    // synchronously inside applicationDidFinishLaunching — so they must enter
-    // through openBurstURLs:, which drains post-start; enqueueURLs: would
-    // park them until some unrelated later open flushed the queue.
+    // The survivors race the deferred launch drain, so they must enter
+    // through openBurstURLs:, which queues before start and drains after it;
+    // enqueueURLs: would park a post-start arrival until some unrelated
+    // later open flushed the queue.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSMutableArray<NSURL *> *urls = [NSMutableArray array];
         NSFileManager *fileManager = [NSFileManager defaultManager];

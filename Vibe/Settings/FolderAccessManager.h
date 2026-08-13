@@ -23,9 +23,12 @@ extern NSNotificationName const FolderAccessManagerDidChangeNotification;
 // The granted folders' paths, in the order they were added. Main thread.
 @property (nonatomic, readonly) NSArray<NSString *> *grantedFolderPaths;
 
-// Resolves every stored bookmark and starts its security scope, off the main
-// thread (a bookmark on an unreachable mount can block). Call once at launch.
-- (void)restoreGrantedAccess;
+// Resolves every stored bookmark and starts its security scope, each on its
+// own background block so one unreachable mount cannot stall the grants
+// behind it. Call once at launch. completion runs on the main thread once
+// every scope has started — or at a short deadline, because a launch open
+// gated on it cannot usefully wait out an automounter timeout.
+- (void)restoreGrantedAccessWithCompletion:(void (^_Nullable)(void))completion;
 
 // The auto-add sink for every open path: bookmarks the directories among the
 // URLs, skipping files, folders already covered by an existing grant, and

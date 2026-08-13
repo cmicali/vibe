@@ -133,11 +133,19 @@
     // The row the converted track occupies now, not at conversion start: a
     // mid-encode re-drop replaces the playlist, and then there is nothing to
     // swap and the FLAC simply stays on disk.
-    NSInteger convertedRow = [self.playlistController getIndexForTrack:track];
-    if (convertedRow < 0) {
+    if ([self.playlistController getIndexForTrack:track] < 0) {
         return;
     }
-    BOOL wasCurrent = [self.playlistController isCurrentTrack:track];
+    // Every row holding the source: the same file can sit in the playlist
+    // twice, and a row left behind would point at a file about to be trashed.
+    NSIndexSet *rows = [self.playlistController indexesOfTracksWithURL:track.url];
+    NSUInteger currentRow = self.playlistController.currentIndex;
+    // Currency is the current row's, not the converted object's: mid-encode
+    // the user can make a same-URL duplicate row current, and deciding by
+    // object would swap that row out from under the player with no replay —
+    // the player left holding a track the playlist has dropped, every UI tick
+    // skipped by the promote guard.
+    BOOL wasCurrent = [rows containsIndex:currentRow];
     // The player keeps running under these reads, so order matters: playhead
     // first — a track that ends in between yields a stale-but-real position,
     // where reading after would give a just-stopped player's 0. isPlaying
@@ -147,12 +155,9 @@
     BOOL wasPlaying = wasCurrent && self.audioPlayer.isPlaying;
     BOOL wasLoaded = wasPlaying || (wasCurrent && self.audioPlayer.isPaused);
 
-    // Every row holding the source: the same file can sit in the playlist
-    // twice, and a row left behind would point at a file about to be trashed.
-    NSUInteger nextRow = self.playlistController.currentIndex + 1;
+    NSUInteger nextRow = currentRow + 1;
     __block AudioTrack *converted = nil;
-    [[self.playlistController indexesOfTracksWithURL:track.url]
-            enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
+    [rows enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
         AudioTrack *replacement = [self.playlistController replaceTrackAtIndex:row withURL:outputURL];
         if (!replacement) {
             return;
@@ -161,7 +166,7 @@
         // sweep has long finished — and without it the row falls back to its
         // filename. Just written locally, so it cannot block.
         [self.metadataCache loadMetadataNow:replacement];
-        if (row == (NSUInteger)convertedRow) {
+        if (row == currentRow) {
             converted = replacement;
         }
         if (row == nextRow) {

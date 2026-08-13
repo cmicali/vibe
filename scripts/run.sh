@@ -26,6 +26,10 @@ fi
 if pgrep -x Vibe >/dev/null; then
     osascript -e 'tell application "Vibe" to quit' >/dev/null 2>&1 || pkill -x Vibe 2>/dev/null || true
     for _ in $(seq 1 25); do pgrep -x Vibe >/dev/null || break; sleep 0.2; done
+    if pgrep -x Vibe >/dev/null; then
+        echo "error: the running Vibe instance did not quit; 'open' would only reactivate it" >&2
+        exit 1
+    fi
 fi
 
 echo "🔊 running $APP"

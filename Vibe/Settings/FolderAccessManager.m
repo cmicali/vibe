@@ -55,51 +55,80 @@ static NSString *const kEntryAccessedURLKey = @"accessedURL";
 
 #pragma mark - Restore
 
-- (void)restoreGrantedAccess {
+- (void)restoreGrantedAccessWithCompletion:(void (^)(void))completion {
     NSArray<NSDictionary *> *snapshot = [[NSArray alloc] initWithArray:_entries copyItems:YES];
     if (snapshot.count == 0) {
+        if (completion) {
+            completion();
+        }
         return;
     }
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        for (NSDictionary *stored in snapshot) {
-            NSData *bookmark = stored[kEntryBookmarkKey];
-            BOOL stale = NO;
-            NSError *error;
-            NSURL *url = [NSURL URLByResolvingBookmarkData:bookmark
-                                                   options:NSURLBookmarkResolutionWithSecurityScope
-                                             relativeToURL:nil
-                                       bookmarkDataIsStale:&stale
-                                                     error:&error];
-            if (!url) {
-                // The folder may be gone or its volume unmounted. Keep the
-                // entry: it stays visible in the pane, where it can be removed.
-                LogWarn(@"Granted folder failed to resolve (%@): %@", stored[kEntryPathKey], error);
-                continue;
-            }
-            if (![url startAccessingSecurityScopedResource]) {
-                LogWarn(@"Granted folder refused security scope: %@", url.path);
-                continue;
-            }
-            // A stale bookmark still resolves; refresh it so the next launch
-            // doesn't pay the staleness again. Creation needs the scope the
-            // line above just started.
-            NSData *freshBookmark = bookmark;
-            if (stale) {
-                NSData *recreated = [url bookmarkDataWithOptions:NSURLBookmarkCreationWithSecurityScope
-                                  includingResourceValuesForKeys:nil
-                                                   relativeToURL:nil
-                                                           error:&error];
-                if (recreated) {
-                    freshBookmark = recreated;
-                }
-                else {
-                    LogWarn(@"Stale bookmark for %@ could not be refreshed: %@", url.path, error);
-                }
-            }
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [self mergeRestoredURL:url bookmark:freshBookmark forOriginal:stored];
-            });
+    dispatch_group_t group = dispatch_group_create();
+    for (NSDictionary *stored in snapshot) {
+        // One block per bookmark: a resolve can block for an automounter
+        // timeout on an unreachable mount, and serialized behind it every
+        // later folder's grant would wait too.
+        dispatch_group_async(group, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            [self restoreStoredEntry:stored];
+        });
+    }
+    if (!completion) {
+        return;
+    }
+    // Fire when every scope has started, or at the deadline — a caller gated
+    // on a dead mount's grant gains nothing by waiting, since a walk under
+    // that mount would block the same way. done is main-thread state.
+    __block BOOL done = NO;
+    dispatch_block_t finish = ^{
+        if (!done) {
+            done = YES;
+            completion();
         }
+    };
+    dispatch_group_notify(group, dispatch_get_main_queue(), finish);
+    static const NSTimeInterval kRestoreCompletionDeadline = 2.0;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRestoreCompletionDeadline * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), finish);
+}
+
+// Background thread; the group's per-entry block.
+- (void)restoreStoredEntry:(NSDictionary *)stored {
+    NSData *bookmark = stored[kEntryBookmarkKey];
+    BOOL stale = NO;
+    NSError *error;
+    NSURL *url = [NSURL URLByResolvingBookmarkData:bookmark
+                                           options:NSURLBookmarkResolutionWithSecurityScope
+                                     relativeToURL:nil
+                               bookmarkDataIsStale:&stale
+                                             error:&error];
+    if (!url) {
+        // The folder may be gone or its volume unmounted. Keep the
+        // entry: it stays visible in the pane, where it can be removed.
+        LogWarn(@"Granted folder failed to resolve (%@): %@", stored[kEntryPathKey], error);
+        return;
+    }
+    if (![url startAccessingSecurityScopedResource]) {
+        LogWarn(@"Granted folder refused security scope: %@", url.path);
+        return;
+    }
+    // A stale bookmark still resolves; refresh it so the next launch
+    // doesn't pay the staleness again. Creation needs the scope the
+    // line above just started.
+    NSData *freshBookmark = bookmark;
+    if (stale) {
+        NSData *recreated = [url bookmarkDataWithOptions:NSURLBookmarkCreationWithSecurityScope
+                          includingResourceValuesForKeys:nil
+                                           relativeToURL:nil
+                                                   error:&error];
+        if (recreated) {
+            freshBookmark = recreated;
+        }
+        else {
+            LogWarn(@"Stale bookmark for %@ could not be refreshed: %@", url.path, error);
+        }
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self mergeRestoredURL:url bookmark:freshBookmark forOriginal:stored];
     });
 }
 
@@ -141,6 +170,16 @@ static NSString *const kEntryAccessedURLKey = @"accessedURL";
             BOOL isDirectory = NO;
             if (!path || ![NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&isDirectory] || !isDirectory) {
                 continue;
+            }
+            // Standardizing keeps whatever case the caller spelled, and the
+            // volume is typically case-insensitive — left as-is, a
+            // differently-cased spelling of a granted folder (or of ~/Music)
+            // dodges the case-sensitive coverage check below and mints a
+            // duplicate bookmark.
+            id canonical = nil;
+            [[NSURL fileURLWithPath:path] getResourceValue:&canonical forKey:NSURLCanonicalPathKey error:nil];
+            if ([canonical isKindOfClass:NSString.class]) {
+                path = canonical;
             }
             if ([self.class path:path isCoveredByAnyOf:covered]) {
                 continue;

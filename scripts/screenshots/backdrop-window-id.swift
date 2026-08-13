@@ -1,5 +1,5 @@
 // Print the CGWindowID of a window to stage behind Vibe for `CAPTURE=merged`
-// screenshots — for `screencapture -l<id>` (see generate-screenshots.sh).
+// screenshots — for `screencapture -l<id>` (see generate-readme-screenshots.sh).
 //
 //   swift backdrop-window-id.swift "IntelliJ IDEA"   # by owning app name
 //   swift backdrop-window-id.swift wallpaper         # the desktop picture
