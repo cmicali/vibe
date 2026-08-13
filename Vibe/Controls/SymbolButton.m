@@ -163,10 +163,8 @@ static const CGFloat kDefaultSymbolPointSize = 15;
     if (!self.isEnabled) {
         color = _symbolDisabledColor;
     } else if (_mouseDown && _hovering) {
-        // Pressed, at half the highlight's opacity.
         color = [_symbolHighlightColor colorWithAlphaComponent:_symbolHighlightColor.alphaComponent * 0.5];
     } else if (_hovering) {
-        // Hovered, at the full highlight color.
         color = _symbolHighlightColor;
     } else {
         color = _symbolNormalColor;

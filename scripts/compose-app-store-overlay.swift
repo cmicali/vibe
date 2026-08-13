@@ -45,8 +45,8 @@ let CANVAS_H = 1800
 // How much of the canvas the window may take. Width usually binds; the height
 // cap only comes into play for the tall playlist+pitch shot, and leaves room
 // for the headline above. The README captures are 1360-1550px wide, so a width
-// fraction this high means upscaling ~1.5-1.8x — checked at 1:1, and the
-// 2x-retina source takes it without visible softening.
+// fraction this high means upscaling ~1.5-1.8x — the 2x-retina source takes
+// it without visible softening.
 let WINDOW_W_FRAC = 0.84
 let WINDOW_H_FRAC = 0.72
 

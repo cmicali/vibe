@@ -20,10 +20,6 @@
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>
 
-// VibePlayerState lives in AudioPlayerInternal.h, shared with
-// AudioPlayer+Devices.m alongside the class extension and this function's
-// declaration.
-
 NSString *const kVibeAudioErrorDomain = @"com.commonwealthrecordings.Vibe";
 NSString *const kVibeAudioErrorTrackURLKey = @"VibeAudioErrorTrackURL";
 
@@ -1862,8 +1858,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     if (![self startEngineAndPlayNode:node error:&startError]) {
         // The rescheduled segment stays at the live generation deliberately:
         // it is parked, not superseded, and a later resume plays it out — its
-        // completion must still fire the natural track end. (A bump here used
-        // to orphan it: resume played to the end, no didFinishPlaying:, the
+        // completion must still fire the natural track end. (A bump here
+        // orphans it: resume plays to the end, no didFinishPlaying:, the
         // position pinned at the duration with the state stuck Playing.)
         // Keep the seeked frame, and report paused so the UI recovers.
         [self publishPlaybackState:VibePlayerStatePaused node:node file:file segmentStart:startFrame position:framePosition];

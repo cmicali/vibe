@@ -68,7 +68,6 @@
     [self.observer playlist:self didAppendTracksAtIndexes:indexes];
 }
 
-// Appends tracks for urls to _tracks, recording each one's row.
 - (void)addTracksForURLs:(NSArray<NSURL *> *)urls {
     for (NSURL *url in urls) {
         AudioTrack *track = [AudioTrack withURL:url];

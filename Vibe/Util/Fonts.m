@@ -13,8 +13,8 @@
     return [self font:size bold:NO];
 }
 
-// The cache key. Negating the size for bold collides at size 0, so the key
-// spells out both dimensions.
+// Negating the size for bold collides at size 0, so the key spells out both
+// dimensions.
 static NSString *fontCacheKey(CGFloat size, BOOL bold) {
     return [NSString stringWithFormat:@"%g%@", size, bold ? @"-bold" : @""];
 }

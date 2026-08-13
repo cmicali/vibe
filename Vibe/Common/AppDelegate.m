@@ -169,7 +169,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSMutableArray<NSURL *> *urls = [NSMutableArray array];
         NSFileManager *fileManager = [NSFileManager defaultManager];
-        for (NSUInteger i = 1; i < args.count; i++) { // skip argv[0] (the executable)
+        for (NSUInteger i = 1; i < args.count; i++) {
             NSString *arg = args[i];
             if ([arg isEqualToString:@"--debug-cmd"]) {
                 i++; // the only flag that takes a value (see main.m)

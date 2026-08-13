@@ -60,7 +60,7 @@
                                         drawingHandler:^BOOL(NSRect dstRect) {
 
                                             NSSize imageSize = [image size];
-                                            NSSize imageViewSize = weakSelf.bounds.size; // Yes, do not use dstRect.
+                                            NSSize imageViewSize = weakSelf.bounds.size; // deliberately not dstRect
 
                                             NSSize newImageSize = imageSize;
 
@@ -68,11 +68,11 @@
                                             CGFloat imageViewAspectRatio = imageViewSize.height/imageViewSize.width;
 
                                             if (imageAspectRatio < imageViewAspectRatio) {
-                                                // Image is more horizontal than the view. Image left and right borders need to be cropped.
+                                                // Wider than the view: crop left and right.
                                                 newImageSize.width = imageSize.height / imageViewAspectRatio;
                                             }
                                             else {
-                                                // Image is more vertical than the view. Image top and bottom borders need to be cropped.
+                                                // Taller than the view: crop top and bottom.
                                                 newImageSize.height = imageSize.width * imageViewAspectRatio;
                                             }
 
@@ -82,7 +82,7 @@
 
                                             [[NSGraphicsContext currentContext] setImageInterpolation:NSImageInterpolationHigh];
 
-                                            [image drawInRect:dstRect // Interestingly, here needs to be dstRect and not self.bounds
+                                            [image drawInRect:dstRect // must be dstRect here, not self.bounds
                                                      fromRect:srcRect
                                                     operation:NSCompositingOperationCopy
                                                      fraction:1.0

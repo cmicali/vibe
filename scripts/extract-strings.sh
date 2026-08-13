@@ -108,8 +108,8 @@ fi
 # alone entirely (InfoPlist.xcstrings, all manual, has never been touched).
 #
 # But xcstringstool sync ALSO honors manual — it skips such keys wholesale: no
-# comment updates from source, no staleness when the define disappears
-# (verified). So the shield would break this script's own sync. Hence the
+# comment updates from source, no staleness when the define disappears.
+# So the shield would break this script's own sync. Hence the
 # sandwich: unshield() strips the manual marks so sync treats every key as
 # extraction-managed, sync updates comments / adds keys / marks dead keys
 # stale, and normalize() re-shields every key that is not stale. A stale key
@@ -126,7 +126,7 @@ unshield() {
 
 # The extracted English defaults, key → value, for the en enforcement below.
 # sync only stamps a key's en value on FIRST sight — rewording the default in
-# VibeStrings.h afterwards changes nothing in the catalog (verified), so runtime
+# VibeStrings.h afterwards changes nothing in the catalog, so runtime
 # would keep serving the old English forever while the macro fallback never
 # fires. normalize() closes that hole by copying the extracted value over the
 # catalog's en unit whenever they differ.
@@ -141,7 +141,7 @@ jq -s '[.[].tables.Localizable // [] | .[]] | map({(.key): .value}) | add // {}'
 # it and let the catalog be authoritative at runtime too — including on a
 # reword: en is overwritten from the extraction, and every OTHER language is
 # flipped to "needs_review" so the drift lands in front of a translator
-# instead of shipping silently. needs_review units still compile (verified),
+# instead of shipping silently. needs_review units still compile,
 # so the 22 translations keep shipping while they await review.
 #
 # Both the write and the check path run the same unshield/sync/normalize

@@ -9,8 +9,8 @@ options:
   developmentLanguage: en       # base language of the String Catalogs; also what
                                 # $(DEVELOPMENT_LANGUAGE) expands to in Info.plist.
   # knownRegions stays at XcodeGen's default (Base, en): it doesn't gate what
-  # ships — the XCStrings compiler emits every language in the catalogs
-  # (verified) — and a spec key for it is ignored (XcodeGen derives it from
+  # ships — the XCStrings compiler emits every language in the catalogs —
+  # and a spec key for it is ignored (XcodeGen derives it from
   # localized file references). It only affects Xcode's project UI and the
   # -exportLocalizations default (pass -exportLanguage explicitly there).
   fileTypes:
