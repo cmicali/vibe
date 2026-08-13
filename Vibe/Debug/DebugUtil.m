@@ -61,7 +61,7 @@ static void VibeCollectGlassLayers(NSView *view, NSMutableArray<CALayer *> *out)
     }
 }
 
-static void VibeDumpWindowSnapshot(NSString *path) {
+static BOOL VibeDumpWindowSnapshot(NSString *path) {
     NSWindow *window = NSApp.keyWindow ?: NSApp.mainWindow;
     if (!window) {
         for (NSWindow *candidate in NSApp.windows) {
@@ -74,7 +74,7 @@ static void VibeDumpWindowSnapshot(NSString *path) {
     NSView *view = window.contentView;
     if (!view || NSIsEmptyRect(view.bounds)) {
         LogError(@"Debug screenshot: no window content to render");
-        return;
+        return NO;
     }
     CGFloat scale = window.backingScaleFactor > 0 ? window.backingScaleFactor : 2.0;
     size_t pixelsWide = (size_t)llround(view.bounds.size.width * scale);
@@ -84,7 +84,8 @@ static void VibeDumpWindowSnapshot(NSString *path) {
             (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
     CGColorSpaceRelease(space);
     if (!ctx) {
-        return;
+        LogError(@"Debug screenshot: bitmap context creation failed");
+        return NO;
     }
     CGContextScaleCTM(ctx, scale, scale);
     // With the glass layers hidden below, their region renders transparent, so
@@ -135,18 +136,26 @@ static void VibeDumpWindowSnapshot(NSString *path) {
     CGImageRef image = CGBitmapContextCreateImage(ctx);
     CGContextRelease(ctx);
     if (!image) {
-        return;
+        LogError(@"Debug screenshot: image creation failed");
+        return NO;
     }
     NSURL *url = [NSURL fileURLWithPath:path];
     CGImageDestinationRef dest = CGImageDestinationCreateWithURL((__bridge CFURLRef)url,
             (__bridge CFStringRef)UTTypePNG.identifier, 1, NULL);
+    BOOL written = NO;
     if (dest) {
         CGImageDestinationAddImage(dest, image, NULL);
-        CGImageDestinationFinalize(dest);
+        written = CGImageDestinationFinalize(dest);
         CFRelease(dest);
-        LogInfo(@"Debug screenshot written to %@", path);
     }
     CGImageRelease(image);
+    if (written) {
+        LogInfo(@"Debug screenshot written to %@", path);
+    }
+    else {
+        LogError(@"Debug screenshot: PNG write to %@ failed", path);
+    }
+    return written;
 }
 
 void VibeInstallDebugScreenshotHook(void) {
@@ -990,7 +999,9 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 // base64, with a label naming the decoded file; see
                 // run-script.sh.
                 NSString *path = VibeDebugScreenshotPathForCommand(commandId);
-                VibeDumpWindowSnapshot(path);
+                if (!VibeDumpWindowSnapshot(path)) {
+                    return VibeErrorJSON(@"screenshot failed to render or write; see app log");
+                }
                 return VibeJSONString(@{@"path": path});
             }),
             VibeCmd(@"click_menu <identifier-or-title>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
@@ -1021,7 +1032,8 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeActionCmd(@"low_kill_boost_off", ^(MainPlayerController *controller) { [controller setLowKillBoostActive:NO]; }),
             VibeActionCmd(@"toggle_size", ^(MainPlayerController *controller) { [controller toggleSize:nil]; }),
             VibeCmd(@"set_window_width <body-points>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                if (tokens.count < 2) {
+                double bodyPoints = 0;
+                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &bodyPoints)) {
                     return VibeErrorJSON(@"usage: set_window_width <body-points>");
                 }
                 // The window is freely resizable and its width comes back from
@@ -1038,7 +1050,7 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 // the window's own minSize, which already carries the panel,
                 // then is pulled back on screen: a window hanging off the
                 // right edge captures clipped.
-                frame.size.width = MAX(window.minSize.width, tokens[1].doubleValue + panel);
+                frame.size.width = MAX(window.minSize.width, bodyPoints + panel);
                 NSRect screenRect = window.screen.visibleFrame;
                 if (screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
                     frame.origin.x = MAX(NSMinX(screenRect), NSMaxX(screenRect) - frame.size.width);
@@ -1084,22 +1096,24 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return VibeInjectKey(controller, tokens, NO, YES);
             }),
             VibeCmd(@"set_pitch <percent>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                if (tokens.count < 2) {
+                double percent = 0;
+                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &percent)) {
                     return VibeErrorJSON(@"usage: set_pitch <percent>");
                 }
                 // Through the panel first, so that the fader clamps to its
                 // range exactly as a drag would, and then the player takes the
                 // clamped value.
-                controller.pitchPanel.pitch = tokens[1].floatValue;
+                controller.pitchPanel.pitch = (float)percent;
                 controller.audioPlayer.pitch = controller.pitchPanel.pitch;
                 [controller debugRefreshUI];
                 return VibeActionSummary(controller);
             }),
             VibeCmd(@"seek <seconds>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                if (tokens.count < 2) {
+                double seconds = 0;
+                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &seconds)) {
                     return VibeErrorJSON(@"usage: seek <seconds>");
                 }
-                [controller.audioPlayer seekToPosition:tokens[1].doubleValue];
+                [controller.audioPlayer seekToPosition:seconds];
                 [controller debugRefreshUI];
                 return VibeActionSummary(controller);
             }),
@@ -1388,13 +1402,29 @@ static void VibeHandleOneDebugCommandFile(NSString *path) {
 // wake-up must drain every pending command file. Each reply pairs with its
 // command through the id.
 static void VibeHandleDebugCommandFiles(void) {
-    NSString *tmpDir = NSTemporaryDirectory();
-    NSArray<NSString *> *names = [NSFileManager.defaultManager contentsOfDirectoryAtPath:tmpDir error:nil];
-    for (NSString *name in [names sortedArrayUsingSelector:@selector(compare:)]) {
-        if ([name hasPrefix:@"vibe-command-"] && [name hasSuffix:@".json"]) {
-            VibeHandleOneDebugCommandFile([tmpDir stringByAppendingPathComponent:name]);
-        }
+    // The mouse verbs spin the main run loop waiting for key status
+    // (VibeMakeWindowKeyForInjection), and that spin services this notify
+    // handler — without the guard a second client's queued command executes
+    // reentrantly inside the first. Main-thread state; the deferred pass
+    // re-drains once the outer command finishes.
+    static BOOL draining = NO;
+    static BOOL deferred = NO;
+    if (draining) {
+        deferred = YES;
+        return;
     }
+    draining = YES;
+    do {
+        deferred = NO;
+        NSString *tmpDir = NSTemporaryDirectory();
+        NSArray<NSString *> *names = [NSFileManager.defaultManager contentsOfDirectoryAtPath:tmpDir error:nil];
+        for (NSString *name in [names sortedArrayUsingSelector:@selector(compare:)]) {
+            if ([name hasPrefix:@"vibe-command-"] && [name hasSuffix:@".json"]) {
+                VibeHandleOneDebugCommandFile([tmpDir stringByAppendingPathComponent:name]);
+            }
+        }
+    } while (deferred);
+    draining = NO;
 }
 
 void VibeInstallDebugCommandHook(void) {

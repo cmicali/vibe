@@ -1,5 +1,5 @@
 // A full-screen window to stage behind Vibe for `CAPTURE=merged` screenshots
-// (see generate-screenshots.sh) — either an image or a gradient.
+// (see generate-readme-screenshots.sh) — either an image or a gradient.
 //
 //   swift backdrop.swift <image-path>   # draw an image, aspect-filled
 //   swift backdrop.swift [hex ...]      # or a gradient; default blue → violet
