@@ -350,6 +350,7 @@ targets:
       - path: Vibe/Util/PlaylistFile.m
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Util/Categories/NSURL+Hash.m
+      - path: Vibe/Util/Categories/NSImage+Util.m
     settings:
       base:
         PRODUCT_NAME: "$(TARGET_NAME)"

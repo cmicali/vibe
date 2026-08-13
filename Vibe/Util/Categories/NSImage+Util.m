@@ -54,6 +54,26 @@
     }];
 }
 
+- (NSImage *)squareCroppedImage {
+    NSSize size = self.size;
+    if (size.width <= 0 || size.height <= 0) {
+        return nil;
+    }
+    CGFloat side = MIN(size.width, size.height);
+    // Sub-point differences are invisible once drawn, and re-rendering a
+    // square cover would cost a full bitmap for nothing.
+    if (fabs(size.width - size.height) < 1.0) {
+        return self;
+    }
+    NSRect crop = NSMakeRect((size.width - side) / 2, (size.height - side) / 2, side, side);
+    return [NSImage imageWithSize:NSMakeSize(side, side) drawnBy:^{
+        [self drawInRect:NSMakeRect(0, 0, side, side)
+                fromRect:crop
+               operation:NSCompositingOperationCopy
+                fraction:1.0];
+    }];
+}
+
 - (NSColor *)dominantColor {
     static const NSInteger kSide = 32;     // 1024 samples is plenty for one color
     static const NSInteger kHueBins = 12;

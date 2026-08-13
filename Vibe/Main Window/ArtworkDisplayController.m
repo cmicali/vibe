@@ -222,9 +222,15 @@ static const CGFloat kAccentMaxChroma         = 0.17;
     NSImage *art = track.albumArt;
     if (art) {
         if (_displayedArt != art) {
-            _artworkView.image = art;
-            [self applyHeaderTintFromArt:art forTrack:track];
-            [NSDockTile setDockIcon:art];
+            // Everything downstream frames art square and aspect-fits it, so
+            // crop once here rather than letterboxing a wide or tall cover in
+            // the header view and again in the dock tile. The identity mark
+            // stays the source image: the crop is a fresh object every time,
+            // and comparing it would re-crop on every update.
+            NSImage *square = [art squareCroppedImage] ?: art;
+            _artworkView.image = square;
+            [self applyHeaderTintFromArt:square forTrack:track];
+            [NSDockTile setDockIcon:square];
             _displayedArt = art;
         }
         _initialized = YES;
