@@ -1,6 +1,5 @@
-* Nyt lokalisoitu 30 kielelle — uutena tšekki, slovakki, unkari, kreikka, vietnam, indonesia ja thai
-* Uusi asetusikkuna (toisto, ulkoasu, muunnos ja lisäasetukset)
-* Sävellajin näyttö ja valinnainen tunnistus — musiikillinen tai Camelot-merkintä
-* Nopeampi BPM- ja sävellajianalyysi sekä nopeampi aaltomuodon lataus
-* Tauko vapauttaa nyt äänilaitteen
+* Saumaton toisto — ilman ristihäivytystä kappaleet soivat saumattomasti peräkkäin
+* Soittolistatiedostot — .cue ja .m3u avautuvat järjestettyinä kappalelistoina
+* Uusi Käyttöoikeudet-osio asetuksissa — kansioiden käyttöoikeudet säilyvät käynnistysten välillä
+* Uusi Aina päällimmäisenä -valinta
 * Virheenkorjauksia ja parannuksia

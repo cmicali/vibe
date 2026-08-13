@@ -1,6 +1,5 @@
-* Jetzt in 30 Sprachen lokalisiert — neu: Tschechisch, Slowakisch, Ungarisch, Griechisch, Vietnamesisch, Indonesisch und Thailändisch
-* Neues Einstellungsfenster (Wiedergabe, Erscheinungsbild, Konvertierung und erweiterte Optionen)
-* Anzeige der Tonart mit optionaler Erkennung — musikalische oder Camelot-Notation
-* Schnellere BPM- und Tonart-Analyse, schnelleres Laden der Wellenform
-* Pause gibt jetzt das Audiogerät frei
+* Lückenlose Wiedergabe — ohne Überblendung gehen Titel nahtlos ineinander über
+* Playlist-Dateien — .cue und .m3u öffnen als geordnete Titelliste
+* Neuer Einstellungsbereich „Berechtigungen“ — Ordnerzugriff bleibt über Neustarts erhalten
+* Neue Option „Immer im Vordergrund“
 * Fehlerbehebungen und Verbesserungen

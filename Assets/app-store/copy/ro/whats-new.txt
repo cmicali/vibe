@@ -1,6 +1,5 @@
-* Acum localizat în 30 de limbi — adăugate cehă, slovacă, maghiară, greacă, vietnameză, indoneziană și thailandeză
-* Fereastră nouă de Setări (redare, aspect, conversie și opțiuni avansate)
-* Afișarea tonalității cu detectare opțională — notație muzicală sau Camelot
-* Analiză BPM și tonalitate mai rapidă și încărcare mai rapidă a formei de undă
-* Pauza eliberează acum dispozitivul audio
+* Redare fără pauze — fără crossfade, piesele se succed perfect
+* Fișiere playlist — .cue și .m3u se deschid ca liste ordonate de piese
+* Panou nou de Permisiuni în Setări — accesul la dosare persistă între lansări
+* Opțiune nouă „Mereu deasupra”
 * Remedieri de erori și îmbunătățiri

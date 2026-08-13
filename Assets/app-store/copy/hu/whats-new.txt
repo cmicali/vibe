@@ -1,6 +1,5 @@
-* Mostantól 30 nyelvre lokalizálva — új a cseh, szlovák, magyar, görög, vietnámi, indonéz és thai
-* Új Beállítások ablak (lejátszás, megjelenés, konvertálás és speciális beállítások)
-* Hangnem megjelenítése választható felismeréssel — zenei vagy Camelot-jelölés
-* Gyorsabb BPM- és hangnemelemzés, gyorsabb hullámforma-betöltés
-* A szünet mostantól felszabadítja a hangeszközt
+* Szünetmentes lejátszás — áttűnés nélkül a számok folyamatosan követik egymást
+* Playlistfájlok — a .cue és .m3u rendezett számlistaként nyílik meg
+* Új Engedélyek panel a Beállításokban — a mappahozzáférés megmarad az újraindítások között
+* Új „Mindig felül” beállítás
 * Hibajavítások és fejlesztések

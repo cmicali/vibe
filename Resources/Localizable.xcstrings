@@ -12838,10 +12838,184 @@
     "menu.view.always_on_top": {
       "comment": "View menu item: checkmarked toggle that keeps the player window above all other apps' windows.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Винаги отгоре"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vždy navrchu"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altid forrest"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Immer im Vordergrund"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Πάντα σε πρώτο πλάνο"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Always on Top"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siempre visible"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aina päällimmäisenä"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toujours au premier plan"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uvijek na vrhu"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mindig felül"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selalu di Atas"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sempre in primo piano"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常に手前に表示"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "항상 위에 유지"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alltid øverst"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altijd op voorgrond"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zawsze na wierzchu"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sempre visível"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sempre visível"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mereu deasupra"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поверх всех окон"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vždy navrchu"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alltid överst"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "อยู่บนสุดเสมอ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her Zaman Üstte"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поверх усіх вікон"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luôn ở trên cùng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "总是置顶"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永遠顯示在最上層"
           }
         }
       },
@@ -14896,10 +15070,184 @@
     "playlist.grant.button": {
       "comment": "Confirm button of the folder-picker panel that grants access to a playlist file's folder.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешаване на достъп"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povolit přístup"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giv adgang"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zugriff erlauben"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Παραχώρηση πρόσβασης"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Grant Access"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir acceso"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salli pääsy"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoriser l’accès"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dopusti pristup"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hozzáférés engedélyezése"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beri Akses"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consenti accesso"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アクセスを許可"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "접근 허용"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gi tilgang"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verleen toegang"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Udziel dostępu"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir Acesso"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir acesso"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permite accesul"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешить доступ"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povoliť prístup"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ge åtkomst"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "อนุญาตการเข้าถึง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erişim Ver"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Надати доступ"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cấp quyền truy cập"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许访问"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許取用"
           }
         }
       },
@@ -14908,10 +15256,184 @@
     "playlist.grant.message": {
       "comment": "Message atop the folder-picker panel shown when a playlist file's (CUE, M3U) audio files are not readable under the sandbox. %@ is the playlist file's name.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe се нуждае от разрешение, за да чете аудиофайловете, изброени в „%@“. Изберете папката, която ги съдържа."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe potřebuje oprávnění ke čtení zvukových souborů uvedených v „%@“. Vyberte složku, která je obsahuje."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe skal have tilladelse til at læse lydfilerne i “%@”. Vælg den mappe, der indeholder dem."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe benötigt die Berechtigung, die in „%@“ aufgeführten Audiodateien zu lesen. Wähle den Ordner aus, der sie enthält."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Το Vibe χρειάζεται άδεια για να διαβάσει τα αρχεία ήχου που αναφέρονται στο «%@». Επιλέξτε τον φάκελο που τα περιέχει."
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Vibe needs permission to read the audio files listed in “%@”. Select the folder that contains them."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe necesita permiso para leer los archivos de audio listados en “%@”. Selecciona la carpeta que los contiene."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe tarvitsee luvan lukea tiedostossa ”%@” lueteltuja äänitiedostoja. Valitse kansio, joka sisältää ne."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe a besoin de l’autorisation de lire les fichiers audio listés dans « %@ ». Sélectionnez le dossier qui les contient."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe treba dozvolu za čitanje audiodatoteka navedenih u „%@”. Odaberite mapu koja ih sadrži."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Vibe-nak engedélyre van szüksége a(z) „%@” fájlban felsorolt hangfájlok olvasásához. Válaszd ki a mappát, amely tartalmazza őket."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe memerlukan izin untuk membaca file audio yang tercantum di “%@”. Pilih folder yang berisi file tersebut."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe ha bisogno del permesso di leggere i file audio elencati in “%@”. Seleziona la cartella che li contiene."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe が「%@」に記載されているオーディオファイルを読み込むには許可が必要です。それらを含むフォルダを選択してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe가 ‘%@’에 나열된 오디오 파일을 읽으려면 권한이 필요합니다. 해당 파일이 들어 있는 폴더를 선택하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe trenger tillatelse til å lese lydfilene i «%@». Velg mappen som inneholder dem."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe heeft toestemming nodig om de audiobestanden in ‘%@’ te lezen. Selecteer de map waarin ze staan."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe potrzebuje uprawnienia do odczytu plików audio wymienionych w „%@”. Wybierz folder, który je zawiera."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Vibe precisa de permissão para ler os arquivos de áudio listados em “%@”. Selecione a pasta que os contém."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Vibe precisa de permissão para ler os ficheiros de áudio listados em “%@”. Selecione a pasta que os contém."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe are nevoie de permisiune pentru a citi fișierele audio listate în „%@”. Selectează dosarul care le conține."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe требуется разрешение на чтение аудиофайлов, перечисленных в «%@». Выберите папку, в которой они находятся."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe potrebuje povolenie na čítanie zvukových súborov uvedených v „%@“. Vyberte priečinok, ktorý ich obsahuje."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe behöver behörighet att läsa ljudfilerna i ”%@”. Välj mappen som innehåller dem."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe ต้องการสิทธิ์ในการอ่านไฟล์เสียงที่ระบุไว้ใน “%@” โปรดเลือกโฟลเดอร์ที่มีไฟล์เหล่านั้น"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe'ın “%@” içinde listelenen ses dosyalarını okumak için izne ihtiyacı var. Onları içeren klasörü seçin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe потребує дозволу на читання аудіофайлів, перелічених у «%@». Виберіть папку, яка їх містить."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe cần quyền để đọc các tệp âm thanh được liệt kê trong “%@”. Hãy chọn thư mục chứa chúng."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe 需要权限来读取“%@”中列出的音频文件。请选择包含这些文件的文件夹。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe 需要權限才能讀取「%@」中列出的音訊檔案。請選擇包含這些檔案的檔案夾。"
           }
         }
       },
@@ -18826,10 +19348,184 @@
     "settings.general.always_on_top": {
       "comment": "Settings, General pane: checkbox that keeps the player window above all other apps' windows. The same setting as the View menu's 'Always on Top' item, in sentence case per checkbox convention.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Винаги отгоре"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vždy navrchu"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altid forrest"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Immer im Vordergrund"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Πάντα σε πρώτο πλάνο"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Always on top"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siempre visible"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aina päällimmäisenä"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toujours au premier plan"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uvijek na vrhu"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mindig felül"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selalu di atas"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sempre in primo piano"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常に手前に表示"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "항상 위에 유지"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alltid øverst"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altijd op voorgrond"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zawsze na wierzchu"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sempre visível"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sempre visível"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mereu deasupra"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поверх всех окон"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vždy navrchu"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alltid överst"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "อยู่บนสุดเสมอ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her zaman üstte"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поверх усіх вікон"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luôn ở trên cùng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "总是置顶"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永遠顯示在最上層"
           }
         }
       },
@@ -19024,10 +19720,184 @@
     "settings.permissions": {
       "comment": "Settings window: the Permissions pane's toolbar item, and the window's title while that pane is selected. The pane lists the folders the app keeps access to.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешения"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oprávnění"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilladelser"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berechtigungen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Άδειες"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Permissions"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permisos"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Käyttöoikeudet"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autorisations"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dozvole"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Engedélyek"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izin"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permessi"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アクセス権"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "권한"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tillatelser"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bevoegdheden"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uprawnienia"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permissões"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permissões"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permisiuni"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешения"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povolenia"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Behörigheter"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "สิทธิ์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İzinler"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дозволи"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quyền truy cập"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "权限"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "權限"
           }
         }
       },
@@ -19036,10 +19906,184 @@
     "settings.permissions.add_folder": {
       "comment": "Settings, Permissions pane: button that opens a folder chooser to grant the app access to another folder. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавяне на папка…"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Přidat složku…"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilføj mappe…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordner hinzufügen…"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Προσθήκη φακέλου…"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Add Folder…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir carpeta…"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lisää kansio…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter un dossier…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj mapu…"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mappa hozzáadása…"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambah Folder…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi cartella…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダを追加…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더 추가…"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legg til mappe…"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voeg map toe…"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj folder…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar Pasta…"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar pasta…"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adaugă dosar…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить папку…"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pridať priečinok…"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lägg till mapp…"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เพิ่มโฟลเดอร์…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klasör Ekle…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Додати папку…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm thư mục…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加文件夹…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入檔案夾…"
           }
         }
       },
@@ -19048,10 +20092,184 @@
     "settings.permissions.explain": {
       "comment": "Settings, Permissions pane: explanatory text above the list of granted folders.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe винаги има достъп до папката „Музика“. Други папки се добавят тук, когато ги отворите или ги плъзнете върху Vibe, и остават достъпни след рестартиране."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe má vždy přístup ke složce Hudba. Další složky se sem přidají, když je otevřete nebo přetáhnete do Vibe, a zůstanou přístupné i po restartu."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe har altid adgang til din musikmappe. Andre mapper tilføjes her, når du åbner dem eller trækker dem til Vibe, og forbliver tilgængelige efter en genstart."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe hat immer Zugriff auf deinen Musik-Ordner. Andere Ordner werden hier hinzugefügt, sobald du sie öffnest oder auf Vibe ziehst, und bleiben nach einem Neustart zugänglich."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Το Vibe έχει πάντα πρόσβαση στον φάκελο «Μουσική». Άλλοι φάκελοι προστίθενται εδώ όταν τους ανοίγετε ή τους σύρετε στο Vibe, και παραμένουν προσβάσιμοι μετά από επανεκκίνηση."
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Vibe always has access to your Music folder. Other folders are added here when you open them or drag them onto Vibe, and stay accessible after a relaunch."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe siempre tiene acceso a tu carpeta Música. Las demás carpetas se añaden aquí cuando las abres o las arrastras a Vibe, y siguen accesibles tras reiniciar la app."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibellä on aina pääsy Musiikki-kansioosi. Muut kansiot lisätään tähän, kun avaat ne tai vedät ne Vibeen, ja ne pysyvät käytettävissä uudelleenkäynnistyksen jälkeen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe a toujours accès à votre dossier Musique. Les autres dossiers sont ajoutés ici lorsque vous les ouvrez ou les faites glisser sur Vibe, et restent accessibles après un redémarrage."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe uvijek ima pristup mapi Glazba. Druge se mape dodaju ovdje kad ih otvorite ili povučete na Vibe i ostaju dostupne nakon ponovnog pokretanja."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Vibe mindig hozzáfér a Zenék mappához. Más mappák akkor kerülnek ide, amikor megnyitod vagy a Vibe-ra húzod őket, és újraindítás után is elérhetők maradnak."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe selalu memiliki akses ke folder Musik Anda. Folder lain ditambahkan di sini saat Anda membukanya atau menyeretnya ke Vibe, dan tetap dapat diakses setelah dibuka ulang."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe ha sempre accesso alla tua cartella Musica. Le altre cartelle vengono aggiunte qui quando le apri o le trascini su Vibe e restano accessibili dopo un riavvio."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe は「ミュージック」フォルダに常にアクセスできます。ほかのフォルダは、開くか Vibe にドラッグすると自動的にここへ追加され、再起動後もアクセスできます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe는 음악 폴더에 항상 접근할 수 있습니다. 다른 폴더는 열거나 Vibe로 드래그하면 여기에 추가되며, 재실행 후에도 계속 접근할 수 있습니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe har alltid tilgang til musikkmappen din. Andre mapper legges til her når du åpner dem eller drar dem til Vibe, og forblir tilgjengelige etter en omstart."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe heeft altijd toegang tot je map Muziek. Andere mappen worden hier toegevoegd wanneer je ze opent of naar Vibe sleept, en blijven toegankelijk na een herstart."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe zawsze ma dostęp do Twojego folderu Muzyka. Inne foldery są dodawane tutaj, gdy je otwierasz lub przeciągasz do Vibe, i pozostają dostępne po ponownym uruchomieniu."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Vibe sempre tem acesso à sua pasta Música. Outras pastas são adicionadas aqui quando você as abre ou arrasta para o Vibe, e continuam acessíveis após reabrir o app."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Vibe tem sempre acesso à sua pasta Música. Outras pastas são adicionadas aqui quando as abre ou arrasta para o Vibe, e permanecem acessíveis após reiniciar."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe are întotdeauna acces la dosarul Muzică. Alte dosare sunt adăugate aici când le deschizi sau le tragi peste Vibe și rămân accesibile după o repornire."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У Vibe всегда есть доступ к папке «Музыка». Другие папки добавляются сюда, когда вы открываете их или перетягиваете в Vibe, и остаются доступными после перезапуска."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe má vždy prístup k priečinku Hudba. Ďalšie priečinky sa sem pridajú, keď ich otvoríte alebo pretiahnete do Vibe, a zostanú prístupné aj po reštarte."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe har alltid tillgång till din musikmapp. Andra mappar läggs till här när du öppnar dem eller drar dem till Vibe, och förblir tillgängliga efter en omstart."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe เข้าถึงโฟลเดอร์เพลงของคุณได้เสมอ โฟลเดอร์อื่นจะถูกเพิ่มที่นี่เมื่อคุณเปิดหรือลากมาที่ Vibe และยังเข้าถึงได้หลังจากเปิดแอปใหม่"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe, Müzik klasörünüze her zaman erişebilir. Diğer klasörler, onları açtığınızda veya Vibe'a sürüklediğinizde buraya eklenir ve yeniden başlatmadan sonra erişilebilir kalır."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe завжди має доступ до папки «Музика». Інші папки додаються сюди, коли ви відкриваєте їх або перетягуєте у Vibe, і залишаються доступними після перезапуску."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe luôn có quyền truy cập thư mục Nhạc của bạn. Các thư mục khác được thêm vào đây khi bạn mở hoặc kéo chúng vào Vibe, và vẫn truy cập được sau khi khởi động lại."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe 始终可以访问你的“音乐”文件夹。其他文件夹会在你打开或将其拖到 Vibe 上时添加到这里，并在重新启动后保持可访问。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe 一律可以取用你的「音樂」檔案夾。其他檔案夾會在你開啟或拖到 Vibe 上時加入這裡，並在重新啟動後保持可取用。"
           }
         }
       },
@@ -19060,10 +20278,184 @@
     "settings.permissions.remove": {
       "comment": "Settings, Permissions pane: button that removes the selected folder from the granted list, giving up the app's access to it.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Премахване"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odstranit"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fjern"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entfernen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αφαίρεση"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Remove"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poista"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukloni"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eltávolítás"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hapus"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rimuovi"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "削除"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "제거"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fjern"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwijder"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usuń"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remover"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remover"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elimină"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odstrániť"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta bort"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เอาออก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaldır"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Видалити"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xóa"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除"
           }
         }
       },

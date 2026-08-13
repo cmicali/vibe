@@ -1,6 +1,5 @@
-* Kini dilokalkan ke 30 bahasa — baru: Ceko, Slovakia, Hungaria, Yunani, Vietnam, Indonesia, dan Thai
-* Jendela Pengaturan baru (pemutaran, tampilan, konversi, dan opsi lanjutan)
-* Tampilan kunci nada dengan deteksi opsional — notasi musik atau Camelot
-* Analisis BPM dan kunci nada lebih cepat serta pemuatan waveform lebih cepat
-* Jeda kini melepaskan perangkat audio
-* Perbaikan bug dan peningkatan
+* Pemutaran tanpa jeda — dengan crossfade mati, lagu mengalir mulus ke lagu berikutnya
+* File playlist — .cue dan .m3u terbuka sebagai daftar lagu berurutan
+* Panel Izin baru di Pengaturan — akses folder tersimpan antar peluncuran
+* Opsi baru "Selalu di Atas"
+* Perbaikan bug dan penyempurnaan

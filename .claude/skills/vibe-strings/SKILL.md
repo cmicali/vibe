@@ -1,6 +1,6 @@
 ---
 name: vibe-strings
-description: The localization pipeline — VibeStrings.h registry conventions, the extract-strings.sh preprocessor pass and extractionState rules, catalog and InfoPlist.xcstrings mechanics, translation terminology, the pseudolocale audit, and the localized App Store product page. Use when adding or rewording any user-facing string, editing VibeStrings.h or the .xcstrings catalogs, debugging make strings / make check-strings, testing a language, or updating App Store copy or screenshots.
+description: The localization pipeline — VibeStrings.h registry conventions, the extract-strings.sh preprocessor pass and extractionState rules, catalog and InfoPlist.xcstrings mechanics, authoring translations and the untranslated-keys release gate, translation terminology and per-language conventions, the pseudolocale audit, and the localized App Store product page. Use when adding or rewording any user-facing string, translating catalog keys, editing VibeStrings.h or the .xcstrings catalogs, debugging make strings / make check-strings, testing a language, or updating App Store copy or screenshots.
 ---
 
 # Localization pipeline
@@ -12,6 +12,26 @@ The always-loaded rules live in the root `CLAUDE.md` (every string is a `STR_*` 
 English is the source language; **every other language is whatever the catalogs contain** — don't hardcode the list anywhere, read it from `Resources/Localizable.xcstrings` (`jq -r '[.strings[].localizations | keys] | flatten | unique'`). Translations are authored in the catalogs and are never touched by the extraction pipeline (`normalize()` only reaches `.localizations.en`, and `xcstringstool sync` preserves other languages — verified). Translations follow Apple's own macOS terminology for standard menu items rather than literal translation (German File is `Ablage`, not `Datei`), while DJ terms keep the loanwords the hardware uses (`FX`, `Delay`, and `PITCH` outside German, which uses `TEMPO`). Test a language with `open <app> --args -AppleLanguages '(xx)'`.
 
 `knownRegions` stays at XcodeGen's default `(Base, en)` and that is *not* a bug: it doesn't gate which languages ship. The XCStrings compiler emits every language present in the catalogs, CFBundle negotiates on the `.lproj` directories actually in the bundle, and XcodeGen derives `knownRegions` from localized file references so a spec key for it is ignored. It only affects Xcode's project UI and which languages `-exportLocalizations` defaults to.
+
+## Authoring translations
+
+**`make check-strings` does not check translation coverage** — it checks staleness. A key added with only its English default passes every gate and ships rendering English in all 29 other languages; the 1.9 features (Permissions pane, Always on Top, the playlist grant panel) reached the release cut that way before anyone noticed. The release gate is this query, which must print nothing:
+
+```bash
+jq -r '[.strings | to_entries[] | select((.value.localizations // {} | keys) == ["en"]) | .key] | .[]' Resources/Localizable.xcstrings
+```
+
+Translations are authored directly into the catalog JSON — there is no export/import round trip. Each unit is `localizations.<lang>.stringUnit = {"state": "translated", "value": …}`, with the language keys sorted within each entry. Formatting never needs matching by hand: merge with any tool, then run `make strings`, which re-serializes the whole catalog canonically (`jq --indent 2`). When merging programmatically, assert per language that the set of languages exactly matches the catalog's and that every `%@`/format specifier from the English value survived — a dropped specifier crashes at `stringWithFormat:` time in that locale only.
+
+Conventions the 1.9 batch established (the 8 keys `settings.permissions*`, `*always_on_top`, `playlist.grant.*` are worked examples of all of these):
+
+- **Register** follows modern Apple style per language: informal where Apple is informal (German du, Spanish tú, Italian tu, Dutch je, Hungarian te), formal elsewhere (French vous, Russian/Ukrainian/Bulgarian вы-forms, Greek, Indonesian Anda, Korean/Japanese polite).
+- **Quote styles** around `%@` and names are the locale's own: „…“ (de, cs, sk, bg), „…” (pl, hu, ro, hr), « … » spaced (fr), «…» unspaced (ru, uk, nb, el), ”…” (sv, fi), ‘…’ (nl, ko), 「…」 (ja, zh-Hant), “…” (zh-Hans and the rest).
+- **~/Music is named by its localized Finder name** (Musik, Musique, Música, Hudba, Zenék, ミュージック, 音乐/音樂, …), never transliterated.
+- **Ellipsis** is the real `…` character, unspaced, in every language (`Öffnen…`).
+- **Menu vs. checkbox casing**: where a language title-cases menu items (English, Turkish), the paired sentence-case settings key differs (`Her Zaman Üstte` / `Her zaman üstte`); most European languages use sentence case in both, so the pair is identical.
+
+To verify a translation landed without eyeballing: rebuild, direct-exec the binary with `-AppleLanguages '(xx)'` in argv, and assert through the debug channel (`dump_menu` shows live localized titles — the menu bar reading `Ablage` confirms the language took). The **vibe-debug** skill has the mechanics.
 
 ## The VibeStrings.h registry
 
@@ -34,3 +54,5 @@ Build a pseudolocale from the catalog (bracket + accent + pad every value, copyi
 ## App Store product page
 
 The App Store product page is localized too, from `Assets/app-store/` (copy, screenshot captions, and generated screenshots per catalog language — format in its README). `make appstore-validate-copy` validates it; `make appstore-upload-metadata` uploads it via the **vibe-release** skill's shared API key. The catalog remains the source of which languages exist; `bg` ships in-app only, because the App Store has no Bulgarian product page.
+
+`copy/<lang>/whats-new.txt` must be **rewritten for every release in every locale** — App Store Connect blocks submission when any locale lacks it — and should stay in step with the new `CHANGELOG.md` section: same features, App Store voice, each locale's own terminology (the same register and quote conventions as Authoring translations above).
