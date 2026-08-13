@@ -8,7 +8,7 @@ This directory is the *rendering* half of the two-layer waveform system. The dat
 
 The view also draws the two non-waveform states: a sweeping shimmer while a slow file open is pending (`showLoadingIndicator`) and a static midline for the no-track empty state (`showEmptyPlaceholder`). The two are mutually exclusive, and `prepareForWaveformLoad` clears both.
 
-The renderer hierarchy runs from the `AudioWaveformRenderer` base to `SonicCirrusWaveformRenderer`, whose display name is "Sonic Cirrus", and `DetailedAudioWaveformRenderer`. `BasicAudioWaveformRenderer` and the `x2`, `x4` and `x8OversamplingDetailedAudioWaveformRenderer` classes, all in one shared file, subclass `DetailedAudioWaveformRenderer`. Both families animate through a shared `WaveformMorphEngine`, which owns the displayed and target sample vectors, the 60 Hz easing timer and the retarget decision tree; renderers supply only target-building and layer geometry. The default style is "Oversampling Detailed x4", configurable in `AppSettings`.
+Both renderer families animate through a shared `WaveformMorphEngine`, which owns the displayed and target sample vectors, the 60 Hz easing timer and the retarget decision tree; renderers supply only target-building and layer geometry. The default style is "Oversampling Detailed x4", configurable in `AppSettings`.
 
 ## The convert sweep
 
