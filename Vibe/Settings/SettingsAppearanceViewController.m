@@ -22,6 +22,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
 @implementation SettingsAppearanceViewController {
     NSPopUpButton *_appearancePopUp;
     NSPopUpButton *_waveformPopUp;
+    NSButton *_fileInfoCheckbox;
     NSButton *_timeTotalRadio;
     NSButton *_timeRemainingRadio;
     NSPopUpButton *_keyNotationPopUp;
@@ -52,6 +53,9 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
         _waveformPopUp.lastItem.representedObject = identifier;
     }
 
+    _fileInfoCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_FILE_INFO
+                                             target:self action:@selector(toggleFileInfo:)];
+
     _timeTotalRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_TOTAL
                                               target:self action:@selector(timeDisplayChanged:)];
     _timeRemainingRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_REMAINING
@@ -73,6 +77,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     NSGridView *grid = [self.class formGridWithRows:@[
         @[[NSTextField labelWithString:STR_SETTINGS_APPEARANCE_LABEL], _appearancePopUp],
         @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_LABEL], _waveformPopUp],
+        @[NSGridCell.emptyContentView, _fileInfoCheckbox],
         @[[NSTextField labelWithString:STR_SETTINGS_TIME_LABEL], timeRadios],
         @[[NSTextField labelWithString:STR_SETTINGS_KEY_NOTATION_LABEL], _keyNotationPopUp],
         @[NSGridCell.emptyContentView, _keyColorsCheckbox],
@@ -116,6 +121,8 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
         [_waveformPopUp selectItem:match];
     }
 
+    _fileInfoCheckbox.state = Settings.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
+
     BOOL remaining = Settings.showRemainingTime;
     _timeTotalRadio.state = remaining ? NSControlStateValueOff : NSControlStateValueOn;
     _timeRemainingRadio.state = remaining ? NSControlStateValueOn : NSControlStateValueOff;
@@ -148,6 +155,11 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
 
 - (void)waveformStyleChanged:(id)sender {
     [self.playerController applyWaveformStyle:_waveformPopUp.selectedItem.representedObject];
+}
+
+- (void)toggleFileInfo:(id)sender {
+    Settings.showFileInfo = (_fileInfoCheckbox.state == NSControlStateValueOn);
+    [self.playerController refreshFileInfoDisplay];
 }
 
 - (void)timeDisplayChanged:(NSButton *)sender {

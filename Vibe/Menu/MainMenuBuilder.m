@@ -233,6 +233,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenu *viewMenu = Submenu(mainMenu, STR_MENU_VIEW).submenu;
     AddSymbolItem(viewMenu, STR_MENU_VIEW_PLAYLIST, @"list.dash", @selector(toggleSize:), player, [NSString stringWithFormat:@"%c", NSTabCharacter], 0, @"menu_show_playlist");
     AddSymbolItem(viewMenu, STR_MENU_VIEW_PITCH_CONTROL, @"slider.vertical.3", @selector(togglePitchPanel:), player, @"p", 0, @"menu_show_pitch");
+    AddSymbolItem(viewMenu, STR_MENU_VIEW_FILE_INFO, @"info.circle", @selector(toggleFileInfo:), player, @"", 0, @"menu_show_file_info");
     AddSeparator(viewMenu);
 
     // The width presets: the drag minimum, the design width, and 1.75 times

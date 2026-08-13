@@ -233,7 +233,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
                                                  duration:duration
                                                      rate:rate];
         }
-        if (track.metadata.fileType) {
+        if (track.metadata.fileType && Settings.showFileInfo) {
             // The bitrate and sample rate can be nil even with fileType set,
             // because TagLib can return no audioProperties. Each part is
             // appended only when present, so the label never shows
@@ -360,6 +360,13 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 }
 
 - (void)renderBPM:(float)displayBPM keyText:(NSString *)keyText colorKey:(NSInteger)colorKey {
+    if (!Settings.showFileInfo) {
+        // Hidden along with the codec text above it; the FX symbols are deck
+        // state, not file info, and keep rendering.
+        displayBPM = 0;
+        keyText = @"";
+        colorKey = -1;
+    }
     NSString *bpmText = displayBPM > 0
             ? [NSString stringWithFormat:STR_LABEL_BPM,
                     [[Formatters sharedInstance] decimalString:displayBPM fractionDigits:1]]

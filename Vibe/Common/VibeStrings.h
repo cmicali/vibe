@@ -134,6 +134,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_MENU_VIEW               NSLS(@"menu.view",                   @"View",               @"Menu bar: the View menu.")
 #define STR_MENU_VIEW_PLAYLIST      NSLS(@"menu.view.playlist",          @"Show Playlist",      @"View menu item: expands the window to show the playlist.")
 #define STR_MENU_VIEW_PITCH_CONTROL NSLS(@"menu.view.pitch_control",     @"Show Pitch Control", @"View menu item: shows the pitch fader panel.")
+#define STR_MENU_VIEW_FILE_INFO     NSLS(@"menu.view.file_info",         @"Show File Info",     @"View menu item: checkmarked toggle showing the header's file-format readout (codec, bitrate, sample rate) and the BPM/key line.")
 #define STR_MENU_VIEW_ALWAYS_ON_TOP NSLS(@"menu.view.always_on_top",     @"Always on Top",      @"View menu item: checkmarked toggle that keeps the player window above all other apps' windows.")
 #define STR_MENU_VIEW_APPEARANCE    NSLS(@"menu.view.appearance",        @"Appearance",         @"View menu: submenu choosing the light/dark appearance.")
 #define STR_MENU_APPEARANCE_SYSTEM  NSLS(@"menu.view.appearance.system", @"System default",     @"Appearance menu item: follow the system's light/dark setting.")
@@ -225,6 +226,7 @@ static inline NSString *VibeAppName(void) {
 
 #define STR_SETTINGS_APPEARANCE_LABEL   NSLS(@"settings.appearance.appearance_label",           @"Appearance:",              @"Settings, Appearance pane: label beside the light/dark appearance choice. Ends with a colon.")
 #define STR_SETTINGS_WAVEFORM_LABEL     NSLS(@"settings.appearance.waveform_label",             @"Waveform style:",          @"Settings, Appearance pane: label beside the dropdown choosing the waveform drawing style. Ends with a colon.")
+#define STR_SETTINGS_FILE_INFO          NSLS(@"settings.appearance.file_info",                  @"Show file info",           @"Settings, Appearance pane: checkbox showing the header's file-format readout (codec, bitrate, sample rate) and the BPM/key line. The same setting as the View menu's 'Show File Info' item, in sentence case per checkbox convention.")
 #define STR_SETTINGS_TIME_LABEL         NSLS(@"settings.appearance.time_label",                 @"Time display:",            @"Settings, Appearance pane: label beside the choice between showing the track's total duration or the remaining time. Ends with a colon.")
 #define STR_SETTINGS_TIME_TOTAL         NSLS(@"settings.appearance.time_total",                 @"Total duration",           @"Settings, Appearance pane, time display choice: the right time label shows the track's full length.")
 #define STR_SETTINGS_TIME_REMAINING     NSLS(@"settings.appearance.time_remaining",             @"Remaining time",           @"Settings, Appearance pane, time display choice: the right time label counts down the time left, e.g. '-1:50'.")

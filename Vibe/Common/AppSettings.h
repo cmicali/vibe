@@ -74,6 +74,13 @@ static const NSInteger kVibeCrossfadePresets[] = {10, 500, 2000};
 - (BOOL)showRemainingTime;
 - (void)setShowRemainingTime:(BOOL)show;
 
+// YES, the default, shows the header's file-format readout (codec, bitrate,
+// sample rate) and the BPM/key line. View > Show File Info and Settings >
+// Appearance share this setting; TrackDisplayController reads it at render
+// time, and MainPlayerController's refreshFileInfoDisplay repaints a toggle.
+- (BOOL)showFileInfo;
+- (void)setShowFileInfo:(BOOL)show;
+
 // The pitch fader's range in percent: 8 or 16, like the SL-1200MK5G's range
 // button.
 - (NSInteger)pitchRange;

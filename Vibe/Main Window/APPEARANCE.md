@@ -32,7 +32,7 @@ All corner rounding shares `kMainWindowCornerRadius` (Constants.h, 20pt, the mac
 
 ## The codec line and FX indicators
 
-The codec line doubles as the FX indicator: the SF Symbols of latched effects draw inline at the head of the same right-aligned run, glued to the codec text. Low kill shows the filled dial while its boost is on (the boost modifies that filter rather than being an effect of its own); reverb one symbol; each active delay one, matching the FX menu's.
+The codec line doubles as the FX indicator: the SF Symbols of latched effects draw inline at the head of the same right-aligned run, glued to the codec text. Low kill shows the filled dial while its boost is on (the boost modifies that filter rather than being an effect of its own); reverb one symbol; each active delay one, matching the FX menu's. `AppSettings.showFileInfo` off empties the codec text and the BPM/key line at render time (`TrackDisplayController` reads it in `renderState:` and `renderBPM:`), but the FX symbols are deck state, not file info, and keep composing.
 
 Two adjustments are optical, not derivable from any metric: symbols draw at bold weight (the default stroke is a hairline at this size), and the two dial glyphs get their own size multiplier — they spend much of their bounding box on tick marks and read visibly smaller at the row's shared box height.
 
