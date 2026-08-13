@@ -37,9 +37,10 @@ extern NSNotificationName const FolderAccessManagerDidChangeNotification;
 // URL is skipped. Main thread; the file I/O runs in the background.
 - (void)noteOpenedURLs:(NSArray<NSURL *> *)urls;
 
-// Drops the grant at the pane's row index: stops the security scope and
-// forgets the bookmark. Main thread.
-- (void)removeFolderAtIndex:(NSUInteger)index;
+// Drops the grants at the pane's row indexes: stops each security scope and
+// forgets the bookmarks, posting one change notification for the batch.
+// Main thread.
+- (void)removeFoldersAtIndexes:(NSIndexSet *)indexes;
 
 @end
 

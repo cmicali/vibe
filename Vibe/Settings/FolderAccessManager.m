@@ -241,15 +241,19 @@ static NSString *const kEntryAccessedURLKey = @"accessedURL";
 
 #pragma mark - Removing
 
-- (void)removeFolderAtIndex:(NSUInteger)index {
-    if (index >= _entries.count) {
+- (void)removeFoldersAtIndexes:(NSIndexSet *)indexes {
+    NSIndexSet *valid = [indexes indexesInRange:NSMakeRange(0, _entries.count)
+                                        options:0
+                                    passingTest:^BOOL(NSUInteger index, BOOL *stop) { return YES; }];
+    if (valid.count == 0) {
         return;
     }
-    NSMutableDictionary *entry = _entries[index];
-    NSURL *accessed = entry[kEntryAccessedURLKey];
-    [accessed stopAccessingSecurityScopedResource];
-    LogInfo(@"Granted folder removed: %@", entry[kEntryPathKey]);
-    [_entries removeObjectAtIndex:index];
+    [_entries enumerateObjectsAtIndexes:valid options:0 usingBlock:^(NSMutableDictionary *entry, NSUInteger index, BOOL *stop) {
+        NSURL *accessed = entry[kEntryAccessedURLKey];
+        [accessed stopAccessingSecurityScopedResource];
+        LogInfo(@"Granted folder removed: %@", entry[kEntryPathKey]);
+    }];
+    [_entries removeObjectsAtIndexes:valid];
     [self persist];
     [NSNotificationCenter.defaultCenter postNotificationName:FolderAccessManagerDidChangeNotification
                                                       object:self];
