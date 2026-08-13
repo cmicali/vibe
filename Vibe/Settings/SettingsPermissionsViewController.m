@@ -32,7 +32,7 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 
     _tableView = [[NSTableView alloc] initWithFrame:NSZeroRect];
     _tableView.headerView = nil;
-    _tableView.allowsMultipleSelection = NO;
+    _tableView.allowsMultipleSelection = YES;
     _tableView.dataSource = self;
     _tableView.delegate = self;
     _tableView.rowHeight = 22;
@@ -77,7 +77,7 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 - (void)refreshFromSettings {
     _paths = FolderAccessManager.sharedInstance.grantedFolderPaths;
     [_tableView reloadData];
-    _removeButton.enabled = _tableView.selectedRow >= 0;
+    _removeButton.enabled = _tableView.selectedRowIndexes.count > 0;
 }
 
 #pragma mark - Actions
@@ -95,9 +95,9 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 }
 
 - (void)removeFolder:(id)sender {
-    NSInteger row = _tableView.selectedRow;
-    if (row >= 0) {
-        [FolderAccessManager.sharedInstance removeFolderAtIndex:(NSUInteger)row];
+    NSIndexSet *rows = _tableView.selectedRowIndexes;
+    if (rows.count > 0) {
+        [FolderAccessManager.sharedInstance removeFoldersAtIndexes:rows];
     }
 }
 
@@ -139,7 +139,7 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 }
 
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {
-    _removeButton.enabled = _tableView.selectedRow >= 0;
+    _removeButton.enabled = _tableView.selectedRowIndexes.count > 0;
 }
 
 // stringByAbbreviatingWithTildeInPath abbreviates against the sandbox
