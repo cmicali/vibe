@@ -125,8 +125,7 @@ static const float   kDetentPercent   = 0.35f;
     });
 
     // Adapt the density to the travel. The short, playlist-hidden window has
-    // only
-    // a few points per percent, where the full Technics scale turns to mush.
+    // only a few points per percent, where the full Technics scale turns to mush.
     CGFloat pointsPerPercent = (self.travelBottom - self.travelTop) / (2 * _maxPitch);
     int tickStep = pointsPerPercent >= 4 ? 1 : 2;
     int labelStep = 2;

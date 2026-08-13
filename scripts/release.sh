@@ -29,7 +29,7 @@
 #      App Store path, this one MUST be made by hand — Apple gates
 #      DEVELOPER_ID_APPLICATION_MANAGED to the team's Account Holder, a person
 #      role no API key can hold, so -allowProvisioningUpdates cannot mint it
-#      (verified: an Admin key that signs App Store builds still gets 403).
+#      (an Admin key that signs App Store builds still gets 403).
 #        Xcode -> Settings -> Accounts -> (sign in) -> select the team ->
 #        Manage Certificates -> (+) -> Developer ID Application
 #      Apple caps these at 5 per account, so keep the one you make.

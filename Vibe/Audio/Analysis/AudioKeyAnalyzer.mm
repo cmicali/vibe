@@ -270,9 +270,8 @@ struct VibeChromaRun {
     // steamrolling the whole track's profile.
     //
     // Each semitone's bins are one contiguous run, so the fold is a reduction
-    // per run rather than a scatter-add per bin. A non-finite magnitude is no
-    // longer skipped bin by bin — it poisons the frame's total instead, which
-    // the guard below drops.
+    // per run rather than a scatter-add per bin. A non-finite magnitude
+    // poisons the frame's total, which the guard below drops.
     double frameChroma[12] = {0};
     double frameBass[12] = {0};
     double rawChroma[12] = {0};
@@ -318,8 +317,8 @@ struct VibeChromaRun {
     // Each frame casts one equally weighted vote, normalized so a loud passage
     // counts no more than a quiet one. Deliberately linear: log-compressing
     // here was measurably worse across the whole compression range, and
-    // compressing the raw magnitudes — as this did originally — made the
-    // compression depend on level, the opposite of the intent.
+    // compressing the raw magnitudes makes the compression depend on level,
+    // the opposite of the intent.
     for (int i = 0; i < 12; i++) {
         _chroma[i] += frameChroma[i] / total;
     }
