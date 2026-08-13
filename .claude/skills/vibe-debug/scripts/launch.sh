@@ -8,6 +8,9 @@
 # Audio is OFF-HARDWARE by default (launches with --no-audio-hw --silent), so
 # no output device is opened and macOS's automatic AirPods switching can't
 # trigger; set VIBE_AUDIBLE=1 to use real hardware and hear playback.
+# --no-audio-hw also suppresses the system Now Playing publish, because
+# registering as the active media app takes the AirPods on its own. Testing
+# the Now Playing integration therefore REQUIRES VIBE_AUDIBLE=1.
 # Set VIBE_LANGUAGE=de (a catalog code) to launch
 # the app in that language via -AppleLanguages — per-launch only, no prefs
 # reset needed.

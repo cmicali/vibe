@@ -297,6 +297,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 #if DEBUG
             if (manualRendering) {
+                self->_manualRenderingActive = YES;
                 [self startManualRenderPumpOnQueue];
                 LogInfo(@"AudioPlayer: --no-audio-hw, manual rendering, no output device");
             }

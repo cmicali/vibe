@@ -44,6 +44,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // extension. Everything the device code never reaches stays declared, with
     // its commentary, in AudioPlayer.m's @implementation block.
     dispatch_queue_t        _queue;
+#if DEBUG
+    // Backs manualRenderingActive; see AudioPlayer.h.
+    BOOL                    _manualRenderingActive;
+#endif
     AVAudioEngine           *_engine;
     AVAudioPlayerNode       *_node;
     AVAudioFile             *_file;
