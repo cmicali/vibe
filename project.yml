@@ -555,6 +555,8 @@ targets:
       - path: Vibe/Util/PlaylistFile.m
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Util/NSURLUtil.m
+      # Not under test itself: NSURLUtil's open-panel path references it.
+      - path: Vibe/Settings/FolderAccessManager.m
       - path: Vibe/Util/Categories/NSURL+Hash.m
     settings:
       base:
