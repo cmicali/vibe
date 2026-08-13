@@ -148,6 +148,7 @@ static const CGFloat kLabelShadowOpacityDark = 0.9;
 // The same passthrough treatment for the header's glass panel. Clicks on the
 // empty header must fall through to the window, so it can be dragged to move,
 // and the waveform view above it does its own hit handling.
+API_AVAILABLE(macos(26.0))
 @interface VibePassthroughGlassView : NSGlassEffectView
 @end
 
@@ -157,9 +158,20 @@ static const CGFloat kLabelShadowOpacityDark = 0.9;
 }
 @end
 
+// The macOS 15 frosted stand-in for the header glass, with the same
+// passthrough.
+@interface VibePassthroughFrostView : NSVisualEffectView
+@end
+
+@implementation VibePassthroughFrostView
+- (NSView *)hitTest:(NSPoint)point {
+    return nil;
+}
+@end
+
 @implementation MainPlayerContentView {
     VibePassthroughView *_albumArtGradientView; // decorative darkening over the art; internal-only (no controller outlet)
-    NSGlassEffectView *_backgroundGlassView;    // header glass; its tint rides in headerTintView
+    NSView *_backgroundGlassView;               // header glass (frost on macOS 15); its tint rides in headerTintView
     NSVisualEffectView *_playlistFrostView;
     NSView *_playlistDimView;
     // Self-contained buttons, with their actions wired at build and their
@@ -355,10 +367,22 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // The glass panel behind the waveform and header: plain glass over the
     // window backdrop, which ArtworkDisplayController tints to the current
     // track's dominant art color. Its corner radius follows the window's
-    // top-right.
-    _backgroundGlassView = [[VibePassthroughGlassView alloc] initWithFrame:
-            NSMakeRect(kHeaderPanelX, kPlaylistHeight, kHeaderPanelWidth, kHeaderHeight)];
-    _backgroundGlassView.cornerRadius = kMainWindowCornerRadius;
+    // top-right. On macOS 15, where Liquid Glass does not exist, a frosted
+    // NSVisualEffectView stands in.
+    NSRect headerPanelFrame = NSMakeRect(kHeaderPanelX, kPlaylistHeight, kHeaderPanelWidth, kHeaderHeight);
+    if (@available(macOS 26.0, *)) {
+        VibePassthroughGlassView *glass = [[VibePassthroughGlassView alloc] initWithFrame:headerPanelFrame];
+        glass.cornerRadius = kMainWindowCornerRadius;
+        _backgroundGlassView = glass;
+    }
+    else {
+        VibePassthroughFrostView *frost = [[VibePassthroughFrostView alloc] initWithFrame:headerPanelFrame];
+        frost.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+        frost.state = NSVisualEffectStateActive; // never dims, like the playlist frost
+        frost.material = NSVisualEffectMaterialUnderWindowBackground;
+        frost.maskImage = [MainPlayerContentView frostCornerMaskWithRadius:kMainWindowCornerRadius];
+        _backgroundGlassView = frost;
+    }
     // Width-flexible, so the bleed stays past the moving right edge. The
     // height must not be flexible; see the playlist frost's note below.
     _backgroundGlassView.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
@@ -625,6 +649,20 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     button.action = action;
     button.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
     return button;
+}
+
+// A stretchable rounded-rect alpha mask, cap-inset so the corners never
+// scale. See the header comment for why maskImage rather than a layer radius.
++ (NSImage *)frostCornerMaskWithRadius:(CGFloat)radius {
+    NSSize size = NSMakeSize(radius * 2 + 1, radius * 2 + 1);
+    NSImage *mask = [NSImage imageWithSize:size flipped:NO drawingHandler:^BOOL(NSRect rect) {
+        [NSColor.blackColor set];
+        [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:radius yRadius:radius] fill];
+        return YES;
+    }];
+    mask.capInsets = NSEdgeInsetsMake(radius, radius, radius, radius);
+    mask.resizingMode = NSImageResizingModeStretch;
+    return mask;
 }
 
 // A borderless, non-editable static label with a transparent background.

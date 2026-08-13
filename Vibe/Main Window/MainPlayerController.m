@@ -158,17 +158,32 @@
 // and adopts its subviews as the controller's outlets.
 - (void)buildContentInWindow:(MainWindow *)window {
     NSView *contentView = window.contentView;
-    // The Liquid Glass backdrop, in the Control Center style, spanning the
-    // whole window with the pitch panel included. Everything else composites
-    // over it. Its corner radius matches the contentView layer mask, so the
-    // glass rim lighting follows the window shape.
-    NSGlassEffectView *glass = [[NSGlassEffectView alloc] initWithFrame:contentView.bounds];
-    glass.cornerRadius = kMainWindowCornerRadius;
-    // Clear, rather than Regular, keeps the backdrop legible as glass rather
-    // than a frosted wall: more of what is behind the window shows through.
-    glass.style = NSGlassEffectViewStyleClear;
-    glass.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    [contentView addSubview:glass];
+    // The backdrop, spanning the whole window with the pitch panel included;
+    // everything else composites over it. On macOS 26 it is Liquid Glass in
+    // the Control Center style, its corner radius matching the contentView
+    // layer mask so the rim lighting follows the window shape. On macOS 15,
+    // where Liquid Glass does not exist, a frosted behind-window blur stands
+    // in, shaped by maskImage — the blur region ignores a layer radius.
+    NSView *backdrop;
+    if (@available(macOS 26.0, *)) {
+        NSGlassEffectView *glass = [[NSGlassEffectView alloc] initWithFrame:contentView.bounds];
+        glass.cornerRadius = kMainWindowCornerRadius;
+        // Clear, rather than Regular, keeps the backdrop legible as glass
+        // rather than a frosted wall: more of what is behind the window shows
+        // through.
+        glass.style = NSGlassEffectViewStyleClear;
+        backdrop = glass;
+    }
+    else {
+        NSVisualEffectView *frost = [[NSVisualEffectView alloc] initWithFrame:contentView.bounds];
+        frost.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+        frost.state = NSVisualEffectStateActive; // key-state-independent, like the playlist frost
+        frost.material = NSVisualEffectMaterialUnderWindowBackground;
+        frost.maskImage = [MainPlayerContentView frostCornerMaskWithRadius:kMainWindowCornerRadius];
+        backdrop = frost;
+    }
+    backdrop.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [contentView addSubview:backdrop];
     MainPlayerContentView *content = [[MainPlayerContentView alloc] initWithTarget:self];
     self.playerContentView = content;
     [contentView addSubview:content];
