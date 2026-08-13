@@ -13,14 +13,17 @@
 #import "AudioSessionController.h"
 #import "DownloadProgressMonitor.h"
 #import "FolderSession.h"
+#import "PageWaveformPipeline.h"
 #import "Playlist.h"
 #import "NowPlayingController.h"
 #import "SearchViewController.h"
 #import "TrackListViewController.h"
 #import "TrackPageCell.h"
+#import "TrackPageGeometry.h"
 #import "UIUpdateTimer.h"
 #import "Formatters.h"
 #import "VibeStrings.h"
+#import "VibeWeakProxy.h"
 #import "WaveformScrubberView.h"
 #if DEBUG
 // The Debug category's state dump only.
@@ -30,47 +33,8 @@
 
 static const NSUInteger kUIUpdateHz = 3;
 
-// CADisplayLink retains its target for the link's lifetime; aiming it through
-// a weak proxy keeps the controller's dealloc reachable, so the invalidate
-// there is real rather than aspirational.
-@interface VibeWeakProxy : NSProxy
-+ (instancetype)proxyWithTarget:(id)target;
-@end
-
-@implementation VibeWeakProxy {
-    __weak id _target;
-}
-
-+ (instancetype)proxyWithTarget:(id)target {
-    VibeWeakProxy *proxy = [self alloc];
-    proxy->_target = target;
-    return proxy;
-}
-
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)selector {
-    return [_target methodSignatureForSelector:selector]
-            ?: [NSMethodSignature signatureWithObjCTypes:"v@:"];
-}
-
-- (void)forwardInvocation:(NSInvocation *)invocation {
-    [invocation invokeWithTarget:_target]; // nil target: the invocation no-ops
-}
-
-@end
-
-// The in-cell geometry's NOMINAL numbers, duplicated from TrackPageCell so
-// the overlay chrome lines up without constraining across the cell boundary:
-// the empty-state line sits at the nominal center of the cell's waveform
-// box — where the two-box stack's centering puts it at standard text size.
-// One pair per orientation; landscape's waveform is bottom-anchored, so its
-// inset is exact rather than centering slack.
-static const CGFloat kWaveformHeight = 180;
-static const CGFloat kWaveformBottomInset = 118;   // nominal: bar clearance + time row + centering slack
-static const CGFloat kWaveformHeightLandscape = 120;
-static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + time row
-
 @interface PlayerViewController () <AudioPlayerDelegate, PlaylistObserver,
-        AudioTrackMetadataCacheDelegate, AudioWaveformCacheDelegate,
+        AudioTrackMetadataCacheDelegate, PageWaveformPipelineDelegate,
         WaveformScrubberViewDelegate, NowPlayingControllerDelegate,
         AudioSessionControllerDelegate, FolderSessionDelegate,
         UIGestureRecognizerDelegate, UICollectionViewDataSource,
@@ -117,20 +81,20 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     WaveformScrubberView    *_waveformView;
     UILabel                 *_elapsedLabel;
     UILabel                 *_remainingLabel;
-    // The one in-flight waveform load's target page, the latest snapshot per
-    // page for re-hydrating reloaded cells, and which pages have their full
-    // waveform. One load exists at a time (the cache's contract): showing a
-    // neighbor retargets it, and a drag-back retargets it back.
-    NSUInteger              _waveformLoadIndex;
-    NSMutableDictionary<NSNumber *, CodableAudioWaveform *> *_pageWaveforms;
-    NSMutableIndexSet       *_completePages;
+    // The pager's waveform bookkeeping — the one load's target page, the
+    // per-page snapshots, the complete set — between the cache and the cells.
+    PageWaveformPipeline    *_waveformPipeline;
     TrackPageCell           *_boundPage;        // the current page the chrome bindings point into
     UIButton                *_playPauseButton;  // bound: the current page's glyph
     UIButton                *_searchBarButton;  // Messages-style glass search bar
     UIButton                *_folderButton;     // the compose-position circle
     UITapGestureRecognizer  *_emptyStateTap;
 
-    TrackListViewController *_trackListController;
+    // Weak: presentation owns each sheet, and the references exist only to
+    // forward playlist changes while one is up — a dismissed sheet nils out
+    // and the forwarding no-ops.
+    __weak TrackListViewController *_trackListController;
+    __weak SearchViewController    *_searchController;
 
     // Polls a materializing cloud file's size while the loading indicator is
     // up; nil otherwise.
@@ -159,16 +123,12 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     self.view.backgroundColor = [UIColor systemBackgroundColor];
     [self buildUI];
 
-    _waveformLoadIndex = NSNotFound;
-    _pageWaveforms = [NSMutableDictionary dictionary];
-    _completePages = [NSMutableIndexSet indexSet];
-
     _playlist = [[Playlist alloc] init];
     _playlist.observer = self;
     _metadataCache = [[AudioTrackMetadataCache alloc] init];
     _metadataCache.delegate = self;
     _waveformCache = [[AudioWaveformCache alloc] init];
-    _waveformCache.delegate = self;
+    _waveformPipeline = [[PageWaveformPipeline alloc] initWithCache:_waveformCache delegate:self];
     _audioSession = [[AudioSessionController alloc] init];
     _audioSession.delegate = self;
     _folderSession = [[FolderSession alloc] init];
@@ -368,8 +328,8 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
 - (void)aimEmptyLine {
     BOOL landscape = self.view.bounds.size.width > self.view.bounds.size.height;
     _emptyLineCenterY.constant = landscape
-            ? -(kWaveformBottomInsetLandscape + kWaveformHeightLandscape / 2)
-            : -(kWaveformBottomInset + kWaveformHeight / 2);
+            ? -(kTrackPageWaveformBottomInsetLandscape + kTrackPageWaveformHeightLandscape / 2)
+            : -(kTrackPageWaveformBottomInset + kTrackPageWaveformHeight / 2);
 }
 
 // The at-rest time rendering shared by neighbor pages, a pending track
@@ -432,39 +392,8 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     [self updatePlayButton];
 }
 
-// Retargets the single waveform load at a page. An index the pipeline is
-// already pointed at is left ALONE — a load is in flight or has delivered,
-// and restarting it on every cell reload would keep killing the decode so
-// no waveform ever completes. A retargeted-back page with its full snapshot
-// in hand needs no reload at all; hydration shows it.
 - (void)requestWaveformForIndex:(NSUInteger)index {
-    AudioTrack *track = [_playlist trackAtIndex:index];
-    if (!track || _waveformLoadIndex == index) {
-        return;
-    }
-    _waveformLoadIndex = index;
-    [_waveformCache cancelLoad];
-    if ([_completePages containsIndex:index] && _pageWaveforms[@(index)]) {
-        return;
-    }
-    [_completePages removeIndex:index];
-    [_waveformCache loadWaveformForTrack:track];
-}
-
-// Snapshots exist to re-hydrate nearby pages instantly; distant ones reload
-// from the disk cache in milliseconds, so the dictionary stays a window
-// around the current page instead of growing one full waveform per track
-// ever visited. The in-flight load's target is kept wherever it is.
-- (void)prunePageWaveformsAroundIndex:(NSUInteger)index {
-    static const NSUInteger kKeepRadius = 2;
-    for (NSNumber *key in _pageWaveforms.allKeys) {
-        NSUInteger page = key.unsignedIntegerValue;
-        if (page != _waveformLoadIndex
-                && (page > index + kKeepRadius || index > page + kKeepRadius)) {
-            [_pageWaveforms removeObjectForKey:key];
-            [_completePages removeIndex:page];
-        }
-    }
+    [_waveformPipeline requestIndex:index track:[_playlist trackAtIndex:index]];
 }
 
 // Reloaded and recycled cells come back blank; the latest snapshot puts the
@@ -473,7 +402,7 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
 // blank — on a network folder the decode behind it is routinely slow — and
 // showWaveform: ends the line when data arrives.
 - (void)hydrateWaveformInCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
-    CodableAudioWaveform *snapshot = _pageWaveforms[@(index)];
+    CodableAudioWaveform *snapshot = [_waveformPipeline snapshotAtIndex:index];
     if (snapshot) {
         [cell.waveformView showWaveform:snapshot];
     }
@@ -513,7 +442,7 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     }
 
     [self hydrateWaveformInCell:page atIndex:index];
-    if (![_completePages containsIndex:index]) {
+    if (![_waveformPipeline isCompleteAtIndex:index]) {
         [self requestWaveformForIndex:index];
     }
 
@@ -645,7 +574,7 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
         _playlist.currentIndex = page;
         [self playCurrentTrack];
     }
-    else if (_waveformLoadIndex != page) {
+    else if (_waveformPipeline.targetIndex != page) {
         // Pulled a neighbor into view and let go: the preview load retargeted
         // the pipeline, so point it back at the current page (a no-op reload
         // when its waveform had already fully arrived).
@@ -870,7 +799,7 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     [self renderHeaderForTrack:track];
     [self scrollToCurrentPageAnimated:YES];
     [self requestWaveformForIndex:_playlist.currentIndex];
-    [self prunePageWaveformsAroundIndex:_playlist.currentIndex];
+    [_waveformPipeline pruneAroundIndex:_playlist.currentIndex];
     [_metadataCache loadMetadataNow:track];
     [_player play:track];
     [self updatePlayButton];
@@ -906,7 +835,11 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     if (_player.isPlaying) {
         [_player playPause];
     }
-    else if (_player.isPaused) {
+    else if (_player.isPaused || _player.isLoading) {
+        // Loading here is a parked landing (a pause verdict mid-load, or the
+        // media-reset re-park): playPause flips the landing back to playing
+        // without a fresh play:, which would restart the open and lose the
+        // re-park's captured position. Same verdict as audioSessionShouldResume.
         [_audioSession activate];
         [_player playPause];
     }
@@ -954,6 +887,7 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     };
     UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:search];
     nav.modalPresentationStyle = UIModalPresentationPageSheet;
+    _searchController = search;
     [self presentViewController:nav animated:YES completion:nil];
 }
 
@@ -987,9 +921,7 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
           selectedURL:(NSURL *)selectedURL
              restored:(BOOL)restored {
     [_playlist replaceAllWithURLs:urls];
-    _waveformLoadIndex = NSNotFound;
-    [_pageWaveforms removeAllObjects];
-    [_completePages removeAllIndexes];
+    [_waveformPipeline reset];
     [_pagesView reloadData];
     [_metadataCache cancelAll];
     [_metadataCache loadMetadata:_playlist.tracks];
@@ -1038,8 +970,15 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     }
 }
 
+// One external open at a time: the session's playlist model is a directory,
+// not an ad-hoc set. A multi-file share adopts the filename-sorted first —
+// deterministic, unlike NSSet's anyObject — and when a folder grant covers
+// its parent, the expansion pulls the siblings in anyway.
 - (void)handleOpenURLContexts:(NSSet<UIOpenURLContext *> *)contexts {
-    UIOpenURLContext *context = contexts.anyObject;
+    UIOpenURLContext *context = [contexts.allObjects
+            sortedArrayUsingComparator:^NSComparisonResult(UIOpenURLContext *a, UIOpenURLContext *b) {
+        return [a.URL.lastPathComponent localizedStandardCompare:b.URL.lastPathComponent];
+    }].firstObject;
     if (context) {
         [_folderSession openExternalURL:context.URL openInPlace:context.options.openInPlace];
     }
@@ -1169,7 +1108,7 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     [_playlist next];
     [self scrollToCurrentPageAnimated:YES];
     [self requestWaveformForIndex:_playlist.currentIndex];
-    [self prunePageWaveformsAroundIndex:_playlist.currentIndex];
+    [_waveformPipeline pruneAroundIndex:_playlist.currentIndex];
     // The rest of the per-track refresh — header, metadata, prefetch of the
     // new next (which re-arms the splice), Now Playing — is exactly
     // didStartPlaying:'s body, and its identity guard now passes.
@@ -1220,12 +1159,15 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
 #pragma mark - PlaylistObserver
 
 - (void)playlistDidReplaceAllTracks:(Playlist *)playlist {
+    _trackListController.folderName = _folderSession.folderDisplayName;
     [_trackListController reloadAll];
+    [_searchController reloadAll];
 }
 
 - (void)playlist:(Playlist *)playlist didAppendTracksAtIndexes:(NSIndexSet *)indexes {
     [_pagesView reloadData];
     [_trackListController reloadAll];
+    [_searchController reloadAll];
 }
 
 - (void)playlist:(Playlist *)playlist didReplaceTrackAtIndex:(NSUInteger)index {
@@ -1257,35 +1199,30 @@ static const CGFloat kWaveformBottomInsetLandscape = 91;  // bar clearance + tim
     }
 }
 
-#pragma mark - AudioWaveformCacheDelegate
+#pragma mark - PageWaveformPipelineDelegate
 
-- (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded {
-    // No URL rides on this delivery; the pipeline has one load at a time and
-    // _waveformLoadIndex names its target page (cancelLoad before every
-    // retarget is the race guard, per the cache's contract). The snapshot is
-    // kept for re-hydrating that page if its cell reloads or recycles.
-    if (_waveformLoadIndex == NSNotFound) {
-        return;
-    }
-    _pageWaveforms[@(_waveformLoadIndex)] = waveform;
-    if (percentLoaded >= 1.0f) {
-        [_completePages addIndex:_waveformLoadIndex];
-    }
-    [[self cellAtIndex:_waveformLoadIndex].waveformView showWaveform:waveform];
+- (void)pageWaveformPipeline:(PageWaveformPipeline *)pipeline
+           didUpdateWaveform:(CodableAudioWaveform *)waveform
+                    forIndex:(NSUInteger)index {
+    [[self cellAtIndex:index].waveformView showWaveform:waveform];
 }
 
 // The mac's late-delivery and duplicate-row contract: the value is valid for
 // every row owning this URL, so stamp them all. Matching only the CURRENT
 // track dropped a neighbor preview's delivery, and the commit's skip-reload
 // path never re-fires it — that track then had no BPM/key for the session.
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url {
+- (void)pageWaveformPipeline:(PageWaveformPipeline *)pipeline
+                didDetectBPM:(float)bpm
+                      forURL:(NSURL *)url {
     [[_playlist indexesOfTracksWithURL:url]
             enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
         [self->_playlist trackAtIndex:index].detectedBPM = bpm;
     }];
 }
 
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectKey:(NSInteger)key forURL:(NSURL *)url {
+- (void)pageWaveformPipeline:(PageWaveformPipeline *)pipeline
+                didDetectKey:(NSInteger)key
+                      forURL:(NSURL *)url {
     [[_playlist indexesOfTracksWithURL:url]
             enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
         [self->_playlist trackAtIndex:index].detectedKey = (VibeMusicalKey)key;

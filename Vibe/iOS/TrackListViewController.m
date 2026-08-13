@@ -9,6 +9,7 @@
 #import "VibeStrings.h"
 
 static NSString *const kTrackCellIdentifier = @"track";
+static NSString *const kChooseFolderCellIdentifier = @"choose-folder";
 static const NSInteger kSectionChooseFolder = 0;
 static const NSInteger kSectionTracks = 1;
 
@@ -35,6 +36,14 @@ static const NSInteger kSectionTracks = 1;
 
 - (void)closeTapped {
     [self dismissViewControllerAnimated:YES completion:nil];
+}
+
+// Live: an external open can replace the folder while the sheet is up.
+- (void)setFolderName:(NSString *)folderName {
+    _folderName = [folderName copy];
+    if (self.isViewLoaded) {
+        self.title = _folderName;
+    }
 }
 
 - (void)reloadAll {
@@ -64,8 +73,11 @@ static const NSInteger kSectionTracks = 1;
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     if (indexPath.section == kSectionChooseFolder) {
-        UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                                       reuseIdentifier:nil];
+        UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kChooseFolderCellIdentifier];
+        if (!cell) {
+            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                          reuseIdentifier:kChooseFolderCellIdentifier];
+        }
         UIListContentConfiguration *content = cell.defaultContentConfiguration;
         content.text = STR_LABEL_CHOOSE_FOLDER;
         content.image = [UIImage systemImageNamed:@"folder"];

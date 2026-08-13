@@ -57,6 +57,12 @@
     [self dismissViewControllerAnimated:YES completion:nil];
 }
 
+- (void)reloadAll {
+    if (self.isViewLoaded) {
+        [self filterWithQuery:_searchController.searchBar.text ?: @""];
+    }
+}
+
 #pragma mark - Filtering
 
 - (void)updateSearchResultsForSearchController:(UISearchController *)searchController {

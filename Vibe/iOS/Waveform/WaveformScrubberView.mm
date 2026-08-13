@@ -9,6 +9,7 @@
 #import "DetailedAudioWaveformRenderer.h"
 #import "WaveformRendererRegistry.h"
 #import "UIView+DarkMode.h"
+#import "VibeWeakProxy.h"
 #import "AppSettings.h"
 
 // Fraction of the track visible across the view: the DJ zoom level. The
@@ -126,6 +127,13 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
                       withHandler:^(id<UITraitEnvironment> env, UITraitCollection *previous) {
                           [weakSelf traitsDidChange:previous];
                       }];
+}
+
+// Needed because the momentum link holds only the weak proxy; without the
+// invalidate a link outliving the view would fire no-ops at display rate
+// forever.
+- (void)dealloc {
+    [_momentumLink invalidate];
 }
 
 - (BOOL)isScrubbing {
@@ -369,10 +377,11 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     CGFloat scale = [self displayScale];
     // A CALayer whose contents exceed the GPU texture ceiling renders BLANK,
     // and the virtual width crosses 16384px on wide iPad windows (view width
-    // / 0.15 × scale). Bake at a reduced scale instead — the layers' default
-    // resize gravity stretches it back, softening the bars slightly, which
-    // beats an invisible waveform. A width that cannot fit even at 1x would
-    // need a ~2500pt view; bail to the live tree if it ever happens.
+    // / kWaveformVisibleFraction × scale). Bake at a reduced scale instead —
+    // the layers' default resize gravity stretches it back, softening the
+    // bars slightly, which beats an invisible waveform. A width that cannot
+    // fit even at 1x would need a ~3250pt view; bail to the live tree if it
+    // ever happens.
     static const CGFloat kMaxBakeImagePixels = 16384;
     if (size.width * scale > kMaxBakeImagePixels) {
         scale = kMaxBakeImagePixels / size.width;
@@ -600,10 +609,12 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
                 break;
             }
             // Content follows the finger, so content velocity is the finger's;
-            // progress runs against x.
+            // progress runs against x. The weak proxy keeps a mid-momentum
+            // link from pinning a recycled cell's view alive; dealloc
+            // invalidates it.
             _momentumVelocity = -vx / virtualWidth;
             _momentumLastTime = CACurrentMediaTime();
-            _momentumLink = [CADisplayLink displayLinkWithTarget:self
+            _momentumLink = [CADisplayLink displayLinkWithTarget:[VibeWeakProxy proxyWithTarget:self]
                                                         selector:@selector(momentumTick:)];
             [_momentumLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
             break;
@@ -681,6 +692,11 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     }
     CGFloat centerX = self.bounds.size.width / 2;
     CGFloat p = _progress + ([tap locationInView:self].x - centerX) / virtualWidth;
+    // A tap mid-deceleration claims the transport: left running, the momentum
+    // would settle later and commit a second seek over this one.
+    [self cancelMomentum];
+    _isScrubbing = NO;
+    _scrubHaptics = nil;
     [self.delegate waveformScrubberView:self didSeek:(float)MAX(0.0, MIN(1.0, p))];
 }
 

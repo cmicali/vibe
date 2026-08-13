@@ -19,6 +19,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, copy, nullable) void (^onSelectTrack)(NSUInteger index);
 
+// Re-filters the current query against the playlist's current contents. The
+// owner forwards playlist replacement while the sheet is up, so an external
+// open cannot leave the results indexing a departed playlist.
+- (void)reloadAll;
+
 @end
 
 NS_ASSUME_NONNULL_END

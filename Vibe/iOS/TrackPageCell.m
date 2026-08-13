@@ -4,16 +4,15 @@
 //
 
 #import "TrackPageCell.h"
+#import "TrackPageGeometry.h"
 #import "VibeStrings.h"
 #import "WaveformScrubberView.h"
 
 // Portrait: two stacked boxes — art + header labels, then waveform + time
 // labels — separated by kCellBoxGap and centered as one unit in the area
-// between the safe top and the overlay's glass bar. PlayerViewController
-// mirrors the nominal numbers to place its empty-state line without
-// constraining across the cell boundary.
-static const CGFloat kCellWaveformHeight = 180;
-static const CGFloat kCellBottomBarClearance = 56;  // the glass bar's slice of the safe area
+// between the safe top and the overlay's glass bar. The waveform heights and
+// bar clearance live in TrackPageGeometry.h, shared with the chrome that
+// mirrors them.
 static const CGFloat kCellBoxGap = 32;              // padding between the two boxes
 static const CGFloat kCellArtTopPadding = 16;       // pushes art + labels down inside the group; taken back out of kCellBoxGap so the waveform box stays put
 static const CGFloat kCellTimeWaveformGap = 3;
@@ -24,7 +23,6 @@ static const CGFloat kCellGlyphPointSize = 41;
 // top-left, artist over title beside it with the codec line in the top-right
 // corner, and the full-width waveform + time row bottom-anchored above the
 // glass bar.
-static const CGFloat kCellWaveformHeightLandscape = 120;
 static const CGFloat kCellHeaderGapLandscape = 16;   // art trailing → header text leading
 static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
 
@@ -217,7 +215,7 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         // the square card — never the text.
         [band.topAnchor constraintEqualToAnchor:safe.topAnchor],
         [band.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor
-                                          constant:-kCellBottomBarClearance],
+                                          constant:-kTrackPageBottomBarClearance],
         [_artCard.topAnchor constraintEqualToAnchor:group.topAnchor
                                            constant:kCellArtTopPadding],
         [group.bottomAnchor constraintEqualToAnchor:_elapsedLabel.bottomAnchor],
@@ -242,7 +240,7 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
 
         [_waveformView.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
         [_waveformView.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
-        [_waveformView.heightAnchor constraintEqualToConstant:kCellWaveformHeight],
+        [_waveformView.heightAnchor constraintEqualToConstant:kTrackPageWaveformHeight],
         // The waveform box hangs off the art box across the configurable
         // gap, and the stack's required bottom bound keeps the time
         // labels clear of the glass bar at any text size.
@@ -293,11 +291,11 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
 
         [_waveformView.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
         [_waveformView.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
-        [_waveformView.heightAnchor constraintEqualToConstant:kCellWaveformHeightLandscape],
+        [_waveformView.heightAnchor constraintEqualToConstant:kTrackPageWaveformHeightLandscape],
         [_waveformView.bottomAnchor constraintEqualToAnchor:_elapsedLabel.topAnchor
                                                    constant:-kCellTimeWaveformGap],
         [_elapsedLabel.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor
-                                                   constant:-(kCellBottomBarClearance + 12)],
+                                                   constant:-(kTrackPageBottomBarClearance + 12)],
         [_elapsedLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
         [_elapsedLabel.trailingAnchor constraintLessThanOrEqualToAnchor:content.centerXAnchor
                                                             constant:-6],
