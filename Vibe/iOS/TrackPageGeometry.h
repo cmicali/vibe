@@ -19,7 +19,8 @@ static const CGFloat kTrackPageBottomBarClearance = 56;
 
 // Nominal distance from the safe bottom to the waveform strip's bottom: bar
 // clearance + time row, plus centering slack in portrait, where the two-box
-// stack floats. Landscape is bottom-anchored, so its inset is exact at
+// stack floats and the waveform centers between the label block and the
+// paused glyph. Landscape is bottom-anchored, so its inset is exact at
 // standard text size; portrait's holds only where the centering puts it.
-static const CGFloat kTrackPageWaveformBottomInset = 118;
+static const CGFloat kTrackPageWaveformBottomInset = 137;
 static const CGFloat kTrackPageWaveformBottomInsetLandscape = 91;

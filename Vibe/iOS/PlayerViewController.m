@@ -270,6 +270,7 @@ static const NSUInteger kUIUpdateHz = 3;
     [_searchBarButton addTarget:self action:@selector(searchTapped)
                forControlEvents:UIControlEventTouchUpInside];
     _searchBarButton.translatesAutoresizingMaskIntoConstraints = NO;
+    _searchBarButton.hidden = YES;  // search disabled for now; still anchors the bottom-bar layout
     [root addSubview:_searchBarButton];
 
     UIButtonConfiguration *folderConfig = [UIButtonConfiguration glassButtonConfiguration];
@@ -1033,9 +1034,12 @@ static const NSUInteger kUIUpdateHz = 3;
     // the waveform decode, which may still be streaming over the network.
     // Re-hydration repaints a snapshot already in hand (ending the slow-open
     // shimmer that replaced it); otherwise the line keeps animating until
-    // showWaveform: delivers.
-    [self hydrateWaveformInCell:[self cellAtIndex:_playlist.currentIndex]
-                        atIndex:_playlist.currentIndex];
+    // showWaveform: delivers. The download fill IS cleared here — the open
+    // landing means the file materialized, and showWaveform: deliberately
+    // leaves the fill alone (a cached waveform can arrive mid-download).
+    TrackPageCell *currentCell = [self cellAtIndex:_playlist.currentIndex];
+    [currentCell.waveformView setLoadingProgress:-1];
+    [self hydrateWaveformInCell:currentCell atIndex:_playlist.currentIndex];
     // The dataless-placeholder retry: a cache miss skipped while the player's
     // own open was materializing the file parses now.
     [_metadataCache loadMetadataNow:track];

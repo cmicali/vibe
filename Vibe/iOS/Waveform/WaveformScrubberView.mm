@@ -15,7 +15,7 @@
 // Fraction of the track visible across the view: the DJ zoom level. The
 // renderer draws the full track at width / fraction and the host layer is
 // translated so the play position sits at the view's horizontal center.
-static const CGFloat kWaveformVisibleFraction = 0.2;
+static const CGFloat kWaveformVisibleFraction = 0.25;
 
 // Momentum: the per-millisecond deceleration (much higher friction than
 // UIScrollView's 0.998 normal rate, so a throw settles noticeably faster —
@@ -303,11 +303,15 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 }
 
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
-    // Data arrival is what genuinely ends the loading and empty
+    // Data arrival is what genuinely ends the shimmer and empty
     // presentations — the audio open landing does not (its decode may still
     // be streaming over the network), so owners no longer hide the line;
-    // this does.
-    [self hideLoadingIndicator];
+    // this does. The download fill is NOT ended here: a disk-cached waveform
+    // arrives without materializing the audio file, so the provider can still
+    // be downloading it — the fill then rides over the waveform as the only
+    // sign of that, and it comes down with its monitor (the open landing or
+    // the error path clears it via setLoadingProgress:-1).
+    [self hideLoadingShimmer];
     [self hideEmptyPlaceholder];
     // A fresh view may receive data before anyone called
     // prepareForWaveformLoad (per-page cells hydrate directly); the renderer
@@ -500,22 +504,26 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     [_loadingLayer addAnimation:sweep forKey:@"sweep"];
 }
 
-- (void)hideLoadingIndicator {
+- (void)hideLoadingShimmer {
     [_loadingLayer removeAllAnimations];
     [_loadingLayer removeFromSuperlayer];
     _loadingLayer = nil;
+}
+
+- (void)hideLoadingIndicator {
+    [self hideLoadingShimmer];
     [_loadingProgressLayer removeFromSuperlayer];
     _loadingProgressLayer = nil;
 }
 
-// Determinate download progress under the shimmer: the midline fills from
-// the left as the provider materializes the file. Fed by whatever source
-// knows a fraction — today the allocated-size monitor, later the Dropbox
-// API client. A negative fraction hides it (back to indeterminate); the
-// shimmer keeps sweeping either way, since a stalled provider reports no
-// movement.
+// Determinate download progress on the midline: the fill grows from the left
+// as the provider materializes the file. Fed by whatever source knows a
+// fraction — today the allocated-size monitor, later the Dropbox API client.
+// It rides under the shimmer while one is up, or over the waveform when the
+// waveform came from the disk cache mid-download. A negative fraction removes
+// it (back to indeterminate); a stalled provider just reports no movement.
 - (void)setLoadingProgress:(float)fraction {
-    if (!_loadingLayer || fraction < 0) {
+    if (fraction < 0) {
         [_loadingProgressLayer removeFromSuperlayer];
         _loadingProgressLayer = nil;
         return;
@@ -525,8 +533,13 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
         fill.contentsScale = [self displayScale];
         UIColor *base = self.isDark ? [UIColor whiteColor] : [UIColor blackColor];
         fill.backgroundColor = [base colorWithAlphaComponent:0.85].CGColor;
-        // Below the shimmer, so the sweep still reads over the filled span.
-        [self.layer insertSublayer:fill below:_loadingLayer];
+        if (_loadingLayer) {
+            // Below the shimmer, so the sweep still reads over the filled span.
+            [self.layer insertSublayer:fill below:_loadingLayer];
+        }
+        else {
+            [self.layer addSublayer:fill];
+        }
         _loadingProgressLayer = fill;
     }
     CGFloat midY = self.bounds.size.height / 2;

@@ -42,6 +42,7 @@ static const float kReverbSendLevel = 0.3f;
 // Filtering the return rather than the send guarantees that even the ringing
 // tail is low-cut.
 static const float kReverbTailLowCutHz = 550.0f;
+#if TARGET_OS_OSX
 // MatrixReverb tuning, applied on top of the Cathedral preset; Reverb2 sounds
 // thin and digital by comparison. CAUTION: the ranges documented in
 // AudioUnitParameters.h are stale. The AU's real LargeSize range, queried
@@ -54,6 +55,7 @@ static const float kReverbTailLowCutHz = 550.0f;
 static const float kReverbLargeSize = 0.15f;     // the real max: the tail knob
 static const float kReverbSmallLargeMix = 90.0f; // 0-100: mostly the large hall engine
 static const float kReverbLargeDensity = 0.9f;   // lush, smooth tail
+#endif
 
 // Momentary delay echo sends, on held R and T keys, using the same gated
 // send-return pattern as the reverb. The tap is a fraction of a beat of the

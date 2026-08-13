@@ -47,9 +47,10 @@ NS_ASSUME_NONNULL_BEGIN
 // the static midline for the no-track empty state.
 - (void)showLoadingIndicator;
 - (void)hideLoadingIndicator;
-// Determinate download progress while the loading indicator shows: the
-// midline fills to fraction. Negative reverts to indeterminate. No-op
-// unless the loading indicator is up.
+// Determinate download progress: the midline fills to fraction, under the
+// shimmer while one is up, or over a shown waveform (a disk-cached waveform
+// can arrive while the audio file is still materializing). Negative removes
+// the fill; the owner clears it when the open lands or fails.
 - (void)setLoadingProgress:(float)fraction;
 - (void)showEmptyPlaceholder;
 

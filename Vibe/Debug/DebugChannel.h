@@ -7,6 +7,8 @@
 
 #if DEBUG
 
+NS_ASSUME_NONNULL_BEGIN
+
 // The platform-neutral half of the debug command channel: the command-file
 // drain, payload validation, response writing, the stale-file sweep, and the
 // wake-up listeners. The platform command tables — DebugUtil.m on macOS,
@@ -40,5 +42,7 @@ void VibeWriteDebugResponse(NSString *commandId, NSString *response);
 #ifdef __cplusplus
 }
 #endif
+
+NS_ASSUME_NONNULL_END
 
 #endif

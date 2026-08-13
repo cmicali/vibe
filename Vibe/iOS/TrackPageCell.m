@@ -98,7 +98,7 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         // never the text — when they grow.
         _titleLabel = [[UILabel alloc] init];
         _titleLabel.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleTitle2]
-                scaledFontForFont:[UIFont boldSystemFontOfSize:31]];
+                scaledFontForFont:[UIFont boldSystemFontOfSize:28]];
         _titleLabel.adjustsFontForContentSizeCategory = YES;
         _titleLabel.numberOfLines = 2;
         _titleLabel.textAlignment = NSTextAlignmentCenter;
@@ -109,7 +109,7 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
 
         _artistLabel = [[UILabel alloc] init];
         _artistLabel.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleSubheadline]
-                scaledFontForFont:[UIFont boldSystemFontOfSize:22]];
+                scaledFontForFont:[UIFont boldSystemFontOfSize:20]];
         _artistLabel.adjustsFontForContentSizeCategory = YES;
         _artistLabel.textAlignment = NSTextAlignmentCenter;
         [_artistLabel setContentCompressionResistancePriority:UILayoutPriorityRequired
@@ -119,7 +119,7 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
 
         _fileInfoLabel = [[UILabel alloc] init];
         _fileInfoLabel.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleFootnote]
-                scaledFontForFont:[UIFont systemFontOfSize:16]];
+                scaledFontForFont:[UIFont systemFontOfSize:14.5]];
         _fileInfoLabel.adjustsFontForContentSizeCategory = YES;
         _fileInfoLabel.textColor = [UIColor secondaryLabelColor];
         _fileInfoLabel.textAlignment = NSTextAlignmentCenter;
@@ -196,6 +196,11 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
     [content addLayoutGuide:band];
     UILayoutGuide *group = [[UILayoutGuide alloc] init];
     [content addLayoutGuide:group];
+    // The space the waveform centers in: label block bottom to paused-glyph
+    // top. The time row keeps the position the old waveform-chained layout
+    // gave it, so only the waveform floats up.
+    UILayoutGuide *waveBand = [[UILayoutGuide alloc] init];
+    [content addLayoutGuide:waveBand];
     NSLayoutConstraint *groupCentered =
             [group.centerYAnchor constraintEqualToAnchor:band.centerYAnchor];
     groupCentered.priority = UILayoutPriorityDefaultHigh;
@@ -241,13 +246,18 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         [_waveformView.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
         [_waveformView.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
         [_waveformView.heightAnchor constraintEqualToConstant:kTrackPageWaveformHeight],
-        // The waveform box hangs off the art box across the configurable
-        // gap, and the stack's required bottom bound keeps the time
-        // labels clear of the glass bar at any text size.
-        [_waveformView.topAnchor constraintEqualToAnchor:_fileInfoLabel.bottomAnchor
-                                                constant:kCellBoxGap - kCellArtTopPadding],
-        [_elapsedLabel.topAnchor constraintEqualToAnchor:_waveformView.bottomAnchor
-                                                constant:kCellTimeWaveformGap],
+        // The waveform centers between the label block and the paused
+        // glyph; the time row hangs off the labels at the distance the
+        // old waveform-chained layout produced, and the stack's required
+        // bottom bound keeps the time labels clear of the glass bar at
+        // any text size.
+        [waveBand.topAnchor constraintEqualToAnchor:_fileInfoLabel.bottomAnchor],
+        [waveBand.bottomAnchor constraintEqualToAnchor:_playPauseButton.topAnchor],
+        [_waveformView.centerYAnchor constraintEqualToAnchor:waveBand.centerYAnchor],
+        [_elapsedLabel.topAnchor constraintEqualToAnchor:_fileInfoLabel.bottomAnchor
+                                                constant:kCellBoxGap - kCellArtTopPadding
+                                                         + kTrackPageWaveformHeight
+                                                         + kCellTimeWaveformGap],
         [_elapsedLabel.bottomAnchor constraintLessThanOrEqualToAnchor:band.bottomAnchor
                                                              constant:-12],
         [_elapsedLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
