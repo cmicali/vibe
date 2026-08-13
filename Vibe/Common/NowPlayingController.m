@@ -10,6 +10,10 @@
 
 @implementation NowPlayingController {
     __weak id<NowPlayingControllerDelegate> _delegate;
+#if DEBUG
+    // --no-audio-hw: publish nothing to the system. See the initializer.
+    BOOL _suppressed;
+#endif
 
     // Vibe must not claim the system Now Playing slot at launch. updateUI runs
     // with no track before anything has played, and publishing even a cleared
@@ -46,6 +50,20 @@
     self = [super init];
     if (self) {
         _delegate = delegate;
+#if DEBUG
+        // --no-audio-hw exists so a test run leaves the system's audio
+        // routing alone, and publishing Now Playing defeats that on its own:
+        // registering as the active media app is enough for macOS to pull
+        // auto-switching AirPods over from another device, with no output
+        // device ever opened. Suppressing the publish keeps the flag's
+        // promise. Testing Now Playing itself therefore needs a launch
+        // without it (VIBE_AUDIBLE=1 for launch.sh).
+        _suppressed = [NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"];
+        if (_suppressed) {
+            LogInfo(@"NowPlayingController: --no-audio-hw, system Now Playing not published");
+            return self;
+        }
+#endif
         [self registerCommands];
     }
     return self;
@@ -161,6 +179,11 @@
                    rate:(double)rate
                 hasNext:(BOOL)hasNext
             hasPrevious:(BOOL)hasPrevious {
+#if DEBUG
+    if (_suppressed) {
+        return;
+    }
+#endif
     MPNowPlayingInfoCenter *center = [MPNowPlayingInfoCenter defaultCenter];
 
     // Applied before every early return below, so that command availability

@@ -218,6 +218,10 @@ static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"outputDeviceId": @(player.currentlyActiveAudioDeviceId),
             @"silent": @([NSProcessInfo.processInfo.arguments containsObject:@"--silent"]),
             @"noAudioHw": @([NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"]),
+            // The flag asked; this is what actually happened. They differ when
+            // enableManualRenderingMode fails and the output device opens
+            // anyway — which no other signal would reveal.
+            @"manualRendering": @(controller.audioPlayer.manualRenderingActive),
         },
         @"currentTrack": track ? @{
             @"url": track.url.path ?: @"",

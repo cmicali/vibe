@@ -122,6 +122,14 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // splice at the boundary. Observability (the debug channel); lock-free.
 @property (readonly, getter=isGaplessArmed) BOOL gaplessArmed;
 
+#if DEBUG
+// Whether --no-audio-hw's manual rendering actually engaged. The argv flag
+// alone does not prove it: enableManualRenderingMode can fail, and the engine
+// then opens the output device exactly as usual. Written once during the
+// async init; lock-free.
+@property (readonly) BOOL manualRenderingActive;
+#endif
+
 - (BOOL)isPlaying;
 - (BOOL)isPaused;
 - (BOOL)isStopped;
