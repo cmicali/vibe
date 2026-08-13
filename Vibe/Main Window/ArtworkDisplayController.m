@@ -222,11 +222,16 @@ static const CGFloat kAccentMaxChroma         = 0.17;
     NSImage *art = track.albumArt;
     if (art) {
         if (_displayedArt != art) {
-            // Everything downstream frames art square and aspect-fits it, so
-            // crop once here rather than letterboxing a wide or tall cover in
-            // the header view and again in the dock tile. The identity mark
-            // stays the source image: the crop is a fresh object every time,
-            // and comparing it would re-crop on every update.
+            // Both surfaces below frame art square and aspect-fit it, so crop
+            // once here rather than letterboxing a wide or tall cover in the
+            // header view and again in the dock tile. The identity mark stays
+            // the source image: the crop is a fresh object every time, and
+            // comparing it would re-crop on every update.
+            //
+            // The crop is deliberately confined to these two. Now Playing
+            // publishes track.albumArt itself (NowPlayingController), and must
+            // keep receiving the uncropped original — Control Center frames it
+            // on its own terms.
             NSImage *square = [art squareCroppedImage] ?: art;
             _artworkView.image = square;
             [self applyHeaderTintFromArt:square forTrack:track];
