@@ -1,5 +1,7 @@
+* Kjører nå på macOS 14 Sonoma og nyere
 * Avspilling uten pauser — uten crossfade glir sporene sømløst over i hverandre
 * Spillelistefiler — .cue og .m3u åpnes som ordnede sporlister
+* Skyfiler (iCloud Drive, Dropbox) viser nå fremdrift for nedlasting
 * Nytt panel for tillatelser i Innstillinger — mappetilgang beholdes mellom omstarter
 * Nytt valg: Alltid øverst
 * Feilrettinger og forbedringer

@@ -1,5 +1,7 @@
+* Kör nu på macOS 14 Sonoma och senare
 * Uppspelning utan mellanrum — utan crossfade övergår spåren sömlöst i varandra
 * Spellistefiler — .cue och .m3u öppnas som ordnade spårlistor
+* Molnfiler (iCloud Drive, Dropbox) visar nu hämtningsförlopp
 * Ny panel för behörigheter i Inställningar — mappåtkomst sparas mellan starter
 * Nytt alternativ: Alltid överst
 * Buggfixar och förbättringar

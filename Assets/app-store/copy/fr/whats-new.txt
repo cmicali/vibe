@@ -1,5 +1,7 @@
+* Fonctionne désormais sous macOS 14 Sonoma et versions ultérieures
 * Lecture sans interruption — sans fondu enchaîné, les morceaux s'enchaînent parfaitement
 * Fichiers de playlist — .cue et .m3u s'ouvrent comme listes de morceaux ordonnées
+* Les fichiers cloud (iCloud Drive, Dropbox) affichent désormais la progression du téléchargement
 * Nouvelle section Autorisations dans les Réglages — l'accès aux dossiers persiste entre les lancements
 * Nouvelle option « Toujours au premier plan »
 * Corrections de bugs et améliorations

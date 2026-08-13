@@ -1,5 +1,7 @@
+* Now runs on macOS 14 Sonoma and later
 * Gapless playback — with crossfade off, tracks flow seamlessly into the next
 * Playlist files — .cue and .m3u open as ordered track lists
+* Cloud files (iCloud Drive, Dropbox) now show download progress
 * New Permissions settings pane — folder access now persists across launches
 * New Always on Top window option
 * Bug fixes and improvements

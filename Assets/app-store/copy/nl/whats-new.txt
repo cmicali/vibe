@@ -1,5 +1,7 @@
+* Werkt nu op macOS 14 Sonoma en nieuwer
 * Naadloze weergave — zonder crossfade lopen nummers naadloos in elkaar over
 * Playlistbestanden — .cue en .m3u openen als geordende tracklijsten
+* Cloudbestanden (iCloud Drive, Dropbox) tonen nu de downloadvoortgang
 * Nieuw paneel Bevoegdheden in Instellingen — maptoegang blijft behouden tussen starts
 * Nieuwe optie 'Altijd op voorgrond'
 * Bugfixes en verbeteringen

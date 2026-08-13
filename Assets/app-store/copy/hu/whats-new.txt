@@ -1,5 +1,7 @@
+* Mostantól macOS 14 Sonoma és újabb rendszereken fut
 * Szünetmentes lejátszás — áttűnés nélkül a számok folyamatosan követik egymást
 * Playlistfájlok — a .cue és .m3u rendezett számlistaként nyílik meg
+* A felhőfájlok (iCloud Drive, Dropbox) mostantól mutatják a letöltés folyamatát
 * Új Engedélyek panel a Beállításokban — a mappahozzáférés megmarad az újraindítások között
 * Új „Mindig felül” beállítás
 * Hibajavítások és fejlesztések

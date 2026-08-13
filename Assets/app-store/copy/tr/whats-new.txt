@@ -1,5 +1,7 @@
+* Artık macOS 14 Sonoma ve sonraki sürümlerde çalışır
 * Boşluksuz çalma — crossfade kapalıyken parçalar kesintisiz birbirine bağlanır
 * Çalma listesi dosyaları — .cue ve .m3u sıralı parça listesi olarak açılır
+* Bulut dosyaları (iCloud Drive, Dropbox) artık indirme ilerlemesini gösterir
 * Ayarlar'da yeni İzinler bölümü — klasör erişimi yeniden başlatmalar arasında korunur
 * Yeni "Her Zaman Üstte" seçeneği
 * Hata düzeltmeleri ve iyileştirmeler

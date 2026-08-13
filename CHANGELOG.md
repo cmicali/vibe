@@ -1,11 +1,16 @@
 # v1.9
 
+* Added support for macOS 14 Sonoma and later (previously required macOS 26)
 * Added gapless playback: with crossfade off, tracks auto-advance with no gap
 * Added playlist file support: .cue and .m3u open as ordered track lists
+* Added download progress for cloud files (iCloud Drive, Dropbox) that need downloading
 * Added Permissions settings pane; folder access now persists across launches
 * Added Always on Top option
 * Added "Show file info" option
+* Non-square album art now displays as a centered square crop
 * Fixed opening files passed on the command line
+* Fixed Convert to FLAC when the same file is in the playlist twice
+* Fixed folder access sometimes not applying to files opened at launch
 
 # v1.8
 
