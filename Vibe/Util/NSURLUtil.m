@@ -8,6 +8,10 @@
 #import "VibeStrings.h"
 
 #if TARGET_OS_OSX
+#import "FolderAccessManager.h"
+#endif
+
+#if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
 #endif
 
@@ -232,6 +236,11 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
         granted = [panel runModal] == NSModalResponseOK && panel.URL != nil;
         if (granted) {
             LogInfo(@"Playlist folder access granted: %@", panel.URL.path);
+            // The powerbox extension lasts only this process. Bookmark the
+            // folder like the open and drop funnels do, or every relaunch
+            // re-prompts for it — the auto-add funnel never sees it, since
+            // openURLs: gets the playlist file, not the granted directory.
+            [[FolderAccessManager sharedInstance] noteOpenedURLs:@[panel.URL]];
         }
         else {
             LogInfo(@"Playlist folder access declined for %@", playlistURL.lastPathComponent);

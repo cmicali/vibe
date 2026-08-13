@@ -166,13 +166,16 @@ static const float   kDetentPercent   = 0.35f;
     }
 
     // Minus above, plus below the scale on the right side (Technics layout:
-    // slide down/toward you to speed up).
-    NSSize minusSize = [@"−" sizeWithAttributes:signAttributes];
-    [@"−" drawAtPoint:NSMakePoint(centerX + tickInnerX + kTickLength + kLabelGap,
-                                  [self yForPitch:-_maxPitch] - minusSize.height / 2)
-       withAttributes:signAttributes];
-    NSSize plusSize = [@"+" sizeWithAttributes:signAttributes];
-    [@"+" drawAtPoint:NSMakePoint(centerX + tickInnerX + kTickLength + kLabelGap,
+    // slide down/toward you to speed up). Scale glyphs, not prose, like the
+    // digits above.
+    NSString *minus = VibeNotLocalized(@"−");
+    NSSize minusSize = [minus sizeWithAttributes:signAttributes];
+    [minus drawAtPoint:NSMakePoint(centerX + tickInnerX + kTickLength + kLabelGap,
+                                   [self yForPitch:-_maxPitch] - minusSize.height / 2)
+        withAttributes:signAttributes];
+    NSString *plus = VibeNotLocalized(@"+");
+    NSSize plusSize = [plus sizeWithAttributes:signAttributes];
+    [plus drawAtPoint:NSMakePoint(centerX + tickInnerX + kTickLength + kLabelGap,
                                   [self yForPitch:_maxPitch] - plusSize.height / 2)
        withAttributes:signAttributes];
 }

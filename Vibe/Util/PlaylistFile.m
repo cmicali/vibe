@@ -5,6 +5,8 @@
 
 #import "PlaylistFile.h"
 
+#include <string.h>
+
 @implementation PlaylistFile
 
 + (BOOL)isPlaylistExtension:(NSString *)extension {
@@ -25,6 +27,21 @@
         }
     }
     NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    if (!text && data.length >= 2 && memchr(bytes, 0, data.length)) {
+        // A NUL byte occurs in no single-byte text encoding: this is BOM-less
+        // UTF-16 (some Windows writers). The zeros sit on the high half of
+        // each code unit, so their side tells the byte order — the CP1252
+        // backstop would otherwise render it as NUL-riddled mojibake.
+        NSUInteger evenNULs = 0, oddNULs = 0;
+        for (NSUInteger i = 0; i + 1 < data.length; i += 2) {
+            if (bytes[i] == 0) evenNULs++;
+            if (bytes[i + 1] == 0) oddNULs++;
+        }
+        text = [[NSString alloc] initWithData:data
+                                     encoding:oddNULs >= evenNULs
+                                              ? NSUTF16LittleEndianStringEncoding
+                                              : NSUTF16BigEndianStringEncoding];
+    }
     if (!text) {
         text = [[NSString alloc] initWithData:data encoding:NSWindowsCP1252StringEncoding];
     }
@@ -146,7 +163,8 @@ static BOOL IsCueFileTypeKeyword(NSString *token) {
 // transcoded after the sheet was written — the cue says .wav, the files are
 // now .flac). First readable candidate wins; readable nowhere returns the
 // primary so the caller can tell sandbox denial from a missing file.
-static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManager) {
+static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManager,
+                           NSMutableDictionary<NSString *, NSNumber *> *dirReachable) {
     NSURL *primary = [entry hasPrefix:@"/"]
             ? [NSURL fileURLWithPath:entry]
             : [dir URLByAppendingPathComponent:entry].URLByStandardizingPath;
@@ -168,9 +186,18 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
     // One readability probe of the primary's folder gates its five
     // alternate-extension candidates: a sheet of absolute paths into a
     // missing or unreachable volume then costs one stat per entry instead of
-    // six. The beside candidates live in the playlist's own folder, which was
-    // just read, so they stay unconditional.
-    BOOL primaryDirReachable = [fileManager isReadableFileAtPath:primary.URLByDeletingLastPathComponent.path];
+    // six. The probe is memoized per directory across the pass — on a dead
+    // mount it blocks for an automounter timeout, and a list of absolute
+    // paths into one folder must pay that once, not once per entry. The
+    // beside candidates live in the playlist's own folder, which was just
+    // read, so they stay unconditional.
+    NSString *primaryDir = primary.URLByDeletingLastPathComponent.path;
+    NSNumber *cached = dirReachable[primaryDir];
+    BOOL primaryDirReachable = cached ? cached.boolValue
+                                      : [fileManager isReadableFileAtPath:primaryDir];
+    if (!cached && primaryDir) {
+        dirReachable[primaryDir] = @(primaryDirReachable);
+    }
     for (NSString *extension in alternateExtensions) {
         if (primaryDirReachable) {
             addCandidate([primary.URLByDeletingPathExtension URLByAppendingPathExtension:extension]);
@@ -197,8 +224,9 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
     NSURL *dir = url.URLByDeletingLastPathComponent;
     NSFileManager *fileManager = NSFileManager.defaultManager;
     NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:entries.count];
+    NSMutableDictionary<NSString *, NSNumber *> *dirReachable = [NSMutableDictionary new];
     for (NSString *entry in entries) {
-        [urls addObject:ResolveEntry(entry, dir, fileManager)];
+        [urls addObject:ResolveEntry(entry, dir, fileManager, dirReachable)];
     }
     return urls;
 }

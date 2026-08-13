@@ -182,10 +182,6 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
                           description:@"Only an uncompressed file converts to FLAC."];
     }
     NSURL *destinationURL = refusal ? nil : [self.class flacDestinationForURL:sourceURL];
-    if (!refusal && !askWhereToSave && [NSFileManager.defaultManager fileExistsAtPath:destinationURL.path]) {
-        refusal = [self errorWithCode:VibeConvertErrorDestinationExists
-                          description:@"A FLAC of that name already exists."];
-    }
     if (refusal) {
         run_on_main_thread({ completion(nil, refusal); });
         return;
@@ -205,6 +201,17 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
     };
 
     dispatch_async(_queue, ^{
+        // The destination sits beside the source, which can live on a network
+        // mount, and a stat there can block until the mount times out — so
+        // the exists re-check runs here, never on the main thread at accept.
+        if (!askWhereToSave && [NSFileManager.defaultManager fileExistsAtPath:destinationURL.path]) {
+            run_on_main_thread({
+                self->_converting = NO;
+                completion(nil, [self errorWithCode:VibeConvertErrorDestinationExists
+                                        description:@"A FLAC of that name already exists."]);
+            });
+            return;
+        }
         NSError *error = nil;
         NSURL *tempURL = [self encodeSource:sourceURL progress:progress error:&error];
         if (!tempURL) {
@@ -392,7 +399,7 @@ static NSString *VibeFileStat(NSURL *url) {
             LogWarn(@"%@", result);
         }
         if (moved && !atDestination) {
-            error = [self errorWithCode:VibeConvertErrorNotConvertible
+            error = [self errorWithCode:VibeConvertErrorRestoreFailed
                             description:[NSString stringWithFormat:
                     @"The move out of the Trash reported success but %@ is not at %@.",
                     originalURL.lastPathComponent, originalURL.URLByDeletingLastPathComponent.path]];
@@ -615,30 +622,32 @@ static NSString *VibeFileStat(NSURL *url) {
                                             userInfo:nil]);
             return;
         }
-        NSFileManager *fileManager = NSFileManager.defaultManager;
-        NSError *moveError = nil;
-        if ([fileManager fileExistsAtPath:chosenURL.path]) {
-            // The panel already asked about replacing. The replace must be
-            // atomic: delete-then-move would destroy the existing file even
-            // when the move then fails.
-            NSURL *resultingURL = nil;
-            if (![fileManager replaceItemAtURL:chosenURL
-                                 withItemAtURL:tempURL
-                                backupItemName:nil
-                                       options:0
-                              resultingItemURL:&resultingURL
-                                         error:&moveError]) {
-                completion(nil, moveError);
-                return;
+        // Off main like the silent rungs: a destination on another volume
+        // turns the move into a full copy of the encoded file, and an
+        // unreachable mount blocks until it times out.
+        dispatch_async(self->_queue, ^{
+            NSFileManager *fileManager = NSFileManager.defaultManager;
+            NSError *moveError = nil;
+            NSURL *placedURL = nil;
+            if ([fileManager fileExistsAtPath:chosenURL.path]) {
+                // The panel already asked about replacing. The replace must be
+                // atomic: delete-then-move would destroy the existing file
+                // even when the move then fails.
+                NSURL *resultingURL = nil;
+                if ([fileManager replaceItemAtURL:chosenURL
+                                    withItemAtURL:tempURL
+                                   backupItemName:nil
+                                          options:0
+                                 resultingItemURL:&resultingURL
+                                            error:&moveError]) {
+                    placedURL = resultingURL ?: chosenURL;
+                }
             }
-            completion(resultingURL ?: chosenURL, nil);
-            return;
-        }
-        if (![fileManager moveItemAtURL:tempURL toURL:chosenURL error:&moveError]) {
-            completion(nil, moveError);
-            return;
-        }
-        completion(chosenURL, nil);
+            else if ([fileManager moveItemAtURL:tempURL toURL:chosenURL error:&moveError]) {
+                placedURL = chosenURL;
+            }
+            run_on_main_thread({ completion(placedURL, placedURL ? nil : moveError); });
+        });
     }];
 }
 

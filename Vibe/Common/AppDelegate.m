@@ -118,8 +118,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [self openCommandLineArguments];
 
     if (![_openBurstCoalescer startAndDrainQueue]) {
-        // No launch-time open is queued, since Finder and argv events land
-        // before this point, so the empty state may render.
+        // No launch-time open is queued: Finder events land before this
+        // point, so the empty state may render. Argv paths arrive a beat
+        // later, off their exists checks, and replace it as a burst open.
         [self.mainPlayerController revealEmptyState];
     }
 }
@@ -159,8 +160,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
     // The exists checks run off the main thread: a stat can block for an
     // automounter timeout on an unreachable mount, and this is launch time.
-    // The survivors hop back to main for the coalescer, whose burst window
-    // absorbs the extra hop.
+    // The survivors land strictly after startAndDrainQueue — that drain runs
+    // synchronously inside applicationDidFinishLaunching — so they must enter
+    // through openBurstURLs:, which drains post-start; enqueueURLs: would
+    // park them until some unrelated later open flushed the queue.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSMutableArray<NSURL *> *urls = [NSMutableArray array];
         NSFileManager *fileManager = [NSFileManager defaultManager];
@@ -187,7 +190,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
             return;
         }
         run_on_main_thread({
-            [self->_openBurstCoalescer enqueueURLs:urls];
+            [self->_openBurstCoalescer openBurstURLs:urls];
         });
     });
 }
