@@ -5,6 +5,7 @@
 
 #import "DownloadProgressMonitor.h"
 
+#include <errno.h>
 #include <sys/stat.h>
 
 // 4 Hz: fast enough for a live-feeling bar, cheap enough that a stat per
@@ -83,12 +84,38 @@ static void *kFractionContext = &kFractionContext;
             (uint64_t)(kPollIntervalSeconds * NSEC_PER_SEC), 50 * NSEC_PER_MSEC);
     NSString *path = _path;
     __weak DownloadProgressMonitor *weakTimerSelf = self;
+    // One diagnostic line per monitor on the first poll, whatever it finds:
+    // whether a provider's placeholder is visible as a dataless file with a
+    // real size — the only signal this poll can turn into a fraction — varies
+    // by provider and OS, and a silent monitor is indistinguishable from a
+    // broken one without it.
+    __block BOOL firstTick = YES;
     dispatch_source_set_event_handler(_timer, ^{
         struct stat st;
-        if (stat(path.fileSystemRepresentation, &st) != 0 || st.st_size <= 0) {
-            return; // unreadable or empty: nothing to report yet
+        if (stat(path.fileSystemRepresentation, &st) != 0) {
+            int statErrno = errno;
+            if (firstTick) {
+                firstTick = NO;
+                LogInfo(@"Download progress: cannot stat %@ (errno=%d)",
+                        path.lastPathComponent, statErrno);
+            }
+            return; // unreadable: nothing to report yet
+        }
+        if (st.st_size <= 0) {
+            if (firstTick) {
+                firstTick = NO;
+                LogInfo(@"Download progress: %@ reports no size yet (flags=0x%x)",
+                        path.lastPathComponent, st.st_flags);
+            }
+            return; // empty or sizeless placeholder: nothing to report yet
         }
         BOOL dataless = (st.st_flags & SF_DATALESS) != 0;
+        if (firstTick) {
+            firstTick = NO;
+            LogInfo(@"Download progress: first poll %@ — size=%lld allocated=%lld dataless=%d flags=0x%x",
+                    path.lastPathComponent, (long long)st.st_size,
+                    (long long)st.st_blocks * 512, dataless, st.st_flags);
+        }
         // 512-byte blocks; allocated can exceed logical on materialized
         // files, so clamp.
         double fraction = MIN(1.0, (double)st.st_blocks * 512.0 / (double)st.st_size);
