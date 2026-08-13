@@ -1,5 +1,7 @@
+* Teraz beží na macOS 14 Sonoma a novších verziách
 * Prehrávanie bez medzier — bez prelínania na seba skladby plynulo nadväzujú
 * Súbory playlistov — .cue a .m3u sa otvárajú ako zoradené zoznamy skladieb
+* Súbory v cloude (iCloud Drive, Dropbox) teraz zobrazujú priebeh sťahovania
 * Nový panel Povolenia v Nastaveniach — prístup k priečinkom sa zachováva aj po reštarte
 * Nová voľba „Vždy navrchu“
 * Opravy chýb a vylepšenia

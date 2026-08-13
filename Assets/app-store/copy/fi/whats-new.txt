@@ -1,5 +1,7 @@
+* Toimii nyt macOS 14 Sonoma -versiossa ja sitä uudemmissa
 * Saumaton toisto — ilman ristihäivytystä kappaleet soivat saumattomasti peräkkäin
 * Soittolistatiedostot — .cue ja .m3u avautuvat järjestettyinä kappalelistoina
+* Pilvitiedostot (iCloud Drive, Dropbox) näyttävät nyt latauksen edistymisen
 * Uusi Käyttöoikeudet-osio asetuksissa — kansioiden käyttöoikeudet säilyvät käynnistysten välillä
 * Uusi Aina päällimmäisenä -valinta
 * Virheenkorjauksia ja parannuksia

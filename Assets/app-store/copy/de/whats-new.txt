@@ -1,5 +1,7 @@
+* Läuft jetzt unter macOS 14 Sonoma und neuer
 * Lückenlose Wiedergabe — ohne Überblendung gehen Titel nahtlos ineinander über
 * Playlist-Dateien — .cue und .m3u öffnen als geordnete Titelliste
+* Cloud-Dateien (iCloud Drive, Dropbox) zeigen jetzt den Downloadfortschritt an
 * Neuer Einstellungsbereich „Berechtigungen“ — Ordnerzugriff bleibt über Neustarts erhalten
 * Neue Option „Immer im Vordergrund“
 * Fehlerbehebungen und Verbesserungen

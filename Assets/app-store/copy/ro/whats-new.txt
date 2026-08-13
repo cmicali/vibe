@@ -1,5 +1,7 @@
+* Rulează acum pe macOS 14 Sonoma și versiuni ulterioare
 * Redare fără pauze — fără crossfade, piesele se succed perfect
 * Fișiere playlist — .cue și .m3u se deschid ca liste ordonate de piese
+* Fișierele din cloud (iCloud Drive, Dropbox) afișează acum progresul descărcării
 * Panou nou de Permisiuni în Setări — accesul la dosare persistă între lansări
 * Opțiune nouă „Mereu deasupra”
 * Remedieri de erori și îmbunătățiri

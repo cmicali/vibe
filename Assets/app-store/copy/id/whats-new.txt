@@ -1,5 +1,7 @@
+* Kini berjalan di macOS 14 Sonoma dan yang lebih baru
 * Pemutaran tanpa jeda — dengan crossfade mati, lagu mengalir mulus ke lagu berikutnya
 * File playlist — .cue dan .m3u terbuka sebagai daftar lagu berurutan
+* File cloud (iCloud Drive, Dropbox) kini menampilkan progres unduhan
 * Panel Izin baru di Pengaturan — akses folder tersimpan antar peluncuran
 * Opsi baru "Selalu di Atas"
 * Perbaikan bug dan penyempurnaan

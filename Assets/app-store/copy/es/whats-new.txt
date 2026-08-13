@@ -1,5 +1,7 @@
+* Ahora funciona con macOS 14 Sonoma o posterior
 * Reproducción sin pausas — sin fundido cruzado, las pistas se encadenan sin cortes
 * Archivos de playlist — .cue y .m3u se abren como listas de pistas ordenadas
+* Los archivos en la nube (iCloud Drive, Dropbox) ahora muestran el progreso de descarga
 * Nuevo panel de Permisos en Ajustes — el acceso a carpetas se conserva entre inicios
 * Nueva opción «Siempre visible»
 * Corrección de errores y mejoras

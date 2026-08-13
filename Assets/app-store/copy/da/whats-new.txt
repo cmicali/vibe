@@ -1,5 +1,7 @@
+* Kører nu på macOS 14 Sonoma og nyere
 * Afspilning uden pauser — uden crossfade glider numrene sømløst over i hinanden
 * Playlistefiler — .cue og .m3u åbnes som ordnede nummerlister
+* Cloud-filer (iCloud Drive, Dropbox) viser nu status for download
 * Nyt panel med tilladelser i Indstillinger — mappeadgang bevares mellem genstarter
 * Ny mulighed: Altid forrest
 * Fejlrettelser og forbedringer

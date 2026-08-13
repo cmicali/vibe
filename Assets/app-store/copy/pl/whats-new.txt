@@ -1,5 +1,7 @@
+* Działa teraz na macOS 14 Sonoma i nowszych
 * Odtwarzanie bez przerw — bez crossfade'u utwory przechodzą płynnie jeden w drugi
 * Pliki playlist — .cue i .m3u otwierają się jako uporządkowane listy utworów
+* Pliki w chmurze (iCloud Drive, Dropbox) pokazują teraz postęp pobierania
 * Nowy panel Uprawnienia w Ustawieniach — dostęp do folderów jest zapamiętywany między uruchomieniami
 * Nowa opcja „Zawsze na wierzchu”
 * Poprawki błędów i ulepszenia

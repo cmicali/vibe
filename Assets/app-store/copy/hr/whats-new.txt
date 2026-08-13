@@ -1,5 +1,7 @@
+* Sada radi na sustavu macOS 14 Sonoma i novijim verzijama
 * Reprodukcija bez pauza — bez crossfadea pjesme se neprimjetno nastavljaju jedna na drugu
 * Datoteke playlista — .cue i .m3u otvaraju se kao poredani popisi pjesama
+* Datoteke u oblaku (iCloud Drive, Dropbox) sada prikazuju napredak preuzimanja
 * Nova ploča Dozvole u Postavkama — pristup mapama ostaje sačuvan između pokretanja
 * Nova opcija „Uvijek na vrhu”
 * Ispravci grešaka i poboljšanja

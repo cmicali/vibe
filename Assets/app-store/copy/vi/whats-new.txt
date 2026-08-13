@@ -1,5 +1,7 @@
+* Hiện chạy trên macOS 14 Sonoma trở lên
 * Phát liền mạch — khi tắt crossfade, các bản nhạc nối tiếp nhau không ngắt quãng
 * Tệp playlist — .cue và .m3u mở dưới dạng danh sách bản nhạc theo thứ tự
+* Tệp trên đám mây (iCloud Drive, Dropbox) hiện hiển thị tiến trình tải xuống
 * Bảng Quyền truy cập mới trong Cài đặt — quyền truy cập thư mục được giữ qua các lần khởi động
 * Tùy chọn mới "Luôn ở trên cùng"
 * Sửa lỗi và cải tiến
