@@ -518,8 +518,15 @@ static NSString *VibeFileStat(NSURL *url) {
         *error = streamError;
     }
 
-    // Flushes the final partial FLAC packet; must precede TagLib's open.
-    [destination close];
+    // Flushes the final partial FLAC packet; must precede TagLib's open. On
+    // macOS 14, which predates -close, releasing the last reference closes
+    // the file in dealloc — the only flush path that existed before the API.
+    if (@available(macOS 15.0, *)) {
+        [destination close];
+    }
+    else {
+        destination = nil;
+    }
 
     if (!ok) {
         [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];

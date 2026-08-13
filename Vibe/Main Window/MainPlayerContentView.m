@@ -158,7 +158,7 @@ API_AVAILABLE(macos(26.0))
 }
 @end
 
-// The macOS 15 frosted stand-in for the header glass, with the same
+// The pre-26 frosted stand-in for the header glass, with the same
 // passthrough.
 @interface VibePassthroughFrostView : NSVisualEffectView
 @end
@@ -367,8 +367,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // The glass panel behind the waveform and header: plain glass over the
     // window backdrop, which ArtworkDisplayController tints to the current
     // track's dominant art color. Its corner radius follows the window's
-    // top-right. On macOS 15, where Liquid Glass does not exist, a frosted
-    // NSVisualEffectView stands in.
+    // top-right. Before macOS 26, where Liquid Glass does not exist, a
+    // frosted NSVisualEffectView stands in.
     NSRect headerPanelFrame = NSMakeRect(kHeaderPanelX, kPlaylistHeight, kHeaderPanelWidth, kHeaderHeight);
     if (@available(macOS 26.0, *)) {
         VibePassthroughGlassView *glass = [[VibePassthroughGlassView alloc] initWithFrame:headerPanelFrame];

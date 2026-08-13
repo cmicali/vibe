@@ -161,9 +161,9 @@
     // The backdrop, spanning the whole window with the pitch panel included;
     // everything else composites over it. On macOS 26 it is Liquid Glass in
     // the Control Center style, its corner radius matching the contentView
-    // layer mask so the rim lighting follows the window shape. On macOS 15,
-    // where Liquid Glass does not exist, a frosted behind-window blur stands
-    // in, shaped by maskImage — the blur region ignores a layer radius.
+    // layer mask so the rim lighting follows the window shape. Before macOS
+    // 26, where Liquid Glass does not exist, a frosted behind-window blur
+    // stands in, shaped by maskImage — the blur region ignores a layer radius.
     NSView *backdrop;
     if (@available(macOS 26.0, *)) {
         NSGlassEffectView *glass = [[NSGlassEffectView alloc] initWithFrame:contentView.bounds];

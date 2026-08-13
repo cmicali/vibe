@@ -16,7 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 // The main window's whole UI. It builds the artwork, waveform, transport
 // buttons, track labels and playlist table, and exposes them for the
 // controller to drive. The view itself is transparent: the window's backdrop
-// — Liquid Glass on macOS 26, the frosted fallback below on 15 — that
+// — Liquid Glass on macOS 26, the frosted fallback below before it — that
 // MainPlayerController installs behind this view provides the background.
 // Button and menu actions are sent to `target`, the controller. The view is
 // pinned at its design width, with a flexible right margin, so that the
@@ -25,7 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTarget:(id)target;
 
-// The rounded-rect mask for the macOS 15 frosted stand-ins for Liquid Glass:
+// The rounded-rect mask for the pre-26 frosted stand-ins for Liquid Glass:
 // an NSVisualEffectView shapes its blur through maskImage — a layer
 // cornerRadius clips its tint but not the blur region.
 + (NSImage *)frostCornerMaskWithRadius:(CGFloat)radius;
