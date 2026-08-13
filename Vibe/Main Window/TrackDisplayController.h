@@ -168,6 +168,9 @@ static inline TrackDisplayState VibeResolveTrackDisplayState(
 - (void)showWaveform:(CodableAudioWaveform *)waveform;
 - (void)showWaveformLoadingIndicator;
 - (void)hideWaveformLoadingIndicator;
+// Determinate download fill while the indicator shows; negative reverts to
+// the indeterminate shimmer. See AudioWaveformView.
+- (void)setWaveformLoadingProgress:(float)fraction;
 // Convert to FLAC's brush-through-the-waveform progress; 0 resets the front.
 // The getter serves the debug state dump.
 - (void)setConvertSweepFraction:(double)fraction;

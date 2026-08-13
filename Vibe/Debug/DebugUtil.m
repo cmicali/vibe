@@ -1033,6 +1033,23 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeActionCmd(@"low_kill_boost_on", ^(MainPlayerController *controller) { [controller setLowKillBoostActive:YES]; }),
             VibeActionCmd(@"low_kill_boost_off", ^(MainPlayerController *controller) { [controller setLowKillBoostActive:NO]; }),
             VibeActionCmd(@"toggle_size", ^(MainPlayerController *controller) { [controller toggleSize:nil]; }),
+            VibeCmd(@"set_loading <off | indeterminate | fraction>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                // Drives the loading indicator directly, so both of its modes
+                // can be captured without a real slow cloud open — which is
+                // otherwise the only way in, and is unreproducible by nature.
+                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
+                double fraction = -1;
+                if ([arg isEqualToString:@"off"]) {
+                    [controller.trackDisplay hideWaveformLoadingIndicator];
+                    return VibeJSONString(@{@"ok": @YES, @"loading": @"off"});
+                }
+                if (![arg isEqualToString:@"indeterminate"] && !VibeParseDouble(arg, &fraction)) {
+                    return VibeErrorJSON(@"usage: set_loading <off | indeterminate | 0..1>");
+                }
+                [controller.trackDisplay showWaveformLoadingIndicator];
+                [controller.trackDisplay setWaveformLoadingProgress:(float)fraction];
+                return VibeJSONString(@{@"ok": @YES, @"fraction": @(fraction)});
+            }),
             VibeCmd(@"set_window_width <body-points>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 double bodyPoints = 0;
                 if (tokens.count < 2 || !VibeParseDouble(tokens[1], &bodyPoints)) {

@@ -5,6 +5,7 @@
 
 #import "DetailedAudioWaveformRenderer.h"
 #import "WaveformMorphEngine.h"
+#import "PlatformTypes.h"
 #import "VibeStrings.h"
 
 #include <vector>
@@ -28,6 +29,12 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
 // setHoverHighlightX:. A fractional width leaves a half-lit edge pixel, so the
 // column never actually reaches full brightness.
 static const CGFloat kHoverHighlightWidth = 1.5;
+
+// An overall opacity multiplier applied to both gradient layers. It tones the
+// whole waveform down, so that it sits comfortably over the album-art
+// backdrop. The envelope bitmap bakes it into its alpha, so the two must move
+// together.
+static const float kWaveformOpacity = 0.75f;
 
 @implementation DetailedAudioWaveformRenderer {
     NSColor *_gradientColor;
@@ -102,11 +109,6 @@ static const CGFloat kHoverHighlightWidth = 1.5;
 }
 
 - (void)setupGradientLayers {
-    // An overall opacity multiplier applied to both gradient layers. It tones
-    // the whole waveform down, so that it sits comfortably over the album-art
-    // backdrop.
-    const float kWaveformOpacity = 0.75f;
-
     CGFloat scale = self.parentLayer.contentsScale;
 
     // Everything composites inside one container that the bar mask clips: the
@@ -350,6 +352,97 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     _barMask.path = path;
     [CATransaction commit];
     CGPathRelease(path);
+}
+
+#pragma mark - Envelope bitmap
+
+- (NSData *)envelopeSamplesForWaveform:(AudioWaveform *)waveform {
+    NSUInteger count = self.numBars;
+    NSMutableData *data = [NSMutableData dataWithLength:count * 2 * sizeof(float)];
+    float *out = (float *)data.mutableBytes;
+    for (NSUInteger i = 0; i < count; i++) {
+        AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
+        out[i * 2] = m.getMin();
+        out[i * 2 + 1] = m.getMax();
+    }
+    return data;
+}
+
+- (CGImageRef)newEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples {
+    NSUInteger count = samples.length / (2 * sizeof(float));
+    size_t pixelWidth = (size_t)llround(size.width * scale);
+    size_t pixelHeight = (size_t)llround(size.height * scale);
+    if (count == 0 || pixelWidth == 0 || pixelHeight == 0) {
+        return NULL;
+    }
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef ctx = CGBitmapContextCreate(NULL, pixelWidth, pixelHeight, 8, 0, space,
+            kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
+    if (!ctx) {
+        CGColorSpaceRelease(space);
+        return NULL;
+    }
+    CGContextScaleCTM(ctx, scale, scale);
+
+    // rebuildMaskPaths' settled branch: pixel-rounded bar edges and the
+    // 1-point hairline floor a loaded waveform draws with.
+    const float *s = (const float *)samples.bytes;
+    CGFloat midY = size.height / 2;
+    CGFloat vscale = VibeBarVScale(size.height);
+    CGFloat barWidth = [self barWidthForWidth:size.width barCount:count];
+    CGMutablePathRef path = CGPathCreateMutable();
+    for (NSUInteger i = 0; i < count; i++) {
+        CGFloat top = round((midY + s[i * 2 + 1] * vscale) * scale) / scale;
+        CGFloat bottom = round((midY + s[i * 2] * vscale) * scale) / scale;
+        CGFloat height = MAX(top - bottom, 1);
+        CGFloat x = [self barXForIndex:i width:size.width barCount:count barWidth:barWidth];
+        CGPathAddRect(path, NULL, CGRectMake(x, bottom, barWidth, height));
+    }
+    CGContextAddPath(ctx, path);
+    CGContextClip(ctx);
+    CGPathRelease(path);
+
+    // configureGradient:'s band-pinned fade with kWaveformOpacity baked into
+    // the alpha. This family's fade only — Basic re-aims its gradient, so its
+    // styles would need their own bake.
+    VibeColor *base = self.isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
+    NSArray<VibeColor *> *stops = [self playedGradientColors:base isDark:self.isDark];
+    NSMutableArray *cgColors = [[NSMutableArray alloc] initWithCapacity:stops.count];
+    for (VibeColor *color in stops) {
+        CGColorRef cg = color.CGColor;
+        CGColorRef faded = CGColorCreateCopyWithAlpha(cg, CGColorGetAlpha(cg) * kWaveformOpacity);
+        [cgColors addObject:(__bridge_transfer id)faded];
+    }
+    CGGradientRef gradient = CGGradientCreateWithColors(space, (__bridge CFArrayRef)cgColors, NULL);
+    CGFloat topY = size.height * (1 + kBarAmplitudeOfHalfHeight) / 2;
+    CGFloat bottomY = size.height * (1 - kBarAmplitudeOfHalfHeight) / 2;
+    CGContextDrawLinearGradient(ctx, gradient, CGPointMake(0, topY), CGPointMake(0, bottomY),
+            kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation);
+    CGGradientRelease(gradient);
+
+    CGImageRef image = CGBitmapContextCreateImage(ctx);
+    CGContextRelease(ctx);
+    CGColorSpaceRelease(space);
+    return image;
+}
+
+- (CGFloat)unplayedOverPlayedOpacity {
+    VibeColor *base = self.isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
+    NSArray<VibeColor *> *played = [self playedGradientColors:base isDark:self.isDark];
+    NSArray<VibeColor *> *unplayed = [self unplayedGradientColors:base isDark:self.isDark];
+    CGFloat playedTop = CGColorGetAlpha(played.firstObject.CGColor);
+    return playedTop > 0 ? CGColorGetAlpha(unplayed.firstObject.CGColor) / playedTop : 1;
+}
+
+- (CGFloat)baselineAlphaForPlayed:(BOOL)played {
+    VibeColor *base = self.isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
+    NSArray<VibeColor *> *stops = played ? [self playedGradientColors:base isDark:self.isDark]
+                                         : [self unplayedGradientColors:base isDark:self.isDark];
+    // configureGradient:'s band is symmetric about the midline, so the
+    // midline's stop is the mean of the two ends.
+    CGFloat top = CGColorGetAlpha(stops.firstObject.CGColor);
+    CGFloat bottom = CGColorGetAlpha(stops.lastObject.CGColor);
+    return (top + bottom) / 2 * kWaveformOpacity;
 }
 
 @end

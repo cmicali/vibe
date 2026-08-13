@@ -12,6 +12,14 @@
 #import "NSView+DarkMode.h"
 #import "AppSettings.h"
 
+// The weight of every non-waveform midline: the loading indicator's three
+// layers — track, filled head and shimmer band — and the empty state's static
+// line. They are one element in different states, so they share a height and
+// cannot drift apart. A whole point keeps the line on device pixels at any
+// backing scale: a half-point height would centre at a half pixel and render
+// soft, which on a hairline reads as a dimmer line rather than a thinner one.
+static const CGFloat kMidlineHeight = 1;
+
 @interface AudioWaveformView ()
 
 // A strong reference to the wrapper. It owns the underlying C++ AudioWaveform,
@@ -31,6 +39,22 @@
     // selection.
     NSMutableDictionary<NSString *, Class>* _waveformRenderers;
     CAGradientLayer*            _loadingLayer;
+    // The determinate download fill beneath the shimmer; nil while progress
+    // is unknown. Same presentation as the iOS scrubber's.
+    CAGradientLayer*            _loadingProgressLayer;
+    CALayer*                    _loadingTrackLayer;
+    // Clips the shimmer to the span it is allowed to sweep. The band slides
+    // in from before that span and out past its end, and the view's own
+    // layer does not mask, so without this it draws over the artwork on one
+    // side and out to the window edge on the other.
+    CALayer*                    _loadingShimmerClip;
+    // The last reported download fraction, or -1 while indeterminate. It sets
+    // how much of the track is filled and, from that, where the shimmer is
+    // allowed to sweep.
+    float                       _loadingProgress;
+    // When the last fraction landed, so the fill can be eased over roughly the
+    // interval the next one is expected to take. See setLoadingProgress:.
+    CFAbsoluteTime              _lastLoadingProgressAt;
     CALayer*                    _placeholderLayer;
     NSTrackingArea*             _hoverTrackingArea;
 }
@@ -277,12 +301,31 @@
         [self drawWaveform];
     }
 
+    _loadingProgress = -1;
+    _lastLoadingProgressAt = 0;
+
+    // The control's body: one midline track, spanning the whole width. The
+    // filled head and the shimmer are both read against it, which is what
+    // makes the determinate and indeterminate modes one control rather than
+    // two — indeterminate is simply nothing filled yet.
+    CALayer *track = [CALayer layer];
+    track.contentsScale = VibeBackingScaleForWindow(self.window);
+    track.backgroundColor = [self inertMidlineColor];
+    [self.layer addSublayer:track];
+    _loadingTrackLayer = track;
+
+    CALayer *clip = [CALayer layer];
+    clip.contentsScale = VibeBackingScaleForWindow(self.window);
+    clip.masksToBounds = YES;
+    [self.layer addSublayer:clip];
+    _loadingShimmerClip = clip;
+
     CAGradientLayer *shimmer = [CAGradientLayer layer];
     shimmer.contentsScale = VibeBackingScaleForWindow(self.window);
     shimmer.startPoint = CGPointMake(0, 0.5);
     shimmer.endPoint = CGPointMake(1, 0.5);
     shimmer.colors = [self shimmerColors];
-    [self.layer addSublayer:shimmer];
+    [clip addSublayer:shimmer];
     _loadingLayer = shimmer;
 
     // The frame and the sweep both depend on the current bounds, so a helper
@@ -304,26 +347,80 @@
     ];
 }
 
+// The inert midline, shared by the loading indicator's unfilled track and
+// the empty state's static line — the same element, so the same colour.
+// Half the shimmer's 0.55 peak: present enough to show how far there is to
+// go, faint enough that the shimmer riding it stays the moving part.
+- (CGColorRef)inertMidlineColor {
+    NSColor *base = self.isDark ? [NSColor whiteColor] : [NSColor blackColor];
+    return [base colorWithAlphaComponent:0.275].CGColor;
+}
+
+// The filled head, fading out over its last few points so it meets the
+// shimmer as a soft front rather than a hard cut.
+- (NSArray *)loadingFillColors {
+    NSColor *base = self.isDark ? [NSColor whiteColor] : [NSColor blackColor];
+    return @[
+            (id)[base colorWithAlphaComponent:0.85].CGColor,
+            (id)[base colorWithAlphaComponent:0.85].CGColor,
+            (id)[base colorWithAlphaComponent:0].CGColor,
+    ];
+}
+
 // Positions the shimmer band and installs, or reinstalls, its sweep for the
 // current bounds.
 - (void)layoutLoadingLayer {
+    [self layoutLoadingLayerAnimatedOver:0];
+}
+
+// duration > 0 eases the parts that track the download's progress; the rest is
+// always instant. Resize and state changes pass 0.
+- (void)layoutLoadingLayerAnimatedOver:(CFTimeInterval)duration {
     if (!_loadingLayer) {
         return;
     }
     CGFloat width = self.bounds.size.width;
     CGFloat midY = self.bounds.size.height / 2;
-    CGFloat bandWidth = MAX(width * 0.35, 40);
+    // The shimmer sweeps the *unfilled* remainder only: it is the "still
+    // working on this part" half of one control, and the fill is the "this
+    // part is done" half. Indeterminate fills nothing, so the sweep spans the
+    // whole width exactly as it always has.
+    CGFloat fillEnd = _loadingProgress > 0 ? width * MIN(1.0f, _loadingProgress) : 0;
+    CGFloat remainder = MAX(width - fillEnd, 0);
+    CGFloat bandWidth = MIN(MAX(width * 0.35, 40), MAX(remainder, 1));
 
+    // The clip is exactly the span the shimmer may occupy, so the band can
+    // still slide in and out at the ends without escaping the line. Its left
+    // edge is the fill's front, so it eases with the fill or not at all.
+    [CATransaction begin];
+    if (duration > 0) {
+        [CATransaction setAnimationDuration:duration];
+        [CATransaction setAnimationTimingFunction:
+                [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut]];
+    }
+    else {
+        [CATransaction setDisableActions:YES];
+    }
+    _loadingShimmerClip.frame = CGRectMake(fillEnd, midY - kMidlineHeight / 2, remainder, kMidlineHeight);
+    [CATransaction commit];
+
+    // The band's own position is driven by the sweep animation, so its
+    // geometry is always set action-free: an implicit animation here would
+    // fight that and stall the sweep.
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    _loadingLayer.frame = CGRectMake(0, midY - 1, bandWidth, 2);
+    _loadingLayer.frame = CGRectMake(0, 0, bandWidth, kMidlineHeight);
+    // Near completion there is no room left to sweep, so the band fades out
+    // rather than jittering in a sliver.
+    _loadingLayer.opacity = (float)MIN(1.0, remainder / MAX(width * 0.08, 1));
+    _loadingTrackLayer.frame = CGRectMake(0, midY - kMidlineHeight / 2, width, kMidlineHeight);
     [CATransaction commit];
 
     // Reinstall the sweep only when its endpoints actually change. Live resize
     // lands here every frame, and an unconditional remove-and-re-add restarts
     // the 1.2s sweep each time, freezing it at the left edge.
     NSNumber *fromValue = @(-bandWidth / 2);
-    NSNumber *toValue = @(width + bandWidth / 2);
+    NSNumber *toValue = @(remainder + bandWidth / 2);
     CABasicAnimation *current = (CABasicAnimation *)[_loadingLayer animationForKey:@"sweep"];
     if ([current isKindOfClass:CABasicAnimation.class] &&
         [current.fromValue isEqual:fromValue] && [current.toValue isEqual:toValue]) {
@@ -353,6 +450,86 @@
     [_loadingLayer removeAllAnimations];
     [_loadingLayer removeFromSuperlayer];
     _loadingLayer = nil;
+    [_loadingProgressLayer removeFromSuperlayer];
+    _loadingProgressLayer = nil;
+    [_loadingShimmerClip removeFromSuperlayer];
+    _loadingShimmerClip = nil;
+    [_loadingTrackLayer removeFromSuperlayer];
+    _loadingTrackLayer = nil;
+    _loadingProgress = -1;
+    _lastLoadingProgressAt = 0;
+}
+
+// Determinate download progress under the shimmer, fed by
+// DownloadProgressMonitor: the midline fills from the left as the provider
+// materializes the file. A negative fraction hides it (back to
+// indeterminate); the shimmer keeps sweeping either way, since a stalled
+// provider reports no movement.
+// The next ease's length: deliberately shorter than the gap between samples,
+// so the fill arrives promptly and then holds at the reported value instead
+// of still gliding when the next one lands. Half the last gap, capped —
+// providers report around 1 Hz, so this settles in well under half a second
+// and rests for the remainder.
+- (CFTimeInterval)loadingProgressAnimationDuration {
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    CFTimeInterval gap = _lastLoadingProgressAt > 0 ? now - _lastLoadingProgressAt : 0;
+    _lastLoadingProgressAt = now;
+    if (gap <= 0) {
+        return 0.25; // first sample: no cadence to go on yet
+    }
+    return MIN(MAX(gap * 0.5, 0.12), 0.45);
+}
+
+- (void)setLoadingProgress:(float)fraction {
+    if (!_loadingLayer) {
+        return;
+    }
+    _loadingProgress = fraction;
+    CGFloat width = self.bounds.size.width;
+    CGFloat fillWidth = fraction > 0 ? width * MIN(1.0f, fraction) : 0;
+    if (fraction < 0 || fillWidth < 1) {
+        [_loadingProgressLayer removeFromSuperlayer];
+        _loadingProgressLayer = nil;
+        [self layoutLoadingLayer]; // hand the whole width back to the shimmer
+        return;
+    }
+    if (!_loadingProgressLayer) {
+        CAGradientLayer *fill = [CAGradientLayer layer];
+        fill.contentsScale = VibeBackingScaleForWindow(self.window);
+        fill.startPoint = CGPointMake(0, 0.5);
+        fill.endPoint = CGPointMake(1, 0.5);
+        // Left-anchored: setting the frame then moves only the width, so the
+        // eased growth runs from the left edge instead of from the centre.
+        fill.anchorPoint = CGPointMake(0, 0.5);
+        fill.colors = [self loadingFillColors];
+        // Above the track, below the shimmer, so the sweep still reads as it
+        // leaves the front.
+        [self.layer insertSublayer:fill below:_loadingShimmerClip];
+        _loadingProgressLayer = fill;
+    }
+    CGFloat midY = self.bounds.size.height / 2;
+    // A soft front, but only as long as there is remainder to fade into: at
+    // completion a fixed fade would read as the bar stopping short of the
+    // edge rather than as a soft edge.
+    static const CGFloat kFrontFadePoints = 14;
+    CGFloat fade = MIN(kFrontFadePoints, MAX(width - fillWidth, 0));
+    CGFloat fadeStart = MAX(0.0, (fillWidth - fade) / fillWidth);
+    // Providers report about once a second and irregularly, so a snap to each
+    // value reads as a stalled bar that lurches. Ease to the reported value
+    // over roughly the last interval instead: Core Animation retargets from
+    // the presentation value, so a sample that lands early redirects the
+    // motion rather than jumping. It never runs past what was reported, so a
+    // stalled download parks rather than creeping ahead of the truth.
+    CFTimeInterval duration = [self loadingProgressAnimationDuration];
+    [CATransaction begin];
+    [CATransaction setAnimationDuration:duration];
+    [CATransaction setAnimationTimingFunction:
+            [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut]];
+    _loadingProgressLayer.locations = @[ @0, @(fadeStart), @1 ];
+    _loadingProgressLayer.frame = CGRectMake(0, midY - kMidlineHeight / 2, fillWidth, kMidlineHeight);
+    [CATransaction commit];
+    // The shimmer starts where the fill ends, so its clip rides the same ease.
+    [self layoutLoadingLayerAnimatedOver:duration];
 }
 
 - (void)showEmptyPlaceholder {
@@ -374,7 +551,8 @@
     [self layoutPlaceholderLayer];
 }
 
-// The same 2pt midline band the shimmer sweeps, but full-width and static.
+// The same midline the loading indicator uses, full-width and static: the
+// empty state is that control at rest, so it shares the height and colour.
 - (void)layoutPlaceholderLayer {
     if (!_placeholderLayer) {
         return;
@@ -382,14 +560,13 @@
     CGFloat midY = self.bounds.size.height / 2;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    _placeholderLayer.frame = CGRectMake(0, midY - 1, self.bounds.size.width, 2);
+    _placeholderLayer.frame = CGRectMake(0, midY - kMidlineHeight / 2,
+                                         self.bounds.size.width, kMidlineHeight);
     [CATransaction commit];
 }
 
 - (void)updatePlaceholderColor {
-    NSColor *base = self.isDark ? [NSColor whiteColor] : [NSColor blackColor];
-    // Half the shimmer's 0.55 peak, so that the empty state recedes.
-    _placeholderLayer.backgroundColor = [base colorWithAlphaComponent:0.275].CGColor;
+    _placeholderLayer.backgroundColor = [self inertMidlineColor];
 }
 
 - (void)hideEmptyPlaceholder {
@@ -464,6 +641,8 @@ static void applyContentsScale(CALayer *layer, CGFloat scale) {
     if (_loadingLayer) {
         _loadingLayer.colors = [self shimmerColors];
     }
+    _loadingTrackLayer.backgroundColor = [self inertMidlineColor];
+    _loadingProgressLayer.colors = [self loadingFillColors];
 }
 
 @end
