@@ -70,7 +70,7 @@ settings:
     GCC_WARN_UNUSED_VARIABLE: YES
     GCC_PRECOMPILE_PREFIX_HEADER: YES
     GCC_PREFIX_HEADER: "$(SRCROOT)/Vibe/Common/Vibe-Prefix.pch"
-    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
     MTL_FAST_MATH: YES
     SDKROOT: macosx
     STRING_CATALOG_GENERATE_SYMBOLS: YES
@@ -304,7 +304,7 @@ targets:
           - "$(inherited)"
           - "@executable_path/../Frameworks"
         LIBRARY_SEARCH_PATHS: "$(inherited)"
-        MACOSX_DEPLOYMENT_TARGET: "15.0"
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
         PROVISIONING_PROFILE_SPECIFIER: ""
     dependencies:
       - sdk: AVFoundation.framework
