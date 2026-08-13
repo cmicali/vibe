@@ -1,6 +1,5 @@
-* Lokalizováno do 30 jazyků — nově čeština, slovenština, maďarština, řečtina, vietnamština, indonéština a thajština
-* Nové okno Nastavení (přehrávání, vzhled, převod a pokročilé volby)
-* Zobrazení tóniny s volitelnou detekcí — hudební nebo Camelot notace
-* Rychlejší analýza BPM a tóniny a rychlejší načítání průběhu skladby
-* Pauza nyní uvolňuje zvukové zařízení
+* Přehrávání bez mezer — bez prolínání na sebe skladby plynule navazují
+* Soubory playlistů — .cue a .m3u se otevírají jako seřazené seznamy skladeb
+* Nový panel Oprávnění v Nastavení — přístup ke složkám zůstává zachován i po restartu
+* Nová volba „Vždy navrchu“
 * Opravy chyb a vylepšení

@@ -1,6 +1,5 @@
-* Artık 30 dile yerelleştirildi — Çekçe, Slovakça, Macarca, Yunanca, Vietnamca, Endonezce ve Tayca eklendi
-* Yeni Ayarlar penceresi (çalma, görünüm, dönüştürme ve gelişmiş seçenekler)
-* İsteğe bağlı algılamayla ton gösterimi — müzikal veya Camelot notasyonu
-* Daha hızlı BPM ve ton analizi, daha hızlı dalga formu yükleme
-* Duraklatma artık ses aygıtını serbest bırakıyor
+* Boşluksuz çalma — crossfade kapalıyken parçalar kesintisiz birbirine bağlanır
+* Çalma listesi dosyaları — .cue ve .m3u sıralı parça listesi olarak açılır
+* Ayarlar'da yeni İzinler bölümü — klasör erişimi yeniden başlatmalar arasında korunur
+* Yeni "Her Zaman Üstte" seçeneği
 * Hata düzeltmeleri ve iyileştirmeler

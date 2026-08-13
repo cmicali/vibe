@@ -1,6 +1,5 @@
-* Hiện đã bản địa hóa sang 30 ngôn ngữ — thêm tiếng Séc, Slovakia, Hungary, Hy Lạp, Việt, Indonesia và Thái
-* Cửa sổ Cài đặt mới (phát lại, giao diện, chuyển đổi và tùy chọn nâng cao)
-* Hiển thị giọng (key) với tính năng nhận diện tùy chọn — ký hiệu nhạc lý hoặc Camelot
-* Phân tích BPM và giọng nhanh hơn, tải dạng sóng nhanh hơn
-* Tạm dừng giờ đây sẽ giải phóng thiết bị âm thanh
+* Phát liền mạch — khi tắt crossfade, các bản nhạc nối tiếp nhau không ngắt quãng
+* Tệp playlist — .cue và .m3u mở dưới dạng danh sách bản nhạc theo thứ tự
+* Bảng Quyền truy cập mới trong Cài đặt — quyền truy cập thư mục được giữ qua các lần khởi động
+* Tùy chọn mới "Luôn ở trên cùng"
 * Sửa lỗi và cải tiến

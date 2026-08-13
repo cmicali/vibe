@@ -1,6 +1,5 @@
-* Désormais localisé en 30 langues — ajout du tchèque, du slovaque, du hongrois, du grec, du vietnamien, de l'indonésien et du thaï
-* Nouvelle fenêtre Réglages (lecture, apparence, conversion et options avancées)
-* Affichage de la tonalité avec détection facultative — notation musicale ou Camelot
-* Analyse du BPM et de la tonalité plus rapide, chargement plus rapide de la forme d'onde
-* La pause libère désormais le périphérique audio
+* Lecture sans interruption — sans fondu enchaîné, les morceaux s'enchaînent parfaitement
+* Fichiers de playlist — .cue et .m3u s'ouvrent comme listes de morceaux ordonnées
+* Nouvelle section Autorisations dans les Réglages — l'accès aux dossiers persiste entre les lancements
+* Nouvelle option « Toujours au premier plan »
 * Corrections de bugs et améliorations

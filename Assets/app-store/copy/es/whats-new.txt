@@ -1,6 +1,5 @@
-* Ahora localizado a 30 idiomas — se añaden checo, eslovaco, húngaro, griego, vietnamita, indonesio y tailandés
-* Nueva ventana de Ajustes (reproducción, apariencia, conversión y opciones avanzadas)
-* Indicación de la tonalidad con detección opcional — notación musical o Camelot
-* Análisis de BPM y tonalidad más rápido y carga más rápida de la forma de onda
-* La pausa ahora libera el dispositivo de audio
-* Correcciones de errores y mejoras
+* Reproducción sin pausas — sin fundido cruzado, las pistas se encadenan sin cortes
+* Archivos de playlist — .cue y .m3u se abren como listas de pistas ordenadas
+* Nuevo panel de Permisos en Ajustes — el acceso a carpetas se conserva entre inicios
+* Nueva opción «Siempre visible»
+* Corrección de errores y mejoras

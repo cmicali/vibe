@@ -1,6 +1,5 @@
-* Now localized into 30 languages — adding Czech, Slovak, Hungarian, Greek, Vietnamese, Indonesian, and Thai
-* New Settings window (playback, appearance, conversion, and advanced options)
-* Musical key display with optional key detection — musical or Camelot notation
-* Faster BPM and key analysis and faster waveform loading
-* Pause now releases the audio output device
+* Gapless playback — with crossfade off, tracks flow seamlessly into the next
+* Playlist files — .cue and .m3u open as ordered track lists
+* New Permissions settings pane — folder access now persists across launches
+* New Always on Top window option
 * Bug fixes and improvements

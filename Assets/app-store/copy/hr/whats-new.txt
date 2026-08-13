@@ -1,6 +1,5 @@
-* Sada lokalizirano na 30 jezika — dodani su češki, slovački, mađarski, grčki, vijetnamski, indonezijski i tajlandski
-* Novi prozor Postavke (reprodukcija, izgled, pretvorba i napredne opcije)
-* Prikaz tonaliteta s neobaveznim prepoznavanjem — glazbena ili Camelot notacija
-* Brža analiza BPM-a i tonaliteta te brže učitavanje valnog oblika
-* Pauza sada oslobađa audiouređaj
+* Reprodukcija bez pauza — bez crossfadea pjesme se neprimjetno nastavljaju jedna na drugu
+* Datoteke playlista — .cue i .m3u otvaraju se kao poredani popisi pjesama
+* Nova ploča Dozvole u Postavkama — pristup mapama ostaje sačuvan između pokretanja
+* Nova opcija „Uvijek na vrhu”
 * Ispravci grešaka i poboljšanja

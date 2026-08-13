@@ -1,6 +1,5 @@
-* Nu oversat til 30 sprog — nyt: tjekkisk, slovakisk, ungarsk, græsk, vietnamesisk, indonesisk og thai
-* Nyt indstillingsvindue (afspilning, udseende, konvertering og avancerede indstillinger)
-* Visning af toneart med valgfri registrering — musikalsk eller Camelot-notation
-* Hurtigere BPM- og toneartsanalyse og hurtigere indlæsning af waveform
-* Pause frigiver nu lydenheden
+* Afspilning uden pauser — uden crossfade glider numrene sømløst over i hinanden
+* Playlistefiler — .cue og .m3u åbnes som ordnede nummerlister
+* Nyt panel med tilladelser i Indstillinger — mappeadgang bevares mellem genstarter
+* Ny mulighed: Altid forrest
 * Fejlrettelser og forbedringer
