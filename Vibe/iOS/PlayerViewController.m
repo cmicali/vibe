@@ -673,6 +673,13 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)scrollTick:(CADisplayLink *)link {
+    if (self.presentedViewController) {
+        // A sheet covers the waveform strip. The per-frame translation of the
+        // multi-screen layer tree is invisible waste, and it competes with the
+        // sheet + keyboard presentation for exactly the frames that stutter on
+        // device; the 3 Hz timer keeps progress near-current for the reveal.
+        return;
+    }
     if (_waveformView.isScrubbing) {
         return;
     }

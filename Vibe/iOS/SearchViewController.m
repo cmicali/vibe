@@ -8,7 +8,7 @@
 #import "Playlist.h"
 #import "VibeStrings.h"
 
-@interface SearchViewController () <UISearchResultsUpdating>
+@interface SearchViewController () <UISearchResultsUpdating, UISearchControllerDelegate>
 @end
 
 @implementation SearchViewController {
@@ -37,6 +37,7 @@
                                                       action:@selector(closeTapped)];
     _searchController = [[UISearchController alloc] initWithSearchResultsController:nil];
     _searchController.searchResultsUpdater = self;
+    _searchController.delegate = self;
     _searchController.obscuresBackgroundDuringPresentation = NO;
     _searchController.searchBar.placeholder = STR_LABEL_SEARCH;
     self.navigationItem.searchController = _searchController;
@@ -46,15 +47,33 @@
 
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
-    // Mail-style: land with the field focused and the keyboard up. Activating
-    // the controller is what presents the field; becomeFirstResponder alone
-    // does nothing before that.
+    // Mail-style: land with the field focused and the keyboard up. Activation
+    // presents the field; the focus itself waits for didPresentSearchController:
+    // — calling becomeFirstResponder here races the activation and loses on
+    // device (the field is not installed yet, so the keyboard never comes up).
     _searchController.active = YES;
-    [_searchController.searchBar becomeFirstResponder];
+}
+
+- (void)didPresentSearchController:(UISearchController *)searchController {
+    // Deferred a runloop turn: the presentation callback can still precede the
+    // field becoming attachable to the responder chain.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [searchController.searchBar becomeFirstResponder];
+    });
+}
+
+// The sheet, not the search layer: while the search controller is active, a
+// plain [self dismiss…] tears down the SEARCH presentation — deactivating the
+// field — and leaves the sheet standing. The presenter dismisses the whole
+// stack, active search included.
+- (void)dismissSheetWithCompletion:(void (^)(void))completion {
+    UIViewController *presenter = self.navigationController.presentingViewController
+            ?: self.presentingViewController;
+    [presenter dismissViewControllerAnimated:YES completion:completion];
 }
 
 - (void)closeTapped {
-    [self dismissViewControllerAnimated:YES completion:nil];
+    [self dismissSheetWithCompletion:nil];
 }
 
 - (void)reloadAll {
@@ -119,7 +138,7 @@
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     NSUInteger index = _matches[(NSUInteger)indexPath.row].unsignedIntegerValue;
     void (^selectTrack)(NSUInteger) = self.onSelectTrack;
-    [self dismissViewControllerAnimated:YES completion:^{
+    [self dismissSheetWithCompletion:^{
         if (selectTrack) {
             selectTrack(index);
         }
