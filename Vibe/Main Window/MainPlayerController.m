@@ -33,6 +33,7 @@
 #import "MusicalKey.h"
 #import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerController+Transport.h" // updateFXIndicators, from the updateUI funnel
+#import "DownloadProgressMonitor.h"
 #import "UIUpdateTimer.h"
 #import "AppStats.h"
 #import "VibeStrings.h"
@@ -102,6 +103,9 @@
     // updatePlaybackUI only while playback wants updates and the window is
     // unoccluded.
     UIUpdateTimer*              _uiTimer;
+    // Polls (and on macOS subscribes to) a materializing cloud file's
+    // download progress while the loading shimmer is up; nil otherwise.
+    DownloadProgressMonitor*    _downloadMonitor;
     // A duration snapshot from didStartPlaying:. The live player duration
     // reads 0 while a track is Loading, and updatePlaybackUI runs in that gap.
     // It is cleared when playback goes idle, on an error or at the end of the
@@ -671,6 +675,8 @@
 // already in flight.
 - (IBAction)closeFile:(nullable id)sender {
     [[AppStats sharedInstance] playbackStopped]; // stop fires no delegate callback
+    [_downloadMonitor cancel];
+    _downloadMonitor = nil;
     [self.audioPlayer stop];
     [self.audioPlayer prefetchTrack:nil]; // drop the parked next-track handle
     [self.waveformCache cancelLoad];
@@ -753,6 +759,20 @@
     // Show the pending track's title and artist while it loads.
     [self updateUI];
     [self.trackDisplay showWaveformLoadingIndicator];
+    // Best-effort determinate fill while the provider materializes the file;
+    // deliveries are URL-matched because the monitor outlives fast track
+    // changes, the same rule as every other async delivery.
+    [_downloadMonitor cancel];
+    DownloadProgressMonitor *monitor = [[DownloadProgressMonitor alloc] initWithURL:track.url];
+    _downloadMonitor = monitor;
+    NSURL *url = track.url;
+    __weak MainPlayerController *weakSelf = self;
+    [monitor startWithHandler:^(float fraction) {
+        MainPlayerController *strongSelf = weakSelf;
+        if (strongSelf && [[strongSelf.playlistController currentTrack].url isEqual:url]) {
+            [strongSelf.trackDisplay setWaveformLoadingProgress:fraction];
+        }
+    }];
     // This runs after updateUI, which shows the pending track's art if it is
     // already resolved: the previous track's art must not outlive the shimmer.
     [_artworkController showPlaceholderForSlowLoad];
@@ -772,6 +792,8 @@
     self.convertSwapResumeTrack = nil;
     [_artworkController trackDidStartPlaying:track];
     [self clearErrorMask];
+    [_downloadMonitor cancel];
+    _downloadMonitor = nil;
     [self.trackDisplay hideWaveformLoadingIndicator];
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
     // The now-playing track jumps the scan queue: its header tags and art must
@@ -924,6 +946,8 @@
     // Playback failed, so the duration cached at the last didStartPlaying no
     // longer describes anything the player holds.
     _currentTrackDuration = 0;
+    [_downloadMonitor cancel];
+    _downloadMonitor = nil;
     [self.trackDisplay hideWaveformLoadingIndicator];
     // Errors present inline, with no modal and no auto-skip. A sheet on this
     // borderless window breaks key status and the bare transport keys. The

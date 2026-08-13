@@ -47,6 +47,10 @@ NS_ASSUME_NONNULL_BEGIN
 // pending, as when a cloud placeholder is downloading.
 - (void)showLoadingIndicator;
 - (void)hideLoadingIndicator;
+// Determinate download progress while the loading indicator shows: the
+// midline fills to fraction beneath the shimmer. Negative reverts to
+// indeterminate. No-op unless the loading indicator is up.
+- (void)setLoadingProgress:(float)fraction;
 
 // The no-track empty state: a static full-width line on the waveform midline.
 // prepareForWaveformLoad and showLoadingIndicator clear it when a track
