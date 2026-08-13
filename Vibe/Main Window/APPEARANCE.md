@@ -12,7 +12,7 @@ The header glass panel deliberately bleeds `kHeaderPanelRightBleed` past the win
 
 ## Chrome: three layers of Liquid Glass
 
-macOS 26 `NSGlassEffectView`, three layers:
+macOS 26 `NSGlassEffectView`, three layers. **On macOS 15, where `NSGlassEffectView` does not exist, the two glass layers fall back to frosted behind-window `NSVisualEffectView`s** (`UnderWindowBackground`, `StateActive`, blur shaped by `frostCornerMaskWithRadius:` — an `NSVisualEffectView`'s blur region ignores a layer cornerRadius); both creation sites branch on `@available(macOS 26, *)`, the deployment target is 15.0, and any new 26-only API needs its own guard (`-Wunguarded-availability` enforces this). The playlist frost is already an `NSVisualEffectView` and is identical on both:
 
 **1. The backdrop.** A window-spanning glass backdrop behind everything, **Clear** style, installed in `buildContentInWindow:`.
 

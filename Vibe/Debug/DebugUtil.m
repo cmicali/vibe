@@ -50,11 +50,13 @@ static NSString *VibeDebugScreenshotPath(void) {
 // over everything below it in the tree. It must therefore be hidden for the
 // render, not merely underpainted.
 static void VibeCollectGlassLayers(NSView *view, NSMutableArray<CALayer *> *out) {
-    if ([view isKindOfClass:[NSGlassEffectView class]]) {
-        if (view.layer) {
-            [out addObject:view.layer];
+    if (@available(macOS 26.0, *)) {
+        if ([view isKindOfClass:[NSGlassEffectView class]]) {
+            if (view.layer) {
+                [out addObject:view.layer];
+            }
+            return;
         }
-        return;
     }
     for (NSView *subview in view.subviews) {
         VibeCollectGlassLayers(subview, out);
