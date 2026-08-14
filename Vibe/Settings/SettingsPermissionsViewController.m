@@ -8,6 +8,8 @@
 #import "FolderAccessRules.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <pwd.h>
+#import <unistd.h>
 
 static const CGFloat kPermissionsPaneHeight = 330;
 static const CGFloat kFolderListWidth = 440;
@@ -19,7 +21,7 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 
 @implementation SettingsPermissionsViewController {
     NSTableView *_tableView;
-    NSButton *_addHomeButton;
+    NSPopUpButton *_addCommonButton;
     NSButton *_removeButton;
     NSArray<NSString *> *_paths;
 }
@@ -53,12 +55,12 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 
     NSButton *addButton = [NSButton buttonWithTitle:STR_SETTINGS_ADD_FOLDER
                                              target:self action:@selector(addFolder:)];
-    _addHomeButton = [NSButton buttonWithTitle:STR_SETTINGS_ADD_HOME_FOLDER
-                                        target:self action:@selector(addHomeFolder:)];
+    _addCommonButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:YES];
+    [self rebuildCommonFolderMenu];
     _removeButton = [NSButton buttonWithTitle:STR_SETTINGS_REMOVE_FOLDER
                                        target:self action:@selector(removeFolder:)];
     _removeButton.enabled = NO;
-    NSStackView *buttons = [NSStackView stackViewWithViews:@[addButton, _addHomeButton, _removeButton]];
+    NSStackView *buttons = [NSStackView stackViewWithViews:@[addButton, _addCommonButton, _removeButton]];
     buttons.spacing = 8;
 
     NSGridView *grid = [NSGridView gridViewWithViews:@[@[explain], @[scrollView], @[buttons]]];
@@ -83,22 +85,84 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
     _paths = FolderAccessManager.sharedInstance.grantedFolderPaths;
     [_tableView reloadData];
     _removeButton.enabled = _tableView.selectedRowIndexes.count > 0;
-    _addHomeButton.enabled = ![self.class homeFolderGranted:_paths];
+    [self rebuildCommonFolderMenu];
 }
 
-+ (BOOL)homeFolderGranted:(NSArray<NSString *> *)paths {
+// A pull-down takes its button title from the item at index 0, which is never
+// chosen. Enablement is ours to set (autoenablesItems off): a folder that is
+// not there, or already covered by a grant, stays visible but dead. The button
+// itself always opens, so the menu can show why an entry is unavailable.
+- (void)rebuildCommonFolderMenu {
+    NSMenu *menu = [[NSMenu alloc] init];
+    menu.autoenablesItems = NO;
+    [menu addItemWithTitle:STR_SETTINGS_ADD_COMMON_FOLDER action:NULL keyEquivalent:@""];
+    for (NSArray<NSString *> *folder in self.class.commonFolders) {
+        NSString *name = folder.firstObject;
+        NSString *path = folder.lastObject;
+        NSString *title = name;
+        BOOL available = YES;
+        if (![self.class folderExists:path]) {
+            title = [NSString stringWithFormat:STR_SETTINGS_FOLDER_NOT_FOUND, name];
+            available = NO;
+        } else if ([self.class folderGranted:path in:_paths]) {
+            title = [NSString stringWithFormat:STR_SETTINGS_FOLDER_ALREADY_ADDED, name];
+            available = NO;
+        }
+        NSMenuItem *item = [menu addItemWithTitle:title
+                                           action:@selector(addCommonFolder:)
+                                    keyEquivalent:@""];
+        item.target = self;
+        item.representedObject = path;
+        item.toolTip = [self.class displayPath:path];
+        item.enabled = available;
+    }
+    _addCommonButton.menu = menu;
+}
+
+// Name and path of each offered folder. Dropbox moved under
+// ~/Library/CloudStorage when it became a file provider — older installs keep
+// ~/Dropbox, newer ones leave a symlink there, and neither is guaranteed — so
+// offer the classic location and fall back to the new one.
++ (NSArray<NSArray<NSString *> *> *)commonFolders {
     NSString *home = self.homeFolderPath;
+    NSString *dropbox = [home stringByAppendingPathComponent:@"Dropbox"];
+    if (![self folderExists:dropbox]) {
+        dropbox = [home stringByAppendingPathComponent:@"Library/CloudStorage/Dropbox"];
+    }
+    return @[
+        @[STR_SETTINGS_FOLDER_HOME, home],
+        @[STR_SETTINGS_FOLDER_DOCUMENTS, [home stringByAppendingPathComponent:@"Documents"]],
+        @[VibeNotLocalized(@"iCloud Drive"),
+          [home stringByAppendingPathComponent:@"Library/Mobile Documents/com~apple~CloudDocs"]],
+        @[VibeNotLocalized(@"Dropbox"), dropbox],
+    ];
+}
+
++ (BOOL)folderExists:(NSString *)path {
+    BOOL isDirectory = NO;
+    return [NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&isDirectory]
+            && isDirectory;
+}
+
++ (BOOL)folderGranted:(NSString *)path in:(NSArray<NSString *> *)paths {
     for (NSString *granted in paths) {
-        if (VibePathIsUnderFolder(home, granted)) {
+        if (VibePathIsUnderFolder(path, granted)) {
             return YES;
         }
     }
     return NO;
 }
 
-// The real home, not NSHomeDirectory's sandbox container.
+// The real home. Inside the sandbox NSHomeDirectory answers with the container
+// and NSHomeDirectoryForUser does too, container path and all; getpwuid is the
+// documented way to the on-disk home.
 + (NSString *)homeFolderPath {
-    return NSHomeDirectoryForUser(NSUserName());
+    struct passwd *entry = getpwuid(getuid());
+    if (entry && entry->pw_dir) {
+        return [NSFileManager.defaultManager stringWithFileSystemRepresentation:entry->pw_dir
+                                                                         length:strlen(entry->pw_dir)];
+    }
+    return NSHomeDirectory();
 }
 
 #pragma mark - Actions
@@ -116,17 +180,18 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 }
 
 // The sandbox has no way to grant a folder without the user picking it, so the
-// button can only stage the panel: opened on the home folder, with nothing
-// selected, so confirming returns the home folder itself.
-- (void)addHomeFolder:(id)sender {
+// menu can only stage the panel: opened on the chosen folder, with nothing
+// selected, so confirming returns that folder itself.
+- (void)addCommonFolder:(NSMenuItem *)sender {
+    NSString *path = sender.representedObject;
     NSOpenPanel *panel = [NSOpenPanel openPanel];
     panel.canChooseFiles = NO;
     panel.canChooseDirectories = YES;
     panel.allowsMultipleSelection = NO;
     panel.canCreateDirectories = NO;
-    panel.directoryURL = [NSURL fileURLWithPath:self.class.homeFolderPath isDirectory:YES];
-    panel.message = STR_SETTINGS_HOME_GRANT_MESSAGE;
-    panel.prompt = STR_SETTINGS_HOME_GRANT_BUTTON;
+    panel.directoryURL = [NSURL fileURLWithPath:path isDirectory:YES];
+    panel.message = [NSString stringWithFormat:STR_SETTINGS_FOLDER_GRANT_MESSAGE, sender.title];
+    panel.prompt = STR_SETTINGS_FOLDER_GRANT_BUTTON;
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
         if (result == NSModalResponseOK) {
             [FolderAccessManager.sharedInstance noteOpenedURLs:panel.URLs];
@@ -196,7 +261,7 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 // Home Folder grant makes exactly that row, and it would otherwise be the one
 // entry spelled out while its own subfolders read as ~/….
 + (NSString *)displayPath:(NSString *)path {
-    NSString *home = NSHomeDirectoryForUser(NSUserName());
+    NSString *home = self.homeFolderPath;
     if (home.length == 0) {
         return path;
     }

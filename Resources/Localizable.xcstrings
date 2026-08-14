@@ -20275,6 +20275,192 @@
       },
       "extractionState": "manual"
     },
+    "settings.permissions.add_common_folder": {
+      "comment": "Settings, Permissions pane: pull-down button whose menu grants the app access to one of the usual music locations — the home folder, Documents, iCloud Drive or Dropbox.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавяне на обичайна папка"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Přidat běžnou složku"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilføj almindelig mappe"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Üblichen Ordner hinzufügen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Προσθήκη συνήθους φακέλου"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Common Folder"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir carpeta habitual"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lisää yleinen kansio"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter un dossier courant"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj uobičajenu mapu"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gyakori mappa hozzáadása"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambah Folder Umum"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi cartella comune"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "よく使うフォルダを追加"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "자주 쓰는 폴더 추가"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legg til vanlig mappe"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Veelgebruikte map toevoegen"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj typowy folder"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar pasta comum"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar pasta comum"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adaugă dosar uzual"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить стандартную папку"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pridať bežný priečinok"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lägg till vanlig mapp"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เพิ่มโฟลเดอร์ที่ใช้บ่อย"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yaygın Klasör Ekle"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Додати стандартну папку"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm thư mục thông dụng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加常用文件夹"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入常用檔案夾"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.permissions.add_folder": {
       "comment": "Settings, Permissions pane: button that opens a folder chooser to grant the app access to another folder. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
@@ -20456,192 +20642,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "加入檔案夾…"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.permissions.add_home_folder": {
-      "comment": "Settings, Permissions pane: button that grants the app access to the user's whole home folder in one step. Disabled once that access is held.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Добавяне на домашната папка"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Přidat domovskou složku"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilføj hjemmemappe"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Benutzerordner hinzufügen"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Προσθήκη αρχικού φακέλου"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Home Folder"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Añadir carpeta de inicio"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lisää kotikansio"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajouter le dossier de départ"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dodaj početnu mapu"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Saját mappa hozzáadása"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tambah Folder Beranda"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aggiungi cartella Inizio"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ホームフォルダを追加"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "홈 폴더 추가"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Legg til hjemmemappe"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Voeg thuismap toe"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dodaj folder domowy"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adicionar Pasta Pessoal"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adicionar pasta pessoal"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adaugă dosarul personal"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Добавить домашнюю папку"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pridať domovský priečinok"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lägg till hemmapp"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เพิ่มโฟลเดอร์บ้าน"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ana Klasörü Ekle"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Додати домашню папку"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Thêm thư mục chính"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加个人文件夹"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "加入個人檔案夾"
           }
         }
       },
@@ -20833,8 +20833,752 @@
       },
       "extractionState": "manual"
     },
-    "settings.permissions.home_grant.button": {
-      "comment": "Confirm button of the folder-picker panel opened by the Add Home Folder button.",
+    "settings.permissions.folder.already_added": {
+      "comment": "Settings, Permissions pane, Add Common Folder menu: a disabled entry for a folder the app can already read, because it or a folder above it is in the list. %@ is the folder's name, e.g. 'Documents'.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (вече е достъпна)"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (již přístupné)"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (allerede tilgængelig)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (bereits zugänglich)"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (ήδη προσβάσιμος)"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (Already accessible)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (ya accesible)"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (jo käytettävissä)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (déjà accessible)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (već dostupna)"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (már elérhető)"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (sudah dapat diakses)"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (già accessibile)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（アクセス済み）"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@(이미 접근 가능)"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (allerede tilgjengelig)"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (al toegankelijk)"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (już dostępny)"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (já acessível)"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (já acessível)"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (deja accesibil)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (уже доступна)"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (už prístupné)"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (redan tillgänglig)"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (เข้าถึงได้อยู่แล้ว)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (zaten erişilebilir)"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (уже доступна)"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (đã có quyền truy cập)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（已可访问）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（已可取用）"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.permissions.folder.documents": {
+      "comment": "Settings, Permissions pane, Add Common Folder menu: the Documents folder inside the user's home folder. Use the name the Finder gives it in this language.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Документи"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokumenty"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokumenter"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokumente"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Έγγραφα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documents"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documentos"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokumentit"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documents"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokumenti"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokumentumok"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokumen"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documenti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "書類"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "서류"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokumenter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documenten"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokumenty"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documentos"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documentos"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documente"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Документы"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokumenty"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokument"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เอกสาร"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belgeler"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Документи"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tài liệu"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文稿"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.permissions.folder.home": {
+      "comment": "Settings, Permissions pane, Add Common Folder menu: the user's home folder. Use the name the Finder gives it in this language.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Домашна папка"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Domovská složka"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hjemmemappe"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Benutzerordner"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αρχικός φάκελος"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Home Folder"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carpeta de inicio"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kotikansio"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dossier de départ"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Početna mapa"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saját mappa"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder Beranda"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cartella Inizio"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ホームフォルダ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "홈 폴더"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hjemmemappe"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thuismap"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder domowy"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasta pessoal"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasta pessoal"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosar personal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Домашняя папка"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Domovský priečinok"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hemmapp"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "โฟลเดอร์บ้าน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ana Klasör"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Домашня папка"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thư mục chính"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "个人文件夹"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "個人檔案夾"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.permissions.folder.not_found": {
+      "comment": "Settings, Permissions pane, Add Common Folder menu: a disabled entry for a folder that does not exist on this Mac. %@ is the folder's name, e.g. 'Dropbox'.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (не е намерена)"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (nenalezeno)"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (ikke fundet)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (nicht gefunden)"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (δεν βρέθηκε)"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (Not found)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (no encontrada)"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (ei löydy)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (introuvable)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (nije pronađena)"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (nem található)"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (tidak ditemukan)"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (non trovata)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（見つかりません）"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@(없음)"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (ikke funnet)"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (niet gevonden)"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (nie znaleziono)"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (não encontrada)"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (não encontrada)"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (negăsit)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (не найдена)"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (nenájdené)"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (hittades inte)"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (ไม่พบ)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (bulunamadı)"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (не знайдено)"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (không tìm thấy)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（未找到）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（找不到）"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.permissions.folder_grant.button": {
+      "comment": "Confirm button of the folder-picker panel opened from the Add Common Folder menu.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -21019,187 +21763,187 @@
       },
       "extractionState": "manual"
     },
-    "settings.permissions.home_grant.message": {
-      "comment": "Message atop the folder-picker panel opened by the Add Home Folder button, which starts in the user's home folder.",
+    "settings.permissions.folder_grant.message": {
+      "comment": "Message atop the folder-picker panel opened from the Add Common Folder menu, which starts in the chosen folder. %@ is that folder's name, e.g. 'Documents'.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Разрешете на Vibe достъп до домашната ви папка, за да може да чете музика навсякъде в нея."
+            "value": "Разрешете на Vibe достъп до „%@“, за да може да чете музика навсякъде в нея."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Povolte Vibe přístup k domovské složce, aby mohl číst hudbu kdekoli v ní."
+            "value": "Povolte Vibe přístup ke složce „%@“, aby mohl číst hudbu kdekoli v ní."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Giv Vibe adgang til din hjemmemappe, så appen kan læse musik overalt i den."
+            "value": "Giv Vibe adgang til “%@”, så appen kan læse musik overalt i den."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Erlaube Vibe den Zugriff auf deinen Benutzerordner, damit die App überall darin Musik lesen kann."
+            "value": "Erlaube Vibe den Zugriff auf „%@“, damit die App überall darin Musik lesen kann."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Παραχωρήστε στο Vibe πρόσβαση στον αρχικό σας φάκελο, ώστε να μπορεί να διαβάζει μουσική οπουδήποτε μέσα σε αυτόν."
+            "value": "Παραχωρήστε στο Vibe πρόσβαση στον φάκελο «%@», ώστε να μπορεί να διαβάζει μουσική οπουδήποτε μέσα σε αυτόν."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grant Vibe access to your home folder, so it can read music anywhere inside it."
+            "value": "Grant Vibe access to “%@”, so it can read music anywhere inside it."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permite que Vibe acceda a tu carpeta de inicio para que pueda leer música en cualquier lugar dentro de ella."
+            "value": "Permite que Vibe acceda a “%@” para que pueda leer música en cualquier lugar dentro de esa carpeta."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Salli Viben pääsy kotikansioosi, jotta se voi lukea musiikkia kaikkialta sen sisältä."
+            "value": "Salli Viben pääsy kansioon ”%@”, jotta se voi lukea musiikkia kaikkialta sen sisältä."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Autorisez Vibe à accéder à votre dossier de départ afin qu’il puisse y lire la musique où qu’elle se trouve."
+            "value": "Autorisez Vibe à accéder à « %@ » afin qu’il puisse y lire la musique où qu’elle se trouve."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dopustite Vibeu pristup vašoj početnoj mapi kako bi mogao čitati glazbu bilo gdje u njoj."
+            "value": "Dopustite Vibeu pristup mapi „%@”, kako bi mogao čitati glazbu bilo gdje u njoj."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Engedélyezd a Vibe hozzáférését a saját mappádhoz, hogy bárhol olvashassa benne a zenét."
+            "value": "Engedélyezd a Vibe hozzáférését a(z) „%@” mappához, hogy bárhol olvashassa benne a zenét."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Beri Vibe akses ke folder beranda Anda agar dapat membaca musik di mana pun di dalamnya."
+            "value": "Beri Vibe akses ke “%@” agar dapat membaca musik di mana pun di dalamnya."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Consenti a Vibe di accedere alla tua cartella Inizio, così può leggere la musica ovunque al suo interno."
+            "value": "Consenti a Vibe di accedere a “%@”, così può leggere la musica ovunque al suo interno."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ホームフォルダ内のどこにある音楽でも読み込めるよう、Vibe にアクセスを許可してください。"
+            "value": "「%@」内のどこにある音楽でも読み込めるよう、Vibe にアクセスを許可してください。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "홈 폴더 어디에 있는 음악이든 읽을 수 있도록 Vibe에 접근을 허용하십시오."
+            "value": "‘%@’ 폴더 어디에 있는 음악이든 읽을 수 있도록 Vibe에 접근을 허용하십시오."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gi Vibe tilgang til hjemmemappen din, slik at appen kan lese musikk hvor som helst i den."
+            "value": "Gi Vibe tilgang til «%@», slik at appen kan lese musikk hvor som helst i den."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verleen Vibe toegang tot je thuismap, zodat de app overal daarin muziek kan lezen."
+            "value": "Verleen Vibe toegang tot ‘%@’, zodat de app overal daarin muziek kan lezen."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Udziel Vibe dostępu do folderu domowego, aby mógł odczytywać muzykę w dowolnym miejscu w nim."
+            "value": "Udziel Vibe dostępu do folderu „%@”, aby mógł odczytywać muzykę w dowolnym miejscu w nim."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conceda ao Vibe acesso à sua pasta pessoal para que ele possa ler músicas em qualquer lugar dentro dela."
+            "value": "Conceda ao Vibe acesso a “%@” para que ele possa ler músicas em qualquer lugar dentro dessa pasta."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conceda ao Vibe acesso à sua pasta pessoal para que possa ler música em qualquer local dentro dela."
+            "value": "Conceda ao Vibe acesso a “%@” para que possa ler música em qualquer local dentro dessa pasta."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permite-i lui Vibe accesul la dosarul tău personal, ca să poată citi muzica de oriunde din interiorul lui."
+            "value": "Permite-i lui Vibe accesul la dosarul „%@”, ca să poată citi muzica de oriunde din interiorul lui."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Разрешите Vibe доступ к домашней папке, чтобы приложение могло читать музыку в любом её месте."
+            "value": "Разрешите Vibe доступ к папке «%@», чтобы приложение могло читать музыку в любом её месте."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Povoľte Vibe prístup k domovskému priečinku, aby mohol čítať hudbu kdekoľvek v ňom."
+            "value": "Povoľte Vibe prístup k priečinku „%@“, aby mohol čítať hudbu kdekoľvek v ňom."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ge Vibe åtkomst till din hemmapp så att appen kan läsa musik var som helst i den."
+            "value": "Ge Vibe åtkomst till ”%@” så att appen kan läsa musik var som helst i den."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "อนุญาตให้ Vibe เข้าถึงโฟลเดอร์บ้านของคุณ เพื่อให้อ่านเพลงได้จากทุกที่ภายในโฟลเดอร์นั้น"
+            "value": "อนุญาตให้ Vibe เข้าถึง “%@” เพื่อให้อ่านเพลงได้จากทุกที่ภายในโฟลเดอร์นั้น"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "İçindeki her yerde müzik okuyabilmesi için Vibe'a ana klasörünüze erişim izni verin."
+            "value": "İçindeki her yerde müzik okuyabilmesi için Vibe'a “%@” klasörüne erişim izni verin."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Надайте Vibe доступ до домашньої папки, щоб застосунок міг читати музику будь-де в ній."
+            "value": "Надайте Vibe доступ до папки «%@», щоб застосунок міг читати музику будь-де в ній."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hãy cấp cho Vibe quyền truy cập thư mục chính của bạn để ứng dụng có thể đọc nhạc ở bất kỳ đâu bên trong."
+            "value": "Hãy cấp cho Vibe quyền truy cập “%@” để ứng dụng có thể đọc nhạc ở bất kỳ đâu bên trong."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "允许 Vibe 访问你的个人文件夹，以便读取其中任意位置的音乐。"
+            "value": "允许 Vibe 访问“%@”，以便读取其中任意位置的音乐。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "允許 Vibe 取用你的個人檔案夾，以便讀取其中任何位置的音樂。"
+            "value": "允許 Vibe 取用「%@」，以便讀取其中任何位置的音樂。"
           }
         }
       },
