@@ -26,7 +26,7 @@ jobs:
         configuration: [Debug, Release]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Show toolchain
         run: |
@@ -58,7 +58,7 @@ jobs:
     runs-on: macos-26
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -81,7 +81,7 @@ jobs:
     runs-on: macos-26
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check string catalog is in sync
         run: make check-strings
