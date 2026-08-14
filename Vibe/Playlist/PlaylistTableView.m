@@ -18,6 +18,13 @@ NSString *const kPlaylistColumnArt = @"artColumn";
 NSString *const kPlaylistColumnTitle = @"titleColumn";
 NSString *const kPlaylistColumnLength = @"lengthColumn";
 
+// The conformance is what makes validateMenuItem: below the protocol's method
+// rather than NSObject's deprecated informal one. It is declared here, not in
+// the header, because nothing outside this file calls it — the same pattern as
+// PlaylistController and MainPlayerController+Menus.
+@interface PlaylistTableView () <NSMenuItemValidation>
+@end
+
 @implementation PlaylistTableView
 
 - (instancetype)initWithFrame:(NSRect)frameRect {

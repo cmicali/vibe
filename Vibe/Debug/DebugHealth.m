@@ -348,7 +348,7 @@ NSString *VibeDebugInvariantsJSON(MainPlayerController *controller) {
     checked++;
     if (fabsf(player.maxPitch - Settings.pitchRange) > 0.001f) {
         VibeViolation(v, @"player.max_pitch_matches_setting",
-                @"player maxPitch %.4f, setting %.4f", player.maxPitch, Settings.pitchRange);
+                @"player maxPitch %.4f, setting %ld", player.maxPitch, (long)Settings.pitchRange);
     }
 
     checked++;
