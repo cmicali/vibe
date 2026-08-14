@@ -26,7 +26,7 @@ jobs:
         configuration: [Debug, Release]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Show toolchain
         run: |
@@ -34,10 +34,10 @@ jobs:
           xcodebuild -version
           xcrun --show-sdk-version --sdk macosx
 
-      # Only XcodeGen is missing from the runner image; jq ships with macOS 15+.
-      # `brew bundle` would reinstall jq for no reason, so install directly.
-      - name: Install XcodeGen
-        run: brew install xcodegen
+      # Only XcodeGen is missing from the runner image; jq ships with macOS 15+,
+      # so `brew bundle` has nothing else to do here. See the action for why
+      # this doesn't shell out to brew at all.
+      - uses: ./.github/actions/setup-xcodegen
 
       # Signs ad-hoc (project.yml CODE_SIGN_IDENTITY: "-"), so no certificates
       # or secrets are needed. Distribution signing lives in scripts/release.sh.
@@ -58,10 +58,9 @@ jobs:
     runs-on: macos-26
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
+      - uses: ./.github/actions/setup-xcodegen
 
       # The VibeTests bundle is host-less pure logic: no app launch, no window
       # server, no audio hardware, no permissions — so it needs nothing from
@@ -81,7 +80,7 @@ jobs:
 
       - name: Upload result bundle
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: TestResults.xcresult
           path: build/TestResults.xcresult
@@ -96,7 +95,7 @@ jobs:
     runs-on: macos-26
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check string catalog is in sync
         run: make check-strings

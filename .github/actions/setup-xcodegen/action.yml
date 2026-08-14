@@ -1,0 +1,37 @@
+name: Set up XcodeGen
+description: >
+  Install a pinned XcodeGen release binary and put it on PATH. Deliberately not
+  `brew install xcodegen` — every brew invocation on the runner image emits a
+  tap-trust warning for a tap the image ships (aws/tap) and that Vibe has no
+  say over, which shows up as a warning annotation on every run. A pinned
+  release is also faster and reproducible: brew installs whatever is current.
+
+inputs:
+  version:
+    description: XcodeGen release tag.
+    required: false
+    default: "2.46.0"
+  sha256:
+    description: >
+      SHA-256 of that release's xcodegen.zip. Bump together with version —
+      shasum -a 256 on the downloaded asset.
+    required: false
+    default: "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806"
+
+runs:
+  using: composite
+  steps:
+    - name: Install XcodeGen ${{ inputs.version }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd "$RUNNER_TEMP"
+        curl -fsSL --retry 3 -o xcodegen.zip \
+          "https://github.com/yonaskolb/XcodeGen/releases/download/${{ inputs.version }}/xcodegen.zip"
+        # Fails the job on any mismatch, so a swapped asset can't run here.
+        echo "${{ inputs.sha256 }}  xcodegen.zip" | shasum -a 256 -c -
+        # Unpacks to xcodegen/{bin,share}; the binary resolves its bundled
+        # SettingPresets relative to itself, so the layout has to survive.
+        unzip -q xcodegen.zip
+        echo "$RUNNER_TEMP/xcodegen/bin" >>"$GITHUB_PATH"
+        "$RUNNER_TEMP/xcodegen/bin/xcodegen" --version
