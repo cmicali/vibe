@@ -1,0 +1,110 @@
+name: Bug report
+description: Something in Vibe is broken or behaves wrong
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For playback problems, please include the **file format and codec**, even if the problem seems unrelated to the file.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What went wrong, and what you expected instead.
+      placeholder: |
+        The waveform stayed blank and the track never started playing. I expected it to play.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Drop a folder of FLAC files on the window
+        2. Press N to skip to the third track
+        3. …
+    validations:
+      required: true
+
+  - type: input
+    id: vibe-version
+    attributes:
+      label: Vibe version
+      description: Vibe → About Vibe. If you built it yourself, the commit SHA.
+      placeholder: "1.9"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: macos-version
+    attributes:
+      label: macOS version
+      options:
+        - "27 (Golden Gate)"
+        - "26 (Tahoe)"
+        - "15 (Sequoia)"
+        - "14 (Sonoma)"
+        - Older than 14 (unsupported)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-source
+    attributes:
+      label: Where did this build come from?
+      options:
+        - Mac App Store
+        - Direct download (GitHub release)
+        - Built from source
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: "### The audio file"
+
+  - type: dropdown
+    id: format
+    attributes:
+      label: File format
+      description: Skip if the bug has nothing to do with a specific file.
+      multiple: true
+      options:
+        - MP3
+        - MP2
+        - AAC
+        - FLAC
+        - MP4 / M4A
+        - AIFF
+        - WAV
+        - Other / not sure
+        - Not file-specific
+
+  - type: textarea
+    id: file-location
+    attributes:
+      label: Anything unusual about the file or its location?
+      description: |
+        For example: it's on iCloud Drive / Dropbox and not downloaded locally, it's on a network volume or external drive, it's very long, it's a `.cue` or `.m3u` playlist, the tags are unusual, the filename has non-Latin characters.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output
+      description: |
+        Optional but very helpful for crashes and load failures. Run this in Terminal, reproduce the problem, then paste what appears:
+
+        ```
+        /usr/bin/log stream --predicate 'subsystem == "com.commonwealthrecordings.Vibe"' --level debug
+        ```
+
+        For a crash, the report from Console.app → Crash Reports is better still.
+      render: text
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, a screen recording, or notes on how often it happens.

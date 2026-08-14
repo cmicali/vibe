@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest something Vibe should do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Vibe is deliberately small and fast — a player for local files, with no library, no accounts, and no streaming services. Please keep this in mind when making a request.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The problem or the workflow, not the solution. What do you do today instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should Vibe do?
+      description: If it involves the UI, describe where it would live or sketch it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Including doing nothing, or an existing keyboard command or setting that almost works.
+
