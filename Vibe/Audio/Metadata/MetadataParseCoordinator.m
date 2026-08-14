@@ -97,4 +97,22 @@
     }
 }
 
+#if DEBUG
+- (NSDictionary<NSString *, NSNumber *> *)debugPendingCounts {
+    @synchronized (self) {
+        NSUInteger waiters = 0;
+        for (NSHashTable *table in _waiters.objectEnumerator) {
+            // count, not allObjects.count: the waiters are weak, so this
+            // includes entries whose participant has already been discarded —
+            // which is the honest measure of what the table is still holding.
+            waiters += table.count;
+        }
+        // This class's own vocabulary. The debug channel namespaces them into
+        // its health schema; naming them for that schema here would be the
+        // schema leaking into a class that knows nothing about it.
+        return @{@"holders": @(_holders.count), @"waiters": @(waiters)};
+    }
+}
+#endif
+
 @end

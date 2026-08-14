@@ -40,40 +40,7 @@ To launch by hand instead:
 
 ## Test audio files
 
-Use the generated files in `Assets/test_audio_files/` (gitignored) rather than synthesizing your own:
-
-```bash
-.claude/skills/vibe-debug/scripts/generate-test-audio.sh   # idempotent; --force regenerates
-```
-
-| File | For |
-| --- | --- |
-| `tone-short-1.wav` / `-2` / `-3` | single-file and playlist/multi-file tests (8s, distinct pitches) |
-| `tone-long.wav` | seek and skip tests (120s — skips reach ±60s) |
-| `tone.flac` | FLAC/codec-label coverage |
-| `tone-art-red.m4a` / `tone-art-blue.m4a` | tagged metadata (titles "Red Art Test"/"Blue Art Test", artist "Art Tester") with solid red/blue covers — art, header-tint, and dock-icon tests; play one then the other to exercise the art crossfade and tint animation |
-| `bpm-85.wav`, `bpm-120.wav`, `bpm-128.wav`, `bpm-140.wav`, `bpm-174.wav` | 30s kick+hat loops at exactly the named tempo — BPM-analyzer tests (see `scan-bpm.sh` below; compare against the filename). Atonal, so they double as the key analyzer's negative case: `scan-key.sh` must report no key |
-| `key-am.wav`, `key-c.wav`, `key-fsm.wav`, `key-eb.wav` | 24s chord-progression loops in the named key (Am, C, F#m, Eb) — key-analyzer tests (see `scan-key.sh` below) |
-
-The short files end after eight seconds. Pause early, or use `tone-long.wav`, when a test needs playback still running at capture time.
-
-**Simulating a slow cloud file open.** The Loading state, the shimmer, the load-timeout error and anything else gated on `didBeginLoading:` need an open that blocks, which no local file provides:
-
-```bash
-.claude/skills/vibe-debug/scripts/slow-open.sh           # app enters Loading; shimmer at 0.5s, inline timeout error at 20s
-.claude/skills/vibe-debug/scripts/slow-open.sh cleanup   # after your checks — fails a still-pending open instantly (into the inline error) and removes the pipe
-```
-
-It opens a named pipe in the app container's tmp. `AVAudioFile`'s open blocks reading it forever, exactly as it would on an undownloaded iCloud or Dropbox placeholder.
-
-**One-shot BPM and key measurement.** `scan_bpm` (and its twin `scan_key`) runs in the CLI's own process with no channel round-trip: no app launch, no window, no caches. It works with no app running and leaves a running Vibe instance untouched. The script streams the file through stdin (`scan_bpm - < file`) because the direct-exec'd binary is still sandboxed and cannot read arbitrary argv paths, for the same reason argv opens fail. The client stages the bytes in its own container tmp, which keeps shell processes out of `~/Library/Containers/` and so avoids the TCC prompt described under Screenshots:
-
-```bash
-.claude/skills/vibe-debug/scripts/scan-bpm.sh <audio-file>   # {"ok":true,"bpm":120.01} — bpm 0 = no confident tempo
-.claude/skills/vibe-debug/scripts/scan-key.sh <audio-file>   # {"ok":true,"key":"Am","camelot":"8A","index":21} — empty strings / index -1 = no confident key
-```
-
-`scan_key` has the same contract as `scan_bpm` throughout: it runs in the CLI process, needs no app, ignores caches and tags (it reports pure analysis — the app's own display prefers a tagged key), and streams the file via stdin for the same sandbox reasons.
+Use the generated files in `Assets/test_audio_files/` (gitignored) rather than synthesizing your own; `.claude/skills/vibe-debug/scripts/generate-test-audio.sh` creates them (idempotent, `--force` regenerates). Tones for transport and playlist tests, a FLAC, two tagged files with art, five exact-tempo loops and four in known keys. Which file for which test, plus how to simulate a slow cloud open (`slow-open.sh`) and the one-shot BPM/key scans: **`references/test-audio.md`**.
 
 ## Driving and inspecting the running app: `--debug-cmd`
 
@@ -101,9 +68,16 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 "$V" --debug-cmd dump_state          # {player, currentTrack, playlist, ui (label text), window, settings}
 "$V" --debug-cmd dump_now_playing    # {playbackState, hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — what we publish to the system Now Playing UI (Control Center / media keys). REQUIRES a launch WITHOUT --no-audio-hw (VIBE_AUDIBLE=1), which suppresses the publish entirely; under the flag this always reports hasInfo: 0
 "$V" --debug-cmd dump_stats          # {filesOpened, foldersOpened, secondsPlayed} — AppStats lifetime counters, live (secondsPlayed includes the in-progress run)
+"$V" --debug-cmd dump_health         # {process: {footprintBytes, residentBytes, threads, fileDescriptors, machPorts, uptimeSeconds}, ui: {windows, views, layers, trackingAreas}, app: {playlistCount, tableRows, engineNodes, …}, pending: {metadataHolders, metadataWaiters, openResultsBuffered, openBurstQueued, retiredFades}} — resource counters for soak runs. Every field is meant to be DIFFED across a run, not read in isolation; see Stress and fuzz testing
+"$V" --debug-cmd quiesce             # {ok, settled, waitedSeconds, pending} — closes the file, then polls until every pending-work counter unwinds (15s deadline), and hands free pages back to the OS. Sample dump_health straight after it for a reading taken at rest instead of mid-decode. settled:false names the counter that held out
+"$V" --debug-cmd check_invariants    # {ok, checked, state, violations: [{id, detail}]} — the documented cross-directory invariants, asserted against live state. Re-check after a settle before believing a violation: a few compare rendered labels against the state that should have produced them, and a render can lag by a runloop turn
 "$V" --debug-cmd dump_view_tree      # {windows: [{class, frame, visible, key, contentView: {…, subviews}}]}
 "$V" --debug-cmd dump_menu           # {menu: [{title, id, key, action, enabled, state, items}]} — LIVE enabled/checkmark
 "$V" --debug-cmd click_menu menu_show_pitch   # {ok, clicked, action} — by identifier (preferred) or exact title
+"$V" --debug-cmd settings_open appearance     # {ok, pane, paneTitle, panes, frame, key} — opens the Settings window, creating it, and selects a pane by identifier (general|playback|appearance|convert|permissions|advanced), index or displayed title; bare `settings_open` just opens it. See The settings window below
+"$V" --debug-cmd dump_settings_ui             # {pane, paneTitle, panes, controls: [{index, kind, name, label, enabled, rect, + the live value}], window, sheet} — every control of the SELECTED pane
+"$V" --debug-cmd settings_click "Detect key" on  # {ok, control, kind, action, + the live value} — activates one control of the selected pane BY NAME, no coordinates
+"$V" --debug-cmd settings_close               # {ok, open, endedSheet} — ends an attached sheet first, then closes
 "$V" --debug-cmd dump_screenshot -   # PNG bytes on stdout (redirect to a file), JSON reply on stderr — in-process snapshot
 "$V" --debug-cmd play_pause          # also: next, previous, skip_forward[_more|_most], skip_back[_more|_most], toggle_size, toggle_pitch_panel
 "$V" --debug-cmd set_loading 0.42   # {ok, fraction} — drives the waveform loading indicator directly: `off`, `indeterminate`, or a 0..1 fraction for the determinate fill. The only way to capture either mode without a real slow cloud open
@@ -200,6 +174,10 @@ EOF
 
 When feeding `"$V" --debug-cmd script` directly, **always use stdin** — `script -` with a heredoc, or `script - < file`. The CLI client is sandboxed and usually cannot read a script file by path, the same denial as argv audio files, and the error says so. Two verbs are unavailable inside scripts: `scan_bpm -`, because stdin is the script, and a nested `script`. `sleep` runs client-side and accepts floats, such as `sleep 0.2`, so the app never blocks between steps.
 
+### The settings window
+
+The Settings window has four verbs of its own — `settings_open`, `settings_close`, `dump_settings_ui`, `settings_click` — and **must never be driven with `click`, `drag` or the `key*` verbs**, which post into the main player window's event stream. They live with the code they exercise, in **`Vibe/Settings/CLAUDE.md`**, along with the sheet, pane-animation and open-panel traps.
+
 ### In-process input injection
 
 `click`, `drag`, `mouse_*` and the `key*` verbs post synthesized NSEvents into the app's own event queue. Unlike the other `--debug-cmd` verbs, which call controller actions directly, these exercise the **real event dispatch path**: `TransportKeyMonitor`, view `mouseDown:` and tracking loops, and menu key equivalents. Unlike CGEvent injection through `input.swift`, they need no Accessibility permission and no help from the OS frontmost state.
@@ -211,6 +189,12 @@ When feeding `"$V" --debug-cmd script` directly, **always use stdin** — `scrip
 - **Right-click caveat.** `click x y right` on a view with a context menu, such as a playlist row, opens a *real* menu that blocks the channel until it is dismissed. Do it only when something can dismiss the menu: a human, or a pre-posted `key esc`. Post the esc *before* the right-click, since it cannot be delivered afterwards.
 - Tracking areas and hover effects do not fire from posted events, because the window server drives those. Hover styling still needs `input.swift`.
 
+## Stress, soak and fuzz runs: the `vibe-stress` skill
+
+Driving the app *randomly, for hours, with oracles that notice when something breaks* — soak runs, leak and resource-growth hunting, race hunting under TSan, fuzzing the file-loading path, and minimizing a failing run to a repro — lives in the **`vibe-stress` skill** (`.claude/skills/vibe-stress/`), built on this channel. `make stress CORPUS=<folder>` is its entry point.
+
+The three verbs it leans on (`dump_health`, `check_invariants`, `quiesce`) stay in the command list above, because they are ordinary channel commands and are useful without it.
+
 ## Screenshots: two paths, each showing what the other cannot
 
 **1. In-process snapshot.** A synchronous one-liner; `-` streams the PNG bytes to stdout and the JSON reply goes to stderr:
@@ -221,7 +205,7 @@ When feeding `"$V" --debug-cmd script` directly, **always use stdin** — `scrip
 
 Always use the `-` form. Inside a command script the reply carries the PNG as base64 instead; see Command scripts. With neither, the reply carries the PNG's path, but that path is inside the app's sandbox container, and reading it with shell tools such as `cp` or `cat` trips macOS's "access data from other apps" TCC prompt against the terminal's host app. The `-` streaming happens in the Vibe CLI client, which owns the container, so no prompt appears. `notifyutil -p com.vibe.debug.screenshot` also works, but it is async and leaves you copying from the container by hand, with the same TCC prompt. Avoid it.
 
-This path renders the key window's Core Animation layer tree in-process, falling back to the main window and then the first visible one, so the app need not be frontmost. It needs no screen-recording permission and works while occluded or with the display asleep. **Default to it** for layout, label text and color, artwork and waveform checks.
+This path renders the key window's Core Animation layer tree in-process, falling back to the main window and then to the frontmost visible one, so the app need not be frontmost. That last rung is what captures the **settings or about window** while the app is inactive, since neither key nor main window exists then; it is also why a mouse-injection verb, which makes the *player* key, silently redirects the next screenshot back to the player. It needs no screen-recording permission and works while occluded or with the display asleep. **Default to it** for layout, label text and color, artwork and waveform checks.
 
 **Blind spots.** `NSVisualEffectView` materials and vibrancy do not render, and neither does the `NSGlassEffectView` glass chrome — the window-spanning backdrop and the header panel — because the window server composites those. The snapshot hides the glass layers and paints an appearance-matched flat proxy fill, dark or light gray, where they would be, which keeps dark-mode content legible. Hiding them also forces a *model*-tree render on glass-bearing windows, so animations are captured at their target values rather than mid-flight; glass-free windows still render the presentation tree. Metal content, such as the About window, does not render either. **Never judge window background, material, tint-wash or appearance-blending issues from this path.** It structurally cannot show them.
 
@@ -257,19 +241,7 @@ Relaunch to apply, or toggle live with `"$V" --debug-cmd click_menu view_appeara
 
 ## OS-level input path: hover states and focus semantics
 
-For hotkeys and mouse mechanics such as a fader drag or a double-click reset, prefer the in-process injection verbs `key`, `click` and `drag` described above: no permissions, no frontmost requirement, and they drive the same key monitor and view mouse handling.
-
-`input.swift` sends **CGEvents through the window server** and remains the only way to test what posted events cannot reach: tracking-area and hover effects, OS-level focus and activation semantics, and drop targets.
-
-```bash
-osascript -e 'tell application "Vibe" to activate'   # events land in the frontmost app
-swift .claude/skills/vibe-debug/scripts/input.swift key p          # a-z, 0-9, space, tab, return, esc
-swift .claude/skills/vibe-debug/scripts/input.swift move 700 200          # plain cursor move — hover states
-swift .claude/skills/vibe-debug/scripts/input.swift drag 882 461 882 552   # x1 y1 x2 y2 [steps]
-swift .claude/skills/vibe-debug/scripts/input.swift dblclick 882 500       # also: click
-```
-
-Coordinates are global screen coordinates with a top-left origin; `find-window.swift` prints window origin and size in the same space. `move` is what the transport-button reveal needs, through the window-wide `NSTrackingArea` in `MainPlayerContentView`: enter and exit fire only on **boundary crossings**, so move *outside* the window first and then back in. A move from one inside point to another changes nothing, and `CGWarpMouseCursorPosition` does not drive tracking areas at all. This path needs Accessibility permission and turns flaky if focus is stolen mid-test, so verify the result with `dump_state` rather than assuming the event landed. For everything else, prefer `--debug-cmd`.
+`input.swift` sends CGEvents through the window server. It is the only way to reach tracking-area and hover effects, OS-level focus and activation semantics, and real drop targets — and it needs Accessibility permission and turns flaky if focus is stolen. **Prefer the in-process `click`, `drag` and `key*` verbs above for everything else.** Usage and coordinate rules: **`references/os-input.md`**.
 
 ## Logs
 
@@ -281,8 +253,5 @@ The `LogError`, `LogWarn`, `LogInfo` and `LogDebug` macros in `Vibe-Prefix.pch` 
 
 ### Build provenance: which build produced this log?
 
-`applicationDidFinishLaunching` logs a build-provenance block through `AppDelegate.logBuildInfo`, so a log excerpt identifies the exact build it came from: version and config, git commit, branch and dirty flag, link time, compiler, arch and -O level, the codegen build settings, SDK and Xcode, and the host OS.
+`applicationDidFinishLaunching` logs a provenance block through `AppDelegate.logBuildInfo`, so a log excerpt identifies the exact build it came from — version, config, git commit and dirty flag, compiler, SDK and host OS. How it is recovered at runtime, and why the git fields need a build-time script phase: **`references/build-provenance.md`**.
 
-`NSBundle+BuildInfo` reads all of it back from the binary: the `DT*` keys Xcode injects into Info.plist, a `VibeBuild` settings dictionary declared in `project.yml` — Xcode expands `$(SETTING)` inside it, nested dicts included — clang macros, and the executable's mtime for the link time. Only the git fields need build-time help. The `Generate Git Info` pre-build script phase (`scripts/generate-git-info.sh`) writes `build/generated/VibeGitInfo.h`, which is gitignored under `build/` and sits on the target's `HEADER_SEARCH_PATHS`. It is rewritten only when the git state actually changes, so it does not force recompiles, and it falls back to "unknown" in a tree with no git. Reading `.git` from a script phase is why the target sets `ENABLE_USER_SCRIPT_SANDBOXING: NO`.
-
-The two arch fields differ on a universal Release build, and both are correct: the compiler line names the slice that is running, the flags line the whole requested `ARCHS` set. The literal clang argv is not recoverable at runtime — it exists only in the build log.

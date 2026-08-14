@@ -345,4 +345,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     }];
 }
 
+#if DEBUG
+- (NSUInteger)debugQueuedOpenCount {
+    return [_openBurstCoalescer debugQueuedURLCount];
+}
+#endif
+
 @end

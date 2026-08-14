@@ -19,6 +19,7 @@
 @class PitchControlPanel;
 @class TrackDisplayController;
 @class MainPlayerContentView;
+@class PlaylistTableView;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -32,6 +33,9 @@ NS_ASSUME_NONNULL_BEGIN
 // The synthetic drag verbs — drag_hover, drag_drop and drag_end — reach the
 // playlist drop zone through this.
 @property (weak, readonly) MainPlayerContentView *playerContentView;
+// check_invariants compares the table's row count against the playlist's,
+// which is the only way to catch a reloadData the model never got.
+@property (weak, readonly) PlaylistTableView *playlistTableView;
 
 - (PitchControlPanel *)pitchPanel;
 - (void)debugRefreshUI;

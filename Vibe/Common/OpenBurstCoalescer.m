@@ -96,4 +96,10 @@
     _sink(urls, append);
 }
 
+#if DEBUG
+- (NSUInteger)debugQueuedURLCount {
+    return _queue.count;
+}
+#endif
+
 @end

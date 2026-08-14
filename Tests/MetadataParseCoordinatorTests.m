@@ -343,4 +343,35 @@
     }
 }
 
+#if DEBUG
+// The debug channel's dump_health reports these, and the stress driver holds
+// them to a growth limit of a few entries. A counter that silently always read
+// zero would look exactly like a clean run, so pin it here rather than trust a
+// live sample: an in-flight parse is over in microseconds and a poll from
+// outside the process almost never lands inside one.
+- (void)testDebugPendingCountsTrackHoldersAndWaiters {
+    MetadataParseCoordinator *coordinator = [MetadataParseCoordinator new];
+    NSURL *key = [NSURL fileURLWithPath:@"/private/tmp/counted.flac"];
+    NSObject *holder = [NSObject new];
+    NSObject *waiter = [NSObject new];
+
+    XCTAssertEqualObjects([coordinator debugPendingCounts][@"holders"], @0);
+    XCTAssertEqualObjects([coordinator debugPendingCounts][@"waiters"], @0);
+
+    MetadataParseClaim *claim = [coordinator claimParseForKey:key participant:holder];
+    XCTAssertEqualObjects([coordinator debugPendingCounts][@"holders"], @1);
+    XCTAssertEqualObjects([coordinator debugPendingCounts][@"waiters"], @0);
+
+    [coordinator claimParseForKey:key participant:waiter];
+    XCTAssertEqualObjects([coordinator debugPendingCounts][@"holders"], @1);
+    XCTAssertEqualObjects([coordinator debugPendingCounts][@"waiters"], @1);
+
+    // Completing the owner clears the holder and that key's whole waiter
+    // table: both halves have to return to zero, or a soak run accumulates.
+    [coordinator completeClaim:claim];
+    XCTAssertEqualObjects([coordinator debugPendingCounts][@"holders"], @0);
+    XCTAssertEqualObjects([coordinator debugPendingCounts][@"waiters"], @0);
+}
+#endif
+
 @end

@@ -2,7 +2,7 @@
 
 CONFIG ?= Release
 
-.PHONY: setup project build test release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings
+.PHONY: setup project build test stress release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -28,6 +28,16 @@ test: project
 	    -configuration Debug \
 	    -derivedDataPath build/DerivedData \
 	    test
+
+# Stress/fuzz the RUNNING app against a folder of real audio files. Seeded and
+# reproducible; it checks check_invariants and dump_health between batches and
+# writes an NDJSON journal a failure can be shrunk from. Needs a Debug build
+# (the whole debug channel compiles out of Release). See the vibe-stress skill.
+#   make stress CORPUS=~/Music/big
+#   make stress CORPUS=~/Music/big ARGS="--profile loading --duration 3600"
+stress:
+	@test -n "$(CORPUS)" || { echo "usage: make stress CORPUS=<folder of audio files>"; exit 64; }
+	.claude/skills/vibe-stress/scripts/stress.py --corpus "$(CORPUS)" $(ARGS)
 
 # Build (Release by default) then copy the app into /Applications, replacing
 # any existing copy. The rm matters: BSD cp -R copies INTO an existing

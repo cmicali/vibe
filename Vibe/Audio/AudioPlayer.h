@@ -128,6 +128,20 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // then opens the output device exactly as usual. Written once during the
 // async init; lock-free.
 @property (readonly) BOOL manualRenderingActive;
+
+// {attachedNodes, retiredFades} for the debug channel's dump_health and
+// check_invariants. A track change that failed to retire its node pair leaks
+// them, which nothing else observes — and since a soak run is thousands of
+// track changes, unbounded growth is the signal. The two are reported
+// together because they fail apart: a fade entry dropped with its nodes still
+// attached and a fade entry stranded after its nodes were detached are
+// different bugs that either number alone cannot tell from the other.
+//
+// One dispatch_sync serves both. It reads on _queue, so it must not be called
+// from there, and it doubles as a liveness probe for that queue: the command
+// channel runs on the main thread and would otherwise never see the player
+// wedged.
+- (NSDictionary<NSString *, NSNumber *> *)debugEngineCounts;
 #endif
 
 - (BOOL)isPlaying;

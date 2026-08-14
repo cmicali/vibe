@@ -24,6 +24,8 @@ Anything that has to be verified against the *running* app belongs in the debug 
 
 Use the **`vibe-debug` skill** (`.claude/skills/vibe-debug/`) to launch, drive, inspect or screenshot the app — anything that verifies a change against the running app. It is the canonical reference for the debug command channel (`Vibe --debug-cmd <command>`, debug builds only, implemented in `Vibe/Debug/`): inspection dumps of player and UI state, the view tree, menus, Now Playing and screenshots; transport, FX and UI driving; opening files; per-file waveform-cache control; and the BPM and key scans (`scan_bpm`/`scan-bpm.sh` and `scan_key`/`scan-key.sh`, which run in the CLI process itself and need no running app). It also covers the two screenshot paths and their blind spots, sandbox launch pitfalls, the bundled capture and pixel-probing scripts, log streaming and the launch-time build-provenance block.
 
+Use the **`vibe-stress` skill** (`.claude/skills/vibe-stress/`, `make stress CORPUS=<folder>`) to drive the app *randomly, for hours, with oracles*: soak and endurance runs, leak and resource-growth hunting, race hunting under TSan, fuzzing the file-loading path, and shrinking a failing run to a repro. It builds on the debug channel above, so read `vibe-debug` first.
+
 For test audio, use the generated files in `Assets/test_audio_files/` (gitignored). If they are missing, generate them with the skill's `generate-test-audio.sh` rather than synthesizing your own.
 
 The command list lives in the skill and in the channel's own unknown-command reply, deliberately not here, so it cannot drift.
@@ -36,15 +38,15 @@ Vibe is a native macOS music player written in Objective-C and Objective-C++. Pl
 
 Nested `CLAUDE.md` files hold the detail for each directory and load only when you work under it. **Read the relevant one before changing anything it covers.**
 
-- **`Vibe/Audio/`** — the playback engine and the audio data pipeline. `AudioPlayer` runs `AVAudioEngine` with a fresh player node and `AVAudioUnitVarispeed` per track, and handles click-free crossfades, seeks and fades, next-track prefetch and a deferred idle engine stop. `AudioFX` puts the DJ performance effects on the master bus. `Metadata/` extracts tags with TagLib and caches them in PINCache behind a two-stage playlist scan. `Waveform/` is the waveform *data* layer, `Analysis/` detects BPM and musical key, and `AudioDeviceManager` and `AudioPlayer+Devices` manage output devices. UI code relies on the threading contract: every engine mutation runs on a serial player queue, the UI-facing getters (`position`, `duration`, `isPlaying`) never block, and delegate callbacks arrive on the main thread.
-- **`Vibe/Waveform/`** — the waveform *rendering* layer: `AudioWaveformView`, a pure rendering surface whose controller owns the cache and forwards the data; the renderer strategy hierarchy; and the shared `WaveformMorphEngine`.
-- **`Vibe/Main Window/`** — `MainPlayerController` is the central coordinator. It implements the player, waveform and metadata-cache delegate protocols, resolves all header rendering through a single five-state `TrackDisplayState`, and owns `TransportKeyMonitor` for the bare transport and FX keys. The directory also holds `MainWindow` (drag-and-drop and resize behavior), the programmatic layout and the Liquid Glass chrome — the layout, chrome and rendering detail is split into that directory's `APPEARANCE.md`, its `CLAUDE.md` covering behavior.
-- **`Vibe/Menu/`** — menu bar construction, View > Size, the FX menu and the output devices menu; its file also governs the app bootstrap (`main.m` at the repo root, `AppDelegate` in `Common/`).
-- **`Vibe/Playlist/`** — the split between table structure and content (`PlaylistTableView` and `PlaylistController`), plus Launch Services burst opens.
-- **`Vibe/Controls/`** — controls drawn in CALayer rather than shipped as images: `SymbolButton`, `EqualizerIndicatorView` and the pitch fader.
-- **`Vibe/ThirdParty/`** — the vendored TagLib subset and PINCache/PINOperation: what is included and why, how to update it and how the header search paths are wired.
+- **`Vibe/Audio/`** — playback engine, metadata, waveform data, BPM/key analysis, output devices.
+- **`Vibe/Waveform/`** — waveform rendering: views, renderer strategies, morph engine.
+- **`Vibe/Main Window/`** — `MainPlayerController` and the window; layout and Liquid Glass chrome live in that directory's `APPEARANCE.md`, its `CLAUDE.md` covering behavior.
+- **`Vibe/Menu/`** — menu bar, plus the app bootstrap (`main.m` at the repo root, `AppDelegate` in `Common/`).
+- **`Vibe/Playlist/`** — table structure vs content, Launch Services burst opens.
+- **`Vibe/Controls/`** — CALayer-drawn controls.
+- **`Vibe/ThirdParty/`** — the vendored TagLib subset and PINCache/PINOperation: what is included and why, how to update it.
 - **`Vibe/About/`** — the About window and its Metal animation.
-- **`Vibe/Settings/`** — the Settings window and its six panes; `FolderAccessManager` persists sandbox folder grants as app-scoped security bookmarks, and folders auto-add from the open and drop funnels.
+- **`Vibe/Settings/`** — Settings window, `FolderAccessManager` sandbox bookmarks.
 
 ### Cross-directory invariants
 
@@ -61,25 +63,17 @@ The `LogError`, `LogWarn`, `LogInfo` and `LogDebug` macros in `Vibe-Prefix.pch` 
 
 ### Localization
 
-**Every user-facing string is declared in `Vibe/Common/VibeStrings.h` and nowhere else.** Call sites use a `STR_*` macro and nothing more — no key, no English text, no translator comment inline:
-
-```objc
-NSMenu *fileMenu = Submenu(mainMenu, STR_MENU_FILE).submenu;
-NSString *bpmText = [NSString stringWithFormat:STR_LABEL_BPM, formatted];
-```
+**Every user-facing string is declared in `Vibe/Common/VibeStrings.h` and nowhere else.** Call sites use a `STR_*` macro and nothing more — no key, no English text, no translator comment inline.
 
 Keys are symbolic and stable (`menu.file`, `label.bpm`), never the English text; the English lives in the macro's default value. **`make strings` after touching any UI string**; `make check-strings` fails when the catalog is stale. English is the source language; every other language is whatever the catalogs contain — don't hardcode the list anywhere, read it from `Resources/Localizable.xcstrings`.
 
-`VibeNotLocalized(s)` (in the pch, no runtime effect) marks a user-visible string deliberately kept in English — format acronyms, layout punctuation, instrument-scale glyphs, product names, titles AppKit never draws. Every unwrapped `@"..."` in UI code should be one or the other.
-
-**Display names are never identifiers.** `AudioWaveformRenderer` splits `+styleIdentifier` (stable; the registry key, the `NSUserDefaults` value, the menu item's `waveform_style_*` identifier) from `+displayName` (localized, display only); `AppSettings` migrates the English display names persisted before the split. `FILETYPE_*` is the inverse case — never localized, because it is compared with `isEqualToString:` and archived into the metadata cache. Locale-dependent numbers (kHz, BPM, pitch %) go through `Formatters`' `decimalString:fractionDigits:` / `signedPercentString:`, not `%.1f`.
+**Display names are never identifiers** — the registry key, the `NSUserDefaults` value and the menu item's identifier stay separate from the localized label.
 
 The machinery lives in the **`vibe-strings` skill** (`.claude/skills/vibe-strings/`): the `NSLS` registry conventions, the extraction pipeline and its `extractionState` rules, `InfoPlist.xcstrings`, translation terminology, testing a language, the pseudolocale audit, and the localized App Store product page. Read it before editing `VibeStrings.h`, the catalogs, or `scripts/extract-strings.sh`.
 
 ### Key patterns
 
 - **No private APIs, ever.** This app ships in the Mac App Store. Do not call, override or otherwise depend on undocumented selectors, classes or notifications — overriding a private method such as `resignKeyAppearance` counts, even though it compiles without any private declaration. When a visual or behavioral goal has no public-API path, as with `NSGlassEffectView`'s inactive dimming, accept the system behavior or redesign. Do not reach for SPI.
-- **Delegation** runs throughout: `AudioPlayer` → `MainPlayerController`, waveform views → controller, metadata cache → controller.
 - **Singletons**: `AppSettings`, `AudioDeviceManager`, and `AppStats` (lifetime usage counters — files/folders opened, seconds played — in `NSUserDefaults`; the open sinks and the player-delegate transitions feed it, `stop` and quit have no callback so `closeFile:` and `applicationWillTerminate:` flush by hand).
 - **File hashing**: `NSURL+Hash` supplies the cache key for metadata and waveform data, `<size>-<mtime_us>-<sha1(path)>`, built from file attributes alone. Hashing no content keeps it cheap but misses a rewrite or a move.
 - **ObjC++ (.mm files)** appear only where C++ is genuinely needed: the TagLib integration and the waveform data structures and renderers. Everything else, the whole UI layer included, is plain ObjC (.m), so keep C++ types out of headers that ObjC files import.
