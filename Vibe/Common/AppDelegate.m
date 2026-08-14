@@ -71,6 +71,14 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 #pragma mark - Launch
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
+    // A playlist file's entries live outside the grant opening it conferred,
+    // so the expansion may have to ask for their folder. The asking is this
+    // layer's — the panel and the bookmark are the sandbox-grant funnel — and
+    // the expansion only signals that it is needed. Installed before any open
+    // can run.
+    [NSURLUtil setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {
+        return [[FolderAccessManager sharedInstance] requestAccessForPlaylistFolder:playlistURL];
+    }];
     // Build the controller and menu bar early enough that window state
     // restoration, which runs before applicationDidFinishLaunching, can find
     // the controller.
@@ -163,10 +171,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
     // The exists checks run off the main thread: a stat can block for an
     // automounter timeout on an unreachable mount, and this is launch time.
-    // The survivors race the deferred launch drain, so they must enter
-    // through openBurstURLs:, which queues before start and drains after it;
-    // enqueueURLs: would park a post-start arrival until some unrelated
-    // later open flushed the queue.
+    // The survivors race the deferred launch drain, so they enter through
+    // openBurstURLs:, which queues before start and drains after it either
+    // way.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSMutableArray<NSURL *> *urls = [NSMutableArray array];
         NSFileManager *fileManager = [NSFileManager defaultManager];

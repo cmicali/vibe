@@ -65,6 +65,13 @@ static const CGFloat kDefaultSymbolPointSize = 15;
     return NO;
 }
 
+// A click on an inactive window should work the transport, not merely activate
+// it: a player is reached for while another app is frontmost. Same rule as the
+// playlist drop zone's.
+- (BOOL)acceptsFirstMouse:(NSEvent *)event {
+    return YES;
+}
+
 #pragma mark - Layer geometry
 
 - (void)viewDidMoveToWindow {

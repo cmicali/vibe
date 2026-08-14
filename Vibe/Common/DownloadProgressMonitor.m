@@ -187,6 +187,14 @@ static void *kFractionContext = &kFractionContext;
 }
 #endif
 
+// The KVO observation and the NSProgress subscriber outlive a released
+// monitor: dropping one mid-download without cancelling it first would leave
+// the file provider messaging a dead observer. Callers do cancel, and cancel
+// is idempotent, so this is only the net.
+- (void)dealloc {
+    [self cancel];
+}
+
 - (void)cancel {
     _cancelled = YES;
     if (_timer) {

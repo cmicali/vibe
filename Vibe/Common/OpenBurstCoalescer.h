@@ -31,11 +31,6 @@ typedef void (^OpenBurstScheduler)(NSTimeInterval delay, dispatch_block_t block)
                           scheduler:(OpenBurstScheduler)scheduler
                                sink:(OpenBurstSink)sink;
 
-// Queue without draining, for opens that arrive before the app is ready
-// (a burst straddling launch). Never after startAndDrainQueue: nothing
-// drains a post-start enqueue — argv paths land late and use openBurstURLs:.
-- (void)enqueueURLs:(NSArray<NSURL *> *)urls;
-
 // The app finished launching: drains anything queued as the first batch of a
 // burst — the post-launch remainder of an open that straddled launch must
 // append rather than replace. Returns YES when a batch drained, so the caller

@@ -5,21 +5,28 @@
 
 #import "NSURLUtil.h"
 #import "PlaylistFile.h"
-#import "VibeStrings.h"
-
-#if TARGET_OS_OSX
-#import "FolderAccessManager.h"
-#endif
-
-#if TARGET_OS_OSX
-#import <AppKit/AppKit.h>
-#endif
 
 #include <sys/stat.h>
 #include <unistd.h>
 
+// Installed once at launch, read from the expansion workers, so the handoff
+// takes a lock rather than assuming the install lands first.
+static VibePlaylistFolderGrantHandler sPlaylistFolderGrantHandler;
+
+static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
+    @synchronized (NSURLUtil.class) {
+        return sPlaylistFolderGrantHandler;
+    }
+}
+
 
 @implementation NSURLUtil
+
++ (void)setPlaylistFolderGrantHandler:(VibePlaylistFolderGrantHandler)handler {
+    @synchronized (self) {
+        sPlaylistFolderGrantHandler = [handler copy];
+    }
+}
 
 + (BOOL)isDatalessFile:(NSURL *)url {
     struct stat st;
@@ -190,9 +197,10 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
 // double every track.
 //
 // Opening a playlist file grants sandbox access to it alone, not to the files
-// it names, so a denied entry raises a one-shot folder-picker grant; selecting
-// the folder is what extends the sandbox, and the re-resolve then also gets a
-// working basename fallback. Entries unreadable after all that are skipped.
+// it names, so a denied entry raises a one-shot folder grant through the
+// installed handler; granting is what extends the sandbox, and the re-resolve
+// then also gets a working basename fallback. Entries unreadable after all
+// that are skipped.
 + (NSArray<NSURL *> *)expandPlaylistFile:(NSURL *)playlistURL {
     NSArray<NSURL *> *resolved = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlistURL];
 #if TARGET_OS_OSX
@@ -211,8 +219,9 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
     // so "missing" cannot be trusted until the folder opens up.
     BOOL folderDenied =
             ReadAccessForURL(playlistURL.URLByDeletingLastPathComponent) == VibeReadAccessDenied;
+    VibePlaylistFolderGrantHandler grantHandler = PlaylistFolderGrantHandler();
     if (anyUnreadable && (anyDenied || folderDenied)
-            && [self requestFolderAccessForPlaylist:playlistURL]) {
+            && grantHandler && grantHandler(playlistURL)) {
         resolved = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlistURL];
     }
 #endif
@@ -229,51 +238,5 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
             (unsigned long)readable.count, (unsigned long)resolved.count);
     return readable;
 }
-
-#if TARGET_OS_OSX
-// Runs the folder picker on the main thread and blocks this expansion worker
-// until it closes. Safe to block on main here: every caller enters the
-// expansion queue with an async submission, never the reverse.
-//
-// Folder walks are concurrent, but powerbox prompts must not stack inside one
-// another's modal loops, so this uncommon grant path serializes on a private
-// gate. Private deliberately: holding a lock across a modal run loop is a long
-// hold, and a monitor on the class object would be reachable — and so
-// deadlockable — from anywhere.
-+ (BOOL)requestFolderAccessForPlaylist:(NSURL *)playlistURL {
-    static dispatch_semaphore_t grantGate;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        grantGate = dispatch_semaphore_create(1);
-    });
-    __block BOOL granted = NO;
-    dispatch_semaphore_wait(grantGate, DISPATCH_TIME_FOREVER);
-    dispatch_sync(dispatch_get_main_queue(), ^{
-        NSOpenPanel *panel = [NSOpenPanel openPanel];
-        panel.canChooseFiles = NO;
-        panel.canChooseDirectories = YES;
-        panel.allowsMultipleSelection = NO;
-        panel.directoryURL = playlistURL.URLByDeletingLastPathComponent;
-        panel.message = [NSString stringWithFormat:STR_PLAYLIST_GRANT_MESSAGE, playlistURL.lastPathComponent];
-        panel.prompt = STR_PLAYLIST_GRANT_BUTTON;
-        // Reading panel.URL is what attaches the powerbox's sandbox extension
-        // to the process, not just running the panel.
-        granted = [panel runModal] == NSModalResponseOK && panel.URL != nil;
-        if (granted) {
-            LogInfo(@"Playlist folder access granted: %@", panel.URL.path);
-            // The powerbox extension lasts only this process. Bookmark the
-            // folder like the open and drop funnels do, or every relaunch
-            // re-prompts for it — the auto-add funnel never sees it, since
-            // openURLs: gets the playlist file, not the granted directory.
-            [[FolderAccessManager sharedInstance] noteOpenedURLs:@[panel.URL]];
-        }
-        else {
-            LogInfo(@"Playlist folder access declined for %@", playlistURL.lastPathComponent);
-        }
-    });
-    dispatch_semaphore_signal(grantGate);
-    return granted;
-}
-#endif
 
 @end

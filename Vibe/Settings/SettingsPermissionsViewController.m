@@ -192,9 +192,18 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 
 // stringByAbbreviatingWithTildeInPath abbreviates against the sandbox
 // container, not the user's home, so substitute the real home by hand.
+// The home folder itself abbreviates to a bare ~, not to its full path: the
+// Home Folder grant makes exactly that row, and it would otherwise be the one
+// entry spelled out while its own subfolders read as ~/….
 + (NSString *)displayPath:(NSString *)path {
     NSString *home = NSHomeDirectoryForUser(NSUserName());
-    if (home.length > 0 && [path hasPrefix:[home stringByAppendingString:@"/"]]) {
+    if (home.length == 0) {
+        return path;
+    }
+    if ([path isEqualToString:home] || [path isEqualToString:[home stringByAppendingString:@"/"]]) {
+        return @"~";
+    }
+    if ([path hasPrefix:[home stringByAppendingString:@"/"]]) {
         return [@"~" stringByAppendingString:[path substringFromIndex:home.length]];
     }
     return path;

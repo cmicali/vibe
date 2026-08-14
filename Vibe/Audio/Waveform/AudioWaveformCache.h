@@ -67,8 +67,14 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol AudioWaveformCacheDelegate <NSObject>
 
 // Passes the ARC-managed wrapper so that receivers can retain it. The wrapper
-// owns the raw AudioWaveform*, which dies with it.
-- (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded;
+// owns the raw AudioWaveform*, which dies with it. url is the file it was
+// loaded for: a load is cancelled when the *next* one starts, so a track
+// change that pauses on a slow open leaves the outgoing decode streaming
+// snapshots meanwhile, and the receiver matches rather than assumes, like
+// every other delivery here.
+- (void)audioWaveform:(CodableAudioWaveform *)waveform
+          didLoadData:(float)percentLoaded
+               forURL:(NSURL *)url;
 
 @optional
 

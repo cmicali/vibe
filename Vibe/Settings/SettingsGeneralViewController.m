@@ -47,7 +47,17 @@ static const CGFloat kOutputPopUpWidth = 280;
     _outputPopUp = [self popUpButtonWithWidth:kOutputPopUpWidth action:NULL];
     _outputPopUp.menu.delegate = _outputMenuController;
 
-    _defaultPlayerButton = [NSButton buttonWithTitle:@"" target:self action:@selector(makeDefaultPlayer:)];
+    // The grid is measured once, here, while the async default-app check is
+    // still out and the real title has not arrived. Floor the button at the
+    // wider of the two titles it can carry, or the pane's width freezes
+    // against an empty one and a locale whose title outgrows the design width
+    // gets a clipped button — this pane's widest control.
+    _defaultPlayerButton = [NSButton buttonWithTitle:[self defaultPlayerTitle:NO]
+                                              target:self action:@selector(makeDefaultPlayer:)];
+    CGFloat widestTitle = _defaultPlayerButton.fittingSize.width;
+    _defaultPlayerButton.title = [self defaultPlayerTitle:YES];
+    widestTitle = MAX(widestTitle, _defaultPlayerButton.fittingSize.width);
+    [_defaultPlayerButton.widthAnchor constraintGreaterThanOrEqualToConstant:widestTitle].active = YES;
 
     _alwaysOnTopCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_ALWAYS_ON_TOP
                                                 target:self action:@selector(toggleAlwaysOnTop:)];
@@ -125,11 +135,15 @@ static const CGFloat kOutputPopUpWidth = 280;
     }];
 }
 
-- (void)renderDefaultPlayerState:(BOOL)isDefault {
-    // Nothing to do once Vibe already holds every type, so say so in the
-    // title and disable the button rather than offer a no-op.
-    _defaultPlayerButton.title = [NSString stringWithFormat:
+// Nothing to do once Vibe already holds every type, so the title says so and
+// the button disables rather than offering a no-op.
+- (NSString *)defaultPlayerTitle:(BOOL)isDefault {
+    return [NSString stringWithFormat:
             isDefault ? STR_SETTINGS_DEFAULT_PLAYER_IS : STR_SETTINGS_DEFAULT_PLAYER_SET, VibeAppName()];
+}
+
+- (void)renderDefaultPlayerState:(BOOL)isDefault {
+    _defaultPlayerButton.title = [self defaultPlayerTitle:isDefault];
     _defaultPlayerButton.enabled = !isDefault;
 }
 

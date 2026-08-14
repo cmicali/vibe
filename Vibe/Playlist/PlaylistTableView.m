@@ -13,6 +13,11 @@
 // This is also the scroll view's line scroll and the cell prototypes' height.
 static const CGFloat kPlaylistRowHeight = 28;
 
+NSString *const kPlaylistColumnNumber = @"numColumn";
+NSString *const kPlaylistColumnArt = @"artColumn";
+NSString *const kPlaylistColumnTitle = @"titleColumn";
+NSString *const kPlaylistColumnLength = @"lengthColumn";
+
 @implementation PlaylistTableView
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -44,10 +49,10 @@ static const CGFloat kPlaylistRowHeight = 28;
             NSString *identifier;
             CGFloat width, minWidth, maxWidth;
         } columns[] = {
-                {@"numColumn",     32,  32,  32},
-                {@"artColumn",     48,  48,  48},
-                {@"titleColumn",  552, 100, 10000},
-                {@"lengthColumn",  48,  48,  48},
+                {kPlaylistColumnNumber,  32,  32,  32},
+                {kPlaylistColumnArt,     48,  48,  48},
+                {kPlaylistColumnTitle,  552, 100, 10000},
+                {kPlaylistColumnLength,  48,  48,  48},
         };
         for (size_t i = 0; i < sizeof(columns) / sizeof(columns[0]); i++) {
             NSTableColumn *column = [[NSTableColumn alloc] initWithIdentifier:columns[i].identifier];
@@ -152,7 +157,7 @@ static NSTextField *makeCellTextField(NSRect frame) {
     CGFloat rowHeight = self.rowHeight;
     NSTableCellView *view = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, width, rowHeight)];
     view.identifier = identifier;
-    if ([identifier isEqualToString:@"numColumn"]) {
+    if ([identifier isEqualToString:kPlaylistColumnNumber]) {
         EqualizerIndicatorView *eqView = [[EqualizerIndicatorView alloc] initWithFrame:NSMakeRect(8, (rowHeight - 14) / 2, 16, 14)];
         eqView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
         [view addSubview:eqView];
@@ -161,7 +166,7 @@ static NSTextField *makeCellTextField(NSRect frame) {
         [view addSubview:field];
         view.textField = field;
     }
-    else if ([identifier isEqualToString:@"artColumn"]) {
+    else if ([identifier isEqualToString:kPlaylistColumnArt]) {
         // It bleeds past the cell on every side, so artwork rows tile
         // seamlessly.
         PlaylistCoverImageView *imageView = [[PlaylistCoverImageView alloc] initWithFrame:NSInsetRect(view.bounds, -4, -4)];
@@ -170,12 +175,12 @@ static NSTextField *makeCellTextField(NSRect frame) {
         [view addSubview:imageView];
         view.imageView = imageView;
     }
-    else if ([identifier isEqualToString:@"titleColumn"]) {
+    else if ([identifier isEqualToString:kPlaylistColumnTitle]) {
         NSTextField *field = makeCellTextField(NSMakeRect(6, 0, width - 10, rowHeight));
         [view addSubview:field];
         view.textField = field;
     }
-    else if ([identifier isEqualToString:@"lengthColumn"]) {
+    else if ([identifier isEqualToString:kPlaylistColumnLength]) {
         NSTextField *field = makeCellTextField(NSMakeRect(2, 0, width - 6, rowHeight));
         [view addSubview:field];
         view.textField = field;
@@ -227,6 +232,10 @@ static NSTextField *makeCellTextField(NSRect frame) {
     ensureCellAttributes();
     return [[NSAttributedString alloc] initWithString:duration
                                            attributes:lengthColumnAttributes];
+}
+
++ (NSImage *)artworkCellImage:(NSImage *)thumbnail {
+    return thumbnail ?: [NSImage imageNamed:@"record-bg"];
 }
 
 @end

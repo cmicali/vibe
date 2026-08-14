@@ -5,8 +5,24 @@
 
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
+// Asks the user to grant access to the folder a playlist file's entries live
+// in, and answers whether they did. Runs on an expansion worker, never the
+// main thread, and must block until it is answered.
+//
+// This layer knows *when* a grant is needed — it is the one holding the
+// unreadable entries — but not what asking looks like: the panel and the
+// bookmark are the app's sandbox-grant funnel, which is macOS-only and sits
+// well above a path utility. The app installs the handler at launch. Unset,
+// as in the tests, means no grant can be obtained and unreadable entries are
+// simply skipped.
+typedef BOOL (^VibePlaylistFolderGrantHandler)(NSURL *playlistURL);
+
 
 @interface NSURLUtil : NSObject
+
++ (void)setPlaylistFolderGrantHandler:(nullable VibePlaylistFolderGrantHandler)handler;
 
 // YES for a cloud placeholder whose data is not local — iCloud, Dropbox, any
 // File Provider. APFS marks these SF_DATALESS, and reading one blocks until
@@ -27,3 +43,5 @@
 + (void)expandAndFilterList:(NSArray<NSURL *> *)list
                  completion:(void (^)(NSArray<NSURL *> *files, NSUInteger folderCount))completion;
 @end
+
+NS_ASSUME_NONNULL_END
