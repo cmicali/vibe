@@ -4,9 +4,11 @@
 It drives the debug command channel with weighted random operations against a
 corpus of real audio files, and checks four oracles between batches:
 
-  liveness    the app still answers          (a timeout is a main-thread stall,
-                                              because the channel is delivered
-                                              on the main queue)
+  liveness    the app still answers          (the channel is delivered on the
+                                              main queue, so a timeout whose
+                                              recovery probe is ALSO slow is a
+                                              main-thread stall; one that probes
+                                              clean was just a slow verb)
   invariants  check_invariants has no        (re-checked after a settle, since a
               surviving violations            render can lag its state change)
   health      dump_health has not grown      (footprint, fds, threads, windows,
@@ -60,6 +62,17 @@ CRASH_DIR = Path.home() / "Library/Logs/DiagnosticReports"
 # Attempts per channel command before a signal-killed client counts as a real
 # failure; see Channel.run for why a sandboxed binary fails to launch at all.
 CLIENT_LAUNCH_RETRIES = 4
+
+# Verbs whose own in-app wait is longer than the 30s default, which must stay
+# above it: a client timeout below the app's own deadline reports a verb that
+# was still working as an unresponsive app. A 7-minute MP3 takes ~30s through
+# file_cache in a -O0 debug build, and the app allows it 60.
+VERB_TIMEOUTS = {"file_cache": 90, "convert_to_flac": 150, "quiesce": 40}
+
+# A recovery probe slower than this, after a timed-out op, is what makes it a
+# main-thread stall rather than a verb that outran its budget. Ordinary probe
+# latency is ~110ms.
+STALL_PROBE_MS = 2000
 
 AUDIO_SUFFIXES = {".mp3", ".mp2", ".m4a", ".mp4", ".aac", ".flac", ".wav", ".aif", ".aiff"}
 PLAYLIST_SUFFIXES = {".m3u", ".m3u8", ".pls"}
@@ -122,8 +135,10 @@ class Channel:
                 )
                 code, out = proc.returncode, proc.stdout
             except subprocess.TimeoutExpired:
-                # The client's own per-verb wait is shorter than this, so
-                # reaching here means the client itself wedged.
+                # Exit 1 here means only that this call ran out of time. Whether
+                # the app was stalled or the verb was merely slow is decided by
+                # the recovery probe in replay_ops, not here — see VERB_TIMEOUTS
+                # for the verbs whose own wait outlasts the default.
                 code, out = 1, ""
             if code >= 0 or out.strip():
                 break
@@ -508,9 +523,17 @@ GROWTH_LIMITS = {
 #   two samples later. Concurrent decode and analyzer buffers dominate it and
 #   their lifetimes are timing-dependent, so it is a gross-leak backstop here
 #   rather than a sensitive signal. The counters above are where sensitivity
-#   actually comes from. (quiesce already calls malloc_zone_pressure_relief, so
-#   this is live data, not the allocator's high-water mark.)
+#   actually comes from.
+#
+#   mallocLiveBytes is the sensitive version of that footprint: bytes actually
+#   allocated across every malloc zone, measured at ~19 MB where the footprint
+#   read 203 MB. The gap is the allocator holding freed pages — quiesce calls
+#   malloc_zone_pressure_relief, but it does NOT reliably give them back, which
+#   is why the footprint above cannot be tightened and why this metric exists.
+#   Read quiesce's `pressureRelief.releasedBytes` before believing any resting
+#   footprint number.
 RESTING_GROWTH_LIMITS = {
+    ("process", "mallocLiveBytes"): (64 * 1024 * 1024, "resting live heap"),
     ("process", "footprintBytes"): (256 * 1024 * 1024, "resting memory footprint"),
     ("process", "fileDescriptors"): (32, "resting file descriptors"),
     ("process", "threads"): (24, "resting threads"),
@@ -602,10 +625,20 @@ def quiesced_checkpoint(channel, samples, streaks, baseline, executed, verbose):
     health["_ops"] = executed
     health["_resting"] = True
     samples.append(health)
+    # A pressure relief that released nothing means the footprint just sampled
+    # still carries the allocator's high-water mark, so the live heap beside it
+    # is the number to read. Said once: it is a property of the run, not of the
+    # sample.
+    relief = reply.get("pressureRelief") or {}
+    if relief.get("releasedBytes") == 0 and not streaks.get("_reliefWarned"):
+        streaks["_reliefWarned"] = True
+        print("  note: malloc_zone_pressure_relief released nothing — resting "
+              "footprint carries the allocator high-water mark; read live heap")
     if verbose:
         pending = health.get("pending", {})
         print(f"  rest {executed:6d} ops   "
               f"{health['process'].get('footprintBytes', 0) // (1024 * 1024):5d} MB   "
+              f"{health['process'].get('mallocLiveBytes', 0) // (1024 * 1024):4d} MB live   "
               f"{health['app'].get('engineNodes', '?')} nodes   pending {pending}")
     if baseline is None:
         if len(samples) >= RESTING_CONFIRMATIONS:
@@ -743,11 +776,12 @@ def collect_menu_ids(channel):
 def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, stalls=None):
     """Run a list of (name, argv, tolerated) and return the failure, or None.
 
-    stalls, when given, is {"dir", "count", "max"}: recoverable main-thread
-    stalls are sampled and counted there rather than failing the run outright.
+    stalls, when given, is {"dir", "count", "samples", "max"}: recoverable
+    main-thread stalls are sampled and counted there rather than failing the
+    run outright.
     """
     for i, (name, argv, tolerated) in enumerate(ops):
-        code, payload, elapsed = channel.run(argv)
+        code, payload, elapsed = channel.run(argv, timeout=VERB_TIMEOUTS.get(argv[0], 30))
         entry = {"i": i, "op": name, "argv": argv, "exit": code, "ms": elapsed}
         if tolerated:
             # Journaled so replay and shrink apply the SAME rules. Without it,
@@ -769,13 +803,23 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
             # stack is gone with it.
             sample_path = None
             if stalls is not None and shutil.which("sample"):
-                stalls["count"] += 1
-                sample_path = stalls["dir"] / f"stall-{stalls['count']:02d}.txt"
+                stalls["samples"] += 1
+                sample_path = stalls["dir"] / f"stall-{stalls['samples']:02d}.txt"
                 sample_path.parent.mkdir(parents=True, exist_ok=True)
                 subprocess.run(["sample", str(pid), "3", "-file", str(sample_path)],
                                capture_output=True, text=True)
+            probe_started = time.monotonic()
             recovered = channel.run(["dump_state"], timeout=60)[0] == 0
-            entry["failure"] = "stall" if recovered else "no response"
+            probe_ms = int((time.monotonic() - probe_started) * 1000)
+            # A timeout whose follow-up probe answers at the usual latency was
+            # never a main-thread stall: the verb outran its own budget while
+            # the channel stayed live, which is what a big file does to
+            # file_cache. The sample proves which one it was — an idle main
+            # thread parked in mach_msg is a slow verb, not a wedge — so only a
+            # probe that was itself slow counts against the stall budget.
+            stalled = probe_ms > STALL_PROBE_MS
+            entry["probeMs"] = probe_ms
+            entry["failure"] = ("stall" if stalled else "slow") if recovered else "no response"
             if sample_path:
                 entry["sample"] = str(sample_path)
             if journal:
@@ -783,6 +827,8 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
                 journal.flush()
             if not recovered:
                 return Failure("hang", f"no response to `{' '.join(argv)}`", argv)
+            if stalls is not None and stalled:
+                stalls["count"] += 1
             # A stall it came back from is a finding, not a wedge. One is
             # noise on a loaded machine; a run full of them is the bug.
             if stalls is not None and stalls["count"] > stalls["max"]:
@@ -849,7 +895,7 @@ def run(args):
     # directory — derives from this parent, so one mkdir covers them all.
     journal_path.parent.mkdir(parents=True, exist_ok=True)
     stalls = {"dir": journal_path.parent / f"stress-{seed}-stalls", "count": 0,
-              "max": args.max_stalls}
+              "samples": 0, "max": args.max_stalls}
     health_samples = []
     growth_streaks = {}
     baseline = None

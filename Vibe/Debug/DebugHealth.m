@@ -8,6 +8,7 @@
 #if DEBUG
 
 #import <AppKit/AppKit.h>
+#import <MediaPlayer/MediaPlayer.h>
 #import <QuartzCore/QuartzCore.h>
 #import <mach/mach.h>
 #import <libproc.h>
@@ -67,6 +68,27 @@ static NSUInteger VibeOpenFileDescriptorCount(void) {
         return 0;
     }
     return (NSUInteger)(bytes / (int)PROC_PIDLISTFD_SIZE);
+}
+
+// The split phys_footprint cannot make. A footprint of hundreds of megabytes
+// over a live heap of twenty is the allocator holding freed pages, not a leak,
+// and only `liveBytes` distinguishes the two — it is the sensitive signal the
+// footprint was standing in for. Every registered zone is summed, CoreAudio's
+// own caulk zones included, since a per-zone breakdown is vmmap's job.
+static void VibeMallocBytes(uint64_t *live, uint64_t *reserved) {
+    *live = 0;
+    *reserved = 0;
+    vm_address_t *zones = NULL;
+    unsigned count = 0;
+    if (malloc_get_all_zones(mach_task_self(), NULL, &zones, &count) != KERN_SUCCESS) {
+        return;
+    }
+    for (unsigned i = 0; i < count; i++) {
+        malloc_statistics_t stats = {0};
+        malloc_zone_statistics((malloc_zone_t *)zones[i], &stats);
+        *live += stats.size_in_use;
+        *reserved += stats.size_allocated;
+    }
 }
 
 static double VibeProcessUptimeSeconds(void) {
@@ -142,6 +164,11 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
         process[@"residentBytes"] = @(vmInfo.resident_size);
         process[@"residentPeakBytes"] = @(vmInfo.resident_size_peak);
     }
+    uint64_t mallocLive = 0;
+    uint64_t mallocReserved = 0;
+    VibeMallocBytes(&mallocLive, &mallocReserved);
+    process[@"mallocLiveBytes"] = @(mallocLive);
+    process[@"mallocReservedBytes"] = @(mallocReserved);
     process[@"threads"] = @(VibeThreadCount());
     process[@"fileDescriptors"] = @(VibeOpenFileDescriptorCount());
     process[@"machPorts"] = @(VibeMachPortCount());
@@ -236,7 +263,18 @@ void VibeDebugQuiesce(MainPlayerController *controller, void (^completion)(NSStr
         // high-water mark rather than what is still live — a decode buffer
         // freed to malloc keeps the footprint hundreds of megabytes up, which
         // reads exactly like a leak and never comes back down.
-        malloc_zone_pressure_relief(NULL, 0);
+        //
+        // The released count is reported because this call is not reliably
+        // effective: measured against a run that had churned through hundreds
+        // of large files, it returned nothing while vmmap showed 67 MB of
+        // dirty pages sitting in MALLOC_LARGE regions with no live
+        // allocations. A caller that assumes it worked is reading a footprint
+        // that still carries the high-water mark.
+        uint64_t liveBefore = 0, reservedBefore = 0;
+        VibeMallocBytes(&liveBefore, &reservedBefore);
+        size_t released = malloc_zone_pressure_relief(NULL, 0);
+        uint64_t liveAfter = 0, reservedAfter = 0;
+        VibeMallocBytes(&liveAfter, &reservedAfter);
         // Reported rather than treated as an error: work that will not unwind
         // within the deadline is itself the finding, and the caller can see
         // which counter held out.
@@ -245,6 +283,13 @@ void VibeDebugQuiesce(MainPlayerController *controller, void (^completion)(NSStr
             @"settled": @(settled),
             @"waitedSeconds": @(-[started timeIntervalSinceNow]),
             @"pending": pending,
+            @"pressureRelief": @{
+                @"releasedBytes": @(released),
+                @"mallocLiveBytes": @(liveAfter),
+                @"mallocReservedBytes": @(reservedAfter),
+                @"reservedFreedBytes": @(reservedBefore > reservedAfter
+                                         ? reservedBefore - reservedAfter : 0),
+            },
         }));
         poll = nil;
     };
@@ -470,6 +515,75 @@ NSString *VibeDebugInvariantsJSON(MainPlayerController *controller) {
         if (![total isEqualToString:placeholder]) {
             VibeViolation(v, @"display.total_time_placeholder",
                     @"state %ld shows total \"%@\"", (long)state, total);
+        }
+    }
+
+    // ---- System Now Playing against what it was published from ----
+    //
+    // Every check is gated on nowPlayingInfo being non-nil, which is also what
+    // --no-audio-hw's suppressed publish leaves it as, so a suppressed launch
+    // simply checks nothing here. Elapsed is deliberately not compared: the
+    // system extrapolates it from the last publish, so it is expected to run
+    // ahead of the published value. These share the render-lag caveat above —
+    // updateNowPlaying rides updateUI, so a transition republishes a tick
+    // later; re-check after a settle.
+    MPNowPlayingInfoCenter *center = MPNowPlayingInfoCenter.defaultCenter;
+    NSDictionary *published = center.nowPlayingInfo;
+    AudioTrack *displayed = [controller displayedTrack];
+
+    checked++;
+    if (published && !displayed) {
+        VibeViolation(v, @"nowplaying.cleared_without_track",
+                @"no displayed track but the system card still shows \"%@\"",
+                published[MPMediaItemPropertyTitle] ?: @"");
+    }
+
+    if (published && displayed) {
+        checked++;
+        NSString *publishedTitle = published[MPMediaItemPropertyTitle] ?: @"";
+        NSString *expected = displayed.singleLineTitle ?: @"";
+        if (![publishedTitle isEqualToString:expected]) {
+            VibeViolation(v, @"nowplaying.title_matches_track",
+                    @"card shows \"%@\", track is \"%@\"", publishedTitle, expected);
+        }
+
+        checked++;
+        NSString *publishedArtist = published[MPMediaItemPropertyArtist] ?: @"";
+        NSString *expectedArtist = displayed.artist.length > 0 ? displayed.artist : @"";
+        if (![publishedArtist isEqualToString:expectedArtist]) {
+            VibeViolation(v, @"nowplaying.artist_matches_track",
+                    @"card shows \"%@\", track is \"%@\"", publishedArtist, expectedArtist);
+        }
+
+        // isPaused before isPlaying, the order updateNowPlaying resolves them
+        // in: during Loading the two are decided by the pending start intent.
+        checked++;
+        MPNowPlayingPlaybackState expectedState =
+                player.isPaused ? MPNowPlayingPlaybackStatePaused
+                : player.isPlaying ? MPNowPlayingPlaybackStatePlaying
+                : MPNowPlayingPlaybackStateStopped;
+        if (center.playbackState != expectedState) {
+            VibeViolation(v, @"nowplaying.state_matches_player",
+                    @"card is %ld, player is %ld",
+                    (long)center.playbackState, (long)expectedState);
+        }
+
+        // Wall-clock, like the app's own labels: the published duration is the
+        // file duration divided by the varispeed rate, so a pitch change that
+        // never republished shows up here.
+        checked++;
+        NSNumber *publishedDuration = published[MPMediaItemPropertyPlaybackDuration];
+        double rate = controller.playbackRate;
+        double expectedDuration = state == TrackDisplayStateLoading ? displayed.duration
+                                                                    : player.duration;
+        if (rate > 0) {
+            expectedDuration /= rate;
+        }
+        if (publishedDuration && expectedDuration > 0
+                && fabs(publishedDuration.doubleValue - expectedDuration) > 1.0) {
+            VibeViolation(v, @"nowplaying.duration_matches_track",
+                    @"card says %.3f, track is %.3f at rate %.4f",
+                    publishedDuration.doubleValue, expectedDuration, rate);
         }
     }
 
