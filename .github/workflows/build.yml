@@ -100,6 +100,14 @@ jobs:
       - name: Check string catalog is in sync
         run: make check-strings
 
+      # Reports keys missing a translation, never fails: English-only keys are
+      # the expected state between a feature landing and the translation batch
+      # at the release cut, and a red main for that whole window would train
+      # everyone to ignore the check. release.sh / release-appstore.sh block on
+      # it instead. Annotations here make the batch's worklist visible early.
+      - name: Report untranslated keys
+        run: scripts/check-translations.sh --github
+
       # The caption-fit measurement compiles scripts/compose-app-store-overlay.swift
       # (swiftc, no project) — no pip installs since the compositor moved off
       # Python/PIL.

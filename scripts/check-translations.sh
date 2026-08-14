@@ -19,28 +19,69 @@
 #
 # The language set is the union across all keys (catalog-languages.sh), so it
 # defines itself: the first key translated into a new language makes that
-# language required everywhere.
+# language required everywhere. The converse is the blind spot — a language
+# deleted from EVERY key leaves the union and the check goes quiet. Accepted:
+# the repo has no other source of truth for the list (knownRegions is
+# (Base, en) and gates nothing), and losing a language wholesale is a
+# deliberate act, not the drift this is guarding against.
 #
-# Usage: scripts/check-translations.sh   (or: make check-translations)
+# Usage:
+#   scripts/check-translations.sh            fail on any missing translation
+#                                            (or: make check-translations)
+#   scripts/check-translations.sh --github   report only, always exit 0
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CATALOG="$ROOT/Resources/Localizable.xcstrings"
 
-LANGS=$("$ROOT/scripts/catalog-languages.sh" | jq -Rn '[inputs]')
-COUNT=$(jq -r 'length' <<<"$LANGS")
+GITHUB_MODE=0
+case "${1:-}" in
+    --github) GITHUB_MODE=1 ;;
+    "") ;;
+    *) echo "usage: $(basename "$0") [--github]" >&2; exit 2 ;;
+esac
 
-MISSING=$(jq -r --argjson all "$LANGS" '
-    .strings | to_entries[]
-    | {key: .key, missing: ($all - ((.value.localizations // {}) | keys))}
-    | select(.missing | length > 0)
-    | "  \(.key)  missing: \(.missing | join(", "))"
+LANGS=$("$ROOT/scripts/catalog-languages.sh" | jq -Rn '[inputs]')
+LANG_COUNT=$(jq -r 'length' <<<"$LANGS")
+
+# One pass, rendered two ways below. Both the human list and the CI annotations
+# come off this JSON rather than off each other's text — a report mode that
+# re-parsed the human output would break silently the next time it is reworded.
+REPORT=$(jq -c --argjson all "$LANGS" '
+    [.strings | to_entries[]
+     | {key: .key, missing: ($all - ((.value.localizations // {}) | keys))}
+     | select(.missing | length > 0)]
 ' "$CATALOG")
 
-if [[ -n "$MISSING" ]]; then
+LIST=$(jq -r '.[] | "  \(.key)  missing: \(.missing | join(", "))"' <<<"$REPORT")
+
+if [[ -n "$LIST" ]]; then
+    if (( GITHUB_MODE )); then
+        # Warn, never fail. Untranslated keys are the expected state between a
+        # feature landing and the translation batch at the release cut, so a
+        # hard failure here would leave main red for that whole window and
+        # train everyone to ignore it. The release scripts are the gate; CI
+        # only keeps the worklist visible.
+        echo "untranslated keys (pending the release-cut translation batch):"
+        echo "$LIST"
+        jq -r '.[] | "::warning title=Untranslated key::\(.key) is missing \(.missing | join(", "))"' \
+            <<<"$REPORT"
+        if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            {
+                echo "### Translation coverage"
+                echo
+                echo "$(jq -r 'length' <<<"$REPORT") key(s) awaiting translation:"
+                echo '```'
+                echo "$LIST"
+                echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+        fi
+        exit 0
+    fi
+
     echo "error: untranslated keys in Resources/Localizable.xcstrings" >&2
-    echo "$MISSING" >&2
+    echo "$LIST" >&2
     cat >&2 <<'MSG'
 
   These ship rendering English in the locales listed. Translate them into the
@@ -61,6 +102,6 @@ REVIEW=$(jq -r '
      | .key] | unique | length
 ' "$CATALOG")
 
-echo "🔊 $(jq '.strings | length' "$CATALOG") keys translated into all $COUNT languages"
+echo "🔊 $(jq '.strings | length' "$CATALOG") keys translated into all $LANG_COUNT languages"
 [[ "$REVIEW" -gt 0 ]] && echo "🔊 $REVIEW key(s) marked needs_review (reworded English; still shipping)"
 exit 0
