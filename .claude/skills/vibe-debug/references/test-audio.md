@@ -16,6 +16,11 @@ Use the generated files in `Assets/test_audio_files/` (gitignored) rather than s
 | `tone-art-red.m4a` / `tone-art-blue.m4a` | tagged metadata (titles "Red Art Test"/"Blue Art Test", artist "Art Tester") with solid red/blue covers — art, header-tint, and dock-icon tests; play one then the other to exercise the art crossfade and tint animation |
 | `bpm-85.wav`, `bpm-120.wav`, `bpm-128.wav`, `bpm-140.wav`, `bpm-174.wav` | 30s kick+hat loops at exactly the named tempo — BPM-analyzer tests (see `scan-bpm.sh` below; compare against the filename). Atonal, so they double as the key analyzer's negative case: `scan-key.sh` must report no key |
 | `key-am.wav`, `key-c.wav`, `key-fsm.wav`, `key-eb.wav` | 24s chord-progression loops in the named key (Am, C, F#m, Eb) — key-analyzer tests (see `scan-key.sh` below) |
+| `tone-cbr.mp3` | 8s 192kbps CBR — the plain MP3 case |
+| `tone-vbr.mp3` | 120s VBR with a Xing/LAME header — duration and seek accuracy, which a CBR file cannot prove because a constant-bitrate guess is right by construction |
+| `tone-art-green.mp3` | 8s CBR, ID3v2 title "Green Art Test" / artist "Art Tester" and a green front cover (APIC type 3) — the ID3 art path, which shares no parser with the MP4 art above |
+
+**The MP3s are the one part of the corpus that needs a non-stock tool** — `lame` or `ffmpeg`, either works — and the generator skips them with a note when neither is installed, so a machine without one has a corpus missing the app's headline format. `afconvert` cannot stand in: `afconvert -hf` advertises `'MPG3'` with data_formats `'.mp3'`, but encoding fails with `ExtAudioFileSetProperty ('cfmt') failed ('fmt?')` because macOS ships an MP3 decoder and no encoder. Don't spend a round on its flags.
 
 The short files end after eight seconds. Pause early, or use `tone-long.wav`, when a test needs playback still running at capture time.
 

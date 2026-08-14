@@ -40,7 +40,7 @@ To launch by hand instead:
 
 ## Test audio files
 
-Use the generated files in `Assets/test_audio_files/` (gitignored) rather than synthesizing your own; `.claude/skills/vibe-debug/scripts/generate-test-audio.sh` creates them (idempotent, `--force` regenerates). Tones for transport and playlist tests, a FLAC, two tagged files with art, five exact-tempo loops and four in known keys. Which file for which test, plus how to simulate a slow cloud open (`slow-open.sh`) and the one-shot BPM/key scans: **`references/test-audio.md`**.
+Use the generated files in `Assets/test_audio_files/` (gitignored) rather than synthesizing your own; `.claude/skills/vibe-debug/scripts/generate-test-audio.sh` creates them (idempotent, `--force` regenerates). Tones for transport and playlist tests, a FLAC, three MP3s (CBR, VBR, ID3v2-tagged with art — these need `lame` or `ffmpeg`, since `afconvert` cannot encode MP3), two tagged files with art, five exact-tempo loops and four in known keys. Which file for which test, plus how to simulate a slow cloud open (`slow-open.sh`) and the one-shot BPM/key scans: **`references/test-audio.md`**.
 
 ## Driving and inspecting the running app: `--debug-cmd`
 
