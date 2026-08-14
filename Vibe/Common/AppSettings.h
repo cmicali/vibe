@@ -29,6 +29,7 @@
 // while the audio uses another.
 static const NSInteger kVibeSkipBasePresets[] = {4, 8, 16};
 static const NSInteger kVibeCrossfadePresets[] = {10, 500, 2000};
+static const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
 
 @interface AppSettings : NSObject
 
@@ -102,6 +103,14 @@ static const NSInteger kVibeCrossfadePresets[] = {10, 500, 2000};
 // pause, seek and stop declicks never scale with it.
 - (NSInteger)crossfadeMilliseconds;
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds;
+
+// The ceiling on the playback-UI tick rate, which scales itself to the
+// playhead's on-screen speed (Util/UIUpdateRate.h): 3, 30 (default) or 60 Hz,
+// "Playhead refresh" in Settings > Advanced. Only a short file can reach the
+// ceiling — an ordinary song rests at the 3 Hz floor whatever this says — so
+// 3 is the fixed rate the app ticked at before the rule existed.
+- (NSInteger)uiUpdateHzCap;
+- (void)setUiUpdateHzCap:(NSInteger)hz;
 
 // NO skips tempo detection on the waveform decode pass. A file scanned while
 // off caches a waveform with no BPM, so re-enabling only affects files not

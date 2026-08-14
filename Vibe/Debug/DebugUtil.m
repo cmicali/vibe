@@ -255,6 +255,7 @@ static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"convertSweep": @(controller.trackDisplay.convertSweepFraction),
             @"canUndo": @(window.undoManager.canUndo),
             @"canRedo": @(window.undoManager.canRedo),
+            @"uiUpdateHz": @(controller.debugUIUpdateHz),
         },
         @"window": @{
             @"frame": NSStringFromRect(window.frame),
@@ -273,6 +274,7 @@ static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"analyzeKey": @(Settings.analyzeKey),
             @"keyNotation": Settings.keyNotation ?: @"",
             @"keyColors": @(Settings.keyColorsEnabled),
+            @"uiUpdateHzCap": @(Settings.uiUpdateHzCap),
         },
     };
 }

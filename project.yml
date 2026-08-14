@@ -352,6 +352,7 @@ targets:
       - path: Vibe/Common/OpenRequestCoordinator.m
       - path: Vibe/Common/Playlist.m
       - path: Vibe/Util/NSURLUtil.m
+      - path: Vibe/Util/UIUpdateTimer.m
       - path: Vibe/Util/PlaylistFile.m
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Util/Categories/NSURL+Hash.m

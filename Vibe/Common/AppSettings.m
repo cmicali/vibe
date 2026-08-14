@@ -19,6 +19,7 @@
 #define SETTING_DELETE_ORIGINAL_AFTER_CONVERT       @"Convert.deleteOriginal"
 #define SETTING_SKIP_BASE_BARS                      @"Transport.skipBaseBars"
 #define SETTING_CROSSFADE_MILLISECONDS              @"AudioPlayer.crossfadeMilliseconds"
+#define SETTING_UI_UPDATE_HZ_CAP                    @"UI.updateHzCap"
 #define SETTING_ANALYZE_BPM                         @"Audio.analyzeBPM"
 #define SETTING_ANALYZE_KEY                         @"Audio.analyzeKey"
 #define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
@@ -59,6 +60,7 @@
             SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
             SETTING_SKIP_BASE_BARS:                 @(8),
             SETTING_CROSSFADE_MILLISECONDS:         @(10),
+            SETTING_UI_UPDATE_HZ_CAP:               @(30),
             SETTING_ANALYZE_BPM:                    @(YES),
             SETTING_ANALYZE_KEY:                    @(NO),
             SETTING_KEY_NOTATION:                   SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
@@ -238,6 +240,16 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds {
     [[NSUserDefaults standardUserDefaults] setInteger:milliseconds forKey:SETTING_CROSSFADE_MILLISECONDS];
+}
+
+- (NSInteger)uiUpdateHzCap {
+    NSInteger stored = [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_UI_UPDATE_HZ_CAP];
+    return VibeNearestPreset(stored, kVibeUIUpdateHzCapPresets,
+                             sizeof(kVibeUIUpdateHzCapPresets) / sizeof(kVibeUIUpdateHzCapPresets[0]));
+}
+
+- (void)setUiUpdateHzCap:(NSInteger)hz {
+    [[NSUserDefaults standardUserDefaults] setInteger:hz forKey:SETTING_UI_UPDATE_HZ_CAP];
 }
 
 - (BOOL)analyzeBPM {

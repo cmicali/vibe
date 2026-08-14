@@ -358,6 +358,20 @@ NSString *VibeDebugInvariantsJSON(MainPlayerController *controller) {
                 @"fader %.4f, player %.4f", faderPitch, player.pitch);
     }
 
+    // The UI tick rate is scaled to the playhead's on-screen speed, so it must
+    // follow its three inputs. A disagreement means some path moved the
+    // waveform width, the duration cache or the varispeed rate without
+    // resyncing the timer, and the playhead is being drawn at the previous
+    // track's or window's cadence.
+    checked++;
+    NSUInteger armedHz = controller.debugUIUpdateHz;
+    NSUInteger expectedHz = controller.debugExpectedUIUpdateHz;
+    if (armedHz != expectedHz) {
+        VibeViolation(v, @"ui.update_rate_follows_inputs",
+                @"timer armed at %lu Hz, inputs ask for %lu Hz",
+                (unsigned long)armedHz, (unsigned long)expectedHz);
+    }
+
     checked++;
     NSUInteger nodes = [player debugEngineCounts][@"attachedNodes"].unsignedIntegerValue;
     if (nodes > kVibeMaxReasonableEngineNodes) {

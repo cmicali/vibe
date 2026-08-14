@@ -28,6 +28,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL wanted;
 @property (nonatomic) BOOL windowVisible;
 
+// The tick rate, re-armed in place and taking effect immediately, running or
+// not. Setting it re-phases the next tick from now, so it no-ops on the value
+// it already holds; 0 is ignored.
+@property (nonatomic) NSUInteger hz;
+
 @end
 
 NS_ASSUME_NONNULL_END

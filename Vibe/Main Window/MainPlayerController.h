@@ -94,6 +94,12 @@ NS_ASSUME_NONNULL_BEGIN
 // i.e. from the Settings pane.
 - (void)refreshKeyDisplay;
 
+// Re-scales the playback-UI tick rate to the playhead's on-screen speed. It
+// runs from the internal paths whose inputs it reads — a track start, a fader
+// tick, a resize — and is public for the one input that lives elsewhere,
+// Settings.uiUpdateHzCap, which the Settings pane writes.
+- (void)syncUITimerRate;
+
 - (IBAction)toggleFileInfo:(nullable id)sender;
 
 // Re-renders the codec and BPM/key lines after Settings.showFileInfo changes.

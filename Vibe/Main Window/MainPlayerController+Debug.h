@@ -39,6 +39,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (PitchControlPanel *)pitchPanel;
 - (void)debugRefreshUI;
+// The dynamically scaled playback-UI tick rate, for the state dump: the only
+// way to see what the playhead is actually being driven at. The expected one
+// re-derives it from the live inputs, which check_invariants pairs with it.
+- (NSUInteger)debugUIUpdateHz;
+- (NSUInteger)debugExpectedUIUpdateHz;
 
 @end
 
