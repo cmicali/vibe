@@ -15,11 +15,9 @@ English is the source language; **every other language is whatever the catalogs 
 
 ## Authoring translations
 
-**`make check-strings` does not check translation coverage** — it checks staleness. A key added with only its English default passes every gate and ships rendering English in all 29 other languages; the 1.9 features (Permissions pane, Always on Top, the playlist grant panel) reached the release cut that way before anyone noticed. The release gate is this query, which must print nothing:
+**Coverage is checked by `make check-translations` and by nothing else.** `make check-strings` is a round-trip diff — it re-runs sync+normalize on a copy and diffs, answering "does the catalog match the source" — and `sync` never writes a language other than `en`, so a key with only an `en` unit round-trips byte-identically and passes. The build is no better: `xcstringstool compile` exits 0 on a partial key and emits an `xx.lproj` without it, the lookup misses, and the macro's default value renders English in that locale alone. Silent both ways, which is how the 1.9 features (Permissions pane, Always on Top, the playlist grant panel) reached the release cut in English across 29 locales.
 
-```bash
-jq -r '[.strings | to_entries[] | select((.value.localizations // {} | keys) == ["en"]) | .key] | .[]' Resources/Localizable.xcstrings
-```
+`scripts/check-translations.sh` tests for **missing any catalog language**, not for "has only `en`" — a key spike-translated into el/de/ru to check layout passes the latter while the other 27 never get written, the worse failure because the key looks done. The language set is the union across all keys, so it defines itself: the first key translated into a new language makes it required everywhere. `needs_review` units are reported, never fatal — a reword flips them by design and they keep shipping. Both release paths gate on it via `asc_require_translations`, before the archive.
 
 Translations are authored directly into the catalog JSON — there is no export/import round trip. Each unit is `localizations.<lang>.stringUnit = {"state": "translated", "value": …}`, with the language keys sorted within each entry. Formatting never needs matching by hand: merge with any tool, then run `make strings`, which re-serializes the whole catalog canonically (`jq --indent 2`). When merging programmatically, assert per language that the set of languages exactly matches the catalog's and that every `%@`/format specifier from the English value survived — a dropped specifier crashes at `stringWithFormat:` time in that locale only.
 

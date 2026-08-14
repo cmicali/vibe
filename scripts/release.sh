@@ -65,6 +65,8 @@ ZIP="$BUILD_DIR/$PRODUCT.zip"
 # ---------------------------------------------------------------------------
 asc_require_xcodegen
 
+asc_require_translations
+
 asc_resolve_credentials
 
 # The certificate must already be in the keychain — cloud signing cannot supply

@@ -16,6 +16,8 @@ There are two release paths and they are not interchangeable. Each uses a differ
 | output | stapled `.zip` you host yourself | `.pkg` uploaded to App Store Connect |
 | verification | notarize + staple + `spctl` | App Store Connect validation |
 
+Both preflight `asc_require_translations` before the archive: a key missing any catalog language fails the release outright, because nothing else catches it — `make check-strings` compares the catalog to the source and the build compiles a partial key without complaint, so it would ship English in that locale alone. Fix by translating, not by skipping; the **vibe-strings** skill has the conventions. This is separate from the product-page copy below — that's ASC metadata, this is the in-app catalog.
+
 ## Product-page metadata
 
 The build upload carries no product-page content. Localized copy and screenshots live in `Assets/app-store/` (per-locale format: its README) and upload separately with `make appstore-upload-metadata` — `scripts/appstore-upload-metadata.sh` driving the Swift/Bagbutik tool in `scripts/asc-upload/`, authenticated by the same shared key (metadata itself needs only App Manager, so the Admin key more than covers it).

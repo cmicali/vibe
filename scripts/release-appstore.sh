@@ -84,6 +84,8 @@ PKG="$EXPORT_DIR/$PRODUCT.pkg"
 # ---------------------------------------------------------------------------
 asc_require_xcodegen
 
+asc_require_translations
+
 asc_resolve_credentials
 
 VERSION=$(sed -n 's/^ *MARKETING_VERSION: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' project.yml | head -1)

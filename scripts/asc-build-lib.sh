@@ -18,6 +18,13 @@ asc_require_xcodegen() {
         echo "error: xcodegen not found — install with: brew install xcodegen" >&2; exit 1; }
 }
 
+# Both release paths ship the same in-app catalog, so both gate on it. Runs
+# before the archive: an untranslated key is a content problem, and finding it
+# after a full archive+notarize costs the whole cycle.
+asc_require_translations() {
+    "$(dirname "${BASH_SOURCE[0]}")/check-translations.sh"
+}
+
 # Wipe $BUILD_DIR, regenerate the project and archive Release into $ARCHIVE.
 #
 # No signing overrides on the archive, deliberately. It keeps project.yml's
