@@ -20461,187 +20461,745 @@
       },
       "extractionState": "manual"
     },
+    "settings.permissions.add_home_folder": {
+      "comment": "Settings, Permissions pane: button that grants the app access to the user's whole home folder in one step. Disabled once that access is held.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавяне на домашната папка"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Přidat domovskou složku"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilføj hjemmemappe"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Benutzerordner hinzufügen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Προσθήκη αρχικού φακέλου"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Home Folder"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir carpeta de inicio"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lisää kotikansio"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter le dossier de départ"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj početnu mapu"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saját mappa hozzáadása"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambah Folder Beranda"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi cartella Inizio"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ホームフォルダを追加"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "홈 폴더 추가"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legg til hjemmemappe"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voeg thuismap toe"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj folder domowy"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar Pasta Pessoal"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar pasta pessoal"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adaugă dosarul personal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить домашнюю папку"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pridať domovský priečinok"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lägg till hemmapp"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เพิ่มโฟลเดอร์บ้าน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ana Klasörü Ekle"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Додати домашню папку"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm thư mục chính"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加个人文件夹"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入個人檔案夾"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.permissions.explain": {
       "comment": "Settings, Permissions pane: explanatory text above the list of granted folders.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe винаги има достъп до папката „Музика“. Други папки се добавят тук, когато ги отворите или ги плъзнете върху Vibe, и остават достъпни след рестартиране."
+            "value": "Vibe може да чете музика в тези папки. Добавете често използваните, за да избегнете повтарящи се заявки за разрешение."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe má vždy přístup ke složce Hudba. Další složky se sem přidají, když je otevřete nebo přetáhnete do Vibe, a zůstanou přístupné i po restartu."
+            "value": "Vibe umí číst hudbu v těchto složkách. Přidejte ty, které používáte často, abyste se vyhnuli opakovaným žádostem o oprávnění."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe har altid adgang til din musikmappe. Andre mapper tilføjes her, når du åbner dem eller trækker dem til Vibe, og forbliver tilgængelige efter en genstart."
+            "value": "Vibe kan læse musik i disse mapper. Tilføj dem, du bruger ofte, så du undgår gentagne anmodninger om tilladelse."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe hat immer Zugriff auf deinen Musik-Ordner. Andere Ordner werden hier hinzugefügt, sobald du sie öffnest oder auf Vibe ziehst, und bleiben nach einem Neustart zugänglich."
+            "value": "Vibe kann Musik in diesen Ordnern lesen. Füge die Ordner hinzu, die du oft verwendest, um wiederholte Berechtigungsanfragen zu vermeiden."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Το Vibe έχει πάντα πρόσβαση στον φάκελο «Μουσική». Άλλοι φάκελοι προστίθενται εδώ όταν τους ανοίγετε ή τους σύρετε στο Vibe, και παραμένουν προσβάσιμοι μετά από επανεκκίνηση."
+            "value": "Το Vibe μπορεί να διαβάζει μουσική σε αυτούς τους φακέλους. Προσθέστε όσους χρησιμοποιείτε συχνά, για να αποφύγετε τα επαναλαμβανόμενα αιτήματα άδειας."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe always has access to your Music folder. Other folders are added here when you open them or drag them onto Vibe, and stay accessible after a relaunch."
+            "value": "Vibe can read music in these folders. Add the ones you use often to avoid repeated permission prompts."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe siempre tiene acceso a tu carpeta Música. Las demás carpetas se añaden aquí cuando las abres o las arrastras a Vibe, y siguen accesibles tras reiniciar la app."
+            "value": "Vibe puede leer música en estas carpetas. Añade las que uses a menudo para evitar solicitudes de permiso repetidas."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibellä on aina pääsy Musiikki-kansioosi. Muut kansiot lisätään tähän, kun avaat ne tai vedät ne Vibeen, ja ne pysyvät käytettävissä uudelleenkäynnistyksen jälkeen."
+            "value": "Vibe voi lukea musiikkia näistä kansioista. Lisää usein käyttämäsi kansiot, niin vältät toistuvat käyttöoikeuspyynnöt."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe a toujours accès à votre dossier Musique. Les autres dossiers sont ajoutés ici lorsque vous les ouvrez ou les faites glisser sur Vibe, et restent accessibles après un redémarrage."
+            "value": "Vibe peut lire la musique dans ces dossiers. Ajoutez ceux que vous utilisez souvent pour éviter les demandes d’autorisation répétées."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe uvijek ima pristup mapi Glazba. Druge se mape dodaju ovdje kad ih otvorite ili povučete na Vibe i ostaju dostupne nakon ponovnog pokretanja."
+            "value": "Vibe može čitati glazbu u ovim mapama. Dodajte one koje često koristite kako biste izbjegli ponavljajuće zahtjeve za dozvolu."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "A Vibe mindig hozzáfér a Zenék mappához. Más mappák akkor kerülnek ide, amikor megnyitod vagy a Vibe-ra húzod őket, és újraindítás után is elérhetők maradnak."
+            "value": "A Vibe olvasni tudja a zenét ezekben a mappákban. Add hozzá azokat, amelyeket gyakran használsz, így elkerülöd az ismétlődő engedélykéréseket."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe selalu memiliki akses ke folder Musik Anda. Folder lain ditambahkan di sini saat Anda membukanya atau menyeretnya ke Vibe, dan tetap dapat diakses setelah dibuka ulang."
+            "value": "Vibe dapat membaca musik di folder-folder ini. Tambahkan folder yang sering Anda gunakan untuk menghindari permintaan izin berulang."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe ha sempre accesso alla tua cartella Musica. Le altre cartelle vengono aggiunte qui quando le apri o le trascini su Vibe e restano accessibili dopo un riavvio."
+            "value": "Vibe può leggere la musica in queste cartelle. Aggiungi quelle che usi spesso per evitare richieste di autorizzazione ripetute."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe は「ミュージック」フォルダに常にアクセスできます。ほかのフォルダは、開くか Vibe にドラッグすると自動的にここへ追加され、再起動後もアクセスできます。"
+            "value": "Vibe はこれらのフォルダ内の音楽を読み込めます。よく使うフォルダを追加すると、繰り返しアクセス許可を求められずに済みます。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe는 음악 폴더에 항상 접근할 수 있습니다. 다른 폴더는 열거나 Vibe로 드래그하면 여기에 추가되며, 재실행 후에도 계속 접근할 수 있습니다."
+            "value": "Vibe는 이 폴더에 있는 음악을 읽을 수 있습니다. 자주 사용하는 폴더를 추가하면 권한 요청이 반복되지 않습니다."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe har alltid tilgang til musikkmappen din. Andre mapper legges til her når du åpner dem eller drar dem til Vibe, og forblir tilgjengelige etter en omstart."
+            "value": "Vibe kan lese musikk i disse mappene. Legg til dem du bruker ofte, så slipper du gjentatte tillatelsesforespørsler."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe heeft altijd toegang tot je map Muziek. Andere mappen worden hier toegevoegd wanneer je ze opent of naar Vibe sleept, en blijven toegankelijk na een herstart."
+            "value": "Vibe kan muziek in deze mappen lezen. Voeg de mappen toe die je vaak gebruikt, zo voorkom je herhaalde toestemmingsvragen."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe zawsze ma dostęp do Twojego folderu Muzyka. Inne foldery są dodawane tutaj, gdy je otwierasz lub przeciągasz do Vibe, i pozostają dostępne po ponownym uruchomieniu."
+            "value": "Vibe może odczytywać muzykę w tych folderach. Dodaj te, z których korzystasz często, aby uniknąć powtarzających się próśb o uprawnienia."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Vibe sempre tem acesso à sua pasta Música. Outras pastas são adicionadas aqui quando você as abre ou arrasta para o Vibe, e continuam acessíveis após reabrir o app."
+            "value": "O Vibe pode ler músicas nestas pastas. Adicione as que você usa com frequência para evitar pedidos de permissão repetidos."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Vibe tem sempre acesso à sua pasta Música. Outras pastas são adicionadas aqui quando as abre ou arrasta para o Vibe, e permanecem acessíveis após reiniciar."
+            "value": "O Vibe pode ler música nestas pastas. Adicione as que utiliza com frequência para evitar pedidos de permissão repetidos."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe are întotdeauna acces la dosarul Muzică. Alte dosare sunt adăugate aici când le deschizi sau le tragi peste Vibe și rămân accesibile după o repornire."
+            "value": "Vibe poate citi muzica din aceste dosare. Adaugă-le pe cele pe care le folosești des, pentru a evita solicitările repetate de permisiune."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "У Vibe всегда есть доступ к папке «Музыка». Другие папки добавляются сюда, когда вы открываете их или перетягиваете в Vibe, и остаются доступными после перезапуска."
+            "value": "Vibe может читать музыку в этих папках. Добавьте те, которыми вы часто пользуетесь, чтобы не отвечать на повторяющиеся запросы разрешений."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe má vždy prístup k priečinku Hudba. Ďalšie priečinky sa sem pridajú, keď ich otvoríte alebo pretiahnete do Vibe, a zostanú prístupné aj po reštarte."
+            "value": "Vibe dokáže čítať hudbu v týchto priečinkoch. Pridajte tie, ktoré používate často, aby ste sa vyhli opakovaným žiadostiam o povolenie."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe har alltid tillgång till din musikmapp. Andra mappar läggs till här när du öppnar dem eller drar dem till Vibe, och förblir tillgängliga efter en omstart."
+            "value": "Vibe kan läsa musik i dessa mappar. Lägg till de mappar du använder ofta så slipper du upprepade behörighetsfrågor."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe เข้าถึงโฟลเดอร์เพลงของคุณได้เสมอ โฟลเดอร์อื่นจะถูกเพิ่มที่นี่เมื่อคุณเปิดหรือลากมาที่ Vibe และยังเข้าถึงได้หลังจากเปิดแอปใหม่"
+            "value": "Vibe อ่านเพลงในโฟลเดอร์เหล่านี้ได้ เพิ่มโฟลเดอร์ที่คุณใช้บ่อยเพื่อไม่ให้ระบบขอสิทธิ์ซ้ำ ๆ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe, Müzik klasörünüze her zaman erişebilir. Diğer klasörler, onları açtığınızda veya Vibe'a sürüklediğinizde buraya eklenir ve yeniden başlatmadan sonra erişilebilir kalır."
+            "value": "Vibe bu klasörlerdeki müzikleri okuyabilir. Sık kullandıklarınızı ekleyerek tekrarlanan izin isteklerinden kurtulun."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe завжди має доступ до папки «Музика». Інші папки додаються сюди, коли ви відкриваєте їх або перетягуєте у Vibe, і залишаються доступними після перезапуску."
+            "value": "Vibe може читати музику в цих папках. Додайте ті, якими ви часто користуєтеся, щоб уникнути повторних запитів на дозвіл."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe luôn có quyền truy cập thư mục Nhạc của bạn. Các thư mục khác được thêm vào đây khi bạn mở hoặc kéo chúng vào Vibe, và vẫn truy cập được sau khi khởi động lại."
+            "value": "Vibe có thể đọc nhạc trong các thư mục này. Hãy thêm những thư mục bạn hay dùng để tránh phải cấp quyền nhiều lần."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe 始终可以访问你的“音乐”文件夹。其他文件夹会在你打开或将其拖到 Vibe 上时添加到这里，并在重新启动后保持可访问。"
+            "value": "Vibe 可以读取这些文件夹中的音乐。添加常用的文件夹，即可避免反复出现权限请求。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe 一律可以取用你的「音樂」檔案夾。其他檔案夾會在你開啟或拖到 Vibe 上時加入這裡，並在重新啟動後保持可取用。"
+            "value": "Vibe 可以讀取這些檔案夾中的音樂。加入常用的檔案夾，即可避免重複出現權限請求。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.permissions.home_grant.button": {
+      "comment": "Confirm button of the folder-picker panel opened by the Add Home Folder button.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешаване на достъп"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povolit přístup"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giv adgang"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zugriff erlauben"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Παραχώρηση πρόσβασης"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grant Access"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir acceso"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salli pääsy"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoriser l’accès"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dopusti pristup"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hozzáférés engedélyezése"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beri Akses"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consenti accesso"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アクセスを許可"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "접근 허용"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gi tilgang"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verleen toegang"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Udziel dostępu"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir Acesso"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir acesso"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permite accesul"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешить доступ"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povoliť prístup"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ge åtkomst"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "อนุญาตการเข้าถึง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erişim Ver"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Надати доступ"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cấp quyền truy cập"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许访问"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許取用"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.permissions.home_grant.message": {
+      "comment": "Message atop the folder-picker panel opened by the Add Home Folder button, which starts in the user's home folder.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешете на Vibe достъп до домашната ви папка, за да може да чете музика навсякъде в нея."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povolte Vibe přístup k domovské složce, aby mohl číst hudbu kdekoli v ní."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giv Vibe adgang til din hjemmemappe, så appen kan læse musik overalt i den."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erlaube Vibe den Zugriff auf deinen Benutzerordner, damit die App überall darin Musik lesen kann."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Παραχωρήστε στο Vibe πρόσβαση στον αρχικό σας φάκελο, ώστε να μπορεί να διαβάζει μουσική οπουδήποτε μέσα σε αυτόν."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grant Vibe access to your home folder, so it can read music anywhere inside it."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permite que Vibe acceda a tu carpeta de inicio para que pueda leer música en cualquier lugar dentro de ella."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salli Viben pääsy kotikansioosi, jotta se voi lukea musiikkia kaikkialta sen sisältä."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autorisez Vibe à accéder à votre dossier de départ afin qu’il puisse y lire la musique où qu’elle se trouve."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dopustite Vibeu pristup vašoj početnoj mapi kako bi mogao čitati glazbu bilo gdje u njoj."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Engedélyezd a Vibe hozzáférését a saját mappádhoz, hogy bárhol olvashassa benne a zenét."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beri Vibe akses ke folder beranda Anda agar dapat membaca musik di mana pun di dalamnya."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consenti a Vibe di accedere alla tua cartella Inizio, così può leggere la musica ovunque al suo interno."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ホームフォルダ内のどこにある音楽でも読み込めるよう、Vibe にアクセスを許可してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "홈 폴더 어디에 있는 음악이든 읽을 수 있도록 Vibe에 접근을 허용하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gi Vibe tilgang til hjemmemappen din, slik at appen kan lese musikk hvor som helst i den."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verleen Vibe toegang tot je thuismap, zodat de app overal daarin muziek kan lezen."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Udziel Vibe dostępu do folderu domowego, aby mógł odczytywać muzykę w dowolnym miejscu w nim."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conceda ao Vibe acesso à sua pasta pessoal para que ele possa ler músicas em qualquer lugar dentro dela."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conceda ao Vibe acesso à sua pasta pessoal para que possa ler música em qualquer local dentro dela."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permite-i lui Vibe accesul la dosarul tău personal, ca să poată citi muzica de oriunde din interiorul lui."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешите Vibe доступ к домашней папке, чтобы приложение могло читать музыку в любом её месте."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povoľte Vibe prístup k domovskému priečinku, aby mohol čítať hudbu kdekoľvek v ňom."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ge Vibe åtkomst till din hemmapp så att appen kan läsa musik var som helst i den."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "อนุญาตให้ Vibe เข้าถึงโฟลเดอร์บ้านของคุณ เพื่อให้อ่านเพลงได้จากทุกที่ภายในโฟลเดอร์นั้น"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İçindeki her yerde müzik okuyabilmesi için Vibe'a ana klasörünüze erişim izni verin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Надайте Vibe доступ до домашньої папки, щоб застосунок міг читати музику будь-де в ній."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy cấp cho Vibe quyền truy cập thư mục chính của bạn để ứng dụng có thể đọc nhạc ở bất kỳ đâu bên trong."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许 Vibe 访问你的个人文件夹，以便读取其中任意位置的音乐。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許 Vibe 取用你的個人檔案夾，以便讀取其中任何位置的音樂。"
           }
         }
       },
