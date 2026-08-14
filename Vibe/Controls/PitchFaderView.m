@@ -15,6 +15,9 @@ static const CGFloat kTickGap         = 6;  // gap between slot and ticks
 static const CGFloat kLabelGap        = 4;  // gap between ticks and labels
 // Dragging inside this band snaps to exactly 0: the center detent.
 static const float   kDetentPercent   = 0.35f;
+// The ±% the fader spans until an owner sets one. Every geometry method
+// divides by it, so it must never reach 0 — hence the guard in setMaxPitch:.
+static const float   kDefaultMaxPitch = 8;
 
 @implementation PitchFaderView {
     BOOL    _dragging;
@@ -26,7 +29,7 @@ static const float   kDetentPercent   = 0.35f;
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
-        _maxPitch = 8;
+        _maxPitch = kDefaultMaxPitch;
     }
     return self;
 }
@@ -44,6 +47,9 @@ static const float   kDetentPercent   = 0.35f;
 }
 
 - (void)setMaxPitch:(float)maxPitch {
+    if (!isfinite(maxPitch) || maxPitch <= 0) {
+        maxPitch = kDefaultMaxPitch;
+    }
     if (maxPitch != _maxPitch) {
         _maxPitch = maxPitch;
         _pitch = MAX(-maxPitch, MIN(maxPitch, _pitch));

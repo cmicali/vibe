@@ -63,19 +63,25 @@
                    LogWarn(@"Error enumerating %@: %@", url, error);
                    return YES;
                }];
+    // Filtered here rather than only by the caller's pass, so a folder of
+    // thousands of non-audio files costs neither the retain nor its share of
+    // the sort below. Hoisted out of the loop: it is consulted once per entry.
+    NSSet<NSString *> *supported = [self supportedExtensions];
     for (NSURL *url in enumerator) {
         NSError *error = nil;
         NSNumber *isDirectory = nil;
+        BOOL isFile;
         if ([url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:&error]) {
-            if (![isDirectory boolValue]) {
-                [results addObject:url];
-            }
+            isFile = !isDirectory.boolValue;
         }
         else {
             // Log it and treat it as a file, the same fallback
             // expandFileList:folderCount: uses, so that it still reaches the
             // extension filter rather than vanishing.
             LogWarn(@"Could not read directory flag for %@: %@", url, error);
+            isFile = YES;
+        }
+        if (isFile && [supported containsObject:url.pathExtension.lowercaseString]) {
             [results addObject:url];
         }
     }
@@ -91,28 +97,36 @@
     return results;
 }
 
-// Serial, so that overlapping drops complete in submission order. Expanded
-// concurrently, a slow folder walk could finish after a later single file's and
-// replace the newer playlist mid-listen.
-+ (dispatch_queue_t)expansionQueue {
-    static dispatch_queue_t queue;
+// Folder walks are independent and can block on unrelated mounts, so they run
+// concurrently rather than serially: one dead folder must not hold every later
+// open hostage. Callers that can issue overlapping opens own their ordering and
+// replacement policy through OpenRequestCoordinator.
+//
+// Bounded at four workers, the same width as the metadata scan. A walk that
+// blocks holds its worker for as long as the mount takes, and an unbounded
+// concurrent queue would answer a burst of such drops by spawning a thread
+// each, up to GCD's ceiling, all at user-initiated priority.
++ (NSOperationQueue *)expansionQueue {
+    static NSOperationQueue *queue;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        queue = dispatch_queue_create("com.vibe.urlexpansion",
-                dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0));
+        queue = [[NSOperationQueue alloc] init];
+        queue.name = @"com.vibe.urlexpansion";
+        queue.maxConcurrentOperationCount = 4;
+        queue.qualityOfService = NSQualityOfServiceUserInitiated;
     });
     return queue;
 }
 
 + (void) expandAndFilterList:(NSArray<NSURL*>*)list
                   completion:(void (^)(NSArray<NSURL*>*, NSUInteger))completion {
-    dispatch_async([self expansionQueue], ^{
+    [[self expansionQueue] addOperationWithBlock:^{
         NSUInteger folderCount = 0;
         NSArray<NSURL*> *results = [self expandAndFilterList:list folderCount:&folderCount];
         dispatch_async(dispatch_get_main_queue(), ^{
             completion(results, folderCount);
         });
-    });
+    }];
 }
 
 + (NSArray<NSURL*>*) expandAndFilterList:(NSArray<NSURL*>*)list folderCount:(NSUInteger *)folderCount {
@@ -217,12 +231,23 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
 }
 
 #if TARGET_OS_OSX
-// Runs the folder picker on the main thread and blocks the expansion queue
-// until it closes. Safe to block on main here: every caller enters this queue
-// with dispatch_async, never the reverse. Overlapping opens simply queue up
-// behind the panel, in submission order as always.
+// Runs the folder picker on the main thread and blocks this expansion worker
+// until it closes. Safe to block on main here: every caller enters the
+// expansion queue with an async submission, never the reverse.
+//
+// Folder walks are concurrent, but powerbox prompts must not stack inside one
+// another's modal loops, so this uncommon grant path serializes on a private
+// gate. Private deliberately: holding a lock across a modal run loop is a long
+// hold, and a monitor on the class object would be reachable — and so
+// deadlockable — from anywhere.
 + (BOOL)requestFolderAccessForPlaylist:(NSURL *)playlistURL {
+    static dispatch_semaphore_t grantGate;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        grantGate = dispatch_semaphore_create(1);
+    });
     __block BOOL granted = NO;
+    dispatch_semaphore_wait(grantGate, DISPATCH_TIME_FOREVER);
     dispatch_sync(dispatch_get_main_queue(), ^{
         NSOpenPanel *panel = [NSOpenPanel openPanel];
         panel.canChooseFiles = NO;
@@ -246,6 +271,7 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
             LogInfo(@"Playlist folder access declined for %@", playlistURL.lastPathComponent);
         }
     });
+    dispatch_semaphore_signal(grantGate);
     return granted;
 }
 #endif

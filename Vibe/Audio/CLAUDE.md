@@ -2,7 +2,7 @@
 
 ## Playback engine
 
-`AudioPlayer` drives an `AVAudioEngine` with a fresh `AVAudioPlayerNode` per track. State machine `{Stopped, Playing, Paused, Loading}`; `Loading` covers the in-flight file open, reports `isPlaying`, and gives position and duration of zero.
+`AudioPlayer` drives an `AVAudioEngine` with a fresh `AVAudioPlayerNode` per track. State machine `{Stopped, Playing, Paused, Loading}`; `Loading` covers the in-flight file open and gives position and duration of zero. Its pending intent is still live: play/pause toggles whether the opened file starts or parks, seek replaces its start position, and `isPlaying` / `isPaused` report that intent so every transport surface stays honest.
 
 **Threading.** Every engine mutation runs on a serial `dispatch_queue` (`com.vibe.audioplayer`, default QoS). The UI-facing getters — `position`, `duration`, `isPlaying` — read under an `os_unfair_lock` and never block. Two generation counters sort out async work: `_generation` discards stale `scheduleSegment` completions, and `_rampGeneration` cancels in-flight volume fades, which stop, seek, skip and device switches all bump first. Every fade is asynchronous, so the queue never sleeps. `run_on_main_thread()` dispatches UI updates back.
 
@@ -54,7 +54,7 @@ The class owns the whole master-bus graph segment between `mainMixerNode` and `o
 
 `AudioTrackMetadata` uses TagLib to extract title, artist, album art and codec information. `AudioTrackMetadataCache` persists through PINCache with `NSSecureCoding`; `parsedOK` marks failed parses, which are shown but never cached.
 
-The playlist scan runs in two stages on one four-worker queue. High-priority cache checks — a stat and a small disk read, never the audio data, so a dataless cloud placeholder cannot block them — sweep first and publish every previously seen track at disk speed. Misses re-enqueue as parses, dataless placeholders demoted below local files so a cloud-heavy folder cannot pin all four workers.
+The playlist scan runs in two stages on one four-worker queue. High-priority cache checks — a stat and a small disk read, never the audio data, so a dataless cloud placeholder cannot block them — sweep first and publish every previously seen track at disk speed. Misses re-enqueue as parses, dataless placeholders demoted below local files so a cloud-heavy folder cannot pin all four workers. A URL has one cross-lane parse holder; duplicate rows register as waiters, and when the holder settles each waiter is served from the entry it just wrote — a disk read per row, never the holder's own object, because two rows for the same file must own separate metadata (the art state on it is mutable and per-row). A failed parse wrote nothing, so its waiters keep the filename fallback the holder shows rather than polling behind a wedged cloud file.
 
 The current track skips the scan: `loadMetadataNow:` from `didBeginLoading:` and `didStartPlaying:`, in a persistent user-initiated lane, so the header's tags and art never queue behind the sweep. On a miss it skips the parse while the file is still dataless — the player's own open is materializing it — and the `didStartPlaying:` call retries once local.
 
@@ -62,7 +62,7 @@ Album art: the disk cache stores only a 128px thumbnail JPEG; full-resolution ar
 
 ## Devices
 
-`AudioDeviceManager`, a singleton, owns device-change listening. At init it registers CoreAudio listeners for the default output device and the device list, kept for the life of the process. It fans out to weakly held `AudioDeviceManagerObserver`s — `AudioPlayer` and `OutputDevicesMenuController` — on the main thread in the **common run-loop modes**: GCD main-queue blocks do not run during menu tracking, and this way the devices menu refreshes while open.
+`AudioDeviceManager`, a singleton, owns device-change listening. At init it registers CoreAudio listeners for the default output device and the device list, kept for the life of the process, then performs a mandatory post-registration sweep before releasing the first off-main `outputDevices` caller — no startup change can fall between the first snapshot and listener coverage. That wait is unbounded off the main thread (the launch-time caller is `AudioPlayer`'s async init, on its own queue) but briefly bounded on it: the getter is on the Output menu's update path, and a wedged `coreaudiod` must not beachball the app. TRAP: never call `outputDevices` from the refresh queue — setup runs there, so a call from it before setup completes waits on a block that can no longer run. It fans out to weakly held `AudioDeviceManagerObserver`s — `AudioPlayer` and `OutputDevicesMenuController` — on the main thread in the **common run-loop modes**: GCD main-queue blocks do not run during menu tracking, and this way the devices menu refreshes while open.
 
 ## Waveform data (`Waveform/`) and BPM/key detection (`Analysis/`)
 

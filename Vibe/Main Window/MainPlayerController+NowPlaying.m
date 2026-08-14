@@ -24,7 +24,9 @@
     if (self.audioPlayer.isPaused) {
         state = NowPlayingPlaybackStatePaused;
     }
-    else if (self.audioPlayer.isPlaying) { // Playing or Loading
+    // isPaused is asked first because during Loading the two are decided by the
+    // pending start intent, not by the state alone.
+    else if (self.audioPlayer.isPlaying) {
         state = NowPlayingPlaybackStatePlaying;
     }
     else {
@@ -77,8 +79,9 @@
 
 #pragma mark - NowPlayingControllerDelegate (system media keys / Control Center)
 
-// Commands arrive on the main thread. Route them through the same transport
-// entry points the on-screen buttons and the keyboard use.
+// NowPlayingController marshals commands to the main thread. Route them
+// through the same transport entry points the on-screen buttons and keyboard
+// use.
 
 - (void)nowPlayingControllerPlay:(NowPlayingController *)controller {
     // A discrete play: start or resume only if not already playing, since

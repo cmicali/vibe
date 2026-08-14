@@ -16,6 +16,7 @@
 #import "CoreAudioUtil.h"
 #import "VibeFadeCurve.h"
 #import "GaplessSpliceMath.h"
+#import "PlaybackIntent.h"
 #import <AVFoundation/AVFoundation.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>
@@ -155,10 +156,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // with _pendingOpenTrack: written by play:atPosition:startPaused:,
     // consumed once by finishPlayOnQueue:, cleared with the track when an
     // open is abandoned. Queue-confined.
-    NSTimeInterval          _pendingStartPosition;
-    BOOL                    _pendingStartPaused;
+    VibePendingPlaybackIntent _pendingStartIntent;
+    // Mirrors the loading intent under _stateLock so main-thread getters and
+    // a seek's identity snapshot never touch queue-confined pending state.
+    BOOL                    _loadingStartPaused;
+    AudioTrack              *_loadingTrack;
     // Forces the declick minimum on this play's crossfade — the convert
-    // swap's same-audio replace. Rides with _pendingStartPosition.
+    // swap's same-audio replace. Rides with _pendingStartIntent.
     BOOL                    _pendingDeclick;
     // The fade-in length for the play in flight: the user-set crossfade when
     // it replaced an audibly playing track, the declick minimum otherwise.
@@ -462,8 +466,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 - (void)playTrack:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused declick:(BOOL)declick {
     dispatch_async(_queue, ^{
-        self->_pendingStartPosition = MAX(0, position);
-        self->_pendingStartPaused = startPaused;
+        self->_pendingStartIntent = VibePendingPlaybackIntentMake(position, startPaused);
         self->_pendingDeclick = declick;
         [self playOnQueue:track];
     });
@@ -482,6 +485,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // true no-op rather than a generation bump plus a varispeed swap whose
         // in-flight open then plays through a needlessly rebuilt chain.
         _pendingOpenTrack = track;
+        os_unfair_lock_lock(&_stateLock);
+        _loadingTrack = track;
+        _loadingStartPaused = _pendingStartIntent.paused;
+        os_unfair_lock_unlock(&_stateLock);
         return;
     }
 
@@ -541,6 +548,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
     LogDebug(@"play file: %@", path);
 
+    _currentOpenPath = path;
+    _pendingOpenTrack = track;
+
     // Enter the loading state: no node or file yet, but a play is committed.
     // This clears the previous track's file and position, so the UI stops
     // showing a stale duration and position for up to the full open timeout.
@@ -555,8 +565,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _prefetchedFile = nil;
         _prefetchedPath = nil;
         _prefetchedTrack = nil;
-        _currentOpenPath = path;
-        _pendingOpenTrack = track;
         [self finishPlayOnQueue:track file:prefetchedFile error:nil openRequestId:++_openRequestId];
         return;
     }
@@ -565,8 +573,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // open until it materializes, and that must never wedge the player queue.
     // The request id pairs each open with its timeout: whichever fires first
     // consumes the id, and the other becomes a no-op.
-    _currentOpenPath = path;
-    _pendingOpenTrack = track;
     uint64_t openId = ++_openRequestId;
     __weak AudioPlayer *weakSelf = self;
     // Always open on our own user-initiated worker, even when a prefetch open
@@ -612,10 +618,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         track = _pendingOpenTrack;
     }
     _pendingOpenTrack = nil;
-    NSTimeInterval startPosition = _pendingStartPosition;
-    BOOL startPaused = _pendingStartPaused;
-    _pendingStartPosition = 0;
-    _pendingStartPaused = NO;
+    VibePendingPlaybackIntent startIntent = _pendingStartIntent;
+    NSTimeInterval startPosition = startIntent.position;
+    BOOL startPaused = startIntent.paused;
+    _pendingStartIntent = VibePendingPlaybackIntentMake(0, NO);
     _pendingDeclick = NO;
 
     if (!file || file.length <= 0) {
@@ -1105,8 +1111,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _currentOpenPath = nil;
     _pendingOpenTrack = nil;
     // The abandoned open's start request goes with its track.
-    _pendingStartPosition = 0;
-    _pendingStartPaused = NO;
+    _pendingStartIntent = VibePendingPlaybackIntentMake(0, NO);
     _pendingDeclick = NO;
     [self clearGaplessOnQueue]; // any queued segment died with the node
     // Detach the varispeed that playOnQueue: attached for the failed track.
@@ -1354,8 +1359,16 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 - (void)playPause {
     dispatch_async(_queue, ^{
         if (self->_state == VibePlayerStateLoading) {
-            // A play is committed and its file open is in flight, so the
-            // toggle has nothing coherent to act on yet. Ignore it silently.
+            self->_pendingStartIntent = VibePendingPlaybackIntentByTogglingPause(
+                    self->_pendingStartIntent);
+            BOOL paused = self->_pendingStartIntent.paused;
+            AudioTrack *track = self->_pendingOpenTrack;
+            os_unfair_lock_lock(&self->_stateLock);
+            self->_loadingStartPaused = paused;
+            os_unfair_lock_unlock(&self->_stateLock);
+            run_on_main_thread({
+                [self.delegate audioPlayer:self didChangeLoadingPaused:paused forTrack:track];
+            });
             return;
         }
         AVAudioPlayerNode *node = self->_node;
@@ -1615,17 +1628,16 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 - (BOOL)isPlaying {
     os_unfair_lock_lock(&_stateLock);
-    // Loading counts as playing, because a play is committed and imminent, so
-    // the UI holds the pause icon rather than flashing the play icon during
-    // the open.
-    BOOL playing = (_state == VibePlayerStatePlaying || _state == VibePlayerStateLoading);
+    BOOL playing = (_state == VibePlayerStatePlaying
+            || (_state == VibePlayerStateLoading && !_loadingStartPaused));
     os_unfair_lock_unlock(&_stateLock);
     return playing;
 }
 
 - (BOOL)isPaused {
     os_unfair_lock_lock(&_stateLock);
-    BOOL paused = (_state == VibePlayerStatePaused);
+    BOOL paused = (_state == VibePlayerStatePaused
+            || (_state == VibePlayerStateLoading && _loadingStartPaused));
     os_unfair_lock_unlock(&_stateLock);
     return paused;
 }
@@ -1736,8 +1748,24 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // meaningless spot (or clamp to its last frame and end it). Snapshot the
     // intent and drop the seek if the track moved on.
     AudioTrack *intendedTrack = self.currentTrack;
+    os_unfair_lock_lock(&_stateLock);
+    if (_state == VibePlayerStateLoading) {
+        intendedTrack = _loadingTrack;
+    }
+    os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{
         AudioTrack *track = self.currentTrack;
+        if (self->_state == VibePlayerStateLoading) {
+            track = self->_pendingOpenTrack;
+            if (track == intendedTrack) {
+                self->_pendingStartIntent = VibePendingPlaybackIntentBySeeking(
+                        self->_pendingStartIntent, pos);
+            }
+            run_on_main_thread({
+                [self.delegate audioPlayer:self didFinishSeeking:track];
+            });
+            return;
+        }
         if (track != intendedTrack) {
             run_on_main_thread({
                 [self.delegate audioPlayer:self didFinishSeeking:track];
@@ -1983,6 +2011,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _lastValidPosition = position;
     _positionEpoch++;
     _state = state;
+    if (state == VibePlayerStateLoading) {
+        _loadingTrack = _pendingOpenTrack;
+        _loadingStartPaused = _pendingStartIntent.paused;
+    }
+    else {
+        _loadingTrack = nil;
+        _loadingStartPaused = NO;
+    }
     os_unfair_lock_unlock(&_stateLock);
 }
 

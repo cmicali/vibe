@@ -14,6 +14,10 @@ static const AudioObjectPropertyAddress kDefaultOutputDeviceAddress = {
         kAudioObjectPropertyElementMain
 };
 
+// Setup is a HAL client connection plus one enumeration, about 20-50ms. This
+// is the main thread's ceiling on waiting for it, not a target.
+static const NSTimeInterval kListenerSetupMainThreadWait = 0.25;
+
 static const AudioObjectPropertyAddress kDevicesAddress = {
         kAudioHardwarePropertyDevices,
         kAudioObjectPropertyScopeGlobal,
@@ -41,6 +45,10 @@ static const AudioObjectPropertyAddress kDevicesAddress = {
     // of ms when Bluetooth or aggregate devices are present, off both the main
     // thread and the HAL's notification thread.
     dispatch_queue_t _refreshQueue;
+    // First-use enumeration waits until listeners are attached and one
+    // post-registration sweep has closed the startup change window. Init
+    // itself never waits, so first paint stays free of CoreAudio setup.
+    dispatch_group_t _listenerSetupGroup;
 }
 
 // The client data is the singleton, which lives for the whole process, so the
@@ -89,22 +97,20 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
         _observers = [NSHashTable weakObjectsHashTable];
         _observersLock = OS_UNFAIR_LOCK_INIT;
         _devicesLock = OS_UNFAIR_LOCK_INIT;
-        // No sweep here. The singleton is first touched on the main thread,
-        // during observer registration, and the first outputDevices caller
-        // populates the cache off the main path: at launch that is
-        // AudioPlayer's async init resolving the saved device on its own queue.
+        // No synchronous sweep here. The singleton is first touched on the
+        // main thread during observer registration; setup and its initial
+        // cache fill stay on the refresh queue.
         _refreshQueue = dispatch_queue_create("com.vibe.audiodevicemanager.refresh",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
+        _listenerSetupGroup = dispatch_group_create();
+        dispatch_group_enter(_listenerSetupGroup);
         // Register the HAL listeners on the refresh queue rather than inline.
         // These are the process's first CoreAudio calls, and bringing up the
         // HAL client connection to coreaudiod costs about 20ms. The singleton
         // is first touched on the main thread before first paint, by the
         // devices menu controller's addObserver, and that must not pay the
-        // cost. The first outputDevices sweep runs on its caller's thread,
-        // not this queue, so it is not ordered after this registration: a
-        // device change landing in the sub-100ms window before the listeners
-        // attach can be missed, and the cache stays stale until the next HAL
-        // notification refreshes it.
+        // cost. outputDevices waits from its off-main first caller until this
+        // block has attached listeners and published a fresh snapshot.
         dispatch_async(_refreshQueue, ^{
             // Deliver HAL notifications on the HAL's own thread rather than
             // the main run loop. notifyObserversUsingBlock: hops to the main
@@ -114,6 +120,10 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
             AudioObjectSetPropertyData(kAudioObjectSystemObject, &runLoopProperty, 0, NULL, sizeof(CFRunLoopRef), &nullRunLoop);
             AudioObjectAddPropertyListener(kAudioObjectSystemObject, &kDefaultOutputDeviceAddress, &devicePropertyChangedCallback, (__bridge void *)self);
             AudioObjectAddPropertyListener(kAudioObjectSystemObject, &kDevicesAddress, &devicePropertyChangedCallback, (__bridge void *)self);
+            // Covers a change that landed before either listener attached. A
+            // later change queues its own refresh behind this block.
+            [self refreshOutputDevicesCache];
+            dispatch_group_leave(self->_listenerSetupGroup);
         });
     }
     return self;
@@ -158,27 +168,30 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
 }
 
 // Served from the cached snapshot, which the HAL listeners keep fresh by
-// refreshing first and notifying second; see refreshDevicesThenNotify:. The
-// first call, with the cache still empty, sweeps on the calling thread — but
-// its store yields once the cache is populated: a HAL change landing
-// mid-sweep publishes a fresher refresh-queue sweep, already fanned out to
-// observers, and this sweep's result must not overwrite it after the fact.
-// Concurrent first callers likewise settle on whichever stored first.
+// refreshing first and notifying second; see refreshDevicesThenNotify:.
+//
+// An off-main caller — AudioPlayer's async init resolving the saved device on
+// its own queue, which is the first caller at launch — waits outright for
+// listener setup and its mandatory refresh, and that wait is what closes the
+// startup change window.
+//
+// The MAIN thread never waits unbounded. This getter is on the Output menu's
+// update path, and the enumeration behind it is a HAL round trip that a wedged
+// coreaudiod or a stalled Bluetooth device can hold indefinitely; beachballing
+// the app is worse than rendering one snapshot early, which by then can only
+// happen in the sub-100ms window before setup lands.
+//
+// TRAP: never call this from _refreshQueue. Setup runs there, so a call from
+// that queue before it completes waits on a block that can no longer run.
 - (NSArray<AudioDevice *>*)outputDevices {
+    dispatch_time_t deadline = NSThread.isMainThread
+            ? dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kListenerSetupMainThreadWait * NSEC_PER_SEC))
+            : DISPATCH_TIME_FOREVER;
+    dispatch_group_wait(_listenerSetupGroup, deadline);
     os_unfair_lock_lock(&_devicesLock);
     NSArray<AudioDevice *> *devices = _cachedOutputDevices;
     os_unfair_lock_unlock(&_devicesLock);
-    if (devices) {
-        return devices;
-    }
-    NSArray<AudioDevice *> *swept = [self enumerateOutputDevices];
-    os_unfair_lock_lock(&_devicesLock);
-    if (!_cachedOutputDevices) {
-        _cachedOutputDevices = swept;
-    }
-    devices = _cachedOutputDevices;
-    os_unfair_lock_unlock(&_devicesLock);
-    return devices;
+    return devices ?: @[];
 }
 
 // Runs only on the serial refresh queue, which orders the stores, so a newer

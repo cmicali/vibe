@@ -38,6 +38,8 @@
 // extension. The NowPlaying category reads it, didStartPlaying: clears it.
 @property (weak) AudioTrack *convertSwapResumeTrack;
 @property NSTimeInterval convertSwapResumePosition;
+@property (nonatomic, readwrite, getter=isConversionUndoRedoInFlight)
+        BOOL conversionUndoRedoInFlight;
 - (void)updateUI;
 @end
 
@@ -202,11 +204,17 @@
 // Explicitly the window's manager — its lazily created NSUndoManager is the
 // app's one undo stack.
 - (IBAction)undo:(id)sender {
-    [self.window.undoManager undo];
+    NSUndoManager *manager = self.window.undoManager;
+    if (!self.isConversionUndoRedoInFlight && manager.canUndo) {
+        [manager undo];
+    }
 }
 
 - (IBAction)redo:(id)sender {
-    [self.window.undoManager redo];
+    NSUndoManager *manager = self.window.undoManager;
+    if (!self.isConversionUndoRedoInFlight && manager.canRedo) {
+        [manager redo];
+    }
 }
 
 - (void)registerUndoOfConversion:(VibeFLACConversionRecord *)record {
@@ -220,13 +228,26 @@
 // replays the row from the restored file; FLAC last because the swap is what
 // stops the row and the player from pointing at the file about to be moved.
 - (void)undoConversion:(VibeFLACConversionRecord *)record {
-    // Register the inverse here, synchronously: only while the manager
-    // isUndoing does a registration land on the redo stack, and the file
-    // moves below outlive this invocation. Both directions therefore re-check
-    // reality against the record rather than trusting that the moves landed.
+    // Register the inverse here, synchronously and BEFORE any bail-out: only
+    // while the manager isUndoing does a registration land on the redo stack,
+    // and the file moves below outlive this invocation. Both directions
+    // therefore re-check reality against the record rather than trusting that
+    // the moves landed. The ordering also matters for the in-flight bail
+    // below: NSUndoManager has already popped this action, so returning
+    // without a registration would drop the conversion off BOTH stacks and
+    // make it permanently un-undoable.
     NSUndoManager *undoManager = self.window.undoManager;
     [[undoManager prepareWithInvocationTarget:self] redoConversion:record];
     [undoManager setActionName:STR_MENU_CONVERT_TO_FLAC];
+    // Every entry point gates on this already — the menu items validate to
+    // disabled, and undo:/redo: and the debug channel refuse — so reaching
+    // here means a path that bypassed them. Refuse rather than interleave two
+    // move chains against one mutable record; the action stays on the stack.
+    if (self.isConversionUndoRedoInFlight) {
+        LogWarn(@"Undo of a conversion arrived while one was still in flight; ignoring");
+        return;
+    }
+    self.conversionUndoRedoInFlight = YES;
 
     LogInfo(@"Undo conversion: source=%@ (trash: %@), output=%@ (trash: %@)",
             record.sourceURL.path, record.sourceTrashURL.path ?: @"-",
@@ -285,11 +306,17 @@
 // Edit > Redo, the mirror image: restore the FLAC from the Trash, give it
 // the row back, then re-trash the original if the conversion had.
 - (void)redoConversion:(VibeFLACConversionRecord *)record {
-    // Same constraint as undoConversion:, mirrored: only while isRedoing does
-    // this registration land back on the undo stack.
+    // Same constraints as undoConversion:, mirrored: only while isRedoing does
+    // this registration land back on the undo stack, and it precedes the
+    // in-flight bail so a refused redo is not also a lost one.
     NSUndoManager *undoManager = self.window.undoManager;
     [[undoManager prepareWithInvocationTarget:self] undoConversion:record];
     [undoManager setActionName:STR_MENU_CONVERT_TO_FLAC];
+    if (self.isConversionUndoRedoInFlight) {
+        LogWarn(@"Redo of a conversion arrived while one was still in flight; ignoring");
+        return;
+    }
+    self.conversionUndoRedoInFlight = YES;
 
     LogInfo(@"Redo conversion: source=%@ (trash: %@), output=%@ (trash: %@)",
             record.sourceURL.path, record.sourceTrashURL.path ?: @"-",
@@ -355,6 +382,7 @@
 // A no-op in Release: the handler is debug-channel plumbing and nothing else
 // can set it.
 - (void)conversionUndoRedoDidSettle {
+    self.conversionUndoRedoInFlight = NO;
 #if DEBUG
     void (^handler)(void) = self.conversionUndoRedoSettledHandler;
     // One shot, cleared before it runs: a handler a timed-out debug command

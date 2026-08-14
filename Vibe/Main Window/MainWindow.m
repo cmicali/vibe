@@ -7,6 +7,7 @@
 #import "NSURLUtil.h"
 #import "AppStats.h"
 #import "FolderAccessManager.h"
+#import "OpenRequestCoordinator.h"
 #import "MainPlayerController.h"
 #import "PitchControlPanel.h"
 #import "VibeStrings.h"
@@ -37,6 +38,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
                               backing:NSBackingStoreBuffered
                                 defer:NO];
     if (self) {
+        __weak MainWindow *weakSelf = self;
         // A borderless window draws no title bar, so this only ever reaches
         // accessibility and the Window menu.
         self.title = VibeAppName();
@@ -91,7 +93,6 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
         // A manual drag-resize can reveal or collapse the playlist without
         // going through the toggle, so keep the flag and its setting in sync.
-        __weak MainWindow *weakSelf = self;
         _resizeObserver = [[NSNotificationCenter defaultCenter]
                 addObserverForName:NSWindowDidEndLiveResizeNotification
                             object:self
@@ -198,24 +199,45 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     // captured now, because the delivery below is async and the session has
     // gone by then.
     NSPoint location = sender.draggingLocation;
+    // A drop is a newer explicit user action, so it starts a new generation:
+    // its result supersedes any earlier open still blocked on a mount, and an
+    // earlier drop's late result is discarded rather than replacing this one.
+    // The coordinator is shared with the AppDelegate funnel — one playlist,
+    // one ordering — so a drop and a slow Open Recent cannot overwrite each
+    // other either.
+    __weak MainWindow *weakSelf = self;
+    OpenRequestToken *request = [OpenRequestCoordinator.sharedCoordinator
+            beginRequestAppending:NO
+                         delivery:^(NSArray<NSURL *> *files, NSUInteger folders, BOOL append) {
+                             [weakSelf deliverDroppedFiles:files
+                                               folderCount:folders
+                                                atLocation:location];
+                         }];
     // Dropped folders carry a live sandbox grant; bookmark them so the grant
     // survives relaunch. Drops bypass the AppDelegate open funnel, so this
     // hook mirrors the one there.
     [[FolderAccessManager sharedInstance] noteOpenedURLs:urls];
     // Accept the drop immediately, expand directories off the main thread, and
     // deliver the playable files through the main-thread completion.
-    __weak MainWindow *weakSelf = self;
     [NSURLUtil expandAndFilterList:urls completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
-        [[AppStats sharedInstance] recordOpenedFiles:expanded.count folders:folderCount];
-        MainWindow *strongSelf = weakSelf;
-        // The drop contained no playable audio, as an empty folder would not.
-        // Do not forward an empty list, which would clear the current playlist.
-        if (strongSelf && expanded.count > 0 &&
-            [strongSelf.dropDelegate respondsToSelector:@selector(mainWindow:filesDropped:atLocation:)]) {
-            [strongSelf.dropDelegate mainWindow:strongSelf filesDropped:expanded atLocation:location];
-        }
+        [OpenRequestCoordinator.sharedCoordinator finishRequest:request
+                                                          files:expanded
+                                                    folderCount:folderCount];
     }];
     return YES;
+}
+
+- (void)deliverDroppedFiles:(NSArray<NSURL *> *)files
+                folderCount:(NSUInteger)folderCount
+                 atLocation:(NSPoint)location {
+    [[AppStats sharedInstance] recordOpenedFiles:files.count folders:folderCount];
+    // The drop contained no playable audio, as an empty folder would not. Do
+    // not forward an empty list, which would clear the current playlist.
+    if (files.count == 0
+            || ![self.dropDelegate respondsToSelector:@selector(mainWindow:filesDropped:atLocation:)]) {
+        return;
+    }
+    [self.dropDelegate mainWindow:self filesDropped:files atLocation:location];
 }
 
 #pragma mark - Public API

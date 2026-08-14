@@ -27,6 +27,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)undo:(nullable id)sender;
 - (IBAction)redo:(nullable id)sender;
 
+// YES from the moment NSUndoManager invokes a conversion inverse until its
+// final file move settles. The menu and debug channel use the same gate as the
+// actions, so an asynchronous inverse cannot be re-entered.
+@property (nonatomic, readonly, getter=isConversionUndoRedoInFlight)
+        BOOL conversionUndoRedoInFlight;
+
 // Convert > Delete Original, the checkmarked preference, persisted in
 // AppSettings; a running conversion keeps the value it was accepted with.
 - (IBAction)toggleDeleteOriginalAfterConvert:(nullable id)sender;

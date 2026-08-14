@@ -28,7 +28,9 @@
 // listeners keep fresh (refreshed on a background queue BEFORE observers are
 // notified, so a change callback reads the post-change list). Cheap on the
 // main thread after first use — no per-call HAL enumeration. The first-ever
-// call sweeps on the calling thread; keep it off the launch main path.
+// call waits for asynchronous listener setup and its post-registration sweep,
+// unbounded off the main thread and briefly bounded on it; keep it off the
+// launch main path either way.
 - (NSArray<AudioDevice *> *)outputDevices;
 
 - (AudioDevice *)outputDeviceForName:(NSString *)name;

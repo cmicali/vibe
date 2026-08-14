@@ -30,10 +30,10 @@
 // write twice for the same file. The claim spans one parseOneTrack:. A loser
 // holding the SAME track skips outright — the winner's publish lands on that
 // object either way — while a loser holding a different track for the same
-// URL must retry through the cache instead; see parseOneTrack:. outHolder
-// reports which track holds the claim on failure.
+// URL waits on the holder and receives the same result when it settles; see
+// parseOneTrack:. outHolder reports which track holds the claim on failure.
 - (BOOL)claimParse:(AudioTrack *)track currentHolder:(AudioTrack *__autoreleasing *)outHolder;
-- (void)releaseParse:(AudioTrack *)track;
+- (NSArray<AudioTrack *> *)releaseParse:(AudioTrack *)track;
 @end
 
 @interface AudioTrackMetadataLoader : NSObject
@@ -284,36 +284,18 @@
     // this object on completion, and a second parse would only fail the same
     // way. When the holder is a DIFFERENT track for the same file — the same
     // file on two playlist rows — skipping would leave this row bare, since
-    // the winner's result lands on its own track. Retry through the cache
-    // after a damping delay instead: by then the winner's write is usually on
-    // disk and the retry publishes from it without a second parse. A wedged
-    // winner (a cloud download) costs one small re-queued op per delay tick,
-    // never a second concurrent parse.
+    // the winner's result lands on its own track. The owner records this track
+    // as a waiter and the winner fans its result out once, avoiding one polling
+    // chain per duplicate row while a cloud parse is wedged.
     AudioTrackMetadataCache *owner = _owner;
     AudioTrack *holder = nil;
     if (owner && ![owner claimParse:track currentHolder:&holder]) {
-        if (holder != track) {
-            __weak __typeof(self) weakSelf = self;
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)),
-                           dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-                __typeof(self) strongSelf = weakSelf;
-                if (!strongSelf || strongSelf.isCancelled) {
-                    return;
-                }
-                [strongSelf->_queue addOperationWithBlock:^{
-                    __typeof(self) opSelf = weakSelf;
-                    if (opSelf && !opSelf.isCancelled) {
-                        [opSelf cacheCheckOneTrack:track];
-                    }
-                }];
-            });
-        }
         return;
     }
     // Re-checked under the claim, because the other lane may have finished
     // this exact track between the entry check above and the claim.
     if (track.metadata.parsedOK) {
-        [owner releaseParse:track];
+        [self publishParseResultToWaitingTracks:[owner releaseParse:track]];
         return;
     }
     // Captured before the parse, which can block for minutes on a cloud file:
@@ -365,8 +347,27 @@
         }
     }
     // Released rather than kept, so a failed parse stays eligible for a retry.
-    [owner releaseParse:track];
+    NSArray<AudioTrack *> *waiters = [owner releaseParse:track];
     [self publishTrack:track];
+    [self publishParseResultToWaitingTracks:waiters];
+}
+
+// The duplicate rows that skipped their own parse because this one held the
+// claim; see claimParse:. Each is served from the disk entry the parse above
+// just wrote, NOT by handing them the winner's object: two rows for the same
+// file must own SEPARATE AudioTrackMetadata, because the art state on it is
+// mutable and per-row — the current row decodes full-resolution art into it,
+// and a track change discards that art again. This is also the cache-hit
+// lane's behavior, which reads through diskCache and so unarchives one
+// instance per row.
+//
+// A failed parse wrote nothing, so the lookup misses and its waiters keep the
+// filename fallback the holder is showing: one answer for every row of the
+// file, and no retry storm from rows re-queueing each other.
+- (void)publishParseResultToWaitingTracks:(NSArray<AudioTrack *> *)waiters {
+    for (AudioTrack *waiter in waiters) {
+        [self loadTrackFromDiskCache:waiter]; // publishes on a hit
+    }
 }
 
 // Deliberately not gated on isCancelled: once a parse has landed on the track,
@@ -409,6 +410,9 @@
     // Guarded by @synchronized(self), since both lanes' workers claim and
     // release it.
     NSMutableDictionary<NSURL *, AudioTrack *>* _parsesInFlight;
+    // URL → duplicate-row tracks waiting for the holder's one parse result.
+    // Guarded by the same monitor as _parsesInFlight.
+    NSMutableDictionary<NSURL *, NSMutableArray<AudioTrack *> *> *_parseWaiters;
     // Bumped by invalidateWithCompletion:; see the class-extension comment.
     atomic_uint_fast64_t        _cacheGeneration;
 }
@@ -425,6 +429,16 @@
     @synchronized (self) {
         AudioTrack *holder = _parsesInFlight[url];
         if (holder) {
+            if (holder != track) {
+                NSMutableArray<AudioTrack *> *waiters = _parseWaiters[url];
+                if (!waiters) {
+                    waiters = [NSMutableArray array];
+                    _parseWaiters[url] = waiters;
+                }
+                if (![waiters containsObject:track]) {
+                    [waiters addObject:track];
+                }
+            }
             if (outHolder) {
                 *outHolder = holder;
             }
@@ -435,17 +449,21 @@
     }
 }
 
-- (void)releaseParse:(AudioTrack *)track {
+- (NSArray<AudioTrack *> *)releaseParse:(AudioTrack *)track {
     NSURL *url = track.url;
     if (!url) {
-        return;
+        return @[];
     }
     @synchronized (self) {
         // Only the claim holder releases; a raced loser must not free the
         // winner's claim.
         if (_parsesInFlight[url] == track) {
             [_parsesInFlight removeObjectForKey:url];
+            NSArray<AudioTrack *> *waiters = [_parseWaiters[url] copy] ?: @[];
+            [_parseWaiters removeObjectForKey:url];
+            return waiters;
         }
+        return @[];
     }
 }
 
@@ -464,6 +482,7 @@
     if (self) {
         _currentLoader = nil;
         _parsesInFlight = [NSMutableDictionary dictionary];
+        _parseWaiters = [NSMutableDictionary dictionary];
         _cacheQueue = dispatch_queue_create("com.vibe.metadatacache",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
         // Create the cache at utility QoS. Constructing it on the main thread

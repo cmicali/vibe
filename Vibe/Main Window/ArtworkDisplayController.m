@@ -254,10 +254,13 @@ static const CGFloat kAccentMaxChroma         = 0.17;
     // Cache-hit metadata does not carry the art bytes, and extracting them
     // re-reads the audio file, which can block on a cloud placeholder until it
     // downloads. Do it off the main thread and refresh when it is done.
+    // User-initiated, not utility: this load gates the header, the dock tile
+    // and the Now Playing card all at once, and the user is looking at the
+    // header waiting on it.
     if (metadata.albumArtNeedsLoad && !metadata.albumArtLoadDispatched) {
         metadata.albumArtLoadDispatched = YES;
         __weak ArtworkDisplayController *weakSelf = self;
-        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             NSImage *loaded = metadata.albumArt; // may block; background thread
             dispatch_async(dispatch_get_main_queue(), ^{
                 // It is resolved either way, so clear the in-flight marker.

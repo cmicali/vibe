@@ -133,8 +133,9 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 - (BOOL)isPlaying;
 - (BOOL)isPaused;
 - (BOOL)isStopped;
-// The in-flight file open; isPlaying also reports YES in this state.
-// position and duration read 0 here, meaning unknown rather than zero.
+// The in-flight file open. isPlaying reflects whether it will start playing;
+// isPaused reflects a pending parked start. Position and duration read 0 here,
+// meaning unknown rather than zero.
 - (BOOL)isLoading;
 
 - (NSUInteger)numChannels;
@@ -169,6 +170,13 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // newer play supersedes the load, by the newer track's events. A superseded
 // load gets no terminal callback of its own.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track;
+
+// Fires when play/pause changes what an in-flight open will do when it lands.
+// No audio has started or paused yet; use it only to refresh transport and
+// Now Playing state, not playback-time accounting.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didChangeLoadingPaused:(BOOL)paused
+                  forTrack:(AudioTrack *)track;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track;

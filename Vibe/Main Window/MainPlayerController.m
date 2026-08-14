@@ -80,6 +80,11 @@
 // the per-track rendering states go through trackDisplay.
 @property (weak) AudioWaveformView *waveformView;
 
+// Conversion undo/redo moves files asynchronously after NSUndoManager has
+// already moved its stack. Menus, actions and debug commands share this gate
+// so the inverse cannot start against a half-mutated conversion record.
+@property (nonatomic, getter=isConversionUndoRedoInFlight) BOOL conversionUndoRedoInFlight;
+
 #if DEBUG
 // The undo/redo settled hook MainPlayerController+Convert re-declares and
 // fires; synthesized here because a category cannot synthesize storage.
@@ -778,6 +783,16 @@
     [_artworkController showPlaceholderForSlowLoad];
 }
 
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didChangeLoadingPaused:(BOOL)paused
+                  forTrack:(AudioTrack *)track {
+    if (track != self.playlistController.currentTrack) {
+        return;
+    }
+    [self updateUI];
+    [self updateNowPlaying];
+}
+
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
     // A stale start from a just-replaced playlist, after a re-drop while the
     // old play's open was in flight. Do nothing: acting would reset the new
@@ -855,11 +870,20 @@
     // track is still the playlist's current one; otherwise we would skip past
     // the track the user has just chosen.
     if (track && track != [self.playlistController currentTrack]) {
+        // The replacement may still be opening. In that gap the player has no
+        // current track, so the finished track's stats run must stop here;
+        // didStartPlaying: starts a fresh run when the replacement produces
+        // audio. If the replacement is already playing, its identity matches
+        // the playlist and its restarted clock must stay active — which is why
+        // a playlist emptied since (both sides nil, and so equal) must not read
+        // as that case and leave the clock running.
+        AudioTrack *playlistTrack = self.playlistController.currentTrack;
+        if (!playlistTrack || audioPlayer.currentTrack != playlistTrack) {
+            [[AppStats sharedInstance] playbackStopped];
+        }
         return;
     }
-    // Folds the finished run. Deliberately after the stale guard: in the stale
-    // case the replacing track is already playing, and its own didStartPlaying:
-    // restarts the clock, so stopping here would drop listening time.
+    // Folds the finished run.
     [[AppStats sharedInstance] playbackStopped];
     [self pauseUIUpdateTimer];
     // The end of the playlist must be read from the playlist before next:,

@@ -21,9 +21,8 @@ typedef NS_ENUM(NSInteger, VibePlayerState) {
     VibePlayerStatePaused,
     // A play was requested and the file open is in flight, which can take up
     // to kFileOpenTimeoutSeconds for a cloud placeholder. There is no node or
-    // file yet, but playback is imminent, so isPlaying reports YES and the UI
-    // holds the pause icon, while position and duration read 0 rather than the
-    // previous track's values.
+    // file yet. isPlaying/isPaused reflect the pending start intent, while
+    // position and duration read 0 rather than the previous track's values.
     VibePlayerStateLoading,
 };
 
