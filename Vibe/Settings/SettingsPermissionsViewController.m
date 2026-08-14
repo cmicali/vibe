@@ -43,6 +43,11 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
     _tableView.rowHeight = 22;
     NSTableColumn *column = [[NSTableColumn alloc] initWithIdentifier:kFolderCellIdentifier];
     [_tableView addTableColumn:column];
+    // Dropping a folder here grants it, the same funnel the panel and the main
+    // window's drop use. File URLs only: the drop reads with FileURLsOnly, so
+    // registering NSPasteboardTypeURL as well would show a copy cursor for a
+    // browser-link drag the drop then rejects.
+    [_tableView registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
 
     NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     scrollView.documentView = _tableView;
@@ -253,6 +258,58 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {
     _removeButton.enabled = _tableView.selectedRowIndexes.count > 0;
+}
+
+#pragma mark - Dropping folders in
+
+// Folders only, asked of the pasteboard rather than the file system: this runs
+// on the main thread for every mouse move of the drag, and a stat can block on
+// an unreachable mount. A package is a directory but not a folder in UTI
+// terms, so an app bundle is refused here rather than silently dropped later.
++ (NSDictionary<NSPasteboardReadingOptionKey, id> *)folderReadingOptions {
+    return @{
+        NSPasteboardURLReadingFileURLsOnlyKey: @YES,
+        NSPasteboardURLReadingContentsConformToTypesKey: @[UTTypeFolder.identifier],
+    };
+}
+
+// Retargeted onto the list as a whole: the rows are in the order the grants
+// were added, so an insertion point between two of them would promise
+// something the store cannot honor.
+- (NSDragOperation)tableView:(NSTableView *)tableView
+                validateDrop:(id<NSDraggingInfo>)info
+                 proposedRow:(NSInteger)row
+       proposedDropOperation:(NSTableViewDropOperation)operation {
+    if (![info.draggingPasteboard canReadObjectForClasses:@[NSURL.class]
+                                                  options:self.class.folderReadingOptions]) {
+        return NSDragOperationNone;
+    }
+    [tableView setDropRow:-1 dropOperation:NSTableViewDropOn];
+    return NSDragOperationCopy;
+}
+
+- (BOOL)tableView:(NSTableView *)tableView
+       acceptDrop:(id<NSDraggingInfo>)info
+              row:(NSInteger)row
+    dropOperation:(NSTableViewDropOperation)operation {
+    NSArray<NSURL *> *dropped = [info.draggingPasteboard readObjectsForClasses:@[NSURL.class]
+                                                                       options:self.class.folderReadingOptions];
+    if (dropped.count == 0) {
+        return NO;
+    }
+    // TRAP: a Finder drag delivers file-reference URLs (file:///.file/id=…),
+    // which resolve to wherever the folder currently is. A grant is stored
+    // against a path, so pin every drop to the one it has right now.
+    NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:dropped.count];
+    for (NSURL *url in dropped) {
+        NSString *path = url.path;
+        [urls addObject:path ? [NSURL fileURLWithPath:path isDirectory:YES] : url];
+    }
+    // The same funnel as Add Folder: the drag carries the sandbox grant, so
+    // the bookmark can be made from it, and anything already covered by an
+    // existing grant or by ~/Music is skipped there.
+    [FolderAccessManager.sharedInstance noteOpenedURLs:urls];
+    return YES;
 }
 
 // stringByAbbreviatingWithTildeInPath abbreviates against the sandbox
