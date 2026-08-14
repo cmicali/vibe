@@ -16,7 +16,7 @@
 #import "CoreAudioUtil.h"
 #import "VibeFadeCurve.h"
 #import "GaplessSpliceMath.h"
-#import "PlaybackIntent.h"
+#import "PlaybackRequestCoordinator.h"
 #import <AVFoundation/AVFoundation.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>
@@ -139,35 +139,28 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // epoch check, a getter that snapshotted pre-seek state could clobber the
     // freshly seeked position with a stale one.
     uint64_t                _positionEpoch;
-    uint64_t                _openRequestId;
-    // Path of the track whose open is currently in flight, matching
-    // _openRequestId, or nil. Mutated only on _queue. Re-selecting the same
-    // still-loading track is a no-op, since its open will deliver, rather
-    // than stranding a second blocked global-queue worker on initForReading:.
-    NSString *_currentOpenPath;
-    // The AudioTrack the in-flight open should deliver. Normally it is the
-    // object passed to play:, but a same-path replay rebinds it: dropping the
-    // same file again replaces the playlist with fresh AudioTrack objects, and
-    // the open must complete with the object the new playlist actually
-    // contains. Otherwise row state, artwork and end-of-track advance all
-    // mismatch.
-    AudioTrack *_pendingOpenTrack;
-    // Where the in-flight open should start, and whether it parks there. Ride
-    // with _pendingOpenTrack: written by play:atPosition:startPaused:,
-    // consumed once by finishPlayOnQueue:, cleared with the track when an
-    // open is abandoned. Queue-confined.
-    VibePendingPlaybackIntent _pendingStartIntent;
+    // The pending file open's generation, path, current rebound row, start
+    // intent and slow-load state. Queue-confined; see PlaybackRequestCoordinator.
+    PlaybackRequestCoordinator *_pendingRequest;
     // Mirrors the loading intent under _stateLock so main-thread getters and
     // a seek's identity snapshot never touch queue-confined pending state.
     BOOL                    _loadingStartPaused;
     AudioTrack              *_loadingTrack;
+    uint64_t                _loadingSubmittedPlayIdentifier;
+    // A play can be submitted just before seekToPosition: snapshots the
+    // loading mirror. These lock-protected fields bind that seek to the exact
+    // queued play rather than letting it disappear before the player queue
+    // enters Loading.
+    uint64_t                _nextSubmittedPlayIdentifier;
+    uint64_t                _lastSubmittedPlayIdentifier;
+    AudioTrack              *_lastSubmittedPlayTrack;
     // Forces the declick minimum on this play's crossfade — the convert
-    // swap's same-audio replace. Rides with _pendingStartIntent.
+    // swap's same-audio replace. Rides with the pending request.
     BOOL                    _pendingDeclick;
     // The fade-in length for the play in flight: the user-set crossfade when
     // it replaced an audibly playing track, the declick minimum otherwise.
     // Written by playOnQueue: alongside the matching retire, read by
-    // finishPlayOnQueue:'s fade-in. Queue-confined.
+    // finishPlayOnQueueWithFile:error:openRequestId:'s fade-in. Queue-confined.
     uint64_t                _incomingFadeMilliseconds;
     // Pre-opened handle for the playlist's likely-next track, from
     // prefetchTrack:. Queue-confined, and consumed once by a play: of the same
@@ -234,6 +227,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     if (self) {
         _stateLock = OS_UNFAIR_LOCK_INIT;
         _state = VibePlayerStateStopped;
+        _pendingRequest = [PlaybackRequestCoordinator new];
         _maxPitch = kDefaultMaxPitchPercent;
         _crossfadeMilliseconds = kFadeDurationMilliseconds;
         // Meaningful before the async init block resolves the saved device:
@@ -465,33 +459,57 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 }
 
 - (void)playTrack:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused declick:(BOOL)declick {
+    VibePendingPlaybackIntent intent = VibePendingPlaybackIntentMake(position, startPaused);
+    uint64_t submittedPlayIdentifier;
+    os_unfair_lock_lock(&_stateLock);
+    submittedPlayIdentifier = ++_nextSubmittedPlayIdentifier;
+    _lastSubmittedPlayIdentifier = submittedPlayIdentifier;
+    _lastSubmittedPlayTrack = track;
+    os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{
-        self->_pendingStartIntent = VibePendingPlaybackIntentMake(position, startPaused);
-        self->_pendingDeclick = declick;
-        [self playOnQueue:track];
+        [self playOnQueue:track intent:intent declick:declick
+   submittedPlayIdentifier:submittedPlayIdentifier];
     });
 }
 
-- (void)playOnQueue:(AudioTrack *)track {
+- (void)playOnQueue:(AudioTrack *)track
+              intent:(VibePendingPlaybackIntent)intent
+             declick:(BOOL)declick
+submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     NSString *path = track.url.path;
-    if (_state == VibePlayerStateLoading && [path isEqualToString:_currentOpenPath]) {
-        // This exact file is already loading, with its open in flight. Do not
-        // start another open: that would strand a second blocked worker and,
-        // on a slow file, flash a spurious timeout error before the first one
-        // completes. Do rebind the delivery to the new track object, though.
-        // A re-drop replaces the playlist with fresh AudioTrack instances, and
-        // completing with the old one would orphan the open's result.
-        // This runs before any teardown, so re-clicking the loading row is a
-        // true no-op rather than a generation bump plus a varispeed swap whose
-        // in-flight open then plays through a needlessly rebuilt chain.
-        _pendingOpenTrack = track;
-        os_unfair_lock_lock(&_stateLock);
-        _loadingTrack = track;
-        _loadingStartPaused = _pendingStartIntent.paused;
-        os_unfair_lock_unlock(&_stateLock);
-        return;
+    // Attempted only inside Loading, because rebindTrack: MUTATES the request
+    // it matches: outside this branch the mutation would be made and then
+    // thrown away by the beginWithTrack: below.
+    if (_state == VibePlayerStateLoading) {
+        VibePlaybackRequestRebind rebind = [_pendingRequest rebindTrack:track
+                                                                   path:path
+                                                                 intent:intent
+                                                submittedPlayIdentifier:submittedPlayIdentifier];
+        if (rebind.matched) {
+            // This exact file is already loading, with its open in flight. Do
+            // not start another open: that would strand a second blocked
+            // worker and, on a slow file, flash a spurious timeout error
+            // before the first one completes. Do rebind the delivery to the
+            // new track object, though. A re-drop replaces the playlist with
+            // fresh AudioTrack instances, and completing with the old one
+            // would orphan the open's result. This runs before any teardown,
+            // so re-clicking the loading row is a true no-op rather than a
+            // generation bump plus a varispeed swap whose in-flight open then
+            // plays through a needlessly rebuilt chain.
+            VibePlaybackRequest *request = _pendingRequest.currentRequest;
+            [self mirrorLoadingRequest:request
+              clearingSubmittedPlayIdentifier:submittedPlayIdentifier];
+            if (rebind.shouldNotifySlowLoad) {
+                [self notifyDidBeginLoadingForRequest:request];
+            }
+            if (rebind.shouldNotifyLoadingPaused) {
+                [self notifyLoadingPausedForRequest:request];
+            }
+            return;
+        }
     }
 
+    _pendingDeclick = declick;
     _generation++;
     [self preemptRampsOnQueue]; // preempt any in-flight resume fade-in
     // Any armed splice dies with the node this play retires; the retiring
@@ -519,7 +537,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // first play, a play from pause or stop — fades at the declick minimum,
     // so transport stays instant. Both sides of the crossfade ride
     // _incomingFadeMilliseconds: the retire here, the fade-in when the open
-    // lands in finishPlayOnQueue:.
+    // lands in finishPlayOnQueueWithFile:error:openRequestId:.
     // A queued splice segment forces the declick minimum even when the
     // crossfade setting was raised after it was armed: a crossfade-length
     // retire would let the queued file start sounding on the retiring node
@@ -537,10 +555,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
     AVAudioUnitVarispeed *newVarispeed = [[AVAudioUnitVarispeed alloc] init];
     [_engine attachNode:newVarispeed];
-    _varispeed = newVarispeed; // finishPlayOnQueue:'s incoming node connects through this
+    _varispeed = newVarispeed; // finishPlayOnQueueWithFile: connects its incoming node through this
 
     // The retire fades the outgoing side out while the incoming node fades in
-    // concurrently on the new varispeed, in finishPlayOnQueue: — an audible,
+    // concurrently on the new varispeed, in finishPlayOnQueueWithFile: — an audible,
     // true crossfade.
     [self retireNode:oldNode varispeed:oldVarispeed milliseconds:_incomingFadeMilliseconds];
 
@@ -548,13 +566,18 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
     LogDebug(@"play file: %@", path);
 
-    _currentOpenPath = path;
-    _pendingOpenTrack = track;
+    uint64_t openId = [_pendingRequest beginWithTrack:track
+                                                   path:path
+                                                 intent:intent
+                                  submittedPlayIdentifier:submittedPlayIdentifier];
 
     // Enter the loading state: no node or file yet, but a play is committed.
     // This clears the previous track's file and position, so the UI stops
     // showing a stale duration and position for up to the full open timeout.
+    // publishPlaybackState: has already mirrored the request, so this only has
+    // to retire the pre-Loading handoff a seek would otherwise still aim at.
     [self publishPlaybackState:VibePlayerStateLoading node:nil file:nil segmentStart:0 position:0];
+    [self clearSubmittedPlayIdentifier:submittedPlayIdentifier];
 
     // A prefetched handle for this exact path skips the open entirely, and the
     // transition goes straight to schedule and play. Ownership passes to the
@@ -565,7 +588,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _prefetchedFile = nil;
         _prefetchedPath = nil;
         _prefetchedTrack = nil;
-        [self finishPlayOnQueue:track file:prefetchedFile error:nil openRequestId:++_openRequestId];
+        [self finishPlayOnQueueWithFile:prefetchedFile error:nil openRequestId:openId];
         return;
     }
 
@@ -573,55 +596,47 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // open until it materializes, and that must never wedge the player queue.
     // The request id pairs each open with its timeout: whichever fires first
     // consumes the id, and the other becomes a no-op.
-    uint64_t openId = ++_openRequestId;
+    NSURL *openURL = track.url;
     __weak AudioPlayer *weakSelf = self;
     // Always open on our own user-initiated worker, even when a prefetch open
     // for this exact path is still in flight: that worker runs at utility QoS,
     // and a block already executing cannot be boosted. Both workers deliver
-    // into finishPlayOnQueue:, which consumes the open id, so the loser no-ops
+    // into finishPlayOnQueueWithFile:, which consumes the open id, so the loser no-ops
     // (see prefetchOnQueue:). The prefetch claim stays unconsumed, so its
     // completion can still deliver first, or park the handle if it loses.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *error = nil;
-        AVAudioFile *file = [[AVAudioFile alloc] initForReading:track.url error:&error];
+        AVAudioFile *file = [[AVAudioFile alloc] initForReading:openURL error:&error];
         AudioPlayer *strongSelf = weakSelf;
         if (strongSelf) {
             dispatch_async(strongSelf->_queue, ^{
-                [strongSelf finishPlayOnQueue:track file:file error:error openRequestId:openId];
+                [strongSelf finishPlayOnQueueWithFile:file error:error openRequestId:openId];
             });
         }
     });
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFileOpenTimeoutSeconds * NSEC_PER_SEC)), _queue, ^{
-        [weakSelf fileOpenTimedOut:track openRequestId:openId];
+        [weakSelf fileOpenTimedOutForRequest:openId];
     });
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kSlowOpenIndicatorDelaySeconds * NSEC_PER_SEC)), _queue, ^{
         AudioPlayer *strongSelf = weakSelf;
-        if (strongSelf && openId == strongSelf->_openRequestId) {
-            // Still waiting on the open, so let the UI show a loading state.
-            run_on_main_thread({
-                [strongSelf.delegate audioPlayer:strongSelf didBeginLoading:track];
-            });
+        if (strongSelf) {
+            VibePlaybackRequest *request = [strongSelf->_pendingRequest markSlowForRequest:openId];
+            if (request) {
+                [strongSelf notifyDidBeginLoadingForRequest:request];
+            }
         }
     });
 }
 
-- (void)finishPlayOnQueue:(AudioTrack *)track file:(AVAudioFile *)file error:(NSError *)error openRequestId:(uint64_t)openId {
-    if (openId != _openRequestId) {
+- (void)finishPlayOnQueueWithFile:(AVAudioFile *)file error:(NSError *)error openRequestId:(uint64_t)openId {
+    VibePlaybackRequest *request = [_pendingRequest consumeRequest:openId];
+    if (!request) {
         return; // Superseded by a newer play, or already timed out.
     }
-    _openRequestId++; // Consume: the pending timeout must no-op.
-    _currentOpenPath = nil; // This open resolved, so the track is no longer loading.
-    // Deliver the track object the playlist currently knows. A same-path
-    // replay, from a re-drop, may have rebound it since this open was
-    // dispatched.
-    if (_pendingOpenTrack) {
-        track = _pendingOpenTrack;
-    }
-    _pendingOpenTrack = nil;
-    VibePendingPlaybackIntent startIntent = _pendingStartIntent;
+    AudioTrack *track = request.track;
+    VibePendingPlaybackIntent startIntent = request.intent;
     NSTimeInterval startPosition = startIntent.position;
     BOOL startPaused = startIntent.paused;
-    _pendingStartIntent = VibePendingPlaybackIntentMake(0, NO);
     _pendingDeclick = NO;
 
     if (!file || file.length <= 0) {
@@ -730,7 +745,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     }
 }
 
-// See AudioPlayerInternal.h. Shared by finishPlayOnQueue: and the device
+// See AudioPlayerInternal.h. Shared by finishPlayOnQueueWithFile: and the device
 // restore, whose failure handling must not drift apart.
 - (AVAudioPlayerNode *)attachConnectedNodeForFormat:(AVAudioFormat *)format
                                  failureDescription:(NSString *)description
@@ -794,20 +809,16 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         }];
 }
 
-- (void)fileOpenTimedOut:(AudioTrack *)track openRequestId:(uint64_t)openId {
-    if (openId != _openRequestId) {
+- (void)fileOpenTimedOutForRequest:(uint64_t)openId {
+    VibePlaybackRequest *request = [_pendingRequest consumeRequest:openId];
+    if (!request) {
         return; // The open landed in time, or a newer play superseded it.
     }
-    _openRequestId++; // Invalidate the still-blocked open.
     // Clear this so the file stays retryable: a later play of it starts a
     // fresh open. The original worker may stay blocked on a truly hung mount,
     // leaking one worker, but the loading no-op has already absorbed any rapid
     // re-clicks.
-    _currentOpenPath = nil;
-    if (_pendingOpenTrack) {
-        track = _pendingOpenTrack; // report against the rebound, current object
-    }
-    _pendingOpenTrack = nil;
+    AudioTrack *track = request.track;
     LogError(@"Timed out opening %@", track.url.path);
     [self resetToStoppedStateOnQueue];
     [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorFileOpenTimedOut,
@@ -856,7 +867,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         }
         return;
     }
-    if (path && [path isEqualToString:_currentOpenPath]) {
+    if ([_pendingRequest isLoadingPath:path]) {
         return; // being opened for playback right now
     }
     _prefetchRequestId++; // supersede any in-flight prefetch open
@@ -887,12 +898,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             return;
         }
         dispatch_async(strongSelf->_queue, ^{
-            if (strongSelf->_currentOpenPath && [path isEqualToString:strongSelf->_currentOpenPath]) {
+            VibePlaybackRequest *request = strongSelf->_pendingRequest.currentRequest;
+            if (request && [path isEqualToString:request.path]) {
                 // A play of this path is waiting on its own open, since plays
                 // never adopt this worker (see playOnQueue:). Deliver on
-                // success only. finishPlayOnQueue: consumes the open id, so
+                // success only. finishPlayOnQueueWithFile: consumes the open id, so
                 // whichever worker lands second no-ops, and rebinds to
-                // _pendingOpenTrack. A failed prefetch open must not consume
+                // the latest pending row. A failed prefetch open must not consume
                 // the id: the play's own open may yet succeed, and consuming
                 // here would turn that recoverable race into a "Could not
                 // open". Either way this open is spent and nothing gets
@@ -904,8 +916,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                     strongSelf->_prefetchedTrack = nil;
                 }
                 if (file && file.length > 0) {
-                    [strongSelf finishPlayOnQueue:track file:file error:error
-                                    openRequestId:strongSelf->_openRequestId];
+                    [strongSelf finishPlayOnQueueWithFile:file error:error
+                                            openRequestId:request.identifier];
                 }
                 return;
             }
@@ -1106,12 +1118,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // Invalidate any in-flight open. After an unrelated failure resets to
     // Stopped — a device switch failing mid-Loading, say — a still-pending
     // open must not land later and start playback out of an errored or stopped
-    // UI. The extra bump is harmless when the caller already consumed the id.
-    _openRequestId++;
-    _currentOpenPath = nil;
-    _pendingOpenTrack = nil;
-    // The abandoned open's start request goes with its track.
-    _pendingStartIntent = VibePendingPlaybackIntentMake(0, NO);
+    // UI. The request's unique identifier makes every late delivery a no-op.
+    [_pendingRequest invalidate];
     _pendingDeclick = NO;
     [self clearGaplessOnQueue]; // any queued segment died with the node
     // Detach the varispeed that playOnQueue: attached for the failed track.
@@ -1359,16 +1367,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 - (void)playPause {
     dispatch_async(_queue, ^{
         if (self->_state == VibePlayerStateLoading) {
-            self->_pendingStartIntent = VibePendingPlaybackIntentByTogglingPause(
-                    self->_pendingStartIntent);
-            BOOL paused = self->_pendingStartIntent.paused;
-            AudioTrack *track = self->_pendingOpenTrack;
-            os_unfair_lock_lock(&self->_stateLock);
-            self->_loadingStartPaused = paused;
-            os_unfair_lock_unlock(&self->_stateLock);
-            run_on_main_thread({
-                [self.delegate audioPlayer:self didChangeLoadingPaused:paused forTrack:track];
-            });
+            VibePlaybackRequest *request = [self->_pendingRequest togglePause];
+            if (request) {
+                [self mirrorLoadingRequest:request clearingSubmittedPlayIdentifier:0];
+                [self notifyLoadingPausedForRequest:request];
+            }
             return;
         }
         AVAudioPlayerNode *node = self->_node;
@@ -1748,19 +1751,29 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // meaningless spot (or clamp to its last frame and end it). Snapshot the
     // intent and drop the seek if the track moved on.
     AudioTrack *intendedTrack = self.currentTrack;
+    uint64_t intendedSubmittedPlayIdentifier = 0;
     os_unfair_lock_lock(&_stateLock);
     if (_state == VibePlayerStateLoading) {
         intendedTrack = _loadingTrack;
+        intendedSubmittedPlayIdentifier = _loadingSubmittedPlayIdentifier;
+    }
+    else if (_lastSubmittedPlayTrack) {
+        // A play is queued but has not reached the player queue yet, so
+        // currentTrack still names the outgoing track. Aim at the play the
+        // user just started — the row they are looking at — rather than at the
+        // one it is replacing.
+        intendedTrack = _lastSubmittedPlayTrack;
+        intendedSubmittedPlayIdentifier = _lastSubmittedPlayIdentifier;
     }
     os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{
         AudioTrack *track = self.currentTrack;
         if (self->_state == VibePlayerStateLoading) {
-            track = self->_pendingOpenTrack;
-            if (track == intendedTrack) {
-                self->_pendingStartIntent = VibePendingPlaybackIntentBySeeking(
-                        self->_pendingStartIntent, pos);
-            }
+            VibePlaybackRequest *request = self->_pendingRequest.currentRequest;
+            track = request.track;
+            [self->_pendingRequest seekToPosition:pos
+                                 ifCurrentTrackIs:intendedTrack
+                         submittedPlayIdentifier:intendedSubmittedPlayIdentifier];
             run_on_main_thread({
                 [self.delegate audioPlayer:self didFinishSeeking:track];
             });
@@ -1997,11 +2010,53 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // A few sites write _state or _node alone under the lock without coming
 // through here. That is safe only because they never move the position fields;
 // any write that does must use this publisher.
+// Both halves in one critical section: the loading mirror a main-thread getter
+// reads, and the retirement of the pre-Loading handoff, which only the play
+// that set it may clear — a newer play submitted since owns it now.
+- (void)mirrorLoadingRequest:(VibePlaybackRequest *)request
+    clearingSubmittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
+    os_unfair_lock_lock(&_stateLock);
+    _loadingTrack = request.track;
+    _loadingStartPaused = request.intent.paused;
+    _loadingSubmittedPlayIdentifier = request.submittedPlayIdentifier;
+    if (_lastSubmittedPlayIdentifier == submittedPlayIdentifier) {
+        _lastSubmittedPlayIdentifier = 0;
+        _lastSubmittedPlayTrack = nil;
+    }
+    os_unfair_lock_unlock(&_stateLock);
+}
+
+- (void)clearSubmittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
+    os_unfair_lock_lock(&_stateLock);
+    if (_lastSubmittedPlayIdentifier == submittedPlayIdentifier) {
+        _lastSubmittedPlayIdentifier = 0;
+        _lastSubmittedPlayTrack = nil;
+    }
+    os_unfair_lock_unlock(&_stateLock);
+}
+
+- (void)notifyDidBeginLoadingForRequest:(VibePlaybackRequest *)request {
+    AudioTrack *track = request.track;
+    run_on_main_thread({
+        [self.delegate audioPlayer:self didBeginLoading:track];
+    });
+}
+
+- (void)notifyLoadingPausedForRequest:(VibePlaybackRequest *)request {
+    AudioTrack *track = request.track;
+    BOOL paused = request.intent.paused;
+    run_on_main_thread({
+        [self.delegate audioPlayer:self didChangeLoadingPaused:paused forTrack:track];
+    });
+}
+
 - (void)publishPlaybackState:(VibePlayerState)state
                         node:(AVAudioPlayerNode *)node
                         file:(AVAudioFile *)file
                 segmentStart:(AVAudioFramePosition)segmentStart
                     position:(NSTimeInterval)position {
+    VibePlaybackRequest *request = state == VibePlayerStateLoading
+            ? _pendingRequest.currentRequest : nil;
     os_unfair_lock_lock(&_stateLock);
     _node = node;
     _file = file;
@@ -2012,12 +2067,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _positionEpoch++;
     _state = state;
     if (state == VibePlayerStateLoading) {
-        _loadingTrack = _pendingOpenTrack;
-        _loadingStartPaused = _pendingStartIntent.paused;
+        _loadingTrack = request.track;
+        _loadingStartPaused = request.intent.paused;
+        _loadingSubmittedPlayIdentifier = request.submittedPlayIdentifier;
     }
     else {
         _loadingTrack = nil;
         _loadingStartPaused = NO;
+        _loadingSubmittedPlayIdentifier = 0;
     }
     os_unfair_lock_unlock(&_stateLock);
 }

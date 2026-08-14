@@ -345,6 +345,8 @@ targets:
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
       - path: Vibe/Audio/AudioTrack.m
+      - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
+      - path: Vibe/Audio/PlaybackRequestCoordinator.m
       - path: Vibe/Common/OpenBurstCoalescer.m
       - path: Vibe/Common/OpenRequestCoordinator.m
       - path: Vibe/Common/Playlist.m
