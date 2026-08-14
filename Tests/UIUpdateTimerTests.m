@@ -4,9 +4,13 @@
 // case a rate change lands in while playback is paused or the window is
 // occluded.
 //
-// These count real ticks over real time, so the assertions are one-sided and
-// slack: a loaded machine can starve the main queue, but it cannot invent
-// ticks the timer never asked for.
+// These count real ticks over real time, so every assertion leans on the one
+// direction a loaded machine cannot break: it can starve the main queue and
+// dispatch will coalesce the missed fires, but nothing can invent ticks the
+// timer never asked for. So an upper bound is counted over a fixed window,
+// while a lower bound waits for a tick count with a deadline slack enough to
+// survive a CI runner an order of magnitude slow — and still tight enough
+// that the slower rate could not have reached it.
 //
 
 #import <XCTest/XCTest.h>
@@ -18,8 +22,12 @@
 
 // The tick counter is a file static rather than an ivar: the handler must not
 // capture the test case, or it would resurrect one the runner has finished
-// with, and a weak capture cannot be dereferenced under ARC.
+// with, and a weak capture cannot be dereferenced under ARC. The target and
+// its expectation are touched only from the main queue, which is where both
+// the handler and the test method run.
 static NSUInteger sTicks;
+static NSUInteger sTarget;
+static XCTestExpectation *sReachedTarget;
 
 @implementation UIUpdateTimerTests {
     UIUpdateTimer *_timer;
@@ -28,6 +36,8 @@ static NSUInteger sTicks;
 - (void)tearDown {
     _timer.wanted = NO;
     _timer = nil;
+    sTarget = 0;
+    sReachedTarget = nil;
     [super tearDown];
 }
 
@@ -36,6 +46,11 @@ static NSUInteger sTicks;
 - (UIUpdateTimer *)timerAtHz:(NSUInteger)hz {
     _timer = [[UIUpdateTimer alloc] initWithHz:hz handler:^{
         sTicks++;
+        if (sTarget > 0 && sTicks >= sTarget) {
+            sTarget = 0;
+            [sReachedTarget fulfill];
+            sReachedTarget = nil;
+        }
     }];
     return _timer;
 }
@@ -49,6 +64,18 @@ static NSUInteger sTicks;
     return sTicks;
 }
 
+// XCTWaiter rather than -waitForExpectations:, because a miss is an answer
+// here — the slow-rate cases assert the target is *not* reached.
+- (BOOL)reachedTicks:(NSUInteger)count within:(NSTimeInterval)seconds {
+    sTicks = 0;
+    sTarget = count;
+    sReachedTarget = [self expectationWithDescription:@"ticked"];
+    XCTWaiterResult result = [XCTWaiter waitForExpectations:@[sReachedTarget] timeout:seconds];
+    sTarget = 0;
+    sReachedTarget = nil;
+    return result == XCTWaiterResultCompleted;
+}
+
 - (void)testBothGatesMustBeOpen {
     UIUpdateTimer *timer = [self timerAtHz:50];
     XCTAssertEqual([self ticksOver:0.3], (NSUInteger)0);
@@ -58,7 +85,7 @@ static NSUInteger sTicks;
     timer.windowVisible = YES;
     XCTAssertEqual([self ticksOver:0.3], (NSUInteger)0, @"not wanted");
     timer.wanted = YES;
-    XCTAssertGreaterThan([self ticksOver:0.3], (NSUInteger)2);
+    XCTAssertTrue([self reachedTicks:3 within:5.0], @"both gates open, so it runs");
     timer.windowVisible = NO;
     XCTAssertEqual([self ticksOver:0.3], (NSUInteger)0, @"occluded stops it entirely");
 }
@@ -67,14 +94,15 @@ static NSUInteger sTicks;
     UIUpdateTimer *timer = [self timerAtHz:3];
     timer.wanted = YES;
     timer.windowVisible = YES;
-    // Three per second cannot produce ten ticks in half a second, whatever
-    // the leeway.
-    XCTAssertLessThan([self ticksOver:0.5], (NSUInteger)10);
+    // Three per second cannot produce ten ticks in a second and a half,
+    // whatever the leeway, so reaching ten inside that deadline is proof the
+    // faster rate took — and it asks for a twentieth of 50Hz.
+    XCTAssertFalse([self reachedTicks:10 within:1.5]);
     timer.hz = 50;
     XCTAssertEqual(timer.hz, (NSUInteger)50);
-    XCTAssertGreaterThan([self ticksOver:0.5], (NSUInteger)10);
+    XCTAssertTrue([self reachedTicks:10 within:1.5]);
     timer.hz = 3;
-    XCTAssertLessThan([self ticksOver:0.5], (NSUInteger)10);
+    XCTAssertFalse([self reachedTicks:10 within:1.5], @"back to the slow rate");
 }
 
 // The rate moves while paused or occluded too — a fader tick, a resize — and
@@ -85,7 +113,7 @@ static NSUInteger sTicks;
     timer.hz = 50;
     timer.wanted = YES;
     timer.windowVisible = YES;
-    XCTAssertGreaterThan([self ticksOver:0.5], (NSUInteger)10);
+    XCTAssertTrue([self reachedTicks:10 within:1.5]);
 }
 
 - (void)testDegenerateRatesAreIgnored {
