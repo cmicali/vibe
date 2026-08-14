@@ -928,6 +928,9 @@ static NSDictionary *VibeActionCmd(NSString *usage, void (^action)(MainPlayerCon
 // one orphan response and cannot fire on a later menu-driven undo.
 static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerController *controller, BOOL redo) {
     NSUndoManager *undoManager = controller.window.undoManager;
+    if (controller.isConversionUndoRedoInFlight) {
+        return VibeErrorJSON(@"conversion undo/redo is still in progress");
+    }
     if (redo ? !undoManager.canRedo : !undoManager.canUndo) {
         return VibeErrorJSON(redo ? @"nothing to redo" : @"nothing to undo");
     }
@@ -941,10 +944,10 @@ static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerControlle
         }));
     };
     if (redo) {
-        [undoManager redo];
+        [controller redo:nil];
     }
     else {
-        [undoManager undo];
+        [controller undo:nil];
     }
     return nil; // response written by the settled hook
 }

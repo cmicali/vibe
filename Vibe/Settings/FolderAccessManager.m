@@ -4,6 +4,7 @@
 //
 
 #import "FolderAccessManager.h"
+#import "FolderAccessRules.h"
 
 NSNotificationName const FolderAccessManagerDidChangeNotification = @"FolderAccessManagerDidChangeNotification";
 
@@ -14,10 +15,24 @@ static NSString *const kEntryBookmarkKey = @"bookmark";
 // Stripped before the entry is persisted.
 static NSString *const kEntryAccessedURLKey = @"accessedURL";
 
+// The ceiling on every wait for a restored grant, shared by the launch drain
+// and the per-open waiters, so the two cannot drift apart.
+static const NSTimeInterval kRestoreDeadline = 2.0;
+
+@interface VibeRestorationWaiter : NSObject
+@property (copy) NSArray<NSURL *> *urls;
+@property (copy) dispatch_block_t completion;
+@end
+
+@implementation VibeRestorationWaiter
+@end
+
 @implementation FolderAccessManager {
     // Mutated on the main thread only; background work operates on snapshots
     // and merges back on main.
     NSMutableArray<NSMutableDictionary *> *_entries;
+    NSMutableSet<NSString *> *_restoringPaths;
+    NSMutableArray<VibeRestorationWaiter *> *_restorationWaiters;
 }
 
 + (instancetype)sharedInstance {
@@ -33,6 +48,8 @@ static NSString *const kEntryAccessedURLKey = @"accessedURL";
     self = [super init];
     if (self) {
         _entries = [NSMutableArray array];
+        _restoringPaths = [NSMutableSet set];
+        _restorationWaiters = [NSMutableArray array];
         NSArray *stored = [NSUserDefaults.standardUserDefaults arrayForKey:kGrantedFoldersDefaultsKey];
         for (NSDictionary *entry in stored) {
             NSString *path = entry[kEntryPathKey];
@@ -65,11 +82,25 @@ static NSString *const kEntryAccessedURLKey = @"accessedURL";
     }
     dispatch_group_t group = dispatch_group_create();
     for (NSDictionary *stored in snapshot) {
+        [_restoringPaths addObject:stored[kEntryPathKey]];
+    }
+    for (NSDictionary *stored in snapshot) {
         // One block per bookmark: a resolve can block for an automounter
         // timeout on an unreachable mount, and serialized behind it every
         // later folder's grant would wait too.
-        dispatch_group_async(group, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-            [self restoreStoredEntry:stored];
+        dispatch_group_enter(group);
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            NSDictionary *restored = [self resolveStoredEntry:stored];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (restored) {
+                    [self mergeRestoredURL:restored[kEntryAccessedURLKey]
+                                  bookmark:restored[kEntryBookmarkKey]
+                               forOriginal:stored];
+                }
+                [self->_restoringPaths removeObject:stored[kEntryPathKey]];
+                [self drainRestorationWaiters];
+                dispatch_group_leave(group);
+            });
         });
     }
     if (!completion) {
@@ -86,13 +117,13 @@ static NSString *const kEntryAccessedURLKey = @"accessedURL";
         }
     };
     dispatch_group_notify(group, dispatch_get_main_queue(), finish);
-    static const NSTimeInterval kRestoreCompletionDeadline = 2.0;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRestoreCompletionDeadline * NSEC_PER_SEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRestoreDeadline * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), finish);
 }
 
-// Background thread; the group's per-entry block.
-- (void)restoreStoredEntry:(NSDictionary *)stored {
+// Background thread. Resolves and starts the scope; the main-thread caller
+// merges the result and only then marks this remembered path settled.
+- (NSDictionary *)resolveStoredEntry:(NSDictionary *)stored {
     NSData *bookmark = stored[kEntryBookmarkKey];
     BOOL stale = NO;
     NSError *error;
@@ -105,11 +136,11 @@ static NSString *const kEntryAccessedURLKey = @"accessedURL";
         // The folder may be gone or its volume unmounted. Keep the
         // entry: it stays visible in the pane, where it can be removed.
         LogWarn(@"Granted folder failed to resolve (%@): %@", stored[kEntryPathKey], error);
-        return;
+        return nil;
     }
     if (![url startAccessingSecurityScopedResource]) {
         LogWarn(@"Granted folder refused security scope: %@", url.path);
-        return;
+        return nil;
     }
     // A stale bookmark still resolves; refresh it so the next launch
     // doesn't pay the staleness again. Creation needs the scope the
@@ -127,9 +158,60 @@ static NSString *const kEntryAccessedURLKey = @"accessedURL";
             LogWarn(@"Stale bookmark for %@ could not be refreshed: %@", url.path, error);
         }
     }
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self mergeRestoredURL:url bookmark:freshBookmark forOriginal:stored];
+    return @{kEntryAccessedURLKey: url, kEntryBookmarkKey: freshBookmark};
+}
+
+- (void)awaitRestoredAccessForURLs:(NSArray<NSURL *> *)urls
+                        completion:(dispatch_block_t)completion {
+    if (![self anyURL:urls coveredByPaths:_restoringPaths]) {
+        completion();
+        return;
+    }
+    VibeRestorationWaiter *waiter = [VibeRestorationWaiter new];
+    waiter.urls = urls;
+    waiter.completion = completion;
+    [_restorationWaiters addObject:waiter];
+    // The deadline the header promises. Same value as the restore's own, and
+    // for the same reason: a caller gated on a dead mount's grant gains
+    // nothing by waiting, since a walk under that mount blocks the same way.
+    __weak FolderAccessManager *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRestoreDeadline * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        [weakSelf releaseWaiter:waiter];
     });
+}
+
+- (void)drainRestorationWaiters {
+    for (VibeRestorationWaiter *waiter in [_restorationWaiters copy]) {
+        if (![self anyURL:waiter.urls coveredByPaths:_restoringPaths]) {
+            [self releaseWaiter:waiter];
+        }
+    }
+}
+
+// One shot, whichever fires first — the grant settling or its deadline.
+- (void)releaseWaiter:(VibeRestorationWaiter *)waiter {
+    if (![_restorationWaiters containsObject:waiter]) {
+        return;
+    }
+    [_restorationWaiters removeObject:waiter];
+    dispatch_block_t completion = waiter.completion;
+    waiter.completion = nil;
+    completion();
+}
+
+- (BOOL)anyURL:(NSArray<NSURL *> *)urls coveredByPaths:(NSSet<NSString *> *)paths {
+    for (NSURL *url in urls) {
+        NSString *path = url.URLByStandardizingPath.path;
+        for (NSString *granted in paths) {
+            // The uncanonical form: these URLs come straight off Launch
+            // Services, argv or a pasteboard, unlike noteOpenedURLs:'s.
+            if (VibeUncanonicalPathIsUnderFolder(path, granted)) {
+                return YES;
+            }
+        }
+    }
+    return NO;
 }
 
 // Matches a background resolution back onto the live entry, which may have
@@ -232,7 +314,7 @@ static NSString *const kEntryAccessedURLKey = @"accessedURL";
 + (BOOL)path:(NSString *)path isCoveredByAnyOf:(NSArray<NSString *> *)grantedPaths {
     NSString *musicRoot = [NSHomeDirectoryForUser(NSUserName()) stringByAppendingPathComponent:@"Music"];
     for (NSString *granted in [grantedPaths arrayByAddingObject:musicRoot]) {
-        if ([path isEqualToString:granted] || [path hasPrefix:[granted stringByAppendingString:@"/"]]) {
+        if (VibePathIsUnderFolder(path, granted)) {
             return YES;
         }
     }

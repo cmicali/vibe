@@ -346,6 +346,7 @@ targets:
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Common/OpenBurstCoalescer.m
+      - path: Vibe/Common/OpenRequestCoordinator.m
       - path: Vibe/Common/Playlist.m
       - path: Vibe/Util/PlaylistFile.m
       - path: Vibe/Util/Formatters.m
@@ -399,6 +400,7 @@ targets:
           # (TransportMath.h) is the same pattern, under Common above.
           - "$(SRCROOT)/Vibe/Main Window"
           - "$(SRCROOT)/Vibe/Audio/Convert"
+          - "$(SRCROOT)/Vibe/Settings"
     dependencies:
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform
       - sdk: AppKit.framework                # AudioTrack album art (NSImage)

@@ -7,6 +7,44 @@
 #import "AudioTrack.h"
 #import "NowPlayingMath.h"
 #import <MediaPlayer/MediaPlayer.h>
+#if TARGET_OS_OSX
+#import "NSImage+Util.h"
+#endif
+
+// Whatever the artwork request handler returns is serialized to the media
+// daemon, so handing back the full 1024px original ships megabytes on every
+// publish and the card visibly fills in after the window has. This is the side
+// the system actually draws — Control Center, the lock screen, the mini player
+// — with room to spare.
+static const CGFloat kPublishedArtworkMaxSide = 512;
+
+// TRAP: this must run on the main thread, and its result must be the ONLY
+// thing the request handler hands back. The handler is invoked on the media
+// daemon's threads, and `artwork` is the live NSImage the header, the dock
+// tile and the playlist cells are drawing from — NSImage is not safe to draw
+// concurrently from two threads, so scaling inside the handler races the UI.
+// Scaling once, here, also costs one redraw per track rather than one per
+// surface the system asks about.
+static VibeImage *VibeArtworkForPublishing(VibeImage *artwork) {
+#if TARGET_OS_OSX
+    CGSize source = artwork.size;
+    if (source.width <= 0 || source.height <= 0) {
+        return artwork;
+    }
+    CGFloat scale = MIN(kPublishedArtworkMaxSide / source.width,
+                        kPublishedArtworkMaxSide / source.height);
+    // Already small enough — the 128px thumbnail stand-in takes this path.
+    if (scale >= 1.0) {
+        return artwork;
+    }
+    // Aspect preserved, so a non-square cover is not stretched. A failed
+    // redraw falls back to the original: oversized beats artwork-less.
+    return [artwork resizedImage:NSMakeSize(round(source.width * scale),
+                                            round(source.height * scale))] ?: artwork;
+#else
+    return artwork;
+#endif
+}
 
 @implementation NowPlayingController {
     __weak id<NowPlayingControllerDelegate> _delegate;
@@ -71,6 +109,26 @@
 
 #pragma mark - Remote commands
 
+// MediaPlayer does not document a delivery queue for command handlers.
+// Capture the weak delegate while the command is accepted, then put every
+// controller/UI mutation behind the main queue contract.
+- (MPRemoteCommandHandlerStatus)deliverRemoteCommand:
+        (void (^)(id<NowPlayingControllerDelegate> delegate))delivery {
+    id<NowPlayingControllerDelegate> delegate = _delegate;
+    if (!delegate) {
+        return MPRemoteCommandHandlerStatusCommandFailed;
+    }
+    if (NSThread.isMainThread) {
+        delivery(delegate);
+    }
+    else {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            delivery(delegate);
+        });
+    }
+    return MPRemoteCommandHandlerStatusSuccess;
+}
+
 // Enables the transport commands we implement, which is what routes the
 // hardware media keys, Control Center and Bluetooth remotes to us, and
 // disables the rest, so that the system does not offer controls we cannot
@@ -90,8 +148,9 @@
         if (!strongSelf) {
             return MPRemoteCommandHandlerStatusCommandFailed;
         }
-        [strongSelf->_delegate nowPlayingControllerPlay:strongSelf];
-        return MPRemoteCommandHandlerStatusSuccess;
+        return [strongSelf deliverRemoteCommand:^(id<NowPlayingControllerDelegate> delegate) {
+            [delegate nowPlayingControllerPlay:strongSelf];
+        }];
     }];
 
     center.pauseCommand.enabled = YES;
@@ -100,8 +159,9 @@
         if (!strongSelf) {
             return MPRemoteCommandHandlerStatusCommandFailed;
         }
-        [strongSelf->_delegate nowPlayingControllerPause:strongSelf];
-        return MPRemoteCommandHandlerStatusSuccess;
+        return [strongSelf deliverRemoteCommand:^(id<NowPlayingControllerDelegate> delegate) {
+            [delegate nowPlayingControllerPause:strongSelf];
+        }];
     }];
 
     center.togglePlayPauseCommand.enabled = YES;
@@ -110,8 +170,9 @@
         if (!strongSelf) {
             return MPRemoteCommandHandlerStatusCommandFailed;
         }
-        [strongSelf->_delegate nowPlayingControllerTogglePlayPause:strongSelf];
-        return MPRemoteCommandHandlerStatusSuccess;
+        return [strongSelf deliverRemoteCommand:^(id<NowPlayingControllerDelegate> delegate) {
+            [delegate nowPlayingControllerTogglePlayPause:strongSelf];
+        }];
     }];
 
     // Enabled here, so that a command is never registered but dead. Every
@@ -123,8 +184,9 @@
         if (!strongSelf) {
             return MPRemoteCommandHandlerStatusCommandFailed;
         }
-        [strongSelf->_delegate nowPlayingControllerNextTrack:strongSelf];
-        return MPRemoteCommandHandlerStatusSuccess;
+        return [strongSelf deliverRemoteCommand:^(id<NowPlayingControllerDelegate> delegate) {
+            [delegate nowPlayingControllerNextTrack:strongSelf];
+        }];
     }];
 
     center.previousTrackCommand.enabled = YES;
@@ -134,8 +196,9 @@
         if (!strongSelf) {
             return MPRemoteCommandHandlerStatusCommandFailed;
         }
-        [strongSelf->_delegate nowPlayingControllerPreviousTrack:strongSelf];
-        return MPRemoteCommandHandlerStatusSuccess;
+        return [strongSelf deliverRemoteCommand:^(id<NowPlayingControllerDelegate> delegate) {
+            [delegate nowPlayingControllerPreviousTrack:strongSelf];
+        }];
     }];
 
     center.changePlaybackPositionCommand.enabled = YES;
@@ -145,8 +208,10 @@
             return MPRemoteCommandHandlerStatusCommandFailed;
         }
         MPChangePlaybackPositionCommandEvent *positionEvent = (MPChangePlaybackPositionCommandEvent *)event;
-        [strongSelf->_delegate nowPlayingController:strongSelf seekToPosition:positionEvent.positionTime];
-        return MPRemoteCommandHandlerStatusSuccess;
+        NSTimeInterval position = positionEvent.positionTime;
+        return [strongSelf deliverRemoteCommand:^(id<NowPlayingControllerDelegate> delegate) {
+            [delegate nowPlayingController:strongSelf seekToPosition:position];
+        }];
     }];
 
     // Commands the app does not model. Keep them off, so that the transport UI
@@ -221,7 +286,16 @@
     // no file read and no decode. While it is still nil the caller refreshes
     // once the art resolves, so the card fills in a moment later rather than
     // stalling here.
-    VibeImage *artwork = track.albumArt;
+    //
+    // The 128px thumbnail stands in for that gap. It is decoded on the metadata
+    // worker before the track publishes — a whole background round trip ahead
+    // of the full-resolution art, which re-reads the audio file — and reading
+    // it here never blocks either, since it decodes only from bytes already in
+    // memory. Without it the card shows the app icon while the window shows a
+    // cover, which reads as Now Playing lagging the app when both are in fact
+    // published in the same pass. The identity check below promotes the full
+    // art the moment it lands.
+    VibeImage *artwork = track.albumArt ?: track.thumbnailAlbumArt;
 
     // The elapsed time is never republished at 3 Hz, because the system
     // extrapolates it from the last publish at the published rate. Natural
@@ -263,10 +337,16 @@
 
     if (artwork) {
         if (artwork != _publishedArtworkImage || _publishedArtworkWrapper == nil) {
+            // Scaled once, here on the main thread, and captured. The handler
+            // itself must do no drawing — see VibeArtworkForPublishing — so it
+            // returns the same image whatever size the system asks for, which
+            // MediaPlayer scales on its side. boundsSize advertises what that
+            // image actually is, so nothing asks for more than exists.
+            VibeImage *published = VibeArtworkForPublishing(artwork);
             _publishedArtworkWrapper =
-                [[MPMediaItemArtwork alloc] initWithBoundsSize:artwork.size
+                [[MPMediaItemArtwork alloc] initWithBoundsSize:published.size
                                                 requestHandler:^VibeImage *(CGSize size) {
-                                                    return artwork;
+                                                    return published;
                                                 }];
         }
         info[MPMediaItemPropertyArtwork] = _publishedArtworkWrapper;

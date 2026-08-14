@@ -17,10 +17,10 @@
 
 // Expands folders and top-level playlist files (the files a .cue/.m3u/.m3u8
 // lists, in list order, raising a folder-access grant when the sandbox
-// requires one), filters to playable extensions, and preserves submission
-// order: expansion runs on a serial queue, so overlapping drops complete in
-// the order they were submitted and a slow folder walk cannot finish after a
-// later drop's and replace the newer playlist. folderCount is how many of the
+// requires one), and filters to playable extensions. Expansions run on a
+// four-wide queue, so one dead folder cannot block an unrelated later open and
+// a burst of them cannot spawn a thread each; callers coordinate overlapping
+// result order (OpenRequestCoordinator). folderCount is how many of the
 // top-level URLs resolved as directories, counted here because the check stats
 // the file system and so belongs on the expansion queue, not the main-thread
 // caller. Completion runs on main.

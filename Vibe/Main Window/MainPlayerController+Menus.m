@@ -20,6 +20,8 @@
 // mapping the action does.
 @interface MainPlayerController (MenuOutlets)
 @property (weak, readonly) AudioWaveformView *waveformView;
+@property (nonatomic, readonly, getter=isConversionUndoRedoInFlight)
+        BOOL conversionUndoRedoInFlight;
 + (CGFloat)contentWidthForSizeIdentifier:(NSString *)identifier;
 @end
 
@@ -101,8 +103,8 @@
     }
     else if ([menuItem.identifier isEqualToString:@"menu_play"]) {
         // The action is playPause:, so mirror the toggle in the title and
-        // icon, as standard macOS players do. isPlaying covers Loading: a play
-        // is committed, so the available action is Pause.
+        // icon, as standard macOS players do. During Loading, isPlaying
+        // follows whether the pending open will start or park.
         BOOL playing = self.audioPlayer.isPlaying;
         menuItem.title = playing ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
         menuItem.image = [NSImage imageWithSystemSymbolName:(playing ? @"pause.fill" : @"play.fill")
@@ -129,11 +131,11 @@
     // surfaces only when the restore runs.
     else if ([menuItem.identifier isEqualToString:@"menu_edit_undo"]) {
         menuItem.title = self.window.undoManager.undoMenuItemTitle;
-        return self.window.undoManager.canUndo;
+        return !self.isConversionUndoRedoInFlight && self.window.undoManager.canUndo;
     }
     else if ([menuItem.identifier isEqualToString:@"menu_edit_redo"]) {
         menuItem.title = self.window.undoManager.redoMenuItemTitle;
-        return self.window.undoManager.canRedo;
+        return !self.isConversionUndoRedoInFlight && self.window.undoManager.canRedo;
     }
     // The Copy items act on the current track, like Show in Finder.
     else if ([menuItem.identifier isEqualToString:@"menu_edit_copy_file"]) {

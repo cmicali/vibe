@@ -6,6 +6,7 @@
 #import "SettingsPermissionsViewController.h"
 #import "FolderAccessManager.h"
 #import "VibeStrings.h"
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 static const CGFloat kPermissionsPaneHeight = 330;
 static const CGFloat kFolderListWidth = 440;
@@ -132,7 +133,15 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
         ]];
     }
     NSString *path = _paths[(NSUInteger)row];
-    cell.imageView.image = [NSWorkspace.sharedWorkspace iconForFile:path];
+    // Retained rows deliberately include unmounted and unreachable folders.
+    // A path-specific icon lookup can synchronously wake their mount on the
+    // main thread, so use the shared folder type icon instead.
+    static NSImage *folderIcon;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        folderIcon = [NSWorkspace.sharedWorkspace iconForContentType:UTTypeFolder];
+    });
+    cell.imageView.image = folderIcon;
     cell.textField.stringValue = [self.class displayPath:path];
     cell.textField.toolTip = path;
     return cell;

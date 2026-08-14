@@ -95,7 +95,7 @@ after=$("$V" --debug-cmd dump_state | jq -r .player.position)
 awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> $after"
 ```
 
-`.player.state` is lowercase and only ever `playing`, `paused` or `stopped`. There is **no `loading` value**: an in-flight open reports `playing`, with zero position and duration, which matches the transport button. Asserting `== "Playing"` silently never matches.
+`.player.state` is lowercase and only ever `playing`, `paused` or `stopped`. There is **no `loading` value**: an in-flight open reports `playing` or `paused` according to its pending start intent, with zero position and duration, which matches the transport button. Asserting `== "Playing"` silently never matches.
 
 ```bash
 "$V" --debug-cmd dump_state          # {player, currentTrack, playlist, ui (label text), window, settings}

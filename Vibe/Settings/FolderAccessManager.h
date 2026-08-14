@@ -30,6 +30,20 @@ extern NSNotificationName const FolderAccessManagerDidChangeNotification;
 // gated on it cannot usefully wait out an automounter timeout.
 - (void)restoreGrantedAccessWithCompletion:(void (^_Nullable)(void))completion;
 
+// Runs completion on the main thread once every still-restoring remembered
+// grant that covers one of urls has settled — or at the same deadline
+// restoreGrantedAccessWithCompletion: uses, whichever comes first. An open
+// unrelated to any restoring grant runs synchronously, right now.
+//
+// The deadline is not optional: a bookmark on an unreachable mount can take an
+// automounter timeout to resolve, or never resolve at all, and an open held
+// behind it forever would leave the window in its launch grace — blank header,
+// nothing playing, no way out. Waiting is an optimization; proceeding without
+// the grant merely risks an unreadable folder, which every open path already
+// handles.
+- (void)awaitRestoredAccessForURLs:(NSArray<NSURL *> *)urls
+                        completion:(dispatch_block_t)completion;
+
 // The auto-add sink for every open path: bookmarks the directories among the
 // URLs, skipping files, folders already covered by an existing grant, and
 // anything under ~/Music. The caller must currently hold access (a drag,

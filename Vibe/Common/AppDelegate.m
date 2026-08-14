@@ -13,6 +13,7 @@
 #import "SettingsWindowController.h"
 #import "MainMenuBuilder.h"
 #import "OpenBurstCoalescer.h"
+#import "OpenRequestCoordinator.h"
 #import "OpenRecentMenuController.h"
 #import "NSBundle+BuildInfo.h"
 #import "AppStats.h"
@@ -223,26 +224,51 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 // unsupported files, and hands the result to the controller, either appended
 // or as a replacing play.
 - (void)openURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append {
+    __weak AppDelegate *weakSelf = self;
+    OpenRequestToken *token = [OpenRequestCoordinator.sharedCoordinator
+            beginRequestAppending:append
+                         delivery:^(NSArray<NSURL *> *files, NSUInteger folders, BOOL appending) {
+                             [weakSelf deliverExpandedURLs:files folderCount:folders appending:appending];
+                         }];
+    // If this batch is under a remembered folder whose grant is still being
+    // restored, wait for that scope — bounded; see the method's declaration.
+    [[FolderAccessManager sharedInstance] awaitRestoredAccessForURLs:urls completion:^{
+        [weakSelf openURLsWithRestoredAccess:urls token:token];
+    }];
+}
+
+- (void)openURLsWithRestoredAccess:(NSArray<NSURL *> *)urls token:(OpenRequestToken *)token {
+    if (![OpenRequestCoordinator.sharedCoordinator isRequestCurrent:token]) {
+        return;
+    }
     // Folders arrive here holding a live sandbox grant; bookmark them now so
     // the grant survives relaunch (see FolderAccessManager).
     [[FolderAccessManager sharedInstance] noteOpenedURLs:urls];
     [NSURLUtil expandAndFilterList:urls completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
-        [[AppStats sharedInstance] recordOpenedFiles:expanded.count folders:folderCount];
-        // Nothing playable, as with a folder that holds no audio. Do not wipe
-        // the current playlist with an empty list.
-        if (expanded.count == 0) {
-            // A launch open that resolved to nothing must still end the launch
-            // grace, or the header would stay blank forever.
-            [self.mainPlayerController revealEmptyState];
-            return;
-        }
-        if (append) {
-            [self.mainPlayerController addURLs:expanded];
-        }
-        else {
-            [self.mainPlayerController play:expanded];
-        }
+        [OpenRequestCoordinator.sharedCoordinator finishRequest:token
+                                                          files:expanded
+                                                    folderCount:folderCount];
     }];
+}
+
+- (void)deliverExpandedURLs:(NSArray<NSURL *> *)expanded
+                folderCount:(NSUInteger)folderCount
+                  appending:(BOOL)append {
+    [[AppStats sharedInstance] recordOpenedFiles:expanded.count folders:folderCount];
+    // Nothing playable, as with a folder that holds no audio. Do not wipe the
+    // current playlist with an empty list.
+    if (expanded.count == 0) {
+        // A launch open that resolved to nothing must still end the launch
+        // grace, or the header would stay blank forever.
+        [self.mainPlayerController revealEmptyState];
+        return;
+    }
+    if (append) {
+        [self.mainPlayerController addURLs:expanded];
+    }
+    else {
+        [self.mainPlayerController play:expanded];
+    }
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {

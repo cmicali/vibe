@@ -4,6 +4,7 @@
 //
 
 #import "AppSettings.h"
+#import "SettingsRules.h"
 
 #define SETTING_WINDOW_APPEARANCE_STYLE             @"Settings.windowAppearance"
 #define SETTING_WAVEFORM_STYLE                      @"Settings.waveformStyle"
@@ -190,11 +191,13 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 }
 
 - (NSInteger)pitchRange {
-    return [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_PITCH_RANGE];
+    return VibeNormalizedPitchRange(
+            [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_PITCH_RANGE]);
 }
 
 - (void)setPitchRange:(NSInteger)range {
-    [[NSUserDefaults standardUserDefaults] setInteger:range forKey:SETTING_PITCH_RANGE];
+    [[NSUserDefaults standardUserDefaults] setInteger:VibeNormalizedPitchRange(range)
+                                              forKey:SETTING_PITCH_RANGE];
 }
 
 - (BOOL)deleteOriginalAfterConvert {
