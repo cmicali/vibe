@@ -3,7 +3,7 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
-#import "NSURLUtil.h"
+#import "NSURLUtilInternal.h"
 #import "PlaylistFile.h"
 
 #include <sys/stat.h>
