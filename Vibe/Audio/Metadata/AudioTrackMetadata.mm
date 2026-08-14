@@ -119,43 +119,51 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 // is built on a worker thread and read from main.
 @interface AudioTrackMetadata ()
 @property (assign) BOOL parsedOK;
+// The whole art lifecycle lives in AudioTrackArtwork, and the art API below
+// delegates to it one for one. Both initializers create it, so it is never nil
+// on a live instance.
+//
+// It is an atomic property, not the bare ivar it began as, for the same reason
+// as every other field: an instance is built on a metadata worker — the
+// unarchive in initWithCoder: included — and read on main from the moment it
+// is published. The handle is written once and never reassigned, so a bare
+// ivar is safe on the hardware, but the publish and the read then share no
+// lock the way the other fields do, and ThreadSanitizer reports the pair as a
+// race (found by a stress run, main's albumArtIfLoaded against a worker's
+// initWithCoder:). AudioTrackArtwork guards its own mutable state.
+@property (strong, nullable) AudioTrackArtwork *artwork;
 @end
 
-@implementation AudioTrackMetadata {
-    // The whole art lifecycle lives in AudioTrackArtwork, and the art API
-    // below delegates to it one for one. Both initializers create it, so it is
-    // never nil on a live instance.
-    AudioTrackArtwork *_artwork;
-}
+@implementation AudioTrackMetadata
 
 // The art accessors delegate to AudioTrackArtwork, which owns the lazy
 // decode, discard and re-read state machine. AudioTrackMetadata.h documents
 // the contracts.
 - (NSImage *)albumArt {
-    return [_artwork albumArt];
+    return [self.artwork albumArt];
 }
 
 - (NSImage *)albumArtIfLoaded {
-    return [_artwork albumArtIfLoaded];
+    return [self.artwork albumArtIfLoaded];
 }
 
 - (BOOL)albumArtNeedsLoad {
-    return [_artwork albumArtNeedsLoad];
+    return [self.artwork albumArtNeedsLoad];
 }
 
 - (void)discardAlbumArtData {
-    [_artwork discardAlbumArtData];
+    [self.artwork discardAlbumArtData];
 }
 
 - (void)discardDecodedAlbumArt {
-    [_artwork discardDecodedAlbumArt];
+    [self.artwork discardDecodedAlbumArt];
     // A UI-side dispatch flag, main thread only, which stays out of
     // AudioTrackArtwork.
     self.albumArtLoadDispatched = NO;
 }
 
 - (NSImage *)thumbnailAlbumArt {
-    return [_artwork thumbnailAlbumArt];
+    return [self.artwork thumbnailAlbumArt];
 }
 
 // The archive stays small, at roughly 5-20KB per track, so that the disk cache
@@ -167,7 +175,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     [coder encodeObject:self.title forKey:@"title"];
     [coder encodeObject:self.artist forKey:@"artist"];
     [coder encodeObject:[self thumbnailJPEGData] forKey:@"thumbnailJPEG"];
-    [coder encodeObject:_artwork.sourceFilePath forKey:@"sourceFilePath"];
+    [coder encodeObject:self.artwork.sourceFilePath forKey:@"sourceFilePath"];
     [coder encodeObject:self.fileType forKey:@"fileType"];
     [coder encodeObject:self.bitrate forKey:@"bitrate"];
     [coder encodeObject:self.sampleRate forKey:@"sampleRate"];
@@ -209,9 +217,9 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
         self.artist = artist;
         // This decodes the thumbnail at a bounded size and derives the
         // extraction-attempted flag; see adoptArchivedThumbnailJPEG:.
-        _artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:sourceFilePath
-                                                            extractor:VibeTagLibArtExtractor()];
-        [_artwork adoptArchivedThumbnailJPEG:thumbnailJPEG];
+        self.artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:sourceFilePath
+                                                               extractor:VibeTagLibArtExtractor()];
+        [self.artwork adoptArchivedThumbnailJPEG:thumbnailJPEG];
         self.fileType = fileType;
         self.bitrate = bitrate;
         self.sampleRate = sampleRate;
@@ -288,8 +296,8 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 
 - (void)loadFromURL:(NSURL*)url {
 
-    _artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:url.path
-                                                        extractor:VibeTagLibArtExtractor()];
+    self.artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:url.path
+                                                           extractor:VibeTagLibArtExtractor()];
     self.title = [url.path.lastPathComponent stringByDeletingPathExtension];
     self.title = [self.title stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 
@@ -350,7 +358,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
         }
 
         self.fileType = fileTypeForTagLibFile(file);
-        [_artwork adoptParsedArtData:albumArtDataFromTagLibFile(file)];
+        [self.artwork adoptParsedArtData:albumArtDataFromTagLibFile(file)];
         // TagLib opened and recognized the file, so this is real metadata and
         // safe to persist. A null FileRef, from a dataless cloud placeholder
         // or a transient I/O error, leaves this NO, so the loaders will not
