@@ -11,6 +11,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "MetadataParseCoordinator.h"
+#import "MetadataParseFlow.h"
 #import "NSURLUtil.h"
 
 @interface AudioTrackMetadataCache ()
@@ -23,19 +24,17 @@
 // if it has moved, and re-checks after the write lands — otherwise a parse in
 // flight during Settings > Clear Cache would repopulate the emptied cache.
 - (uint64_t)cacheGeneration;
-// A cross-lane parse claim, keyed on the file URL rather than the track
+// The cross-lane parse claims, keyed on the file URL rather than the track
 // object, because the same file can occupy several playlist rows as distinct
-// AudioTracks. The scan's stage-2 op and the priority lane can both pass
-// their parsedOK entry checks before either finishes, as on a folder drop
-// with auto-play, paying for the full TagLib parse, thumbnail decode and disk
-// write twice for the same file. A different row joins the holder's weak
-// waiter set; a same-row repeat is a no-op. The coordinator captures the URL
-// at claim time so a mutable track URL cannot strand its waiters.
-- (MetadataParseClaim *)claimParse:(AudioTrack *)track;
-- (NSArray<AudioTrack *> *)completeParseClaim:(MetadataParseClaim *)claim;
+// AudioTracks. The scan's stage-2 op and the priority lane can both pass their
+// parsedOK entry checks before either finishes, as on a folder drop with
+// auto-play, paying for the full TagLib parse, thumbnail decode and disk write
+// twice for the same file. One holder and its weak duplicate-row waiters per
+// URL; every loader shares this one, through its own MetadataParseFlow.
+@property (nonatomic, readonly) MetadataParseCoordinator<AudioTrack *> *parseCoordinator;
 @end
 
-@interface AudioTrackMetadataLoader : NSObject
+@interface AudioTrackMetadataLoader : NSObject <MetadataParseFlowDelegate>
 
 @property (atomic) BOOL isCancelled;
 @property (nullable, weak) id <AudioTrackMetadataCacheDelegate> delegate;
@@ -63,6 +62,9 @@
     // lane touches it only on main, since loadSingleTrack: runs on the caller's
     // thread, always main, and the completion removal is dispatched to main.
     NSMutableSet<AudioTrack *>* _queuedTracks;
+    // The parse ordering, over the owner's shared coordinator. Held strongly,
+    // and it holds this loader weakly back.
+    MetadataParseFlow* _parseFlow;
 }
 
 - (id)initWithOwner:(AudioTrackMetadataCache *)owner
@@ -73,6 +75,8 @@
         _isCancelled = NO;
         _owner = owner;
         _queuedTracks = [NSMutableSet set];
+        _parseFlow = [[MetadataParseFlow alloc] initWithCoordinator:owner.parseCoordinator
+                                                           delegate:self];
         _delegate = delegate;
         _queue = [[NSOperationQueue alloc] init];
         if (priorityLane) {
@@ -266,43 +270,48 @@
 
 // The stage-2 worker: the TagLib parse. It opens the audio file, and this is
 // the call that can block for a download's duration on a cloud placeholder.
+// The claim, the recheck under it and the duplicate-row fan-out are
+// MetadataParseFlow's; the four steps below are what it calls back into.
 - (void)parseOneTrack:(AudioTrack *)track {
-    // Re-checked at parse time, because the priority lane, or an earlier
-    // loader, may have produced real metadata while this op sat queued.
-    if (track.metadata.parsedOK) {
-        return;
-    }
     // A stale loader, cancelled when a new playlist replaced this one, must
     // not keep parsing discarded tracks and issuing synchronous cache writes
-    // that the live loader's objectForKey: reads then queue behind.
+    // that the live loader's objectForKey: reads then queue behind. The flow's
+    // own entry check covers a track an earlier loader or the priority lane
+    // resolved while this op sat queued.
     if (self.isCancelled) {
         return;
     }
-    // The cross-lane claim; see the owner's declaration. When the holder is
-    // this same track object, skip outright: the claiming lane publishes to
-    // this object on completion, and a second parse would only fail the same
-    // way. When the holder is a DIFFERENT track for the same file — the same
-    // file on two playlist rows — skipping would leave this row bare, since
-    // the winner's result lands on its own track. The owner records this track
-    // as a waiter and the winner fans its result out once, avoiding one polling
-    // chain per duplicate row while a cloud parse is wedged.
+    // Keyed on the file URL, not the track: the same file can occupy several
+    // playlist rows as distinct AudioTracks, and one parse must answer them
+    // all. When the holder is a DIFFERENT track for the same file, skipping
+    // outright would leave this row bare, since the winner's result lands on
+    // its own track — so the flow registers it as a waiter and the winner fans
+    // its result out once, avoiding one polling chain per duplicate row while
+    // a cloud parse is wedged.
+    [_parseFlow runForParticipant:track key:track.url];
+}
+
+#pragma mark - MetadataParseFlowDelegate
+
+- (BOOL)parseFlowParticipantIsResolved:(AudioTrack *)track {
+    return track.metadata.parsedOK;
+}
+
+// Also how a duplicate row is served once the holder's parse lands: from the
+// disk entry it just wrote, NOT by handing over the holder's own object. Two
+// rows for the same file must own SEPARATE AudioTrackMetadata, because the art
+// state on it is mutable and per-row — the current row decodes
+// full-resolution art into it, and a track change discards that art again.
+- (BOOL)parseFlowServeFromCache:(AudioTrack *)track {
+    return [self loadTrackFromDiskCache:track];
+}
+
+- (void)parseFlowPublishParsed:(AudioTrack *)track {
+    [self publishTrack:track];
+}
+
+- (void)parseFlowParse:(AudioTrack *)track {
     AudioTrackMetadataCache *owner = _owner;
-    MetadataParseClaim *claim = owner ? [owner claimParse:track] : nil;
-    // No owner means no coordination is possible, so parse unguarded rather
-    // than skipping the row. Only a real claim that lost can bail here.
-    if (claim && !claim.isOwner) {
-        return;
-    }
-    // Re-checked under the claim, because the other lane may have finished
-    // this exact track between the entry check above and the claim — and the
-    // entry may have been written by a DIFFERENT row for the same file that
-    // finished while this op sat queued, which the claim itself cannot cover,
-    // since that parse released its claim before this one took it. One disk
-    // read beats re-running the TagLib parse and the thumbnail decode.
-    if (track.metadata.parsedOK || [self loadTrackFromDiskCache:track]) {
-        [self publishParseResultToWaitingTracks:[owner completeParseClaim:claim]];
-        return;
-    }
     // Captured before the parse, which can block for minutes on a cloud file:
     // an invalidate arriving mid-parse makes this result stale for the cache.
     uint64_t generation = owner.cacheGeneration;
@@ -351,35 +360,6 @@
             }
         }
     }
-    // Released rather than kept, so a failed parse stays eligible for a retry.
-    NSArray<AudioTrack *> *waiters = [owner completeParseClaim:claim];
-    [self publishTrack:track];
-    [self publishParseResultToWaitingTracks:waiters];
-}
-
-// The duplicate rows that skipped their own parse because this one held the
-// claim; see claimParse:. Each is served from the disk entry the parse above
-// just wrote, NOT by handing them the winner's object: two rows for the same
-// file must own SEPARATE AudioTrackMetadata, because the art state on it is
-// mutable and per-row — the current row decodes full-resolution art into it,
-// and a track change discards that art again. This is also the cache-hit
-// lane's behavior, which reads through diskCache and so unarchives one
-// instance per row.
-//
-// A failed parse wrote nothing, so the lookup misses and its waiters keep the
-// filename fallback the holder is showing: one answer for every row of the
-// file, and no retry storm from rows re-queueing each other.
-- (void)publishParseResultToWaitingTracks:(NSArray<AudioTrack *> *)waiters {
-    for (AudioTrack *waiter in waiters) {
-        // A re-drop's stage-1 sweep can serve a waiter while the parse it is
-        // waiting on still blocks. Replacing that metadata with an equivalent
-        // instance buys nothing and costs a second didLoadMetadata:, which
-        // re-decodes the header art if the row is the current track.
-        if (waiter.metadata.parsedOK) {
-            continue;
-        }
-        [self loadTrackFromDiskCache:waiter]; // publishes on a hit
-    }
 }
 
 // Deliberately not gated on isCancelled: once a parse has landed on the track,
@@ -418,23 +398,12 @@
     // Exists only to construct the cache off the main thread at utility QoS;
     // see init.
     dispatch_queue_t            _cacheQueue;
-    // One holder and its duplicate-row waiters per URL; the coordinator owns
-    // its synchronization and has dedicated stress coverage.
-    MetadataParseCoordinator<AudioTrack *> *_parseCoordinator;
     // Bumped by invalidateWithCompletion:; see the class-extension comment.
     atomic_uint_fast64_t        _cacheGeneration;
 }
 
 - (uint64_t)cacheGeneration {
     return atomic_load_explicit(&_cacheGeneration, memory_order_relaxed);
-}
-
-- (MetadataParseClaim *)claimParse:(AudioTrack *)track {
-    return [_parseCoordinator claimParseForKey:track.url participant:track];
-}
-
-- (NSArray<AudioTrack *> *)completeParseClaim:(MetadataParseClaim *)claim {
-    return [_parseCoordinator completeClaim:claim];
 }
 
 + (NSString *)cacheName {

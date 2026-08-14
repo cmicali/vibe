@@ -15,6 +15,29 @@
             || [extension isEqualToString:@"m3u8"];
 }
 
+// A byte order for BOM-less UTF-16 (some Windows writers), or 0 for "not
+// UTF-16". Latin-script text puts a NUL on the high half of nearly every code
+// unit and nothing else does, so a clear majority on one side with none at all
+// on the other is the signature. Requiring the other side to be empty is what
+// keeps a lone stray NUL in a corrupted UTF-8 file from being read as UTF-16.
+static NSStringEncoding BOMlessUTF16Encoding(const uint8_t *bytes, NSUInteger length) {
+    if (length < 4 || (length % 2) != 0) {
+        return 0;
+    }
+    NSUInteger units = length / 2, evenNULs = 0, oddNULs = 0;
+    for (NSUInteger i = 0; i + 1 < length; i += 2) {
+        if (bytes[i] == 0) evenNULs++;
+        if (bytes[i + 1] == 0) oddNULs++;
+    }
+    if (oddNULs * 2 >= units && evenNULs == 0) {
+        return NSUTF16LittleEndianStringEncoding;
+    }
+    if (evenNULs * 2 >= units && oddNULs == 0) {
+        return NSUTF16BigEndianStringEncoding;
+    }
+    return 0;
+}
+
 + (NSString *)textFromData:(NSData *)data {
     if (data.length == 0) {
         return nil;
@@ -26,7 +49,21 @@
             return text;
         }
     }
-    NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    // TRAP: this has to be decided BEFORE the UTF-8 attempt, not after it
+    // fails. UTF-16-encoded ASCII — which is what a sheet of plain filenames
+    // is — carries no byte above 0x7F, so it decodes as UTF-8 *successfully*,
+    // into text with a NUL between every character. No line then matches
+    // anything and the playlist reads as empty. Only a non-ASCII filename
+    // makes the UTF-8 decode fail, which is why the fallback below cannot
+    // carry this on its own.
+    NSString *text = nil;
+    NSStringEncoding bomless = BOMlessUTF16Encoding(bytes, data.length);
+    if (bomless) {
+        text = [[NSString alloc] initWithData:data encoding:bomless];
+    }
+    if (!text) {
+        text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    }
     if (!text && data.length >= 2 && memchr(bytes, 0, data.length)) {
         // A NUL byte occurs in no single-byte text encoding: this is BOM-less
         // UTF-16 (some Windows writers). The zeros sit on the high half of
@@ -60,6 +97,52 @@
 // Windows-authored playlist by orders of magnitude.
 static NSString *NormalizePathSeparators(NSString *name) {
     return [name stringByReplacingOccurrencesOfString:@"\\" withString:@"/"];
+}
+
+// TRAP: a path cannot hold a NUL, and an unpaired surrogate is not text at
+// all, but both reach us — from a file truncated mid-write, from one written
+// as UTF-16 and read as something else, from a %00 in a file:// URL. NSURL
+// answers *nil* for such a component, and a nil candidate takes the whole open
+// down with an exception on a background expansion worker. They are dropped
+// here, while the name is still a string: what is left either names the file
+// or resolves to nothing, and neither crashes.
+static NSString *StrippedOfUnpathableCharacters(NSString *name) {
+    NSUInteger length = name.length;
+    BOOL suspect = NO;
+    for (NSUInteger i = 0; i < length && !suspect; i++) {
+        unichar unit = [name characterAtIndex:i];
+        suspect = (unit == 0 || (unit >= 0xD800 && unit <= 0xDFFF));
+    }
+    if (!suspect) {
+        return name;
+    }
+    unichar *units = calloc(length, sizeof(unichar));
+    if (!units) {
+        return name;
+    }
+    [name getCharacters:units range:NSMakeRange(0, length)];
+    // Compacted in place, which is safe because the write index never passes
+    // the read index. A valid surrogate pair is copied whole — emoji in a
+    // filename are ordinary text and take this path too.
+    NSUInteger out = 0;
+    for (NSUInteger i = 0; i < length; i++) {
+        unichar unit = units[i];
+        if (unit == 0 || (unit >= 0xDC00 && unit <= 0xDFFF)) {
+            continue;
+        }
+        if (unit >= 0xD800 && unit <= 0xDBFF) {
+            if (i + 1 < length && units[i + 1] >= 0xDC00 && units[i + 1] <= 0xDFFF) {
+                units[out++] = unit;
+                units[out++] = units[i + 1];
+                i++;
+            }
+            continue;
+        }
+        units[out++] = unit;
+    }
+    NSString *clean = [NSString stringWithCharacters:units length:out];
+    free(units);
+    return clean;
 }
 
 #pragma mark - CUE
@@ -102,7 +185,7 @@ static BOOL IsCueFileTypeKeyword(NSString *token) {
                 name = [[name substringToIndex:lastSpace.location] stringByTrimmingCharactersInSet:whitespace];
             }
         }
-        name = NormalizePathSeparators(name);
+        name = StrippedOfUnpathableCharacters(NormalizePathSeparators(name));
         if (name.length == 0) {
             return;
         }
@@ -147,7 +230,7 @@ static BOOL IsCueFileTypeKeyword(NSString *token) {
             }
             entry = path;
         }
-        entry = NormalizePathSeparators(entry);
+        entry = StrippedOfUnpathableCharacters(NormalizePathSeparators(entry));
         if (entry.length > 0) {
             [entries addObject:entry];
         }
@@ -168,6 +251,12 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
     NSURL *primary = [entry hasPrefix:@"/"]
             ? [NSURL fileURLWithPath:entry]
             : [dir URLByAppendingPathComponent:entry].URLByStandardizingPath;
+    // Both constructors answer nil for a component no path can hold; the
+    // parsers strip those, and this is the backstop for any other caller.
+    // Nothing can be resolved without a primary, so the entry has no URL.
+    if (!primary.path) {
+        return nil;
+    }
     NSURL *beside = [dir URLByAppendingPathComponent:entry.lastPathComponent];
     NSMutableArray<NSURL *> *candidates = [NSMutableArray arrayWithObject:primary];
     NSMutableSet<NSString *> *seen = [NSMutableSet setWithObject:primary.path];
@@ -226,7 +315,10 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
     NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:entries.count];
     NSMutableDictionary<NSString *, NSNumber *> *dirReachable = [NSMutableDictionary new];
     for (NSString *entry in entries) {
-        [urls addObject:ResolveEntry(entry, dir, fileManager, dirReachable)];
+        NSURL *url = ResolveEntry(entry, dir, fileManager, dirReachable);
+        if (url) {
+            [urls addObject:url];
+        }
     }
     return urls;
 }
