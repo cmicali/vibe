@@ -171,9 +171,10 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // load gets no terminal callback of its own.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track;
 
-// Fires when play/pause changes what an in-flight open will do when it lands.
-// No audio has started or paused yet; use it only to refresh transport and
-// Now Playing state, not playback-time accounting.
+// Fires when play/pause changes what an in-flight open will do when it lands,
+// and when a same-file rebind replaces its playlist row. No audio has started
+// or paused yet; use it only to refresh transport and Now Playing state, not
+// playback-time accounting.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeLoadingPaused:(BOOL)paused
                   forTrack:(AudioTrack *)track;

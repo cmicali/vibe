@@ -10,6 +10,7 @@
 #import "AudioCachePolicy.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "MetadataParseCoordinator.h"
 #import "NSURLUtil.h"
 
 @interface AudioTrackMetadataCache ()
@@ -27,13 +28,11 @@
 // AudioTracks. The scan's stage-2 op and the priority lane can both pass
 // their parsedOK entry checks before either finishes, as on a folder drop
 // with auto-play, paying for the full TagLib parse, thumbnail decode and disk
-// write twice for the same file. The claim spans one parseOneTrack:. A loser
-// holding the SAME track skips outright — the winner's publish lands on that
-// object either way — while a loser holding a different track for the same
-// URL waits on the holder and receives the same result when it settles; see
-// parseOneTrack:. outHolder reports which track holds the claim on failure.
-- (BOOL)claimParse:(AudioTrack *)track currentHolder:(AudioTrack *__autoreleasing *)outHolder;
-- (NSArray<AudioTrack *> *)releaseParse:(AudioTrack *)track;
+// write twice for the same file. A different row joins the holder's weak
+// waiter set; a same-row repeat is a no-op. The coordinator captures the URL
+// at claim time so a mutable track URL cannot strand its waiters.
+- (MetadataParseClaim *)claimParse:(AudioTrack *)track;
+- (NSArray<AudioTrack *> *)completeParseClaim:(MetadataParseClaim *)claim;
 @end
 
 @interface AudioTrackMetadataLoader : NSObject
@@ -288,14 +287,16 @@
     // as a waiter and the winner fans its result out once, avoiding one polling
     // chain per duplicate row while a cloud parse is wedged.
     AudioTrackMetadataCache *owner = _owner;
-    AudioTrack *holder = nil;
-    if (owner && ![owner claimParse:track currentHolder:&holder]) {
+    MetadataParseClaim *claim = owner ? [owner claimParse:track] : nil;
+    // No owner means no coordination is possible, so parse unguarded rather
+    // than skipping the row. Only a real claim that lost can bail here.
+    if (claim && !claim.isOwner) {
         return;
     }
     // Re-checked under the claim, because the other lane may have finished
     // this exact track between the entry check above and the claim.
     if (track.metadata.parsedOK) {
-        [self publishParseResultToWaitingTracks:[owner releaseParse:track]];
+        [self publishParseResultToWaitingTracks:[owner completeParseClaim:claim]];
         return;
     }
     // Captured before the parse, which can block for minutes on a cloud file:
@@ -347,7 +348,7 @@
         }
     }
     // Released rather than kept, so a failed parse stays eligible for a retry.
-    NSArray<AudioTrack *> *waiters = [owner releaseParse:track];
+    NSArray<AudioTrack *> *waiters = [owner completeParseClaim:claim];
     [self publishTrack:track];
     [self publishParseResultToWaitingTracks:waiters];
 }
@@ -406,13 +407,9 @@
     // Exists only to construct the cache off the main thread at utility QoS;
     // see init.
     dispatch_queue_t            _cacheQueue;
-    // URL → the track whose parse is in flight, either lane; see claimParse:.
-    // Guarded by @synchronized(self), since both lanes' workers claim and
-    // release it.
-    NSMutableDictionary<NSURL *, AudioTrack *>* _parsesInFlight;
-    // URL → duplicate-row tracks waiting for the holder's one parse result.
-    // Guarded by the same monitor as _parsesInFlight.
-    NSMutableDictionary<NSURL *, NSMutableArray<AudioTrack *> *> *_parseWaiters;
+    // One holder and its duplicate-row waiters per URL; the coordinator owns
+    // its synchronization and has dedicated stress coverage.
+    MetadataParseCoordinator<AudioTrack *> *_parseCoordinator;
     // Bumped by invalidateWithCompletion:; see the class-extension comment.
     atomic_uint_fast64_t        _cacheGeneration;
 }
@@ -421,50 +418,12 @@
     return atomic_load_explicit(&_cacheGeneration, memory_order_relaxed);
 }
 
-- (BOOL)claimParse:(AudioTrack *)track currentHolder:(AudioTrack *__autoreleasing *)outHolder {
-    NSURL *url = track.url;
-    if (!url) {
-        return YES; // no identity to contend on; parse unguarded
-    }
-    @synchronized (self) {
-        AudioTrack *holder = _parsesInFlight[url];
-        if (holder) {
-            if (holder != track) {
-                NSMutableArray<AudioTrack *> *waiters = _parseWaiters[url];
-                if (!waiters) {
-                    waiters = [NSMutableArray array];
-                    _parseWaiters[url] = waiters;
-                }
-                if (![waiters containsObject:track]) {
-                    [waiters addObject:track];
-                }
-            }
-            if (outHolder) {
-                *outHolder = holder;
-            }
-            return NO;
-        }
-        _parsesInFlight[url] = track;
-        return YES;
-    }
+- (MetadataParseClaim *)claimParse:(AudioTrack *)track {
+    return [_parseCoordinator claimParseForKey:track.url participant:track];
 }
 
-- (NSArray<AudioTrack *> *)releaseParse:(AudioTrack *)track {
-    NSURL *url = track.url;
-    if (!url) {
-        return @[];
-    }
-    @synchronized (self) {
-        // Only the claim holder releases; a raced loser must not free the
-        // winner's claim.
-        if (_parsesInFlight[url] == track) {
-            [_parsesInFlight removeObjectForKey:url];
-            NSArray<AudioTrack *> *waiters = [_parseWaiters[url] copy] ?: @[];
-            [_parseWaiters removeObjectForKey:url];
-            return waiters;
-        }
-        return @[];
-    }
+- (NSArray<AudioTrack *> *)completeParseClaim:(MetadataParseClaim *)claim {
+    return [_parseCoordinator completeClaim:claim];
 }
 
 + (NSString *)cacheName {
@@ -481,8 +440,7 @@
     self = [super init];
     if (self) {
         _currentLoader = nil;
-        _parsesInFlight = [NSMutableDictionary dictionary];
-        _parseWaiters = [NSMutableDictionary dictionary];
+        _parseCoordinator = [[MetadataParseCoordinator alloc] init];
         _cacheQueue = dispatch_queue_create("com.vibe.metadatacache",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
         // Create the cache at utility QoS. Constructing it on the main thread
@@ -523,8 +481,8 @@
 - (void)cancelAll {
     // Release it, rather than merely cancelling. _queuedTracks strongly holds
     // every queued track, pinning the old playlist until a next loadMetadata:
-    // that may never come. The priority lane holds only in-flight tracks, so
-    // leave it alone.
+    // that may never come. Duplicate parse waiters are weak, and the priority
+    // lane holds only in-flight tracks, so leave both alone.
     [_currentLoader cancel];
     _currentLoader = nil;
 }
