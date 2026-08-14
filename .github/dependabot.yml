@@ -1,0 +1,13 @@
+# The app itself has no package manager — all third-party code is vendored
+# under Vibe/ThirdParty/ and updated by hand. This tracks only the pinned
+# action versions in .github/workflows/, which otherwise rot silently.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"
+    labels:
+      - dependencies

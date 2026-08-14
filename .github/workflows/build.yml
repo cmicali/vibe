@@ -16,8 +16,9 @@ concurrency:
 
 jobs:
   build:
-    # macOS 26 SDK: project.yml sets MACOSX_DEPLOYMENT_TARGET 26.0, so an
-    # older image's Xcode cannot build this.
+    # Deployment target is macOS 14, but the code compiles against the macOS 26
+    # SDK (Liquid Glass behind availability guards), so an older image's Xcode
+    # cannot build this.
     runs-on: macos-26
     strategy:
       fail-fast: false

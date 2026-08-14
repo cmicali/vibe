@@ -61,8 +61,8 @@ metadata and artwork.
 
 ## Requirements
 
-- macOS 26 or later
-- Xcode 26 or later
+- macOS 14 or later to run
+- macOS 26 and Xcode 26 or later to build — the app builds against the macOS 26 SDK and back-deploys
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) — `Vibe.xcodeproj` is generated from `project.yml` and is not checked in
 
 ## Setup
