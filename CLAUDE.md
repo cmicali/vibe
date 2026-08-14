@@ -45,7 +45,6 @@ Nested `CLAUDE.md` files hold the detail for each directory and load only when y
 - **`Vibe/Playlist/`** — table structure vs content, Launch Services burst opens.
 - **`Vibe/Controls/`** — CALayer-drawn controls.
 - **`Vibe/ThirdParty/`** — the vendored TagLib subset and PINCache/PINOperation: what is included and why, how to update it.
-- **`Vibe/About/`** — the About window and its Metal animation.
 - **`Vibe/Settings/`** — Settings window, `FolderAccessManager` sandbox bookmarks.
 
 ### Cross-directory invariants
