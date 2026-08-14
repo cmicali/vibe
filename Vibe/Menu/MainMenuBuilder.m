@@ -187,6 +187,17 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     copyFileItem.keyEquivalentModifierMask = NSEventModifierFlagCommand;
     [editMenu addItem:copyFileItem];
 
+    AddSeparator(editMenu).identifier = @"menu_edit_separator_select";
+    // The one Edit item with NO explicit target: ⌘A has to reach whichever
+    // list has keyboard focus — today the granted-folder list in Settings >
+    // Permissions — so it rides the responder chain instead. Without an item
+    // carrying the key equivalent nothing sends selectAll: at all, since
+    // AppKit dispatches ⌘A through the menu bar and NSTableView never claims
+    // it itself. PlaylistTableView declines it, being single-selection, so the
+    // item disables rather than sitting enabled and inert over the playlist.
+    AddSymbolItem(editMenu, STR_MENU_EDIT_SELECT_ALL, @"checklist", @selector(selectAll:), nil,
+                  @"a", NSEventModifierFlagCommand, @"menu_edit_select_all");
+
     // Playback
     NSMenu *playbackMenu = Submenu(mainMenu, STR_MENU_PLAYBACK).submenu;
     AddSymbolItem(playbackMenu, STR_TRANSPORT_PLAY, @"play.fill", @selector(playPause:), player, @" ", 0, @"menu_play");

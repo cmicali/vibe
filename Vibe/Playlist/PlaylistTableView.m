@@ -150,6 +150,17 @@ static NSTextField *makeCellTextField(NSRect frame) {
     return field;
 }
 
+// Edit > Select All is nil-targeted, so the responder chain hands it to
+// whichever table has focus, and NSTableView answers to selectAll: whether or
+// not it can act on it. This one cannot — it is single-selection — and an
+// enabled item that does nothing when clicked is worse than a disabled one.
+- (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
+    if (menuItem.action == @selector(selectAll:)) {
+        return self.allowsMultipleSelection;
+    }
+    return [super validateMenuItem:menuItem];
+}
+
 // Builds the table's cell prototypes in code. makeViewWithIdentifier returns
 // nil until a view of that identifier has been created once, and setting the
 // identifier here puts these into the table's normal reuse queue.
