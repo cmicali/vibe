@@ -5,6 +5,7 @@
 
 #import "SettingsPermissionsViewController.h"
 #import "FolderAccessManager.h"
+#import "FolderAccessRules.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
@@ -18,6 +19,7 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 
 @implementation SettingsPermissionsViewController {
     NSTableView *_tableView;
+    NSButton *_addHomeButton;
     NSButton *_removeButton;
     NSArray<NSString *> *_paths;
 }
@@ -51,10 +53,12 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 
     NSButton *addButton = [NSButton buttonWithTitle:STR_SETTINGS_ADD_FOLDER
                                              target:self action:@selector(addFolder:)];
+    _addHomeButton = [NSButton buttonWithTitle:STR_SETTINGS_ADD_HOME_FOLDER
+                                        target:self action:@selector(addHomeFolder:)];
     _removeButton = [NSButton buttonWithTitle:STR_SETTINGS_REMOVE_FOLDER
                                        target:self action:@selector(removeFolder:)];
     _removeButton.enabled = NO;
-    NSStackView *buttons = [NSStackView stackViewWithViews:@[addButton, _removeButton]];
+    NSStackView *buttons = [NSStackView stackViewWithViews:@[addButton, _addHomeButton, _removeButton]];
     buttons.spacing = 8;
 
     NSGridView *grid = [NSGridView gridViewWithViews:@[@[explain], @[scrollView], @[buttons]]];
@@ -79,6 +83,22 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
     _paths = FolderAccessManager.sharedInstance.grantedFolderPaths;
     [_tableView reloadData];
     _removeButton.enabled = _tableView.selectedRowIndexes.count > 0;
+    _addHomeButton.enabled = ![self.class homeFolderGranted:_paths];
+}
+
++ (BOOL)homeFolderGranted:(NSArray<NSString *> *)paths {
+    NSString *home = self.homeFolderPath;
+    for (NSString *granted in paths) {
+        if (VibePathIsUnderFolder(home, granted)) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+// The real home, not NSHomeDirectory's sandbox container.
++ (NSString *)homeFolderPath {
+    return NSHomeDirectoryForUser(NSUserName());
 }
 
 #pragma mark - Actions
@@ -88,6 +108,25 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
     panel.canChooseFiles = NO;
     panel.canChooseDirectories = YES;
     panel.allowsMultipleSelection = YES;
+    [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
+        if (result == NSModalResponseOK) {
+            [FolderAccessManager.sharedInstance noteOpenedURLs:panel.URLs];
+        }
+    }];
+}
+
+// The sandbox has no way to grant a folder without the user picking it, so the
+// button can only stage the panel: opened on the home folder, with nothing
+// selected, so confirming returns the home folder itself.
+- (void)addHomeFolder:(id)sender {
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.canChooseFiles = NO;
+    panel.canChooseDirectories = YES;
+    panel.allowsMultipleSelection = NO;
+    panel.canCreateDirectories = NO;
+    panel.directoryURL = [NSURL fileURLWithPath:self.class.homeFolderPath isDirectory:YES];
+    panel.message = STR_SETTINGS_HOME_GRANT_MESSAGE;
+    panel.prompt = STR_SETTINGS_HOME_GRANT_BUTTON;
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
         if (result == NSModalResponseOK) {
             [FolderAccessManager.sharedInstance noteOpenedURLs:panel.URLs];
