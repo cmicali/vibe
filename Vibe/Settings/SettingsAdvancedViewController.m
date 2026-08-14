@@ -11,9 +11,14 @@
 #import "MainPlayerController.h"
 #import "VibeStrings.h"
 
-static const CGFloat kAdvancedPaneHeight = 260;
+static const CGFloat kAdvancedPaneHeight = 290;
+static const CGFloat kAdvancedPopUpWidth = 200;
+
+// The rate ladder lives in AppSettings.h (kVibeUIUpdateHzCapPresets), like the
+// Playback pane's, because the getter snaps a persisted value to it.
 
 @implementation SettingsAdvancedViewController {
+    NSPopUpButton *_refreshRatePopUp;
     NSTextField *_cacheSizeValue;
     NSButton *_clearCacheButton;
     NSTextField *_filesOpenedValue;
@@ -26,6 +31,16 @@ static const CGFloat kAdvancedPaneHeight = 260;
 }
 
 - (void)loadView {
+    _refreshRatePopUp = [self popUpButtonWithWidth:kAdvancedPopUpWidth
+                                            action:@selector(refreshRateChanged:)];
+    NSArray<NSString *> *rateTitles = @[STR_SETTINGS_REFRESH_RATE_LOW,
+                                        STR_SETTINGS_REFRESH_RATE_NORMAL,
+                                        STR_SETTINGS_REFRESH_RATE_HIGH];
+    for (NSUInteger i = 0; i < rateTitles.count; i++) {
+        [_refreshRatePopUp addItemWithTitle:rateTitles[i]];
+        _refreshRatePopUp.lastItem.tag = kVibeUIUpdateHzCapPresets[i];
+    }
+
     _cacheSizeValue = [NSTextField labelWithString:@""];
     _clearCacheButton = [NSButton buttonWithTitle:STR_SETTINGS_CLEAR_CACHE
                                            target:self action:@selector(clearCache:)];
@@ -34,6 +49,7 @@ static const CGFloat kAdvancedPaneHeight = 260;
     _audioPlayedValue = [NSTextField labelWithString:@""];
 
     NSGridView *grid = [self.class formGridWithRows:@[
+        @[[NSTextField labelWithString:STR_SETTINGS_REFRESH_RATE_LABEL], _refreshRatePopUp],
         @[[NSTextField labelWithString:STR_SETTINGS_CACHE_LABEL], _cacheSizeValue],
         @[NSGridCell.emptyContentView, _clearCacheButton],
         @[[NSTextField labelWithString:STR_SETTINGS_FILES_OPENED_LABEL], _filesOpenedValue],
@@ -44,8 +60,19 @@ static const CGFloat kAdvancedPaneHeight = 260;
 }
 
 - (void)refreshFromSettings {
+    // The getter snaps to a preset, so this always matches an item.
+    [_refreshRatePopUp selectItemWithTag:Settings.uiUpdateHzCap];
     [self refreshCacheSize];
     [self refreshPlaybackStats];
+}
+
+#pragma mark - Playhead refresh
+
+- (void)refreshRateChanged:(id)sender {
+    Settings.uiUpdateHzCap = _refreshRatePopUp.selectedTag;
+    // The live half: the timer re-arms at once, without waiting for the next
+    // track start or resize to recompute the rate.
+    [self.playerController syncUITimerRate];
 }
 
 #pragma mark - Cache

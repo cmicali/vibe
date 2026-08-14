@@ -109,7 +109,7 @@ static inline TrackDisplayState VibeResolveTrackDisplayState(
                rate:(double)rate
         errorStatus:(nullable NSString *)errorStatus;
 
-// The 3 Hz position tick: waveform progress plus a change-guarded elapsed
+// The position tick: waveform progress plus a change-guarded elapsed
 // label. duration is the caller's cached track duration, because the live
 // player duration reads 0 in the Loading gap. It renders only in Track and
 // Loading; the empty and error states keep showing --:--.

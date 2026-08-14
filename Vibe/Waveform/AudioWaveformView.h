@@ -21,6 +21,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property CGFloat progress;
 
+// The drawing surface's width in device pixels. It is setProgress:'s repaint
+// step count, and MainPlayerController's UI tick rate is scaled by the same
+// number, so the rate the playhead is driven at and the resolution it is drawn
+// at cannot drift apart.
+@property (readonly) CGFloat devicePixelWidth;
+
 // Styles are identified by the renderer's stable styleIdentifier, never its
 // localized display name; displayNameForStyle: turns one into UI text.
 - (NSString *)currentWaveformStyle;

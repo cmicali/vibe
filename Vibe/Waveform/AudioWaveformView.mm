@@ -225,8 +225,7 @@ static const CGFloat kMidlineHeight = 1;
     // width-based rather than a fixed fraction of the track: a
     // duration-proportional step stalls the played-unplayed boundary for many
     // seconds on an hour-long mix, and swallows sub-step seeks entirely.
-    CGFloat scale = VibeBackingScaleForWindow(self.window);
-    NSUInteger steps = MAX((NSUInteger)1, (NSUInteger)(self.bounds.size.width * scale));
+    NSUInteger steps = MAX((NSUInteger)1, (NSUInteger)self.devicePixelWidth);
     NSUInteger p = static_cast<NSUInteger>(progress * steps);
     if (_progressTracker != p) {
         _progressTracker = p;
@@ -237,6 +236,10 @@ static const CGFloat kMidlineHeight = 1;
 
 - (CGFloat)progress {
     return _progress;
+}
+
+- (CGFloat)devicePixelWidth {
+    return self.bounds.size.width * VibeBackingScaleForWindow(self.window);
 }
 
 - (double)convertSweepFraction {

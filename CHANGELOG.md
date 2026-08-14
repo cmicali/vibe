@@ -6,6 +6,7 @@
 * Added "Always on Top" and "Show File Info" settings
 * Added Permissions settings pane; folder access now persists across launches
 * Added support for macOS 14 Sonoma and later (previously required macOS 26)
+* Improved waveform highlight smoothness on short files and samples
 * Fixed non-square album art; now displays as a centered square crop
 * Fixed opening files passed on the command line
 * Fixed Convert to FLAC when the same file is in the playlist twice

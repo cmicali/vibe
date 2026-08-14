@@ -35,10 +35,9 @@
 #import "MainPlayerController+Transport.h" // updateFXIndicators, from the updateUI funnel
 #import "DownloadProgressMonitor.h"
 #import "UIUpdateTimer.h"
+#import "UIUpdateRate.h"
 #import "AppStats.h"
 #import "VibeStrings.h"
-
-#define UPDATE_HZ 3
 
 // The view outlets, adopted from MainPlayerContentView in
 // buildContentInWindow:, and the protocol conformances are internal. Nothing
@@ -104,9 +103,9 @@
 @end
 
 @implementation MainPlayerController {
-    // The occlusion-gated 3 Hz position-update timer. It drives
-    // updatePlaybackUI only while playback wants updates and the window is
-    // unoccluded.
+    // The occlusion-gated position-update timer. It drives updatePlaybackUI
+    // only while playback wants updates and the window is unoccluded, at the
+    // rate syncUITimerRate scales to the playhead's on-screen speed.
     UIUpdateTimer*              _uiTimer;
     // Polls (and on macOS subscribes to) a materializing cloud file's
     // download progress while the loading shimmer is up; nil otherwise.
@@ -379,7 +378,7 @@
     self.audioPlayer.crossfadeMilliseconds = Settings.crossfadeMilliseconds;
 
     __weak MainPlayerController *weakSelf = self;
-    _uiTimer = [[UIUpdateTimer alloc] initWithHz:UPDATE_HZ handler:^{
+    _uiTimer = [[UIUpdateTimer alloc] initWithHz:kVibeUIUpdateHzMin handler:^{
         [weakSelf updatePlaybackUI];
     }];
 
@@ -404,6 +403,26 @@
     // notification, and playback can start before the first one fires.
     _uiTimer.windowVisible = [self isWindowVisible];
     _uiTimer.wanted = YES;
+}
+
+// Scale the tick rate to how fast the playhead crosses the waveform, so that a
+// five-second sample sweeps smoothly while an ordinary song stays at the 3 Hz
+// floor it has always cost. The rule is VibeUIUpdateHzForPlayhead; this
+// gathers its inputs and must run wherever one of them moves: the duration
+// through the updateUI funnel, which every track start and transport event
+// passes through, the rate at a fader tick, and the width at a resize.
+//
+// The duration is the cache, not the player's: the live one reads 0 in the
+// Loading gap, the same reason updatePlaybackUI uses the cache.
+- (void)syncUITimerRate {
+    CGFloat widthPx = self.waveformView.devicePixelWidth;
+    NSUInteger hz = VibeUIUpdateHzForPlayhead(widthPx, _currentTrackDuration, self.playbackRate,
+                                              Settings.uiUpdateHzCap);
+    if (hz != _uiTimer.hz) {
+        LogDebug(@"UI update rate %lu Hz (waveform %.0f px, duration %.2fs, rate %.3f)",
+                 (unsigned long)hz, widthPx, _currentTrackDuration, self.playbackRate);
+        _uiTimer.hz = hz;
+    }
 }
 
 - (BOOL)isWindowVisible {
@@ -436,6 +455,10 @@
 // the app's own resizes, from the View > Size presets and the pitch-panel
 // toggle.
 - (void)windowDidResize:(NSNotification *)notification {
+    // Unlike the title refit, live-drag frames are not skipped: a wider
+    // waveform is a faster playhead, and the re-arm is a no-op until the width
+    // crosses a whole-Hz boundary.
+    [self syncUITimerRate];
     if (!self.window.inLiveResize) {
         [self.trackDisplay refitTitleIfWidthChanged];
     }
@@ -529,6 +552,7 @@
         [self.playlistController reloadCurrentTrack];
         _lastReloadedTrack = displayTrack;
     }
+    [self syncUITimerRate];
     [self updatePlaybackUI];
     [self updateNowPlaying];
 }
@@ -541,7 +565,7 @@
     return 1.0 + self.audioPlayer.pitch / 100.0;
 }
 
-// The 3 Hz tick, and the refresh after a seek or a rate change. It uses the
+// The position tick, and the refresh after a seek or a rate change. It uses the
 // cached duration rather than the live one, because the live duration reads 0
 // in the Loading gap, and the cache keeps the waveform progress pinned rather
 // than frozen.
@@ -897,6 +921,9 @@
     // rather than frozen.
     if (!hasNextTrack) {
         _currentTrackDuration = 0;
+        // The park is the one place a zeroed duration is not followed by an
+        // updateUI, so the tick rate would rest at the finished track's.
+        [self syncUITimerRate];
         // Pin the resting header deterministically. The updateUI inside next:
         // read the player mid-teardown, where its position and duration race
         // the async stop, which could leave the waveform pinned at 100% while
@@ -1207,12 +1234,15 @@
                                       rate:self.playbackRate
                                      state:[self displayState]];
     [self effectiveTempoDidChange];
+    // A faster rate is a faster playhead. The fader is the one input that can
+    // move without a track start or a resize.
+    [self syncUITimerRate];
     [self updatePlaybackUI];
 }
 
 - (void)pitchControlPanel:(PitchControlPanel *)panel didChangePitch:(float)pitch {
     self.audioPlayer.pitch = pitch;
-    // The time labels scale with the rate, so refresh immediately: the 3 Hz
+    // The time labels scale with the rate, so refresh immediately: the update
     // timer is not running while paused.
     [self updateRateDependentUI];
 }
@@ -1290,6 +1320,20 @@
 
 - (void)debugRefreshUI {
     [self updateUI];
+}
+
+- (NSUInteger)debugUIUpdateHz {
+    return _uiTimer.hz;
+}
+
+// The rule against the live inputs, for the invariant that pairs it with the
+// rate actually armed: the two diverge exactly when some path moved the width,
+// duration or rate without calling syncUITimerRate.
+- (NSUInteger)debugExpectedUIUpdateHz {
+    return VibeUIUpdateHzForPlayhead(self.waveformView.devicePixelWidth,
+                                     _currentTrackDuration,
+                                     self.playbackRate,
+                                     Settings.uiUpdateHzCap);
 }
 #endif
 
