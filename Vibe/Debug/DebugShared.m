@@ -38,6 +38,14 @@ NSString *VibeJSONString(NSDictionary *dict) {
     return json ?: @"{\"error\": \"response not JSON-serializable\"}";
 }
 
+NSString *VibeErrorJSON(NSString *format, ...) {
+    va_list args;
+    va_start(args, format);
+    NSString *message = [[NSString alloc] initWithFormat:format arguments:args];
+    va_end(args);
+    return VibeJSONString(@{@"error": message});
+}
+
 BOOL VibeParseDouble(NSString *token, double *out) {
     NSScanner *scanner = [NSScanner scannerWithString:token];
     return [scanner scanDouble:out] && scanner.isAtEnd;

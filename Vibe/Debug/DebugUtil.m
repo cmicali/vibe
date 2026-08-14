@@ -14,6 +14,8 @@
 #import <MediaPlayer/MediaPlayer.h>
 #import <notify.h>
 #import "DebugShared.h"
+#import "DebugHealth.h"
+#import "DebugSettingsUI.h"
 #import "AppDelegate.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Debug.h"
@@ -66,7 +68,10 @@ static void VibeCollectGlassLayers(NSView *view, NSMutableArray<CALayer *> *out)
 static BOOL VibeDumpWindowSnapshot(NSString *path) {
     NSWindow *window = NSApp.keyWindow ?: NSApp.mainWindow;
     if (!window) {
-        for (NSWindow *candidate in NSApp.windows) {
+        // Front to back, not creation order: with the app inactive both
+        // keyWindow and mainWindow are nil, and NSApp.windows would hand back
+        // the player even while the settings or about window sits in front.
+        for (NSWindow *candidate in NSApp.orderedWindows) {
             if (candidate.isVisible && candidate.contentView) {
                 window = candidate;
                 break;
@@ -270,15 +275,6 @@ static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"keyColors": @(Settings.keyColorsEnabled),
         },
     };
-}
-
-static NSString *VibeErrorJSON(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);
-static NSString *VibeErrorJSON(NSString *format, ...) {
-    va_list args;
-    va_start(args, format);
-    NSString *message = [[NSString alloc] initWithFormat:format arguments:args];
-    va_end(args);
-    return VibeJSONString(@{@"error": message});
 }
 
 static NSDictionary *VibeViewDictionary(NSView *view) {
@@ -996,6 +992,26 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     @"secondsPlayed": @(stats.totalSecondsPlayed),
                 });
             }),
+            // The stress driver's two oracles; see DebugHealth.h. dump_health
+            // and check_invariants both reach the player's serial queue for
+            // the engine node count, so a wedged queue times them out rather
+            // than letting them answer from stale state.
+            VibeCmd(@"dump_health", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeDebugHealthJSON(controller);
+            }),
+            VibeCmd(@"check_invariants", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeDebugInvariantsJSON(controller);
+            }),
+            // Async: it closes the file and then polls for the pending
+            // counters to unwind, so the response arrives from the poll rather
+            // than from here. Sample dump_health right after it for a reading
+            // taken at rest instead of mid-decode.
+            VibeCmd(@"quiesce", 20, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                VibeDebugQuiesce(controller, ^(NSString *response) {
+                    VibeWriteDebugResponse(commandId, response);
+                });
+                return nil; // response written by the poll
+            }),
             VibeCmd(@"dump_view_tree", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeViewTreeDump();
             }),
@@ -1012,6 +1028,21 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     return VibeErrorJSON(@"screenshot failed to render or write; see app log");
                 }
                 return VibeJSONString(@{@"path": path});
+            }),
+            // The settings window: a second window the injection verbs below
+            // cannot reach, since they all post into the player's event
+            // stream. DebugSettingsUI.m addresses its controls by name.
+            VibeCmd(@"settings_open [pane]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeDebugSettingsOpen(tokens);
+            }),
+            VibeCmd(@"settings_close", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeDebugSettingsClose();
+            }),
+            VibeCmd(@"dump_settings_ui", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeDebugSettingsDump();
+            }),
+            VibeCmd(@"settings_click <control> [value]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeDebugSettingsClick(tokens);
             }),
             VibeCmd(@"click_menu <identifier-or-title>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {

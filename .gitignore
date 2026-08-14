@@ -33,6 +33,11 @@ Vibe/Common/Info.plist
 # Generated test audio (.claude/skills/vibe-debug/scripts/generate-test-audio.sh)
 /Assets/test_audio_files/
 
+# Byte-compiled Python, which appears under the skills' scripts/ whenever one
+# of them is imported rather than run.
+__pycache__/
+*.pyc
+
 # Localized App Store screenshots are regenerated, not tracked; the English
 # set stays tracked. Assets/app-store/copy/ is the source of truth and tracked.
 /Assets/app-store/screenshots/*/

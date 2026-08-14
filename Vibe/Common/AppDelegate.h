@@ -30,5 +30,11 @@
 // every change; the show methods apply it to a window created while the mode
 // is already on.
 - (void)applyAuxiliaryWindowLevels;
+
+#if DEBUG
+// The burst coalescer's queue depth for dump_health. Forwarded rather than
+// exposing the coalescer, which is a private ivar here.
+- (NSUInteger)debugQueuedOpenCount;
+#endif
 @end
 

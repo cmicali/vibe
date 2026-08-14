@@ -60,9 +60,15 @@
 // title to its contentViewController's, and setting the window title by hand
 // instead loses to that chain — the propagation clears it to nil on every
 // tab switch.
-static NSTabViewItem *PaneItem(NSViewController *pane, NSString *label, NSString *symbolName) {
+//
+// The identifier is the pane's stable name, the one the debug channel's
+// settings_open selects by, so a script never depends on the running
+// language the way the label would make it.
+static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
+                               NSString *label, NSString *symbolName) {
     pane.title = label;
     NSTabViewItem *item = [NSTabViewItem tabViewItemWithViewController:pane];
+    item.identifier = identifier;
     item.image = [NSImage imageWithSystemSymbolName:symbolName accessibilityDescription:label];
     return item;
 }
@@ -72,20 +78,20 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *label, NSString
     tabs.tabStyle = NSTabViewControllerTabStyleToolbar;
 
     [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController],
-                                  STR_SETTINGS_GENERAL, @"gearshape")];
+                                  @"general", STR_SETTINGS_GENERAL, @"gearshape")];
     // The tab titles reuse the Playback and Appearance menu strings: same
     // word, same translations.
     [tabs addTabViewItem:PaneItem([[SettingsPlaybackViewController alloc] initWithPlayerController:playerController],
-                                  STR_MENU_PLAYBACK, @"play.circle")];
+                                  @"playback", STR_MENU_PLAYBACK, @"play.circle")];
     [tabs addTabViewItem:PaneItem([[SettingsAppearanceViewController alloc] initWithPlayerController:playerController],
-                                  STR_MENU_VIEW_APPEARANCE, @"paintbrush")];
+                                  @"appearance", STR_MENU_VIEW_APPEARANCE, @"paintbrush")];
     // The Convert tab reuses the Convert menu's string too.
     [tabs addTabViewItem:PaneItem([[SettingsConvertViewController alloc] initWithPlayerController:playerController],
-                                  STR_MENU_CONVERT, @"arrow.triangle.2.circlepath")];
+                                  @"convert", STR_MENU_CONVERT, @"arrow.triangle.2.circlepath")];
     [tabs addTabViewItem:PaneItem([[SettingsPermissionsViewController alloc] initWithPlayerController:playerController],
-                                  STR_SETTINGS_PERMISSIONS, @"folder.badge.person.crop")];
+                                  @"permissions", STR_SETTINGS_PERMISSIONS, @"folder.badge.person.crop")];
     [tabs addTabViewItem:PaneItem([[SettingsAdvancedViewController alloc] initWithPlayerController:playerController],
-                                  STR_SETTINGS_ADVANCED, @"gearshape.2")];
+                                  @"advanced", STR_SETTINGS_ADVANCED, @"gearshape.2")];
 
     // The window title comes from the title-propagation chain above, never
     // set directly here.

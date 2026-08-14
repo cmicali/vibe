@@ -24,6 +24,7 @@ NSString *VibeDebugResponsePath(NSString *commandId);
 NSString *VibeDebugScreenshotPathForCommand(NSString *commandId);
 
 NSString *VibeJSONString(NSDictionary *dict);
+NSString *VibeErrorJSON(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);
 
 BOOL VibeParseDouble(NSString *token, double *out);
 

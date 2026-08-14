@@ -1629,6 +1629,27 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 
 #pragma mark - Properties
 
+#if DEBUG
+- (NSDictionary<NSString *, NSNumber *> *)debugEngineCounts {
+    // Reading these off the queue would race every attach, detach and fade
+    // retirement, which is exactly the code these numbers are meant to audit.
+    // The same-queue guard mirrors dealloc's: a caller already on _queue would
+    // deadlock.
+    NSDictionary *(^counts)(void) = ^NSDictionary *{
+        return @{@"attachedNodes": @(self->_engine.attachedNodes.count),
+                 @"retiredFades": @(self->_retiredFades.count)};
+    };
+    if (dispatch_get_specific(kAudioPlayerQueueKey) == kAudioPlayerQueueKey) {
+        return counts();
+    }
+    __block NSDictionary *result = nil;
+    dispatch_sync(_queue, ^{
+        result = counts();
+    });
+    return result;
+}
+#endif
+
 - (BOOL)isPlaying {
     os_unfair_lock_lock(&_stateLock);
     BOOL playing = (_state == VibePlayerStatePlaying

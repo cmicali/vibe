@@ -1,0 +1,1107 @@
+#!/usr/bin/env python3
+"""Seeded stress and fuzz driver for the running Vibe app.
+
+It drives the debug command channel with weighted random operations against a
+corpus of real audio files, and checks four oracles between batches:
+
+  liveness    the app still answers          (a timeout is a main-thread stall,
+                                              because the channel is delivered
+                                              on the main queue)
+  invariants  check_invariants has no        (re-checked after a settle, since a
+              surviving violations            render can lag its state change)
+  health      dump_health has not grown      (footprint, fds, threads, windows,
+              without bound                   views, engine nodes)
+  crash       the process is still alive     (and no fresh .ips landed)
+
+Every run is reproducible: the seed is printed at the start and `--seed N`
+replays the identical op sequence. Every op is journaled as NDJSON, and
+`--shrink` delta-debugs a failing journal down to a minimal repro you can paste
+into run-script.sh.
+
+    stress.py --corpus ~/Music/big --iterations 2000
+    stress.py --corpus ~/Music/big --seed 48213 --replay run.ndjson
+    stress.py --corpus ~/Music/big --shrink run.ndjson
+
+It is built on the vibe-debug skill's command channel and launches through
+that skill's launch.sh, so the app comes up off the audio hardware
+(--no-audio-hw --silent) and a long soak never opens an output device. Set
+VIBE_AUDIBLE=1 to override.
+
+NOT included in any profile: convert_to_flac. It writes files beside the
+source and can trash the original, and the corpus is the user's real music.
+"""
+
+import argparse
+import json
+import os
+import random
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[4]
+DEFAULT_APP = REPO / "build/DerivedData/Build/Products/Debug/Vibe.app"
+# Journals, health series, stall samples and failure directories are build
+# output, not source: they land under build/, which is already gitignored and
+# which `make clean` removes. Writing them to the CWD instead would litter the
+# repo root, since that is where `make stress` runs.
+DEFAULT_OUTPUT_DIR = REPO / "build/stress"
+# The launcher belongs to vibe-debug: this harness is built on that skill's
+# command channel and deliberately does not carry its own copy of the launch
+# rules, which are subtle (sandbox grants, off-hardware flags, stale-binary
+# detection) and must not drift into two versions.
+LAUNCH_SH = Path(__file__).resolve().parents[2] / "vibe-debug/scripts/launch.sh"
+CRASH_DIR = Path.home() / "Library/Logs/DiagnosticReports"
+
+# Attempts per channel command before a signal-killed client counts as a real
+# failure; see Channel.run for why a sandboxed binary fails to launch at all.
+CLIENT_LAUNCH_RETRIES = 4
+
+AUDIO_SUFFIXES = {".mp3", ".mp2", ".m4a", ".mp4", ".aac", ".flac", ".wav", ".aif", ".aiff"}
+PLAYLIST_SUFFIXES = {".m3u", ".m3u8", ".pls"}
+
+# Menu items that would wedge or kill the run: anything opening a modal panel
+# (the channel cannot be served while one is up), quitting, hiding, or closing
+# the window. Matched against both the item identifier and its action selector.
+MENU_DENY = re.compile(
+    r"quit|terminate|hide|unhide|close|open|save|print|help|about|"
+    r"settings|preferences|minimi|zoom|convert",
+    re.IGNORECASE,
+)
+
+
+class Failure(Exception):
+    def __init__(self, kind, detail, op=None):
+        super().__init__(f"{kind}: {detail}")
+        self.kind = kind
+        self.detail = detail
+        self.op = op
+
+
+# --------------------------------------------------------------------------
+# Channel
+# --------------------------------------------------------------------------
+
+
+class Channel:
+    """One `Vibe --debug-cmd` invocation per op.
+
+    Batching through `script -` was measured at 57ms/op against 81ms/op here —
+    the cost is the client's 50ms response poll, not the process spawn — so the
+    per-op form is used for its per-op exit codes, which the shrinker needs.
+    """
+
+    def __init__(self, app: Path, verbose=False):
+        self.binary = app / "Contents/MacOS/Vibe"
+        self.verbose = verbose
+        if not self.binary.exists():
+            sys.exit(f"no app at {app} — build first (make build CONFIG=Debug), or pass --app")
+
+    def run(self, argv, timeout=30):
+        """Returns (exit_code, parsed_json_or_None, elapsed_ms).
+
+        A client killed by a signal before it produced any output never reached
+        main(): launching hundreds of short-lived instances of a *sandboxed*
+        binary makes libsecinit's container setup fail outright, which SIGTRAPs
+        inside dyld's initializers. That is the harness outrunning the OS, not a
+        Vibe defect, so it is retried rather than reported.
+        """
+        started = time.monotonic()
+        code, out = 0, ""
+        for attempt in range(CLIENT_LAUNCH_RETRIES):
+            try:
+                proc = subprocess.run(
+                    [str(self.binary), "--debug-cmd", *argv],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+                code, out = proc.returncode, proc.stdout
+            except subprocess.TimeoutExpired:
+                # The client's own per-verb wait is shorter than this, so
+                # reaching here means the client itself wedged.
+                code, out = 1, ""
+            if code >= 0 or out.strip():
+                break
+            time.sleep(0.25 * (attempt + 1))
+        elapsed = int((time.monotonic() - started) * 1000)
+        try:
+            payload = json.loads(out) if out.strip() else None
+        except json.JSONDecodeError:
+            payload = None
+        if self.verbose:
+            print(f"    {' '.join(argv)} -> {code} {out.strip()[:120]}", file=sys.stderr)
+        return code, payload, elapsed
+
+
+def app_pid():
+    """The GUI instance's pid, or None.
+
+    The CLI client is the app binary, so `pgrep -x Vibe` also matches every
+    in-flight `--debug-cmd` invocation. Sampling one of those yields a stack of
+    the client polling for its own response, which looks like a hang and says
+    nothing about the app — filter them out by argv.
+    """
+    found = subprocess.run(["pgrep", "-x", "Vibe"], capture_output=True, text=True)
+    for pid in found.stdout.split():
+        listing = subprocess.run(["ps", "-o", "command=", "-p", pid],
+                                 capture_output=True, text=True)
+        if "--debug-cmd" not in listing.stdout:
+            return int(pid)
+    return None
+
+
+def app_is_running():
+    return app_pid() is not None
+
+
+def launch(corpus: Path, app: Path):
+    """Relaunch and wait until the app answers.
+
+    Passing the corpus directory to `open -a` is what grants sandbox access to
+    it: FolderAccessManager bookmarks folders arriving through the open funnel,
+    and the grant then persists, so later `--debug-cmd open` calls on files
+    inside it are readable. A direct-exec launch cannot do this.
+    """
+    env = dict(os.environ, VIBE_APP=str(app))
+    result = subprocess.run(
+        [str(LAUNCH_SH), str(corpus)], capture_output=True, text=True, env=env
+    )
+    if result.returncode != 0:
+        sys.exit(f"launch failed: {result.stderr.strip()}")
+    if "warning:" in result.stderr:
+        print(f"  {result.stderr.strip()}", file=sys.stderr)
+
+
+# --------------------------------------------------------------------------
+# Corpus
+# --------------------------------------------------------------------------
+
+
+def scan_corpus(root: Path):
+    files, playlists, dirs = [], [], []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        here = Path(dirpath)
+        if here != root:
+            dirs.append(here)
+        for name in filenames:
+            suffix = Path(name).suffix.lower()
+            if suffix in AUDIO_SUFFIXES:
+                files.append(here / name)
+            elif suffix in PLAYLIST_SUFFIXES:
+                playlists.append(here / name)
+    return files, playlists, dirs
+
+
+# --------------------------------------------------------------------------
+# Op generation
+# --------------------------------------------------------------------------
+
+# An op is (name, argv, tolerated_error_substrings). A tolerated error is one
+# the app is right to return for a randomly chosen argument — an empty undo
+# stack, say — and is not a finding.
+
+FX_ON_OFF = [
+    "low_kill_boost", "reverb_send", "delay_send", "short_delay_send",
+]
+TRANSPORT_KEYS = ["space", "p", "left", "right", "up", "down"]
+HELD_FX_KEYS = ["w", "e", "r", "t"]
+
+
+class OpGenerator:
+    def __init__(self, rng, corpus_files, corpus_playlists, corpus_dirs, menu_ids,
+                 profile, exclusions=()):
+        self.rng = rng
+        self.files = corpus_files
+        self.playlists = corpus_playlists
+        self.dirs = corpus_dirs
+        self.menu_ids = menu_ids
+        self.exclusions = list(exclusions)
+        self.window = (900.0, 400.0)
+        self.weights = dict(PROFILES["base"])
+        self.weights.update(PROFILES.get(profile, {}))
+        self.kinds = [k for k, w in self.weights.items() if w > 0]
+        self.kind_weights = [self.weights[k] for k in self.kinds]
+
+    def note_window(self, frame_string):
+        # NSStringFromRect: "{{x, y}, {w, h}}"
+        nums = [float(n) for n in re.findall(r"-?\d+\.?\d*", frame_string or "")]
+        if len(nums) == 4 and nums[2] > 0 and nums[3] > 0:
+            self.window = (nums[2], nums[3])
+
+    def next_ops(self):
+        """One logical step, which may expand to several channel commands."""
+        kind = self.rng.choices(self.kinds, self.kind_weights)[0]
+        return getattr(self, f"op_{kind}")()
+
+    # -- file loading -------------------------------------------------------
+
+    def op_open_file(self):
+        if not self.files:
+            return self.op_transport()
+        return [("open_file", ["open", str(self.rng.choice(self.files))], [])]
+
+    def op_open_dir(self):
+        if not self.dirs:
+            return self.op_open_file()
+        return [("open_dir", ["open", str(self.rng.choice(self.dirs))], [])]
+
+    def op_open_playlist(self):
+        if not self.playlists:
+            return self.op_open_file()
+        # A .m3u grants only itself, so its entries may be unreadable; that is
+        # the app's business, not a driver failure.
+        return [("open_playlist", ["open", str(self.rng.choice(self.playlists))], [])]
+
+    def op_open_burst(self):
+        """Opens landing on top of each other, with no settle between them.
+
+        This is the documented hazard: waveform, BPM, key and metadata
+        deliveries from the previous open arrive after the track has already
+        changed, and every receiver has to match the delivered URL against the
+        current one before applying it.
+        """
+        if not self.files:
+            return self.op_transport()
+        n = self.rng.randint(2, 4)
+        return [
+            ("open_burst", ["open", str(self.rng.choice(self.files))], [])
+            for _ in range(n)
+        ]
+
+    def op_cache_churn(self):
+        if not self.files:
+            return self.op_transport()
+        path = str(self.rng.choice(self.files))
+        return [
+            ("file_clear_cache", ["file_clear_cache", path], []),
+            ("file_cache", ["file_cache", path], ["could not", "failed"]),
+        ]
+
+    def op_clear_caches(self):
+        return [("clear_caches", ["clear_caches"], [])]
+
+    # -- transport ----------------------------------------------------------
+
+    def op_transport(self):
+        verb = self.rng.choice([
+            "play_pause", "next", "previous",
+            "skip_forward", "skip_forward_more", "skip_forward_most",
+            "skip_back", "skip_back_more", "skip_back_most",
+        ])
+        return [("transport", [verb], [])]
+
+    def op_seek(self):
+        # Deliberately unreasonable values as well as reasonable ones: the
+        # player clamps, and a value that escapes the clamp is the finding.
+        value = self.rng.choice([
+            self.rng.uniform(0, 600),
+            self.rng.uniform(-600, 0),
+            0.0,
+            self.rng.uniform(1e6, 1e9),
+            -1.0,
+        ])
+        return [("seek", ["seek", f"{value:.3f}"], [])]
+
+    def op_pitch(self):
+        value = self.rng.choice([
+            self.rng.uniform(-8, 8),
+            self.rng.uniform(-100, 100),
+            0.0,
+        ])
+        return [("set_pitch", ["set_pitch", f"{value:.3f}"], [])]
+
+    # -- FX -----------------------------------------------------------------
+
+    def op_fx(self):
+        if self.rng.random() < 0.3:
+            return [("fx", ["toggle_low_kill"], [])]
+        name = self.rng.choice(FX_ON_OFF)
+        state = self.rng.choice(["on", "off"])
+        return [("fx", [f"{name}_{state}"], [])]
+
+    def op_held_fx(self):
+        """key_down without the matching key_up, sometimes across a track change.
+
+        A momentary effect latched by a lost key_up is a real bug class and
+        nothing else in the harness would produce one.
+        """
+        key = self.rng.choice(HELD_FX_KEYS)
+        ops = [("key_down", ["key_down", key], [])]
+        if self.rng.random() < 0.5:
+            ops.append(("transport", ["next"], []))
+        if self.rng.random() < 0.7:
+            ops.append(("key_up", ["key_up", key], []))
+        return ops
+
+    def op_key(self):
+        return [("key", ["key", self.rng.choice(TRANSPORT_KEYS)], [])]
+
+    # -- window and UI ------------------------------------------------------
+
+    def op_window(self):
+        verb = self.rng.choice(["toggle_size", "toggle_pitch_panel"])
+        return [("window", [verb], [])]
+
+    def op_resize(self):
+        width = self.rng.choice([
+            self.rng.randint(300, 2400),
+            self.rng.randint(1, 300),
+            self.rng.randint(2400, 6000),
+        ])
+        return [("resize", ["set_window_width", str(width)], [])]
+
+    def point(self):
+        """A random window point outside the chrome buttons; see chrome_exclusion_rects."""
+        w, h = self.window
+        for _ in range(24):
+            x = round(self.rng.uniform(0, w), 1)
+            y = round(self.rng.uniform(0, h), 1)
+            if not any(x0 <= x <= x1 and y0 <= y <= y1 for x0, y0, x1, y1 in self.exclusions):
+                return x, y
+        return round(w / 2, 1), round(h / 2, 1)
+
+    def op_click(self):
+        x, y = self.point()
+        return [("click", ["click", str(x), str(y)], [])]
+
+    def op_drag(self):
+        pts = [*self.point(), *self.point()]
+        return [("drag", ["drag", *[str(p) for p in pts]], [])]
+
+    def op_drag_drop(self):
+        if not self.files:
+            return self.op_click()
+        x, y = self.point()
+        ops = [("drag_hover", ["drag_hover", str(x), str(y)], [])]
+        if self.rng.random() < 0.6:
+            ops.append(("drag_drop",
+                        ["drag_drop", str(x), str(y), str(self.rng.choice(self.files))], []))
+        else:
+            ops.append(("drag_end", ["drag_end"], []))
+        return ops
+
+    def op_menu(self):
+        if not self.menu_ids:
+            return self.op_window()
+        return [("menu", ["click_menu", self.rng.choice(self.menu_ids)], ["disabled", "no menu item"])]
+
+    def op_undo(self):
+        verb = self.rng.choice(["undo", "redo"])
+        return [(verb, [verb], ["nothing to undo", "nothing to redo", "still in progress"])]
+
+    def op_settle(self):
+        return [("settle", ["sleep", f"{self.rng.uniform(0.05, 0.8):.2f}"], [])]
+
+
+PROFILES = {
+    "base": {
+        "open_file": 14, "open_dir": 3, "open_playlist": 2, "open_burst": 6,
+        "cache_churn": 2, "clear_caches": 1,
+        "transport": 14, "seek": 8, "pitch": 5,
+        "fx": 5, "held_fx": 4, "key": 4,
+        "window": 3, "resize": 3, "click": 4, "drag": 2, "drag_drop": 3,
+        "menu": 3, "undo": 1, "settle": 6,
+    },
+    # Everything pointed at the open path and the async deliveries that race it.
+    "loading": {
+        "open_file": 30, "open_dir": 6, "open_burst": 20, "open_playlist": 4,
+        "cache_churn": 6, "clear_caches": 2,
+        "transport": 10, "seek": 4, "pitch": 1,
+        "fx": 1, "held_fx": 1, "key": 1,
+        "window": 1, "resize": 1, "click": 1, "drag": 0, "drag_drop": 2,
+        "menu": 1, "undo": 0, "settle": 8,
+    },
+    # No file loading at all: pure UI monkey against whatever is loaded.
+    "ui": {
+        "open_file": 0, "open_dir": 0, "open_playlist": 0, "open_burst": 0,
+        "cache_churn": 0, "clear_caches": 0,
+        "transport": 10, "seek": 8, "pitch": 10,
+        "fx": 10, "held_fx": 8, "key": 8,
+        "window": 8, "resize": 8, "click": 12, "drag": 6, "drag_drop": 0,
+        "menu": 6, "undo": 1, "settle": 4,
+    },
+}
+
+
+# --------------------------------------------------------------------------
+# Oracles
+# --------------------------------------------------------------------------
+
+
+def check_liveness(channel, since=None):
+    code, payload, _ = channel.run(["dump_state"], timeout=20)
+    if code == 0 and payload:
+        return payload
+    if app_is_running():
+        raise Failure("hang", "the app is running but stopped answering the channel "
+                              "(the channel is served on the main thread)")
+    # Gone with no crash report is not a crash: the app terminated cleanly, so
+    # something in the op stream asked it to. Saying "crash" there sends you
+    # hunting for a stack that was never written.
+    if since is not None and not fresh_crash_reports(since):
+        raise Failure("exit", "the app terminated cleanly — no crash report was written, "
+                              "so an op quit it rather than crashing it")
+    raise Failure("crash", "the app is gone")
+
+
+def check_invariants(channel, settle=0.35):
+    """A violation counts only if it survives a settle and a second sample.
+
+    Several checks compare a rendered label against the state that should have
+    produced it, and renderState runs from the updateUI funnel — so a state
+    that flipped this runloop turn may legitimately not be drawn yet.
+    """
+    code, first, _ = channel.run(["check_invariants"], timeout=20)
+    if code != 0 or first is None:
+        check_liveness(channel)   # raises hang/crash; otherwise a transient miss
+        return None
+    if first.get("ok"):
+        return None
+    time.sleep(settle)
+    code, second, _ = channel.run(["check_invariants"], timeout=20)
+    if code != 0 or second is None or second.get("ok"):
+        return None
+    first_ids = {v["id"] for v in first.get("violations", [])}
+    surviving = [v for v in second.get("violations", []) if v["id"] in first_ids]
+    return surviving or None
+
+
+PENDING_KEYS = ("metadataHolders", "metadataWaiters", "openResultsBuffered",
+                "openBurstQueued", "retiredFades")
+
+# In-flight limits: sampled mid-run, so they have to tolerate a decode's worth
+# of churn. Loose by necessity — see the resting limits below for the sensitive
+# version of the same measurement.
+GROWTH_LIMITS = {
+    # path in dump_health -> (absolute headroom, human name)
+    ("process", "footprintBytes"): (400 * 1024 * 1024, "memory footprint"),
+    ("process", "fileDescriptors"): (200, "open file descriptors"),
+    ("process", "threads"): (48, "threads"),
+    ("process", "machPorts"): (2000, "mach ports"),
+    ("ui", "windows"): (3, "windows"),
+    ("ui", "views"): (400, "views"),
+    ("ui", "layers"): (800, "layers"),
+    ("app", "engineNodes"): (16, "engine nodes"),
+    **{("pending", key): (8, f"pending {key}") for key in PENDING_KEYS},
+}
+
+# Resting limits, applied only to samples taken right after a `quiesce`. The
+# app is back at a fixed idle state there — no track, empty playlist, nothing
+# in flight — so the COUNTABLE metrics can be held tight enough to catch a slow
+# leak the in-flight limits would never see.
+#
+# Every headroom below is set from measured ranges over loading-profile runs,
+# not guessed:
+#
+#   views 47, layers 100-104, windows 1, engine nodes 23, every pending
+#   counter 0 — dead stable across runs, so these are the sensitive ones.
+#   threads 14-26 and fds 45-70 breathe with the loader pool and whether a
+#   folder is open.
+#   footprint 47-335 MB, and NOT accumulating: the same seed rests at 298 MB in
+#   one run and 51 MB in another, and a run that sat at 313 MB dropped to 88 MB
+#   two samples later. Concurrent decode and analyzer buffers dominate it and
+#   their lifetimes are timing-dependent, so it is a gross-leak backstop here
+#   rather than a sensitive signal. The counters above are where sensitivity
+#   actually comes from. (quiesce already calls malloc_zone_pressure_relief, so
+#   this is live data, not the allocator's high-water mark.)
+RESTING_GROWTH_LIMITS = {
+    ("process", "footprintBytes"): (256 * 1024 * 1024, "resting memory footprint"),
+    ("process", "fileDescriptors"): (32, "resting file descriptors"),
+    ("process", "threads"): (24, "resting threads"),
+    ("process", "machPorts"): (300, "resting mach ports"),
+    ("ui", "windows"): (1, "resting windows"),
+    ("ui", "views"): (40, "resting views"),
+    ("ui", "layers"): (80, "resting layers"),
+    ("app", "engineNodes"): (4, "resting engine nodes"),
+    **{("pending", key): (1, f"resting pending {key}") for key in PENDING_KEYS},
+}
+
+
+# Health samples to collect before the baseline is fixed. The first sample is
+# a bad baseline on its own: the opening decode and its analyzers peak the
+# footprint well above the resting level, and a peak baseline is a permissive
+# one that hides the leak it was meant to catch.
+BASELINE_SAMPLES = 3
+
+
+def min_baseline(samples, limits=GROWTH_LIMITS):
+    """Element-wise minimum across samples: the strictest honest baseline."""
+    baseline = {}
+    for section, key in limits:
+        values = [s.get(section, {}).get(key) for s in samples]
+        values = [v for v in values if v is not None]
+        if values:
+            baseline.setdefault(section, {})[key] = min(values)
+    return baseline
+
+
+# A single sample over the limit means nothing. Measured over a loading-profile
+# run, the engine node count swings between 25 and 67 with no trend as retired
+# crossfade pairs pile up and drain, and the footprint spikes past 350MB during
+# a decode before falling back to ~120MB. Only a metric that stays over the
+# limit for this many CONSECUTIVE samples is growth rather than churn.
+GROWTH_CONFIRMATIONS = 3
+
+# Resting samples are far rarer — one per --quiesce-every batches — so waiting
+# for three of them would need most of a long run. Two is enough there, because
+# the measurement itself is taken at a fixed idle state rather than mid-churn.
+RESTING_CONFIRMATIONS = 2
+
+
+def health_growth(baseline, current, streaks, limits=GROWTH_LIMITS,
+                  confirmations=GROWTH_CONFIRMATIONS):
+    """Returns the messages for metrics that have now been over-limit long enough.
+
+    streaks is a caller-owned dict of consecutive over-limit counts per metric;
+    a sample back under the limit resets that metric to zero. Pass the resting
+    limits and a caller-owned streaks dict of their own to score the quiesced
+    series separately.
+    """
+    findings = []
+    for metric, (headroom, label) in limits.items():
+        section, key = metric
+        was = baseline.get(section, {}).get(key)
+        now = current.get(section, {}).get(key)
+        if was is None or now is None:
+            continue
+        if now - was > headroom:
+            streaks[metric] = streaks.get(metric, 0) + 1
+            if streaks[metric] >= confirmations:
+                findings.append(f"{label} grew {was} -> {now} (limit +{headroom}) "
+                                f"and stayed over for {streaks[metric]} samples")
+        else:
+            streaks[metric] = 0
+    return findings
+
+
+def quiesced_checkpoint(channel, samples, streaks, baseline, executed, verbose):
+    """Quiesce, sample at rest, score against the tight limits.
+
+    Returns (failure_or_None, baseline). A `settled: false` reply is itself a
+    finding: work that will not unwind inside the app's own deadline is stuck,
+    and the reply names the counter that held out.
+    """
+    code, reply, _ = channel.run(["quiesce"], timeout=40)
+    if code != 0 or reply is None:
+        check_liveness(channel)
+        return None, baseline
+    if not reply.get("settled"):
+        stuck = {k: v for k, v in (reply.get("pending") or {}).items() if v}
+        return Failure("pending", f"quiesce did not settle in "
+                                  f"{reply.get('waitedSeconds', 0):.1f}s: {stuck}"), baseline
+
+    code, health, _ = channel.run(["dump_health"], timeout=20)
+    if code != 0 or not health:
+        return None, baseline
+    health["_ops"] = executed
+    health["_resting"] = True
+    samples.append(health)
+    if verbose:
+        pending = health.get("pending", {})
+        print(f"  rest {executed:6d} ops   "
+              f"{health['process'].get('footprintBytes', 0) // (1024 * 1024):5d} MB   "
+              f"{health['app'].get('engineNodes', '?')} nodes   pending {pending}")
+    if baseline is None:
+        if len(samples) >= RESTING_CONFIRMATIONS:
+            return None, min_baseline(samples, RESTING_GROWTH_LIMITS)
+        return None, None
+    grew = health_growth(baseline, health, streaks, RESTING_GROWTH_LIMITS,
+                         RESTING_CONFIRMATIONS)
+    if grew:
+        return Failure("resource", "at rest: " + "; ".join(grew)), baseline
+    return None, baseline
+
+
+def fresh_crash_reports(since):
+    if not CRASH_DIR.is_dir():
+        return []
+    out = []
+    for entry in CRASH_DIR.glob("Vibe*"):
+        try:
+            if entry.stat().st_mtime >= since:
+                out.append(entry)
+        except OSError:
+            pass
+    return out
+
+
+# --------------------------------------------------------------------------
+# Diagnostics
+# --------------------------------------------------------------------------
+
+
+def capture_diagnostics(channel, out_dir: Path, failure: Failure, since):
+    # Cleared, not merged: the directory is named after the seed, so a re-run
+    # of the same seed would otherwise leave last run's sample and screenshot
+    # sitting beside this run's failure.txt, describing a different failure.
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    notes = [f"kind: {failure.kind}", f"detail: {failure.detail}"]
+    if failure.op:
+        notes.append(f"last op: {' '.join(failure.op)}")
+
+    pid = app_pid()
+    if failure.kind == "hang" and pid and shutil.which("sample"):
+        target = out_dir / "sample.txt"
+        # By pid, never by name: see app_pid.
+        subprocess.run(["sample", str(pid), "5", "-file", str(target)],
+                       capture_output=True, text=True)
+        notes.append(f"main-thread sample (pid {pid}): {target}")
+
+    for report in fresh_crash_reports(since):
+        shutil.copy2(report, out_dir / report.name)
+        notes.append(f"crash report: {report.name}")
+
+    if app_is_running():
+        for verb, name in (("dump_state", "state.json"),
+                           ("dump_view_tree", "view-tree.json"),
+                           ("dump_health", "health.json")):
+            code, payload, _ = channel.run([verb], timeout=20)
+            if code == 0 and payload:
+                (out_dir / name).write_text(json.dumps(payload, indent=2))
+        shot = out_dir / "screenshot.png"
+        with open(shot, "wb") as fh:
+            subprocess.run([str(channel.binary), "--debug-cmd", "dump_screenshot", "-"],
+                           stdout=fh, stderr=subprocess.DEVNULL, timeout=30)
+
+    (out_dir / "failure.txt").write_text("\n".join(notes) + "\n")
+    return notes
+
+
+# --------------------------------------------------------------------------
+# Run
+# --------------------------------------------------------------------------
+
+
+def chrome_exclusion_rects(channel):
+    """Top-left window-point rects the random clicker must never hit.
+
+    The window draws its own close and minimize buttons as SymbolButtons in its
+    top-left corner, and `closeApp:` is `[self close]` — which ends the run. A
+    uniform random click finds them within a few hundred ops and the driver
+    then reports a crash with no crash report to show for it, because the app
+    exited perfectly cleanly.
+
+    The buttons are direct subviews of the window-spanning content view, so
+    their frames are already window coordinates; they only need the AppKit
+    bottom-left origin flipped. The fallback rect covers the same corner in
+    case the view tree is unreadable.
+    """
+    rects = [(0.0, 0.0, 72.0, 44.0)]
+    code, tree, _ = channel.run(["dump_view_tree"], timeout=20)
+    if code != 0 or not tree:
+        return rects
+
+    def parse(frame):
+        nums = [float(n) for n in re.findall(r"-?\d+\.?\d*", frame or "")]
+        return nums if len(nums) == 4 else None
+
+    def walk(node, height):
+        if node.get("class") == "SymbolButton":
+            box = parse(node.get("frame"))
+            if box:
+                x, y, w, h = box
+                top = height - y - h
+                if top < 80 and x < 160:
+                    rects.append((x - 6, top - 6, x + w + 6, top + h + 6))
+        for child in node.get("subviews", []):
+            walk(child, height)
+
+    for window in tree.get("windows", []):
+        box = parse(window.get("frame"))
+        if box and window.get("contentView"):
+            walk(window["contentView"], box[3])
+    return rects
+
+
+def collect_menu_ids(channel):
+    code, payload, _ = channel.run(["dump_menu"], timeout=20)
+    if code != 0 or not payload:
+        return []
+    ids = []
+
+    def walk(items):
+        for item in items:
+            identifier = item.get("id")
+            action = item.get("action") or ""
+            if identifier and not MENU_DENY.search(identifier) and not MENU_DENY.search(action):
+                ids.append(identifier)
+            if item.get("items"):
+                walk(item["items"])
+
+    walk(payload.get("menu", []))
+    return ids
+
+
+def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, stalls=None):
+    """Run a list of (name, argv, tolerated) and return the failure, or None.
+
+    stalls, when given, is {"dir", "count", "max"}: recoverable main-thread
+    stalls are sampled and counted there rather than failing the run outright.
+    """
+    for i, (name, argv, tolerated) in enumerate(ops):
+        code, payload, elapsed = channel.run(argv)
+        entry = {"i": i, "op": name, "argv": argv, "exit": code, "ms": elapsed}
+        if tolerated:
+            # Journaled so replay and shrink apply the SAME rules. Without it,
+            # `undo` on an empty stack is a pass when generated and a failure
+            # when replayed — and the shrinker then happily minimizes any
+            # journal down to that one benign op instead of the real bug.
+            entry["tolerated"] = tolerated
+        if code == 1:
+            pid = app_pid()
+            if pid is None:
+                entry["failure"] = "no response, app gone"
+                if journal:
+                    journal.write(json.dumps(entry) + "\n")
+                    journal.flush()
+                return Failure("crash", f"the app died on `{' '.join(argv)}`", argv)
+            # Still alive but silent: the channel is served on the main queue,
+            # so it is stalled right now. Sample before probing, because a
+            # probe that succeeds means the stall has already ended and the
+            # stack is gone with it.
+            sample_path = None
+            if stalls is not None and shutil.which("sample"):
+                stalls["count"] += 1
+                sample_path = stalls["dir"] / f"stall-{stalls['count']:02d}.txt"
+                sample_path.parent.mkdir(parents=True, exist_ok=True)
+                subprocess.run(["sample", str(pid), "3", "-file", str(sample_path)],
+                               capture_output=True, text=True)
+            recovered = channel.run(["dump_state"], timeout=60)[0] == 0
+            entry["failure"] = "stall" if recovered else "no response"
+            if sample_path:
+                entry["sample"] = str(sample_path)
+            if journal:
+                journal.write(json.dumps(entry) + "\n")
+                journal.flush()
+            if not recovered:
+                return Failure("hang", f"no response to `{' '.join(argv)}`", argv)
+            # A stall it came back from is a finding, not a wedge. One is
+            # noise on a loaded machine; a run full of them is the bug.
+            if stalls is not None and stalls["count"] > stalls["max"]:
+                return Failure("hang",
+                               f"{stalls['count']} main-thread stalls over 5s "
+                               f"(samples in {stalls['dir']})", argv)
+            continue
+        if code == 2:
+            message = str(payload.get("error", "")) if payload else "(unparseable reply)"
+            if not any(t in message for t in tolerated):
+                entry["failure"] = message
+                if stop_on_failure:
+                    if journal:
+                        journal.write(json.dumps(entry) + "\n")
+                        journal.flush()
+                    return Failure("command", f"`{' '.join(argv)}` -> {message}", argv)
+        elif code != 0:
+            # Anything else is the client dying on a signal after its retries,
+            # or a usage error (64) from a malformed op — never a pass.
+            entry["failure"] = f"client exit {code}"
+            if journal:
+                journal.write(json.dumps(entry) + "\n")
+                journal.flush()
+            return Failure("client", f"`{' '.join(argv)}` -> client exit {code}", argv)
+        if journal:
+            journal.write(json.dumps(entry) + "\n")
+            journal.flush()
+        if check_every and (i + 1) % check_every == 0:
+            violations = check_invariants(channel)
+            if violations:
+                ids = ", ".join(v["id"] for v in violations)
+                return Failure("invariant", ids, argv)
+    return None
+
+
+def run(args):
+    app = Path(args.app).expanduser().resolve() if args.app else DEFAULT_APP
+    corpus = Path(args.corpus).expanduser().resolve()
+    if not corpus.is_dir():
+        sys.exit(f"corpus is not a directory: {corpus}")
+
+    seed = args.seed if args.seed is not None else random.randrange(1, 2**31)
+    rng = random.Random(seed)
+    channel = Channel(app, verbose=args.verbose)
+
+    files, playlists, dirs = scan_corpus(corpus)
+    print(f"corpus: {len(files)} audio files, {len(playlists)} playlists, "
+          f"{len(dirs)} subdirectories under {corpus}")
+    if not files:
+        sys.exit("no playable files found in the corpus")
+    print(f"seed:   {seed}   (replay this run with --seed {seed})")
+
+    started = time.time()
+    launch(corpus, app)
+    menu_ids = collect_menu_ids(channel)
+    exclusions = chrome_exclusion_rects(channel)
+    print(f"menu:   {len(menu_ids)} clickable items after the modal/quit denylist")
+    print(f"clicks: avoiding {len(exclusions)} window-chrome rects (close/minimize)")
+
+    generator = OpGenerator(rng, files, playlists, dirs, menu_ids, args.profile, exclusions)
+    journal_path = (Path(args.journal) if args.journal
+                    else DEFAULT_OUTPUT_DIR / f"stress-{seed}.ndjson")
+    # Everything else in the run — health series, stall samples, the failure
+    # directory — derives from this parent, so one mkdir covers them all.
+    journal_path.parent.mkdir(parents=True, exist_ok=True)
+    stalls = {"dir": journal_path.parent / f"stress-{seed}-stalls", "count": 0,
+              "max": args.max_stalls}
+    health_samples = []
+    growth_streaks = {}
+    baseline = None
+    # The quiesced series: rarer, taken at a fixed idle state, and scored
+    # against far tighter limits. This is where a slow leak actually shows.
+    resting_samples = []
+    resting_streaks = {}
+    resting_baseline = None
+    batches = 0
+    failure = None
+    executed = 0
+    deadline = started + args.duration if args.duration else None
+
+    with open(journal_path, "w") as journal:
+        journal.write(json.dumps({
+            "seed": seed, "profile": args.profile, "corpus": str(corpus),
+            "app": str(app), "iterations": args.iterations, "batch": args.batch,
+        }) + "\n")
+
+        try:
+            while executed < args.iterations:
+                batch = []
+                while len(batch) < args.batch and executed + len(batch) < args.iterations:
+                    batch.extend(generator.next_ops())
+
+                failure = replay_ops(channel, batch, journal=journal, stalls=stalls)
+                executed += len(batch)
+                if failure:
+                    break
+
+                state = check_liveness(channel, since=started)
+                generator.note_window(state.get("window", {}).get("frame"))
+
+                violations = check_invariants(channel)
+                if violations:
+                    failure = Failure("invariant",
+                                      "; ".join(f"{v['id']}: {v['detail']}" for v in violations))
+                    break
+
+                code, health, _ = channel.run(["dump_health"], timeout=20)
+                if code == 0 and health:
+                    health["_ops"] = executed
+                    health_samples.append(health)
+                    if baseline is None:
+                        if len(health_samples) >= BASELINE_SAMPLES:
+                            baseline = min_baseline(health_samples)
+                    else:
+                        grew = health_growth(baseline, health, growth_streaks)
+                        if grew:
+                            failure = Failure("resource", "; ".join(grew))
+                            break
+
+                    if len(health_samples) % 5 == 0 or args.verbose:
+                        footprint = health["process"].get("footprintBytes", 0) // (1024 * 1024)
+                        print(f"  {executed:6d} ops   {footprint:5d} MB   "
+                              f"{health['app'].get('engineNodes', '?')} nodes   "
+                              f"{health['process'].get('fileDescriptors', '?')} fds")
+
+                batches += 1
+                if args.quiesce_every and batches % args.quiesce_every == 0:
+                    failure, resting_baseline = quiesced_checkpoint(
+                        channel, resting_samples, resting_streaks, resting_baseline,
+                        executed, args.verbose)
+                    if failure:
+                        break
+                    # quiesce empties the playlist, so the ui profile — which
+                    # never opens anything — would spend the rest of the run
+                    # driving an empty app.
+                    if files:
+                        channel.run(["open", str(rng.choice(files))])
+
+                if deadline and time.time() > deadline:
+                    print(f"  duration limit reached after {executed} ops")
+                    break
+        except Failure as caught:
+            failure = caught
+        except KeyboardInterrupt:
+            print("\ninterrupted", file=sys.stderr)
+
+    if health_samples or resting_samples:
+        samples_path = journal_path.with_suffix(".health.ndjson")
+        combined = sorted(health_samples + resting_samples, key=lambda s: s["_ops"])
+        samples_path.write_text("".join(json.dumps(s) + "\n" for s in combined))
+        print(f"health: {samples_path} ({len(health_samples)} in-flight, "
+              f"{len(resting_samples)} at rest)")
+
+    print(f"journal: {journal_path}")
+    if stalls["count"]:
+        print(f"stalls:  {stalls['count']} recoverable main-thread stalls over 5s, "
+              f"sampled in {stalls['dir']}")
+
+    if failure:
+        out_dir = journal_path.parent / f"stress-{seed}-failure"
+        notes = capture_diagnostics(channel, out_dir, failure, started)
+        print(f"\nFAILED after {executed} ops: {failure.kind} — {failure.detail}")
+        for note in notes[2:]:
+            print(f"  {note}")
+        print(f"  diagnostics: {out_dir}")
+        print(f"  minimize:    {sys.argv[0]} --corpus {corpus} --shrink {journal_path}")
+        return 1
+
+    print(f"\nPASSED {executed} ops, no violations, no unbounded growth")
+    return 0
+
+
+# --------------------------------------------------------------------------
+# Replay and shrink
+# --------------------------------------------------------------------------
+
+
+def load_journal(path: Path):
+    ops = []
+    with open(path) as fh:
+        for line in fh:
+            entry = json.loads(line)
+            if "argv" in entry:
+                ops.append((entry.get("op", "op"), entry["argv"], entry.get("tolerated", [])))
+    return ops
+
+
+def reproduces(channel, corpus, app, ops, resting_mb=0):
+    """Fresh app, replay ops, run the oracles. True if it still fails.
+
+    resting_mb turns this into a predicate for RESOURCE failures too: quiesce
+    and fail when the at-rest footprint exceeds it. Without that the shrinker
+    can only minimize crashes, hangs and invariant violations — and a retained
+    allocation is exactly the kind of failure whose repro you most want cut
+    down, since it only shows up after hundreds of ops.
+    """
+    launch(corpus, app)
+    failure = replay_ops(channel, ops)
+    if failure:
+        return True
+    try:
+        check_liveness(channel)
+    except Failure:
+        return True
+    if check_invariants(channel) is not None:
+        return True
+    if resting_mb:
+        channel.run(["quiesce"], timeout=40)
+        code, health, _ = channel.run(["dump_health"], timeout=20)
+        if code == 0 and health:
+            mb = health.get("process", {}).get("footprintBytes", 0) // (1024 * 1024)
+            if mb > resting_mb:
+                return True
+    return False
+
+
+def shrink(args):
+    """Delta-debug the journal to a minimal op list that still fails.
+
+    ddmin: split into n chunks, try removing each; on success shrink to that
+    subset and reset, otherwise double n. Each candidate costs one relaunch,
+    so expect a shrink to take minutes, not seconds.
+    """
+    app = Path(args.app).expanduser().resolve() if args.app else DEFAULT_APP
+    corpus = Path(args.corpus).expanduser().resolve()
+    channel = Channel(app, verbose=args.verbose)
+    ops = load_journal(Path(args.shrink))
+    print(f"shrinking {len(ops)} ops from {args.shrink}")
+
+    resting_mb = args.shrink_resting_mb
+    if resting_mb:
+        print(f"  predicate includes resting footprint > {resting_mb} MB")
+    if not reproduces(channel, corpus, app, ops, resting_mb):
+        sys.exit("the full journal does not reproduce a failure — nothing to shrink")
+
+    n = 2
+    while len(ops) >= 2:
+        chunk = max(1, len(ops) // n)
+        reduced = False
+        for start in range(0, len(ops), chunk):
+            candidate = ops[:start] + ops[start + chunk:]
+            if not candidate:
+                continue
+            print(f"  trying {len(candidate)} ops…", flush=True)
+            if reproduces(channel, corpus, app, candidate, resting_mb):
+                ops = candidate
+                n = max(2, n - 1)
+                reduced = True
+                break
+        if not reduced:
+            if n >= len(ops):
+                break
+            n = min(len(ops), n * 2)
+
+    out = Path(args.shrink).with_suffix(".min.txt")
+    out.write_text("".join(" ".join(argv) + "\n" for _, argv, _ in ops))
+    print(f"\nminimal repro: {len(ops)} ops -> {out}")
+    print("replay it with:")
+    print(f"  .claude/skills/vibe-debug/scripts/run-script.sh /tmp/shots < {out}")
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--corpus", required=True,
+                        help="directory of audio files to stress against")
+    parser.add_argument("--app", help=f"path to Vibe.app (default {DEFAULT_APP})")
+    parser.add_argument("--seed", type=int, help="replay a previous run's op sequence")
+    parser.add_argument("--iterations", type=int, default=2000, help="ops to run (default 2000)")
+    parser.add_argument("--duration", type=float, help="stop after this many seconds")
+    parser.add_argument("--batch", type=int, default=25,
+                        help="ops between oracle checks (default 25)")
+    parser.add_argument("--quiesce-every", type=int, default=10,
+                        help="batches between quiesced (at-rest) health samples, 0 to "
+                             "disable (default 10). These carry the tight growth limits; "
+                             "the in-flight samples cannot, because a decode swings the "
+                             "footprint by hundreds of megabytes")
+    parser.add_argument("--max-stalls", type=int, default=3,
+                        help="recoverable >5s main-thread stalls tolerated (default 3); "
+                             "each one is sampled either way")
+    parser.add_argument("--profile", default="base", choices=sorted(PROFILES),
+                        help="op weighting (default base)")
+    parser.add_argument("--journal",
+                        help=f"NDJSON journal path (default {DEFAULT_OUTPUT_DIR}/"
+                             "stress-<seed>.ndjson; the health series, stall samples and "
+                             "failure directory land beside it)")
+    parser.add_argument("--replay", help="replay a journal verbatim instead of generating ops")
+    parser.add_argument("--shrink", help="delta-debug a failing journal to a minimal repro")
+    parser.add_argument("--shrink-resting-mb", type=int, default=0,
+                        help="with --shrink, also treat an at-rest footprint above this "
+                             "many MB as a reproduction, so a resource failure can be "
+                             "minimized like a crash")
+    parser.add_argument("--verbose", action="store_true")
+    args = parser.parse_args()
+
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+
+    if args.shrink:
+        return shrink(args)
+    if args.replay:
+        app = Path(args.app).expanduser().resolve() if args.app else DEFAULT_APP
+        corpus = Path(args.corpus).expanduser().resolve()
+        channel = Channel(app, verbose=args.verbose)
+        ops = load_journal(Path(args.replay))
+        print(f"replaying {len(ops)} ops from {args.replay}")
+        launch(corpus, app)
+        failure = replay_ops(channel, ops, check_every=args.batch)
+        if failure:
+            print(f"FAILED: {failure.kind} — {failure.detail}")
+            return 1
+        violations = check_invariants(channel)
+        if violations:
+            print("FAILED: " + "; ".join(v["id"] for v in violations))
+            return 1
+        print("PASSED")
+        return 0
+    return run(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

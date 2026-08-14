@@ -494,5 +494,10 @@
     [_priorityLoader loadSingleTrack:track];
 }
 
+#if DEBUG
+- (NSDictionary<NSString *, NSNumber *> *)debugPendingCounts {
+    return [self.parseCoordinator debugPendingCounts];
+}
+#endif
 
 @end

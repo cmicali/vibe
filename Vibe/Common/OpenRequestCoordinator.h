@@ -56,6 +56,13 @@ typedef void (^OpenRequestDelivery)(NSArray<NSURL *> *files, NSUInteger folderCo
 // tests can drive the real deadline rather than wait it out.
 @property (nonatomic) NSTimeInterval stragglerDeadline;
 
+#if DEBUG
+// Results finished but still buffered behind an earlier request, for the debug
+// channel's dump_health. It settles back to zero after every burst; a floor
+// that creeps upward is a delivery that never happened. Main thread.
+- (NSUInteger)debugBufferedResultCount;
+#endif
+
 @end
 
 NS_ASSUME_NONNULL_END
