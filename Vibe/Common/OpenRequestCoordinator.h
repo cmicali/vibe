@@ -42,12 +42,19 @@ typedef void (^OpenRequestDelivery)(NSArray<NSURL *> *files, NSUInteger folderCo
                 files:(NSArray<NSURL *> *)files
           folderCount:(NSUInteger)folderCount;
 
-// Gives up on the earliest request that finished results are queued behind and
-// delivers them. An expansion can block forever — a folder walk on a mount
-// that never answers — and without this every later batch in the burst would
-// buffer unseen. Armed automatically whenever a result cannot deliver in
-// order; exposed because it is the seam the tests drive.
+// Gives up on the one request that finished results are queued behind and
+// delivers whatever that frees. An expansion can block forever — a folder
+// walk on a mount that never answers — and without this every later batch in
+// the burst would buffer unseen. Only that one request is abandoned, so a
+// merely slow walk behind it still gets to deliver; a burst stalled on
+// several therefore costs one deadline each. Armed automatically whenever a
+// result cannot deliver in order, and re-armed after it fires while anything
+// is still buffered; exposed because it is the seam the tests drive.
 - (void)abandonStalledRequests;
+
+// How long a finished result waits behind an earlier one. Settable so the
+// tests can drive the real deadline rather than wait it out.
+@property (nonatomic) NSTimeInterval stragglerDeadline;
 
 @end
 

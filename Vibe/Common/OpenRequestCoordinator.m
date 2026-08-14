@@ -8,7 +8,7 @@
 // How long a finished result waits behind an earlier one that has not arrived.
 // It is not a bound on expansion — nothing is armed until a LATER batch has
 // already finished, so by then the straggler is the odd one out.
-static const NSTimeInterval kStragglerDeadline = 10.0;
+static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
 
 @interface OpenRequestToken : NSObject
 @property NSUInteger generation;
@@ -55,6 +55,7 @@ static const NSTimeInterval kStragglerDeadline = 10.0;
         // replacement.
         _generation = 1;
         _completed = [NSMutableDictionary dictionary];
+        _stragglerDeadline = kDefaultStragglerDeadline;
     }
     return self;
 }
@@ -108,15 +109,20 @@ static const NSTimeInterval kStragglerDeadline = 10.0;
     if (_completed.count == 0) {
         return;
     }
-    NSUInteger earliestReady = NSUIntegerMax;
-    for (NSNumber *sequence in _completed) {
-        earliestReady = MIN(earliestReady, sequence.unsignedIntegerValue);
-    }
-    // Skip past the gap. Whatever those requests eventually deliver is dropped
-    // by the sequence check in finishRequest:, so a walk that answers hours
-    // later cannot reorder the playlist behind the user.
-    _nextDeliverySequence = earliestReady;
+    // Give up on the request at the head of the queue and on nothing else:
+    // the ones behind it may be slow rather than wedged, and skipping the
+    // whole gap at once would drop a walk that is still coming — its result
+    // is dropped by the sequence check in finishRequest:. Every insertion
+    // drains first, so the head is always the missing one. Each stalled
+    // request costs one more deadline this way, and buys the next one a full
+    // window to answer in.
+    _nextDeliverySequence++;
     [self deliverReadyResults];
+    // Whatever is still buffered sits behind a gap of its own, and nothing
+    // else re-arms a deadline for it.
+    if (_completed.count > 0) {
+        [self armStragglerDeadline];
+    }
 }
 
 - (void)deliverReadyResults {
@@ -139,7 +145,7 @@ static const NSTimeInterval kStragglerDeadline = 10.0;
     _stragglerDeadlineArmed = YES;
     NSUInteger generation = _generation;
     __weak OpenRequestCoordinator *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kStragglerDeadline * NSEC_PER_SEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_stragglerDeadline * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         OpenRequestCoordinator *strongSelf = weakSelf;
         if (!strongSelf) {

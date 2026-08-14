@@ -94,6 +94,57 @@ static NSArray<NSURL *> *OpenFiles(NSUInteger count) {
     XCTAssertEqualObjects(_deliveries, (@[@"second:append:2:0", @"third:append:3:0"]));
 }
 
+// The deadline gives up on the wedged walk it fired for, not on the merely
+// slow one behind it: that one still delivers when it answers.
+- (void)testASlowWalkBehindAWedgedOneStillDelivers {
+    OpenRequestToken *wedged = [self beginAppending:NO tagged:@"wedged"];
+    OpenRequestToken *slow = [self beginAppending:YES tagged:@"slow"];
+    OpenRequestToken *third = [self beginAppending:YES tagged:@"third"];
+    [_coordinator finishRequest:third files:OpenFiles(3) folderCount:0];
+
+    [_coordinator abandonStalledRequests];
+    XCTAssertEqual(_deliveries.count, 0u);
+
+    [_coordinator finishRequest:slow files:OpenFiles(2) folderCount:0];
+    XCTAssertEqualObjects(_deliveries, (@[@"slow:append:2:0", @"third:append:3:0"]));
+
+    // The abandoned one is still dropped whenever it answers.
+    [_coordinator finishRequest:wedged files:OpenFiles(9) folderCount:1];
+    XCTAssertEqual(_deliveries.count, 2u);
+}
+
+// Two of the four walks hang, so one deadline is not enough: the second batch
+// sits behind a gap of its own once the first has been abandoned, and nothing
+// but a re-armed deadline ever frees it.
+- (void)testASecondStragglerGetsItsOwnDeadline {
+    _coordinator.stragglerDeadline = 0.02;
+    OpenRequestToken *wedged = [self beginAppending:NO tagged:@"wedged"];
+    OpenRequestToken *second = [self beginAppending:YES tagged:@"second"];
+    [self beginAppending:YES tagged:@"alsoWedged"];
+    OpenRequestToken *fourth = [self beginAppending:YES tagged:@"fourth"];
+    [_coordinator finishRequest:second files:OpenFiles(2) folderCount:0];
+    [_coordinator finishRequest:fourth files:OpenFiles(4) folderCount:0];
+
+    [self waitForDeliveryCount:1];
+    XCTAssertEqualObjects(_deliveries, (@[@"second:append:2:0"]));
+
+    [self waitForDeliveryCount:2];
+    XCTAssertEqualObjects(_deliveries, (@[@"second:append:2:0", @"fourth:append:4:0"]));
+
+    [_coordinator finishRequest:wedged files:OpenFiles(9) folderCount:1];
+    XCTAssertEqual(_deliveries.count, 2u);
+}
+
+// Spins the run loop rather than sleeping, because the deadline fires on main.
+- (void)waitForDeliveryCount:(NSUInteger)count {
+    NSDate *limit = [NSDate dateWithTimeIntervalSinceNow:2.0];
+    while (_deliveries.count < count && limit.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode
+                               beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    }
+    XCTAssertEqual(_deliveries.count, count);
+}
+
 - (void)testAbandonIsANoOpWithNothingWaiting {
     OpenRequestToken *only = [self beginAppending:NO tagged:@"only"];
     [_coordinator abandonStalledRequests];
