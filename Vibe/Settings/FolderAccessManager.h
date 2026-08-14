@@ -56,6 +56,14 @@ extern NSNotificationName const FolderAccessManagerDidChangeNotification;
 // Main thread.
 - (void)removeFoldersAtIndexes:(NSIndexSet *)indexes;
 
+// The grant a playlist file needs for the folder its entries live in: opening
+// the .m3u grants the .m3u alone. Runs the folder picker and bookmarks what
+// the user picks, exactly like the pane's Add Folder, and answers whether
+// they granted anything. Call from a background queue — it blocks the caller
+// on the panel — and never from the main thread. NSURLUtil reaches it through
+// the handler AppDelegate installs, rather than importing this.
+- (BOOL)requestAccessForPlaylistFolder:(NSURL *)playlistURL;
+
 @end
 
 NS_ASSUME_NONNULL_END

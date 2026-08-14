@@ -10,6 +10,14 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// The column identifiers, shared with the data source: they key the column
+// set, the cell prototypes and the cell reuse queue, so a literal misspelled
+// on either side would compile and quietly render an empty cell.
+extern NSString *const kPlaylistColumnNumber;
+extern NSString *const kPlaylistColumnArt;
+extern NSString *const kPlaylistColumnTitle;
+extern NSString *const kPlaylistColumnLength;
+
 // Everything structural about the playlist table in one place: the column set,
 // the row metrics, the table and scroll-view configuration, the code-built cell
 // views and their text styling. The data source, PlaylistController, decides
@@ -36,6 +44,10 @@ NS_ASSUME_NONNULL_BEGIN
 // by recolored text.
 + (NSAttributedString *)titleCellStringForTrack:(AudioTrack *)track;
 + (NSAttributedString *)durationCellString:(NSString *)duration;
+// The art cell's image: the track's own thumbnail, or the placeholder record
+// sleeve when it has none. Which image stands in for nothing is a styling
+// choice, so it lives here with the rest of them.
++ (NSImage *)artworkCellImage:(nullable NSImage *)thumbnail;
 
 // NSTableCellView.imageView is typed as NSImageView, so the equalizer view
 // cannot ride the built-in outlet. Fetch it by class instead.

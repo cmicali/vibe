@@ -21,6 +21,9 @@
     dispatch_queue_t                _loaderQueue;
     PINCache*                       _waveformCache;
     __weak AudioWaveformLoader*     _currentLoader;
+    // The file _currentLoader is decoding, so the progressive deliveries can
+    // carry it. Main-thread confined, like _currentLoader itself.
+    NSURL*                          _currentLoadURL;
     // Bumped by invalidateWithCompletion:. A decode captures it when it
     // starts, skips its disk write if it has moved, and re-checks after the
     // write lands, removing the entry it just wrote if an invalidate raced it.
@@ -89,10 +92,11 @@
     [_currentLoader cancel];
     AudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:self];
      _currentLoader = loader;
-    // Captured now rather than read back at delivery. The BPM delivery carries
-    // the URL this waveform was loaded for, so a final delivery landing after
-    // a track change cannot be stamped on whatever track is current by then.
+    // Captured now rather than read back at delivery. Every delivery carries
+    // the URL this waveform was loaded for, so one landing after a track
+    // change cannot be stamped on whatever track is current by then.
     NSURL *url = track.url;
+    _currentLoadURL = url;
     // The cache key is a file stat, computed off the serial loader queue. A
     // hung network mount could block for minutes and wedge every later track's
     // waveform behind it, which is the same reasoning as the off-queue
@@ -122,6 +126,7 @@
 - (void)cancelLoad {
     [_currentLoader cancel];
     _currentLoader = nil;
+    _currentLoadURL = nil;
 }
 
 // The lookup-or-decode core, shared by the delegate delivery path above and
@@ -212,7 +217,7 @@ awaitPersist:(BOOL)awaitPersist
     }
     run_on_main_thread({
         if (!loader.isCancelled) {
-            [self.delegate audioWaveform:waveform didLoadData:1];
+            [self.delegate audioWaveform:waveform didLoadData:1 forURL:url];
         }
         // The BPM and key are computed at the end of the decode pass, or
         // carried by a cache hit, so they only ever exist on this final
@@ -233,9 +238,12 @@ awaitPersist:(BOOL)awaitPersist
     });
 }
 
+// On the main thread, from the loader's throttled progress callback. A new
+// load cancels the old loader before taking _currentLoadURL, so the URL here
+// always belongs to the loader that is still delivering.
 - (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded {
-    if (!loader.isCancelled) {
-        [self.delegate audioWaveform:waveform didLoadData:percentLoaded];
+    if (!loader.isCancelled && _currentLoadURL) {
+        [self.delegate audioWaveform:waveform didLoadData:percentLoaded forURL:_currentLoadURL];
     }
 }
 

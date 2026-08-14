@@ -789,8 +789,7 @@
     if (track != self.playlistController.currentTrack) {
         return;
     }
-    [self updateUI];
-    [self updateNowPlaying];
+    [self updateUI]; // ends with the Now Playing publish
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
@@ -1049,9 +1048,17 @@
 }
 
 // The progressive snapshots and the final waveform, on the main thread. The
-// view simply renders what it is handed, and the cache has already filtered
-// out cancelled loads.
-- (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded {
+// view simply renders what it is handed. The cache filters out cancelled
+// loads, but it cancels only when the next load starts, at didStartPlaying:,
+// so between a slow track's didBeginLoading: and its start the outgoing
+// decode is still streaming: without the match its waveform would draw under
+// the new track's loading shimmer.
+- (void)audioWaveform:(CodableAudioWaveform *)waveform
+          didLoadData:(float)percentLoaded
+               forURL:(NSURL *)url {
+    if (![[self.playlistController currentTrack].url isEqual:url]) {
+        return;
+    }
     [self.trackDisplay showWaveform:waveform];
 }
 

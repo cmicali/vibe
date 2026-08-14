@@ -391,7 +391,8 @@ static const CGFloat kMidlineHeight = 1;
 
     // The clip is exactly the span the shimmer may occupy, so the band can
     // still slide in and out at the ends without escaping the line. Its left
-    // edge is the fill's front, so it eases with the fill or not at all.
+    // edge is the fill's front, so the two share one transaction: they ease
+    // together on a progress sample and snap together on a resize.
     [CATransaction begin];
     if (duration > 0) {
         [CATransaction setAnimationDuration:duration];
@@ -400,6 +401,15 @@ static const CGFloat kMidlineHeight = 1;
     }
     else {
         [CATransaction setDisableActions:YES];
+    }
+    if (_loadingProgressLayer && fillEnd > 0) {
+        // A soft front, but only as long as there is remainder to fade into:
+        // at completion a fixed fade would read as the bar stopping short of
+        // the edge rather than as a soft edge.
+        static const CGFloat kFrontFadePoints = 14;
+        CGFloat fade = MIN(kFrontFadePoints, remainder);
+        _loadingProgressLayer.locations = @[ @0, @(MAX(0.0, (fillEnd - fade) / fillEnd)), @1 ];
+        _loadingProgressLayer.frame = CGRectMake(0, midY - kMidlineHeight / 2, fillEnd, kMidlineHeight);
     }
     _loadingShimmerClip.frame = CGRectMake(fillEnd, midY - kMidlineHeight / 2, remainder, kMidlineHeight);
     [CATransaction commit];
@@ -507,29 +517,15 @@ static const CGFloat kMidlineHeight = 1;
         [self.layer insertSublayer:fill below:_loadingShimmerClip];
         _loadingProgressLayer = fill;
     }
-    CGFloat midY = self.bounds.size.height / 2;
-    // A soft front, but only as long as there is remainder to fade into: at
-    // completion a fixed fade would read as the bar stopping short of the
-    // edge rather than as a soft edge.
-    static const CGFloat kFrontFadePoints = 14;
-    CGFloat fade = MIN(kFrontFadePoints, MAX(width - fillWidth, 0));
-    CGFloat fadeStart = MAX(0.0, (fillWidth - fade) / fillWidth);
     // Providers report about once a second and irregularly, so a snap to each
     // value reads as a stalled bar that lurches. Ease to the reported value
     // over roughly the last interval instead: Core Animation retargets from
     // the presentation value, so a sample that lands early redirects the
     // motion rather than jumping. It never runs past what was reported, so a
-    // stalled download parks rather than creeping ahead of the truth.
-    CFTimeInterval duration = [self loadingProgressAnimationDuration];
-    [CATransaction begin];
-    [CATransaction setAnimationDuration:duration];
-    [CATransaction setAnimationTimingFunction:
-            [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut]];
-    _loadingProgressLayer.locations = @[ @0, @(fadeStart), @1 ];
-    _loadingProgressLayer.frame = CGRectMake(0, midY - kMidlineHeight / 2, fillWidth, kMidlineHeight);
-    [CATransaction commit];
-    // The shimmer starts where the fill ends, so its clip rides the same ease.
-    [self layoutLoadingLayerAnimatedOver:duration];
+    // stalled download parks rather than creeping ahead of the truth. The fill
+    // is laid out there and nowhere else, so a resize mid-download moves it
+    // with the rest of the control rather than at the next sample.
+    [self layoutLoadingLayerAnimatedOver:[self loadingProgressAnimationDuration]];
 }
 
 - (void)showEmptyPlaceholder {

@@ -41,10 +41,6 @@
     return self;
 }
 
-- (void)enqueueURLs:(NSArray<NSURL *> *)urls {
-    [_queue addObjectsFromArray:urls];
-}
-
 - (BOOL)startAndDrainQueue {
     _started = YES;
     if (_queue.count == 0) {

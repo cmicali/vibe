@@ -294,8 +294,12 @@
         return;
     }
     // Re-checked under the claim, because the other lane may have finished
-    // this exact track between the entry check above and the claim.
-    if (track.metadata.parsedOK) {
+    // this exact track between the entry check above and the claim — and the
+    // entry may have been written by a DIFFERENT row for the same file that
+    // finished while this op sat queued, which the claim itself cannot cover,
+    // since that parse released its claim before this one took it. One disk
+    // read beats re-running the TagLib parse and the thumbnail decode.
+    if (track.metadata.parsedOK || [self loadTrackFromDiskCache:track]) {
         [self publishParseResultToWaitingTracks:[owner completeParseClaim:claim]];
         return;
     }
@@ -367,6 +371,13 @@
 // file, and no retry storm from rows re-queueing each other.
 - (void)publishParseResultToWaitingTracks:(NSArray<AudioTrack *> *)waiters {
     for (AudioTrack *waiter in waiters) {
+        // A re-drop's stage-1 sweep can serve a waiter while the parse it is
+        // waiting on still blocks. Replacing that metadata with an equivalent
+        // instance buys nothing and costs a second didLoadMetadata:, which
+        // re-decodes the header art if the row is the current track.
+        if (waiter.metadata.parsedOK) {
+            continue;
+        }
         [self loadTrackFromDiskCache:waiter]; // publishes on a hit
     }
 }

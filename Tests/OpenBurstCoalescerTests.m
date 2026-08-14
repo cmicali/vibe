@@ -95,7 +95,7 @@ static NSArray<NSURL *> *URLBatch(NSUInteger count) {
 #pragma mark - Launch straddling
 
 - (void)testQueuedURLsDrainAtStartAndTheRemainderAppends {
-    [_coalescer enqueueURLs:URLBatch(2)];               // pre-launch batch
+    [_coalescer openBurstURLs:URLBatch(2)];             // pre-launch batch
     XCTAssertEqual(_drains.count, 0u);
     XCTAssertTrue([_coalescer startAndDrainQueue]);
     [_coalescer openBurstURLs:URLBatch(1)];             // post-launch remainder

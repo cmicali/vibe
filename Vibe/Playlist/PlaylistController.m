@@ -168,7 +168,7 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     AudioTrack *track = [_model trackAtIndex:(NSUInteger)row];
     BOOL isCurrentRow = (row == (NSInteger)self.currentIndex);
     NSTableCellView *view = [_tableView cellViewForColumn:tableColumn];
-    if ([tableColumn.identifier isEqualToString:@"numColumn"]) {
+    if ([tableColumn.identifier isEqualToString:kPlaylistColumnNumber]) {
         EqualizerIndicatorView *eqView = [PlaylistTableView equalizerViewInCell:view];
         // Reset on every population, because cells are reused across rows.
         eqView.barColor = isCurrentRow ? self.accentColor : nil;
@@ -184,17 +184,13 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
             view.textField.attributedStringValue = [PlaylistTableView numberCellString:(NSUInteger)row + 1];
         }
     }
-    else if ([tableColumn.identifier isEqualToString:@"artColumn"]) {
-        NSImage *image = track.thumbnailAlbumArt;
-        if (!image) {
-            image = [NSImage imageNamed:@"record-bg"];
-        }
-        view.imageView.image = image;
+    else if ([tableColumn.identifier isEqualToString:kPlaylistColumnArt]) {
+        view.imageView.image = [PlaylistTableView artworkCellImage:track.thumbnailAlbumArt];
     }
-    else if ([tableColumn.identifier isEqualToString:@"titleColumn"]) {
+    else if ([tableColumn.identifier isEqualToString:kPlaylistColumnTitle]) {
         view.textField.attributedStringValue = [PlaylistTableView titleCellStringForTrack:track];
     }
-    else if ([tableColumn.identifier isEqualToString:@"lengthColumn"]) {
+    else if ([tableColumn.identifier isEqualToString:kPlaylistColumnLength]) {
         view.textField.attributedStringValue = [PlaylistTableView durationCellString:track.durationString];
     }
 
@@ -388,7 +384,7 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 }
 
 - (void)reloadCurrentTrackPlayState {
-    NSInteger column = [self.tableView columnWithIdentifier:@"numColumn"];
+    NSInteger column = [self.tableView columnWithIdentifier:kPlaylistColumnNumber];
     if (column < 0 || self.currentIndex >= _model.count) {
         return;
     }
