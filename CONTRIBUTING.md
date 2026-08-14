@@ -22,7 +22,7 @@ make build CONFIG=Debug    # Debug — required for the debug command channel
 make test                  # unit tests
 ```
 
-Both write to `build/DerivedData/`. `make clean` removes that and the generated project.
+The app lands at `build/DerivedData/Build/Products/<config>/Vibe.app`. `make clean` removes that and the generated project.
 
 ## Requirements
 
@@ -32,6 +32,10 @@ Both write to `build/DerivedData/`. `make clean` removes that and the generated 
 ## Tests
 
 `make test` runs the suite in `Tests/`. Please add tests if you are changing or adding things. 
+
+## Localization
+
+Every user-facing string lives in `Vibe/Common/VibeStrings.h` and is used through its `STR_*` macro — no English at the call site. **Run `make strings` after touching any UI string**; CI runs `make check-strings` and fails on a stale catalog. Adding a string, adding a language, and testing one are covered in [docs/localization.md](docs/localization.md).
 
 ## Reporting bugs
 
