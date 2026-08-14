@@ -72,6 +72,21 @@ jobs:
       - name: Run unit tests
         run: make test
 
+      # always(): the counts are most wanted precisely when the step above
+      # failed. It reads the .xcresult, so it reports the run either way and
+      # never changes the job's outcome.
+      - name: Test summary
+        if: always()
+        run: make test-summary
+
+      - name: Upload result bundle
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults.xcresult
+          path: build/TestResults.xcresult
+          retention-days: 7
+
   # Fails when Resources/Localizable.xcstrings is stale against the STR_*
   # registry — a reworded string whose `make strings` run was forgotten. Its
   # own job: it needs no XcodeGen, no generated project and no build, only

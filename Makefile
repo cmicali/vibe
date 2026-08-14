@@ -2,7 +2,11 @@
 
 CONFIG ?= Release
 
-.PHONY: setup project build test stress release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings
+# Where `make test` writes its .xcresult, and where `make test-summary` reads
+# it from. Under build/, so `make clean` takes it.
+RESULT_BUNDLE ?= build/TestResults.xcresult
+
+.PHONY: setup project build test test-summary stress release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -21,13 +25,23 @@ build: project
 # host-less pure-logic only, so it needs no window server, no audio hardware,
 # no permissions, and no running Vibe instance. Anything requiring the running
 # app belongs in the vibe-debug skill's command channel instead.
+#
+# The rm matters: xcodebuild refuses to write over an existing result bundle.
 test: project
+	rm -rf $(RESULT_BUNDLE)
 	xcodebuild \
 	    -project Vibe.xcodeproj \
 	    -scheme Vibe \
 	    -configuration Debug \
 	    -derivedDataPath build/DerivedData \
+	    -resultBundlePath $(RESULT_BUNDLE) \
 	    test
+
+# Pass/fail counts and failure messages from the last `make test`, as a
+# markdown table. CI appends it to the run summary; run it by hand after a
+# local `make test` for the same table on stdout.
+test-summary:
+	scripts/test-summary.sh $(RESULT_BUNDLE)
 
 # Stress/fuzz the RUNNING app against a folder of real audio files. Seeded and
 # reproducible; it checks check_invariants and dump_health between batches and
