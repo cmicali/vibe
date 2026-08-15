@@ -1371,6 +1371,21 @@ static NSString *VibeVerbFromUsage(NSString *usage) {
 NSDictionary *VibeCommandSpecForVerb(NSString *verb) {
     for (NSDictionary *spec in VibeDebugCommandTable()) {
         if ([VibeVerbFromUsage(spec[@"usage"]) isEqualToString:verb]) {
+            // Ending the app without a signal, which is the only way to end an
+            // instance Xcode is debugging: an attached debugger traps SIGTERM
+            // and stops the process instead of killing it, so a pkill leaves it
+            // in the process table, answering nothing. This is also the only
+            // exit that runs applicationWillTerminate:, so the AppStats flush
+            // happens; SIGKILL loses it. The reply is written here because
+            // nothing survives to write it afterwards, and terminate: is
+            // deferred so the drain loop that called us finishes first.
+            VibeCmd(@"quit", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                VibeWriteDebugResponse(commandId, VibeJSONString(@{@"ok": @YES, @"quitting": @YES}));
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [NSApp terminate:nil];
+                });
+                return nil; // written above, before the app goes away
+            }),
             return spec;
         }
     }

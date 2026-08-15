@@ -19,7 +19,7 @@ V="$APP/Contents/MacOS/Vibe"
 ## Launching: pitfalls first
 
 ```bash
-.claude/skills/vibe-debug/scripts/launch.sh [audio-file ...]   # kill, open -a, wait until ready
+.claude/skills/vibe-debug/scripts/launch.sh [audio-file ...]   # quit, open -a, wait until ready
 ```
 
 `launch.sh` relaunches the build and polls the debug channel until the app answers, then prints its `dump_state` JSON. No guessed sleeps. It honors `$VIBE_APP` when the app lives somewhere other than `build/DerivedData`.
@@ -37,6 +37,7 @@ To launch by hand instead:
   ps -o pid,command -p $(pgrep -x Vibe)
   ```
   If the path is not your build, either ask the user to stop the Xcode session or run a **second instance** by executing the binary directly: `"$V" &`. That bypasses Launch Services but cannot open files, and it restores prior window state. A raw-launched instance is a child of your shell and dies when the shell exits, so treat it as scoped to one command block, or relaunch per test.
+- **Never `pkill` an instance Xcode is debugging.** The debugger traps SIGTERM and *stops* the process instead of ending it, so it survives, keeps its pid, and answers nothing — every later `--debug-cmd` then burns its full timeout, which reads as the app hanging. `launch.sh` handles this: it ends a running instance with `--debug-cmd quit` (no signal, so a debugged instance quits cleanly and Xcode ends the session), signals only an instance no debugger is attached to, and refuses outright — in milliseconds, with a message — when one is suspended under a debugger. To do it by hand, `quit` first, and check for the trap with `ps -o stat= -p $(pgrep -x Vibe)`: a leading `T` means stopped, so continue or stop it in Xcode (⌘.).
 
 ## Test audio files
 
@@ -97,6 +98,7 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 "$V" --debug-cmd undo                # {ok, undid, canUndo, canRedo} — Edit > Undo; replies once the file moves have settled. {"error": "nothing to undo"} on an empty stack
 "$V" --debug-cmd redo                # {ok, redid, canUndo, canRedo} — Edit > Redo, same contract, {"error": "nothing to redo"}
 "$V" --debug-cmd clear_caches        # {ok, cleared} — empties metadata + waveform PINCaches
+"$V" --debug-cmd quit                # {ok, quitting} — ends the app through the normal terminate path. **Prefer it to pkill**: an attached debugger traps SIGTERM and only stops the process, so an Xcode-run instance survives the kill, stays in the process table and answers nothing (see Launching). It is also the only exit that runs applicationWillTerminate:, so the AppStats flush happens
 "$V" --debug-cmd scan_bpm - < file   # {ok, bpm} — fresh decode+analyze, runs IN THE CLI PROCESS (no app needed; see Test audio files). Audio rides stdin; prefer the scan-bpm.sh wrapper
 "$V" --debug-cmd scan_key - < file   # {ok, key, camelot, index} — the key-analyzer twin of scan_bpm, same contract; prefer scan-key.sh. Ignores tags: dump_state's currentTrack.key/.camelot show the app's tag-over-analysis resolution instead
 "$V" --debug-cmd clear_disk_caches   # {ok, cleared} — CLI-process deletion of the PINDiskCache dirs, ONLY for when the app is NOT running (prefer clear-caches.sh, which picks the right one)
