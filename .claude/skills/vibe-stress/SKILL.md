@@ -51,7 +51,9 @@ The counters are also nearly impossible to observe live from outside the process
 
 **`quiesce` is what makes the health numbers worth trusting.** It runs `closeFile:` — stop, drop the prefetch handle, cancel the waveform load and deferred metadata scan, clear the playlist, reset the UI — then polls until the pending counters unwind, then calls `malloc_zone_pressure_relief` — which mostly releases nothing, so `phys_footprint` keeps the allocator's high-water mark and `mallocLiveBytes` is the number to read at rest. See below. The driver takes a separate at-rest health series this way every `--quiesce-every` batches (default 10) and scores it against much tighter limits.
 
-Measured over loading-profile runs, that at-rest state is *dead stable* in exactly the metrics that matter: views 47, layers 100–104, windows 1, engine nodes 23, every pending counter 0. Threads (14–26) and fds (45–70) breathe with the loader pool. **Resting footprint does not settle** — 47 to 335 MB, with the same seed resting at 298 MB in one run and 51 MB in another, and one run dropping from 313 MB to 88 MB two samples later. It is the allocator's high-water mark rather than live data — see below — so it is a gross-leak backstop (+256 MB), not a sensitive signal. `mallocLiveBytes` is the megabyte metric that *is* sensitive: it sat at 37–52 MB across the same decodes that swung the footprint from 94 to 365 MB.
+Measured over loading-profile runs, that at-rest state is *dead stable* in exactly the metrics that matter: views 47, windows 1, engine nodes 23, every pending counter 0. Threads (14–26) and fds (45–70) breathe with the loader pool. **Layers are not one of the stable ones, and an earlier "100–104" here was one plateau rather than the range**: the resting layer count is bistable at ~101 and ~350–356 and moves in *both* directions within a single run — one soak read 355, 352, 351 and then settled at 101, and the very next read 101 and settled at 352, on the same binary. Nothing app-level selects it. Holding views pinned at 47, it is unmoved by row count (0, 3, 60, 2208 rows), window width (400 to 3000), `quiesce`, and the pitch panel and playlist toggles, which are worth 4 layers and 1 layer respectively; it is AppKit's own glass and hosting-view machinery. Its limit is sized to clear that step (+320), because a +80 limit against a min-of-first-three baseline fires whenever a run happens to start low. A real layer leak is unbounded and clears +320 too.
+
+**Resting footprint does not settle** — 47 to 335 MB, with the same seed resting at 298 MB in one run and 51 MB in another, and one run dropping from 313 MB to 88 MB two samples later. It is the allocator's high-water mark rather than live data — see below — so it is a gross-leak backstop (+256 MB), not a sensitive signal. `mallocLiveBytes` is the megabyte metric that *is* sensitive: it sat at 37–52 MB across the same decodes that swung the footprint from 94 to 365 MB.
 
 ### Settled: the ~270 MB resting "retention" is not a leak
 
@@ -75,15 +77,23 @@ So the resting cap stays at +256 MB as a gross backstop, and **sensitivity comes
 
 `--profile base` mixes everything. `--profile loading` weights the open path and the async deliveries that race it — the documented hazard, where waveform, BPM, key and metadata deliveries land after the track has already changed — including `open_burst`, two to four opens landing on top of each other with no settle. `--profile ui` does no file loading at all: a pure monkey over transport, seeks, pitch, FX, clicks, drags, resizes and menus against whatever is loaded.
 
-Three op kinds exist because nothing else would produce them: `open_burst` above, `held_fx` (a `key_down w` whose `key_up` is sometimes lost across a track change, latching a momentary effect), and out-of-range `seek` and `set_pitch` values, where the clamp escaping is the finding.
+`--profile artwork` aims at the folder-artwork fallback: opens through all three resolve strategies (a folder, a burst of files, a lone file), the playlist visible far more often than elsewhere so cell draws pull thumbnails off the resolver concurrently with the header's display-size load, and the setting flipped underneath both. Pair it with a corpus built for it — one cover per accepted filename, the near-miss names, the unreadable and undecodable and oversize covers, a cover that is a directory and one that is a FIFO.
+
+Four op kinds exist because nothing else would produce them: `open_burst` above, `held_fx` (a `key_down w` whose `key_up` is sometimes lost across a track change, latching a momentary effect), out-of-range `seek` and `set_pitch` values, where the clamp escaping is the finding, and `folder_art`, which flips `set_folder_artwork` — the one change that drops every answer the resolver holds, landing on resolves and decodes already in flight while the playlist draws cells off the same tables.
+
+**`folder_art` emits `off` and `on` as a pair, and that shape is load-bearing.** See the settings trap below.
 
 **Deliberately excluded from every profile**: `convert_to_flac`, which writes beside the source and can trash the original — the corpus is real music. Right-clicks and lone `mouse_down` are excluded too, for the wedge reasons in `vibe-debug`, and menu items are filtered through a denylist covering anything modal, quitting, hiding or closing, since the channel cannot be served while a modal panel is up.
 
-## Three traps, each found by the harness misfiring
+## Traps, each found by the harness misfiring
 
 **A random clicker will quit the app if you let it.** The window draws its own close and minimize buttons as `SymbolButton`s in its top-left corner, and `closeApp:` is `[self close]` — so a uniform random click finds them within a few hundred ops. The driver reads their frames out of `dump_view_tree` at startup and excludes those rects (plus a fixed top-left fallback), and it also distinguishes the two ways the app can vanish: gone **with** a fresh `.ips` is a `crash`, gone **without** one is an `exit`, meaning something in the op stream asked it to quit. Reporting a clean exit as a crash sends you hunting for a stack that was never written.
 
 **Never `sample Vibe` by name.** The CLI client is the app binary, so the name matches every in-flight `--debug-cmd` invocation too, and sampling one yields a stack of the client polling for its own response — `VibeDebugClientRunOne` sitting in `usleep`, which reads exactly like a hang and says nothing whatever about the app. Resolve the GUI instance's pid first by filtering `pgrep -x Vibe` for the process whose argv lacks `--debug-cmd`, and sample that. Sample *before* re-probing, too: a probe that succeeds means the stall already ended and took its stack with it.
+
+**A setting the fuzzer toggles persists across runs, and a disabled feature looks exactly like a clean run.** `AppSettings` lives in `NSUserDefaults`, so a run inherits whatever the *last* one left — including a fuzzer's own random final toggle. Reconstructing `set_folder_artwork` from the journals of four runs that all reported passes: the feature was on for 49.5%, **36.3%**, 46.8% and 42.3% of their ops, and two of them *ended* off, poisoning every later hand-run probe against the same container. With it off the artwork accessors return before they reach the resolver at all, so those ops exercise none of the code the run was aimed at — and nothing in the summary says so. Two fixes, both needed: the driver forces every entry in `FEATURE_SETTINGS` on at launch and prints it in the header (`settings: folderArtwork=on`), and the toggle op emits `off` then straight back `on`, which buys both invalidation edges while leaving the feature on essentially throughout and lands the user's setting where it started. **Verify the duty cycle from the journal before believing a coverage claim** — count the `set_folder_artwork` ops and the gaps between them; the fixed op yields ~98.5% on.
+
+**`--iterations` silently caps `--duration`.** It defaults to 2000, and whichever limit is reached first ends the run, so `--duration 3600` alone stops after ~2000 ops — for a "one hour" soak, raise both.
 
 **The sandbox will kill your clients under launch pressure.** The CLI client being the app binary also means every op launches a short-lived instance of a sandboxed executable. Launch a few hundred in quick succession and libsecinit's container setup starts failing outright, SIGTRAPping inside dyld's initializers before `main()` ever runs — a real `.ips` crash report for "Vibe" that has nothing to do with Vibe's code. The giveaway is `parentProc: Python`, a sub-millisecond process lifetime, and a stack topped by `_libsecinit_appsandbox`. The driver retries a signal-killed client that produced no output, and only calls it a `client` failure once the retries are exhausted; do the same in any hand-rolled loop over `--debug-cmd`.
 
@@ -99,6 +109,31 @@ xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Debug \
 TSAN_OPTIONS=halt_on_error=0 "$V" --no-audio-hw --silent &
 .claude/skills/vibe-stress/scripts/stress.py --corpus ~/Music/big --profile ui   # app already up
 ```
+
+### Getting a sanitizer report out of a sandboxed app
+
+**Default options make TSan kill the app instead of reporting it**, and the crash looks nothing like a race: an `EXC_CRASH`/`SIGABRT` whose faulting stack is `__sanitizer::Die` under `ReportFile::ReopenIfNecessary` and `StartSymbolizerSubprocess`. That is the sanitizer failing to *report*, not the app failing. Two independent causes, both the sandbox:
+
+- **`log_path` must be inside the app's container**, `~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp/`. Anywhere else — including a scratch dir under `/tmp` — and the first report aborts the process on the write. With no `log_path` at all the report goes to stderr, which is nowhere for a GUI app launched by `open -a`.
+- **`external_symbolizer_path=` must be empty.** Symbolizing spawns `atos`, which the sandbox denies; TSan then tries to report *that* failure and hits the first problem. Empty falls back to the in-process `dladdr` symbolizer — function names but no file or line, which is enough to place a race.
+
+Build to a **separate** derived-data path so the plain Debug build stays usable, and hand it to the driver with `--app`, which sets `VIBE_APP` for `launch.sh`:
+
+```bash
+C=~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp
+xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Debug \
+    -derivedDataPath build/DerivedData-tsan -enableThreadSanitizer YES build
+launchctl setenv TSAN_OPTIONS \
+    "log_path=$C/tsan:halt_on_error=0:external_symbolizer_path=:symbolize=1:history_size=7"
+.claude/skills/vibe-stress/scripts/stress.py --corpus ~/Music/big \
+    --app "$PWD/build/DerivedData-tsan/Build/Products/Debug/Vibe.app" \
+    --profile artwork --max-stalls 20
+launchctl unsetenv TSAN_OPTIONS        # it is a session-wide variable
+```
+
+`launchctl setenv` is what gets the variable to an `open -a` launch at all, and it applies session-wide until unset, so unset it when the run ends. Reports land as `$C/tsan.<pid>`; **no file means no race**, since TSan creates it only on the first report. Raise `--max-stalls`, because instrumentation makes ordinary verbs slow enough to trip the liveness oracle.
+
+TSan's own noise is worth suppressing so it cannot bury a finding in app code — put a suppressions file in the container too and add `suppressions=$C/tsan-suppressions.txt`.
 
 Three builds catch disjoint bug classes, and **TSan matters most here**: the whole threading contract — every engine mutation on the serial player queue, non-blocking UI-facing getters, delegate callbacks on main — is exactly what it validates, and a race there is invisible to every other oracle in the table above.
 

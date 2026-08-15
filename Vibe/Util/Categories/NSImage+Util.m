@@ -4,8 +4,36 @@
 //
 
 #import "NSImage+Util.h"
+#import <ImageIO/ImageIO.h>
+
+const CGFloat kVibeThumbnailArtDimension = 128.0;
+const CGFloat kVibeDisplayArtDimension = 1024.0;
 
 @implementation NSImage (Util)
+
++ (NSImage *)decodedImageWithData:(NSData *)data maxPixelSize:(CGFloat)maxPixelSize {
+    if (!data) {
+        return nil;
+    }
+    CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)data, NULL);
+    if (!source) {
+        return nil;
+    }
+    NSDictionary *options = @{
+            (id)kCGImageSourceCreateThumbnailFromImageAlways: @YES,
+            (id)kCGImageSourceCreateThumbnailWithTransform: @YES,
+            (id)kCGImageSourceShouldCacheImmediately: @YES,
+            (id)kCGImageSourceThumbnailMaxPixelSize: @(maxPixelSize),
+    };
+    CGImageRef cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, (__bridge CFDictionaryRef)options);
+    CFRelease(source);
+    if (!cgImage) {
+        return nil;
+    }
+    NSImage *image = [[NSImage alloc] initWithCGImage:cgImage size:NSZeroSize];
+    CGImageRelease(cgImage);
+    return image;
+}
 
 + (NSImage *)imageWithSize:(NSSize)size drawnBy:(void (NS_NOESCAPE ^)(void))draw {
     // A zero dimension produces a nil bitmap rep, which crashes downstream.

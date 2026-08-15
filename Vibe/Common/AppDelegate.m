@@ -19,6 +19,7 @@
 #import "AppStats.h"
 #import "DocumentTypes.h"
 #import "FolderAccessManager.h"
+#import "FolderArtwork.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <sys/sysctl.h>
@@ -78,6 +79,18 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // can run.
     [NSURLUtil setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {
         return [[FolderAccessManager sharedInstance] requestAccessForPlaylistFolder:playlistURL];
+    }];
+    // An expansion walks folders anyway, so the folder-artwork resolver takes
+    // its answers from that walk rather than paying for a listing of its own.
+    // Wired here for the same reason as the grant above: the expansion finds
+    // the facts, but acting on them belongs to the app layer.
+    [NSURLUtil setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
+                                             NSDictionary<NSString *, NSString *> *artFilenameByDirectory) {
+        [FolderArtwork.sharedInstance noteListedDirectories:directories
+                                     artFilenameByDirectory:artFilenameByDirectory];
+    }];
+    [NSURLUtil setBulkOpenDirectoriesHandler:^(NSSet<NSString *> *directories) {
+        [FolderArtwork.sharedInstance preferListingForDirectories:directories];
     }];
     // Build the controller and menu bar early enough that window state
     // restoration, which runs before applicationDidFinishLaunching, can find

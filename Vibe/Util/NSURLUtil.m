@@ -4,18 +4,33 @@
 //
 
 #import "NSURLUtilInternal.h"
+#import "FolderArtRules.h"
 #import "PlaylistFile.h"
 
 #include <sys/stat.h>
 #include <unistd.h>
 
-// Installed once at launch, read from the expansion workers, so the handoff
+// Installed once at launch, read from the expansion workers, so each handoff
 // takes a lock rather than assuming the install lands first.
 static VibePlaylistFolderGrantHandler sPlaylistFolderGrantHandler;
+static VibeWalkedDirectoriesHandler sWalkedDirectoriesHandler;
+static VibeBulkOpenDirectoriesHandler sBulkOpenDirectoriesHandler;
 
 static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
     @synchronized (NSURLUtil.class) {
         return sPlaylistFolderGrantHandler;
+    }
+}
+
+static VibeWalkedDirectoriesHandler WalkedDirectoriesHandler(void) {
+    @synchronized (NSURLUtil.class) {
+        return sWalkedDirectoriesHandler;
+    }
+}
+
+static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
+    @synchronized (NSURLUtil.class) {
+        return sBulkOpenDirectoriesHandler;
     }
 }
 
@@ -28,12 +43,39 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
     }
 }
 
++ (void)setWalkedDirectoriesHandler:(VibeWalkedDirectoriesHandler)handler {
+    @synchronized (self) {
+        sWalkedDirectoriesHandler = [handler copy];
+    }
+}
+
++ (void)setBulkOpenDirectoriesHandler:(VibeBulkOpenDirectoriesHandler)handler {
+    @synchronized (self) {
+        sBulkOpenDirectoriesHandler = [handler copy];
+    }
+}
+
 + (BOOL)isDatalessFile:(NSURL *)url {
     struct stat st;
     if (stat(url.fileSystemRepresentation, &st) != 0) {
         return NO;
     }
     return (st.st_flags & SF_DATALESS) != 0;
+}
+
+// Whether path names a file sitting directly in directory — a string test, so a
+// walk can tell it is still in the same folder without rebuilding that folder's
+// path for every entry.
+static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
+    NSUInteger directoryLength = directory.length;
+    if (directoryLength == 0 || path.length <= directoryLength + 1) {
+        return NO;
+    }
+    if (![path hasPrefix:directory] || [path characterAtIndex:directoryLength] != '/') {
+        return NO;
+    }
+    NSRange remainder = NSMakeRange(directoryLength + 1, path.length - directoryLength - 1);
+    return [path rangeOfString:@"/" options:0 range:remainder].location == NSNotFound;
 }
 
 // A static set, consulted once per file in a folder drop. Must cover every
@@ -50,10 +92,23 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
     return extensions;
 }
 
+// The walk picks the album cover out on the way past: it already touches every
+// entry, so the walked-directories handler gets the whole folder's answer for
+// the cost of a rank lookup per name. Only directories contributing playable
+// audio are handed over; nothing will ask about an "Artwork" subfolder.
 + (NSArray<NSURL*>*) expandDirectory:(NSURL*)dir {
 
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
     NSFileManager *fileManager = [NSFileManager defaultManager];
+    // directory -> the best cover filename seen in it so far, and its rank.
+    NSMutableDictionary<NSString*, NSString*> *artByDirectory = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSString*, NSNumber*> *artRankByDirectory = [NSMutableDictionary dictionary];
+    NSMutableSet<NSString*> *directoriesWalked = [NSMutableSet set];
+    NSSet<NSString*> *supported = [self supportedExtensions];
+    // The enumerator is depth-first, so entries arrive in long runs from one
+    // directory; remembering the last one avoids rebuilding the parent path for
+    // every file in a folder.
+    NSString *lastDirectory = nil;
 
     // Skip hidden files. On exFAT, SMB and USB volumes macOS writes
     // AppleDouble sidecars such as "._Song.mp3", whose extension passes the
@@ -70,10 +125,6 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
                    LogWarn(@"Error enumerating %@: %@", url, error);
                    return YES;
                }];
-    // Filtered here rather than only by the caller's pass, so a folder of
-    // thousands of non-audio files costs neither the retain nor its share of
-    // the sort below. Hoisted out of the loop: it is consulted once per entry.
-    NSSet<NSString *> *supported = [self supportedExtensions];
     for (NSURL *url in enumerator) {
         NSError *error = nil;
         NSNumber *isDirectory = nil;
@@ -88,9 +139,31 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
             LogWarn(@"Could not read directory flag for %@: %@", url, error);
             isFile = YES;
         }
-        if (isFile && [supported containsObject:url.pathExtension.lowercaseString]) {
+        if (!isFile) {
+            continue;
+        }
+        // One string per entry, rather than the URL and two strings
+        // URLByDeletingLastPathComponent.path would cost. Non-audio entries
+        // stay out of results but still reach the folder-art bookkeeping
+        // below: a cover is exactly a non-audio entry.
+        NSString *path = url.path;
+        if ([supported containsObject:path.pathExtension.lowercaseString]) {
             [results addObject:url];
         }
+        if (!VibePathIsDirectlyInside(path, lastDirectory)) {
+            lastDirectory = path.stringByDeletingLastPathComponent;
+        }
+        if (lastDirectory.length > 0 &&
+                [supported containsObject:path.pathExtension.lowercaseString]) {
+            [directoriesWalked addObject:lastDirectory];
+        }
+        VibeFolderArtNoteCandidate(lastDirectory, path.lastPathComponent,
+                                   artByDirectory, artRankByDirectory);
+    }
+
+    VibeWalkedDirectoriesHandler walked = WalkedDirectoriesHandler();
+    if (walked && directoriesWalked.count > 0) {
+        walked(directoriesWalked, artByDirectory);
     }
 
     // The enumerator returns APFS hash order, which is effectively random, so
@@ -137,15 +210,42 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
 }
 
 + (NSArray<NSURL*>*) expandAndFilterList:(NSArray<NSURL*>*)list folderCount:(NSUInteger *)folderCount {
-    list = [NSURLUtil expandFileList:list folderCount:folderCount];
+    NSUInteger inputCount = list.count;
+    NSMutableSet<NSString*> *looseFileDirectories = [NSMutableSet set];
+    list = [NSURLUtil expandFileList:list
+                         folderCount:folderCount
+                looseFileDirectories:looseFileDirectories];
+    NSUInteger expandedCount = list.count;
     NSSet<NSString*> *supported = [NSURLUtil supportedExtensions];
     list = [list filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSURL *url, NSDictionary* bindings) {
         return [supported containsObject:[url.pathExtension lowercaseString]];
     }]];
+    NSMutableSet<NSString *> *supportedLooseDirectories = [NSMutableSet set];
+    for (NSURL *url in list) {
+        [self noteLooseFileDirectoryOf:url into:supportedLooseDirectories];
+    }
+    [looseFileDirectories intersectSet:supportedLooseDirectories];
+    // Anything but a single file is a bulk open, whose folders are worth one
+    // listing each rather than the lone file's stat probes. A dropped folder's
+    // directories were walked above and are settled, so only the loose files'
+    // folders are left to mark — including a playlist file's tracks, which is
+    // why the post-expansion count matters: a dropped .cue is one file that
+    // names a whole album.
+    BOOL bulkOpen = inputCount > 1 || (folderCount && *folderCount > 0) ||
+                    looseFileDirectories.count > 1 || expandedCount > inputCount;
+    VibeBulkOpenDirectoriesHandler bulk = BulkOpenDirectoriesHandler();
+    if (bulkOpen && bulk && looseFileDirectories.count > 0) {
+        bulk(looseFileDirectories);
+    }
     return list;
 }
 
-+ (NSArray<NSURL*>*) expandFileList:(NSArray<NSURL*>*)list folderCount:(NSUInteger *)folderCount {
+// looseFileDirectories collects the folders of files that did NOT come from
+// walking a folder — a multi-file open, or a playlist file's tracks. Only those
+// still need their artwork resolved; a walked folder settled its own.
++ (NSArray<NSURL*>*) expandFileList:(NSArray<NSURL*>*)list
+                        folderCount:(NSUInteger *)folderCount
+               looseFileDirectories:(NSMutableSet<NSString*> *)looseFileDirectories {
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] initWithCapacity:list.count];
     for (NSURL *url in list) {
         // Ask the filesystem rather than the URL. hasDirectoryPath inspects
@@ -163,13 +263,25 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
             [results addObjectsFromArray:[self expandDirectory:url]];
         }
         else if ([PlaylistFile isPlaylistExtension:[url.pathExtension lowercaseString]]) {
-            [results addObjectsFromArray:[self expandPlaylistFile:url]];
+            NSArray<NSURL*> *tracks = [self expandPlaylistFile:url];
+            [results addObjectsFromArray:tracks];
+            for (NSURL *track in tracks) {
+                [self noteLooseFileDirectoryOf:track into:looseFileDirectories];
+            }
         }
         else {
             [results addObject:url];
+            [self noteLooseFileDirectoryOf:url into:looseFileDirectories];
         }
     }
     return results;
+}
+
++ (void)noteLooseFileDirectoryOf:(NSURL *)url into:(NSMutableSet<NSString*> *)directories {
+    NSString *directory = url.path.stringByDeletingLastPathComponent;
+    if (directories && directory.length > 0) {
+        [directories addObject:directory];
+    }
 }
 
 #pragma mark - Playlist files (CUE, M3U)

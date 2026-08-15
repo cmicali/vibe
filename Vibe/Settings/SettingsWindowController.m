@@ -8,8 +8,8 @@
 #import "SettingsAdvancedViewController.h"
 #import "SettingsAppearanceViewController.h"
 #import "SettingsConvertViewController.h"
+#import "SettingsFilesViewController.h"
 #import "SettingsGeneralViewController.h"
-#import "SettingsPermissionsViewController.h"
 #import "SettingsPlaybackViewController.h"
 #import "VibeStrings.h"
 
@@ -85,11 +85,11 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
                                   @"playback", STR_MENU_PLAYBACK, @"play.circle")];
     [tabs addTabViewItem:PaneItem([[SettingsAppearanceViewController alloc] initWithPlayerController:playerController],
                                   @"appearance", STR_MENU_VIEW_APPEARANCE, @"paintbrush")];
+    [tabs addTabViewItem:PaneItem([[SettingsFilesViewController alloc] initWithPlayerController:playerController],
+                                  @"files", STR_SETTINGS_FILES, @"folder")];
     // The Convert tab reuses the Convert menu's string too.
     [tabs addTabViewItem:PaneItem([[SettingsConvertViewController alloc] initWithPlayerController:playerController],
                                   @"convert", STR_MENU_CONVERT, @"arrow.triangle.2.circlepath")];
-    [tabs addTabViewItem:PaneItem([[SettingsPermissionsViewController alloc] initWithPlayerController:playerController],
-                                  @"permissions", STR_SETTINGS_PERMISSIONS, @"folder.badge.person.crop")];
     [tabs addTabViewItem:PaneItem([[SettingsAdvancedViewController alloc] initWithPlayerController:playerController],
                                   @"advanced", STR_SETTINGS_ADVANCED, @"gearshape.2")];
 

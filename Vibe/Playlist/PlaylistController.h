@@ -98,6 +98,16 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)reloadTrackAtIndex:(NSUInteger)index;
 - (void)reloadTrack:(AudioTrack *)track;
 
+// Every row, for a change that affects the whole list at once rather than one
+// track's own data — the folder-artwork setting. Selection and scroll survive.
+- (void)reloadAllTracks;
+
+// The same, for the rows on screen alone. Only they have a cell view to rebuild
+// — an off-screen row builds one afresh when it scrolls back in — so this is
+// what a *repeated* whole-list change should use: a bulk open spanning hundreds
+// of folders would otherwise pay a full reloadData per cover that lands.
+- (void)reloadVisibleTracks;
+
 // Scrolls the playing row into view. It is a no-op while the row is already
 // visible.
 - (void)scrollCurrentTrackToVisible;

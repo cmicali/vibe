@@ -144,4 +144,15 @@ static const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
 - (BOOL)convertAsksWhereToSave;
 - (void)setConvertAsksWhereToSave:(BOOL)ask;
 
+// YES lets a file with no art of its own show a cover image sitting beside it —
+// cover.jpg and its cousins; see FolderArtwork, which reads this. Default on,
+// and it never overrides a file's own art. **Whoever writes it must then call
+// MainPlayerController.refreshFolderArtwork**: the resolver caches this value,
+// since it gates every accessor on every cell draw, and only that call drops
+// the cached copy — so a write without it is not observed at all. Reading a
+// sibling file needs a folder grant, which is why Settings > Files holds both
+// this and the grants.
+- (BOOL)useFolderArtwork;
+- (void)setUseFolderArtwork:(BOOL)use;
+
 @end

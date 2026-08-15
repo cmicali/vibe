@@ -25,8 +25,31 @@
 #include <attachedpictureframe.h>
 #include <aifffile.h>
 #include <wavfile.h>
+#include <tdebuglistener.h>
 
 namespace {
+
+#if !defined(NDEBUG)
+
+// TagLib's own listener writes each message straight to std::cerr, which libc++
+// does not synchronize: two metadata workers hitting files TagLib dislikes at
+// once race on the stream's state, which TSan flags as a data race in basic_ios.
+// Route the messages into the unified log instead.
+//
+// App-side rather than a patch to the vendored source, for the same reason
+// warmUpSharedFactories below is: a re-copy of TagLib cannot silently drop it.
+// Release never gets here — NDEBUG makes TagLib::debug() a no-op macro.
+class VibeTagLibDebugListener : public TagLib::DebugListener {
+public:
+    void printMessage(const TagLib::String &message) override {
+        NSString *text = [NSString stringWithStdString:message.to8Bit(true)];
+        // TagLib terminates its messages with a newline, which os_log keeps.
+        LogWarn(@"%@", [text stringByTrimmingCharactersInSet:
+                                NSCharacterSet.whitespaceAndNewlineCharacterSet]);
+    }
+};
+
+#endif
 
 // Replaces TagLib::FileRef so that only the formats the app plays are linked
 // in. FileRef's detection references every parser in the library — Ogg, ASF,
@@ -136,6 +159,20 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 
 @implementation AudioTrackMetadata
 
+#if !defined(NDEBUG)
+
+// The seam that guarantees the listener is installed before any parse: every
+// TagLib file in the app is opened through this class. The listener is a leaked
+// global by design — TagLib keeps the pointer for the life of the process.
++ (void)initialize {
+    if (self != AudioTrackMetadata.class) {
+        return; // +initialize runs for subclasses too
+    }
+    TagLib::setDebugListener(new VibeTagLibDebugListener());
+}
+
+#endif
+
 // The art accessors delegate to AudioTrackArtwork, which owns the lazy
 // decode, discard and re-read state machine. AudioTrackMetadata.h documents
 // the contracts.
@@ -164,6 +201,10 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 
 - (NSImage *)thumbnailAlbumArt {
     return [self.artwork thumbnailAlbumArt];
+}
+
+- (void)prewarmEmbeddedThumbnailAlbumArt {
+    [self.artwork prewarmEmbeddedThumbnailAlbumArt];
 }
 
 // The archive stays small, at roughly 5-20KB per track, so that the disk cache
@@ -246,7 +287,9 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 }
 
 - (NSData *)thumbnailJPEGData {
-    NSImage *thumbnail = self.thumbnailAlbumArt;
+    // The file's own art only. Folder art must never be archived; see
+    // AudioTrackArtwork.archivableThumbnail.
+    NSImage *thumbnail = [self.artwork archivableThumbnail];
     if (!thumbnail) {
         return nil;
     }

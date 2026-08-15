@@ -174,6 +174,25 @@ def app_is_running():
     return app_pid() is not None
 
 
+# Settings that gate whole subsystems out of the run when off, and that persist
+# in NSUserDefaults across runs — so a run inherits whatever the LAST one left,
+# including a fuzzer's own random final toggle. With `useFolderArtwork` off the
+# artwork accessors return before reaching the resolver, and the run reports a
+# clean pass over code it never entered. Forced on at launch, and printed,
+# because a silently disabled feature and a genuinely clean run look identical
+# in the summary.
+FEATURE_SETTINGS = {"folderArtwork": ("set_folder_artwork", "on")}
+
+
+def describe_feature_settings(channel) -> str:
+    parts = []
+    for key, (verb, wanted) in FEATURE_SETTINGS.items():
+        code, payload, _ = channel.run([verb, wanted])
+        ok = code == 0 and isinstance(payload, dict) and payload.get("ok")
+        parts.append(f"{key}={wanted}" if ok else f"{key}=UNKNOWN (could not set)")
+    return ", ".join(parts)
+
+
 def launch(corpus: Path, app: Path):
     """Relaunch and wait until the app answers.
 
@@ -410,6 +429,29 @@ class OpGenerator:
         verb = self.rng.choice(["undo", "redo"])
         return [(verb, [verb], ["nothing to undo", "nothing to redo", "still in progress"])]
 
+    def op_folder_art(self):
+        """Flip the folder-artwork setting under whatever is in flight.
+
+        The setting drops the resolver's decoded covers while the playlist is
+        drawing cells off the same tables, and nothing else in the harness
+        reaches that path. A rapid off/on pair is the shape that lands the
+        invalidate between a resolve claiming a directory and its result
+        arriving.
+        """
+        # Always back on: the setting persists in NSUserDefaults for the whole
+        # run, so a uniform on/off choice parks the feature OFF for half the
+        # ops, and with it off the accessors never reach the resolver. Off and
+        # straight back on buys both invalidation edges, leaves the feature on
+        # throughout, and leaves the user's setting where it started.
+        ops = [("folder_art", ["set_folder_artwork", "off"], []),
+               ("folder_art", ["set_folder_artwork", "on"], [])]
+        if self.rng.random() < 0.25:
+            # A settle between the edges, so an invalidate sometimes lands with
+            # resolves and decodes genuinely in flight rather than only between
+            # two channel round-trips.
+            ops.insert(1, ("settle", ["sleep", f"{self.rng.uniform(0.05, 0.4):.2f}"], []))
+        return ops
+
     def op_settle(self):
         return [("settle", ["sleep", f"{self.rng.uniform(0.05, 0.8):.2f}"], [])]
 
@@ -421,7 +463,7 @@ PROFILES = {
         "transport": 14, "seek": 8, "pitch": 5,
         "fx": 5, "held_fx": 4, "key": 4,
         "window": 3, "resize": 3, "click": 4, "drag": 2, "drag_drop": 3,
-        "menu": 3, "undo": 1, "settle": 6,
+        "menu": 3, "undo": 1, "settle": 6, "folder_art": 1,
     },
     # Everything pointed at the open path and the async deliveries that race it.
     "loading": {
@@ -430,7 +472,20 @@ PROFILES = {
         "transport": 10, "seek": 4, "pitch": 1,
         "fx": 1, "held_fx": 1, "key": 1,
         "window": 1, "resize": 1, "click": 1, "drag": 0, "drag_drop": 2,
-        "menu": 1, "undo": 0, "settle": 8,
+        "menu": 1, "undo": 0, "settle": 8, "folder_art": 2,
+    },
+    # The folder-artwork fallback: opens through all three resolve strategies
+    # (a folder, a burst of files, a lone file), the playlist visible far more
+    # often than elsewhere so cell draws pull thumbnails off the resolver
+    # concurrently with the header's display-size load, and the setting flipped
+    # underneath both. Pair it with a corpus built for it.
+    "artwork": {
+        "open_file": 20, "open_dir": 14, "open_burst": 16, "open_playlist": 6,
+        "cache_churn": 3, "clear_caches": 3,
+        "transport": 12, "seek": 2, "pitch": 0,
+        "fx": 0, "held_fx": 0, "key": 2,
+        "window": 10, "resize": 4, "click": 3, "drag": 0, "drag_drop": 4,
+        "menu": 1, "undo": 0, "settle": 6, "folder_art": 10,
     },
     # No file loading at all: pure UI monkey against whatever is loaded.
     "ui": {
@@ -514,8 +569,9 @@ GROWTH_LIMITS = {
 # Every headroom below is set from measured ranges over loading-profile runs,
 # not guessed:
 #
-#   views 47, layers 100-104, windows 1, engine nodes 23, every pending
-#   counter 0 — dead stable across runs, so these are the sensitive ones.
+#   views 47, windows 1, engine nodes 23, every pending counter 0 — dead
+#   stable across runs, so these are the sensitive ones. Layers are NOT; see
+#   the limit below.
 #   threads 14-26 and fds 45-70 breathe with the loader pool and whether a
 #   folder is open.
 #   footprint 47-335 MB, and NOT accumulating: the same seed rests at 298 MB in
@@ -540,7 +596,16 @@ RESTING_GROWTH_LIMITS = {
     ("process", "machPorts"): (300, "resting mach ports"),
     ("ui", "windows"): (1, "resting windows"),
     ("ui", "views"): (40, "resting views"),
-    ("ui", "layers"): (80, "resting layers"),
+    # Views are the sensitive half of this pair; layers deliberately are not.
+    # The resting layer count is bistable — ~101 and ~350-356 — and moves in
+    # BOTH directions within a single run. Nothing app-level selects it: with
+    # views pinned at 47 it is unmoved by row count (0 to 2208), window width
+    # (400 to 3000pt), or quiesce; the pitch panel and playlist toggle are worth
+    # 4 and 1 layers. It is AppKit's own glass and hosting-view machinery, so a
+    # tight limit against a min-of-first-three baseline fires whenever a run
+    # starts at the low plateau. Sized to clear that step; a real layer leak is
+    # unbounded and clears it too.
+    ("ui", "layers"): (320, "resting layers"),
     ("app", "engineNodes"): (4, "resting engine nodes"),
     **{("pending", key): (1, f"resting pending {key}") for key in PENDING_KEYS},
 }
@@ -887,6 +952,7 @@ def run(args):
     exclusions = chrome_exclusion_rects(channel)
     print(f"menu:   {len(menu_ids)} clickable items after the modal/quit denylist")
     print(f"clicks: avoiding {len(exclusions)} window-chrome rects (close/minimize)")
+    print(f"settings: {describe_feature_settings(channel)}")
 
     generator = OpGenerator(rng, files, playlists, dirs, menu_ids, args.profile, exclusions)
     journal_path = (Path(args.journal) if args.journal

@@ -45,13 +45,14 @@ Nested `CLAUDE.md` files hold the detail for each directory and load only when y
 - **`Vibe/Playlist/`** — table structure vs content, Launch Services burst opens.
 - **`Vibe/Controls/`** — CALayer-drawn controls.
 - **`Vibe/ThirdParty/`** — the vendored TagLib subset and PINCache/PINOperation: what is included and why, how to update it.
-- **`Vibe/Settings/`** — Settings window, `FolderAccessManager` sandbox bookmarks.
+- **`Vibe/Settings/`** — Settings window, `FolderAccessManager` sandbox bookmarks; the Files pane holds the folder-artwork setting.
 
 ### Cross-directory invariants
 
 Each side is documented in its own directory's file. The coupling itself lives here.
 
 - **Tag-over-analysis precedence**: a file's tagged tempo (`AudioTrackMetadata.bpm`) always beats the analyzed one (`AudioTrack.detectedBPM`) — the BPM label and the bar-based skip actions share the rule — and the tagged key (`AudioTrackMetadata.key`) likewise beats `AudioTrack.detectedKey`. `AudioTrack.bpm` and `.key` are the single homes of both rules.
+- **Embedded art beats folder art, and folder art costs as little as possible**: a file's own artwork always wins, and the cover beside it (`FolderArtwork`, `Settings > Files`) fills in only for a file carrying none. It is resolved per *directory*, lazily, off the metadata scan's path entirely, and never pays for I/O of its own where the open was already doing some — a dropped folder's cover comes out of the expansion walk, a bulk open gets one listing per folder, and only a lone file probes, three stats at most; a folder with no cover, no grant or an unreadable one is settled for the resolver's bounded recent-directory history; and it is never persisted, because the metadata cache is keyed by the audio file's size and mtime, which a sidecar image cannot move. Folders the app holds no active grant for are left untouched rather than probed: an unresolved stored bookmark is not authority, and unasked-for background work must never raise a permission panel.
 - **Async deliveries race track changes**: waveform, BPM, key and metadata cache deliveries can arrive after the track has changed, so a receiver must match the delivered URL or track against the current one before applying it.
 - **A `VibeMusicalKey` of 0 is C major, not "none"**: every fresh holder must be set to `VibeMusicalKeyNone` (-1) explicitly, because a zero-filled ivar or a message to nil reads as tagged C major.
 - **`AudioPlayer.stop` fires no delegate callback.** It is not a track-end event, so it must never drive auto-advance, and the caller owns the UI reset. Track-end and skip-past-end both funnel through `didFinishPlaying:` instead.

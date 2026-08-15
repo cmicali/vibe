@@ -21,6 +21,8 @@
 #import "AudioWaveformCache.h"
 #import "AudioWaveformView.h"
 #import "AudioFileConverter.h"
+#import "FolderArtwork.h"
+#import "FolderAccessManager.h"
 #import "PlaylistController.h"
 #import "PlaylistTableView.h"
 #import "PlaylistDropZoneView.h"
@@ -140,6 +142,13 @@
     TransportKeyMonitor*        _keyMonitor;
     PitchControlPanel*          _pitchPanel;
     ArtworkDisplayController*   _artworkController;
+    // Coalesces the redraws behind FolderArtworkDidResolveNotification; see
+    // folderArtworkDidResolve:. Main thread only.
+    BOOL                        _folderArtworkRefreshScheduled;
+}
+
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self];
 }
 
 - (id) init {
@@ -314,6 +323,20 @@
         strongSelf->_lastReloadedTrack = strongSelf.playlistController.currentTrack;
         [strongSelf updateUI];
     };
+
+    // A folder granted after a scan may hold the cover for tracks already
+    // loaded, whose lookup FolderArtwork declined for want of a grant. Every
+    // grant path posts this — a drop, an open, the Files pane's Add Folder
+    // panel — and that pane may never have been opened, so the observation
+    // belongs here rather than in it.
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(grantedFoldersDidChange:)
+                                               name:FolderAccessManagerDidChangeNotification
+                                             object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(folderArtworkDidResolve:)
+                                               name:FolderArtworkDidResolveNotification
+                                             object:nil];
 
     _artworkController = [[ArtworkDisplayController alloc] initWithContentView:self.playerContentView];
     __weak MainPlayerController *weakControllerForArt = self;
@@ -1193,6 +1216,55 @@
     // updateUI re-runs renderState: (the codec line) and
     // effectiveTempoDidChange (the BPM/key line); both read the setting.
     [self updateUI];
+}
+
+- (void)refreshFolderArtwork {
+    // No per-track work: folder covers live in FolderArtwork, one per folder,
+    // so telling it the setting moved is the whole of it. The rows and the
+    // header re-ask, and the accessors decode only the folders still on screen.
+    // What the resolver has *settled* deliberately survives; see
+    // albumArtSettingDidChange.
+    [FolderArtwork.sharedInstance albumArtSettingDidChange];
+    [self.playlistController reloadAllTracks];
+    [self updateUI];
+}
+
+// A grant arrived or went. It can only unlock a folder the resolver left alone
+// for want of one, so only those answers are forgotten — NOT everything. A full
+// invalidate here is self-defeating: opening a folder auto-adds its grant a
+// moment later, and wiping every answer discards the covers that same open's
+// walk just harvested for free.
+- (void)grantedFoldersDidChange:(NSNotification *)notification {
+    [FolderArtwork.sharedInstance invalidateDirectoriesSettledWithoutGrant];
+    [self.playlistController reloadAllTracks];
+    [self updateUI];
+}
+
+// A folder's artwork question has been answered — with a cover, or with "it has
+// none", which matters just as much: the header holds the previous track's art
+// until it hears. Redraw at most once per window, and only the rows on screen,
+// since a playlist spanning many folders resolves them one after another. A
+// short delay rather than one turn of the run loop, because the resolver is
+// serial: consecutive folders land in *different* turns almost every time, so a
+// per-turn gate would coalesce nothing.
+static const NSTimeInterval kFolderArtworkRedrawDelay = 0.15;
+
+- (void)folderArtworkDidResolve:(NSNotification *)notification {
+    if (_folderArtworkRefreshScheduled) {
+        return;
+    }
+    _folderArtworkRefreshScheduled = YES;
+    __weak MainPlayerController *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFolderArtworkRedrawDelay * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        MainPlayerController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        strongSelf->_folderArtworkRefreshScheduled = NO;
+        [strongSelf.playlistController reloadVisibleTracks];
+        [strongSelf updateUI];
+    });
 }
 
 - (void)applyAlwaysOnTop {

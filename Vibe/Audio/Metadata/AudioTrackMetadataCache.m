@@ -316,15 +316,9 @@
     // an invalidate arriving mid-parse makes this result stale for the cache.
     uint64_t generation = owner.cacheGeneration;
     AudioTrackMetadata *metadata = [AudioTrackMetadata metadataWithURL:track.url];
-    // Pre-warm the playlist-cell thumbnail before the metadata becomes
-    // visible. The table delegate, on the main thread, reads thumbnailAlbumArt
-    // as soon as the track publishes, and publishing first would open a window
-    // in which a redraw paid the ImageIO decode on main. The getter is the
-    // whole warm-up: it decodes eagerly, because VibeDecodeImageData passes
-    // kCGImageSourceShouldCacheImmediately, so the bitmap is ready the moment
-    // the image object exists. Cache hits need no equivalent, since the
-    // unarchive decodes their thumbnail in adoptArchivedThumbnailJPEG:.
-    (void)metadata.thumbnailAlbumArt;
+    // Decode embedded art before publication so the table never pays ImageIO
+    // work on main. Folder fallback remains lazy and visibility-driven.
+    [metadata prewarmEmbeddedThumbnailAlbumArt];
     // Never clobber real metadata with a failed parse. A cancelled loader's op
     // can still be mid-parse when this loader re-parses successfully, and
     // last-writer-wins would reinstate the filename-only fallback. The monitor
@@ -375,6 +369,11 @@
         // match, since the art is re-read on demand for the one track shown
         // at full resolution.
         [track.metadata discardAlbumArtData];
+        // The folder-artwork fallback is deliberately NOT resolved here: this
+        // is the scan's path, including the cache-check lane whose whole point
+        // is that it blocks on nothing but a stat and a small read, and a cover
+        // on a network folder would. The accessors resolve it lazily instead,
+        // for the tracks actually on screen.
         run_on_main_thread({
             [self.delegate didLoadMetadata:track];
         });

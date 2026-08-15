@@ -3,16 +3,10 @@ name: Vibe
 options:
   bundleIdPrefix: com.commonwealthrecordings
   deploymentTarget:
-    macOS: "26.0"
+    macOS: "14.0"
   createIntermediateGroups: true
   settingPresets: none
-  developmentLanguage: en       # base language of the String Catalogs; also what
-                                # $(DEVELOPMENT_LANGUAGE) expands to in Info.plist.
-  # knownRegions stays at XcodeGen's default (Base, en): it doesn't gate what
-  # ships — the XCStrings compiler emits every language in the catalogs —
-  # and a spec key for it is ignored (XcodeGen derives it from
-  # localized file references). It only affects Xcode's project UI and the
-  # -exportLocalizations default (pass -exportLanguage explicitly there).
+  developmentLanguage: en
   fileTypes:
     icon:                     # Icon Composer AppIcon.icon: treat the .icon package as a single
       file: true              # file reference (not a group to recurse into) so actool compiles it.
@@ -90,6 +84,10 @@ settings:
       DEBUG_INFORMATION_FORMAT: "dwarf-with-dsym"
       ENABLE_NS_ASSERTIONS: NO
       GCC_OPTIMIZATION_LEVEL: s
+      # NDEBUG is used in TagLib
+      GCC_PREPROCESSOR_DEFINITIONS:
+        - "NDEBUG=1"
+        - "$(inherited)"
       MTL_ENABLE_DEBUG_INFO: NO
 
 targets:
@@ -149,9 +147,7 @@ targets:
         buildPhase: resources
     preBuildScripts:
       # Writes build/generated/VibeGitInfo.h (commit/branch/dirty) for the
-      # startup log — see NSBundle+BuildInfo. Runs before the compile phase, and
-      # always: the dirty flag changes with edits Xcode wouldn't track as inputs
-      # to this phase, and a no-op run costs ~30ms. Reading .git needs
+      # startup log — see NSBundle+BuildInfo. Reading .git needs
       # ENABLE_USER_SCRIPT_SANDBOXING: NO (already set below).
       - script: '"$SRCROOT/scripts/generate-git-info.sh"'
         name: Generate Git Info
@@ -169,12 +165,9 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         LSApplicationCategoryType: "public.app-category.music"
 
-        # Vibe uses no encryption beyond what macOS itself provides. Declaring
-        # this here answers the export-compliance question at build time, so
-        # App Store Connect stops asking on every single upload.
-        ITSAppUsesNonExemptEncryption: false
-
         NSHumanReadableCopyright: "Copyright © 2026 Christopher Micali. All rights reserved."
+
+        ITSAppUsesNonExemptEncryption: false
 
         LSMultipleInstancesProhibited: YES
         NSSupportsAutomaticTermination: YES
@@ -186,12 +179,6 @@ targets:
         CFBundlePackageType: "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
         CFBundleInfoDictionaryVersion: "6.0"
 
-        # The codegen-relevant build settings, carried into the binary for the
-        # startup log (NSBundle+BuildInfo reads them back). These are the
-        # settings the compile command is DERIVED from, not the literal clang
-        # argv — that exists only in the build log. The warning flags are
-        # deliberately left out: ~40 CLANG_WARN_* keys don't fit a log line and
-        # don't affect codegen.
         VibeBuild:
           Configuration: "$(CONFIGURATION)"
           OptimizationLevel: "-O$(GCC_OPTIMIZATION_LEVEL)"
@@ -223,10 +210,6 @@ targets:
               - "org.xiph.flac"
               - "com.apple.m4a-audio"
               - "public.mpeg-4-audio"
-          # Playlist files open as the ordered list of audio files they name
-          # (NSURLUtil's expansion). Alternate rank: Vibe offers to open them
-          # without stealing the extension's default handler — the Settings
-          # default-player claim still claims them explicitly.
           - CFBundleTypeName: "CUE Sheet"
             CFBundleTypeRole: "Viewer"
             LSHandlerRank: "Alternate"
@@ -237,11 +220,6 @@ targets:
             LSHandlerRank: "Alternate"
             LSItemContentTypes:
               - "public.m3u-playlist"
-          # Sandbox plumbing, not an offer to open anything — flac is covered
-          # above. NSIsRelatedItemType lets Convert to FLAC claim foo.flac as
-          # a related item of an opened foo.wav and write it beside a
-          # single-file grant. DocumentTypes.declaredTypes skips such entries,
-          # keeping this out of the ⌘O filter and the default-player claim.
           - CFBundleTypeName: "Converted FLAC"
             CFBundleTypeRole: "Editor"
             LSHandlerRank: "None"
@@ -250,8 +228,6 @@ targets:
               - "org.xiph.flac"
 
         # macOS has no system UTI for cue sheets — files come up as dyn.* — so
-        # the identifier is minted in our namespace and exported. Plain text,
-        # which is what a cue sheet is.
         UTExportedTypeDeclarations:
           - UTTypeIdentifier: "com.commonwealthrecordings.cue-sheet"
             UTTypeDescription: "CUE Sheet"
@@ -319,16 +295,6 @@ targets:
       - sdk: QuartzCore.framework
       - sdk: UniformTypeIdentifiers.framework  # AppDelegate file filtering, DebugUtil
 
-  # Host-LESS logic tests: no TEST_HOST, so the suite never launches the app
-  # (which would boot the window, engine and caches on every run) and never
-  # inherits its sandbox (which would block reading fixtures from the repo).
-  # The tradeoff is that sources under test are compiled in rather than linked
-  # from the app — hence the curated list below, which is the point: the
-  # tested surface is a deliberate choice, not whatever the glob swept up.
-  #
-  # Tests live in /Tests, OUTSIDE Vibe/, because the app target's `- path:
-  # Vibe` recurses unconditionally — anything under Vibe/ would be compiled
-  # into the shipping binary.
   VibeTests:
     type: bundle.unit-test
     platform: macOS
@@ -337,10 +303,6 @@ targets:
         excludes:
           - "**/.DS_Store"
           - "**/*.md"
-      # Sources under test. TagLib is deliberately absent: nothing here needs
-      # it (AudioTrack only ever sends messages to its metadata, never names
-      # the class), and compiling the ~70-file vendored subset would dominate
-      # the build.
       - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
@@ -348,6 +310,10 @@ targets:
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
       - path: Vibe/Audio/Metadata/MetadataParseFlow.m
       - path: Vibe/Audio/PlaybackRequestCoordinator.m
+      - path: Vibe/Audio/Metadata/FolderArtwork.m
+      - path: Vibe/Audio/Metadata/AudioTrackArtwork.m
+      - path: Vibe/Common/AppSettings.m
+      - path: Vibe/Settings/FolderAccessManager.m
       - path: Vibe/Common/OpenBurstCoalescer.m
       - path: Vibe/Common/OpenRequestCoordinator.m
       - path: Vibe/Common/Playlist.m
@@ -361,20 +327,11 @@ targets:
       base:
         PRODUCT_NAME: "$(TARGET_NAME)"
         PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeTests
-        # Synthesized at build time — avoids a second generated plist on disk
-        # needing its own .gitignore entry (cf. Vibe/Common/Info.plist).
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Automatic
         PROVISIONING_PROFILE_SPECIFIER: ""
         # Deliberately NOT set: ENABLE_APP_SANDBOX, ENABLE_HARDENED_RUNTIME
-        # (app-target-only — a sandboxed test bundle couldn't read fixtures),
-        # and ENABLE_USER_SCRIPT_SANDBOXING: NO (that override exists for the
-        # app's git-info script phase; tests have none).
-        #
-        # settingPresets: none means XcodeGen injects nothing for this product
-        # type, so the XCTest wiring the preset would normally supply is
-        # spelled out here.
         FRAMEWORK_SEARCH_PATHS:
           - "$(inherited)"
           - "$(PLATFORM_DIR)/Developer/Library/Frameworks"
@@ -386,10 +343,6 @@ targets:
           - "$(inherited)"
           - "@loader_path/../Frameworks"
           - "$(PLATFORM_DIR)/Developer/Library/Frameworks"
-        # The project-level pch is inherited (its LogError/LogDebug macros are
-        # used by the sources under test), and it imports "AppSettings.h" and
-        # "HelperMacros.h" by bare quoted name — without these paths it won't
-        # precompile. The rest cover the sources under test and their headers.
         HEADER_SEARCH_PATHS:
           - "$(inherited)"
           - "$(SRCROOT)/Vibe/Common"
@@ -398,11 +351,6 @@ targets:
           - "$(SRCROOT)/Vibe/Audio"
           - "$(SRCROOT)/Vibe/Audio/Metadata"
           - "$(SRCROOT)/Vibe/Audio/Waveform"
-          # Header-only: the display-state resolver ("Main Window") and the
-          # Convert to FLAC rules are static inlines, so the tests reach them
-          # without compiling (or linking against) the controllers and the
-          # converter they were lifted out of. The skip arithmetic
-          # (TransportMath.h) is the same pattern, under Common above.
           - "$(SRCROOT)/Vibe/Main Window"
           - "$(SRCROOT)/Vibe/Audio/Convert"
           - "$(SRCROOT)/Vibe/Settings"
@@ -415,10 +363,6 @@ schemes:
     build:
       parallelizeBuild: true
       targets:
-        # Every action except test. VibeTests is host-less — it compiles the
-        # sources it exercises and never links the app — so building Vibe for
-        # a test run is pure latency. Testables are built regardless of this
-        # list, so `xcodebuild test` still builds the bundle itself.
         Vibe: [run, profile, analyze, archive]
     run:      { config: Debug }
     test:

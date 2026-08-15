@@ -275,6 +275,7 @@ static NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"keyNotation": Settings.keyNotation ?: @"",
             @"keyColors": @(Settings.keyColorsEnabled),
             @"uiUpdateHzCap": @(Settings.uiUpdateHzCap),
+            @"folderArtwork": @(Settings.useFolderArtwork),
         },
     };
 }
@@ -1090,6 +1091,18 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 [controller.trackDisplay setWaveformLoadingProgress:(float)fraction];
                 return VibeJSONString(@{@"ok": @YES, @"fraction": @(fraction)});
             }),
+            VibeCmd(@"set_folder_artwork <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                // Writes the setting and applies it live, as the Settings >
+                // Files control does; the pane itself cannot be driven from
+                // here.
+                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
+                if (![arg isEqualToString:@"on"] && ![arg isEqualToString:@"off"]) {
+                    return VibeErrorJSON(@"usage: set_folder_artwork <on|off>");
+                }
+                Settings.useFolderArtwork = [arg isEqualToString:@"on"];
+                [controller refreshFolderArtwork];
+                return VibeJSONString(@{@"ok": @YES, @"folderArtwork": @(Settings.useFolderArtwork)});
+            }),
             VibeCmd(@"set_window_width <body-points>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 double bodyPoints = 0;
                 if (tokens.count < 2 || !VibeParseDouble(tokens[1], &bodyPoints)) {
@@ -1358,19 +1371,6 @@ static NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     @"cleared": @[AudioTrackMetadataCache.cacheName, AudioWaveformCache.cacheName],
                 });
             }),
-        ];
-    });
-    return table;
-}
-
-static NSString *VibeVerbFromUsage(NSString *usage) {
-    NSRange space = [usage rangeOfString:@" "];
-    return space.location == NSNotFound ? usage : [usage substringToIndex:space.location];
-}
-
-NSDictionary *VibeCommandSpecForVerb(NSString *verb) {
-    for (NSDictionary *spec in VibeDebugCommandTable()) {
-        if ([VibeVerbFromUsage(spec[@"usage"]) isEqualToString:verb]) {
             // Ending the app without a signal, which is the only way to end an
             // instance Xcode is debugging: an attached debugger traps SIGTERM
             // and stops the process instead of killing it, so a pkill leaves it
@@ -1386,6 +1386,19 @@ NSDictionary *VibeCommandSpecForVerb(NSString *verb) {
                 });
                 return nil; // written above, before the app goes away
             }),
+        ];
+    });
+    return table;
+}
+
+static NSString *VibeVerbFromUsage(NSString *usage) {
+    NSRange space = [usage rangeOfString:@" "];
+    return space.location == NSNotFound ? usage : [usage substringToIndex:space.location];
+}
+
+NSDictionary *VibeCommandSpecForVerb(NSString *verb) {
+    for (NSDictionary *spec in VibeDebugCommandTable()) {
+        if ([VibeVerbFromUsage(spec[@"usage"]) isEqualToString:verb]) {
             return spec;
         }
     }

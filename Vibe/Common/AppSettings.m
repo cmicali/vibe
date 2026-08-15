@@ -25,6 +25,7 @@
 #define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
 #define SETTING_KEY_COLORS                          @"Appearance.keyColors"
 #define SETTING_CONVERT_ASKS_WHERE_TO_SAVE          @"Convert.asksWhereToSave"
+#define SETTING_FOLDER_ARTWORK                      @"Audio.folderArtwork"
 
 @implementation AppSettings
 
@@ -66,6 +67,7 @@
             SETTING_KEY_NOTATION:                   SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
             SETTING_KEY_COLORS:                     @(NO),
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
+            SETTING_FOLDER_ARTWORK:                 @(YES),
     };
     [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
 }
@@ -295,6 +297,14 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 
 - (void)setConvertAsksWhereToSave:(BOOL)ask {
     [[NSUserDefaults standardUserDefaults] setBool:ask forKey:SETTING_CONVERT_ASKS_WHERE_TO_SAVE];
+}
+
+- (BOOL)useFolderArtwork {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_FOLDER_ARTWORK];
+}
+
+- (void)setUseFolderArtwork:(BOOL)use {
+    [[NSUserDefaults standardUserDefaults] setBool:use forKey:SETTING_FOLDER_ARTWORK];
 }
 
 @end

@@ -22,12 +22,19 @@ NS_ASSUME_NONNULL_BEGIN
 // file.
 typedef NSData * _Nullable (^AudioTrackArtworkExtractor)(NSString *path);
 
+@class FolderArtwork;
+
 @interface AudioTrackArtwork : NSObject
 
 // sourceFilePath is the audio file the art can be extracted, or re-extracted,
 // from. nil disables on-demand extraction. Immutable.
 - (instancetype)initWithSourceFilePath:(nullable NSString *)sourceFilePath
                              extractor:(nullable AudioTrackArtworkExtractor)extractor;
+
+// The resolver the folder fallback asks. Production leaves it at the shared one
+// set in init; tests inject their own to drive the precedence rules against a
+// known folder. Set it before the instance is shared across threads.
+@property (nonatomic, strong) FolderArtwork *folderArtwork;
 
 // Archived by AudioTrackMetadata's encodeWithCoder:.
 @property (nullable, readonly, copy) NSString *sourceFilePath;
@@ -42,6 +49,16 @@ typedef NSData * _Nullable (^AudioTrackArtworkExtractor)(NSString *path);
 // cache entry could carry a huge image, and derives the extraction-attempted
 // flag; see the implementation.
 - (void)adoptArchivedThumbnailJPEG:(nullable NSData *)jpegData;
+
+// The thumbnail for the disk cache: the file's own art, never the folder's
+// cover. The cache is keyed by the audio file's size and mtime, which a sidecar
+// image cannot change, so an archived cover would outlive its file by up to the
+// cache's age limit.
+- (nullable VibeImage *)archivableThumbnail;
+
+// Decodes embedded art only. Metadata scanning uses this before publication so
+// it cannot schedule folder-art resolution for every artless playlist row.
+- (void)prewarmEmbeddedThumbnailAlbumArt;
 
 // The AudioTrackMetadata art API, delegated here verbatim. The contracts sit
 // on the matching AudioTrackMetadata.h declarations.

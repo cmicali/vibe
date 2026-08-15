@@ -1,39 +1,57 @@
 //
-//  SettingsPermissionsViewController.m
+//  SettingsFilesViewController.m
 //  Vibe
 //
 
-#import "SettingsPermissionsViewController.h"
+#import "SettingsFilesViewController.h"
+#import "AppSettings.h"
 #import "FolderAccessManager.h"
-#import "FolderAccessRules.h"
+#import "MainPlayerController.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
-#import <pwd.h>
-#import <unistd.h>
 
-static const CGFloat kPermissionsPaneHeight = 330;
+static const CGFloat kFilesPaneHeight = 345;
 static const CGFloat kFolderListWidth = 440;
 static const CGFloat kFolderListHeight = 170;
 static NSString *const kFolderCellIdentifier = @"FolderCell";
+// Stable identifiers for the album-art choices, so the debug channel can pick
+// one without touching localized text.
+static NSString *const kAlbumArtFileOnly = @"file_only";
+static NSString *const kAlbumArtFolder = @"file_then_folder";
 
-@interface SettingsPermissionsViewController () <NSTableViewDataSource, NSTableViewDelegate>
+@interface SettingsFilesViewController () <NSTableViewDataSource, NSTableViewDelegate>
 @end
 
-@implementation SettingsPermissionsViewController {
+@implementation SettingsFilesViewController {
     NSTableView *_tableView;
     NSPopUpButton *_addCommonButton;
     NSButton *_removeButton;
-    NSArray<NSString *> *_paths;
+    NSPopUpButton *_albumArtPopUp;
+    NSArray<VibeGrantedFolder *> *_folders;
+}
+
+// Wraps at the folder list's width, so the pane has one text measure rather
+// than two.
+- (NSTextField *)explainLabel:(NSString *)text {
+    NSTextField *label = [NSTextField wrappingLabelWithString:text];
+    label.selectable = NO;
+    label.textColor = NSColor.secondaryLabelColor;
+    label.preferredMaxLayoutWidth = kFolderListWidth;
+    [label.widthAnchor constraintLessThanOrEqualToConstant:kFolderListWidth].active = YES;
+    return label;
 }
 
 - (void)loadView {
-    _paths = FolderAccessManager.sharedInstance.grantedFolderPaths;
+    _folders = FolderAccessManager.sharedInstance.grantedFolders;
 
-    NSTextField *explain = [NSTextField wrappingLabelWithString:STR_SETTINGS_PERMISSIONS_EXPLAIN];
-    explain.selectable = NO;
-    explain.textColor = NSColor.secondaryLabelColor;
-    explain.preferredMaxLayoutWidth = kFolderListWidth;
-    [explain.widthAnchor constraintLessThanOrEqualToConstant:kFolderListWidth].active = YES;
+    _albumArtPopUp = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    _albumArtPopUp.target = self;
+    _albumArtPopUp.action = @selector(albumArtSourceChanged:);
+    [_albumArtPopUp addItemWithTitle:STR_SETTINGS_ALBUM_ART_FILE_ONLY];
+    _albumArtPopUp.lastItem.representedObject = kAlbumArtFileOnly;
+    [_albumArtPopUp addItemWithTitle:STR_SETTINGS_ALBUM_ART_FOLDER];
+    _albumArtPopUp.lastItem.representedObject = kAlbumArtFolder;
+    NSTextField *explain = [self explainLabel:STR_SETTINGS_PERMISSIONS_EXPLAIN];
 
     _tableView = [[NSTableView alloc] initWithFrame:NSZeroRect];
     _tableView.headerView = nil;
@@ -43,10 +61,9 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
     _tableView.rowHeight = 22;
     NSTableColumn *column = [[NSTableColumn alloc] initWithIdentifier:kFolderCellIdentifier];
     [_tableView addTableColumn:column];
-    // Dropping a folder here grants it, the same funnel the panel and the main
-    // window's drop use. File URLs only: the drop reads with FileURLsOnly, so
-    // registering NSPasteboardTypeURL as well would show a copy cursor for a
-    // browser-link drag the drop then rejects.
+    // File URLs only: the drop reads with FileURLsOnly, so registering
+    // NSPasteboardTypeURL too would show a copy cursor for a browser-link drag
+    // the drop then rejects.
     [_tableView registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
 
     NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
@@ -68,9 +85,20 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
     NSStackView *buttons = [NSStackView stackViewWithViews:@[addButton, _addCommonButton, _removeButton]];
     buttons.spacing = 8;
 
-    NSGridView *grid = [NSGridView gridViewWithViews:@[@[explain], @[scrollView], @[buttons]]];
-    grid.rowSpacing = 12;
-    [self loadPaneWithSize:NSMakeSize(kSettingsPaneWidth, kPermissionsPaneHeight) grid:grid];
+    NSStackView *permissions = [NSStackView stackViewWithViews:@[explain, scrollView, buttons]];
+    permissions.orientation = NSUserInterfaceLayoutOrientationVertical;
+    permissions.alignment = NSLayoutAttributeLeading;
+    permissions.spacing = 12;
+
+    // The window's standard form: label left, control right. The list keeps its
+    // width, so this pane grows wider than the others rather than squeezing it.
+    NSGridView *grid = [self.class formGridWithRows:@[
+        @[[NSTextField labelWithString:STR_SETTINGS_ALBUM_ART_LABEL], _albumArtPopUp],
+        @[[NSTextField labelWithString:STR_SETTINGS_PERMISSIONS_LABEL], permissions],
+    ]];
+    [grid columnAtIndex:1].xPlacement = NSGridCellPlacementLeading;
+    [grid rowAtIndex:0].bottomPadding = 8;
+    [self loadPaneWithSize:NSMakeSize(kSettingsPaneWidth, kFilesPaneHeight) grid:grid];
 
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(grantedFoldersChanged:)
@@ -83,14 +111,19 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 }
 
 - (void)grantedFoldersChanged:(NSNotification *)notification {
+    // Only the list. A new grant's effect on folder artwork is the player
+    // controller's own observation of this notification, which runs whether or
+    // not this pane was ever opened.
     [self refreshFromSettings];
 }
 
 - (void)refreshFromSettings {
-    _paths = FolderAccessManager.sharedInstance.grantedFolderPaths;
+    _folders = FolderAccessManager.sharedInstance.grantedFolders;
     [_tableView reloadData];
     _removeButton.enabled = _tableView.selectedRowIndexes.count > 0;
     [self rebuildCommonFolderMenu];
+    NSString *albumArtSource = Settings.useFolderArtwork ? kAlbumArtFolder : kAlbumArtFileOnly;
+    [_albumArtPopUp selectItemAtIndex:[_albumArtPopUp indexOfItemWithRepresentedObject:albumArtSource]];
 }
 
 // A pull-down takes its button title from the item at index 0, which is never
@@ -109,7 +142,7 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
         if (![self.class folderExists:path]) {
             title = [NSString stringWithFormat:STR_SETTINGS_FOLDER_NOT_FOUND, name];
             available = NO;
-        } else if ([self.class folderGranted:path in:_paths]) {
+        } else if ([self.class folderGranted:path in:self.grantedPaths]) {
             title = [NSString stringWithFormat:STR_SETTINGS_FOLDER_ALREADY_ADDED, name];
             available = NO;
         }
@@ -149,28 +182,36 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
             && isDirectory;
 }
 
+// The manager owns the rule, alias spellings and the standing ~/Music grant
+// included, so the menu's "(Already accessible)" state cannot drift from what
+// adding the folder would actually do.
 + (BOOL)folderGranted:(NSString *)path in:(NSArray<NSString *> *)paths {
-    for (NSString *granted in paths) {
-        if (VibePathIsUnderFolder(path, granted)) {
-            return YES;
-        }
-    }
-    return NO;
+    return [FolderAccessManager path:path isCoveredByAnyOf:paths];
 }
 
-// The real home. Inside the sandbox NSHomeDirectory answers with the container
-// and NSHomeDirectoryForUser does too, container path and all; getpwuid is the
-// documented way to the on-disk home.
-+ (NSString *)homeFolderPath {
-    struct passwd *entry = getpwuid(getuid());
-    if (entry && entry->pw_dir) {
-        return [NSFileManager.defaultManager stringWithFileSystemRepresentation:entry->pw_dir
-                                                                         length:strlen(entry->pw_dir)];
+// An unavailable grant must not make the menu claim a folder is already
+// accessible: it is exactly the one worth offering to add again. A restoring
+// one still counts, so the menu does not briefly offer a duplicate at launch.
+- (NSArray<NSString *> *)grantedPaths {
+    NSMutableArray<NSString *> *paths = [NSMutableArray arrayWithCapacity:_folders.count];
+    for (VibeGrantedFolder *folder in _folders) {
+        if (folder.state != VibeGrantedFolderStateUnavailable) {
+            [paths addObject:folder.path];
+        }
     }
-    return NSHomeDirectory();
+    return paths;
+}
+
++ (NSString *)homeFolderPath {
+    return FolderAccessManager.realHomeDirectory;
 }
 
 #pragma mark - Actions
+
+- (void)albumArtSourceChanged:(id)sender {
+    Settings.useFolderArtwork = [_albumArtPopUp.selectedItem.representedObject isEqual:kAlbumArtFolder];
+    [self.playerController refreshFolderArtwork];
+}
 
 - (void)addFolder:(id)sender {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
@@ -214,7 +255,7 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 #pragma mark - Table
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    return (NSInteger)_paths.count;
+    return (NSInteger)_folders.count;
 }
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
@@ -241,18 +282,31 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
             [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
         ]];
     }
-    NSString *path = _paths[(NSUInteger)row];
-    // Retained rows deliberately include unmounted and unreachable folders.
-    // A path-specific icon lookup can synchronously wake their mount on the
-    // main thread, so use the shared folder type icon instead.
+    VibeGrantedFolder *folder = _folders[(NSUInteger)row];
+    // Rows include unmounted and unreachable folders, and a path-specific icon
+    // lookup can synchronously wake their mount on the main thread. Use the
+    // shared folder type icon instead.
     static NSImage *folderIcon;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         folderIcon = [NSWorkspace.sharedWorkspace iconForContentType:UTTypeFolder];
     });
     cell.imageView.image = folderIcon;
-    cell.textField.stringValue = [self.class displayPath:path];
-    cell.textField.toolTip = path;
+    // The manager's own answer, which costs no I/O: a row dims because its
+    // bookmark would not resolve, never because this pane stat-ed the path.
+    // Every branch sets both properties — the cells are recycled.
+    BOOL unavailable = folder.state == VibeGrantedFolderStateUnavailable;
+    NSString *display = [self.class displayPath:folder.path];
+    cell.imageView.alphaValue = unavailable ? 0.4 : 1.0;
+    cell.textField.textColor = unavailable ? NSColor.secondaryLabelColor : NSColor.labelColor;
+    cell.textField.stringValue = unavailable
+            ? [NSString stringWithFormat:STR_SETTINGS_FOLDER_UNAVAILABLE, display]
+            : display;
+    // The label truncates in the middle, so the tooltip carries the whole path
+    // either way, and for a dead row says why it is still listed.
+    cell.textField.toolTip = unavailable
+            ? [NSString stringWithFormat:@"%@\n%@", folder.path, STR_SETTINGS_FOLDER_UNAVAILABLE_TIP]
+            : folder.path;
     return cell;
 }
 
@@ -305,18 +359,16 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
         NSString *path = url.path;
         [urls addObject:path ? [NSURL fileURLWithPath:path isDirectory:YES] : url];
     }
-    // The same funnel as Add Folder: the drag carries the sandbox grant, so
-    // the bookmark can be made from it, and anything already covered by an
-    // existing grant or by ~/Music is skipped there.
+    // The same funnel as Add Folder: the drag carries the sandbox grant, so the
+    // bookmark can be made from it, and anything already covered is skipped.
     [FolderAccessManager.sharedInstance noteOpenedURLs:urls];
     return YES;
 }
 
 // stringByAbbreviatingWithTildeInPath abbreviates against the sandbox
-// container, not the user's home, so substitute the real home by hand.
-// The home folder itself abbreviates to a bare ~, not to its full path: the
-// Home Folder grant makes exactly that row, and it would otherwise be the one
-// entry spelled out while its own subfolders read as ~/….
+// container, not the user's home, so substitute the real home by hand. The home
+// folder itself abbreviates to a bare ~ — the Home Folder grant makes exactly
+// that row, which would otherwise be the one entry spelled out in full.
 + (NSString *)displayPath:(NSString *)path {
     NSString *home = self.homeFolderPath;
     if (home.length == 0) {

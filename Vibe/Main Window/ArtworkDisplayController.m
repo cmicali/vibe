@@ -4,6 +4,7 @@
 //
 
 #import "ArtworkDisplayController.h"
+#import "ArtworkDisplayRules.h"
 #import "MainPlayerContentView.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
@@ -62,6 +63,11 @@ static const CGFloat kAccentMaxChroma         = 0.17;
     // the tint.
     NSMapTable<AudioTrack *, NSColor *> *_dominantColorByTrack;
     __weak NSImage              *_displayedArt;
+    // What is actually installed, which _displayedArt cannot answer: it is
+    // weak, and a FOLDER cover's only strong owner is FolderArtwork's image
+    // cache, so it self-nils the moment that cache drops the image while the
+    // cropped copy stays on screen.
+    BOOL                         _showingDefaultArt;
     // The track whose full-resolution art is currently held decoded. The
     // reference is weak, so that if the playlist is replaced the track
     // deallocates and takes its art with it.
@@ -209,18 +215,24 @@ static const CGFloat kAccentMaxChroma         = 0.17;
     // below: a drag during the unresolved gap must export the track the header
     // names.
     _artworkView.fileURL = track.url;
-    if (!track) {
-        // No file is loaded. Without this, a nil track would read as art
-        // unresolved below, and the keep-previous-art policy would leave the
-        // closed track's art and tint on screen.
-        [self showDefaultArtwork];
-        _initialized = YES;
-        return;
-    }
     // One read, because the identity check and the install must see the same
     // object.
     NSImage *art = track.albumArt;
-    if (art) {
+    AudioTrackMetadata *metadata = track.metadata;
+    // albumArtLoadDispatched is cleared when a load completes, so here it
+    // means exactly that a load is in flight.
+    BOOL artResolved = metadata != nil && !metadata.albumArtNeedsLoad &&
+                       !metadata.albumArtLoadDispatched;
+    VibeArtworkDisplayAction action = VibeArtworkDisplayActionFor(track != nil, art != nil,
+                                                                  artResolved, _initialized);
+    _initialized = YES;
+    if (action == VibeArtworkDisplayActionShowDefault) {
+        [self showDefaultArtwork];
+    }
+    if (!track) {
+        return;
+    }
+    if (action == VibeArtworkDisplayActionInstall) {
         if (_displayedArt != art) {
             // Both surfaces below frame art square and aspect-fit it, so crop
             // once here rather than letterboxing a wide or tall cover in the
@@ -237,19 +249,10 @@ static const CGFloat kAccentMaxChroma         = 0.17;
             [self applyHeaderTintFromArt:square forTrack:track];
             [NSDockTile setDockIcon:square];
             _displayedArt = art;
+            _showingDefaultArt = NO;
         }
-        _initialized = YES;
         return;
     }
-
-    AudioTrackMetadata *metadata = track.metadata;
-    // albumArtLoadDispatched is cleared when a load completes, so here it
-    // means exactly that a load is in flight.
-    BOOL artUnresolved = !metadata || metadata.albumArtNeedsLoad || metadata.albumArtLoadDispatched;
-    if (!artUnresolved || !_initialized) {
-        [self showDefaultArtwork];
-    }
-    _initialized = YES;
 
     // Cache-hit metadata does not carry the art bytes, and extracting them
     // re-reads the audio file, which can block on a cloud placeholder until it
@@ -263,10 +266,8 @@ static const CGFloat kAccentMaxChroma         = 0.17;
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             NSImage *loaded = metadata.albumArt; // may block; background thread
             dispatch_async(dispatch_get_main_queue(), ^{
-                // It is resolved either way, so clear the in-flight marker.
-                // There is no risk of a duplicate dispatch, because
-                // albumArtNeedsLoad is NO after any completion, whether the
-                // image was decoded or the attempt found the track artless.
+                // Clear the in-flight marker; albumArtNeedsLoad below decides
+                // whether anything is left to do.
                 metadata.albumArtLoadDispatched = NO;
                 ArtworkDisplayController *strongSelf = weakSelf;
                 if (!strongSelf) {
@@ -282,15 +283,23 @@ static const CGFloat kAccentMaxChroma         = 0.17;
                     [metadata discardDecodedAlbumArt];
                     return;
                 }
-                if (loaded) {
-                    if (strongSelf.artDidResolveHandler) {
-                        strongSelf.artDidResolveHandler();
-                    }
-                }
-                else {
-                    // Definitively artless. Only now does the default replace
-                    // the previous track's art.
-                    [strongSelf showDefaultArtwork];
+                // The same rule the pass above applies, so a load's outcome and
+                // a plain refresh cannot disagree about when the backdrop wins.
+                switch (VibeArtworkDisplayActionFor(YES, loaded != nil,
+                                                    !metadata.albumArtNeedsLoad, YES)) {
+                    case VibeArtworkDisplayActionInstall:
+                        if (strongSelf.artDidResolveHandler) {
+                            strongSelf.artDidResolveHandler();
+                        }
+                        break;
+                    case VibeArtworkDisplayActionShowDefault:
+                        [strongSelf showDefaultArtwork];
+                        break;
+                    case VibeArtworkDisplayActionKeepPrevious:
+                        // The folder is still being resolved by another worker,
+                        // so this nil is not artlessness. albumArtNeedsLoad
+                        // stays YES and the next pass retries.
+                        break;
                 }
             });
         });
@@ -314,7 +323,7 @@ static const CGFloat kAccentMaxChroma         = 0.17;
 // Installs the record-bg default art and clears the glass tint. It is a no-op
 // if they are already showing.
 - (void)showDefaultArtwork {
-    if (!_displayedArt && _initialized) {
+    if (_showingDefaultArt && _initialized) {
         return;
     }
     _artworkView.image = [NSImage imageNamed:@"record-bg"];
@@ -323,6 +332,7 @@ static const CGFloat kAccentMaxChroma         = 0.17;
     [self refreshHeaderTint];
     [NSDockTile resetToAppIcon];
     _displayedArt = nil;
+    _showingDefaultArt = YES;
 }
 
 - (void)trackDidStartPlaying:(AudioTrack *)track {

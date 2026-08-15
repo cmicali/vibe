@@ -399,4 +399,20 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     }
 }
 
+- (void)reloadAllTracks {
+    [self.tableView reloadData];
+}
+
+- (void)reloadVisibleTracks {
+    NSTableView *tableView = self.tableView;
+    NSRange rows = [tableView rowsInRect:tableView.visibleRect];
+    NSInteger columns = tableView.numberOfColumns;
+    if (rows.length == 0 || columns <= 0) {
+        return;
+    }
+    [tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndexesInRange:rows]
+                         columnIndexes:[NSIndexSet indexSetWithIndexesInRange:
+                                 NSMakeRange(0, (NSUInteger)columns)]];
+}
+
 @end

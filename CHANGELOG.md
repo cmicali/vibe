@@ -1,3 +1,7 @@
+# 1.10
+
+* Added album art load from song's folder if song has no tagged artwork  
+
 # v1.9
 
 * Added gapless playback: with crossfade off, tracks auto-advance with no gap

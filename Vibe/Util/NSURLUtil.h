@@ -19,10 +19,34 @@ NS_ASSUME_NONNULL_BEGIN
 // simply skipped.
 typedef BOOL (^VibePlaylistFolderGrantHandler)(NSURL *playlistURL);
 
+// What an expansion saw of the folders it touched. This layer *finds* these
+// facts — it walks the disk — but must not act on them: the consumer is the
+// folder-artwork resolver, an app singleton behind a user setting and a sandbox
+// grant, while `Vibe/Util` is the future-shared, no-AppKit group. Same shape as
+// the playlist grant above, and for the same reason. The app installs these at
+// launch; unset, an expansion throws the harvest away.
+//
+// Both are called on an expansion worker, never the main thread.
+
+// A walk listed these directories and found these covers in them, keyed by
+// directory and spelled as on disk. Every directory named was seen *in full*,
+// so "no cover" is an answer rather than a gap. Called once per top-level
+// folder expanded.
+typedef void (^VibeWalkedDirectoriesHandler)(NSSet<NSString *> *directories,
+                                             NSDictionary<NSString *, NSString *> *artFilenameByDirectory);
+
+// The folders of the *loose files* in an open of more than one thing. Nothing
+// was listed, so nothing is known about their contents — only that the open was
+// bulk enough for a listing each to be a fair price, should anything ask.
+// Called once per expansion, and not at all for a single file.
+typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
+
 
 @interface NSURLUtil : NSObject
 
 + (void)setPlaylistFolderGrantHandler:(nullable VibePlaylistFolderGrantHandler)handler;
++ (void)setWalkedDirectoriesHandler:(nullable VibeWalkedDirectoriesHandler)handler;
++ (void)setBulkOpenDirectoriesHandler:(nullable VibeBulkOpenDirectoriesHandler)handler;
 
 // YES for a cloud placeholder whose data is not local — iCloud, Dropbox, any
 // File Provider. APFS marks these SF_DATALESS, and reading one blocks until
