@@ -5,6 +5,7 @@
 
 #import "NSURLUtilInternal.h"
 #import "FolderArtRules.h"
+#import "NSURL+AudioOpen.h"
 #import "PlaylistFile.h"
 
 #include <sys/stat.h>
@@ -217,8 +218,11 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
                 looseFileDirectories:looseFileDirectories];
     NSUInteger expandedCount = list.count;
     NSSet<NSString*> *supported = [NSURLUtil supportedExtensions];
+    // Empty entries go the way of the AppleDouble sidecars the walk skips:
+    // nothing can play them, and one reaching an open would leak a descriptor
+    // (NSURL+AudioOpen). Ordered second so it stats only the extension matches.
     list = [list filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSURL *url, NSDictionary* bindings) {
-        return [supported containsObject:[url.pathExtension lowercaseString]];
+        return [supported containsObject:[url.pathExtension lowercaseString]] && !url.isEmptyOrDirectory;
     }]];
     NSMutableSet<NSString *> *supportedLooseDirectories = [NSMutableSet set];
     for (NSURL *url in list) {

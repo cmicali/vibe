@@ -7,6 +7,7 @@
 #import "AudioPlayerInternal.h"
 #import "AudioTrack.h"
 #import "GaplessSpliceMath.h"
+#import "NSURL+AudioOpen.h"
 
 @implementation AudioPlayer (Gapless)
 
@@ -53,7 +54,10 @@
         // The prefetch open just materialized this file, so the second open is
         // cheap and cannot stall on a cloud placeholder.
         NSError *error = nil;
-        AVAudioFile *file = [[AVAudioFile alloc] initForReading:track.url error:&error];
+        // Empty paths never reach the open; see NSURL+AudioOpen.
+        AVAudioFile *file = track.url.isEmptyOrDirectory
+                ? nil
+                : [[AVAudioFile alloc] initForReading:track.url error:&error];
         AudioPlayer *strongSelf = weakSelf;
         if (!strongSelf) {
             return;
@@ -235,7 +239,10 @@
     __weak AudioPlayer *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSError *error = nil;
-        AVAudioFile *file = [[AVAudioFile alloc] initForReading:track.url error:&error];
+        // Empty paths never reach the open; see NSURL+AudioOpen.
+        AVAudioFile *file = track.url.isEmptyOrDirectory
+                ? nil
+                : [[AVAudioFile alloc] initForReading:track.url error:&error];
         AudioPlayer *strongSelf = weakSelf;
         if (!strongSelf) {
             return;

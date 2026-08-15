@@ -85,7 +85,10 @@
                            withIntermediateDirectories:YES
                                             attributes:nil
                                                  error:nil];
-    XCTAssertTrue([[NSData data] writeToURL:url atomically:YES], @"%@", relative);
+    // One byte, not none: expandAndFilterList: drops empty files, so a
+    // zero-length fixture would vanish before any of these assertions.
+    // testAnEmptyFileIsDropped covers that path deliberately.
+    XCTAssertTrue([[NSData dataWithBytes:"\0" length:1] writeToURL:url atomically:YES], @"%@", relative);
     return url;
 }
 
@@ -264,6 +267,21 @@
 
     XCTAssertEqualObjects([self expandAndFilter:picked folderCount:NULL],
                           (@[@"c.mp3", @"a.mp3", @"b.mp3"]));
+}
+
+// A zero-length file has an extension but nothing to decode, and handing one to
+// AVAudioFile leaks a descriptor per attempt (NSURL+AudioOpen), so the funnel
+// drops it here rather than seating an unplayable row.
+- (void)testAnEmptyFileIsDropped {
+    NSURL *empty = [_root URLByAppendingPathComponent:@"folder/empty.mp3" isDirectory:NO];
+    [NSFileManager.defaultManager createDirectoryAtURL:empty.URLByDeletingLastPathComponent
+                           withIntermediateDirectories:YES attributes:nil error:nil];
+    XCTAssertTrue([[NSData data] writeToURL:empty atomically:YES]);
+    [self makeFile:@"folder/real.mp3"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/real.mp3"]));
+    XCTAssertEqualObjects([self expandAndFilter:@[empty] folderCount:NULL], @[]);
 }
 
 - (void)testAMixedDropInterleavesFoldersWhereTheyWereDropped {

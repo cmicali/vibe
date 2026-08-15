@@ -16,6 +16,7 @@
 #import "AudioDeviceManager.h"
 #import "AudioDevice.h"
 #import "CoreAudioUtil.h"
+#import "NSURL+AudioOpen.h"
 #import "FadeMath.h"
 #import "GaplessSpliceMath.h"
 #import "PlaybackRequestCoordinator.h"
@@ -442,7 +443,11 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // completion can still deliver first, or park the handle if it loses.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *error = nil;
-        AVAudioFile *file = [[AVAudioFile alloc] initForReading:openURL error:&error];
+        // Empty paths never reach the open: it would leak a descriptor
+        // (NSURL+AudioOpen). A nil file lands on the same failure path.
+        AVAudioFile *file = openURL.isEmptyOrDirectory
+                ? nil
+                : [[AVAudioFile alloc] initForReading:openURL error:&error];
         AudioPlayer *strongSelf = weakSelf;
         if (strongSelf) {
             dispatch_async(strongSelf->_queue, ^{

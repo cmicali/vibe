@@ -14,6 +14,7 @@
 #import "AudioBPMAnalyzer.h"
 #import "AudioKeyAnalyzer.h"
 #import "AudioLoadTiming.h"
+#import "NSURL+AudioOpen.h"
 #import <AVFoundation/AVFoundation.h>
 
 #include <vector>
@@ -110,9 +111,15 @@
 // enough for a cancel to arrive.
 - (AVAudioFile *)openFileAtPath:(NSString *)filename pass:(struct VibeWaveformDecodePass *)pass {
     NSError *error = nil;
+    NSURL *url = [NSURL fileURLWithPath:filename];
+    if (url.isEmptyOrDirectory) {
+        // Opening it would leak a descriptor; see NSURL+AudioOpen.
+        LogError(@"AVAudioFile open skipped for empty path %@", filename);
+        return nil;
+    }
     // Interleaved float32, because AudioWaveformMonoMix expects the sample
     // layout L0 R0 L1 R1 and so on.
-    AVAudioFile *file = [[AVAudioFile alloc] initForReading:[NSURL fileURLWithPath:filename]
+    AVAudioFile *file = [[AVAudioFile alloc] initForReading:url
                                                commonFormat:AVAudioPCMFormatFloat32
                                                 interleaved:YES
                                                       error:&error];

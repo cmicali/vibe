@@ -13,6 +13,7 @@
 #import "AudioTrack.h"
 #import "FLACConvertRules.h"
 #import "FLACTagCopier.h"
+#import "NSURL+AudioOpen.h"
 #import "VibeStrings.h"
 
 NSString *const kVibeConvertErrorDomain = @"com.commonwealthrecordings.Vibe.convert";
@@ -383,6 +384,17 @@ static NSString *VibeFileStat(NSURL *url) {
     NSURL *tempURL = [NSURL fileURLWithPath:
             [NSTemporaryDirectory() stringByAppendingPathComponent:
                     [NSString stringWithFormat:@"vibe-convert-%@.flac", NSUUID.UUID.UUIDString]]];
+
+    // Ahead of the open, because the length check below only runs once the open
+    // has already leaked its descriptor; see NSURL+AudioOpen. Both opens below
+    // take this same URL, so one guard covers them.
+    if (sourceURL.isEmptyOrDirectory) {
+        if (error) {
+            *error = [self errorWithCode:VibeConvertErrorNotConvertible
+                             description:@"That file contains no audio."];
+        }
+        return nil;
+    }
 
     AVAudioFile *probe = [[AVAudioFile alloc] initForReading:sourceURL error:error];
     if (!probe) {
