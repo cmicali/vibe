@@ -23,8 +23,8 @@ typedef NS_ENUM(NSInteger, VibeArtworkDisplayAction) {
     VibeArtworkDisplayActionShowDefault,
 };
 
-// TRAP, and why artResolved is an input of its own rather than derived from
-// hasArt: **nil art is not proof of artlessness.** With the folder fallback, nil
+// TRAP: nil art is not proof of artlessness, which is why artResolved is an
+// input of its own rather than derived from hasArt. With the folder fallback, nil
 // can also mean "another worker holds this folder's resolve claim", and treating
 // that as artless flashes the backdrop over a cover that appears a moment later.
 // Only the metadata's own account of what is pending (`artNeedsLoad`,

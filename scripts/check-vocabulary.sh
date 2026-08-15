@@ -44,6 +44,14 @@ while IFS= read -r header; do
     fail "$header — a header-only static-inline seam must be *Rules.h (returns a decision) or *Math.h (returns a number)"
 done < <(find Vibe -name '*.h' ! -path '*/ThirdParty/*')
 
+# One spelling for the trap marker, so grep finds every one of them.
+bad_trap=$(grep -rn 'TRAP' Vibe --include='*.h' --include='*.m' --include='*.mm' 2>/dev/null \
+        | grep -v ThirdParty | grep -v 'TRAP:' || true)
+if [ -n "$bad_trap" ]; then
+    fail "trap marker must be spelled 'TRAP:':"
+    echo "$bad_trap" >&2
+fi
+
 if [ "$status" -eq 0 ]; then
     echo "✅ vocabulary OK"
 fi

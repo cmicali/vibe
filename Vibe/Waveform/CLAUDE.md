@@ -1,6 +1,6 @@
 # Waveform rendering
 
-This directory is the *rendering* half of the two-layer waveform system. The data layer — generation, caching and BPM analysis — lives in `Vibe/Audio/Waveform/` and `Vibe/Audio/Analysis/`; see `Vibe/Audio/CLAUDE.md`.
+This directory is the *rendering* half of the two-layer waveform system. The data layer — generation, caching and BPM analysis — lives in `Vibe/Audio/Waveform/` and `Vibe/Audio/Analysis/`; see `Vibe/Audio/Waveform/CLAUDE.md`.
 
 ## The view and its renderers
 

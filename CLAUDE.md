@@ -40,6 +40,8 @@ Nested `CLAUDE.md` files hold the detail for each directory and load only when y
 
 - **`Vibe/Audio/`** — playback engine, FX, conversion, waveform data, BPM/key analysis, output devices.
 - **`Vibe/Audio/Metadata/`** — tags, the disk cache, the two-stage scan, embedded and folder art; opens with a map of the flow.
+- **`Vibe/Audio/Waveform/`** — waveform *data*: generation, chunking, persistence. **`Vibe/Audio/Analysis/`** — tempo and key detection riding that decode pass.
+- **`Vibe/Audio/Convert/`** — the FLAC encoder and the sandbox rungs its output has to climb.
 - **`Vibe/Waveform/`** — waveform rendering: views, renderer strategies, morph engine.
 - **`Vibe/Main Window/`** — `MainPlayerController` and the window; layout and Liquid Glass chrome live in that directory's `APPEARANCE.md`, its `CLAUDE.md` covering behavior.
 - **`Vibe/Menu/`** — menu bar, plus the app bootstrap (`main.m` at the repo root, `AppDelegate` in `Common/`).
@@ -98,5 +100,5 @@ The machinery lives in the **`vibe-strings` skill** (`.claude/skills/vibe-string
 - **Singletons**: `AppSettings`, `AudioDeviceManager`, and `AppStats` (lifetime usage counters — files/folders opened, seconds played — in `NSUserDefaults`; the open sinks and the player-delegate transitions feed it, `stop` and quit have no callback so `closeFile:` and `applicationWillTerminate:` flush by hand).
 - **File hashing**: `NSURL+Hash` supplies the cache key for metadata and waveform data, `<size>-<mtime_us>-<sha1(path)>`, built from file attributes alone. Hashing no content keeps it cheap but misses a rewrite or a move.
 - **ObjC++ (.mm files)** appear only where C++ is genuinely needed: the TagLib integration and the waveform data structures and renderers. Everything else, the whole UI layer included, is plain ObjC (.m), so keep C++ types out of headers that ObjC files import.
-- **Comments only when required, and terse.** A comment earns its place by stating what the code cannot show: a trap, an ordering or threading constraint, a contract, a non-obvious why. Most code needs none. Never narrate what the next line does, justify a change, or record how something was verified or what it used to be — that history belongs in commits. If a comment runs long, it should be recording a hard-won trap; otherwise shorten it or simplify the code instead.
+- **Comments only when required, and terse.** A comment earns its place by stating what the code cannot show: a trap, an ordering or threading constraint, a contract, a non-obvious why. Most code needs none. Never narrate what the next line does, justify a change, or record how something was verified or what it used to be — that history belongs in commits. If a comment runs long, it should be recording a hard-won trap; otherwise shorten it or simplify the code instead. **Mark those with `TRAP:`** — one spelling, so `grep -rn 'TRAP:' Vibe` is the list of things that bite, and `make check-vocabulary` fails on any other spelling.
 - **Third-party sources** in `ThirdParty/` are other authors' code. Do not restyle them.
