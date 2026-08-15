@@ -16,6 +16,11 @@
 #import <sys/time.h>
 
 #import "DebugShared.h"
+#import "AppDelegate+Debug.h"
+#import "AudioPlayer+Debug.h"
+#import "OpenBurstCoalescer+Debug.h"
+#import "OpenRequestCoordinator+Debug.h"
+#import "AudioTrackMetadataCacheInternal.h"
 #import "AppDelegate.h"
 #import "OpenRequestCoordinator.h"
 #import "AudioTrackMetadataCache.h"
@@ -139,7 +144,7 @@ static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerControl
     NSMutableDictionary<NSString *, NSNumber *> *out = [NSMutableDictionary dictionary];
     // The health schema's names are this file's business; each source reports
     // in its own vocabulary and is namespaced here.
-    NSDictionary<NSString *, NSNumber *> *parse = [controller.metadataCache debugPendingCounts];
+    NSDictionary<NSString *, NSNumber *> *parse = [controller.metadataCache.parseCoordinator pendingCounts];
     out[@"metadataHolders"] = parse[@"holders"];
     out[@"metadataWaiters"] = parse[@"waiters"];
     out[@"openResultsBuffered"] = @([OpenRequestCoordinator.sharedCoordinator debugBufferedResultCount]);

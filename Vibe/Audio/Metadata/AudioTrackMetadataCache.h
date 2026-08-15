@@ -47,13 +47,6 @@ NS_ASSUME_NONNULL_BEGIN
 // calling thread; the completion runs on the main thread.
 - (void)diskUsageWithCompletion:(void (^)(NSUInteger fileCount, unsigned long long totalBytes))completion;
 
-#if DEBUG
-// Forwards the parse coordinator's {metadataHolders, metadataWaiters} to the
-// debug channel, which cannot reach the coordinator itself — it is a private
-// property of this class.
-- (NSDictionary<NSString *, NSNumber *> *)debugPendingCounts;
-#endif
-
 @end
 
 @protocol AudioTrackMetadataCacheDelegate <NSObject>

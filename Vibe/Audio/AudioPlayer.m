@@ -1630,6 +1630,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 #pragma mark - Properties
 
 #if DEBUG
+- (BOOL)manualRenderingActive {
+    return _manualRenderingActive;
+}
+
 - (NSDictionary<NSString *, NSNumber *> *)debugEngineCounts {
     // Reading these off the queue would race every attach, detach and fade
     // retirement, which is exactly the code these numbers are meant to audit.

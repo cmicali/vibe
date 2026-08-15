@@ -44,7 +44,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // its commentary, in AudioPlayer.m's @implementation block.
     dispatch_queue_t        _queue;
 #if DEBUG
-    // Backs manualRenderingActive; see AudioPlayer.h.
+    // The one #if DEBUG left outside Vibe/Debug/, and it has to be: this is
+    // STORAGE, written by the async init in AudioPlayer.m. A category can
+    // declare the getter (Debug/Introspection/AudioPlayer+Debug.h) but cannot
+    // add an ivar. make check-vocabulary allowlists exactly this file.
     BOOL                    _manualRenderingActive;
 #endif
     AVAudioEngine           *_engine;

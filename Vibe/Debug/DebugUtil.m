@@ -14,6 +14,8 @@
 #import <MediaPlayer/MediaPlayer.h>
 #import <notify.h>
 #import "DebugShared.h"
+#import "AudioPlayer+Debug.h"
+#import "AudioWaveformCache+Debug.h"
 #import "DebugHealth.h"
 #import "DebugSettingsUI.h"
 #import "AppDelegate.h"

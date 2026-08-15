@@ -46,15 +46,6 @@ NS_ASSUME_NONNULL_BEGIN
                                               BOOL sourceDeleted,
                                               NSError *_Nullable error))completion;
 
-#if DEBUG
-// Fired on the main thread when an undo or redo of a conversion settles,
-// success or failure; cleared before it runs, so a handler a timed-out debug
-// command left behind cannot fire on a later menu undo. Debug-channel
-// plumbing only — DebugUtil's undo/redo verbs are the only setter — so it
-// compiles out of Release; synthesized in MainPlayerController.m.
-@property (copy, nullable) void (^conversionUndoRedoSettledHandler)(void);
-#endif
-
 @end
 
 NS_ASSUME_NONNULL_END

@@ -44,6 +44,16 @@ while IFS= read -r header; do
     fail "$header — a header-only static-inline seam must be *Rules.h (returns a decision) or *Math.h (returns a number)"
 done < <(find Vibe -name '*.h' ! -path '*/ThirdParty/*')
 
+# Debug surface belongs in Vibe/Debug/, as a declaration-only category — a
+# shipping header should not carry a conditional block about a tool that does
+# not ship. AudioPlayerInternal.h is storage a category cannot add; see there.
+stray_debug=$(grep -rln '#if DEBUG' Vibe --include='*.h' 2>/dev/null \
+        | grep -v ThirdParty | grep -v '^Vibe/Debug/' | grep -v 'AudioPlayerInternal.h' || true)
+if [ -n "$stray_debug" ]; then
+    fail "#if DEBUG in a shipping header — put it in Vibe/Debug/Introspection/ as a category:"
+    echo "$stray_debug" >&2
+fi
+
 # One spelling for the trap marker, so grep finds every one of them.
 bad_trap=$(grep -rn 'TRAP' Vibe --include='*.h' --include='*.m' --include='*.mm' 2>/dev/null \
         | grep -v ThirdParty | grep -v 'TRAP:' || true)

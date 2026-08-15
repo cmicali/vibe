@@ -44,12 +44,6 @@ typedef void (^OpenBurstScheduler)(NSTimeInterval delay, dispatch_block_t block)
 // queues, exactly like enqueueURLs, and the launch drain picks it up.
 - (void)openReplacingURLs:(NSArray<NSURL *> *)urls;
 
-#if DEBUG
-// URLs still waiting behind the quiet period, for the debug channel's
-// dump_health. Zero between bursts. Main thread.
-- (NSUInteger)debugQueuedURLCount;
-#endif
-
 @end
 
 NS_ASSUME_NONNULL_END

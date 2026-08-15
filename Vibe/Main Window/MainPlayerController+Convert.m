@@ -4,6 +4,7 @@
 //
 
 #import "MainPlayerController+Convert.h"
+#import "MainPlayerController+Debug.h"
 
 #import "AudioFileConverter.h"
 #import "VibeStrings.h"
@@ -44,11 +45,6 @@
 @end
 
 @implementation MainPlayerController (Convert)
-
-#if DEBUG
-// Storage is the class extension's synthesized pair.
-@dynamic conversionUndoRedoSettledHandler;
-#endif
 
 #pragma mark - Convert to FLAC
 

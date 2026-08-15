@@ -50,13 +50,13 @@ typedef NS_ENUM(NSUInteger, MetadataParseClaimRole) {
 // or finds no holder and becomes the next owner; it is never lost.
 - (NSArray<ParticipantType> *)completeClaim:(MetadataParseClaim *)claim;
 
-#if DEBUG
-// {holders, waiters} for the debug channel's dump_health. Both should return
-// to zero once parsing settles; a claim that is never completed strands its
-// holder and that key's whole waiter table, which is far too small to show up
-// in the process footprint but is exactly what an open storm can leave behind.
-- (NSDictionary<NSString *, NSNumber *> *)debugPendingCounts;
-#endif
+// Diagnostic: {holders, waiters}. Both should return to zero once parsing
+// settles; a claim that is never completed strands its holder and that key's
+// whole waiter table, which is far too small to show up in the process
+// footprint but is exactly what an open storm can leave behind. Not debug-only
+// — the contention tests assert on it, the way FolderArtResolver's
+// recordedDirectoryCount is diagnostic surface for its own.
+- (NSDictionary<NSString *, NSNumber *> *)pendingCounts;
 
 @end
 

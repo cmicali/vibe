@@ -97,8 +97,7 @@
     }
 }
 
-#if DEBUG
-- (NSDictionary<NSString *, NSNumber *> *)debugPendingCounts {
+- (NSDictionary<NSString *, NSNumber *> *)pendingCounts {
     @synchronized (self) {
         NSUInteger waiters = 0;
         for (NSHashTable *table in _waiters.objectEnumerator) {
@@ -113,6 +112,5 @@
         return @{@"holders": @(_holders.count), @"waiters": @(waiters)};
     }
 }
-#endif
 
 @end

@@ -26,6 +26,7 @@
 
 #if DEBUG
 #import "DebugUtil.h"
+#import "OpenBurstCoalescer+Debug.h"
 #endif
 
 @interface AppDelegate ()

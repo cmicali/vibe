@@ -355,22 +355,22 @@
     NSObject *holder = [NSObject new];
     NSObject *waiter = [NSObject new];
 
-    XCTAssertEqualObjects([coordinator debugPendingCounts][@"holders"], @0);
-    XCTAssertEqualObjects([coordinator debugPendingCounts][@"waiters"], @0);
+    XCTAssertEqualObjects([coordinator pendingCounts][@"holders"], @0);
+    XCTAssertEqualObjects([coordinator pendingCounts][@"waiters"], @0);
 
     MetadataParseClaim *claim = [coordinator claimParseForKey:key participant:holder];
-    XCTAssertEqualObjects([coordinator debugPendingCounts][@"holders"], @1);
-    XCTAssertEqualObjects([coordinator debugPendingCounts][@"waiters"], @0);
+    XCTAssertEqualObjects([coordinator pendingCounts][@"holders"], @1);
+    XCTAssertEqualObjects([coordinator pendingCounts][@"waiters"], @0);
 
     [coordinator claimParseForKey:key participant:waiter];
-    XCTAssertEqualObjects([coordinator debugPendingCounts][@"holders"], @1);
-    XCTAssertEqualObjects([coordinator debugPendingCounts][@"waiters"], @1);
+    XCTAssertEqualObjects([coordinator pendingCounts][@"holders"], @1);
+    XCTAssertEqualObjects([coordinator pendingCounts][@"waiters"], @1);
 
     // Completing the owner clears the holder and that key's whole waiter
     // table: both halves have to return to zero, or a soak run accumulates.
     [coordinator completeClaim:claim];
-    XCTAssertEqualObjects([coordinator debugPendingCounts][@"holders"], @0);
-    XCTAssertEqualObjects([coordinator debugPendingCounts][@"waiters"], @0);
+    XCTAssertEqualObjects([coordinator pendingCounts][@"holders"], @0);
+    XCTAssertEqualObjects([coordinator pendingCounts][@"waiters"], @0);
 }
 #endif
 
