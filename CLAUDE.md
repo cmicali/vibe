@@ -38,14 +38,15 @@ Vibe is a native macOS music player written in Objective-C and Objective-C++. Pl
 
 Nested `CLAUDE.md` files hold the detail for each directory and load only when you work under it. **Read the relevant one before changing anything it covers.**
 
-- **`Vibe/Audio/`** — playback engine, metadata, waveform data, BPM/key analysis, output devices.
+- **`Vibe/Audio/`** — playback engine, FX, conversion, waveform data, BPM/key analysis, output devices.
+- **`Vibe/Audio/Metadata/`** — tags, the disk cache, the two-stage scan, embedded and folder art; opens with a map of the flow.
 - **`Vibe/Waveform/`** — waveform rendering: views, renderer strategies, morph engine.
 - **`Vibe/Main Window/`** — `MainPlayerController` and the window; layout and Liquid Glass chrome live in that directory's `APPEARANCE.md`, its `CLAUDE.md` covering behavior.
 - **`Vibe/Menu/`** — menu bar, plus the app bootstrap (`main.m` at the repo root, `AppDelegate` in `Common/`).
 - **`Vibe/Playlist/`** — table structure vs content, Launch Services burst opens.
 - **`Vibe/Controls/`** — CALayer-drawn controls.
 - **`Vibe/ThirdParty/`** — the vendored TagLib subset and PINCache/PINOperation: what is included and why, how to update it.
-- **`Vibe/Settings/`** — Settings window, `FolderAccessManager` sandbox bookmarks; the Files pane holds the folder-artwork setting.
+- **`Vibe/Settings/`** — Settings window, `FolderAccessManager` sandbox bookmarks; the Files pane holds the folder-art setting.
 
 ### Cross-directory invariants
 
