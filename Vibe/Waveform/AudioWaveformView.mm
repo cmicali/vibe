@@ -20,6 +20,12 @@
 // soft, which on a hairline reads as a dimmer line rather than a thinner one.
 static const CGFloat kMidlineHeight = 1;
 
+// What an unplayed waveform bar is actually worth on screen: the renderer
+// family's 0.5 gradient top under its 0.75 layer opacity. The loading shimmer
+// peaks here so the waveform arriving over it is the same brightness rather
+// than a step down from a brighter placeholder.
+static const CGFloat kUnplayedWaveformAlpha = 0.375;
+
 @interface AudioWaveformView ()
 
 // A strong reference to the wrapper. It owns the underlying C++ AudioWaveform,
@@ -345,15 +351,15 @@ static const CGFloat kMidlineHeight = 1;
     NSColor *base = self.isDark ? [NSColor whiteColor] : [NSColor blackColor];
     return @[
             (id)[base colorWithAlphaComponent:0].CGColor,
-            (id)[base colorWithAlphaComponent:0.55].CGColor,
+            (id)[base colorWithAlphaComponent:kUnplayedWaveformAlpha].CGColor,
             (id)[base colorWithAlphaComponent:0].CGColor,
     ];
 }
 
 // The inert midline, shared by the loading indicator's unfilled track and
-// the empty state's static line — the same element, so the same colour.
-// Half the shimmer's 0.55 peak: present enough to show how far there is to
-// go, faint enough that the shimmer riding it stays the moving part.
+// the empty state's static line — the same element, so the same colour. It
+// lands on the unplayed waveform's own baseline, the midline the short bars
+// sit on, so the two read as one surface when the waveform replaces it.
 - (CGColorRef)inertMidlineColor {
     NSColor *base = self.isDark ? [NSColor whiteColor] : [NSColor blackColor];
     return [base colorWithAlphaComponent:0.275].CGColor;
