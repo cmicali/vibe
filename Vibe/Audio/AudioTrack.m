@@ -89,15 +89,15 @@
     }
 }
 
-- (NSImage *)albumArt {
+- (NSImage *)cachedArt {
     // Non-blocking on purpose, because the main thread reads it in updateUI
     // and for the dock icon. Extraction that needs a file read happens in the
-    // background load MainPlayerController starts when albumArtNeedsLoad.
-    return self.metadata.albumArtIfLoaded;
+    // background load MainPlayerController starts when artNeedsLoad.
+    return self.metadata.cachedArt;
 }
 
-- (NSImage *)thumbnailAlbumArt {
-    return self.metadata.thumbnailAlbumArt;
+- (NSImage *)cachedThumbnail {
+    return self.metadata.cachedThumbnail;
 }
 
 - (float)bpm {

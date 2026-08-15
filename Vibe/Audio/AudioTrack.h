@@ -63,10 +63,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setDuration:(NSTimeInterval)len;
 
 - (NSString *)durationString;
-// Non-blocking, through metadata.albumArtIfLoaded: nil until the art is
+// Non-blocking, through metadata.cachedArt: nil until the art is
 // decoded.
-- (nullable VibeImage *)albumArt;
-- (nullable VibeImage *)thumbnailAlbumArt;
+- (nullable VibeImage *)cachedArt;
+- (nullable VibeImage *)cachedThumbnail;
 
 - (BOOL)hasArtistAndTitle;
 

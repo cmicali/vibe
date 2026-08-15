@@ -5,7 +5,7 @@
 // The album-art fallback for files that carry none of their own: a cover image
 // sitting beside the audio file — cover.jpg, folder.jpg, front.jpg, album.jpg.
 // AudioTrackArtwork consults it, so every art consumer sees the result through
-// the ordinary albumArt and thumbnailAlbumArt accessors.
+// the ordinary art accessors.
 //
 // Nobody asks for this feature, so it rides along with what the player already
 // does rather than paying its own way:
@@ -94,7 +94,7 @@ typedef VibeImage * _Nullable (^FolderArtDecoder)(NSData *data, CGFloat maxPixel
 // YES when a background load would produce something the non-blocking
 // accessors cannot: the folder is unresolved, or its cover is not decoded right
 // now. Goes NO for good once a folder is known to have none, so
-// AudioTrackArtwork.albumArtNeedsLoad cannot spin. A pure read — it runs on the
+// AudioTrackArtwork.artNeedsLoad cannot spin. A pure read — it runs on the
 // main thread's updateUI pass.
 - (BOOL)needsBackgroundLoadForAudioFilePath:(nullable NSString *)path;
 
@@ -122,7 +122,7 @@ typedef VibeImage * _Nullable (^FolderArtDecoder)(NSData *data, CGFloat maxPixel
 // throw away the covers a folder walk harvested for free and leave those
 // folders to the stat probes, which know three of the candidate names — so a
 // toggle off and on would lose the art for every other spelling.
-- (void)albumArtSettingDidChange;
+- (void)folderArtSettingDidChange;
 
 // Forgets everything: answers, images and the cached setting. Diagnostic — a
 // settled answer only goes stale if the disk changes under it, which the next

@@ -185,7 +185,7 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
         }
     }
     else if ([tableColumn.identifier isEqualToString:kPlaylistColumnArt]) {
-        view.imageView.image = [PlaylistTableView artworkCellImage:track.thumbnailAlbumArt];
+        view.imageView.image = [PlaylistTableView artworkCellImage:track.cachedThumbnail];
     }
     else if ([tableColumn.identifier isEqualToString:kPlaylistColumnTitle]) {
         view.textField.attributedStringValue = [PlaylistTableView titleCellStringForTrack:track];

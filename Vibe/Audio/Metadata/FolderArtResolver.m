@@ -438,7 +438,7 @@ static NSData *VibeReadFolderArt(NSString *path) {
 
 #pragma mark - Invalidation
 
-- (void)albumArtSettingDidChange {
+- (void)folderArtSettingDidChange {
     // The only place the cached setting is dropped. The settled answers stay;
     // see the header for why this exists separately from invalidate.
     atomic_store_explicit(&_enabledCache, -1, memory_order_relaxed);

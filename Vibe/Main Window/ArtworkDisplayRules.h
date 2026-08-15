@@ -27,8 +27,8 @@ typedef NS_ENUM(NSInteger, VibeArtworkDisplayAction) {
 // hasArt: **nil art is not proof of artlessness.** With the folder fallback, nil
 // can also mean "another worker holds this folder's resolve claim", and treating
 // that as artless flashes the backdrop over a cover that appears a moment later.
-// Only the metadata's own account of what is pending (`albumArtNeedsLoad`,
-// `albumArtLoadDispatched`) tells the two apart.
+// Only the metadata's own account of what is pending (`artNeedsLoad`,
+// `artLoadDispatched`) tells the two apart.
 //
 //  hasTrack    — a file is loaded at all. Nothing loaded is definitively
 //                artless, or closing a file would leave its art on screen.

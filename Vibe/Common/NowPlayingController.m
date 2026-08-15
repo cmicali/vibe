@@ -282,7 +282,7 @@ static VibeImage *VibeArtworkForPublishing(VibeImage *artwork) {
     // cleaned-up filename, not the raw title with its extension.
     NSString *title = track.singleLineTitle ?: @"";
     NSString *artist = track.artist.length > 0 ? track.artist : nil;
-    // albumArt is the already-decoded image, or nil, and never blocks: it does
+    // cachedArt is the already-decoded image, or nil, and never blocks: it does
     // no file read and no decode. While it is still nil the caller refreshes
     // once the art resolves, so the card fills in a moment later rather than
     // stalling here.
@@ -295,7 +295,7 @@ static VibeImage *VibeArtworkForPublishing(VibeImage *artwork) {
     // cover, which reads as Now Playing lagging the app when both are in fact
     // published in the same pass. The identity check below promotes the full
     // art the moment it lands.
-    VibeImage *artwork = track.albumArt ?: track.thumbnailAlbumArt;
+    VibeImage *artwork = track.cachedArt ?: track.cachedThumbnail;
 
     // The elapsed time is never republished at 3 Hz, because the system
     // extrapolates it from the last publish at the published rate. Natural

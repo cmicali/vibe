@@ -2,11 +2,8 @@
 // AudioTrackArtwork.m
 // Vibe
 //
-// Locking discipline: the monitor is never held across file I/O or an ImageIO
-// decode. Either can block for minutes on a cloud placeholder, or hitch for
-// 10-100ms, and the main thread takes this monitor on every updateUI pass,
-// through albumArtIfLoaded. Loads therefore run outside the lock, and at worst
-// two callers do the same work and the first store wins.
+// The five states, the transitions and the locking discipline are in the
+// header. These are the fields the table is written in terms of.
 //
 
 #import "AudioTrackArtwork.h"
@@ -20,25 +17,9 @@
     NSData *_embeddedArtData;
     AudioTrackArtworkExtractor _extractor;
     BOOL _embeddedExtractionAttempted;
-    // The file's art bytes cannot be decoded, from a truncated or corrupt tag
-    // frame. This is permanent for the file's content, so it is set regardless
-    // of generation and never cleared by the discard paths. Otherwise
-    // albumArtNeedsLoad would re-dispatch the same doomed decode on every
-    // updateUI pass.
     BOOL _embeddedUndecodable;
-    // Bumped only by discardDecodedAlbumArt, which runs when the track changes
-    // and drops everything. An albumArt load in flight when that ran must not
-    // store its result back, or a skip during a load re-pins the demoted
-    // track's art for the playlist's lifetime. discardAlbumArtData
-    // deliberately does not bump it; see there.
     NSUInteger _artGeneration;
 }
-
-// The folder cover is deliberately not state of this class: FolderArtResolver holds
-// one per *folder*, shared by every track in it, and the accessors below simply
-// fall back to it. So there is nothing here to demote on a track change, nothing
-// to keep coherent with the setting, and nothing that could reach the disk cache
-// — the archive takes embeddedThumbnail, the file's own art alone.
 
 - (instancetype)initWithSourceFilePath:(NSString *)sourceFilePath
                              extractor:(AudioTrackArtworkExtractor)extractor {
@@ -79,14 +60,14 @@
 // The file's own art, or the folder's cover when it has none. Blocking on both
 // paths; the folder side resolves its directory the first time any track in it
 // asks — see FolderArtResolver, which owns the cost rules.
-- (NSImage *)albumArt {
-    NSImage *embedded = [self embeddedAlbumArt];
+- (NSImage *)loadArtBlocking {
+    NSImage *embedded = [self embeddedArt];
     if (embedded) {
         return embedded;
     }
     NSString *path;
     @synchronized (self) {
-        // embeddedAlbumArt just settled the question by reading the file, so
+        // embeddedArt just settled the question by reading the file, so
         // this is the artless answer, not the unknown one.
         path = [self folderFallbackPathLocked];
     }
@@ -97,7 +78,7 @@
 // pay the decode and memory cost. Cache-hit instances carry no art bytes,
 // which are not archived, and re-extract from the audio file on demand. Only
 // the current track ever takes that path.
-- (NSImage *)embeddedAlbumArt {
+- (NSImage *)embeddedArt {
     NSString *pathToExtract = nil;
     NSData *dataToDecode = nil;
     BOOL dataWasInMemory = NO;
@@ -137,12 +118,12 @@
         }
         // Store back only if no track-change discard ran mid-load. Otherwise
         // return the result transiently, without re-pinning a demoted track's
-        // art. A racing discardAlbumArtData is fine, since it only wants the
+        // art. A racing discardArtData is fine, since it only wants the
         // raw bytes gone.
         if (generation == _artGeneration) {
             // Cache the bytes only when they were freshly read from the file.
             // Bytes that have gone from _embeddedArtData by now were dropped by
-            // discardAlbumArtData mid-decode, and restoring them would undo
+            // discardArtData mid-decode, and restoring them would undo
             // its memory release.
             if (dataToDecode && !_embeddedArtData && !dataWasInMemory) {
                 _embeddedArtData = dataToDecode;
@@ -178,7 +159,7 @@
     return [self knownToCarryNoArtLocked] ? _sourceFilePath : nil;
 }
 
-- (NSImage *)albumArtIfLoaded {
+- (NSImage *)cachedArt {
     NSString *path;
     @synchronized (self) {
         if (_embeddedArt) {
@@ -187,13 +168,13 @@
         path = [self folderFallbackPathLocked];
     }
     // No decode and no file access: this is the main thread's updateUI
-    // accessor, and both happen on the background albumArt path that
-    // albumArtNeedsLoad asks for. The folder's cover comes back only if it is
+    // accessor, and both happen on the background loadArtBlocking path that
+    // artNeedsLoad asks for. The folder's cover comes back only if it is
     // already decoded.
     return [self.folderArt cachedDisplayImageForAudioFilePath:path];
 }
 
-- (BOOL)albumArtNeedsLoad {
+- (BOOL)artNeedsLoad {
     NSString *path;
     @synchronized (self) {
         if (_embeddedArt) {
@@ -216,9 +197,9 @@
 
 // Drops the full-size compressed art bytes once the thumbnail exists. Freshly
 // parsed instances otherwise pin 0.5-5MB per track for the whole session.
-// Afterwards the instance behaves like a cache hit: albumArt re-reads the
+// Afterwards the instance behaves like a cache hit: loadArtBlocking re-reads the
 // audio file on demand for the one track shown at full resolution.
-- (void)discardAlbumArtData {
+- (void)discardArtData {
     @synchronized (self) {
         // There is deliberately no generation bump. This only wants the raw
         // bytes released, not an in-flight decode of those same bytes thrown
@@ -241,7 +222,7 @@
 }
 
 // Called by the UI, on the main thread, when this track stops being current.
-- (void)discardDecodedAlbumArt {
+- (void)discardDecodedArt {
     @synchronized (self) {
         // Bump before the early return. The demotion race this guards against
         // is precisely the case where nothing is stored yet because the load
@@ -261,7 +242,7 @@
     }
 }
 
-- (NSImage *)thumbnailAlbumArt {
+- (NSImage *)cachedThumbnail {
     NSImage *embedded = [self embeddedThumbnail];
     if (embedded) {
         return embedded;

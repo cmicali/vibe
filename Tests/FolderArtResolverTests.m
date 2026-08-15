@@ -186,7 +186,7 @@
 
 #pragma mark - Whether a background load is worth dispatching
 
-// This answer drives albumArtNeedsLoad, and through it the header's decision
+// This answer drives artNeedsLoad, and through it the header's decision
 // to dispatch a load at all. A wrong NO is a permanently blank header; a wrong
 // YES re-dispatches the same doomed load on every UI tick.
 - (void)testTheBackgroundLoadTruthTable {
@@ -255,10 +255,10 @@
     XCTAssertEqual(fileSystemCalls, 0u);
 
     // Switching it on gets the answer the walk recorded while it was off rather
-    // than starting from guesswork, which also proves albumArtSettingDidChange
+    // than starting from guesswork, which also proves folderArtSettingDidChange
     // — the one call every writer of the setting makes — keeps settled answers.
     enabled = YES;
-    [resolver albumArtSettingDidChange];
+    [resolver folderArtSettingDidChange];
     XCTAssertEqualObjects([resolver displayImageForAudioFilePath:track], decoded);
     XCTAssertEqualObjects([resolver settledArtPathForDirectory:directory],
                           [directory stringByAppendingPathComponent:@"cover.jpg"]);
@@ -392,7 +392,7 @@
     NSString *track = [directory stringByAppendingPathComponent:@"track.mp3"];
     [resolver preferListingForDirectories:[NSSet setWithObject:directory]];
 
-    [resolver albumArtSettingDidChange];
+    [resolver folderArtSettingDidChange];
 
     XCTAssertEqualObjects([resolver displayImageForAudioFilePath:track], decoded);
     XCTAssertEqual(listings, 1u);

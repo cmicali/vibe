@@ -18,8 +18,8 @@
 @property (nonatomic) float bpm;
 @property (nonatomic) NSInteger key;
 @property (nonatomic) NSTimeInterval duration;
-@property (nonatomic, strong) NSImage *albumArtIfLoaded;
-@property (nonatomic, strong) NSImage *thumbnailAlbumArt;
+@property (nonatomic, strong) NSImage *cachedArt;
+@property (nonatomic, strong) NSImage *cachedThumbnail;
 @end
 
 @implementation FakeTrackMetadata

@@ -217,12 +217,12 @@ static const CGFloat kAccentMaxChroma         = 0.17;
     _artworkView.fileURL = track.url;
     // One read, because the identity check and the install must see the same
     // object.
-    NSImage *art = track.albumArt;
+    NSImage *art = track.cachedArt;
     AudioTrackMetadata *metadata = track.metadata;
-    // albumArtLoadDispatched is cleared when a load completes, so here it
+    // artLoadDispatched is cleared when a load completes, so here it
     // means exactly that a load is in flight.
-    BOOL artResolved = metadata != nil && !metadata.albumArtNeedsLoad &&
-                       !metadata.albumArtLoadDispatched;
+    BOOL artResolved = metadata != nil && !metadata.artNeedsLoad &&
+                       !metadata.artLoadDispatched;
     VibeArtworkDisplayAction action = VibeArtworkDisplayActionFor(track != nil, art != nil,
                                                                   artResolved, _initialized);
     _initialized = YES;
@@ -241,7 +241,7 @@ static const CGFloat kAccentMaxChroma         = 0.17;
             // comparing it would re-crop on every update.
             //
             // The crop is deliberately confined to these two. Now Playing
-            // publishes track.albumArt itself (NowPlayingController), and must
+            // publishes track.cachedArt itself (NowPlayingController), and must
             // keep receiving the uncropped original — Control Center frames it
             // on its own terms.
             NSImage *square = [art squareCroppedImage] ?: art;
@@ -260,15 +260,15 @@ static const CGFloat kAccentMaxChroma         = 0.17;
     // User-initiated, not utility: this load gates the header, the dock tile
     // and the Now Playing card all at once, and the user is looking at the
     // header waiting on it.
-    if (metadata.albumArtNeedsLoad && !metadata.albumArtLoadDispatched) {
-        metadata.albumArtLoadDispatched = YES;
+    if (metadata.artNeedsLoad && !metadata.artLoadDispatched) {
+        metadata.artLoadDispatched = YES;
         __weak ArtworkDisplayController *weakSelf = self;
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-            NSImage *loaded = metadata.albumArt; // may block; background thread
+            NSImage *loaded = [metadata loadArtBlocking]; // may block; background thread
             dispatch_async(dispatch_get_main_queue(), ^{
-                // Clear the in-flight marker; albumArtNeedsLoad below decides
+                // Clear the in-flight marker; artNeedsLoad below decides
                 // whether anything is left to do.
-                metadata.albumArtLoadDispatched = NO;
+                metadata.artLoadDispatched = NO;
                 ArtworkDisplayController *strongSelf = weakSelf;
                 if (!strongSelf) {
                     return;
@@ -280,13 +280,13 @@ static const CGFloat kAccentMaxChroma         = 0.17;
                     // that never started playing never becomes
                     // _artOwnerTrack, so nothing else would demote the 4-9MB
                     // of full-resolution art this load has just pinned.
-                    [metadata discardDecodedAlbumArt];
+                    [metadata discardDecodedArt];
                     return;
                 }
                 // The same rule the pass above applies, so a load's outcome and
                 // a plain refresh cannot disagree about when the backdrop wins.
                 switch (VibeArtworkDisplayActionFor(YES, loaded != nil,
-                                                    !metadata.albumArtNeedsLoad, YES)) {
+                                                    !metadata.artNeedsLoad, YES)) {
                     case VibeArtworkDisplayActionInstall:
                         if (strongSelf.artDidResolveHandler) {
                             strongSelf.artDidResolveHandler();
@@ -297,7 +297,7 @@ static const CGFloat kAccentMaxChroma         = 0.17;
                         break;
                     case VibeArtworkDisplayActionKeepPrevious:
                         // The folder is still being resolved by another worker,
-                        // so this nil is not artlessness. albumArtNeedsLoad
+                        // so this nil is not artlessness. artNeedsLoad
                         // stays YES and the next pass retries.
                         break;
                 }
@@ -313,7 +313,7 @@ static const CGFloat kAccentMaxChroma         = 0.17;
 // keep that.
 - (void)showPlaceholderForSlowLoad {
     AudioTrack *track = self.currentTrackProvider ? self.currentTrackProvider() : nil;
-    NSImage *art = track.albumArt;
+    NSImage *art = track.cachedArt;
     if (art && _displayedArt == art) {
         return;
     }
@@ -342,7 +342,7 @@ static const CGFloat kAccentMaxChroma         = 0.17;
     // thumbnail is kept, and the art reloads on demand if the track becomes
     // current again.
     if (_artOwnerTrack && _artOwnerTrack != track) {
-        [_artOwnerTrack.metadata discardDecodedAlbumArt];
+        [_artOwnerTrack.metadata discardDecodedArt];
     }
     _artOwnerTrack = track;
 }

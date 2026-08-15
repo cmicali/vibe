@@ -152,7 +152,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 // is published. The handle is written once and never reassigned, so a bare
 // ivar is safe on the hardware, but the publish and the read then share no
 // lock the way the other fields do, and ThreadSanitizer reports the pair as a
-// race (found by a stress run, main's albumArtIfLoaded against a worker's
+// race (found by a stress run, main's cachedArt against a worker's
 // initWithCoder:). AudioTrackArtwork guards its own mutable state.
 @property (strong, nullable) AudioTrackArtwork *artwork;
 @end
@@ -176,31 +176,31 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 // The art accessors delegate to AudioTrackArtwork, which owns the lazy
 // decode, discard and re-read state machine. AudioTrackMetadata.h documents
 // the contracts.
-- (NSImage *)albumArt {
-    return [self.artwork albumArt];
+- (NSImage *)loadArtBlocking {
+    return [self.artwork loadArtBlocking];
 }
 
-- (NSImage *)albumArtIfLoaded {
-    return [self.artwork albumArtIfLoaded];
+- (NSImage *)cachedArt {
+    return [self.artwork cachedArt];
 }
 
-- (BOOL)albumArtNeedsLoad {
-    return [self.artwork albumArtNeedsLoad];
+- (BOOL)artNeedsLoad {
+    return [self.artwork artNeedsLoad];
 }
 
-- (void)discardAlbumArtData {
-    [self.artwork discardAlbumArtData];
+- (void)discardArtData {
+    [self.artwork discardArtData];
 }
 
-- (void)discardDecodedAlbumArt {
-    [self.artwork discardDecodedAlbumArt];
+- (void)discardDecodedArt {
+    [self.artwork discardDecodedArt];
     // A UI-side dispatch flag, main thread only, which stays out of
     // AudioTrackArtwork.
-    self.albumArtLoadDispatched = NO;
+    self.artLoadDispatched = NO;
 }
 
-- (NSImage *)thumbnailAlbumArt {
-    return [self.artwork thumbnailAlbumArt];
+- (NSImage *)cachedThumbnail {
+    return [self.artwork cachedThumbnail];
 }
 
 - (void)prewarmEmbeddedThumbnail {

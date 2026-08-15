@@ -1223,8 +1223,8 @@
     // so telling it the setting moved is the whole of it. The rows and the
     // header re-ask, and the accessors decode only the folders still on screen.
     // What the resolver has *settled* deliberately survives; see
-    // albumArtSettingDidChange.
-    [FolderArtResolver.sharedInstance albumArtSettingDidChange];
+    // folderArtSettingDidChange.
+    [FolderArtResolver.sharedInstance folderArtSettingDidChange];
     [self.playlistController reloadAllTracks];
     [self updateUI];
 }

@@ -255,7 +255,7 @@
     // No thumbnail warm-up is needed before publishing, unlike in
     // parseOneTrack:. The unarchive above already decoded it, because
     // initWithCoder: calls adoptArchivedThumbnailJPEG:, which decodes eagerly,
-    // so the main thread's first thumbnailAlbumArt read after publish is a
+    // so the main thread's first cachedThumbnail read after publish is a
     // plain ivar hit.
     //
     // This pairs with parseOneTrack's guarded store. The unconditional store
@@ -368,7 +368,7 @@
         // Cache-hit instances never carried them, and freshly parsed ones now
         // match, since the art is re-read on demand for the one track shown
         // at full resolution.
-        [track.metadata discardAlbumArtData];
+        [track.metadata discardArtData];
         // The folder-artwork fallback is deliberately NOT resolved here: this
         // is the scan's path, including the cache-check lane whose whole point
         // is that it blocks on nothing but a stat and a small read, and a cover

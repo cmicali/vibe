@@ -72,10 +72,10 @@
     AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
         return embedded;
     }];
-    NSImage *art = artwork.albumArt;
+    NSImage *art = [artwork loadArtBlocking];
     XCTAssertNotNil(art);
     XCTAssertNotEqualObjects(art, _folderCover);
-    XCTAssertNotEqualObjects(artwork.thumbnailAlbumArt, _folderCover);
+    XCTAssertNotEqualObjects(artwork.cachedThumbnail, _folderCover);
 }
 
 // The window before a file's own art has been read is NOT the artless answer.
@@ -90,8 +90,8 @@
     artwork.folderArt = [self resolverWithCover];
     // Non-blocking accessors must not answer with the folder while the file's
     // own art is merely unknown.
-    XCTAssertNil(artwork.albumArtIfLoaded);
-    XCTAssertNil(artwork.thumbnailAlbumArt);
+    XCTAssertNil(artwork.cachedArt);
+    XCTAssertNil(artwork.cachedThumbnail);
     XCTAssertFalse(extracted, @"neither accessor may read the audio file");
 }
 
@@ -100,16 +100,16 @@
         return nil; // the file really has none
     }];
     // The blocking accessor settles the question and then falls back.
-    XCTAssertEqualObjects(artwork.albumArt, _folderCover);
+    XCTAssertEqualObjects([artwork loadArtBlocking], _folderCover);
     // And the non-blocking ones follow, now that the answer is known.
-    XCTAssertEqualObjects(artwork.albumArtIfLoaded, _folderCover);
+    XCTAssertEqualObjects(artwork.cachedArt, _folderCover);
 }
 
 - (void)testUndecodableOwnArtFallsBackToTheFolder {
     AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
         return [@"not an image" dataUsingEncoding:NSUTF8StringEncoding];
     }];
-    XCTAssertEqualObjects(artwork.albumArt, _folderCover);
+    XCTAssertEqualObjects([artwork loadArtBlocking], _folderCover);
 }
 
 #pragma mark - The cache boundary
@@ -122,7 +122,7 @@
     AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
         return nil;
     }];
-    XCTAssertEqualObjects(artwork.albumArt, _folderCover, @"precondition: the folder has one");
+    XCTAssertEqualObjects([artwork loadArtBlocking], _folderCover, @"precondition: the folder has one");
     XCTAssertNil(artwork.embeddedThumbnail);
 }
 
@@ -131,7 +131,7 @@
     AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
         return embedded;
     }];
-    (void)artwork.albumArt; // decode it
+    (void)[artwork loadArtBlocking]; // decode it
     XCTAssertNotNil(artwork.embeddedThumbnail);
     XCTAssertNotEqualObjects(artwork.embeddedThumbnail, _folderCover);
 }
@@ -184,7 +184,7 @@
     artwork.folderArt = [self resolverWithCover];
     [artwork adoptArchivedThumbnailJPEG:nil];
 
-    XCTAssertEqualObjects(artwork.albumArt, _folderCover);
+    XCTAssertEqualObjects([artwork loadArtBlocking], _folderCover);
     XCTAssertFalse(extracted, @"an archived artless entry must not re-parse the file");
 }
 
@@ -197,11 +197,11 @@
     }];
     [artwork adoptArchivedThumbnailJPEG:nil];
 
-    XCTAssertNil(artwork.thumbnailAlbumArt, @"nothing is decoded yet, so nothing to hand back");
+    XCTAssertNil(artwork.cachedThumbnail, @"nothing is decoded yet, so nothing to hand back");
 
     // It scheduled the resolve, so the cover appears without anyone blocking.
     NSPredicate *resolved = [NSPredicate predicateWithBlock:^BOOL(AudioTrackArtwork *subject, id _) {
-        return [subject.thumbnailAlbumArt isEqual:self->_folderCover];
+        return [subject.cachedThumbnail isEqual:self->_folderCover];
     }];
     [self expectationForPredicate:resolved evaluatedWithObject:artwork handler:nil];
     [self waitForExpectationsWithTimeout:5.0 handler:nil];
@@ -212,7 +212,7 @@
         return nil;
     }];
     [artwork adoptArchivedThumbnailJPEG:[self embeddedArtData]];
-    NSImage *thumbnail = artwork.thumbnailAlbumArt;
+    NSImage *thumbnail = artwork.cachedThumbnail;
     XCTAssertNotNil(thumbnail);
     XCTAssertNotEqualObjects(thumbnail, _folderCover);
 }
