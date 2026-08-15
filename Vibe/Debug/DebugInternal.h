@@ -18,6 +18,10 @@
 
 #import "DebugUtil.h"
 #import "DebugShared.h"
+#import "DebugChannel.h"
+#import "DebugCommandDispatch.h"
+#import "DebugCommonVerbs.h"
+#import "DebugInvariants.h"
 #import "DebugHealth.h"
 #import "DebugSettingsUI.h"
 #import "AudioLoadTiming.h"
@@ -25,6 +29,7 @@
 #import "AppDelegate.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Debug.h"
+#import "MainPlayerController+DebugPlayerSurface.h"
 #import "MainPlayerController+Transport.h"
 #import "MainPlayerController+Window.h"
 #import "TrackDisplayController.h"
@@ -68,6 +73,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller);
 NSString *VibeViewTreeDump(void);
 NSArray *VibeMenuArray(NSMenu *menu);
 NSString *VibeClickMenuItem(NSString *name);
+NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller);
 NSString *VibeActionSummary(MainPlayerController *controller);
 
 // DebugInput.m — synthesized keyboard, mouse and file drags.
@@ -78,15 +84,6 @@ NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *
 NSString *VibeSyntheticDragHover(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeSyntheticDragEnd(MainPlayerController *controller);
 NSString *VibeSyntheticDragDrop(MainPlayerController *controller, NSArray<NSString *> *tokens);
-
-// DebugUtil.m — argument helpers shared with the command table, and the reply.
-NSString *VibeRestArgument(NSArray<NSString *> *tokens);
-NSString *VibePathArgument(NSArray<NSString *> *tokens);
-// The path, or nil with *errorJSON set to the reply to send. errorJSON is
-// written unchecked, so it is required.
-NSString *_Nullable VibeExistingFileArgument(NSArray<NSString *> *tokens,
-                                             NSString *_Nullable *_Nonnull errorJSON);
-void VibeWriteDebugResponse(NSString *commandId, NSString *response);
 
 // DebugCommandTable.m — the verb table the dispatcher walks.
 NSArray<NSDictionary *> *VibeDebugCommandTable(void);

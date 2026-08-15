@@ -5,8 +5,9 @@
 //  Extra surface for the debug command channel in Debug/DebugUtil.m: internal
 //  outlets re-declared so that the state dump can read them. The accessors are
 //  the ones the class extension in MainPlayerController.m synthesizes, and
-//  there is deliberately no @implementation for this category. Debug builds
-//  only.
+//  there is deliberately no @implementation for this category — the
+//  VibeDebugPlayerSurface conformance is a separate one, in
+//  MainPlayerController+DebugPlayerSurface. Debug builds only.
 //
 
 #if DEBUG

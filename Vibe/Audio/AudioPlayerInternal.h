@@ -8,6 +8,10 @@
 //  outside the AudioPlayer implementation files; everything else goes through
 //  AudioPlayer.h.
 //
+//  Two of those categories are platform-specific and only one is ever
+//  compiled: AudioPlayer+Devices.m on macOS, Vibe/iOS/AudioPlayer+Recovery.m
+//  on iOS.
+//
 
 #import "AudioPlayer.h"
 #import "PlaybackRequestCoordinator.h"
@@ -18,7 +22,13 @@
 // it calls across category lines. Do not prune as unused: the .m files depend
 // on them transitively. A file outside the family imports the one category it
 // uses.
+//
+// Exactly one platform member is compiled: +Devices on macOS (the CoreAudio
+// HAL layer, Audio/Devices/), +Recovery on iOS (Vibe/iOS/). Neither target
+// sees the other's, so this one import is conditional.
+#if TARGET_OS_OSX
 #import "AudioPlayer+Devices.h"
+#endif
 #import "AudioPlayer+Engine.h"
 #import "AudioPlayer+Fades.h"
 #import "AudioPlayer+Gapless.h"
@@ -113,7 +123,8 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // A pause fade is in flight. Queue-confined. A second playPause during the
     // fade-out cancels the pending pause and ramps back up rather than pausing
     // twice. The fade's completion clears it, and runs on preemption too, as
-    // does preemptRampsOnQueue eagerly.
+    // does preemptRampsOnQueue eagerly. The iOS config-change recovery must
+    // yield to a pending pause, which owns the transport.
     BOOL                    _pausePending;
 }
 
@@ -170,6 +181,16 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
                      openRequestId:(uint64_t)openId;
 
 - (void)resetToStoppedStateOnQueue;
+// Forgets every reference bound to the current engine without messaging it;
+// the iOS media-services-reset rebuild's first half.
+- (void)dropEngineBoundStateOnQueue;
+// Wires the master bus on a fresh engine: the FX segment, or, with FX
+// disabled, the mixer straight to the output. The rebuild's second half.
+- (void)installMasterBusOnQueue;
+// Creates the engine and wires the master bus, debug argv flags
+// (--no-audio-hw, --silent) included — the init path and the iOS
+// media-services rebuild must configure the engine identically.
+- (void)createEngineAndMasterBusOnQueue;
 - (void)publishPlaybackState:(VibePlayerState)state
                         node:(nullable AVAudioPlayerNode *)node
                         file:(nullable AVAudioFile *)file

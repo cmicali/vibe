@@ -5,6 +5,7 @@
 
 #import "MainMenuBuilder.h"
 #import "AppDelegate.h"
+#import "AudioPlayer.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Window.h"
 #import "MainPlayerController+Convert.h"
@@ -255,14 +256,18 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // toggles, from a hold, which is momentary. They are always enabled,
     // because they are deck controls that persist across tracks and apply to
     // whatever is playing or starts to play. Validation shows each one's state
-    // as a checkmark.
-    NSMenu *fxMenu = Submenu(mainMenu, STR_MENU_FX).submenu;
-    AddSymbolItem(fxMenu, STR_MENU_FX_LOW_KILL, @"dial.min", @selector(toggleLowKill:), player, @"q", 0, @"menu_fx_low_kill");
-    AddSymbolItem(fxMenu, STR_MENU_FX_LOW_KILL_BOOST, @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"w", 0, @"menu_fx_low_kill_boost");
-    AddSeparator(fxMenu);
-    AddSymbolItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"e", 0, @"menu_fx_reverb");
-    AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_8, @"repeat", @selector(toggleDelaySend:), player, @"r", 0, @"menu_fx_delay");
-    AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_16, @"repeat.circle", @selector(toggleShortDelaySend:), player, @"t", 0, @"menu_fx_short_delay");
+    // as a checkmark. With FX disabled (Settings > Playback, read at launch)
+    // the whole menu is omitted — fx is nil for this run, and the key monitor
+    // passes Q/W/E/R/T through for the same reason.
+    if (player.audioPlayer.fx) {
+        NSMenu *fxMenu = Submenu(mainMenu, STR_MENU_FX).submenu;
+        AddSymbolItem(fxMenu, STR_MENU_FX_LOW_KILL, @"dial.min", @selector(toggleLowKill:), player, @"q", 0, @"menu_fx_low_kill");
+        AddSymbolItem(fxMenu, STR_MENU_FX_LOW_KILL_BOOST, @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"w", 0, @"menu_fx_low_kill_boost");
+        AddSeparator(fxMenu);
+        AddSymbolItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"e", 0, @"menu_fx_reverb");
+        AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_8, @"repeat", @selector(toggleDelaySend:), player, @"r", 0, @"menu_fx_delay");
+        AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_16, @"repeat.circle", @selector(toggleShortDelaySend:), player, @"t", 0, @"menu_fx_short_delay");
+    }
 }
 
 + (void)buildViewMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {

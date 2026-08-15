@@ -112,6 +112,15 @@ static const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
 - (NSInteger)uiUpdateHzCap;
 - (void)setUiUpdateHzCap:(NSInteger)hz;
 
+// NO keeps the DJ performance-FX graph segment — low kill, reverb and delay
+// returns — out of the audio engine entirely: AudioPlayer is created with FX
+// off, fx reads nil, and the main mixer wires straight to the output. The FX
+// menu is omitted from the menu bar and the Q/W/E/R/T keys pass through
+// unhandled. Read once at launch, so a change applies on relaunch. iOS
+// ignores it and always passes FX off; see PlayerViewController.
+- (BOOL)audioFXEnabled;
+- (void)setAudioFXEnabled:(BOOL)enabled;
+
 // NO skips tempo detection on the waveform decode pass. A file scanned while
 // off caches a waveform with no BPM, so re-enabling only affects files not
 // yet cached. Tagged BPM is unaffected either way.

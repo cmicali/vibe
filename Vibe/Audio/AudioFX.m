@@ -35,6 +35,7 @@ static const float kReverbSendLevel = 0.3f;
 // Filtering the return rather than the send guarantees that even the ringing
 // tail is low-cut.
 static const float kReverbTailLowCutHz = 550.0f;
+#if TARGET_OS_OSX
 // MatrixReverb tuning, applied on top of the Cathedral preset; Reverb2 sounds
 // thin and digital by comparison. CAUTION: the ranges documented in
 // AudioUnitParameters.h are stale. The AU's real LargeSize range, queried
@@ -47,6 +48,7 @@ static const float kReverbTailLowCutHz = 550.0f;
 static const float kReverbLargeSize = 0.15f;     // the real max: the tail knob
 static const float kReverbSmallLargeMix = 90.0f; // 0-100: mostly the large hall engine
 static const float kReverbLargeDensity = 0.9f;   // lush, smooth tail
+#endif
 
 // Momentary delay echo sends, on held R and T keys, using the same gated
 // send-return pattern as the reverb. The tap is a fraction of a beat of the
@@ -231,11 +233,16 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     [engine attachNode:_reverb];
     [engine attachNode:_reverbLowCut];
     // Cathedral is the base character, and these push the tail out to the
-    // target length. See the constants.
+    // target length. See the constants. macOS-only: there AVAudioUnitReverb
+    // wraps MatrixReverb ('mrev'), whose raw kReverbParam_* knobs these are;
+    // on iOS it wraps Reverb2, which has no equivalents, so iOS keeps the
+    // plain Cathedral tail.
+#if TARGET_OS_OSX
     AudioUnit reverbUnit = _reverb.audioUnit;
     AudioUnitSetParameter(reverbUnit, kReverbParam_SmallLargeMix, kAudioUnitScope_Global, 0, kReverbSmallLargeMix, 0);
     AudioUnitSetParameter(reverbUnit, kReverbParam_LargeSize, kAudioUnitScope_Global, 0, kReverbLargeSize, 0);
     AudioUnitSetParameter(reverbUnit, kReverbParam_LargeDensity, kAudioUnitScope_Global, 0, kReverbLargeDensity, 0);
+#endif
 
     // Two ping-pong delay returns, the same machine at different clock
     // divisions; see VibeDelaySend. They are created and attached here so that

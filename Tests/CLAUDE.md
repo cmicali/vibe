@@ -2,6 +2,8 @@
 
 `make test` runs these. The `VibeTests` target is defined in `project.yml`; editing the source list there means re-running `xcodegen generate`.
 
+(`iOSDriver/` is not part of this suite: it is the vibe-debug skill's interactive touch driver — a resident XCUITest started by `drive-ios.sh`, never run as a test. It lives under `Tests/` only because anything under `Vibe/` is swept into the app targets.)
+
 ## What belongs here
 
 Pure logic only — code that is a function of its inputs and needs no running app: sample and geometry math, archive encode/decode and its validation, string and duration formatting, precedence and fallback rules, cache-key derivation. The suite is **host-less** (no `TEST_HOST`), so it runs in seconds with no window server, no audio hardware, no permissions, and no Vibe instance running.

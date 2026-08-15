@@ -4,6 +4,7 @@
 //
 
 #import "TransportKeyMonitor.h"
+#import "AudioPlayer.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Window.h"
 #import "MainPlayerController+Transport.h"
@@ -216,8 +217,12 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
     // meanings of the press get an instant response. The keyUp branch above
     // decides whether the flip latches, on a tap, or reverts, on a hold.
     // Key-repeat downs are swallowed without touching the state machine.
+    // With FX disabled, fx is nil for the app's lifetime and Q/W/E/R/T are
+    // not effect keys at all: they pass through unhandled, like any other
+    // unbound key. The keyUp side needs no twin guard — a keyDown never
+    // handled leaves _effectKeyIsDown clear, and that branch already yields.
     NSInteger effectKey = VibeEffectKeyForChars(chars);
-    if (effectKey >= 0) {
+    if (effectKey >= 0 && controller.audioPlayer.fx != nil) {
         if (!event.isARepeat) {
             BOOL wasActive = [self effectActive:effectKey controller:controller];
             _effectKeyIsDown[effectKey] = YES;

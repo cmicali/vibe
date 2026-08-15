@@ -10,7 +10,7 @@ Every way a file can arrive — a Finder double-click, `⌘O`, Open Recent, a dr
 
 - **`OpenBurstCoalescer`** — Launch Services splits a multi-file open across several `application:openURLs:` calls. The first batch plays immediately, because a double-clicked file must not wait out a delay; later batches inside a 0.3-second quiet period are appended instead of replacing. Tested.
 - **`OpenRequestCoordinator`** — expansion (the folder walk, the CUE/M3U read) runs concurrently, so results come back out of order. It buffers appends within the surviving burst and lets a newer deliberate replacement supersede every unfinished older result. An expansion that never finishes — a mount that stops answering — gives up after ten seconds and delivers anyway, or one wedged batch would swallow every later batch in its burst. Tested.
-- **`DocumentTypes`** — what the app claims it can open, shared between the `⌘O` panel's filter and `DefaultAppRegistration` in `Vibe/Settings/`, so the two cannot disagree about what a "supported file" is.
+- **`DocumentTypes`** is no longer here — it is `Vibe/Common/`, since it reads the bundle and touches no AppKit, and both targets declare document types. The `⌘O` panel's filter and `DefaultAppRegistration` (`Vibe/Settings/`) still read it, so the two cannot disagree about what a "supported file" is.
 
 The walk itself is `NSURLUtil` (`Vibe/Util/`), which is deliberately ignorant of all this: it reports what it saw through handler blocks that `AppDelegate` installs at launch.
 

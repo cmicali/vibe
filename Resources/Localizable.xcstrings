@@ -1303,6 +1303,18 @@
       },
       "extractionState": "manual"
     },
+    "error.folder_empty": {
+      "comment": "iOS: shown after picking a folder that contains no playable audio files.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No audio files in this folder"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "error.load_timeout": {
       "comment": "Inline playback error: opening the file took too long, e.g. an undownloaded cloud file.",
       "localizations": {
@@ -2419,6 +2431,18 @@
       },
       "extractionState": "manual"
     },
+    "label.choose_folder": {
+      "comment": "iOS: row in the track list sheet that opens the system document picker to pick a different folder or file.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Folder…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "label.convert.save_message": {
       "comment": "Message atop the save panel that appears when the app may not write next to the source file.",
       "localizations": {
@@ -2786,6 +2810,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "拖放檔案或按 %@"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "label.open_hint.ios": {
+      "comment": "iOS empty-state hint on the player screen when nothing is loaded. Tapping anywhere opens the system file picker.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap to choose a folder or file"
           }
         }
       },
@@ -3902,6 +3938,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ kHz"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "label.search": {
+      "comment": "iOS: title and placeholder of the search screen that filters the current folder's tracks.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search"
           }
         }
       },
@@ -24944,6 +24992,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "自動偵測調性"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.playback.enable_fx": {
+      "comment": "Settings, Playback pane: checkbox keeping the DJ performance effects (low kill, reverb, delay) available. When off, the effect processing is removed from the audio engine entirely. 'FX' is the DJ term for effects, left untranslated.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable audio FX"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.playback.enable_fx_restart": {
+      "comment": "Settings, Playback pane: small caption under the 'Enable audio FX' checkbox explaining that toggling it applies on the next launch. %@ is the app name.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takes effect after %@ is reopened."
           }
         }
       },

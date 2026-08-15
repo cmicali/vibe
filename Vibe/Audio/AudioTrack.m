@@ -89,14 +89,14 @@
     }
 }
 
-- (NSImage *)cachedArt {
+- (VibeImage *)cachedArt {
     // Non-blocking on purpose, because the main thread reads it in updateUI
     // and for the dock icon. Extraction that needs a file read happens in the
     // background load MainPlayerController starts when artNeedsLoad.
     return self.metadata.cachedArt;
 }
 
-- (NSImage *)cachedThumbnail {
+- (VibeImage *)cachedThumbnail {
     return self.metadata.cachedThumbnail;
 }
 

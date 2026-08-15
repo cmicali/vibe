@@ -4,6 +4,7 @@
 //
 
 #import "DebugHealth.h"
+#import "DebugInvariants.h"   // VibeDebugViolation, shared with the cross-platform checks
 
 #if DEBUG
 
@@ -303,108 +304,35 @@ void VibeDebugQuiesce(MainPlayerController *controller, void (^completion)(NSStr
 
 #pragma mark - check_invariants
 
-static void VibeViolation(NSMutableArray<NSDictionary *> *out, NSString *identifier,
-                          NSString *format, ...) NS_FORMAT_FUNCTION(3, 4);
-static void VibeViolation(NSMutableArray<NSDictionary *> *out, NSString *identifier,
-                          NSString *format, ...) {
-    va_list args;
-    va_start(args, format);
-    NSString *detail = [[NSString alloc] initWithFormat:format arguments:args];
-    va_end(args);
-    [out addObject:@{@"id": identifier, @"detail": detail}];
-}
-
-// A generous ceiling, not a tight one. The engine carries the output and main
-// mixer, the FX chain, and a player node plus varispeed per live track, which
-// measures 25 at rest and does not move across a burst of track changes, so
-// this is roughly 5x headroom. A leak is unbounded and blows past it either
-// way; the sensitive detector is the stress driver diffing the same number
-// against its own baseline.
-static const NSUInteger kVibeMaxReasonableEngineNodes = 128;
-
-static BOOL VibeIsFiniteNonNegative(double value) {
-    return isfinite(value) && value >= 0;
-}
-
-NSString *VibeDebugInvariantsJSON(MainPlayerController *controller) {
-    NSMutableArray<NSDictionary *> *v = [NSMutableArray array];
+// The macOS-only checks: the header labels the mac renders, the pitch fader,
+// the playlist table's row count, and the scaled UI tick rate. Everything that
+// holds on both platforms is VibeDebugAppendSharedInvariants, in
+// Debug/Shared/DebugInvariants.m, and `check_invariants` runs that first and
+// this through the surface protocol's optional hook.
+//
+// These are the render-lag-sensitive ones: renderState runs from the updateUI
+// funnel, so a state that flipped this runloop turn may not have been drawn
+// yet. Re-check after a settle before believing them.
+NSUInteger VibeDebugAppendMacInvariants(NSMutableArray<NSDictionary *> *v,
+                                        MainPlayerController *controller) {
     NSUInteger checked = 0;
 
     AudioPlayer *player = controller.audioPlayer;
-    PlaylistController *playlist = controller.playlistController;
     TrackDisplayController *display = controller.trackDisplay;
     TrackDisplayState state = [controller displayState];
-    AudioTrack *current = playlist.currentTrack;
-    NSUInteger count = playlist.count;
-    NSUInteger index = playlist.currentIndex;
-
-    // ---- Playlist ----
-
-    checked++;
-    if (count == 0) {
-        if (index != 0) {
-            VibeViolation(v, @"playlist.index_in_range",
-                    @"empty playlist but currentIndex is %lu", (unsigned long)index);
-        }
-    }
-    else if (index >= count) {
-        VibeViolation(v, @"playlist.index_in_range",
-                @"currentIndex %lu with %lu tracks", (unsigned long)index, (unsigned long)count);
-    }
-
-    checked++;
-    AudioTrack *atIndex = [playlist trackAtIndex:index];
-    if (current != atIndex) {
-        VibeViolation(v, @"playlist.current_track_matches_index",
-                @"currentTrack %@ but track at index %lu is %@",
-                current.url.lastPathComponent ?: @"(nil)", (unsigned long)index,
-                atIndex.url.lastPathComponent ?: @"(nil)");
-    }
+    NSUInteger count = controller.playlistController.count;
 
     checked++;
     NSInteger rows = controller.playlistTableView.numberOfRows;
     if (rows != (NSInteger)count) {
-        VibeViolation(v, @"playlist.table_rows_match",
+        VibeDebugViolation(v, @"playlist.table_rows_match",
                 @"table has %ld rows, playlist has %lu tracks", (long)rows, (unsigned long)count);
-    }
-
-    // ---- Player ----
-
-    checked++;
-    if (!VibeIsFiniteNonNegative(player.duration)) {
-        VibeViolation(v, @"player.duration_finite", @"duration is %f", player.duration);
-    }
-
-    checked++;
-    if (!VibeIsFiniteNonNegative(player.position)) {
-        VibeViolation(v, @"player.position_finite", @"position is %f", player.position);
-    }
-
-    // Only in the settled Track state: Loading reads both as 0 by contract,
-    // and a seek in flight can momentarily report the old playhead.
-    checked++;
-    if (state == TrackDisplayStateTrack && player.duration > 0
-            && player.position > player.duration + 0.5) {
-        VibeViolation(v, @"player.position_within_duration",
-                @"position %.3f past duration %.3f", player.position, player.duration);
-    }
-
-    checked++;
-    if (fabsf(player.pitch) > player.maxPitch + 0.001f) {
-        VibeViolation(v, @"player.pitch_clamped",
-                @"pitch %.4f outside ±%.4f", player.pitch, player.maxPitch);
-    }
-
-    checked++;
-    if (fabsf(player.maxPitch - Settings.pitchRange) > 0.001f) {
-        VibeViolation(v, @"player.max_pitch_matches_setting",
-                @"player maxPitch %.4f, setting %ld", player.maxPitch, (long)Settings.pitchRange);
     }
 
     checked++;
     float faderPitch = controller.pitchPanel.pitch;
     if (fabsf(faderPitch - player.pitch) > 0.01f) {
-        VibeViolation(v, @"pitch.fader_matches_player",
+        VibeDebugViolation(v, @"pitch.fader_matches_player",
                 @"fader %.4f, player %.4f", faderPitch, player.pitch);
     }
 
@@ -417,64 +345,12 @@ NSString *VibeDebugInvariantsJSON(MainPlayerController *controller) {
     NSUInteger armedHz = controller.debugUIUpdateHz;
     NSUInteger expectedHz = controller.debugExpectedUIUpdateHz;
     if (armedHz != expectedHz) {
-        VibeViolation(v, @"ui.update_rate_follows_inputs",
+        VibeDebugViolation(v, @"ui.update_rate_follows_inputs",
                 @"timer armed at %lu Hz, inputs ask for %lu Hz",
                 (unsigned long)armedHz, (unsigned long)expectedHz);
     }
 
-    checked++;
-    NSUInteger nodes = [player debugEngineCounts][@"attachedNodes"].unsignedIntegerValue;
-    if (nodes > kVibeMaxReasonableEngineNodes) {
-        VibeViolation(v, @"engine.node_count_bounded",
-                @"%lu nodes attached to the engine", (unsigned long)nodes);
-    }
-
-    // ---- Track: tag-over-analysis precedence ----
-
-    if (current) {
-        // One snapshot of the atomic metadata, because AudioTrack's own
-        // accessors re-read it; a delivery landing between the two reads is a
-        // real (and rare) source of a disagreement that the caller's re-check
-        // will not reproduce.
-        AudioTrackMetadata *metadata = current.metadata;
-
-        checked++;
-        float taggedBPM = metadata.bpm;
-        float expectedBPM = taggedBPM > 0 ? taggedBPM : current.detectedBPM;
-        if (fabsf(current.bpm - expectedBPM) > 0.001f) {
-            VibeViolation(v, @"track.bpm_precedence",
-                    @"bpm %.3f, tagged %.3f, detected %.3f",
-                    current.bpm, taggedBPM, current.detectedBPM);
-        }
-
-        checked++;
-        VibeMusicalKey taggedKey = metadata ? metadata.key : VibeMusicalKeyNone;
-        VibeMusicalKey expectedKey = taggedKey >= 0 ? taggedKey : current.detectedKey;
-        if (current.key != expectedKey) {
-            VibeViolation(v, @"track.key_precedence",
-                    @"key %ld, tagged %ld, detected %ld",
-                    (long)current.key, (long)taggedKey, (long)current.detectedKey);
-        }
-
-        // Guards the zero-fill trap from the other side: a key that is neither
-        // a valid 0-23 nor exactly VibeMusicalKeyNone is uninitialized memory
-        // or a bad parse, and 0 reads as tagged C major wherever it came from.
-        checked++;
-        if (!VibeMusicalKeyIsValid(current.key) && current.key != VibeMusicalKeyNone) {
-            VibeViolation(v, @"track.key_in_range", @"resolved key is %ld", (long)current.key);
-        }
-        checked++;
-        if (!VibeMusicalKeyIsValid(current.detectedKey) && current.detectedKey != VibeMusicalKeyNone) {
-            VibeViolation(v, @"track.detected_key_in_range",
-                    @"detectedKey is %ld", (long)current.detectedKey);
-        }
-    }
-
     // ---- Header labels against the resolved state ----
-    //
-    // These are the render-lag-sensitive ones: renderState runs from the
-    // updateUI funnel, so a state that flipped this runloop turn may not have
-    // been drawn yet. Re-check after a settle before believing them.
 
     NSString *title = display.titleTextField.stringValue ?: @"";
     NSString *artist = display.artistTextField.stringValue ?: @"";
@@ -484,13 +360,13 @@ NSString *VibeDebugInvariantsJSON(MainPlayerController *controller) {
         checked++;
         NSString *expectedTitle = shown.hasArtistAndTitle ? shown.title : shown.singleLineTitle;
         if (shown && ![title isEqualToString:expectedTitle ?: @""]) {
-            VibeViolation(v, @"display.title_matches_track",
+            VibeDebugViolation(v, @"display.title_matches_track",
                     @"header shows \"%@\", track is \"%@\"", title, expectedTitle ?: @"");
         }
         checked++;
         NSString *expectedArtist = shown.hasArtistAndTitle ? (shown.artist ?: @"") : @"";
         if (shown && ![artist isEqualToString:expectedArtist]) {
-            VibeViolation(v, @"display.artist_matches_track",
+            VibeDebugViolation(v, @"display.artist_matches_track",
                     @"header shows \"%@\", track is \"%@\"", artist, expectedArtist);
         }
     }
@@ -498,7 +374,7 @@ NSString *VibeDebugInvariantsJSON(MainPlayerController *controller) {
     if (state == TrackDisplayStateEmpty || state == TrackDisplayStateLaunchGrace) {
         checked++;
         if (title.length > 0) {
-            VibeViolation(v, @"display.empty_state_clears_title",
+            VibeDebugViolation(v, @"display.empty_state_clears_title",
                     @"no current track but the header shows \"%@\"", title);
         }
     }
@@ -512,92 +388,18 @@ NSString *VibeDebugInvariantsJSON(MainPlayerController *controller) {
         checked++;
         NSString *elapsed = display.currentTimeTextField.stringValue ?: @"";
         if (![elapsed isEqualToString:placeholder]) {
-            VibeViolation(v, @"display.elapsed_time_placeholder",
+            VibeDebugViolation(v, @"display.elapsed_time_placeholder",
                     @"state %ld shows elapsed \"%@\"", (long)state, elapsed);
         }
         checked++;
         NSString *total = display.totalTimeTextField.stringValue ?: @"";
         if (![total isEqualToString:placeholder]) {
-            VibeViolation(v, @"display.total_time_placeholder",
+            VibeDebugViolation(v, @"display.total_time_placeholder",
                     @"state %ld shows total \"%@\"", (long)state, total);
         }
     }
 
-    // ---- System Now Playing against what it was published from ----
-    //
-    // Every check is gated on nowPlayingInfo being non-nil, which is also what
-    // --no-audio-hw's suppressed publish leaves it as, so a suppressed launch
-    // simply checks nothing here. Elapsed is deliberately not compared: the
-    // system extrapolates it from the last publish, so it is expected to run
-    // ahead of the published value. These share the render-lag caveat above —
-    // updateNowPlaying rides updateUI, so a transition republishes a tick
-    // later; re-check after a settle.
-    MPNowPlayingInfoCenter *center = MPNowPlayingInfoCenter.defaultCenter;
-    NSDictionary *published = center.nowPlayingInfo;
-    AudioTrack *displayed = [controller displayedTrack];
-
-    checked++;
-    if (published && !displayed) {
-        VibeViolation(v, @"nowplaying.cleared_without_track",
-                @"no displayed track but the system card still shows \"%@\"",
-                published[MPMediaItemPropertyTitle] ?: @"");
-    }
-
-    if (published && displayed) {
-        checked++;
-        NSString *publishedTitle = published[MPMediaItemPropertyTitle] ?: @"";
-        NSString *expected = displayed.singleLineTitle ?: @"";
-        if (![publishedTitle isEqualToString:expected]) {
-            VibeViolation(v, @"nowplaying.title_matches_track",
-                    @"card shows \"%@\", track is \"%@\"", publishedTitle, expected);
-        }
-
-        checked++;
-        NSString *publishedArtist = published[MPMediaItemPropertyArtist] ?: @"";
-        NSString *expectedArtist = displayed.artist.length > 0 ? displayed.artist : @"";
-        if (![publishedArtist isEqualToString:expectedArtist]) {
-            VibeViolation(v, @"nowplaying.artist_matches_track",
-                    @"card shows \"%@\", track is \"%@\"", publishedArtist, expectedArtist);
-        }
-
-        // isPaused before isPlaying, the order updateNowPlaying resolves them
-        // in: during Loading the two are decided by the pending start intent.
-        checked++;
-        MPNowPlayingPlaybackState expectedState =
-                player.isPaused ? MPNowPlayingPlaybackStatePaused
-                : player.isPlaying ? MPNowPlayingPlaybackStatePlaying
-                : MPNowPlayingPlaybackStateStopped;
-        if (center.playbackState != expectedState) {
-            VibeViolation(v, @"nowplaying.state_matches_player",
-                    @"card is %ld, player is %ld",
-                    (long)center.playbackState, (long)expectedState);
-        }
-
-        // Wall-clock, like the app's own labels: the published duration is the
-        // file duration divided by the varispeed rate, so a pitch change that
-        // never republished shows up here.
-        checked++;
-        NSNumber *publishedDuration = published[MPMediaItemPropertyPlaybackDuration];
-        double rate = controller.playbackRate;
-        double expectedDuration = state == TrackDisplayStateLoading ? displayed.duration
-                                                                    : player.duration;
-        if (rate > 0) {
-            expectedDuration /= rate;
-        }
-        if (publishedDuration && expectedDuration > 0
-                && fabs(publishedDuration.doubleValue - expectedDuration) > 1.0) {
-            VibeViolation(v, @"nowplaying.duration_matches_track",
-                    @"card says %.3f, track is %.3f at rate %.4f",
-                    publishedDuration.doubleValue, expectedDuration, rate);
-        }
-    }
-
-    return VibeJSONString(@{
-        @"ok": @(v.count == 0),
-        @"checked": @(checked),
-        @"state": @(state),
-        @"violations": v,
-    });
+    return checked;
 }
 
 #endif

@@ -6,23 +6,7 @@
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 
-// The pixel size for a playlist-cell thumbnail, generous for Retina at typical
-// row heights.
-extern const CGFloat kVibeThumbnailArtDimension;
-
-// The cap for a full-resolution display image. Nothing renders art larger than
-// the roughly 300px artwork panel or the 512px dock icon, and decoding straight
-// to this size never allocates the original-resolution bitmap, over 50MB.
-extern const CGFloat kVibeDisplayArtDimension;
-
 @interface NSImage (Util)
-
-// Decodes image data at a bounded pixel size through ImageIO. Unlike
-// initWithData: followed by a resize, this never materializes the full-size
-// bitmap. nil for data that is not a decodable image. The decode can take
-// 10-100ms, so it belongs off the main thread.
-+ (nullable NSImage *)decodedImageWithData:(nullable NSData *)data
-                              maxPixelSize:(CGFloat)maxPixelSize;
 
 // Runs draw inside a fresh explicit-sRGB RGBA8 bitmap context of `size`
 // pixels (one point per pixel) and returns the image wrapping that bitmap,

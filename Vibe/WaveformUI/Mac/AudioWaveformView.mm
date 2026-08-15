@@ -5,10 +5,7 @@
 
 #import "AudioWaveformViewInternal.h"
 #import "AudioWaveformView+Loading.h"
-#import "DetailedAudioWaveformRenderer.h"
-#import "SonicCirrusWaveformRenderer.h"
-#import "BasicAudioWaveformRenderer.h"
-#import "OversamplingDetailedAudioWaveformRenderer.h"
+#import "WaveformRendererRegistry.h"
 #import "NSView+DarkMode.h"
 #import "AppSettings.h"
 
@@ -18,9 +15,6 @@
     // The convert sweep's front: bars left of it have already been dipped.
     double                      _convertSweepFraction;
     BOOL                        _didClickInside;
-    // The renderer classes, keyed by styleIdentifier and instantiated on
-    // selection.
-    NSMutableDictionary<NSString *, Class>* _waveformRenderers;
     NSTrackingArea*             _hoverTrackingArea;
 }
 
@@ -51,29 +45,6 @@
     _progress = 0;
     _progressTracker = 0;
     _didClickInside = NO;
-
-    _waveformRenderers = [NSMutableDictionary new];
-
-    [self addWaveformRenderer:BasicAudioWaveformRenderer.class];
-    [self addWaveformRenderer:SonicCirrusWaveformRenderer.class];
-    [self addWaveformRenderer:DetailedAudioWaveformRenderer.class];
-    [self addWaveformRenderer:x2OversamplingDetailedAudioWaveformRenderer.class];
-    [self addWaveformRenderer:x4OversamplingDetailedAudioWaveformRenderer.class];
-    [self addWaveformRenderer:x8OversamplingDetailedAudioWaveformRenderer.class];
-
-}
-
-- (void)addWaveformRenderer:(Class)renderer {
-    // A nil key raises, so the registry never takes one: the base class
-    // asserts on the missing override, and this keeps a Release build with an
-    // unoverridden subclass down to one missing style.
-    NSString *identifier = [renderer styleIdentifier];
-    if (identifier.length == 0) {
-        LogError(@"Waveform renderer %@ has no style identifier; not registering it",
-                 NSStringFromClass(renderer));
-        return;
-    }
-    _waveformRenderers[identifier] = renderer;
 }
 
 - (NSString *)currentWaveformStyle {
@@ -81,11 +52,11 @@
 }
 
 - (void)setWaveformStyle:(NSString*)identifier {
-    Class renderer = identifier.length ? _waveformRenderers[identifier] : nil;
+    Class renderer = [WaveformRendererRegistry rendererClassForIdentifier:identifier];
     if (!renderer) {
         // Unknown identifier (hand-edited default, or a style dropped in a
         // later version): fall back rather than leaving a blank waveform.
-        renderer = _waveformRenderers[SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT];
+        renderer = [WaveformRendererRegistry rendererClassForIdentifier:SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT];
         if (!renderer) {
             return;
         }
@@ -96,7 +67,7 @@
 }
 
 - (NSString *)displayNameForStyle:(NSString *)identifier {
-    return [_waveformRenderers[identifier] displayName] ?: identifier;
+    return [WaveformRendererRegistry displayNameForIdentifier:identifier];
 }
 
 - (void)drawWaveform {
@@ -111,7 +82,7 @@
 }
 
 - (NSArray<NSString*>*)availableWaveformStyles {
-    return _waveformRenderers.allKeys;
+    return [WaveformRendererRegistry availableIdentifiers];
 }
 
 - (void)mouseDown:(NSEvent *)event {
@@ -250,18 +221,10 @@
     [self hideEmptyPlaceholder];
     [self resetWaveformContentState];
     if (!_currentWaveformRenderer) {
-        // Prefer the persisted style, then the app default. allKeys[0] is a
-        // last resort only, because NSMutableDictionary key order is
-        // unspecified and it would otherwise pick an arbitrary renderer from
-        // one run to the next.
-        NSString *style = [[AppSettings sharedInstance] waveformStyle];
-        if (!style.length || !_waveformRenderers[style]) {
-            style = SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT;
-        }
-        if (!_waveformRenderers[style]) {
-            style = _waveformRenderers.allKeys.firstObject;
-        }
-        [self setWaveformStyle:style];
+        // Prefer the persisted style, then the app default; the registry owns
+        // the chain.
+        [self setWaveformStyle:[WaveformRendererRegistry
+                resolveStyleIdentifier:[[AppSettings sharedInstance] waveformStyle]]];
     }
     [self drawWaveform];
 }

@@ -16,7 +16,6 @@
 // publish and the card visibly fills in after the window has. This is the side
 // the system actually draws — Control Center, the lock screen, the mini player
 // — with room to spare.
-static const CGFloat kPublishedArtworkMaxSide = 512;
 
 // TRAP: this must run on the main thread, and its result must be the ONLY
 // thing the request handler hands back. The handler is invoked on the media
@@ -27,6 +26,7 @@ static const CGFloat kPublishedArtworkMaxSide = 512;
 // surface the system asks about.
 static VibeImage *VibeArtworkForPublishing(VibeImage *artwork) {
 #if TARGET_OS_OSX
+    static const CGFloat kPublishedArtworkMaxSide = 512;
     CGSize source = artwork.size;
     if (source.width <= 0 || source.height <= 0) {
         return artwork;
@@ -271,7 +271,11 @@ static VibeImage *VibeArtworkForPublishing(VibeImage *artwork) {
             return;
         }
         center.nowPlayingInfo = nil;
+#if TARGET_OS_OSX
+        // playbackState is macOS-only; iOS derives it from the audio session
+        // and the published rate.
         center.playbackState = MPNowPlayingPlaybackStateStopped;
+#endif
         _publishedURL = nil;
         _publishedArtworkImage = nil;
         _publishedArtworkWrapper = nil;
@@ -366,6 +370,7 @@ static VibeImage *VibeArtworkForPublishing(VibeImage *artwork) {
     _publishedDuration = duration;
     _publishedPosition = position;
     _publishedAt = CFAbsoluteTimeGetCurrent();
+#if TARGET_OS_OSX
     switch (state) {
         case NowPlayingPlaybackStatePlaying:
             center.playbackState = MPNowPlayingPlaybackStatePlaying;
@@ -377,6 +382,7 @@ static VibeImage *VibeArtworkForPublishing(VibeImage *artwork) {
             center.playbackState = MPNowPlayingPlaybackStateStopped;
             break;
     }
+#endif
 }
 
 @end

@@ -1,5 +1,7 @@
 # Playlist
 
+The model and the playlist-file readers (`Playlist`, `PlaylistFile` — the CUE and M3U parsing) are shared with iOS and sit at the top level. **`Mac/` is the `NSTableView` half** — the table, its row and cell views, the drop zone — and the iOS target never names that subdirectory; see the root `CLAUDE.md` on the directory being the platform boundary. Everything below is about `Mac/`.
+
 ## Row appearance
 
 Row backgrounds belong to `PlaylistRowView`, not to AppKit. `drawSelectionInRect:` does not call super, which replaces the system `selectedContentBackgroundColor` accent-blue fill with a neutral white or black wash at about 9%. The playing row draws the same wash. `rowViewForRow:` sets `playingRow`, and `refreshRowViewPlayingStates` re-stamps it across the visible rows on every `currentIndex` change, because `reloadDataForRowIndexes:` rebuilds cell views but keeps row views.

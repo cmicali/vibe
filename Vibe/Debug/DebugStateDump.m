@@ -239,10 +239,10 @@ NSString *VibeClickMenuItem(NSString *name) {
 // second `state` round-trip. Transport actions kick off async engine work, so
 // the state here can be a beat behind, since it is read synchronously after
 // the call.
-NSString *VibeActionSummary(MainPlayerController *controller) {
+NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller) {
     AudioPlayer *player = controller.audioPlayer;
     MainWindow *window = (MainWindow *)controller.window;
-    return VibeJSONString(@{
+    return @{
         @"ok": @YES,
         @"state": VibePlayerStateName(player),
         @"index": @(controller.playlistController.currentIndex),
@@ -255,7 +255,11 @@ NSString *VibeActionSummary(MainPlayerController *controller) {
         @"shortDelaySend": @(player.fx.shortDelaySendEnabled),
         @"playlistShown": @(window.isPlaylistShown),
         @"pitchPanelShown": @(window.isPitchPanelShown),
-    });
+    };
+}
+
+NSString *VibeActionSummary(MainPlayerController *controller) {
+    return VibeJSONString(VibeActionSummaryDictionary(controller));
 }
 
 // Writes the per-command response file the client polls for. Both the

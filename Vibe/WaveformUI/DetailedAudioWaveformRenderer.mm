@@ -37,7 +37,7 @@ static const CGFloat kHoverHighlightWidth = 1.5;
 static const float kWaveformOpacity = 0.75f;
 
 @implementation DetailedAudioWaveformRenderer {
-    NSColor *_gradientColor;
+    VibeColor *_gradientColor;
 
     // One bar-shaped mask clips the whole gradient stack. Masking the two
     // gradients separately would rasterize the identical bar path twice per
@@ -85,12 +85,12 @@ static const float kWaveformOpacity = 0.75f;
 
 // Matches the drawn band: bars reach at most ±kBarAmplitudeOfHalfHeight times half the
 // height from the midline, through VibeBarVScale.
-- (NSRect)seekHitBandForBounds:(NSRect)bounds {
+- (CGRect)seekHitBandForBounds:(CGRect)bounds {
     CGFloat midY = bounds.size.height / 2;
     CGFloat vscale = VibeBarVScale(bounds.size.height);
     CGFloat bottomY = round(midY - vscale);
     CGFloat topY = round(midY + vscale);
-    return NSMakeRect(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
+    return CGRectMake(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
@@ -122,7 +122,7 @@ static const float kWaveformOpacity = 0.75f;
     _waveformContainer.actions = @{@"bounds": [NSNull null], @"position": [NSNull null]};
     _waveformContainer.contentsScale = scale;
     _barMask = [CAShapeLayer layer];
-    _barMask.fillColor = [NSColor whiteColor].CGColor;
+    _barMask.fillColor = [VibeColor whiteColor].CGColor;
     _barMask.contentsScale = scale;
     _waveformContainer.mask = _barMask;
     [self.parentLayer addSublayer:_waveformContainer];
@@ -182,9 +182,9 @@ static const float kWaveformOpacity = 0.75f;
     [_waveformContainer removeFromSuperlayer];
 }
 
-- (void)setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<NSColor*>*)colors {
+- (void)setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<VibeColor*>*)colors {
     NSMutableArray *cgColors = [[NSMutableArray alloc] initWithCapacity:colors.count];
-    for (NSColor *color in colors) {
+    for (VibeColor *color in colors) {
         [cgColors addObject:(id)color.CGColor];
     }
     layer.colors = cgColors;
@@ -192,7 +192,7 @@ static const float kWaveformOpacity = 0.75f;
 
 - (void)updateColors:(BOOL)isDark {
     [super updateColors:isDark];
-    _gradientColor = isDark ? [NSColor whiteColor] : [NSColor blackColor];
+    _gradientColor = isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
     [self setGradientLayerColors:_playedGradient colors:[self playedGradientColors:_gradientColor isDark:isDark]];
     [self setGradientLayerColors:_unplayedGradient colors:[self unplayedGradientColors:_gradientColor isDark:isDark]];
     // Full alpha and no vertical fade. The played gradient's own top is the
@@ -206,7 +206,7 @@ static const float kWaveformOpacity = 0.75f;
 // the array order. Played is fully opaque at the top and unplayed is half as
 // opaque, so the played region reads clearly brighter where the two meet at
 // the boundary.
-- (NSArray<NSColor *> *)playedGradientColors:(NSColor *)baseColor isDark:(BOOL)isDark {
+- (NSArray<VibeColor *> *)playedGradientColors:(VibeColor *)baseColor isDark:(BOOL)isDark {
     const CGFloat kBottomAlpha = 0.45;
     const CGFloat kPlayedTop = 1.0;
     return @[
@@ -215,7 +215,7 @@ static const float kWaveformOpacity = 0.75f;
     ];
 }
 
-- (NSArray<NSColor *> *)unplayedGradientColors:(NSColor *)baseColor isDark:(BOOL)isDark {
+- (NSArray<VibeColor *> *)unplayedGradientColors:(VibeColor *)baseColor isDark:(BOOL)isDark {
     const CGFloat kBottomAlpha = 0.45;
     const CGFloat kUnplayedTop = 0.5;
     return @[
@@ -262,7 +262,7 @@ static const float kWaveformOpacity = 0.75f;
     _playedClip.position = CGPointZero;
 }
 
-- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
+- (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
     CGRect localBounds = CGRectMake(0, 0, bounds.size.width, bounds.size.height);
     // Actions are disabled here. An animated window resize redraws every
     // frame, and implicit 0.25s animations on these leave the waveform chasing

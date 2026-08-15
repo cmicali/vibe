@@ -9,11 +9,11 @@
 #import "AudioTrackArtwork.h"
 #import "FolderArtRules.h"
 #import "FolderArtResolver.h"
-#import "NSImage+Util.h"
+#import "PlatformImage.h"
 
 @implementation AudioTrackArtwork {
-    NSImage *_embeddedThumbnail;
-    NSImage *_embeddedArt;
+    VibeImage *_embeddedThumbnail;
+    VibeImage *_embeddedArt;
     NSData *_embeddedArtData;
     AudioTrackArtworkExtractor _extractor;
     BOOL _embeddedExtractionAttempted;
@@ -42,7 +42,7 @@
 - (void)adoptArchivedThumbnailJPEG:(NSData *)jpegData {
     // Decode outside the monitor, per the file's discipline, though in
     // practice this runs during unarchiving, before the object is shared.
-    NSImage *thumbnail = [NSImage decodedImageWithData:jpegData maxPixelSize:kVibeThumbnailArtDimension];
+    VibeImage *thumbnail = VibeDecodedImageWithData(jpegData, kVibeThumbnailArtDimension);
     @synchronized (self) {
         _embeddedThumbnail = thumbnail;
         // A track with embedded art always produced a thumbnail, so an entry
@@ -60,8 +60,8 @@
 // The file's own art, or the folder's cover when it has none. Blocking on both
 // paths; the folder side resolves its directory the first time any track in it
 // asks — see FolderArtResolver, which owns the cost rules.
-- (NSImage *)loadArtBlocking {
-    NSImage *embedded = [self embeddedArt];
+- (VibeImage *)loadArtBlocking {
+    VibeImage *embedded = [self embeddedArt];
     if (embedded) {
         return embedded;
     }
@@ -78,7 +78,7 @@
 // pay the decode and memory cost. Cache-hit instances carry no art bytes,
 // which are not archived, and re-extract from the audio file on demand. Only
 // the current track ever takes that path.
-- (NSImage *)embeddedArt {
+- (VibeImage *)embeddedArt {
     NSString *pathToExtract = nil;
     NSData *dataToDecode = nil;
     BOOL dataWasInMemory = NO;
@@ -107,7 +107,7 @@
     if (!dataToDecode && pathToExtract) {
         dataToDecode = _extractor ? _extractor(pathToExtract) : nil;
     }
-    NSImage *decoded = [NSImage decodedImageWithData:dataToDecode maxPixelSize:kVibeDisplayArtDimension];
+    VibeImage *decoded = VibeDecodedImageWithData(dataToDecode, kVibeDisplayArtDimension);
     @synchronized (self) {
         if (dataToDecode && !decoded) {
             // The bytes exist but cannot be decoded, which is permanent for
@@ -159,7 +159,7 @@
     return [self knownToCarryNoArtLocked] ? _sourceFilePath : nil;
 }
 
-- (NSImage *)cachedArt {
+- (VibeImage *)cachedArt {
     NSString *path;
     @synchronized (self) {
         if (_embeddedArt) {
@@ -242,8 +242,8 @@
     }
 }
 
-- (NSImage *)cachedThumbnail {
-    NSImage *embedded = [self embeddedThumbnail];
+- (VibeImage *)cachedThumbnail {
+    VibeImage *embedded = [self embeddedThumbnail];
     if (embedded) {
         return embedded;
     }
@@ -259,7 +259,7 @@
     return [self.folderArt cachedThumbnailForAudioFilePath:path resolveIfUnknown:YES];
 }
 
-- (NSImage *)embeddedThumbnail {
+- (VibeImage *)embeddedThumbnail {
     NSData *dataToDecode = nil;
     @synchronized (self) {
         if (_embeddedThumbnail) return _embeddedThumbnail;
@@ -269,7 +269,7 @@
         dataToDecode = _embeddedArtData;
     }
     // Decode outside the lock; see the file's discipline above.
-    NSImage *thumbnail = [NSImage decodedImageWithData:dataToDecode maxPixelSize:kVibeThumbnailArtDimension];
+    VibeImage *thumbnail = VibeDecodedImageWithData(dataToDecode, kVibeThumbnailArtDimension);
     @synchronized (self) {
         if (!thumbnail) {
             // The same undecodable marking as the full-resolution path.

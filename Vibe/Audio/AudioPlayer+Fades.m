@@ -118,11 +118,16 @@
 // the ramp, or by retiring an already-silent pair outright. Either half may be
 // nil.
 - (void)detachRetiredFadePair:(VibeRetiredFade *)fade {
-    if (fade.node) {
+    // TRAP: engine identity, not just nil-ness. An unregistered declick retire
+    // is unstoppable by design, so its completion can land after the iOS
+    // media-services rebuild swapped _engine — detachNode: there raises,
+    // because the pair was never attached to the new engine. The dead pair
+    // needs no teardown; it died with its engine.
+    if (fade.node && fade.node.engine == _engine) {
         [fade.node stop];
         [_engine detachNode:fade.node];
     }
-    if (fade.varispeed) {
+    if (fade.varispeed && fade.varispeed.engine == _engine) {
         [_engine detachNode:fade.varispeed];
     }
 }

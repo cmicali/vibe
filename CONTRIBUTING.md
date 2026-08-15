@@ -35,7 +35,7 @@ The app lands at `build/DerivedData/Build/Products/<config>/Vibe.app`. `make cle
 
 ## Localization
 
-Every user-facing string lives in `Vibe/Core/VibeStrings.h` and is used through its `STR_*` macro — no English at the call site. **Run `make strings` after touching any UI string**; CI runs `make check-strings` and fails on a stale catalog. Adding a string, adding a language, and testing one are covered in [docs/localization.md](docs/localization.md).
+Every user-facing string lives in `Vibe/Common/VibeStrings.h` and is used through its `STR_*` macro — no English at the call site. **Run `make strings` after touching any UI string**; CI runs `make check-strings` and fails on a stale catalog. Adding a string, adding a language, and testing one are covered in [docs/localization.md](docs/localization.md).
 
 ## Reporting bugs
 

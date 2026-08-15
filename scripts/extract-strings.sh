@@ -27,7 +27,7 @@ set -euo pipefail
 
 REPO_ROOT="${SRCROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 CATALOG="$REPO_ROOT/Resources/Localizable.xcstrings"
-REGISTRY="$REPO_ROOT/Vibe/Core/VibeStrings.h"
+REGISTRY="$REPO_ROOT/Vibe/Common/VibeStrings.h"
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT

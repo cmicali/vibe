@@ -35,12 +35,17 @@ NS_ASSUME_NONNULL_BEGIN
 // calling thread; the completion runs on the main thread.
 - (void)diskUsageWithCompletion:(void (^)(NSUInteger fileCount, unsigned long long totalBytes))completion;
 
+// Both main thread only, like the delegate deliveries they gate.
 - (void)loadWaveformForTrack:(AudioTrack *)track;
-// Cancels the in-flight load, if there is one, so there are no further
-// waveform deliveries until the next loadWaveformForTrack:. A decode that has
-// already completed may still persist to disk, and its BPM is still delivered,
-// tagged with its URL for the receiver to match against its playlist. Only the
-// waveform UI delivery is dropped.
+// Supersedes the in-flight load, if there is one, so there are no further
+// waveform deliveries until the next loadWaveformForTrack:. The decode is NOT
+// aborted: it detaches, runs to completion in the background, and persists,
+// so the next request for that file is a disk hit — a skip-ahead or a pager
+// peek no longer throws the decode away. Up to two detached decodes run at
+// once; beyond that the oldest is genuinely cancelled. A request for a file
+// whose detached decode is still running reattaches it instead of starting a
+// second one. BPM and key from a detached decode are still delivered, tagged
+// with their URL for the receiver to match against its playlist.
 - (void)cancelLoad;
 
 @end

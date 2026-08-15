@@ -114,6 +114,7 @@
     // paint.
     self.audioPlayer = [[AudioPlayer alloc] initWithDeviceUID:Settings.audioOutputDeviceUID
                                                          name:Settings.audioOutputDeviceName
+                                                     enableFX:Settings.audioFXEnabled
                                                      delegate:self];
     self.metadataCache = [[AudioTrackMetadataCache alloc] init];
     self.metadataCache.delegate = self;

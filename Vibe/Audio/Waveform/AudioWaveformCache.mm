@@ -17,6 +17,14 @@
 @interface AudioWaveformCache () <AudioWaveformLoaderDelegate>
 @end
 
+// How many superseded decodes may keep running in the background at once. A
+// skip-ahead or a pager peek used to abort the in-flight decode and throw the
+// work away; a detached decode completes, persists, and turns the next
+// request for that file into a disk hit. Beyond the cap the oldest is
+// genuinely cancelled — with the active load this bounds concurrent decodes
+// at three.
+static const NSUInteger kMaxDetachedWaveformLoads = 2;
+
 @implementation AudioWaveformCache {
     dispatch_queue_t                _loaderQueue;
     PINCache*                       _waveformCache;
@@ -24,6 +32,9 @@
     // The file _currentLoader is decoding, so the progressive deliveries can
     // carry it. Main-thread confined, like _currentLoader itself.
     NSURL*                          _currentLoadURL;
+    // Superseded loaders still decoding, oldest first. Main-confined, like
+    // _currentLoader: the public load/cancel API runs on the main thread.
+    NSMutableArray<AudioWaveformLoader *> *_detachedLoaders;
     // Bumped by invalidateWithCompletion:. A decode captures it when it
     // starts, skips its disk write if it has moved, and re-checks after the
     // write lands, removing the entry it just wrote if an invalidate raced it.
@@ -52,6 +63,7 @@
         _loaderQueue = dispatch_queue_create("AudioWaveformCache", queueAttributes);
         _cacheGeneration = 0;
         _currentLoader = nil;
+        _detachedLoaders = [NSMutableArray array];
         // Create the cache on the loader queue. Constructing it on the main
         // thread would boost PINCache's internal init-time disk scan to
         // user-initiated QoS, which then priority-inverts against our
@@ -89,9 +101,27 @@
 }
 
 - (void)loadWaveformForTrack:(AudioTrack *)track {
-    [_currentLoader cancel];
+    NSString *path = track.url.path;
+    [self detachCurrentLoader];
+    // A detached decode of this same file resumes delivering instead of
+    // racing a second decode of it: progress ticks pick up at the decode's
+    // live position, and the final delivery flows through its original
+    // completion.
+    for (AudioWaveformLoader *candidate in _detachedLoaders) {
+        if (!candidate.isCancelled && !candidate.isComplete
+                && [candidate.trackPath isEqualToString:path]) {
+            [_detachedLoaders removeObjectIdenticalTo:candidate];
+            [candidate reattach];
+            _currentLoader = candidate;
+            // The reattached decode delivers from here on, so it must deliver
+            // under this track's URL and not the one it was detached from.
+            _currentLoadURL = track.url;
+            return;
+        }
+    }
     AudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:self];
-     _currentLoader = loader;
+    loader.trackPath = path;
+    _currentLoader = loader;
     // Captured now rather than read back at delivery. Every delivery carries
     // the URL this waveform was loaded for, so one landing after a track
     // change cannot be stamped on whatever track is current by then.
@@ -118,15 +148,47 @@
                 // nil, meaning cancelled, failed or partial. The UI stays at
                 // whatever progress the last in-flight loader callback
                 // reported.
+                //
+                // Finished either way: drop the loader from the detached pool
+                // if a later request parked it there.
+                run_on_main_thread({
+                    [self->_detachedLoaders removeObjectIdenticalTo:loader];
+                });
             }];
         });
     });
 }
 
 - (void)cancelLoad {
-    [_currentLoader cancel];
+    [self detachCurrentLoader];
+}
+
+// Supersedes the active load WITHOUT aborting it: the decode runs on
+// detached — deliveries stop, but a completed decode still persists, so the
+// next request for that file is a disk hit instead of a re-decode. Beyond
+// the cap the oldest detached decode is cancelled outright.
+- (void)detachCurrentLoader {
+    AudioWaveformLoader *loader = _currentLoader;
     _currentLoader = nil;
     _currentLoadURL = nil;
+    if (!loader || loader.isCancelled) {
+        return;
+    }
+    // Detach even a completed loader: isComplete is set on the decode thread
+    // BEFORE its final delivery block reaches the main queue, so "complete"
+    // can still have a live delivery in flight, and the detach flag is what
+    // deliverCompleteWaveform checks on main. Skipping the detach here let
+    // that delivery land as a live one on whatever track superseded it.
+    [loader detach];
+    if (loader.isComplete) {
+        return; // nothing to pool — the decode is done and persists on its own
+    }
+    [_detachedLoaders addObject:loader];
+    while (_detachedLoaders.count > kMaxDetachedWaveformLoads) {
+        AudioWaveformLoader *oldest = _detachedLoaders.firstObject;
+        [oldest cancel];
+        [_detachedLoaders removeObjectAtIndex:0];
+    }
 }
 
 // The lookup-or-decode core, shared by the delegate delivery path above and
@@ -156,6 +218,10 @@ awaitPersist:(BOOL)awaitPersist
         cachedWaveform = nil;
     }
     if (cachedWaveform) {
+        // A hit finishes this loader as surely as a decode does; without the
+        // mark, a detach pools it and a same-file re-request reattaches a
+        // loader that will never deliver again.
+        loader.isComplete = YES;
         completion(cachedWaveform, YES);
         return;
     }
@@ -212,11 +278,13 @@ awaitPersist:(BOOL)awaitPersist
 // thread, because a cancel from a newly selected track may land after the
 // block is enqueued.
 - (void)deliverCompleteWaveform:(CodableAudioWaveform *)waveform loader:(AudioWaveformLoader *)loader url:(NSURL *)url {
-    if (loader.isCancelled && waveform.bpm <= 0 && waveform.key < 0) {
+    if ((loader.isCancelled || loader.isDetached) && waveform.bpm <= 0 && waveform.key < 0) {
         return;
     }
     run_on_main_thread({
-        if (!loader.isCancelled) {
+        // Detached is checked here, on delivery, not at enqueue: a reattach
+        // that lands first correctly turns this back into a live delivery.
+        if (!loader.isCancelled && !loader.isDetached) {
             [self.delegate audioWaveform:waveform didLoadData:1 forURL:url];
         }
         // The BPM and key are computed at the end of the decode pass, or
@@ -242,7 +310,7 @@ awaitPersist:(BOOL)awaitPersist
 // load cancels the old loader before taking _currentLoadURL, so the URL here
 // always belongs to the loader that is still delivering.
 - (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded {
-    if (!loader.isCancelled && _currentLoadURL) {
+    if (!loader.isCancelled && !loader.isDetached && _currentLoadURL) {
         [self.delegate audioWaveform:waveform didLoadData:percentLoaded forURL:_currentLoadURL];
     }
 }

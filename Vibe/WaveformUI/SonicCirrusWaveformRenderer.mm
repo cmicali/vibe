@@ -29,12 +29,12 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
     // machinery lives here rather than in the base class.
     NSArray<CALayer*>* _layers;
 
-    NSColor* _playedColorTop;
-    NSColor* _unPlayedColorTop;
-    NSColor* _playedColorBottom;
-    NSColor* _unPlayedColorBottom;
+    VibeColor* _playedColorTop;
+    VibeColor* _unPlayedColorTop;
+    VibeColor* _playedColorBottom;
+    VibeColor* _unPlayedColorBottom;
 
-    NSColor* _hoverColor;
+    VibeColor* _hoverColor;
 
     // The bar index lit by the hover affordance, or -1. Bars here are discrete
     // layers with gaps between them, so the highlight snaps to a whole bar,
@@ -95,10 +95,10 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
     // The unplayed bars follow the appearance, because a fixed white is
     // near-invisible on a light background. The played orange reads fine on
     // both.
-    NSColor *base = isDark ? [NSColor whiteColor] : [NSColor blackColor];
-    _playedColorTop = [NSColor colorWithRed:1 green:0.45 blue:0 alpha:1];
+    VibeColor *base = isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
+    _playedColorTop = [VibeColor colorWithRed:1 green:0.45 blue:0 alpha:1];
     _unPlayedColorTop = [base colorWithAlphaComponent:0.89];
-    _playedColorBottom = [NSColor colorWithRed:1 green:0.75 blue:0.585 alpha:0.8];
+    _playedColorBottom = [VibeColor colorWithRed:1 green:0.75 blue:0.585 alpha:0.8];
     _unPlayedColorBottom = [base colorWithAlphaComponent:0.55];
     // Hover uses the base color at full alpha, which is brighter than both the
     // played orange and the unplayed bars, in either appearance.
@@ -107,7 +107,7 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
 
 // The played and unplayed pair a bar index should show right now, ignoring any
 // hover.
-- (NSColor *)restingColorForBar:(NSInteger)index top:(BOOL)top {
+- (VibeColor *)restingColorForBar:(NSInteger)index top:(BOOL)top {
     BOOL played = (self.lastProgressBoundary >= 0 && index < self.lastProgressBoundary);
     if (top) {
         return played ? _playedColorTop : _unPlayedColorTop;
@@ -154,7 +154,7 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
     _layers = layers;
 }
 
-- (void)setLayerColor:(NSColor *)color atIndex:(NSUInteger)index {
+- (void)setLayerColor:(VibeColor *)color atIndex:(NSUInteger)index {
     CGColorRef c = color.CGColor;
     CALayer *layer = _layers[index];
     if (!CGColorEqualToColor(layer.backgroundColor, c)) {
@@ -165,14 +165,14 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
 // The full-amplitude extents come from the fixed geometry constants, not from
 // the bars currently on screen, whose extents collapse to a sliver on a quiet
 // track and would make the seek band impossible to hit.
-- (NSRect)seekHitBandForBounds:(NSRect)bounds {
+- (CGRect)seekHitBandForBounds:(CGRect)bounds {
     CGFloat totalHeight = bounds.size.height;
     CGFloat topLineY = round(totalHeight * (1 - kTopLineRatio));
     CGFloat bottomLineY = topLineY - kBottomBarSpacing;
     CGFloat maxTopBarHeight = totalHeight * kBarAmplitudeOfHeight * kTopLineRatio;
     CGFloat topY = topLineY + maxTopBarHeight;
     CGFloat bottomY = bottomLineY - maxTopBarHeight * (1 - kTopLineRatio);
-    return NSMakeRect(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
+    return CGRectMake(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
 }
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
@@ -194,8 +194,8 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
 
     for (NSInteger i = start; i < end; i++) {
         BOOL played = (i < newBoundary);
-        NSColor *colorTop = played ? _playedColorTop : _unPlayedColorTop;
-        NSColor *colorBottom = played ? _playedColorBottom : _unPlayedColorBottom;
+        VibeColor *colorTop = played ? _playedColorTop : _unPlayedColorTop;
+        VibeColor *colorBottom = played ? _playedColorBottom : _unPlayedColorBottom;
         [self setLayerColor:colorTop atIndex:(NSUInteger)(i * 2)];
         [self setLayerColor:colorBottom atIndex:(NSUInteger)(i * 2 + 1)];
     }
@@ -208,7 +208,7 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
     }
 }
 
-- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
+- (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
 
     NSUInteger count = kVibeBarCount;
 

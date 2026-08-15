@@ -9,11 +9,10 @@
 
 @class MainPlayerController;
 
-// The two oracles behind the `dump_health` and `check_invariants` debug
-// commands. They exist for the stress driver, which cannot tell a healthy
-// hour-long soak from a leaking one by screenshotting it: dump_health gives
-// it numbers to diff across a run, check_invariants gives it a verdict at a
-// single instant.
+// The macOS side of the `dump_health` and `check_invariants` oracles. They
+// exist for the stress driver, which cannot tell a healthy hour-long soak from
+// a leaking one by screenshotting it: dump_health gives it numbers to diff
+// across a run, check_invariants gives it a verdict at a single instant.
 //
 // Split out of DebugUtil.m only for size; the command-table entries there are
 // one line each.
@@ -28,15 +27,15 @@
 // command channel runs on the main thread and would otherwise never notice.
 NSString *VibeDebugHealthJSON(MainPlayerController *controller);
 
-// Runs every consistency check against the live app state and returns
-// {"ok", "checked", "violations": [{"id", "detail"}]}. Main thread only.
-//
-// A violation is a statement about state that should never be legal, but a
-// few of the checks compare rendered labels against the state that should
-// have produced them, and a render can lag its state change by a runloop
-// turn. Callers must therefore re-check after a short settle and believe only
-// what survives both samples; stress.sh does exactly that.
-NSString *VibeDebugInvariantsJSON(MainPlayerController *controller);
+// The macOS-only half of `check_invariants` — the rendered header labels, the
+// pitch fader, the table's row count and the scaled tick rate. The verb itself
+// is shared (Debug/Shared/DebugCommonVerbs.m): it runs
+// VibeDebugAppendSharedInvariants first and reaches this through the surface
+// protocol's optional debugAppendPlatformInvariants: hook, which
+// MainPlayerController implements. Main thread only; returns how many checks
+// it ran. See Debug/Shared/DebugInvariants.h for the render-lag caveat.
+NSUInteger VibeDebugAppendMacInvariants(NSMutableArray<NSDictionary *> *violations,
+                                        MainPlayerController *controller);
 
 // Closes the current file and then polls, without ever blocking the main
 // thread, until every pending-work counter reads zero — or until a deadline.

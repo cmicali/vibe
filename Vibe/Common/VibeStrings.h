@@ -218,6 +218,8 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_CROSSFADE_INSTANT   NSLS(@"settings.playback.crossfade.instant",           @"Instant",                  @"Settings, Playback pane, crossfade choice: no audible blend — the next track starts immediately. The default.")
 #define STR_SETTINGS_CROSSFADE_SHORT     NSLS(@"settings.playback.crossfade.short",             @"Short (0.5s)",             @"Settings, Playback pane, crossfade choice: a half-second blend into the next track. Localize the decimal separator; 's' abbreviates seconds.")
 #define STR_SETTINGS_CROSSFADE_LONG      NSLS(@"settings.playback.crossfade.long",              @"Long (2s)",                @"Settings, Playback pane, crossfade choice: a two-second blend into the next track. 's' abbreviates seconds.")
+#define STR_SETTINGS_ENABLE_FX          NSLS(@"settings.playback.enable_fx",                    @"Enable audio FX",          @"Settings, Playback pane: checkbox keeping the DJ performance effects (low kill, reverb, delay) available. When off, the effect processing is removed from the audio engine entirely. 'FX' is the DJ term for effects, left untranslated.")
+#define STR_SETTINGS_ENABLE_FX_RESTART  NSLS(@"settings.playback.enable_fx_restart",            @"Takes effect after %@ is reopened.", @"Settings, Playback pane: small caption under the 'Enable audio FX' checkbox explaining that toggling it applies on the next launch. %@ is the app name.")
 #define STR_SETTINGS_DETECT_BPM         NSLS(@"settings.playback.detect_bpm",                   @"Detect BPM automatically", @"Settings, Playback pane: checkbox enabling tempo analysis of loaded files. BPM is beats per minute; a tempo already tagged in the file always shows regardless.")
 #define STR_SETTINGS_DETECT_KEY         NSLS(@"settings.playback.detect_key",                   @"Detect key automatically", @"Settings, Playback pane: checkbox enabling musical-key analysis of loaded files. A key already tagged in the file always shows regardless.")
 #define STR_SETTINGS_KEY_NOTATION_LABEL NSLS(@"settings.appearance.key_notation_label",         @"Key notation:",            @"Settings, Appearance pane: label beside the choice of how the musical key is written. Ends with a colon.")
@@ -297,5 +299,12 @@ static inline NSString *VibeAppName(void) {
 
 #define STR_PLAYLIST_GRANT_MESSAGE NSLS(@"playlist.grant.message", @"Vibe needs permission to read the audio files listed in “%@”. Select the folder that contains them.", @"Message atop the folder-picker panel shown when a playlist file's (CUE, M3U) audio files are not readable under the sandbox. %@ is the playlist file's name.")
 #define STR_PLAYLIST_GRANT_BUTTON  NSLS(@"playlist.grant.button",  @"Grant Access", @"Confirm button of the folder-picker panel that grants access to a playlist file's folder.")
+
+#pragma mark - iOS
+
+#define STR_LABEL_CHOOSE_FOLDER NSLS(@"label.choose_folder", @"Choose Folder…",              @"iOS: row in the track list sheet that opens the system document picker to pick a different folder or file.")
+#define STR_LABEL_SEARCH        NSLS(@"label.search",        @"Search",                      @"iOS: title and placeholder of the search screen that filters the current folder's tracks.")
+#define STR_LABEL_OPEN_HINT_IOS NSLS(@"label.open_hint.ios", @"Tap to choose a folder or file", @"iOS empty-state hint on the player screen when nothing is loaded. Tapping anywhere opens the system file picker.")
+#define STR_ERROR_FOLDER_EMPTY  NSLS(@"error.folder_empty",  @"No audio files in this folder",  @"iOS: shown after picking a folder that contains no playable audio files.")
 
 #endif /* VibeStrings_h */

@@ -68,7 +68,8 @@
     }
     // FX: one checkmark per effect. They are never disabled, because the
     // effects are deck controls that outlive any single track; see the FX menu
-    // in MainMenuBuilder.
+    // in MainMenuBuilder — which omits the menu entirely when FX is off, so
+    // these branches only ever run with a non-nil fx.
     else if ([menuItem.identifier isEqualToString:@"menu_fx_low_kill"]) {
         menuItem.state = StateForBOOL(self.audioPlayer.fx.lowKillEnabled);
     }

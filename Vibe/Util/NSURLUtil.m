@@ -17,12 +17,6 @@ static VibePlaylistFolderGrantHandler sPlaylistFolderGrantHandler;
 static VibeWalkedDirectoriesHandler sWalkedDirectoriesHandler;
 static VibeBulkOpenDirectoriesHandler sBulkOpenDirectoriesHandler;
 
-static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
-    @synchronized (NSURLUtil.class) {
-        return sPlaylistFolderGrantHandler;
-    }
-}
-
 static VibeWalkedDirectoriesHandler WalkedDirectoriesHandler(void) {
     @synchronized (NSURLUtil.class) {
         return sWalkedDirectoriesHandler;
@@ -178,6 +172,39 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
     return results;
 }
 
++ (NSArray<NSURL*>*) audioFilesInDirectory:(NSURL*)dir {
+    // Non-recursive, unlike expandDirectory:. Skipping hidden files also
+    // drops the AppleDouble "._Song.mp3" sidecars; see expandDirectory:.
+    NSError *error = nil;
+    NSArray<NSURL*> *contents = [[NSFileManager defaultManager]
+            contentsOfDirectoryAtURL:dir
+          includingPropertiesForKeys:@[NSURLIsDirectoryKey]
+                             options:NSDirectoryEnumerationSkipsHiddenFiles
+                               error:&error];
+    if (!contents) {
+        LogWarn(@"Error listing %@: %@", dir, error);
+        return @[];
+    }
+    NSSet<NSString*> *supported = [self supportedExtensions];
+    NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
+    for (NSURL *url in contents) {
+        if (![supported containsObject:[url.pathExtension lowercaseString]]) {
+            continue;
+        }
+        NSNumber *isDirectory = nil;
+        BOOL isDir = [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL]
+                ? isDirectory.boolValue
+                : url.hasDirectoryPath;
+        if (!isDir) {
+            [results addObject:url];
+        }
+    }
+    [results sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
+        return [a.lastPathComponent localizedStandardCompare:b.lastPathComponent];
+    }];
+    return results;
+}
+
 // Folder walks are independent and can block on unrelated mounts, so they run
 // concurrently rather than serially: one dead folder must not hold every later
 // open hostage. Callers that can issue overlapping opens own their ordering and
@@ -317,6 +344,16 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
 // installed handler; granting is what extends the sandbox, and the re-resolve
 // then also gets a working basename fallback. Entries unreadable after all
 // that are skipped.
+#if TARGET_OS_OSX
+// Only the macOS grant-panel path below reads the handler; the setter stays
+// unconditional so the app can install one on either platform.
+static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
+    @synchronized (NSURLUtil.class) {
+        return sPlaylistFolderGrantHandler;
+    }
+}
+#endif
+
 + (NSArray<NSURL *> *)expandPlaylistFile:(NSURL *)playlistURL {
     NSArray<NSURL *> *resolved = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlistURL];
 #if TARGET_OS_OSX

@@ -20,9 +20,12 @@
 #import "FolderArtFileIO.h"
 #import "AppSettings.h"
 #import "FolderArtRules.h"
-#import "FolderAccessManager.h"
-#import "NSImage+Util.h"
+#if TARGET_OS_OSX
+#import "FolderAccessManager.h"    // the macOS grant list; see -init
+#endif
+#import "PlatformImage.h"
 
+#import <os/lock.h>
 #import <stdatomic.h>
 
 NSNotificationName const FolderArtDidResolveNotification = @"FolderArtDidResolveNotification";
@@ -87,7 +90,15 @@ static NSString *const kNoArtMarker = @"";
     return [self initWithEnabledProvider:^BOOL{
         return Settings.useFolderArt;
     } accessProvider:^BOOL(NSString *directory) {
+#if TARGET_OS_OSX
         return [FolderAccessManager.sharedInstance canReadInsideDirectory:directory];
+#else
+        // iOS has no unsanctioned-read consent panel to avoid, and no
+        // app-scoped grant list: FolderSession holds the security scope of the
+        // one picked folder for the session, and everything the app can name
+        // is inside it. So the probe that macOS must earn is free here.
+        return YES;
+#endif
     }];
 }
 
@@ -101,8 +112,8 @@ static NSString *const kNoArtMarker = @"";
         return VibeFolderArtFileInfo(path, size);
     } dataReader:^NSData *(NSString *path) {
         return VibeReadFolderArt(path);
-    } decoder:^NSImage *(NSData *data, CGFloat maxPixelSize) {
-        return [NSImage decodedImageWithData:data maxPixelSize:maxPixelSize];
+    } decoder:^VibeImage *(NSData *data, CGFloat maxPixelSize) {
+        return VibeDecodedImageWithData(data, maxPixelSize);
     }];
 }
 
@@ -143,7 +154,7 @@ static NSString *const kNoArtMarker = @"";
     if (!directory) {
         return nil;
     }
-    NSImage *thumbnail = [_thumbnails objectForKey:directory];
+    VibeImage *thumbnail = [_thumbnails objectForKey:directory];
     if (thumbnail) {
         return thumbnail;
     }
@@ -163,7 +174,7 @@ static NSString *const kNoArtMarker = @"";
     if (!directory) {
         return nil;
     }
-    NSImage *cached = [_displayImages objectForKey:directory];
+    VibeImage *cached = [_displayImages objectForKey:directory];
     if (cached) {
         return cached;
     }
@@ -187,7 +198,7 @@ static NSString *const kNoArtMarker = @"";
         if (!decodeSettled) {
             return nil; // settled: this folder has none
         }
-        NSImage *display = [self loadDisplayArtAtPath:settled directory:directory
+        VibeImage *display = [self loadDisplayArtAtPath:settled directory:directory
                                              revision:settledRevision];
         os_unfair_lock_lock(&_lock);
         // The same entry object unless an invalidate dropped it, which the
@@ -204,7 +215,7 @@ static NSString *const kNoArtMarker = @"";
         return nil;
     }
     NSString *artPath = [self resolveDirectory:directory revision:revision didSettle:NULL];
-    NSImage *display = artPath ? [self loadDisplayArtAtPath:artPath directory:directory
+    VibeImage *display = artPath ? [self loadDisplayArtAtPath:artPath directory:directory
                                                    revision:revision] : nil;
     [self releaseDirectory:directory revision:revision];
     return display;
@@ -485,8 +496,8 @@ static NSString *const kNoArtMarker = @"";
     return entry != nil;
 }
 
-- (BOOL)storeImage:(NSImage *)image
-           inCache:(NSCache<NSString *, NSImage *> *)cache
+- (BOOL)storeImage:(VibeImage *)image
+           inCache:(NSCache<NSString *, VibeImage *> *)cache
          directory:(NSString *)directory
            artPath:(NSString *)artPath
           revision:(uint64_t)revision {
@@ -552,7 +563,7 @@ static NSString *const kNoArtMarker = @"";
     NSString *artPath = [self resolveDirectory:directory revision:revision didSettle:&settled];
     BOOL stored = NO;
     if (artPath) {
-        NSImage *thumbnail = [self loadThumbnailArtAtPath:artPath directory:directory
+        VibeImage *thumbnail = [self loadThumbnailArtAtPath:artPath directory:directory
                                                  revision:revision];
         stored = thumbnail != nil && [self storeImage:thumbnail inCache:_thumbnails
                                             directory:directory artPath:artPath revision:revision];
@@ -695,12 +706,12 @@ static NSString *const kNoArtMarker = @"";
 
 // Unlike a read failure this is permanent for these bytes, so the folder counts
 // as having no cover rather than costing every track in it a fresh decode.
-- (NSImage *)decodeArtData:(NSData *)data
+- (VibeImage *)decodeArtData:(NSData *)data
                     atPath:(NSString *)artPath
                  directory:(NSString *)directory
                   revision:(uint64_t)revision
               maxPixelSize:(CGFloat)maxPixelSize {
-    NSImage *image = _decoder(data, maxPixelSize);
+    VibeImage *image = _decoder(data, maxPixelSize);
     if (image) {
         return image;
     }
@@ -716,7 +727,7 @@ static NSString *const kNoArtMarker = @"";
     return nil;
 }
 
-- (NSImage *)loadThumbnailArtAtPath:(NSString *)artPath
+- (VibeImage *)loadThumbnailArtAtPath:(NSString *)artPath
                           directory:(NSString *)directory
                            revision:(uint64_t)revision {
     NSData *data = [self readArtAtPath:artPath directory:directory revision:revision];
@@ -728,14 +739,14 @@ static NSString *const kNoArtMarker = @"";
 // decode twice, rather than reading again the moment a row for the same folder
 // draws. Only this direction is free — 128px cannot be enlarged back to 1024 —
 // so a folder whose rows draw before its header still pays two reads.
-- (NSImage *)loadDisplayArtAtPath:(NSString *)artPath
+- (VibeImage *)loadDisplayArtAtPath:(NSString *)artPath
                         directory:(NSString *)directory
                          revision:(uint64_t)revision {
     NSData *data = [self readArtAtPath:artPath directory:directory revision:revision];
     if (!data) {
         return nil;
     }
-    NSImage *display = [self decodeArtData:data atPath:artPath directory:directory
+    VibeImage *display = [self decodeArtData:data atPath:artPath directory:directory
                                   revision:revision maxPixelSize:kVibeDisplayArtDimension];
     if (!display) {
         return nil;
@@ -744,7 +755,7 @@ static NSString *const kNoArtMarker = @"";
         // Straight to the decoder: the display decode just proved these bytes
         // are an image, so a failure here is about the size alone and must not
         // settle the folder.
-        NSImage *thumbnail = _decoder(data, kVibeThumbnailArtDimension);
+        VibeImage *thumbnail = _decoder(data, kVibeThumbnailArtDimension);
         if (thumbnail) {
             [self storeImage:thumbnail inCache:_thumbnails
                    directory:directory artPath:artPath revision:revision];

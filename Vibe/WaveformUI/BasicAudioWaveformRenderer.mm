@@ -39,7 +39,7 @@
     // band-pinned fade.
 }
 
-- (NSArray<NSColor *> *)playedGradientColors:(NSColor *)baseColor isDark:(BOOL)isDark {
+- (NSArray<VibeColor *> *)playedGradientColors:(VibeColor *)baseColor isDark:(BOOL)isDark {
     NSArray *colors = @[
             [baseColor colorWithAlphaComponent:0.1],
             [baseColor colorWithAlphaComponent:0.65],
@@ -49,7 +49,7 @@
     return isDark ? colors : [[colors reverseObjectEnumerator] allObjects];
 }
 
-- (NSArray<NSColor *> *)unplayedGradientColors:(NSColor *)baseColor isDark:(BOOL)isDark {
+- (NSArray<VibeColor *> *)unplayedGradientColors:(VibeColor *)baseColor isDark:(BOOL)isDark {
     NSArray *colors = @[
             [baseColor colorWithAlphaComponent:0.05],
             [baseColor colorWithAlphaComponent:0.325],
