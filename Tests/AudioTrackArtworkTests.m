@@ -7,7 +7,7 @@
 #import <XCTest/XCTest.h>
 
 #import "AudioTrackArtwork.h"
-#import "FolderArtwork.h"
+#import "FolderArtResolver.h"
 #import "NSImage+Util.h"
 
 @interface AudioTrackArtworkTests : XCTestCase
@@ -27,8 +27,8 @@
 
 // A resolver that always has a cover for the directory, so any folder lookup
 // this class makes is visible in the result.
-- (FolderArtwork *)resolverWithCover {
-    FolderArtwork *resolver = [[FolderArtwork alloc] initWithEnabledProvider:^BOOL{
+- (FolderArtResolver *)resolverWithCover {
+    FolderArtResolver *resolver = [[FolderArtResolver alloc] initWithEnabledProvider:^BOOL{
         return YES;
     } accessProvider:^BOOL(NSString *directory) {
         return YES;
@@ -61,7 +61,7 @@
 - (AudioTrackArtwork *)artworkWithExtractor:(AudioTrackArtworkExtractor)extractor {
     AudioTrackArtwork *artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:_trackPath
                                                                         extractor:extractor];
-    artwork.folderArtwork = [self resolverWithCover];
+    artwork.folderArt = [self resolverWithCover];
     return artwork;
 }
 
@@ -87,7 +87,7 @@
         extracted = YES;
         return nil;
     }];
-    artwork.folderArtwork = [self resolverWithCover];
+    artwork.folderArt = [self resolverWithCover];
     // Non-blocking accessors must not answer with the folder while the file's
     // own art is merely unknown.
     XCTAssertNil(artwork.albumArtIfLoaded);
@@ -123,7 +123,7 @@
         return nil;
     }];
     XCTAssertEqualObjects(artwork.albumArt, _folderCover, @"precondition: the folder has one");
-    XCTAssertNil(artwork.archivableThumbnail);
+    XCTAssertNil(artwork.embeddedThumbnail);
 }
 
 - (void)testTheArchivableThumbnailIsTheFilesOwnArtWhenItHasSome {
@@ -132,8 +132,8 @@
         return embedded;
     }];
     (void)artwork.albumArt; // decode it
-    XCTAssertNotNil(artwork.archivableThumbnail);
-    XCTAssertNotEqualObjects(artwork.archivableThumbnail, _folderCover);
+    XCTAssertNotNil(artwork.embeddedThumbnail);
+    XCTAssertNotEqualObjects(artwork.embeddedThumbnail, _folderCover);
 }
 
 // The metadata scan calls this before publishing a row. It must warm the
@@ -141,7 +141,7 @@
 // into a folder-art storm across every artless row.
 - (void)testThePrewarmNeverTouchesTheFolder {
     __block NSUInteger folderLookups = 0;
-    FolderArtwork *counting = [[FolderArtwork alloc] initWithEnabledProvider:^BOOL{
+    FolderArtResolver *counting = [[FolderArtResolver alloc] initWithEnabledProvider:^BOOL{
         return YES;
     } accessProvider:^BOOL(NSString *directory) {
         folderLookups++;
@@ -162,9 +162,9 @@
                                                                         extractor:^NSData *(NSString *path) {
         return nil; // artless: the row most likely to reach for a cover
     }];
-    artwork.folderArtwork = counting;
+    artwork.folderArt = counting;
 
-    [artwork prewarmEmbeddedThumbnailAlbumArt];
+    [artwork prewarmEmbeddedThumbnail];
 
     XCTAssertEqual(folderLookups, 0u);
 }
@@ -181,7 +181,7 @@
         extracted = YES;
         return nil;
     }];
-    artwork.folderArtwork = [self resolverWithCover];
+    artwork.folderArt = [self resolverWithCover];
     [artwork adoptArchivedThumbnailJPEG:nil];
 
     XCTAssertEqualObjects(artwork.albumArt, _folderCover);

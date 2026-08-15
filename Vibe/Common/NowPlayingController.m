@@ -5,7 +5,7 @@
 
 #import "NowPlayingController.h"
 #import "AudioTrack.h"
-#import "NowPlayingMath.h"
+#import "NowPlayingRules.h"
 #import <MediaPlayer/MediaPlayer.h>
 #if TARGET_OS_OSX
 #import "NSImage+Util.h"
@@ -300,7 +300,7 @@ static VibeImage *VibeArtworkForPublishing(VibeImage *artwork) {
     // The elapsed time is never republished at 3 Hz, because the system
     // extrapolates it from the last publish at the published rate. Natural
     // advance since that publish must therefore not count as dirty; the rule
-    // is VibeNowPlayingPositionIsDirty in NowPlayingMath.h.
+    // is VibeNowPlayingPositionIsDirty in NowPlayingRules.h.
     if (_publishedURL != nil) {
         BOOL unchanged = [_publishedURL isEqualToString:track.url.absoluteString]
                 && [title isEqualToString:_publishedTitle]

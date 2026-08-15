@@ -5,17 +5,17 @@
 #import <XCTest/XCTest.h>
 
 #import "FolderArtRules.h"
-#import "FolderArtwork.h"
+#import "FolderArtResolver.h"
 
-@interface FolderArtworkTests : XCTestCase
+@interface FolderArtResolverTests : XCTestCase
 @end
 
-@implementation FolderArtworkTests
+@implementation FolderArtResolverTests
 
-- (FolderArtwork *)resolverWithFileInfo:(FolderArtworkFileInfoProvider)fileInfo
-                              dataReader:(FolderArtworkDataReader)dataReader
-                                 decoder:(FolderArtworkDecoder)decoder {
-    return [[FolderArtwork alloc] initWithEnabledProvider:^BOOL{
+- (FolderArtResolver *)resolverWithFileInfo:(FolderArtFileInfoProvider)fileInfo
+                              dataReader:(FolderArtDataReader)dataReader
+                                 decoder:(FolderArtDecoder)decoder {
+    return [[FolderArtResolver alloc] initWithEnabledProvider:^BOOL{
         return YES;
     } accessProvider:^BOOL(NSString *directory) {
         return YES;
@@ -28,7 +28,7 @@
     dispatch_semaphore_t decodeStarted = dispatch_semaphore_create(0);
     dispatch_semaphore_t continueDecode = dispatch_semaphore_create(0);
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
-    FolderArtwork *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
+    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         return YES;
     } dataReader:^NSData *(NSString *path) {
         return [NSData dataWithBytes:"x" length:1];
@@ -63,7 +63,7 @@
     dispatch_semaphore_t continueProbe = dispatch_semaphore_create(0);
     __block NSString *readPath = nil;
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
-    FolderArtwork *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
+    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         if ([path.lastPathComponent isEqualToString:@"cover.jpg"]) {
             dispatch_semaphore_signal(probeStarted);
             dispatch_semaphore_wait(continueProbe, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC));
@@ -114,7 +114,7 @@
     XCTAssertTrue([NSFileManager.defaultManager createSymbolicLinkAtPath:candidate
                                                      withDestinationPath:target error:nil]);
 
-    FolderArtwork *resolver = [[FolderArtwork alloc] initWithEnabledProvider:^BOOL{
+    FolderArtResolver *resolver = [[FolderArtResolver alloc] initWithEnabledProvider:^BOOL{
         return YES;
     } accessProvider:^BOOL(NSString *path) {
         return YES;
@@ -138,7 +138,7 @@
     [handle truncateFileAtOffset:20ull * 1024 * 1024 + 1];
     [handle closeFile];
 
-    FolderArtwork *resolver = [[FolderArtwork alloc] initWithEnabledProvider:^BOOL{
+    FolderArtResolver *resolver = [[FolderArtResolver alloc] initWithEnabledProvider:^BOOL{
         return YES;
     } accessProvider:^BOOL(NSString *path) {
         return YES;
@@ -150,7 +150,7 @@
 }
 
 - (void)testRecordedDirectoryStateIsBounded {
-    FolderArtwork *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
+    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         return NO;
     } dataReader:^NSData *(NSString *path) {
         return nil;
@@ -169,7 +169,7 @@
 // the sort it costs is paid about once per (limit - floor) arrivals. Landing
 // exactly on the limit would mean a per-entry trim.
 - (void)testEvictionBatchesBelowTheLimit {
-    FolderArtwork *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
+    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         return NO;
     } dataReader:^NSData *(NSString *path) {
         return nil;
@@ -191,7 +191,7 @@
 // YES re-dispatches the same doomed load on every UI tick.
 - (void)testTheBackgroundLoadTruthTable {
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
-    FolderArtwork *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
+    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         return YES;
     } dataReader:^NSData *(NSString *path) {
         return [NSData dataWithBytes:"x" length:1];
@@ -227,7 +227,7 @@
     __block BOOL enabled = NO;
     __block NSUInteger fileSystemCalls = 0;
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
-    FolderArtwork *resolver = [[FolderArtwork alloc] initWithEnabledProvider:^BOOL{
+    FolderArtResolver *resolver = [[FolderArtResolver alloc] initWithEnabledProvider:^BOOL{
         return enabled;
     } accessProvider:^BOOL(NSString *directory) {
         return YES;
@@ -269,7 +269,7 @@
 // The bill every coverless folder in a library pays, once, ever.
 - (void)testACoverlessFolderIsProbedOnceAndNeverAgain {
     __block NSUInteger probes = 0;
-    FolderArtwork *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
+    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         probes++;
         return NO;
     } dataReader:^NSData *(NSString *path) {
@@ -291,7 +291,7 @@
 - (void)testAThousandTracksInOneFolderCostOneRead {
     __block NSUInteger reads = 0;
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
-    FolderArtwork *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
+    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         return YES;
     } dataReader:^NSData *(NSString *path) {
         reads++;
@@ -314,7 +314,7 @@
 // must never schedule work, or scrolling a big playlist becomes a disk storm.
 - (void)testTheNonResolvingAccessorSchedulesNothing {
     __block NSUInteger fileSystemCalls = 0;
-    FolderArtwork *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
+    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         fileSystemCalls++;
         return YES;
     } dataReader:^NSData *(NSString *path) {
@@ -336,8 +336,8 @@
 - (void)testABulkOpenListsWhereALoneFileProbes {
     __block NSUInteger listings = 0, probes = 0;
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
-    FolderArtwork *(^makeResolver)(void) = ^FolderArtwork *(void) {
-        return [[FolderArtwork alloc] initWithEnabledProvider:^BOOL{
+    FolderArtResolver *(^makeResolver)(void) = ^FolderArtResolver *(void) {
+        return [[FolderArtResolver alloc] initWithEnabledProvider:^BOOL{
             return YES;
         } accessProvider:^BOOL(NSString *directory) {
             return YES;
@@ -356,13 +356,13 @@
     NSString *directory = @"/Library/Albums/Strategy";
     NSString *track = [directory stringByAppendingPathComponent:@"track.mp3"];
 
-    FolderArtwork *loneFile = makeResolver();
+    FolderArtResolver *loneFile = makeResolver();
     XCTAssertEqualObjects([loneFile displayImageForAudioFilePath:track], decoded);
     XCTAssertEqual(listings, 0u, @"a lone file has no listing to piggyback on");
     XCTAssertGreaterThan(probes, 0u);
 
     listings = 0; probes = 0;
-    FolderArtwork *bulk = makeResolver();
+    FolderArtResolver *bulk = makeResolver();
     [bulk preferListingForDirectories:[NSSet setWithObject:directory]];
     XCTAssertEqualObjects([bulk displayImageForAudioFilePath:track], decoded);
     XCTAssertEqual(listings, 1u, @"one listing, which finds front.png that no probe asks about");
@@ -374,7 +374,7 @@
 - (void)testTheListingPreferenceOutlivesASettingChange {
     __block NSUInteger listings = 0;
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
-    FolderArtwork *resolver = [[FolderArtwork alloc] initWithEnabledProvider:^BOOL{
+    FolderArtResolver *resolver = [[FolderArtResolver alloc] initWithEnabledProvider:^BOOL{
         return YES;
     } accessProvider:^BOOL(NSString *directory) {
         return YES;
@@ -402,7 +402,7 @@
 
 // Folder walks run four wide, so several threads settle answers at once.
 - (void)testConcurrentListingsSettleEveryFolderExactlyOnce {
-    FolderArtwork *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
+    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         return YES;
     } dataReader:^NSData *(NSString *path) {
         return [NSData dataWithBytes:"x" length:1];
@@ -437,7 +437,7 @@
     dispatch_semaphore_t continueProbe = dispatch_semaphore_create(0);
     __block NSUInteger probes = 0;
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
-    FolderArtwork *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
+    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         @synchronized (self) { probes++; }
         dispatch_semaphore_signal(probeStarted);
         dispatch_semaphore_wait(continueProbe, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
@@ -480,7 +480,7 @@
     NSImage *stale = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
     NSImage *fresh = [[NSImage alloc] initWithSize:NSMakeSize(2, 2)];
     __block NSString *readPath = nil;
-    FolderArtwork *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
+    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         return YES;
     } dataReader:^NSData *(NSString *path) {
         readPath = path;
@@ -526,7 +526,7 @@
 - (void)testAGrantChangeKeepsACoverAlreadyFound {
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
     __block NSUInteger listings = 0;
-    FolderArtwork *resolver = [[FolderArtwork alloc] initWithEnabledProvider:^BOOL{
+    FolderArtResolver *resolver = [[FolderArtResolver alloc] initWithEnabledProvider:^BOOL{
         return YES;
     } accessProvider:^BOOL(NSString *directory) {
         return YES;
@@ -559,7 +559,7 @@
 - (void)testAGrantChangeForgetsTheFoldersItLeftAlone {
     __block BOOL granted = NO;
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
-    FolderArtwork *resolver = [[FolderArtwork alloc] initWithEnabledProvider:^BOOL{
+    FolderArtResolver *resolver = [[FolderArtResolver alloc] initWithEnabledProvider:^BOOL{
         return YES;
     } accessProvider:^BOOL(NSString *directory) {
         return granted;
@@ -590,7 +590,7 @@
     __block NSUInteger reads = 0;
     __block NSMutableArray<NSNumber *> *decodedSizes = [NSMutableArray array];
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
-    FolderArtwork *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
+    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         return YES;
     } dataReader:^NSData *(NSString *path) {
         reads++;
@@ -619,7 +619,7 @@
     dispatch_semaphore_t decodeStarted = dispatch_semaphore_create(0);
     dispatch_semaphore_t continueDecode = dispatch_semaphore_create(0);
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
-    FolderArtwork *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
+    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         return YES;
     } dataReader:^NSData *(NSString *path) {
         return [NSData dataWithBytes:"x" length:1];

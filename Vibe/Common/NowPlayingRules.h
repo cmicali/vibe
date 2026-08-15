@@ -1,5 +1,5 @@
 //
-//  NowPlayingMath.h
+//  NowPlayingRules.h
 //  Vibe
 //
 //  The republish position rule, kept apart from NowPlayingController so that

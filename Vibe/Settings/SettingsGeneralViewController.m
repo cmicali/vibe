@@ -6,7 +6,7 @@
 #import "SettingsGeneralViewController.h"
 #import "AudioDeviceManager.h"
 #import "AudioPlayer.h"
-#import "DefaultAppClaim.h"
+#import "DefaultAppRegistration.h"
 #import "MainPlayerController.h"
 #import "OutputDevicesMenuController.h"
 #import "VibeStrings.h"
@@ -116,7 +116,7 @@ static const CGFloat kOutputPopUpWidth = 280;
 - (void)makeDefaultPlayer:(id)sender {
     // The system runs its own confirmation panel and reports the outcome
     // itself; the button retitles on the base class's key-window refresh.
-    [DefaultAppClaim makeDefaultApp];
+    [DefaultAppRegistration makeDefaultApp];
 }
 
 // The check walks Launch Services off the main thread, so show the last-known
@@ -125,7 +125,7 @@ static const CGFloat kOutputPopUpWidth = 280;
     [self renderDefaultPlayerState:_lastKnownIsDefaultPlayer];
     NSUInteger generation = ++_defaultPlayerCheckGeneration;
     __weak __typeof(self) weakSelf = self;
-    [DefaultAppClaim checkIsDefaultAppForAllFileTypes:^(BOOL isDefault) {
+    [DefaultAppRegistration checkIsDefaultAppForAllFileTypes:^(BOOL isDefault) {
         __typeof(self) strongSelf = weakSelf;
         if (!strongSelf || generation != strongSelf->_defaultPlayerCheckGeneration) {
             return;

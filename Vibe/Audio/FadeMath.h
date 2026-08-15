@@ -1,5 +1,5 @@
 //
-//  VibeFadeCurve.h
+//  FadeMath.h
 //  Vibe
 //
 //  The fade curves and cadence shared by AudioPlayer's node fades and

@@ -30,7 +30,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
 @end
 
 @implementation OpenRequestCoordinator {
-    NSUInteger _generation;
+    NSUInteger _openGeneration;
     NSUInteger _nextSequence;
     NSUInteger _nextDeliverySequence;
     NSMutableDictionary<NSNumber *, OpenRequestResult *> *_completed;
@@ -53,7 +53,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
         // Generation 1, not 0, so the first request needs no special case: an
         // append arriving first is a genuine append, not a silently rewritten
         // replacement.
-        _generation = 1;
+        _openGeneration = 1;
         _completed = [NSMutableDictionary dictionary];
         _stragglerDeadline = kDefaultStragglerDeadline;
     }
@@ -64,13 +64,13 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
                                    delivery:(OpenRequestDelivery)delivery {
     NSAssert(NSThread.isMainThread, @"OpenRequestCoordinator is main-thread only");
     if (!append) {
-        _generation++;
+        _openGeneration++;
         _nextSequence = 0;
         _nextDeliverySequence = 0;
         [_completed removeAllObjects];
     }
     OpenRequestToken *token = [OpenRequestToken new];
-    token.generation = _generation;
+    token.generation = _openGeneration;
     token.sequence = _nextSequence++;
     token.append = append;
     token.delivery = delivery;
@@ -79,7 +79,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
 
 - (BOOL)isRequestCurrent:(OpenRequestToken *)token {
     NSAssert(NSThread.isMainThread, @"OpenRequestCoordinator is main-thread only");
-    return token && token.generation == _generation;
+    return token && token.generation == _openGeneration;
 }
 
 - (void)finishRequest:(OpenRequestToken *)token
@@ -143,7 +143,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
         return;
     }
     _stragglerDeadlineArmed = YES;
-    NSUInteger generation = _generation;
+    NSUInteger generation = _openGeneration;
     __weak OpenRequestCoordinator *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_stragglerDeadline * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
@@ -153,7 +153,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
         }
         strongSelf->_stragglerDeadlineArmed = NO;
         // A replacement since cleared the buffer; its own results re-arm.
-        if (strongSelf->_generation != generation) {
+        if (strongSelf->_openGeneration != generation) {
             return;
         }
         [strongSelf abandonStalledRequests];

@@ -113,3 +113,8 @@ jobs:
       # Python/PIL.
       - name: Validate App Store copy
         run: make appstore-validate-copy
+
+      # Grep-only, so it rides this job rather than paying for a build: the
+      # mechanical half of CLAUDE.md's Vocabulary section.
+      - name: Check naming vocabulary
+        run: make check-vocabulary

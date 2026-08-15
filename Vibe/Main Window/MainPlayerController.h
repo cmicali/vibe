@@ -107,11 +107,11 @@ NS_ASSUME_NONNULL_BEGIN
 // funnels through it too.
 - (void)refreshFileInfoDisplay;
 
-// Drops FolderArtwork's decoded covers and redraws, after
-// Settings.useFolderArtwork changes. Cheap: nothing per track holds a cover, so
+// Drops FolderArtResolver's decoded covers and redraws, after
+// Settings.useFolderArt changes. Cheap: nothing per track holds a cover, so
 // only the folders still on screen are decoded again, in the background, with
 // no file re-parsed and no cache touched.
-- (void)refreshFolderArtwork;
+- (void)refreshFolderArt;
 
 - (IBAction)showInFinder:(id)sender;
 - (IBAction)copyFile:(id)sender;

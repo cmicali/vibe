@@ -4,7 +4,7 @@
 //
 //  The folder-artwork fallback's rules as pure functions: when a file's own art
 //  has been ruled out, what a cover beside it may be called, and which name
-//  wins. FolderArtwork applies them to real folders; NSURLUtil's folder walk
+//  wins. FolderArtResolver applies them to real folders; NSURLUtil's folder walk
 //  applies the same matching to the entries it is already visiting.
 //
 
@@ -88,7 +88,7 @@ static inline NSArray<NSString *> *VibeFolderArtCandidateFilenames(void) {
 
 // Where this filename sits in the list above, or NSNotFound when it is not a
 // cover. Case-insensitive, and matches the *whole* name, so scan-cover.jpg and
-// cover art.png are not covers.
+// folder art.png are not covers.
 static inline NSUInteger VibeFolderArtCandidateRank(NSString *_Nullable filename) {
     static NSDictionary<NSString *, NSNumber *> *ranks;
     static NSUInteger longestCandidate;

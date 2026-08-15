@@ -64,7 +64,7 @@ static const CGFloat kAccentMaxChroma         = 0.17;
     NSMapTable<AudioTrack *, NSColor *> *_dominantColorByTrack;
     __weak NSImage              *_displayedArt;
     // What is actually installed, which _displayedArt cannot answer: it is
-    // weak, and a FOLDER cover's only strong owner is FolderArtwork's image
+    // weak, and a FOLDER cover's only strong owner is FolderArtResolver's image
     // cache, so it self-nils the moment that cache drops the image while the
     // cropped copy stays on screen.
     BOOL                         _showingDefaultArt;

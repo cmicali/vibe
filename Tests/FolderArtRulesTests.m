@@ -100,7 +100,7 @@
 }
 
 - (void)testRankRejectsPartialAndUnrelatedNames {
-    NSArray<NSString *> *nonCovers = @[@"scan-cover.jpg", @"cover art.jpg", @"covers.jpg", @"back.jpg",
+    NSArray<NSString *> *nonCovers = @[@"scan-cover.jpg", @"folder art.jpg", @"covers.jpg", @"back.jpg",
                                        @"cover.txt", @"cover", @"albumart_large.jpg", @".cover.jpg",
                                        @"._cover.jpg", @"01 Track.mp3", @""];
     for (NSString *name in nonCovers) {

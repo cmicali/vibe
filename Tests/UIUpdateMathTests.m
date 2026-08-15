@@ -7,12 +7,12 @@
 
 #import <XCTest/XCTest.h>
 
-#import "UIUpdateRate.h"
+#import "UIUpdateMath.h"
 
-@interface UIUpdateRateTests : XCTestCase
+@interface UIUpdateMathTests : XCTestCase
 @end
 
-@implementation UIUpdateRateTests
+@implementation UIUpdateMathTests
 
 // A typical waveform: ~600 pt wide on a Retina display.
 static const double kWidthPx = 1200.0;

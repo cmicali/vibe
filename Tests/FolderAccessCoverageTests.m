@@ -1,6 +1,6 @@
 //
 // The grant-coverage rule. It decides both whether a folder needs a bookmark
-// of its own and whether background work (folder artwork) may touch a folder
+// of its own and whether background work (folder art) may touch a folder
 // at all, so a false NO silently costs a feature and a false YES walks into a
 // denial.
 //

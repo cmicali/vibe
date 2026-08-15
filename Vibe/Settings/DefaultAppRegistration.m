@@ -1,9 +1,9 @@
 //
-//  DefaultAppClaim.m
+//  DefaultAppRegistration.m
 //  Vibe
 //
 
-#import "DefaultAppClaim.h"
+#import "DefaultAppRegistration.h"
 #import "DocumentTypes.h"
 #import <AppKit/AppKit.h>
 
@@ -21,7 +21,7 @@ static void AddResolvedPath(NSMutableSet<NSString *> *paths, NSURL *_Nullable ur
     }
 }
 
-@implementation DefaultAppClaim
+@implementation DefaultAppRegistration
 
 + (void)checkIsDefaultAppForAllFileTypes:(void (^)(BOOL isDefault))completion {
     // Off the main thread: URLForApplicationToOpenContentType: is a

@@ -7,12 +7,12 @@
 
 #import <XCTest/XCTest.h>
 
-#import "NowPlayingMath.h"
+#import "NowPlayingRules.h"
 
-@interface NowPlayingMathTests : XCTestCase
+@interface NowPlayingRulesTests : XCTestCase
 @end
 
-@implementation NowPlayingMathTests
+@implementation NowPlayingRulesTests
 
 // Published at t=1000, position 30s. All cases judge a candidate 10 seconds
 // of wall-clock later.

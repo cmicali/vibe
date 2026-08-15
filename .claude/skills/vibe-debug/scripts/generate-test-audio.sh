@@ -191,7 +191,7 @@ gen_art_m4a() {
     gen_png "$OUT/.art.png" "$r" "$g" "$b"
     afconvert -f m4af -d aac "$src" "$OUT/.plain.m4a"
     # AVFoundation passthrough re-export to attach iTunes-style metadata
-    # (title/artist/cover art) that TagLib's MP4 parser reads.
+    # (title/artist/embedded art) that TagLib's MP4 parser reads.
     swift - "$OUT/.plain.m4a" "$OUT/.art.png" "$OUT/$name" "$title" "$artist" <<'SWIFT'
 import AVFoundation
 let args = CommandLine.arguments
@@ -289,7 +289,7 @@ gen_art_mp3() {
             ;;
         ffmpeg)
             # attached_pic or the image lands as a video stream some parsers
-            # then read as a second track rather than as cover art.
+            # then read as a second track rather than as embedded art.
             ffmpeg -y -loglevel error -i "$src" -i "$OUT/.art.png" \
                    -map 0:a -map 1:v -codec:a libmp3lame -b:a 192k -codec:v copy \
                    -id3v2_version 3 -disposition:v attached_pic \

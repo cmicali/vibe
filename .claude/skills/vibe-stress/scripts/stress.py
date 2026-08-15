@@ -176,12 +176,12 @@ def app_is_running():
 
 # Settings that gate whole subsystems out of the run when off, and that persist
 # in NSUserDefaults across runs — so a run inherits whatever the LAST one left,
-# including a fuzzer's own random final toggle. With `useFolderArtwork` off the
+# including a fuzzer's own random final toggle. With `useFolderArt` off the
 # artwork accessors return before reaching the resolver, and the run reports a
 # clean pass over code it never entered. Forced on at launch, and printed,
 # because a silently disabled feature and a genuinely clean run look identical
 # in the summary.
-FEATURE_SETTINGS = {"folderArtwork": ("set_folder_artwork", "on")}
+FEATURE_SETTINGS = {"folderArt": ("set_folder_art", "on")}
 
 
 def describe_feature_settings(channel) -> str:
@@ -443,8 +443,8 @@ class OpGenerator:
         # ops, and with it off the accessors never reach the resolver. Off and
         # straight back on buys both invalidation edges, leaves the feature on
         # throughout, and leaves the user's setting where it started.
-        ops = [("folder_art", ["set_folder_artwork", "off"], []),
-               ("folder_art", ["set_folder_artwork", "on"], [])]
+        ops = [("folder_art", ["set_folder_art", "off"], []),
+               ("folder_art", ["set_folder_art", "on"], [])]
         if self.rng.random() < 0.25:
             # A settle between the edges, so an invalidate sometimes lands with
             # resolves and decodes genuinely in flight rather than only between

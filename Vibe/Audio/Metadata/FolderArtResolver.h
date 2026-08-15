@@ -1,5 +1,5 @@
 //
-// FolderArtwork.h
+// FolderArtResolver.h
 // Vibe
 //
 // The album-art fallback for files that carry none of their own: a cover image
@@ -38,32 +38,32 @@ NS_ASSUME_NONNULL_BEGIN
 // so the playlist and the header can redraw. **"It has none" is an answer and
 // is posted too**: the header keeps the previous track's art up while the
 // answer is pending, and would otherwise leave it there.
-extern NSNotificationName const FolderArtworkDidResolveNotification;
+extern NSNotificationName const FolderArtDidResolveNotification;
 
-typedef BOOL (^FolderArtworkEnabledProvider)(void);
-typedef BOOL (^FolderArtworkAccessProvider)(NSString *directory);
-typedef NSArray<NSString *> * _Nullable (^FolderArtworkDirectoryLister)(NSString *directory);
-typedef BOOL (^FolderArtworkFileInfoProvider)(NSString *path,
+typedef BOOL (^FolderArtEnabledProvider)(void);
+typedef BOOL (^FolderArtAccessProvider)(NSString *directory);
+typedef NSArray<NSString *> * _Nullable (^FolderArtDirectoryLister)(NSString *directory);
+typedef BOOL (^FolderArtFileInfoProvider)(NSString *path,
                                                unsigned long long * _Nullable size);
-typedef NSData * _Nullable (^FolderArtworkDataReader)(NSString *path);
-typedef VibeImage * _Nullable (^FolderArtworkDecoder)(NSData *data, CGFloat maxPixelSize);
+typedef NSData * _Nullable (^FolderArtDataReader)(NSString *path);
+typedef VibeImage * _Nullable (^FolderArtDecoder)(NSData *data, CGFloat maxPixelSize);
 
-@interface FolderArtwork : NSObject
+@interface FolderArtResolver : NSObject
 
 + (instancetype)sharedInstance;
 
 // Dependency injection for deterministic resolver tests. Production uses the
 // shared instance and the ordinary initializer.
-- (instancetype)initWithEnabledProvider:(FolderArtworkEnabledProvider)enabledProvider
-                         accessProvider:(FolderArtworkAccessProvider)accessProvider
-                                 lister:(FolderArtworkDirectoryLister)lister
-                               fileInfo:(FolderArtworkFileInfoProvider)fileInfo
-                             dataReader:(FolderArtworkDataReader)dataReader
-                                decoder:(FolderArtworkDecoder)decoder NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithEnabledProvider:(FolderArtEnabledProvider)enabledProvider
+                         accessProvider:(FolderArtAccessProvider)accessProvider
+                                 lister:(FolderArtDirectoryLister)lister
+                               fileInfo:(FolderArtFileInfoProvider)fileInfo
+                             dataReader:(FolderArtDataReader)dataReader
+                                decoder:(FolderArtDecoder)decoder NS_DESIGNATED_INITIALIZER;
 
 // Uses production filesystem validation and decoding with injected policy.
-- (instancetype)initWithEnabledProvider:(FolderArtworkEnabledProvider)enabledProvider
-                         accessProvider:(FolderArtworkAccessProvider)accessProvider;
+- (instancetype)initWithEnabledProvider:(FolderArtEnabledProvider)enabledProvider
+                         accessProvider:(FolderArtAccessProvider)accessProvider;
 
 // Diagnostic surface used to enforce the resolver's bounded bookkeeping.
 @property (nonatomic, readonly) NSUInteger recordedDirectoryCount;
@@ -79,7 +79,7 @@ typedef VibeImage * _Nullable (^FolderArtworkDecoder)(NSData *data, CGFloat maxP
 // when the folder has no cover. **Never blocks, never touches the file system,
 // and costs O(1) under the lock**, so cells may call it while drawing:
 // resolveIfUnknown schedules the resolve in the background instead, and
-// FolderArtworkDidResolveNotification reports the result. Any thread.
+// FolderArtDidResolveNotification reports the result. Any thread.
 - (nullable VibeImage *)cachedThumbnailForAudioFilePath:(nullable NSString *)path
                                        resolveIfUnknown:(BOOL)resolveIfUnknown;
 

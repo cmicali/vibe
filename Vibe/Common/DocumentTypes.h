@@ -14,7 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 // It is stateless, with all class methods. Info.plist is the single source of
 // truth, so the open panel's filter and what the app is actually registered
 // for cannot drift apart. The Launch Services side — becoming the default app
-// for these types — is DefaultAppClaim (Settings/), keeping this class free
+// for these types — is DefaultAppRegistration (Settings/), keeping this class free
 // of AppKit.
 @interface DocumentTypes : NSObject
 

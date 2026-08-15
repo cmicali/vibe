@@ -105,7 +105,7 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 "$V" --debug-cmd set_appearance dark # {ok, windowAppearance} — light|dark|system, CLI-process prefs write for the NEXT launch (live toggle: click_menu view_appearance_*)
 "$V" --debug-cmd set_analysis bpm off # {ok, analyzeBPM, analyzeKey} — <bpm|key> <on|off>, CLI-process prefs write a running app sees immediately (the next waveform decode reads it — no relaunch), so this is how you A/B the analyzers' cost; dump_state.settings reports the live values
 "$V" --debug-cmd set_key_display musical colors # {ok, keyNotation, keyColors} — <camelot|musical> <colors|plain>, same live prefs write; the label repaints at its next re-render (key delivery, fader tick, or track change), not on the write itself
-"$V" --debug-cmd set_folder_artwork off # {ok, folderArtwork} — <on|off>, the Settings > Files album-art dropdown: writes the setting AND re-resolves the loaded playlist's folder art, header, dock and rows included. Unlike the prefs writes above this one needs a RUNNING app — the live re-resolve is the half worth testing, and the pane itself cannot be driven over this channel
+"$V" --debug-cmd set_folder_art off # {ok, folderArt} — <on|off>, the Settings > Files album-art dropdown: writes the setting AND re-resolves the loaded playlist's folder art, header, dock and rows included. Unlike the prefs writes above this one needs a RUNNING app — the live re-resolve is the half worth testing, and the pane itself cannot be driven over this channel
 "$V" --debug-cmd sleep 0.5           # client-side pause (0–600s, sub-second OK) — for scripts; the app's main thread never sleeps
 "$V" --debug-cmd script - <<'EOF'    # command script: see Command scripts below
 seek 30

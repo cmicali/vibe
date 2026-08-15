@@ -1,5 +1,5 @@
 //
-//  DefaultAppClaim.h
+//  DefaultAppRegistration.h
 //  Vibe
 //
 //  Settings > General's default-player button: asking Launch Services to make
@@ -13,7 +13,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface DefaultAppClaim : NSObject
+@interface DefaultAppRegistration : NSObject
 
 // Answers YES when Vibe is already the default app for every
 // declaredFileTypes entry. The per-type Launch Services lookups are

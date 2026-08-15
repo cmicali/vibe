@@ -1,5 +1,5 @@
 //
-//  UIUpdateRate.h
+//  UIUpdateMath.h
 //  Vibe
 //
 //  The playback-UI tick rate, as a function of the numbers alone — no timer,

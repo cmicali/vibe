@@ -2,7 +2,7 @@
 //  FLACTagCopier.h
 //  Vibe
 //
-//  Carries a WAV or AIFF file's tags and cover art over to the FLAC that
+//  Carries a WAV or AIFF file's tags and embedded art over to the FLAC that
 //  Convert to FLAC just encoded from it.
 //
 
@@ -15,7 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 extern "C" {
 #endif
 
-// Copies the scalar tags and the front-cover art from sourcePath's ID3v2 tag
+// Copies the scalar tags and the front-cover picture from sourcePath's ID3v2 tag
 // into flacPath's Vorbis comments and picture blocks, and saves. Returns NO
 // when nothing could be copied — cosmetic, not fatal: every display path
 // falls back to the filename. A free function so the TagLib include graph

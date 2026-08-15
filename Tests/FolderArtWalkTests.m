@@ -8,7 +8,7 @@
 #import <XCTest/XCTest.h>
 
 #import "AppSettings.h"
-#import "FolderArtwork.h"
+#import "FolderArtResolver.h"
 #import "NSURLUtilInternal.h"
 
 @interface FolderArtWalkTests : XCTestCase
@@ -39,16 +39,16 @@
     // against a clean resolver.
     [NSURLUtil setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
                                              NSDictionary<NSString *, NSString *> *artFilenameByDirectory) {
-        [FolderArtwork.sharedInstance noteListedDirectories:directories
+        [FolderArtResolver.sharedInstance noteListedDirectories:directories
                                      artFilenameByDirectory:artFilenameByDirectory];
     }];
-    [FolderArtwork.sharedInstance invalidate];
+    [FolderArtResolver.sharedInstance invalidate];
 }
 
 - (void)tearDown {
     [NSURLUtil setWalkedDirectoriesHandler:nil];
     [NSFileManager.defaultManager removeItemAtURL:_root error:nil];
-    [FolderArtwork.sharedInstance invalidate];
+    [FolderArtResolver.sharedInstance invalidate];
     [super tearDown];
 }
 
@@ -69,7 +69,7 @@
 }
 
 - (NSString *)settledFor:(NSString *)directory {
-    return [FolderArtwork.sharedInstance settledArtPathForDirectory:directory];
+    return [FolderArtResolver.sharedInstance settledArtPathForDirectory:directory];
 }
 
 #pragma mark - The harvest
@@ -158,7 +158,7 @@
     [self makeFile:@"Sleeve/track.mp3"];
     [self makeFile:@"Sleeve/back.jpg"];
     [self makeFile:@"Sleeve/scan-cover.jpg"];
-    [self makeFile:@"Sleeve/cover art.jpg"];
+    [self makeFile:@"Sleeve/folder art.jpg"];
 
     [NSURLUtil expandDirectory:_root];
 
@@ -169,11 +169,11 @@
 // recorded whether or not the fallback is switched on: switching it on later
 // then gets this answer rather than the lone file's guesswork.
 - (void)testTheHarvestIsRecordedEvenWithTheSettingOff {
-    BOOL previous = Settings.useFolderArtwork;
+    BOOL previous = Settings.useFolderArt;
     [self addTeardownBlock:^{
-        Settings.useFolderArtwork = previous;
+        Settings.useFolderArt = previous;
     }];
-    Settings.useFolderArtwork = NO;
+    Settings.useFolderArt = NO;
 
     NSString *directory = [self makeDirectory:@"OffAlbum"];
     [self makeFile:@"OffAlbum/track.mp3"];

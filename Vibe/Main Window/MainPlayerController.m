@@ -21,7 +21,7 @@
 #import "AudioWaveformCache.h"
 #import "AudioWaveformView.h"
 #import "AudioFileConverter.h"
-#import "FolderArtwork.h"
+#import "FolderArtResolver.h"
 #import "FolderAccessManager.h"
 #import "PlaylistController.h"
 #import "PlaylistTableView.h"
@@ -37,7 +37,7 @@
 #import "MainPlayerController+Transport.h" // updateFXIndicators, from the updateUI funnel
 #import "DownloadProgressMonitor.h"
 #import "UIUpdateTimer.h"
-#import "UIUpdateRate.h"
+#import "UIUpdateMath.h"
 #import "AppStats.h"
 #import "VibeStrings.h"
 
@@ -142,9 +142,9 @@
     TransportKeyMonitor*        _keyMonitor;
     PitchControlPanel*          _pitchPanel;
     ArtworkDisplayController*   _artworkController;
-    // Coalesces the redraws behind FolderArtworkDidResolveNotification; see
-    // folderArtworkDidResolve:. Main thread only.
-    BOOL                        _folderArtworkRefreshScheduled;
+    // Coalesces the redraws behind FolderArtDidResolveNotification; see
+    // folderArtDidResolve:. Main thread only.
+    BOOL                        _folderArtRefreshScheduled;
 }
 
 - (void)dealloc {
@@ -325,7 +325,7 @@
     };
 
     // A folder granted after a scan may hold the cover for tracks already
-    // loaded, whose lookup FolderArtwork declined for want of a grant. Every
+    // loaded, whose lookup FolderArtResolver declined for want of a grant. Every
     // grant path posts this — a drop, an open, the Files pane's Add Folder
     // panel — and that pane may never have been opened, so the observation
     // belongs here rather than in it.
@@ -334,8 +334,8 @@
                                                name:FolderAccessManagerDidChangeNotification
                                              object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(folderArtworkDidResolve:)
-                                               name:FolderArtworkDidResolveNotification
+                                           selector:@selector(folderArtDidResolve:)
+                                               name:FolderArtDidResolveNotification
                                              object:nil];
 
     _artworkController = [[ArtworkDisplayController alloc] initWithContentView:self.playerContentView];
@@ -1218,13 +1218,13 @@
     [self updateUI];
 }
 
-- (void)refreshFolderArtwork {
-    // No per-track work: folder covers live in FolderArtwork, one per folder,
+- (void)refreshFolderArt {
+    // No per-track work: folder covers live in FolderArtResolver, one per folder,
     // so telling it the setting moved is the whole of it. The rows and the
     // header re-ask, and the accessors decode only the folders still on screen.
     // What the resolver has *settled* deliberately survives; see
     // albumArtSettingDidChange.
-    [FolderArtwork.sharedInstance albumArtSettingDidChange];
+    [FolderArtResolver.sharedInstance albumArtSettingDidChange];
     [self.playlistController reloadAllTracks];
     [self updateUI];
 }
@@ -1235,7 +1235,7 @@
 // moment later, and wiping every answer discards the covers that same open's
 // walk just harvested for free.
 - (void)grantedFoldersDidChange:(NSNotification *)notification {
-    [FolderArtwork.sharedInstance invalidateDirectoriesSettledWithoutGrant];
+    [FolderArtResolver.sharedInstance invalidateDirectoriesSettledWithoutGrant];
     [self.playlistController reloadAllTracks];
     [self updateUI];
 }
@@ -1247,21 +1247,21 @@
 // short delay rather than one turn of the run loop, because the resolver is
 // serial: consecutive folders land in *different* turns almost every time, so a
 // per-turn gate would coalesce nothing.
-static const NSTimeInterval kFolderArtworkRedrawDelay = 0.15;
+static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 
-- (void)folderArtworkDidResolve:(NSNotification *)notification {
-    if (_folderArtworkRefreshScheduled) {
+- (void)folderArtDidResolve:(NSNotification *)notification {
+    if (_folderArtRefreshScheduled) {
         return;
     }
-    _folderArtworkRefreshScheduled = YES;
+    _folderArtRefreshScheduled = YES;
     __weak MainPlayerController *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFolderArtworkRedrawDelay * NSEC_PER_SEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFolderArtRedrawDelay * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         MainPlayerController *strongSelf = weakSelf;
         if (!strongSelf) {
             return;
         }
-        strongSelf->_folderArtworkRefreshScheduled = NO;
+        strongSelf->_folderArtRefreshScheduled = NO;
         [strongSelf.playlistController reloadVisibleTracks];
         [strongSelf updateUI];
     });

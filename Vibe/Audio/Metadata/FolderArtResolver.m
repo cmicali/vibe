@@ -1,5 +1,5 @@
 //
-// FolderArtwork.m
+// FolderArtResolver.m
 // Vibe
 //
 // Locking: the lock covers _directories and nothing else. Never hold it across
@@ -15,7 +15,7 @@
 // even that is O(1) — the trim belongs to its job.
 //
 
-#import "FolderArtwork.h"
+#import "FolderArtResolver.h"
 #import "AppSettings.h"
 #import "FolderArtRules.h"
 #import "FolderAccessManager.h"
@@ -27,7 +27,7 @@
 #import <sys/stat.h>
 #import <unistd.h>
 
-NSNotificationName const FolderArtworkDidResolveNotification = @"FolderArtworkDidResolveNotification";
+NSNotificationName const FolderArtDidResolveNotification = @"FolderArtDidResolveNotification";
 
 // A cover is a few hundred KB. Past this it is a scan or a print master, and
 // reading it costs more than the art is worth — the folder counts as having
@@ -61,7 +61,7 @@ static NSString *const kNoArtMarker = @"";
 // lstat rather than stat, and O_NOFOLLOW on the open below: following a link
 // would read whatever it points at, which the folder's grant never covered. The
 // price is that a symlinked cover.jpg is not found.
-static BOOL VibeFolderArtworkFileInfo(NSString *path, unsigned long long *size) {
+static BOOL VibeFolderArtFileInfo(NSString *path, unsigned long long *size) {
     struct stat info;
     if (lstat(path.fileSystemRepresentation, &info) != 0 || !S_ISREG(info.st_mode) ||
             info.st_size <= 0 || (unsigned long long)info.st_size > kMaxArtFileBytes) {
@@ -78,7 +78,7 @@ static BOOL VibeFolderArtworkFileInfo(NSString *path, unsigned long long *size) 
 // cannot be tested until that open returns. Left set across the reads it means
 // something else entirely: a regular file whose bytes are not resident answers
 // EAGAIN, which says nothing about the image.
-static NSData *VibeReadFolderArtwork(NSString *path) {
+static NSData *VibeReadFolderArt(NSString *path) {
     int descriptor = open(path.fileSystemRepresentation,
                           O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
     if (descriptor < 0) {
@@ -192,7 +192,7 @@ static NSData *VibeReadFolderArtwork(NSString *path) {
 
 #pragma mark - The resolver
 
-@implementation FolderArtwork {
+@implementation FolderArtResolver {
     os_unfair_lock _lock;
     NSMutableDictionary<NSString *, VibeFolderArtEntry *> *_directories;
     uint64_t _nextRevision;
@@ -205,52 +205,52 @@ static NSData *VibeReadFolderArtwork(NSString *path) {
     // — far too hot for a defaults read apiece. -1 is unknown; only an
     // invalidate clears it. Two racers both asking the provider is harmless.
     atomic_int _enabledCache;
-    FolderArtworkEnabledProvider _enabledProvider;
-    FolderArtworkAccessProvider _accessProvider;
-    FolderArtworkDirectoryLister _lister;
-    FolderArtworkFileInfoProvider _fileInfo;
-    FolderArtworkDataReader _dataReader;
-    FolderArtworkDecoder _decoder;
+    FolderArtEnabledProvider _enabledProvider;
+    FolderArtAccessProvider _accessProvider;
+    FolderArtDirectoryLister _lister;
+    FolderArtFileInfoProvider _fileInfo;
+    FolderArtDataReader _dataReader;
+    FolderArtDecoder _decoder;
 }
 
 + (instancetype)sharedInstance {
-    static FolderArtwork *instance;
+    static FolderArtResolver *instance;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        instance = [[FolderArtwork alloc] init];
+        instance = [[FolderArtResolver alloc] init];
     });
     return instance;
 }
 
 - (instancetype)init {
     return [self initWithEnabledProvider:^BOOL{
-        return Settings.useFolderArtwork;
+        return Settings.useFolderArt;
     } accessProvider:^BOOL(NSString *directory) {
         return [FolderAccessManager.sharedInstance canReadInsideDirectory:directory];
     }];
 }
 
-- (instancetype)initWithEnabledProvider:(FolderArtworkEnabledProvider)enabledProvider
-                         accessProvider:(FolderArtworkAccessProvider)accessProvider {
+- (instancetype)initWithEnabledProvider:(FolderArtEnabledProvider)enabledProvider
+                         accessProvider:(FolderArtAccessProvider)accessProvider {
     return [self initWithEnabledProvider:enabledProvider
                           accessProvider:accessProvider
                                   lister:^NSArray<NSString *> *(NSString *directory) {
         return [NSFileManager.defaultManager contentsOfDirectoryAtPath:directory error:nil];
     } fileInfo:^BOOL(NSString *path, unsigned long long *size) {
-        return VibeFolderArtworkFileInfo(path, size);
+        return VibeFolderArtFileInfo(path, size);
     } dataReader:^NSData *(NSString *path) {
-        return VibeReadFolderArtwork(path);
+        return VibeReadFolderArt(path);
     } decoder:^NSImage *(NSData *data, CGFloat maxPixelSize) {
         return [NSImage decodedImageWithData:data maxPixelSize:maxPixelSize];
     }];
 }
 
-- (instancetype)initWithEnabledProvider:(FolderArtworkEnabledProvider)enabledProvider
-                         accessProvider:(FolderArtworkAccessProvider)accessProvider
-                                 lister:(FolderArtworkDirectoryLister)lister
-                               fileInfo:(FolderArtworkFileInfoProvider)fileInfo
-                             dataReader:(FolderArtworkDataReader)dataReader
-                                decoder:(FolderArtworkDecoder)decoder {
+- (instancetype)initWithEnabledProvider:(FolderArtEnabledProvider)enabledProvider
+                         accessProvider:(FolderArtAccessProvider)accessProvider
+                                 lister:(FolderArtDirectoryLister)lister
+                               fileInfo:(FolderArtFileInfoProvider)fileInfo
+                             dataReader:(FolderArtDataReader)dataReader
+                                decoder:(FolderArtDecoder)decoder {
     self = [super init];
     if (self) {
         _lock = OS_UNFAIR_LOCK_INIT;
@@ -262,7 +262,7 @@ static NSData *VibeReadFolderArtwork(NSString *path) {
         atomic_init(&_enabledCache, -1);
         // Serial and background: never urgent, and one folder at a time keeps a
         // big playlist's scrolling from turning into a disk storm.
-        _queue = dispatch_queue_create("com.vibe.folderartwork",
+        _queue = dispatch_queue_create("com.vibe.folderart",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
         _enabledProvider = [enabledProvider copy];
         _accessProvider = [accessProvider copy];
@@ -481,7 +481,7 @@ static NSData *VibeReadFolderArtwork(NSString *path) {
 
 #pragma mark - Entries
 
-- (BOOL)folderArtworkEnabled {
+- (BOOL)folderArtEnabled {
     int cached = atomic_load_explicit(&_enabledCache, memory_order_relaxed);
     if (cached >= 0) {
         return cached != 0;
@@ -492,7 +492,7 @@ static NSData *VibeReadFolderArtwork(NSString *path) {
 }
 
 - (NSString *)directoryForAudioFilePath:(NSString *)path {
-    if (path.length == 0 || ![self folderArtworkEnabled]) {
+    if (path.length == 0 || ![self folderArtEnabled]) {
         return nil;
     }
     NSString *directory = path.stringByDeletingLastPathComponent;
@@ -670,7 +670,7 @@ static NSData *VibeReadFolderArtwork(NSString *path) {
     if (skip) {
         return;
     }
-    __weak FolderArtwork *weakSelf = self;
+    __weak FolderArtResolver *weakSelf = self;
     dispatch_async(_queue, ^{
         [weakSelf resolveScheduledDirectory:directory];
     });
@@ -704,14 +704,14 @@ static NSData *VibeReadFolderArtwork(NSString *path) {
     if (!settled && !stored) {
         return;
     }
-    __weak FolderArtwork *weakSelf = self;
+    __weak FolderArtResolver *weakSelf = self;
     run_on_main_thread({
-        FolderArtwork *strongSelf = weakSelf;
+        FolderArtResolver *strongSelf = weakSelf;
         if (![strongSelf isRevisionCurrent:revision forDirectory:directory
                                    artPath:stored ? artPath : nil]) {
             return;
         }
-        [NSNotificationCenter.defaultCenter postNotificationName:FolderArtworkDidResolveNotification
+        [NSNotificationCenter.defaultCenter postNotificationName:FolderArtDidResolveNotification
                                                           object:strongSelf];
     });
 }

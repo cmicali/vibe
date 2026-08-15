@@ -6,7 +6,7 @@
 #import "AudioWaveformCache.h"
 #import "AudioWaveform.h"
 #import "PINCache.h"
-#import "AudioCachePolicy.h"
+#import "PINCache+VibeAudioCache.h"
 #import "AudioTrack.h"
 #import "AVFAudioWaveformLoader.h"
 
@@ -64,7 +64,7 @@
             // Why the memory cache goes unused is with the shared policy. The
             // view retains the one live waveform, and a replay re-reads from
             // disk in a few ms on this utility queue.
-            self->_waveformCache = VibeAudioCacheCreate(AudioWaveformCache.cacheName);
+            self->_waveformCache = [PINCache audioCacheWithName:AudioWaveformCache.cacheName];
         });
     }
     return self;
@@ -84,7 +84,7 @@
     // The serial queue guarantees the cache exists and keeps the blocking
     // enumeration off the caller's thread.
     dispatch_async(_loaderQueue, ^{
-        VibeAudioCacheDiskUsage(self->_waveformCache, completion);
+        [self->_waveformCache audioDiskUsageWithCompletion:completion];
     });
 }
 

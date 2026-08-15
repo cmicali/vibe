@@ -203,8 +203,8 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     return [self.artwork thumbnailAlbumArt];
 }
 
-- (void)prewarmEmbeddedThumbnailAlbumArt {
-    [self.artwork prewarmEmbeddedThumbnailAlbumArt];
+- (void)prewarmEmbeddedThumbnail {
+    [self.artwork prewarmEmbeddedThumbnail];
 }
 
 // The archive stays small, at roughly 5-20KB per track, so that the disk cache
@@ -288,8 +288,8 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 
 - (NSData *)thumbnailJPEGData {
     // The file's own art only. Folder art must never be archived; see
-    // AudioTrackArtwork.archivableThumbnail.
-    NSImage *thumbnail = [self.artwork archivableThumbnail];
+    // AudioTrackArtwork.embeddedThumbnail.
+    NSImage *thumbnail = [self.artwork embeddedThumbnail];
     if (!thumbnail) {
         return nil;
     }

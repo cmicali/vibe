@@ -9,7 +9,7 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "VibeFadeCurve.h"
+#import "FadeMath.h"
 
 // Whether the crossfade setting permits arming the splice: only the declick
 // minimum, which the UI presents as crossfade off. A longer setting is a

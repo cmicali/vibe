@@ -65,7 +65,7 @@ NS_ASSUME_NONNULL_BEGIN
 // albumArtNeedsLoad on the main thread instead. It is nil for artless tracks
 // and unreadable files. It is readonly because art only ever comes from the
 // file itself, through a parse or an on-demand re-extraction, or — for a file
-// carrying none — from a cover beside it via FolderArtwork; there is
+// carrying none — from a cover beside it via FolderArtResolver; there is
 // deliberately no injection path.
 @property (readonly, strong, nullable) VibeImage *albumArt;
 
@@ -104,13 +104,13 @@ NS_ASSUME_NONNULL_BEGIN
 // A downscaled copy of albumArt, suited to small table cells. Generated lazily
 // on first read, and **the file's own thumbnail — never a folder cover — is
 // what gets serialized to the on-disk cache**, so cache hits get it for free;
-// see FolderArtwork for why the fallback is never persisted. Safe to call while
+// see FolderArtResolver for why the fallback is never persisted. Safe to call while
 // drawing: it uses the fallback's non-blocking accessor.
 - (nullable VibeImage *)thumbnailAlbumArt;
 
 // Metadata-loader warm-up for embedded art only. Folder fallback stays driven
 // by visible rows and the current track.
-- (void)prewarmEmbeddedThumbnailAlbumArt;
+- (void)prewarmEmbeddedThumbnail;
 
 + (AudioTrackMetadata *)metadataWithURL:(NSURL *)url;
 

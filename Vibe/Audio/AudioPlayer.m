@@ -14,7 +14,7 @@
 #import "AudioDeviceManager.h"
 #import "AudioDevice.h"
 #import "CoreAudioUtil.h"
-#import "VibeFadeCurve.h"
+#import "FadeMath.h"
 #import "GaplessSpliceMath.h"
 #import "PlaybackRequestCoordinator.h"
 #import <AVFoundation/AVFoundation.h>
@@ -104,7 +104,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 @implementation AudioPlayer {
     // AudioPlayerInternal.h's class extension declares the ivars the
     // output-device category also touches: _queue, _engine, _node, _file,
-    // _segmentStartFrame, _generation, _rampGeneration, _state and _stateLock.
+    // _segmentStartFrame, _segmentGeneration, _rampGeneration, _state and _stateLock.
     //
     // Varispeed sits between the current player node and the mixer.
     // playOnQueue: creates a fresh one per track, so a track change crossfades
@@ -510,7 +510,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     }
 
     _pendingDeclick = declick;
-    _generation++;
+    _segmentGeneration++;
     [self preemptRampsOnQueue]; // preempt any in-flight resume fade-in
     // Any armed splice dies with the node this play retires; the retiring
     // node's fading tail may graze the queued segment's first frames for the
@@ -690,7 +690,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         // crossfade — and neither ramp cancels the other. The length matches
         // that fade-out: the crossfade setting when one is running, the
         // declick minimum otherwise (see playOnQueue:). The curve follows the
-        // length too, so both sides ride equal power (VibeFadeCurve.h).
+        // length too, so both sides ride equal power (FadeMath.h).
         uint64_t fadeMs = _incomingFadeMilliseconds ?: kFadeDurationMilliseconds;
         [self stepRampAsync:node step:1 from:0 to:1.0
                      totalSteps:VibeFadeStepsForMilliseconds(fadeMs)
@@ -766,7 +766,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                  failureDescription:(NSString *)description
                               error:(NSError *)error
                                 url:(NSURL *)url {
-    _generation++; // drop the scheduled segment's stop-fired completion
+    _segmentGeneration++; // drop the scheduled segment's stop-fired completion
     [node stop];
     [_engine detachNode:node];
     [self resetToStoppedStateOnQueue];
@@ -777,10 +777,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // Schedules the remainder of the file from startFrame, with a completion
 // tagged by the current generation. AVAudioPlayerNode fires completions on
 // stop and reschedule too, not only at a natural end, so every interruption —
-// skip, seek, device switch or a new play — bumps _generation first and those
+// skip, seek, device switch or a new play — bumps _segmentGeneration first and those
 // completions are dropped.
 - (void)scheduleFile:(AVAudioFile *)file onNode:(AVAudioPlayerNode *)node fromFrame:(AVAudioFramePosition)startFrame {
-    uint64_t gen = _generation;
+    uint64_t gen = _segmentGeneration;
     AVAudioFrameCount frames = (AVAudioFrameCount)MAX(file.length - startFrame, 1);
     AVAudioPlayerNodeCompletionCallbackType completionType = AVAudioPlayerNodeCompletionDataPlayedBack;
 #if DEBUG
@@ -1033,7 +1033,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // The boundary passed: the finished segment's completion fired while the next
 // track's segment — already sounding — sits queued on the same node. Promote
 // it to current in place: no node stop, no fade, no graph mutation, and no
-// idle-stop schedule, because nothing went idle. _generation is deliberately
+// idle-stop schedule, because nothing went idle. _segmentGeneration is deliberately
 // not bumped — the now-current segment's completion carries it, and will
 // route the next boundary or the natural end. The published segment start
 // goes negative (see GaplessSpliceMath.h); the position getter's math is
@@ -1100,7 +1100,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         // the node just as the wrong file starts sounding, a blip plus a
         // click — so stale it now; the seek replays the current remainder
         // from here and the re-run boundary advances normally, unarmed.
-        _generation++;
+        _segmentGeneration++;
         [self seekToPosition:self.position];
     }
 }
@@ -1165,7 +1165,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         }
         else if (state == VibePlayerStatePaused && strongSelf->_node && strongSelf->_file) {
             // The paused node still carries its scheduled segment, and pause
-            // deliberately leaves _generation current — so the stops below
+            // deliberately leaves _segmentGeneration current — so the stops below
             // would fire that segment's completion as a natural track end and
             // auto-advance out of a pause (observed, not hypothetical).
             // Retire it, silence the node, stop the engine, and reschedule in
@@ -1173,7 +1173,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
             // scheduling needs no running engine, and the resume's
             // startEngineAndPlayNode: then plays the fresh segment.
             NSTimeInterval position = strongSelf.position; // Paused: the published value
-            strongSelf->_generation++;
+            strongSelf->_segmentGeneration++;
             [strongSelf setGaplessQueuedOnQueue:NO]; // the stop below drops the queued segment
             AVAudioPlayerNode *node = strongSelf->_node;
             AVAudioFile *file = strongSelf->_file;
@@ -1219,7 +1219,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 }
 
 - (void)segmentDidCompleteWithGeneration:(uint64_t)generation {
-    if (generation != _generation) {
+    if (generation != _segmentGeneration) {
         return; // Stale: a stop, seek, skip or device switch superseded this segment.
     }
     if (_gaplessQueued) {
@@ -1294,7 +1294,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
             // finish cleanly: a pause pauses in place instead of advancing,
             // and a new play retires the node with a single volume driver.
             // The node is still _node here, so every preemptor takes it over
-            // and preemption cannot strand it audible. _generation is
+            // and preemption cannot strand it audible. _segmentGeneration is
             // deliberately not bumped until the finish lands: a cancelled
             // finish leaves the scheduled segment's completion live, so the
             // natural track end still fires after a resume.
@@ -1325,12 +1325,12 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                 }
                 // [node stop] inside finishPlaybackOnQueue fires the scheduled
                 // segment's completion; bump so it reads as stale.
-                strongSelf->_generation++;
+                strongSelf->_segmentGeneration++;
                 [strongSelf finishPlaybackOnQueue];
             }];
             return;
         }
-        self->_generation++; // the [node stop] below fires the segment's completion
+        self->_segmentGeneration++; // the [node stop] below fires the segment's completion
         [self finishPlaybackOnQueue];
     });
 }
@@ -1342,7 +1342,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 }
 
 - (void)stopOnQueue {
-    _generation++; // drop the scheduled segment's stop-fired completion
+    _segmentGeneration++; // drop the scheduled segment's stop-fired completion
     [self preemptRampsOnQueue];
 
     // Pull the node/varispeed pair out of the live state, fade it to silence
@@ -1489,7 +1489,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 
 // The player's one fade-stepping loop, kept non-blocking by dispatch_after on
 // the player queue. Both ramp flavors below are thin entries into it. The
-// curves and cadence live in VibeFadeCurve.h, shared with AudioFX's send-gate
+// curves and cadence live in FadeMath.h, shared with AudioFX's send-gate
 // stepper; fadeMilliseconds picks the curve by fade length — log at the
 // declick minimum, equal power for crossfade-length fades — matching the
 // registered retired-fade stepper, so both sides of a crossfade ride the same
@@ -1550,7 +1550,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return; // Preempted: stop, pause or reset tears the pair down.
     }
     // Registered fades are crossfade-length by construction (retireNode:), so
-    // this is always the equal-power side of a crossfade; see VibeFadeCurve.h.
+    // this is always the equal-power side of a crossfade; see FadeMath.h.
     fade.node.volume = VibeCrossfadeVolumeOverSteps(start, 0, step, totalSteps);
     if (step >= totalSteps) {
         [_retiredFades removeObject:fade];
@@ -1818,7 +1818,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         BOOL wasPlaying = (self->_state == VibePlayerStatePlaying);
         AVAudioFramePosition startFrame = VibeClampedStartFrame(pos, sampleRate, file.length);
         NSTimeInterval framePosition = (NSTimeInterval)startFrame / sampleRate;
-        self->_generation++; // drop the current segment's stop-fired completion
+        self->_segmentGeneration++; // drop the current segment's stop-fired completion
 
         if (!wasPlaying) {
             // Paused: reschedule the existing, silent node in place. No audio
@@ -1893,7 +1893,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // the current generation rather than the one this seek's entry bump
     // retired. Re-bump immediately before the stop, or that completion
     // reads as current and "finishes" the track.
-    _generation++;
+    _segmentGeneration++;
     [self setGaplessQueuedOnQueue:NO]; // the stop drops the queued segment
     [node stop];
     [self scheduleFile:file onNode:node fromFrame:startFrame];

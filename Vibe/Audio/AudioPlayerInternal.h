@@ -51,7 +51,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AVAudioPlayerNode       *_node;
     AVAudioFile             *_file;
     AVAudioFramePosition    _segmentStartFrame;
-    uint64_t                _generation;
+    uint64_t                _segmentGeneration;
     // Bumped by every path that preempts an async volume ramp: pause, resume,
     // seek, skip and device switch. Each ramp step aborts once its captured
     // value goes stale, so a resume fade-in cannot drive the volume back up

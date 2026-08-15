@@ -4,7 +4,7 @@
 //
 
 #import "AudioFX.h"
-#import "VibeFadeCurve.h"
+#import "FadeMath.h"
 #import <AVFoundation/AVFoundation.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>

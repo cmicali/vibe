@@ -25,7 +25,11 @@
 #define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
 #define SETTING_KEY_COLORS                          @"Appearance.keyColors"
 #define SETTING_CONVERT_ASKS_WHERE_TO_SAVE          @"Convert.asksWhereToSave"
-#define SETTING_FOLDER_ARTWORK                      @"Audio.folderArtwork"
+// TRAP: the stored key is not the macro's name and must never follow a rename —
+// it is a persisted NSUserDefaults key, so changing the string silently resets
+// every existing user's setting to the default. It predates the folder-artwork
+// → folder-art vocabulary and stays as written.
+#define SETTING_FOLDER_ART                           @"Audio.folderArtwork"
 
 @implementation AppSettings
 
@@ -67,7 +71,7 @@
             SETTING_KEY_NOTATION:                   SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
             SETTING_KEY_COLORS:                     @(NO),
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
-            SETTING_FOLDER_ARTWORK:                 @(YES),
+            SETTING_FOLDER_ART:                 @(YES),
     };
     [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
 }
@@ -299,12 +303,12 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
     [[NSUserDefaults standardUserDefaults] setBool:ask forKey:SETTING_CONVERT_ASKS_WHERE_TO_SAVE];
 }
 
-- (BOOL)useFolderArtwork {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_FOLDER_ARTWORK];
+- (BOOL)useFolderArt {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_FOLDER_ART];
 }
 
-- (void)setUseFolderArtwork:(BOOL)use {
-    [[NSUserDefaults standardUserDefaults] setBool:use forKey:SETTING_FOLDER_ARTWORK];
+- (void)setUseFolderArt:(BOOL)use {
+    [[NSUserDefaults standardUserDefaults] setBool:use forKey:SETTING_FOLDER_ART];
 }
 
 @end

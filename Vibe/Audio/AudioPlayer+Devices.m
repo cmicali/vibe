@@ -88,7 +88,7 @@
     BOOL shouldRestore = (priorState == VibePlayerStatePlaying || priorState == VibePlayerStatePaused) && trackToRestore != nil;
     BOOL wasPlaying = (priorState == VibePlayerStatePlaying);
 
-    _generation++;
+    _segmentGeneration++;
     [self preemptRampsOnQueue];
     [self setGaplessQueuedOnQueue:NO]; // the queued segment dies with the old node
 

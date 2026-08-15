@@ -310,7 +310,7 @@ targets:
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
       - path: Vibe/Audio/Metadata/MetadataParseFlow.m
       - path: Vibe/Audio/PlaybackRequestCoordinator.m
-      - path: Vibe/Audio/Metadata/FolderArtwork.m
+      - path: Vibe/Audio/Metadata/FolderArtResolver.m
       - path: Vibe/Audio/Metadata/AudioTrackArtwork.m
       - path: Vibe/Common/AppSettings.m
       - path: Vibe/Settings/FolderAccessManager.m

@@ -586,7 +586,7 @@ static NSString *VibeAliasFreePath(NSString *path) {
 // Restoration settles one bookmark at a time, each on its own block, and every
 // one changes what the Files pane shows — including the failures, which merge
 // nothing. Coalesced to one post per turn of the run loop because observers do
-// real work with it: the player invalidates folder artwork, and a dozen
+// real work with it: the player invalidates folder art, and a dozen
 // remembered folders should not make it do that a dozen times at launch. The
 // user-driven add and remove post directly, so the pane redraws in the same
 // turn as the click.

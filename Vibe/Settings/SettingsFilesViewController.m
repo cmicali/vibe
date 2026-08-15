@@ -111,7 +111,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 }
 
 - (void)grantedFoldersChanged:(NSNotification *)notification {
-    // Only the list. A new grant's effect on folder artwork is the player
+    // Only the list. A new grant's effect on folder art is the player
     // controller's own observation of this notification, which runs whether or
     // not this pane was ever opened.
     [self refreshFromSettings];
@@ -122,7 +122,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     [_tableView reloadData];
     _removeButton.enabled = _tableView.selectedRowIndexes.count > 0;
     [self rebuildCommonFolderMenu];
-    NSString *albumArtSource = Settings.useFolderArtwork ? kAlbumArtFolder : kAlbumArtFileOnly;
+    NSString *albumArtSource = Settings.useFolderArt ? kAlbumArtFolder : kAlbumArtFileOnly;
     [_albumArtPopUp selectItemAtIndex:[_albumArtPopUp indexOfItemWithRepresentedObject:albumArtSource]];
 }
 
@@ -209,8 +209,8 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 #pragma mark - Actions
 
 - (void)albumArtSourceChanged:(id)sender {
-    Settings.useFolderArtwork = [_albumArtPopUp.selectedItem.representedObject isEqual:kAlbumArtFolder];
-    [self.playerController refreshFolderArtwork];
+    Settings.useFolderArt = [_albumArtPopUp.selectedItem.representedObject isEqual:kAlbumArtFolder];
+    [self.playerController refreshFolderArt];
 }
 
 - (void)addFolder:(id)sender {

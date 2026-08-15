@@ -7,7 +7,7 @@
 
 #import "AudioTrackMetadataCache.h"
 #import "PINCache.h"
-#import "AudioCachePolicy.h"
+#import "PINCache+VibeAudioCache.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "MetadataParseCoordinator.h"
@@ -318,7 +318,7 @@
     AudioTrackMetadata *metadata = [AudioTrackMetadata metadataWithURL:track.url];
     // Decode embedded art before publication so the table never pays ImageIO
     // work on main. Folder fallback remains lazy and visibility-driven.
-    [metadata prewarmEmbeddedThumbnailAlbumArt];
+    [metadata prewarmEmbeddedThumbnail];
     // Never clobber real metadata with a failed parse. A cancelled loader's op
     // can still be mid-parse when this loader re-parses successfully, and
     // last-writer-wins would reinstate the filename-only fallback. The monitor
@@ -431,7 +431,7 @@
         // beat this block. The loader re-reads the property at each use.
         dispatch_async(_cacheQueue, ^{
             // Why the memory cache goes unused is with the shared policy.
-            self.metadataCache = VibeAudioCacheCreate(AudioTrackMetadataCache.cacheName);
+            self.metadataCache = [PINCache audioCacheWithName:AudioTrackMetadataCache.cacheName];
         });
     }
     return self;
@@ -453,7 +453,7 @@
     // The serial queue guarantees the cache exists and keeps the blocking
     // enumeration off the caller's thread.
     dispatch_async(_cacheQueue, ^{
-        VibeAudioCacheDiskUsage(self.metadataCache, completion);
+        [self.metadataCache audioDiskUsageWithCompletion:completion];
     });
 }
 

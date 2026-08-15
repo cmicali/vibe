@@ -19,7 +19,7 @@
 #import "AppStats.h"
 #import "DocumentTypes.h"
 #import "FolderAccessManager.h"
-#import "FolderArtwork.h"
+#import "FolderArtResolver.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <sys/sysctl.h>
@@ -86,11 +86,11 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // the facts, but acting on them belongs to the app layer.
     [NSURLUtil setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
                                              NSDictionary<NSString *, NSString *> *artFilenameByDirectory) {
-        [FolderArtwork.sharedInstance noteListedDirectories:directories
+        [FolderArtResolver.sharedInstance noteListedDirectories:directories
                                      artFilenameByDirectory:artFilenameByDirectory];
     }];
     [NSURLUtil setBulkOpenDirectoriesHandler:^(NSSet<NSString *> *directories) {
-        [FolderArtwork.sharedInstance preferListingForDirectories:directories];
+        [FolderArtResolver.sharedInstance preferListingForDirectories:directories];
     }];
     // Build the controller and menu bar early enough that window state
     // restoration, which runs before applicationDidFinishLaunching, can find

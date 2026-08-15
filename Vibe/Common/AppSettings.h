@@ -105,7 +105,7 @@ static const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds;
 
 // The ceiling on the playback-UI tick rate, which scales itself to the
-// playhead's on-screen speed (Util/UIUpdateRate.h): 3, 30 (default) or 60 Hz,
+// playhead's on-screen speed (Util/UIUpdateMath.h): 3, 30 (default) or 60 Hz,
 // "Playhead refresh" in Settings > Advanced. Only a short file can reach the
 // ceiling — an ordinary song rests at the 3 Hz floor whatever this says — so
 // 3 is the fixed rate the app ticked at before the rule existed.
@@ -145,14 +145,14 @@ static const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
 - (void)setConvertAsksWhereToSave:(BOOL)ask;
 
 // YES lets a file with no art of its own show a cover image sitting beside it —
-// cover.jpg and its cousins; see FolderArtwork, which reads this. Default on,
+// cover.jpg and its cousins; see FolderArtResolver, which reads this. Default on,
 // and it never overrides a file's own art. **Whoever writes it must then call
-// MainPlayerController.refreshFolderArtwork**: the resolver caches this value,
+// MainPlayerController.refreshFolderArt**: the resolver caches this value,
 // since it gates every accessor on every cell draw, and only that call drops
 // the cached copy — so a write without it is not observed at all. Reading a
 // sibling file needs a folder grant, which is why Settings > Files holds both
 // this and the grants.
-- (BOOL)useFolderArtwork;
-- (void)setUseFolderArtwork:(BOOL)use;
+- (BOOL)useFolderArt;
+- (void)setUseFolderArt:(BOOL)use;
 
 @end

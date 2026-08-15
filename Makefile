@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: setup project build test test-summary stress release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations
+.PHONY: setup project build test test-summary stress release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -146,6 +146,12 @@ strings:
 # Fail if the catalog doesn't match the source. For review/CI.
 check-strings:
 	scripts/extract-strings.sh --check
+
+# Fail if a name breaks CLAUDE.md's Vocabulary section: a bare generation
+# counter, 'claim' used for OS role registration, or a header-only seam whose
+# suffix does not say whether it returns a decision or a number. For review/CI.
+check-vocabulary:
+	scripts/check-vocabulary.sh
 
 # Fail if any key is missing a catalog language. Distinct from check-strings,
 # which compares the catalog to the source and cannot see coverage at all.
