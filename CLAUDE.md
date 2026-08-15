@@ -38,17 +38,23 @@ Vibe is a native macOS music player written in Objective-C and Objective-C++. Pl
 
 Nested `CLAUDE.md` files hold the detail for each directory and load only when you work under it. **Read the relevant one before changing anything it covers.**
 
+- **`Vibe/App/`** — the application object and the app-wide services it owns: the open funnel and its burst coalescing, document types, lifetime stats, and the sandbox grants (`FolderAccessManager`). The bootstrap starts at `main.m`, in the repo root.
+- **`Vibe/Core/`** — what everything else is written in terms of: `AppSettings`, the localized-string registry, the prefix header. No feature lives here.
 - **`Vibe/Audio/`** — playback engine, FX, conversion, waveform data, BPM/key analysis, output devices.
 - **`Vibe/Audio/Metadata/`** — tags, the disk cache, the two-stage scan, embedded and folder art; opens with a map of the flow.
 - **`Vibe/Audio/Waveform/`** — waveform *data*: generation, chunking, persistence. **`Vibe/Audio/Analysis/`** — tempo and key detection riding that decode pass.
 - **`Vibe/Audio/Convert/`** — the FLAC encoder and the sandbox rungs its output has to climb.
-- **`Vibe/Waveform/`** — waveform rendering: views, renderer strategies, morph engine.
-- **`Vibe/Main Window/`** — `MainPlayerController` and the window; layout and Liquid Glass chrome live in that directory's `APPEARANCE.md`, its `CLAUDE.md` covering behavior.
-- **`Vibe/Menu/`** — menu bar, plus the app bootstrap (`main.m` at the repo root, `AppDelegate` in `Common/`).
-- **`Vibe/Playlist/`** — table structure vs content, Launch Services burst opens.
+- **`Vibe/WaveformUI/`** — waveform *rendering*: views, renderer strategies, morph engine, the loading shimmer. Named apart from `Audio/Waveform/` deliberately — one makes the data, the other draws it.
+- **`Vibe/MainWindow/`** — `MainPlayerController` and the window, plus the Now Playing bridge and the update timer they drive; layout and Liquid Glass chrome live in that directory's `APPEARANCE.md`, its `CLAUDE.md` covering behavior.
+- **`Vibe/Menu/`** — the menu bar, one builder method per top-level menu.
+- **`Vibe/Playlist/`** — the model, the CUE/M3U readers, and the table: structure vs content.
 - **`Vibe/Controls/`** — CALayer-drawn controls.
 - **`Vibe/ThirdParty/`** — the vendored TagLib subset and PINCache/PINOperation: what is included and why, how to update it.
-- **`Vibe/Settings/`** — Settings window, `FolderAccessManager` sandbox bookmarks; the Files pane holds the folder-art setting.
+- **`Vibe/Settings/`** — the Settings window and its panes. The Files pane holds the folder-art setting; the sandbox bookmarks it lists belong to `App/`.
+- **`Vibe/Util/`**, **`Vibe/About/`**, **`Vibe/Debug/`** — the featureless helpers, the About window, and the debug command channel (the `vibe-debug` skill covers the last).
+
+Adding a directory means adding an entry to `project.yml`; nothing globs it in.
+
 
 ### Cross-directory invariants
 
@@ -86,7 +92,7 @@ The `LogError`, `LogWarn`, `LogInfo` and `LogDebug` macros in `Vibe-Prefix.pch` 
 
 ### Localization
 
-**Every user-facing string is declared in `Vibe/Common/VibeStrings.h` and nowhere else.** Call sites use a `STR_*` macro and nothing more — no key, no English text, no translator comment inline.
+**Every user-facing string is declared in `Vibe/Core/VibeStrings.h` and nowhere else.** Call sites use a `STR_*` macro and nothing more — no key, no English text, no translator comment inline.
 
 Keys are symbolic and stable (`menu.file`, `label.bpm`), never the English text; the English lives in the macro's default value. **`make strings` after touching any UI string**; `make check-strings` fails when the catalog is stale. English is the source language; every other language is whatever the catalogs contain — don't hardcode the list anywhere, read it from `Resources/Localizable.xcstrings`.
 

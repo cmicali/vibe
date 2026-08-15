@@ -165,15 +165,6 @@
     _flow = [[MetadataParseFlow alloc] initWithCoordinator:_coordinator delegate:_recorder];
 }
 
-// The hooks capture the test case, which holds the recorder holding them.
-- (void)tearDown {
-    _recorder.duringParse = nil;
-    _recorder.beforeServe = nil;
-    _recorder.beforePublish = nil;
-    _recorder.afterResolvedAsk = nil;
-    [super tearDown];
-}
-
 // Rows named distinctly but sharing one cache identity are the duplicate-row
 // case: the same file on several playlist rows.
 - (FlowRow *)rowNamed:(NSString *)name key:(NSString *)key {
@@ -297,9 +288,10 @@
     FlowRow *firstWaiter = [self rowNamed:@"first" key:@"/song.flac"];
     FlowRow *secondWaiter = [self rowNamed:@"second" key:@"/song.flac"];
     // Both duplicates reach their parse op while the holder's is in flight.
+    __weak __typeof(self) weakSelf = self;
     _recorder.duringParse = ^(FlowRow *row) {
-        [self run:firstWaiter];
-        [self run:secondWaiter];
+        [weakSelf run:firstWaiter];
+        [weakSelf run:secondWaiter];
     };
 
     [self run:holder];
@@ -321,9 +313,10 @@
     FlowRow *holder = [self rowNamed:@"holder" key:@"/song.flac"];
     FlowRow *served = [self rowNamed:@"served" key:@"/song.flac"];
     FlowRow *bare = [self rowNamed:@"bare" key:@"/song.flac"];
+    __weak __typeof(self) weakSelf = self;
     _recorder.duringParse = ^(FlowRow *row) {
-        [self run:served];
-        [self run:bare];
+        [weakSelf run:served];
+        [weakSelf run:bare];
         // The sweep lands on one of them mid-parse.
         served.resolved = YES;
     };
@@ -343,7 +336,8 @@
 - (void)testTheClaimIsReleasedBeforeTheParseIsPublishedOrWaitersAreServed {
     FlowRow *holder = [self rowNamed:@"holder" key:@"/song.flac"];
     FlowRow *waiter = [self rowNamed:@"waiter" key:@"/song.flac"];
-    _recorder.duringParse = ^(FlowRow *row) { [self run:waiter]; };
+    __weak __typeof(self) weakSelf = self;
+    _recorder.duringParse = ^(FlowRow *row) { [weakSelf run:waiter]; };
     MetadataParseCoordinator *coordinator = _coordinator;
     __block NSUInteger probes = 0;
     __block NSUInteger held = 0;
@@ -372,7 +366,8 @@
     FlowRow *holder = [self rowNamed:@"holder" key:@"/song.flac"];
     FlowRow *waiter = [self rowNamed:@"waiter" key:@"/song.flac"];
     [_recorder.failingRows addObject:@"holder"];
-    _recorder.duringParse = ^(FlowRow *row) { [self run:waiter]; };
+    __weak __typeof(self) weakSelf = self;
+    _recorder.duringParse = ^(FlowRow *row) { [weakSelf run:waiter]; };
 
     [self run:holder];
 
@@ -387,9 +382,10 @@
 - (void)testRowsForDifferentFilesDoNotWaitOnEachOther {
     FlowRow *first = [self rowNamed:@"first" key:@"/one.flac"];
     FlowRow *second = [self rowNamed:@"second" key:@"/two.flac"];
+    __weak __typeof(self) weakSelf = self;
     _recorder.duringParse = ^(FlowRow *row) {
         if (row == first) {
-            [self run:second];
+            [weakSelf run:second];
         }
     };
 

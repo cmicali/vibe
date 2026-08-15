@@ -5,6 +5,7 @@
 
 #import "SettingsAppearanceViewController.h"
 #import "MainPlayerController.h"
+#import "MainPlayerController+Window.h"
 #import "MainPlayerController+Menus.h"
 #import "VibeStrings.h"
 

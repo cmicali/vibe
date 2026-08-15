@@ -6,6 +6,7 @@
 #import "MainMenuBuilder.h"
 #import "AppDelegate.h"
 #import "MainPlayerController.h"
+#import "MainPlayerController+Window.h"
 #import "MainPlayerController+Convert.h"
 #import "MainPlayerController+Transport.h"
 #import "OpenRecentMenuController.h"
@@ -110,15 +111,30 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     return SymbolItem(STR_MENU_CONVERT_TO_FLAC, @"arrow.triangle.2.circlepath",
                       @selector(convertCurrentTrackToFLAC:), target, @"", 0, @"menu_convert_to_flac");
 }
-
+// One method per top-level menu, in the order they appear in the bar, so a
+// change to the View menu is a change to one method rather than a scroll
+// through eight. Each helper owns its whole submenu tree; the order of the
+// calls below IS the left-to-right order of the menu bar.
 + (void)installMainMenuWithAppDelegate:(AppDelegate *)appDelegate
                       playerController:(MainPlayerController *)player
               openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController {
     // Never drawn: the root menu's title isn't rendered anywhere.
     NSMenu *mainMenu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Main Menu")];
 
-    NSString *appName = VibeAppName();
+    [self buildAppMenuIn:mainMenu appDelegate:appDelegate];
+    [self buildFileMenuIn:mainMenu openRecentMenuController:openRecentMenuController];
+    [self buildEditMenuIn:mainMenu player:player];
+    [self buildPlaybackMenuIn:mainMenu player:player];
+    [self buildFXMenuIn:mainMenu player:player];
+    [self buildViewMenuIn:mainMenu player:player];
+    [self buildConvertMenuIn:mainMenu player:player];
+    [self buildOutputMenuIn:mainMenu player:player];
 
+    NSApp.mainMenu = mainMenu;
+}
+
++ (void)buildAppMenuIn:(NSMenu *)mainMenu appDelegate:(AppDelegate *)appDelegate {
+    NSString *appName = VibeAppName();
     // Vibe (application menu). macOS draws CFBundleName in bold for the first
     // menu regardless of the title set here.
     NSMenu *appMenu = Submenu(mainMenu, appName).submenu;
@@ -144,7 +160,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 
     AddItem(appMenu, [NSString stringWithFormat:STR_MENU_APP_QUIT, appName],
             @selector(terminate:), nil, @"q", NSEventModifierFlagCommand, nil);
+}
 
++ (void)buildFileMenuIn:(NSMenu *)mainMenu openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController {
     // File
     NSMenu *fileMenu = Submenu(mainMenu, STR_MENU_FILE).submenu;
     AddItem(fileMenu, STR_MENU_FILE_OPEN, @selector(openDocument:), nil, @"o", NSEventModifierFlagCommand, nil);
@@ -155,7 +173,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // reaches the player's closeFile:; Settings and About intercept it and
     // close themselves instead.
     AddSymbolItem(fileMenu, STR_MENU_FILE_CLOSE, @"xmark", @selector(closeFile:), nil, @"w", NSEventModifierFlagCommand, @"menu_close");
+}
 
++ (void)buildEditMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
     // Edit: undo, redo, and the two copy items below — the app has no text
     // selection, so none of the standard editing items. Validation retitles
     // undo and redo from NSUndoManager.
@@ -197,7 +217,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // item disables rather than sitting enabled and inert over the playlist.
     AddSymbolItem(editMenu, STR_MENU_EDIT_SELECT_ALL, @"checklist", @selector(selectAll:), nil,
                   @"a", NSEventModifierFlagCommand, @"menu_edit_select_all");
+}
 
++ (void)buildPlaybackMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
     // Playback
     NSMenu *playbackMenu = Submenu(mainMenu, STR_MENU_PLAYBACK).submenu;
     AddSymbolItem(playbackMenu, STR_TRANSPORT_PLAY, @"play.fill", @selector(playPause:), player, @" ", 0, @"menu_play");
@@ -223,7 +245,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenu *pitchRangeMenu = pitchRangeItem.submenu;
     AddItem(pitchRangeMenu, STR_MENU_PITCH_RANGE_8, @selector(setPitchRange:), player, @"", 0, @"pitch_range_8");
     AddItem(pitchRangeMenu, STR_MENU_PITCH_RANGE_16, @selector(setPitchRange:), player, @"", 0, @"pitch_range_16");
+}
 
++ (void)buildFXMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
     // FX: the DJ performance effects, one item per bare key — Q, W, E, R and
     // T, at mask 0. As with the skip keys, the equivalents here are for
     // display and as the fallback path. TransportKeyMonitor actually handles
@@ -239,7 +263,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSymbolItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"e", 0, @"menu_fx_reverb");
     AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_8, @"repeat", @selector(toggleDelaySend:), player, @"r", 0, @"menu_fx_delay");
     AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_16, @"repeat.circle", @selector(toggleShortDelaySend:), player, @"t", 0, @"menu_fx_short_delay");
+}
 
++ (void)buildViewMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
     // View
     NSMenu *viewMenu = Submenu(mainMenu, STR_MENU_VIEW).submenu;
     AddSymbolItem(viewMenu, STR_MENU_VIEW_PLAYLIST, @"list.dash", @selector(toggleSize:), player, [NSString stringWithFormat:@"%c", NSTabCharacter], 0, @"menu_show_playlist");
@@ -266,7 +292,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 
     AddSeparator(viewMenu);
     AddSymbolItem(viewMenu, STR_MENU_VIEW_ALWAYS_ON_TOP, @"pin", @selector(toggleAlwaysOnTop:), player, @"", 0, @"menu_always_on_top");
+}
 
++ (void)buildConvertMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
     // Convert
     NSMenu *convertMenu = Submenu(mainMenu, STR_MENU_CONVERT).submenu;
     // Enabled only for an uncompressed current track with no FLAC beside it
@@ -275,13 +303,13 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSeparator(convertMenu);
     // A checkmarked preference rather than an action, so it is always enabled.
     AddSymbolItem(convertMenu, STR_MENU_CONVERT_DELETE_ORIGINAL, @"trash", @selector(toggleDeleteOriginalAfterConvert:), player, @"", 0, @"menu_convert_delete_original");
+}
 
++ (void)buildOutputMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
     // Output
     NSMenu *outputMenu = Submenu(mainMenu, STR_MENU_OUTPUT).submenu;
     outputMenu.autoenablesItems = NO;
     outputMenu.delegate = player.devicesMenuController; // builds the device list
-
-    NSApp.mainMenu = mainMenu;
 }
 
 @end

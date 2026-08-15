@@ -4,7 +4,7 @@
 //
 
 #import "SettingsWindowController.h"
-#import "Constants.h"
+#import "WindowAnimation.h"
 #import "SettingsAdvancedViewController.h"
 #import "SettingsAppearanceViewController.h"
 #import "SettingsConvertViewController.h"

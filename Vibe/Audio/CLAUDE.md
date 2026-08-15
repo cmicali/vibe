@@ -20,6 +20,10 @@ A seek while playing declicks *without reconnecting the graph at all* — reconn
 
 **Devices.** The async init resolves the saved output device on the player queue, by UID first and name as fallback, keeping device enumeration off the launch path's main thread. All device management — resolution, switching, config-change recovery, parking or falling back when a device vanishes — lives in the `AudioPlayer+Devices` category.
 
+**Where the player's code lives.** `AudioPlayer.m` holds the open/play/state machine. Around it, a category per vocabulary, each with its contract in its own header: `+Devices` above; `+Gapless`, the next track from the moment it is named — the parked handle and the splice that renders it without a gap, one file because they share state; `+Fades`, every volume ramp, and the two *different* liveness mechanisms it is easy to confuse (generation-tagged ramps on the current node, which a newer operation preempts, against registered retired fades on a node already pulled out of the live state, which an ordinary generation bump must **not** preempt or it stops the node mid-fade and clicks); `+Seek`; `+Graph`, the node/varispeed wiring helpers; and `+Engine`, the two methods that decide when the `AVAudioEngine` is running at all — starting it to play a node, and the deferred idle stop that releases the output device — which are a pair because starting playback is what cancels the pending stop.
+
+They all share `AudioPlayerInternal.h`, which holds the class extension and every ivar a category touches; anything none of them reaches stays private to `AudioPlayer.m`. **That shared header is the cost of every split, so it is the thing to watch**: a category that would push more state into it than it takes out of `AudioPlayer.m` is not worth making. `+Seek` sits closest to that line — it reads and writes the loading mirror, the submitted-play identity, the paused position and its epoch, the node, file and segment — so it is the precedent to argue against, not from.
+
 
 ## Metadata (`Metadata/`)
 
@@ -27,7 +31,7 @@ Tags, the disk cache, the two-stage playlist scan, embedded album art and the fo
 
 ## Convert to FLAC (`Convert/`)
 
-The encoder, the sandbox rungs it has to climb to place the output, and the tag copy are in **`Convert/CLAUDE.md`**. The playlist swap and undo round trip are the controller's; see `Main Window/CLAUDE.md`.
+The encoder, the sandbox rungs it has to climb to place the output, and the tag copy are in **`Convert/CLAUDE.md`**. The playlist swap and undo round trip are the controller's; see `MainWindow/CLAUDE.md`.
 
 ## Performance effects
 
@@ -43,4 +47,4 @@ The class owns the whole master-bus graph segment between `mainMixerNode` and `o
 
 ## Waveform data (`Waveform/`) and analysis (`Analysis/`)
 
-Waveform generation, chunking and persistence are in **`Waveform/CLAUDE.md`**; the tempo and key analyzers that ride that same decode pass, with their measured accuracy and the constants that carry it, are in **`Analysis/CLAUDE.md`**. Rendering is elsewhere again — `Vibe/Waveform/`.
+Waveform generation, chunking and persistence are in **`Waveform/CLAUDE.md`**; the tempo and key analyzers that ride that same decode pass, with their measured accuracy and the constants that carry it, are in **`Analysis/CLAUDE.md`**. Rendering is elsewhere again — `Vibe/WaveformUI/`.

@@ -46,9 +46,17 @@ done < <(find Vibe -name '*.h' ! -path '*/ThirdParty/*')
 
 # Debug surface belongs in Vibe/Debug/, as a declaration-only category — a
 # shipping header should not carry a conditional block about a tool that does
-# not ship. AudioPlayerInternal.h is storage a category cannot add; see there.
-stray_debug=$(grep -rln '#if DEBUG' Vibe --include='*.h' 2>/dev/null \
-        | grep -v ThirdParty | grep -v '^Vibe/Debug/' | grep -v 'AudioPlayerInternal.h' || true)
+# not ship. There are NO exceptions, and there is no allowlist here on purpose:
+# the two that used to be here were both storage a category cannot add, and
+# both had a better answer. A debug-only property ships as a pointer
+# (MainPlayerControllerInternal.h's conversionUndoRedoSettledHandler);
+# debug-only state belongs to a debug-only OBJECT the shipping class holds
+# (VibeManualRenderPump). Reach for those before adding a name below.
+#
+# Anchored to the directive, not the string: a header is allowed to *mention*
+# the conditional in a comment explaining why it does not use one.
+stray_debug=$(grep -rlnE '^[[:space:]]*#if[[:space:]]+DEBUG' Vibe --include='*.h' 2>/dev/null \
+        | grep -v ThirdParty | grep -v '^Vibe/Debug/' || true)
 if [ -n "$stray_debug" ]; then
     fail "#if DEBUG in a shipping header — put it in Vibe/Debug/Introspection/ as a category:"
     echo "$stray_debug" >&2

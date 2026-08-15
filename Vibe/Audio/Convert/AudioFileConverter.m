@@ -3,7 +3,8 @@
 //  Vibe
 //
 
-#import "AudioFileConverter.h"
+#import "AudioFileConverterInternal.h"
+#import "AudioFileConverter+Sandbox.h"
 
 #import <AppKit/AppKit.h>
 #import <AVFoundation/AVFoundation.h>
@@ -20,52 +21,15 @@ NSString *const kVibeConvertErrorDomain = @"com.commonwealthrecordings.Vibe.conv
 // amortize the per-buffer overhead against the encode.
 static const AVAudioFrameCount kConvertBufferFrames = 32768;
 
-#pragma mark - Related-item presenter
-
-// Announces the FLAC as a related item of the source. Registering it makes
-// the sandbox extend a single-file grant to the sibling name, and requires
-// the flac extension declared as a related-item type in Info.plist; see
-// project.yml.
-@interface VibeRelatedItemPresenter : NSObject <NSFilePresenter>
-- (instancetype)initWithPresentedURL:(NSURL *)presentedURL primaryURL:(NSURL *)primaryURL;
-@end
-
-@implementation VibeRelatedItemPresenter {
-    NSURL *_presentedURL;
-    NSURL *_primaryURL;
-    NSOperationQueue *_queue;
-}
-
-- (instancetype)initWithPresentedURL:(NSURL *)presentedURL primaryURL:(NSURL *)primaryURL {
-    self = [super init];
-    if (self) {
-        _presentedURL = presentedURL;
-        _primaryURL = primaryURL;
-        _queue = [NSOperationQueue new];
-        _queue.maxConcurrentOperationCount = 1;
-    }
-    return self;
-}
-
-- (NSURL *)presentedItemURL { return _presentedURL; }
-- (NSURL *)primaryPresentedItemURL { return _primaryURL; }
-- (NSOperationQueue *)presentedItemOperationQueue { return _queue; }
-
-@end
-
 #pragma mark - Converter
 
+// _queue and _relatedItemPresenters are in AudioFileConverterInternal.h: the
+// sandbox category reaches both.
 @implementation AudioFileConverter {
-    dispatch_queue_t _queue;
     // Disposal moves, unbounded on a cloud or network folder, so off main —
     // and off the converter queue, or an undo would wait out a running encode.
     // Serial, because an undo must follow the trash it reverses.
     dispatch_queue_t _disposeQueue;
-    // Presenters for FLACs only the related-item path could write, kept
-    // registered for the session: the sandbox extension dies with the
-    // registration, leaving a just-written file unreadable. Converter-queue
-    // confined.
-    NSMutableArray<VibeRelatedItemPresenter *> *_relatedItemPresenters;
     // Whether the FLAC beside the track the menus name exists, and which
     // destination that answer is about. Menu validation reads this rather than
     // statting — a stat on an unreachable mount blocks the main thread.
@@ -536,126 +500,6 @@ static NSString *VibeFileStat(NSURL *url) {
         progress(1.0); // the last sub-percent span still gets its sweep
     }
     return tempURL;
-}
-
-#pragma mark - Getting it past the sandbox
-
-// The two silent rungs, cheapest first: a folder grant covers a plain move, a
-// single-file grant needs the related-item path. Returns where the file
-// landed, or nil with the plain move's error — the one that says why the
-// obvious path was refused.
-- (nullable NSURL *)moveTemp:(NSURL *)tempURL
-                      source:(NSURL *)sourceURL
-                 destination:(NSURL *)destinationURL
-                       error:(NSError **)error {
-    NSError *moveError = nil;
-    if ([NSFileManager.defaultManager moveItemAtURL:tempURL toURL:destinationURL error:&moveError]) {
-        return destinationURL;
-    }
-    LogInfo(@"Direct write to %@ failed (%@); trying the related-item path",
-            destinationURL.lastPathComponent, moveError.localizedDescription);
-    if (error) {
-        *error = moveError;
-    }
-    return [self moveTemp:tempURL toRelatedItem:destinationURL ofPrimary:sourceURL];
-}
-
-// The sandbox extends the primary item's grant to the related sibling only
-// while a presenter claiming the relationship is registered, and only inside
-// a coordinated write. A successful presenter is kept — the extension dies
-// with the registration, and the app goes on reading the file it just wrote.
-- (nullable NSURL *)moveTemp:(NSURL *)tempURL
-               toRelatedItem:(NSURL *)destinationURL
-                   ofPrimary:(NSURL *)primaryURL {
-    VibeRelatedItemPresenter *presenter =
-            [[VibeRelatedItemPresenter alloc] initWithPresentedURL:destinationURL primaryURL:primaryURL];
-    [NSFileCoordinator addFilePresenter:presenter];
-
-    __block NSURL *writtenURL = nil;
-    NSFileCoordinator *coordinator = [[NSFileCoordinator alloc] initWithFilePresenter:presenter];
-    NSError *coordinationError = nil;
-    [coordinator coordinateWritingItemAtURL:destinationURL
-                                    options:NSFileCoordinatorWritingForReplacing
-                                      error:&coordinationError
-                                 byAccessor:^(NSURL *writeURL) {
-        // A handed URL other than the sibling path is a tracked older item —
-        // a previously trashed foo.flac — and following it would file the new
-        // FLAC in the Trash.
-        NSURL *target = [writeURL.URLByStandardizingPath isEqual:destinationURL.URLByStandardizingPath]
-                ? writeURL : destinationURL;
-        NSError *moveError = nil;
-        if ([NSFileManager.defaultManager moveItemAtURL:tempURL toURL:target error:&moveError]) {
-            writtenURL = target;
-        }
-        else {
-            LogInfo(@"Related-item move failed: %@", moveError.localizedDescription);
-        }
-    }];
-    if (coordinationError) {
-        LogInfo(@"Related-item coordination failed: %@", coordinationError.localizedDescription);
-    }
-
-    if (writtenURL) {
-        [_relatedItemPresenters addObject:presenter];
-    }
-    else {
-        [NSFileCoordinator removeFilePresenter:presenter];
-    }
-    return writtenURL;
-}
-
-// The last rung, and the only one that always works: the user's pick carries
-// its own grant. Pre-filled with the target folder and name, so it is one
-// Return keypress.
-- (void)runSavePanelForTemp:(NSURL *)tempURL
-                destination:(NSURL *)destinationURL
-                     window:(NSWindow *)window
-                 completion:(void (^)(NSURL *_Nullable, NSError *_Nullable))completion {
-    NSSavePanel *panel = [NSSavePanel savePanel];
-    panel.title = STR_MENU_CONVERT_TO_FLAC;
-    panel.message = STR_LABEL_CONVERT_SAVE_MESSAGE;
-    panel.directoryURL = destinationURL.URLByDeletingLastPathComponent;
-    panel.nameFieldStringValue = destinationURL.lastPathComponent;
-    // FLAC has no UTType constant of its own; org.xiph.flac is the identifier
-    // the app already declares in CFBundleDocumentTypes.
-    UTType *flacType = [UTType typeWithIdentifier:@"org.xiph.flac"];
-    panel.allowedContentTypes = flacType ? @[flacType] : @[];
-
-    [panel beginSheetModalForWindow:window completionHandler:^(NSModalResponse response) {
-        NSURL *chosenURL = panel.URL;
-        if (response != NSModalResponseOK || !chosenURL) {
-            completion(nil, [NSError errorWithDomain:NSCocoaErrorDomain
-                                                code:NSUserCancelledError
-                                            userInfo:nil]);
-            return;
-        }
-        // Off main like the silent rungs: a destination on another volume
-        // turns the move into a full copy of the encoded file, and an
-        // unreachable mount blocks until it times out.
-        dispatch_async(self->_queue, ^{
-            NSFileManager *fileManager = NSFileManager.defaultManager;
-            NSError *moveError = nil;
-            NSURL *placedURL = nil;
-            if ([fileManager fileExistsAtPath:chosenURL.path]) {
-                // The panel already asked about replacing. The replace must be
-                // atomic: delete-then-move would destroy the existing file
-                // even when the move then fails.
-                NSURL *resultingURL = nil;
-                if ([fileManager replaceItemAtURL:chosenURL
-                                    withItemAtURL:tempURL
-                                   backupItemName:nil
-                                          options:0
-                                 resultingItemURL:&resultingURL
-                                            error:&moveError]) {
-                    placedURL = resultingURL ?: chosenURL;
-                }
-            }
-            else if ([fileManager moveItemAtURL:tempURL toURL:chosenURL error:&moveError]) {
-                placedURL = chosenURL;
-            }
-            run_on_main_thread({ completion(placedURL, placedURL ? nil : moveError); });
-        });
-    }];
 }
 
 #pragma mark - Errors

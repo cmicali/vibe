@@ -8,6 +8,7 @@
 #import "AudioPlayer.h"
 #import "DefaultAppRegistration.h"
 #import "MainPlayerController.h"
+#import "MainPlayerController+Window.h"
 #import "OutputDevicesMenuController.h"
 #import "VibeStrings.h"
 

@@ -5,7 +5,7 @@
 
 #import "ArtworkImageView.h"
 #import "NSDraggingImageComponent+Util.h"
-#import "Constants.h"
+#import "MainWindowLayout.h"
 
 // Movement (points) before a pressed mouse becomes a drag.
 static const CGFloat kDragHysteresis = 3;

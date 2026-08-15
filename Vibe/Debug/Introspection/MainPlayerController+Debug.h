@@ -14,10 +14,12 @@
 #import "MainPlayerController.h"
 // For the convert_to_flac, undo and redo verbs.
 #import "MainPlayerController+Convert.h"
+// TrackDisplayState, which displayState below returns.
+#import "TrackDisplayController.h"
 
+@class AudioTrack;
 @class SymbolButton;
 @class PitchControlPanel;
-@class TrackDisplayController;
 @class MainPlayerContentView;
 @class PlaylistTableView;
 
@@ -36,6 +38,13 @@ NS_ASSUME_NONNULL_BEGIN
 // check_invariants compares the table's row count against the playlist's,
 // which is the only way to catch a reloadData the model never got.
 @property (weak, readonly) PlaylistTableView *playlistTableView;
+
+// The header's resolved state, and the track it describes — nil while the
+// empty or error state is up. dump_state reports both, and check_invariants
+// pairs them against the player and the playlist. Implemented in
+// MainPlayerController.m, where the resolution lives.
+- (TrackDisplayState)displayState;
+- (nullable AudioTrack *)displayedTrack;
 
 - (PitchControlPanel *)pitchPanel;
 - (void)debugRefreshUI;

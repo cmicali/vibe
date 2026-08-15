@@ -107,6 +107,37 @@ static double VibeCombPhaseBestInterpolated(const double *env, size_t winLen, do
     return best;
 }
 
+// What pass 2 hands to passes 3 and 4: the harmonic comb score over the lag
+// range, the range itself, and the strongest lag in it.
+struct VibeBPMComb {
+    std::vector<float> score;
+    int minLag = 0;
+    int maxLag = 0;
+    int bestLag = 0;
+};
+
+// The passes, declared so finish: can read top-down. Every one of them is
+// pure: state in, numbers out, no ivar written.
+@interface AudioBPMAnalyzer ()
+- (std::vector<float>)detrendedEnvelopeWithFPS:(double)fps;
+- (BOOL)buildCombScore:(VibeBPMComb *)comb
+         fromDetrended:(const std::vector<float> &)detrended
+                   fps:(double)fps;
+- (std::vector<int>)candidateLagsFromComb:(const VibeBPMComb &)comb;
+- (void)buildPhaseEnvelopesFrom:(const float *)env
+                         length:(size_t)winLen
+                           wide:(std::vector<double> &)envWide
+                          exact:(std::vector<double> &)envExact;
+- (double)bestLagByPhaseCombForCandidates:(const std::vector<int> &)candidates
+                                     comb:(const VibeBPMComb &)comb
+                                  envWide:(const std::vector<double> &)envWide
+                                winLength:(size_t)winLen
+                                      fps:(double)fps;
+- (double)refinedLag:(double)lag
+   withExactEnvelope:(const std::vector<double> &)envExact
+           winLength:(size_t)winLen;
+@end
+
 @implementation AudioBPMAnalyzer {
     double _sampleRate;
     FFTSetup _fftSetup;
@@ -222,6 +253,14 @@ static double VibeCombPhaseBestInterpolated(const double *env, size_t winLen, do
     std::swap(_magnitudes, _prevMagnitudes);
 }
 
+// Tempo, in five passes, each its own method below and each named for what it
+// answers. In order: flatten the envelope to onset spikes, find the lags whose
+// harmonics line up, list that lag's whole metrical family, ask which family
+// member's grid actually lands on the onsets, and refine that period against
+// the envelope without a tolerance window.
+//
+// Every early return is a refusal to guess: no tempo at all beats a wrong one,
+// because AudioTrack.bpm feeds the bar-based skips.
 - (float)finish {
     const double fps = _sampleRate / (double)kHopSize; // envelope samples/sec
     const size_t n = _onsetEnvelope.size();
@@ -229,6 +268,41 @@ static double VibeCombPhaseBestInterpolated(const double *env, size_t winLen, do
         return 0;
     }
 
+    std::vector<float> detrended = [self detrendedEnvelopeWithFPS:fps];
+
+    VibeBPMComb comb;
+    if (![self buildCombScore:&comb fromDetrended:detrended fps:fps]) {
+        return 0;
+    }
+
+    std::vector<int> candidates = [self candidateLagsFromComb:comb];
+
+    // The phase comb is scored over a bounded window, because a fixed grid
+    // over many minutes magnifies any period error, and real music's tempo
+    // wobble, into cumulative drift that walks the grid off the onsets.
+    const size_t winLen = std::min(n, (size_t)(40.0 * fps));
+    const float *env = detrended.data() + (n - winLen) / 2;
+    std::vector<double> envWide, envExact;
+    [self buildPhaseEnvelopesFrom:env length:winLen wide:envWide exact:envExact];
+
+    double lag = [self bestLagByPhaseCombForCandidates:candidates
+                                                  comb:comb
+                                               envWide:envWide
+                                             winLength:winLen
+                                                   fps:fps];
+    if (lag <= 0) {
+        return 0;
+    }
+    lag = [self refinedLag:lag withExactEnvelope:envExact winLength:winLen];
+    return (float)(60.0 * fps / lag);
+}
+
+#pragma mark - Pass 1: flatten to onset spikes
+
+// Detrends the onset envelope and half-wave rectifies it, leaving only the
+// transient spikes every later pass reads.
+- (std::vector<float>)detrendedEnvelopeWithFPS:(double)fps {
+    const size_t n = _onsetEnvelope.size();
     // Detrend by subtracting a moving average of about 0.5 seconds and
     // half-wave rectifying, which leaves only transient onset spikes. Slow
     // loudness swells otherwise dominate the autocorrelation with a huge
@@ -248,14 +322,25 @@ static double VibeCombPhaseBestInterpolated(const double *env, size_t winLen, do
             detrended[i] = v > 0 ? v : 0;
         }
     }
+    return detrended;
+}
 
+#pragma mark - Pass 2: which lags have harmonics
+
+// Autocorrelation plus the harmonic comb, and the confidence gate on the
+// result. NO means there is no periodicity worth reporting, and the caller
+// must answer 0.
+- (BOOL)buildCombScore:(VibeBPMComb *)comb
+         fromDetrended:(const std::vector<float> &)detrended
+                   fps:(double)fps {
+    const size_t n = detrended.size();
     // Autocorrelation over lags covering 60-200 BPM plus the comb's harmonic
     // reach, normalized by overlap length so that long lags are not penalized.
     const int minLag = std::max(1, (int)std::floor(60.0 * fps / kMaxBPM));
     const int maxLag = (int)std::ceil(60.0 * fps / kMinBPM);
     const int maxCombLag = maxLag * kCombHarmonics;
     if ((size_t)maxCombLag + 1 >= n) {
-        return 0;
+        return NO;
     }
     std::vector<float> ac(maxCombLag + 1, 0.0f);
     for (int lag = minLag; lag <= maxCombLag; lag++) {
@@ -282,16 +367,30 @@ static double VibeCombPhaseBestInterpolated(const double *env, size_t winLen, do
         }
     }
     if (bestLag <= minLag || bestLag >= maxLag) {
-        return 0; // peak pinned to the range edge — not a real maximum
+        return NO; // peak pinned to the range edge — not a real maximum
     }
 
     // Confidence. A real tempo shows up as a prominent peak, whereas a flat
     // score curve means there is no periodicity worth reporting.
     float meanScore = (float)(totalScore / (double)(maxLag - minLag + 1));
     if (meanScore <= 0 || score[bestLag] < kMinConfidence * meanScore) {
-        return 0;
+        return NO;
     }
 
+    comb->minLag = minLag;
+    comb->maxLag = maxLag;
+    comb->bestLag = bestLag;
+    comb->score = std::move(score);
+    return YES;
+}
+
+#pragma mark - Pass 3: the whole metrical family
+
+// The comb score's local maxima, strongest first, plus each top candidate's
+// metrical relatives.
+- (std::vector<int>)candidateLagsFromComb:(const VibeBPMComb &)comb {
+    const int minLag = comb.minLag, maxLag = comb.maxLag, bestLag = comb.bestLag;
+    const std::vector<float> &score = comb.score;
     // The candidates are the local maxima of the comb score, strongest first.
     // The true tempo's metrical relatives — half, double, 2/3 and 3/2 — all
     // appear here.
@@ -338,27 +437,22 @@ static double VibeCombPhaseBestInterpolated(const double *env, size_t winLen, do
         }
         candidates.insert(candidates.end(), relatives.begin(), relatives.end());
     }
+    return candidates;
+}
 
-    // The time-domain phase comb. For each candidate, sum the envelope at the
-    // beat positions of its best-aligned grid, normalized by the square root
-    // of the grid size — matched-filter normalization. Unlike autocorrelation,
-    // this sees which grid actually lands on the strong onsets: a 3:2 error
-    // alternates beats and offbeats, giving a weak sum, and a half-tempo grid
-    // covers only half the onset energy, which the square-root normalization
-    // votes down.
-    //
-    // It is scored over a bounded window, because a fixed grid over many
-    // minutes magnifies any period error, and real music's tempo wobble, into
-    // cumulative drift that walks the grid off the onsets.
-    const size_t winLen = std::min(n, (size_t)(40.0 * fps));
-    const float *env = detrended.data() + (n - winLen) / 2;
+#pragma mark - Pass 4: which grid lands on the onsets
 
-    // The two envelopes the sweeps read, in double because their sums are. The
-    // coarse one carries the ±1-sample neighborhood maximum that absorbs onset
-    // jitter, taken once here rather than per candidate per lag and per phase.
-    // Its last element is never addressed: a beat is only scored when the
-    // sample after it is in the window too.
-    std::vector<double> envWide(winLen, 0.0), envExact(winLen);
+// The two envelopes the phase sweeps read, in double because their sums are.
+// The coarse one carries the ±1-sample neighborhood maximum that absorbs onset
+// jitter, taken once here rather than per candidate per lag and per phase. Its
+// last element is never addressed: a beat is only scored when the sample after
+// it is in the window too.
+- (void)buildPhaseEnvelopesFrom:(const float *)env
+                         length:(size_t)winLen
+                           wide:(std::vector<double> &)envWide
+                          exact:(std::vector<double> &)envExact {
+    envWide.assign(winLen, 0.0);
+    envExact.resize(winLen);
     {
         std::vector<float> pairMax(winLen), wide(winLen);
         vDSP_vmax(env, 1, env + 1, 1, pairMax.data(), 1, winLen - 1);
@@ -367,8 +461,26 @@ static double VibeCombPhaseBestInterpolated(const double *env, size_t winLen, do
         vDSP_vspdp(wide.data(), 1, envWide.data(), 1, winLen - 1);
         vDSP_vspdp(env, 1, envExact.data(), 1, winLen);
     }
-    std::vector<double> phaseScores;
+}
 
+// The winner among the candidates: for each, the sum of the envelope at the
+// beat positions of its best-aligned grid. 0 when none of them scores.
+- (double)bestLagByPhaseCombForCandidates:(const std::vector<int> &)candidates
+                                     comb:(const VibeBPMComb &)comb
+                                  envWide:(const std::vector<double> &)envWide
+                                winLength:(size_t)winLen
+                                      fps:(double)fps {
+    // The time-domain phase comb. For each candidate, sum the envelope at the
+    // beat positions of its best-aligned grid, normalized by the square root
+    // of the grid size — matched-filter normalization. Unlike autocorrelation,
+    // this sees which grid actually lands on the strong onsets: a 3:2 error
+    // alternates beats and offbeats, giving a weak sum, and a half-tempo grid
+    // covers only half the onset energy, which the square-root normalization
+    // votes down.
+    //
+    // The bounded window it is scored over, and why, is at the call site.
+    std::vector<double> phaseScores;
+    const std::vector<float> &score = comb.score;
     double bestFinal = -1;
     double bestCandidateLag = 0;
     for (int cLag : candidates) {
@@ -422,36 +534,40 @@ static double VibeCombPhaseBestInterpolated(const double *env, size_t winLen, do
     if (bestFinal <= 0 || bestCandidateLag <= 0) {
         return 0;
     }
+    return bestCandidateLag;
+}
 
-    // The fine pass on the winner. The coarse sweep's ±1-frame neighborhood
-    // maximum is what makes the phase comb robust to onset jitter, but it also
-    // flattens the score into a plateau about ±0.05 frames wide around the
-    // true period, and the coarse winner lands anywhere on it, roughly ±0.1
-    // BPM at 120. So re-score a narrow band around the winner with linearly
-    // interpolated envelope samples and no tolerance window: exact sampling
-    // turns any period error into real accumulated drift off the onset blobs,
-    // and the score then peaks at the true period rather than plateauing. The
-    // blobs themselves are about two frames wide, because spectral flux
-    // spreads each transient across overlapping frames, and that supplies all
-    // the jitter tolerance this final ±0.09-frame band still needs. Only the
-    // period is refined: an integer phase offset shifts every sampled beat
-    // equally and cannot bias the slope.
-    {
-        double bestSum = -1;
-        double refined = bestCandidateLag;
-        for (double L = bestCandidateLag - 0.09; L <= bestCandidateLag + 0.0901; L += 0.005) {
-            if (L < 2) {
-                continue;
-            }
-            double phaseBest = VibeCombPhaseBestInterpolated(envExact.data(), winLen, L, phaseScores);
-            if (phaseBest > bestSum) {
-                bestSum = phaseBest;
-                refined = L;
-            }
+#pragma mark - Pass 5: refine the period
+
+// The fine pass on the winner. The coarse sweep's ±1-frame neighborhood
+// maximum is what makes the phase comb robust to onset jitter, but it also
+// flattens the score into a plateau about ±0.05 frames wide around the true
+// period, and the coarse winner lands anywhere on it, roughly ±0.1 BPM at 120.
+// So re-score a narrow band around the winner with linearly interpolated
+// envelope samples and no tolerance window: exact sampling turns any period
+// error into real accumulated drift off the onset blobs, and the score then
+// peaks at the true period rather than plateauing. The blobs themselves are
+// about two frames wide, because spectral flux spreads each transient across
+// overlapping frames, and that supplies all the jitter tolerance this final
+// ±0.09-frame band still needs. Only the period is refined: an integer phase
+// offset shifts every sampled beat equally and cannot bias the slope.
+- (double)refinedLag:(double)lag
+   withExactEnvelope:(const std::vector<double> &)envExact
+           winLength:(size_t)winLen {
+    std::vector<double> phaseScores;
+    double bestSum = -1;
+    double refined = lag;
+    for (double L = lag - 0.09; L <= lag + 0.0901; L += 0.005) {
+        if (L < 2) {
+            continue;
         }
-        bestCandidateLag = refined;
+        double phaseBest = VibeCombPhaseBestInterpolated(envExact.data(), winLen, L, phaseScores);
+        if (phaseBest > bestSum) {
+            bestSum = phaseBest;
+            refined = L;
+        }
     }
-    return (float)(60.0 * fps / bestCandidateLag);
+    return refined;
 }
 
 @end

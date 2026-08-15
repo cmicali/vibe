@@ -26,10 +26,12 @@
 #import "MainPlayerController.h"
 #import "MainPlayerController+Debug.h"
 #import "MainPlayerController+Transport.h"
+#import "MainPlayerController+Window.h"
 #import "TrackDisplayController.h"
 #import "MainWindow.h"
 #import "MainPlayerContentView.h"
 #import "AudioPlayer.h"
+#import "AudioPlayer+Seek.h"
 #import "AudioPlayer+Debug.h"
 #import "AudioFX.h"
 #import "AudioTrack.h"
@@ -47,9 +49,13 @@
 #import "NSURLUtil.h"
 #import "AppStats.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 // One handler per verb, where tokens[0] is the verb itself. Returning nil
 // means the command completes asynchronously and writes its own response later
 // through VibeWriteDebugResponse(commandId, ...), from a completion block.
+// controller is never nil: the dispatcher answers "app not fully launched"
+// before any handler runs.
 typedef NSString * _Nullable (^VibeDebugCommandHandler)(NSArray<NSString *> *tokens,
                                                         NSString *commandId,
                                                         MainPlayerController *controller);
@@ -76,10 +82,15 @@ NSString *VibeSyntheticDragDrop(MainPlayerController *controller, NSArray<NSStri
 // DebugUtil.m — argument helpers shared with the command table, and the reply.
 NSString *VibeRestArgument(NSArray<NSString *> *tokens);
 NSString *VibePathArgument(NSArray<NSString *> *tokens);
-NSString *VibeExistingFileArgument(NSArray<NSString *> *tokens, NSString **errorJSON);
+// The path, or nil with *errorJSON set to the reply to send. errorJSON is
+// written unchecked, so it is required.
+NSString *_Nullable VibeExistingFileArgument(NSArray<NSString *> *tokens,
+                                             NSString *_Nullable *_Nonnull errorJSON);
 void VibeWriteDebugResponse(NSString *commandId, NSString *response);
 
 // DebugCommandTable.m — the verb table the dispatcher walks.
 NSArray<NSDictionary *> *VibeDebugCommandTable(void);
+
+NS_ASSUME_NONNULL_END
 
 #endif

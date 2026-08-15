@@ -21,10 +21,11 @@ typedef BOOL (^VibePlaylistFolderGrantHandler)(NSURL *playlistURL);
 
 // What an expansion saw of the folders it touched. This layer *finds* these
 // facts — it walks the disk — but must not act on them: the consumer is the
-// folder-artwork resolver, an app singleton behind a user setting and a sandbox
-// grant, while `Vibe/Util` is the future-shared, no-AppKit group. Same shape as
-// the playlist grant above, and for the same reason. The app installs these at
-// launch; unset, an expansion throws the harvest away.
+// folder-art resolver, an app singleton behind a user setting and a sandbox
+// grant, and a path utility that reached up to it could not be exercised
+// without one. Same shape as the playlist grant above, and for the same
+// reason — the tests install neither and get a pure walk. The app installs
+// these at launch; unset, an expansion throws the harvest away.
 //
 // Both are called on an expansion worker, never the main thread.
 

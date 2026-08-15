@@ -63,7 +63,7 @@ settings:
     GCC_WARN_UNUSED_FUNCTION: YES
     GCC_WARN_UNUSED_VARIABLE: YES
     GCC_PRECOMPILE_PREFIX_HEADER: YES
-    GCC_PREFIX_HEADER: "$(SRCROOT)/Vibe/Common/Vibe-Prefix.pch"
+    GCC_PREFIX_HEADER: "$(SRCROOT)/Vibe/Core/Vibe-Prefix.pch"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     MTL_FAST_MATH: YES
     SDKROOT: macosx
@@ -96,19 +96,25 @@ targets:
     platform: macOS
     sources:
       - path: main.m                          # repo root, outside Vibe/
-      # Per-directory entries (identical file set to the old recursive
-      # `- path: Vibe`) so a future iOS target can pick the shared subset.
-      # Future-shared: no AppKit outside TARGET_OS_OSX guards.
+      # Per-directory entries, one per subsystem, rather than the recursive
+      # `- path: Vibe`, so that adding a directory is a deliberate edit here
+      # and per-directory build settings have somewhere to go. A NEW DIRECTORY
+      # NEEDS A NEW ENTRY — nothing globs it in.
+      #
+      # The tree is sorted by feature and nothing else; see root CLAUDE.md.
+      # The order below carries no portability contract.
       - path: Vibe/Audio
         excludes: ["**/.DS_Store", "**/*.md"]
-      - path: Vibe/Common
+      - path: Vibe/Core
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/App
         excludes:
           - "**/.DS_Store"
           - "**/*.md"
           - "**/Info.plist"                   # consumed via INFOPLIST_FILE; must NOT be bundled
       - path: Vibe/Util
         excludes: ["**/.DS_Store", "**/*.md"]
-      - path: Vibe/Waveform
+      - path: Vibe/WaveformUI
         excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/ThirdParty
         excludes:
@@ -122,7 +128,7 @@ targets:
         compilerFlags:
           - "-fobjc-arc-exceptions"
       # macOS-only.
-      - path: Vibe/Main Window
+      - path: Vibe/MainWindow
         excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Playlist
         excludes: ["**/.DS_Store", "**/*.md"]
@@ -155,7 +161,7 @@ targets:
         outputFiles:
           - "$(SRCROOT)/build/generated/VibeGitInfo.h"
     info:
-      path: Vibe/Common/Info.plist
+      path: Vibe/App/Info.plist
       properties:
 
         CFBundleName: "$(PRODUCT_NAME)"
@@ -246,7 +252,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         CLANG_ENABLE_MODULES: YES
-        CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/Common/Vibe.entitlements"
+        CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/App/Vibe.entitlements"
         CODE_SIGN_IDENTITY: "-"             # Sign to Run Locally: no dev cert needed (empty
                                             # entitlements, no profile); release.sh re-signs
                                             # with Developer ID for distribution.
@@ -306,20 +312,28 @@ targets:
       - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
+      # The loader's phases are tested directly (AVFAudioWaveformLoaderTests);
+      # these three come with it — its base class, and the DEBUG-only phase
+      # timing it records, which the test target builds Debug.
+      - path: Vibe/Audio/Waveform/AVFAudioWaveformLoader.mm
+      - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
+      - path: Vibe/Debug/AudioLoadTiming.m
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
       - path: Vibe/Audio/Metadata/MetadataParseFlow.m
       - path: Vibe/Audio/PlaybackRequestCoordinator.m
       - path: Vibe/Audio/Metadata/FolderArtResolver.m
+      - path: Vibe/Audio/Metadata/FolderArtEntry.m
+      - path: Vibe/Audio/Metadata/FolderArtFileIO.m
       - path: Vibe/Audio/Metadata/AudioTrackArtwork.m
-      - path: Vibe/Common/AppSettings.m
-      - path: Vibe/Settings/FolderAccessManager.m
-      - path: Vibe/Common/OpenBurstCoalescer.m
-      - path: Vibe/Common/OpenRequestCoordinator.m
-      - path: Vibe/Common/Playlist.m
+      - path: Vibe/Core/AppSettings.m
+      - path: Vibe/App/FolderAccessManager.m
+      - path: Vibe/App/OpenBurstCoalescer.m
+      - path: Vibe/App/OpenRequestCoordinator.m
+      - path: Vibe/Playlist/Playlist.m
       - path: Vibe/Util/NSURLUtil.m
-      - path: Vibe/Util/UIUpdateTimer.m
-      - path: Vibe/Util/PlaylistFile.m
+      - path: Vibe/MainWindow/UIUpdateTimer.m
+      - path: Vibe/Playlist/PlaylistFile.m
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Util/Categories/NSURL+Hash.m
       - path: Vibe/Util/Categories/NSImage+Util.m
@@ -345,18 +359,23 @@ targets:
           - "$(PLATFORM_DIR)/Developer/Library/Frameworks"
         HEADER_SEARCH_PATHS:
           - "$(inherited)"
-          - "$(SRCROOT)/Vibe/Common"
+          - "$(SRCROOT)/Vibe/Core"
+          - "$(SRCROOT)/Vibe/App"
+          - "$(SRCROOT)/Vibe/Playlist"
           - "$(SRCROOT)/Vibe/Util"
           - "$(SRCROOT)/Vibe/Util/Categories"
           - "$(SRCROOT)/Vibe/Audio"
           - "$(SRCROOT)/Vibe/Audio/Metadata"
           - "$(SRCROOT)/Vibe/Audio/Waveform"
-          - "$(SRCROOT)/Vibe/Main Window"
+          - "$(SRCROOT)/Vibe/Audio/Analysis"
+          - "$(SRCROOT)/Vibe/Debug"
+          - "$(SRCROOT)/Vibe/MainWindow"
           - "$(SRCROOT)/Vibe/Audio/Convert"
           - "$(SRCROOT)/Vibe/Settings"
     dependencies:
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform
       - sdk: AppKit.framework                # AudioTrack album art (NSImage)
+      - sdk: AVFoundation.framework          # AVFAudioWaveformLoader reads (and its tests write) files
 
 schemes:
   Vibe:

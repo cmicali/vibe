@@ -7,7 +7,7 @@
 #import "PitchFaderView.h"
 #import "Fonts.h"
 #import "Formatters.h"
-#import "Constants.h" // kMainWindowCornerRadius — the right-edge corners follow the window shape
+#import "MainWindowLayout.h" // kMainWindowCornerRadius — the right-edge corners follow the window shape
 #import "VibeStrings.h"
 
 const CGFloat kPitchPanelWidth = 96;

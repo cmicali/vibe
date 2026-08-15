@@ -84,10 +84,7 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // delegate callbacks, prefetch — is an ordinary play:.
 - (void)play:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused;
 
-// Asynchronous declicked seek, in file seconds, clamped to the file.
-// position reports the old playhead until the seek lands, and
-// didFinishSeeking: marks completion.
-- (void)seekToPosition:(NSTimeInterval)position;
+// Seeking is AudioPlayer+Seek.h, declared where it is implemented.
 
 // Stops playback and unloads the current track. Any in-flight open is
 // superseded, a playing node fades to silence before teardown, and the player

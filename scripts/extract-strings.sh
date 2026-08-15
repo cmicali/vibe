@@ -27,7 +27,7 @@ set -euo pipefail
 
 REPO_ROOT="${SRCROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 CATALOG="$REPO_ROOT/Resources/Localizable.xcstrings"
-REGISTRY="$REPO_ROOT/Vibe/Common/VibeStrings.h"
+REGISTRY="$REPO_ROOT/Vibe/Core/VibeStrings.h"
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -74,8 +74,8 @@ xcrun clang -E -P -x objective-c -DVIBE_STRINGS_EXTRACTION=1 "$WORK/registry.m" 
 #
 # ThirdParty/ is vendored (not ours to restyle) and Debug/ is the
 # debug-build-only command channel, whose strings are JSON keys and CLI replies
-# — never localized. Paths are NUL-separated because "Vibe/Main Window"
-# contains a space. (No mapfile: macOS ships bash 3.2.)
+# — never localized. Paths are NUL-separated so a directory with a space in it
+# cannot split a filename. (No mapfile: macOS ships bash 3.2.)
 SOURCES=("$WORK/registry-expanded.m")
 while IFS= read -r -d '' file; do
     SOURCES+=("$file")

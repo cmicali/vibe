@@ -16,23 +16,16 @@
 //
 
 #import "FolderArtResolver.h"
+#import "FolderArtEntry.h"
+#import "FolderArtFileIO.h"
 #import "AppSettings.h"
 #import "FolderArtRules.h"
 #import "FolderAccessManager.h"
 #import "NSImage+Util.h"
 
-#import <errno.h>
-#import <fcntl.h>
 #import <stdatomic.h>
-#import <sys/stat.h>
-#import <unistd.h>
 
 NSNotificationName const FolderArtDidResolveNotification = @"FolderArtDidResolveNotification";
-
-// A cover is a few hundred KB. Past this it is a scan or a print master, and
-// reading it costs more than the art is worth — the folder counts as having
-// none, permanently, like any other settled answer.
-static const unsigned long long kMaxArtFileBytes = 20ull * 1024 * 1024;
 
 // Decoded thumbnails, at about 64KB a folder, and display images at about 4MB.
 static const NSUInteger kThumbnailCacheLimit = 64;
@@ -57,138 +50,6 @@ static const uint8_t kMaxArtReadFailures = 3;
 // The settled answer for a folder: the cover's path, or this marker for "there
 // is none, stop asking".
 static NSString *const kNoArtMarker = @"";
-
-// lstat rather than stat, and O_NOFOLLOW on the open below: following a link
-// would read whatever it points at, which the folder's grant never covered. The
-// price is that a symlinked cover.jpg is not found.
-static BOOL VibeFolderArtFileInfo(NSString *path, unsigned long long *size) {
-    struct stat info;
-    if (lstat(path.fileSystemRepresentation, &info) != 0 || !S_ISREG(info.st_mode) ||
-            info.st_size <= 0 || (unsigned long long)info.st_size > kMaxArtFileBytes) {
-        return NO;
-    }
-    if (size) {
-        *size = (unsigned long long)info.st_size;
-    }
-    return YES;
-}
-
-// TRAP: O_NONBLOCK belongs on the *open* and nowhere else. It keeps a FIFO or a
-// device named cover.jpg from wedging the resolver on the open itself — S_ISREG
-// cannot be tested until that open returns. Left set across the reads it means
-// something else entirely: a regular file whose bytes are not resident answers
-// EAGAIN, which says nothing about the image.
-static NSData *VibeReadFolderArt(NSString *path) {
-    int descriptor = open(path.fileSystemRepresentation,
-                          O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
-    if (descriptor < 0) {
-        return nil;
-    }
-    struct stat info;
-    if (fstat(descriptor, &info) != 0 || !S_ISREG(info.st_mode) || info.st_size <= 0 ||
-            (unsigned long long)info.st_size > kMaxArtFileBytes) {
-        close(descriptor);
-        return nil;
-    }
-    int flags = fcntl(descriptor, F_GETFL, 0);
-    if (flags < 0 || fcntl(descriptor, F_SETFL, flags & ~O_NONBLOCK) < 0) {
-        // The reads would answer EAGAIN instead of blocking, indistinguishable
-        // from a real failure. Give up; the caller's retry budget covers it.
-        close(descriptor);
-        return nil;
-    }
-    NSUInteger length = (NSUInteger)info.st_size;
-    void *bytes = malloc(length);
-    if (!bytes) {
-        close(descriptor);
-        return nil;
-    }
-    NSUInteger offset = 0;
-    while (offset < length) {
-        ssize_t count = read(descriptor, (char *)bytes + offset, length - offset);
-        if (count > 0) {
-            offset += (NSUInteger)count;
-        }
-        else if (count < 0 && errno == EINTR) {
-            continue;
-        }
-        else {
-            break;
-        }
-    }
-    close(descriptor);
-    if (offset != length) {
-        free(bytes);
-        return nil;
-    }
-    return [NSData dataWithBytesNoCopy:bytes length:length freeWhenDone:YES];
-}
-
-#pragma mark - One directory's state
-
-// Everything the resolver knows about one directory. Mutated only under the
-// resolver's lock, hence nonatomic throughout.
-@interface VibeFolderArtEntry : NSObject
-
-// The cover's full path, kNoArtMarker for "settled, it has none", or nil for
-// "not looked at yet".
-@property (nonatomic, copy, nullable) NSString *artPath;
-// Unique for the resolver's lifetime, 0 for none assigned. It fences both
-// discovery and decode, same-path replacement races included.
-@property (nonatomic) uint64_t revision;
-// The revision of the resolve claim currently held, or 0 for none.
-@property (nonatomic) uint64_t resolving;
-// Decodes in flight that hold no resolve claim — the settled fast path in
-// displayImageForAudioFilePath:.
-@property (nonatomic) NSUInteger decoding;
-// A background resolve is dispatched but has not reached the queue.
-@property (nonatomic) BOOL scheduled;
-@property (nonatomic) uint64_t lastAccess;
-// Settled as artless only because the app held no grant for the folder. These
-// are the only answers a grant change may clear.
-@property (nonatomic) BOOL settledWithoutGrant;
-// The folder came from a bulk open, so one listing beats the lone file's stat
-// probes. A fact about how the user opened it rather than a cached answer, so
-// it survives an invalidate.
-@property (nonatomic) BOOL preferListing;
-@property (nonatomic) uint8_t readFailures;
-
-// The folder has an answer, either way.
-@property (nonatomic, readonly) BOOL settled;
-// The answer is "there is no cover here".
-@property (nonatomic, readonly) BOOL settledEmpty;
-// Work in flight checks this entry's revision when it lands, so eviction has
-// to leave it alone or it throws that work away.
-@property (nonatomic, readonly) BOOL busy;
-
-// Drops the answer, keeping the facts about how the folder was opened.
-- (void)forgetSettledAnswer;
-
-@end
-
-@implementation VibeFolderArtEntry
-
-- (BOOL)settled {
-    return _artPath != nil;
-}
-
-- (BOOL)settledEmpty {
-    return _artPath != nil && _artPath.length == 0;
-}
-
-- (BOOL)busy {
-    return _resolving != 0 || _decoding > 0 || _scheduled;
-}
-
-- (void)forgetSettledAnswer {
-    _artPath = nil;
-    _revision = 0;
-    _resolving = 0;
-    _settledWithoutGrant = NO;
-    _readFailures = 0;
-}
-
-@end
 
 #pragma mark - The resolver
 

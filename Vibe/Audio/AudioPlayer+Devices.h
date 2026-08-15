@@ -2,16 +2,9 @@
 //  AudioPlayer+Devices.h
 //  Vibe
 //
-//  The internal surface of the output-device management code: device
-//  switching, config-change recovery and no-device parking. It was split from
-//  AudioPlayer.m purely for file size. The public device API lives in
-//  AudioPlayer.h's (Devices) category, and AudioPlayer+Devices.m implements
-//  both categories.
-//
-//  The AudioDeviceManagerObserver conformance is declared on this category
-//  rather than the class extension, so that the compiler checks its
-//  implementation in that file. MainPlayerController+Menus follows the same
-//  pattern.
+//  The internal surface of the output-device code: device switching,
+//  config-change recovery and no-device parking. The public device API is
+//  AudioPlayer.h's (Devices) category; AudioPlayer+Devices.m implements both.
 //
 
 #import "AudioPlayer.h"

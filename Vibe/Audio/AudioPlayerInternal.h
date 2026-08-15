@@ -2,16 +2,28 @@
 //  AudioPlayerInternal.h
 //  Vibe
 //
-//  The private surface shared between AudioPlayer.m and AudioPlayer+Devices.m:
-//  the player state enum, the error constructor, and the class extension
-//  holding the ivars and queue-side helpers the output-device category needs.
-//  Do not use it outside the AudioPlayer implementation files; everything else
-//  goes through AudioPlayer.h.
+//  The private surface shared between AudioPlayer.m and its categories: the
+//  player state enum, the error constructors, and the class extension holding
+//  the ivars and queue-side helpers the categories reach. Do not use it
+//  outside the AudioPlayer implementation files; everything else goes through
+//  AudioPlayer.h.
 //
 
 #import "AudioPlayer.h"
+#import "PlaybackRequestCoordinator.h"
 #import <AVFoundation/AVFoundation.h>
 #import <os/lock.h>
+
+// The category family, declared once here because every implementation file in
+// it calls across category lines. Do not prune as unused: the .m files depend
+// on them transitively. A file outside the family imports the one category it
+// uses.
+#import "AudioPlayer+Devices.h"
+#import "AudioPlayer+Engine.h"
+#import "AudioPlayer+Fades.h"
+#import "AudioPlayer+Gapless.h"
+#import "AudioPlayer+Graph.h"
+#import "AudioPlayer+Seek.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -38,18 +50,17 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     return MAX(0, MIN(frame, fileLength - 1));
 }
 
+// A retired node/varispeed pair whose fade-out is in flight; see
+// AudioPlayer+Fades.h. Declared here because _retiredFades is typed on it.
+@interface VibeRetiredFade : NSObject
+@property (nonatomic, strong) AVAudioPlayerNode *node;
+@property (nonatomic, strong) AVAudioUnitVarispeed *varispeed;
+@end
+
+// Only the state a category also touches lives here; the rest stays private to
+// AudioPlayer.m.
 @interface AudioPlayer () {
-    // Only the ivars AudioPlayer+Devices.m also touches live here in the class
-    // extension. Everything the device code never reaches stays declared, with
-    // its commentary, in AudioPlayer.m's @implementation block.
     dispatch_queue_t        _queue;
-#if DEBUG
-    // The one #if DEBUG left outside Vibe/Debug/, and it has to be: this is
-    // STORAGE, written by the async init in AudioPlayer.m. A category can
-    // declare the getter (Debug/Introspection/AudioPlayer+Debug.h) but cannot
-    // add an ivar. make check-vocabulary allowlists exactly this file.
-    BOOL                    _manualRenderingActive;
-#endif
     AVAudioEngine           *_engine;
     AVAudioPlayerNode       *_node;
     AVAudioFile             *_file;
@@ -60,43 +71,104 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // value goes stale, so a resume fade-in cannot drive the volume back up
     // after a pause.
     uint64_t                _rampGeneration;
+    // Bumped by startEngineAndPlayNode:, the single funnel for starting
+    // playback, to dissolve a deferred idle engine stop. AudioPlayer+Engine.m
+    // owns it. Queue-confined.
+    uint64_t                _engineIdleStopGeneration;
     VibePlayerState         _state;
     os_unfair_lock          _stateLock;
+    // Guarded by _stateLock, in percent, so the UI can read it without touching
+    // the queue. See the warning below about the public pitch accessor.
+    float                   _pitch;
+
+    // ---- The next track's park and splice, owned by AudioPlayer+Gapless.m;
+    // see its header for the rules they live by.
+    NSString                *_prefetchedPath;
+    AVAudioFile             *_prefetchedFile;
+    AudioTrack              *_prefetchedTrack;
+    uint64_t                _prefetchRequestId;
+
+    // _gaplessFile is a private handle opened separately from the prefetch
+    // park: AVAudioFile has one stateful read position and the node pre-reads
+    // scheduled files on its own worker, so the armed segment must never share
+    // the instance a play: would consume. All queue-confined; _gaplessQueued
+    // additionally mirrors to _gaplessArmedForUI (under _stateLock) for the
+    // lock-free isGaplessArmed, through setGaplessQueuedOnQueue:, the flag's
+    // sole writer. INVARIANT: every [node stop] of the current node drops its
+    // queued segment, so every such site clears the flag first and, when it
+    // keeps playing the same file, re-arms after its reschedule.
+    AudioTrack              *_gaplessTrack;
+    AVAudioFile             *_gaplessFile;
+    BOOL                    _gaplessQueued;
+    uint64_t                _gaplessOpenRequestId;
+    NSString                *_gaplessOpenPath; // in-flight open's claim, the prefetch pattern
+    BOOL                    _gaplessArmedForUI; // _stateLock
+
+    // ---- The fades, owned by AudioPlayer+Fades.m.
+    // Crossfade-length retired fades in flight, registered by retireNode:.
+    // Queue-confined. Stop, pause and the failure reset preempt them through
+    // preemptRetiredFadesOnQueue, so an outgoing track cannot stay audible
+    // for up to the full crossfade; declick-length retires never register.
+    NSMutableArray<VibeRetiredFade *> *_retiredFades;
+    // A pause fade is in flight. Queue-confined. A second playPause during the
+    // fade-out cancels the pending pause and ramps back up rather than pausing
+    // twice. The fade's completion clears it, and runs on preemption too, as
+    // does preemptRampsOnQueue eagerly.
+    BOOL                    _pausePending;
 }
 
-// Readwrite here, readonly in AudioPlayer.h. Only the player itself writes
-// them: currentTrack on _queue, and the device id from the init and device
-// paths in both implementation files.
+#pragma mark - Read by the categories, written only by AudioPlayer.m
+
+// Readonly so that an accidental write from a category is a compile error
+// rather than a race. Queue-confined unless noted.
+//
+// TRAP: these getters are auto-synthesized and nonatomic, so they are plain
+// ivar reads and safe to call while holding _stateLock. The PUBLIC `pitch`
+// accessor in AudioPlayer.h is not — it takes _stateLock itself, so code
+// already holding the lock must read `_pitch` directly. os_unfair_lock is not
+// recursive, so getting this wrong aborts the process on the first play.
+
+// Sits between the current player node and the mixer. playOnQueue: mints a
+// fresh one per track, so a track change crossfades on two independent chains
+// without rerouting the live node; nil until the first play.
+@property (nonatomic, readonly, nullable) AVAudioUnitVarispeed *varispeed;
+
+// The in-flight open's generation, path, current rebound row and start intent;
+// see PlaybackRequestCoordinator.
+@property (nonatomic, readonly, nullable) PlaybackRequestCoordinator *pendingRequest;
+
+// The loading intent, mirrored under _stateLock so that main-thread getters and
+// a seek's identity snapshot never touch queue-confined pending state. The
+// submitted-play identity binds a seek to the exact queued play: a play can be
+// submitted just before seekToPosition: snapshots the mirror, and without these
+// the seek would evaporate in that gap.
+@property (nonatomic, readonly, nullable) AudioTrack *loadingTrack;
+@property (nonatomic, readonly) uint64_t loadingSubmittedPlayIdentifier;
+@property (nonatomic, readonly) uint64_t lastSubmittedPlayIdentifier;
+@property (nonatomic, readonly, nullable) AudioTrack *lastSubmittedPlayTrack;
+
+// Unclamped twin of the paused position, written by every publish and
+// overridden by completePauseOfNode: with the true rendered position. The
+// position getter clamps to the file's duration, so a pause landing just after
+// a gapless boundary records the frames already rendered into the queued next
+// track only here; promoteGaplessOnQueue's paused fallback is the one reader.
+@property (nonatomic, readonly) NSTimeInterval pausedRawPosition;
+
+// Readwrite here, readonly in AudioPlayer.h: currentTrack is written on
+// _queue, the device id from the init and device-switch paths.
 @property (nullable, strong, readwrite) AudioTrack *currentTrack;
 @property (atomic, readwrite) NSInteger currentlyRequestedAudioDeviceId;
 
-// Queue-side helpers implemented in AudioPlayer.m, whose definitions there
-// carry the full contract comments. They are declared here so that
-// AudioPlayer+Devices.m can call them. All of them run on _queue.
-- (uint64_t)preemptRampsOnQueue;
-- (BOOL)connectNode:(AVAudioPlayerNode *)node throughVarispeedWithFormat:(AVAudioFormat *)format;
-- (void)detachNodeAfterFailedConnect:(AVAudioNode *)node;
-// The two failure ballets shared by the play path and the device restore,
-// kept in one home so intentional differences between those paths stay
-// visible as differences at the call sites. Both run on _queue.
-// attachConnectedNodeForFormat: mints a node and connects it through a fresh
-// varispeed; on connect failure it detaches, resets to Stopped, reports
-// description (against url when the failure names a track), and returns nil.
-// abandonNodeAfterFailedStart: retires the scheduled segment's stop-fired
-// completion, silences and detaches the node, resets to Stopped and reports.
-- (nullable AVAudioPlayerNode *)attachConnectedNodeForFormat:(AVAudioFormat *)format
-                                          failureDescription:(NSString *)description
-                                                         url:(nullable NSURL *)url;
-- (void)abandonNodeAfterFailedStart:(AVAudioPlayerNode *)node
-                 failureDescription:(NSString *)description
-                              error:(nullable NSError *)error
-                                url:(nullable NSURL *)url;
-- (void)scheduleFile:(AVAudioFile *)file onNode:(AVAudioPlayerNode *)node fromFrame:(AVAudioFramePosition)startFrame;
-// The gapless splice's disarm and re-arm, for every site that stops and
-// reschedules the current node; contracts in AudioPlayer.m.
-- (void)setGaplessQueuedOnQueue:(BOOL)queued;
-- (void)maybeArmGaplessOnQueue;
-- (BOOL)startEngineAndPlayNode:(AVAudioPlayerNode *)node error:(NSError * _Nullable * _Nullable)outError;
+// Queue-side helpers implemented in AudioPlayer.m, which carries their
+// contracts. All run on _queue. The first two are the entry points the
+// categories call back into: the segment completion that routes a boundary or
+// a natural end, and the terminus every file open lands in, whether the play
+// opened it or the prefetch did.
+- (void)segmentDidCompleteWithGeneration:(uint64_t)generation;
+- (void)finishPlayOnQueueWithFile:(nullable AVAudioFile *)file
+                            error:(nullable NSError *)error
+                     openRequestId:(uint64_t)openId;
+
 - (void)resetToStoppedStateOnQueue;
 - (void)publishPlaybackState:(VibePlayerState)state
                         node:(nullable AVAudioPlayerNode *)node
