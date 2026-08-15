@@ -86,6 +86,26 @@ jobs:
           path: build/TestResults.xcresult
           retention-days: 7
 
+  # clang's static analyzer, failing on any finding outside ThirdParty/.
+  # project.yml has had the analyzer's checks on all along
+  # (CLANG_ANALYZER_NONNULL, CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION); this job
+  # is what makes them a gate rather than a setting nobody ran.
+  #
+  # A job of its own, and Release: it is a full analyzing build, so hanging it
+  # off the build matrix would double that matrix's cost, and the findings are
+  # not config-independent — the one this job was written against showed up in
+  # Release and not in Debug. Release is the configuration that ships.
+  analyze:
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-xcodegen
+
+      - name: Static analyzer
+        run: make analyze CONFIG=Release
+
   # Fails when Resources/Localizable.xcstrings is stale against the STR_*
   # registry — a reworded string whose `make strings` run was forgotten. Its
   # own job: it needs no XcodeGen, no generated project and no build, only

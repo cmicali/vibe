@@ -43,12 +43,12 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol FileDropDelegate <NSObject>
 @optional
 
-// location is the drop point, NSDraggingInfo.draggingLocation in window
-// coordinates, which the playlist's empty-state wells resolve into their
-// replace or add actions. It is delivered asynchronously, after directory
-// expansion.
-- (void)mainWindow:(MainWindow *)mainWindow filesDropped:(NSArray<NSURL *>*)urls
-        atLocation:(NSPoint)location;
+// Whether a drop at this point — NSDraggingInfo.draggingLocation, in window
+// coordinates — appends rather than replaces, which the playlist's empty-state
+// wells decide. Answered synchronously, at drop time, because the wells are
+// geometry and the URLs then travel the app's ordinary open funnel, which knows
+// only append-or-replace.
+- (BOOL)mainWindow:(MainWindow *)mainWindow dropAppendsAtLocation:(NSPoint)location;
 
 // Drag-over tracking for the empty-state wells, again in window coordinates.
 // The updated callback fires on every entered and updated event. The ended

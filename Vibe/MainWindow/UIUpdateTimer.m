@@ -53,10 +53,15 @@
 - (void)dealloc {
     // Releasing a suspended dispatch source traps. The timer is created
     // suspended and stays suspended whenever _running is NO.
+    //
+    // Cancel BEFORE the balancing resume, not after: the resume schedules on
+    // the main queue, and cancelling first guarantees no handler can run in
+    // between. The other order only happened to be safe because dealloc runs
+    // on main and the handler could not be dispatched before it returned.
+    dispatch_source_cancel(_timer);
     if (!_running) {
         dispatch_resume(_timer);
     }
-    dispatch_source_cancel(_timer);
 }
 
 - (void)setWanted:(BOOL)wanted {

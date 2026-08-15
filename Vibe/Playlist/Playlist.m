@@ -13,16 +13,31 @@
     // appendURLs: extends it; rows never move otherwise, so the recorded
     // indexes stay valid.
     NSMapTable<AudioTrack *, NSNumber *> *_trackIndexes;
+    // The same thing keyed by URL, for indexesOfTracksWithURL: and
+    // trackForURL:. A file can occupy several rows, so the value is a row set
+    // rather than one index. It exists for the same reason as the map above:
+    // every analyzed BPM and key delivery asks, once per track start, and the
+    // scan it replaced was a full-playlist NSURL isEqual: walk. Equality stays
+    // NSURL's own, so a URL that did not match before does not match now.
+    // Maintained by exactly the four mutators that touch _trackIndexes.
+    NSMutableDictionary<NSURL *, NSMutableIndexSet *> *_indexesByURL;
 }
 
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _tracks = [NSMutableArray new];
-        _trackIndexes = [NSMapTable strongToStrongObjectsMapTable];
+        [self resetStorage];
         _currentIndex = 0;
     }
     return self;
+}
+
+// The empty state of all three collections, so a replacement and a clear
+// cannot rebuild one and forget another.
+- (void)resetStorage {
+    _tracks = [NSMutableArray new];
+    _trackIndexes = [NSMapTable strongToStrongObjectsMapTable];
+    _indexesByURL = [NSMutableDictionary dictionary];
 }
 
 - (void)setCurrentIndex:(NSUInteger)currentIndex {
@@ -51,8 +66,7 @@
 }
 
 - (void)replaceAllWithURLs:(NSArray<NSURL *> *)urls {
-    _tracks = [NSMutableArray new];
-    _trackIndexes = [NSMapTable strongToStrongObjectsMapTable];
+    [self resetStorage];
     [self addTracksForURLs:urls];
     _currentIndex = 0;
     [self.observer playlistDidReplaceAllTracks:self];
@@ -71,14 +85,41 @@
 - (void)addTracksForURLs:(NSArray<NSURL *> *)urls {
     for (NSURL *url in urls) {
         AudioTrack *track = [AudioTrack withURL:url];
-        [_trackIndexes setObject:@(_tracks.count) forKey:track];
+        NSUInteger index = _tracks.count;
+        [_trackIndexes setObject:@(index) forKey:track];
+        [self indexURL:url atIndex:index];
         [_tracks addObject:track];
     }
 }
 
+// The two halves of the URL index, so no mutator can do one without the other.
+- (void)indexURL:(NSURL *)url atIndex:(NSUInteger)index {
+    if (!url) {
+        return;
+    }
+    NSMutableIndexSet *rows = _indexesByURL[url];
+    if (!rows) {
+        rows = [NSMutableIndexSet indexSet];
+        _indexesByURL[url] = rows;
+    }
+    [rows addIndex:index];
+}
+
+- (void)unindexURL:(NSURL *)url atIndex:(NSUInteger)index {
+    if (!url) {
+        return;
+    }
+    NSMutableIndexSet *rows = _indexesByURL[url];
+    [rows removeIndex:index];
+    if (rows.count == 0) {
+        // Dropped rather than left empty: a playlist that converts every row
+        // away would otherwise keep a bucket per departed file for its life.
+        [_indexesByURL removeObjectForKey:url];
+    }
+}
+
 - (void)clear {
-    _tracks = [NSMutableArray new];
-    _trackIndexes = [NSMapTable strongToStrongObjectsMapTable];
+    [self resetStorage];
     _currentIndex = 0;
     [self.observer playlistDidReplaceAllTracks:self];
 }
@@ -111,32 +152,26 @@
     // AudioTrack uses NSObject's identity hash and isEqual, so this is an
     // identity lookup.
     NSNumber *index = track ? [_trackIndexes objectForKey:track] : nil;
-    return index ? index.integerValue : -1;
+    return index != nil ? index.integerValue : -1;
 }
 
 - (NSIndexSet *)indexesOfTracksWithURL:(NSURL *)url {
-    NSMutableIndexSet *indexes = [NSMutableIndexSet indexSet];
     if (!url) {
-        return indexes;
+        return [NSIndexSet indexSet];
     }
-    [_tracks enumerateObjectsUsingBlock:^(AudioTrack *track, NSUInteger index, BOOL *stop) {
-        if ([track.url isEqual:url]) {
-            [indexes addIndex:index];
-        }
-    }];
-    return indexes;
+    // A copy, not the live set: callers enumerate the result while replacing
+    // the very rows it names (the convert swap does exactly that).
+    return [_indexesByURL[url] copy] ?: [NSIndexSet indexSet];
 }
 
 - (AudioTrack *)trackForURL:(NSURL *)url {
     if (!url) {
         return nil;
     }
-    for (AudioTrack *track in _tracks) {
-        if ([track.url isEqual:url]) {
-            return track;
-        }
-    }
-    return nil;
+    // The nil check is load-bearing: firstIndex on a nil set answers 0, not
+    // NSNotFound, so an unknown URL would resolve to row 0.
+    NSMutableIndexSet *rows = _indexesByURL[url];
+    return rows ? [self trackAtIndex:rows.firstIndex] : nil;
 }
 
 - (BOOL)isCurrentTrack:(AudioTrack *)track {
@@ -154,9 +189,14 @@
     incoming.detectedKey = outgoing.detectedKey;
     // Remove the outgoing key: entries are never otherwise removed, and a
     // departed track still resolving to this row would let its late metadata
-    // delivery redraw a row it no longer occupies.
+    // delivery redraw a row it no longer occupies. The URL index moves the
+    // same way — the row leaves the source's bucket and joins the output's,
+    // which is what stops a post-swap delivery for the old file from stamping
+    // a row that no longer holds it.
     [_trackIndexes removeObjectForKey:outgoing];
     [_trackIndexes setObject:@(index) forKey:incoming];
+    [self unindexURL:outgoing.url atIndex:index];
+    [self indexURL:url atIndex:index];
     _tracks[index] = incoming;
     // currentIndex, being positional, needs no adjustment.
     [self.observer playlist:self didReplaceTrackAtIndex:index];

@@ -75,8 +75,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Every row holding url — the same file can sit in the playlist more than
 // once, and a caller acting on a file has to reach all of them. Empty for nil.
+// Indexed like getIndexForTrack:, so a BPM or key delivery does not scan the
+// whole playlist; equality is NSURL's, unchanged.
 - (NSIndexSet *)indexesOfTracksWithURL:(nullable NSURL *)url;
 
+// The first row holding url, off the same index.
 - (nullable AudioTrack *)trackForURL:(nullable NSURL *)url;
 - (BOOL)isCurrentTrack:(AudioTrack *)track;
 

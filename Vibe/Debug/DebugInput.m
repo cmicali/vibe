@@ -125,7 +125,7 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
     }
     NSString *name = tokens[1].lowercaseString;
     NSNumber *code = VibeKeyCodeMap()[name];
-    if (!code) {
+    if (code == nil) {
         return VibeErrorJSON(@"unknown key '%@' (a-z, 0-9, space, tab, return, esc, delete, up, down, left, right)",
                 tokens[1]);
     }
@@ -416,18 +416,18 @@ NSString *VibeSyntheticDragDrop(MainPlayerController *controller, NSArray<NSStri
     // independent of drag state, and the real delivery below re-resolves it.
     PlaylistDropWellAction well = [controller.playerContentView.playlistDropZoneView
             dropActionForWindowPoint:location];
-    // Mirror performDragOperation:'s pipeline and ordering: start the async
-    // expand and deliver, then tear the drag-over presentation down. A real
-    // drop gets draggingEnded right after performDragOperation returns. The
-    // sandbox caveat is the same as with `open`: an ungranted path may be
-    // denied at read time. Poll dump_state for the resulting playlist.
-    [NSURLUtil expandAndFilterList:@[[NSURL fileURLWithPath:path]]
-                        completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
-        if (expanded.count > 0 &&
-            [window.dropDelegate respondsToSelector:@selector(mainWindow:filesDropped:atLocation:)]) {
-            [window.dropDelegate mainWindow:window filesDropped:expanded atLocation:location];
-        }
-    }];
+    // Mirror performDragOperation:'s pipeline and ordering: resolve the well
+    // into an append flag, hand the URL to the app's open funnel, then tear
+    // the drag-over presentation down. A real drop gets draggingEnded right
+    // after performDragOperation returns. The funnel owns the expansion, so
+    // this posts and returns rather than waiting for it. The sandbox caveat is
+    // the same as with `open`: an ungranted path may be denied at read time.
+    // Poll dump_state for the resulting playlist.
+    BOOL append = NO;
+    if ([window.dropDelegate respondsToSelector:@selector(mainWindow:dropAppendsAtLocation:)]) {
+        append = [window.dropDelegate mainWindow:window dropAppendsAtLocation:location];
+    }
+    [(AppDelegate *)NSApp.delegate openDroppedURLs:@[[NSURL fileURLWithPath:path]] appending:append];
     if ([window.dropDelegate respondsToSelector:@selector(mainWindowFileDraggingEnded:)]) {
         [window.dropDelegate mainWindowFileDraggingEnded:window];
     }

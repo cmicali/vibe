@@ -40,9 +40,12 @@ typedef void (^OpenBurstScheduler)(NSTimeInterval delay, dispatch_block_t block)
 // A system open event: part of the current burst, or the start of a new one.
 - (void)openBurstURLs:(NSArray<NSURL *> *)urls;
 
-// A deliberate open: ends any burst and replaces. Before start it only
-// queues, exactly like enqueueURLs, and the launch drain picks it up.
-- (void)openReplacingURLs:(NSArray<NSURL *> *)urls;
+// A deliberate open — the open panel, Open Recent, a window drop: ends any
+// burst rather than joining it. append is the caller's own decision, not the
+// burst's: a drop onto the empty-state add well appends, everything else
+// replaces. Before start it only queues, exactly like enqueueURLs, and the
+// launch drain picks it up.
+- (void)openDeliberateURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append;
 
 @end
 

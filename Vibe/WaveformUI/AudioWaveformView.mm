@@ -64,7 +64,16 @@
 }
 
 - (void)addWaveformRenderer:(Class)renderer {
-    _waveformRenderers[[renderer styleIdentifier]] = renderer;
+    // A nil key raises, so the registry never takes one: the base class
+    // asserts on the missing override, and this keeps a Release build with an
+    // unoverridden subclass down to one missing style.
+    NSString *identifier = [renderer styleIdentifier];
+    if (identifier.length == 0) {
+        LogError(@"Waveform renderer %@ has no style identifier; not registering it",
+                 NSStringFromClass(renderer));
+        return;
+    }
+    _waveformRenderers[identifier] = renderer;
 }
 
 - (NSString *)currentWaveformStyle {

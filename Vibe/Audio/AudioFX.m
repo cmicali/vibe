@@ -4,25 +4,18 @@
 //
 
 #import "AudioFX.h"
+#import "AudioFXMath.h" // the cutoff, tap and swell arithmetic, tested separately
 #import "FadeMath.h"
 #import <AVFoundation/AVFoundation.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>
 
-// Low-kill high-pass cutoff while engaged: bass and kick gone, mids
-// untouched. The EQ runs two cascaded high-pass bands swept together, 12
-// dB/oct each for 24 dB/oct in total — a resonant one carrying a small
-// DJ-filter bump at the cutoff, plus a plain 2nd-order Butterworth.
-static const float kLowKillCutoffHz = 200.0f;
-// A held W drives the same filter to double the toggle's cutoff, 400 Hz: a
-// momentary harder kill that releases back to the Q state.
-static const float kLowKillBoostMultiplier = 2.0f;
-// The parked, disengaged cutoff: AUNBandEQ's frequency floor, below the
-// audible band, so the filter is inaudible while parked. The bands are never
-// bypassed, because un-bypassing one dumps its stale delay-line state into the
-// signal and clicks audibly. On and off are purely a cutoff sweep between
-// these two values.
-static const float kLowKillParkedHz = 20.0f;
+// The low-kill cutoffs and the default tap tempo are in AudioFXMath.h, with
+// the functions that resolve them. The EQ runs two cascaded high-pass bands
+// swept together, 12 dB/oct each for 24 dB/oct in total — a resonant one
+// carrying a small DJ-filter bump at the cutoff, plus a plain 2nd-order
+// Butterworth.
+//
 // Resonance of the resonant band, as AUNBandEQ bandwidth in octaves, where
 // narrower is peakier. A touch of squelch at the cutoff, not a scream.
 static const float kLowKillResonanceBandwidth = 0.7f;
@@ -72,7 +65,6 @@ static const float kDelayFeedbackPercent = 75.0f; // aggressive: a long trail of
 // echoes never pile up bass under the dry signal. AVAudioUnitDelay's own
 // in-loop filter is lowpass-only, so the cut lives on the return instead.
 static const float kDelayEchoLowCutHz = 450.0f;
-static const float kDelayDefaultBPM = 120.0f; // 0.25s tap until a real tempo arrives
 // Ping-pong width: echoes alternate sides at half pan, not hard left and right.
 static const float kDelayPingPongPan = 0.5f;
 
@@ -310,9 +302,10 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 // adds echoes on top. Tap times follow delayTapBPM, and lane feedback is the
 // per-hop decay squared, because each lane repeats every two hops.
 - (VibeDelaySend *)createDelaySendWithBeatsPerTap:(float)beatsPerTap engine:(AVAudioEngine *)engine {
-    float hopDecay = kDelayFeedbackPercent / 100.0f;
-    float laneFeedbackPercent = hopDecay * hopDecay * 100.0f;
-    NSTimeInterval defaultTap = 60.0 / kDelayDefaultBPM * beatsPerTap;
+    float laneFeedbackPercent = VibeDelayLaneFeedbackPercent(kDelayFeedbackPercent);
+    // No tempo yet, so this is the default tap; applyDelayTapOnQueue restates
+    // both times from the real one the moment the controller feeds it.
+    NSTimeInterval defaultTap = VibeDelayTapSeconds(0, beatsPerTap);
     VibeDelaySend *send = [[VibeDelaySend alloc] init];
     send.beatsPerTap = beatsPerTap;
     send.gate = [[AVAudioMixerNode alloc] init];
@@ -325,7 +318,7 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     for (AVAudioUnitDelay *lane in @[send.left, send.right]) {
         lane.wetDryMix = 100;
         lane.feedback = laneFeedbackPercent;
-        lane.delayTime = defaultTap * 2;
+        lane.delayTime = VibeDelayLaneSeconds(0, beatsPerTap);
     }
     send.panLeft = [[AVAudioMixerNode alloc] init];
     send.panRight = [[AVAudioMixerNode alloc] init];
@@ -448,9 +441,7 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     BOOL enabled = _lowKillEnabled;
     BOOL boost = _lowKillBoostActive;
     os_unfair_lock_unlock(&_stateLock);
-    float target = boost ? kLowKillCutoffHz * kLowKillBoostMultiplier
-                 : enabled ? kLowKillCutoffHz
-                           : kLowKillParkedHz;
+    float target = VibeLowKillCutoffHz(enabled, boost);
     uint64_t generation = ++_lowKillRampGeneration;
     [self stepLowKillRamp:1 from:_lowKillEQ.bands.firstObject.frequency
                        to:target generation:generation];
@@ -529,7 +520,7 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
         // invalidate the swell bumps the counter and the first swell step
         // drops out.
         [weakSelf stepSendGateRamp:gate step:1 of:kSendSwellSteps stepMicroseconds:kSendSwellStepMicroseconds
-                              from:level to:level * swellRatio
+                              from:level to:VibeSendSwellLevel(level, swellRatio)
                         generation:generation counter:counter completion:nil];
     }];
 }
@@ -642,12 +633,11 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     os_unfair_lock_lock(&_stateLock);
     float bpm = _delayTapBPM;
     os_unfair_lock_unlock(&_stateLock);
-    float effectiveBPM = bpm > 0 ? bpm : kDelayDefaultBPM;
     for (VibeDelaySend *send in @[_delayEighth, _delaySixteenth]) {
-        NSTimeInterval tap = 60.0 / effectiveBPM * send.beatsPerTap;
-        send.half.delayTime = tap;
-        send.left.delayTime = tap * 2;
-        send.right.delayTime = tap * 2;
+        NSTimeInterval lane = VibeDelayLaneSeconds(bpm, send.beatsPerTap);
+        send.half.delayTime = VibeDelayTapSeconds(bpm, send.beatsPerTap);
+        send.left.delayTime = lane;
+        send.right.delayTime = lane;
     }
 }
 

@@ -240,11 +240,11 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
             // appended only when present, so the label never shows
             // "(null) kbps" or "0.0 kHz".
             NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:track.metadata.fileType];
-            if (!track.metadata.isLossless && track.metadata.bitrate) {
+            if (!track.metadata.isLossless && track.metadata.bitrate != nil) {
                 [parts addObject:[NSString stringWithFormat:STR_LABEL_BITRATE,
                         [[Formatters sharedInstance] decimalString:track.metadata.bitrate.doubleValue fractionDigits:0]]];
             }
-            if (track.metadata.sampleRate) {
+            if (track.metadata.sampleRate != nil) {
                 [parts addObject:[NSString stringWithFormat:STR_LABEL_SAMPLE_RATE,
                         [[Formatters sharedInstance] decimalString:track.metadata.sampleRate.doubleValue / 1000 fractionDigits:1]]];
             }

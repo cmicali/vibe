@@ -43,18 +43,19 @@
     [self.trackDisplay showWaveform:waveform];
 }
 
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url {
-    // A delivery usually belongs to the current track, but a late one can land
-    // after next: has advanced the playlist, and the same file can occupy more
-    // than one row. The BPM is valid for every track owning that URL — the
-    // first match alone would strand a duplicate row that happens to be the
-    // one playing — so stamp them all, and refresh the label only when one of
-    // them is on display.
+// A delivery usually belongs to the current track, but a late one can land
+// after next: has advanced the playlist, and the same file can occupy more
+// than one row. An analyzed value is valid for every track owning that URL —
+// the first match alone would strand a duplicate row that happens to be the
+// one playing — so stamp them all, and refresh the label only when one of them
+// is on display. The BPM and the key share the label line, so both refresh
+// through effectiveTempoDidChange.
+- (void)stampTracksWithURL:(NSURL *)url usingBlock:(void (^)(AudioTrack *track))stamp {
     __block BOOL refresh = NO;
     [[self.playlistController indexesOfTracksWithURL:url]
             enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
         AudioTrack *track = [self.playlistController trackAtIndex:index];
-        track.detectedBPM = bpm;
+        stamp(track);
         refresh |= [self.playlistController isCurrentTrack:track];
     }];
     if (refresh) {
@@ -62,18 +63,16 @@
     }
 }
 
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectKey:(NSInteger)key forURL:(NSURL *)url {
-    // Same late-delivery and duplicate-row contract as didDetectBPM: above.
-    __block BOOL refresh = NO;
-    [[self.playlistController indexesOfTracksWithURL:url]
-            enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
-        AudioTrack *track = [self.playlistController trackAtIndex:index];
-        track.detectedKey = key;
-        refresh |= [self.playlistController isCurrentTrack:track];
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url {
+    [self stampTracksWithURL:url usingBlock:^(AudioTrack *track) {
+        track.detectedBPM = bpm;
     }];
-    if (refresh) {
-        [self effectiveTempoDidChange];
-    }
+}
+
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectKey:(NSInteger)key forURL:(NSURL *)url {
+    [self stampTracksWithURL:url usingBlock:^(AudioTrack *track) {
+        track.detectedKey = key;
+    }];
 }
 
 @end

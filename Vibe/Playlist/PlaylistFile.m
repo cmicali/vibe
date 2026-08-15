@@ -15,6 +15,20 @@
             || [extension isEqualToString:@"m3u8"];
 }
 
+// NULs on the even and odd halves of the byte pairs. Both UTF-16 tests below
+// are decided from these two counts alone, so they are counted in one place;
+// the tests differ only in how strict they are, which is the point of keeping
+// them apart.
+static void CountHalfNULs(const uint8_t *bytes, NSUInteger length,
+                          NSUInteger *evenNULs, NSUInteger *oddNULs) {
+    *evenNULs = 0;
+    *oddNULs = 0;
+    for (NSUInteger i = 0; i + 1 < length; i += 2) {
+        if (bytes[i] == 0) (*evenNULs)++;
+        if (bytes[i + 1] == 0) (*oddNULs)++;
+    }
+}
+
 // A byte order for BOM-less UTF-16 (some Windows writers), or 0 for "not
 // UTF-16". Latin-script text puts a NUL on the high half of nearly every code
 // unit and nothing else does, so a clear majority on one side with none at all
@@ -25,10 +39,7 @@ static NSStringEncoding BOMlessUTF16Encoding(const uint8_t *bytes, NSUInteger le
         return 0;
     }
     NSUInteger units = length / 2, evenNULs = 0, oddNULs = 0;
-    for (NSUInteger i = 0; i + 1 < length; i += 2) {
-        if (bytes[i] == 0) evenNULs++;
-        if (bytes[i + 1] == 0) oddNULs++;
-    }
+    CountHalfNULs(bytes, length, &evenNULs, &oddNULs);
     if (oddNULs * 2 >= units && evenNULs == 0) {
         return NSUTF16LittleEndianStringEncoding;
     }
@@ -36,6 +47,17 @@ static NSStringEncoding BOMlessUTF16Encoding(const uint8_t *bytes, NSUInteger le
         return NSUTF16BigEndianStringEncoding;
     }
     return 0;
+}
+
+// The looser twin of the test above, for data that reached the fallback rungs:
+// the strict form already declined it — an odd length, or NULs on both halves
+// — so this only picks the likelier side rather than asking for a clean
+// signature.
+static NSStringEncoding LikelyUTF16Encoding(const uint8_t *bytes, NSUInteger length) {
+    NSUInteger evenNULs = 0, oddNULs = 0;
+    CountHalfNULs(bytes, length, &evenNULs, &oddNULs);
+    return oddNULs >= evenNULs ? NSUTF16LittleEndianStringEncoding
+                               : NSUTF16BigEndianStringEncoding;
 }
 
 + (NSString *)textFromData:(NSData *)data {
@@ -69,15 +91,8 @@ static NSStringEncoding BOMlessUTF16Encoding(const uint8_t *bytes, NSUInteger le
         // UTF-16 (some Windows writers). The zeros sit on the high half of
         // each code unit, so their side tells the byte order — the CP1252
         // backstop would otherwise render it as NUL-riddled mojibake.
-        NSUInteger evenNULs = 0, oddNULs = 0;
-        for (NSUInteger i = 0; i + 1 < data.length; i += 2) {
-            if (bytes[i] == 0) evenNULs++;
-            if (bytes[i + 1] == 0) oddNULs++;
-        }
         text = [[NSString alloc] initWithData:data
-                                     encoding:oddNULs >= evenNULs
-                                              ? NSUTF16LittleEndianStringEncoding
-                                              : NSUTF16BigEndianStringEncoding];
+                                     encoding:LikelyUTF16Encoding(bytes, data.length)];
     }
     if (!text) {
         text = [[NSString alloc] initWithData:data encoding:NSWindowsCP1252StringEncoding];
@@ -261,8 +276,12 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
     NSMutableArray<NSURL *> *candidates = [NSMutableArray arrayWithObject:primary];
     NSMutableSet<NSString *> *seen = [NSMutableSet setWithObject:primary.path];
     void (^addCandidate)(NSURL *) = ^(NSURL *url) {
-        if (url && ![seen containsObject:url.path]) {
-            [seen addObject:url.path];
+        // The path, not the URL, is the identity here, and it is nil for a
+        // component no path can hold — the same case the primary is checked
+        // for above. A nil there would raise inside the set.
+        NSString *path = url.path;
+        if (path && ![seen containsObject:path]) {
+            [seen addObject:path];
             [candidates addObject:url];
         }
     };
@@ -281,11 +300,14 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
     // beside candidates live in the playlist's own folder, which was just
     // read, so they stay unconditional.
     NSString *primaryDir = primary.URLByDeletingLastPathComponent.path;
-    NSNumber *cached = dirReachable[primaryDir];
-    BOOL primaryDirReachable = cached ? cached.boolValue
-                                      : [fileManager isReadableFileAtPath:primaryDir];
-    if (!cached && primaryDir) {
-        dirReachable[primaryDir] = @(primaryDirReachable);
+    BOOL primaryDirReachable = NO;
+    if (primaryDir) {
+        NSNumber *cached = dirReachable[primaryDir];
+        primaryDirReachable = cached != nil ? cached.boolValue
+                                           : [fileManager isReadableFileAtPath:primaryDir];
+        if (cached == nil) {
+            dirReachable[primaryDir] = @(primaryDirReachable);
+        }
     }
     for (NSString *extension in alternateExtensions) {
         if (primaryDirReachable) {

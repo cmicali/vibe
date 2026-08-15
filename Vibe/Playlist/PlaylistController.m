@@ -9,6 +9,7 @@
 #import "PlaylistRowView.h"
 #import "EqualizerIndicatorView.h"
 #import "MainMenuBuilder.h" // vends the row context menu's symbol items
+#import "TrackCommands.h"
 #import "VibeStrings.h"
 
 // The reuse identifier for the custom row view. Cell views reuse their column
@@ -305,31 +306,20 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     }
 }
 
+// The clicked row's counterparts of the Edit menu's Show in Finder, Copy File
+// and Copy Name, which act on the current track (MainPlayerController). Same
+// three commands, different track.
+
 - (IBAction)showClickedTrackInFinder:(id)sender {
-    NSURL *url = [self clickedTrack].url;
-    if (url) {
-        [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[url]];
-    }
+    [TrackCommands revealInFinder:[self clickedTrack]];
 }
 
-// The clicked row's counterparts of the Edit menu's Copy File / Copy Name,
-// which act on the current track (MainPlayerController).
 - (IBAction)copyClickedTrackFile:(id)sender {
-    NSURL *url = [self clickedTrack].url;
-    if (url) {
-        NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
-        [pasteboard clearContents];
-        [pasteboard writeObjects:@[url]];
-    }
+    [TrackCommands copyFile:[self clickedTrack]];
 }
 
 - (IBAction)copyClickedTrackName:(id)sender {
-    NSString *name = [self clickedTrack].singleLineTitle;
-    if (name.length) {
-        NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
-        [pasteboard clearContents];
-        [pasteboard writeObjects:@[name]];
-    }
+    [TrackCommands copyName:[self clickedTrack]];
 }
 
 // The row under the right-click, or nil for a click on the table's empty area

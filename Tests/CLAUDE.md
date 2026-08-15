@@ -10,6 +10,8 @@ Pure logic only — code that is a function of its inputs and needs no running a
 
 Anything that needs the app running — transport, FX, menus, drag-and-drop, layout, rendering, Now Playing, device switching. That is the `vibe-debug` skill's command channel, which can drive a live app and read back state as JSON. A unit test that boots `AVAudioEngine` or a `CALayer` tree would be testing the frameworks, not us.
 
+**Where the engine is the whole class, extract the arithmetic.** `AudioPlayer` and `AudioFX` are unreachable from here by that rule, and both had untested decisions buried in them — so the crossfade-length rule moved to `FadeMath.h` (`VibeIncomingFadeMilliseconds`) and AudioFX's cutoff, tap, lane-feedback and swell numbers to `AudioFXMath.h`, both **called by the class** rather than restated beside it, which is what stops the seam and the shipping path from drifting. That is the same move `GaplessSpliceMath.h`, `TransportMath.h` and `NowPlayingRules.h` already made; reach for it before concluding a class cannot be tested at all.
+
 **The line is the engine, not the framework.** `AVFAudioWaveformLoaderTests` writes a WAV with `AVAudioFile` and reads it back through the real loader, which is fine: `AVAudioFile` is file I/O, with no engine, no device, no window server and nothing to configure. `AVAudioEngine` is the other side of that line and stays out. The same test file also exercises the loader's pure phases — the completeness rule and the short-file stretch — directly off the pass struct, and those are the ones worth having: a file that decodes one chunk short looks identical on screen, so nothing but an assertion catches it.
 
 ## Two rules that are easy to get wrong

@@ -86,9 +86,21 @@ static NSArray<NSURL *> *URLBatch(NSUInteger count) {
 - (void)testReplacingOpenAlwaysReplacesAndEndsTheBurst {
     [_coalescer startAndDrainQueue];
     [_coalescer openBurstURLs:URLBatch(2)];
-    [_coalescer openReplacingURLs:URLBatch(1)];   // mid-burst deliberate open
+    [_coalescer openDeliberateURLs:URLBatch(1) appending:NO];  // mid-burst deliberate open
     [_coalescer openBurstURLs:URLBatch(3)];       // next burst batch starts fresh
     NSArray *expected = @[@"replace 2", @"replace 1", @"replace 3"];
+    XCTAssertEqualObjects(_drains, expected);
+}
+
+// A drop onto the empty-state add well is the one deliberate open that does
+// not replace: it still ends the burst, but drains appending, and the next
+// burst batch then starts fresh rather than appending to it.
+- (void)testADeliberateAppendEndsTheBurstWithoutReplacing {
+    [_coalescer startAndDrainQueue];
+    [_coalescer openBurstURLs:URLBatch(2)];
+    [_coalescer openDeliberateURLs:URLBatch(1) appending:YES];
+    [_coalescer openBurstURLs:URLBatch(3)];
+    NSArray *expected = @[@"replace 2", @"append 1", @"replace 3"];
     XCTAssertEqualObjects(_drains, expected);
 }
 
@@ -118,7 +130,7 @@ static NSArray<NSURL *> *URLBatch(NSUInteger count) {
 }
 
 - (void)testPreStartReplacingOpenQueuesForTheLaunchDrain {
-    [_coalescer openReplacingURLs:URLBatch(1)];
+    [_coalescer openDeliberateURLs:URLBatch(1) appending:NO];
     XCTAssertEqual(_drains.count, 0u);
     XCTAssertTrue([_coalescer startAndDrainQueue]);
     NSArray *expected = @[@"replace 1"];

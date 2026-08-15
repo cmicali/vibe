@@ -79,3 +79,31 @@ static inline uint64_t VibeFadeStepMicrosecondsForMilliseconds(uint64_t millisec
     }
     return milliseconds * 1000 / (uint64_t)VibeFadeStepsForMilliseconds(milliseconds);
 }
+
+// The length BOTH sides of a track change ride — the outgoing node's retire and
+// the incoming node's fade-in — which is why it is one rule rather than two
+// tests at two call sites (AudioPlayer's playOnQueue: and the finish that lands
+// behind it). The user's crossfade applies to exactly one case, a play
+// replacing an *audibly playing* track; everything else takes the declick
+// minimum so transport stays instant:
+//
+//   replacingAudibleTrack  a first play, or one from pause or stop, has no
+//                          outgoing audio to fade against
+//   declick                the convert swap replaces a track with its OWN
+//                          audio, which a crossfade would only dip
+//   segmentQueued          an armed gapless splice would start sounding on the
+//                          retiring node mid-crossfade, doubled under the
+//                          incoming track
+//
+// The floor matters as much as the ceiling: a crossfade setting below the
+// declick minimum would fade faster than the minimum that exists to stop the
+// click, so the setting can only ever lengthen the fade.
+static inline uint64_t VibeIncomingFadeMilliseconds(NSInteger crossfadeMilliseconds,
+                                                    BOOL replacingAudibleTrack,
+                                                    BOOL declick,
+                                                    BOOL segmentQueued) {
+    if (!replacingAudibleTrack || declick || segmentQueued) {
+        return kFadeDurationMilliseconds;
+    }
+    return (uint64_t)MAX(crossfadeMilliseconds, (NSInteger)kFadeDurationMilliseconds);
+}

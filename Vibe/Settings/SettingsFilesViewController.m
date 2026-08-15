@@ -28,6 +28,14 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     NSButton *_removeButton;
     NSPopUpButton *_albumArtPopUp;
     NSArray<VibeGrantedFolder *> *_folders;
+    // Which of the Add Common Folder candidates are on disk, probed off the
+    // main thread; nil, or a path with no entry, means not yet probed. Two of
+    // the four are file-provider roots — iCloud Drive and Dropbox under
+    // CloudStorage — where a stat can block for as long as the provider takes,
+    // which is the same reason grantedFolders costs no I/O. Main-confined,
+    // with the generation dropping a probe a newer one has overtaken.
+    NSDictionary<NSString *, NSNumber *> *_commonFolderExists;
+    uint64_t _commonFolderProbeGeneration;
 }
 
 // Wraps at the folder list's width, so the pane has one text measure rather
@@ -78,7 +86,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     NSButton *addButton = [NSButton buttonWithTitle:STR_SETTINGS_ADD_FOLDER
                                              target:self action:@selector(addFolder:)];
     _addCommonButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:YES];
-    [self rebuildCommonFolderMenu];
+    [self refreshCommonFolderMenu];
     _removeButton = [NSButton buttonWithTitle:STR_SETTINGS_REMOVE_FOLDER
                                        target:self action:@selector(removeFolder:)];
     _removeButton.enabled = NO;
@@ -121,25 +129,56 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     _folders = FolderAccessManager.sharedInstance.grantedFolders;
     [_tableView reloadData];
     _removeButton.enabled = _tableView.selectedRowIndexes.count > 0;
-    [self rebuildCommonFolderMenu];
+    [self refreshCommonFolderMenu];
     NSString *albumArtSource = Settings.useFolderArt ? kAlbumArtFolder : kAlbumArtFileOnly;
     [_albumArtPopUp selectItemAtIndex:[_albumArtPopUp indexOfItemWithRepresentedObject:albumArtSource]];
+}
+
+// Draws the menu from what is known now, then re-probes the candidate paths
+// off the main thread and redraws when the answers land. The two steps are
+// separate methods so the redraw cannot re-trigger the probe.
+- (void)refreshCommonFolderMenu {
+    [self rebuildCommonFolderMenu];
+    uint64_t generation = ++_commonFolderProbeGeneration;
+    NSArray<NSString *> *paths = SettingsFilesViewController.commonFolderCandidatePaths;
+    __weak SettingsFilesViewController *weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSMutableDictionary<NSString *, NSNumber *> *exists =
+                [NSMutableDictionary dictionaryWithCapacity:paths.count];
+        for (NSString *path in paths) {
+            exists[path] = @([SettingsFilesViewController folderExists:path]);
+        }
+        run_on_main_thread({
+            SettingsFilesViewController *strongSelf = weakSelf;
+            if (!strongSelf || generation != strongSelf->_commonFolderProbeGeneration) {
+                return; // a newer probe owns the answer now
+            }
+            strongSelf->_commonFolderExists = exists;
+            [strongSelf rebuildCommonFolderMenu];
+        });
+    });
 }
 
 // A pull-down takes its button title from the item at index 0, which is never
 // chosen. Enablement is ours to set (autoenablesItems off): a folder that is
 // not there, or already covered by a grant, stays visible but dead. The button
 // itself always opens, so the menu can show why an entry is unavailable.
+//
+// No file system here: it runs on the main thread, and every existence answer
+// comes from the probed cache. A path with no answer yet is offered as
+// available — the panel simply opens staged on it — rather than dimmed on a
+// guess the probe may contradict a moment later.
 - (void)rebuildCommonFolderMenu {
     NSMenu *menu = [[NSMenu alloc] init];
     menu.autoenablesItems = NO;
     [menu addItemWithTitle:STR_SETTINGS_ADD_COMMON_FOLDER action:NULL keyEquivalent:@""];
-    for (NSArray<NSString *> *folder in self.class.commonFolders) {
+    for (NSArray<NSString *> *folder in [self.class commonFoldersWithExistence:_commonFolderExists]) {
         NSString *name = folder.firstObject;
         NSString *path = folder.lastObject;
         NSString *title = name;
         BOOL available = YES;
-        if (![self.class folderExists:path]) {
+        NSNumber *exists = _commonFolderExists[path];
+        if (exists && !exists.boolValue) {
             title = [NSString stringWithFormat:STR_SETTINGS_FOLDER_NOT_FOUND, name];
             available = NO;
         } else if ([self.class folderGranted:path in:self.grantedPaths]) {
@@ -157,15 +196,36 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     _addCommonButton.menu = menu;
 }
 
-// Name and path of each offered folder. Dropbox moved under
-// ~/Library/CloudStorage when it became a file provider — older installs keep
-// ~/Dropbox, newer ones leave a symlink there, and neither is guaranteed — so
-// offer the classic location and fall back to the new one.
-+ (NSArray<NSArray<NSString *> *> *)commonFolders {
+// Dropbox moved under ~/Library/CloudStorage when it became a file provider —
+// older installs keep ~/Dropbox, newer ones leave a symlink there, and neither
+// is guaranteed — so both spellings are candidates and the probe decides.
+static NSString *const kDropboxClassicSubpath = @"Dropbox";
+static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Dropbox";
+
+// Every path the menu may offer, for the off-main existence probe. Both
+// Dropbox spellings are here; commonFoldersWithExistence: picks one.
++ (NSArray<NSString *> *)commonFolderCandidatePaths {
     NSString *home = self.homeFolderPath;
-    NSString *dropbox = [home stringByAppendingPathComponent:@"Dropbox"];
-    if (![self folderExists:dropbox]) {
-        dropbox = [home stringByAppendingPathComponent:@"Library/CloudStorage/Dropbox"];
+    return @[
+        home,
+        [home stringByAppendingPathComponent:@"Documents"],
+        [home stringByAppendingPathComponent:@"Library/Mobile Documents/com~apple~CloudDocs"],
+        [home stringByAppendingPathComponent:kDropboxClassicSubpath],
+        [home stringByAppendingPathComponent:kDropboxCloudStorageSubpath],
+    ];
+}
+
+// Name and path of each offered folder, resolved against the probed existence
+// answers. Pure — no file system — so it is safe on the main thread; an
+// unprobed path counts as present, which is what keeps the classic Dropbox
+// location the one offered until the probe says otherwise.
++ (NSArray<NSArray<NSString *> *> *)commonFoldersWithExistence:
+        (NSDictionary<NSString *, NSNumber *> *)existsByPath {
+    NSString *home = self.homeFolderPath;
+    NSString *dropbox = [home stringByAppendingPathComponent:kDropboxClassicSubpath];
+    NSNumber *classicExists = existsByPath[dropbox];
+    if (classicExists && !classicExists.boolValue) {
+        dropbox = [home stringByAppendingPathComponent:kDropboxCloudStorageSubpath];
     }
     return @[
         @[STR_SETTINGS_FOLDER_HOME, home],

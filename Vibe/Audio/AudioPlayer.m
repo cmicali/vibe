@@ -381,11 +381,12 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // mid-crossfade, doubled under the incoming track. (Raising the setting
     // normally unqueues via setCrossfadeMilliseconds:, but a play can land in
     // that hook's async window.)
-    BOOL crossfading = (oldNode && _engine.isRunning && _state == VibePlayerStatePlaying
-                        && !_pendingDeclick && !segmentWasQueued);
-    _incomingFadeMilliseconds = crossfading
-            ? (uint64_t)MAX(self.crossfadeMilliseconds, (NSInteger)kFadeDurationMilliseconds)
-            : kFadeDurationMilliseconds;
+    BOOL replacingAudibleTrack = (oldNode != nil && _engine.isRunning
+                                  && _state == VibePlayerStatePlaying);
+    _incomingFadeMilliseconds = VibeIncomingFadeMilliseconds(self.crossfadeMilliseconds,
+                                                             replacingAudibleTrack,
+                                                             _pendingDeclick,
+                                                             segmentWasQueued);
     os_unfair_lock_lock(&_stateLock);
     _node = nil;
     os_unfair_lock_unlock(&_stateLock);

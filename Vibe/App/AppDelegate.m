@@ -114,7 +114,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 - (void)openRecentDocument:(NSMenuItem *)sender {
     NSURL *url = sender.representedObject;
     if (url) {
-        [_openBurstCoalescer openReplacingURLs:@[url]];
+        [_openBurstCoalescer openDeliberateURLs:@[url] appending:NO];
     }
 }
 
@@ -242,10 +242,21 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     });
 }
 
+- (void)openDroppedURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append {
+    [_openBurstCoalescer openDeliberateURLs:urls appending:append];
+}
+
 // The coalescer's sink: expands a drained batch, walking folders and dropping
 // unsupported files, and hands the result to the controller, either appended
 // or as a replacing play.
 - (void)openURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append {
+    // Nothing to open must not mint a token: the token supersedes whatever
+    // open is still in flight, and the empty expansion behind it would then
+    // reveal the empty state over a perfectly good pending one. The coalescer
+    // never drains empty, so this guards the funnel's mouth, not that path.
+    if (urls.count == 0) {
+        return;
+    }
     __weak AppDelegate *weakSelf = self;
     OpenRequestToken *token = [OpenRequestCoordinator.sharedCoordinator
             beginRequestAppending:append
@@ -355,7 +366,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [panel beginWithCompletionHandler:^(NSInteger result){
         self->_openPanel = nil;
         if (result == NSModalResponseOK) {
-            [self->_openBurstCoalescer openReplacingURLs:panel.URLs];
+            [self->_openBurstCoalescer openDeliberateURLs:panel.URLs appending:NO];
         }
     }];
 }

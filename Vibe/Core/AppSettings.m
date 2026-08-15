@@ -31,7 +31,42 @@
 // → folder-art vocabulary and stays as written.
 #define SETTING_FOLDER_ART                           @"Audio.folderArtwork"
 
-@implementation AppSettings
+@implementation AppSettings {
+    // ---- The hot-path cache, which lives for ONE turn of the main run loop.
+    //
+    // Five settings are read far more often than the rest: the right time
+    // label's mode on every playback tick, the file-info, key-notation and
+    // key-color flags several times per updateUI pass, and the refresh cap on
+    // every live-resize frame. Every other accessor here is a CFPreferences
+    // lookup apiece, which is what FolderArtResolver caches its own setting to
+    // avoid.
+    //
+    // TRAP: the obvious invalidation, NSUserDefaultsDidChangeNotification,
+    // does NOT fire for a write from another process — and the debug channel's
+    // prefs verbs (set_key_display, set_analysis, set_folder_art) are exactly
+    // that, writing from the CLI client while the app runs, as is a plain
+    // `defaults write`. Caching on that notification left the app reporting
+    // the old value for good; observed, not hypothetical.
+    //
+    // So the lifetime is a run-loop turn instead: an observer drops the cache
+    // before the loop sleeps, and the setters drop it immediately. Every read
+    // inside one updateUI pass or one tick is then served from the cache — all
+    // of the cost, since that is where the repetition is — while a value can
+    // never be more than one turn stale, which is the same freshness an
+    // uncached read gave. No writer has to remember anything, which is the
+    // difference from the resolver's cache and its one call to forget.
+    //
+    // Main thread only, which every reader of these five is: the header
+    // labels, the updateUI funnel, the Settings panes and the debug channel.
+    // The analysis flags are deliberately NOT cached — the waveform loader
+    // reads them off-main, and once per decode is not a hot path.
+    BOOL        _hotCacheValid;
+    BOOL        _hotShowRemainingTime;
+    BOOL        _hotShowFileInfo;
+    BOOL        _hotKeyColorsEnabled;
+    NSInteger   _hotUIUpdateHzCap;
+    NSString   *_hotKeyNotation;
+}
 
 + (AppSettings*)sharedInstance {
     static AppSettings *instance = nil;
@@ -46,8 +81,50 @@
     self = [super init];
     if (self) {
         [self registerDefaults];
+        [self installHotCacheInvalidator];
     }
     return self;
+}
+
+#pragma mark - The hot-path cache
+
+- (void)primeHotCache {
+    NSAssert(NSThread.isMainThread, @"AppSettings' hot-path cache is main-thread only");
+    if (_hotCacheValid) {
+        return;
+    }
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    _hotShowRemainingTime = [defaults boolForKey:SETTING_SHOW_REMAINING_TIME];
+    _hotShowFileInfo = [defaults boolForKey:SETTING_SHOW_FILE_INFO];
+    _hotKeyColorsEnabled = [defaults boolForKey:SETTING_KEY_COLORS];
+    _hotUIUpdateHzCap = [self storedUIUpdateHzCap];
+    _hotKeyNotation = [self storedKeyNotation];
+    _hotCacheValid = YES;
+}
+
+- (void)invalidateHotCache {
+    _hotCacheValid = NO;
+}
+
+// Drops the cache before the main run loop sleeps, and on the exit of any
+// nested loop (menu tracking, a live resize), which is what bounds a cached
+// value to the turn that read it. Common modes, so tracking loops are covered.
+// The singleton lives for the process, so the observer is never removed.
+- (void)installHotCacheInvalidator {
+    if (!NSThread.isMainThread) {
+        // The singleton can, in principle, be created by an off-main first
+        // touch. The invalidator belongs to the main loop either way.
+        run_on_main_thread({ [self installHotCacheInvalidator]; });
+        return;
+    }
+    __weak AppSettings *weakSelf = self;
+    CFRunLoopObserverRef observer = CFRunLoopObserverCreateWithHandler(
+            kCFAllocatorDefault, kCFRunLoopBeforeWaiting | kCFRunLoopExit, YES, 0,
+            ^(CFRunLoopObserverRef o, CFRunLoopActivity activity) {
+                [weakSelf invalidateHotCache];
+            });
+    CFRunLoopAddObserver(CFRunLoopGetMain(), observer, kCFRunLoopCommonModes);
+    CFRelease(observer);
 }
 
 - (void)registerDefaults {
@@ -182,20 +259,26 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     [[NSUserDefaults standardUserDefaults] setBool:onTop forKey:SETTING_ALWAYS_ON_TOP];
 }
 
+// Cached; see primeHotCache. Read on every playback tick.
 - (BOOL)showRemainingTime {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_REMAINING_TIME];
+    [self primeHotCache];
+    return _hotShowRemainingTime;
 }
 
 - (void)setShowRemainingTime:(BOOL)show {
     [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_REMAINING_TIME];
+    [self invalidateHotCache];
 }
 
+// Cached; read twice per updateUI pass, by the codec and BPM lines.
 - (BOOL)showFileInfo {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_FILE_INFO];
+    [self primeHotCache];
+    return _hotShowFileInfo;
 }
 
 - (void)setShowFileInfo:(BOOL)show {
     [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_FILE_INFO];
+    [self invalidateHotCache];
 }
 
 - (NSInteger)pitchRange {
@@ -248,14 +331,21 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
     [[NSUserDefaults standardUserDefaults] setInteger:milliseconds forKey:SETTING_CROSSFADE_MILLISECONDS];
 }
 
-- (NSInteger)uiUpdateHzCap {
+- (NSInteger)storedUIUpdateHzCap {
     NSInteger stored = [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_UI_UPDATE_HZ_CAP];
     return VibeNearestPreset(stored, kVibeUIUpdateHzCapPresets,
                              sizeof(kVibeUIUpdateHzCapPresets) / sizeof(kVibeUIUpdateHzCapPresets[0]));
 }
 
+// Cached; read on every live-resize frame through syncUITimerRate.
+- (NSInteger)uiUpdateHzCap {
+    [self primeHotCache];
+    return _hotUIUpdateHzCap;
+}
+
 - (void)setUiUpdateHzCap:(NSInteger)hz {
     [[NSUserDefaults standardUserDefaults] setInteger:hz forKey:SETTING_UI_UPDATE_HZ_CAP];
+    [self invalidateHotCache];
 }
 
 - (BOOL)analyzeBPM {
@@ -274,7 +364,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
     [[NSUserDefaults standardUserDefaults] setBool:analyze forKey:SETTING_ANALYZE_KEY];
 }
 
-- (NSString *)keyNotation {
+- (NSString *)storedKeyNotation {
     NSString *notation = [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_KEY_NOTATION];
     // An unrecognized persisted value renders as Camelot rather than nothing.
     if (![notation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]) {
@@ -283,16 +373,27 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
     return notation;
 }
 
-- (void)setKeyNotation:(NSString *)notation {
-    [[NSUserDefaults standardUserDefaults] setObject:notation forKey:SETTING_KEY_NOTATION];
+// Cached; read on every updateUI pass and every fader tick, through
+// effectiveTempoDidChange.
+- (NSString *)keyNotation {
+    [self primeHotCache];
+    return _hotKeyNotation;
 }
 
+- (void)setKeyNotation:(NSString *)notation {
+    [[NSUserDefaults standardUserDefaults] setObject:notation forKey:SETTING_KEY_NOTATION];
+    [self invalidateHotCache];
+}
+
+// Cached; read alongside keyNotation on the same pass.
 - (BOOL)keyColorsEnabled {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_KEY_COLORS];
+    [self primeHotCache];
+    return _hotKeyColorsEnabled;
 }
 
 - (void)setKeyColorsEnabled:(BOOL)enabled {
     [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_KEY_COLORS];
+    [self invalidateHotCache];
 }
 
 - (BOOL)convertAsksWhereToSave {

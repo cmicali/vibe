@@ -31,12 +31,19 @@
     _hoverHighlightX = x;
 }
 
+// Abstract. Both are declared nonnull, and styleIdentifier is used as a
+// dictionary key by AudioWaveformView's registry, so a subclass that forgets
+// to override would otherwise raise deep inside -setup with nothing naming the
+// culprit. Assert here, where the class is known, and return a marker that
+// keeps a Release build registering something rather than crashing.
 + (NSString *)styleIdentifier {
-    return nil;
+    NSAssert(NO, @"%@ must override +styleIdentifier", NSStringFromClass(self));
+    return NSStringFromClass(self);
 }
 
 + (NSString *)displayName {
-    return nil;
+    NSAssert(NO, @"%@ must override +displayName", NSStringFromClass(self));
+    return NSStringFromClass(self);
 }
 
 - (void)updateColors:(BOOL)isDark {

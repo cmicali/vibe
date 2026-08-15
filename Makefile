@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: setup project build test test-summary stress release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary
+.PHONY: setup project build test test-summary analyze stress release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -42,6 +42,14 @@ test: project
 # local `make test` for the same table on stdout.
 test-summary:
 	scripts/test-summary.sh $(RESULT_BUNDLE)
+
+# Run clang's static analyzer over the app target and FAIL on any finding
+# outside ThirdParty/. project.yml turns the analyzer's checks on
+# (CLANG_ANALYZER_NONNULL, CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION), and this
+# is what makes them a gate rather than a setting nobody runs. Vendored code is
+# other authors' and is excluded, as it is from every other check here.
+analyze:
+	scripts/analyze.sh $(CONFIG)
 
 # Stress/fuzz the RUNNING app against a folder of real audio files. Seeded and
 # reproducible; it checks check_invariants and dump_health between batches and

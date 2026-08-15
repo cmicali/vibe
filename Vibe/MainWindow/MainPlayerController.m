@@ -44,6 +44,7 @@
 #import "UIUpdateTimer.h"
 #import "UIUpdateMath.h"
 #import "AppStats.h"
+#import "TrackCommands.h"
 #import "VibeStrings.h"
 
 // The state the categories share is in MainPlayerControllerInternal.h; what
@@ -545,20 +546,12 @@
     [self.window miniaturize:sender];
 }
 
-- (void)mainWindow:(MainWindow *)mainWindow filesDropped:(NSArray<NSURL *> *)urls
-        atLocation:(NSPoint)location {
-    switch ([self.playerContentView.playlistDropZoneView dropActionForWindowPoint:location]) {
-        case PlaylistDropWellActionAdd:
-            // Appends without touching playback. An empty playlist routes to
-            // play: inside, since with nothing to append to, replace and add
-            // coincide.
-            [self addURLs:urls];
-            break;
-        case PlaylistDropWellActionReplace:
-        case PlaylistDropWellActionNone: // outside the wells: the window-wide default
-            [self play:urls];
-            break;
-    }
+// Only the Add well appends. Replace and a drop outside the wells alike take
+// the window-wide default, and an empty playlist appends to nothing, so the
+// open funnel's addURLs: routes it back to a replacing play anyway.
+- (BOOL)mainWindow:(MainWindow *)mainWindow dropAppendsAtLocation:(NSPoint)location {
+    return [self.playerContentView.playlistDropZoneView dropActionForWindowPoint:location]
+            == PlaylistDropWellActionAdd;
 }
 
 // The window's drag-over events, forwarded to the drop zone's wells. The view
@@ -701,31 +694,19 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     [self effectiveTempoDidChange];
 }
 
+// The Edit and window-body menus act on the current track; the playlist's row
+// menu runs the same three commands against the clicked one.
+
 - (IBAction) showInFinder:(id)sender {
-    NSURL *url = self.playlistController.currentTrack.url;
-    if (url) {
-        [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[url]];
-    }
+    [TrackCommands revealInFinder:self.playlistController.currentTrack];
 }
 
-// The file URL itself goes on the pasteboard, so a Finder paste duplicates
-// the file.
 - (IBAction) copyFile:(id)sender {
-    NSURL *url = self.playlistController.currentTrack.url;
-    if (url) {
-        NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
-        [pasteboard clearContents];
-        [pasteboard writeObjects:@[url]];
-    }
+    [TrackCommands copyFile:self.playlistController.currentTrack];
 }
 
 - (IBAction) copyName:(id)sender {
-    NSString *name = self.playlistController.currentTrack.singleLineTitle;
-    if (name.length) {
-        NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
-        [pasteboard clearContents];
-        [pasteboard writeObjects:@[name]];
-    }
+    [TrackCommands copyName:self.playlistController.currentTrack];
 }
 
 #if DEBUG

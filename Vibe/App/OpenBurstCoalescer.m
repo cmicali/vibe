@@ -55,13 +55,13 @@
     [self burstDrain];
 }
 
-- (void)openReplacingURLs:(NSArray<NSURL *> *)urls {
+- (void)openDeliberateURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append {
     [_queue addObjectsFromArray:urls];
     _burstActive = NO; // a deliberate open ends any burst
     if (!_started || _queue.count == 0) {
         return; // pre-start: the launch drain picks the queue up
     }
-    [self drainAppending:NO];
+    [self drainAppending:append];
 }
 
 #pragma mark - Private

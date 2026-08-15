@@ -18,6 +18,8 @@ There is no package manager; all third-party code (TagLib, PINCache) is vendored
 
 `make test` runs the unit tests, in `Tests/` at the repo root. They cover pure logic only, and the bundle is host-less — no window server, no audio hardware, no running app. **See `Tests/CLAUDE.md` before adding to it**: sources under test are compiled into the test target rather than linked from the app, and a test file placed under `Vibe/` would be swept into the shipping binary.
 
+`make analyze` runs clang's static analyzer and **fails on any finding outside `ThirdParty/`**. `project.yml` has had the analyzer's checks on all along (`CLANG_ANALYZER_NONNULL`, `CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION: YES_AGGRESSIVE`); the target and its CI job are what make them a gate rather than a setting nobody ran. Findings are not config-independent — keep it clean in Release, which is what CI checks and what ships.
+
 Anything that has to be verified against the *running* app belongs in the debug command channel below, not in a unit test.
 
 ## Debugging and verification
