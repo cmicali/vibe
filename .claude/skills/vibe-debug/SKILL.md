@@ -78,7 +78,7 @@ xcrun simctl io "$UDID" screenshot shot.png   # device pixels (3x), top-left ori
 
 ```bash
 S=.claude/skills/vibe-debug/scripts/debug-ios.sh
-"$S" dump_state          # {player, currentTrack, playlist, ui, settings} — ui includes waveformProgress, waveformBaked, isScrubbing, parked, foreground, plus the shell: playerPresentation ("minimized"|"full"), miniPlayerShown, selectedTab, libraryEmpty
+"$S" dump_state          # {player, currentTrack, playlist, ui, settings} — ui includes waveformProgress, waveformOverscroll (points past an end, + past the start, - past the end; the only way to assert the scrubber's rubber band from outside), waveformScrollGeom ([offset, min, max, contentWidth] — tells "resting at an end" apart from "pinned against one and refusing to give"), waveformBaked, isScrubbing, parked, foreground, plus the shell: playerPresentation ("minimized"|"full"), miniPlayerShown, selectedTab, libraryEmpty
 "$S" dump_now_playing    # {hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — the mac verb minus playbackState (macOS-only)
 "$S" dump_view_tree      # {windows: [{class, frame, keyWindow, rootViewController, contentView: {…, subviews}}]} — UILabel text and button labels included
 "$S" dump_art            # {currentIndex, window, held, pages: [{index, title, metadata, art, needsLoad, loading, inWindow, cellUp}]} — the pager's art window: which pages are fetched ahead, which hold decoded art, and what each has. The ONLY way to tell "not decoded yet" from "this track has no art" — on screen both are the vinyl placeholder. `held` past the budget, or a page landing with art:false, is the prefetch failing to keep up

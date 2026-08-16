@@ -21,6 +21,34 @@
 #import "WaveformMidline.h"   // the empty line IS the scrubber's placeholder
 #import "WaveformScrubberView.h"
 
+// The pager must not take a horizontal drag that starts on a waveform: the
+// scrubber owns those.
+//
+// TRAP: making the pager's pan require the scrubber's to fail is not enough.
+// When the scrubber's scroll sits exactly at a content edge, UIKit's nested
+// scroll arbitration keeps its pan from beginning at all so an ancestor scroll
+// view can have the gesture — the failure requirement is satisfied and the
+// pager inherits the drag, so pushing against an end either turned the page or,
+// on a one-track playlist, did nothing. Declining by hit-test here is what
+// leaves the drag with the scrubber. It has to be an override rather than a
+// delegate, since a scroll view owns its own pan's delegate.
+@interface VibeTrackPagerView : UICollectionView
+@end
+
+@implementation VibeTrackPagerView
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)recognizer {
+    if (recognizer == self.panGestureRecognizer) {
+        UIView *hit = [self hitTest:[recognizer locationInView:self] withEvent:nil];
+        for (UIView *view = hit; view && view != self; view = view.superview) {
+            if ([view isKindOfClass:[WaveformScrubberView class]]) {
+                return NO;
+            }
+        }
+    }
+    return [super gestureRecognizerShouldBegin:recognizer];
+}
+@end
+
 @implementation PlayerViewController {
     // Drives the scrolling waveform at display rate while playing in the
     // foreground; the model's 3 Hz tick is far too coarse for a moving
@@ -103,7 +131,7 @@
     _pagesLayout.scrollDirection = UICollectionViewScrollDirectionHorizontal;
     _pagesLayout.minimumLineSpacing = 0;
     _pagesLayout.minimumInteritemSpacing = 0;
-    _pagesView = [[UICollectionView alloc] initWithFrame:CGRectZero
+    _pagesView = [[VibeTrackPagerView alloc] initWithFrame:CGRectZero
                                     collectionViewLayout:_pagesLayout];
     _pagesView.pagingEnabled = YES;
     _pagesView.showsHorizontalScrollIndicator = NO;

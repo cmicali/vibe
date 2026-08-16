@@ -38,4 +38,15 @@
     [_playback seekToProgress:percentage];
 }
 
+// Hold the pager still for the length of a scrub. See the protocol comment:
+// while an enclosing scroll view can still scroll the way the finger is going,
+// UIKit chains the scrubber's overscroll into it and the band never appears —
+// so the ends bounced on the last page and clamped everywhere else.
+- (void)waveformScrubberView:(WaveformScrubberView *)view didChangeScrubbing:(BOOL)scrubbing {
+    if (view != _waveformView) {
+        return;
+    }
+    _pagesView.scrollEnabled = !scrubbing;
+}
+
 @end

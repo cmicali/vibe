@@ -111,12 +111,10 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
     if (page.waveformView.delegate != self) {
         page.waveformView.delegate = self;
         // The pager yields horizontal drags on the waveform surface to the
-        // scrubber; page-drag starts anywhere else.
-        for (UIGestureRecognizer *recognizer in page.waveformView.gestureRecognizers) {
-            if ([recognizer isKindOfClass:[UIPanGestureRecognizer class]]) {
-                [_pagesView.panGestureRecognizer requireGestureRecognizerToFail:recognizer];
-            }
-        }
+        // scrubber; page-drag starts anywhere else. With no waveform the
+        // scrubber's pan refuses to begin, so the swipe falls through here.
+        [_pagesView.panGestureRecognizer
+                requireGestureRecognizerToFail:page.waveformView.scrubPanRecognizer];
         [page.playPauseButton addTarget:self action:@selector(playPauseTapped)
                        forControlEvents:UIControlEventTouchUpInside];
     }

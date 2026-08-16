@@ -26,6 +26,8 @@
         @"remaining": _remainingLabel.text ?: @"",
         @"transportShown": @(_playPauseButton.alpha > 0),
         @"waveformProgress": @(_waveformView.progress),
+        @"waveformOverscroll": @(_waveformView.overscroll),
+        @"waveformScrollGeom": _waveformView.scrollGeometry ?: @[],
         @"waveformBaked": @(_waveformView.isShowingBakedWaveform),
         @"isScrubbing": @(_waveformView.isScrubbing),
         @"foreground": @(_foreground),

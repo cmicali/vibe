@@ -6,7 +6,8 @@
 //  morph engine and waveform data, hosted in a UIView. DJ semantics: the
 //  play position is fixed at the view's horizontal center and the zoomed
 //  waveform scrolls beneath it; a drag moves the content 1:1 and seeks on
-//  release, a tap nudges to the tapped point in the visible window.
+//  release, both ends give and spring back, a tap nudges to the tapped point
+//  in the visible window.
 //
 
 #import <UIKit/UIKit.h>
@@ -19,6 +20,14 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol WaveformScrubberViewDelegate <NSObject>
 
 - (void)waveformScrubberView:(WaveformScrubberView *)view didSeek:(float)percentage;
+
+// A scrub is starting or has finished. The owner must stop any ANCESTOR scroll
+// view from scrolling for the duration: UIKit chains an inner scroll view's
+// overscroll to an enclosing one, so while the pager can still scroll the way
+// the finger is going, the scrubber clamps at its end instead of bouncing.
+// Declining the pager's gesture is not enough — the chaining is decided from
+// geometry, not from which recognizer won.
+- (void)waveformScrubberView:(WaveformScrubberView *)view didChangeScrubbing:(BOOL)scrubbing;
 
 @end
 
@@ -37,6 +46,21 @@ NS_ASSUME_NONNULL_BEGIN
 // YES while the settled envelope bitmap is standing in for the live renderer
 // tree (the scroll/scrub fast path). Diagnostic; surfaced in dump_state.
 @property (nonatomic, readonly) BOOL isShowingBakedWaveform;
+
+// How far the content is pulled past either end, in view points: positive past
+// the start, negative past the end, 0 in range. Diagnostic; surfaced in
+// dump_state, which is the only way to assert the band from outside.
+@property (nonatomic, readonly) CGFloat overscroll;
+
+// Scroll geometry for the debug dump: {offset, min, max, contentWidth}.
+// `overscroll` alone cannot tell "resting at an end" from "pinned against one
+// and refusing to give", which is exactly the distinction the edge bugs turned
+// on; these four numbers can.
+@property (nonatomic, readonly) NSArray<NSNumber *> *scrollGeometry;
+
+// The scrub pan, so the pager can require it to fail. Owned by an inner scroll
+// view, hence not reachable through the view's own gestureRecognizers.
+@property (nonatomic, readonly) UIPanGestureRecognizer *scrubPanRecognizer;
 
 // Same contract as the mac view: reset ahead of a load (installing the
 // persisted style on first use), then hand snapshots to showWaveform:.

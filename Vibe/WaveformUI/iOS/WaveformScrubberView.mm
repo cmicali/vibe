@@ -12,54 +12,73 @@
 #import "WaveformMidline.h"
 #import "WaveformLoadingIndicator.h"
 #import "UIView+DarkMode.h"
-#import "VibeWeakProxy.h"
 #import "AppSettings.h"
 
 // Fraction of the track visible across the view: the DJ zoom level, and the
 // one knob the whole scrubber's scale hangs off — a preference or a pinch
 // gesture would drive this and nothing else. The renderer draws the full track
-// at width / fraction and the host layer is translated so the play position
-// sits at the view's horizontal center. Raising it shows more time and, as a
-// free consequence, shrinks the virtual layer tree.
-static const CGFloat kWaveformVisibleFraction = 0.4;
+// at width / fraction (about 2 screens) and that is the scroll's content
+// width, so the play position sits at the view's horizontal center. Raising it
+// shows more time and, as a free consequence, shrinks the virtual layer tree.
+static const CGFloat kWaveformVisibleFraction = 0.48;
 
-// Momentum: the per-millisecond deceleration (much higher friction than
-// UIScrollView's 0.998 normal rate, so a throw settles noticeably faster —
-// this is a scrubber, not a scroll view), the flick floor below which a
-// release settles immediately, and the speed (in view points/second of
-// content motion) at which a decelerating scroll stops and commits the seek.
-static const CGFloat kDecelerationPerMillisecond = 0.992;
-static const CGFloat kMomentumMinimumFlick = 60.0;
-static const CGFloat kMomentumSettleSpeed = 25.0;
+// How far past the content's edges the baseline hairline segments extend, as a
+// multiple of the view's width. They have to still cover the exposed space at
+// full bounce, which is centerX plus the bounce — and the bounce measures
+// about 0.27 of a width in both orientations, because one finger travel cannot
+// reach the loose end of UIScrollView's curve on a screen this narrow. So 0.8
+// is the floor and this is margin.
+static const CGFloat kBaselineOverhangWidths = 2.0;
 
-// One haptic tick per this many points of virtual (zoomed) travel. Kept just
-// a few bars apart so a scrub reads as a continuous ripple — the finger
-// dragging across the waveform's lines — rather than discrete detents; the
-// per-frame bucket check caps delivery at display rate on fast throws.
-static const CGFloat kScrubTickSpacing = 2.0;
+// One haptic tick per this many points of scrub travel, and how hard each one
+// hits. Tight spacing so a slow, deliberate scrub ratchets continuously under
+// the finger instead of landing on occasional detents; the per-frame bucket
+// check caps delivery at display rate, so a fast throw thins out by itself
+// rather than turning into a buzz.
+//
+// Rigid impact, not selection feedback: selection is deliberately soft and
+// rounded, and a scrub wants a short, sharp edge. Intensity stays well under
+// full because this fires many times a second — a full-strength tap at this
+// rate is fatiguing within a gesture or two.
+static const CGFloat kScrubTickSpacing = 1.0;
+static const CGFloat kScrubTickIntensity = 0.55;
+
+// TRAP: the spacing above is a DISTANCE, and distance alone is not a rate. A
+// fast scrub crosses it every frame, which asks the Taptic Engine for 60-120
+// taps a second; it cannot produce distinct taps anywhere near that, so it
+// drops them, and sustained over-requesting takes it out entirely — the scrub
+// goes dead and stays intermittent for seconds afterwards, well past the
+// gesture. This ceiling is what keeps a fast scrub a ratchet instead of a
+// flood. Slow scrubs never reach it and stay purely distance-driven.
+static const CFTimeInterval kScrubTickMinInterval = 1.0 / 28.0;
 
 // How long after the last waveform delivery the settled bitmap is baked: past
 // the morph engine's ease (about 95% settled at 0.2s), so the swap from live
 // tree to bitmap lands on identical pixels.
 static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 
-@interface WaveformScrubberView ()
+@interface WaveformScrubberView () <UIScrollViewDelegate>
 @property (nonatomic, strong, nullable) CodableAudioWaveform *waveform;
 @end
 
 @implementation WaveformScrubberView {
+    // The scroll that carries the content. Its contentSize is the virtual
+    // (zoomed) width and its insets are half a view on each side, so the
+    // content rests under the view's center at both ends of the track and
+    // UIKit supplies the band, the spring and the deceleration. Everything
+    // that scrolls is a sublayer of ITS layer; the loading indicator and the
+    // empty placeholder stay in self.layer, which does not move.
+    UIScrollView            *_scroll;
     // The renderers' parent layer. geometryFlipped gives its sublayers the
     // bottom-left-origin space the shared renderer math was written for (the
     // mac view is a non-flipped layer-hosting NSView), so SonicCirrus's
     // top/mirror layout and the Detailed gradients render identically with
     // zero shared-code change. Its bounds are the virtual (zoomed) size, not
-    // the view's, and its position scrolls with playback.
+    // the view's, and it sits at content origin.
     CALayer                 *_rendererHost;
     AudioWaveformRenderer   *_renderer;
     CGFloat                 _progress;
     NSUInteger              _progressTracker;
-    BOOL                    _isScrubbing;
-    CGFloat                 _dragStartProgress;
     // The loading control, shared with the mac view: its own layers, its
     // determinate fill and the sweep's traps all live there. Nil when no load
     // is showing.
@@ -68,21 +87,18 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     // The centerline past the track's ends: two hairline segments continuing
     // the waveform's silence baseline across the off-track space — left of
     // the content before the start (played styling, it sits on the playhead's
-    // played side) and right of it near the end (unplayed). Repositioned with
-    // every host translation; hidden without a waveform.
+    // played side) and right of it near the end (unplayed). Fixed-size, glued
+    // to the content's edges, so they ride the scroll rather than being
+    // resized to the gap every frame; hidden without a waveform.
     CALayer                 *_leadingBaseline;
     CALayer                 *_trailingBaseline;
-    // The flick's decay: progress/second, stepped by a display link until it
-    // falls below the settle speed — only then does the seek commit.
-    CADisplayLink           *_momentumLink;
-    CGFloat                 _momentumVelocity;
-    CFTimeInterval          _momentumLastTime;
     // The scrub-tick haptic and the last virtual-x bucket that fired it.
-    UISelectionFeedbackGenerator *_scrubHaptics;
+    UIImpactFeedbackGenerator *_scrubHaptics;
     NSInteger               _lastTickBucket;
-    // Kept so a content reset can cancel an in-flight drag; see
-    // resetWaveformContentState.
-    UIPanGestureRecognizer  *_panRecognizer;
+    CFTimeInterval          _lastTickTime;
+    // YES between the scroll's first user-driven frame and its seek commit,
+    // so the commit happens once per gesture rather than per delegate call.
+    BOOL                    _seekPending;
     // The settled fast path: the envelope baked into one bitmap, shown by two
     // image layers — unplayed across the full width, played stacked on top of
     // it (the same compositing order as the live tree's played clip) and
@@ -104,26 +120,38 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 
 - (void)setup {
     self.opaque = NO;
-    // The host extends several screen widths past both edges.
+    // The content extends several screen widths past both edges.
     self.clipsToBounds = YES;
+
+    _scroll = [[UIScrollView alloc] initWithFrame:self.bounds];
+    _scroll.delegate = self;
+    _scroll.bounces = YES;
+    _scroll.alwaysBounceHorizontal = YES;
+    _scroll.showsHorizontalScrollIndicator = NO;
+    _scroll.showsVerticalScrollIndicator = NO;
+    // A throw has to settle fast: this is a scrubber, not a document.
+    _scroll.decelerationRate = UIScrollViewDecelerationRateFast;
+    _scroll.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
+    // TRAP: a UIScrollView owns its pan's delegate and raises on assignment,
+    // so the "no waveform, no scrub" gate rides scrollEnabled instead — see
+    // setWaveform:.
+    _scroll.scrollEnabled = NO;
+    [self addSubview:_scroll];
 
     _rendererHost = [[CALayer alloc] init];
     _rendererHost.geometryFlipped = YES;
     _rendererHost.anchorPoint = CGPointZero;
     _rendererHost.bounds = [self virtualBounds];
     _rendererHost.position = CGPointZero;
-    [self.layer addSublayer:_rendererHost];
+    [_scroll.layer addSublayer:_rendererHost];
 
     _leadingBaseline = [CALayer layer];
     _leadingBaseline.hidden = YES;
-    [self.layer addSublayer:_leadingBaseline];
+    [_scroll.layer addSublayer:_leadingBaseline];
     _trailingBaseline = [CALayer layer];
     _trailingBaseline.hidden = YES;
-    [self.layer addSublayer:_trailingBaseline];
+    [_scroll.layer addSublayer:_trailingBaseline];
 
-    _panRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self
-                                                             action:@selector(handlePan:)];
-    [self addGestureRecognizer:_panRecognizer];
     UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self
                                                                           action:@selector(handleTap:)];
     [self addGestureRecognizer:tap];
@@ -135,15 +163,44 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
                       }];
 }
 
-// Needed because the momentum link holds only the weak proxy; without the
-// invalidate a link outliving the view would fire no-ops at display rate
-// forever.
-- (void)dealloc {
-    [_momentumLink invalidate];
+- (BOOL)isScrubbing {
+    // The whole content motion, finger and coast and bounce alike: the span
+    // over which the progress writers must keep off the scroll.
+    return _scroll.isDragging || _scroll.isDecelerating || _scroll.isTracking;
 }
 
-- (BOOL)isScrubbing {
-    return _isScrubbing;
+- (NSArray<NSNumber *> *)scrollGeometry {
+    CGFloat minX = -_scroll.contentInset.left;
+    CGFloat maxX = _scroll.contentSize.width - _scroll.bounds.size.width + _scroll.contentInset.right;
+    return @[@(_scroll.contentOffset.x), @(minX), @(maxX), @(_scroll.contentSize.width)];
+}
+
+- (UIPanGestureRecognizer *)scrubPanRecognizer {
+    return _scroll.panGestureRecognizer;
+}
+
+// How far the offset is outside its valid range: positive past the start,
+// negative past the end. Diagnostic only — nothing draws from it.
+- (CGFloat)overscroll {
+    CGFloat x = _scroll.contentOffset.x;
+    CGFloat minX = -_scroll.contentInset.left;
+    CGFloat maxX = _scroll.contentSize.width - _scroll.bounds.size.width + _scroll.contentInset.right;
+    if (x < minX) {
+        return minX - x;
+    }
+    if (x > maxX) {
+        return maxX - x;
+    }
+    return 0;
+}
+
+// With nothing to scrub the pan must not recognize at all, or it swallows the
+// page swipe: the pager's requireGestureRecognizerToFail: is satisfied forever
+// by a recognizer that always begins, and an empty strip becomes a dead zone.
+// A disabled scroll's pan counts as failed, which is exactly what that wants.
+- (void)setWaveform:(CodableAudioWaveform *)waveform {
+    _waveform = waveform;
+    _scroll.scrollEnabled = (waveform != nil);
 }
 
 - (BOOL)isShowingBakedWaveform {
@@ -203,6 +260,7 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 
 - (void)drawWaveform {
     [_renderer updateWaveform:[self virtualBounds] progress:_progress waveform:self.waveform.waveform];
+    [self layoutBaselines];
     [self applyScrollAndProgress];
 }
 
@@ -215,47 +273,81 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     [_renderer settleMorphImmediately];
 }
 
-// Host translation and played-clip width move in one transaction so the
-// played/unplayed boundary sits exactly at the view's center every frame:
-// position.x + progress * virtualWidth == centerX. On the baked fast path the
-// same frame is pure texture work — translate the host, crop the played
-// image — with the live masked tree hidden and untouched.
+// The offset that puts the track's `progress` point under the view's center,
+// and its inverse. The insets are half a view wide on each side, so progress 0
+// sits at -centerX and progress 1 at virtualWidth - centerX.
+- (CGFloat)contentOffsetForProgress:(CGFloat)progress {
+    return progress * [self virtualWidth] - self.bounds.size.width / 2;
+}
+
+- (CGFloat)progressForContentOffset:(CGFloat)x {
+    CGFloat virtualWidth = [self virtualWidth];
+    if (virtualWidth <= 0) {
+        return 0;
+    }
+    return (x + self.bounds.size.width / 2) / virtualWidth;
+}
+
 - (void)applyScrollAndProgress {
+    [self syncContentOffsetToProgress];
+    [self applyPlayedClip];
+}
+
+// Playback's writes move the scroll; the finger's do not get overwritten.
+- (void)syncContentOffsetToProgress {
+    CGFloat virtualWidth = [self virtualWidth];
+    if (virtualWidth <= 0 || self.isScrubbing) {
+        return;
+    }
+    CGFloat x = [self contentOffsetForProgress:MAX(0.0, MIN(1.0, _progress))];
+    if (fabs(_scroll.contentOffset.x - x) < 0.01) {
+        return;
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _scroll.contentOffset = CGPointMake(x, 0);
+    [CATransaction commit];
+}
+
+// The played/unplayed boundary — the only playhead marker, no line. It lives
+// in CONTENT space, spanning content x 0..progress*virtualWidth, so the scroll
+// carries it to the view's center for free and nothing here reads the offset.
+- (void)applyPlayedClip {
     CGFloat virtualWidth = [self virtualWidth];
     if (!_renderer || virtualWidth <= 0) {
         return;
     }
     // The timer writers push raw position/duration, which can land a hair
-    // past 1.0 at track end; an out-of-unit contentsRect smears the baked
-    // image's edge pixels across the excess.
+    // past 1.0 at track end, and a bounce puts the derived progress out of
+    // unit at both ends; an out-of-unit contentsRect smears the baked image's
+    // edge pixels across the excess.
     CGFloat progress = MAX(0.0, MIN(1.0, _progress));
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    CGPoint origin = CGPointMake(self.bounds.size.width / 2 - progress * virtualWidth, 0);
     if (_bakedHost) {
-        _bakedHost.position = origin;
         _bakedPlayed.bounds = CGRectMake(0, 0, progress * virtualWidth, _bakedHost.bounds.size.height);
         _bakedPlayed.contentsRect = CGRectMake(0, 0, progress, 1);
     }
     else {
-        _rendererHost.position = origin;
         [_renderer updateProgress:progress waveform:self.waveform.waveform];
     }
-    // kVibeMidlineHeight and the midY placement match the settled hairline's
-    // pixel rows exactly, in both the live tree's flipped space and the bake.
-    CGFloat midY = self.bounds.size.height / 2;
-    CGFloat trailingStart = origin.x + virtualWidth;
-    CGFloat trailingWidth = self.bounds.size.width - trailingStart;
+    [CATransaction commit];
+}
+
+// The off-track hairlines, placed once per layout rather than resized to the
+// gap every frame: fixed segments glued to the content's edges ride the scroll
+// and the bounce for free. kVibeMidlineHeight and the midY placement match the
+// settled hairline's pixel rows exactly.
+- (void)layoutBaselines {
+    CGFloat overhang = self.bounds.size.width * kBaselineOverhangWidths;
+    CGFloat y = self.bounds.size.height / 2 - kVibeMidlineHeight / 2;
     BOOL show = self.waveform != nil;
-    _leadingBaseline.hidden = !show || origin.x <= 0;
-    _trailingBaseline.hidden = !show || trailingWidth <= 0;
-    if (!_leadingBaseline.hidden) {
-        _leadingBaseline.frame = CGRectMake(0, midY - kVibeMidlineHeight / 2, origin.x, kVibeMidlineHeight);
-    }
-    if (!_trailingBaseline.hidden) {
-        _trailingBaseline.frame = CGRectMake(trailingStart, midY - kVibeMidlineHeight / 2,
-                                             trailingWidth, kVibeMidlineHeight);
-    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _leadingBaseline.hidden = !show;
+    _trailingBaseline.hidden = !show;
+    _leadingBaseline.frame = CGRectMake(-overhang, y, overhang, kVibeMidlineHeight);
+    _trailingBaseline.frame = CGRectMake([self virtualWidth], y, overhang, kVibeMidlineHeight);
     [CATransaction commit];
 }
 
@@ -263,7 +355,11 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 
 - (NSUInteger)progressBucket {
     NSUInteger steps = MAX((NSUInteger)1, (NSUInteger)([self virtualWidth] * [self displayScale]));
-    return static_cast<NSUInteger>(_progress * steps);
+    // TRAP: clamp before the cast, not after. setProgress: stores what the
+    // timer writers hand it, which can land a hair outside the unit range at
+    // track end, and converting a negative or overlarge double to NSUInteger
+    // is undefined rather than merely wrong.
+    return static_cast<NSUInteger>(MAX(0.0, MIN(1.0, _progress)) * steps);
 }
 
 - (void)setProgress:(CGFloat)progress {
@@ -291,22 +387,23 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 
 - (void)resetWaveformContentState {
     [self teardownBakedWaveform];
-    [self cancelMomentum];
-    // A drag straddling a track change must not keep scrubbing the new
-    // track from the old track's start progress: cancel the touch outright
-    // (the toggle fires handlePan's cancelled branch), so the finger has to
-    // re-begin against the new content.
-    if (_panRecognizer.state == UIGestureRecognizerStateBegan
-            || _panRecognizer.state == UIGestureRecognizerStateChanged) {
-        _panRecognizer.enabled = NO;
-        _panRecognizer.enabled = YES;
-    }
-    _isScrubbing = NO;
+    // Stop a coast where it stands, then drop the waveform — which disables
+    // the scroll and so cancels any in-flight drag. A drag or coast straddling
+    // a track change must not keep scrubbing the new track from the old one's
+    // progress; the finger has to re-begin against the new content.
+    [_scroll setContentOffset:_scroll.contentOffset animated:NO];
+    _seekPending = NO;
+    _scrubHaptics = nil;
+    [self.delegate waveformScrubberView:self didChangeScrubbing:NO];
     self.waveform = nil;
     // Force the repaint even when the bucket is already 0, so the reset
     // always re-parks the translation.
     _progressTracker = NSUIntegerMax;
     self.progress = 0;
+    // TRAP: the cancel above does not clear isDragging until the touch is
+    // delivered, so the progress write can skip its park and leave a recycled
+    // cell scrolled to the previous track's position. Park unconditionally.
+    _scroll.contentOffset = CGPointMake([self contentOffsetForProgress:0], 0);
 }
 
 - (void)prepareForWaveformLoad {
@@ -451,6 +548,7 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     // row lands at the layer's top, matching what the flipped live tree shows.
     _bakedHost = [CALayer layer];
     _bakedHost.anchorPoint = CGPointZero;
+    _bakedHost.position = CGPointZero;      // content origin; the scroll moves it
     _bakedHost.bounds = (CGRect){CGPointZero, size};
     _bakedUnplayed = [CALayer layer];
     _bakedUnplayed.anchorPoint = CGPointZero;
@@ -463,7 +561,7 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     _bakedPlayed.position = CGPointZero;
     _bakedPlayed.contents = (__bridge id)image;
     [_bakedHost addSublayer:_bakedPlayed];
-    [self.layer insertSublayer:_bakedHost above:_rendererHost];
+    [_scroll.layer insertSublayer:_bakedHost above:_rendererHost];
     _rendererHost.hidden = YES;
     [CATransaction commit];
     [self applyScrollAndProgress];
@@ -547,116 +645,77 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 
 #pragma mark - Touch scrubbing
 
-// Direct manipulation with momentum: the drag moves the content 1:1 under
-// the fixed center playhead, a flick keeps it moving with UIScrollView's
-// deceleration, and the seek commits only once the content settles. A
+// Direct manipulation, UIKit's: the drag moves the content 1:1 under the fixed
+// center playhead, a flick coasts, both ends give and spring back, and the
+// seek commits as soon as the content reaches the point it will settle on. A
 // cancelled drag just stops; the next progress push restores the true
 // position.
-- (void)handlePan:(UIPanGestureRecognizer *)pan {
-    if (!self.waveform) {
-        return;
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+    if (self.isScrubbing) {
+        _progress = MAX(0.0, MIN(1.0, [self progressForContentOffset:scrollView.contentOffset.x]));
+        _progressTracker = [self progressBucket];
+        NSInteger bucket = [self tickBucket];
+        if (bucket != _lastTickBucket) {
+            _lastTickBucket = bucket;
+            CFTimeInterval now = CACurrentMediaTime();
+            if (now - _lastTickTime >= kScrubTickMinInterval) {
+                _lastTickTime = now;
+                [_scrubHaptics impactOccurredWithIntensity:kScrubTickIntensity];
+                [_scrubHaptics prepare];
+            }
+        }
     }
-    switch (pan.state) {
-        case UIGestureRecognizerStateBegan:
-            // A touch mid-deceleration catches the moving content, exactly
-            // like grabbing a coasting scroll view.
-            [self cancelMomentum];
-            _isScrubbing = YES;
-            _dragStartProgress = _progress;
-            _scrubHaptics = [[UISelectionFeedbackGenerator alloc] init];
-            [_scrubHaptics prepare];
-            _lastTickBucket = [self tickBucket];
-            break;
-        case UIGestureRecognizerStateChanged: {
-            CGFloat virtualWidth = [self virtualWidth];
-            if (virtualWidth <= 0) {
-                break;
-            }
-            CGFloat p = _dragStartProgress - [pan translationInView:self].x / virtualWidth;
-            [self scrubToProgress:p];
-            break;
-        }
-        case UIGestureRecognizerStateEnded: {
-            CGFloat virtualWidth = [self virtualWidth];
-            CGFloat vx = [pan velocityInView:self].x;
-            if (virtualWidth <= 0 || fabs(vx) < kMomentumMinimumFlick) {
-                [self settleScrub];
-                break;
-            }
-            // Content follows the finger, so content velocity is the finger's;
-            // progress runs against x. The weak proxy keeps a mid-momentum
-            // link from pinning a recycled cell's view alive; dealloc
-            // invalidates it.
-            _momentumVelocity = -vx / virtualWidth;
-            _momentumLastTime = CACurrentMediaTime();
-            _momentumLink = [CADisplayLink displayLinkWithTarget:[VibeWeakProxy proxyWithTarget:self]
-                                                        selector:@selector(momentumTick:)];
-            [_momentumLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
-            break;
-        }
-        default:
-            [self cancelMomentum];
-            _isScrubbing = NO;
-            _scrubHaptics = nil;
-            break;
+    [self applyPlayedClip];
+}
+
+- (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
+    [self.delegate waveformScrubberView:self didChangeScrubbing:YES];
+    _seekPending = YES;
+    _scrubHaptics = [[UIImpactFeedbackGenerator alloc]
+            initWithStyle:UIImpactFeedbackStyleRigid];
+    [_scrubHaptics prepare];
+    _lastTickBucket = [self tickBucket];
+    _lastTickTime = 0;
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
+    if (!decelerate) {
+        [self endScrub];
     }
 }
 
-// The shared scrub step for finger and momentum: clamp, repaint, and tick
-// the haptic when a waveform line crosses the fixed playhead.
-- (void)scrubToProgress:(CGFloat)progress {
-    _progress = MAX(0.0, MIN(1.0, progress));
-    // The same device-pixel gate as setProgress:. It matters most in the
-    // pre-bake window, where every repaint re-composites the masked live
-    // tree offscreen in full.
-    NSUInteger p = [self progressBucket];
-    if (_progressTracker != p) {
-        _progressTracker = p;
-        [self applyScrollAndProgress];
+- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
+    [self endScrub];
+}
+
+// The content has stopped, so the seek commits and the progress writers take
+// back over. TRAP: this is the ONLY place a scrub seeks. Committing earlier —
+// on reaching an end mid-gesture — reads as correct and is not: a seek to 1.0
+// lands the player on the track's end, which finishes it and auto-advances,
+// so pushing against the end skipped to the next track with the finger still
+// down. UIScrollView also reports isDecelerating DURING a drag, so there is no
+// "still moving" test that separates a coast from a finger.
+- (void)endScrub {
+    [self commitScrubSeek];
+    _scrubHaptics = nil;
+    [self.delegate waveformScrubberView:self didChangeScrubbing:NO];
+}
+
+- (void)commitScrubSeek {
+    if (!_seekPending) {
+        return;
     }
-    NSInteger bucket = [self tickBucket];
-    if (bucket != _lastTickBucket) {
-        _lastTickBucket = bucket;
-        [_scrubHaptics selectionChanged];
-        [_scrubHaptics prepare];
-    }
+    _seekPending = NO;
+    [self.delegate waveformScrubberView:self didSeek:(float)MAX(0.0, MIN(1.0, _progress))];
 }
 
 - (NSInteger)tickBucket {
     return (NSInteger)floor(_progress * [self virtualWidth] / kScrubTickSpacing);
 }
 
-- (void)momentumTick:(CADisplayLink *)link {
-    CFTimeInterval now = CACurrentMediaTime();
-    CFTimeInterval dt = now - _momentumLastTime;
-    _momentumLastTime = now;
-
-    [self scrubToProgress:_progress + _momentumVelocity * dt];
-    _momentumVelocity *= pow(kDecelerationPerMillisecond, dt * 1000.0);
-
-    BOOL hitEdge = (_progress <= 0.0 || _progress >= 1.0);
-    BOOL settled = fabs(_momentumVelocity) * [self virtualWidth] < kMomentumSettleSpeed;
-    if (hitEdge || settled) {
-        [self settleScrub];
-    }
-}
-
-// The scrub is over — by settle, edge, or a no-flick release — so the seek
-// commits and the progress writers take back over.
-- (void)settleScrub {
-    [self cancelMomentum];
-    _isScrubbing = NO;
-    _scrubHaptics = nil;
-    [self.delegate waveformScrubberView:self didSeek:(float)_progress];
-}
-
-- (void)cancelMomentum {
-    [_momentumLink invalidate];
-    _momentumLink = nil;
-    _momentumVelocity = 0;
-}
-
-// A tap nudges to the tapped point within the visible window.
+// A tap nudges to the tapped point within the visible window. The scroll's own
+// bounds origin IS the content offset, so a location in its space is already a
+// content x.
 - (void)handleTap:(UITapGestureRecognizer *)tap {
     if (!self.waveform || tap.state != UIGestureRecognizerStateEnded) {
         return;
@@ -665,12 +724,11 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     if (virtualWidth <= 0) {
         return;
     }
-    CGFloat centerX = self.bounds.size.width / 2;
-    CGFloat p = _progress + ([tap locationInView:self].x - centerX) / virtualWidth;
-    // A tap mid-deceleration claims the transport: left running, the momentum
+    CGFloat p = [tap locationInView:_scroll].x / virtualWidth;
+    // A tap mid-coast claims the transport: left running, the deceleration
     // would settle later and commit a second seek over this one.
-    [self cancelMomentum];
-    _isScrubbing = NO;
+    [_scroll setContentOffset:_scroll.contentOffset animated:NO];
+    _seekPending = NO;
     _scrubHaptics = nil;
     [self.delegate waveformScrubberView:self didSeek:(float)MAX(0.0, MIN(1.0, p))];
 }
@@ -688,8 +746,15 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
+    _scroll.frame = self.bounds;
+    // Half a view of inset on each side is what parks the content under the
+    // center at both ends of the track instead of against the view's edges.
+    CGFloat centerX = self.bounds.size.width / 2;
+    _scroll.contentInset = UIEdgeInsetsMake(0, centerX, 0, centerX);
+    _scroll.contentSize = CGSizeMake(virtualBounds.size.width, self.bounds.size.height);
     _rendererHost.bounds = virtualBounds;
     [CATransaction commit];
+    [self layoutBaselines];
     [self applyScrollAndProgress];
     if (sizeChanged && _renderer) {
         // Sync geometry even with no waveform, as the mac view does, so a
