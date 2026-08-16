@@ -4,11 +4,13 @@
 //
 
 #import "PlayerViewController.h"
+#import "AudioErrorRules.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Recovery.h"
 #import "AudioPlayer+Seek.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "AudioTrackMetadata+ArtLoad.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "AudioSessionController.h"
@@ -17,6 +19,7 @@
 #import "PageWaveformPipeline.h"
 #import "Playlist.h"
 #import "NowPlayingController.h"
+#import "NowPlayingRules.h"
 #import "SearchViewController.h"
 #import "TrackListViewController.h"
 #import "TrackPageCell.h"
@@ -33,6 +36,10 @@
 #import "MusicalKey.h"
 #endif
 
+// Fixed, unlike the mac's playhead-speed-scaled rate (MainWindow/UIUpdateMath.h):
+// there the timer is what moves the playhead, here the CADisplayLink owns it
+// while playing. This tick only feeds the time labels, which change once a
+// second, and the Now Playing publish.
 static const NSUInteger kUIUpdateHz = 3;
 
 @interface PlayerViewController () <AudioPlayerDelegate, PlaylistObserver,
@@ -474,7 +481,7 @@ static const NSUInteger kUIUpdateHz = 3;
                                         : (track.hasArtistAndTitle ? track.artist : @""))
                  artistColor:(showError ? [UIColor systemRedColor]
                                         : [UIColor secondaryLabelColor])
-                    fileInfo:[self fileInfoTextForTrack:track]
+                    fileInfo:track.metadata.fileInfoLine
                          art:(track.cachedArt ?: track.cachedThumbnail
                                               ?: [UIImage imageNamed:@"record-bg"])];
 }
@@ -628,26 +635,6 @@ static const NSUInteger kUIUpdateHz = 3;
     }
 }
 
-// The mac codec line's composition: each part appended only when present, so
-// the label never shows "(null) kbps" or "0.0 kHz".
-- (NSString *)fileInfoTextForTrack:(AudioTrack *)track {
-    if (!track.metadata.fileType) {
-        return @"";
-    }
-    NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:track.metadata.fileType];
-    if (!track.metadata.isLossless && track.metadata.bitrate) {
-        [parts addObject:[NSString stringWithFormat:STR_LABEL_BITRATE,
-                [[Formatters sharedInstance] decimalString:track.metadata.bitrate.doubleValue
-                                            fractionDigits:0]]];
-    }
-    if (track.metadata.sampleRate) {
-        [parts addObject:[NSString stringWithFormat:STR_LABEL_SAMPLE_RATE,
-                [[Formatters sharedInstance] decimalString:track.metadata.sampleRate.doubleValue / 1000
-                                            fractionDigits:1]]];
-    }
-    return [parts componentsJoinedByString:VibeNotLocalized(@" | ")];
-}
-
 - (void)updatePlayButton {
     [_boundPage setGlyphPlaying:_player.isPlaying];
     [self updateChrome];
@@ -733,13 +720,8 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)publishNowPlaying {
-    NowPlayingPlaybackState state = NowPlayingPlaybackStateStopped;
-    if (_player.isPlaying) {
-        state = NowPlayingPlaybackStatePlaying;  // Loading included: play is imminent
-    }
-    else if (_player.isPaused) {
-        state = NowPlayingPlaybackStatePaused;
-    }
+    NowPlayingPlaybackState state = VibeNowPlayingStateForPlayer(_player.isPlaying,
+                                                                 _player.isPaused);
     AudioTrack *track = (_parked || _trackStartPending || _player.currentTrack)
             ? _playlist.currentTrack : nil;
     if (track) {
@@ -757,40 +739,22 @@ static const NSUInteger kUIUpdateHz = 3;
                      hasPrevious:_playlist.hasPreviousTrack];
 }
 
-// Cache-hit metadata does not carry the art bytes, and extracting them
-// re-reads the audio file, which can block on an undownloaded cloud file, so
-// the decode runs off the main thread — the mac's ArtworkDisplayController
-// dispatch. Until it lands, cachedArt reads nil and the Now Playing card and
-// the current page show no full-res art; the resolve republishes both.
+// Until the load lands, cachedArt reads nil and the Now Playing card and the
+// current page show no full-res art; the resolve republishes both. The dispatch
+// itself is shared with the mac (AudioTrackMetadata+ArtLoad); a dead controller
+// answers "not wanted", which demotes the decode rather than stranding it.
 - (void)dispatchAlbumArtLoadForTrack:(AudioTrack *)track {
-    AudioTrackMetadata *metadata = track.metadata;
-    if (!metadata.artNeedsLoad || metadata.artLoadDispatched) {
-        return;
-    }
-    metadata.artLoadDispatched = YES;
     __weak PlayerViewController *weakSelf = self;
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        VibeImage *loaded = metadata.loadArtBlocking;  // may block; background thread
-        dispatch_async(dispatch_get_main_queue(), ^{
-            // Resolved either way; artNeedsLoad is NO after any
-            // completion, so no duplicate dispatch can follow.
-            metadata.artLoadDispatched = NO;
-            PlayerViewController *self = weakSelf;
-            if (!self) {
-                return;
-            }
-            if (![self->_playlist isCurrentTrack:track]) {
-                // Skipped away before the load resolved; nothing else would
-                // demote the full-resolution decode this load just pinned.
-                [metadata discardDecodedArt];
-                return;
-            }
-            if (loaded) {
-                [self refreshPageAtIndex:self->_playlist.currentIndex];
-                [self publishNowPlaying];
-            }
-        });
-    });
+    [track.metadata dispatchArtLoadIfNeededStillWanted:^BOOL{
+        PlayerViewController *self = weakSelf;
+        return self && [self->_playlist isCurrentTrack:track];
+    } completion:^(VibeImage *loaded) {
+        PlayerViewController *self = weakSelf;
+        if (self && loaded) {
+            [self refreshPageAtIndex:self->_playlist.currentIndex];
+            [self publishNowPlaying];
+        }
+    }];
 }
 
 #pragma mark - Playback
@@ -1099,6 +1063,13 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track {
+    // A natural end can be delivered just as the playlist is replaced —
+    // folderSession:didOpenTracks: replaces and plays without stopping the
+    // player first — and advancing then skips past the track the user just
+    // picked. Same guard as the mac's MainPlayerController+PlayerEvents.
+    if (track && ![_playlist isCurrentTrack:track]) {
+        return;
+    }
     if ([_playlist next]) {
         [self playCurrentTrack];
         return;
@@ -1152,7 +1123,7 @@ static const NSUInteger kUIUpdateHz = 3;
     if (url && current && ![url isEqual:current.url]) {
         return;  // a stale delivery racing a track change
     }
-    _errorText = [self statusForPlayError:error];
+    _errorText = VibeStatusForPlayError(error);
     _seekInFlight = NO;
     _trackStartPending = NO;
     [_downloadMonitor cancel];
@@ -1166,21 +1137,6 @@ static const NSUInteger kUIUpdateHz = 3;
     [_audioSession deactivateWhenIdle];
     [self updatePlayButton];
     [self publishNowPlaying];
-}
-
-// The iOS twin of MainPlayerController's statusForPlayError: same codes,
-// same strings.
-- (NSString *)statusForPlayError:(NSError *)error {
-    if ([error.domain isEqualToString:kVibeAudioErrorDomain]) {
-        switch ((VibeAudioErrorCode)error.code) {
-            case VibeAudioErrorFileOpenTimedOut:   return STR_ERROR_LOAD_TIMEOUT;
-            case VibeAudioErrorFileOpenFailed:     return STR_ERROR_OPEN_FAILED;
-            case VibeAudioErrorEngineStartFailed:  return STR_ERROR_ENGINE_START_FAILED;
-            case VibeAudioErrorDeviceUnavailable:  return STR_ERROR_DEVICE_UNAVAILABLE;
-            default: break;
-        }
-    }
-    return STR_ERROR_PLAYBACK_GENERIC;
 }
 
 #pragma mark - PlaylistObserver
@@ -1282,8 +1238,11 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)nowPlayingControllerPause:(NowPlayingController *)controller {
+    // Through the funnel, not [_player playPause] directly: the guard puts it
+    // on the same branch either way today, and this keeps it there when the
+    // funnel grows.
     if (_player.isPlaying) {
-        [_player playPause];
+        [self playPauseTapped];
     }
 }
 

@@ -12,7 +12,7 @@ The `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` bridge: publishing what i
 
 TRAP: the debug-only `--no-audio-hw` flag suppresses all of it — no publish, no command registration — because becoming the system's active media app pulls auto-switching AirPods over from another device even when no output device was ever opened. Verifying this class therefore needs a launch *without* that flag; `dump_now_playing` always reports `hasInfo: 0` under it. See the `vibe-debug` skill.
 
-The republish position rule is header-only in `MainWindow/NowPlayingRules.h`, tested — it lives there because the mac window is what decided it.
+The republish position rule is header-only in `NowPlayingRules.h`, tested — beside the controller that is its only caller, and on this side of the platform boundary because both platforms' publishes run through it.
 
 ## DownloadProgressMonitor
 

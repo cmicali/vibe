@@ -120,17 +120,13 @@ jobs:
       - uses: ./.github/actions/setup-xcodegen
 
       - name: Build VibeiOS (Debug, simulator)
-        run: |
-          xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
+        run: make build-ios CONFIG=Debug
 
-  # Fails when Resources/Localizable.xcstrings is stale against the STR_*
-  # registry — a reworded string whose `make strings` run was forgotten. Its
-  # own job: it needs no XcodeGen, no generated project and no build, only
-  # clang + xcstringstool (Xcode) and jq (ships with macOS 15+), and it
-  # reports as its own check.
-  check-strings:
+  # Everything that needs no XcodeGen, no generated project and no build —
+  # only clang + xcstringstool (Xcode), jq (ships with macOS 15+), swiftc and
+  # grep. They are one job because they share that, and so they report as one
+  # check rather than paying a runner startup each for work that takes seconds.
+  static-checks:
     runs-on: macos-26
 
     steps:
@@ -157,3 +153,10 @@ jobs:
       # mechanical half of CLAUDE.md's Vocabulary section.
       - name: Check naming vocabulary
         run: make check-vocabulary
+
+      # Same: the layout rule (shared subsystems in both targets, Mac/ and iOS/
+      # the only platform markers) read off project.yml, plus the imports — a
+      # shared file may not NAME a Mac-only header, which the headermap would
+      # otherwise resolve and build.
+      - name: Check layout
+        run: make check-layout

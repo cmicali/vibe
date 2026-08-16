@@ -8,26 +8,14 @@
 
 #import <Foundation/Foundation.h>
 
+#import "AudioError.h"     // domain, userInfo key and codes; re-exported here
+
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioPlayerDelegate;
 @class AudioTrack;
 @class AudioDevice;
 @class AudioFX;
-
-extern NSString *const kVibeAudioErrorDomain;
-// userInfo key carrying the failing track's URL on play-path errors. Error
-// deliveries can race a track change, so receivers must match it against the
-// current track before treating the error as the current track's.
-extern NSString *const kVibeAudioErrorTrackURLKey;
-
-typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
-    VibeAudioErrorFileOpenFailed = 1,
-    VibeAudioErrorEngineStartFailed,
-    VibeAudioErrorDeviceUnavailable,
-    VibeAudioErrorNotPlaying,
-    VibeAudioErrorFileOpenTimedOut,
-};
 
 @interface AudioPlayer : NSObject
 

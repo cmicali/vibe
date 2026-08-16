@@ -9,7 +9,7 @@
 //  AudioPlayer.h.
 //
 //  Two of those categories are platform-specific and only one is ever
-//  compiled: AudioPlayer+Devices.m on macOS, Vibe/iOS/AudioPlayer+Recovery.m
+//  compiled: AudioPlayer+Devices.m on macOS, Audio/iOS/AudioPlayer+Recovery.m
 //  on iOS.
 //
 
@@ -24,7 +24,7 @@
 // uses.
 //
 // Exactly one platform member is compiled: +Devices on macOS (the CoreAudio
-// HAL layer, Audio/Devices/), +Recovery on iOS (Vibe/iOS/). Neither target
+// HAL layer, Audio/Mac/Devices/), +Recovery on iOS (Audio/iOS/). Neither target
 // sees the other's, so this one import is conditional.
 #if TARGET_OS_OSX
 #import "AudioPlayer+Devices.h"

@@ -126,26 +126,29 @@ targets:
       # and per-directory build settings have somewhere to go. A NEW DIRECTORY
       # NEEDS A NEW ENTRY — nothing globs it in.
       #
-      # The tree is sorted by feature. Where a subsystem is shared with iOS,
-      # THE DIRECTORY IS THE PLATFORM BOUNDARY: the shared code sits at the
-      # top level and the AppKit half in a Mac/ (or Devices/) subdirectory, so
-      # neither target needs per-file excludes. See VibeiOS below, and the
-      # root CLAUDE.md.
+      # The tree is sorted by feature. THE DIRECTORY IS THE PLATFORM BOUNDARY:
+      # a shared subsystem keeps its shared code at the top level and its
+      # platform halves in Mac/ and iOS/ subdirectories, so neither target
+      # needs a per-file — or feature-named — exclude. Every shared entry
+      # carries "iOS/**" whether or not that half exists yet. See VibeiOS
+      # below, the root CLAUDE.md, and make check-layout.
       - path: Vibe/Audio
-        excludes: ["**/.DS_Store", "**/*.md"]
+        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Common
-        excludes: ["**/.DS_Store", "**/*.md"]
+        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/System
-        excludes: ["**/.DS_Store", "**/*.md"]
-      - path: Vibe/App
-        excludes:
-          - "**/.DS_Store"
-          - "**/*.md"
-          - "**/Info.plist"                   # consumed via INFOPLIST_FILE; must NOT be bundled
+        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Util
-        excludes: ["**/.DS_Store", "**/*.md"]
+        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/WaveformUI
-        excludes: ["**/.DS_Store", "**/*.md"]
+        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
+      - path: Vibe/Playlist
+        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
+      # Every source under here wraps its whole body in #if DEBUG, so a Release
+      # build compiles them to empty objects — the channel is in both targets'
+      # sources but ships in neither.
+      - path: Vibe/Debug
+        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/ThirdParty
         excludes:
           - "**/.DS_Store"
@@ -157,24 +160,21 @@ targets:
       - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
         compilerFlags:
           - "-fobjc-arc-exceptions"
-      # macOS-only.
-      - path: Vibe/MainWindow
-        excludes: ["**/.DS_Store", "**/*.md"]
-      - path: Vibe/Playlist
-        excludes: ["**/.DS_Store", "**/*.md"]
-      - path: Vibe/Controls
-        excludes: ["**/.DS_Store", "**/*.md"]
-      - path: Vibe/Menu
-        excludes: ["**/.DS_Store", "**/*.md"]
-      - path: Vibe/About
-        excludes: ["**/.DS_Store", "**/*.md"]
-      - path: Vibe/Settings
-        excludes: ["**/.DS_Store", "**/*.md"]
-      - path: Vibe/Debug
+      - path: Vibe/Mac/App
         excludes:
           - "**/.DS_Store"
           - "**/*.md"
-          - "iOS/**"                          # the iOS command table and its introspection category
+          - "**/Info.plist"                   # consumed via INFOPLIST_FILE; must NOT be bundled
+      - path: Vibe/Mac/MainWindow
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/Mac/Controls
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/Mac/Menu
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/Mac/About
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/Mac/Settings
+        excludes: ["**/.DS_Store", "**/*.md"]
       - path: Resources/Assets.xcassets       # .xcassets handled natively by XcodeGen
       - path: Resources/AppIcon.icon          # Icon Composer .icon (handled via options.fileTypes)
       # String Catalogs. The build only COMPILES these; keys are extracted by
@@ -194,7 +194,7 @@ targets:
         outputFiles:
           - "$(SRCROOT)/build/generated/VibeGitInfo.h"
     info:
-      path: Vibe/App/Info.plist
+      path: Vibe/Mac/App/Info.plist
       properties:
 
         CFBundleName: "$(PRODUCT_NAME)"
@@ -286,7 +286,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         CLANG_ENABLE_MODULES: YES
-        CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/App/Vibe.entitlements"
+        CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/Mac/App/Vibe.entitlements"
         CODE_SIGN_IDENTITY: "-"             # Sign to Run Locally: no dev cert needed (empty
                                             # entitlements, no profile); release.sh re-signs
                                             # with Developer ID for distribution.
@@ -316,9 +316,8 @@ targets:
       - sdk: QuartzCore.framework
       - sdk: UniformTypeIdentifiers.framework  # AppDelegate file filtering, DebugUtil
 
-  # The iOS app: the shared subset (Audio minus the HAL device layer and
-  # Convert, Common, the portable half of Util, Waveform minus the AppKit
-  # view, ThirdParty) plus the UIKit app layer in Vibe/iOS. Same bundle ID as
+  # The iOS app: the shared subset (every shared subsystem minus its Mac/
+  # half, plus ThirdParty) plus the UIKit app layer in Vibe/iOS. Same bundle ID as
   # the mac app: two platforms may share one, and it is the prerequisite for
   # App Store universal purchase.
   VibeiOS:
@@ -326,47 +325,31 @@ targets:
     platform: iOS
     sources:
       # THE DIRECTORY IS THE PLATFORM BOUNDARY. Every entry below is a whole
-      # shared directory, and the AppKit half of each lives in a subdirectory
-      # this target simply never names — Audio/Devices (the CoreAudio HAL
-      # layer), Audio/Convert (the NSSavePanel path), WaveformUI/Mac (the
-      # NSView), Playlist/Mac (the table), Util/Mac (AppKit helpers and
-      # categories). So there are no per-file excludes here to drift, and a new
-      # file in a shared directory joins this target automatically: it must be
-      # AppKit-free or TARGET_OS_OSX-guarded, which CI's build-ios job enforces.
+      # shared directory whose AppKit half lives in a Mac/ subdirectory this
+      # target simply never names. So there are no per-file — or feature-named
+      # — excludes here to drift, and a new file in a shared directory joins
+      # this target automatically: it must be AppKit-free or
+      # TARGET_OS_OSX-guarded, which CI's build-ios job enforces. See the root
+      # CLAUDE.md and make check-layout.
       - path: Vibe/iOS
         excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Audio
-        excludes:
-          - "**/.DS_Store"
-          - "**/*.md"
-          - "Devices/**"                      # CoreAudio HAL; iOS routing is AVAudioSession's
-          - "Convert/**"                      # NSSavePanel path; deferred
+        excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Common
-        excludes: ["**/.DS_Store", "**/*.md"]
+        excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/System
-        excludes: ["**/.DS_Store", "**/*.md"]
+        excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Util
-        excludes:
-          - "**/.DS_Store"
-          - "**/*.md"
-          - "Mac/**"                          # AppKit helpers and categories
+        excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Playlist
-        excludes:
-          - "**/.DS_Store"
-          - "**/*.md"
-          - "Mac/**"                          # the NSTableView half
+        excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/WaveformUI
-        excludes:
-          - "**/.DS_Store"
-          - "**/*.md"
-          - "Mac/**"                          # AudioWaveformView; the iOS scrubber is in Vibe/iOS
-      # The debug command channel's shared transport only. The mac command
-      # table, CLI client, and scan cores stay mac-side; the iOS table is
-      # Vibe/iOS/DebugCommands.m. All of it compiles empty outside DEBUG.
-      - path: Vibe/Debug/Shared
-        excludes: ["**/.DS_Store", "**/*.md"]
-      - path: Vibe/Debug/iOS
-        excludes: ["**/.DS_Store", "**/*.md"]
+        excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
+      # Every source under here wraps its whole body in #if DEBUG, so a Release
+      # build compiles them to empty objects — the channel is in both targets'
+      # sources but ships in neither.
+      - path: Vibe/Debug
+        excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/ThirdParty
         excludes:
           - "**/.DS_Store"
@@ -533,8 +516,12 @@ targets:
       # timing it records, which the test target builds Debug.
       - path: Vibe/Audio/Waveform/AVFAudioWaveformLoader.mm
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
-      - path: Vibe/Debug/Shared/AudioLoadTiming.m
+      - path: Vibe/Debug/AudioLoadTiming.m
       - path: Vibe/Audio/AudioTrack.m
+      # Definitions only. AudioErrorRules.h names the domain constant, so the
+      # rules cannot be linked here without it — and the player that used to
+      # define it is unreachable from a host-less suite by design.
+      - path: Vibe/Audio/AudioError.m
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
       - path: Vibe/Audio/Metadata/MetadataParseFlow.m
       - path: Vibe/Audio/PlaybackRequestCoordinator.m
@@ -543,9 +530,9 @@ targets:
       - path: Vibe/Audio/Metadata/FolderArtFileIO.m
       - path: Vibe/Audio/Metadata/AudioTrackArtwork.m
       - path: Vibe/Common/AppSettings.m
-      - path: Vibe/App/FolderAccessManager.m
-      - path: Vibe/App/OpenBurstCoalescer.m
-      - path: Vibe/App/OpenRequestCoordinator.m
+      - path: Vibe/Mac/App/FolderAccessManager.m
+      - path: Vibe/Mac/App/OpenBurstCoalescer.m
+      - path: Vibe/Mac/App/OpenRequestCoordinator.m
       - path: Vibe/Playlist/Playlist.m
       - path: Vibe/Util/NSURLUtil.m
       - path: Vibe/Util/UIUpdateTimer.m
@@ -579,7 +566,7 @@ targets:
           - "$(inherited)"
           - "$(SRCROOT)/Vibe/Common"
           - "$(SRCROOT)/Vibe/System"
-          - "$(SRCROOT)/Vibe/App"
+          - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/Vibe/Playlist"
           - "$(SRCROOT)/Vibe/Util"
           - "$(SRCROOT)/Vibe/Util/Categories"
@@ -589,10 +576,9 @@ targets:
           - "$(SRCROOT)/Vibe/Audio/Waveform"
           - "$(SRCROOT)/Vibe/Audio/Analysis"
           - "$(SRCROOT)/Vibe/Debug"
-          - "$(SRCROOT)/Vibe/Debug/Shared"
-          - "$(SRCROOT)/Vibe/MainWindow"
-          - "$(SRCROOT)/Vibe/Audio/Convert"
-          - "$(SRCROOT)/Vibe/Settings"
+          - "$(SRCROOT)/Vibe/Mac/MainWindow"
+          - "$(SRCROOT)/Vibe/Audio/Mac/Convert"
+          - "$(SRCROOT)/Vibe/Mac/Settings"
     dependencies:
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform
       - sdk: AppKit.framework                # AudioTrack album art (NSImage)

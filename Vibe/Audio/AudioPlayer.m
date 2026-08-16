@@ -14,7 +14,7 @@
 #import "AudioFX.h"
 #import "AudioTrack.h"
 // The HAL device layer is macOS-only; iOS routing is AVAudioSession's, handled
-// in the app layer (Vibe/iOS/AudioSessionController).
+// in the app layer (Audio/iOS/AudioSessionController).
 #if TARGET_OS_OSX
 #import "AudioPlayer+Devices.h"
 #import "AudioDeviceManager.h"
@@ -29,12 +29,9 @@
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>
 
-NSString *const kVibeAudioErrorDomain = @"com.commonwealthrecordings.Vibe";
-NSString *const kVibeAudioErrorTrackURLKey = @"VibeAudioErrorTrackURL";
-
 // Descriptions are NOT localized: every consumer is a log site. The UI status
-// comes from +[MainPlayerController statusForPlayError:], which maps the error
-// code and localizes there.
+// comes from VibeStatusForPlayError (AudioErrorRules.h), which maps the error
+// code and localizes there, once for both platforms.
 NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError *underlying) {
     NSMutableDictionary *info = [NSMutableDictionary new];
     if (underlying) {

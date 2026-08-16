@@ -6,8 +6,9 @@
 //  PlayerViewController: the cache runs ONE load at a time (its contract),
 //  and this object owns which page that load targets, the latest snapshot
 //  per page for re-hydrating reloaded cells, and which pages hold their full
-//  waveform. Deliveries carry no URL; the target index names their page, and
-//  the cancel before every retarget is the race guard.
+//  waveform. The cancel before a retarget is NOT the race guard — a decode can
+//  outlive it — so deliveries are matched on the URL they were loaded for
+//  (_targetURL, recorded beside _targetIndex) and dropped on the value.
 //
 
 #import <Foundation/Foundation.h>

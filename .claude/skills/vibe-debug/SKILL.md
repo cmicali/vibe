@@ -88,7 +88,7 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 VIBE_DEBUG_TIMEOUT=20 "$S" clear_caches   # blocks until both PINCaches are empty, like the mac verb
 ```
 
-Exit codes match the mac client: 0 ok, 1 no response (no debug build running), 2 command error. The unknown-command reply is the authoritative verb list. Replies to action verbs are read synchronously and can lag async engine work — the same caveat as the mac: a `seek` or `play_pause` reply may show the pre-action state, so follow with `dump_state`. The app side is `Vibe/Debug/iOS/DebugCommands.m` over the shared transport in `Vibe/Debug/Shared/DebugChannel.m`. Most verbs are not there at all: the cross-platform ones live once in `Vibe/Debug/Shared/DebugCommonVerbs.m`, so a verb both platforms can answer is added there and appears on each; only a UIKit-specific one goes in the iOS table.
+Exit codes match the mac client: 0 ok, 1 no response (no debug build running), 2 command error. The unknown-command reply is the authoritative verb list. Replies to action verbs are read synchronously and can lag async engine work — the same caveat as the mac: a `seek` or `play_pause` reply may show the pre-action state, so follow with `dump_state`. The app side is `Vibe/Debug/iOS/DebugCommands.m` over the shared transport in `Vibe/Debug/DebugChannel.m`. Most verbs are not there at all: the cross-platform ones live once in `Vibe/Debug/DebugCommonVerbs.m`, so a verb both platforms can answer is added there and appears on each; only a UIKit-specific one goes in the iOS table.
 
 **What the iOS channel cannot do**: input injection — no public API synthesizes `UITouch`es in-process; real gestures go through the touch driver below — and the mac's menu, window, FX, pitch, convert, and file_cache verbs have no iOS counterparts yet. `dump_screenshot` renders in-process (UIVisualEffectView blurs only approximate); `simctl io "$(sim-udid.sh)" screenshot` remains the ground truth for real pixels.
 
@@ -255,7 +255,7 @@ When feeding `"$V" --debug-cmd script` directly, **always use stdin** — `scrip
 
 ### The settings window
 
-The Settings window has four verbs of its own — `settings_open`, `settings_close`, `dump_settings_ui`, `settings_click` — and **must never be driven with `click`, `drag` or the `key*` verbs**, which post into the main player window's event stream. They live with the code they exercise, in **`Vibe/Settings/CLAUDE.md`**, along with the sheet, pane-animation and open-panel traps.
+The Settings window has four verbs of its own — `settings_open`, `settings_close`, `dump_settings_ui`, `settings_click` — and **must never be driven with `click`, `drag` or the `key*` verbs**, which post into the main player window's event stream. They live with the code they exercise, in **`Vibe/Mac/Settings/CLAUDE.md`**, along with the sheet, pane-animation and open-panel traps.
 
 ### In-process input injection
 

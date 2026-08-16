@@ -7,6 +7,8 @@
 #import "NSString+CPPStrings.h"
 #import "AudioTrackArtwork.h"
 #import "MusicalKey.h"
+#import "Formatters.h"
+#import "VibeStrings.h"
 
 #import <ImageIO/ImageIO.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -514,6 +516,26 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void) {
     if ([FILETYPE_AIFF isEqualToString:self.fileType]) return YES;
     if ([FILETYPE_WAV isEqualToString:self.fileType]) return YES;
     return NO;
+}
+
+- (NSString *)fileInfoLine {
+    if (!self.fileType) {
+        return @"";
+    }
+    NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:self.fileType];
+    // A lossy file's bitrate is the thing that varies; a lossless one's is
+    // implied by the sample rate and bit depth, so it only adds noise.
+    if (!self.isLossless && self.bitrate != nil) {
+        [parts addObject:[NSString stringWithFormat:STR_LABEL_BITRATE,
+                [[Formatters sharedInstance] decimalString:self.bitrate.doubleValue
+                                            fractionDigits:0]]];
+    }
+    if (self.sampleRate != nil) {
+        [parts addObject:[NSString stringWithFormat:STR_LABEL_SAMPLE_RATE,
+                [[Formatters sharedInstance] decimalString:self.sampleRate.doubleValue / 1000
+                                            fractionDigits:1]]];
+    }
+    return [parts componentsJoinedByString:VibeNotLocalized(@" | ")];
 }
 
 static NSData *getAlbumArtID3v2(TagLib::ID3v2::Tag *id3v2Tag) {

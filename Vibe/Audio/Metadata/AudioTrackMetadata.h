@@ -116,6 +116,16 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (bool)isLossless;
 
+// The codec line both screens render: file type, bitrate (lossy only), sample
+// rate, joined with " | ". Each part is appended only when present — TagLib can
+// return no audioProperties even with a fileType set — so it never reads
+// "(null) kbps" or "0.0 kHz", and it is the empty string with no fileType at
+// all. Whether to SHOW it is the caller's (macOS has Settings.showFileInfo);
+// how it reads is here, so the two cannot drift.
+//
+// MAIN THREAD ONLY: it goes through Formatters.
+- (NSString *)fileInfoLine;
+
 @end
 
 NS_ASSUME_NONNULL_END

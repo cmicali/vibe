@@ -40,26 +40,30 @@ Vibe is a native macOS music player written in Objective-C and Objective-C++. Pl
 
 Nested `CLAUDE.md` files hold the detail for each directory and load only when you work under it. **Read the relevant one before changing anything it covers.**
 
-- **`Vibe/App/`** — the application object and the app-wide services it owns: the open funnel and its burst coalescing, lifetime stats, and the sandbox grants (`FolderAccessManager`). macOS only. The bootstrap starts at `main.m`, in the repo root.
 - **`Vibe/Common/`** — what everything else is written in terms of: `AppSettings`, the localized-string registry, the prefix header, the declared document types, and the `VibeImage`/`VibeColor` platform aliases with the bounded image decode that builds one. No feature lives here.
-- **`Vibe/Audio/`** — playback engine, FX, conversion, waveform data, BPM/key analysis. `Devices/` is the CoreAudio HAL output-device layer, macOS only; on iOS routing is AVAudioSession's.
+- **`Vibe/Audio/`** — playback engine, FX, conversion, waveform data, BPM/key analysis. `Mac/Devices/` is the CoreAudio HAL output-device layer; `iOS/` is the AVAudioSession lifecycle and the engine-recovery category that answers its verdicts.
 - **`Vibe/Audio/Metadata/`** — tags, the disk cache, the two-stage scan, embedded and folder art; opens with a map of the flow.
 - **`Vibe/Audio/Waveform/`** — waveform *data*: generation, chunking, persistence. **`Vibe/Audio/Analysis/`** — tempo and key detection riding that decode pass.
-- **`Vibe/Audio/Convert/`** — the FLAC encoder and the sandbox rungs its output has to climb. macOS only.
-- **`Vibe/WaveformUI/`** — waveform *rendering*: renderer strategies and the morph engine, shared by both platforms; `Mac/` holds the `NSView` and its loading shimmer, and the iOS scrubber is in `Vibe/iOS/`. Named apart from `Audio/Waveform/` deliberately — one makes the data, the other draws it.
+- **`Vibe/Audio/Mac/Convert/`** — the FLAC encoder and the sandbox rungs its output has to climb.
 - **`Vibe/System/`** — bridges to OS services that are neither audio engine nor app UI: the Now Playing / remote-command bridge and the cloud-file download progress monitor. Both platforms drive them.
-- **`Vibe/MainWindow/`** — `MainPlayerController` and the window; layout and Liquid Glass chrome live in that directory's `APPEARANCE.md`, its `CLAUDE.md` covering behavior. macOS only.
-- **`Vibe/Menu/`** — the menu bar, one builder method per top-level menu. macOS only.
 - **`Vibe/Playlist/`** — the model and the CUE/M3U readers, shared; `Mac/` is the table, structure vs content.
-- **`Vibe/Controls/`** — CALayer-drawn controls. macOS only.
+- **`Vibe/WaveformUI/`** — waveform *rendering*: renderer strategies and the morph engine, shared by both platforms; `Mac/` holds the `NSView` and its loading shimmer, `iOS/` the scrubber. Named apart from `Audio/Waveform/` deliberately — one makes the data, the other draws it.
+- **`Vibe/Util/`** and **`Vibe/Debug/`** — the featureless helpers and the debug command channel (the `vibe-debug` skill covers the second). `Util/Mac/` and `Util/iOS/` are the first's platform halves; `Debug/` is the channel transport, dispatch, common verbs and load timing both targets compile, with `Debug/Mac/` and `Debug/iOS/` holding each platform's command table.
+- **`Vibe/Mac/`** — the macOS app shell, one directory per piece, each with its own `CLAUDE.md` bar `About/`, which is one self-contained window:
+  - **`App/`** — the application object and the app-wide services it owns: the open funnel and its burst coalescing, lifetime stats, and the sandbox grants (`FolderAccessManager`). The bootstrap starts at `main.m`, in the repo root.
+  - **`MainWindow/`** — `MainPlayerController` and the window; layout and Liquid Glass chrome live in that directory's `APPEARANCE.md`, its `CLAUDE.md` covering behavior.
+  - **`Menu/`** — the menu bar, one builder method per top-level menu.
+  - **`Controls/`** — CALayer-drawn controls.
+  - **`Settings/`** — the Settings window and its panes. The Files pane holds the folder-art setting; the sandbox bookmarks it lists belong to `Mac/App/`.
+  - **`About/`** — the About window.
+- **`Vibe/iOS/`** — the iPhone and iPad app shell (`VibeiOS` target): the player screen and track pager, the track and search sheets, and the document-picker/security-scope/bookmark folder session. The iOS halves of the shared subsystems live under those subsystems, not here.
 - **`Vibe/ThirdParty/`** — the vendored TagLib subset and PINCache/PINOperation: what is included and why, how to update it.
-- **`Vibe/Settings/`** — the Settings window and its panes. macOS only. The Files pane holds the folder-art setting; the sandbox bookmarks it lists belong to `App/`.
-- **`Vibe/iOS/`** — the iPhone and iPad app (`VibeiOS` target): the UIKit layer over the shared subset — player screen and track pager, the waveform scrubber on the shared renderers, the AVAudioSession lifecycle, the engine-recovery category, and the document-picker/security-scope/bookmark folder session.
-- **`Vibe/Util/`**, **`Vibe/About/`**, **`Vibe/Debug/`** — the featureless helpers, the About window, and the debug command channel (the `vibe-debug` skill covers the last). `Util/Mac/` is the AppKit half of the first; `Debug/Shared/` is the channel transport and the load timing the iOS target also compiles, the rest being macOS only.
 
 Adding a directory means adding an entry to `project.yml`; nothing globs it in.
 
-**The directory is the platform boundary.** A shared subsystem keeps its cross-platform code at the top level and its AppKit half in a `Mac/` subdirectory (`Audio/Devices/` and `Audio/Convert/` are the same rule under their own names), so neither target needs per-file excludes and **a new file in a shared directory joins the iOS target automatically** — it must be AppKit-free or `TARGET_OS_OSX`-guarded. CI's `build-ios` job is what enforces that.
+**The directory is the platform boundary.** Every directory directly under `Vibe/` except `Mac/`, `iOS/`, and `ThirdParty/` is a shared subsystem, listed in both targets' sources in `project.yml`. Within any subsystem, `Mac/` and `iOS/` are the only platform markers: a path containing `Mac` compiles only into Vibe, a path containing `iOS` compiles only into VibeiOS, and a path containing neither compiles into both. No source entry may exclude a feature-named path. `make check-layout` enforces all of it.
+
+So neither target needs a per-file exclude, and **a new file in a shared directory joins the iOS target automatically** — it must be AppKit-free or `TARGET_OS_OSX`-guarded. CI's `build-ios` job is what catches an AppKit leak.
 
 
 ### Cross-directory invariants

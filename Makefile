@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: setup project build test test-summary analyze stress release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary
+.PHONY: setup project build build-ios test test-summary analyze stress release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -20,6 +20,15 @@ project:
 # so build.sh is told to skip its own generate. Override with: make build CONFIG=Debug
 build: project
 	SKIP_GENERATE=1 scripts/build.sh $(CONFIG)
+
+# The iOS app, simulator slice, unsigned — what CI's build-ios job runs, and
+# the check that catches an AppKit leak into a shared directory. The
+# destination is generic, so nothing has to be booted. CI passes CONFIG=Debug;
+# the default stays Release to match `build`.
+build-ios: project
+	xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -configuration $(CONFIG) \
+	    -destination 'generic/platform=iOS Simulator' \
+	    -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
 
 # Run the unit tests (Tests/, VibeTests target). Always Debug — the suite is
 # host-less pure-logic only, so it needs no window server, no audio hardware,
@@ -160,6 +169,13 @@ check-strings:
 # suffix does not say whether it returns a decision or a number. For review/CI.
 check-vocabulary:
 	scripts/check-vocabulary.sh
+
+# Fail if the tree stops matching CLAUDE.md's layout rule: a feature-named
+# exclude, a platform path in the wrong target, a shared subsystem missing from
+# one of them, a new top-level directory nothing names, or a shared source
+# importing a header only one platform's tree has. For review/CI.
+check-layout:
+	scripts/check-layout.sh
 
 # Fail if any key is missing a catalog language. Distinct from check-strings,
 # which compares the catalog to the source and cannot see coverage at all.

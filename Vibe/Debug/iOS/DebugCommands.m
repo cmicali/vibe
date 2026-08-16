@@ -9,7 +9,7 @@
 
 #import <UIKit/UIKit.h>
 #import "DebugChannel.h"
-#import "DebugShared.h"
+#import "DebugWireFormat.h"
 #import "DebugCommandDispatch.h"
 #import "DebugCommonVerbs.h"
 #import "PlayerViewController.h"
@@ -123,7 +123,7 @@ static NSString *VibeScreenshotJSON(NSString *commandId) {
 #pragma mark Command table
 
 // The UIKit-only verbs. Everything both platforms answer the same way is in
-// Debug/Shared/DebugCommonVerbs.m, over VibeDebugPlayerSurface; this table is
+// Debug/DebugCommonVerbs.m, over VibeDebugPlayerSurface; this table is
 // only what needs a UIView tree or a UIWindow render. Returning nil means the
 // command replies asynchronously through VibeWriteDebugResponse.
 typedef NSString * _Nullable (^VibeiOSCommandHandler)(NSArray<NSString *> *tokens,
