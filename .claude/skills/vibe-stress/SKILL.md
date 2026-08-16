@@ -1,6 +1,6 @@
 ---
 name: vibe-stress
-description: Stress, soak, and fuzz the running Vibe app against a folder of real audio files — seeded random driving with invariant, leak, hang, and crash oracles, plus the sanitizer (ASan/UBSan/TSan) and malloc-debug build matrix. Use for soak or endurance runs, memory-leak and resource-growth hunting, race hunting, fuzzing the file-loading path, or minimizing a failing run to a repro.
+description: Stress, soak, fuzz, and torture the running Vibe app against a folder of real audio files — seeded random driving with invariant, leak, hang, and crash oracles, a single-playlist skip/seek torture suite for the delivery races that only open when transport outruns the metadata scan, plus the sanitizer (ASan/UBSan/TSan) and malloc-debug build matrix. Use for soak or endurance runs, memory-leak and resource-growth hunting, race hunting, fuzzing the file-loading path, hammering skips and seeks on a large playlist, or minimizing a failing run to a repro.
 ---
 
 # Stress and fuzz testing Vibe
@@ -69,6 +69,8 @@ The resting footprint *rises* while the live heap falls below where it started. 
 
 **`malloc_zone_pressure_relief` does not deliver what `quiesce` assumes.** It returns ~42 KB on a fresh launch and 0 after a heavy run, which is why the resting footprint could never be tightened. `quiesce` now reports `pressureRelief.releasedBytes` — read it before believing any resting footprint number.
 
+**It is not the big decodes, either — that attribution was too narrow.** The same 250 MB swing reproduces on an artwork corpus whose largest file is a few MB: 1780 and 2537-op runs both tripped the +256 MB backstop with `mallocLiveBytes` flat at 26–42 MB throughout, the footprint flipping *both* directions between adjacent 25-op samples (op 1300: 340 MB, op 1375: 109, op 1526: 387, op 1603: 135). `vmmap` on the live process settles it: **107.9 MB total dirty against a 365 MB `phys_footprint` reading**, and a freshly launched, quiesced app with nothing loaded already reads 321 MB against an 11 MB live heap. The resting footprint is not measuring anything the app retains, whatever the corpus. Expect this oracle to fire on any long artwork run and check `mallocLiveBytes` before believing it.
+
 So the resting cap stays at +256 MB as a gross backstop, and **sensitivity comes from `mallocLiveBytes`** (+64 MB) beside the pending counters. What remains genuinely open is narrower: whether the large transient buffers that fragment the zone are worth pooling, which needs `MallocStackLogging=1` plus `malloc_history` to attribute before anyone refactors. `--shrink --shrink-resting-mb 150` still works, but shrinking a footprint that is measuring high-water noise will chase ghosts — shrink on live heap instead.
 
 **Two rules keep the health oracle from crying wolf, and both were earned by watching it do so.** The baseline is the element-wise *minimum* of the first three samples rather than the first sample, because the opening decode and its analyzers peak the footprint far above the resting level and a peak baseline is a permissive one that hides the leak it was meant to catch. And a metric must stay over its limit for three **consecutive** samples to count: measured over a loading-profile run, the engine node count swings between 25 and 67 with no trend at all as retired crossfade pairs pile up and drain, and the footprint spikes past 350 MB mid-decode before falling back to ~120 MB. A single over-limit sample is churn, not growth.
@@ -85,6 +87,25 @@ Four op kinds exist because nothing else would produce them: `open_burst` above,
 
 **Deliberately excluded from every profile**: `convert_to_flac`, which writes beside the source and can trash the original — the corpus is real music. Right-clicks and lone `mouse_down` are excluded too, for the wedge reasons in `vibe-debug`, and menu items are filtered through a denylist covering anything modal, quitting, hiding or closing, since the channel cannot be served while a modal panel is up.
 
+## The torture suite: one playlist, transport hammered
+
+`stress.py` keeps *opening* files. `torture.py` is the opposite shape and catches what that cannot: it loads **one large playlist** and then drives transport as fast as the channel allows, so track changes outrun the metadata scan, the waveform load and the analyzers, and seeks land on tracks that have already been replaced.
+
+```bash
+.claude/skills/vibe-stress/scripts/run-torture.sh <Vibe.app> <playlist-folder> [--rounds 40] [--burst 40] [--seed N]
+make torture APP=build/DerivedData/Build/Products/Debug/Vibe.app PLAYLIST=~/Music/big
+```
+
+Ops go through the channel's `script -` verb, so a burst is **one** CLI invocation rather than one per op — that is what makes it a torture test rather than a brisk fuzz. Measured ~15 ops/s of real track changes, each `next` a full open.
+
+Four phases, no settle anywhere: `skip` (next/previous storm), `seek` (including out-of-range and past-the-end values, where escaping the clamp is the finding), `mixed` (skips, seeks, play/pause and the bar-based skip actions), and `boundary` (walking off the end of the playlist repeatedly, which is the end-of-playlist park and `finishCurrentTrack`). Between every burst: alive, `check_invariants`, and fds / engine nodes / live heap / views against baseline; at the end a `quiesce` that requires all five `pending` counters to unwind to zero. Seeded and replayable with `--seed`, like `stress.py`.
+
+**Run it through `run-torture.sh`, not by hand**, because three separate things have to be true before a result means anything, and each has burned a run: exactly one mac instance is up, it is the binary you intended, and the caches are cold. The wrapper asserts all three and aborts loudly rather than producing a confident-looking pass.
+
+**Cold caches are the whole point, not hygiene.** The delivery races this suite hunts only open while a scan is still in flight as playback starts. A warm cache closes that window before the first track plays — a suite that passes 6400 ops warm has proven far less than it appears to. `run-torture.sh` runs `clear_caches` for you.
+
+**Where the nil-metadata crash actually lived**, since it is the worked example: `renderState` passed `track.metadata.fileInfoLine` — a message to nil whenever the scan had not landed — into `-[NSAttributedString initWithString:]`, which raises. The trigger is **a large file plus a cold cache**, playback starting before the scan finishes; a 137 MB MP3 did it every time, and unparseable files did *not*, because those take the error branch, which passes a literal. Reproduce with `open <large file>` on a cold cache, not with a corpus of broken ones.
+
 ## Traps, each found by the harness misfiring
 
 **A random clicker will quit the app if you let it.** The window draws its own close and minimize buttons as `SymbolButton`s in its top-left corner, and `closeApp:` is `[self close]` — so a uniform random click finds them within a few hundred ops. The driver reads their frames out of `dump_view_tree` at startup and excludes those rects (plus a fixed top-left fallback), and it also distinguishes the two ways the app can vanish: gone **with** a fresh `.ips` is a `crash`, gone **without** one is an `exit`, meaning something in the op stream asked it to quit. Reporting a clean exit as a crash sends you hunting for a stack that was never written.
@@ -92,6 +113,14 @@ Four op kinds exist because nothing else would produce them: `open_burst` above,
 **Never `sample Vibe` by name.** The CLI client is the app binary, so the name matches every in-flight `--debug-cmd` invocation too, and sampling one yields a stack of the client polling for its own response — `VibeDebugClientRunOne` sitting in `usleep`, which reads exactly like a hang and says nothing whatever about the app. Resolve the GUI instance's pid first by filtering `pgrep -x Vibe` for the process whose argv lacks `--debug-cmd`, and sample that. Sample *before* re-probing, too: a probe that succeeds means the stall already ended and took its stack with it.
 
 **A setting the fuzzer toggles persists across runs, and a disabled feature looks exactly like a clean run.** `AppSettings` lives in `NSUserDefaults`, so a run inherits whatever the *last* one left — including a fuzzer's own random final toggle. Reconstructing `set_folder_art` from the journals of four runs that all reported passes: the feature was on for 49.5%, **36.3%**, 46.8% and 42.3% of their ops, and two of them *ended* off, poisoning every later hand-run probe against the same container. With it off the artwork accessors return before they reach the resolver at all, so those ops exercise none of the code the run was aimed at — and nothing in the summary says so. Two fixes, both needed: the driver forces every entry in `FEATURE_SETTINGS` on at launch and prints it in the header (`settings: folderArt=on`), and the toggle op emits `off` then straight back `on`, which buys both invalidation edges while leaving the feature on essentially throughout and lands the user's setting where it started. **Verify the duty cycle from the journal before believing a coverage claim** — count the `set_folder_art` ops and the gaps between them; the fixed op yields ~98.5% on.
+
+**`open -a <path>` resolves by BUNDLE ID, not path — so it cannot choose between two builds.** Every build of Vibe is `com.commonwealthrecordings.Vibe`, and `open -a` launches whichever copy LaunchServices has registered, silently ignoring the path given. A fix-vs-pre-fix comparison run that way tests one binary twice and "proves" the fix unnecessary; `VIBE_APP` does not save you, because `launch.sh` honors it and then hands the path to `open -a` anyway. Direct-exec the binary and **verify what came up** with `ps -o comm=` before trusting a single op — that is what `run-torture.sh` does. `lsregister -f` is not a fix either: it can leave *both* copies running.
+
+**A second instance answers the channel, and one of them is the iOS Simulator's.** Two mac instances make every result belong to a build and grant set you did not choose; worse, they contest the channel and it stops answering entirely, which presents as "app never answered" against a process whose main thread is idle and perfectly healthy. `pgrep -x Vibe` also matches the **Simulator's** Vibe, so an instance check that does not exclude `*CoreSimulator*` reads a running simulator as a second mac app. And a debug session in **Xcode** is a second instance too: check before running anything that pkills.
+
+**Do not debug the harness while a driver is running.** Several hours went into "the channel is broken" that was really a background run relaunching the app underneath the investigation. Stop the driver first, confirm no Vibe is up, then investigate.
+
+**A concurrent Xcode build silently swaps the binary under a run in progress.** `build/DerivedData` is the same path Xcode writes, so a ⌘B in the middle of a campaign means later ops ran against a different binary than earlier ones, with nothing in the output marking the seam. For any run whose result must be attributable, build to a private `-derivedDataPath` and pass it with `--app`.
 
 **`--iterations` silently caps `--duration`.** It defaults to 2000, and whichever limit is reached first ends the run, so `--duration 3600` alone stops after ~2000 ops — for a "one hour" soak, raise both.
 
@@ -133,7 +162,14 @@ launchctl unsetenv TSAN_OPTIONS        # it is a session-wide variable
 
 `launchctl setenv` is what gets the variable to an `open -a` launch at all, and it applies session-wide until unset, so unset it when the run ends. Reports land as `$C/tsan.<pid>`; **no file means no race**, since TSan creates it only on the first report. Raise `--max-stalls`, because instrumentation makes ordinary verbs slow enough to trip the liveness oracle.
 
-TSan's own noise is worth suppressing so it cannot bury a finding in app code — put a suppressions file in the container too and add `suppressions=$C/tsan-suppressions.txt`.
+**Do NOT add a `suppressions=` file, however tempting.** It deadlocks the launch before `main()`: TSan reads it from `__tsan::Initialize` inside dyld's initializers, and that `open()` never returns under the sandbox —
+
+```
+libSystem_initializer → __guard_setup → wrap_strlcpy
+  → __tsan::Initialize → InitializeSuppressions → ReadFileToBuffer → OpenFile → open()   [blocked forever]
+```
+
+The process stays alive, logs nothing, and never registers the debug channel, so from outside it is indistinguishable from the `log_path` trap above. Being inside the container does not help — `log_path` is opened much later in startup, `suppressions` is not. Live with TSan's framework noise and filter the report afterwards.
 
 Three builds catch disjoint bug classes, and **TSan matters most here**: the whole threading contract — every engine mutation on the serial player queue, non-blocking UI-facing getters, delegate callbacks on main — is exactly what it validates, and a race there is invisible to every other oracle in the table above.
 

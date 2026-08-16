@@ -70,6 +70,17 @@ stress:
 	@test -n "$(CORPUS)" || { echo "usage: make stress CORPUS=<folder of audio files>"; exit 64; }
 	.claude/skills/vibe-stress/scripts/stress.py --corpus "$(CORPUS)" $(ARGS)
 
+# The other shape: ONE large playlist with transport hammered, so track changes
+# outrun the metadata scan and the waveform load. The wrapper asserts a single
+# verified instance and cold caches first — both are load-bearing, see the
+# vibe-stress skill. APP defaults to the Debug build.
+#   make torture PLAYLIST=~/Music/big
+#   make torture PLAYLIST=~/Music/big ARGS="--rounds 40 --burst 40"
+torture: APP ?= build/DerivedData/Build/Products/Debug/Vibe.app
+torture:
+	@test -n "$(PLAYLIST)" || { echo "usage: make torture PLAYLIST=<folder of audio files> [APP=<Vibe.app>]"; exit 64; }
+	.claude/skills/vibe-stress/scripts/run-torture.sh "$(APP)" "$(PLAYLIST)" $(ARGS)
+
 # Build (Release by default) then copy the app into /Applications, replacing
 # any existing copy. The rm matters: BSD cp -R copies INTO an existing
 # destination directory, so without it a second install produces
