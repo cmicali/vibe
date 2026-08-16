@@ -127,8 +127,8 @@
     }
     AudioTrack *track = [_playlist trackAtIndex:_matches[(NSUInteger)indexPath.row].unsignedIntegerValue];
     UIListContentConfiguration *content = cell.defaultContentConfiguration;
-    content.text = track.hasArtistAndTitle ? track.title : track.singleLineTitle;
-    content.secondaryText = track.hasArtistAndTitle ? track.artist : nil;
+    content.text = track.displayTitle;
+    content.secondaryText = track.displayArtist;
     content.textProperties.numberOfLines = 1;
     cell.contentConfiguration = content;
     return cell;

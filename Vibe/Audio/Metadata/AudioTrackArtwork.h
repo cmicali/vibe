@@ -6,15 +6,29 @@
 // is never state here; the accessors just fall back to the shared resolver.
 // AudioTrackMetadata delegates its art API here one for one.
 //
+// **The thumbnail is a macOS representation.** It exists for the playlist
+// table's art cells, which iOS has no equivalent of: the iOS pager shows the
+// full-size decode and nothing standing in for it. So on iOS no thumbnail is
+// ever decoded, held or archived, and a track's art is read and decoded exactly
+// once, at full size, for the page that shows it — rather than paying a 128px
+// decode per scanned track, a re-encode per cache write and an eager decode per
+// cache hit for an image the platform never draws.
+//
 // Five states, and which one holds is decided entirely by these fields:
 //
-//   State         art  data  attempted  undecodable   folder fallback
-//   ───────────────────────────────────────────────────────────────────
-//   Unknown        —    —       NO          NO           REFUSED
-//   BytesHeld      —    ✓       ✓           NO           refused
-//   Decoded        ✓    ·       ✓           NO           refused
-//   Artless        —    —       YES         NO           allowed
-//   Undecodable    —    —       ·           YES          allowed
+//   State         art  data  known  attempted  undecodable   folder fallback
+//   ─────────────────────────────────────────────────────────────────────────
+//   Unknown        —    —      —       NO          NO           REFUSED
+//   BytesHeld      —    ✓      ✓       ✓           NO           refused
+//   Decoded        ✓    ·      ✓       ✓           NO           refused
+//   NotLoaded      —    —      ✓       NO          NO           refused
+//   Artless        —    —      —      YES          NO           allowed
+//   Undecodable    —    —      ·       ·          YES           allowed
+//
+// `known` is hasEmbeddedArt: the file is known to carry art, whether or not any
+// of it is in hand. It is what tells NotLoaded — a cache hit, or a track whose
+// bytes were discarded — from Artless, and it is archived, because on iOS there
+// is no thumbnail whose presence could stand in for it.
 //
 // **Unknown refuses the fallback**, which is the whole precedence rule: while
 // the file's own art is merely unresolved, a folder cover must not stand in
@@ -24,13 +38,13 @@
 // Transitions. Only these five move the state:
 //
 //   adoptParsedArtData:        → BytesHeld, or Artless for nil bytes
-//   adoptArchivedThumbnailJPEG:→ Artless for a nil archive, else the file has
-//                                art that is not loaded (a cache hit carries no
-//                                bytes; loadArtBlocking re-reads the file)
+//   adoptArchivedThumbnail…    → Artless when the entry knows of no art, else
+//                                NotLoaded (an archive carries no art bytes;
+//                                loadArtBlocking re-reads the file)
 //   loadArtBlocking            → Unknown → BytesHeld → Decoded, or Undecodable
-//   discardArtData             → drops bytes; re-arms to Unknown if nothing was
-//                                decoded, so the file can be read again
-//   discardDecodedArt          → drops everything, re-arms to Unknown, and is
+//   discardArtData             → drops bytes; re-arms to NotLoaded if nothing
+//                                was decoded, so the file can be read again
+//   discardDecodedArt          → drops everything, re-arms to NotLoaded, and is
 //                                the ONLY thing that bumps the generation
 //
 // The generation fences a load in flight: discardDecodedArt runs on a track
@@ -68,10 +82,12 @@ typedef NSData * _Nullable (^AudioTrackArtworkExtractor)(NSString *path);
 - (instancetype)initWithSourceFilePath:(nullable NSString *)sourceFilePath
                              extractor:(nullable AudioTrackArtworkExtractor)extractor;
 
-// The resolver the folder fallback asks. Production leaves it at the shared one
+// The resolver the folder fallback asks, or nil for no fallback at all —
+// which is iOS, where folder art is not a feature and every accessor below
+// becomes a message to nil. On macOS, production leaves it at the shared one
 // set in init; tests inject their own to drive the precedence rules against a
 // known folder. Set it before the instance is shared across threads.
-@property (nonatomic, strong) FolderArtResolver *folderArt;
+@property (nonatomic, strong, nullable) FolderArtResolver *folderArt;
 
 // Archived by AudioTrackMetadata's encodeWithCoder:.
 @property (nullable, readonly, copy) NSString *sourceFilePath;
@@ -81,20 +97,27 @@ typedef NSData * _Nullable (^AudioTrackArtworkExtractor)(NSString *path);
 // pays for a second parse merely to rediscover that there is no art.
 - (void)adoptParsedArtData:(nullable NSData *)artData;
 
-// For a cache hit, through initWithCoder:: the archived thumbnail JPEG, or nil
-// for an artless entry. It decodes at a bounded pixel size, since a tampered
-// cache entry could carry a huge image, and derives the extraction-attempted
-// flag; see the implementation.
-- (void)adoptArchivedThumbnailJPEG:(nullable NSData *)jpegData;
+// For a cache hit, through initWithCoder:. hasEmbeddedArt is the archived fact
+// that the file carries art, and is what separates NotLoaded from Artless. The
+// JPEG is the macOS thumbnail and is nil in an iOS-written entry; where one is
+// present it decodes at a bounded pixel size, since a tampered cache entry
+// could carry a huge image.
+- (void)adoptArchivedThumbnailJPEG:(nullable NSData *)jpegData
+                    hasEmbeddedArt:(BOOL)hasEmbeddedArt;
+
+// Whether the file is known to carry art of its own, in hand or not. Archived,
+// and the encode side's answer for the flag above.
+@property (readonly) BOOL hasEmbeddedArt;
 
 // The thumbnail for the disk cache: the file's own art, never the folder's
 // cover. The cache is keyed by the audio file's size and mtime, which a sidecar
 // image cannot change, so an archived cover would outlive its file by up to the
-// cache's age limit.
+// cache's age limit. **Always nil on iOS** — see the note at the top.
 - (nullable VibeImage *)embeddedThumbnail;
 
 // Decodes embedded art only. Metadata scanning uses this before publication so
 // it cannot schedule folder-art resolution for every artless playlist row.
+// A no-op on iOS, where there is no thumbnail to warm.
 - (void)prewarmEmbeddedThumbnail;
 
 // The AudioTrackMetadata art API, delegated here verbatim. The contracts sit

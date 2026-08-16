@@ -51,14 +51,20 @@
     // Tempo and key detection ride the same decode pass: each analyzer
     // consumes the buffer right after the waveform chunk does, so neither
     // costs a second full-file read, which matters for cloud-backed files.
-    // With a setting off there is no analyzer, and the waveform caches with
-    // no BPM or key — a file scanned while off is not re-analyzed on
-    // re-enable until its cache entry goes. The explicit scan_bpm and
-    // scan_key debug paths run the analyzers directly and ignore this.
-    AudioBPMAnalyzer *bpmAnalyzer = Settings.analyzeBPM
+    // With one off there is no analyzer, and the waveform caches with no BPM
+    // or key — a file scanned while off is not re-analyzed on re-enable until
+    // its cache entry goes. The explicit scan_bpm and scan_key debug paths run
+    // the analyzers directly and ignore this.
+    //
+    // The answer is asked of the provider rather than read from the settings,
+    // so this layer stays testable and iOS — which never analyzes — installs
+    // nothing. No provider means neither runs.
+    VibeWaveformAnalysis analysis = self.analysisProvider ? self.analysisProvider()
+                                                          : (VibeWaveformAnalysis){NO, NO};
+    AudioBPMAnalyzer *bpmAnalyzer = analysis.bpm
             ? [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate]
             : nil;
-    AudioKeyAnalyzer *keyAnalyzer = Settings.analyzeKey
+    AudioKeyAnalyzer *keyAnalyzer = analysis.key
             ? [[AudioKeyAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate]
             : nil;
 

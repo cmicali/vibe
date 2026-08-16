@@ -100,11 +100,15 @@ NSUInteger VibeDebugAppendSharedInvariants(NSMutableArray<NSDictionary *> *v,
                 @"pitch %.4f outside ±%.4f", player.pitch, player.maxPitch);
     }
 
+#if TARGET_OS_OSX
+    // The pitch fader and its range setting are macOS-only; iOS never leaves
+    // the default, so there is no setting to agree with.
     checked++;
     if (fabsf(player.maxPitch - Settings.pitchRange) > 0.001f) {
         VibeDebugViolation(v, @"player.max_pitch_matches_setting",
                 @"player maxPitch %.4f, setting %ld", player.maxPitch, (long)Settings.pitchRange);
     }
+#endif
 
     checked++;
     NSUInteger nodes = [player debugEngineCounts][@"attachedNodes"].unsignedIntegerValue;

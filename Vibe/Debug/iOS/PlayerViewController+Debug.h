@@ -3,10 +3,10 @@
 //  Vibe (iOS)
 //
 //  Extra surface for the debug command channel (Vibe/Debug/iOS/DebugCommands.m),
-//  the iOS twin of Introspection/MainPlayerController+Debug.h. Declaration only,
-//  implemented at the bottom of PlayerViewController.m for ivar access, and it
-//  lives here so the shipping header carries no conditional about a tool that
-//  does not ship. Debug builds only.
+//  the iOS twin of Introspection/MainPlayerController+Debug.h. It lives here,
+//  with its implementation beside it, so the shipping header carries no
+//  conditional about a tool that does not ship; the implementation reaches the
+//  screen's state through PlayerViewControllerInternal.h. Debug builds only.
 //
 
 #if DEBUG
@@ -20,6 +20,10 @@
 @interface PlayerViewController (Debug) <VibeDebugPlayerSurface>
 
 - (NSDictionary *)debugStateDictionary;
+// The pager's art window and each page's art state. Nothing on screen tells
+// "not decoded yet" from "no art at all" — both are the placeholder — so this
+// is the only way to see whether the prefetch is keeping up.
+- (NSDictionary *)debugArtDictionary;
 // The compact reply the transport verbs share.
 - (NSDictionary *)debugActionSummary;
 - (void)debugPlayPause;

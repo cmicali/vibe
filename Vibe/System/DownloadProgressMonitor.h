@@ -43,6 +43,17 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)startWithHandler:(void (^)(float fraction))handler;
 - (void)cancel;
 
+// The one way a screen starts one, because the guard below is the part both
+// were restating. It cancels `existing`, starts a fresh monitor for url, and
+// delivers a fraction ONLY while currentURL still answers url — a monitor
+// outlives fast track changes, so a late sample would otherwise paint the
+// wrong track's loading bar. Returns the new monitor for the caller to hold
+// and later cancel. currentURL and handler both run on the main thread.
++ (instancetype)monitorReplacing:(nullable DownloadProgressMonitor *)existing
+                          forURL:(NSURL *)url
+                      currentURL:(NSURL *_Nullable (^)(void))currentURL
+                         handler:(void (^)(float fraction))handler;
+
 @end
 
 NS_ASSUME_NONNULL_END

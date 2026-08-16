@@ -2,12 +2,19 @@
 // Created by Christopher Micali on 12/30/19.
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
+// Laid out like the header: what both targets compile, then one macOS-only
+// block holding everything else — the hot-path cache included, since all five
+// cached settings are macOS ones.
+//
 
 #import "AppSettings.h"
 #import "SettingsRules.h"
 
-#define SETTING_WINDOW_APPEARANCE_STYLE             @"Settings.windowAppearance"
 #define SETTING_WAVEFORM_STYLE                      @"Settings.waveformStyle"
+
+#if TARGET_OS_OSX
+
+#define SETTING_WINDOW_APPEARANCE_STYLE             @"Settings.windowAppearance"
 #define SETTING_AUDIO_PLAYER_DEVICE_NAME            @"AudioPlayer.deviceName"
 #define SETTING_AUDIO_PLAYER_DEVICE_UID             @"AudioPlayer.deviceUID"
 #define SETTING_PITCH_PANEL_SHOWN                   @"MainWindow.pitchPanelShown"
@@ -30,44 +37,64 @@
 // it is a persisted NSUserDefaults key, so changing the string silently resets
 // every existing user's setting to the default. It predates the folder-artwork
 // → folder-art vocabulary and stays as written.
-#define SETTING_FOLDER_ART                           @"Audio.folderArtwork"
+#define SETTING_FOLDER_ART                          @"Audio.folderArtwork"
+
+// See the preset declarations in the header: an out-of-list persisted value
+// reads as the nearest preset, so display and behavior cannot disagree.
+static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, size_t count) {
+    NSInteger best = presets[0];
+    for (size_t i = 1; i < count; i++) {
+        if (llabs((long long)(value - presets[i])) < llabs((long long)(value - best))) {
+            best = presets[i];
+        }
+    }
+    return best;
+}
+
+// ---- The hot-path cache, which lives for ONE turn of the main run loop.
+//
+// Five settings are read far more often than the rest: the right time
+// label's mode on every playback tick, the file-info, key-notation and
+// key-color flags several times per updateUI pass, and the refresh cap on
+// every live-resize frame. Every other accessor here is a CFPreferences
+// lookup apiece, which is what FolderArtResolver caches its own setting to
+// avoid. All five are macOS settings, which is why the whole cache is inside
+// this block.
+//
+// TRAP: the obvious invalidation, NSUserDefaultsDidChangeNotification,
+// does NOT fire for a write from another process — and the debug channel's
+// prefs verbs (set_key_display, set_analysis, set_folder_art) are exactly
+// that, writing from the CLI client while the app runs, as is a plain
+// `defaults write`. Caching on that notification left the app reporting
+// the old value for good; observed, not hypothetical.
+//
+// So the lifetime is a run-loop turn instead: an observer drops the cache
+// before the loop sleeps, and the setters drop it immediately. Every read
+// inside one updateUI pass or one tick is then served from the cache — all
+// of the cost, since that is where the repetition is — while a value can
+// never be more than one turn stale, which is the same freshness an
+// uncached read gave. No writer has to remember anything, which is the
+// difference from the resolver's cache and its one call to forget.
+//
+// Main thread only, which every reader of these five is: the header
+// labels, the updateUI funnel, the Settings panes and the debug channel.
+// The analysis flags are deliberately NOT cached — the waveform loader is
+// handed their values once per decode, which is not a hot path.
+//
+#endif  // TARGET_OS_OSX
 
 @implementation AppSettings {
-    // ---- The hot-path cache, which lives for ONE turn of the main run loop.
-    //
-    // Five settings are read far more often than the rest: the right time
-    // label's mode on every playback tick, the file-info, key-notation and
-    // key-color flags several times per updateUI pass, and the refresh cap on
-    // every live-resize frame. Every other accessor here is a CFPreferences
-    // lookup apiece, which is what FolderArtResolver caches its own setting to
-    // avoid.
-    //
-    // TRAP: the obvious invalidation, NSUserDefaultsDidChangeNotification,
-    // does NOT fire for a write from another process — and the debug channel's
-    // prefs verbs (set_key_display, set_analysis, set_folder_art) are exactly
-    // that, writing from the CLI client while the app runs, as is a plain
-    // `defaults write`. Caching on that notification left the app reporting
-    // the old value for good; observed, not hypothetical.
-    //
-    // So the lifetime is a run-loop turn instead: an observer drops the cache
-    // before the loop sleeps, and the setters drop it immediately. Every read
-    // inside one updateUI pass or one tick is then served from the cache — all
-    // of the cost, since that is where the repetition is — while a value can
-    // never be more than one turn stale, which is the same freshness an
-    // uncached read gave. No writer has to remember anything, which is the
-    // difference from the resolver's cache and its one call to forget.
-    //
-    // Main thread only, which every reader of these five is: the header
-    // labels, the updateUI funnel, the Settings panes and the debug channel.
-    // The analysis flags are deliberately NOT cached — the waveform loader
-    // reads them off-main, and once per decode is not a hot path.
+#if TARGET_OS_OSX
     BOOL        _hotCacheValid;
     BOOL        _hotShowRemainingTime;
     BOOL        _hotShowFileInfo;
     BOOL        _hotKeyColorsEnabled;
     NSInteger   _hotUIUpdateHzCap;
     NSString   *_hotKeyNotation;
+#endif
 }
+
+#pragma mark - Both platforms
 
 + (AppSettings*)sharedInstance {
     static AppSettings *instance = nil;
@@ -82,12 +109,94 @@
     self = [super init];
     if (self) {
         [self registerDefaults];
+#if TARGET_OS_OSX
         [self installHotCacheInvalidator];
+#endif
     }
     return self;
 }
 
-#pragma mark - The hot-path cache
+- (void)registerDefaults {
+    NSMutableDictionary *appDefaults = [@{
+            SETTING_WAVEFORM_STYLE: SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
+    } mutableCopy];
+#if TARGET_OS_OSX
+    [self registerMacDefaultsInto:appDefaults];
+#endif
+    [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
+}
+
+- (void)applicationDidFinishLaunching {
+#if TARGET_OS_OSX
+    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"NSQuitAlwaysKeepsWindows"];
+    [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"NSFullScreenMenuItemEverywhere"];
+    [NSApplication sharedApplication].automaticCustomizeTouchBarMenuItemEnabled = NO;
+#endif
+}
+
+// Versions before the styleIdentifier/displayName split stored the renderer's
+// English display name in this setting. Frozen list of every value ever written.
+static NSString *NormalizedWaveformStyle(NSString *stored) {
+    static NSDictionary<NSString *, NSString *> *legacy;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        legacy = @{
+            @"Basic":                    @"basic",
+            @"Detailed":                 @"detailed",
+            @"Sonic Cirrus":             @"sonic_cirrus",
+            @"Oversampling Detailed x2": @"oversampling_detailed_x2",
+            @"Oversampling Detailed x4": @"oversampling_detailed_x4",
+            @"Oversampling Detailed x8": @"oversampling_detailed_x8",
+        };
+    });
+    return stored ? (legacy[stored] ?: stored) : nil;
+}
+
+- (NSString *)waveformStyle {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSString *stored = [defaults stringForKey:SETTING_WAVEFORM_STYLE];
+    NSString *normalized = NormalizedWaveformStyle(stored);
+    // Migrate a legacy value in place on first read.
+    if (stored && ![normalized isEqualToString:stored]) {
+        [defaults setObject:normalized forKey:SETTING_WAVEFORM_STYLE];
+    }
+    return normalized;
+}
+
+- (void)setWaveformStyle:(NSString *)identifier {
+    [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_STYLE];
+}
+
+#if TARGET_OS_OSX
+
+#pragma mark - macOS only
+
+- (void)registerMacDefaultsInto:(NSMutableDictionary *)defaults {
+    [defaults addEntriesFromDictionary:@{
+            SETTING_AUDIO_PLAYER_DEVICE_NAME:       @"",
+            SETTING_AUDIO_PLAYER_DEVICE_UID:        @"",
+            SETTING_WINDOW_APPEARANCE_STYLE:        SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK,
+            SETTING_PITCH_PANEL_SHOWN:              @(NO),
+            SETTING_PLAYLIST_SHOWN:                 @(NO),
+            SETTING_ALWAYS_ON_TOP:                  @(NO),
+            SETTING_PITCH_RANGE:                    @(8),
+            SETTING_SHOW_REMAINING_TIME:            @(NO),
+            SETTING_SHOW_FILE_INFO:                 @(YES),
+            SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
+            SETTING_SKIP_BASE_BARS:                 @(8),
+            SETTING_CROSSFADE_MILLISECONDS:         @(10),
+            SETTING_UI_UPDATE_HZ_CAP:               @(30),
+            SETTING_AUDIO_FX_ENABLED:               @(YES),
+            SETTING_ANALYZE_BPM:                    @(YES),
+            SETTING_ANALYZE_KEY:                    @(NO),
+            SETTING_KEY_NOTATION:                   SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
+            SETTING_KEY_COLORS:                     @(NO),
+            SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
+            SETTING_FOLDER_ART:                     @(YES),
+    }];
+}
+
+#pragma mark The hot-path cache
 
 - (void)primeHotCache {
     NSAssert(NSThread.isMainThread, @"AppSettings' hot-path cache is main-thread only");
@@ -128,32 +237,7 @@
     CFRelease(observer);
 }
 
-- (void)registerDefaults {
-    NSDictionary *appDefaults = @{
-            SETTING_AUDIO_PLAYER_DEVICE_NAME:       @"",
-            SETTING_AUDIO_PLAYER_DEVICE_UID:        @"",
-            SETTING_WINDOW_APPEARANCE_STYLE:        SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK,
-            SETTING_WAVEFORM_STYLE:                 SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
-            SETTING_PITCH_PANEL_SHOWN:              @(NO),
-            SETTING_PLAYLIST_SHOWN:                 @(NO),
-            SETTING_ALWAYS_ON_TOP:                  @(NO),
-            SETTING_PITCH_RANGE:                    @(8),
-            SETTING_SHOW_REMAINING_TIME:            @(NO),
-            SETTING_SHOW_FILE_INFO:                 @(YES),
-            SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
-            SETTING_SKIP_BASE_BARS:                 @(8),
-            SETTING_CROSSFADE_MILLISECONDS:         @(10),
-            SETTING_UI_UPDATE_HZ_CAP:               @(30),
-            SETTING_AUDIO_FX_ENABLED:               @(YES),
-            SETTING_ANALYZE_BPM:                    @(YES),
-            SETTING_ANALYZE_KEY:                    @(NO),
-            SETTING_KEY_NOTATION:                   SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
-            SETTING_KEY_COLORS:                     @(NO),
-            SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
-            SETTING_FOLDER_ART:                 @(YES),
-    };
-    [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
-}
+#pragma mark Output device
 
 - (NSString *)audioOutputDeviceName {
     return [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_AUDIO_PLAYER_DEVICE_NAME];
@@ -171,13 +255,7 @@
     [[NSUserDefaults standardUserDefaults] setObject:deviceUID forKey:SETTING_AUDIO_PLAYER_DEVICE_UID];
 }
 
-- (void)applicationDidFinishLaunching {
-#if TARGET_OS_OSX
-    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"NSQuitAlwaysKeepsWindows"];
-    [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"NSFullScreenMenuItemEverywhere"];
-    [NSApplication sharedApplication].automaticCustomizeTouchBarMenuItemEnabled = NO;
-#endif
-}
+#pragma mark Window
 
 - (NSString *)windowAppearanceStyle {
     return [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WINDOW_APPEARANCE_STYLE];
@@ -187,7 +265,6 @@
     [[NSUserDefaults standardUserDefaults] setObject:name forKey:SETTING_WINDOW_APPEARANCE_STYLE];
 }
 
-#if TARGET_OS_OSX
 - (NSAppearance *)windowAppearance {
     return [self appearanceForSettingValue:self.windowAppearanceStyle];
 }
@@ -201,40 +278,6 @@
     }
     // System default: a nil window appearance tracks the OS light/dark setting.
     return nil;
-}
-#endif
-
-// Versions before the styleIdentifier/displayName split stored the renderer's
-// English display name in this setting. Frozen list of every value ever written.
-static NSString *NormalizedWaveformStyle(NSString *stored) {
-    static NSDictionary<NSString *, NSString *> *legacy;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        legacy = @{
-            @"Basic":                    @"basic",
-            @"Detailed":                 @"detailed",
-            @"Sonic Cirrus":             @"sonic_cirrus",
-            @"Oversampling Detailed x2": @"oversampling_detailed_x2",
-            @"Oversampling Detailed x4": @"oversampling_detailed_x4",
-            @"Oversampling Detailed x8": @"oversampling_detailed_x8",
-        };
-    });
-    return stored ? (legacy[stored] ?: stored) : nil;
-}
-
-- (NSString *)waveformStyle {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSString *stored = [defaults stringForKey:SETTING_WAVEFORM_STYLE];
-    NSString *normalized = NormalizedWaveformStyle(stored);
-    // Migrate a legacy value in place on first read.
-    if (stored && ![normalized isEqualToString:stored]) {
-        [defaults setObject:normalized forKey:SETTING_WAVEFORM_STYLE];
-    }
-    return normalized;
-}
-
-- (void)setWaveformStyle:(NSString *)identifier {
-    [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_STYLE];
 }
 
 - (BOOL)isPitchPanelShown {
@@ -261,6 +304,8 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     [[NSUserDefaults standardUserDefaults] setBool:onTop forKey:SETTING_ALWAYS_ON_TOP];
 }
 
+#pragma mark Header labels
+
 // Cached; see primeHotCache. Read on every playback tick.
 - (BOOL)showRemainingTime {
     [self primeHotCache];
@@ -283,6 +328,8 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     [self invalidateHotCache];
 }
 
+#pragma mark Playback
+
 - (NSInteger)pitchRange {
     return VibeNormalizedPitchRange(
             [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_PITCH_RANGE]);
@@ -291,26 +338,6 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 - (void)setPitchRange:(NSInteger)range {
     [[NSUserDefaults standardUserDefaults] setInteger:VibeNormalizedPitchRange(range)
                                               forKey:SETTING_PITCH_RANGE];
-}
-
-- (BOOL)deleteOriginalAfterConvert {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_DELETE_ORIGINAL_AFTER_CONVERT];
-}
-
-- (void)setDeleteOriginalAfterConvert:(BOOL)deleteOriginal {
-    [[NSUserDefaults standardUserDefaults] setBool:deleteOriginal forKey:SETTING_DELETE_ORIGINAL_AFTER_CONVERT];
-}
-
-// See the preset declarations in the header: an out-of-list persisted value
-// reads as the nearest preset, so display and behavior cannot disagree.
-static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, size_t count) {
-    NSInteger best = presets[0];
-    for (size_t i = 1; i < count; i++) {
-        if (llabs((long long)(value - presets[i])) < llabs((long long)(value - best))) {
-            best = presets[i];
-        }
-    }
-    return best;
 }
 
 - (NSInteger)skipBaseBars {
@@ -357,6 +384,8 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 - (void)setAudioFXEnabled:(BOOL)enabled {
     [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_AUDIO_FX_ENABLED];
 }
+
+#pragma mark Analysis and the key label
 
 - (BOOL)analyzeBPM {
     return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_ANALYZE_BPM];
@@ -406,6 +435,16 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
     [self invalidateHotCache];
 }
 
+#pragma mark Files and conversion
+
+- (BOOL)deleteOriginalAfterConvert {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_DELETE_ORIGINAL_AFTER_CONVERT];
+}
+
+- (void)setDeleteOriginalAfterConvert:(BOOL)deleteOriginal {
+    [[NSUserDefaults standardUserDefaults] setBool:deleteOriginal forKey:SETTING_DELETE_ORIGINAL_AFTER_CONVERT];
+}
+
 - (BOOL)convertAsksWhereToSave {
     return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_CONVERT_ASKS_WHERE_TO_SAVE];
 }
@@ -421,5 +460,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 - (void)setUseFolderArt:(BOOL)use {
     [[NSUserDefaults standardUserDefaults] setBool:use forKey:SETTING_FOLDER_ART];
 }
+
+#endif  // TARGET_OS_OSX
 
 @end

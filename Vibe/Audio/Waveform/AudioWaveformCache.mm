@@ -120,6 +120,7 @@ static const NSUInteger kMaxDetachedWaveformLoads = 2;
         }
     }
     AudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:self];
+    loader.analysisProvider = self.analysisProvider;
     loader.trackPath = path;
     _currentLoader = loader;
     // Captured now rather than read back at delivery. Every delivery carries
@@ -327,6 +328,7 @@ awaitPersist:(BOOL)awaitPersist
     // local dodges -Wnonnull.
     id<AudioWaveformLoaderDelegate> noDelegate = nil;
     AudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:noDelegate];
+    loader.analysisProvider = self.analysisProvider;
     // The key is computed off the loader queue; see loadWaveformForTrack:.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSString *cacheKey = track.cacheKey;

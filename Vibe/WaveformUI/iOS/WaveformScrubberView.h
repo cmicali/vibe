@@ -43,6 +43,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)prepareForWaveformLoad;
 - (void)showWaveform:(CodableAudioWaveform *)waveform;
 
+// The same delivery WITHOUT the growing-bars morph: the bars land on the new
+// shape in one rebuild and the envelope bakes at once, instead of easing over
+// ~0.2s and baking 0.6s after the last delivery. For a page the user is not
+// watching — a pager cell scrolling into view, or one re-hydrated from a
+// snapshot it has already shown — where the ease is invisible but its 60 Hz
+// full-view path rebuilds land squarely on the scroll's frame budget.
+- (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated;
+
 // The shimmer for a slow file open (an undownloaded cloud placeholder), and
 // the static midline for the no-track empty state.
 - (void)showLoadingIndicator;

@@ -72,6 +72,10 @@
 
 }
 
+- (void)settleMorphImmediately {
+
+}
+
 - (void)backingScaleDidChange {
 
 }

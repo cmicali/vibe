@@ -397,7 +397,13 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     [self composeFileMetadataLabel];
 }
 
+// TRAP: nil is a live input, not a programmer error. A track whose metadata
+// scan has not landed — or failed outright, as on an unparseable file — has a
+// nil `metadata`, so the caller's `track.metadata.fileInfoLine` is a message to
+// nil. composeFileMetadataLabel feeds this straight to
+// -[NSAttributedString initWithString:], which raises on nil.
 - (void)setFileMetadataText:(NSString *)text {
+    text = text ?: @"";
     if ([_fileMetadataText isEqualToString:text]) {
         return;
     }

@@ -17,18 +17,36 @@ NS_ASSUME_NONNULL_BEGIN
 // unset. 2 means Retina, which is overwhelmingly the common case.
 static const CGFloat kVibeDefaultBackingScale = 2;
 
-// The rendering layer's two scale sources. The view asks its window, the
-// authority on what the scale should be, and renderers ask a layer they have
-// already stamped, guarding the unset-0 case. Both live here, so that the
-// fallback cannot drift between sites.
+// The rendering layer's scale sources. The mac view asks its window, the
+// authority on what the scale should be; the iOS view asks its trait
+// collection; and renderers ask a layer they have already stamped. All of them
+// go through the one clamp below, so the fallback cannot drift between sites —
+// which is the whole reason they live together.
+static inline CGFloat VibeBackingScaleOrDefault(CGFloat scale) {
+    return scale > 0 ? scale : kVibeDefaultBackingScale;
+}
 #if TARGET_OS_OSX
 static inline CGFloat VibeBackingScaleForWindow(NSWindow * _Nullable window) {
-    return window ? window.backingScaleFactor : kVibeDefaultBackingScale;
+    return window ? VibeBackingScaleOrDefault(window.backingScaleFactor)
+                  : kVibeDefaultBackingScale;
 }
 #endif
 static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
-    CGFloat scale = layer.contentsScale;
-    return scale > 0 ? scale : kVibeDefaultBackingScale;
+    return VibeBackingScaleOrDefault(layer.contentsScale);
+}
+
+// Re-stamps a manually built layer tree at a new backing scale, masks and all.
+// Both views own their trees rather than letting the framework manage them, so
+// both need this on a display change; it lives here rather than twice.
+static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat scale) {
+    if (!layer) {
+        return;
+    }
+    layer.contentsScale = scale;
+    VibeApplyContentsScale(layer.mask, scale);
+    for (CALayer *sublayer in layer.sublayers) {
+        VibeApplyContentsScale(sublayer, scale);
+    }
 }
 
 @interface AudioWaveformRenderer : NSObject
@@ -76,6 +94,11 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
 // [from, to) to the midline and let the shared morph ease them back. The base
 // does nothing; the families forward to their morph engine.
 - (void)dipBarsFromFraction:(double)from toFraction:(double)to;
+
+// Land the in-flight morph on its target in one rebuild rather than easing
+// there — see WaveformMorphEngine.settleImmediately for when that is worth
+// doing. The base does nothing; the families forward to their morph engine.
+- (void)settleMorphImmediately;
 
 // The hover scrubbing affordance: light the waveform's own column at view x to
 // full brightness. No separate playhead is drawn, because the waveform is the

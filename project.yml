@@ -540,6 +540,10 @@ targets:
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Util/Categories/NSURL+Hash.m
       - path: Vibe/Util/Categories/NSURL+AudioOpen.m
+      # The iOS pager's waveform bookkeeping: Foundation-only, and its
+      # delivery-matching rule is the app-wide staleness invariant, so it is
+      # tested here even though it compiles only into VibeiOS.
+      - path: Vibe/iOS/PageWaveformCoordinator.m
       - path: Vibe/Common/PlatformImage.m
       - path: Vibe/Util/Mac/NSImage+Util.m
     settings:
@@ -579,6 +583,10 @@ targets:
           - "$(SRCROOT)/Vibe/Mac/MainWindow"
           - "$(SRCROOT)/Vibe/Audio/Mac/Convert"
           - "$(SRCROOT)/Vibe/Mac/Settings"
+          # PlayerScreenRules.h only: header-only and Foundation-only, so the
+          # iOS screen's state machine is testable from this macOS suite. No
+          # source under Vibe/iOS is compiled here.
+          - "$(SRCROOT)/Vibe/iOS"
     dependencies:
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform
       - sdk: AppKit.framework                # AudioTrack album art (NSImage)

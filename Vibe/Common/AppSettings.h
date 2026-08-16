@@ -2,16 +2,28 @@
 // Created by Christopher Micali on 12/30/19.
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
+// Every persisted preference, as properties over NSUserDefaults, reached
+// through the `Settings` macro in the prefix header.
+//
+// THE PLATFORM SPLIT IS ONE BLOCK, not a guard per property. Almost everything
+// here is a macOS preference, because almost everything it configures — the
+// window, the pitch fader, the FX graph, Convert to FLAC, the playlist table,
+// folder art, BPM and key analysis — exists only there. What iOS compiles is
+// the short list above the #if; everything below it is macOS-only. So "does
+// the iOS app honor this?" is answered by which side of that line a property
+// sits on, rather than by grepping for its readers.
+//
 
 #import <Foundation/Foundation.h>
 
-#if TARGET_OS_OSX
-@class NSAppearance;
-#endif
-
 // A renderer's stable styleIdentifier, never its localized display name — see
-// AudioWaveformRenderer.h.
+// AudioWaveformRenderer.h. Both platforms render waveforms, so this one is
+// shared; the iOS scrubber hard-wires the default until a style picker exists.
 #define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"oversampling_detailed_x4"
+
+#if TARGET_OS_OSX
+
+@class NSAppearance;
 
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT     @""
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT       @"light"
@@ -31,11 +43,23 @@ static const NSInteger kVibeSkipBasePresets[] = {4, 8, 16};
 static const NSInteger kVibeCrossfadePresets[] = {10, 500, 2000};
 static const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
 
+#endif  // TARGET_OS_OSX
+
 @interface AppSettings : NSObject
+
+#pragma mark - Both platforms
 
 + (AppSettings*)sharedInstance;
 
+// Both app delegates call this; its body is macOS-only today.
 - (void)applicationDidFinishLaunching;
+
+- (NSString *)waveformStyle;
+- (void)setWaveformStyle:(NSString *)identifier;
+
+#if TARGET_OS_OSX
+
+#pragma mark - macOS only
 
 - (NSString *)audioOutputDeviceName;
 - (void)setAudioOutputDeviceName:(NSString *)deviceName;
@@ -49,12 +73,7 @@ static const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
 - (NSString *)windowAppearanceStyle;
 - (void)setWindowAppearanceStyle:(NSString *)name;
 
-#if TARGET_OS_OSX
 - (NSAppearance *)windowAppearance;
-#endif
-
-- (NSString *)waveformStyle;
-- (void)setWaveformStyle:(NSString *)identifier;
 
 - (BOOL)isPitchPanelShown;
 - (void)setPitchPanelShown:(BOOL)shown;
@@ -105,10 +124,11 @@ static const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds;
 
 // The ceiling on the playback-UI tick rate, which scales itself to the
-// playhead's on-screen speed (MainWindow/UIUpdateMath.h): 3, 30 (default) or 60 Hz,
-// "Playhead refresh" in Settings > Advanced. Only a short file can reach the
-// ceiling — an ordinary song rests at the 3 Hz floor whatever this says — so
-// 3 is the fixed rate the app ticked at before the rule existed.
+// playhead's on-screen speed (Util/UIUpdateMath.h): 3, 30 (default) or
+// 60 Hz, "Playhead refresh" in Settings > Advanced. Only a short file can
+// reach the ceiling — an ordinary song rests at the 3 Hz floor whatever this
+// says — so 3 is the fixed rate the app ticked at before the rule existed.
+// The iOS screen ticks at a fixed 3 Hz and has no equivalent.
 - (NSInteger)uiUpdateHzCap;
 - (void)setUiUpdateHzCap:(NSInteger)hz;
 
@@ -116,14 +136,16 @@ static const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
 // returns — out of the audio engine entirely: AudioPlayer is created with FX
 // off, fx reads nil, and the main mixer wires straight to the output. The FX
 // menu is omitted from the menu bar and the Q/W/E/R/T keys pass through
-// unhandled. Read once at launch, so a change applies on relaunch. iOS
-// ignores it and always passes FX off; see PlayerViewController.
+// unhandled. Read once at launch, so a change applies on relaunch. iOS passes
+// a hard NO and never consults this; see PlayerViewController.
 - (BOOL)audioFXEnabled;
 - (void)setAudioFXEnabled:(BOOL)enabled;
 
 // NO skips tempo detection on the waveform decode pass. A file scanned while
 // off caches a waveform with no BPM, so re-enabling only affects files not
-// yet cached. Tagged BPM is unaffected either way.
+// yet cached. Tagged BPM is unaffected either way. The loader is TOLD the
+// answer through its analysis provider rather than reading it here, so iOS —
+// which never analyzes — never consults this; see AudioWaveformLoader.
 - (BOOL)analyzeBPM;
 - (void)setAnalyzeBPM:(BOOL)analyze;
 
@@ -160,8 +182,11 @@ static const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
 // since it gates every accessor on every cell draw, and only that call drops
 // the cached copy — so a write without it is not observed at all. Reading a
 // sibling file needs a folder grant, which is why Settings > Files holds both
-// this and the grants.
+// this and the grants. Folder art is macOS-only; iOS leaves AudioTrackArtwork's
+// resolver handle nil and shows embedded art alone.
 - (BOOL)useFolderArt;
 - (void)setUseFolderArt:(BOOL)use;
+
+#endif  // TARGET_OS_OSX
 
 @end

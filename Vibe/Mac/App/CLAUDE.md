@@ -24,4 +24,4 @@ TRAP: **an unresolved stored bookmark is not authority.** Folder art never probe
 
 ## Stats
 
-`AppStats` counts lifetime usage — files and folders opened, seconds played — in `NSUserDefaults`, and the Advanced settings pane reads it. The open sinks and the player-delegate transitions feed it. **`stop` and quit fire no delegate callback**, so `closeFile:` and `applicationWillTerminate:` flush by hand; that asymmetry is the whole reason the counters are not simply derived.
+`AppStats` counts lifetime usage — files and folders opened, seconds played — in `NSUserDefaults`, and the Advanced settings pane reads it. **It is macOS-only**, like the pane that displays it: the iOS app records nothing, deliberately, since it has nowhere to show it. The open sinks and the player-delegate transitions feed it. **`stop` and quit fire no delegate callback**, so `closeFile:` and `applicationWillTerminate:` flush by hand; that asymmetry is the whole reason the counters are not simply derived.

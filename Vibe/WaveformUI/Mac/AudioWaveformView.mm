@@ -243,21 +243,12 @@
         // rest of the collapse.
         [self drawWaveform];
     }
-    if (sizeChanged && _loadingLayer) {
+    if (sizeChanged && _loadingIndicator) {
         // Keep the shimmer centered, spanning the new width, mid-load.
         [self layoutLoadingLayer];
     }
     if (sizeChanged && _placeholderLayer) {
         [self layoutPlaceholderLayer];
-    }
-}
-
-static void applyContentsScale(CALayer *layer, CGFloat scale) {
-    if (!layer) return;
-    layer.contentsScale = scale;
-    applyContentsScale(layer.mask, scale);
-    for (CALayer *sublayer in layer.sublayers) {
-        applyContentsScale(sublayer, scale);
     }
 }
 
@@ -267,7 +258,8 @@ static void applyContentsScale(CALayer *layer, CGFloat scale) {
 - (void)viewDidChangeBackingProperties {
     [super viewDidChangeBackingProperties];
     CGFloat scale = VibeBackingScaleForWindow(self.window);
-    applyContentsScale(self.layer, scale);
+    VibeApplyContentsScale(self.layer, scale);
+    [_loadingIndicator updateContentsScale:scale];
     // Settled geometry is snapped to the old display's pixel grid, and the
     // same-size draw path skips the rebuild; ask for it explicitly. Must run
     // after the scale re-stamp above, which the rebuild reads.

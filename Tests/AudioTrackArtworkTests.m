@@ -182,7 +182,7 @@
         return nil;
     }];
     artwork.folderArt = [self resolverWithCover];
-    [artwork adoptArchivedThumbnailJPEG:nil];
+    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:NO];
 
     XCTAssertEqualObjects([artwork loadArtBlocking], _folderCover);
     XCTAssertFalse(extracted, @"an archived artless entry must not re-parse the file");
@@ -195,7 +195,7 @@
     AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
         return nil;
     }];
-    [artwork adoptArchivedThumbnailJPEG:nil];
+    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:NO];
 
     XCTAssertNil(artwork.cachedThumbnail, @"nothing is decoded yet, so nothing to hand back");
 
@@ -207,11 +207,51 @@
     [self waitForExpectationsWithTimeout:5.0 handler:nil];
 }
 
+// The iOS-written cache entry: no thumbnail archived at all, because iOS keeps
+// none, and the has-art flag is the only record that the file carries any. It
+// must behave exactly like a thumbnail-bearing entry — re-read on demand —
+// since reading as artless would leave the pager on the placeholder for good
+// and hand the folder's cover to a file that has its own art.
+- (void)testACacheHitWithNoThumbnailButKnownArtStillReadsTheFile {
+    NSData *embedded = [self embeddedArtData];
+    __block BOOL extracted = NO;
+    AudioTrackArtwork *artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:_trackPath
+                                                                        extractor:^NSData *(NSString *path) {
+        extracted = YES;
+        return embedded;
+    }];
+    artwork.folderArt = [self resolverWithCover];
+    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
+
+    XCTAssertTrue(artwork.artNeedsLoad, @"art the entry knows about is still worth a load");
+    NSImage *art = [artwork loadArtBlocking];
+    XCTAssertTrue(extracted, @"the file has to be re-read; the archive carries no bytes");
+    XCTAssertNotNil(art);
+    XCTAssertNotEqualObjects(art, _folderCover, @"the file's own art, never the folder's");
+}
+
+// The bytes go, the fact does not: a discard re-arms the re-read, and must not
+// let the track read as artless in the window before that read lands.
+- (void)testDiscardingArtKeepsTheFileKnownToCarrySome {
+    NSData *embedded = [self embeddedArtData];
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
+        return embedded;
+    }];
+    [artwork adoptParsedArtData:embedded];
+    XCTAssertTrue(artwork.hasEmbeddedArt);
+
+    (void)[artwork loadArtBlocking];
+    [artwork discardDecodedArt];
+    XCTAssertTrue(artwork.hasEmbeddedArt, @"the file still has art; only the decode went");
+    XCTAssertNotEqualObjects([artwork cachedArt], _folderCover,
+                             @"and the folder's cover must not slip in front of it");
+}
+
 - (void)testACacheHitWithAThumbnailKeepsItsOwn {
     AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
         return nil;
     }];
-    [artwork adoptArchivedThumbnailJPEG:[self embeddedArtData]];
+    [artwork adoptArchivedThumbnailJPEG:[self embeddedArtData] hasEmbeddedArt:YES];
     NSImage *thumbnail = artwork.cachedThumbnail;
     XCTAssertNotNil(thumbnail);
     XCTAssertNotEqualObjects(thumbnail, _folderCover);

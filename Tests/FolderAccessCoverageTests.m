@@ -8,6 +8,7 @@
 #import <XCTest/XCTest.h>
 
 #import "FolderAccessManager.h"
+#import "FolderAccessRules.h"
 
 #import <pwd.h>
 
@@ -170,6 +171,38 @@ static NSString *RealHome(void) {
     XCTAssertEqualObjects(manager.grantedFolders.firstObject.path, path);
     XCTAssertEqual(manager.grantedFolders.firstObject.state, VibeGrantedFolderStateUnavailable);
     XCTAssertEqualObjects([defaults arrayForKey:key].firstObject[@"path"], path);
+}
+
+
+#pragma mark - The path rules themselves
+
+// FolderAccessRules.h, reached without the manager, the sandbox or defaults.
+
+- (void)testFolderCoverageMatchesTheFolderAndItsDescendants {
+    XCTAssertTrue(VibePathIsUnderFolder(@"/Volumes/Music", @"/Volumes/Music"));
+    XCTAssertTrue(VibePathIsUnderFolder(@"/Volumes/Music/Set/a.mp3", @"/Volumes/Music"));
+    // A sibling whose name merely starts the same is not covered.
+    XCTAssertFalse(VibePathIsUnderFolder(@"/Volumes/Music2/a.mp3", @"/Volumes/Music"));
+    XCTAssertFalse(VibePathIsUnderFolder(@"/Volumes", @"/Volumes/Music"));
+    XCTAssertFalse(VibePathIsUnderFolder(@"", @"/Volumes/Music"));
+    XCTAssertFalse(VibePathIsUnderFolder(@"/Volumes/Music", @""));
+}
+
+// The canonical form must NOT match a differently-cased spelling: on a
+// case-sensitive volume those are genuinely different folders, and treating
+// them as one would skip a bookmark the app needs.
+- (void)testCanonicalFolderCoverageIsCaseSensitive {
+    XCTAssertFalse(VibePathIsUnderFolder(@"/Volumes/music/a.mp3", @"/Volumes/Music"));
+}
+
+// The uncanonical form errs the other way, which is the safe direction: an
+// open spelled differently by Launch Services still waits for the grant it
+// probably needs.
+- (void)testUncanonicalFolderCoverageIsCaseInsensitive {
+    XCTAssertTrue(VibeUncanonicalPathIsUnderFolder(@"/Volumes/music/a.mp3", @"/Volumes/Music"));
+    XCTAssertTrue(VibeUncanonicalPathIsUnderFolder(@"/VOLUMES/MUSIC", @"/Volumes/Music"));
+    XCTAssertFalse(VibeUncanonicalPathIsUnderFolder(@"/Volumes/Music2/a.mp3", @"/Volumes/Music"));
+    XCTAssertFalse(VibeUncanonicalPathIsUnderFolder(@"", @"/Volumes/Music"));
 }
 
 @end

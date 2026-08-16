@@ -37,19 +37,16 @@
     // Show the pending track's title and artist while it loads.
     [self updateUI];
     [self.trackDisplay showWaveformLoadingIndicator];
-    // Best-effort determinate fill while the provider materializes the file;
-    // deliveries are URL-matched because the monitor outlives fast track
-    // changes, the same rule as every other async delivery.
-    [_downloadMonitor cancel];
-    DownloadProgressMonitor *monitor = [[DownloadProgressMonitor alloc] initWithURL:track.url];
-    _downloadMonitor = monitor;
-    NSURL *url = track.url;
+    // Best-effort determinate fill while the provider materializes the file.
+    // The monitor drops a sample whose track has since changed; see
+    // monitorReplacing:forURL:currentURL:handler:.
     __weak MainPlayerController *weakSelf = self;
-    [monitor startWithHandler:^(float fraction) {
-        MainPlayerController *strongSelf = weakSelf;
-        if (strongSelf && [[strongSelf.playlistController currentTrack].url isEqual:url]) {
-            [strongSelf.trackDisplay setWaveformLoadingProgress:fraction];
-        }
+    _downloadMonitor = [DownloadProgressMonitor
+            monitorReplacing:_downloadMonitor
+                      forURL:track.url
+                  currentURL:^NSURL *{ return [weakSelf.playlistController currentTrack].url; }
+                     handler:^(float fraction) {
+        [weakSelf.trackDisplay setWaveformLoadingProgress:fraction];
     }];
     // This runs after updateUI, which shows the pending track's art if it is
     // already resolved: the previous track's art must not outlive the shimmer.

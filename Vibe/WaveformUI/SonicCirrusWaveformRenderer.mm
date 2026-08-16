@@ -236,6 +236,10 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
     [_morph dipDisplayedSamplesFromFraction:from toFraction:to];
 }
 
+- (void)settleMorphImmediately {
+    [_morph settleImmediately];
+}
+
 // Hover here is color-only and needs no re-place; the bar frames re-round to
 // the new pixel grid.
 - (void)backingScaleDidChange {

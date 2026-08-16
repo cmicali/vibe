@@ -218,10 +218,10 @@
         return NO;
     }
     // No thumbnail warm-up is needed before publishing, unlike in
-    // parseOneTrack:. The unarchive above already decoded it, because
-    // initWithCoder: calls adoptArchivedThumbnailJPEG:, which decodes eagerly,
-    // so the main thread's first cachedThumbnail read after publish is a
-    // plain ivar hit.
+    // parseOneTrack:. On macOS the unarchive above already decoded it, because
+    // initWithCoder: hands the archived JPEG straight to the artwork, so the
+    // main thread's first cachedThumbnail read after publish is a plain ivar
+    // hit; on iOS there is no thumbnail to warm at all.
     //
     // This pairs with parseOneTrack's guarded store. The unconditional store
     // here is safe because cached entries are always parsedOK, but it must not
@@ -281,8 +281,11 @@
     // an invalidate arriving mid-parse makes this result stale for the cache.
     uint64_t generation = owner.cacheGeneration;
     AudioTrackMetadata *metadata = [AudioTrackMetadata metadataWithURL:track.url];
-    // Decode embedded art before publication so the table never pays ImageIO
-    // work on main. Folder fallback remains lazy and visibility-driven.
+    // Decode the table's thumbnail before publication so the main thread never
+    // pays ImageIO work. Folder fallback remains lazy and visibility-driven.
+    // A no-op on iOS, which keeps no thumbnail: the pager's art window decodes
+    // full size for the few pages it needs and nothing for the rest, so a scan
+    // there does no image work at all.
     [metadata prewarmEmbeddedThumbnail];
     // Never clobber real metadata with a failed parse. A cancelled loader's op
     // can still be mid-parse when this loader re-parses successfully, and
@@ -328,11 +331,11 @@
 // reason, and a departed track is dropped by the delegate's own checks.
 - (void)publishTrack:(AudioTrack *)track {
     if (track.metadata) {
-        // The thumbnail was pre-warmed before publish, so drop the full-size
-        // art bytes and a large first import will not pin hundreds of MB.
-        // Cache-hit instances never carried them, and freshly parsed ones now
-        // match, since the art is re-read on demand for the one track shown
-        // at full resolution.
+        // Drop the full-size art bytes, or a large first import pins hundreds
+        // of MB. Cache-hit instances never carried them, and freshly parsed
+        // ones now match: whatever each platform wanted decoding — the mac's
+        // thumbnail, above — is decoded by now, and the full-resolution image
+        // is re-read on demand for the few tracks actually shown at that size.
         [track.metadata discardArtData];
         // The folder-artwork fallback is deliberately NOT resolved here: this
         // is the scan's path, including the cache-check lane whose whole point

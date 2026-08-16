@@ -72,6 +72,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSString *)singleLineTitle;
 
+// How a track is NAMED on screen, in one place so every surface — the mac
+// playlist row and header, the iOS page, track sheet and search sheet — spells
+// it the same way. displayTitle is the tagged title when there is a real
+// artist/title pair and the filename-derived single line otherwise;
+// displayArtist is the artist, or nil in that second case, where displayTitle
+// already carries everything known. A caller with one line shows the title; a
+// caller with two shows both, and a nil artist means it has no second line to
+// draw rather than an empty one.
+- (NSString *)displayTitle;
+- (nullable NSString *)displayArtist;
+
 @end
 
 NS_ASSUME_NONNULL_END

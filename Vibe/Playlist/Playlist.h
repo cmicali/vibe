@@ -4,8 +4,10 @@
 //
 // The ordered track list, free of any view dependency: the backing store, the
 // current-index cursor, and the track-to-row map that keeps row lookups O(1)
-// during the metadata sweep. PlaylistController owns the NSTableView half and
-// reacts to changes through PlaylistObserver.
+// during the metadata sweep. Both app shells observe it through
+// PlaylistObserver — PlaylistController owns the mac's NSTableView half,
+// PlayerViewController the iOS pager and its two sheets — and neither is
+// visible from here.
 //
 
 #import <Foundation/Foundation.h>

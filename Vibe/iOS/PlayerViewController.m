@@ -2,24 +2,25 @@
 //  PlayerViewController.m
 //  Vibe (iOS)
 //
+//  The coordination: the collaborators it owns, the update funnel, the header
+//  and empty states, the transport entry points, and the two session
+//  delegates. Everything else is a category — see PlayerViewControllerInternal.h
+//  for the surface they share.
+//
 
-#import "PlayerViewController.h"
-#import "AudioErrorRules.h"
+#import "PlayerViewControllerInternal.h"
+#import "PlayerViewController+Delivery.h"
+#import "PlayerViewController+NowPlaying.h"
+#import "PlayerViewController+Pager.h"
+#import "PlayerViewController+PlayerEvents.h"
+
 #import "AudioPlayer.h"
 #import "AudioPlayer+Recovery.h"
-#import "AudioPlayer+Seek.h"
 #import "AudioTrack.h"
-#import "AudioTrackMetadata.h"
-#import "AudioTrackMetadata+ArtLoad.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
-#import "AudioSessionController.h"
 #import "DownloadProgressMonitor.h"
-#import "FolderSession.h"
-#import "PageWaveformPipeline.h"
-#import "Playlist.h"
-#import "NowPlayingController.h"
-#import "NowPlayingRules.h"
+#import "PageWaveformCoordinator.h"
 #import "SearchViewController.h"
 #import "TrackListViewController.h"
 #import "TrackPageCell.h"
@@ -28,98 +29,36 @@
 #import "Formatters.h"
 #import "VibeStrings.h"
 #import "VibeWeakProxy.h"
+#import "WaveformMidline.h"   // the empty line IS the scrubber's placeholder
 #import "WaveformScrubberView.h"
-#if DEBUG
-#import "PlayerViewController+Debug.h"
-// The Debug category's state dump only.
-#import "AppSettings.h"
-#import "MusicalKey.h"
-#endif
 
-// Fixed, unlike the mac's playhead-speed-scaled rate (MainWindow/UIUpdateMath.h):
+// Fixed, unlike the mac's playhead-speed-scaled rate (Util/UIUpdateMath.h):
 // there the timer is what moves the playhead, here the CADisplayLink owns it
 // while playing. This tick only feeds the time labels, which change once a
 // second, and the Now Playing publish.
 static const NSUInteger kUIUpdateHz = 3;
 
-@interface PlayerViewController () <AudioPlayerDelegate, PlaylistObserver,
-        AudioTrackMetadataCacheDelegate, PageWaveformPipelineDelegate,
-        WaveformScrubberViewDelegate, NowPlayingControllerDelegate,
-        AudioSessionControllerDelegate, FolderSessionDelegate,
-        UIGestureRecognizerDelegate, UICollectionViewDataSource,
-        UICollectionViewDelegateFlowLayout>
-@end
-
 @implementation PlayerViewController {
-    AudioPlayer             *_player;
-    Playlist                *_playlist;
-    AudioTrackMetadataCache *_metadataCache;
-    AudioWaveformCache      *_waveformCache;
-    NowPlayingController    *_nowPlaying;
-    AudioSessionController  *_audioSession;
-    FolderSession           *_folderSession;
-    UIUpdateTimer           *_updateTimer;
     // Drives the scrolling waveform at display rate while playing in the
     // foreground; the 3 Hz timer is far too coarse for a moving waveform.
     CADisplayLink           *_scrollLink;
-    BOOL                    _foreground;
-    // seekToPosition: fades down before rescheduling, so position briefly
-    // reports the pre-seek value; holding the target until didFinishSeeking:
-    // keeps the waveform from snapping back for those frames.
-    float                   _pendingSeekProgress;
-    BOOL                    _seekInFlight;
-    // The same guard for a track change: until didStartPlaying: lands, the
-    // player's getters still serve the OUTGOING track, so the new page's
-    // waveform and time labels render the incoming track at rest instead of
-    // the stale position (which then snapped to zero when the open landed).
-    BOOL                    _trackStartPending;
 
-    // The track pager, Photos-style: one full-screen cell per track (blurred
-    // art + header), interactively draggable to the neighbors. The chrome —
-    // waveform, transport, time, bottom bar — overlays it and never scrolls.
-    // The screen is forced dark so text and the waveform read over any art.
-    UICollectionView        *_pagesView;
-    UICollectionViewFlowLayout *_pagesLayout;
-    UILabel                 *_emptyHintLabel;
     UIView                  *_emptyLineView;
     NSLayoutConstraint      *_emptyLineCenterY;  // re-aimed per orientation
-    // Every page cell carries its own waveform view; these are BINDINGS to
-    // the current page's views, rebound when the current cell appears or is
-    // recreated, so the live-update paths (and the debug channel) keep one
-    // stable name for "the playing track's waveform and time labels".
-    WaveformScrubberView    *_waveformView;
-    UILabel                 *_elapsedLabel;
-    UILabel                 *_remainingLabel;
-    // The pager's waveform bookkeeping — the one load's target page, the
-    // per-page snapshots, the complete set — between the cache and the cells.
-    PageWaveformPipeline    *_waveformPipeline;
-    TrackPageCell           *_boundPage;        // the current page the chrome bindings point into
-    UIButton                *_playPauseButton;  // bound: the current page's glyph
-    UIButton                *_searchBarButton;  // Messages-style glass search bar
-    UIButton                *_folderButton;     // the compose-position circle
+
+    // The bottom bar's geometry. The search field is BUILT BUT NOT REACHABLE:
+    // search is not shipped yet (see SearchViewController), so the button is
+    // hidden and the bar's width is held by a layout guide instead — a hidden
+    // control silently defining the layout is how the parked feature came to
+    // look shipped.
+    UILayoutGuide           *_searchBarGuide;
+    UIButton                *_searchBarButton;   // Messages-style glass search bar; hidden
+    UIButton                *_folderButton;      // the compose-position circle
     UITapGestureRecognizer  *_emptyStateTap;
 
-    // Weak: presentation owns each sheet, and the references exist only to
-    // forward playlist changes while one is up — a dismissed sheet nils out
-    // and the forwarding no-ops.
-    __weak TrackListViewController *_trackListController;
-    __weak SearchViewController    *_searchController;
-
-    // Polls a materializing cloud file's size while the loading indicator is
-    // up; nil otherwise.
-    DownloadProgressMonitor *_downloadMonitor;
-    // An inline playback error, shown on the artist line until the next track
-    // event, exactly like the mac header.
-    NSString                *_errorText;
-    // A restored track is parked: header, waveform, and metadata are loaded,
-    // but nothing plays until the user asks.
-    BOOL                    _parked;
-    // A size transition (rotation, iPad window resize) is animating: the
-    // pager's offset is not page-aligned at the new width, so commits hold.
-    BOOL                    _windowResizeInFlight;
-    // The last root size the pager was laid out for; layout passes at an
-    // unchanged size skip the flow-layout invalidation.
-    CGSize                  _lastLayoutSize;
+    // Weak, like the track list's handle: presentation owns the sheet, and the
+    // reference exists only to forward playlist changes while one is up.
+    __weak SearchViewController *_searchController;
 }
 
 #pragma mark - Lifecycle
@@ -137,7 +76,8 @@ static const NSUInteger kUIUpdateHz = 3;
     _metadataCache = [[AudioTrackMetadataCache alloc] init];
     _metadataCache.delegate = self;
     _waveformCache = [[AudioWaveformCache alloc] init];
-    _waveformPipeline = [[PageWaveformPipeline alloc] initWithCache:_waveformCache delegate:self];
+    _waveformCoordinator = [[PageWaveformCoordinator alloc] initWithCache:_waveformCache delegate:self];
+    _artHeldPages = [NSMutableIndexSet indexSet];
     _audioSession = [[AudioSessionController alloc] init];
     _audioSession.delegate = self;
     _folderSession = [[FolderSession alloc] init];
@@ -252,10 +192,11 @@ static const NSUInteger kUIUpdateHz = 3;
 
     // The empty state's midline — the mac view's placeholder line, drawn in
     // the chrome because with no tracks there are no page cells to host it.
-    // Geometry and color mirror the scrubber's own placeholder (2pt at the
-    // waveform strip's vertical center; the screen is forced dark).
+    // It IS the scrubber's own placeholder, so it takes the shared metrics
+    // rather than restating them; the screen is forced dark, hence white.
     _emptyLineView = [[UIView alloc] init];
-    _emptyLineView.backgroundColor = [UIColor.whiteColor colorWithAlphaComponent:0.275];
+    _emptyLineView.backgroundColor =
+            [UIColor.whiteColor colorWithAlphaComponent:kVibeInertMidlineAlpha];
     _emptyLineView.hidden = YES;
     _emptyLineView.translatesAutoresizingMaskIntoConstraints = NO;
     [root addSubview:_emptyLineView];
@@ -279,8 +220,13 @@ static const NSUInteger kUIUpdateHz = 3;
     [_searchBarButton addTarget:self action:@selector(searchTapped)
                forControlEvents:UIControlEventTouchUpInside];
     _searchBarButton.translatesAutoresizingMaskIntoConstraints = NO;
-    _searchBarButton.hidden = YES;  // search disabled for now; still anchors the bottom-bar layout
+    _searchBarButton.hidden = YES;  // not shipped yet; searchTapped is unreachable
     [root addSubview:_searchBarButton];
+
+    // The span the search field occupies, held whether or not it is visible,
+    // so unhiding the button is the only change shipping search needs.
+    _searchBarGuide = [[UILayoutGuide alloc] init];
+    [root addLayoutGuide:_searchBarGuide];
 
     UIButtonConfiguration *folderConfig = [UIButtonConfiguration glassButtonConfiguration];
     folderConfig.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
@@ -316,14 +262,18 @@ static const NSUInteger kUIUpdateHz = 3;
 
         [_emptyLineView.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
         [_emptyLineView.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
-        [_emptyLineView.heightAnchor constraintEqualToConstant:2],
+        [_emptyLineView.heightAnchor constraintEqualToConstant:kVibeMidlineHeight],
 
-        [_searchBarButton.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
-        [_searchBarButton.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor constant:-4],
-        [_searchBarButton.heightAnchor constraintEqualToConstant:52],
-        [_folderButton.leadingAnchor constraintEqualToAnchor:_searchBarButton.trailingAnchor constant:12],
+        [_searchBarGuide.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
+        [_searchBarGuide.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor constant:-4],
+        [_searchBarGuide.heightAnchor constraintEqualToConstant:52],
+        [_searchBarButton.leadingAnchor constraintEqualToAnchor:_searchBarGuide.leadingAnchor],
+        [_searchBarButton.trailingAnchor constraintEqualToAnchor:_searchBarGuide.trailingAnchor],
+        [_searchBarButton.topAnchor constraintEqualToAnchor:_searchBarGuide.topAnchor],
+        [_searchBarButton.bottomAnchor constraintEqualToAnchor:_searchBarGuide.bottomAnchor],
+        [_folderButton.leadingAnchor constraintEqualToAnchor:_searchBarGuide.trailingAnchor constant:12],
         [_folderButton.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
-        [_folderButton.centerYAnchor constraintEqualToAnchor:_searchBarButton.centerYAnchor],
+        [_folderButton.centerYAnchor constraintEqualToAnchor:_searchBarGuide.centerYAnchor],
         [_folderButton.widthAnchor constraintEqualToConstant:52],
         [_folderButton.heightAnchor constraintEqualToConstant:52],
     ]];
@@ -378,229 +328,18 @@ static const NSUInteger kUIUpdateHz = 3;
     return YES;
 }
 
-#pragma mark - Per-page waveforms
+#pragma mark - Display state
 
-- (TrackPageCell *)cellAtIndex:(NSUInteger)index {
-    return (TrackPageCell *)[_pagesView cellForItemAtIndexPath:
-            [NSIndexPath indexPathForItem:(NSInteger)index inSection:0]];
+// Gathers the rule's inputs, sampling the player once so the whole state
+// resolves against one consistent view of it.
+- (VibePlayerScreenState)screenState {
+    return VibeResolvePlayerScreenState(_playlist.count, _trackStartPending,
+                                        _parked, _errorText != nil,
+                                        _player.duration);
 }
 
-// Points the live-update bindings at the current page's views.
-- (void)bindChromeToCell:(TrackPageCell *)cell {
-    if (!cell) {
-        return;
-    }
-    _boundPage = cell;
-    _waveformView = cell.waveformView;
-    _elapsedLabel = cell.elapsedLabel;
-    _remainingLabel = cell.remainingLabel;
-    _playPauseButton = cell.playPauseButton;
-    // A rebind means a fresh (or reloaded) cell whose labels came back at
-    // their reuse defaults; while paused no timer tick will repopulate them,
-    // so refresh now — the play glyph's symbol and visibility included.
-    [self updatePlaybackUI];
-    [self updatePlayButton];
-}
-
-- (void)requestWaveformForIndex:(NSUInteger)index {
-    [_waveformPipeline requestIndex:index track:[_playlist trackAtIndex:index]];
-}
-
-// Reloaded and recycled cells come back blank; the latest snapshot puts the
-// waveform straight back without waiting for a fresh decode. With no
-// snapshot in hand the page animates the loading line instead of sitting
-// blank — on a network folder the decode behind it is routinely slow — and
-// showWaveform: ends the line when data arrives.
-- (void)hydrateWaveformInCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
-    CodableAudioWaveform *snapshot = [_waveformPipeline snapshotAtIndex:index];
-    if (snapshot) {
-        [cell.waveformView showWaveform:snapshot];
-    }
-    else {
-        [cell.waveformView showLoadingIndicator];
-    }
-}
-
-#pragma mark - Track pager
-
-- (NSInteger)collectionView:(UICollectionView *)collectionView
-     numberOfItemsInSection:(NSInteger)section {
-    return (NSInteger)_playlist.count;
-}
-
-// A page coming on screen: hydrate its waveform from the latest snapshot,
-// and start (or re-target) the load so a neighbor pulled into view arrives
-// with its own track's waveform loading. Playback does NOT switch here —
-// only the settled page commits, in commitVisiblePage.
-- (void)collectionView:(UICollectionView *)collectionView
-       willDisplayCell:(UICollectionViewCell *)cell
-    forItemAtIndexPath:(NSIndexPath *)indexPath {
-    TrackPageCell *page = (TrackPageCell *)cell;
-    NSUInteger index = (NSUInteger)indexPath.item;
-
-    if (page.waveformView.delegate != self) {
-        page.waveformView.delegate = self;
-        // The pager yields horizontal drags on the waveform surface to the
-        // scrubber; page-drag starts anywhere else.
-        for (UIGestureRecognizer *recognizer in page.waveformView.gestureRecognizers) {
-            if ([recognizer isKindOfClass:[UIPanGestureRecognizer class]]) {
-                [_pagesView.panGestureRecognizer requireGestureRecognizerToFail:recognizer];
-            }
-        }
-        [page.playPauseButton addTarget:self action:@selector(playPauseTapped)
-                       forControlEvents:UIControlEventTouchUpInside];
-    }
-
-    [self hydrateWaveformInCell:page atIndex:index];
-    if (![_waveformPipeline isCompleteAtIndex:index]) {
-        [self requestWaveformForIndex:index];
-    }
-
-    if (index == _playlist.currentIndex) {
-        [self bindChromeToCell:page];
-    }
-    else {
-        // A neighbor at rest: track start, and the duration once metadata
-        // knows it.
-        [PlayerViewController renderRestingTimesForTrack:[_playlist trackAtIndex:index]
-                                                  elapsed:page.elapsedLabel
-                                                remaining:page.remainingLabel];
-    }
-}
-
-- (void)configurePage:(TrackPageCell *)cell atIndex:(NSUInteger)index {
-    AudioTrack *track = [_playlist trackAtIndex:index];
-    BOOL showError = index == _playlist.currentIndex && _errorText;
-    // Neighbors show their cached thumbnail — under the blur the 128px
-    // thumbnail and the full decode are indistinguishable, and only the
-    // current track ever decodes full art. A track with no art gets the
-    // mac's vinyl placeholder.
-    [cell configureWithTitle:(track.hasArtistAndTitle ? track.title : track.singleLineTitle)
-                  titleColor:[UIColor labelColor]
-                      artist:(showError ? _errorText
-                                        : (track.hasArtistAndTitle ? track.artist : @""))
-                 artistColor:(showError ? [UIColor systemRedColor]
-                                        : [UIColor secondaryLabelColor])
-                    fileInfo:track.metadata.fileInfoLine
-                         art:(track.cachedArt ?: track.cachedThumbnail
-                                              ?: [UIImage imageNamed:@"record-bg"])];
-}
-
-- (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView
-                  cellForItemAtIndexPath:(NSIndexPath *)indexPath {
-    TrackPageCell *cell = [collectionView
-            dequeueReusableCellWithReuseIdentifier:TrackPageCell.reuseIdentifier
-                                      forIndexPath:indexPath];
-    [self configurePage:cell atIndex:(NSUInteger)indexPath.item];
-    // Reuse hands back the glyph at its resting look; stamp the live chrome
-    // state so a page never appears with the wrong visibility.
-    cell.playPauseButton.alpha = [self chromeAlpha];
-    return cell;
-}
-
-- (CGSize)collectionView:(UICollectionView *)collectionView
-                  layout:(UICollectionViewLayout *)layout
-  sizeForItemAtIndexPath:(NSIndexPath *)indexPath {
-    return _pagesView.bounds.size;
-}
-
-- (void)viewDidLayoutSubviews {
-    [super viewDidLayoutSubviews];
-    [self aimEmptyLine];
-    // Page size follows the view, and the offset must stay page-aligned
-    // through the first layout after a restore. Only on a real size change:
-    // this runs on every root layout pass (sheet presentations, safe-area
-    // churn), and an unconditional invalidation re-prepares the whole layout
-    // each time.
-    CGSize size = self.view.bounds.size;
-    if (CGSizeEqualToSize(size, _lastLayoutSize)) {
-        return;
-    }
-    _lastLayoutSize = size;
-    [_pagesLayout invalidateLayout];
-    if (!_pagesView.isDragging && !_pagesView.isDecelerating) {
-        [self scrollToCurrentPageAnimated:NO];
-    }
-}
-
-// Rotation and window resize: re-page alongside the transition so the
-// current page stays centered instead of the offset landing between pages at
-// the new width. The in-flight flag keeps commitVisiblePage from rounding a
-// mid-resize offset to a neighbor page — which would switch tracks.
-- (void)viewWillTransitionToSize:(CGSize)size
-       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
-    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
-    _windowResizeInFlight = YES;
-    [coordinator animateAlongsideTransition:^(id<UIViewControllerTransitionCoordinatorContext> context) {
-        [self->_pagesLayout invalidateLayout];
-        [self scrollToCurrentPageAnimated:NO];
-    } completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
-        self->_windowResizeInFlight = NO;
-        [self scrollToCurrentPageAnimated:NO];
-    }];
-}
-
-- (void)scrollToCurrentPageAnimated:(BOOL)animated {
-    CGFloat width = _pagesView.bounds.size.width;
-    if (width <= 0 || _playlist.count == 0) {
-        return;
-    }
-    CGPoint target = CGPointMake(width * (CGFloat)_playlist.currentIndex, 0);
-    if (!CGPointEqualToPoint(_pagesView.contentOffset, target)) {
-        [_pagesView setContentOffset:target animated:animated];
-    }
-}
-
-// In place when the page has a live cell: reloadItemsAtIndexPaths: swaps the
-// full-screen cell with a crossfade — the whole blurred backdrop dims on
-// every track commit and metadata/art delivery — and recycles the waveform
-// with it. Pages without a cell reload so a prefetched one cannot come on
-// screen stale.
-- (void)refreshPageAtIndex:(NSUInteger)index {
-    if (index >= _playlist.count) {
-        return;
-    }
-    TrackPageCell *cell = [self cellAtIndex:index];
-    if (cell) {
-        [self configurePage:cell atIndex:index];
-    }
-    else {
-        [_pagesView reloadItemsAtIndexPaths:
-                @[[NSIndexPath indexPathForItem:(NSInteger)index inSection:0]]];
-    }
-}
-
-// The grab-and-pull commit, Photos semantics: whatever page the drag settles
-// on becomes the current track; pulling back to the same page changes
-// nothing.
-- (void)commitVisiblePage {
-    CGFloat width = _pagesView.bounds.size.width;
-    if (width <= 0 || _playlist.count == 0 || _windowResizeInFlight) {
-        return;
-    }
-    NSUInteger page = (NSUInteger)MAX(0.0, round(_pagesView.contentOffset.x / width));
-    page = MIN(page, _playlist.count - 1);
-    if (page != _playlist.currentIndex) {
-        _playlist.currentIndex = page;
-        [self playCurrentTrack];
-    }
-    else if (_waveformPipeline.targetIndex != page) {
-        // Pulled a neighbor into view and let go: the preview load retargeted
-        // the pipeline, so point it back at the current page (a no-op reload
-        // when its waveform had already fully arrived).
-        [self requestWaveformForIndex:page];
-    }
-}
-
-- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
-    [self commitVisiblePage];
-}
-
-- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView
-                  willDecelerate:(BOOL)decelerate {
-    if (!decelerate) {
-        [self commitVisiblePage];
-    }
+- (AudioTrack *)displayedTrack {
+    return VibePlayerScreenDescribesTrack([self screenState]) ? _playlist.currentTrack : nil;
 }
 
 #pragma mark - Header rendering
@@ -617,6 +356,10 @@ static const NSUInteger kUIUpdateHz = 3;
 - (void)renderHeaderForTrack:(AudioTrack *)track {
     _emptyHintLabel.hidden = YES;
     _emptyLineView.hidden = YES;
+    // Before the repaint, and from here rather than the currentIndex observer,
+    // so a park or a restore that lands on the index already current still
+    // moves the window onto it.
+    [self refreshArtWindow];
     [self refreshPageAtIndex:_playlist.currentIndex];
     TrackPageCell *cell = [self cellAtIndex:_playlist.currentIndex];
     if (cell) {
@@ -645,7 +388,7 @@ static const NSUInteger kUIUpdateHz = 3;
 // state shows no glyph either: there is nothing to play until a folder is
 // chosen.
 - (CGFloat)chromeAlpha {
-    return (_player.isPlaying || _playlist.count == 0) ? 0 : 1;
+    return (_player.isPlaying || [self screenState] == VibePlayerScreenStateEmpty) ? 0 : 1;
 }
 
 - (void)updateChrome {
@@ -658,8 +401,12 @@ static const NSUInteger kUIUpdateHz = 3;
     }];
 }
 
+// Paused unless the playhead is actually moving where someone can see it. A
+// page swipe counts as nowhere: the waveform translating a fraction of a pixel
+// under a page that is itself sliding across the screen is invisible, and the
+// frames it costs are exactly the ones the swipe needs.
 - (void)updateScrollLinkState {
-    _scrollLink.paused = !(_player.isPlaying && _foreground);
+    _scrollLink.paused = !(_player.isPlaying && _foreground && !_pagerScrolling);
 }
 
 - (void)scrollTick:(CADisplayLink *)link {
@@ -673,7 +420,7 @@ static const NSUInteger kUIUpdateHz = 3;
     if (_waveformView.isScrubbing) {
         return;
     }
-    if (_trackStartPending) {
+    if ([self screenState] == VibePlayerScreenStateLoading) {
         _waveformView.progress = 0;
         return;
     }
@@ -688,11 +435,11 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)updatePlaybackUI {
-    if (_trackStartPending || (_parked && _player.duration <= 0)) {
-        // The current track at rest — the neighbor-page treatment. Pending: the
-        // player's getters still serve the OUTGOING track. Parked-unopened (a
-        // relaunch restore): the player has nothing loaded, and without this
-        // the labels sat at --:-- even after metadata delivered the duration.
+    if (VibePlayerScreenRendersRestingTimes([self screenState])) {
+        // The current track at rest — the neighbor-page treatment. Loading: the
+        // player's getters still serve the OUTGOING track. Parked (a relaunch
+        // restore): the player has nothing loaded, and without this the labels
+        // sat at --:-- even after metadata delivered the duration.
         [self renderRestingTimesForTrack:_playlist.currentTrack];
         if (!_waveformView.isScrubbing) {
             _waveformView.progress = 0;
@@ -719,44 +466,6 @@ static const NSUInteger kUIUpdateHz = 3;
     [self publishNowPlaying];
 }
 
-- (void)publishNowPlaying {
-    NowPlayingPlaybackState state = VibeNowPlayingStateForPlayer(_player.isPlaying,
-                                                                 _player.isPaused);
-    AudioTrack *track = (_parked || _trackStartPending || _player.currentTrack)
-            ? _playlist.currentTrack : nil;
-    if (track) {
-        [self dispatchAlbumArtLoadForTrack:track];
-    }
-    // The player's duration is 0 while pending or parked-unopened; the
-    // track's metadata duration keeps the card's timeline real there.
-    NSTimeInterval playerDuration = _player.duration;
-    [_nowPlaying updateWithTrack:track
-                        position:(_trackStartPending ? 0 : _player.position)
-                        duration:(playerDuration > 0 ? playerDuration : track.duration)
-                           state:state
-                            rate:1.0
-                         hasNext:_playlist.hasNextTrack
-                     hasPrevious:_playlist.hasPreviousTrack];
-}
-
-// Until the load lands, cachedArt reads nil and the Now Playing card and the
-// current page show no full-res art; the resolve republishes both. The dispatch
-// itself is shared with the mac (AudioTrackMetadata+ArtLoad); a dead controller
-// answers "not wanted", which demotes the decode rather than stranding it.
-- (void)dispatchAlbumArtLoadForTrack:(AudioTrack *)track {
-    __weak PlayerViewController *weakSelf = self;
-    [track.metadata dispatchArtLoadIfNeededStillWanted:^BOOL{
-        PlayerViewController *self = weakSelf;
-        return self && [self->_playlist isCurrentTrack:track];
-    } completion:^(VibeImage *loaded) {
-        PlayerViewController *self = weakSelf;
-        if (self && loaded) {
-            [self refreshPageAtIndex:self->_playlist.currentIndex];
-            [self publishNowPlaying];
-        }
-    }];
-}
-
 #pragma mark - Playback
 
 - (void)playCurrentTrack {
@@ -773,7 +482,7 @@ static const NSUInteger kUIUpdateHz = 3;
     [self renderHeaderForTrack:track];
     [self scrollToCurrentPageAnimated:YES];
     [self requestWaveformForIndex:_playlist.currentIndex];
-    [_waveformPipeline pruneAroundIndex:_playlist.currentIndex];
+    [_waveformCoordinator pruneAroundIndex:_playlist.currentIndex];
     [_metadataCache loadMetadataNow:track];
     [_player play:track];
     [self updatePlayButton];
@@ -849,6 +558,9 @@ static const NSUInteger kUIUpdateHz = 3;
     [self playCurrentTrack];
 }
 
+// Unreachable today: its only trigger is _searchBarButton, which is hidden.
+// Kept, with SearchViewController, because the sheet is finished and shipping
+// it is a one-line change.
 - (void)searchTapped {
     if (_playlist.count == 0) {
         [_folderSession presentPickerFromViewController:self];
@@ -895,7 +607,7 @@ static const NSUInteger kUIUpdateHz = 3;
           selectedURL:(NSURL *)selectedURL
              restored:(BOOL)restored {
     [_playlist replaceAllWithURLs:urls];
-    [_waveformPipeline reset];
+    [_waveformCoordinator reset];
     [_pagesView reloadData];
     [_metadataCache cancelAll];
     [_metadataCache loadMetadata:_playlist.tracks];
@@ -958,190 +670,11 @@ static const NSUInteger kUIUpdateHz = 3;
     }
 }
 
-#pragma mark - AudioPlayerDelegate
-
-- (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer {
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track {
-    if (![_playlist isCurrentTrack:track]) {
-        return;
-    }
-    [_waveformView showLoadingIndicator];
-    // Best-effort determinate fill while the provider materializes the file;
-    // the URL is re-matched at delivery because the monitor outlives fast
-    // track changes.
-    [_downloadMonitor cancel];
-    DownloadProgressMonitor *monitor = [[DownloadProgressMonitor alloc] initWithURL:track.url];
-    _downloadMonitor = monitor;
-    NSURL *url = track.url;
-    __weak PlayerViewController *weakSelf = self;
-    [monitor startWithHandler:^(float fraction) {
-        PlayerViewController *self = weakSelf;
-        if (self && [self->_playlist.currentTrack.url isEqual:url]) {
-            [self->_waveformView setLoadingProgress:fraction];
-        }
-    }];
-    [self publishNowPlaying];
-}
-
-// A pause toggled while the open is still in flight — the user's tap, or an
-// audio-session interruption — decides whether the load lands playing or
-// parked. No audio has started, so this refreshes the transport glyph and the
-// lock-screen card and nothing else.
-- (void)audioPlayer:(AudioPlayer *)audioPlayer
-    didChangeLoadingPaused:(BOOL)paused
-                  forTrack:(AudioTrack *)track {
-    if (![_playlist isCurrentTrack:track]) {
-        return;
-    }
-    [self updatePlayButton];
-    [self publishNowPlaying];
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track {
-    if (![_playlist isCurrentTrack:track]) {
-        return;
-    }
-    _errorText = nil;
-    _trackStartPending = NO;
-    // The open landed, so the file is materialized; the monitor's work is
-    // done whatever it last reported.
-    [_downloadMonitor cancel];
-    _downloadMonitor = nil;
-    [self renderHeaderForTrack:track];
-    // Not a blanket hideLoadingIndicator: the open landing says nothing about
-    // the waveform decode, which may still be streaming over the network.
-    // Re-hydration repaints a snapshot already in hand (ending the slow-open
-    // shimmer that replaced it); otherwise the line keeps animating until
-    // showWaveform: delivers. The download fill IS cleared here — the open
-    // landing means the file materialized, and showWaveform: deliberately
-    // leaves the fill alone (a cached waveform can arrive mid-download).
-    TrackPageCell *currentCell = [self cellAtIndex:_playlist.currentIndex];
-    [currentCell.waveformView setLoadingProgress:-1];
-    [self hydrateWaveformInCell:currentCell atIndex:_playlist.currentIndex];
-    // The dataless-placeholder retry: a cache miss skipped while the player's
-    // own open was materializing the file parses now.
-    [_metadataCache loadMetadataNow:track];
-    NSUInteger nextIndex = _playlist.currentIndex + 1;
-    [_player prefetchTrack:_playlist.hasNextTrack ? [_playlist trackAtIndex:nextIndex] : nil];
-    _folderSession.persistedTrackFileName = track.url.lastPathComponent;
-    // The landing can be parked — a pause verdict during the load, or the
-    // media-reset re-park — in which case playback is idle, so the session is
-    // released just as a pause releases it.
-    BOOL playing = _player.isPlaying;
-    _updateTimer.wanted = playing;
-    [self updateScrollLinkState];
-    if (!playing) {
-        [_audioSession deactivateWhenIdle];
-    }
-    [self updatePlayButton];
-    [self updatePlaybackUI];
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track {
-    _updateTimer.wanted = NO;
-    [self updateScrollLinkState];
-    [_audioSession deactivateWhenIdle];
-    [self updatePlayButton];
-    [self updatePlaybackUI];
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track {
-    // A resume from a media-reset (or interrupted-load) park goes through
-    // playPause directly, never playCurrentTrack, so the flag clears here.
-    _parked = NO;
-    _updateTimer.wanted = YES;
-    [self updateScrollLinkState];
-    [self updatePlayButton];
-    [self updatePlaybackUI];
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {
-    _seekInFlight = NO;
-    [self updatePlaybackUI];
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track {
-    // A natural end can be delivered just as the playlist is replaced —
-    // folderSession:didOpenTracks: replaces and plays without stopping the
-    // player first — and advancing then skips past the track the user just
-    // picked. Same guard as the mac's MainPlayerController+PlayerEvents.
-    if (track && ![_playlist isCurrentTrack:track]) {
-        return;
-    }
-    if ([_playlist next]) {
-        [self playCurrentTrack];
-        return;
-    }
-    // End of playlist: park on the last track, ready to replay.
-    _parked = YES;
-    _updateTimer.wanted = NO;
-    [self updateScrollLinkState];
-    [_audioSession deactivateWhenIdle];
-    _waveformView.progress = 0;
-    [self updatePlayButton];
-    [self updatePlaybackUI];
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer
-    didAutoAdvanceFromTrack:(AudioTrack *)finishedTrack
-                    toTrack:(AudioTrack *)startedTrack {
-    // The player spliced into the pre-scheduled next track; audio never
-    // stopped. This handler's job is the bookkeeping half of an auto-advance:
-    // move the playlist cursor and run the per-track refresh, without play:.
-    // A boundary that raced a track change belongs to the operation that
-    // superseded it.
-    if (![_playlist isCurrentTrack:finishedTrack]) {
-        return;
-    }
-    // The playlist owns what "next" means. If its next row is no longer the
-    // track the player spliced into — a replace raced the boundary —
-    // correctness beats gaplessness: treat it as an ordinary track end, whose
-    // play replaces the spliced audio with the real successor.
-    if (startedTrack != [_playlist trackAtIndex:_playlist.currentIndex + 1]) {
-        [self audioPlayer:audioPlayer didFinishPlaying:finishedTrack];
-        return;
-    }
-    [_playlist next];
-    [self scrollToCurrentPageAnimated:YES];
-    [self requestWaveformForIndex:_playlist.currentIndex];
-    [_waveformPipeline pruneAroundIndex:_playlist.currentIndex];
-    // The rest of the per-track refresh — header, metadata, prefetch of the
-    // new next (which re-arms the splice), Now Playing — is exactly
-    // didStartPlaying:'s body, and its identity guard now passes.
-    [self audioPlayer:audioPlayer didStartPlaying:startedTrack];
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceID {
-    // macOS-only path; never sent on iOS.
-}
-
-- (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
-    NSURL *url = error.userInfo[kVibeAudioErrorTrackURLKey];
-    AudioTrack *current = _playlist.currentTrack;
-    if (url && current && ![url isEqual:current.url]) {
-        return;  // a stale delivery racing a track change
-    }
-    _errorText = VibeStatusForPlayError(error);
-    _seekInFlight = NO;
-    _trackStartPending = NO;
-    [_downloadMonitor cancel];
-    _downloadMonitor = nil;
-    [_waveformView hideLoadingIndicator];
-    if (current) {
-        [self renderHeaderForTrack:current];
-    }
-    _updateTimer.wanted = NO;
-    [self updateScrollLinkState];
-    [_audioSession deactivateWhenIdle];
-    [self updatePlayButton];
-    [self publishNowPlaying];
-}
-
 #pragma mark - PlaylistObserver
 
 - (void)playlistDidReplaceAllTracks:(Playlist *)playlist {
+    // The art window's indexes name tracks that are gone.
+    [_artHeldPages removeAllIndexes];
     _trackListController.folderName = _folderSession.folderDisplayName;
     [_trackListController reloadAll];
     [_searchController reloadAll];
@@ -1157,114 +690,13 @@ static const NSUInteger kUIUpdateHz = 3;
     [_trackListController reloadTrackAtIndex:index];
 }
 
+// No art discard here: the departing track is usually the page right beside
+// the arriving one, and releasing its decode on every commit made a swipe back
+// re-read and re-decode the file. The art window owns retention now, and
+// renderHeaderForTrack: moves it.
 - (void)playlist:(Playlist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {
-    if (previousIndex != playlist.currentIndex) {
-        // Only the current track holds decoded full-res art; the thumbnail
-        // stays and the on-demand load re-arms if the track comes back.
-        [[playlist trackAtIndex:previousIndex].metadata discardDecodedArt];
-    }
     [_trackListController reloadTrackAtIndex:previousIndex];
     [_trackListController reloadTrackAtIndex:playlist.currentIndex];
-}
-
-#pragma mark - AudioTrackMetadataCacheDelegate
-
-- (void)didLoadMetadata:(AudioTrack *)track {
-    NSInteger row = [_playlist getIndexForTrack:track];
-    if (row >= 0) {
-        [_trackListController reloadTrackAtIndex:(NSUInteger)row];
-        [self refreshPageAtIndex:(NSUInteger)row];
-    }
-    if ([_playlist isCurrentTrack:track]) {
-        // The full refresh, not just the publish: a parked track's time
-        // labels render from this delivery's duration.
-        [self updatePlaybackUI];
-    }
-}
-
-#pragma mark - PageWaveformPipelineDelegate
-
-- (void)pageWaveformPipeline:(PageWaveformPipeline *)pipeline
-           didUpdateWaveform:(CodableAudioWaveform *)waveform
-                    forIndex:(NSUInteger)index {
-    [[self cellAtIndex:index].waveformView showWaveform:waveform];
-}
-
-// The mac's late-delivery and duplicate-row contract: the value is valid for
-// every row owning this URL, so stamp them all. Matching only the CURRENT
-// track dropped a neighbor preview's delivery, and the commit's skip-reload
-// path never re-fires it — that track then had no BPM/key for the session.
-- (void)pageWaveformPipeline:(PageWaveformPipeline *)pipeline
-                didDetectBPM:(float)bpm
-                      forURL:(NSURL *)url {
-    [[_playlist indexesOfTracksWithURL:url]
-            enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
-        [self->_playlist trackAtIndex:index].detectedBPM = bpm;
-    }];
-}
-
-- (void)pageWaveformPipeline:(PageWaveformPipeline *)pipeline
-                didDetectKey:(NSInteger)key
-                      forURL:(NSURL *)url {
-    [[_playlist indexesOfTracksWithURL:url]
-            enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
-        [self->_playlist trackAtIndex:index].detectedKey = (VibeMusicalKey)key;
-    }];
-}
-
-#pragma mark - WaveformScrubberViewDelegate
-
-- (void)waveformScrubberView:(WaveformScrubberView *)view didSeek:(float)percentage {
-    if (view != _waveformView) {
-        return;  // a neighbor page's preview waveform does not drive the player
-    }
-    NSTimeInterval duration = _player.duration;
-    if (duration > 0) {
-        _pendingSeekProgress = percentage;
-        _seekInFlight = YES;
-        [_player seekToPosition:duration * percentage];
-    }
-    else if (_parked) {
-        [self playCurrentTrack];
-    }
-}
-
-#pragma mark - NowPlayingControllerDelegate
-
-- (void)nowPlayingControllerPlay:(NowPlayingController *)controller {
-    if (!_player.isPlaying) {
-        [self playPauseTapped];
-    }
-}
-
-- (void)nowPlayingControllerPause:(NowPlayingController *)controller {
-    // Through the funnel, not [_player playPause] directly: the guard puts it
-    // on the same branch either way today, and this keeps it there when the
-    // funnel grows.
-    if (_player.isPlaying) {
-        [self playPauseTapped];
-    }
-}
-
-- (void)nowPlayingControllerTogglePlayPause:(NowPlayingController *)controller {
-    [self playPauseTapped];
-}
-
-- (void)nowPlayingControllerNextTrack:(NowPlayingController *)controller {
-    [self nextTapped];
-}
-
-- (void)nowPlayingControllerPreviousTrack:(NowPlayingController *)controller {
-    if ([_playlist previous]) {
-        [self playCurrentTrack];
-    }
-    else {
-        [_player seekToPosition:0];
-    }
-}
-
-- (void)nowPlayingController:(NowPlayingController *)controller seekToPosition:(NSTimeInterval)position {
-    [_player seekToPosition:position];
 }
 
 #pragma mark - AudioSessionControllerDelegate
@@ -1314,156 +746,3 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 @end
-
-#if DEBUG
-
-#pragma mark - Debug command surface
-
-// In the class's own file so the category reads the ivars directly; the verbs
-// live in DebugCommands.m.
-
-@implementation PlayerViewController (Debug)
-
-- (NSDictionary *)debugStateDictionary {
-    AudioTrack *track = _playlist.currentTrack;
-    NSMutableArray<NSString *> *files = [NSMutableArray array];
-    for (AudioTrack *t in _playlist.tracks) {
-        if (files.count == 100) {
-            [files addObject:[NSString stringWithFormat:@"… %lu more",
-                    (unsigned long)(_playlist.count - 100)]];
-            break;
-        }
-        [files addObject:t.url.lastPathComponent ?: @""];
-    }
-    return @{
-        @"player": @{
-            @"state": _player.isPlaying ? @"playing" : (_player.isPaused ? @"paused" : @"stopped"),
-            @"position": @(_player.position),
-            @"duration": @(_player.duration),
-            @"numChannels": @(_player.numChannels),
-            @"gaplessArmed": @(_player.isGaplessArmed),
-            @"silent": @([NSProcessInfo.processInfo.arguments containsObject:@"--silent"]),
-            @"noAudioHw": @([NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"]),
-        },
-        @"currentTrack": track ? @{
-            @"url": track.url.path ?: @"",
-            @"title": track.title ?: @"",
-            @"artist": track.artist ?: @"",
-            @"bpm": @(track.bpm),
-            // The resolved key (tag over analysis); empty strings when unknown.
-            @"key": VibeMusicalKeyMusicalName(track.key),
-            @"camelot": VibeMusicalKeyCamelotName(track.key),
-        } : (id)NSNull.null,
-        @"playlist": @{
-            @"count": @(_playlist.count),
-            @"currentIndex": @(_playlist.currentIndex),
-            @"files": files,
-        },
-        @"ui": @{
-            @"elapsed": _elapsedLabel.text ?: @"",
-            @"remaining": _remainingLabel.text ?: @"",
-            @"emptyHintShown": @(!_emptyHintLabel.isHidden),
-            @"transportShown": @(_playPauseButton.alpha > 0),
-            @"waveformProgress": @(_waveformView.progress),
-            @"waveformBaked": @(_waveformView.isShowingBakedWaveform),
-            @"isScrubbing": @(_waveformView.isScrubbing),
-            @"parked": @(_parked),
-            @"trackStartPending": @(_trackStartPending),
-            @"foreground": @(_foreground),
-            @"error": _errorText ?: @"",
-        },
-        @"settings": @{
-            @"waveformStyle": Settings.waveformStyle ?: @"",
-            @"analyzeBPM": @(Settings.analyzeBPM),
-            @"analyzeKey": @(Settings.analyzeKey),
-        },
-    };
-}
-
-- (NSDictionary *)debugActionSummary {
-    return @{
-        @"ok": @YES,
-        @"state": _player.isPlaying ? @"playing" : (_player.isPaused ? @"paused" : @"stopped"),
-        @"index": @(_playlist.currentIndex),
-        @"count": @(_playlist.count),
-        @"position": @(_player.position),
-        @"parked": @(_parked),
-    };
-}
-
-- (void)debugPlayPause {
-    [self playPauseTapped];
-}
-
-- (void)debugNext {
-    [self nextTapped];
-}
-
-- (void)debugPrevious {
-    if ([_playlist previous]) {
-        [self playCurrentTrack];
-    }
-}
-
-- (void)debugSeekToSeconds:(NSTimeInterval)seconds {
-    NSTimeInterval duration = _player.duration;
-    if (duration > 0) {
-        float p = (float)MAX(0.0, MIN(1.0, seconds / duration));
-        [self waveformScrubberView:_waveformView didSeek:p];
-    }
-}
-
-- (void)debugOpenPath:(NSString *)path {
-    [_folderSession openExternalURL:[NSURL fileURLWithPath:path] openInPlace:YES];
-}
-
-- (AudioTrackMetadataCache *)debugMetadataCache {
-    return _metadataCache;
-}
-
-- (AudioWaveformCache *)debugWaveformCache {
-    return _waveformCache;
-}
-
-#pragma mark What the shared invariant checks read
-
-- (AudioPlayer *)debugPlayer {
-    return _player;
-}
-
-- (NSUInteger)debugPlaylistCount {
-    return _playlist.count;
-}
-
-- (NSUInteger)debugPlaylistCurrentIndex {
-    return _playlist.currentIndex;
-}
-
-- (AudioTrack *)debugPlaylistCurrentTrack {
-    return _playlist.currentTrack;
-}
-
-- (AudioTrack *)debugPlaylistTrackAtIndex:(NSUInteger)index {
-    return [_playlist trackAtIndex:index];
-}
-
-// The same resolution the Now Playing publish uses, so the two cannot
-// disagree about which track the screen is showing.
-- (AudioTrack *)debugDisplayedTrack {
-    return (_parked || _trackStartPending || _player.currentTrack)
-            ? _playlist.currentTrack : nil;
-}
-
-- (BOOL)debugIsLoading {
-    return _trackStartPending;
-}
-
-// No pitch control on iOS, so the varispeed never leaves 1.0 — the same
-// constant the Now Playing publish sends.
-- (double)debugPlaybackRate {
-    return 1.0;
-}
-
-@end
-
-#endif

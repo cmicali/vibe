@@ -23,7 +23,6 @@
 #import "FolderArtResolver.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
-#import <sys/sysctl.h>
 
 #if DEBUG
 #import "DebugUtil.h"
@@ -122,7 +121,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
     LogInfo(@"     _ _          \n__ _(_) |__  ___  \n\\ V / | '_ \\/ -_) \n \\_/|_|_.__/\\___| \n\n");
     LogInfo(@"Vibe %@ started", NSBundle.mainBundle.vibeVersionString);
-    [self logBuildInfo];
+    VibeLogBuildProvenance();
 
     [[AppSettings sharedInstance] applicationDidFinishLaunching];
 
@@ -149,27 +148,6 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
             [self.mainPlayerController revealEmptyState];
         }
     }];
-}
-
-// Everything known about how this binary was built, plus the OS it landed on,
-// so that a log excerpt identifies the build it came from without guesswork.
-- (void)logBuildInfo {
-    NSBundle *bundle = NSBundle.mainBundle;
-    LogInfo(@"    Source: %@", bundle.vibeGitString);
-    LogInfo(@"     Built: %@", bundle.vibeBuildTimeString);
-#if SHOW_EXTENDED_BUILD_INFO
-    LogInfo(@"Compiler:  %@", bundle.vibeCompilerString);
-    LogInfo(@"Flags:     %@", bundle.vibeBuildFlagsString);
-    LogInfo(@"Toolchain: %@", bundle.vibeToolchainString);
-    // operatingSystemVersionString is documented as unsuitable for parsing,
-    // and reads "Version 26.5.1 (Build 25F80)", so the version comes from the
-    // struct and the build from sysctl.
-    NSOperatingSystemVersion os = NSProcessInfo.processInfo.operatingSystemVersion;
-    char osBuild[32] = "?";
-    size_t osBuildSize = sizeof(osBuild);
-    sysctlbyname("kern.osversion", osBuild, &osBuildSize, NULL, 0);
-    LogInfo(@"Host:      macOS %ld.%ld.%ld (%s)", os.majorVersion, os.minorVersion, os.patchVersion, osBuild);
-#endif
 }
 
 // Opens file and directory paths passed as command-line arguments, as in:

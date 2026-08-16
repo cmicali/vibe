@@ -235,14 +235,17 @@ static NSTextField *makeCellTextField(NSRect frame) {
 
 + (NSAttributedString *)titleCellStringForTrack:(AudioTrack *)track {
     ensureCellAttributes();
-    if (track.hasArtistAndTitle) {
-        NSMutableAttributedString *s = [[NSMutableAttributedString alloc] initWithString:[track.title stringByAppendingString:@" "]
-                                                                              attributes:titleAttributes];
-        [s appendAttributedString:[[NSAttributedString alloc] initWithString:track.artist
+    NSString *artist = track.displayArtist;
+    if (artist) {
+        NSMutableAttributedString *s = [[NSMutableAttributedString alloc]
+                initWithString:[track.displayTitle stringByAppendingString:@" "]
+                    attributes:titleAttributes];
+        [s appendAttributedString:[[NSAttributedString alloc] initWithString:artist
                                                                   attributes:artistAttributes]];
         return s;
     }
-    return [[NSAttributedString alloc] initWithString:track.singleLineTitle
+    // No pair: displayTitle already carries everything known about the name.
+    return [[NSAttributedString alloc] initWithString:track.displayTitle
                                            attributes:artistAttributes];
 }
 

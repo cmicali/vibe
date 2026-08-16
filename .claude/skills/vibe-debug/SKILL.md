@@ -81,6 +81,7 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" dump_state          # {player, currentTrack, playlist, ui, settings} — ui includes waveformProgress, isScrubbing, parked, foreground
 "$S" dump_now_playing    # {hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — the mac verb minus playbackState (macOS-only)
 "$S" dump_view_tree      # {windows: [{class, frame, keyWindow, rootViewController, contentView: {…, subviews}}]} — UILabel text and button labels included
+"$S" dump_art            # {currentIndex, window, held, pages: [{index, title, metadata, art, needsLoad, loading, inWindow, cellUp}]} — the pager's art window: which pages are fetched ahead, which hold decoded art, and what each has. The ONLY way to tell "not decoded yet" from "this track has no art" — on screen both are the vinyl placeholder. `held` past the budget, or a page landing with art:false, is the prefetch failing to keep up
 "$S" dump_screenshot     # {ok, path, pointWidth, pointHeight, scale} — in-process render written into the container; the HOST can read the path directly (no TCC)
 "$S" play_pause          # compact {ok, state, index, count, position, parked} summary; also: next, previous
 "$S" seek 90             # seconds; routes through the scrubber's didSeek path, so the seek-in-flight guard behaves as a real drag release

@@ -4,7 +4,7 @@ Code with **no feature**. That is the entire admission test, and it is stricter 
 
 What passes the test: the portable `NS*` categories (`Categories/`), the display formatters (`Formatters`), the occlusion-gated playback ticker (`UIUpdateTimer` — two gates and a rate, with no knowledge of the window or the player that set them, which is why both platforms' screens drive it), the prefix header's small change (`HelperMacros.h` — control-state and main-thread shorthands, `clampMin`; it reaches every translation unit through the `.pch`, so anything added there is paid for everywhere), `VibeWeakProxy` (a Foundation-only forwarding proxy that breaks the retain cycle a `CADisplayLink` or `NSTimer` target creates; shared because the class is platform-free, though only iOS aims one at anything today), and the URL walking below.
 
-**`Mac/` is the AppKit half** — the app's typography (`Fonts`), the one window-chrome timing every window the app resizes shares (`WindowAnimation.h`), the single-track commands (`TrackCommands`, which reveal in Finder and write the pasteboard), and the categories on AppKit classes. **`iOS/` is the UIKit half** — `UIView+DarkMode`, the mirror of `Mac/`'s `NSView+DarkMode`. Neither target names the other's subdirectory, which is the whole of how each is kept out; see the root `CLAUDE.md` on the directory being the platform boundary.
+**`Mac/` is the AppKit half** — the app's typography (`Fonts`), the one window-chrome timing every window the app resizes shares (`WindowAnimation.h`), the single-track commands (`TrackCommands`, which reveal in Finder and write the pasteboard), and the categories on AppKit classes. **`iOS/` is the UIKit half** — `UIView+DarkMode`, the mirror of `Mac/`'s `NSView+DarkMode`, and `UIImage+Blur`, which bakes a blurred, darkened backdrop out of an image (the track pager's art) because a `UIVisualEffectView` cannot be told to stop recomputing one that never changes. Neither target names the other's subdirectory, which is the whole of how each is kept out; see the root `CLAUDE.md` on the directory being the platform boundary.
 
 ## NSURLUtil is the disk walk, and it stays ignorant on purpose
 
@@ -16,6 +16,8 @@ What passes the test: the portable `NS*` categories (`Categories/`), the display
 The indirection is not portability, even though this directory is now shared with iOS. It is that a walk which called an app singleton behind a user setting, a sandbox grant and a modal panel could not be exercised in a test, and this one is, including a fuzz suite. **Unset handlers mean the walk still works and simply throws the extra facts away**, which is exactly what the tests install.
 
 So the rule is narrower than "imports nothing from a feature", and worth stating exactly, because two imports here look like violations and are not: **what `Util/` may not call is anything stateful** — a singleton, a setting, a grant, a panel. Stateless code is fair game wherever it lives, so `NSURLUtil.m` imports `PlaylistFile` (a `+`-only CUE/M3U parser, itself unit- and fuzz-tested) and `FolderArtRules.h` (`static inline` decisions, no linkage) directly. Neither can make the walk untestable, which is the property the handlers exist to protect.
+
+`NSBundle+BuildInfo` also vends **`VibeLogBuildProvenance()`**, the launch banner both app delegates print, so a log excerpt identifies its build the same way on either platform rather than through two hand-rolled copies that had already diverged.
 
 ## Categories
 

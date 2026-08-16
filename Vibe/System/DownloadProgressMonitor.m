@@ -43,6 +43,21 @@ static void *kFractionContext = &kFractionContext;
     return self;
 }
 
++ (instancetype)monitorReplacing:(DownloadProgressMonitor *)existing
+                          forURL:(NSURL *)url
+                      currentURL:(NSURL *_Nullable (^)(void))currentURL
+                         handler:(void (^)(float fraction))handler {
+    [existing cancel];
+    DownloadProgressMonitor *monitor = [[DownloadProgressMonitor alloc] initWithURL:url];
+    NSURL *wanted = [url copy];
+    [monitor startWithHandler:^(float fraction) {
+        if ([currentURL() isEqual:wanted]) {
+            handler(fraction);
+        }
+    }];
+    return monitor;
+}
+
 - (void)startWithHandler:(void (^)(float))handler {
     _handler = [handler copy];
     _startedAt = CFAbsoluteTimeGetCurrent();

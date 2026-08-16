@@ -156,6 +156,14 @@
     return self.artist.length > 0 && self.metadata.title.length > 0;
 }
 
+- (NSString *)displayTitle {
+    return self.hasArtistAndTitle ? self.title : self.singleLineTitle;
+}
+
+- (NSString *)displayArtist {
+    return self.hasArtistAndTitle ? self.artist : nil;
+}
+
 - (NSString *)singleLineTitle {
     if (self.hasArtistAndTitle) {
         // Positional specifiers: a translation may want the title first.

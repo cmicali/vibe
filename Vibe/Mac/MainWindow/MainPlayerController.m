@@ -124,6 +124,12 @@
     // deliveries: waveform snapshots to the view, BPM to the label.
     self.waveformCache = [[AudioWaveformCache alloc] init];
     self.waveformCache.delegate = self;
+    // Asked once per decode, so Settings > Playback and the debug channel's
+    // set_analysis both land on the next load with nothing to republish. iOS
+    // installs no provider: it never analyzes.
+    self.waveformCache.analysisProvider = ^VibeWaveformAnalysis{
+        return (VibeWaveformAnalysis){Settings.analyzeBPM, Settings.analyzeKey};
+    };
 
     self.fileConverter = [[AudioFileConverter alloc] init];
 

@@ -75,6 +75,15 @@ NS_ASSUME_NONNULL_BEGIN
 // size, identity and count untouched but re-snaps settled pixel rounding.
 - (void)rebuildNow;
 
+// Lands the in-flight morph on its target NOW, in one rebuild, instead of
+// easing there over ~0.2s. For content whose ease nobody can see but whose
+// per-frame rebuilds everybody pays for — a pager cell recycled or scrolled
+// into view. Every morph frame is a full-view repaint (for the Detailed family
+// a 4,096-rect path rebuilt and re-rasterized as a mask), so a couple of cells
+// easing at once is enough to blow a scroll's frame budget. A no-op when
+// already settled on the target.
+- (void)settleImmediately;
+
 // For the rebuild callback. settled is YES when no morph is running, and the
 // Detailed family pixel-rounds only then: mid-morph it would quantize the
 // motion into visible one-pixel steps.

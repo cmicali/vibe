@@ -20,6 +20,8 @@
 #import "AudioWaveformCache+Debug.h"
 #import "AudioLoadTiming.h"
 #import "MusicalKey.h"
+#import "AudioPlayer.h"
+#import "AudioTrack.h"
 
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
@@ -34,6 +36,61 @@ static NSDictionary *VibeTransportCmd(NSString *usage,
         action(surface);
         return VibeJSONString(surface.debugActionSummary);
     });
+}
+
+NSString *VibeDebugPlayerStateName(AudioPlayer *player) {
+    if (player.isPlaying) {
+        return @"playing";
+    }
+    return player.isPaused ? @"paused" : @"stopped";
+}
+
+// How many filenames dump_state lists before it summarises the rest. A big
+// folder would otherwise put tens of thousands of names through the channel.
+static const NSUInteger kMaxListedFiles = 100;
+
+NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> surface) {
+    AudioPlayer *player = surface.debugPlayer;
+    AudioTrack *track = surface.debugPlaylistCurrentTrack;
+    NSUInteger count = surface.debugPlaylistCount;
+
+    NSMutableArray<NSString *> *files = [NSMutableArray array];
+    for (NSUInteger i = 0; i < count; i++) {
+        if (files.count == kMaxListedFiles) {
+            [files addObject:[NSString stringWithFormat:@"… %lu more",
+                    (unsigned long)(count - kMaxListedFiles)]];
+            break;
+        }
+        [files addObject:[surface debugPlaylistTrackAtIndex:i].url.lastPathComponent ?: @""];
+    }
+
+    NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
+    return [@{
+        @"player": [@{
+            @"state": VibeDebugPlayerStateName(player),
+            @"position": @(player.position),
+            @"duration": @(player.duration),
+            @"numChannels": @(player.numChannels),
+            @"gaplessArmed": @(player.isGaplessArmed),
+            @"silent": @([arguments containsObject:@"--silent"]),
+            @"noAudioHw": @([arguments containsObject:@"--no-audio-hw"]),
+        } mutableCopy],
+        @"currentTrack": track ? [@{
+            @"url": track.url.path ?: @"",
+            @"title": track.title ?: @"",
+            @"artist": track.artist ?: @"",
+            // The resolved values (tag over analysis); the key strings are
+            // empty when unknown, and the BPM 0.
+            @"bpm": @(track.bpm),
+            @"key": VibeMusicalKeyMusicalName(track.key),
+            @"camelot": VibeMusicalKeyCamelotName(track.key),
+        } mutableCopy] : (id)NSNull.null,
+        @"playlist": [@{
+            @"count": @(count),
+            @"currentIndex": @(surface.debugPlaylistCurrentIndex),
+            @"files": files,
+        } mutableCopy],
+    } mutableCopy];
 }
 
 NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {

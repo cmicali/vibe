@@ -8,6 +8,12 @@
 // The build identity, for the About window and the startup log. Everything
 // here is already in the binary — compile-time macros, plus the DT* keys Xcode
 // injects into Info.plist — so nothing has to be plumbed through the build.
+// The launch banner both app delegates print, so a log excerpt identifies the
+// build it came from the same way on either platform. Source and build time
+// always; the compiler, flags, toolchain and host only under
+// SHOW_EXTENDED_BUILD_INFO, which is where the expensive sysctl lives.
+void VibeLogBuildProvenance(void);
+
 @interface NSBundle (BuildInfo)
 
 // "1.5 (15) · Debug": CFBundleShortVersionString, CFBundleVersion, config.

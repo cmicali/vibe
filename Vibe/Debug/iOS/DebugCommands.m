@@ -145,6 +145,9 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             VibeCmd(@"dump_screenshot", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlayerViewController *controller) {
                 return VibeScreenshotJSON(commandId);
             }),
+            VibeCmd(@"dump_art", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlayerViewController *controller) {
+                return VibeJSONString([controller debugArtDictionary]);
+            }),
         ];
     });
     return table;

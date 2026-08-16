@@ -214,10 +214,15 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 // JPEG, plus the scalar fields. The art bytes are deliberately not archived,
 // because at their original sizes they blow the cache's byte limit and turn
 // every launch into a full TagLib re-parse of the library.
+//
+// hasEmbeddedArt is archived separately from the thumbnail because iOS writes
+// no thumbnail at all (AudioTrackArtwork), and without it every cache hit there
+// would read as artless and never load its art.
 - (void)encodeWithCoder:(NSCoder *)coder {
     [coder encodeObject:self.title forKey:@"title"];
     [coder encodeObject:self.artist forKey:@"artist"];
     [coder encodeObject:[self thumbnailJPEGData] forKey:@"thumbnailJPEG"];
+    [coder encodeBool:self.artwork.hasEmbeddedArt forKey:@"hasEmbeddedArt"];
     [coder encodeObject:self.artwork.sourceFilePath forKey:@"sourceFilePath"];
     [coder encodeObject:self.fileType forKey:@"fileType"];
     [coder encodeObject:self.bitrate forKey:@"bitrate"];
@@ -258,11 +263,13 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
         if (sampleRate && ![sampleRate isKindOfClass:[NSNumber class]]) return nil;
         self.title = title;
         self.artist = artist;
-        // This decodes the thumbnail at a bounded size and derives the
-        // extraction-attempted flag; see adoptArchivedThumbnailJPEG:.
         self.artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:sourceFilePath
                                                                extractor:VibeTagLibArtExtractor()];
-        [self.artwork adoptArchivedThumbnailJPEG:thumbnailJPEG];
+        // Entries written before the flag existed carry no key, which decodes
+        // as NO; there a thumbnail is still the proof that the file has art,
+        // exactly as it used to be. Both platforms read both forms.
+        BOOL hasEmbeddedArt = [coder decodeBoolForKey:@"hasEmbeddedArt"] || thumbnailJPEG != nil;
+        [self.artwork adoptArchivedThumbnailJPEG:thumbnailJPEG hasEmbeddedArt:hasEmbeddedArt];
         self.fileType = fileType;
         self.bitrate = bitrate;
         self.sampleRate = sampleRate;

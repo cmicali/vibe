@@ -7,7 +7,7 @@
 #import <XCTest/XCTest.h>
 
 #import "AudioTrack.h"
-#import "TrackDisplayController.h"
+#import "TrackDisplayRules.h"
 
 @interface TrackDisplayStateTests : XCTestCase
 @end

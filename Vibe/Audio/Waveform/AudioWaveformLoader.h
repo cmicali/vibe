@@ -13,9 +13,30 @@ NS_ASSUME_NONNULL_BEGIN
 @class CodableAudioWaveform;
 @protocol AudioWaveformLoaderDelegate;
 
+// Which analyzers the decode pass should run, since both ride it (see
+// AVFAudioWaveformLoader). It is a provider rather than a stored pair because
+// it is asked once per load: a settings change then applies to the next decode
+// with nobody having to republish it, which is how the two flags behaved when
+// the loader read them itself. Same shape as FolderArtResolver's enabled
+// provider, and for the same reason — this layer must not reach up into a
+// settings singleton it cannot be tested without.
+//
+// UNSET MEANS NEITHER RUNS. That is what the iOS app installs: it does not
+// analyze, so it never reads the macOS-only analysis settings. It is also what
+// the tests get, which keeps a decode under test off the analyzers.
+typedef struct {
+    BOOL bpm;
+    BOOL key;
+} VibeWaveformAnalysis;
+
+typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
+
 @interface AudioWaveformLoader : NSObject
 
 @property (nullable, weak) id <AudioWaveformLoaderDelegate> delegate;
+
+// Asked once per load:, on whatever queue the decode runs on.
+@property (nullable, copy) VibeWaveformAnalysisProvider analysisProvider;
 
 - (instancetype)initWithDelegate:(id <AudioWaveformLoaderDelegate>)delegate;
 

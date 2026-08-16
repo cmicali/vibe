@@ -91,6 +91,11 @@ jobs:
   # (CLANG_ANALYZER_NONNULL, CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION); this job
   # is what makes them a gate rather than a setting nobody ran.
   #
+  # It covers BOTH app targets. It used to be the macOS one alone, which left
+  # Vibe/iOS and the iOS halves of the shared subsystems — a few thousand lines
+  # — analyzed by nothing; the iOS leg found two real findings the first time
+  # it ran.
+  #
   # A job of its own, and Release: it is a full analyzing build, so hanging it
   # off the build matrix would double that matrix's cost, and the findings are
   # not config-independent — the one this job was written against showed up in
@@ -103,7 +108,9 @@ jobs:
 
       - uses: ./.github/actions/setup-xcodegen
 
-      - name: Static analyzer
+      # Both schemes; scripts/analyze.sh runs the iOS leg against a generic
+      # simulator destination, so nothing has to be booted.
+      - name: Static analyzer (Vibe and VibeiOS)
         run: make analyze CONFIG=Release
 
   # Compile coverage for the shared subset against the iOS SDK. One

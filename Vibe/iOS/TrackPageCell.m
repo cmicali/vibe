@@ -5,6 +5,7 @@
 
 #import "TrackPageCell.h"
 #import "TrackPageGeometry.h"
+#import "UIImage+Blur.h"
 #import "VibeStrings.h"
 #import "WaveformScrubberView.h"
 
@@ -27,8 +28,13 @@ static const CGFloat kCellHeaderGapLandscape = 16;   // art trailing → header 
 static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
 
 @implementation TrackPageCell {
-    UIImageView        *_artView;
-    UIVisualEffectView *_blurView;
+    // The page's backdrop: the artwork blurred and darkened ONCE, into an
+    // ordinary image (UIImage+Blur), rather than an art view under a
+    // full-screen UIVisualEffectView. The effect view's blur is a live
+    // backdrop filter — recomputed every frame anything behind it moves, which
+    // during a swipe is two full-screen blurs per frame — and it was recomputing
+    // a picture that never changes.
+    UIImageView        *_backdropView;
     UIView             *_artCard;         // shadow host; the image view clips
     UIImageView        *_artCardView;
     UILabel            *_artistLabel;
@@ -53,16 +59,14 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
     if (self) {
         UIView *content = self.contentView;
 
-        _artView = [[UIImageView alloc] init];
-        _artView.contentMode = UIViewContentModeScaleAspectFill;
-        _artView.clipsToBounds = YES;
-        _artView.translatesAutoresizingMaskIntoConstraints = NO;
-        [content addSubview:_artView];
-
-        _blurView = [[UIVisualEffectView alloc] initWithEffect:
-                [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterialDark]];
-        _blurView.translatesAutoresizingMaskIntoConstraints = NO;
-        [content addSubview:_blurView];
+        _backdropView = [[UIImageView alloc] init];
+        _backdropView.contentMode = UIViewContentModeScaleAspectFill;
+        _backdropView.clipsToBounds = YES;
+        // The bake is a few dozen pixels across and is magnified to the whole
+        // screen; trilinear keeps that magnification smooth instead of faceted.
+        _backdropView.layer.magnificationFilter = kCAFilterTrilinear;
+        _backdropView.translatesAutoresizingMaskIntoConstraints = NO;
+        [content addSubview:_backdropView];
 
         // The Apple Music now-playing card: rounded art on a large soft
         // shadow. The shadow lives on the container (masksToBounds off), the
@@ -147,6 +151,12 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         _playPauseButton.layer.shadowOpacity = 0.5;
         _playPauseButton.layer.shadowRadius = 8;
         _playPauseButton.layer.shadowOffset = CGSizeMake(0, 2);
+        // The shadow follows the glyph's alpha, so it cannot be given a
+        // shadowPath — a rect would put a block behind the triangle. Without
+        // one the layer re-renders offscreen every composited frame, so cache
+        // the result instead: it changes only when the glyph does, and the
+        // fade between states applies to the cached bitmap.
+        _playPauseButton.layer.shouldRasterize = YES;
         _playPauseButton.translatesAutoresizingMaskIntoConstraints = NO;
         [content addSubview:_playPauseButton];
         [self setGlyphPlaying:NO];
@@ -159,14 +169,10 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
                 forAxis:UILayoutConstraintAxisHorizontal];
 
         [NSLayoutConstraint activateConstraints:@[
-            [_artView.topAnchor constraintEqualToAnchor:content.topAnchor],
-            [_artView.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
-            [_artView.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
-            [_artView.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
-            [_blurView.topAnchor constraintEqualToAnchor:content.topAnchor],
-            [_blurView.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
-            [_blurView.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
-            [_blurView.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
+            [_backdropView.topAnchor constraintEqualToAnchor:content.topAnchor],
+            [_backdropView.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
+            [_backdropView.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+            [_backdropView.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
 
             [_artCardView.topAnchor constraintEqualToAnchor:_artCard.topAnchor],
             [_artCardView.bottomAnchor constraintEqualToAnchor:_artCard.bottomAnchor],
@@ -352,6 +358,9 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
     _artCard.layer.shadowPath = [UIBezierPath
             bezierPathWithRoundedRect:_artCard.bounds
                          cornerRadius:kArtCornerRadius].CGPath;
+    // Left at the default 1 the cached glyph would draw soft on every Retina
+    // display.
+    _playPauseButton.layer.rasterizationScale = self.traitCollection.displayScale;
 }
 
 - (UILabel *)makeTimeLabel {
@@ -411,8 +420,11 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
     _artistLabel.text = artist;
     _artistLabel.textColor = artistColor;
     _fileInfoLabel.text = fileInfo;
-    _artView.image = art;
+    // The card takes the artwork itself; the backdrop takes its baked blur,
+    // which UIImage+Blur memoizes on the artwork, so a page reconfigured for
+    // the same track pays nothing.
     _artCardView.image = art;
+    _backdropView.image = [art vibeBlurredBackdrop];
 }
 
 @end

@@ -13,10 +13,8 @@
 
 - (BOOL)application:(UIApplication *)application
         didFinishLaunchingWithOptions:(NSDictionary<UIApplicationLaunchOptionsKey, id> *)launchOptions {
-    NSBundle *bundle = NSBundle.mainBundle;
-    LogInfo(@"Vibe %@ starting", bundle.vibeVersionString);
-    LogInfo(@"    Source: %@", bundle.vibeGitString);
-    LogInfo(@"     Built: %@", bundle.vibeBuildTimeString);
+    LogInfo(@"Vibe %@ starting", NSBundle.mainBundle.vibeVersionString);
+    VibeLogBuildProvenance();
     [[AppSettings sharedInstance] applicationDidFinishLaunching];
 #if DEBUG
     VibeiOSInstallDebugCommandHook();

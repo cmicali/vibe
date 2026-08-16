@@ -306,6 +306,10 @@ static const float kWaveformOpacity = 0.75f;
     [_morph dipDisplayedSamplesFromFraction:from toFraction:to];
 }
 
+- (void)settleMorphImmediately {
+    [_morph settleImmediately];
+}
+
 - (void)backingScaleDidChange {
     [_morph rebuildNow];
     // Re-snap the hover column to the new device-pixel grid.

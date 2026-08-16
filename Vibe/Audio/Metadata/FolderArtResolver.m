@@ -88,7 +88,14 @@ static NSString *const kNoArtMarker = @"";
 
 - (instancetype)init {
     return [self initWithEnabledProvider:^BOOL{
+#if TARGET_OS_OSX
         return Settings.useFolderArt;
+#else
+        // Folder art is a macOS feature: AudioTrackArtwork leaves its resolver
+        // handle nil on iOS, so nothing here is reachable — and if that ever
+        // changes, it stays off rather than silently switching on.
+        return NO;
+#endif
     } accessProvider:^BOOL(NSString *directory) {
 #if TARGET_OS_OSX
         return [FolderAccessManager.sharedInstance canReadInsideDirectory:directory];

@@ -1,5 +1,5 @@
 //
-//  PageWaveformPipeline.h
+//  PageWaveformCoordinator.h
 //  Vibe (iOS)
 //
 //  The track pager's waveform bookkeeping, between AudioWaveformCache and
@@ -18,43 +18,59 @@ NS_ASSUME_NONNULL_BEGIN
 @class AudioTrack;
 @class AudioWaveformCache;
 @class CodableAudioWaveform;
-@class PageWaveformPipeline;
+@class PageWaveformCoordinator;
 
 // All on the main thread, like the cache's own delegate deliveries.
-@protocol PageWaveformPipelineDelegate <NSObject>
+@protocol PageWaveformCoordinatorDelegate <NSObject>
 
 // A progress or final delivery for the target page; the snapshot is already
 // recorded, so the receiver only paints.
-- (void)pageWaveformPipeline:(PageWaveformPipeline *)pipeline
+- (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
            didUpdateWaveform:(CodableAudioWaveform *)waveform
                     forIndex:(NSUInteger)index;
 
-// The cache's URL-carrying deliveries, passed through untouched: they are
-// valid for every playlist row owning the URL, current track or not.
-- (void)pageWaveformPipeline:(PageWaveformPipeline *)pipeline
-                didDetectBPM:(float)bpm
-                      forURL:(NSURL *)url;
-- (void)pageWaveformPipeline:(PageWaveformPipeline *)pipeline
-                didDetectKey:(NSInteger)key
-                      forURL:(NSURL *)url;
+// The cache's BPM and key deliveries are deliberately NOT forwarded: tempo
+// and key analysis are macOS-only (the analysis provider is unset here, see
+// AudioWaveformLoader), so nothing on this platform can fire them. A track's
+// bpm and key still resolve from its tags.
 
 @end
 
-@interface PageWaveformPipeline : NSObject
+@interface PageWaveformCoordinator : NSObject
 
 // Takes over the cache's delegate slot for its lifetime.
 - (instancetype)initWithCache:(AudioWaveformCache *)cache
-                     delegate:(id<PageWaveformPipelineDelegate>)delegate;
+                     delegate:(id<PageWaveformCoordinatorDelegate>)delegate;
 
 // The page the one load is pointed at; NSNotFound after a reset. Deliveries
 // land on this index.
 @property (nonatomic, readonly) NSUInteger targetIndex;
 
-// Retargets the single load at a page. An index the pipeline is already
-// pointed at is left ALONE — a load is in flight or has delivered, and
-// restarting it on every cell reload would keep killing the decode so no
-// waveform ever completes. A retargeted-back page with its full snapshot in
-// hand needs no reload at all; hydration shows it.
+// The pager's scroll hold. Held, deliveries are still RECORDED but not
+// forwarded, and requests are dropped rather than issued; releasing forwards
+// whatever arrived meanwhile, and the settle path asks for the page it landed
+// on. Both halves are there because a swipe is the one moment the main thread
+// has nothing to spare:
+//
+//   - a delivery repaints a scrubber, which tears its baked envelope down and
+//     restarts the morph's 60 Hz full-view path rebuilds — and a decode
+//     delivers about ten times a second, so the bake never re-lands and the
+//     expensive live tree is what the whole swipe composites;
+//   - a request cancels the ONE load the cache runs, so a swipe across N pages
+//     cancels N decodes and none of them ever finish — which is why the
+//     stutter is worst on an uncached folder and clears up once everything is
+//     on disk.
+//
+// The cost is that a page pulled into view mid-drag no longer starts its own
+// decode for the preview; it shows the snapshot it has, or the loading line.
+@property (nonatomic, getter=isHeld) BOOL held;
+
+// Retargets the single load at a page. A page it is already pointed at, still
+// holding the same FILE, is left ALONE — a load is in flight or has delivered,
+// and restarting it on every cell reload would keep killing the decode so no
+// waveform ever completes. The file is part of that test, not just the index:
+// the same page can come to hold a different track. A retargeted-back page
+// with its full snapshot in hand needs no reload at all; hydration shows it.
 - (void)requestIndex:(NSUInteger)index track:(nullable AudioTrack *)track;
 
 // Snapshots exist to re-hydrate nearby pages instantly; distant ones reload

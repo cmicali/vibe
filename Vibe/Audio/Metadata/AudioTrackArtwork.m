@@ -12,10 +12,16 @@
 #import "PlatformImage.h"
 
 @implementation AudioTrackArtwork {
+    // Always nil on iOS: the thumbnail is a macOS representation, for the
+    // playlist table's art cells. See the header.
     VibeImage *_embeddedThumbnail;
     VibeImage *_embeddedArt;
     NSData *_embeddedArtData;
     AudioTrackArtworkExtractor _extractor;
+    // The file carries art, in hand or not. Set by a parse that found bytes and
+    // by an archive that recorded the fact, and never cleared by a discard —
+    // the bytes go, the fact does not.
+    BOOL _embeddedArtKnown;
     BOOL _embeddedExtractionAttempted;
     BOOL _embeddedUndecodable;
     NSUInteger _artGeneration;
@@ -27,7 +33,15 @@
     if (self) {
         _sourceFilePath = [sourceFilePath copy];
         _extractor = [extractor copy];
+#if TARGET_OS_OSX
         _folderArt = FolderArtResolver.sharedInstance;
+#else
+        // Folder art is a macOS feature. Left nil, every folder-art accessor
+        // below is a message to nil: no cover image, and no background load
+        // scheduled, so iOS shows a file's embedded art alone and the resolver
+        // is never built.
+        _folderArt = nil;
+#endif
     }
     return self;
 }
@@ -35,26 +49,38 @@
 - (void)adoptParsedArtData:(NSData *)artData {
     @synchronized (self) {
         _embeddedArtData = artData;
+        _embeddedArtKnown = (artData != nil);
         _embeddedExtractionAttempted = YES;
     }
 }
 
-- (void)adoptArchivedThumbnailJPEG:(NSData *)jpegData {
+- (void)adoptArchivedThumbnailJPEG:(NSData *)jpegData
+                    hasEmbeddedArt:(BOOL)hasEmbeddedArt {
+#if TARGET_OS_OSX
     // Decode outside the monitor, per the file's discipline, though in
     // practice this runs during unarchiving, before the object is shared.
     VibeImage *thumbnail = VibeDecodedImageWithData(jpegData, kVibeThumbnailArtDimension);
+#endif
     @synchronized (self) {
+#if TARGET_OS_OSX
         _embeddedThumbnail = thumbnail;
-        // A track with embedded art always produced a thumbnail, so an entry
-        // without one was artless. Mark it attempted, rather than re-reading
-        // the file for art that is not there. Art-bearing entries stay NO, so
-        // the full-resolution image can be re-read on demand.
-        _embeddedExtractionAttempted = (jpegData == nil);
+#endif
+        _embeddedArtKnown = hasEmbeddedArt;
+        // An entry that knows of no art is artless: mark it attempted rather
+        // than re-reading the file for art that is not there. An art-bearing
+        // entry stays NO, so the full-resolution image is re-read on demand.
+        _embeddedExtractionAttempted = !hasEmbeddedArt;
+    }
+}
+
+- (BOOL)hasEmbeddedArt {
+    @synchronized (self) {
+        return _embeddedArtKnown;
     }
 }
 
 - (void)prewarmEmbeddedThumbnail {
-    (void)[self embeddedThumbnail];
+    (void)[self embeddedThumbnail];   // nil, and no decode, on iOS
 }
 
 // The file's own art, or the folder's cover when it has none. Blocking on both
@@ -145,7 +171,12 @@
 // The gate on every folder-art fallback below; the rule itself lives in
 // FolderArtRules.h. Call with the monitor held.
 - (BOOL)knownToCarryNoArtLocked {
-    BOOL hasArtOfItsOwn = _embeddedArt != nil || _embeddedArtData != nil || _embeddedThumbnail != nil;
+    // _embeddedArtKnown covers what the other three cannot: a cache hit, and a
+    // parsed track whose bytes have been discarded, both of which have art
+    // without holding any of it. On iOS it is the only one of the four a
+    // cache hit ever sets, there being no thumbnail.
+    BOOL hasArtOfItsOwn = _embeddedArtKnown || _embeddedArt != nil ||
+                          _embeddedArtData != nil || _embeddedThumbnail != nil;
     return VibeFileIsKnownToCarryNoArt(hasArtOfItsOwn, _embeddedExtractionAttempted,
                                        _embeddedUndecodable);
 }
@@ -260,6 +291,11 @@
 }
 
 - (VibeImage *)embeddedThumbnail {
+#if !TARGET_OS_OSX
+    // iOS keeps no thumbnail: nothing there draws one, and decoding it would be
+    // a second ImageIO pass over art the pager only ever shows full size.
+    return nil;
+#else
     NSData *dataToDecode = nil;
     @synchronized (self) {
         if (_embeddedThumbnail) return _embeddedThumbnail;
@@ -282,6 +318,7 @@
         }
         return _embeddedThumbnail;
     }
+#endif
 }
 
 @end

@@ -8,6 +8,9 @@
 #import "AudioWaveformRenderer.h"
 #import "DetailedAudioWaveformRenderer.h"
 #import "WaveformRendererRegistry.h"
+// The midline height and palette, shared with the mac view.
+#import "WaveformMidline.h"
+#import "WaveformLoadingIndicator.h"
 #import "UIView+DarkMode.h"
 #import "VibeWeakProxy.h"
 #import "AppSettings.h"
@@ -54,10 +57,10 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     NSUInteger              _progressTracker;
     BOOL                    _isScrubbing;
     CGFloat                 _dragStartProgress;
-    CAGradientLayer         *_loadingLayer;
-    // The determinate download fill beneath the shimmer; nil while progress
-    // is unknown.
-    CALayer                 *_loadingProgressLayer;
+    // The loading control, shared with the mac view: its own layers, its
+    // determinate fill and the sweep's traps all live there. Nil when no load
+    // is showing.
+    WaveformLoadingIndicator *_loadingIndicator;
     CALayer                 *_placeholderLayer;
     // The centerline past the track's ends: two hairline segments continuing
     // the waveform's silence baseline across the off-track space — left of
@@ -147,8 +150,7 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 #pragma mark - Renderer lifecycle
 
 - (CGFloat)displayScale {
-    CGFloat scale = self.traitCollection.displayScale;
-    return scale > 0 ? scale : kVibeDefaultBackingScale;
+    return VibeBackingScaleOrDefault(self.traitCollection.displayScale);
 }
 
 // The zoomed content width the renderer draws into; 0 before layout.
@@ -201,6 +203,15 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     [self applyScrollAndProgress];
 }
 
+// The same draw with the morph landed rather than eased. Every presentation
+// reset on this platform is a recycled pager cell being emptied off-screen, so
+// easing 4,096 bars to the midline with nobody watching is pure per-frame cost
+// — and it is charged to the swipe that recycled the cell.
+- (void)drawWaveformSettled {
+    [self drawWaveform];
+    [_renderer settleMorphImmediately];
+}
+
 // Host translation and played-clip width move in one transaction so the
 // played/unplayed boundary sits exactly at the view's center every frame:
 // position.x + progress * virtualWidth == centerX. On the baked fast path the
@@ -227,8 +238,8 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
         _rendererHost.position = origin;
         [_renderer updateProgress:progress waveform:self.waveform.waveform];
     }
-    // The 1pt height and midY placement match the settled hairline's pixel
-    // rows exactly, in both the live tree's flipped space and the bake.
+    // kVibeMidlineHeight and the midY placement match the settled hairline's
+    // pixel rows exactly, in both the live tree's flipped space and the bake.
     CGFloat midY = self.bounds.size.height / 2;
     CGFloat trailingStart = origin.x + virtualWidth;
     CGFloat trailingWidth = self.bounds.size.width - trailingStart;
@@ -236,10 +247,11 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     _leadingBaseline.hidden = !show || origin.x <= 0;
     _trailingBaseline.hidden = !show || trailingWidth <= 0;
     if (!_leadingBaseline.hidden) {
-        _leadingBaseline.frame = CGRectMake(0, midY - 1, origin.x, 1);
+        _leadingBaseline.frame = CGRectMake(0, midY - kVibeMidlineHeight / 2, origin.x, kVibeMidlineHeight);
     }
     if (!_trailingBaseline.hidden) {
-        _trailingBaseline.frame = CGRectMake(trailingStart, midY - 1, trailingWidth, 1);
+        _trailingBaseline.frame = CGRectMake(trailingStart, midY - kVibeMidlineHeight / 2,
+                                             trailingWidth, kVibeMidlineHeight);
     }
     [CATransaction commit];
 }
@@ -299,10 +311,14 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     [self hideEmptyPlaceholder];
     [self resetWaveformContentState];
     [self installRendererIfNeeded];
-    [self drawWaveform];
+    [self drawWaveformSettled];
 }
 
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
+    [self showWaveform:waveform animated:YES];
+}
+
+- (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated {
     // Data arrival is what genuinely ends the shimmer and empty
     // presentations — the audio open landing does not (its decode may still
     // be streaming over the network), so owners no longer hide the line;
@@ -322,8 +338,18 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     // lands once deliveries stop.
     [self teardownBakedWaveform];
     self.waveform = waveform;
-    [self drawWaveform];
-    [self scheduleEnvelopeBake];
+    if (animated) {
+        [self drawWaveform];
+        [self scheduleEnvelopeBakeAfter:kEnvelopeBakeDelay];
+    }
+    else {
+        // Nothing to wait out: the bars are already on the target, so the bake
+        // is scheduled for the next turn of the main queue rather than for
+        // after a morph that will not run. The live tree stands in only until
+        // it lands.
+        [self drawWaveformSettled];
+        [self scheduleEnvelopeBakeAfter:0];
+    }
 }
 
 #pragma mark - Settled bitmap fast path
@@ -356,14 +382,14 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     [CATransaction commit];
 }
 
-- (void)scheduleEnvelopeBake {
+- (void)scheduleEnvelopeBakeAfter:(NSTimeInterval)delay {
     _bakeGeneration++;
     if (!self.waveform || ![_renderer isKindOfClass:DetailedAudioWaveformRenderer.class]) {
         return;
     }
     NSUInteger generation = _bakeGeneration;
     __weak WaveformScrubberView *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kEnvelopeBakeDelay * NSEC_PER_SEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         [weakSelf bakeEnvelopeForGeneration:generation];
     });
@@ -441,7 +467,7 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 }
 
 - (void)showLoadingIndicator {
-    if (_loadingLayer) {
+    if (_loadingIndicator) {
         return;
     }
     [self hideEmptyPlaceholder];
@@ -449,105 +475,37 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     if (_renderer) {
         [self drawWaveform];
     }
-    CAGradientLayer *shimmer = [CAGradientLayer layer];
-    shimmer.contentsScale = [self displayScale];
-    shimmer.startPoint = CGPointMake(0, 0.5);
-    shimmer.endPoint = CGPointMake(1, 0.5);
-    shimmer.colors = [self shimmerColors];
-    [self.layer addSublayer:shimmer];
-    _loadingLayer = shimmer;
+    _loadingIndicator = [[WaveformLoadingIndicator alloc]
+            initInLayer:self.layer
+                 isDark:self.isDark
+          contentsScale:[self displayScale]];
     [self layoutLoadingLayer];
 }
 
-- (NSArray *)shimmerColors {
-    UIColor *base = self.isDark ? [UIColor whiteColor] : [UIColor blackColor];
-    return @[
-            (id)[base colorWithAlphaComponent:0].CGColor,
-            (id)[base colorWithAlphaComponent:0.55].CGColor,
-            (id)[base colorWithAlphaComponent:0].CGColor,
-    ];
-}
-
 - (void)layoutLoadingLayer {
-    if (!_loadingLayer) {
-        return;
-    }
-    CGFloat width = self.bounds.size.width;
-    CGFloat midY = self.bounds.size.height / 2;
-    CGFloat bandWidth = MAX(width * 0.35, 40);
-
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    _loadingLayer.frame = CGRectMake(0, midY - 1, bandWidth, 2);
-    [CATransaction commit];
-
-    // Reinstall the sweep only when its endpoints change; see the mac view's
-    // note about live resize restarting the animation every frame.
-    NSNumber *fromValue = @(-bandWidth / 2);
-    NSNumber *toValue = @(width + bandWidth / 2);
-    CABasicAnimation *current = (CABasicAnimation *)[_loadingLayer animationForKey:@"sweep"];
-    if ([current isKindOfClass:CABasicAnimation.class] &&
-        [current.fromValue isEqual:fromValue] && [current.toValue isEqual:toValue]) {
-        return;
-    }
-    CABasicAnimation *sweep = [CABasicAnimation animationWithKeyPath:@"position.x"];
-    sweep.fromValue = fromValue;
-    sweep.toValue = toValue;
-    sweep.duration = 1.2;
-    sweep.repeatCount = HUGE_VALF;
-    sweep.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
-    if (current) {
-        CFTimeInterval now = [_loadingLayer convertTime:CACurrentMediaTime() fromLayer:nil];
-        CFTimeInterval elapsed = current.beginTime > 0 ? MAX(now - current.beginTime, 0) : 0;
-        sweep.timeOffset = fmod(elapsed + current.timeOffset, sweep.duration);
-    }
-    [_loadingLayer addAnimation:sweep forKey:@"sweep"];
+    [_loadingIndicator layoutInBounds:self.bounds];
 }
 
+// Data arrival ends the shimmer but deliberately NOT the download fill: a
+// disk-cached waveform can arrive while the provider is still materializing
+// the audio, and the fill riding over the waveform is the only sign of that.
+// The fill comes down with its monitor, via setLoadingProgress:-1.
 - (void)hideLoadingShimmer {
-    [_loadingLayer removeAllAnimations];
-    [_loadingLayer removeFromSuperlayer];
-    _loadingLayer = nil;
+    if (![_loadingIndicator endSweepKeepingFill]) {
+        [self hideLoadingIndicator];
+    }
 }
 
 - (void)hideLoadingIndicator {
-    [self hideLoadingShimmer];
-    [_loadingProgressLayer removeFromSuperlayer];
-    _loadingProgressLayer = nil;
+    [_loadingIndicator removeFromHost];
+    _loadingIndicator = nil;
 }
 
-// Determinate download progress on the midline: the fill grows from the left
-// as the provider materializes the file. Fed by whatever source knows a
-// fraction — today the allocated-size monitor, later the Dropbox API client.
-// It rides under the shimmer while one is up, or over the waveform when the
-// waveform came from the disk cache mid-download. A negative fraction removes
-// it (back to indeterminate); a stalled provider just reports no movement.
+// Determinate download progress, fed by whatever source knows a fraction —
+// today the allocated-size monitor. The control owns the easing and the
+// indeterminate revert; see WaveformLoadingIndicator.
 - (void)setLoadingProgress:(float)fraction {
-    if (fraction < 0) {
-        [_loadingProgressLayer removeFromSuperlayer];
-        _loadingProgressLayer = nil;
-        return;
-    }
-    if (!_loadingProgressLayer) {
-        CALayer *fill = [CALayer layer];
-        fill.contentsScale = [self displayScale];
-        UIColor *base = self.isDark ? [UIColor whiteColor] : [UIColor blackColor];
-        fill.backgroundColor = [base colorWithAlphaComponent:0.85].CGColor;
-        if (_loadingLayer) {
-            // Below the shimmer, so the sweep still reads over the filled span.
-            [self.layer insertSublayer:fill below:_loadingLayer];
-        }
-        else {
-            [self.layer addSublayer:fill];
-        }
-        _loadingProgressLayer = fill;
-    }
-    CGFloat midY = self.bounds.size.height / 2;
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    _loadingProgressLayer.frame = CGRectMake(0, midY - 1,
-            self.bounds.size.width * MIN(1.0f, fraction), 2);
-    [CATransaction commit];
+    [_loadingIndicator setProgress:fraction inBounds:self.bounds];
 }
 
 - (void)showEmptyPlaceholder {
@@ -574,13 +532,14 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     CGFloat midY = self.bounds.size.height / 2;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    _placeholderLayer.frame = CGRectMake(0, midY - 1, self.bounds.size.width, 2);
+    _placeholderLayer.frame = CGRectMake(0, midY - kVibeMidlineHeight / 2,
+                                        self.bounds.size.width, kVibeMidlineHeight);
     [CATransaction commit];
 }
 
 - (void)updatePlaceholderColor {
     UIColor *base = self.isDark ? [UIColor whiteColor] : [UIColor blackColor];
-    _placeholderLayer.backgroundColor = [base colorWithAlphaComponent:0.275].CGColor;
+    _placeholderLayer.backgroundColor = [base colorWithAlphaComponent:kVibeInertMidlineAlpha].CGColor;
 }
 
 #pragma mark - Touch scrubbing
@@ -733,20 +692,11 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
         // Sync geometry even with no waveform, as the mac view does, so a
         // mid-collapse morph rebuilds at the new size.
         [self drawWaveform];
-        [self scheduleEnvelopeBake];
+        [self scheduleEnvelopeBakeAfter:kEnvelopeBakeDelay];
     }
     if (sizeChanged) {
         [self layoutLoadingLayer];
         [self layoutPlaceholderLayer];
-    }
-}
-
-static void applyContentsScale(CALayer *layer, CGFloat scale) {
-    if (!layer) return;
-    layer.contentsScale = scale;
-    applyContentsScale(layer.mask, scale);
-    for (CALayer *sublayer in layer.sublayers) {
-        applyContentsScale(sublayer, scale);
     }
 }
 
@@ -758,20 +708,18 @@ static void applyContentsScale(CALayer *layer, CGFloat scale) {
         [self teardownBakedWaveform];
     }
     if (scaleChanged) {
-        applyContentsScale(self.layer, [self displayScale]);
+        VibeApplyContentsScale(self.layer, [self displayScale]);
         [_renderer backingScaleDidChange];
     }
     if (styleChanged) {
         [_renderer updateColors:self.isDark];
-        if (_loadingLayer) {
-            _loadingLayer.colors = [self shimmerColors];
-        }
+        [_loadingIndicator updateColorsForDark:self.isDark];
         [self updatePlaceholderColor];
         [self updateBaselineColors];
     }
     if (scaleChanged || styleChanged) {
         [self applyScrollAndProgress];
-        [self scheduleEnvelopeBake];
+        [self scheduleEnvelopeBakeAfter:kEnvelopeBakeDelay];
     }
 }
 

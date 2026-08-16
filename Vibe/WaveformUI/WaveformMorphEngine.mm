@@ -167,6 +167,16 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     [self runRebuild];
 }
 
+- (void)settleImmediately {
+    if (!_morphTimer && _displayedSamples == _targetSamples) {
+        return;
+    }
+    [_morphTimer invalidate];
+    _morphTimer = nil; // settled BEFORE the rebuild — see isSettled
+    _displayedSamples = _targetSamples;
+    [self runRebuild];
+}
+
 - (void)runRebuild {
     _pendingRebuildPx = 0;
     if (_rebuild) {

@@ -92,7 +92,8 @@ static const NSInteger kSectionTracks = 1;
     }
     AudioTrack *track = [_playlist trackAtIndex:(NSUInteger)indexPath.row];
     UIListContentConfiguration *content = cell.defaultContentConfiguration;
-    content.text = track.singleLineTitle;
+    content.text = track.displayTitle;
+    content.secondaryText = track.displayArtist;
     content.textProperties.numberOfLines = 1;
     cell.contentConfiguration = content;
 
@@ -120,9 +121,16 @@ static const NSInteger kSectionTracks = 1;
         }];
         return;
     }
-    if (self.onSelectTrack) {
-        self.onSelectTrack((NSUInteger)indexPath.row);
-    }
+    // Dismiss first, then play — the same order the Choose Folder row above
+    // and the search sheet both use, so all three selection paths behave
+    // alike. The block is captured because self is gone once the sheet is.
+    void (^selectTrack)(NSUInteger) = self.onSelectTrack;
+    NSUInteger index = (NSUInteger)indexPath.row;
+    [self dismissViewControllerAnimated:YES completion:^{
+        if (selectTrack) {
+            selectTrack(index);
+        }
+    }];
 }
 
 @end

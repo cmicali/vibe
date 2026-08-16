@@ -18,6 +18,8 @@ The republish position rule is header-only in `NowPlayingRules.h`, tested — be
 
 Best-effort download progress for a cloud file being materialized by its file provider, feeding the waveform's loading indicator on both platforms: shimmer while indeterminate, determinate fill when a fraction is known.
 
+**`monitorReplacing:forURL:currentURL:handler:` is how a screen starts one**, because the guard is the part both were restating: a monitor outlives fast track changes, so a late sample would paint the wrong track's loading bar. The class method cancels the outgoing monitor, starts the new one, and drops any fraction whose URL is no longer what `currentURL` answers. `startWithHandler:` remains for a caller that owns that check itself.
+
 Two sources, best wins. Everywhere: the portable heuristic, polling the dataless file's allocated size against its logical size. macOS only: the File Provider `NSProgress` publication, exact when the provider publishes, superseding the poll. iOS has no consumer-side progress API for third-party providers, so the poll is the whole story there.
 
 Its header carries the measurements — both iCloud Drive and Dropbox stage out of line, so the poll is a floor rather than the feature — and they are the reason the shape is "two sources, best wins" rather than one. Read it before changing either source.

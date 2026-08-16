@@ -4,6 +4,8 @@
 //
 
 #import <Foundation/Foundation.h>
+// VibeWaveformAnalysisProvider, stamped onto every loader this cache creates.
+#import "AudioWaveformLoader.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -19,6 +21,12 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AudioWaveformCache : NSObject
 
 @property (nullable, weak) id <AudioWaveformCacheDelegate> delegate;
+
+// Whether a decode should also run the tempo and key analyzers. Stamped onto
+// every loader this cache creates, and asked once per load, so a settings
+// change lands on the next decode. The owner installs it: macOS reads the two
+// analysis settings, iOS installs nothing because it never analyzes.
+@property (nullable, copy) VibeWaveformAnalysisProvider analysisProvider;
 
 // The PINCache store name, derived from the entry format version; see the
 // implementation. It is the single source for init and for anything that

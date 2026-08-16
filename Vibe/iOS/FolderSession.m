@@ -169,7 +169,11 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
 
     NSNumber *isDirectory = nil;
     [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
-    BOOL isDir = isDirectory.boolValue || (!isDirectory && url.hasDirectoryPath);
+    // The key can be absent — a URL the provider has not resolved yet — and
+    // then the trailing slash is all there is to go on. Compared to nil
+    // explicitly: an NSNumber * in a boolean position is a pointer test, not
+    // a value test, which is what the analyzer flags.
+    BOOL isDir = isDirectory != nil ? isDirectory.boolValue : url.hasDirectoryPath;
 
     NSArray<NSURL *> *tracks;
     NSURL *folderURL = nil;

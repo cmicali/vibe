@@ -11,67 +11,32 @@
 
 #pragma mark App side: command execution
 
-static NSString *VibePlayerStateName(AudioPlayer *player) {
-    // Loading reports isPlaying, with a zero position and duration, so this
-    // shows "playing" during an in-flight open, as the transport button does.
-    if (player.isPlaying) {
-        return @"playing";
-    }
-    return player.isPaused ? @"paused" : @"stopped";
-}
-
 NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
     AudioPlayer *player = controller.audioPlayer;
     MainWindow *window = (MainWindow *)controller.window;
-    PlaylistController *playlist = controller.playlistController;
-    AudioTrack *track = playlist.currentTrack;
 
-    NSMutableArray<NSString *> *files = [NSMutableArray array];
-    for (AudioTrack *t in playlist.playlist) {
-        if (files.count == 100) {
-            [files addObject:[NSString stringWithFormat:@"… %lu more", (unsigned long)(playlist.count - 100)]];
-            break;
-        }
-        [files addObject:t.url.lastPathComponent ?: @""];
-    }
+    // The player, currentTrack and playlist blocks are shared with iOS; this
+    // side extends "player" with the fields only the mac has, and adds the
+    // three blocks below.
+    NSMutableDictionary *state = VibeDebugCommonStateDictionary(controller);
+    [state[@"player"] addEntriesFromDictionary:@{
+        @"pitch": @(player.pitch),
+        @"maxPitch": @(player.maxPitch),
+        @"playbackRate": @(1.0 + player.pitch / 100.0),
+        @"lowKill": @(player.fx.lowKillEnabled),
+        @"lowKillBoost": @(player.fx.lowKillBoostActive),
+        @"reverbSend": @(player.fx.reverbSendEnabled),
+        @"delaySend": @(player.fx.delaySendEnabled),
+        @"shortDelaySend": @(player.fx.shortDelaySendEnabled),
+        @"delayTapBPM": @(player.fx.delayTapBPM),
+        @"outputDeviceId": @(player.currentlyActiveAudioDeviceId),
+        // The flag asked; this is what actually happened. They differ when
+        // enableManualRenderingMode fails and the output device opens
+        // anyway — which no other signal would reveal.
+        @"manualRendering": @(player.manualRenderingActive),
+    }];
 
-    return @{
-        @"player": @{
-            @"state": VibePlayerStateName(player),
-            @"position": @(player.position),
-            @"duration": @(player.duration),
-            @"pitch": @(player.pitch),
-            @"maxPitch": @(player.maxPitch),
-            @"playbackRate": @(1.0 + player.pitch / 100.0),
-            @"lowKill": @(player.fx.lowKillEnabled),
-            @"lowKillBoost": @(player.fx.lowKillBoostActive),
-            @"reverbSend": @(player.fx.reverbSendEnabled),
-            @"delaySend": @(player.fx.delaySendEnabled),
-            @"shortDelaySend": @(player.fx.shortDelaySendEnabled),
-            @"delayTapBPM": @(player.fx.delayTapBPM),
-            @"numChannels": @(player.numChannels),
-            @"gaplessArmed": @(player.isGaplessArmed),
-            @"outputDeviceId": @(player.currentlyActiveAudioDeviceId),
-            @"silent": @([NSProcessInfo.processInfo.arguments containsObject:@"--silent"]),
-            @"noAudioHw": @([NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"]),
-            // The flag asked; this is what actually happened. They differ when
-            // enableManualRenderingMode fails and the output device opens
-            // anyway — which no other signal would reveal.
-            @"manualRendering": @(controller.audioPlayer.manualRenderingActive),
-        },
-        @"currentTrack": track ? @{
-            @"url": track.url.path ?: @"",
-            @"title": track.title ?: @"",
-            @"artist": track.artist ?: @"",
-            // The resolved key (tag over analysis); empty strings when unknown.
-            @"key": VibeMusicalKeyMusicalName(track.key),
-            @"camelot": VibeMusicalKeyCamelotName(track.key),
-        } : (id)NSNull.null,
-        @"playlist": @{
-            @"count": @(playlist.count),
-            @"currentIndex": @(playlist.currentIndex),
-            @"files": files,
-        },
+    [state addEntriesFromDictionary:@{
         @"ui": @{
             @"title": controller.trackDisplay.titleTextField.stringValue ?: @"",
             @"artist": controller.trackDisplay.artistTextField.stringValue ?: @"",
@@ -108,7 +73,8 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"uiUpdateHzCap": @(Settings.uiUpdateHzCap),
             @"folderArt": @(Settings.useFolderArt),
         },
-    };
+    }];
+    return state;
 }
 
 static NSDictionary *VibeViewDictionary(NSView *view) {
@@ -244,7 +210,7 @@ NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller) {
     MainWindow *window = (MainWindow *)controller.window;
     return @{
         @"ok": @YES,
-        @"state": VibePlayerStateName(player),
+        @"state": VibeDebugPlayerStateName(player),
         @"index": @(controller.playlistController.currentIndex),
         @"count": @(controller.playlistController.count),
         @"position": @(player.position),
