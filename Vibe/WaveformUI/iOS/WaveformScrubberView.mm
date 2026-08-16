@@ -15,10 +15,13 @@
 #import "VibeWeakProxy.h"
 #import "AppSettings.h"
 
-// Fraction of the track visible across the view: the DJ zoom level. The
-// renderer draws the full track at width / fraction and the host layer is
-// translated so the play position sits at the view's horizontal center.
-static const CGFloat kWaveformVisibleFraction = 0.25;
+// Fraction of the track visible across the view: the DJ zoom level, and the
+// one knob the whole scrubber's scale hangs off — a preference or a pinch
+// gesture would drive this and nothing else. The renderer draws the full track
+// at width / fraction and the host layer is translated so the play position
+// sits at the view's horizontal center. Raising it shows more time and, as a
+// free consequence, shrinks the virtual layer tree.
+static const CGFloat kWaveformVisibleFraction = 0.4;
 
 // Momentum: the per-millisecond deceleration (much higher friction than
 // UIScrollView's 0.998 normal rate, so a throw settles noticeably faster —

@@ -1,5 +1,5 @@
 //
-//  PlayerViewController+PlayerEvents.h
+//  PlaybackController+PlayerEvents.h
 //  Vibe (iOS)
 //
 //  Every AudioPlayerDelegate callback. Two rules govern the whole file and are
@@ -8,12 +8,12 @@
 //  nothing here drives auto-advance.
 //
 
-#import "PlayerViewController.h"
+#import "PlaybackController.h"
 #import "AudioPlayer.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface PlayerViewController (PlayerEvents) <AudioPlayerDelegate>
+@interface PlaybackController (PlayerEvents) <AudioPlayerDelegate>
 @end
 
 NS_ASSUME_NONNULL_END

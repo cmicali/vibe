@@ -1,6 +1,30 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "a11y.miniplayer.expand": {
+      "comment": "iOS: accessibility label for the mini player strip above the tab bar; activating it opens the full-screen player.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Now Playing"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "a11y.player.minimize": {
+      "comment": "iOS: accessibility label for the full-screen player's grabber, which returns it to the mini player strip.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Minimize"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "a11y.playlist.open": {
       "comment": "Accessibility label for the empty playlist pane's drop well, which opens the file picker when pressed.",
       "localizations": {
@@ -926,6 +950,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vibe"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "button.open": {
+      "comment": "iOS: button that opens the system document picker to choose a folder or file to play.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open"
           }
         }
       },
@@ -2431,18 +2467,6 @@
       },
       "extractionState": "manual"
     },
-    "label.choose_folder": {
-      "comment": "iOS: row in the track list sheet that opens the system document picker to pick a different folder or file.",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose Folder…"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "label.convert.save_message": {
       "comment": "Message atop the save panel that appears when the app may not write next to the source file.",
       "localizations": {
@@ -2815,13 +2839,25 @@
       },
       "extractionState": "manual"
     },
-    "label.open_hint.ios": {
-      "comment": "iOS empty-state hint on the player screen when nothing is loaded. Tapping anywhere opens the system file picker.",
+    "label.library.empty.message": {
+      "comment": "iOS: explanatory line under the empty library headline, above the Open button.",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tap to choose a folder or file"
+            "value": "Choose a folder or file to get started."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "label.library.empty.title": {
+      "comment": "iOS: headline of the empty library screen, shown when no folder or file has been opened.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing to Play"
           }
         }
       },
@@ -25574,6 +25610,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$ld / %2$ld / %3$ld小節"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "tab.files": {
+      "comment": "iOS: title of the tab showing the system file browser, for picking music to play.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "tab.playlist": {
+      "comment": "iOS: title of the tab showing the tracks queued to play.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist"
           }
         }
       },

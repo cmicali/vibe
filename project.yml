@@ -142,6 +142,8 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/WaveformUI
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
+      - path: Vibe/Controls
+        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Playlist
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       # Every source under here wraps its whole body in #if DEBUG, so a Release
@@ -340,6 +342,8 @@ targets:
       - path: Vibe/System
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Util
+        excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
+      - path: Vibe/Controls
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Playlist
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]

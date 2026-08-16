@@ -2,27 +2,25 @@
 //  SearchViewController.h
 //  Vibe (iOS)
 //
-//  The search circle's screen: a standard search field over the current
-//  directory's tracks (title, artist, filename), Mail-style — the field is
-//  focused on appear and results filter live. Selecting a result plays it.
+//  The Search tab: a standard search field over the open folder's tracks
+//  (title, artist, filename), filtering live. The empty query lists
+//  everything, so the screen doubles as a browse list. Selecting a result
+//  plays it and stays here, exactly as the library's rows do.
 //
 
 #import <UIKit/UIKit.h>
 
-NS_ASSUME_NONNULL_BEGIN
+@class PlaybackController;
 
-@class Playlist;
+NS_ASSUME_NONNULL_BEGIN
 
 @interface SearchViewController : UITableViewController
 
-- (instancetype)initWithPlaylist:(Playlist *)playlist;
-
-@property (nonatomic, copy, nullable) void (^onSelectTrack)(NSUInteger index);
-
-// Re-filters the current query against the playlist's current contents. The
-// owner forwards playlist replacement while the sheet is up, so an external
-// open cannot leave the results indexing a departed playlist.
-- (void)reloadAll;
+- (instancetype)initWithPlayback:(PlaybackController *)playback NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithStyle:(UITableViewStyle)style NS_UNAVAILABLE;
+- (instancetype)initWithNibName:(nullable NSString *)nibName
+                         bundle:(nullable NSBundle *)bundle NS_UNAVAILABLE;
+- (nullable instancetype)initWithCoder:(NSCoder *)coder NS_UNAVAILABLE;
 
 @end
 

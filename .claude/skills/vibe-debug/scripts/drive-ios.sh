@@ -7,15 +7,20 @@
 # reports it; 3 on modern iPhones).
 #
 # Usage:
-#   drive-ios.sh start          # build + launch the driver, wait until ready
-#                               #   (reinstalls the app: run BEFORE launch-ios.sh)
+#   drive-ios.sh start          # install the built app, launch the driver,
+#                               #   wait until ready
 #   drive-ios.sh stop           # end the session
-#   drive-ios.sh status         # ready or not
+#   drive-ios.sh status         # {"ready": …, "appStale": …} — appStale true
+#                               #   means the simulator is running an OLDER
+#                               #   build than the one on disk; relaunch
 #   drive-ios.sh tap 201 640
 #   drive-ios.sh double_tap 201 640
 #   drive-ios.sh press 201 640 1.5
 #   drive-ios.sh drag 300 640 100 640 1.0    # x1 y1 x2 y2 [seconds]; give
 #                               # seconds for 1:1 scrubs, omit for a flick
+#   drive-ios.sh type "key"     # into whatever holds focus. Use this for the
+#                               #   keyboard: it is in a window of its own, so a
+#                               #   tap aimed at a key hits the app BEHIND it
 #   drive-ios.sh rotate left    # device orientation: portrait|left|right
 #   drive-ios.sh home
 #
@@ -60,15 +65,27 @@ start)
     mkdir -p "$TMP"
     rm -f "$TMP/$READY_NAME" "$TMP"/vibe-touch-*
     ( cd "$ROOT" && xcodegen generate >/dev/null )
-    # xcodebuild test installs the app fresh, terminating any running
-    # instance — hence start-then-launch.
     ( cd "$ROOT" && TEST_RUNNER_VIBE_DRIVER_DIR="$TMP" \
         nohup xcodebuild test -project Vibe.xcodeproj -scheme VibeiOSDriver \
             -destination "id=$UDID" -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO > "$LOG" 2>&1 & )
-    # Build + install + runner spin-up; the marker is the readiness signal.
+    # Build + runner spin-up; the marker is the readiness signal.
     for _ in $(seq 1 240); do
-        [ -f "$TMP/$READY_NAME" ] && { echo '{"ok": true, "ready": true}'; exit 0; }
+        if [ -f "$TMP/$READY_NAME" ]; then
+            # AFTER the build finishes, never before. TRAP: `xcodebuild test`
+            # leaves the app-under-test it re-signed on disk WITHOUT installing
+            # it — measured, not assumed: an app installed a second before the
+            # build is already older than the product a second after it. Left
+            # to xcodebuild, the driver attaches to the previous binary and
+            # every gesture from then on exercises code that is not checked
+            # out, silently, because a stale app launches and answers exactly
+            # like a fresh one. This is the install that makes the driver drive
+            # the checkout; it is a no-op when they already match, and the next
+            # gesture pays the driver's own relaunch to re-attach.
+            "$DIR/install-ios.sh" "$UDID"
+            echo '{"ok": true, "ready": true}'
+            exit 0
+        fi
         sleep 1
     done
     echo "{\"error\": \"driver never became ready — see $LOG\"}"
@@ -79,7 +96,15 @@ status)
     # simctl erase): ready means marker AND runner process. A stale marker is
     # cleaned so launch-ios.sh's install-skip stops believing it too.
     if [ -f "$TMP/$READY_NAME" ] && pgrep -f "Devices/$UDID/.*VibeiOSDriver-Runner" >/dev/null 2>&1; then
-        echo '{"ready": true}'
+        # appStale is the belt to install-ios.sh's braces: a driver can outlive
+        # a rebuild, and a gesture against the old binary looks exactly like a
+        # gesture against the new one. Reported here rather than checked per
+        # gesture, which would pay a container lookup on every tap.
+        if "$DIR/install-ios.sh" "$UDID" --check 2>/dev/null; then
+            echo '{"ready": true, "appStale": false}'
+        else
+            echo '{"ready": true, "appStale": true}'
+        fi
     else
         rm -f "$TMP/$READY_NAME"
         echo '{"ready": false}'

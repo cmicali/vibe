@@ -57,7 +57,7 @@ iOS has its **own debug command channel** (below); the `--debug-cmd` verbs in th
 
 1. **Looking and reading**: `launch-ios.sh` + `simctl io "$(sim-udid.sh)" screenshot` + `debug-ios.sh dump_state`/`dump_view_tree`. Layout, rendering, state after a code change — start and end here when nothing needs to *happen* mid-run.
 2. **Making things happen without touches**: the channel's action verbs (`play_pause`, `seek`, `next`, `open`). They exercise the same controller paths as the UI at ~instant speed. A seek test does NOT need a real drag — `seek` routes through the scrubber's own didSeek path.
-3. **Real gestures**: `drive-ios.sh` (below), ONLY when the gesture itself is the thing under test — the waveform drag's 1:1 tracking, the pager pull, tap targets, gesture arbitration. A driver session costs a 1–2 minute spin-up and an app reinstall, so don't start one speculatively; once started, keep it for the whole work session rather than cycling it per test.
+3. **Real gestures**: `drive-ios.sh` (below), ONLY when the gesture itself is the thing under test — the waveform drag's 1:1 tracking, the pager pull, tap targets, gesture arbitration. A driver session costs a 1–2 minute spin-up and an app reinstall, so don't start one speculatively; once started, keep it for the whole work session rather than cycling it per test — but rerun `launch-ios.sh` after any rebuild, and check `appStale` (below) before trusting a gesture result.
 
 ```bash
 .claude/skills/vibe-debug/scripts/launch-ios.sh [audio-file ...]   # boot if needed, install, relaunch
@@ -78,18 +78,30 @@ xcrun simctl io "$UDID" screenshot shot.png   # device pixels (3x), top-left ori
 
 ```bash
 S=.claude/skills/vibe-debug/scripts/debug-ios.sh
-"$S" dump_state          # {player, currentTrack, playlist, ui, settings} — ui includes waveformProgress, isScrubbing, parked, foreground
+"$S" dump_state          # {player, currentTrack, playlist, ui, settings} — ui includes waveformProgress, waveformBaked, isScrubbing, parked, foreground, plus the shell: playerPresentation ("minimized"|"full"), miniPlayerShown, selectedTab, libraryEmpty
 "$S" dump_now_playing    # {hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — the mac verb minus playbackState (macOS-only)
 "$S" dump_view_tree      # {windows: [{class, frame, keyWindow, rootViewController, contentView: {…, subviews}}]} — UILabel text and button labels included
 "$S" dump_art            # {currentIndex, window, held, pages: [{index, title, metadata, art, needsLoad, loading, inWindow, cellUp}]} — the pager's art window: which pages are fetched ahead, which hold decoded art, and what each has. The ONLY way to tell "not decoded yet" from "this track has no art" — on screen both are the vinyl placeholder. `held` past the budget, or a page landing with art:false, is the prefetch failing to keep up
 "$S" dump_screenshot     # {ok, path, pointWidth, pointHeight, scale} — in-process render written into the container; the HOST can read the path directly (no TCC)
 "$S" play_pause          # compact {ok, state, index, count, position, parked} summary; also: next, previous
 "$S" seek 90             # seconds; routes through the scrubber's didSeek path, so the seek-in-flight guard behaves as a real drag release
-"$S" open <path>         # file INSIDE the container (seed via launch-ios.sh); the FolderSession open-in-place path
+"$S" open <path>         # file INSIDE the container (seed via launch-ios.sh); the FolderSession open-in-place path. Replaces the playlist, plays, AND expands the card
+"$S" expand_player       # the card, without a gesture; also: minimize_player. The shell presents it only on an open, so this is how to get to it otherwise
+"$S" select_tab playlist # or files, or search (the UISearchTab circle)
 VIBE_DEBUG_TIMEOUT=20 "$S" clear_caches   # blocks until both PINCaches are empty, like the mac verb
 ```
 
 Exit codes match the mac client: 0 ok, 1 no response (no debug build running), 2 command error. The unknown-command reply is the authoritative verb list. Replies to action verbs are read synchronously and can lag async engine work — the same caveat as the mac: a `seek` or `play_pause` reply may show the pre-action state, so follow with `dump_state`. The app side is `Vibe/Debug/iOS/DebugCommands.m` over the shared transport in `Vibe/Debug/DebugChannel.m`. Most verbs are not there at all: the cross-platform ones live once in `Vibe/Debug/DebugCommonVerbs.m`, so a verb both platforms can answer is added there and appears on each; only a UIKit-specific one goes in the iOS table.
+
+**Check `ui.waveformBaked` after an expand.** The card animates by transform precisely so the per-page waveform scrubbers do not re-bake their envelope bitmaps; `waveformBaked:false` shortly after `expand_player` means something started animating the card's bounds again (`Vibe/iOS/CLAUDE.md` carries the trap).
+
+**Rebuilt mid-session? Relaunch, and check `appStale`.** `install-ios.sh` is the single home of "the installed app matches the built one", and both `launch-ios.sh` and `drive-ios.sh start` call it — installing only when the built binary is genuinely newer, so it is safe to run with a driver session live. It exists because **`xcodebuild test` re-signs the app-under-test without installing it**, which used to leave `drive-ios.sh start` reporting ready against the *previous* binary; `start` therefore installs after the build finishes, never before. `drive-ios.sh status` reports `appStale` as the backstop, since a driver session outlives any number of rebuilds:
+
+```bash
+.claude/skills/vibe-debug/scripts/drive-ios.sh status     # {"ready": true, "appStale": false}
+```
+
+**`appStale: true` invalidates every gesture result taken since the rebuild** — a stale app launches, answers the debug channel and accepts touches exactly like a fresh one, so nothing else will tell you. Rerun `launch-ios.sh` (or `install-ios.sh "$(sim-udid.sh)"`) and repeat the run.
 
 **What the iOS channel cannot do**: input injection — no public API synthesizes `UITouch`es in-process; real gestures go through the touch driver below — and the mac's menu, window, FX, pitch, convert, and file_cache verbs have no iOS counterparts yet. `dump_screenshot` renders in-process (UIVisualEffectView blurs only approximate); `simctl io "$(sim-udid.sh)" screenshot` remains the ground truth for real pixels.
 
@@ -103,14 +115,14 @@ Exit codes match the mac client: 0 ok, 1 no response (no debug build running), 2
 
 ```bash
 D=.claude/skills/vibe-debug/scripts/drive-ios.sh
-"$D" start                    # builds + installs + spins up the runner (~1-2 min);
-                              #   START BEFORE launch-ios.sh — its xcodebuild installs the
-                              #   app, and launch-ios.sh skips its own install while the
-                              #   driver is live (competing installs bounce the running app)
+"$D" start                    # builds, installs, spins up the runner (~1-2 min).
+                              #   Run it before launch-ios.sh so the app it launches is
+                              #   the one the driver attached to; either order installs
+                              #   correctly, but this one skips a relaunch
 "$D" tap 201 250              # also: double_tap x y, press x y seconds, home
 "$D" drag 300 560 100 560 1.0 # x1 y1 x2 y2 [seconds] — give seconds for a 1:1 scrub
                               #   (the waveform drag), omit for a flick
-"$D" status                   # {"ready": true|false}
+"$D" status                   # {"ready": true|false, "appStale": true|false}
 "$D" stop                     # end the session
 ```
 

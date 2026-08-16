@@ -12,8 +12,8 @@
 #import "DebugWireFormat.h"
 #import "DebugCommandDispatch.h"
 #import "DebugCommonVerbs.h"
-#import "PlayerViewController.h"
-#import "PlayerViewController+Debug.h"
+#import "RootViewController.h"
+#import "RootViewController+Debug.h"
 
 static UIWindow *VibeDebugKeyWindow(void) {
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
@@ -29,15 +29,17 @@ static UIWindow *VibeDebugKeyWindow(void) {
     return nil;
 }
 
-static PlayerViewController *VibeDebugPlayerController(void) {
+// The shell, which is what adopts VibeDebugPlayerSurface: it is the one object
+// that can reach both the model and the card.
+static RootViewController *VibeDebugRootController(void) {
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
         if (![scene isKindOfClass:UIWindowScene.class]) {
             continue;
         }
         for (UIWindow *window in ((UIWindowScene *)scene).windows) {
             UIViewController *root = window.rootViewController;
-            if ([root isKindOfClass:PlayerViewController.class]) {
-                return (PlayerViewController *)root;
+            if ([root isKindOfClass:RootViewController.class]) {
+                return (RootViewController *)root;
             }
         }
     }
@@ -128,7 +130,7 @@ static NSString *VibeScreenshotJSON(NSString *commandId) {
 // command replies asynchronously through VibeWriteDebugResponse.
 typedef NSString * _Nullable (^VibeiOSCommandHandler)(NSArray<NSString *> *tokens,
                                                       NSString *commandId,
-                                                      PlayerViewController *controller);
+                                                      RootViewController *controller);
 
 static NSDictionary *VibeCmd(NSString *usage, VibeiOSCommandHandler handler) {
     return @{@"usage": usage, @"handler": [handler copy]};
@@ -139,14 +141,33 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         table = @[
-            VibeCmd(@"dump_view_tree", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlayerViewController *controller) {
+            VibeCmd(@"dump_view_tree", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeViewTreeDump();
             }),
-            VibeCmd(@"dump_screenshot", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlayerViewController *controller) {
+            VibeCmd(@"dump_screenshot", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeScreenshotJSON(commandId);
             }),
-            VibeCmd(@"dump_art", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlayerViewController *controller) {
+            VibeCmd(@"dump_art", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString([controller debugArtDictionary]);
+            }),
+            // The card presents and dismisses by gesture, and the channel
+            // cannot synthesize a touch; these are how it is driven without
+            // the XCUITest driver.
+            VibeCmd(@"expand_player", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                [controller expandPlayerAnimated:NO];
+                return VibeJSONString([controller debugActionSummary]);
+            }),
+            VibeCmd(@"minimize_player", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                [controller minimizePlayerAnimated:NO];
+                return VibeJSONString([controller debugActionSummary]);
+            }),
+            VibeCmd(@"select_tab <playlist|files|search>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                NSString *identifier = tokens.count > 1 ? tokens[1] : nil;
+                if (![@[@"playlist", @"files", @"search"] containsObject:identifier ?: @""]) {
+                    return VibeErrorJSON(@"usage: select_tab <playlist|files|search>");
+                }
+                controller.selectedTabIdentifier = identifier;
+                return VibeJSONString(@{@"ok": @YES, @"selectedTab": controller.selectedTabIdentifier});
             }),
         ];
     });
@@ -155,7 +176,7 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
 
 static NSString *VibeiOSExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *commandId) {
     NSString *verb = tokens.firstObject ?: @"";
-    PlayerViewController *controller = VibeDebugPlayerController();
+    RootViewController *controller = VibeDebugRootController();
     if (!controller) {
         return VibeErrorJSON(@"app not fully launched");
     }

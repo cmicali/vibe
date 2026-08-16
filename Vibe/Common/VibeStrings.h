@@ -302,9 +302,16 @@ static inline NSString *VibeAppName(void) {
 
 #pragma mark - iOS
 
-#define STR_LABEL_CHOOSE_FOLDER NSLS(@"label.choose_folder", @"Choose Folder…",              @"iOS: row in the track list sheet that opens the system document picker to pick a different folder or file.")
 #define STR_LABEL_SEARCH        NSLS(@"label.search",        @"Search",                      @"iOS: title and placeholder of the search screen that filters the current folder's tracks.")
-#define STR_LABEL_OPEN_HINT_IOS NSLS(@"label.open_hint.ios", @"Tap to choose a folder or file", @"iOS empty-state hint on the player screen when nothing is loaded. Tapping anywhere opens the system file picker.")
 #define STR_ERROR_FOLDER_EMPTY  NSLS(@"error.folder_empty",  @"No audio files in this folder",  @"iOS: shown after picking a folder that contains no playable audio files.")
+
+#define STR_TAB_PLAYLIST        NSLS(@"tab.playlist",        @"Playlist",                    @"iOS: title of the tab showing the tracks queued to play.")
+#define STR_TAB_FILES           NSLS(@"tab.files",           @"Files",                       @"iOS: title of the tab showing the system file browser, for picking music to play.")
+#define STR_BUTTON_OPEN         NSLS(@"button.open",         @"Open",                        @"iOS: button that opens the system document picker to choose a folder or file to play.")
+#define STR_LABEL_EMPTY_TITLE   NSLS(@"label.library.empty.title",   @"Nothing to Play",     @"iOS: headline of the empty library screen, shown when no folder or file has been opened.")
+#define STR_LABEL_EMPTY_MESSAGE NSLS(@"label.library.empty.message", @"Choose a folder or file to get started.", @"iOS: explanatory line under the empty library headline, above the Open button.")
+
+#define STR_A11Y_MINIPLAYER_EXPAND NSLS(@"a11y.miniplayer.expand", @"Now Playing",  @"iOS: accessibility label for the mini player strip above the tab bar; activating it opens the full-screen player.")
+#define STR_A11Y_PLAYER_MINIMIZE   NSLS(@"a11y.player.minimize",   @"Minimize",     @"iOS: accessibility label for the full-screen player's grabber, which returns it to the mini player strip.")
 
 #endif /* VibeStrings_h */

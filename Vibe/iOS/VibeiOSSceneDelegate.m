@@ -4,9 +4,15 @@
 //
 
 #import "VibeiOSSceneDelegate.h"
-#import "PlayerViewController.h"
+#import "PlaybackController.h"
+#import "RootViewController.h"
 
-@implementation VibeiOSSceneDelegate
+@implementation VibeiOSSceneDelegate {
+    // The scene owns the one PlaybackController — one engine per process,
+    // which is why UIApplicationSupportsMultipleScenes is off. The screens
+    // borrow it.
+    PlaybackController *_playback;
+}
 
 - (void)scene:(UIScene *)scene
         willConnectToSession:(UISceneSession *)session
@@ -19,29 +25,27 @@
     // band + bottom bar leave no room below it). sizeRestrictions is nil on
     // iPhone, so this is a no-op there.
     windowScene.sizeRestrictions.minimumSize = CGSizeMake(320, 480);
-    PlayerViewController *player = [[PlayerViewController alloc] init];
+    _playback = [[PlaybackController alloc] init];
+    RootViewController *root = [[RootViewController alloc] initWithPlayback:_playback];
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
-    self.window.rootViewController = player;
+    self.window.rootViewController = root;
     [self.window makeKeyAndVisible];
-    // The view must exist before the player screen can adopt anything.
+    // The screens must exist — and be observing — before anything is adopted.
     // Exactly one of the two launch paths runs: a cold "Open in Vibe" adopts
     // the arriving URL directly, everything else restores the persisted
     // session — never both, so the open does not pay for a restore it
     // immediately replaces.
-    [player loadViewIfNeeded];
+    [root loadViewIfNeeded];
     if (connectionOptions.URLContexts.count > 0) {
-        [player handleOpenURLContexts:connectionOptions.URLContexts];
+        [_playback handleOpenURLContexts:connectionOptions.URLContexts];
     }
     else {
-        [player restorePersistedSession];
+        [_playback restorePersistedSession];
     }
 }
 
 - (void)scene:(UIScene *)scene openURLContexts:(NSSet<UIOpenURLContext *> *)URLContexts {
-    UIViewController *root = self.window.rootViewController;
-    if ([root isKindOfClass:[PlayerViewController class]]) {
-        [(PlayerViewController *)root handleOpenURLContexts:URLContexts];
-    }
+    [_playback handleOpenURLContexts:URLContexts];
 }
 
 @end

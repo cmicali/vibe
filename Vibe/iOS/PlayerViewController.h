@@ -2,24 +2,53 @@
 //  PlayerViewController.h
 //  Vibe (iOS)
 //
-//  The player screen: the iOS counterpart of MainPlayerController. Owns the
-//  engine, the playlist, both caches, the Now Playing bridge, the audio
-//  session, and the folder session; the UI is the SoundCloud-style waveform
-//  scrubber with playlist, play/pause, and next.
+//  The now-playing screen: the track pager (one full-screen page per track,
+//  blurred art + header) and the chrome over it — the waveform scrubber, the
+//  time labels and the transport glyph. It DESCRIBES playback and never owns
+//  it: the engine, the playlist, the caches and the sessions belong to the
+//  PlaybackController it is given, which it observes.
 //
 
 #import <UIKit/UIKit.h>
 
-@interface PlayerViewController : UIViewController
+@class PlaybackController;
+@class PlayerViewController;
 
-// "Open in Vibe" from Files or the share sheet, forwarded by the scene
-// delegate.
-- (void)handleOpenURLContexts:(NSSet<UIOpenURLContext *> *)contexts;
+NS_ASSUME_NONNULL_BEGIN
 
-// Restores the persisted folder session, or shows the empty state. The scene
-// delegate calls exactly one of this and handleOpenURLContexts: at launch —
-// a cold "Open in Vibe" must not pay for (and then discard) a full restore.
-- (void)restorePersistedSession;
+@protocol PlayerViewControllerDelegate <NSObject>
+
+// The card asked to go back to the strip: the grabber was tapped. The shell
+// owns the animation, so the card never moves itself.
+- (void)playerViewControllerDidRequestMinimize:(PlayerViewController *)controller;
+
+// A downward drag on the card. The card only says how far down and how fast,
+// in points; where that puts the card, and whether it commits, is the shell's.
+// Translation is never negative — an upward drag past the top rubber-bands to
+// zero rather than lifting the card off the screen.
+- (void)playerViewController:(PlayerViewController *)controller
+       didPanWithTranslation:(CGFloat)translation
+                    velocity:(CGFloat)velocity
+                       state:(UIGestureRecognizerState)state;
 
 @end
 
+@interface PlayerViewController : UIViewController
+
+- (instancetype)initWithPlayback:(PlaybackController *)playback NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithNibName:(nullable NSString *)nibName
+                         bundle:(nullable NSBundle *)bundle NS_UNAVAILABLE;
+- (nullable instancetype)initWithCoder:(NSCoder *)coder NS_UNAVAILABLE;
+
+// The card is up. Set by RootViewController around the expand and minimize
+// animations, and it gates two things that must not run behind the shell: the
+// pager's page commit — a reloadData while minimized can settle a scroll and
+// change track under the user — and the playhead's display link, which would
+// otherwise animate a waveform nobody can see.
+@property (nonatomic, getter=isPresented) BOOL presented;
+
+@property (nonatomic, weak) id<PlayerViewControllerDelegate> delegate;
+
+@end
+
+NS_ASSUME_NONNULL_END

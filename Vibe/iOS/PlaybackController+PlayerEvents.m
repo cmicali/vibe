@@ -1,5 +1,5 @@
 //
-//  PlayerViewController+PlayerEvents.m
+//  PlaybackController+PlayerEvents.m
 //  Vibe (iOS)
 //
 //  Two rules govern this whole file.
@@ -14,21 +14,17 @@
 //  funnel through didFinishPlaying:.
 //
 
-#import "PlayerViewController+PlayerEvents.h"
-#import "PlayerViewControllerInternal.h"
-#import "PlayerViewController+NowPlaying.h"
-#import "PlayerViewController+Pager.h"
+#import "PlaybackController+PlayerEvents.h"
+#import "PlaybackControllerInternal.h"
+#import "PlaybackController+NowPlaying.h"
 
 #import "AudioErrorRules.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "DownloadProgressMonitor.h"
-#import "PageWaveformCoordinator.h"
-#import "TrackPageCell.h"
 #import "UIUpdateTimer.h"
-#import "WaveformScrubberView.h"
 
-@implementation PlayerViewController (PlayerEvents)
+@implementation PlaybackController (PlayerEvents)
 
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer {
 }
@@ -37,20 +33,19 @@
     if (![_playlist isCurrentTrack:track]) {
         return;
     }
-    [_waveformView showLoadingIndicator];
+    [self notifyDidBeginLoading];
     // Best-effort determinate fill while the provider materializes the file.
     // The monitor drops a sample whose track has since changed; see
     // monitorReplacing:forURL:currentURL:handler:.
-    __weak PlayerViewController *weakSelf = self;
+    __weak PlaybackController *weakSelf = self;
     _downloadMonitor = [DownloadProgressMonitor
             monitorReplacing:_downloadMonitor
                       forURL:track.url
                   currentURL:^NSURL *{
-        PlayerViewController *self = weakSelf;
+        PlaybackController *self = weakSelf;
         return self ? self->_playlist.currentTrack.url : nil;
     }                handler:^(float fraction) {
-        PlayerViewController *self = weakSelf;
-        [self->_waveformView setLoadingProgress:fraction];
+        [weakSelf notifyDidUpdateLoadingProgress:fraction];
     }];
     [self publishNowPlaying];
 }
@@ -65,7 +60,7 @@
     if (![_playlist isCurrentTrack:track]) {
         return;
     }
-    [self updatePlayButton];
+    [self notifyDidChangePlayState];
     [self publishNowPlaying];
 }
 
@@ -75,21 +70,20 @@
     }
     _errorText = nil;
     _trackStartPending = NO;
+    // A start settles any seek in flight — including the one that OPENED this
+    // file, in seekToProgress:'s parked branch, which has no didFinishSeeking:
+    // of its own to clear the flag.
+    _seekInFlight = NO;
     // The open landed, so the file is materialized; the monitor's work is
     // done whatever it last reported.
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
-    [self renderHeaderForTrack:track];
-    // Not a blanket hideLoadingIndicator: the open landing says nothing about
-    // the waveform decode, which may still be streaming over the network.
-    // Re-hydration repaints a snapshot already in hand (ending the slow-open
-    // shimmer that replaced it); otherwise the line keeps animating until
-    // showWaveform: delivers. The download fill IS cleared here — the open
-    // landing means the file materialized, and showWaveform: deliberately
-    // leaves the fill alone (a cached waveform can arrive mid-download).
-    TrackPageCell *currentCell = [self cellAtIndex:_playlist.currentIndex];
-    [currentCell.waveformView setLoadingProgress:-1];
-    [self hydrateWaveformInCell:currentCell atIndex:_playlist.currentIndex];
+    [self notifyDidRenderCurrentTrack];
+    // Not a blanket "hide the loading indicator": the open landing says
+    // nothing about the waveform decode, which may still be streaming over the
+    // network. The download fill IS cleared — the open landing means the file
+    // materialized — and a screen re-hydrates from the snapshot it holds.
+    [self notifyDidFinishLoading];
     // The dataless-placeholder retry: a cache miss skipped while the player's
     // own open was materializing the file parses now.
     [_metadataCache loadMetadataNow:track];
@@ -101,20 +95,18 @@
     // released just as a pause releases it.
     BOOL playing = _player.isPlaying;
     _updateTimer.wanted = playing;
-    [self updateScrollLinkState];
     if (!playing) {
         [_audioSession deactivateWhenIdle];
     }
-    [self updatePlayButton];
-    [self updatePlaybackUI];
+    [self notifyDidChangePlayState];
+    [self notifyDidTick];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track {
     _updateTimer.wanted = NO;
-    [self updateScrollLinkState];
     [_audioSession deactivateWhenIdle];
-    [self updatePlayButton];
-    [self updatePlaybackUI];
+    [self notifyDidChangePlayState];
+    [self notifyDidTick];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track {
@@ -122,9 +114,8 @@
     // playPause directly, never playCurrentTrack, so the flag clears here.
     _parked = NO;
     _updateTimer.wanted = YES;
-    [self updateScrollLinkState];
-    [self updatePlayButton];
-    [self updatePlaybackUI];
+    [self notifyDidChangePlayState];
+    [self notifyDidTick];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {
@@ -132,7 +123,7 @@
         return;
     }
     _seekInFlight = NO;
-    [self updatePlaybackUI];
+    [self notifyDidTick];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track {
@@ -150,11 +141,9 @@
     // End of playlist: park on the last track, ready to replay.
     _parked = YES;
     _updateTimer.wanted = NO;
-    [self updateScrollLinkState];
     [_audioSession deactivateWhenIdle];
-    _waveformView.progress = 0;
-    [self updatePlayButton];
-    [self updatePlaybackUI];
+    [self notifyDidChangePlayState];
+    [self notifyDidTick];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
@@ -177,10 +166,8 @@
         return;
     }
     [_playlist next];
-    [self scrollToCurrentPageAnimated:YES];
-    [self requestWaveformForIndex:_playlist.currentIndex];
-    [_waveformCoordinator pruneAroundIndex:_playlist.currentIndex];
-    // The rest of the per-track refresh — header, metadata, prefetch of the
+    [self notifyDidMoveToCurrentTrackAnimated:YES];
+    // The rest of the per-track refresh — render, metadata, prefetch of the
     // new next (which re-arms the splice), Now Playing — is exactly
     // didStartPlaying:'s body, and its identity guard now passes.
     [self audioPlayer:audioPlayer didStartPlaying:startedTrack];
@@ -201,14 +188,13 @@
     _trackStartPending = NO;
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
-    [_waveformView hideLoadingIndicator];
+    [self notifyDidFailCurrentTrack];
     if (current) {
-        [self renderHeaderForTrack:current];
+        [self notifyDidRenderCurrentTrack];
     }
     _updateTimer.wanted = NO;
-    [self updateScrollLinkState];
     [_audioSession deactivateWhenIdle];
-    [self updatePlayButton];
+    [self notifyDidChangePlayState];
     [self publishNowPlaying];
 }
 

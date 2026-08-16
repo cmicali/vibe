@@ -125,6 +125,21 @@ static void DisableQuiescenceWaits(void) {
         [XCUIDevice.sharedDevice pressButton:XCUIDeviceButtonHome];
         return JSONString(@{@"ok": @YES});
     }
+    // TRAP: the keyboard is NOT in the app's window — it lives in a
+    // UIRemoteKeyboardWindow of its own, so a coordinate tap aimed at a key
+    // lands on whatever the app is drawing BEHIND the keyboard instead, and
+    // looks for all the world like the key did nothing. Typing has to go
+    // through the responder chain, which is what typeText: does.
+    if ([verb isEqualToString:@"type"]) {
+        if (tokens.count < 2) {
+            return JSONString(@{@"error": @"type needs: <text>"});
+        }
+        // Rejoined, so a query with spaces survives the tokenizer.
+        NSString *text = [[tokens subarrayWithRange:NSMakeRange(1, tokens.count - 1)]
+                componentsJoinedByString:@" "];
+        [_app typeText:text];
+        return JSONString(@{@"ok": @YES, @"typed": text});
+    }
     if ([verb isEqualToString:@"rotate"]) {
         // Named by the DEVICE's physical rotation, like the Simulator menu:
         // "left" turns the device counterclockwise (home side on the right).
@@ -192,7 +207,7 @@ static void DisableQuiescenceWaits(void) {
     return JSONString(@{@"error": [NSString stringWithFormat:
             @"unknown command '%@'. Commands: tap <x> <y>, double_tap <x> <y>, "
             @"press <x> <y> <seconds>, drag <x1> <y1> <x2> <y2> [seconds], "
-            @"rotate portrait|left|right, home, quit", verb]});
+            @"type <text>, rotate portrait|left|right, home, quit", verb]});
 }
 
 // Returns YES when the command asked the session to end.

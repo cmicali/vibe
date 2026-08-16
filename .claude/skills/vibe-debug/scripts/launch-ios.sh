@@ -33,33 +33,14 @@ xcrun simctl bootstatus "$UDID" -b >/dev/null
 open -a Simulator   # surface the window; input/screenshot tooling needs it visible
 
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
-# While a drive-ios.sh session is live, its xcodebuild already installed this
-# build — and a competing install here gets serialized by installcoordinationd
-# and can bounce the running app a minute later, mid-test. The cost: an app
-# REBUILT mid-session is not installed by this script either, so warn when
-# the built binary is newer than the installed one — the fix is rerunning
-# `drive-ios.sh start`, whose xcodebuild installs the fresh build.
-#
-# "Live" means the runner PROCESS exists, not just the ready marker: the
-# marker outlives a driver that died without cleanup (crash, kill, simctl
-# erase, reboot), and trusting it skipped installs onto a device with no app.
-# A stale marker is removed so drive-ios.sh status stops believing it too.
-driver_is_live() {
-    local marker="$ROOT/build/ios-driver/$UDID/vibe-driver-ready"
-    [ -f "$marker" ] || return 1
-    pgrep -f "Devices/$UDID/.*VibeiOSDriver-Runner" >/dev/null 2>&1 && return 0
-    rm -f "$marker"
-    return 1
-}
-if driver_is_live; then
-    INSTALLED="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" app 2>/dev/null || true)"
-    if [ -n "$INSTALLED" ] && [ "$APP/Vibe" -nt "$INSTALLED/Vibe" ]; then
-        echo "WARNING: built app is newer than the installed one, but a driver session" >&2
-        echo "is live so the install is skipped — rerun drive-ios.sh start to install it" >&2
-    fi
-else
-    xcrun simctl install "$UDID" "$APP"
-fi
+# install-ios.sh installs only when the built binary is newer, which is what
+# makes it safe to call unconditionally — a drive-ios.sh session included.
+# This script used to SKIP the install outright while a driver was live and
+# merely warn, on the reasoning that a competing install can bounce the running
+# app mid-test. That traded a loud, wanted bounce for a silent stale binary:
+# gestures ran against the previous build and every conclusion drawn from them
+# was wrong. An unnecessary install is still avoided — by not being necessary.
+VIBE_IOS_APP="$APP" "$DIR/install-ios.sh" "$UDID"
 
 if [ "$#" -gt 0 ]; then
     DATA="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)"

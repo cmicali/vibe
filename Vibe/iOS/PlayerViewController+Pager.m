@@ -14,12 +14,11 @@
 #import "PlayerViewController+Delivery.h"
 // The art window republishes the lock-screen card when the current page's art
 // lands.
-#import "PlayerViewController+NowPlaying.h"
+#import "PlaybackController+NowPlaying.h"
 
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadata+ArtLoad.h"
-#import "AudioTrackMetadataCache.h"   // the prefetch's priority-lane metadata load
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
@@ -141,7 +140,8 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
 
 - (void)configurePage:(TrackPageCell *)cell atIndex:(NSUInteger)index {
     AudioTrack *track = [_playlist trackAtIndex:index];
-    BOOL showError = index == _playlist.currentIndex && _errorText;
+    NSString *errorText = _playback.errorText;
+    BOOL showError = index == _playlist.currentIndex && errorText != nil;
     // Full-size art, and nothing standing in for it. The 128px thumbnail is
     // fine under the blur but visibly soft in the art card, and installing it
     // first only buys a swap to sharp a moment later; the art window is what
@@ -149,7 +149,7 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
     // track with no art at all, the mac's vinyl placeholder.
     [cell configureWithTitle:track.displayTitle
                   titleColor:[UIColor labelColor]
-                      artist:(showError ? _errorText : (track.displayArtist ?: @""))
+                      artist:(showError ? errorText : (track.displayArtist ?: @""))
                  artistColor:(showError ? [UIColor systemRedColor]
                                         : [UIColor secondaryLabelColor])
                     fileInfo:track.metadata.fileInfoLine
@@ -178,7 +178,6 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
-    [self aimEmptyLine];
     // Page size follows the view, and the offset must stay page-aligned
     // through the first layout after a restore. Only on a real size change:
     // this runs on every root layout pass (sheet presentations, safe-area
@@ -275,7 +274,7 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
     if (!track) {
         return;
     }
-    [_metadataCache loadMetadataNow:track];   // no-op once parsed
+    [_playback loadMetadataNowForTrack:track];   // no-op once parsed
     __weak PlayerViewController *weakSelf = self;
     [track.metadata dispatchArtLoadIfNeededStillWanted:^BOOL{
         // A dead controller answers "not wanted", which demotes the decode.
@@ -288,7 +287,7 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
         [self->_artHeldPages addIndex:index];
         [self refreshPageAtIndex:index];
         if ([self->_playlist isCurrentTrack:track]) {
-            [self publishNowPlaying];  // the lock-screen card takes the art too
+            [self->_playback publishNowPlaying];  // the card takes the art too
         }
     }];
 }
@@ -370,14 +369,16 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
 // nothing.
 - (void)commitVisiblePage {
     CGFloat width = _pagesView.bounds.size.width;
-    if (width <= 0 || _playlist.count == 0 || _windowResizeInFlight) {
+    // Minimized, the card is still laid out and still reloads: a playlist
+    // replacement settles a scroll nobody performed, and committing it would
+    // change track under a user looking at the library.
+    if (width <= 0 || _playlist.count == 0 || _windowResizeInFlight || !self.isPresented) {
         return;
     }
     NSUInteger page = (NSUInteger)MAX(0.0, round(_pagesView.contentOffset.x / width));
     page = MIN(page, _playlist.count - 1);
     if (page != _playlist.currentIndex) {
-        _playlist.currentIndex = page;
-        [self playCurrentTrack];
+        [_playback selectTrackAtIndex:page];
     }
     else if (_waveformCoordinator.targetIndex != page) {
         // Pulled a neighbor into view and let go: the preview load retargeted

@@ -2,21 +2,24 @@
 //  EqualizerIndicatorView.m
 //  Vibe
 //
+//  See the header for why this is shared. The tables and the math below are
+//  the indicator; the #if blocks are only the platform's names for "lay out",
+//  "the appearance changed", "I moved to a window" and "alpha".
+//
 
 #import "EqualizerIndicatorView.h"
+
+#if TARGET_OS_OSX
 #import "NSView+DarkMode.h"
+#else
+#import "UIView+DarkMode.h"
+#endif
 
 // An enum rather than a static const, because a const variable is not a C
 // constant expression, so using it as an array size would make the tables
 // below variable-length arrays.
 enum { kBarCount = 5 };
 static const CGFloat kBarGap = 1.5;
-
-// The pose shown while paused: the diamond envelope of the app icon's
-// waveform, running short, tall, tallest, tall, short. It is also the model
-// value the animation returns to when it is removed, since the keyframes
-// animate transform.scale.y around it.
-static const CGFloat kPausedHeights[kBarCount] = {0.4, 0.7, 1.0, 0.7, 0.4};
 
 // Per-bar loops with distinct durations, so that the combined pattern does not
 // visibly repeat. Each sequence ends where it starts, for a seamless cycle, and
@@ -36,10 +39,12 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0, 1.25, 0.
     NSArray<CALayer *> *_bars;
 }
 
-- (instancetype)initWithFrame:(NSRect)frameRect {
+- (instancetype)initWithFrame:(CGRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
+#if TARGET_OS_OSX
         self.wantsLayer = YES;
+#endif
         NSMutableArray<CALayer *> *bars = [NSMutableArray arrayWithCapacity:kBarCount];
         for (NSUInteger i = 0; i < kBarCount; i++) {
             CALayer *bar = [CALayer layer];
@@ -50,18 +55,27 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0, 1.25, 0.
             [bars addObject:bar];
         }
         _bars = bars;
+#if !TARGET_OS_OSX
+        // The iOS twin of viewDidChangeEffectiveAppearance.
+        __weak EqualizerIndicatorView *weakSelf = self;
+        [self registerForTraitChanges:@[UITraitUserInterfaceStyle.class]
+                          withHandler:^(id<UITraitEnvironment> environment, UITraitCollection *previous) {
+            [weakSelf applyAppearanceColor];
+        }];
+#endif
         [self applyAppearanceColor];
     }
     return self;
 }
 
-- (void)setBarColor:(NSColor *)barColor {
+- (void)setBarColor:(VibeColor *)barColor {
     _barColor = barColor;
     [self applyAppearanceColor];
 }
 
 - (void)applyAppearanceColor {
-    CGColorRef color = (_barColor ?: (self.isDark ? NSColor.whiteColor : NSColor.blackColor)).CGColor;
+    VibeColor *fallback = self.isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
+    CGColorRef color = (_barColor ?: fallback).CGColor;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (CALayer *bar in _bars) {
@@ -70,15 +84,28 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0, 1.25, 0.
     [CATransaction commit];
 }
 
+#if TARGET_OS_OSX
 - (void)viewDidChangeEffectiveAppearance {
     [super viewDidChangeEffectiveAppearance];
     [self applyAppearanceColor];
 }
+#endif
 
-- (void)layout {
-    [super layout];
+// The paused pose: every bar collapsed to its own width, which with the pill
+// corner radius makes it a circle — a row of dots. It is also the model value
+// the keyframes animate around, so removing the animation settles here.
+//
+// Scaled from the bar width rather than a constant, because "as short as it
+// goes" is a shape, not a number: the same view drawn at any size collapses to
+// round dots instead of to stadiums or slivers.
+- (CGFloat)collapsedScaleForBarWidth:(CGFloat)barWidth height:(CGFloat)height {
+    return height > 0 ? MIN(1.0, barWidth / height) : 1.0;
+}
+
+- (void)layoutBars {
     CGFloat barWidth = (self.bounds.size.width - kBarGap * (kBarCount - 1)) / (CGFloat)kBarCount;
     CGFloat height = self.bounds.size.height;
+    CGFloat collapsed = [self collapsedScaleForBarWidth:barWidth height:height];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (NSUInteger i = 0; i < kBarCount; i++) {
@@ -86,28 +113,60 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0, 1.25, 0.
         bar.bounds = CGRectMake(0, 0, barWidth, height);
         bar.position = CGPointMake(i * (barWidth + kBarGap) + barWidth / 2, height / 2);
         bar.cornerRadius = barWidth / 2; // pill ends, like the icon's bars
-        bar.transform = CATransform3DMakeScale(1, kPausedHeights[i], 1);
+        bar.transform = CATransform3DMakeScale(1, collapsed, 1);
     }
     [CATransaction commit];
 }
 
+#if TARGET_OS_OSX
+- (void)layout {
+    [super layout];
+    [self layoutBars];
+}
+#else
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    [self layoutBars];
+    // A relayout re-seats the model transform the keyframes animate around,
+    // which drops the running animation's effect; reinstall it. On the mac the
+    // row is laid out once, but an iOS cell is laid out on every reuse.
+    [self updateAnimations];
+}
+#endif
+
 - (void)setAnimating:(BOOL)animating {
     _animating = animating;
-    // Full strength while playing, dimmed to half when the current track is
-    // paused, so that the indicator reads as stopped.
-    self.alphaValue = animating ? 1.0 : 0.5;
+    // Only a light dim when paused: the collapse to dots is what says "not
+    // playing" now, and dimming a row of dots as hard as it dimmed full-height
+    // bars left almost nothing to see.
+#if TARGET_OS_OSX
+    self.alphaValue = animating ? 1.0 : 0.8;
+#else
+    self.alpha = animating ? 1.0 : 0.8;
+#endif
     [self updateAnimations];
 }
 
 // Core Animation strips animations whenever the layer leaves the layer tree,
-// and table cell reuse detaches the view, so reinstall them on re-attach. The
-// color is re-resolved too, because attaching to a window can change the
-// effective appearance without a viewDidChangeEffectiveAppearance callback.
-- (void)viewDidMoveToWindow {
-    [super viewDidMoveToWindow];
+// and cell reuse detaches the view, so reinstall them on re-attach. The color
+// is re-resolved too, because attaching to a window can change the effective
+// appearance without an appearance callback.
+- (void)didMoveToWindowShared {
     [self applyAppearanceColor];
     [self updateAnimations];
 }
+
+#if TARGET_OS_OSX
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    [self didMoveToWindowShared];
+}
+#else
+- (void)didMoveToWindow {
+    [super didMoveToWindow];
+    [self didMoveToWindowShared];
+}
+#endif
 
 - (void)updateAnimations {
     BOOL run = _animating && self.window != nil;

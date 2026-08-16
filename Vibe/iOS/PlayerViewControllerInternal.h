@@ -3,10 +3,14 @@
 //  Vibe (iOS)
 //
 //  The private surface shared between PlayerViewController.m and its
-//  categories: the class extension holding the collaborators, the chrome
-//  bindings, the state flags a category touches, and the internal methods the
-//  categories call. Do not use it outside the PlayerViewController
+//  categories: the class extension holding the pager and its bookkeeping, the
+//  chrome bindings, the state flags a category touches, and the internal
+//  methods the categories call. Do not use it outside the PlayerViewController
 //  implementation files; everything else goes through PlayerViewController.h.
+//
+//  Everything the screen DESCRIBES rather than draws — the engine, the
+//  playlist, the caches, the session, the display state — belongs to
+//  PlaybackController, which this reads through `_playback`.
 //
 //  The debug command channel is deliberately NOT here: its extra surface stays
 //  in Debug/iOS/PlayerViewController+Debug.h, so that no production file
@@ -18,60 +22,26 @@
 //
 
 #import "PlayerViewController.h"
-#import "AudioSessionController.h"  // AudioSessionControllerDelegate, adopted below
-#import "FolderSession.h"           // FolderSessionDelegate, adopted below
-#import "PlayerScreenRules.h"       // VibePlayerScreenState, returned below
-#import "Playlist.h"                // PlaylistObserver, adopted below
+#import "PlaybackController.h"      // PlaybackObserver, adopted below
+#import "PlayerScreenRules.h"       // VibePlayerScreenState, read below
+#import "Playlist.h"
 
-@class AudioPlayer;
 @class AudioTrack;
-@class AudioTrackMetadataCache;
 @class AudioWaveformCache;
-@class DownloadProgressMonitor;
-@class NowPlayingController;
 @class PageWaveformCoordinator;
-@class SearchViewController;
-@class TrackListViewController;
 @class TrackPageCell;
-@class UIUpdateTimer;
 @class WaveformScrubberView;
 
 NS_ASSUME_NONNULL_BEGIN
 
-// These four conformances stay on the class because PlayerViewController.m
+// These two conformances stay on the class because PlayerViewController.m
 // implements them. Every other one is declared on the category that implements
 // it, so the compiler checks each against the file that holds it.
-//
-// Only the state a category also touches lives here; the rest — the empty
-// state's midline, the bottom bar's buttons, the search sheet's handle and the
-// scroll link itself — stays private to PlayerViewController.m.
-@interface PlayerViewController () <PlaylistObserver, FolderSessionDelegate,
-        AudioSessionControllerDelegate, UIGestureRecognizerDelegate> {
-    AudioPlayer             *_player;
+@interface PlayerViewController () <PlaybackObserver, UIGestureRecognizerDelegate> {
+    PlaybackController      *_playback;
+    // Borrowed from _playback, which owns the one instance for the process.
+    // Held by name because the pager reads it on every data-source callback.
     Playlist                *_playlist;
-    AudioTrackMetadataCache *_metadataCache;
-    AudioWaveformCache      *_waveformCache;
-    NowPlayingController    *_nowPlaying;
-    AudioSessionController  *_audioSession;
-    FolderSession           *_folderSession;
-    UIUpdateTimer           *_updateTimer;
-
-    // seekToPosition: fades down before rescheduling, so position briefly
-    // reports the pre-seek value; holding the target until didFinishSeeking:
-    // keeps the waveform from snapping back for those frames.
-    float                   _pendingSeekProgress;
-    BOOL                    _seekInFlight;
-    // The same guard for a track change: until didStartPlaying: lands, the
-    // player's getters still serve the OUTGOING track, so the new page's
-    // waveform and time labels render the incoming track at rest instead of
-    // the stale position (which then snapped to zero when the open landed).
-    BOOL                    _trackStartPending;
-    // A restored track is parked: header, waveform, and metadata are loaded,
-    // but nothing plays until the user asks.
-    BOOL                    _parked;
-    // An inline playback error, shown on the artist line until the next track
-    // event, exactly like the mac header.
-    NSString                *_errorText;
 
     // The track pager, Photos-style: one full-screen cell per track (blurred
     // art + header), interactively draggable to the neighbors. The chrome —
@@ -100,9 +70,12 @@ NS_ASSUME_NONNULL_BEGIN
     UILabel                 *_remainingLabel;
     UIButton                *_playPauseButton;  // bound: the current page's glyph
 
-    // The pager's waveform bookkeeping — the one load's target page, the
-    // per-page snapshots, the complete set — between the cache and the cells.
-    PageWaveformCoordinator    *_waveformCoordinator;
+    // The waveform data and the pager's bookkeeping over it — the one load's
+    // target page, the per-page snapshots, the complete set — between the
+    // cache and the cells. Both are the pager's own, not the model's: nothing
+    // outside this screen draws a waveform.
+    AudioWaveformCache      *_waveformCache;
+    PageWaveformCoordinator *_waveformCoordinator;
 
     // The pages whose full-size art is decoded and still held. The pager keeps
     // art up to a byte budget and releases the furthest pages past it; this is
@@ -110,39 +83,16 @@ NS_ASSUME_NONNULL_BEGIN
     // outlives the fetch window that asked for it. Owned by +Pager.
     NSMutableIndexSet       *_artHeldPages;
 
-    // Polls a materializing cloud file's size while the loading indicator is
-    // up; nil otherwise.
-    DownloadProgressMonitor *_downloadMonitor;
-
-    // Weak: presentation owns the sheet, and the reference exists only to
-    // forward playlist changes while one is up — a dismissed sheet nils out
-    // and the forwarding no-ops.
-    __weak TrackListViewController *_trackListController;
-
-    // The open hint, and whether the scene is foregrounded. Both are core
-    // state; they are here because the debug channel's state dump reports
-    // them (Debug/iOS/PlayerViewController+Debug.m).
-    UILabel                 *_emptyHintLabel;
+    // Whether the scene is foregrounded. Core state, here because the debug
+    // channel's state dump reports it.
     BOOL                    _foreground;
 }
-
-#pragma mark - Display state
-
-// The screen's display state, resolved in one place: the update funnel, the
-// Now Playing publish and the debug channel all read this rather than
-// re-deriving it from the flags. The rule is VibeResolvePlayerScreenState,
-// beside the enum it returns; this gathers its inputs.
-- (VibePlayerScreenState)screenState;
-
-// The track the screen is describing — nil in the empty and error states.
-- (nullable AudioTrack *)displayedTrack;
 
 #pragma mark - The refresh funnel
 
 // Implemented in PlayerViewController.m, which carries their contracts.
 
-// The position tick: time labels, waveform progress, and the Now Playing
-// publish.
+// The position tick: time labels and waveform progress.
 - (void)updatePlaybackUI;
 // The transport glyph's symbol and, through updateChrome, its visibility.
 - (void)updatePlayButton;
@@ -154,9 +104,6 @@ NS_ASSUME_NONNULL_BEGIN
 // The pager owns the header, art, and waveform; rendering the current track
 // means refreshing its page and rebinding the live chrome to it.
 - (void)renderHeaderForTrack:(nullable AudioTrack *)track;
-// Keeps the empty-state line on the nominal waveform midline of whichever
-// cell layout the current orientation uses.
-- (void)aimEmptyLine;
 
 #pragma mark - Resting time rendering
 
@@ -168,11 +115,11 @@ NS_ASSUME_NONNULL_BEGIN
                          remaining:(UILabel *)remaining;
 - (void)renderRestingTimesForTrack:(nullable AudioTrack *)track;
 
-#pragma mark - Playback
+#pragma mark - Transport
 
-- (void)playCurrentTrack;
+// The page glyph's target, and the screen tap's. Forwards to _playback so
+// every surface takes the one path.
 - (void)playPauseTapped;
-- (void)nextTapped;
 
 @end
 

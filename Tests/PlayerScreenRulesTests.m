@@ -81,4 +81,33 @@
     XCTAssertTrue(VibePlayerScreenDescribesTrack(VibePlayerScreenStateTrack));
 }
 
+#pragma mark - The mini player
+
+- (void)testMiniPlayerStandsExactlyWhereThereIsATrackToName {
+    XCTAssertTrue(VibeMiniPlayerVisible(VibePlayerScreenStateLoading));
+    XCTAssertTrue(VibeMiniPlayerVisible(VibePlayerScreenStateParked));
+    XCTAssertTrue(VibeMiniPlayerVisible(VibePlayerScreenStateTrack));
+}
+
+- (void)testMiniPlayerIsGoneWithTheEmptyPlaylistAndAfterAFailedPlay {
+    // A strip naming audio that did not start is worse than no strip, which is
+    // why Error is on this side and not with the three above.
+    XCTAssertFalse(VibeMiniPlayerVisible(VibePlayerScreenStateEmpty));
+    XCTAssertFalse(VibeMiniPlayerVisible(VibePlayerScreenStateError));
+}
+
+// The strip and the card describe the same thing, so they must never disagree
+// about whether there is anything to describe.
+- (void)testMiniPlayerAgreesWithDescribesTrackInEveryState {
+    VibePlayerScreenState states[] = {
+        VibePlayerScreenStateEmpty, VibePlayerScreenStateLoading,
+        VibePlayerScreenStateParked, VibePlayerScreenStateError,
+        VibePlayerScreenStateTrack,
+    };
+    for (size_t i = 0; i < sizeof(states) / sizeof(states[0]); i++) {
+        XCTAssertEqual(VibeMiniPlayerVisible(states[i]),
+                       VibePlayerScreenDescribesTrack(states[i]));
+    }
+}
+
 @end

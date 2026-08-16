@@ -1,21 +1,19 @@
 //
-//  PlayerViewController+NowPlaying.m
+//  PlaybackController+NowPlaying.m
 //  Vibe (iOS)
 //
-//  See PlayerViewController+NowPlaying.h. The commands route to the same
-//  transport entry points the on-screen controls use, so the lock screen and
-//  the screen cannot take different paths to the same action.
+//  See PlaybackController+NowPlaying.h.
 //
 
-#import "PlayerViewController+NowPlaying.h"
-#import "PlayerViewControllerInternal.h"
+#import "PlaybackController+NowPlaying.h"
+#import "PlaybackControllerInternal.h"
 
 #import "AudioPlayer.h"
 #import "AudioPlayer+Seek.h"
 #import "AudioTrack.h"
 #import "NowPlayingRules.h"
 
-@implementation PlayerViewController (NowPlaying)
+@implementation PlaybackController (NowPlaying)
 
 // The card's art is not dispatched here: the current page's art is the same
 // decode, and the pager's art window (PlayerViewController+Pager) owns it and
@@ -24,7 +22,7 @@
 - (void)publishNowPlaying {
     NowPlayingPlaybackState state = VibeNowPlayingStateForPlayer(_player.isPlaying,
                                                                  _player.isPaused);
-    AudioTrack *track = [self displayedTrack];
+    AudioTrack *track = self.displayedTrack;
     // The player's duration is 0 while pending or parked-unopened; the
     // track's metadata duration keeps the card's timeline real there.
     NSTimeInterval playerDuration = _player.duration;
@@ -41,7 +39,7 @@
 
 - (void)nowPlayingControllerPlay:(NowPlayingController *)controller {
     if (!_player.isPlaying) {
-        [self playPauseTapped];
+        [self playPause];
     }
 }
 
@@ -50,29 +48,24 @@
     // on the same branch either way today, and this keeps it there when the
     // funnel grows.
     if (_player.isPlaying) {
-        [self playPauseTapped];
+        [self playPause];
     }
 }
 
 - (void)nowPlayingControllerTogglePlayPause:(NowPlayingController *)controller {
-    [self playPauseTapped];
+    [self playPause];
 }
 
 - (void)nowPlayingControllerNextTrack:(NowPlayingController *)controller {
-    [self nextTapped];
+    [self next];
 }
 
 - (void)nowPlayingControllerPreviousTrack:(NowPlayingController *)controller {
-    if ([_playlist previous]) {
-        [self playCurrentTrack];
-    }
-    else {
-        [_player seekToPosition:0];
-    }
+    [self previous];
 }
 
 - (void)nowPlayingController:(NowPlayingController *)controller seekToPosition:(NSTimeInterval)position {
-    [_player seekToPosition:position];
+    [self seekToPosition:position];
 }
 
 @end

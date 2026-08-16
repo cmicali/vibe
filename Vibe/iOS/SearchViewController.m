@@ -4,25 +4,29 @@
 //
 
 #import "SearchViewController.h"
+
 #import "AudioTrack.h"
+#import "PlaybackController.h"
 #import "Playlist.h"
 #import "VibeStrings.h"
 
-@interface SearchViewController () <UISearchResultsUpdating, UISearchControllerDelegate>
+@interface SearchViewController () <UISearchResultsUpdating, PlaybackObserver>
 @end
 
 @implementation SearchViewController {
-    __weak Playlist *_playlist;
+    PlaybackController *_playback;
+    Playlist           *_playlist;
     UISearchController *_searchController;
     // Indexes into the playlist, filtered by the live query. All rows when
     // the query is empty, so the screen doubles as a browse list.
     NSArray<NSNumber *> *_matches;
 }
 
-- (instancetype)initWithPlaylist:(Playlist *)playlist {
+- (instancetype)initWithPlayback:(PlaybackController *)playback {
     self = [super initWithStyle:UITableViewStylePlain];
     if (self) {
-        _playlist = playlist;
+        _playback = playback;
+        _playlist = playback.playlist;
         _matches = @[];
     }
     return self;
@@ -31,55 +35,16 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.title = STR_LABEL_SEARCH;
-    self.navigationItem.rightBarButtonItem =
-        [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemClose
-                                                      target:self
-                                                      action:@selector(closeTapped)];
     _searchController = [[UISearchController alloc] initWithSearchResultsController:nil];
     _searchController.searchResultsUpdater = self;
-    _searchController.delegate = self;
     _searchController.obscuresBackgroundDuringPresentation = NO;
     _searchController.searchBar.placeholder = STR_LABEL_SEARCH;
     self.navigationItem.searchController = _searchController;
     self.navigationItem.hidesSearchBarWhenScrolling = NO;
+    // Deliberately not focused on appear: this is a tab root, and seizing the
+    // keyboard on every switch to it is not what a tab does.
+    [_playback addObserver:self];
     [self filterWithQuery:@""];
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    [super viewDidAppear:animated];
-    // Mail-style: land with the field focused and the keyboard up. Activation
-    // presents the field; the focus itself waits for didPresentSearchController:
-    // — calling becomeFirstResponder here races the activation and loses on
-    // device (the field is not installed yet, so the keyboard never comes up).
-    _searchController.active = YES;
-}
-
-- (void)didPresentSearchController:(UISearchController *)searchController {
-    // Deferred a runloop turn: the presentation callback can still precede the
-    // field becoming attachable to the responder chain.
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [searchController.searchBar becomeFirstResponder];
-    });
-}
-
-// The sheet, not the search layer: while the search controller is active, a
-// plain [self dismiss…] tears down the SEARCH presentation — deactivating the
-// field — and leaves the sheet standing. The presenter dismisses the whole
-// stack, active search included.
-- (void)dismissSheetWithCompletion:(void (^)(void))completion {
-    UIViewController *presenter = self.navigationController.presentingViewController
-            ?: self.presentingViewController;
-    [presenter dismissViewControllerAnimated:YES completion:completion];
-}
-
-- (void)closeTapped {
-    [self dismissSheetWithCompletion:nil];
-}
-
-- (void)reloadAll {
-    if (self.isViewLoaded) {
-        [self filterWithQuery:_searchController.searchBar.text ?: @""];
-    }
 }
 
 #pragma mark - Filtering
@@ -127,6 +92,9 @@
     }
     AudioTrack *track = [_playlist trackAtIndex:_matches[(NSUInteger)indexPath.row].unsignedIntegerValue];
     UIListContentConfiguration *content = cell.defaultContentConfiguration;
+    content.image = track.cachedThumbnail ?: [UIImage imageNamed:@"record-bg"];
+    content.imageProperties.maximumSize = CGSizeMake(40, 40);
+    content.imageProperties.cornerRadius = 4;
     content.text = track.displayTitle;
     content.secondaryText = track.displayArtist;
     content.textProperties.numberOfLines = 1;
@@ -136,13 +104,24 @@
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    NSUInteger index = _matches[(NSUInteger)indexPath.row].unsignedIntegerValue;
-    void (^selectTrack)(NSUInteger) = self.onSelectTrack;
-    [self dismissSheetWithCompletion:^{
-        if (selectTrack) {
-            selectTrack(index);
-        }
-    }];
+    [_playback selectTrackAtIndex:_matches[(NSUInteger)indexPath.row].unsignedIntegerValue];
+}
+
+#pragma mark - PlaybackObserver
+
+// Re-filter rather than reload: the matches are indexes into a playlist that
+// has just been replaced, so every one of them is stale.
+- (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
+    [self filterWithQuery:_searchController.searchBar.text ?: @""];
+}
+
+- (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes {
+    [self filterWithQuery:_searchController.searchBar.text ?: @""];
+}
+
+- (void)playback:(PlaybackController *)playback didLoadMetadataForTrack:(AudioTrack *)track {
+    // Tags can change what a row says and what the query matches.
+    [self filterWithQuery:_searchController.searchBar.text ?: @""];
 }
 
 @end

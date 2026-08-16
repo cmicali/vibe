@@ -5,9 +5,13 @@
 // The ordered track list, free of any view dependency: the backing store, the
 // current-index cursor, and the track-to-row map that keeps row lookups O(1)
 // during the metadata sweep. Both app shells observe it through
-// PlaylistObserver — PlaylistController owns the mac's NSTableView half,
-// PlayerViewController the iOS pager and its two sheets — and neither is
+// PlaylistObserver — PlaylistController owns the mac's NSTableView half, and
+// on iOS PlaybackController takes the one slot and re-broadcasts, because
+// three screens there describe the same playlist at once — and neither is
 // visible from here.
+//
+// THERE IS EXACTLY ONE OBSERVER SLOT, deliberately. A second consumer does not
+// get a second slot; it gets whatever the first one fans out to.
 //
 
 #import <Foundation/Foundation.h>

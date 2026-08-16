@@ -75,4 +75,13 @@ static inline BOOL VibePlayerScreenDescribesTrack(VibePlayerScreenState state) {
             || state == VibePlayerScreenStateTrack;
 }
 
+// Whether the mini player stands above the tab bar. It is the same question as
+// the one above — the strip is the card in one line, so it appears exactly
+// when there is a track to name and disappears with the playlist. Error is
+// deliberately excluded with it: a failed play describes no track, and a strip
+// naming audio that did not start is worse than no strip.
+static inline BOOL VibeMiniPlayerVisible(VibePlayerScreenState state) {
+    return VibePlayerScreenDescribesTrack(state);
+}
+
 NS_ASSUME_NONNULL_END
