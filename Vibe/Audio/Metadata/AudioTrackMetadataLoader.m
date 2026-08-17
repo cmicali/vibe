@@ -150,6 +150,7 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank, BOOL def
             _cloudAttemptsByPath = [NSMutableDictionary dictionary];
             _cloudParsesLock = OS_UNFAIR_LOCK_INIT;
             _materializer = [[CloudFileMaterializer alloc] init];
+            _materializer.label = @"metadata";
         }
     }
     return self;

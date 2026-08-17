@@ -13,6 +13,9 @@
 
 #include <sys/stat.h>
 #include <unistd.h>
+#if DEBUG
+#include <stdatomic.h>
+#endif
 
 // Installed once at launch, read from the expansion workers, so each handoff
 // takes a lock rather than assuming the install lands first.
@@ -26,6 +29,34 @@ static VibeDatalessProbe sDatalessProbe;
 static VibeDatalessProbe DatalessProbe(void) {
     @synchronized (NSURLUtil.class) {
         return sDatalessProbe;
+    }
+}
+
+// The lane-routing measurement; see NSURLUtil+Debug.h. Guarded by the class
+// @synchronized like the probe, and consulted only after an atomic flag says
+// it is on, so the 2.3us stat path pays one relaxed load when it is not.
+static _Atomic(BOOL) sDatalessDiagEnabled;
+static NSMutableDictionary<NSString *, NSMutableDictionary *> *sDatalessDiag;
+static NSUInteger sDatalessDiagOverflow;
+static const NSUInteger kDatalessDiagDirectoryCap = 128;
+
+static void VibeRecordDatalessStat(NSURL *url, BOOL dataless, uint32_t flags, BOOL statFailed) {
+    NSString *directory = url.URLByDeletingLastPathComponent.path ?: @"?";
+    @synchronized (NSURLUtil.class) {
+        NSMutableDictionary *entry = sDatalessDiag[directory];
+        if (!entry) {
+            if (sDatalessDiag.count >= kDatalessDiagDirectoryCap) {
+                sDatalessDiagOverflow++;
+                return;
+            }
+            entry = [@{@"dataless": @0, @"local": @0, @"statFailed": @0} mutableCopy];
+            sDatalessDiag[directory] = entry;
+        }
+        NSString *bucket = statFailed ? @"statFailed" : (dataless ? @"dataless" : @"local");
+        entry[bucket] = @([entry[bucket] unsignedIntegerValue] + 1);
+        if (!statFailed) {
+            entry[@"lastFlags"] = [NSString stringWithFormat:@"0x%x", flags];
+        }
     }
 }
 #endif
@@ -109,10 +140,41 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
 #endif
     struct stat st;
     if (stat(url.fileSystemRepresentation, &st) != 0) {
+#if DEBUG
+        if (atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)) {
+            VibeRecordDatalessStat(url, NO, 0, YES);
+        }
+#endif
         return NO;
     }
-    return (st.st_flags & SF_DATALESS) != 0;
+    BOOL dataless = (st.st_flags & SF_DATALESS) != 0;
+#if DEBUG
+    if (atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)) {
+        VibeRecordDatalessStat(url, dataless, st.st_flags, NO);
+    }
+#endif
+    return dataless;
 }
+
+#if DEBUG
++ (void)setDatalessDiagnosticsEnabled:(BOOL)enabled {
+    @synchronized (self) {
+        sDatalessDiag = enabled ? [NSMutableDictionary dictionary] : nil;
+        sDatalessDiagOverflow = 0;
+    }
+    atomic_store_explicit(&sDatalessDiagEnabled, enabled, memory_order_relaxed);
+}
+
++ (NSDictionary *)datalessDiagnostics {
+    @synchronized (self) {
+        return @{
+            @"enabled": @(atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)),
+            @"directories": [sDatalessDiag copy] ?: @{},
+            @"overflowed": @(sDatalessDiagOverflow),
+        };
+    }
+}
+#endif
 
 // Whether path names a file sitting directly in directory — a string test, so a
 // walk can tell it is still in the same folder without rebuilding that folder's

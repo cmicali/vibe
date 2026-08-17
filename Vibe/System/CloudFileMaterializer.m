@@ -18,13 +18,19 @@
 // racing a release, not merely something TSan dislikes. Found by TSan on the
 // first cloud-profile run, in the harness rather than the app.
 static os_unfair_lock sFakeLock = OS_UNFAIR_LOCK_INIT;
-static NSTimeInterval (^sFakeTransferSeconds)(NSURL *);   // nil, or 0 for a URL = the real read
-static void (^sFakeTransferDidFinish)(NSURL *, BOOL);
+static NSTimeInterval (^sFakeTransferSeconds)(NSURL *, NSString *);   // nil, or 0 for a URL = the real read
+static BOOL (^sFakeAcquireSlot)(NSURL *, NSString *, BOOL (^)(void));
+static void (^sFakeReleaseSlot)(NSURL *);
+static void (^sFakeTransferDidFinish)(NSURL *, NSString *, BOOL);
 
-static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *),
-                                  void (^*didFinish)(NSURL *, BOOL)) {
+static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *),
+                                  BOOL (^*acquireSlot)(NSURL *, NSString *, BOOL (^)(void)),
+                                  void (^*releaseSlot)(NSURL *),
+                                  void (^*didFinish)(NSURL *, NSString *, BOOL)) {
     os_unfair_lock_lock(&sFakeLock);
     *seconds = sFakeTransferSeconds;
+    *acquireSlot = sFakeAcquireSlot;
+    *releaseSlot = sFakeReleaseSlot;
     *didFinish = sFakeTransferDidFinish;
     os_unfair_lock_unlock(&sFakeLock);
 }
@@ -112,12 +118,25 @@ static NSError *VibeMaterializationCancelledError(void) {
 
 #if DEBUG
 
-+ (void)setFakeTransferProvider:(NSTimeInterval (^)(NSURL *url))secondsForURL
-                      didFinish:(void (^)(NSURL *url, BOOL completed))didFinish {
++ (void)setFakeTransferProvider:(NSTimeInterval (^)(NSURL *url, NSString *role))secondsForURL
+                    acquireSlot:(BOOL (^)(NSURL *url, NSString *role, BOOL (^cancelled)(void)))acquireSlot
+                    releaseSlot:(void (^)(NSURL *url))releaseSlot
+                      didFinish:(void (^)(NSURL *url, NSString *role, BOOL completed))didFinish {
     os_unfair_lock_lock(&sFakeLock);
     sFakeTransferSeconds = [secondsForURL copy];
+    sFakeAcquireSlot = [acquireSlot copy];
+    sFakeReleaseSlot = [releaseSlot copy];
     sFakeTransferDidFinish = [didFinish copy];
     os_unfair_lock_unlock(&sFakeLock);
+}
+
+// Reads under the same lock every other token transition takes, so the slot
+// poll's cancellation check cannot race a -cancel mid-write.
+- (BOOL)tokenIsCancelled:(CloudFileMaterializationToken *)token {
+    os_unfair_lock_lock(&_lock);
+    BOOL cancelled = (_token != token || token.isCancelled);
+    os_unfair_lock_unlock(&_lock);
+    return cancelled;
 }
 
 // Waits out the fake transfer, or returns NO the moment -cancel signals. The
@@ -166,15 +185,48 @@ static NSError *VibeMaterializationCancelledError(void) {
 - (BOOL)materializeURL:(NSURL *)url
                  token:(CloudFileMaterializationToken *)token
                  error:(NSError *__autoreleasing *)error {
+#if DEBUG
+    // The fake is asked AHEAD of the placeholder probe, so an
+    // unflagged-placeholder mode — where the probe disowns a file whose
+    // transfer has not run — still costs the transfer. The provider contract
+    // carries the old ordering's job: it answers 0 for a path whose transfer
+    // already completed, so a replayed file is not re-downloaded.
+    NSTimeInterval (^fakeSeconds)(NSURL *, NSString *) = nil;
+    BOOL (^acquireSlot)(NSURL *, NSString *, BOOL (^)(void)) = nil;
+    void (^releaseSlot)(NSURL *) = nil;
+    void (^didFinish)(NSURL *, NSString *, BOOL) = nil;
+    VibeFakeTransferHooks(&fakeSeconds, &acquireSlot, &releaseSlot, &didFinish);
+    NSString *role = self.label ?: @"unlabeled";
+    NSTimeInterval fake = fakeSeconds ? fakeSeconds(url, role) : 0;
+    if (fake > 0) {
+        // The shared provider slot first, cancellable while queued; then the
+        // transfer itself. Cancelled leaves the file a placeholder, exactly as
+        // a real one does.
+        BOOL admitted = YES;
+        if (acquireSlot) {
+            __weak CloudFileMaterializer *weakSelf = self;
+            admitted = acquireSlot(url, role, ^BOOL{
+                CloudFileMaterializer *strongSelf = weakSelf;
+                return !strongSelf || [strongSelf tokenIsCancelled:token];
+            });
+        }
+        BOOL completed = admitted && [self waitOutFakeTransfer:fake token:token error:error];
+        if (admitted && releaseSlot) {
+            releaseSlot(url);
+        }
+        if (!admitted && error) {
+            *error = VibeMaterializationCancelledError();
+        }
+        if (didFinish) {
+            didFinish(url, role, completed);
+        }
+        return completed;
+    }
+#endif
+
     // Keep the placeholder probe inside the prepared call. Besides making local
     // files cheap, this means callers never have to bypass materialization and
     // accidentally leave a prepared token live forever.
-    //
-    // TRAP: it must stay AHEAD of the fake transfer below, not behind it. The
-    // fake's seconds-for-URL answer is a property of the path alone, while the
-    // probe is what a completed transfer switches off — so asking the fake
-    // first would re-run a file's whole download every time it is replayed,
-    // and no stress run would ever settle.
     if (![NSURLUtil isDatalessFile:url]) {
         BOOL current = [self consumeLocalToken:token];
         if (!current && error) {
@@ -182,21 +234,6 @@ static NSError *VibeMaterializationCancelledError(void) {
         }
         return current;
     }
-
-#if DEBUG
-    NSTimeInterval (^fakeSeconds)(NSURL *) = nil;
-    void (^didFinish)(NSURL *, BOOL) = nil;
-    VibeFakeTransferHooks(&fakeSeconds, &didFinish);
-    NSTimeInterval fake = fakeSeconds ? fakeSeconds(url) : 0;
-    if (fake > 0) {
-        // Cancelled leaves the file a placeholder, exactly as a real one does.
-        BOOL completed = [self waitOutFakeTransfer:fake token:token error:error];
-        if (didFinish) {
-            didFinish(url, completed);
-        }
-        return completed;
-    }
-#endif
 
     // A fresh coordinator per download, deliberately. Cancellation poisons a
     // coordinator for good — every later -coordinate... on it returns

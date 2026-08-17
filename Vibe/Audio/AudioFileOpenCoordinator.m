@@ -212,6 +212,8 @@ static const NSTimeInterval kBackgroundAdmissionGraceSeconds = 10.0;
     BOOL shouldMaterialize = claim.purpose != VibeAudioFileOpenPurposeGapless;
     if (shouldMaterialize) {
         claim.materializer = [[CloudFileMaterializer alloc] init];
+        claim.materializer.label = claim.purpose == VibeAudioFileOpenPurposePlayback
+                ? @"playback" : @"prefetch";
         claim.materializationToken = [claim.materializer prepareMaterialization];
     }
     else {

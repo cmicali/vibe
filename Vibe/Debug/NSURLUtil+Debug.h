@@ -33,6 +33,17 @@ typedef BOOL (^VibeDatalessProbe)(NSURL *url);
 
 + (void)setDatalessProbe:(nullable VibeDatalessProbe)probe;
 
+// The lane-routing measurement, for a REAL provider: while enabled, every
+// stat the dataless test performs records its directory, its verdict, and the
+// raw st_flags, bounded per run. This is how an unflagged provider — the
+// shape NSURLUtil.m's comment predicts — is confirmed or ruled out against
+// iCloud Drive or whatever provider a report names, without instrumenting a
+// release. It records nothing while the fake probe is installed, since a
+// fake's answers say nothing about the kernel flag. Enabling resets what was
+// recorded. Off by default; the stat path pays nothing until it is turned on.
++ (void)setDatalessDiagnosticsEnabled:(BOOL)enabled;
++ (NSDictionary *)datalessDiagnostics;
+
 @end
 
 NS_ASSUME_NONNULL_END

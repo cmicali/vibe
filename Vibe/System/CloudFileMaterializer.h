@@ -46,6 +46,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface CloudFileMaterializer : NSObject
 
+// Names the caller in the debug transfer trace ("metadata", "playback",
+// "prefetch"). Set once at creation; nil reads as unlabeled.
+@property (nonatomic, copy, nullable) NSString *label;
+
 // Registers one call before it is dispatched. A later preparation supersedes
 // the earlier token, just as -cancel does; callers use one materializer for one
 // serial lane, so there is only one prepared or running call at a time.

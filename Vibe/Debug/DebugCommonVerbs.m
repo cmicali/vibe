@@ -24,6 +24,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "NSURLUtil.h"
+#import "NSURLUtil+Debug.h"
 #import "VibeFakeCloud.h"
 
 #if TARGET_OS_OSX
@@ -335,31 +336,106 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             }),
             // The stress harness's cloud simulator; see VibeFakeCloud. Seconds
             // of 0 uninstalls and puts the real dataless test and the real
-            // coordinated read back.
-            VibeDebugCmd(@"set_fake_cloud <seconds> [<percent>] [sticky]", 0,
+            // coordinated read back. The options after percent select the
+            // deterministic modes: capacity=N shares one provider pool,
+            // uniform flattens the per-path speed spread, progress= picks a
+            // scripted progress source, unflagged stages placeholders whose
+            // probe answers NO, sticky is the fault-injection mode.
+            VibeDebugCmd(@"set_fake_cloud <seconds> [<percent>] [capacity=N] [uniform] "
+                         @"[progress=none|linear|sparse|stall] [unflagged] [sticky]", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 double seconds = 0;
                 if (tokens.count < 2 || !VibeParseDouble(tokens[1], &seconds) || seconds < 0) {
-                    return VibeErrorJSON(@"usage: set_fake_cloud <seconds> [<percent>] [sticky]");
-                }
-                double percent = 100;
-                if (tokens.count > 2 && (!VibeParseDouble(tokens[2], &percent)
-                        || percent < 0 || percent > 100)) {
-                    return VibeErrorJSON(@"percent must be 0-100");
+                    return VibeErrorJSON(@"usage: set_fake_cloud <seconds> [<percent>] [options]");
                 }
                 if (seconds == 0) {
                     [VibeFakeCloud uninstall];
+                    return VibeJSONString([VibeFakeCloud statistics]);
+                }
+                double percent = 100;
+                NSUInteger firstOption = 2;
+                if (tokens.count > 2 && VibeParseDouble(tokens[2], &percent)) {
+                    if (percent < 0 || percent > 100) {
+                        return VibeErrorJSON(@"percent must be 0-100");
+                    }
+                    firstOption = 3;
                 }
                 else {
-                    [VibeFakeCloud installWithTransferSeconds:seconds
-                                              datalessPercent:(NSUInteger)percent];
-                    // The fault-injection mode; see VibeFakeCloud.
-                    if (tokens.count > 3 && [tokens[3] isEqualToString:@"sticky"]) {
+                    percent = 100;
+                }
+                [VibeFakeCloud installWithTransferSeconds:seconds
+                                          datalessPercent:(NSUInteger)percent];
+                static NSDictionary<NSString *, NSNumber *> *progressModes;
+                static dispatch_once_t modesOnce;
+                dispatch_once(&modesOnce, ^{
+                    progressModes = @{@"none": @(VibeFakeCloudProgressNone),
+                                      @"linear": @(VibeFakeCloudProgressLinear),
+                                      @"sparse": @(VibeFakeCloudProgressSparse),
+                                      @"stall": @(VibeFakeCloudProgressStall)};
+                });
+                for (NSUInteger i = firstOption; i < tokens.count; i++) {
+                    NSString *option = tokens[i];
+                    if ([option isEqualToString:@"sticky"]) {
                         [VibeFakeCloud setStickyDataless:YES];
+                    }
+                    else if ([option isEqualToString:@"uniform"]) {
+                        [VibeFakeCloud setUniformDurations:YES];
+                    }
+                    else if ([option isEqualToString:@"unflagged"]) {
+                        [VibeFakeCloud setUnflaggedPlaceholders:YES];
+                    }
+                    else if ([option hasPrefix:@"capacity="]) {
+                        double capacity = 0;
+                        if (!VibeParseDouble([option substringFromIndex:9], &capacity)
+                                || capacity < 0) {
+                            return VibeErrorJSON(@"capacity must be a non-negative number");
+                        }
+                        [VibeFakeCloud setTransferCapacity:(NSUInteger)capacity];
+                    }
+                    else if ([option hasPrefix:@"progress="]) {
+                        NSNumber *mode = progressModes[[option substringFromIndex:9]];
+                        if (!mode) {
+                            return VibeErrorJSON(@"progress must be none, linear, sparse, or stall");
+                        }
+                        [VibeFakeCloud setProgressMode:(VibeFakeCloudProgressMode)mode.integerValue];
+                    }
+                    else {
+                        return VibeErrorJSON(@"unknown option '%@'", option);
                     }
                 }
                 return VibeJSONString([VibeFakeCloud statistics]);
+            }),
+            // The fake cloud's admission trace: which transfer was requested,
+            // started, completed, or cancelled, in order, with roles. This is
+            // what ordering regressions assert on.
+            VibeDebugCmd(@"dump_cloud_trace", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                return VibeJSONString(@{@"stats": [VibeFakeCloud statistics],
+                                        @"events": [VibeFakeCloud traceEvents]});
+            }),
+            VibeDebugCmd(@"clear_cloud_trace", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                [VibeFakeCloud clearTrace];
+                return VibeJSONString(@{@"ok": @YES});
+            }),
+            // The real-provider lane-routing measurement; see NSURLUtil+Debug.h.
+            VibeDebugCmd(@"set_dataless_diag <on|off>", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                if (tokens.count < 2 || (![tokens[1] isEqualToString:@"on"]
+                        && ![tokens[1] isEqualToString:@"off"])) {
+                    return VibeErrorJSON(@"usage: set_dataless_diag <on|off>");
+                }
+                [NSURLUtil setDatalessDiagnosticsEnabled:[tokens[1] isEqualToString:@"on"]];
+                return VibeJSONString(@{@"ok": @YES});
+            }),
+            VibeDebugCmd(@"dump_dataless_diag", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                return VibeJSONString([NSURLUtil datalessDiagnostics]);
             }),
             VibeDebugCmd(@"dump_timing", 5, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                         id<VibeDebugPlayerSurface> surface) {

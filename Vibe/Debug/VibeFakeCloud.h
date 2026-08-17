@@ -36,6 +36,17 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// What the fake progress source reports while a transfer runs. Hashed is the
+// stress default: per-path speeds, chunked steps, a third of files stalling
+// partway. The rest are deterministic scripts for ordering and timeout tests.
+typedef NS_ENUM(NSInteger, VibeFakeCloudProgressMode) {
+    VibeFakeCloudProgressHashed = 0,
+    VibeFakeCloudProgressNone,     // no fraction ever: the no-progress provider
+    VibeFakeCloudProgressLinear,   // exact elapsed/total, continuous
+    VibeFakeCloudProgressSparse,   // linear, but the answer only moves every 10s
+    VibeFakeCloudProgressStall,    // linear to 40%, then motionless for good
+};
+
 @interface VibeFakeCloud : NSObject
 
 // Installs the probe and the transfer. percent is how much of the corpus reads
@@ -66,6 +77,26 @@ NS_ASSUME_NONNULL_BEGIN
 // matters for keeping it from silently rotting.
 + (void)setStickyDataless:(BOOL)sticky;
 
+// The provider's scarce resource, made explicit: at most capacity transfers
+// run at once and the rest queue, so a background download genuinely delays a
+// foreground one. 0 — the default, and what install resets to — is unlimited,
+// the old per-file behavior.
++ (void)setTransferCapacity:(NSUInteger)capacity;
+
+// Every file takes exactly the base transferSeconds: no spread, no slow or
+// stuck tail. For ordering assertions that must not fight the hash. Install
+// resets it to NO.
++ (void)setUniformDurations:(BOOL)uniform;
+
+// See VibeFakeCloudProgressMode. Install resets to Hashed.
++ (void)setProgressMode:(VibeFakeCloudProgressMode)mode;
+
+// The provider shape NSURLUtil.m:98-102 predicts and nothing else can stage:
+// placeholders carrying no SF_DATALESS. The dataless probe answers NO for
+// every file while their transfers still block, so lane routing sees "local"
+// against files that still cost a download. Install resets to NO.
++ (void)setUnflaggedPlaceholders:(BOOL)unflagged;
+
 // Restores the real dataless test and the real coordinated read.
 + (void)uninstall;
 
@@ -74,8 +105,17 @@ NS_ASSUME_NONNULL_BEGIN
 // The run's tally, for the health oracle: completed are the downloads that ran
 // to term, cancelled those a hold or a newer play cut short. Both are counted
 // at the transfer rather than at the probe, which is asked at sites that never
-// download.
+// download. Also carries the live queued/executing counts and the maximum
+// concurrency the run has observed.
 + (NSDictionary *)statistics;
+
+// The bounded admission trace: one entry per transfer event — requested,
+// started (with its queued milliseconds), completed, cancelled — each carrying
+// a sequence number, milliseconds since install, the caller's role (playback,
+// prefetch, metadata), and the file. Ordering tests assert on this rather than
+// inferring order from elapsed time. Capped; oldest entries fall off.
++ (NSArray<NSDictionary *> *)traceEvents;
++ (void)clearTrace;
 
 @end
 

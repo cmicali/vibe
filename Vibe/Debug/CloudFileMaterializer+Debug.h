@@ -33,15 +33,30 @@ NS_ASSUME_NONNULL_BEGIN
 // uniform, and a fake that is cannot reach the cases that matter: a file slow
 // enough to outlast a listener's patience, or one so slow it trips the player's
 // open timeout. Returning 0 for a URL means "not a fake at all", so a mixed
-// corpus works without a second switch. This class keeps only the wait and the
-// cancel; every question of WHICH files and HOW LONG belongs to the installer.
+// corpus works without a second switch. It must answer 0 for a path whose
+// transfer already completed, because materializeURL: asks it AHEAD of the
+// dataless probe — that ordering is what lets an unflagged-placeholder mode
+// keep transferring files the probe disowns. This class keeps only the wait
+// and the cancel; every question of WHICH files and HOW LONG belongs to the
+// installer.
+//
+// role is the materializer's label — which caller's transfer this is — so the
+// installer's trace can tell playback from prefetch from metadata.
+//
+// acquireSlot models the provider's scarce transfer capacity: it blocks until
+// the shared slot is free, polling cancelled() to abort a queued transfer the
+// way -cancel aborts a running one, and returns whether the slot was taken.
+// releaseSlot returns it. Nil means unlimited capacity.
 //
 // didFinish fires once per fake transfer, on the materializing thread, saying
 // which way it ended: completed means the file is now "local" and should stop
 // answering the dataless probe, cancelled means it is still a placeholder —
-// the same two outcomes a real one has.
-+ (void)setFakeTransferProvider:(nullable NSTimeInterval (^)(NSURL *url))secondsForURL
-                      didFinish:(nullable void (^)(NSURL *url, BOOL completed))didFinish;
+// the same two outcomes a real one has. It fires for a transfer cancelled
+// while still queued for the slot, too.
++ (void)setFakeTransferProvider:(nullable NSTimeInterval (^)(NSURL *url, NSString *role))secondsForURL
+                    acquireSlot:(nullable BOOL (^)(NSURL *url, NSString *role, BOOL (^cancelled)(void)))acquireSlot
+                    releaseSlot:(nullable void (^)(NSURL *url))releaseSlot
+                      didFinish:(nullable void (^)(NSURL *url, NSString *role, BOOL completed))didFinish;
 
 @end
 
