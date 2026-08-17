@@ -176,7 +176,7 @@
 }
 
 // The file to ask the folder about, or nil when the folder must not be asked.
-// Every fallback below goes through this one line, so the invariant that a
+// Every fallback below goes through this one line, so the guarantee that a
 // cover can never stand in front of a track's own art has exactly one home.
 // Call with the monitor held. nil is a contractual argument to every
 // FolderArtResolver accessor, so callers pass the result straight on.

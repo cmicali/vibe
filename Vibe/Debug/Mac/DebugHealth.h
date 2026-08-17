@@ -9,10 +9,10 @@
 
 @class MainPlayerController;
 
-// The macOS side of the `dump_health` and `check_invariants` oracles. They
+// The macOS side of the `dump_health` and `check_consistency` oracles. They
 // exist for the stress driver, which cannot tell a healthy hour-long soak from
 // a leaking one by screenshotting it: dump_health gives it numbers to diff
-// across a run, check_invariants gives it a verdict at a single instant.
+// across a run, check_consistency gives it a verdict at a single instant.
 //
 // Split out of DebugUtil.m only for size; the command-table entries there are
 // one line each.
@@ -27,14 +27,14 @@
 // command channel runs on the main thread and would otherwise never notice.
 NSString *VibeDebugHealthJSON(MainPlayerController *controller);
 
-// The macOS-only half of `check_invariants` — the rendered header labels, the
+// The macOS-only half of `check_consistency` — the rendered header labels, the
 // pitch fader, the table's row count and the scaled tick rate. The verb itself
 // is shared (Debug/DebugCommonVerbs.m): it runs
-// VibeDebugAppendSharedInvariants first and reaches this through the surface
-// protocol's optional debugAppendPlatformInvariants: hook, which
+// VibeDebugCheckShared first and reaches this through the surface
+// protocol's optional debugCheckPlatform: hook, which
 // MainPlayerController implements. Main thread only; returns how many checks
-// it ran. See Debug/DebugInvariants.h for the render-lag caveat.
-NSUInteger VibeDebugAppendMacInvariants(NSMutableArray<NSDictionary *> *violations,
+// it ran. See Debug/DebugConsistency.h for the render-lag caveat.
+NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *violations,
                                         MainPlayerController *controller);
 
 // Closes the current file and then polls, without ever blocking the main

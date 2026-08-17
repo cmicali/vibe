@@ -739,7 +739,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     return _uiTimer.hz;
 }
 
-// The rule against the live inputs, for the invariant that pairs it with the
+// The rule against the live inputs, for the check that pairs it with the
 // rate actually armed: the two diverge exactly when some path moved the width,
 // duration or rate without calling syncUITimerRate.
 - (NSUInteger)debugExpectedUIUpdateHz {

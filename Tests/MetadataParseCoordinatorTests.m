@@ -226,8 +226,8 @@
 // The dangerous window: rows still claiming while the holder completes. A
 // waiter that registers just after the holder snapshots its list, but before
 // the holder entry is removed, would be dropped — its row left bare with no
-// parse of its own coming. The invariant is that every participant is
-// accounted for exactly once, as an owner or as some owner's delivered waiter.
+// parse of its own coming. Every participant must be accounted for exactly
+// once, as an owner or as some owner's delivered waiter.
 - (void)testAWaiterRacingCompletionIsNeverLost {
     static const NSUInteger kRounds = 60;
     static const NSUInteger kContenders = 32;

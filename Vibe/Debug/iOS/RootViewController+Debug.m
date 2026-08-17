@@ -116,7 +116,7 @@
     return [self.player debugWaveformCache];
 }
 
-#pragma mark - What the shared invariant checks read
+#pragma mark - What the shared consistency checks read
 
 - (AudioPlayer *)debugPlayer {
     return self.playback.debugPlayer;

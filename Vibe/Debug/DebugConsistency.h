@@ -1,10 +1,10 @@
 //
-//  DebugInvariants.h
+//  DebugConsistency.h
 //  Vibe
 //
 //  The consistency checks that hold on both platforms, behind
-//  VibeDebugPlayerSurface. `check_invariants` is these plus whatever the
-//  platform adds through debugAppendPlatformInvariants:.
+//  VibeDebugPlayerSurface. `check_consistency` is these plus whatever the
+//  platform adds through debugCheckPlatform:.
 //
 //  A violation is a statement about state that should never be legal. A few
 //  checks compare published or rendered values against the state that should
@@ -20,9 +20,10 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Appends one entry per violation and returns how many checks ran.
-NSUInteger VibeDebugAppendSharedInvariants(NSMutableArray<NSDictionary *> *violations,
-                                           id<VibeDebugPlayerSurface> surface);
+// Runs the shared checks: appends one entry per violation and returns how many
+// checks ran.
+NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *violations,
+                                id<VibeDebugPlayerSurface> surface);
 
 // Records one violation. Platform check sets use it too, so every entry has
 // the same {"id", "detail"} shape.

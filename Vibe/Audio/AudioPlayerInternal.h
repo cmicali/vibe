@@ -116,7 +116,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // the instance a play: would consume. All queue-confined; _gaplessQueued
     // additionally mirrors to _gaplessArmedForUI (under _stateLock) for the
     // lock-free isGaplessArmed, through setGaplessQueuedOnQueue:, the flag's
-    // sole writer. INVARIANT: every [node stop] of the current node drops its
+    // sole writer. ALWAYS: every [node stop] of the current node drops its
     // queued segment, so every such site clears the flag first and, when it
     // keeps playing the same file, re-arms after its reschedule.
     AudioTrack              *_gaplessTrack;

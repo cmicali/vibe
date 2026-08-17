@@ -19,7 +19,7 @@
 // lock-free.
 - (BOOL)manualRenderingActive;
 
-// {attachedNodes, retiredFades} for dump_health and check_invariants. A track
+// {attachedNodes, retiredFades} for dump_health and check_consistency. A track
 // change that failed to retire its node pair leaks them, which nothing else
 // observes — and since a soak run is thousands of track changes, unbounded
 // growth is the signal. The two are reported together because they fail apart:

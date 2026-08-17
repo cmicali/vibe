@@ -134,7 +134,7 @@
         double sampleRate = file.processingFormat.sampleRate;
         AVAudioFramePosition startFrame = VibeClampedStartFrame(positionToRestore, sampleRate, file.length);
         [self scheduleFile:file onNode:node fromFrame:startFrame];
-        // Preserve the pause-fade invariant. A Paused track sits at volume 0
+        // Preserve the pause-fade guarantee. A Paused track sits at volume 0
         // so that the next resume ramps it back up; see seekToPosition:.
         // Restoring at 1.0 would make that resume start instantly at full
         // volume mid-waveform, exactly the click the fade ramp exists to

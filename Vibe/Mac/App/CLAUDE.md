@@ -20,7 +20,7 @@ The walk itself is `NSURLUtil` (`Vibe/Util/`), which is deliberately ignorant of
 
 **Asking is separate from storing.** The one path that raises a panel — the grant a playlist file needs for the folder its entries live in — is `FolderAccessManager+GrantPanel`, split out because it is a modal AppKit run loop that blocks a background worker until a human answers, and the only part of the manager a unit test can never reach. The rest is non-blocking and covered by `FolderAccessCoverageTests`.
 
-TRAP: **an unresolved stored bookmark is not authority.** Folder art never probes a directory the app holds no *active* grant for; see the root `CLAUDE.md` invariant. Unasked-for background work must never raise a permission panel.
+TRAP: **an unresolved stored bookmark is not authority.** Folder art never probes a directory the app holds no *active* grant for; see the root `CLAUDE.md` guarantee. Unasked-for background work must never raise a permission panel.
 
 ## Stats
 

@@ -180,7 +180,7 @@
 
 #pragma mark - When the fallback applies
 
-// The invariant behind "a tagged library never opens a cover file".
+// The guarantee behind "a tagged library never opens a cover file".
 
 - (void)testAFileWithArtOfItsOwnIsNeverKnownArtless {
     XCTAssertFalse(VibeFileIsKnownToCarryNoArt(YES, NO, NO));

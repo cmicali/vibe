@@ -68,7 +68,7 @@
     return self.waveformCache;
 }
 
-#pragma mark - What the shared invariant checks read
+#pragma mark - What the shared consistency checks read
 
 - (AudioPlayer *)debugPlayer {
     return self.audioPlayer;
@@ -102,8 +102,8 @@
     return self.playbackRate;
 }
 
-- (NSUInteger)debugAppendPlatformInvariants:(NSMutableArray<NSDictionary *> *)violations {
-    return VibeDebugAppendMacInvariants(violations, self);
+- (NSUInteger)debugCheckPlatform:(NSMutableArray<NSDictionary *> *)violations {
+    return VibeDebugCheckMac(violations, self);
 }
 
 @end

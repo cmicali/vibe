@@ -8,8 +8,8 @@
 //
 //  Generated-and-known: build a random but well-formed sheet whose entries are
 //  known up front, and demand exactly those back. This is the half that can
-//  catch a reader that drops or reorders entries — invariants alone cannot,
-//  since returning nothing satisfies every one of them.
+//  catch a reader that drops or reorders entries — asserting only what must
+//  hold cannot, since returning nothing satisfies every one of those.
 //
 //  Generated-and-corrupted: mutate bytes and assert only what must hold for
 //  ANY input. No crash, no exception, and the output contract the callers rely

@@ -3,7 +3,7 @@
 //  Vibe (iOS)
 //
 //  See PlayerViewController+Delivery.h. Both methods here implement the same
-//  cross-directory invariant: a delivery can arrive after the track has
+//  cross-directory guarantee: a delivery can arrive after the track has
 //  changed, so it is matched against the current track (or the URL it was
 //  loaded for) before it is applied.
 //

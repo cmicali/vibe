@@ -36,12 +36,12 @@ NS_ASSUME_NONNULL_BEGIN
 // The synthetic drag verbs — drag_hover, drag_drop and drag_end — reach the
 // playlist drop zone through this.
 @property (weak, readonly) MainPlayerContentView *playerContentView;
-// check_invariants compares the table's row count against the playlist's,
+// check_consistency compares the table's row count against the playlist's,
 // which is the only way to catch a reloadData the model never got.
 @property (weak, readonly) PlaylistTableView *playlistTableView;
 
 // The header's resolved state, and the track it describes — nil while the
-// empty or error state is up. dump_state reports both, and check_invariants
+// empty or error state is up. dump_state reports both, and check_consistency
 // pairs them against the player and the playlist. Implemented in
 // MainPlayerController.m, where the resolution lives.
 - (TrackDisplayState)displayState;
@@ -51,7 +51,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)debugRefreshUI;
 // The dynamically scaled playback-UI tick rate, for the state dump: the only
 // way to see what the playhead is actually being driven at. The expected one
-// re-derives it from the live inputs, which check_invariants pairs with it.
+// re-derives it from the live inputs, which check_consistency pairs with it.
 - (NSUInteger)debugUIUpdateHz;
 - (NSUInteger)debugExpectedUIUpdateHz;
 

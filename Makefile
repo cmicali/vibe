@@ -61,7 +61,7 @@ analyze:
 	scripts/analyze.sh $(CONFIG)
 
 # Stress/fuzz the RUNNING app against a folder of real audio files. Seeded and
-# reproducible; it checks check_invariants and dump_health between batches and
+# reproducible; it checks check_consistency and dump_health between batches and
 # writes an NDJSON journal a failure can be shrunk from. Needs a Debug build
 # (the whole debug channel compiles out of Release). See the vibe-stress skill.
 #   make stress CORPUS=~/Music/big

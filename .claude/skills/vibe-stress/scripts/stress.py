@@ -9,8 +9,8 @@ corpus of real audio files, and checks four oracles between batches:
                                               recovery probe is ALSO slow is a
                                               main-thread stall; one that probes
                                               clean was just a slow verb)
-  invariants  check_invariants has no        (re-checked after a settle, since a
-              surviving violations            render can lag its state change)
+  consistency check_consistency has no       (re-checked after a settle, since a
+              surviving violations           render can lag its state change)
   health      dump_health has not grown      (footprint, fds, threads, windows,
               without bound                   views, engine nodes)
   crash       the process is still alive     (and no fresh .ips landed)
@@ -670,21 +670,21 @@ def check_liveness(channel, since=None):
     raise Failure("crash", "the app is gone")
 
 
-def check_invariants(channel, settle=0.35):
+def check_consistency(channel, settle=0.35):
     """A violation counts only if it survives a settle and a second sample.
 
     Several checks compare a rendered label against the state that should have
     produced it, and renderState runs from the updateUI funnel — so a state
     that flipped this runloop turn may legitimately not be drawn yet.
     """
-    code, first, _ = channel.run(["check_invariants"], timeout=20)
+    code, first, _ = channel.run(["check_consistency"], timeout=20)
     if code != 0 or first is None:
         check_liveness(channel)   # raises hang/crash; otherwise a transient miss
         return None
     if first.get("ok"):
         return None
     time.sleep(settle)
-    code, second, _ = channel.run(["check_invariants"], timeout=20)
+    code, second, _ = channel.run(["check_consistency"], timeout=20)
     if code != 0 or second is None or second.get("ok"):
         return None
     first_ids = {v["id"] for v in first.get("violations", [])}
@@ -1114,10 +1114,10 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
             journal.write(json.dumps(entry) + "\n")
             journal.flush()
         if check_every and (i + 1) % check_every == 0:
-            violations = check_invariants(channel)
+            violations = check_consistency(channel)
             if violations:
                 ids = ", ".join(v["id"] for v in violations)
-                return Failure("invariant", ids, argv)
+                return Failure("consistency", ids, argv)
     return None
 
 
@@ -1206,9 +1206,9 @@ def run(args):
                 state = check_liveness(channel, since=started)
                 generator.note_window(state.get("window", {}).get("frame"))
 
-                violations = check_invariants(channel)
+                violations = check_consistency(channel)
                 if violations:
-                    failure = Failure("invariant",
+                    failure = Failure("consistency",
                                       "; ".join(f"{v['id']}: {v['detail']}" for v in violations))
                     break
 
@@ -1298,7 +1298,7 @@ def reproduces(channel, corpus, app, ops, resting_mb=0):
 
     resting_mb turns this into a predicate for RESOURCE failures too: quiesce
     and fail when the at-rest footprint exceeds it. Without that the shrinker
-    can only minimize crashes, hangs and invariant violations — and a retained
+    can only minimize crashes, hangs and consistency violations — and a retained
     allocation is exactly the kind of failure whose repro you most want cut
     down, since it only shows up after hundreds of ops.
     """
@@ -1310,7 +1310,7 @@ def reproduces(channel, corpus, app, ops, resting_mb=0):
         check_liveness(channel)
     except Failure:
         return True
-    if check_invariants(channel) is not None:
+    if check_consistency(channel) is not None:
         return True
     if resting_mb:
         channel.run(["quiesce"], timeout=40)
@@ -1432,7 +1432,7 @@ def main():
         if failure:
             print(f"FAILED: {failure.kind} — {failure.detail}")
             return 1
-        violations = check_invariants(channel)
+        violations = check_consistency(channel)
         if violations:
             print("FAILED: " + "; ".join(v["id"] for v in violations))
             return 1

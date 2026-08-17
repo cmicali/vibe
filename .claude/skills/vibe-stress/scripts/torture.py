@@ -11,7 +11,7 @@ Ops go through the channel's `script -` verb, so a burst is one CLI invocation
 rather than one per op. That is what makes it a torture test — it drives skips
 faster than any human or the ~12 ops/s fuzzer can.
 
-Oracles between bursts: the app is alive, check_invariants has no violations,
+Oracles between bursts: the app is alive, check_consistency has no violations,
 and dump_health's fds / engine nodes / pending counters / live heap have not
 run away. Seeded: --seed N replays an identical op sequence.
 """
@@ -213,9 +213,9 @@ def main():
                 print("last ops:", " | ".join(ops[-12:]))
                 return 1
 
-            inv = app.json("check_invariants")
+            inv = app.json("check_consistency")
             if inv and inv.get("violations"):
-                print(f"\nFAILED: invariant violation in phase {phase}, burst {r}")
+                print(f"\nFAILED: consistency violation in phase {phase}, burst {r}")
                 print(json.dumps(inv["violations"], indent=2))
                 print("last ops:", " | ".join(ops[-12:]))
                 return 1

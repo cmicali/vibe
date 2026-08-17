@@ -216,7 +216,7 @@
     XCTAssertEqual(state.currentRequest.submittedPlayIdentifier, 2u);
 }
 
-- (void)testSeededEventTracesPreserveRequestInvariants {
+- (void)testSeededEventTracesPreserveRequestGuarantees {
     static const NSUInteger kTraces = 80;
     static const NSUInteger kEventsPerTrace = 1500;
     static const NSUInteger kTracks = 17;

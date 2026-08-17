@@ -50,7 +50,7 @@ static VibeMusicalKey VibeTestAnalyzeKey(const std::vector<float> &audio,
     XCTAssertEqual(VibeTestAnalyzeKey(audio, {65536}), VibeMusicalKeyMake(9, 1)); // A minor
 }
 
-// The framing invariant. The analysis frame here is 32768 samples with a
+// The framing guarantee. The analysis frame here is 32768 samples with a
 // 16384 hop, so the sizes below run from far under one frame to well over it.
 - (void)testResultIsIndependentOfBufferSizes {
     std::vector<float> audio = VibeTestAMinorChord(20.0);

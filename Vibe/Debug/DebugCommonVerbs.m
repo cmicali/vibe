@@ -14,7 +14,7 @@
 #import "DebugCommandDispatch.h"
 #import "DebugWireFormat.h"
 #import "DebugChannel.h"
-#import "DebugInvariants.h"
+#import "DebugConsistency.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformCache+Debug.h"
@@ -320,12 +320,12 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             // 10s: it reaches the player's serial queue for the engine node count, so a
             // wedged queue must time the verb out rather than let it answer from
             // stale state.
-            VibeDebugCmd(@"check_invariants", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+            VibeDebugCmd(@"check_consistency", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                               id<VibeDebugPlayerSurface> surface) {
                 NSMutableArray<NSDictionary *> *violations = [NSMutableArray array];
-                NSUInteger checked = VibeDebugAppendSharedInvariants(violations, surface);
-                if ([surface respondsToSelector:@selector(debugAppendPlatformInvariants:)]) {
-                    checked += [surface debugAppendPlatformInvariants:violations];
+                NSUInteger checked = VibeDebugCheckShared(violations, surface);
+                if ([surface respondsToSelector:@selector(debugCheckPlatform:)]) {
+                    checked += [surface debugCheckPlatform:violations];
                 }
                 return VibeJSONString(@{
                     @"ok": @(violations.count == 0),

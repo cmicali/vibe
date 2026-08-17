@@ -545,7 +545,7 @@ targets:
       - path: Vibe/Util/Categories/NSURL+Hash.m
       - path: Vibe/Util/Categories/NSURL+AudioOpen.m
       # The iOS pager's waveform bookkeeping: Foundation-only, and its
-      # delivery-matching rule is the app-wide staleness invariant, so it is
+      # delivery-matching rule is the app-wide staleness guarantee, so it is
       # tested here even though it compiles only into VibeiOS.
       - path: Vibe/iOS/PageWaveformCoordinator.m
       - path: Vibe/Common/PlatformImage.m

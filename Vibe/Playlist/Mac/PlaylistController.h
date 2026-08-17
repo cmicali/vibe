@@ -34,7 +34,7 @@ NS_ASSUME_NONNULL_BEGIN
 // drop, Open Recent) kept the stale header for the full half second. On local
 // files that window is invisible, which is why it survived; against a file
 // provider it is half a second of the wrong title on every track you pick, and
-// the cloud stress profile fails an invariant on it every time.
+// the cloud stress profile fails a consistency check on it every time.
 @property (nonatomic, copy, nullable) void (^playWillStartHandler)(void);
 
 // The artwork-derived accent for the playing row's equalizer bars. The owner

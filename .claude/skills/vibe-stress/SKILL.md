@@ -1,13 +1,13 @@
 ---
 name: vibe-stress
-description: Stress, soak, fuzz, and torture the running Vibe app against a folder of real audio files — seeded random driving with invariant, leak, hang, and crash oracles, a single-playlist skip/seek torture suite for the delivery races that only open when transport outruns the metadata scan, plus the sanitizer (ASan/UBSan/TSan) and malloc-debug build matrix. Use for soak or endurance runs, memory-leak and resource-growth hunting, race hunting, fuzzing the file-loading path, hammering skips and seeks on a large playlist, or minimizing a failing run to a repro.
+description: Stress, soak, fuzz, and torture the running Vibe app against a folder of real audio files — seeded random driving with consistency, leak, hang, and crash oracles, a single-playlist skip/seek torture suite for the delivery races that only open when transport outruns the metadata scan, plus the sanitizer (ASan/UBSan/TSan) and malloc-debug build matrix. Use for soak or endurance runs, memory-leak and resource-growth hunting, race hunting, fuzzing the file-loading path, hammering skips and seeks on a large playlist, or minimizing a failing run to a repro.
 ---
 
 # Stress and fuzz testing Vibe
 
 **Read the `vibe-debug` skill first.** This harness is built entirely on that skill's `--debug-cmd` channel: it drives the app with those verbs, launches through that skill's `launch.sh`, and inherits every one of its traps — the sandbox grant rules, the off-hardware flags, the two-instance raciness, the stale-binary check. Nothing here restates them.
 
-The division: **`vibe-debug` drives the app; this drives it *randomly, for hours, and notices when something breaks*.** The three oracle verbs themselves — `dump_health`, `check_invariants`, `quiesce` — are ordinary channel commands documented in `vibe-debug`'s command list, and are useful on their own.
+The division: **`vibe-debug` drives the app; this drives it *randomly, for hours, and notices when something breaks*.** The three oracle verbs themselves — `dump_health`, `check_consistency`, `quiesce` — are ordinary channel commands documented in `vibe-debug`'s command list, and are useful on their own.
 
 ```bash
 make stress CORPUS=~/Music/big
@@ -31,7 +31,7 @@ Between batches (`--batch`, default 25 ops) it checks:
 | Oracle | What it catches | How |
 | --- | --- | --- |
 | liveness | main-thread stalls | the channel is delivered on the **main queue**, so a timeout whose recovery probe is *also* slow is a stall. It samples the app first, then re-probes: a stall it recovers from is counted (`--max-stalls`, default 3) rather than failing the run, but is sampled either way. A timeout that probes clean at the usual ~110 ms was a slow verb, not a stall — journaled as `slow`, uncounted. `VERB_TIMEOUTS` keeps each verb's client deadline above its own in-app wait, because a client timeout underneath the app's deadline reports work still in progress as an unresponsive app |
-| `check_invariants` | state that went inconsistent | violations surviving a settle and a second sample |
+| `check_consistency` | state that went inconsistent | violations surviving a settle and a second sample |
 | `dump_health` | leaks and unbounded growth | footprint, fds, threads, mach ports, windows, views, layers, engine nodes, and the `pending` counters, each against a post-warmup baseline |
 | crash | death | `pgrep`, plus any `Vibe*.ips` in `~/Library/Logs/DiagnosticReports` newer than the run |
 
@@ -43,9 +43,9 @@ Between batches (`--batch`, default 25 ops) it checks:
 
 **Every other process metric was then audited against an external tool, and they agree**: `threads` against `ps -M`, `machPorts` against `lsmp` (±1, the sampling itself), `footprintBytes` against `footprint`, `residentBytes` against `ps rss`, `mallocLiveBytes` against `heap`'s all-zones total, and `views` against a node count of `dump_view_tree`. Do the same before trusting a new one: a metric nobody has checked against ground truth is a number, not a measurement.
 
-On a failure it writes a `stress-<seed>-failure/` directory with the sample or crash report, `dump_state`, `dump_view_tree`, `dump_health` and a screenshot, and prints the shrink command. Failure kinds are `hang`, `crash`, `exit`, `invariant`, `resource`, `command` and `client`; **`client` is the harness, not the app** — see the traps below.
+On a failure it writes a `stress-<seed>-failure/` directory with the sample or crash report, `dump_state`, `dump_view_tree`, `dump_health` and a screenshot, and prints the shrink command. Failure kinds are `hang`, `crash`, `exit`, `consistency`, `resource`, `command` and `client`; **`client` is the harness, not the app** — see the traps below.
 
-`--shrink` delta-debugs a failing journal down to a minimal op list, relaunching the app per candidate, and writes it as plain command-script lines you can feed straight to `run-script.sh`. A 5,000-op crash teaches nothing; the six-op version becomes a regression case. Add `--shrink-resting-mb N` to make an at-rest footprint above N MB count as a reproduction, which is what lets a **resource** failure be minimized like a crash — the default predicate only covers crashes, hangs and invariant violations.
+`--shrink` delta-debugs a failing journal down to a minimal op list, relaunching the app per candidate, and writes it as plain command-script lines you can feed straight to `run-script.sh`. A 5,000-op crash teaches nothing; the six-op version becomes a regression case. Add `--shrink-resting-mb N` to make an at-rest footprint above N MB count as a reproduction, which is what lets a **resource** failure be minimized like a crash — the default predicate only covers crashes, hangs and consistency violations.
 
 ## The `pending` counters, and why sampling at rest matters
 
@@ -106,7 +106,7 @@ make torture APP=build/DerivedData/Build/Products/Debug/Vibe.app PLAYLIST=~/Musi
 
 Ops go through the channel's `script -` verb, so a burst is **one** CLI invocation rather than one per op — that is what makes it a torture test rather than a brisk fuzz. Measured ~15 ops/s of real track changes, each `next` a full open.
 
-Four phases, no settle anywhere: `skip` (next/previous storm), `seek` (including out-of-range and past-the-end values, where escaping the clamp is the finding), `mixed` (skips, seeks, play/pause and the bar-based skip actions), and `boundary` (walking off the end of the playlist repeatedly, which is the end-of-playlist park and `finishCurrentTrack`). Between every burst: alive, `check_invariants`, and fds / engine nodes / live heap / views against baseline; at the end a `quiesce` that requires all five `pending` counters to unwind to zero. Seeded and replayable with `--seed`, like `stress.py`.
+Four phases, no settle anywhere: `skip` (next/previous storm), `seek` (including out-of-range and past-the-end values, where escaping the clamp is the finding), `mixed` (skips, seeks, play/pause and the bar-based skip actions), and `boundary` (walking off the end of the playlist repeatedly, which is the end-of-playlist park and `finishCurrentTrack`). Between every burst: alive, `check_consistency`, and fds / engine nodes / live heap / views against baseline; at the end a `quiesce` that requires all five `pending` counters to unwind to zero. Seeded and replayable with `--seed`, like `stress.py`.
 
 **Run it through `run-torture.sh`, not by hand**, because three separate things have to be true before a result means anything, and each has burned a run: exactly one mac instance is up, it is the binary you intended, and the caches are cold. The wrapper asserts all three and aborts loudly rather than producing a confident-looking pass.
 

@@ -35,7 +35,7 @@
 //  when the playlist's next changes underneath (unschedule…), CLEAR it when the
 //  material is dead (clear…). All on the player queue except prefetchTrack:.
 //
-//  INVARIANT, and the one that breaks first: every `[node stop]` of the
+//  ALWAYS, and the one that breaks first: every `[node stop]` of the
 //  current node drops its queued segment too. Every such site must clear the
 //  armed flag first and, when it keeps playing the same file, re-arm after
 //  its reschedule.

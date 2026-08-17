@@ -74,7 +74,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 });
             }),
             // The stress driver's two oracles; see DebugHealth.h. dump_health
-            // and check_invariants (shared table) both reach the player's
+            // and check_consistency (shared table) both reach the player's
             // serial queue for the engine node count, so a wedged queue times
             // them out rather than letting them answer from stale state.
             VibeCmd(@"dump_health", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {

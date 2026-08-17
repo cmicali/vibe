@@ -4,7 +4,7 @@
 //
 
 #import "DebugHealth.h"
-#import "DebugInvariants.h"   // VibeDebugViolation, shared with the cross-platform checks
+#import "DebugConsistency.h"   // VibeDebugViolation, shared with the cross-platform checks
 
 #if DEBUG
 
@@ -326,18 +326,18 @@ void VibeDebugQuiesce(MainPlayerController *controller, void (^completion)(NSStr
     poll();
 }
 
-#pragma mark - check_invariants
+#pragma mark - check_consistency
 
 // The macOS-only checks: the header labels the mac renders, the pitch fader,
 // the playlist table's row count, and the scaled UI tick rate. Everything that
-// holds on both platforms is VibeDebugAppendSharedInvariants, in
-// Debug/DebugInvariants.m, and `check_invariants` runs that first and
+// holds on both platforms is VibeDebugCheckShared, in
+// Debug/DebugConsistency.m, and `check_consistency` runs that first and
 // this through the surface protocol's optional hook.
 //
 // These are the render-lag-sensitive ones: renderState runs from the updateUI
 // funnel, so a state that flipped this runloop turn may not have been drawn
 // yet. Re-check after a settle before believing them.
-NSUInteger VibeDebugAppendMacInvariants(NSMutableArray<NSDictionary *> *v,
+NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *v,
                                         MainPlayerController *controller) {
     NSUInteger checked = 0;
 

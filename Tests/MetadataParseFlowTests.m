@@ -399,9 +399,8 @@
 
 // The real shape of a duplicate-heavy drop: every row of one file reaching its
 // parse op at once, on four workers, some before the holder settles and some
-// after. The invariants are that the file is parsed exactly once however the
-// threads interleave, that every row ends up with metadata, and that no row is
-// published twice.
+// after. The file must be parsed exactly once however the threads interleave,
+// every row must end up with metadata, and no row may be published twice.
 - (void)testConcurrentRowsForOneFileParseItExactlyOnce {
     static const NSUInteger kRounds = 40;
     static const NSUInteger kRows = 32;

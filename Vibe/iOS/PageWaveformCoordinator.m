@@ -68,8 +68,8 @@
     // The URL is part of the identity, not just the index: a page already
     // targeted can come to hold a DIFFERENT file, and matching on the index
     // alone would leave that load pointed at the old one. It was safe only
-    // because every playlist replacement happens to call reset first — an
-    // invariant held by a caller in another file and written down in neither.
+    // because every playlist replacement happens to call reset first — a
+    // guarantee held by a caller in another file and written down in neither.
     if (!track || (_targetIndex == index && [_targetURL isEqual:track.url])) {
         return;
     }

@@ -2,7 +2,7 @@
 // The iOS pager's waveform bookkeeping: N pages against one load-at-a-time
 // cache. Its whole job is deciding which page that load is pointed at and
 // dropping deliveries that no longer belong to it, which is the app-wide
-// "async deliveries race track changes" invariant — so it is worth testing
+// "async deliveries race track changes" guarantee — so it is worth testing
 // without a pager, a cache or a decode.
 //
 // The cache is a duck-typed fake cast to the property type, per Tests/CLAUDE.md:

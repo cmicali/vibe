@@ -55,7 +55,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (AudioTrackMetadataCache *)debugMetadataCache;
 - (AudioWaveformCache *)debugWaveformCache;
 
-// ---- What the shared invariant checks read (DebugInvariants.m).
+// ---- What the shared consistency checks read (DebugConsistency.m).
 //
 // Facts rather than objects, deliberately: the mac's playlist lives behind
 // PlaylistController and the iOS one is a bare Playlist, and neither needs to
@@ -84,7 +84,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Checks that hold on this platform alone, appended after the shared ones.
 // Returns how many it ran, so the reply's "checked" count stays honest.
-- (NSUInteger)debugAppendPlatformInvariants:(NSMutableArray<NSDictionary *> *)violations;
+- (NSUInteger)debugCheckPlatform:(NSMutableArray<NSDictionary *> *)violations;
 
 @end
 

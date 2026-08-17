@@ -67,9 +67,9 @@ Adding a directory means adding an entry to `project.yml`; nothing globs it in.
 So neither target needs a per-file exclude, and **a new file in a shared directory joins the iOS target automatically** — it must be AppKit-free or `TARGET_OS_OSX`-guarded. CI's `build-ios` job is what catches an AppKit leak.
 
 
-### Cross-directory invariants
+### Cross-directory coupling
 
-Each side is documented in its own directory's file. The coupling itself lives here.
+Each side is documented in its own directory's file. The coupling itself lives here — each entry below is a **guarantee**, in the vocabulary sense: something the code must keep true, written down once so a new call site can be checked against it.
 
 - **Tag-over-analysis precedence**: a file's tagged tempo (`AudioTrackMetadata.bpm`) always beats the analyzed one (`AudioTrack.detectedBPM`) — the BPM label and the bar-based skip actions share the rule — and the tagged key (`AudioTrackMetadata.key`) likewise beats `AudioTrack.detectedKey`. `AudioTrack.bpm` and `.key` are the single homes of both rules. **Analysis itself is macOS-only** (below), so on iOS the analyzed half is simply always absent and the tagged half is the whole answer — which is why the rule lives on `AudioTrack` rather than at the display sites.
 - **Embedded art beats folder art, and folder art costs as little as possible**: a file's own artwork always wins, and the cover beside it (`FolderArtResolver`, `Settings > Files`) fills in only for a file carrying none. It is resolved per *directory*, lazily, off the metadata scan's path entirely, and never pays for I/O of its own where the open was already doing some — a dropped folder's cover comes out of the expansion walk, a bulk open gets one listing per folder, and only a lone file probes, three stats at most; a folder with no cover, no grant or an unreadable one is settled for the resolver's bounded recent-directory history; and it is never persisted, because the metadata cache is keyed by the audio file's size and mtime, which a sidecar image cannot move. Folders the app holds no active grant for are left untouched rather than probed: an unresolved stored bookmark is not authority, and unasked-for background work must never raise a permission panel.
@@ -87,6 +87,7 @@ One word per pattern; a new synonym is a bug. `make check-vocabulary` enforces t
 
 | Term | Means exactly | Never used for |
 | --- | --- | --- |
+| `guarantee` | a condition the code must keep true, written down once so a new call site can be checked against it. Never the word "invariant" | a `*Rules.h` decision, or an API `contract` |
 | `generation` | staleness counter stamped on async work; a mismatch on completion means "superseded, drop it". Always spelled `<protectedThing>Generation`, never bare | batch ordering, handles |
 | `claim` | single-flight ownership of shared work (roles: owner, waiter) | OS-level role registration — that is `registration` |
 | `waiter` | a parked callback delivered exactly once when its event settles | polling loops |

@@ -3,7 +3,7 @@
 //  Vibe (iOS)
 //
 //  Where the pager's asynchronous results land: waveform snapshots, and the
-//  scrubber's seek. Both implement the one cross-directory invariant about
+//  scrubber's seek. Both implement the one cross-directory guarantee about
 //  deliveries racing track changes, which is why they are one file. The mac
 //  twin is MainPlayerController+Delivery.
 //

@@ -49,7 +49,7 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
 #pragma mark - BPM precedence
 
 - (void)testTaggedTempoBeatsAnalyzedTempo {
-    // The cross-directory invariant: a file's own tag always wins. The BPM
+    // The cross-directory guarantee: a file's own tag always wins. The BPM
     // label and the bar-aligned skips both read through here.
     AudioTrack *track = TrackNamed(@"song.mp3");
     FakeTrackMetadata *tagged = [FakeTrackMetadata new];
@@ -83,7 +83,7 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
 #pragma mark - Key precedence
 
 - (void)testTaggedKeyBeatsAnalyzedKey {
-    // Same cross-directory invariant as tempo: the file's own tag wins.
+    // Same cross-directory guarantee as tempo: the file's own tag wins.
     AudioTrack *track = TrackNamed(@"song.mp3");
     FakeTrackMetadata *tagged = [FakeTrackMetadata new];
     tagged.key = 21; // Am

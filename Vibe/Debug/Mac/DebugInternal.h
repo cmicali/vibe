@@ -21,7 +21,7 @@
 #import "DebugChannel.h"
 #import "DebugCommandDispatch.h"
 #import "DebugCommonVerbs.h"
-#import "DebugInvariants.h"
+#import "DebugConsistency.h"
 #import "DebugHealth.h"
 #import "DebugSettingsUI.h"
 #import "AudioLoadTiming.h"

@@ -1,11 +1,11 @@
 //
-//  DebugInvariants.m
+//  DebugConsistency.m
 //  Vibe
 //
-//  See DebugInvariants.h.
+//  See DebugConsistency.h.
 //
 
-#import "DebugInvariants.h"
+#import "DebugConsistency.h"
 
 #if DEBUG
 
@@ -45,8 +45,8 @@ static BOOL VibeIsFiniteNonNegative(double value) {
     return isfinite(value) && value >= 0;
 }
 
-NSUInteger VibeDebugAppendSharedInvariants(NSMutableArray<NSDictionary *> *v,
-                                           id<VibeDebugPlayerSurface> surface) {
+NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
+                                id<VibeDebugPlayerSurface> surface) {
     NSUInteger checked = 0;
 
     AudioPlayer *player = surface.debugPlayer;

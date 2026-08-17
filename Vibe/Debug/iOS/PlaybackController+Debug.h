@@ -3,7 +3,7 @@
 //  Vibe (iOS)
 //
 //  What the debug command channel needs from the model that the shipping
-//  header has no reason to expose: the engine handle the shared invariant
+//  header has no reason to expose: the engine handle the shared consistency
 //  checks read, the caches the cache verbs clear, and the two display-state
 //  flags dump_state reports. It lives here, with its implementation beside it,
 //  so no production file carries a declaration for a tool that does not ship;

@@ -52,7 +52,7 @@ static float VibeTestAnalyze(const std::vector<float> &audio, const std::vector<
     XCTAssertEqualWithAccuracy(bpm, 128.0f, 1.0f);
 }
 
-// The framing invariant: the buffer sizes the caller happens to use must not
+// The framing guarantee: the buffer sizes the caller happens to use must not
 // reach the result. Sizes below, around and above the 1024-sample analysis
 // frame all appear here, including ones that leave a straddling frame short.
 - (void)testResultIsIndependentOfBufferSizes {
