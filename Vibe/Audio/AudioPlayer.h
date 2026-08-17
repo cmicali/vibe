@@ -131,10 +131,11 @@ NS_ASSUME_NONNULL_BEGIN
 // The provider reported the pending open's transfer MOVING. Extends that
 // open's abandon deadline (AudioFileOpenRules.h) — and can only extend it,
 // never shorten, so feeding a sample is always safe — matched against the
-// pending request's path and dropped when none is pending. Call it only when
-// the reported fraction increased: a repeated fraction is a stall, and a
-// stalled transfer must run out of its budget. The shells feed it from the
-// download monitor they start in didBeginLoading:.
+// pending request's path and dropped when none is pending. Call it only on a
+// raw increase: a repeated fraction is a stall, and a stalled transfer must
+// run out of its budget. The shells feed it from the download monitor's
+// UNCOALESCED movement feed, never its whole-percent fraction handler, whose
+// gate can stay silent for tens of seconds on a huge slow file moving fine.
 - (void)noteOpenProgressForURL:(NSURL *)url;
 
 @end

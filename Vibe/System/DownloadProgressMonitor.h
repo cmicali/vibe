@@ -69,10 +69,19 @@ NS_ASSUME_NONNULL_BEGIN
 // delivers a fraction ONLY while currentURL still answers url — a monitor
 // outlives fast track changes, so a late sample would otherwise paint the
 // wrong track's loading bar. Returns the new monitor for the caller to hold
-// and later cancel. currentURL and handler both run on the main thread.
+// and later cancel. currentURL, movement, and handler all run on the main
+// thread.
+//
+// movement is the UNCOALESCED liveness feed: it fires on any strictly
+// increasing raw fraction, before the whole-percent gate the fraction handler
+// rides. The open's abandon deadline eats this one, never the gated stream —
+// a huge slow file can make real byte progress for tens of seconds without
+// moving a whole percent, and a deadline fed the UI's samples would abandon
+// a healthy transfer for being big. Nil when the caller only paints.
 + (instancetype)monitorReplacing:(nullable DownloadProgressMonitor *)existing
                           forURL:(NSURL *)url
                       currentURL:(NSURL *_Nullable (^)(void))currentURL
+                        movement:(nullable void (^)(void))movement
                          handler:(void (^)(float fraction))handler;
 
 @end

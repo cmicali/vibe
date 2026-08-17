@@ -57,6 +57,8 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
     dispatch_source_t   _timer;
     BOOL                _cancelled;   // main-confined, like start/cancel
     float               _lastReported;
+    float               _lastRawReported;
+    void                (^_movementHandler)(void);
     CFAbsoluteTime      _startedAt;
     void                (^_handler)(float);
     // The iCloud exception: a genuine ubiquitous item is the one kind of cloud
@@ -80,6 +82,7 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
         _url = [url copy];
         _path = [url.path copy];
         _lastReported = -1;
+        _lastRawReported = -1;
     }
     return self;
 }
@@ -87,10 +90,18 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
 + (instancetype)monitorReplacing:(DownloadProgressMonitor *)existing
                           forURL:(NSURL *)url
                       currentURL:(NSURL *_Nullable (^)(void))currentURL
+                        movement:(void (^)(void))movement
                          handler:(void (^)(float fraction))handler {
     [existing cancel];
     DownloadProgressMonitor *monitor = [[DownloadProgressMonitor alloc] initWithURL:url];
     NSURL *wanted = [url copy];
+    if (movement) {
+        monitor->_movementHandler = ^{
+            if ([currentURL() isEqual:wanted]) {
+                movement();
+            }
+        };
+    }
     [monitor startWithHandler:^(float fraction) {
         if ([currentURL() isEqual:wanted]) {
             handler(fraction);
@@ -373,7 +384,20 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
 // The shared spout: coalesces to whole-percent moves, never fires after
 // cancel, never runs backwards (the poll's block counts can wobble).
 - (void)reportFraction:(float)fraction {
-    if (_cancelled || !_handler) {
+    if (_cancelled) {
+        return;
+    }
+    // The uncoalesced liveness feed, ahead of the whole-percent gate: any
+    // strictly increasing raw fraction is the transfer genuinely moving, and
+    // the open's abandon deadline eats this stream so a huge slow file that
+    // moves real bytes without moving a whole percent is never abandoned as
+    // stalled. The wobble guard doubles as the stall guard: a repeated or
+    // backslid fraction feeds nothing.
+    if (_movementHandler && fraction > _lastRawReported) {
+        _lastRawReported = fraction;
+        _movementHandler();
+    }
+    if (!_handler) {
         return;
     }
     if (fraction < _lastReported + 0.01f && !(fraction >= 1.0f && _lastReported < 1.0f)) {

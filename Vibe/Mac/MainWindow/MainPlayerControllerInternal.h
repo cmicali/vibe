@@ -46,6 +46,13 @@ NS_ASSUME_NONNULL_BEGIN
     // download progress while the loading shimmer is up; nil otherwise. The
     // player events start and cancel it.
     DownloadProgressMonitor*    _downloadMonitor;
+    // Stamped on every play at the pre-submit edge (willSubmitPlayForTrack:),
+    // captured by didStartPlaying:'s prefetch acknowledgement, and compared at
+    // delivery: an acknowledgement outrun by a newer submission must not
+    // release the hold that submission re-asserted. Track identity cannot
+    // carry this — replaying the same row reuses the same AudioTrack, so a
+    // track-only guard has an ABA hole. Main-confined.
+    NSUInteger                  _foregroundHoldGeneration;
     // A duration snapshot from didStartPlaying:. The live player duration
     // reads 0 while a track is Loading, and updatePlaybackUI runs in that gap.
     // It is cleared when playback goes idle, on an error or at the end of the

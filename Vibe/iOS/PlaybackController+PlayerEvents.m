@@ -38,6 +38,7 @@
 // acknowledgement, or the error path. Same rule as the mac's
 // MainPlayerController+PlayerEvents.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer willSubmitPlayForTrack:(AudioTrack *)track {
+    _foregroundHoldGeneration++;
     [_metadataCache setCloudParsesHeld:YES];
 }
 
@@ -59,14 +60,16 @@
                   currentURL:^NSURL *{
         PlaybackController *self = weakSelf;
         return self ? self->_playlist.currentTrack.url : nil;
-    }                handler:^(float fraction) {
-        // Every delivery is a whole-percent forward move — the transfer
-        // genuinely moving — so each one extends the open's abandon deadline;
-        // a stalled transfer stops extending by itself.
+    }                movement:^{
+        // The uncoalesced feed: any raw byte progress extends the open's
+        // abandon deadline — never the whole-percent fraction handler, whose
+        // gate can stay silent for tens of seconds on a huge slow file that
+        // is moving fine.
         PlaybackController *self = weakSelf;
         if (self) {
             [self->_player noteOpenProgressForURL:track.url];
         }
+    }                handler:^(float fraction) {
         [weakSelf notifyDidUpdateLoadingProgress:fraction];
     }];
     [self publishNowPlaying];
@@ -115,15 +118,18 @@
     // The open settled, so the playlist-wide sweep it was deferred behind runs.
     [self startPendingMetadataLoad];
     // The cloud-lane hold releases in the acknowledgement, after the
-    // successor's open claim is registered, and the stale guard drops an
-    // acknowledgement a newer play has outrun — same rule as the mac's
-    // MainPlayerController+PlayerEvents.
+    // successor's open claim is registered. The stale guard is the hold
+    // GENERATION, not track identity: an acknowledgement outrun by any newer
+    // submission — including a replay of this same row, which reuses this
+    // same AudioTrack — must not strip the hold that submission re-asserted.
+    // Same rule as the mac's MainPlayerController+PlayerEvents.
+    NSUInteger holdGeneration = _foregroundHoldGeneration;
     NSUInteger nextIndex = _playlist.currentIndex + 1;
     __weak PlaybackController *weakSelf = self;
     [_player prefetchTrack:_playlist.hasNextTrack ? [_playlist trackAtIndex:nextIndex] : nil
                whenClaimed:^{
         PlaybackController *strongSelf = weakSelf;
-        if (!strongSelf || ![strongSelf->_playlist isCurrentTrack:track]) {
+        if (!strongSelf || holdGeneration != strongSelf->_foregroundHoldGeneration) {
             return;
         }
         [strongSelf->_metadataCache setCloudParsesHeld:NO];

@@ -33,6 +33,7 @@
 // idempotent. Cleared exactly once by the matching settlement —
 // didStartPlaying:'s prefetch acknowledgement, the error path, or Close.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer willSubmitPlayForTrack:(AudioTrack *)track {
+    _foregroundHoldGeneration++;
     [self.metadataCache setCloudParsesHeld:YES];
 }
 
@@ -64,12 +65,13 @@
             monitorReplacing:_downloadMonitor
                       forURL:track.url
                   currentURL:^NSURL *{ return [weakSelf.playlistController currentTrack].url; }
-                     handler:^(float fraction) {
-        // Every delivery is a whole-percent forward move (the monitor's
-        // reportFraction: coalesces and never runs backwards), so each one is
-        // the transfer genuinely moving — exactly what extends the open's
-        // abandon deadline, and a stalled transfer stops extending by itself.
+                    movement:^{
+        // The uncoalesced feed: any raw byte progress extends the open's
+        // abandon deadline. Deliberately not the fraction handler below,
+        // whose whole-percent gate can stay silent for tens of seconds on a
+        // huge slow file that is moving fine.
         [weakSelf.audioPlayer noteOpenProgressForURL:track.url];
+    }                handler:^(float fraction) {
         [weakSelf.trackDisplay setWaveformLoadingProgress:fraction];
     }];
     // This runs after updateUI, which shows the pending track's art if it is
@@ -127,15 +129,17 @@
     // successor's open claim is registered — prefetchTrack: alone is async
     // onto the player queue, so releasing inline would let the resumed lane
     // race the claim's registration and start a second transfer of the same
-    // file. The stale guard mirrors every other callback's: an acknowledgement
-    // arriving after a rapid next has re-asserted the hold for a newer play
-    // must not strip it from that play's pending open — the newer play's own
+    // file. The stale guard is the hold GENERATION, not track identity: an
+    // acknowledgement outrun by any newer submission — a rapid next, or a
+    // replay of this same row, which reuses this same AudioTrack — must not
+    // strip the hold that submission re-asserted; the newer play's own
     // settlement releases it.
+    NSUInteger holdGeneration = _foregroundHoldGeneration;
     __weak MainPlayerController *weakSelf = self;
     [self.audioPlayer prefetchTrack:[self.playlistController trackAtIndex:self.playlistController.currentIndex + 1]
                         whenClaimed:^{
         MainPlayerController *strongSelf = weakSelf;
-        if (!strongSelf || track != [strongSelf.playlistController currentTrack]) {
+        if (!strongSelf || holdGeneration != strongSelf->_foregroundHoldGeneration) {
             return;
         }
         [strongSelf.metadataCache setCloudParsesHeld:NO];
