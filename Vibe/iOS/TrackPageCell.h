@@ -73,7 +73,7 @@ NS_ASSUME_NONNULL_BEGIN
                 titleColor:(UIColor *)titleColor
                     artist:(NSString *)artist
                artistColor:(UIColor *)artistColor
-                  fileInfo:(NSString *)fileInfo
+                  fileInfo:(nullable NSString *)fileInfo
                        art:(nullable UIImage *)art;
 
 @end

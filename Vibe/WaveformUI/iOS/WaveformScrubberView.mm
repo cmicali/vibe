@@ -70,6 +70,9 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     // the view's, and it sits at content origin.
     CALayer                 *_rendererHost;
     AudioWaveformRenderer   *_renderer;
+    // The style _renderer was built from, so a settings change is a comparison
+    // rather than a rebuild on every page that comes on screen.
+    NSString                *_styleIdentifier;
     CGFloat                 _progress;
     NSUInteger              _progressTracker;
     // The loading control, shared with the mac view: its own layers, its
@@ -277,14 +280,15 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     if (_renderer) {
         return;
     }
-    // The app default style (Oversampling Detailed x4), same as the mac's —
-    // no iOS style picker yet. The registry fallback keeps this safe if the
-    // identifier is ever renamed.
-    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT];
+    // The persisted style, then the app default; the registry owns the chain,
+    // as it does for the mac view.
+    NSString *style = [WaveformRendererRegistry
+            resolveStyleIdentifier:[[AppSettings sharedInstance] waveformStyle]];
     Class rendererClass = [WaveformRendererRegistry rendererClassForIdentifier:style];
     if (!rendererClass) {
         return;
     }
+    _styleIdentifier = style;
     _rendererHost.contentsScale = [self displayScale];
     // The renderer reads parentLayer.bounds, so the host must be at virtual
     // size before it exists.
@@ -292,6 +296,24 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     _renderer = [[rendererClass alloc] initWithLayer:_rendererHost
                                               bounds:[self virtualBounds]
                                               isDark:self.isDark];
+}
+
+- (void)syncWaveformStyle {
+    NSString *style = [WaveformRendererRegistry
+            resolveStyleIdentifier:[[AppSettings sharedInstance] waveformStyle]];
+    if (!_renderer || [style isEqualToString:_styleIdentifier]) {
+        // Nothing on screen to rebuild: the next install reads the setting.
+        return;
+    }
+    // The renderer removes its own layers as it goes, so dropping it is the
+    // teardown. The baked bitmap is the outgoing style's picture and has to
+    // come down with it; a fresh bake is scheduled for the next turn, since
+    // there is no morph to wait out — the bars land already settled.
+    [self teardownBakedWaveform];
+    _renderer = nil;
+    [self installRendererIfNeeded];
+    [self drawWaveformSettled];
+    [self scheduleEnvelopeBakeAfter:0];
 }
 
 - (void)drawWaveform {

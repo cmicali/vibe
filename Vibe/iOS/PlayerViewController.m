@@ -105,6 +105,27 @@
                    name:UISceneDidEnterBackgroundNotification object:nil];
     [center addObserver:self selector:@selector(sceneWillEnterForeground)
                    name:UISceneWillEnterForegroundNotification object:nil];
+    // The settings screen lives on the Playlist tab, with this one minimized
+    // behind it, so the change arrives from outside rather than from a control
+    // of ours.
+    [center addObserver:self selector:@selector(displaySettingsDidChange)
+                   name:VibeDisplaySettingsDidChangeNotification object:nil];
+}
+
+// All three settings at once, since a screen that writes one may have written
+// any of them: the header carries the file-info line, the scrubbers carry the
+// waveform style, and the right label carries the time mode. Only the visible
+// pages need it — a cell in the reuse pool is configured from scratch on its
+// way back on screen.
+- (void)displaySettingsDidChange {
+    for (TrackPageCell *cell in _pagesView.visibleCells) {
+        NSIndexPath *path = [_pagesView indexPathForCell:cell];
+        if (path) {
+            [self configurePage:cell atIndex:(NSUInteger)path.item];
+        }
+        [cell.waveformView syncWaveformStyle];
+    }
+    [self repaintTimesOnVisiblePages];
 }
 
 - (void)sceneDidEnterBackground {
@@ -125,22 +146,6 @@
 }
 
 #pragma mark - The right time label's mode
-
-// An iOS-owned NSUserDefaults key, beside FolderSession's and the waveform
-// zoom's, rather than AppSettings.showRemainingTime: that one is inside the
-// macOS-only block, and it is there because it is read on every playback tick
-// and rides the hot cache the whole block exists for. iOS reads this a few
-// times a second, so it does not need the cache and does not have to reopen
-// that split. The default matches the mac's — total duration.
-static NSString *const kShowRemainingTimeKey = @"VibeiOSShowRemainingTime";
-
-BOOL VibeShowsRemainingTime(void) {
-    return [NSUserDefaults.standardUserDefaults boolForKey:kShowRemainingTimeKey];
-}
-
-void VibeSetShowsRemainingTime(BOOL remaining) {
-    [NSUserDefaults.standardUserDefaults setBool:remaining forKey:kShowRemainingTimeKey];
-}
 
 NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     Formatters *formatters = [Formatters sharedInstance];
@@ -488,8 +493,12 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 
 - (void)remainingLabelTapped {
     VibeSetShowsRemainingTime(!VibeShowsRemainingTime());
-    // Every visible page, not just the tapped one: the neighbors are drawn at
-    // rest and would keep the old spelling until they were recycled.
+    [self repaintTimesOnVisiblePages];
+}
+
+// Every visible page, not just the one that changed: the neighbors are drawn
+// at rest and would keep the old spelling until they were recycled.
+- (void)repaintTimesOnVisiblePages {
     for (TrackPageCell *cell in _pagesView.visibleCells) {
         if (cell == _boundPage) {
             continue;   // the bound page is live; updatePlaybackUI has it

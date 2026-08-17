@@ -12,6 +12,7 @@
 #import "EqualizerIndicatorView.h"
 #import "PlaybackController.h"
 #import "Playlist.h"
+#import "SettingsViewController.h"
 #import "VibeStrings.h"
 
 static NSString *const kTrackCellIdentifier = @"track";
@@ -63,11 +64,11 @@ static const CGFloat kArtTextGap = 14;
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.navigationItem.rightBarButtonItem =
-            [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"folder"]
+            [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"gearshape"]
                                              style:UIBarButtonItemStylePlain
                                             target:self
-                                            action:@selector(openTapped)];
-    self.navigationItem.rightBarButtonItem.accessibilityLabel = STR_BUTTON_OPEN;
+                                            action:@selector(settingsTapped)];
+    self.navigationItem.rightBarButtonItem.accessibilityLabel = STR_SETTINGS_TITLE;
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
     self.navigationController.navigationBar.prefersLargeTitles = YES;
 
@@ -83,6 +84,13 @@ static const CGFloat kArtTextGap = 14;
 
 - (void)openTapped {
     [_playback presentPickerFromViewController:self];
+}
+
+// Pushed rather than presented: the mini strip and the tabs stay up, and the
+// settings on it are all things the strip and the card behind it draw.
+- (void)settingsTapped {
+    [self.navigationController pushViewController:[[SettingsViewController alloc] init]
+                                         animated:YES];
 }
 
 // Title and empty state both follow "is there anything to play", so they move

@@ -42,7 +42,7 @@ The played/unplayed gradient boundary is the only playhead marker (no line), and
 
 The renderer tree hangs off a `geometryFlipped` sublayer giving the shared math the mac's y-up space. **Do not "fix" coordinates in shared renderer code for iOS.**
 
-Style is hard-wired to the app default (`SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT`) until a style picker exists.
+Style comes from `AppSettings.waveformStyle` through the registry's fallback chain, exactly as the mac view's does; the settings screen (`Vibe/iOS/CLAUDE.md`) writes it. `syncWaveformStyle` is the live swap — it compares against the style the current renderer was built from and rebuilds only on a difference, since the pager fans it out over every cell and re-applies it on each `willDisplayCell:`. A rebuild drops the renderer (which removes its own layers), tears the baked bitmap down with it, and re-bakes on the next turn: the bars land settled, so there is no morph to wait out. **Only the Detailed family bakes at all**, so `ui.waveformBaked` is legitimately false under Basic and Sonic Cirrus.
 
 ## The settled fast path
 

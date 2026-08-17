@@ -132,9 +132,11 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
     }
 
     // Unconditional, not part of the one-time block above: a recycled cell
-    // keeps the zoom it was last shown at, which is stale the moment the user
-    // pinches while it is off screen. The setter no-ops when it matches.
+    // keeps the zoom and the style it was last shown at, both of which are
+    // stale the moment they change while it is off screen. Each no-ops when it
+    // already matches.
     [self applyWaveformZoomToCell:page];
+    [page.waveformView syncWaveformStyle];
 
     [self hydrateWaveformInCell:page atIndex:index];
     if (![_waveformCoordinator isCompleteAtIndex:index]) {
@@ -167,7 +169,7 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
                       artist:(showError ? errorText : (track.displayArtist ?: @""))
                  artistColor:(showError ? [UIColor systemRedColor]
                                         : [UIColor secondaryLabelColor])
-                    fileInfo:track.metadata.fileInfoLine
+                    fileInfo:(VibeShowsFileInfo() ? track.metadata.fileInfoLine : nil)
                          art:(track.cachedArt ?: [UIImage imageNamed:@"record-bg"])];
     // Off the page's own index, not the playing one, so the last page arrives
     // with next already dimmed. Playlist.hasNextTrack is the same test against

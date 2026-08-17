@@ -17,8 +17,8 @@
 #import <Foundation/Foundation.h>
 
 // A renderer's stable styleIdentifier, never its localized display name — see
-// AudioWaveformRenderer.h. Both platforms render waveforms, so this one is
-// shared; the iOS scrubber hard-wires the default until a style picker exists.
+// AudioWaveformRenderer.h. Both platforms render waveforms and both offer the
+// picker, so this one is shared.
 #define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"oversampling_detailed_x4"
 
 #if TARGET_OS_OSX

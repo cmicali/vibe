@@ -23,6 +23,7 @@
 
 #import "PlayerViewController.h"
 #import "PlaybackController.h"      // PlaybackObserver, adopted below
+#import "PlayerDisplaySettings.h"   // the two display preferences, read below
 #import "PlayerScreenRules.h"       // VibePlayerScreenState, read below
 #import "Playlist.h"
 
@@ -34,13 +35,9 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The right-hand time label's mode, and the one place the two spellings live.
-// NO — the default, and the macOS default — shows the track's total duration;
-// YES shows the minus-prefixed remaining time ("-1:50"). Tapping the label
-// toggles it, as it does on the mac. Every render path goes through
-// VibeRightTimeText so a scrub, a tick and a page at rest cannot disagree.
-BOOL VibeShowsRemainingTime(void);
-void VibeSetShowsRemainingTime(BOOL remaining);
+// The right time label's text in whichever mode PlayerDisplaySettings holds.
+// Every render path — the tick, a page at rest, a scrub — goes through this,
+// so the three cannot disagree.
 NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 
 // These two conformances stay on the class because PlayerViewController.m
@@ -152,6 +149,10 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 // The right time label's tap: flips total-vs-remaining and repaints every
 // visible page, since the mode is one setting rather than the tapped page's.
 - (void)remainingLabelTapped;
+
+// The times on every visible page, in whichever mode is current. The bound
+// page is left to updatePlaybackUI, which is live.
+- (void)repaintTimesOnVisiblePages;
 
 @end
 

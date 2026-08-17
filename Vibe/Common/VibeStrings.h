@@ -229,10 +229,10 @@ static inline NSString *VibeAppName(void) {
 
 #define STR_SETTINGS_APPEARANCE_LABEL   NSLS(@"settings.appearance.appearance_label",           @"Appearance:",              @"Settings, Appearance pane: label beside the light/dark appearance choice. Ends with a colon.")
 #define STR_SETTINGS_WAVEFORM_LABEL     NSLS(@"settings.appearance.waveform_label",             @"Waveform style:",          @"Settings, Appearance pane: label beside the dropdown choosing the waveform drawing style. Ends with a colon.")
-#define STR_SETTINGS_FILE_INFO          NSLS(@"settings.appearance.file_info",                  @"Show file info",           @"Settings, Appearance pane: checkbox showing the header's file-format readout (codec, bitrate, sample rate) and the BPM/key line. The same setting as the View menu's 'Show File Info' item, in sentence case per checkbox convention.")
+#define STR_SETTINGS_FILE_INFO          NSLS(@"settings.appearance.file_info",                  @"Show file info",           @"Settings, Appearance pane, and the iOS settings screen: checkbox showing the header's file-format readout (codec, bitrate, sample rate) and, on macOS, the BPM/key line. The same setting as the View menu's 'Show File Info' item, in sentence case per checkbox convention.")
 #define STR_SETTINGS_TIME_LABEL         NSLS(@"settings.appearance.time_label",                 @"Time display:",            @"Settings, Appearance pane: label beside the choice between showing the track's total duration or the remaining time. Ends with a colon.")
-#define STR_SETTINGS_TIME_TOTAL         NSLS(@"settings.appearance.time_total",                 @"Total duration",           @"Settings, Appearance pane, time display choice: the right time label shows the track's full length.")
-#define STR_SETTINGS_TIME_REMAINING     NSLS(@"settings.appearance.time_remaining",             @"Remaining time",           @"Settings, Appearance pane, time display choice: the right time label counts down the time left, e.g. '-1:50'.")
+#define STR_SETTINGS_TIME_TOTAL         NSLS(@"settings.appearance.time_total",                 @"Total duration",           @"Settings, Appearance pane, and the iOS settings screen, time display choice: the right time label shows the track's full length.")
+#define STR_SETTINGS_TIME_REMAINING     NSLS(@"settings.appearance.time_remaining",             @"Remaining time",           @"Settings, Appearance pane, and the iOS settings screen, time display choice: the right time label counts down the time left, e.g. '-1:50'.")
 
 #define STR_SETTINGS_CONVERT_DEST_LABEL  NSLS(@"settings.convert.destination_label",            @"Save converted files:",    @"Settings, Convert pane: label beside the dropdown choosing where Convert to FLAC writes its output. Ends with a colon.")
 #define STR_SETTINGS_CONVERT_DEST_BESIDE NSLS(@"settings.convert.destination.beside",           @"Next to original",         @"Settings, Convert pane, converted-file destination choice: the FLAC is written into the same folder as the source file. The default.")
@@ -304,6 +304,10 @@ static inline NSString *VibeAppName(void) {
 
 #define STR_LABEL_SEARCH        NSLS(@"label.search",        @"Search",                      @"iOS: title and placeholder of the search screen that filters the current folder's tracks.")
 #define STR_ERROR_FOLDER_EMPTY  NSLS(@"error.folder_empty",  @"No audio files in this folder",  @"iOS: shown after picking a folder that contains no playable audio files.")
+
+#define STR_SETTINGS_TITLE            NSLS(@"settings.title",            @"Settings",       @"iOS: title of the settings screen, and the label of the gear button on the playlist screen that opens it. Use the name Apple gives the Settings app in this language.")
+#define STR_SETTINGS_SECTION_WAVEFORM NSLS(@"settings.section.waveform", @"Waveform style", @"iOS settings screen: heading above the list of waveform drawing styles.")
+#define STR_SETTINGS_SECTION_TIME     NSLS(@"settings.section.time",     @"Time display",   @"iOS settings screen: heading above the choice between showing the track's total duration and the time remaining.")
 
 #define STR_TAB_PLAYLIST        NSLS(@"tab.playlist",        @"Playlist",                    @"iOS: title of the tab showing the tracks queued to play.")
 #define STR_TAB_FILES           NSLS(@"tab.files",           @"Files",                       @"iOS: title of the tab showing the system file browser, for picking music to play.")

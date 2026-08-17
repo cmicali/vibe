@@ -101,6 +101,9 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
     NSLayoutConstraint *_labelBandHeight;
     NSLayoutConstraint *_artistHeight;
     NSLayoutConstraint *_fileInfoHeight;
+    // Zeroed along with the height when there is no codec line to draw — the
+    // gap alone would otherwise stay in the band as slack under the artist.
+    NSLayoutConstraint *_fileInfoTop;
 
     // The orientation-specific constraint sets; layoutSubviews swaps them on
     // the cell's own aspect, so a rotation mid-reuse can never strand a cell
@@ -335,6 +338,8 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
     _labelBandHeight = [labelBand.heightAnchor constraintEqualToConstant:0];
     _artistHeight = [_artistLabel.heightAnchor constraintEqualToConstant:0];
     _fileInfoHeight = [_fileInfoLabel.heightAnchor constraintEqualToConstant:0];
+    _fileInfoTop = [_fileInfoLabel.topAnchor constraintEqualToAnchor:_artistLabel.bottomAnchor
+                                                            constant:kCellLabelGap];
 
     // As big as its band allows, leaving the padding all round. The two
     // required caps bound it on each axis; this makes it take what it can,
@@ -372,8 +377,7 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
         [_artistLabel.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
         [_artistLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor constant:20],
         [_artistLabel.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-20],
-        [_fileInfoLabel.topAnchor constraintEqualToAnchor:_artistLabel.bottomAnchor
-                                                 constant:kCellLabelGap],
+        _fileInfoTop,
         [_fileInfoLabel.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
         [_fileInfoLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor constant:20],
         [_fileInfoLabel.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-20],
@@ -580,18 +584,36 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
                 titleColor:(UIColor *)titleColor
                     artist:(NSString *)artist
                artistColor:(UIColor *)artistColor
-                  fileInfo:(NSString *)fileInfo
+                  fileInfo:(nullable NSString *)fileInfo
                        art:(UIImage *)art {
     _titleLabel.text = title;
     _titleLabel.textColor = titleColor;
     _artistLabel.text = artist;
     _artistLabel.textColor = artistColor;
     _fileInfoLabel.text = fileInfo;
+    // Hidden rather than blank: the band reserves this label's line, and an
+    // empty one would hold it open. Nil is both "the setting is off" and "no
+    // metadata yet", and neither has a row to draw.
+    BOOL hideFileInfo = fileInfo.length == 0;
+    if (hideFileInfo != _fileInfoLabel.hidden) {
+        _fileInfoLabel.hidden = hideFileInfo;
+        [self setNeedsLayout];
+    }
     // The card takes the artwork itself; the backdrop takes its baked blur,
     // which UIImage+Blur memoizes on the artwork, so a page reconfigured for
     // the same track pays nothing.
     _artCardView.image = art;
-    _backdropView.image = [art vibeBlurredBackdrop];
+    UIImage *backdrop = [art vibeBlurredBackdrop];
+    _backdropView.image = backdrop;
+    // Opaque, so the render server can stop at this layer instead of drawing
+    // everything a full-bleed page covers — the pager's own record-bg
+    // backgroundView and the whole tab hierarchy behind the card. The bake
+    // carries no alpha channel (UIImage+Blur renders AlphaNoneSkipFirst) and
+    // aspect-fill always covers the bounds, so the claim is honest.
+    //
+    // Tied to the image actually arriving rather than set once at init: an
+    // opaque view with no contents draws undefined pixels, not nothing.
+    _backdropView.opaque = (backdrop != nil);
 }
 
 @end

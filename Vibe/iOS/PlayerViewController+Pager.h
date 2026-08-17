@@ -32,6 +32,11 @@ NS_ASSUME_NONNULL_BEGIN
 // Points the live-update bindings at the current page's views.
 - (void)bindChromeToCell:(nullable TrackPageCell *)cell;
 
+// Renders one page from its track: header, art, and the transport's end-of-
+// playlist state. The data source's own path, and the way a live cell is
+// repainted in place when what it draws — not what it plays — has changed.
+- (void)configurePage:(TrackPageCell *)cell atIndex:(NSUInteger)index;
+
 // Starts, or re-targets, the one waveform load at this page.
 - (void)requestWaveformForIndex:(NSUInteger)index;
 

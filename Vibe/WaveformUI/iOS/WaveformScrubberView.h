@@ -97,6 +97,12 @@ NS_ASSUME_NONNULL_BEGIN
 // as internal — the two differing is the only outside sign the clamp ran.
 @property (nonatomic, readonly) CGFloat effectiveVisibleFraction;
 
+// Rebuilds the renderer when the persisted waveform style is no longer the one
+// on screen, and does nothing when it already is. The style is one setting for
+// every page of the pager, so the owner fans this out — a cell coming back out
+// of the reuse pool still carries whatever renderer it was last built with.
+- (void)syncWaveformStyle;
+
 // Same contract as the mac view: reset ahead of a load (installing the
 // persisted style on first use), then hand snapshots to showWaveform:.
 - (void)prepareForWaveformLoad;
