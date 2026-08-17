@@ -10,6 +10,11 @@
 #import "Playlist.h"
 #import "VibeStrings.h"
 
+// How long a burst of metadata deliveries is allowed to gather before the
+// matches are rebuilt. Long enough that a folder scan's stream of them costs a
+// handful of passes rather than one per track, short enough to read as live.
+static const NSTimeInterval kRefilterCoalesceInterval = 0.25;
+
 @interface SearchViewController () <UISearchResultsUpdating, PlaybackObserver>
 @end
 
@@ -20,6 +25,10 @@
     // Indexes into the playlist, filtered by the live query. All rows when
     // the query is empty, so the screen doubles as a browse list.
     NSArray<NSNumber *> *_matches;
+    // Tags have landed that the matches have not been rebuilt for, and whether
+    // a rebuild is already parked.
+    BOOL                _matchesStale;
+    BOOL                _refilterScheduled;
 }
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback {
@@ -47,13 +56,28 @@
     [self filterWithQuery:@""];
 }
 
+// Off screen the matches are left to go stale; deliveries schedule nothing
+// while the tab is not showing, so a folder scan behind another tab costs
+// this screen nothing at all.
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    if (_matchesStale) {
+        [self filterWithQuery:[self currentQuery]];
+    }
+}
+
 #pragma mark - Filtering
 
+- (NSString *)currentQuery {
+    return _searchController.searchBar.text ?: @"";
+}
+
 - (void)updateSearchResultsForSearchController:(UISearchController *)searchController {
-    [self filterWithQuery:searchController.searchBar.text ?: @""];
+    [self filterWithQuery:[self currentQuery]];
 }
 
 - (void)filterWithQuery:(NSString *)query {
+    _matchesStale = NO;
     NSArray<AudioTrack *> *tracks = _playlist.tracks;
     NSMutableArray<NSNumber *> *matches = [NSMutableArray arrayWithCapacity:tracks.count];
     for (NSUInteger i = 0; i < tracks.count; i++) {
@@ -112,16 +136,37 @@
 // Re-filter rather than reload: the matches are indexes into a playlist that
 // has just been replaced, so every one of them is stale.
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
-    [self filterWithQuery:_searchController.searchBar.text ?: @""];
+    [self filterWithQuery:[self currentQuery]];
 }
 
 - (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes {
-    [self filterWithQuery:_searchController.searchBar.text ?: @""];
+    [self filterWithQuery:[self currentQuery]];
 }
 
+// Tags can change what a row says and what the query matches, but a folder
+// scan delivers one of these per track, and a re-filter is a pass over the
+// whole playlist plus a reloadData — thousands of them, on main, while the
+// player is opening a file. Coalesce instead of answering each one.
 - (void)playback:(PlaybackController *)playback didLoadMetadataForTrack:(AudioTrack *)track {
-    // Tags can change what a row says and what the query matches.
-    [self filterWithQuery:_searchController.searchBar.text ?: @""];
+    _matchesStale = YES;
+    [self scheduleRefilter];
+}
+
+- (void)scheduleRefilter {
+    if (_refilterScheduled || !self.viewIfLoaded.window) {
+        return;
+    }
+    _refilterScheduled = YES;
+    [self performSelector:@selector(refilterIfStale)
+               withObject:nil
+               afterDelay:kRefilterCoalesceInterval];
+}
+
+- (void)refilterIfStale {
+    _refilterScheduled = NO;
+    if (_matchesStale) {
+        [self filterWithQuery:[self currentQuery]];
+    }
 }
 
 @end

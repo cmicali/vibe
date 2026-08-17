@@ -147,9 +147,9 @@ static NSString *const kTabSearch = @"search";
     _player.view.layer.masksToBounds = YES;
     [self.view addSubview:_player.view];
     [_player didMoveToParentViewController:self];
-    // Built minimized, and never appears until it is expanded: the card owns
-    // an appearance-gated display link, so its viewWillAppear: must not fire
-    // just because it is in the hierarchy.
+    // Built minimized, and never appears until it is expanded — which is what
+    // the manual appearance forwarding below is for: its viewWillAppear: must
+    // not fire just because it is in the hierarchy.
     _player.view.transform = [self minimizedCardTransform];
     _player.view.hidden = YES;
     _player.presented = NO;
@@ -170,6 +170,54 @@ static NSString *const kTabSearch = @"search";
 
 - (CGAffineTransform)minimizedCardTransform {
     return CGAffineTransformMakeTranslation(0, self.view.bounds.size.height);
+}
+
+#pragma mark - Appearance forwarding
+
+// Both children are in the hierarchy from viewDidLoad, but only one of them is
+// ever on screen at a time, so this controller says when each appears rather
+// than letting UIKit forward to both. Automatic forwarding would tell the card
+// it had appeared while it sits minimized and hidden, and would then double
+// the begin/end pairs expandPlayerAnimated: and minimizePlayerAnimated: send.
+//
+// TRAP: the switch is per-parent, not per-child — turning it off for the card
+// turns it off for the tabs too, which is why they are forwarded by hand here.
+- (BOOL)shouldAutomaticallyForwardAppearanceMethods {
+    return NO;
+}
+
+// The card only while it is up; expand and minimize own its transitions
+// otherwise.
+- (NSArray<UIViewController *> *)appearingChildren {
+    return _expanded ? @[_tabs, _player] : @[_tabs];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    for (UIViewController *child in [self appearingChildren]) {
+        [child beginAppearanceTransition:YES animated:animated];
+    }
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    for (UIViewController *child in [self appearingChildren]) {
+        [child endAppearanceTransition];
+    }
+}
+
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    for (UIViewController *child in [self appearingChildren]) {
+        [child beginAppearanceTransition:NO animated:animated];
+    }
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
+    for (UIViewController *child in [self appearingChildren]) {
+        [child endAppearanceTransition];
+    }
 }
 
 #pragma mark - The mini player

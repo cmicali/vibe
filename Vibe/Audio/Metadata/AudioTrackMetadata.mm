@@ -215,9 +215,11 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 // because at their original sizes they blow the cache's byte limit and turn
 // every launch into a full TagLib re-parse of the library.
 //
-// hasEmbeddedArt is archived separately from the thumbnail because iOS writes
-// no thumbnail at all (AudioTrackArtwork), and without it every cache hit there
-// would read as artless and never load its art.
+// hasEmbeddedArt is archived separately from the thumbnail because the
+// thumbnail's presence cannot express it: a track whose art bytes were
+// discarded, and one whose art would not decode, both carry no thumbnail and
+// still come from a file that has art. Without the flag every such cache hit
+// would read as artless and never load it.
 - (void)encodeWithCoder:(NSCoder *)coder {
     [coder encodeObject:self.title forKey:@"title"];
     [coder encodeObject:self.artist forKey:@"artist"];

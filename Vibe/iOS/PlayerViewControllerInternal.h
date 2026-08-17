@@ -69,6 +69,11 @@ NS_ASSUME_NONNULL_BEGIN
     UILabel                 *_elapsedLabel;
     UILabel                 *_remainingLabel;
     UIButton                *_playPauseButton;  // bound: the current page's glyph
+    // Whichever scrubber currently holds the pager still, which is NOT always
+    // the bound page's: playback runs on through a scrub, so a track ending
+    // mid-drag rebinds the chrome above while the finger is still down on the
+    // outgoing page. The release has to be honored from the view that took it.
+    __weak WaveformScrubberView *_scrubbingView;
 
     // The waveform data and the pager's bookkeeping over it — the one load's
     // target page, the per-page snapshots, the complete set — between the

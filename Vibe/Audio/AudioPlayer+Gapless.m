@@ -233,15 +233,21 @@
     _prefetchedPath = path;
     _prefetchedTrack = track;
     _prefetchedFile = nil;
-    if (!path) {
-        return; // nil track means end of playlist: just drop the parked handle
-    }
-    uint64_t prefetchId = _prefetchRequestId;
     // The previous prefetch's download is for a track that is no longer next.
     // On a cloud folder that is a whole file still coming down against the one
     // the user is waiting on, so it is cancelled rather than left to finish;
     // see the materializer slots in AudioPlayerInternal.h.
+    //
+    // TRAP: this has to precede the nil-path return, not follow it. A nil
+    // track is exactly the last row and File > Close, where nothing takes the
+    // slot afterwards — left uncancelled there, the abandoned download runs on
+    // against the open the user is actually waiting for.
     [_prefetchMaterializer cancel];
+    _prefetchMaterializer = nil;
+    if (!path) {
+        return; // nil track means end of playlist: just drop the parked handle
+    }
+    uint64_t prefetchId = _prefetchRequestId;
     CloudFileMaterializer *materializer = [[CloudFileMaterializer alloc] init];
     _prefetchMaterializer = materializer;
     __weak AudioPlayer *weakSelf = self;

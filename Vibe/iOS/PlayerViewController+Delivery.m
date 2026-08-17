@@ -42,9 +42,21 @@
 // while an enclosing scroll view can still scroll the way the finger is going,
 // UIKit chains the scrubber's overscroll into it and the band never appears —
 // so the ends bounced on the last page and clamped everywhere else.
+//
+// TRAP: the release is matched against the view that took the lock, not
+// against the bound page. Playback runs on through a scrub — the seek only
+// commits on lift — so a track ending mid-drag rebinds _waveformView to the
+// next page while the finger is still down on the outgoing one. Filtering the
+// lift on the binding drops it, and the pager stays unswipeable.
 - (void)waveformScrubberView:(WaveformScrubberView *)view didChangeScrubbing:(BOOL)scrubbing {
-    if (view != _waveformView) {
-        return;
+    if (scrubbing) {
+        _scrubbingView = view;
+    }
+    else if (view != _scrubbingView) {
+        return;  // a page that never held the lock, or a reset of a still cell
+    }
+    else {
+        _scrubbingView = nil;
     }
     _pagesView.scrollEnabled = !scrubbing;
 }

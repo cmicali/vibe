@@ -98,9 +98,10 @@ typedef NSData * _Nullable (^AudioTrackArtworkExtractor)(NSString *path);
 
 // For a cache hit, through initWithCoder:. hasEmbeddedArt is the archived fact
 // that the file carries art, and is what separates NotLoaded from Artless. The
-// JPEG is the archived thumbnail, and is nil in an entry written while iOS
-// kept none; where one is present it decodes at a bounded pixel size, since a
-// tampered cache entry could carry a huge image.
+// JPEG is the archived thumbnail, and is nil in an entry written before the
+// thumbnail was archived at all, or for art that would not decode; where one
+// is present it decodes at a bounded pixel size, since a tampered cache entry
+// could carry a huge image.
 - (void)adoptArchivedThumbnailJPEG:(nullable NSData *)jpegData
                     hasEmbeddedArt:(BOOL)hasEmbeddedArt;
 
