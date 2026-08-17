@@ -138,6 +138,19 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // does preemptRampsOnQueue eagerly. The iOS config-change recovery must
     // yield to a pending pause, which owns the transport.
     BOOL                    _pausePending;
+
+    // ---- Read by AudioPlayer+State, written by publishPlaybackState:.
+    // Last position computed from a valid playerTime, guarded by _stateLock.
+    // When the engine stops itself, on a device unplug or format change,
+    // lastRenderTime goes nil before the recovery path can read the position.
+    // Without this cache, recovery restores from the segment start and the
+    // track restarts at 0:00, or at the last seek point.
+    //
+    // An ivar rather than one of the readonly properties below, because the
+    // position getter is a second writer: it computes off-lock and stores the
+    // result back under the epoch check. Everything else in the position state
+    // keeps the write protection.
+    NSTimeInterval          _lastValidPosition;
 }
 
 #pragma mark - Read by the categories, written only by AudioPlayer.m
@@ -176,6 +189,16 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // a gapless boundary records the frames already rendered into the queued next
 // track only here; promoteGaplessOnQueue's paused fallback is the one reader.
 @property (nonatomic, readonly) NSTimeInterval pausedRawPosition;
+
+// The position state AudioPlayer+State's readers answer from, all under
+// _stateLock. The paused position is what position returns once the node stops
+// reporting; the epoch is bumped by every queue-side write of the three, and is
+// what lets the position getter tell its own off-lock result from one a seek or
+// a track change has since superseded. loadingStartPaused is the pending
+// start's intent, which is what isPlaying and isPaused report while Loading.
+@property (nonatomic, readonly) NSTimeInterval pausedPosition;
+@property (nonatomic, readonly) uint64_t positionEpoch;
+@property (nonatomic, readonly) BOOL loadingStartPaused;
 
 // Readwrite here, readonly in AudioPlayer.h: currentTrack is written on
 // _queue, the device id from the init and device-switch paths.

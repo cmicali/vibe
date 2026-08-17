@@ -1,5 +1,5 @@
 //
-//  MetadataParseFlowTests.m
+//  MetadataParseRunnerTests.m
 //
 //  The stage-2 parse ordering: what a row does when the answer is already
 //  somewhere, and what the duplicate rows behind it get.
@@ -10,43 +10,43 @@
 #import <unistd.h>
 
 #import "MetadataParseCoordinator.h"
-#import "MetadataParseFlow.h"
+#import "MetadataParseRunner.h"
 
 // One playlist row. `resolved` stands in for AudioTrackMetadata.parsedOK.
-@interface FlowRow : NSObject
+@interface ParseRow : NSObject
 @property (nonatomic) BOOL resolved;
 @property (nonatomic, copy) NSString *name;
 @end
 
-@implementation FlowRow
+@implementation ParseRow
 @end
 
 // The loader's four effects, recorded. Thread-safe throughout: the stress test
 // drives it from every core at once, and a counter racing there would report a
 // pass that never happened.
-@interface FlowRecorder : NSObject <MetadataParseFlowDelegate>
+@interface ParseRecorder : NSObject <MetadataParseRunnerDelegate>
 
 // The cache identity each row parses under, and the keys an entry exists for.
 @property (nonatomic, strong) NSMutableDictionary<NSString *, id> *keysByRow;
 @property (nonatomic, strong) NSMutableSet *storedKeys;
-// Every callback in order, as "verb:row" — the flow's whole observable output.
+// Every callback in order, as "verb:row" — the runner's whole observable output.
 @property (nonatomic, strong) NSMutableArray<NSString *> *trace;
 // Parses that must fail: the row resolves, but nothing is written, so its
 // waiters find no entry.
 @property (nonatomic, strong) NSMutableSet<NSString *> *failingRows;
 // Runs inside a parse, so a test can act while one is in flight.
-@property (nonatomic, copy, nullable) void (^duringParse)(FlowRow *row);
+@property (nonatomic, copy, nullable) void (^duringParse)(ParseRow *row);
 // Runs before a cache read, for asserting what is true at that moment.
-@property (nonatomic, copy, nullable) void (^beforeServe)(FlowRow *row);
+@property (nonatomic, copy, nullable) void (^beforeServe)(ParseRow *row);
 // The same, for the owner's own publish.
-@property (nonatomic, copy, nullable) void (^beforePublish)(FlowRow *row);
+@property (nonatomic, copy, nullable) void (^beforePublish)(ParseRow *row);
 // Runs after each resolved? answer is read, for landing another lane's result
 // in one of the windows between two of them.
-@property (nonatomic, copy, nullable) void (^afterResolvedAsk)(FlowRow *row);
+@property (nonatomic, copy, nullable) void (^afterResolvedAsk)(ParseRow *row);
 
 @end
 
-@implementation FlowRecorder
+@implementation ParseRecorder
 
 - (instancetype)init {
     self = [super init];
@@ -59,7 +59,7 @@
     return self;
 }
 
-- (void)record:(NSString *)verb row:(FlowRow *)row {
+- (void)record:(NSString *)verb row:(ParseRow *)row {
     @synchronized (self) {
         [_trace addObject:[NSString stringWithFormat:@"%@:%@", verb, row.name]];
     }
@@ -71,7 +71,7 @@
     }
 }
 
-- (NSUInteger)countOf:(NSString *)verb row:(FlowRow *)row {
+- (NSUInteger)countOf:(NSString *)verb row:(ParseRow *)row {
     NSString *entry = [NSString stringWithFormat:@"%@:%@", verb, row.name];
     NSUInteger count = 0;
     for (NSString *recorded in self.traceSnapshot) {
@@ -93,15 +93,15 @@
     return count;
 }
 
-- (id)keyForRow:(FlowRow *)row {
+- (id)keyForRow:(ParseRow *)row {
     @synchronized (self) {
         return _keysByRow[row.name];
     }
 }
 
-#pragma mark - MetadataParseFlowDelegate
+#pragma mark - MetadataParseRunnerDelegate
 
-- (BOOL)parseFlowParticipantIsResolved:(FlowRow *)row {
+- (BOOL)parseRunnerIsResolved:(ParseRow *)row {
     [self record:@"resolved?" row:row];
     BOOL resolved = row.resolved;
     if (self.afterResolvedAsk) {
@@ -110,7 +110,7 @@
     return resolved;
 }
 
-- (BOOL)parseFlowServeFromCache:(FlowRow *)row {
+- (BOOL)parseRunnerServeFromCache:(ParseRow *)row {
     if (self.beforeServe) {
         self.beforeServe(row);
     }
@@ -126,7 +126,7 @@
     return hit;
 }
 
-- (void)parseFlowParse:(FlowRow *)row {
+- (void)parseRunnerReadAndCache:(ParseRow *)row {
     [self record:@"parse" row:row];
     if (self.duringParse) {
         self.duringParse(row);
@@ -140,7 +140,7 @@
     }
 }
 
-- (void)parseFlowPublishParsed:(FlowRow *)row {
+- (void)parseRunnerPublish:(ParseRow *)row {
     if (self.beforePublish) {
         self.beforePublish(row);
     }
@@ -149,26 +149,26 @@
 
 @end
 
-@interface MetadataParseFlowTests : XCTestCase
+@interface MetadataParseRunnerTests : XCTestCase
 @end
 
-@implementation MetadataParseFlowTests {
+@implementation MetadataParseRunnerTests {
     MetadataParseCoordinator *_coordinator;
-    FlowRecorder *_recorder;
-    MetadataParseFlow *_flow;
+    ParseRecorder *_recorder;
+    MetadataParseRunner *_runner;
 }
 
 - (void)setUp {
     [super setUp];
     _coordinator = [MetadataParseCoordinator new];
-    _recorder = [FlowRecorder new];
-    _flow = [[MetadataParseFlow alloc] initWithCoordinator:_coordinator delegate:_recorder];
+    _recorder = [ParseRecorder new];
+    _runner = [[MetadataParseRunner alloc] initWithCoordinator:_coordinator delegate:_recorder];
 }
 
 // Rows named distinctly but sharing one cache identity are the duplicate-row
 // case: the same file on several playlist rows.
-- (FlowRow *)rowNamed:(NSString *)name key:(NSString *)key {
-    FlowRow *row = [FlowRow new];
+- (ParseRow *)rowNamed:(NSString *)name key:(NSString *)key {
+    ParseRow *row = [ParseRow new];
     row.name = name;
     @synchronized (_recorder) {
         _recorder.keysByRow[name] = key;
@@ -176,14 +176,14 @@
     return row;
 }
 
-- (void)run:(FlowRow *)row {
-    [_flow runForParticipant:row key:[_recorder keyForRow:row]];
+- (void)run:(ParseRow *)row {
+    [_runner runForParticipant:row key:[_recorder keyForRow:row]];
 }
 
 #pragma mark - The single row
 
 - (void)testAMissParsesAndPublishesOnce {
-    FlowRow *row = [self rowNamed:@"a" key:@"/song.flac"];
+    ParseRow *row = [self rowNamed:@"a" key:@"/song.flac"];
 
     [self run:row];
 
@@ -193,7 +193,7 @@
 }
 
 - (void)testAnAlreadyResolvedRowIsNotEvenClaimed {
-    FlowRow *row = [self rowNamed:@"a" key:@"/song.flac"];
+    ParseRow *row = [self rowNamed:@"a" key:@"/song.flac"];
     row.resolved = YES;
 
     [self run:row];
@@ -207,8 +207,8 @@
 // sat queued and released its claim before this one took it, so the claim
 // cannot cover it — only the read under the claim can.
 - (void)testAnEntryLeftByAnEarlierRowIsReadRatherThanReparsed {
-    FlowRow *first = [self rowNamed:@"first" key:@"/song.flac"];
-    FlowRow *second = [self rowNamed:@"second" key:@"/song.flac"];
+    ParseRow *first = [self rowNamed:@"first" key:@"/song.flac"];
+    ParseRow *second = [self rowNamed:@"second" key:@"/song.flac"];
     [self run:first];
     XCTAssertEqual([_recorder countOf:@"parse" row:first], 1u);
 
@@ -224,9 +224,9 @@
 // this exact row between the entry check and the claim. Nothing to read,
 // nothing to parse — and the claim must still be released.
 - (void)testARowResolvedUnderItsOwnClaimSkipsBothTheReadAndTheParse {
-    FlowRow *row = [self rowNamed:@"a" key:@"/song.flac"];
+    ParseRow *row = [self rowNamed:@"a" key:@"/song.flac"];
     __block NSUInteger asks = 0;
-    _recorder.afterResolvedAsk = ^(FlowRow *asked) {
+    _recorder.afterResolvedAsk = ^(ParseRow *asked) {
         if (++asks == 1) {
             asked.resolved = YES;
         }
@@ -241,7 +241,7 @@
 }
 
 - (void)testAFailedParsePublishesTheFallbackAndCachesNothing {
-    FlowRow *row = [self rowNamed:@"a" key:@"/song.flac"];
+    ParseRow *row = [self rowNamed:@"a" key:@"/song.flac"];
     [_recorder.failingRows addObject:@"a"];
 
     [self run:row];
@@ -250,33 +250,33 @@
     XCTAssertEqual([_recorder countOf:@"published" row:row], 1u);
     // A later row for the same file finds no entry and parses for itself,
     // rather than inheriting a cached failure.
-    FlowRow *later = [self rowNamed:@"later" key:@"/song.flac"];
+    ParseRow *later = [self rowNamed:@"later" key:@"/song.flac"];
     [self run:later];
     XCTAssertEqual([_recorder countOf:@"parse" row:later], 1u);
 }
 
 - (void)testAnUncoordinatedRowStillParses {
-    FlowRow *row = [self rowNamed:@"a" key:@"/song.flac"];
+    ParseRow *row = [self rowNamed:@"a" key:@"/song.flac"];
 
-    [_flow runForParticipant:row key:nil];
+    [_runner runForParticipant:row key:nil];
 
     XCTAssertEqual([_recorder countOf:@"parse" row:row], 1u);
     XCTAssertEqual([_recorder countOf:@"published" row:row], 1u);
 }
 
-- (void)testADepartedDelegateStopsTheFlowWithoutClaiming {
-    MetadataParseFlow *flow;
+- (void)testADepartedDelegateStopsTheRunnerWithoutClaiming {
+    MetadataParseRunner *runner;
     @autoreleasepool {
-        FlowRecorder *recorder = [FlowRecorder new];
-        flow = [[MetadataParseFlow alloc] initWithCoordinator:_coordinator delegate:recorder];
+        ParseRecorder *recorder = [ParseRecorder new];
+        runner = [[MetadataParseRunner alloc] initWithCoordinator:_coordinator delegate:recorder];
         recorder = nil;
     }
-    FlowRow *row = [self rowNamed:@"a" key:@"/song.flac"];
+    ParseRow *row = [self rowNamed:@"a" key:@"/song.flac"];
 
-    [flow runForParticipant:row key:@"/song.flac"];
+    [runner runForParticipant:row key:@"/song.flac"];
 
     XCTAssertEqualObjects(_recorder.traceSnapshot, @[]);
-    // No claim was taken, so a live flow can still do the work.
+    // No claim was taken, so a live runner can still do the work.
     [self run:row];
     XCTAssertEqual([_recorder countOf:@"parse" row:row], 1u);
 }
@@ -284,12 +284,12 @@
 #pragma mark - Duplicate rows
 
 - (void)testWaitersAreServedFromTheEntryTheHolderWroteRatherThanReparsing {
-    FlowRow *holder = [self rowNamed:@"holder" key:@"/song.flac"];
-    FlowRow *firstWaiter = [self rowNamed:@"first" key:@"/song.flac"];
-    FlowRow *secondWaiter = [self rowNamed:@"second" key:@"/song.flac"];
+    ParseRow *holder = [self rowNamed:@"holder" key:@"/song.flac"];
+    ParseRow *firstWaiter = [self rowNamed:@"first" key:@"/song.flac"];
+    ParseRow *secondWaiter = [self rowNamed:@"second" key:@"/song.flac"];
     // Both duplicates reach their parse op while the holder's is in flight.
     __weak __typeof(self) weakSelf = self;
-    _recorder.duringParse = ^(FlowRow *row) {
+    _recorder.duringParse = ^(ParseRow *row) {
         [weakSelf run:firstWaiter];
         [weakSelf run:secondWaiter];
     };
@@ -297,7 +297,7 @@
     [self run:holder];
 
     XCTAssertEqual([_recorder countOfVerb:@"parse"], 1u);
-    for (FlowRow *waiter in @[firstWaiter, secondWaiter]) {
+    for (ParseRow *waiter in @[firstWaiter, secondWaiter]) {
         XCTAssertEqual([_recorder countOf:@"parse" row:waiter], 0u, @"%@", waiter.name);
         XCTAssertEqual([_recorder countOf:@"serve" row:waiter], 1u, @"%@", waiter.name);
         XCTAssertEqual([_recorder countOf:@"published" row:waiter], 1u, @"%@", waiter.name);
@@ -310,11 +310,11 @@
 // costs the receiver a redundant delivery and, for the current row, a second
 // full-resolution art decode.
 - (void)testAWaiterAlreadyServedElsewhereIsLeftAlone {
-    FlowRow *holder = [self rowNamed:@"holder" key:@"/song.flac"];
-    FlowRow *served = [self rowNamed:@"served" key:@"/song.flac"];
-    FlowRow *bare = [self rowNamed:@"bare" key:@"/song.flac"];
+    ParseRow *holder = [self rowNamed:@"holder" key:@"/song.flac"];
+    ParseRow *served = [self rowNamed:@"served" key:@"/song.flac"];
+    ParseRow *bare = [self rowNamed:@"bare" key:@"/song.flac"];
     __weak __typeof(self) weakSelf = self;
-    _recorder.duringParse = ^(FlowRow *row) {
+    _recorder.duringParse = ^(ParseRow *row) {
         [weakSelf run:served];
         [weakSelf run:bare];
         // The sweep lands on one of them mid-parse.
@@ -334,10 +334,10 @@
 // of the file wait for work that is not the parse. This is the whole reason
 // the protocol splits the parse from its publish.
 - (void)testTheClaimIsReleasedBeforeTheParseIsPublishedOrWaitersAreServed {
-    FlowRow *holder = [self rowNamed:@"holder" key:@"/song.flac"];
-    FlowRow *waiter = [self rowNamed:@"waiter" key:@"/song.flac"];
+    ParseRow *holder = [self rowNamed:@"holder" key:@"/song.flac"];
+    ParseRow *waiter = [self rowNamed:@"waiter" key:@"/song.flac"];
     __weak __typeof(self) weakSelf = self;
-    _recorder.duringParse = ^(FlowRow *row) { [weakSelf run:waiter]; };
+    _recorder.duringParse = ^(ParseRow *row) { [weakSelf run:waiter]; };
     MetadataParseCoordinator *coordinator = _coordinator;
     __block NSUInteger probes = 0;
     __block NSUInteger held = 0;
@@ -348,8 +348,8 @@
         held += claim.isOwner ? 0 : 1;
         [coordinator completeClaim:claim];
     };
-    _recorder.beforePublish = ^(FlowRow *row) { probe(); };
-    _recorder.beforeServe = ^(FlowRow *row) {
+    _recorder.beforePublish = ^(ParseRow *row) { probe(); };
+    _recorder.beforeServe = ^(ParseRow *row) {
         // Not the holder's own pre-parse read, which legitimately holds it.
         if (row == waiter) {
             probe();
@@ -363,11 +363,11 @@
 }
 
 - (void)testAFailedHolderLeavesItsWaitersWithTheFallbackAndNoRetryStorm {
-    FlowRow *holder = [self rowNamed:@"holder" key:@"/song.flac"];
-    FlowRow *waiter = [self rowNamed:@"waiter" key:@"/song.flac"];
+    ParseRow *holder = [self rowNamed:@"holder" key:@"/song.flac"];
+    ParseRow *waiter = [self rowNamed:@"waiter" key:@"/song.flac"];
     [_recorder.failingRows addObject:@"holder"];
     __weak __typeof(self) weakSelf = self;
-    _recorder.duringParse = ^(FlowRow *row) { [weakSelf run:waiter]; };
+    _recorder.duringParse = ^(ParseRow *row) { [weakSelf run:waiter]; };
 
     [self run:holder];
 
@@ -380,10 +380,10 @@
 }
 
 - (void)testRowsForDifferentFilesDoNotWaitOnEachOther {
-    FlowRow *first = [self rowNamed:@"first" key:@"/one.flac"];
-    FlowRow *second = [self rowNamed:@"second" key:@"/two.flac"];
+    ParseRow *first = [self rowNamed:@"first" key:@"/one.flac"];
+    ParseRow *second = [self rowNamed:@"second" key:@"/two.flac"];
     __weak __typeof(self) weakSelf = self;
-    _recorder.duringParse = ^(FlowRow *row) {
+    _recorder.duringParse = ^(ParseRow *row) {
         if (row == first) {
             [weakSelf run:second];
         }
@@ -408,14 +408,14 @@
     for (NSUInteger round = 0; round < kRounds; round++) {
         @autoreleasepool {
             _coordinator = [MetadataParseCoordinator new];
-            _recorder = [FlowRecorder new];
-            _flow = [[MetadataParseFlow alloc] initWithCoordinator:_coordinator delegate:_recorder];
+            _recorder = [ParseRecorder new];
+            _runner = [[MetadataParseRunner alloc] initWithCoordinator:_coordinator delegate:_recorder];
             // Widen the window the late claimers land in: without the read
             // under the claim, a row arriving after the holder released it
             // parses the file a second time.
-            _recorder.duringParse = ^(FlowRow *row) { usleep(200); };
+            _recorder.duringParse = ^(ParseRow *row) { usleep(200); };
 
-            NSMutableArray<FlowRow *> *rows = [NSMutableArray arrayWithCapacity:kRows];
+            NSMutableArray<ParseRow *> *rows = [NSMutableArray arrayWithCapacity:kRows];
             for (NSUInteger i = 0; i < kRows; i++) {
                 [rows addObject:[self rowNamed:[NSString stringWithFormat:@"row%lu", (unsigned long)i]
                                            key:@"/song.flac"]];
@@ -426,7 +426,7 @@
             });
 
             XCTAssertEqual([_recorder countOfVerb:@"parse"], 1u, @"round %lu", (unsigned long)round);
-            for (FlowRow *row in rows) {
+            for (ParseRow *row in rows) {
                 XCTAssertTrue(row.resolved, @"round %lu, %@", (unsigned long)round, row.name);
                 XCTAssertEqual([_recorder countOf:@"published" row:row], 1u,
                                @"round %lu, %@", (unsigned long)round, row.name);
@@ -445,11 +445,11 @@
     for (NSUInteger round = 0; round < kRounds; round++) {
         @autoreleasepool {
             _coordinator = [MetadataParseCoordinator new];
-            _recorder = [FlowRecorder new];
-            _flow = [[MetadataParseFlow alloc] initWithCoordinator:_coordinator delegate:_recorder];
-            _recorder.duringParse = ^(FlowRow *row) { usleep(100); };
+            _recorder = [ParseRecorder new];
+            _runner = [[MetadataParseRunner alloc] initWithCoordinator:_coordinator delegate:_recorder];
+            _recorder.duringParse = ^(ParseRow *row) { usleep(100); };
 
-            NSMutableArray<FlowRow *> *rows = [NSMutableArray array];
+            NSMutableArray<ParseRow *> *rows = [NSMutableArray array];
             for (NSUInteger file = 0; file < kFiles; file++) {
                 for (NSUInteger copy = 0; copy < kRowsPerFile; copy++) {
                     NSString *name = [NSString stringWithFormat:@"f%lu-r%lu",
@@ -464,7 +464,7 @@
             });
 
             XCTAssertEqual([_recorder countOfVerb:@"parse"], kFiles, @"round %lu", (unsigned long)round);
-            for (FlowRow *row in rows) {
+            for (ParseRow *row in rows) {
                 XCTAssertTrue(row.resolved, @"round %lu, %@", (unsigned long)round, row.name);
                 XCTAssertEqual([_recorder countOf:@"published" row:row], 1u,
                                @"round %lu, %@", (unsigned long)round, row.name);

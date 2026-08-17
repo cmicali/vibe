@@ -314,8 +314,13 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
         return;
     }
     double fraction = ((NSProgress *)object).fractionCompleted;
+    // Weak, like every other hop in this class: the provider publishes on its
+    // own threads, so a strong capture here would resurrect a monitor the main
+    // thread is releasing.
+    __weak DownloadProgressMonitor *weakSelf = self;
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (!self->_cancelled) {
+        DownloadProgressMonitor *self = weakSelf;
+        if (self && !self->_cancelled) {
             LogInfo(@"Download progress (provider): %.0f%% %@",
                     fraction * 100, self->_path.lastPathComponent);
             [self reportFraction:(float)fraction];

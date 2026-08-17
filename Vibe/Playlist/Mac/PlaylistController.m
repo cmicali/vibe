@@ -98,6 +98,9 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 #pragma mark - Playlist observer
 
 - (void)playlistDidReplaceAllTracks:(Playlist *)playlist {
+    // A replacement resets the index to 0 without moving it, so the hook below
+    // never fires for the first track of a new folder.
+    [self notifyCurrentIndexDidChange];
     // reloadData keeps selection by row index, which would land a stale
     // selection wash on an unrelated row of the new playlist. The append path
     // needs no clearing: its indexes stay valid.
@@ -106,8 +109,12 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 }
 
 - (void)playlist:(Playlist *)playlist didAppendTracksAtIndexes:(NSIndexSet *)indexes {
-    // A whole-table reload, since only the visible rows render either way.
-    [self.tableView reloadData];
+    // Insert, not reloadData: the existing rows keep their row VIEWS, so the
+    // playing row keeps its marking and the selection keeps its rows rather
+    // than its indexes. The model has already grown, so numberOfRows agrees.
+    // No animation — an append is usually an open of hundreds of files, and
+    // sliding them all in is motion nobody asked for.
+    [self.tableView insertRowsAtIndexes:indexes withAnimation:NSTableViewAnimationEffectNone];
 }
 
 - (void)playlist:(Playlist *)playlist didReplaceTrackAtIndex:(NSUInteger)index {
@@ -117,6 +124,7 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 }
 
 - (void)playlist:(Playlist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {
+    [self notifyCurrentIndexDidChange];
     [self refreshRowViewPlayingStates];
     // Reload both rows: the departed row must drop its playing state and the
     // new one must show its own now, rather than after the async
@@ -133,6 +141,12 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     }
     [self.tableView reloadDataForRowIndexes:rows
                               columnIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, (NSUInteger)self.tableView.numberOfColumns)]];
+}
+
+- (void)notifyCurrentIndexDidChange {
+    if (self.currentIndexDidChangeHandler) {
+        self.currentIndexDidChangeHandler();
+    }
 }
 
 #pragma mark - Row views

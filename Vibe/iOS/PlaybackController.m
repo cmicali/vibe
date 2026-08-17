@@ -329,26 +329,15 @@ static const NSUInteger kUIUpdateHz = 3;
 
 #pragma mark - What the sweep does first
 
-// The tracks the listener reaches soonest, in the order they reach them: the
-// next one, the one after it, then the one behind — a back-skip is the fourth
-// thing a hand does, not the first. It only matters on the cloud lane, where
-// each parse is a whole file coming down a wire and the sweep would otherwise
-// work through the folder in filename order however far that is from where the
-// user actually is. Re-sent on every current-index change, which is the one
-// funnel every play, skip and auto-advance passes through.
-static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
-
+// The ranking itself — which neighbors, in what order — is the cache's, so
+// both shells send the same one; see setNeighborhoodAroundIndex:inTracks:. It
+// only matters on the cloud lane, where each parse is a whole file coming down
+// a wire and the sweep would otherwise work through the folder in filename
+// order however far that is from where the user actually is. Re-sent on every
+// current-index change, which is the one funnel every play, skip and
+// auto-advance passes through.
 - (void)updateMetadataNeighborhood {
-    NSInteger current = (NSInteger)_playlist.currentIndex;
-    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
-    for (NSUInteger i = 0; i < sizeof(kNeighborhoodOffsets) / sizeof(*kNeighborhoodOffsets); i++) {
-        NSInteger index = current + kNeighborhoodOffsets[i];
-        AudioTrack *track = index >= 0 ? [_playlist trackAtIndex:(NSUInteger)index] : nil;
-        if (track) {
-            [urls addObject:track.url];
-        }
-    }
-    [_metadataCache setNeighborhoodURLs:urls];
+    [_metadataCache setNeighborhoodAroundIndex:_playlist.currentIndex inTracks:_playlist.tracks];
 }
 
 #pragma mark - The deferred metadata sweep

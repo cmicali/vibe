@@ -129,6 +129,27 @@
     [_currentLoader setNeighborhoodURLs:_neighborhood];
 }
 
+// The tracks the listener reaches soonest, in the order they reach them: the
+// next one, the one after it, then the one behind — a back-skip is the fourth
+// thing a hand does, not the first.
+static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
+
+- (void)setNeighborhoodAroundIndex:(NSUInteger)index inTracks:(NSArray<AudioTrack *> *)tracks {
+    NSInteger current = (NSInteger)index;
+    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+    for (NSUInteger i = 0; i < sizeof(kNeighborhoodOffsets) / sizeof(*kNeighborhoodOffsets); i++) {
+        NSInteger neighbor = current + kNeighborhoodOffsets[i];
+        if (neighbor < 0 || (NSUInteger)neighbor >= tracks.count) {
+            continue;
+        }
+        NSURL *url = tracks[(NSUInteger)neighbor].url;
+        if (url) {
+            [urls addObject:url];
+        }
+    }
+    [self setNeighborhoodURLs:urls];
+}
+
 #if DEBUG
 // Declared in Debug/AudioTrackMetadataCache+Debug.h; implemented here because
 // the loader and the hold flag are this file's.

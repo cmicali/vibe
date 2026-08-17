@@ -527,7 +527,7 @@ targets:
       # define it is unreachable from a host-less suite by design.
       - path: Vibe/Audio/AudioError.m
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
-      - path: Vibe/Audio/Metadata/MetadataParseFlow.m
+      - path: Vibe/Audio/Metadata/MetadataParseRunner.m
       - path: Vibe/Audio/PlaybackRequestCoordinator.m
       - path: Vibe/Audio/Metadata/FolderArtResolver.m
       - path: Vibe/Audio/Metadata/FolderArtEntry.m

@@ -21,9 +21,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nullable, weak) id <AudioPlayerDelegate> delegate;
 
-// Playhead in file seconds. Lock-free, and reads 0 while Stopped or Loading.
-// Seek with seekToPosition:; the move is asynchronous.
-@property (readonly)            NSTimeInterval position;
 // Readonly because the player is the single writer of both. currentTrack
 // flips on its own queue, and the requested device id changes only through
 // the init and device-switch paths. An external write would desync playback
@@ -107,6 +104,24 @@ NS_ASSUME_NONNULL_BEGIN
 // track passed here is the one that promote delivers, so it must always be
 // the playlist's own next-track object.
 - (void)prefetchTrack:(nullable AudioTrack *)track;
+
+@end
+
+// Everything a caller off the player queue may ask the player about itself,
+// implemented in AudioPlayer+State.m. It is a category only so the file split
+// compiles cleanly; to callers it is simply part of AudioPlayer, exactly as
+// (Devices) below is.
+//
+// None of these blocks. Each takes the state lock, copies what it needs, and
+// computes off the lock — which is what lets the update timer call position
+// several times a second and the refresh funnels call the rest on every pass.
+// They read and never drive: nothing here touches the engine, the graph or the
+// player queue.
+@interface AudioPlayer (State)
+
+// Playhead in file seconds. Lock-free, and reads 0 while Stopped or Loading.
+// Seek with seekToPosition:; the move is asynchronous.
+@property (readonly) NSTimeInterval position;
 
 // Whether the next track is pre-scheduled on the current node for a gapless
 // splice at the boundary. Observability (the debug channel); lock-free.

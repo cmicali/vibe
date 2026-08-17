@@ -70,7 +70,7 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
     CloudFileMaterializer* _materializer;
     // The parse ordering, over the owner's shared coordinator. Held strongly,
     // and it holds this loader weakly back.
-    MetadataParseFlow* _parseFlow;
+    MetadataParseRunner* _parseRunner;
 }
 
 - (instancetype)initWithOwner:(AudioTrackMetadataCache *)owner
@@ -81,7 +81,7 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
         _isCancelled = NO;
         _owner = owner;
         _queuedTracks = [NSMutableSet set];
-        _parseFlow = [[MetadataParseFlow alloc] initWithCoordinator:owner.parseCoordinator
+        _parseRunner = [[MetadataParseRunner alloc] initWithCoordinator:owner.parseCoordinator
                                                            delegate:self];
         _delegate = delegate;
         _queue = [[NSOperationQueue alloc] init];
@@ -385,11 +385,11 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
 // The stage-2 worker: the TagLib parse. It opens the audio file, and this is
 // the call that can block for a download's duration on a cloud placeholder.
 // The claim, the recheck under it and the duplicate-row fan-out are
-// MetadataParseFlow's; the four steps below are what it calls back into.
+// MetadataParseRunner's; the four steps below are what it calls back into.
 - (void)parseOneTrack:(AudioTrack *)track {
     // A stale loader, cancelled when a new playlist replaced this one, must
     // not keep parsing discarded tracks and issuing synchronous cache writes
-    // that the live loader's objectForKey: reads then queue behind. The flow's
+    // that the live loader's objectForKey: reads then queue behind. The runner's
     // own entry check covers a track an earlier loader or the priority lane
     // resolved while this op sat queued.
     if (self.isCancelled) {
@@ -399,15 +399,15 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
     // playlist rows as distinct AudioTracks, and one parse must answer them
     // all. When the holder is a DIFFERENT track for the same file, skipping
     // outright would leave this row bare, since the winner's result lands on
-    // its own track — so the flow registers it as a waiter and the winner fans
+    // its own track — so the runner registers it as a waiter and the winner fans
     // its result out once, avoiding one polling chain per duplicate row while
     // a cloud parse is wedged.
-    [_parseFlow runForParticipant:track key:track.url];
+    [_parseRunner runForParticipant:track key:track.url];
 }
 
-#pragma mark - MetadataParseFlowDelegate
+#pragma mark - MetadataParseRunnerDelegate
 
-- (BOOL)parseFlowParticipantIsResolved:(AudioTrack *)track {
+- (BOOL)parseRunnerIsResolved:(AudioTrack *)track {
     return track.metadata.parsedOK;
 }
 
@@ -416,15 +416,15 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
 // rows for the same file must own SEPARATE AudioTrackMetadata, because the art
 // state on it is mutable and per-row — the current row decodes
 // full-resolution art into it, and a track change discards that art again.
-- (BOOL)parseFlowServeFromCache:(AudioTrack *)track {
+- (BOOL)parseRunnerServeFromCache:(AudioTrack *)track {
     return [self loadTrackFromDiskCache:track];
 }
 
-- (void)parseFlowPublishParsed:(AudioTrack *)track {
+- (void)parseRunnerPublish:(AudioTrack *)track {
     [self publishTrack:track];
 }
 
-- (void)parseFlowParse:(AudioTrack *)track {
+- (void)parseRunnerReadAndCache:(AudioTrack *)track {
     AudioTrackMetadataCache *owner = _owner;
     // Captured before the parse, which can block for minutes on a cloud file:
     // an invalidate arriving mid-parse makes this result stale for the cache.
@@ -464,10 +464,14 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
         // removeAllObjects takes PINDiskCache's lock directly and can slip
         // between the check and the write. The compensating remove is what
         // keeps Settings > Clear Cache genuinely empty.
+        // The strong local throughout, never the weak _owner: it is pinned at
+        // the top precisely so the cache cannot deallocate across the parse
+        // above, and reaching back through the ivar here would put a nil hole
+        // in the middle of the write-then-recheck pair.
         if (generation == owner.cacheGeneration) {
-            [_owner.metadataCache.diskCache setObject:metadata forKey:cacheKey];
+            [owner.metadataCache.diskCache setObject:metadata forKey:cacheKey];
             if (generation != owner.cacheGeneration) {
-                [_owner.metadataCache.diskCache removeObjectForKey:cacheKey];
+                [owner.metadataCache.diskCache removeObjectForKey:cacheKey];
             }
         }
     }

@@ -1,18 +1,18 @@
 //
-//  MetadataParseFlow.m
+//  MetadataParseRunner.m
 //  Vibe
 //
 
-#import "MetadataParseFlow.h"
+#import "MetadataParseRunner.h"
 #import "MetadataParseCoordinator.h"
 
-@implementation MetadataParseFlow {
+@implementation MetadataParseRunner {
     MetadataParseCoordinator *_coordinator;
-    __weak id<MetadataParseFlowDelegate> _delegate;
+    __weak id<MetadataParseRunnerDelegate> _delegate;
 }
 
 - (instancetype)initWithCoordinator:(MetadataParseCoordinator *)coordinator
-                           delegate:(id<MetadataParseFlowDelegate>)delegate {
+                           delegate:(id<MetadataParseRunnerDelegate>)delegate {
     self = [super init];
     if (self) {
         _coordinator = coordinator;
@@ -22,11 +22,11 @@
 }
 
 - (void)runForParticipant:(id)participant key:(id<NSCopying>)key {
-    // Held for the whole attempt: a delegate released mid-flow would otherwise
+    // Held for the whole attempt: a delegate released mid-attempt would otherwise
     // strand the claim it already took, and the key's next generation would
     // wait on a holder that can never complete.
-    id<MetadataParseFlowDelegate> delegate = _delegate;
-    if (!delegate || [delegate parseFlowParticipantIsResolved:participant]) {
+    id<MetadataParseRunnerDelegate> delegate = _delegate;
+    if (!delegate || [delegate parseRunnerIsResolved:participant]) {
         return;
     }
     MetadataParseClaim *claim = [_coordinator claimParseForKey:key participant:participant];
@@ -42,15 +42,15 @@
     // attempt sat queued, which the claim cannot cover, since that one
     // released its claim before this one took it. One cache read beats
     // re-running the parse.
-    if ([delegate parseFlowParticipantIsResolved:participant]
-            || [delegate parseFlowServeFromCache:participant]) {
+    if ([delegate parseRunnerIsResolved:participant]
+            || [delegate parseRunnerServeFromCache:participant]) {
         [self serveWaiters:[_coordinator completeClaim:claim] delegate:delegate];
         return;
     }
-    [delegate parseFlowParse:participant];
+    [delegate parseRunnerReadAndCache:participant];
     // Released before either publish; see the delegate protocol.
     NSArray *waiters = [_coordinator completeClaim:claim];
-    [delegate parseFlowPublishParsed:participant];
+    [delegate parseRunnerPublish:participant];
     [self serveWaiters:waiters delegate:delegate];
 }
 
@@ -59,15 +59,15 @@
 // metadata. A failed parse wrote nothing, so the reads miss and every waiter
 // keeps the fallback the holder is showing — one answer for the whole key, and
 // no retry storm from participants re-queueing each other.
-- (void)serveWaiters:(NSArray *)waiters delegate:(id<MetadataParseFlowDelegate>)delegate {
+- (void)serveWaiters:(NSArray *)waiters delegate:(id<MetadataParseRunnerDelegate>)delegate {
     for (id waiter in waiters) {
         // A concurrent sweep can serve a waiter while the parse it waited on
         // still blocks. Replacing that with an equivalent instance buys
         // nothing and costs the receiver a second delivery.
-        if ([delegate parseFlowParticipantIsResolved:waiter]) {
+        if ([delegate parseRunnerIsResolved:waiter]) {
             continue;
         }
-        [delegate parseFlowServeFromCache:waiter];
+        [delegate parseRunnerServeFromCache:waiter];
     }
 }
 

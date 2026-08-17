@@ -50,6 +50,11 @@ NSString *VibeDebugUnknownCommandReply(NSString *verb,
 // works. A properly quoted argument arrives as one token and passes through
 // exactly, consecutive spaces and all.
 NSString *VibeRestArgument(NSArray<NSString *> *tokens) {
+    // An empty array would make the length below (NSUInteger)-1 and trap. Every
+    // caller has a verb in hand, so this is the precondition rather than a case.
+    if (tokens.count < 2) {
+        return @"";
+    }
     return [[tokens subarrayWithRange:NSMakeRange(1, tokens.count - 1)]
             componentsJoinedByString:@" "];
 }

@@ -163,6 +163,18 @@
         [strongSelf updateUI];
     };
 
+    // The cloud lane's ranking follows the cursor, not the playback state: on a
+    // file-provider folder each background parse is a whole file coming down a
+    // wire, one at a time, and left unranked the sweep works through the folder
+    // in filename order however far that is from the track the listener has
+    // just reached. The playlist's index funnel is the one place every play,
+    // skip and gapless auto-advance passes through.
+    self.playlistController.currentIndexDidChangeHandler = ^{
+        MainPlayerController *strongSelf = weakControllerForPlaylist;
+        [strongSelf.metadataCache setNeighborhoodAroundIndex:strongSelf.playlistController.currentIndex
+                                                    inTracks:strongSelf.playlistController.playlist];
+    };
+
     // A folder granted after a scan may hold the cover for tracks already
     // loaded, whose lookup FolderArtResolver declined for want of a grant. Every
     // grant path posts this — a drop, an open, the Files pane's Add Folder
@@ -518,11 +530,6 @@
     [[AppStats sharedInstance] playbackStopped]; // stop fires no delegate callback
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
-    // The hold rides the monitor's lifetime, and its clearing edge is
-    // didStartPlaying: or the error path — neither of which a Close reaches,
-    // because stop fires no callback and the caller owns the reset. Left set,
-    // it suspends the NEXT folder's cloud lane too, since the flag outlives
-    // the loader.
     // The hold rides the monitor's lifetime, and its clearing edge is
     // didStartPlaying: or the error path — neither of which a Close reaches,
     // because stop fires no callback and the caller owns the reset. Left set,

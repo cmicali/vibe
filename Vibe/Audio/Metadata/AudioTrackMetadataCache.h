@@ -57,6 +57,14 @@ NS_ASSUME_NONNULL_BEGIN
 // change; like the hold, it survives a loadMetadata:. Main thread only.
 - (void)setNeighborhoodURLs:(nullable NSArray<NSURL *> *)urls;
 
+// The same ranking, expressed as a playlist position — which is what a shell
+// actually has at hand. The offset table lives here rather than in each shell,
+// so there is one of it rather than one per platform: both shells call this
+// from their single current-index funnel, and the shell left to compute its
+// own ended up not calling at all. Main thread only.
+- (void)setNeighborhoodAroundIndex:(NSUInteger)index
+                          inTracks:(NSArray<AudioTrack *> *)tracks;
+
 // Empties the disk cache. The completion fires on the cache's internal queue
 // once the entries are gone. A parse already in flight cannot repopulate it:
 // a cache-generation check drops its disk write, though its UI delivery

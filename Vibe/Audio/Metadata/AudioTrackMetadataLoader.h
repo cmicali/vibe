@@ -10,7 +10,7 @@
 
 #import <Foundation/Foundation.h>
 #import "AudioTrackMetadataCache.h"
-#import "MetadataParseFlow.h"
+#import "MetadataParseRunner.h"
 
 @class AudioTrack;
 
@@ -27,7 +27,7 @@ typedef NS_ENUM(NSUInteger, VibeMetadataLane) {
     VibeMetadataLaneCurrentTrack,
 };
 
-@interface AudioTrackMetadataLoader : NSObject <MetadataParseFlowDelegate>
+@interface AudioTrackMetadataLoader : NSObject <MetadataParseRunnerDelegate>
 
 @property (atomic) BOOL isCancelled;
 @property (nullable, weak) id <AudioTrackMetadataCacheDelegate> delegate;

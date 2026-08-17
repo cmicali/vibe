@@ -37,6 +37,15 @@ NS_ASSUME_NONNULL_BEGIN
 // the cloud stress profile fails a consistency check on it every time.
 @property (nonatomic, copy, nullable) void (^playWillStartHandler)(void);
 
+// Fires whenever currentIndex comes to name a different track — every play,
+// skip and gapless auto-advance, plus a replacement, which resets the index to
+// 0 without moving it and so never trips the index-change path. This is the
+// mac's one current-index funnel, and it exists for the work that must follow
+// the cursor rather than the playback state: the metadata sweep's cloud-lane
+// ranking (AudioTrackMetadataCache.setNeighborhoodAroundIndex:inTracks:). Row
+// repainting is NOT its business — that rides the observer directly.
+@property (nonatomic, copy, nullable) void (^currentIndexDidChangeHandler)(void);
+
 // The artwork-derived accent for the playing row's equalizer bars. The owner
 // sets it from the current track's dominant art color, and nil falls back to
 // the appearance default. It is deliberately the only accented element in the

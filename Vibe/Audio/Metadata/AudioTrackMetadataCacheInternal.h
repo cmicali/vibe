@@ -32,7 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 // parsedOK entry checks before either finishes, as on a folder drop with
 // auto-play, paying for the full TagLib parse, thumbnail decode and disk write
 // twice for the same file. One holder and its weak duplicate-row waiters per
-// URL; every loader shares this one, through its own MetadataParseFlow.
+// URL; every loader shares this one, through its own MetadataParseRunner.
 @property (nonatomic, readonly) MetadataParseCoordinator<AudioTrack *> *parseCoordinator;
 @end
 

@@ -337,9 +337,9 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
     NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:entries.count];
     NSMutableDictionary<NSString *, NSNumber *> *dirReachable = [NSMutableDictionary new];
     for (NSString *entry in entries) {
-        NSURL *url = ResolveEntry(entry, dir, fileManager, dirReachable);
-        if (url) {
-            [urls addObject:url];
+        NSURL *resolved = ResolveEntry(entry, dir, fileManager, dirReachable);
+        if (resolved) {
+            [urls addObject:resolved];
         }
     }
     return urls;
