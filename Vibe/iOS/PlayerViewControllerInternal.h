@@ -31,6 +31,7 @@
 @class AudioWaveformCache;
 @class PageWaveformCoordinator;
 @class TrackPageCell;
+@class VibeTimeControl;
 @class WaveformScrubberView;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -58,15 +59,16 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     // A size transition (rotation, iPad window resize) is animating: the
     // pager's offset is not page-aligned at the new width, so commits hold.
     BOOL                    _windowResizeInFlight;
-    // The size that transition is heading for, and CGSizeZero when none is in
-    // flight. A page is sized from this rather than from the pager's own bounds,
-    // which still hold the OLD geometry when the transition invalidates the
-    // layout — see sizeForItemAtIndexPath:.
-    CGSize                  _transitionTargetSize;
     // A page swipe is in flight (dragging or decelerating). It holds the
     // waveform machinery still for the duration — see the scroll hold in
     // PlayerViewController+Pager.m — and gates the playhead's display link.
     BOOL                    _pagerScrolling;
+    // A visible programmatic page animation takes the same frame-budget hold.
+    // Minimized page moves snap and never set it.
+    BOOL                    _pagerProgrammaticScrolling;
+    // Tags each take of that hold, so the bounded release armed with it cannot
+    // lift a later one. See holdForProgrammaticPagerScrolling:.
+    uint64_t                _pagerProgrammaticScrollGeneration;
     // The last root size the pager was laid out for; layout passes at an
     // unchanged size skip the flow-layout invalidation.
     CGSize                  _lastLayoutSize;
@@ -78,7 +80,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     TrackPageCell           *_boundPage;        // the current page the chrome bindings point into
     WaveformScrubberView    *_waveformView;
     UILabel                 *_elapsedLabel;
-    UILabel                 *_remainingLabel;
+    VibeTimeControl         *_remainingTimeControl;
     UIView                  *_transportView;    // bound: the current page's transport row
     // Whichever scrubber currently holds the pager still, which is NOT always
     // the bound page's: playback runs on through a scrub, so a track ending
@@ -140,7 +142,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 // duration once metadata knows it.
 + (void)renderRestingTimesForTrack:(nullable AudioTrack *)track
                            elapsed:(UILabel *)elapsed
-                         remaining:(UILabel *)remaining;
+                         remaining:(VibeTimeControl *)remaining;
 - (void)renderRestingTimesForTrack:(nullable AudioTrack *)track;
 
 #pragma mark - Transport
@@ -151,9 +153,9 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 - (void)previousTapped;
 - (void)nextTapped;
 
-// The right time label's tap: flips total-vs-remaining and repaints every
+// The right time control flips total-vs-remaining and repaints every
 // visible page, since the mode is one setting rather than the tapped page's.
-- (void)remainingLabelTapped;
+- (void)remainingTimeTapped;
 
 // The times on every visible page, in whichever mode is current. The bound
 // page is left to updatePlaybackUI, which is live.

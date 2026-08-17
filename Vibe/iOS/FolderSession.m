@@ -7,6 +7,7 @@
 #import "DocumentTypes.h"
 #import "NSURLUtil.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <stdatomic.h>
 
 // NSUserDefaults keys. Kept here rather than in AppSettings: they are iOS
 // app-layer state, and the shared settings file stays untouched.
@@ -24,19 +25,20 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     NSURL *_scopedURL;
     BOOL _scopeActive;
     NSURL *_folderURL;
-    // Bookmark resolution and the directory listing are file-provider IPC —
-    // seconds on a large cloud folder — so adoption runs here, serially (so
-    // overlapping opens deliver in submission order), and only the delegate
-    // delivery returns to main.
+    // Bookmark resolution and directory listings are file-provider IPC. Opens
+    // run concurrently so a new user intent is not parked behind an older
+    // provider call; openIntentGeneration decides which result may deliver.
     dispatch_queue_t _workQueue;
+    _Atomic(uint64_t) _openIntentGeneration;
 }
 
 - (instancetype)init {
     self = [super init];
     if (self) {
         dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
-                DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
+                DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, 0);
         _workQueue = dispatch_queue_create("FolderSession", attributes);
+        atomic_init(&_openIntentGeneration, 0);
     }
     return self;
 }
@@ -53,6 +55,15 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
 
 - (NSURL *)searchRoot {
     return _folderURL;
+}
+
+- (uint64_t)beginOpenIntent {
+    return atomic_fetch_add_explicit(&_openIntentGeneration, 1, memory_order_acq_rel) + 1;
+}
+
+- (BOOL)isCurrentOpenIntent:(uint64_t)openIntentGeneration {
+    return atomic_load_explicit(&_openIntentGeneration, memory_order_acquire)
+            == openIntentGeneration;
 }
 
 #pragma mark - Picker
@@ -80,29 +91,43 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     if (!openInPlace) {
         // Not open-in-place: the system handed a copy in our own inbox
         // container, readable without a scope.
-        [self deliverTracks:@[url] folderURL:nil selectedURL:nil restored:NO scopedURL:nil];
+        uint64_t openIntentGeneration = [self beginOpenIntent];
+        [self finishOpenIntent:openIntentGeneration tracks:@[url]
+                     folderURL:nil selectedURL:nil restored:NO
+                     scopedURL:nil scopedURLStarted:NO bookmark:nil];
         return;
     }
     [self adoptURL:url restored:NO];
 }
 
 - (void)openFileFromSearchRoots:(NSURL *)url {
+    uint64_t openIntentGeneration = [self beginOpenIntent];
     NSURL *parent = url.URLByDeletingLastPathComponent;
+    NSURL *sessionScopedURL = _scopeActive ? _scopedURL : nil;
+    BOOL scopeHoldStarted = [sessionScopedURL startAccessingSecurityScopedResource];
     dispatch_async(_workQueue, ^{
+        if (![self isCurrentOpenIntent:openIntentGeneration]) {
+            if (scopeHoldStarted) {
+                [sessionScopedURL stopAccessingSecurityScopedResource];
+            }
+            return;
+        }
         // The listing is provider IPC, like every other adoption's, so it runs
         // here. No scope is started: the caller vouched that a root covers it.
         NSArray<NSURL *> *siblings = [NSURLUtil audioFilesInDirectory:parent];
         BOOL expanded = siblings.count > 0;
+        if (scopeHoldStarted) {
+            [sessionScopedURL stopAccessingSecurityScopedResource];
+        }
         run_on_main_thread({
-            // The scope is read HERE, not captured: this queue delivers in
-            // submission order, so a pick submitted while the listing ran has
-            // already replaced the grant, and handing back the captured one
-            // would release the live one.
-            [self deliverTracks:expanded ? siblings : @[url]
-                      folderURL:expanded ? parent : nil
-                    selectedURL:expanded ? url : nil
-                       restored:NO
-                      scopedURL:self->_scopeActive ? self->_scopedURL : nil];
+            [self finishOpenIntent:openIntentGeneration
+                            tracks:expanded ? siblings : @[url]
+                         folderURL:expanded ? parent : nil
+                       selectedURL:expanded ? url : nil
+                          restored:NO
+                         scopedURL:sessionScopedURL
+                  scopedURLStarted:NO
+                          bookmark:nil];
         });
     });
 }
@@ -114,7 +139,11 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     if (!bookmark) {
         return NO;
     }
+    uint64_t openIntentGeneration = [self beginOpenIntent];
     dispatch_async(_workQueue, ^{
+        if (![self isCurrentOpenIntent:openIntentGeneration]) {
+            return;
+        }
         BOOL stale = NO;
         NSError *error = nil;
         NSURL *url = [NSURL URLByResolvingBookmarkData:bookmark
@@ -125,15 +154,18 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
         if (!url) {
             LogWarn(@"FolderSession: bookmark no longer resolves (%@)", error);
             run_on_main_thread({
-                [NSUserDefaults.standardUserDefaults removeObjectForKey:kFolderBookmarkKey];
-                [self.delegate folderSessionRestoreDidFail:self];
+                if ([self isCurrentOpenIntent:openIntentGeneration]) {
+                    [NSUserDefaults.standardUserDefaults removeObjectForKey:kFolderBookmarkKey];
+                    [self.delegate folderSessionRestoreDidFail:self];
+                }
             });
             return;
         }
         // No pre-adopt refresh of a stale bookmark: minting bookmark data
         // needs the security scope OPEN, and adoption re-persists after the
         // scope starts anyway — the refresh before it always failed.
-        [self adoptOnWorkQueue:url restored:YES sessionFolder:nil sessionScopedURL:nil];
+        [self adoptOnWorkQueue:url restored:YES sessionFolder:nil sessionScopedURL:nil
+              scopeHoldStarted:NO openIntentGeneration:openIntentGeneration];
     });
     return YES;
 }
@@ -151,7 +183,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     }
 }
 
-- (void)persistBookmarkForURL:(NSURL *)url {
+- (NSData *)bookmarkForURL:(NSURL *)url {
     // iOS has no WithSecurityScope option: a default bookmark of a
     // picker-granted URL round-trips the scope by itself. Requires the URL's
     // scope to be open, which every caller guarantees.
@@ -160,33 +192,43 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
                      includingResourceValuesForKeys:nil
                                       relativeToURL:nil
                                               error:&error];
-    if (bookmark) {
-        [NSUserDefaults.standardUserDefaults setObject:bookmark forKey:kFolderBookmarkKey];
-    }
-    else {
+    if (!bookmark) {
         LogWarn(@"FolderSession: could not bookmark %@ (%@)", url, error);
     }
+    return bookmark;
 }
 
 #pragma mark - Adoption
 
-// The one funnel for a URL from any source. The scope open, the listing, and
-// the bookmark work all happen on the work queue; only delivery lands on
-// main. The caller snapshots the main-confined session state, because a
-// file-pick expansion consults the live folder grant.
+// The one funnel for a URL from any source. Each request owns an intent number;
+// provider work can overlap, but only the newest result may replace the live
+// session. The caller also takes a temporary claim on the current scope so an
+// older worker can finish safely after a newer result replaces that scope.
 - (void)adoptURL:(NSURL *)url restored:(BOOL)restored {
+    uint64_t openIntentGeneration = [self beginOpenIntent];
     NSURL *sessionFolder = _folderURL;
     NSURL *sessionScopedURL = _scopeActive ? _scopedURL : nil;
+    BOOL scopeHoldStarted = [sessionScopedURL startAccessingSecurityScopedResource];
     dispatch_async(_workQueue, ^{
         [self adoptOnWorkQueue:url restored:restored
-                 sessionFolder:sessionFolder sessionScopedURL:sessionScopedURL];
+                 sessionFolder:sessionFolder sessionScopedURL:sessionScopedURL
+              scopeHoldStarted:scopeHoldStarted
+          openIntentGeneration:openIntentGeneration];
     });
 }
 
 - (void)adoptOnWorkQueue:(NSURL *)url
                 restored:(BOOL)restored
            sessionFolder:(NSURL *)sessionFolder
-        sessionScopedURL:(NSURL *)sessionScopedURL {
+         sessionScopedURL:(NSURL *)sessionScopedURL
+         scopeHoldStarted:(BOOL)scopeHoldStarted
+     openIntentGeneration:(uint64_t)openIntentGeneration {
+    if (![self isCurrentOpenIntent:openIntentGeneration]) {
+        if (scopeHoldStarted) {
+            [sessionScopedURL stopAccessingSecurityScopedResource];
+        }
+        return;
+    }
     // A NO return is not failure: the app's own container and open-in-place
     // inbox URLs are not security-scoped. Track what we actually started so
     // the paired stop is balanced.
@@ -210,12 +252,17 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
             if (scoped) {
                 [url stopAccessingSecurityScopedResource];
             }
+            if (scopeHoldStarted) {
+                [sessionScopedURL stopAccessingSecurityScopedResource];
+            }
             run_on_main_thread({
-                if (restored) {
-                    [self.delegate folderSessionRestoreDidFail:self];
-                }
-                else {
-                    [self.delegate folderSessionDidOpenEmptyFolder:self];
+                if ([self isCurrentOpenIntent:openIntentGeneration]) {
+                    if (restored) {
+                        [self.delegate folderSessionRestoreDidFail:self];
+                    }
+                    else {
+                        [self.delegate folderSessionDidOpenEmptyFolder:self];
+                    }
                 }
             });
             return;
@@ -239,11 +286,19 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
                     [url stopAccessingSecurityScopedResource]; // the folder grant covers it
                 }
                 NSURL *scopedURL = grantScopeStarted ? granted : sessionScopedURL;
+                NSData *bookmark = [self isCurrentOpenIntent:openIntentGeneration]
+                        ? [self bookmarkForURL:granted]
+                        : nil;
+                if (scopeHoldStarted) {
+                    [sessionScopedURL stopAccessingSecurityScopedResource];
+                }
                 run_on_main_thread({
-                    [self deliverTracks:siblings folderURL:granted selectedURL:url
-                               restored:restored scopedURL:scopedURL];
+                    [self finishOpenIntent:openIntentGeneration tracks:siblings
+                                 folderURL:granted selectedURL:url restored:restored
+                                 scopedURL:scopedURL
+                          scopedURLStarted:grantScopeStarted
+                                  bookmark:bookmark];
                 });
-                [self persistBookmarkForURL:granted];
                 return;
             }
             if (grantScopeStarted) {
@@ -254,17 +309,20 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     }
 
     NSURL *scopedURL = scoped ? url : nil;
-    run_on_main_thread({
-        [self deliverTracks:tracks folderURL:folderURL selectedURL:selectedURL
-                   restored:restored scopedURL:scopedURL];
-    });
-    // A one-track file open must not clobber a FOLDER bookmark: the folder
-    // grant is what powers file-pick expansion and the relaunch restore, and
-    // a stray single file is worth less than either. Persisting here, after
-    // the scope opened, is also what refreshes a stale bookmark.
-    if (isDir || ![self persistedBookmarkIsFolder]) {
-        [self persistBookmarkForURL:url];
+    // A one-file open never replaces a folder bookmark: that broader grant is
+    // what powers sibling expansion and relaunch restore.
+    BOOL shouldPersist = isDir || ![self persistedBookmarkIsFolder];
+    NSData *bookmark = shouldPersist && [self isCurrentOpenIntent:openIntentGeneration]
+            ? [self bookmarkForURL:url]
+            : nil;
+    if (scopeHoldStarted) {
+        [sessionScopedURL stopAccessingSecurityScopedResource];
     }
+    run_on_main_thread({
+        [self finishOpenIntent:openIntentGeneration tracks:tracks
+                     folderURL:folderURL selectedURL:selectedURL restored:restored
+                     scopedURL:scopedURL scopedURLStarted:scoped bookmark:bookmark];
+    });
 }
 
 - (BOOL)persistedBookmarkIsFolder {
@@ -288,7 +346,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
 // persisted bookmark — a cold-start "Open in Vibe" arrives before any
 // restore ran. Paths are compared standardized; a match through the bookmark
 // starts that folder's scope and reports it via startedScope so the caller
-// hands it to deliverTracks for the balanced release.
+// can hand ownership to the winning intent or release a stale one.
 - (NSURL *)grantedFolderCoveringFileURL:(NSURL *)url
                           sessionFolder:(NSURL *)sessionFolder
                            startedScope:(BOOL *)startedScope {
@@ -314,16 +372,31 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     return resolved;
 }
 
-// Main thread only: the session state is main-confined, and the delegate is
-// the UI.
-- (void)deliverTracks:(NSArray<NSURL *> *)tracks
-            folderURL:(NSURL *)folderURL
-          selectedURL:(NSURL *)selectedURL
-             restored:(BOOL)restored
-            scopedURL:(NSURL *)scopedURL {
+// Main thread only. A stale request releases only the new scope it started;
+// the current session stays untouched. Bookmark persistence is here too, under
+// the same intent check, so late provider work cannot overwrite a newer open.
+- (void)finishOpenIntent:(uint64_t)openIntentGeneration
+                   tracks:(NSArray<NSURL *> *)tracks
+                folderURL:(NSURL *)folderURL
+              selectedURL:(NSURL *)selectedURL
+                 restored:(BOOL)restored
+                scopedURL:(NSURL *)scopedURL
+         scopedURLStarted:(BOOL)scopedURLStarted
+                 bookmark:(NSData *)bookmark {
+    if (![self isCurrentOpenIntent:openIntentGeneration]) {
+        if (scopedURLStarted) {
+            [scopedURL stopAccessingSecurityScopedResource];
+        }
+        return;
+    }
+    if (bookmark) {
+        [NSUserDefaults.standardUserDefaults setObject:bookmark forKey:kFolderBookmarkKey];
+    }
     // Release the previous grant only after the new one is in hand, so a
     // failed pick never strands the current playlist unreadable.
-    if (_scopeActive && _scopedURL != scopedURL) {
+    // A request that started a fresh claim replaces the previous one even when
+    // both NSURL pointers happen to be identical; otherwise that claim leaks.
+    if (_scopeActive && (_scopedURL != scopedURL || scopedURLStarted)) {
         [_scopedURL stopAccessingSecurityScopedResource];
     }
     _scopedURL = scopedURL;

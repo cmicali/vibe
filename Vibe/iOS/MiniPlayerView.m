@@ -27,7 +27,7 @@ static const CGFloat kArtSide = 38;
 // The tap target, which stays comfortably large; kGlyphPointSize is what the
 // eye reads, and Apple Music's mini transport is a small glyph in a big
 // target. Sizing the button instead is what made ours look like buttons.
-static const CGFloat kControlSide = 40;
+static const CGFloat kControlSide = 44;
 static const CGFloat kGlyphPointSize = 19;
 
 @interface MiniPlayerView () <UIGestureRecognizerDelegate>
@@ -37,6 +37,7 @@ static const CGFloat kGlyphPointSize = 19;
     UIImageView *_artView;
     UILabel     *_titleLabel;
     UILabel     *_artistLabel;
+    UIButton    *_expandButton;
     UIButton    *_playPauseButton;
     UIButton    *_nextButton;
     BOOL        _playing;
@@ -52,11 +53,18 @@ static const CGFloat kGlyphPointSize = 19;
 
 - (void)build {
     self.backgroundColor = UIColor.clearColor;
-    self.accessibilityLabel = STR_A11Y_MINIPLAYER_EXPAND;
+
+    _expandButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    _expandButton.accessibilityLabel = STR_A11Y_MINIPLAYER_EXPAND;
+    [_expandButton addTarget:self action:@selector(expandTapped)
+            forControlEvents:UIControlEventTouchUpInside];
+    _expandButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self addSubview:_expandButton];
 
     _artView = [[UIImageView alloc] init];
     _artView.contentMode = UIViewContentModeScaleAspectFill;
     _artView.clipsToBounds = YES;
+    _artView.isAccessibilityElement = NO;
     _artView.layer.cornerRadius = 6;
     _artView.layer.cornerCurve = kCACornerCurveContinuous;
     _artView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -65,6 +73,8 @@ static const CGFloat kGlyphPointSize = 19;
     _titleLabel = [[UILabel alloc] init];
     _titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
     _titleLabel.adjustsFontForContentSizeCategory = YES;
+    _titleLabel.isAccessibilityElement = NO;
+    _titleLabel.maximumContentSizeCategory = UIContentSizeCategoryExtraExtraExtraLarge;
     _titleLabel.textColor = UIColor.labelColor;
     _titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     _titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -72,6 +82,8 @@ static const CGFloat kGlyphPointSize = 19;
     _artistLabel = [[UILabel alloc] init];
     _artistLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
     _artistLabel.adjustsFontForContentSizeCategory = YES;
+    _artistLabel.isAccessibilityElement = NO;
+    _artistLabel.maximumContentSizeCategory = UIContentSizeCategoryExtraExtraExtraLarge;
     _artistLabel.textColor = UIColor.secondaryLabelColor;
     _artistLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     _artistLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -83,6 +95,7 @@ static const CGFloat kGlyphPointSize = 19;
     // two lines already sit further apart than Apple Music's, which run almost
     // touching. This pulls them back toward the strip's centre.
     labels.spacing = -3;
+    labels.userInteractionEnabled = NO;
     labels.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:labels];
 
@@ -90,16 +103,13 @@ static const CGFloat kGlyphPointSize = 19;
     // value it already holds, so a mismatched initial glyph would survive the
     // first render.
     _playPauseButton = [self controlWithSymbol:@"play.fill" action:@selector(playPauseTapped)];
+    _playPauseButton.accessibilityLabel = STR_TRANSPORT_PLAY;
     // forward.end.fill, the glyph MainPlayerContentView draws on the mac: one
     // transport vocabulary across both apps.
     _nextButton = [self controlWithSymbol:@"forward.end.fill" action:@selector(nextTapped)];
+    _nextButton.accessibilityLabel = STR_TRANSPORT_NEXT;
 
-    // The strip is one big expand target; the two buttons keep their own
-    // touches. Class membership, not frames — see shouldReceiveTouch: below.
-    UITapGestureRecognizer *tap =
-            [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(expandTapped)];
-    tap.delegate = self;
-    [self addGestureRecognizer:tap];
+    // Swipe up remains a convenience beside the real expand button.
     UISwipeGestureRecognizer *swipe =
             [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(expandTapped)];
     swipe.direction = UISwipeGestureRecognizerDirectionUp;
@@ -110,7 +120,7 @@ static const CGFloat kGlyphPointSize = 19;
     // The strip is pinned to the edges of UIKit's accessory container, and the
     // container reports a width of ZERO on at least one pass on device — but
     // not in the simulator, so this never shows up here. The rest of the row is
-    // required and needs 160pt (12 + art + 10 + 6 + two 40pt controls + 8), so
+    // required and needs 162pt (12 + art + 10 + 6 + two 44pt controls + 8), so
     // at zero UIKit has to break something and logs the whole conflict. Below
     // required, the left block simply slides off and that pass costs nothing.
     NSLayoutConstraint *artLeading =
@@ -122,6 +132,11 @@ static const CGFloat kGlyphPointSize = 19;
         [_artView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
         [_artView.widthAnchor constraintEqualToConstant:kArtSide],
         [_artView.heightAnchor constraintEqualToConstant:kArtSide],
+
+        [_expandButton.leadingAnchor constraintEqualToAnchor:_artView.leadingAnchor],
+        [_expandButton.trailingAnchor constraintEqualToAnchor:_playPauseButton.leadingAnchor],
+        [_expandButton.topAnchor constraintEqualToAnchor:self.topAnchor],
+        [_expandButton.bottomAnchor constraintEqualToAnchor:self.bottomAnchor],
 
         [labels.leadingAnchor constraintEqualToAnchor:_artView.trailingAnchor constant:10],
         [labels.centerYAnchor constraintEqualToAnchor:_artView.centerYAnchor],
@@ -141,7 +156,8 @@ static const CGFloat kGlyphPointSize = 19;
     // Collapsed inline beside the tab bar there is no room for two lines; the
     // trait is set by UIKit on everything inside a bottomAccessory.
     __weak MiniPlayerView *weakSelf = self;
-    [self registerForTraitChanges:@[UITraitTabAccessoryEnvironment.class]
+    [self registerForTraitChanges:@[UITraitTabAccessoryEnvironment.class,
+                                    UITraitPreferredContentSizeCategory.class]
                       withHandler:^(id<UITraitEnvironment> environment, UITraitCollection *previous) {
         [weakSelf applyAccessoryEnvironment];
     }];
@@ -164,7 +180,9 @@ static const CGFloat kGlyphPointSize = 19;
 
 - (void)applyAccessoryEnvironment {
     BOOL inline_ = self.traitCollection.tabAccessoryEnvironment == UITabAccessoryEnvironmentInline;
-    _artistLabel.hidden = inline_ || _artistLabel.text.length == 0;
+    BOOL accessibilitySize = UIContentSizeCategoryIsAccessibilityCategory(
+            self.traitCollection.preferredContentSizeCategory);
+    _artistLabel.hidden = inline_ || accessibilitySize || _artistLabel.text.length == 0;
 }
 
 #pragma mark - Rendering
@@ -176,6 +194,7 @@ static const CGFloat kGlyphPointSize = 19;
     NSString *artist = track.displayArtist;
     _artistLabel.text = artist ?: @"";
     _artView.image = track.cachedThumbnail ?: [UIImage imageNamed:@"record-bg"];
+    _expandButton.accessibilityValue = track.displayTitle;
     [self applyAccessoryEnvironment];
 }
 
@@ -189,6 +208,7 @@ static const CGFloat kGlyphPointSize = 19;
                            withConfiguration:[UIImageSymbolConfiguration
                                    configurationWithPointSize:kGlyphPointSize]];
     _playPauseButton.configuration = config;
+    _playPauseButton.accessibilityLabel = playing ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
 }
 
 #pragma mark - Actions
@@ -210,6 +230,9 @@ static const CGFloat kGlyphPointSize = 19;
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
        shouldReceiveTouch:(UITouch *)touch {
     for (UIView *view = touch.view; view && view != self; view = view.superview) {
+        if (view == _expandButton) {
+            return YES;
+        }
         if ([view isKindOfClass:UIControl.class]) {
             return NO;
         }

@@ -74,6 +74,11 @@ typedef struct {
 
 // Returns the current request only on its first valid slow delivery.
 - (nullable VibePlaybackRequest *)markSlowForRequest:(uint64_t)identifier;
+// The system's explicit pause and resume verdicts are desired states, not
+// toggles. Returns the updated request only when its intent changed, so a
+// duplicate route/interruption delivery produces no duplicate delegate event.
+- (nullable VibePlaybackRequest *)setPausedIfChanged:(BOOL)paused;
+// The user's play/pause action remains a true toggle.
 - (nullable VibePlaybackRequest *)togglePause;
 
 // Accepted when EITHER identity still holds: the row the seek was aimed at, or

@@ -21,9 +21,21 @@ static NSString *const kSearchFolderBookmarksKey = @"VibeiOSSearchFolderBookmark
 @property (nonatomic) NSURL *url;
 @property (nonatomic) NSData *bookmark;
 @property (nonatomic) BOOL scopeStarted;
+// A pending parent owns the narrower rows it replaced. fallbackBookmarks
+// bridges only the interval before an in-flight restore attaches those rows.
+@property (nonatomic) NSArray<VibeSearchFolder *> *replacedFolders;
+@property (nonatomic) NSArray<NSData *> *fallbackBookmarks;
 @end
 
 @implementation VibeSearchFolder
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _replacedFolders = @[];
+        _fallbackBookmarks = @[];
+    }
+    return self;
+}
 @end
 
 @implementation SearchFolderStore {
@@ -32,6 +44,7 @@ static NSString *const kSearchFolderBookmarksKey = @"VibeiOSSearchFolderBookmark
     // Bookmark resolution and minting are file-provider IPC — seconds on a cloud
     // folder — so both run here, serially, and only the delivery returns to main.
     dispatch_queue_t _workQueue;
+    BOOL _restoreInFlight;
 }
 
 + (SearchFolderStore *)shared {
@@ -56,9 +69,7 @@ static NSString *const kSearchFolderBookmarksKey = @"VibeiOSSearchFolderBookmark
 
 - (void)dealloc {
     for (VibeSearchFolder *folder in _folders) {
-        if (folder.scopeStarted) {
-            [folder.url stopAccessingSecurityScopedResource];
-        }
+        [self releaseScopeTree:folder];
     }
 }
 
@@ -104,6 +115,7 @@ static NSString *const kSearchFolderBookmarksKey = @"VibeiOSSearchFolderBookmark
     if (bookmarks.count == 0) {
         return;
     }
+    _restoreInFlight = YES;
     dispatch_async(_workQueue, ^{
         NSMutableArray<VibeSearchFolder *> *resolved =
                 [NSMutableArray arrayWithCapacity:bookmarks.count];
@@ -117,17 +129,27 @@ static NSString *const kSearchFolderBookmarksKey = @"VibeiOSSearchFolderBookmark
             }
         }
         run_on_main_thread({
+            self->_restoreInFlight = NO;
             // Appended, not assigned: an add made while the resolve was in
             // flight is already in the list and holds its own scope. A resolved
             // folder some root now covers is dropped rather than listed — a row
             // that contributes nothing is a lie.
             for (VibeSearchFolder *folder in resolved) {
-                if (![self isCoveredByAPersistentRoot:folder.url]) {
+                VibeSearchFolder *pendingParent =
+                        [self pendingReplacementRootCoveringURL:folder.url];
+                if (pendingParent) {
+                    pendingParent.replacedFolders =
+                            [(pendingParent.replacedFolders ?: @[]) arrayByAddingObject:folder];
+                }
+                else if (![self isCoveredByAPersistentRoot:folder.url]) {
                     [self->_folders addObject:folder];
                 }
                 else if (folder.scopeStarted) {
                     [folder.url stopAccessingSecurityScopedResource];
                 }
+            }
+            for (VibeSearchFolder *folder in self->_folders) {
+                [self clearFallbackBookmarksInTree:folder];
             }
             [self persistAndNotify];
         });
@@ -188,24 +210,27 @@ static NSString *const kSearchFolderBookmarksKey = @"VibeiOSSearchFolderBookmark
             [subsumed addIndex:i];
         }
     }
-    [subsumed enumerateIndexesWithOptions:NSEnumerationReverse
-                              usingBlock:^(NSUInteger i, BOOL *stop) {
-        [self releaseFolderAtIndex:i];
-    }];
+    NSArray<VibeSearchFolder *> *replaced = [_folders objectsAtIndexes:subsumed];
+    [_folders removeObjectsAtIndexes:subsumed];
 
     VibeSearchFolder *folder = [[VibeSearchFolder alloc] init];
     folder.url = url;
     folder.scopeStarted = [url startAccessingSecurityScopedResource];
+    folder.replacedFolders = replaced;
+    if (_restoreInFlight) {
+        folder.fallbackBookmarks = [NSUserDefaults.standardUserDefaults
+                arrayForKey:kSearchFolderBookmarksKey] ?: @[];
+    }
     [_folders addObject:folder];
     [self persistAndNotify];
 
-    // The bookmark is minted off main — it is provider IPC — and the list is
-    // re-persisted when it lands. Until then the folder is searchable but would
-    // not survive a relaunch, which is the right way round: the scope is already
-    // open, so the walk can start now.
+    // The bookmark is minted off main. Until it lands the parent is searchable,
+    // while the replaced children's bookmarks remain the relaunch state.
     dispatch_async(_workQueue, ^{
         NSData *bookmark = [self bookmarkForURL:url];
         if (!bookmark) {
+            // Keep the parent live for this session; its children remain the
+            // durable relaunch state.
             return;
         }
         run_on_main_thread({
@@ -213,6 +238,11 @@ static NSString *const kSearchFolderBookmarksKey = @"VibeiOSSearchFolderBookmark
             // than by the index it had.
             if ([self->_folders containsObject:folder]) {
                 folder.bookmark = bookmark;
+                for (VibeSearchFolder *replacedFolder in folder.replacedFolders) {
+                    [self releaseScopeTree:replacedFolder];
+                }
+                folder.replacedFolders = @[];
+                folder.fallbackBookmarks = @[];
                 [self persistBookmarks];
             }
         });
@@ -230,10 +260,25 @@ static NSString *const kSearchFolderBookmarksKey = @"VibeiOSSearchFolderBookmark
 
 - (void)releaseFolderAtIndex:(NSUInteger)index {
     VibeSearchFolder *folder = _folders[index];
+    [self releaseScopeTree:folder];
+    [_folders removeObjectAtIndex:index];
+}
+
+- (void)releaseScopeTree:(VibeSearchFolder *)folder {
     if (folder.scopeStarted) {
         [folder.url stopAccessingSecurityScopedResource];
+        folder.scopeStarted = NO;
     }
-    [_folders removeObjectAtIndex:index];
+    for (VibeSearchFolder *replacedFolder in folder.replacedFolders) {
+        [self releaseScopeTree:replacedFolder];
+    }
+}
+
+- (void)clearFallbackBookmarksInTree:(VibeSearchFolder *)folder {
+    folder.fallbackBookmarks = @[];
+    for (VibeSearchFolder *replacedFolder in folder.replacedFolders) {
+        [self clearFallbackBookmarksInTree:replacedFolder];
+    }
 }
 
 // Whether the app can already search url without being given anything: a row
@@ -253,6 +298,17 @@ static NSString *const kSearchFolderBookmarksKey = @"VibeiOSSearchFolderBookmark
     return NO;
 }
 
+- (VibeSearchFolder *)pendingReplacementRootCoveringURL:(NSURL *)url {
+    NSString *path = url.URLByStandardizingPath.path;
+    for (VibeSearchFolder *folder in _folders) {
+        if (!folder.bookmark && VibeSearchRootCoversPath(
+                folder.url.URLByStandardizingPath.path, path)) {
+            return folder;
+        }
+    }
+    return nil;
+}
+
 #pragma mark - Persistence
 
 - (void)persistAndNotify {
@@ -261,20 +317,41 @@ static NSString *const kSearchFolderBookmarksKey = @"VibeiOSSearchFolderBookmark
             postNotificationName:VibeSearchFoldersDidChangeNotification object:self];
 }
 
-// A folder whose bookmark has not landed yet is simply absent from the stored
-// list; the next mint re-persists the lot.
 - (void)persistBookmarks {
-    NSMutableArray<NSData *> *bookmarks = [NSMutableArray arrayWithCapacity:_folders.count];
+    NSMutableArray<NSData *> *bookmarks = [NSMutableArray array];
+    NSMutableSet<NSData *> *seen = [NSMutableSet set];
     for (VibeSearchFolder *folder in _folders) {
-        if (folder.bookmark) {
-            [bookmarks addObject:folder.bookmark];
-        }
+        [self appendDurableBookmarksForFolder:folder toArray:bookmarks seen:seen];
     }
     if (bookmarks.count > 0) {
         [NSUserDefaults.standardUserDefaults setObject:bookmarks forKey:kSearchFolderBookmarksKey];
     }
     else {
         [NSUserDefaults.standardUserDefaults removeObjectForKey:kSearchFolderBookmarksKey];
+    }
+}
+
+// A pending parent persists the children it replaced. The live list stays
+// minimal while relaunch recovery remains transactional until the new grant is
+// durable.
+- (void)appendDurableBookmarksForFolder:(VibeSearchFolder *)folder
+                                toArray:(NSMutableArray<NSData *> *)bookmarks
+                                   seen:(NSMutableSet<NSData *> *)seen {
+    if (folder.bookmark) {
+        if (![seen containsObject:folder.bookmark]) {
+            [seen addObject:folder.bookmark];
+            [bookmarks addObject:folder.bookmark];
+        }
+        return;
+    }
+    for (VibeSearchFolder *replacedFolder in folder.replacedFolders) {
+        [self appendDurableBookmarksForFolder:replacedFolder toArray:bookmarks seen:seen];
+    }
+    for (NSData *bookmark in folder.fallbackBookmarks) {
+        if ([bookmark isKindOfClass:NSData.class] && ![seen containsObject:bookmark]) {
+            [seen addObject:bookmark];
+            [bookmarks addObject:bookmark];
+        }
     }
 }
 

@@ -78,8 +78,9 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 + (NSSet<NSString *> *)supportedExtensions;
 
 // The directory-as-playlist listing rule, in its single home: the folder's
-// audio files, non-recursive, hidden files skipped, sorted by filename with
-// Finder's comparator. Synchronous — callers own the threading.
+// non-empty audio files, non-recursive, hidden files and directories skipped,
+// sorted by filename with Finder's comparator. Synchronous — callers own the
+// threading.
 + (NSArray<NSURL *> *)audioFilesInDirectory:(NSURL *)dir;
 @end
 

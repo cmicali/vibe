@@ -72,6 +72,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 @optional
 
+// A load that cannot produce a complete waveform has ended. It fires on the
+// main thread only while that load is still current; url lets a receiver drop
+// a failure that raced a track change just like a data delivery. A later
+// loadWaveformForTrack: starts a fresh attempt for the same file.
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForURL:(NSURL *)url;
+
 // Fires once per completed waveform load, whether a fresh analysis or a cache
 // hit, when the decode pass detected a tempo. It never fires with 0. It
 // follows the final didLoadData: delivery, on the main thread. url is the file

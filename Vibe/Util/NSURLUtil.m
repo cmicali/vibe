@@ -234,7 +234,7 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
     NSError *error = nil;
     NSArray<NSURL*> *contents = [[NSFileManager defaultManager]
             contentsOfDirectoryAtURL:dir
-          includingPropertiesForKeys:@[NSURLIsDirectoryKey]
+          includingPropertiesForKeys:nil
                              options:NSDirectoryEnumerationSkipsHiddenFiles
                                error:&error];
     if (!contents) {
@@ -247,11 +247,7 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
         if (![supported containsObject:[url.pathExtension lowercaseString]]) {
             continue;
         }
-        NSNumber *isDirectory = nil;
-        BOOL isDir = [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL]
-                ? isDirectory.boolValue
-                : url.hasDirectoryPath;
-        if (!isDir) {
+        if (!url.isEmptyOrDirectory) {
             [results addObject:url];
         }
     }

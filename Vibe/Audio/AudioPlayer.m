@@ -22,7 +22,6 @@
 #import "CoreAudioUtil.h"
 #endif
 #import "NSURL+AudioOpen.h"
-#import "NSURLUtil.h"
 #import "FadeMath.h"
 #import "GaplessSpliceMath.h"
 #import "PlaybackRequestCoordinator.h"
@@ -70,6 +69,12 @@ static const NSTimeInterval kFileOpenTimeoutSeconds = 60.0;
 // An open still pending after this long is worth a visible loading state.
 static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
 
+#if TARGET_OS_IOS
+// Keeps iOS recovery's last-rendered playhead current when the screen's UI
+// timer is dormant. This reads render time without mutating the engine.
+static const NSTimeInterval kRecoveryPositionSampleIntervalSeconds = 0.5;
+#endif
+
 // Default pitch fader range in percent: ±8%, matching a stock SL-1200.
 static const float kDefaultMaxPitchPercent = 8.0f;
 
@@ -77,6 +82,17 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 // already running on the queue, as it is when a queued block drops the last
 // reference. dispatch_sync onto the current queue deadlocks.
 static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
+
+@interface AudioPlayer ()
+- (void)cancelPlayMaterializerOnQueue;
+- (void)cancelPlayMaterializerForRequest:(uint64_t)openId;
+- (void)pauseOnQueue;
+- (void)resumeOnQueue;
+- (void)cancelPendingPauseOnQueue;
+#if TARGET_OS_IOS
+- (void)scheduleRecoveryPositionSampleForGeneration:(uint64_t)generation;
+#endif
+@end
 
 // The state a category also touches is in AudioPlayerInternal.h; what follows
 // is private to this file.
@@ -290,8 +306,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // with the media server. A download is not engine-bound state, so nothing
     // else here reaches it, and left alone it pulls a whole file down for a
     // play that can never land. Same pair stop cancels.
-    [_playMaterializer cancel];
+    [self cancelPlayMaterializerOnQueue];
     [_prefetchMaterializer cancel];
+    _prefetchMaterializer = nil;
     // Every in-flight open dies with the media server; the coordinator's
     // identifier makes each late delivery a no-op, exactly as on the reset
     // path.
@@ -478,7 +495,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // prefetch fast path, not beside the replacement below, or a play answered
     // from the park leaves the superseded transfer pulling a whole file down
     // against the track the user just picked.
-    [_playMaterializer cancel];
+    [self cancelPlayMaterializerOnQueue];
 
     // A prefetched handle for this exact path skips the open entirely, and the
     // transition goes straight to schedule and play. Ownership passes to the
@@ -501,7 +518,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     NSURL *openURL = track.url;
     // This open's own materializer; the one it replaces was cancelled above.
     CloudFileMaterializer *materializer = [[CloudFileMaterializer alloc] init];
+    CloudFileMaterializationClaim *materializationClaim = [materializer prepareMaterialization];
     _playMaterializer = materializer;
+    _playMaterializerRequestId = openId;
     __weak AudioPlayer *weakSelf = self;
     // Always open on our own user-initiated worker, even when a prefetch open
     // for this exact path is still in flight: that worker runs at utility QoS,
@@ -512,13 +531,14 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *error = nil;
         CFAbsoluteTime openStartedAt = CFAbsoluteTimeGetCurrent();
-        // The download, as a step of its own, so it can be abandoned. Only for
-        // a placeholder — a local file would pay a coordination round trip on
-        // every track start for nothing. A cancelled one falls through with a
-        // nil file, and the delivery below no-ops because the newer play that
-        // cancelled it has already consumed the request.
-        BOOL materialized = ![NSURLUtil isDatalessFile:openURL]
-                || [materializer materializeURL:openURL error:&error];
+        // The download, as a step of its own, so it can be abandoned. The
+        // materializer's local-file path is only a placeholder probe, not a
+        // coordinated read. A cancelled one falls through with a nil file, and
+        // the delivery below no-ops because the newer play that cancelled it
+        // has already consumed the request.
+        BOOL materialized = [materializer materializeURL:openURL
+                                                   claim:materializationClaim
+                                                   error:&error];
         // Empty paths never reach the open: it would leak a descriptor
         // (NSURL+AudioOpen). A nil file lands on the same failure path.
         AVAudioFile *file = (!materialized || openURL.isEmptyOrDirectory)
@@ -561,6 +581,11 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (!request) {
         return; // Superseded by a newer play, or already timed out.
     }
+    // The prefetch worker can win this request while its dedicated play worker
+    // is still downloading. Whichever completion wins consumes the request and
+    // retires that request's transfer; an identifier guard keeps a late result
+    // from touching a newer play's materializer.
+    [self cancelPlayMaterializerForRequest:openId];
     AudioTrack *track = request.track;
     VibePendingPlaybackIntent startIntent = request.intent;
     NSTimeInterval startPosition = startIntent.position;
@@ -634,10 +659,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (!request) {
         return; // The open landed in time, or a newer play superseded it.
     }
-    // Clear this so the file stays retryable: a later play of it starts a
-    // fresh open. The original worker may stay blocked on a truly hung mount,
-    // leaking one worker, but the loading no-op has already absorbed any rapid
-    // re-clicks.
+    [self cancelPlayMaterializerForRequest:openId];
+    // The matching materializer was cancelled above, so its blocked worker
+    // returns promptly. The file stays retryable: a later play mints a fresh
+    // claim and coordinator.
     AudioTrack *track = request.track;
     LogError(@"Timed out opening %@", track.url.path);
     [self resetToStoppedStateOnQueue];
@@ -660,6 +685,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // open must not land later and start playback out of an errored or stopped
     // UI. The request's unique identifier makes every late delivery a no-op.
     [_pendingRequest invalidate];
+    [self cancelPlayMaterializerOnQueue];
     _pendingDeclick = NO;
     [self clearGaplessOnQueue]; // any queued segment died with the node
     // Detach the varispeed that playOnQueue: attached for the failed track.
@@ -824,8 +850,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     self.currentTrack = nil;
     // Superseding an open stops us WAITING on it; the download behind it runs
     // on regardless unless it is cancelled. File > Close wants neither.
-    [_playMaterializer cancel];
+    [self cancelPlayMaterializerOnQueue];
     [_prefetchMaterializer cancel];
+    _prefetchMaterializer = nil;
     // This supersedes any in-flight open, publishes Stopped and schedules the
     // engine idle stop that releases the output device.
     [self resetToStoppedStateOnQueue];
@@ -841,73 +868,133 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
             }
             return;
         }
-        AVAudioPlayerNode *node = self->_node;
-        if (!node) {
-            [self sendDelegateError:VibeAudioError(VibeAudioErrorNotPlaying, @"Nothing is playing", nil)];
-            return;
-        }
         if (self->_state == VibePlayerStatePlaying) {
             if (self->_pausePending) {
                 // A second press during the pause fade-out cancels the pending
                 // pause and ramps back up. There is no delegate event, because
                 // didPause never fired and the UI never left the playing
                 // state.
-                uint64_t rampGen = [self preemptRampsOnQueue];
-                [self rampNodeAsync:node step:1 from:node.volume to:1.0 generation:rampGen completion:nil];
-                return;
+                [self cancelPendingPauseOnQueue];
             }
-            uint64_t rampGen = [self preemptRampsOnQueue]; // cancel any in-flight resume fade-in
-            // A pause must silence a crossfade's outgoing tail too, not just
-            // the current node.
-            [self preemptRetiredFadesOnQueue];
-            // Fade out asynchronously, then pause in the completion. The queue
-            // must not block for the fade, or a skip or seek issued right
-            // behind a pause would stall behind it. The state stays Playing
-            // through the fade, because the node really is still rendering.
-            self->_pausePending = YES;
-            __weak AudioPlayer *weakSelf = self;
-            [self rampNodeAsync:node step:1 from:node.volume to:0 generation:rampGen completion:^{
-                AudioPlayer *strongSelf = weakSelf;
-                if (!strongSelf) {
-                    return;
-                }
-                // This runs on _queue, and in every case including preemption,
-                // so the pending flag can be cleared unconditionally.
-                strongSelf->_pausePending = NO;
-                // A preempted ramp still reaches this completion (see
-                // rampNodeAsync:), so the node and state checks alone are not
-                // enough. The cancel-pause ramp-up and a seek's own fade both
-                // bump _rampGeneration while leaving node and state untouched,
-                // and pausing under them would fight the operation that now
-                // owns volume and state.
-                if (rampGen != strongSelf->_rampGeneration
-                        || strongSelf->_node != node || strongSelf->_state != VibePlayerStatePlaying) {
-                    return; // A play, stop, seek or device switch superseded the pause.
-                }
-                [strongSelf completePauseOfNode:node];
-            }];
+            else {
+                [self pauseOnQueue];
+            }
+            return;
         }
         else if (self->_state == VibePlayerStatePaused) {
-            NSError *startError = nil;
-            if (![self startEngineAndPlayNode:node error:&startError]) {
-                [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-                        @"Could not resume playback", startError)];
-                return;
-            }
-            os_unfair_lock_lock(&self->_stateLock);
-            self->_state = VibePlayerStatePlaying;
-            os_unfair_lock_unlock(&self->_stateLock);
-            uint64_t rampGen = [self preemptRampsOnQueue];
-            [self rampNodeAsync:node step:1 from:node.volume to:1.0 generation:rampGen completion:nil];
-            AudioTrack *track = self.currentTrack;
-            run_on_main_thread({
-                [self.delegate audioPlayer:self didResumePlaying:track];
-            });
+            [self resumeOnQueue];
+            return;
         }
-        else {
-            [self sendDelegateError:VibeAudioError(VibeAudioErrorNotPlaying, @"Nothing is playing", nil)];
-        }
+        [self sendDelegateError:VibeAudioError(VibeAudioErrorNotPlaying, @"Nothing is playing", nil)];
     });
+}
+
+- (void)pause {
+    dispatch_async(_queue, ^{
+        [self pauseOnQueue];
+    });
+}
+
+- (void)resume {
+    dispatch_async(_queue, ^{
+        [self resumeOnQueue];
+    });
+}
+
+// Explicit desired-state transport. Unlike playPause, duplicate calls are
+// no-ops, and the decision is made beside the mutable state on _queue rather
+// than from a caller's stale snapshot.
+- (void)pauseOnQueue {
+    if (_state == VibePlayerStateLoading) {
+        VibePlaybackRequest *request = [_pendingRequest setPausedIfChanged:YES];
+        if (request) {
+            [self mirrorLoadingRequest:request clearingSubmittedPlayIdentifier:0];
+            [self notifyLoadingPausedForRequest:request];
+        }
+        return;
+    }
+    if (_state != VibePlayerStatePlaying || _pausePending) {
+        return;
+    }
+    AVAudioPlayerNode *node = _node;
+    if (!node) {
+        return;
+    }
+    uint64_t rampGen = [self preemptRampsOnQueue]; // cancel any in-flight resume fade-in
+    // A pause must silence a crossfade's outgoing tail too, not just the
+    // current node.
+    [self preemptRetiredFadesOnQueue];
+    // Fade out asynchronously, then pause in the completion. The queue must
+    // not block for the fade, or a skip or seek issued right behind a pause
+    // would stall behind it. The state stays Playing through the fade, because
+    // the node really is still rendering.
+    _pausePending = YES;
+    __weak AudioPlayer *weakSelf = self;
+    [self rampNodeAsync:node step:1 from:node.volume to:0 generation:rampGen completion:^{
+        AudioPlayer *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        // This runs on _queue, and in every case including preemption, so the
+        // pending flag can be cleared unconditionally.
+        strongSelf->_pausePending = NO;
+        // A preempted ramp still reaches this completion (see rampNodeAsync:),
+        // so the node and state checks alone are not enough. Resume and seek
+        // both bump _rampGeneration while leaving node and state untouched,
+        // and pausing under them would fight the operation that now owns
+        // volume and state.
+        if (rampGen != strongSelf->_rampGeneration
+                || strongSelf->_node != node || strongSelf->_state != VibePlayerStatePlaying) {
+            return; // A play, stop, seek, resume or device switch superseded the pause.
+        }
+        [strongSelf completePauseOfNode:node];
+    }];
+}
+
+- (void)resumeOnQueue {
+    if (_state == VibePlayerStateLoading) {
+        VibePlaybackRequest *request = [_pendingRequest setPausedIfChanged:NO];
+        if (request) {
+            [self mirrorLoadingRequest:request clearingSubmittedPlayIdentifier:0];
+            [self notifyLoadingPausedForRequest:request];
+        }
+        return;
+    }
+    if (_state == VibePlayerStatePlaying) {
+        // The state remains Playing during the pause fade. An explicit resume
+        // arriving in that window owns the desired state and dissolves it.
+        [self cancelPendingPauseOnQueue];
+        return;
+    }
+    if (_state != VibePlayerStatePaused || !_node) {
+        return;
+    }
+    AVAudioPlayerNode *node = _node;
+    NSError *startError = nil;
+    if (![self startEngineAndPlayNode:node error:&startError]) {
+        [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
+                @"Could not resume playback", startError)];
+        return;
+    }
+    // Re-publish rather than changing _state alone, so iOS's player-owned
+    // recovery sampler restarts when rendering resumes.
+    [self publishPlaybackState:VibePlayerStatePlaying node:node file:_file
+                  segmentStart:_segmentStartFrame position:self.pausedPosition];
+    uint64_t rampGen = [self preemptRampsOnQueue];
+    [self rampNodeAsync:node step:1 from:node.volume to:1.0 generation:rampGen completion:nil];
+    AudioTrack *track = self.currentTrack;
+    run_on_main_thread({
+        [self.delegate audioPlayer:self didResumePlaying:track];
+    });
+}
+
+- (void)cancelPendingPauseOnQueue {
+    if (!_pausePending || !_node) {
+        return;
+    }
+    AVAudioPlayerNode *node = _node;
+    uint64_t rampGen = [self preemptRampsOnQueue];
+    [self rampNodeAsync:node step:1 from:node.volume to:1.0 generation:rampGen completion:nil];
 }
 
 // Runs on _queue. It captures the position, pauses the node and publishes the
@@ -1048,6 +1135,21 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 
 #pragma mark - Helpers
 
+// The play materializer slot is queue-confined. The request-specific form is
+// what completion and timeout use: a delayed terminus must never cancel the
+// transfer installed by a newer play.
+- (void)cancelPlayMaterializerOnQueue {
+    [_playMaterializer cancel];
+    _playMaterializer = nil;
+    _playMaterializerRequestId = 0;
+}
+
+- (void)cancelPlayMaterializerForRequest:(uint64_t)openId {
+    if (_playMaterializerRequestId == openId) {
+        [self cancelPlayMaterializerOnQueue];
+    }
+}
+
 // Both halves in one critical section: the loading mirror a main-thread getter
 // reads, and the retirement of the pre-Loading handoff, which only the play
 // that set it may clear — a newer play submitted since owns it now.
@@ -1125,7 +1227,31 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         _loadingSubmittedPlayIdentifier = 0;
     }
     os_unfair_lock_unlock(&_stateLock);
+#if TARGET_OS_IOS
+    uint64_t recoveryPositionGeneration = ++_recoveryPositionGeneration;
+    if (state == VibePlayerStatePlaying) {
+        [self scheduleRecoveryPositionSampleForGeneration:recoveryPositionGeneration];
+    }
+#endif
 }
+
+#if TARGET_OS_IOS
+- (void)scheduleRecoveryPositionSampleForGeneration:(uint64_t)generation {
+    __weak AudioPlayer *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)(kRecoveryPositionSampleIntervalSeconds * NSEC_PER_SEC)), _queue, ^{
+        AudioPlayer *strongSelf = weakSelf;
+        if (!strongSelf || generation != strongSelf->_recoveryPositionGeneration
+                || strongSelf->_state != VibePlayerStatePlaying) {
+            return;
+        }
+        // position stores only a valid playerTime result. If the engine has
+        // already stopped, the cache remains the last frame sampled before it.
+        (void)strongSelf.position;
+        [strongSelf scheduleRecoveryPositionSampleForGeneration:generation];
+    });
+}
+#endif
 
 - (void)sendDelegateError:(NSError *)error {
     LogError(@"AudioPlayer Error: %@", error.localizedDescription);

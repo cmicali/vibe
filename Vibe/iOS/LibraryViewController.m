@@ -18,7 +18,7 @@
 static NSString *const kTrackCellIdentifier = @"track";
 // Apple Music's proportions: a roomy row, artwork most of its height, and the
 // text block two lines deep beside it.
-static const CGFloat kRowHeight = 64;
+static const CGFloat kEstimatedRowHeight = 64;
 // Measured off the Apple Music screenshot this row is modelled on: 44pt
 // artwork with a 14pt gap to the text. The row is taller than that shot's 59pt
 // because these rows carry two lines of text where those carry one.
@@ -33,7 +33,11 @@ static const CGFloat kArtTextGap = 14;
 // the very same EqualizerIndicatorView the mac table draws, which is why it
 // lives in the shared Vibe/Controls/.
 @interface LibraryTrackCell : UITableViewCell
-- (void)renderTrack:(AudioTrack *)track
+// Answers whether the row's height can have moved — the artist line appearing
+// or leaving is the only thing here that changes it. A caller rendering in
+// place owes the table a height recompute when it does; see
+// refreshVisibleRowAtIndex:.
+- (BOOL)renderTrack:(AudioTrack *)track
              number:(NSUInteger)number
             playing:(BOOL)playing
           animating:(BOOL)animating;
@@ -72,7 +76,8 @@ static const CGFloat kArtTextGap = 14;
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
     self.navigationController.navigationBar.prefersLargeTitles = YES;
 
-    self.tableView.rowHeight = kRowHeight;
+    self.tableView.rowHeight = UITableViewAutomaticDimension;
+    self.tableView.estimatedRowHeight = kEstimatedRowHeight;
     // The rule starts at the title, past the artwork, as Apple Music's does.
     self.tableView.separatorInset =
             UIEdgeInsetsMake(0, 12 + kNumberColumnWidth + 8 + kArtSide + kArtTextGap, 0, 0);
@@ -144,12 +149,27 @@ static const CGFloat kArtTextGap = 14;
     [_playback selectTrackAtIndex:(NSUInteger)indexPath.row];
 }
 
-- (void)reloadRowAtIndex:(NSUInteger)index {
+- (void)refreshVisibleRowAtIndex:(NSUInteger)index {
     if (index >= _playlist.count) {
         return;
     }
-    [self.tableView reloadRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:(NSInteger)index inSection:0]]
-                          withRowAnimation:UITableViewRowAnimationNone];
+    NSIndexPath *path = [NSIndexPath indexPathForRow:(NSInteger)index inSection:0];
+    LibraryTrackCell *cell = [self.tableView cellForRowAtIndexPath:path];
+    if (!cell) {
+        return;
+    }
+    BOOL playing = index == _playlist.currentIndex;
+    BOOL heightMoved = [cell renderTrack:[_playlist trackAtIndex:index]
+                                  number:index + 1
+                                 playing:playing
+                               animating:(playing && _playback.isPlaying)];
+    // TRAP: rendering in place does NOT re-run an automatic-dimension row's
+    // height. The artist line arriving with metadata grows the text stack, and
+    // at accessibility sizes that no longer fits the height the row was given —
+    // so an empty update pass is what asks the table to measure it again.
+    if (heightMoved) {
+        [self.tableView performBatchUpdates:nil completion:nil];
+    }
 }
 
 #pragma mark - PlaybackObserver
@@ -166,13 +186,13 @@ static const CGFloat kArtTextGap = 14;
 }
 
 - (void)playback:(PlaybackController *)playback didReplaceTrackAtIndex:(NSUInteger)index {
-    [self reloadRowAtIndex:index];
+    [self refreshVisibleRowAtIndex:index];
 }
 
 - (void)playback:(PlaybackController *)playback
         didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex {
-    [self reloadRowAtIndex:previousIndex];
-    [self reloadRowAtIndex:playback.currentIndex];
+    [self refreshVisibleRowAtIndex:previousIndex];
+    [self refreshVisibleRowAtIndex:playback.currentIndex];
     // The mac scrolls the playing row into view on every track change and
     // nowhere else; the same rule, and the same no-op when it is already up.
     if (playback.currentIndex < _playlist.count) {
@@ -185,13 +205,13 @@ static const CGFloat kArtTextGap = 14;
 
 // Only the playing row draws the play state, and only on its bars.
 - (void)playbackDidChangePlayState:(PlaybackController *)playback {
-    [self reloadRowAtIndex:playback.currentIndex];
+    [self refreshVisibleRowAtIndex:playback.currentIndex];
 }
 
 - (void)playback:(PlaybackController *)playback didLoadMetadataForTrack:(AudioTrack *)track {
     NSInteger row = [_playlist getIndexForTrack:track];
     if (row >= 0) {
-        [self reloadRowAtIndex:(NSUInteger)row];
+        [self refreshVisibleRowAtIndex:(NSUInteger)row];
     }
 }
 
@@ -243,6 +263,8 @@ static const CGFloat kArtTextGap = 14;
     _numberLabel.adjustsFontForContentSizeCategory = YES;
     _numberLabel.textColor = UIColor.secondaryLabelColor;
     _numberLabel.textAlignment = NSTextAlignmentRight;
+    _numberLabel.adjustsFontSizeToFitWidth = YES;
+    _numberLabel.minimumScaleFactor = 0.6;
     _numberLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [content addSubview:_numberLabel];
 
@@ -295,9 +317,13 @@ static const CGFloat kArtTextGap = 14;
                                                     forAxis:UILayoutConstraintAxisHorizontal];
 
     [NSLayoutConstraint activateConstraints:@[
+        [content.heightAnchor constraintGreaterThanOrEqualToConstant:kEstimatedRowHeight],
+
         [_numberLabel.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:12],
         [_numberLabel.widthAnchor constraintEqualToConstant:kNumberColumnWidth],
         [_numberLabel.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
+        [_numberLabel.topAnchor constraintGreaterThanOrEqualToAnchor:content.topAnchor constant:8],
+        [_numberLabel.bottomAnchor constraintLessThanOrEqualToAnchor:content.bottomAnchor constant:-8],
 
         [_indicatorView.centerXAnchor constraintEqualToAnchor:_numberLabel.centerXAnchor],
         [_indicatorView.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
@@ -309,19 +335,25 @@ static const CGFloat kArtTextGap = 14;
         [_artView.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
         [_artView.widthAnchor constraintEqualToConstant:kArtSide],
         [_artView.heightAnchor constraintEqualToConstant:kArtSide],
+        [_artView.topAnchor constraintGreaterThanOrEqualToAnchor:content.topAnchor constant:10],
+        [_artView.bottomAnchor constraintLessThanOrEqualToAnchor:content.bottomAnchor constant:-10],
 
         [_textStack.leadingAnchor constraintEqualToAnchor:_artView.trailingAnchor
                                                  constant:kArtTextGap],
         [_textStack.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
+        [_textStack.topAnchor constraintGreaterThanOrEqualToAnchor:content.topAnchor constant:8],
+        [_textStack.bottomAnchor constraintLessThanOrEqualToAnchor:content.bottomAnchor constant:-8],
         [_textStack.trailingAnchor constraintLessThanOrEqualToAnchor:_durationLabel.leadingAnchor
                                                             constant:-8],
 
         [_durationLabel.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-16],
         [_durationLabel.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
+        [_durationLabel.topAnchor constraintGreaterThanOrEqualToAnchor:content.topAnchor constant:8],
+        [_durationLabel.bottomAnchor constraintLessThanOrEqualToAnchor:content.bottomAnchor constant:-8],
     ]];
 }
 
-- (void)renderTrack:(AudioTrack *)track
+- (BOOL)renderTrack:(AudioTrack *)track
              number:(NSUInteger)number
             playing:(BOOL)playing
           animating:(BOOL)animating {
@@ -336,8 +368,11 @@ static const CGFloat kArtTextGap = 14;
     // one — the cross-directory rule AudioTrack is the single home of. Hidden
     // rather than blank, so the title centres on its own.
     NSString *artist = track.displayArtist;
+    BOOL hidden = artist.length == 0;
+    BOOL heightMoved = hidden != _artistLabel.isHidden;
     _artistLabel.text = artist ?: @"";
-    _artistLabel.hidden = artist.length == 0;
+    _artistLabel.hidden = hidden;
+    return heightMoved;
 }
 
 @end

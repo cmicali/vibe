@@ -56,6 +56,8 @@ static NSString *const kTabSearch = @"search";
     // updateBackdropVisibility.
     BOOL                 _cardAnimating;
     BOOL                 _interactiveDrag;
+    UIViewPropertyAnimator *_cardAnimator;
+    BOOL                   _playerAppearanceTransitionActive;
 }
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback {
@@ -286,16 +288,18 @@ static NSString *const kTabSearch = @"search";
     if (_expanded || _playback.playlist.count == 0) {
         return;
     }
+    [self interruptCardAnimationPreservingVisualState];
     _expanded = YES;
     _player.view.hidden = NO;
     [_player beginAppearanceTransition:YES animated:animated];
+    _playerAppearanceTransitionActive = YES;
     _player.presented = YES;
     [self refreshMiniPlayer];
-    [self animate:animated changes:^{
+    [self animateCardAnimated:animated changes:^{
         self->_player.view.transform = CGAffineTransformIdentity;
         [self applyBackdropProgress:0];
     } completion:^{
-        [self->_player endAppearanceTransition];
+        [self finishPlayerAppearanceTransition];
     }];
 }
 
@@ -303,16 +307,21 @@ static NSString *const kTabSearch = @"search";
     if (!_expanded) {
         return;
     }
+    [self interruptCardAnimationPreservingVisualState];
     _expanded = NO;
     [_player beginAppearanceTransition:NO animated:animated];
+    _playerAppearanceTransitionActive = YES;
     _player.presented = NO;
+    // Before the animation, not in its completion: the strip has to be on its
+    // way in while the card is still travelling down over it, or it pops in a
+    // beat after the card has already landed.
     [self refreshMiniPlayer];
-    [self animate:animated changes:^{
+    [self animateCardAnimated:animated changes:^{
         self->_player.view.transform = [self minimizedCardTransform];
         [self applyBackdropProgress:1];
     } completion:^{
         self->_player.view.hidden = YES;
-        [self->_player endAppearanceTransition];
+        [self finishPlayerAppearanceTransition];
     }];
 }
 
@@ -324,7 +333,10 @@ static NSString *const kTabSearch = @"search";
 //
 // This is also the one place that knows the card is in motion, so the backdrop's
 // visibility is bracketed here rather than at each caller.
-- (void)animate:(BOOL)animated changes:(void (^)(void))changes completion:(void (^)(void))completion {
+- (void)animateCardAnimated:(BOOL)animated
+                    changes:(void (^)(void))changes
+                 completion:(void (^)(void))completion {
+    [self interruptCardAnimationPreservingVisualState];
     _cardAnimating = YES;
     [self updateBackdropVisibility];
     if (!animated) {
@@ -334,20 +346,50 @@ static NSString *const kTabSearch = @"search";
         completion();
         return;
     }
-    [UIView animateWithDuration:0.45
-                          delay:0
-         usingSpringWithDamping:0.86
-          initialSpringVelocity:0
-                        options:UIViewAnimationOptionAllowUserInteraction
-                     animations:changes
-                     completion:^(BOOL finished) {
-        // Not gated on `finished`: an interrupted animation still leaves the
-        // card wherever it stopped, and a drag that interrupted it owns the
-        // visibility through _interactiveDrag anyway.
+    UIViewPropertyAnimator *animator = [[UIViewPropertyAnimator alloc]
+            initWithDuration:0.45 dampingRatio:0.86 animations:changes];
+    _cardAnimator = animator;
+    __weak UIViewPropertyAnimator *weakAnimator = animator;
+    [animator addCompletion:^(UIViewAnimatingPosition finalPosition) {
+        if (self->_cardAnimator != weakAnimator) {
+            return;
+        }
+        self->_cardAnimator = nil;
         self->_cardAnimating = NO;
         [self updateBackdropVisibility];
         completion();
     }];
+    [animator startAnimation];
+}
+
+// A second intent can arrive while the first spring is still on screen. Freeze
+// at the presentation transform, cancel the stale completion, and balance the
+// appearance pair before beginning the opposite transition.
+- (void)interruptCardAnimationPreservingVisualState {
+    if (!_cardAnimator) {
+        return;
+    }
+    CALayer *presentation = _player.view.layer.presentationLayer;
+    CGAffineTransform visibleTransform = presentation
+            ? presentation.affineTransform
+            : _player.view.transform;
+    UIViewPropertyAnimator *animator = _cardAnimator;
+    _cardAnimator = nil;
+    [animator stopAnimation:YES];
+    _player.view.transform = visibleTransform;
+    CGFloat height = MAX(1, self.view.bounds.size.height);
+    [self applyBackdropProgress:visibleTransform.ty / height];
+    _cardAnimating = NO;
+    [self updateBackdropVisibility];
+    [self finishPlayerAppearanceTransition];
+}
+
+- (void)finishPlayerAppearanceTransition {
+    if (!_playerAppearanceTransitionActive) {
+        return;
+    }
+    [_player endAppearanceTransition];
+    _playerAppearanceTransitionActive = NO;
 }
 
 // A card that has fully ARRIVED covers every pixel the tabs could draw, so they
@@ -398,6 +440,9 @@ static NSString *const kTabSearch = @"search";
     CGFloat height = MAX(1, self.view.bounds.size.height);
     switch (state) {
         case UIGestureRecognizerStateBegan:
+            [self interruptCardAnimationPreservingVisualState];
+            // Fall through: the first drag frame uses the same geometry as the
+            // rest of the gesture.
         case UIGestureRecognizerStateChanged:
             // The finger is about to move the card off what it covers, so the
             // tabs have to be back before the first frame of travel.
@@ -429,7 +474,7 @@ static NSString *const kTabSearch = @"search";
 }
 
 - (void)springCardBackUp {
-    [self animate:YES changes:^{
+    [self animateCardAnimated:YES changes:^{
         self->_player.view.transform = CGAffineTransformIdentity;
         [self applyBackdropProgress:0];
     } completion:^{}];

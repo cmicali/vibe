@@ -24,7 +24,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @interface PlayerViewController (Pager) <UICollectionViewDataSource,
-        UICollectionViewDelegateFlowLayout>
+        UICollectionViewDelegate>
 
 // The live cell for a page, or nil when that page has none on screen.
 - (nullable TrackPageCell *)cellAtIndex:(NSUInteger)index;
@@ -44,8 +44,9 @@ NS_ASSUME_NONNULL_BEGIN
 // there is none yet.
 - (void)hydrateWaveformInCell:(nullable TrackPageCell *)cell atIndex:(NSUInteger)index;
 
-// Re-renders one page in place when it has a live cell, and reloads it
-// otherwise so a prefetched cell cannot come on screen stale.
+// Re-renders one page in place when it has a live cell. An off-screen cell is
+// configured from current model state on its way back on screen, in
+// willDisplayCell: — dequeue alone is not enough, since the pager prefetches.
 - (void)refreshPageAtIndex:(NSUInteger)index;
 
 // Moves the art window to the current page: decodes full-size art for it and

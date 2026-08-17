@@ -136,6 +136,28 @@
     XCTAssertEqual(state.currentRequest.intent.position, 0); // the -3 clamped
 }
 
+- (void)testRequestedPauseAndResumeAreIdempotentWhileLoading {
+    PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
+    [state beginWithTrack:[NSObject new] path:@"/same.flac"
+                   intent:VibePendingPlaybackIntentMake(12.5, NO)
+  submittedPlayIdentifier:1];
+
+    VibePlaybackRequest *paused = [state setPausedIfChanged:YES];
+    XCTAssertTrue(paused.intent.paused);
+    XCTAssertEqualWithAccuracy(paused.intent.position, 12.5, 0.001);
+    XCTAssertNil([state setPausedIfChanged:YES]);
+    XCTAssertTrue(state.currentRequest.intent.paused);
+
+    VibePlaybackRequest *resumed = [state setPausedIfChanged:NO];
+    XCTAssertFalse(resumed.intent.paused);
+    XCTAssertEqualWithAccuracy(resumed.intent.position, 12.5, 0.001);
+    XCTAssertNil([state setPausedIfChanged:NO]);
+    XCTAssertFalse(state.currentRequest.intent.paused);
+
+    [state invalidate];
+    XCTAssertNil([state setPausedIfChanged:YES]);
+}
+
 // The basis of every stale-delivery guard: an identifier is never handed out
 // twice, so a worker blocked on a dead mount cannot consume a later open.
 - (void)testIdentifiersNeverRepeatAcrossTheObjectsLifetime {

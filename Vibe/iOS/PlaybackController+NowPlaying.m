@@ -9,6 +9,7 @@
 #import "PlaybackControllerInternal.h"
 
 #import "AudioPlayer.h"
+#import "AudioPlayer+Recovery.h"
 #import "AudioPlayer+Seek.h"
 #import "AudioTrack.h"
 #import "NowPlayingRules.h"
@@ -38,18 +39,17 @@
 #pragma mark - NowPlayingControllerDelegate
 
 - (void)nowPlayingControllerPlay:(NowPlayingController *)controller {
-    if (!_player.isPlaying) {
-        [self playPause];
+    if (_player.isStopped) {
+        [self playCurrentTrack];
+        return;
     }
+    [_audioSession activate];
+    [_player resume];
+    [_player recoverFromEngineConfigurationChange];
 }
 
 - (void)nowPlayingControllerPause:(NowPlayingController *)controller {
-    // Through the funnel, not [_player playPause] directly: the guard puts it
-    // on the same branch either way today, and this keeps it there when the
-    // funnel grows.
-    if (_player.isPlaying) {
-        [self playPause];
-    }
+    [_player pause];
 }
 
 - (void)nowPlayingControllerTogglePlayPause:(NowPlayingController *)controller {

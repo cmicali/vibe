@@ -109,8 +109,10 @@
     if (!playerTime || !playerTime.sampleTimeValid) {
         // Either nothing has rendered yet, right after a play, or the engine
         // stopped itself on a device unplug or format change, since
-        // lastRenderTime is nil while stopped. Within one segment the last
-        // valid reading is never behind the segment start, so MAX covers both.
+        // lastRenderTime is nil while stopped. On iOS the player's own sampler
+        // keeps this cache current while the backgrounded screen timer is
+        // dormant. Within one segment the last valid reading is never behind
+        // the segment start, so MAX covers both cases.
         position = MAX((NSTimeInterval)segmentStartFrame / sampleRate, lastValidPosition);
     }
     else {

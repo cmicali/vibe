@@ -28,9 +28,11 @@ Up to `kMaxDetachedWaveformLoads` (2) detached decodes run behind the active one
 
 The flag is checked **on delivery, not at enqueue**, so a reattach landing first correctly turns it back into a live one.
 
+Progress is different: detached and cancelled loaders do not construct or enqueue progressive snapshots. A reattached loader resumes them from its live decode position. The final waveform still persists while detached.
+
 ## Every delivery carries the URL it was loaded for
 
-`audioWaveform:didLoadData:forURL:`, and the BPM and key twins — because a delivery can land after the track has changed. Receivers must match it against their current track rather than assume it: `MainPlayerController+Delivery` and the iOS `PageWaveformCoordinator` each do. The BPM and key twins are optional and iOS implements neither, since analysis is macOS-only.
+`audioWaveform:didLoadData:forURL:`, the terminal-failure callback, and the BPM and key twins — because a delivery can land after the track has changed. Receivers must match it against their current track rather than assume it: `MainPlayerController+Delivery` and the iOS `PageWaveformCoordinator` each do. Failure is delivered only while that loader is still current; it makes the attempt terminal before delivery so a same-file request starts fresh. The BPM and key twins are optional and iOS implements neither, since analysis is macOS-only.
 
 The cache captures that URL when the load starts (`_currentLoadURL`) rather than reading it back at delivery time, and **the reattach path must set it too**, or a resumed decode would deliver under the URL it was detached from.
 

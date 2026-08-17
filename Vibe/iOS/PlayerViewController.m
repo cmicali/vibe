@@ -58,7 +58,7 @@
     // The affordance for the swipe that minimizes the card, and a tap target
     // that does the same.
     UIView                  *_grabberView;
-    UIView                  *_grabberTarget;
+    UIButton                *_grabberTarget;
     UITapGestureRecognizer  *_screenTap;
     UIPanGestureRecognizer  *_minimizePan;
 }
@@ -167,6 +167,9 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     _pagesLayout.scrollDirection = UICollectionViewScrollDirectionHorizontal;
     _pagesLayout.minimumLineSpacing = 0;
     _pagesLayout.minimumInteritemSpacing = 0;
+    if (root.bounds.size.width > 0 && root.bounds.size.height > 0) {
+        _pagesLayout.itemSize = root.bounds.size;
+    }
     _pagesView = [[VibeTrackPagerView alloc] initWithFrame:CGRectZero
                                     collectionViewLayout:_pagesLayout];
     _pagesView.pagingEnabled = YES;
@@ -202,18 +205,16 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     _grabberView = [[UIView alloc] init];
     _grabberView.backgroundColor = [UIColor.whiteColor colorWithAlphaComponent:0.35];
     _grabberView.layer.cornerRadius = 2.5;
-    _grabberView.isAccessibilityElement = YES;
-    _grabberView.accessibilityTraits = UIAccessibilityTraitButton;
-    _grabberView.accessibilityLabel = STR_A11Y_PLAYER_MINIMIZE;
     _grabberView.translatesAutoresizingMaskIntoConstraints = NO;
     [root addSubview:_grabberView];
 
     // A hit area a finger can find: the bar itself is five points tall.
-    UIView *grabberTarget = [[UIView alloc] init];
+    UIButton *grabberTarget = [UIButton buttonWithType:UIButtonTypeCustom];
     grabberTarget.backgroundColor = UIColor.clearColor;
+    grabberTarget.accessibilityLabel = STR_A11Y_PLAYER_MINIMIZE;
+    [grabberTarget addTarget:self action:@selector(minimizeTapped)
+            forControlEvents:UIControlEventTouchUpInside];
     grabberTarget.translatesAutoresizingMaskIntoConstraints = NO;
-    [grabberTarget addGestureRecognizer:
-            [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(minimizeTapped)]];
     [root addSubview:grabberTarget];
     _grabberTarget = grabberTarget;
 
@@ -262,7 +263,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // full duration once metadata knows it.
 + (void)renderRestingTimesForTrack:(AudioTrack *)track
                            elapsed:(UILabel *)elapsed
-                         remaining:(UILabel *)remaining {
+                         remaining:(VibeTimeControl *)remaining {
     BOOL known = track.duration > 0;
     elapsed.text = known
             ? [[Formatters sharedInstance] durationStringFromTimeInterval:0]
@@ -276,7 +277,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 - (void)renderRestingTimesForTrack:(AudioTrack *)track {
     [PlayerViewController renderRestingTimesForTrack:track
                                               elapsed:_elapsedLabel
-                                            remaining:_remainingLabel];
+                                            remaining:_remainingTimeControl];
 }
 
 #pragma mark - Gestures
@@ -316,11 +317,12 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     // disabled button is not handed back by hit-testing, so next at the end of
     // the playlist would otherwise pass its tap through to the pause below it.
     for (UIView *view = touch.view; view && view != self.view; view = view.superview) {
+        if (view == _grabberTarget) {
+            return gestureRecognizer == _minimizePan;
+        }
         if ([view isKindOfClass:[UIControl class]]
                 || [view isKindOfClass:[VibeTransportRowView class]]
-                || [view isKindOfClass:[VibeTimeLabel class]]
-                || [view isKindOfClass:[WaveformScrubberView class]]
-                || (view == _grabberTarget && gestureRecognizer != _minimizePan)) {
+                || [view isKindOfClass:[WaveformScrubberView class]]) {
             return NO;
         }
     }
@@ -366,7 +368,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         _boundPage = nil;
         _waveformView = nil;
         _elapsedLabel = nil;
-        _remainingLabel = nil;
+        _remainingTimeControl = nil;
         _transportView = nil;
     }
 }
@@ -403,7 +405,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // applyFrameBudgetHold in +Pager.
 - (void)updateScrollLinkState {
     _scrollLink.paused = !(_playback.isPlaying && _foreground && self.isPresented
-                           && !_pagerScrolling && !_windowResizeInFlight);
+                           && !_pagerScrolling && !_pagerProgrammaticScrolling
+                           && !_windowResizeInFlight);
 }
 
 - (void)scrollTick:(CADisplayLink *)link {
@@ -468,7 +471,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     if (duration > 0) {
         Formatters *formatters = [Formatters sharedInstance];
         _elapsedLabel.text = [formatters durationStringFromTimeInterval:position];
-        _remainingLabel.text = VibeRightTimeText(position, duration);
+        _remainingTimeControl.text = VibeRightTimeText(position, duration);
         // The display link owns the waveform while playing; this 3 Hz write
         // is the only one while paused or parked, and they agree otherwise.
         if (!_waveformView.isScrubbing && !_playback.seekInFlight) {
@@ -477,7 +480,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     }
     else {
         _elapsedLabel.text = STR_LABEL_TIME_UNKNOWN;
-        _remainingLabel.text = STR_LABEL_TIME_UNKNOWN;
+        _remainingTimeControl.text = STR_LABEL_TIME_UNKNOWN;
     }
 }
 
@@ -495,7 +498,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [_playback next];
 }
 
-- (void)remainingLabelTapped {
+- (void)remainingTimeTapped {
     VibeSetShowsRemainingTime(!VibeShowsRemainingTime());
     [self repaintTimesOnVisiblePages];
 }
@@ -511,7 +514,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         if (index >= 0 && (NSUInteger)index < (NSInteger)_playlist.count) {
             [PlayerViewController renderRestingTimesForTrack:[_playlist trackAtIndex:(NSUInteger)index]
                                                      elapsed:cell.elapsedLabel
-                                                   remaining:cell.remainingLabel];
+                                                   remaining:cell.remainingTimeControl];
         }
     }
     [self updatePlaybackUI];
@@ -535,6 +538,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [_artHeldPages removeAllIndexes];
     [_waveformCoordinator reset];
     [_pagesView reloadData];
+    [self scrollToCurrentPageAnimated:NO];
 }
 
 - (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes {
@@ -607,7 +611,9 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     // so a page inside the window that could not start its decode starts it
     // here, and the repaint below finds art rather than the placeholder as
     // soon as it arrives.
-    [self refreshArtWindow];
+    if (NSLocationInRange((NSUInteger)row, [self artWindow])) {
+        [self refreshArtWindow];
+    }
     [self refreshPageAtIndex:(NSUInteger)row];
 }
 

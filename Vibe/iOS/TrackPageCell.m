@@ -54,6 +54,20 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
 // centerline, so portrait's pull-up would put a glyph over the envelope.
 static const CGFloat kCellTimeWaveformGapLandscape = 3;
 
+static void VibeConfigureTimeLabel(UILabel *label) {
+    label.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleSubheadline]
+            scaledFontForFont:[UIFont monospacedDigitSystemFontOfSize:16
+                                                               weight:UIFontWeightRegular]];
+    label.adjustsFontForContentSizeCategory = YES;
+    label.adjustsFontSizeToFitWidth = YES;
+    label.minimumScaleFactor = 0.5;
+    [label setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                           forAxis:UILayoutConstraintAxisVertical];
+    label.textColor = [UIColor secondaryLabelColor];
+    label.text = STR_LABEL_TIME_UNKNOWN;
+    label.translatesAutoresizingMaskIntoConstraints = NO;
+}
+
 // The art card restates its shadow path from ITS OWN layout pass.
 //
 // TRAP: doing it in the cell's layoutSubviews is not enough. The constraints
@@ -65,7 +79,67 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
 @interface VibeArtCardView : UIView
 @end
 
-@implementation VibeTimeLabel
+@implementation VibeTimeControl {
+    UILabel *_label;
+    NSString *_text;
+    NSTextAlignment _textAlignment;
+}
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        _label = [[UILabel alloc] init];
+        VibeConfigureTimeLabel(_label);
+        [self addSubview:_label];
+        [NSLayoutConstraint activateConstraints:@[
+            [_label.leadingAnchor constraintEqualToAnchor:self.leadingAnchor],
+            [_label.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
+            [_label.bottomAnchor constraintEqualToAnchor:self.bottomAnchor],
+            [_label.topAnchor constraintGreaterThanOrEqualToAnchor:self.topAnchor],
+        ]];
+        self.isAccessibilityElement = YES;
+        self.accessibilityLabel = STR_SETTINGS_SECTION_TIME;
+        self.accessibilityTraits = UIAccessibilityTraitButton;
+        self.text = STR_LABEL_TIME_UNKNOWN;
+        __weak VibeTimeControl *weakSelf = self;
+        [self registerForTraitChanges:@[UITraitPreferredContentSizeCategory.class]
+                          withHandler:^(id<UITraitEnvironment> environment,
+                                        UITraitCollection *previous) {
+            [weakSelf invalidateIntrinsicContentSize];
+        }];
+    }
+    return self;
+}
+
+- (CGSize)intrinsicContentSize {
+    CGSize labelSize = _label.intrinsicContentSize;
+    return CGSizeMake(MAX(44, labelSize.width), MAX(44, labelSize.height));
+}
+
+- (NSString *)text {
+    return _text;
+}
+
+- (void)setText:(NSString *)text {
+    _text = [text copy];
+    _label.text = text;
+    self.accessibilityValue = text;
+    [self invalidateIntrinsicContentSize];
+}
+
+- (NSTextAlignment)textAlignment {
+    return _textAlignment;
+}
+
+- (void)setTextAlignment:(NSTextAlignment)textAlignment {
+    _textAlignment = textAlignment;
+    _label.textAlignment = textAlignment;
+}
+
+- (void)setHighlighted:(BOOL)highlighted {
+    [super setHighlighted:highlighted];
+    _label.alpha = highlighted ? 0.55 : 1;
+}
 @end
 
 @implementation VibeTransportRowView
@@ -210,15 +284,10 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
 
         _elapsedLabel = [self makeTimeLabel];
         [content addSubview:_elapsedLabel];
-        _remainingLabel = (VibeTimeLabel *)[self makeTimeLabelOfClass:VibeTimeLabel.class];
-        _remainingLabel.textAlignment = NSTextAlignmentRight;
-        // The tap target is the label's own bounds, which at the default text
-        // size is a short strip — but it sits in the card's bottom corner with
-        // nothing else near it, and widening it would eat into the screen tap.
-        _remainingLabel.userInteractionEnabled = YES;
-        _remainingLabelTap = [[UITapGestureRecognizer alloc] init];
-        [_remainingLabel addGestureRecognizer:_remainingLabelTap];
-        [content addSubview:_remainingLabel];
+        _remainingTimeControl = [[VibeTimeControl alloc] initWithFrame:CGRectZero];
+        _remainingTimeControl.textAlignment = NSTextAlignmentRight;
+        _remainingTimeControl.translatesAutoresizingMaskIntoConstraints = NO;
+        [content addSubview:_remainingTimeControl];
 
         // The transport: previous, play/pause, next, in one row the controller
         // fades as a unit. It is a plain container rather than a stack view so
@@ -260,6 +329,8 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
 
             [_transportView.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
             [_transportView.heightAnchor constraintEqualToConstant:kTransportButtonSide],
+            [_remainingTimeControl.widthAnchor constraintGreaterThanOrEqualToConstant:44],
+            [_remainingTimeControl.heightAnchor constraintGreaterThanOrEqualToConstant:44],
             [_previousButton.leadingAnchor constraintEqualToAnchor:_transportView.leadingAnchor],
             [_playPauseButton.leadingAnchor constraintEqualToAnchor:_previousButton.trailingAnchor
                                                            constant:kTransportButtonGap],
@@ -400,10 +471,10 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
         [_elapsedLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
         [_elapsedLabel.trailingAnchor constraintLessThanOrEqualToAnchor:content.centerXAnchor
                                                             constant:-6],
-        [_remainingLabel.bottomAnchor constraintEqualToAnchor:_elapsedLabel.bottomAnchor],
-        [_remainingLabel.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
-        [_remainingLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:content.centerXAnchor
-                                                            constant:6],
+        [_remainingTimeControl.bottomAnchor constraintEqualToAnchor:_elapsedLabel.bottomAnchor],
+        [_remainingTimeControl.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
+        [_remainingTimeControl.leadingAnchor constraintGreaterThanOrEqualToAnchor:content.centerXAnchor
+                                                                 constant:6],
     ];
 }
 
@@ -444,10 +515,10 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
         [_elapsedLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
         [_elapsedLabel.trailingAnchor constraintLessThanOrEqualToAnchor:content.centerXAnchor
                                                             constant:-6],
-        [_remainingLabel.bottomAnchor constraintEqualToAnchor:_elapsedLabel.bottomAnchor],
-        [_remainingLabel.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
-        [_remainingLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:content.centerXAnchor
-                                                            constant:6],
+        [_remainingTimeControl.bottomAnchor constraintEqualToAnchor:_elapsedLabel.bottomAnchor],
+        [_remainingTimeControl.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
+        [_remainingTimeControl.leadingAnchor constraintGreaterThanOrEqualToAnchor:content.centerXAnchor
+                                                                 constant:6],
 
         // Landscape has the height for no more than one row down here, so the
         // transport rides the time row's centerline, between the two times —
@@ -530,32 +601,8 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
 }
 
 - (UILabel *)makeTimeLabel {
-    return [self makeTimeLabelOfClass:UILabel.class];
-}
-
-// The right label is a VibeTimeLabel so the screen tap can decline it by class;
-// the left one has no tap and stays a plain UILabel.
-- (UILabel *)makeTimeLabelOfClass:(Class)labelClass {
-    UILabel *label = [[labelClass alloc] init];
-    // Monospaced digits so the ticking text does not shimmy, scaled with the
-    // user's text size off the subheadline curve.
-    label.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleSubheadline]
-            scaledFontForFont:[UIFont monospacedDigitSystemFontOfSize:16
-                                                               weight:UIFontWeightRegular]];
-    label.adjustsFontForContentSizeCategory = YES;
-    // At accessibility sizes both times cannot fit full-size on one line;
-    // each owns its half and shrinks to fit rather than fighting the other
-    // (a required-constraint clash silently crushed one to zero width).
-    label.adjustsFontSizeToFitWidth = YES;
-    label.minimumScaleFactor = 0.5;
-    // Required, not the 750 default: the art card's full-width preference is
-    // ALSO 750, and the tie resolved by crushing this label to zero height
-    // at accessibility sizes. The card must always be the one that gives.
-    [label setContentCompressionResistancePriority:UILayoutPriorityRequired
-                                           forAxis:UILayoutConstraintAxisVertical];
-    label.textColor = [UIColor secondaryLabelColor];
-    label.text = STR_LABEL_TIME_UNKNOWN;
-    label.translatesAutoresizingMaskIntoConstraints = NO;
+    UILabel *label = [[UILabel alloc] init];
+    VibeConfigureTimeLabel(label);
     return label;
 }
 
@@ -566,7 +613,7 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
     [super prepareForReuse];
     [_waveformView prepareForWaveformLoad];
     _elapsedLabel.text = STR_LABEL_TIME_UNKNOWN;
-    _remainingLabel.text = STR_LABEL_TIME_UNKNOWN;
+    _remainingTimeControl.text = STR_LABEL_TIME_UNKNOWN;
     [self setGlyphPlaying:NO];
     [self setNextEnabled:YES];
 }

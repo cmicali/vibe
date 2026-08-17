@@ -336,8 +336,9 @@
             // Throttle delegate notifications to about 10 Hz, because each one
             // triggers a full path rebuild on the main thread.
             // AudioWaveformCache delivers the final completion callback
-            // separately.
-            if (!self.isCancelled) {
+            // separately. A detached decode still persists its final result,
+            // but its UI-only snapshot copies and main-queue blocks are waste.
+            if (!self.isCancelled && !self.isDetached) {
                 CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
                 if (now - lastProgressTime >= 0.1) {
                     lastProgressTime = now;
@@ -348,11 +349,13 @@
                     // calling setChunkAtIndex and the stretch pass below
                     // remaps it in place.
                     CodableAudioWaveform *snapshot = [result snapshot];
-                    dispatch_async(dispatch_get_main_queue(), ^(void) {
-                        if (!self.isCancelled) {
-                            [self.delegate audioWaveformLoader:self waveform:snapshot didLoadData:percentComplete];
-                        }
-                    });
+                    if (!self.isCancelled && !self.isDetached) {
+                        dispatch_async(dispatch_get_main_queue(), ^(void) {
+                            if (!self.isCancelled && !self.isDetached) {
+                                [self.delegate audioWaveformLoader:self waveform:snapshot didLoadData:percentComplete];
+                            }
+                        });
+                    }
                 }
             }
             dispatch_semaphore_signal(slotDone);

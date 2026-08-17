@@ -8,7 +8,6 @@
 #import "AudioTrack.h"
 #import "GaplessSpliceMath.h"
 #import "NSURL+AudioOpen.h"
-#import "NSURLUtil.h"
 
 @implementation AudioPlayer (Gapless)
 
@@ -249,6 +248,7 @@
     }
     uint64_t prefetchId = _prefetchRequestId;
     CloudFileMaterializer *materializer = [[CloudFileMaterializer alloc] init];
+    CloudFileMaterializationClaim *materializationClaim = [materializer prepareMaterialization];
     _prefetchMaterializer = materializer;
     __weak AudioPlayer *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
@@ -256,8 +256,9 @@
         // Materialize first so the download is abortable; a plain open is not.
         // A cancelled one delivers no file, which is exactly what a superseded
         // prefetch should park — nothing.
-        BOOL materialized = ![NSURLUtil isDatalessFile:track.url]
-                || [materializer materializeURL:track.url error:&error];
+        BOOL materialized = [materializer materializeURL:track.url
+                                                   claim:materializationClaim
+                                                   error:&error];
         // Empty paths never reach the open; see NSURL+AudioOpen.
         AVAudioFile *file = (!materialized || track.url.isEmptyOrDirectory)
                 ? nil
@@ -267,6 +268,9 @@
             return;
         }
         dispatch_async(strongSelf->_queue, ^{
+            if (strongSelf->_prefetchMaterializer == materializer) {
+                strongSelf->_prefetchMaterializer = nil;
+            }
             VibePlaybackRequest *request = strongSelf.pendingRequest.currentRequest;
             if (request && [path isEqualToString:request.path]) {
                 // A play of this path is waiting on its own open, since plays

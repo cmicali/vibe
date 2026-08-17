@@ -41,6 +41,7 @@
 
 @interface RecordingCoordinatorDelegate : NSObject <PageWaveformCoordinatorDelegate>
 @property (nonatomic, strong) NSMutableArray<NSNumber *> *updatedIndexes;
+@property (nonatomic, strong) NSMutableArray<NSNumber *> *failedIndexes;
 @end
 
 @implementation RecordingCoordinatorDelegate
@@ -48,6 +49,7 @@
     self = [super init];
     if (self) {
         _updatedIndexes = [NSMutableArray array];
+        _failedIndexes = [NSMutableArray array];
     }
     return self;
 }
@@ -55,6 +57,10 @@
               didUpdateWaveform:(CodableAudioWaveform *)waveform
                        forIndex:(NSUInteger)index {
     [_updatedIndexes addObject:@(index)];
+}
+- (void)pageWaveformCoordinator:(PageWaveformCoordinator *)coordinator
+      didFailWaveformForIndex:(NSUInteger)index {
+    [_failedIndexes addObject:@(index)];
 }
 @end
 
@@ -94,6 +100,11 @@
     [(id<AudioWaveformCacheDelegate>)_coordinator audioWaveform:waveform
                                                     didLoadData:percent
                                                          forURL:url];
+}
+
+- (void)failForURL:(NSURL *)url {
+    [(id<AudioWaveformCacheDelegate>)_coordinator audioWaveformCache:(AudioWaveformCache *)_cache
+                                                didFailToLoadForURL:url];
 }
 
 #pragma mark Targeting
@@ -159,6 +170,35 @@
     [_coordinator requestIndex:3 track:_tracks[3]];
     [self deliverForURL:_tracks[3].url percent:1.0f];
     XCTAssertTrue([_coordinator isCompleteAtIndex:3]);
+}
+
+- (void)testFailureForTheTargetSettlesItAndAllowsRetry {
+    [_coordinator requestIndex:3 track:_tracks[3]];
+    [self failForURL:_tracks[3].url];
+    XCTAssertEqual(_coordinator.targetIndex, NSNotFound);
+    XCTAssertEqualObjects(_delegate.failedIndexes, @[@3]);
+
+    [_coordinator requestIndex:3 track:_tracks[3]];
+    XCTAssertEqualObjects(_cache.loadedURLs, (@[_tracks[3].url, _tracks[3].url]));
+}
+
+- (void)testFailureForADepartedURLIsDropped {
+    [_coordinator requestIndex:3 track:_tracks[3]];
+    [_coordinator requestIndex:4 track:_tracks[4]];
+    [self failForURL:_tracks[3].url];
+    XCTAssertEqual(_coordinator.targetIndex, 4u);
+    XCTAssertEqual(_delegate.failedIndexes.count, 0u);
+}
+
+- (void)testFailureDuringAHoldIsForwardedOnRelease {
+    [_coordinator requestIndex:3 track:_tracks[3]];
+    _coordinator.held = YES;
+    [self failForURL:_tracks[3].url];
+    XCTAssertEqual(_coordinator.targetIndex, NSNotFound);
+    XCTAssertEqual(_delegate.failedIndexes.count, 0u);
+
+    _coordinator.held = NO;
+    XCTAssertEqualObjects(_delegate.failedIndexes, @[@3]);
 }
 
 // A completed page re-requested after a detour needs no second decode; its

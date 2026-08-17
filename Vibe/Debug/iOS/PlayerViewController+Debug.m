@@ -16,6 +16,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioWaveformCache.h"
+#import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
 
 @implementation PlayerViewController (Debug)
@@ -23,7 +24,7 @@
 - (NSDictionary *)debugChromeDictionary {
     return @{
         @"elapsed": _elapsedLabel.text ?: @"",
-        @"remaining": _remainingLabel.text ?: @"",
+        @"remaining": _remainingTimeControl.text ?: @"",
         @"transportShown": @(_transportView.alpha > 0),
         @"waveformProgress": @(_waveformView.progress),
         @"waveformOverscroll": @(_waveformView.overscroll),

@@ -15,6 +15,7 @@
 #pragma mark - Waveform Cache
 
 @interface AudioWaveformCache () <AudioWaveformLoaderDelegate>
+- (void)finishFailedLoader:(AudioWaveformLoader *)loader url:(NSURL *)url;
 @end
 
 // How many superseded decodes may keep running in the background at once. A
@@ -136,9 +137,10 @@ static const NSUInteger kMaxDetachedWaveformLoads = 2;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSString *cacheKey = track.cacheKey;
         if (!cacheKey) {
-            // The file cannot be statted; see NSURL+Hash. Skip the load: the
-            // view keeps what it shows, and the next play retries.
+            // The file cannot be statted; see NSURL+Hash. Settle this attempt
+            // so a same-file request cannot reattach a loader with no work.
             LogWarn(@"No cache key for %@ — skipping waveform load", url.path);
+            [self finishFailedLoader:loader url:url];
             return;
         }
         dispatch_async(self->_loaderQueue, ^{
@@ -146,12 +148,15 @@ static const NSUInteger kMaxDetachedWaveformLoads = 2;
                 if (waveform) {
                     [self deliverCompleteWaveform:waveform loader:loader url:url];
                 }
-                // nil, meaning cancelled, failed or partial. The UI stays at
-                // whatever progress the last in-flight loader callback
-                // reported.
-                //
-                // Finished either way: drop the loader from the detached pool
-                // if a later request parked it there.
+                else if (!loader.isCancelled) {
+                    // A failed or partial active load is terminal. Cancellation
+                    // means this attempt has already lost ownership and must
+                    // not report the superseding request as failed.
+                    [self finishFailedLoader:loader url:url];
+                    return;
+                }
+                // Finished or cancelled: drop the loader from the detached
+                // pool if a later request parked it there.
                 run_on_main_thread({
                     [self->_detachedLoaders removeObjectIdenticalTo:loader];
                 });
@@ -190,6 +195,26 @@ static const NSUInteger kMaxDetachedWaveformLoads = 2;
         [oldest cancel];
         [_detachedLoaders removeObjectAtIndex:0];
     }
+}
+
+// Makes failure terminal before returning to the main thread. A same-file
+// request can race this cleanup; cancellation keeps it from reattaching the
+// dead loader, and the identity check keeps a superseding load untouched.
+- (void)finishFailedLoader:(AudioWaveformLoader *)loader url:(NSURL *)url {
+    [loader cancel];
+    run_on_main_thread({
+        BOOL wasCurrent = self->_currentLoader == loader;
+        [self->_detachedLoaders removeObjectIdenticalTo:loader];
+        if (!wasCurrent) {
+            return;
+        }
+        self->_currentLoader = nil;
+        self->_currentLoadURL = nil;
+        if ([self.delegate respondsToSelector:
+                @selector(audioWaveformCache:didFailToLoadForURL:)]) {
+            [self.delegate audioWaveformCache:self didFailToLoadForURL:url];
+        }
+    });
 }
 
 // The lookup-or-decode core, shared by the delegate delivery path above and
@@ -372,4 +397,3 @@ awaitPersist:(BOOL)awaitPersist
 #endif
 
 @end
-

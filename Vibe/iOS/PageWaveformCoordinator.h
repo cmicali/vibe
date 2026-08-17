@@ -29,6 +29,12 @@ NS_ASSUME_NONNULL_BEGIN
            didUpdateWaveform:(CodableAudioWaveform *)waveform
                     forIndex:(NSUInteger)index;
 
+// The target page's load ended without a complete waveform. The receiver
+// settles its loading UI; the coordinator has already cleared the target so
+// a later request for the same page starts a fresh attempt.
+- (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
+      didFailWaveformForIndex:(NSUInteger)index;
+
 // The cache's BPM and key deliveries are deliberately NOT forwarded: tempo
 // and key analysis are macOS-only (the analysis provider is unset here, see
 // AudioWaveformLoader), so nothing on this platform can fire them. A track's
@@ -47,10 +53,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) NSUInteger targetIndex;
 
 // The pager's scroll hold. Held, deliveries are still RECORDED but not
-// forwarded, and requests are dropped rather than issued; releasing forwards
-// whatever arrived meanwhile, and the settle path asks for the page it landed
-// on. Both halves are there because a swipe is the one moment the main thread
-// has nothing to spare:
+// forwarded, failures are deferred, and requests are dropped rather than
+// issued; releasing forwards whatever arrived meanwhile, and the settle path
+// asks for the page it landed on. Both halves are there because a swipe is the
+// one moment the main thread has nothing to spare:
 //
 //   - a delivery repaints a scrubber, which tears its baked envelope down and
 //     restarts the morph's 60 Hz full-view path rebuilds — and a decode

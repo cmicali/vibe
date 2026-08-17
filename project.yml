@@ -367,6 +367,8 @@ targets:
           - "-fobjc-arc-exceptions"
       - path: Resources/AppIcon.icon
       - path: Resources/Assets.xcassets       # record-bg, the no-art vinyl placeholder
+      - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
       - path: Resources/Localizable.xcstrings
         buildPhase: resources
       - path: Resources/InfoPlist.xcstrings
@@ -528,6 +530,7 @@ targets:
       - path: Vibe/Audio/Metadata/FolderArtFileIO.m
       - path: Vibe/Audio/Metadata/AudioTrackArtwork.m
       - path: Vibe/Common/AppSettings.m
+      - path: Vibe/System/CloudFileMaterializer.m
       - path: Vibe/Mac/App/FolderAccessManager.m
       - path: Vibe/Mac/App/OpenBurstCoalescer.m
       - path: Vibe/Mac/App/OpenRequestCoordinator.m

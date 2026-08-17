@@ -35,6 +35,13 @@
 
 - (NSURL *)makeFile:(NSString *)name {
     NSURL *url = [_dir URLByAppendingPathComponent:name];
+    const unsigned char byte = 1;
+    XCTAssertTrue([[NSData dataWithBytes:&byte length:sizeof(byte)] writeToURL:url atomically:YES]);
+    return url;
+}
+
+- (NSURL *)makeEmptyFile:(NSString *)name {
+    NSURL *url = [_dir URLByAppendingPathComponent:name];
     XCTAssertTrue([[NSData data] writeToURL:url atomically:YES]);
     return url;
 }
@@ -91,6 +98,12 @@
                                            withIntermediateDirectories:YES
                                                             attributes:nil
                                                                  error:NULL]);
+    XCTAssertEqualObjects([self listedNames], @[@"real.mp3"]);
+}
+
+- (void)testZeroByteAudioFileIsNotListed {
+    [self makeFile:@"real.mp3"];
+    [self makeEmptyFile:@"empty.mp3"];
     XCTAssertEqualObjects([self listedNames], @[@"real.mp3"]);
 }
 

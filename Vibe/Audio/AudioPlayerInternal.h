@@ -108,6 +108,9 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // play and a prefetch overlap; a new request cancels the slot it replaces,
     // and stop cancels both. Queue-confined, and cancel is thread-safe.
     CloudFileMaterializer   *_playMaterializer;
+    // The pending-open identifier which owns _playMaterializer. A timeout or
+    // completion cancels only this exact slot, never a newer play's transfer.
+    uint64_t                _playMaterializerRequestId;
     CloudFileMaterializer   *_prefetchMaterializer;
 
     // _gaplessFile is a private handle opened separately from the prefetch
@@ -151,6 +154,12 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // result back under the epoch check. Everything else in the position state
     // keeps the write protection.
     NSTimeInterval          _lastValidPosition;
+#if TARGET_OS_IOS
+    // Tags the iOS player-owned sampling loop which refreshes the cache while
+    // a backgrounded screen has stopped its UI timer. Queue-confined; every
+    // published state starts or dissolves a loop.
+    uint64_t                _recoveryPositionGeneration;
+#endif
 }
 
 #pragma mark - Read by the categories, written only by AudioPlayer.m

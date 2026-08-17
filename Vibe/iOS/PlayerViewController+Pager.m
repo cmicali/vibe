@@ -38,6 +38,11 @@ static const NSUInteger kArtPrefetchRadius = 2;
 // 4MB, so this holds a dozen — more pages than one browsing pass covers.
 static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
 
+// The ceiling on a programmatic page animation's frame-budget hold. UIKit's
+// paging animation runs well under half of this; it is a backstop for the end
+// callback that never arrives, not a duration anything waits out.
+static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
+
 @implementation PlayerViewController (Pager)
 
 #pragma mark - Per-page waveforms
@@ -55,7 +60,7 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
     _boundPage = cell;
     _waveformView = cell.waveformView;
     _elapsedLabel = cell.elapsedLabel;
-    _remainingLabel = cell.remainingLabel;
+    _remainingTimeControl = cell.remainingTimeControl;
     _transportView = cell.transportView;
     // A rebind means a fresh (or reloaded) cell whose labels came back at
     // their reuse defaults; while paused no timer tick will repopulate them,
@@ -108,6 +113,12 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
     TrackPageCell *page = (TrackPageCell *)cell;
     NSUInteger index = (NSUInteger)indexPath.item;
 
+    // TRAP: dequeue is NOT the last word on a cell's content. The collection
+    // view prefetches, so a page can be configured while still off screen and
+    // then miss the refresh a metadata or art delivery sends — refreshPageAtIndex:
+    // only reaches live cells. Re-configuring here is what closes that window.
+    [self configurePage:page atIndex:index];
+
     if (page.waveformView.delegate != self) {
         page.waveformView.delegate = self;
         // The pager yields horizontal drags on the waveform surface to the
@@ -128,7 +139,8 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
                   forControlEvents:UIControlEventTouchUpInside];
         // Total time vs remaining, toggled from any page — the mode is one
         // setting, so every page redraws, not just the tapped one.
-        [page.remainingLabelTap addTarget:self action:@selector(remainingLabelTapped)];
+        [page.remainingTimeControl addTarget:self action:@selector(remainingTimeTapped)
+                           forControlEvents:UIControlEventTouchUpInside];
     }
 
     // Unconditional, not part of the one-time block above: a recycled cell
@@ -151,7 +163,7 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
         // knows it.
         [PlayerViewController renderRestingTimesForTrack:[_playlist trackAtIndex:index]
                                                  elapsed:page.elapsedLabel
-                                               remaining:page.remainingLabel];
+                                               remaining:page.remainingTimeControl];
     }
 }
 
@@ -189,28 +201,6 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
     return cell;
 }
 
-// A page fills the pager exactly, which is what makes the paging math work.
-//
-// TRAP: that size is NOT the pager's own bounds during a size transition. The
-// alongside block invalidates the layout while the bounds still hold the old
-// geometry, so a rotation sized every item PORTRAIT inside an already-landscape
-// collection view — 402x874 items in an 874x402 view — which UIKit reports as
-// "the behavior of the UICollectionViewFlowLayout is not defined" and lays out
-// as a 19296-point-wide content of the wrong shape until the next pass corrects
-// it. The transition's target size is the one honest answer available that early.
-- (CGSize)collectionView:(UICollectionView *)collectionView
-                  layout:(UICollectionViewLayout *)layout
-  sizeForItemAtIndexPath:(NSIndexPath *)indexPath {
-    // Counted, not timed: the body is a bounds read, and the question is how
-    // many times the flow layout asks — implementing this at all puts it on the
-    // per-item delegate path, so one invalidation costs one call per TRACK.
-    VibeTallyCount(pager_itemSize);
-    if (!CGSizeEqualToSize(_transitionTargetSize, CGSizeZero)) {
-        return _transitionTargetSize;
-    }
-    return _pagesView.bounds.size;
-}
-
 #pragma mark - Layout and size transitions
 
 - (void)viewDidLayoutSubviews {
@@ -225,6 +215,7 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
         return;
     }
     _lastLayoutSize = size;
+    _pagesLayout.itemSize = size;
     VibeSignpostCount(pager_invalidate);
     [_pagesLayout invalidateLayout];
     if (!_pagesView.isDragging && !_pagesView.isDecelerating) {
@@ -240,8 +231,10 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
        withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
     [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
     _windowResizeInFlight = YES;
-    // Before the invalidation below, which is what asks for the item sizes.
-    _transitionTargetSize = size;
+    // Set once on the layout rather than answering the delegate once per track.
+    // It must land before invalidation while the collection view still has the
+    // old bounds.
+    _pagesLayout.itemSize = size;
     // The same hold a page swipe takes, and for a stronger reason: every
     // scrubber tears its baked bitmap down on the bounds change, so the whole
     // animation runs on the live renderer tree. Held, the ~10 Hz decode
@@ -260,8 +253,7 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
         [self scrollToCurrentPageAnimated:NO];
     } completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
         self->_windowResizeInFlight = NO;
-        // The bounds have caught up, so they are the answer again.
-        self->_transitionTargetSize = CGSizeZero;
+        self->_pagesLayout.itemSize = self->_pagesView.bounds.size;
         [self scrollToCurrentPageAnimated:NO];
         // Releasing the hold forwards whatever snapshot arrived during it, so
         // the page repaints once here instead of ten times across the
@@ -279,21 +271,28 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
 }
 
 - (void)scrollToCurrentPageAnimated:(BOOL)animated {
-    CGFloat width = _pagesView.bounds.size.width;
+    CGFloat width = _windowResizeInFlight
+            ? _pagesLayout.itemSize.width
+            : _pagesView.bounds.size.width;
     if (width <= 0 || _playlist.count == 0) {
+        [self holdForProgrammaticPagerScrolling:NO];
         return;
     }
     CGPoint target = CGPointMake(width * (CGFloat)_playlist.currentIndex, 0);
+    BOOL animateOnScreen = animated && self.isPresented
+            && !UIAccessibilityIsReduceMotionEnabled();
     if (!CGPointEqualToPoint(_pagesView.contentOffset, target)) {
-        [_pagesView setContentOffset:target animated:animated];
+        [self holdForProgrammaticPagerScrolling:animateOnScreen];
+        [_pagesView setContentOffset:target animated:animateOnScreen];
+    }
+    else {
+        [self holdForProgrammaticPagerScrolling:NO];
     }
 }
 
-// In place when the page has a live cell: reloadItemsAtIndexPaths: swaps the
-// full-screen cell with a crossfade — the whole blurred backdrop dims on
-// every track commit and metadata/art delivery — and recycles the waveform
-// with it. Pages without a cell reload so a prefetched one cannot come on
-// screen stale.
+// In place only. Off-screen cells are re-configured from current model state in
+// willDisplayCell:, so reloading them here does work now without making them
+// any fresher.
 - (void)refreshPageAtIndex:(NSUInteger)index {
     if (index >= _playlist.count) {
         return;
@@ -301,10 +300,6 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
     TrackPageCell *cell = [self cellAtIndex:index];
     if (cell) {
         [self configurePage:cell atIndex:index];
-    }
-    else {
-        [_pagesView reloadItemsAtIndexPaths:
-                @[[NSIndexPath indexPathForItem:(NSInteger)index inSection:0]]];
     }
 }
 
@@ -457,18 +452,18 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
 
 #pragma mark - The frame-budget hold
 
-// A swipe is not the only moment the main thread has nothing to spare — a size
-// transition is the other, and it is the worse of the two, because every
+// A swipe is not the only moment the main thread has nothing to spare — a
+// visible programmatic scroll and a size transition take the same hold. A size
+// transition is the worst of the three, because every
 // scrubber has just torn its baked bitmap down and is carrying the animation on
-// the live renderer tree. So the hold is DERIVED from both reasons rather than
-// owned by either: while it is on, the coordinator holds deliveries and
+// the live renderer tree. So the hold is DERIVED from all three reasons rather
+// than owned by any one: while it is on, the coordinator holds deliveries and
 // requests (see its `held`) and the playhead's display link pauses.
 //
-// Neither can strand it. UIScrollView always follows a drag with exactly one of
-// the two end callbacks below, and the transition coordinator always runs its
-// completion.
+// Each path has a matching end callback below; a user drag also takes ownership
+// from a programmatic scroll it interrupts.
 - (void)applyFrameBudgetHold {
-    BOOL held = _pagerScrolling || _windowResizeInFlight;
+    BOOL held = _pagerScrolling || _pagerProgrammaticScrolling || _windowResizeInFlight;
     _waveformCoordinator.held = held;
     [self updateScrollLinkState];
 }
@@ -481,8 +476,39 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
     [self applyFrameBudgetHold];
 }
 
+// TRAP: this hold is the one with no guaranteed end callback. A drag always
+// ends in one of the two settle paths and the transition coordinator always
+// runs its completion, but setContentOffset:animated: reports through
+// scrollViewDidEndScrollingAnimation:, which does not arrive for an animation
+// that was superseded — and a scroll that settles short of its target cannot be
+// told apart from one. Stranded, it freezes waveform deliveries AND the
+// playhead's display link until the next swipe, so every take arms a
+// generation-tagged release that bounds it.
+- (void)holdForProgrammaticPagerScrolling:(BOOL)scrolling {
+    if (_pagerProgrammaticScrolling == scrolling) {
+        return;
+    }
+    _pagerProgrammaticScrolling = scrolling;
+    uint64_t generation = ++_pagerProgrammaticScrollGeneration;
+    [self applyFrameBudgetHold];
+    if (!scrolling) {
+        return;
+    }
+    __weak PlayerViewController *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)(kProgrammaticScrollHoldCeilingSeconds * NSEC_PER_SEC)),
+            dispatch_get_main_queue(), ^{
+        PlayerViewController *strongSelf = weakSelf;
+        if (strongSelf && generation == strongSelf->_pagerProgrammaticScrollGeneration) {
+            [strongSelf holdForProgrammaticPagerScrolling:NO];
+        }
+    });
+}
+
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
-    [self holdForPagerScrolling:YES];
+    _pagerProgrammaticScrolling = NO;
+    _pagerScrolling = YES;
+    [self applyFrameBudgetHold];
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
@@ -496,6 +522,18 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
     if (!decelerate) {
         [self holdForPagerScrolling:NO];
         [self commitVisiblePage];
+    }
+}
+
+- (void)scrollViewDidEndScrollingAnimation:(UIScrollView *)scrollView {
+    CGFloat width = _pagesView.bounds.size.width;
+    CGFloat targetX = width * (CGFloat)_playlist.currentIndex;
+    if (self.isPresented && fabs(_pagesView.contentOffset.x - targetX) > 0.5) {
+        return;   // completion for a programmatic scroll superseded in flight
+    }
+    [self holdForProgrammaticPagerScrolling:NO];
+    if (self.isPresented) {
+        [self requestWaveformForIndex:_playlist.currentIndex];
     }
 }
 

@@ -60,6 +60,7 @@ static const NSTimeInterval kDeactivateDelaySeconds = 10.0;
     // user declaring the interruption over; without this reset one orphaned
     // Began would wedge every future idle deactivation for the process's life.
     _interruptionActive = NO;
+    _wasPlayingAtInterruption = NO;
     AVAudioSession *session = [AVAudioSession sharedInstance];
     NSError *error = nil;
     if (![session setCategory:AVAudioSessionCategoryPlayback error:&error]) {
@@ -115,19 +116,33 @@ static const NSTimeInterval kDeactivateDelaySeconds = 10.0;
     NSUInteger type = [note.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue];
     if (type == AVAudioSessionInterruptionTypeBegan) {
         [self onMain:^{
+            BOOL firstEdge = !self->_interruptionActive;
             self->_interruptionActive = YES;
-            self->_wasPlayingAtInterruption = [self.delegate audioSessionShouldPause:self];
+            BOOL wasPlaying = [self.delegate audioSessionShouldPause:self];
+            if (firstEdge) {
+                // Duplicate Began notifications may reinforce the idempotent
+                // pause, but only the first edge owns the matching Ended
+                // intent. Later config/route pauses must not erase it.
+                self->_wasPlayingAtInterruption = wasPlaying;
+            }
         }];
     }
     else if (type == AVAudioSessionInterruptionTypeEnded) {
         NSUInteger options = [note.userInfo[AVAudioSessionInterruptionOptionKey] unsignedIntegerValue];
         [self onMain:^{
+            BOOL matchedActiveInterruption = self->_interruptionActive;
             self->_interruptionActive = NO;
-            BOOL wasPlaying = self->_wasPlayingAtInterruption;
+            BOOL wasPlaying = matchedActiveInterruption && self->_wasPlayingAtInterruption;
             // Consumed: a duplicate or Began-less Ended (documented after a
             // foregrounding) must not replay a stale YES and resume audio the
             // user has since paused by hand.
             self->_wasPlayingAtInterruption = NO;
+            if (!matchedActiveInterruption) {
+                // activate may already have declared an orphaned interruption
+                // over and reclaimed the session for a user play. A late Ended
+                // then owns neither a resume nor a new idle-deactivation timer.
+                return;
+            }
             if ((options & AVAudioSessionInterruptionOptionShouldResume) && wasPlaying) {
                 [self.delegate audioSessionShouldResume:self];
             }
@@ -156,7 +171,9 @@ static const NSTimeInterval kDeactivateDelaySeconds = 10.0;
 - (void)handleMediaServicesReset:(NSNotification *)note {
     LogWarn(@"AudioSession: media services were reset");
     [self onMain:^{
+        self->_activationGeneration++; // every pending session operation belonged to the dead server
         self->_interruptionActive = NO; // whatever was in progress died with the server
+        self->_wasPlayingAtInterruption = NO;
         [self.delegate audioSessionMediaServicesWereReset:self];
     }];
 }

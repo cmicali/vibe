@@ -64,7 +64,15 @@ NS_ASSUME_NONNULL_BEGIN
                          enableFX:(BOOL)enableFX delegate:(id <AudioPlayerDelegate>)delegate;
 
 - (void)play:(AudioTrack *)track;
+// The user's transport action: toggles the state which exists when it reaches
+// the player queue, including an in-flight open's landing intent.
 - (void)playPause;
+// Explicit system verdicts (audio-session and remote-command play/pause).
+// Idempotent on the player queue: duplicate notifications cannot accidentally
+// toggle playback back to the state the system just asked it to leave. Resume
+// also cancels a pause whose short fade-out has not completed yet.
+- (void)pause;
+- (void)resume;
 
 // Starts a track at position (file seconds, clamped), optionally parked:
 // with startPaused the track loads but nothing renders until playPause.

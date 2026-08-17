@@ -48,6 +48,11 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
                                               animated:[pipeline isCompleteAtIndex:index]];
 }
 
+- (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
+      didFailWaveformForIndex:(NSUInteger)index {
+    [[self cellAtIndex:index].waveformView hideLoadingIndicator];
+}
+
 // No BPM or key delivery here: analysis is macOS-only, so the coordinator has
 // nothing to forward. AudioTrack.bpm and .key still resolve, from the file's
 // own tags.
@@ -91,7 +96,7 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     _elapsedLabel.text = [[Formatters sharedInstance] durationStringFromTimeInterval:position];
     // In total-duration mode this does not move during a scrub, which is
     // correct: only the elapsed side tracks where the release will land.
-    _remainingLabel.text = VibeRightTimeText(position, duration);
+    _remainingTimeControl.text = VibeRightTimeText(position, duration);
 }
 
 // Hold the pager still for the length of a scrub. See the protocol comment:

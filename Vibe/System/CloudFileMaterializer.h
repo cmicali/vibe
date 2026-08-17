@@ -27,22 +27,43 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// One prepared materialization call. The materializer creates it before the
+// caller dispatches the worker, so -cancel can invalidate work which is
+// committed but has not entered materializeURL:claim:error: yet.
+//
+// Opaque by design: identity is the only thing a caller carries across the
+// dispatch boundary.
+@interface CloudFileMaterializationClaim : NSObject
+
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+
+@end
+
 @interface CloudFileMaterializer : NSObject
 
+// Registers one call before it is dispatched. A later preparation supersedes
+// the earlier claim, just as -cancel does; callers use one materializer for one
+// serial lane, so there is only one prepared or running call at a time.
+- (CloudFileMaterializationClaim *)prepareMaterialization;
+
 // Blocks until url's data is on disk, and answers whether it got there. A
-// local file is already materialized, so this is a cheap round trip rather
-// than a special case the caller has to test for.
+// local file is already materialized, so this only performs the cheap
+// placeholder probe rather than coordinating a read. claim must have been
+// returned by this materializer before the worker was dispatched.
 //
 // BACKGROUND QUEUES ONLY: it blocks for the length of a download, and file
 // coordination on the main thread is how an app deadlocks against its own
 // presenters.
-- (BOOL)materializeURL:(NSURL *)url error:(NSError *__autoreleasing _Nullable *_Nullable)error;
+- (BOOL)materializeURL:(NSURL *)url
+                 claim:(CloudFileMaterializationClaim *)claim
+                 error:(NSError *__autoreleasing _Nullable *_Nullable)error;
 
-// Aborts the download in progress, if there is one. Any thread, returns
-// immediately, and the blocked materializeURL: returns NO with
-// NSUserCancelledError. Cancelling is per-download, not a latch: the next
-// materializeURL: mints a fresh coordinator and runs normally, so the caller's
-// own gate — the cloud lane's suspension — is what decides when work resumes.
+// Aborts the prepared or in-progress call, if there is one. Any thread,
+// returns immediately, and materializeURL:claim:error: returns NO with
+// NSUserCancelledError. Cancelling is per-claim, not a latch: the next
+// prepareMaterialization creates independent work, so the caller's own gate —
+// the cloud lane's suspension — is what decides when work resumes.
 - (void)cancel;
 
 @end

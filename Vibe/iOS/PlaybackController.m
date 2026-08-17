@@ -291,6 +291,7 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)seekToProgress:(float)progress {
+    progress = MIN(MAX(progress, 0), 1);
     NSTimeInterval duration = _player.duration;
     if (duration > 0) {
         _pendingSeekProgress = progress;
@@ -308,18 +309,44 @@ static const NSUInteger kUIUpdateHz = 3;
     // chose and blasting the track from the top. A scrub is a request to move
     // the playhead and nothing else.
     AudioTrack *track = _playlist.currentTrack;
-    if (!_parked || track.duration <= 0) {
+    if (track.duration <= 0) {
         return;
     }
     _pendingSeekProgress = progress;
-    _seekInFlight = YES;      // holds the waveform on the target through the open
-    _trackStartPending = YES;
-    [self notifyDidChangePlayState];
-    [_player play:track atPosition:track.duration * progress startPaused:YES];
+    _seekInFlight = YES;
+    if (_parked) {
+        // Holds the waveform on the target through the parked open. play:
+        // rebinds an existing same-file request, so a second seek updates its
+        // landing intent without starting another open or settling early.
+        _trackStartPending = YES;
+        [self notifyDidChangePlayState];
+        [_player play:track atPosition:track.duration * progress startPaused:YES];
+        return;
+    }
+    if (_player.isLoading) {
+        [_player seekToPosition:track.duration * progress];
+        return;
+    }
+    _seekInFlight = NO;
 }
 
 - (void)seekToPosition:(NSTimeInterval)position {
-    [_player seekToPosition:position];
+    NSTimeInterval duration = _player.duration;
+    if (duration <= 0) {
+        duration = _playlist.currentTrack.duration;
+    }
+    if (duration > 0) {
+        // The same funnel as an on-screen scrub is what opens a restored,
+        // parked track paused at the requested absolute position.
+        [self seekToProgress:(float)(position / duration)];
+        return;
+    }
+    if (_player.isLoading) {
+        // Duration metadata can still be pending, but AudioPlayer can update
+        // the open request with an absolute file position already.
+        _seekInFlight = YES;
+        [_player seekToPosition:MAX(position, 0)];
+    }
 }
 
 - (void)loadMetadataNowForTrack:(AudioTrack *)track {
@@ -548,20 +575,20 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 - (BOOL)audioSessionShouldPause:(AudioSessionController *)controller {
     BOOL wasPlaying = _player.isPlaying;
-    if (wasPlaying) {
-        // While Loading this toggles the landing to parked instead: the
-        // engine never starts against the interrupted session, and
-        // shouldResume's isLoading branch flips it back.
-        [_player playPause];
-    }
+    // The player decides beside its queue-confined state. While Loading this
+    // requests a parked landing; duplicate route/interruption verdicts remain
+    // parked rather than toggling it back to playing.
+    [_player pause];
     return wasPlaying;
 }
 
 - (void)audioSessionShouldResume:(AudioSessionController *)controller {
-    if (_player.isPaused || _player.isLoading) {
-        [_audioSession activate];
-        [_player playPause];
-    }
+    [_audioSession activate];
+    [_player resume];
+    // If Ended raced the short pause fade, resume dissolves the pending pause
+    // while the state still reads Playing. Follow it with the idempotent health
+    // check so an engine already stopped by the interruption is rebuilt too.
+    [_player recoverFromEngineConfigurationChange];
 }
 
 - (void)audioSessionEngineConfigurationChanged:(AudioSessionController *)controller {

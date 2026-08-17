@@ -64,6 +64,11 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
     // Touched from the four stage-1 workers and from main, hence the lock.
     NSMutableArray<VibeCloudParseEntry *>* _cloudParses;
     NSArray<NSURL *>* _neighborhood;   // rank order; empty until a screen names one
+    // The suspension verdict shares _cloudParsesLock with the preparation of
+    // the active materialization claim. That closes the race where a hold
+    // cancelled an empty slot just before an already-started operation filled
+    // it and began downloading anyway.
+    BOOL _cloudParsesHeld;
     os_unfair_lock _cloudParsesLock;
     // Makes the download in front of a cloud parse abortable, which a plain
     // read is not; the hold cancels it. See CloudFileMaterializer.
@@ -228,9 +233,25 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
 // because the hold suspends the queue BEFORE it cancels, so the replacement
 // cannot start until the hold lifts.
 - (void)runCloudParse:(AudioTrack *)track {
+    // Register the call under the same gate setCloudParsesHeld: closes before
+    // it cancels. Either this preparation wins and the following cancel can
+    // reach it before materializeURL: enters, or the hold wins and this
+    // operation re-queues behind the suspended lane.
+    os_unfair_lock_lock(&_cloudParsesLock);
+    CloudFileMaterializationClaim *claim = (!self.isCancelled && !_cloudParsesHeld)
+            ? [_materializer prepareMaterialization]
+            : nil;
+    os_unfair_lock_unlock(&_cloudParsesLock);
+    if (!claim) {
+        if (!self.isCancelled) {
+            [self cacheCheckOneTrack:track];
+        }
+        return;
+    }
+
     CFAbsoluteTime startedAt = CFAbsoluteTimeGetCurrent();
     NSError *error = nil;
-    if (![_materializer materializeURL:track.url error:&error]) {
+    if (![_materializer materializeURL:track.url claim:claim error:&error]) {
         LogInfo(@"Cloud parse: %@ interrupted after %.1fs (%@)", track.url.lastPathComponent,
                 CFAbsoluteTimeGetCurrent() - startedAt, error.localizedDescription);
         if (!self.isCancelled) {
@@ -502,19 +523,40 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
 }
 
 - (void)setCloudParsesHeld:(BOOL)held {
+    if (!_cloudQueue) {
+        return;
+    }
     // Suspend BEFORE cancelling, never after: the cancelled parse re-queues
     // itself, and on a queue still running that replacement would start the
     // same download again immediately — a cancel loop rather than a hold.
-    _cloudQueue.suspended = held;
     if (held) {
+        _cloudQueue.suspended = YES;
+        os_unfair_lock_lock(&_cloudParsesLock);
+        _cloudParsesHeld = YES;
+        os_unfair_lock_unlock(&_cloudParsesLock);
         [_materializer cancel];
+        return;
     }
+    // Open the registration gate before resuming the queue, so its first
+    // operation can prepare a fresh, unpoisoned claim immediately.
+    os_unfair_lock_lock(&_cloudParsesLock);
+    _cloudParsesHeld = NO;
+    os_unfair_lock_unlock(&_cloudParsesLock);
+    _cloudQueue.suspended = NO;
 }
 
 - (void)cancel {
     self.isCancelled = YES;
     [_queue cancelAllOperations];
     [_cloudQueue cancelAllOperations];
+    // Close the claim-registration gate before cancelling the current claim.
+    // An operation which already passed the gate is in the materializer's slot
+    // and is reached by cancel; one arriving later sees the closed gate.
+    if (_cloudQueue) {
+        os_unfair_lock_lock(&_cloudParsesLock);
+        _cloudParsesHeld = YES;
+        os_unfair_lock_unlock(&_cloudParsesLock);
+    }
     // The download in flight belongs to a playlist that is gone. Its op checks
     // isCancelled above and re-queues nothing.
     [_materializer cancel];

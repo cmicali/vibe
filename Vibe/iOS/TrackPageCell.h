@@ -31,10 +31,12 @@ NS_ASSUME_NONNULL_BEGIN
 @interface VibeTransportRowView : UIView
 @end
 
-// The right-hand time label, a class of its own for the same reason: it takes
-// its own tap — total time vs remaining — so the card's tap-anywhere-to-pause
-// has to decline it, and class membership is how that check is written.
-@interface VibeTimeLabel : UILabel
+// The right-hand time readout is a control because tapping it changes the
+// total-vs-remaining mode. Its intrinsic height is a 44pt hit target while its
+// internal label stays visually aligned with the elapsed time.
+@interface VibeTimeControl : UIControl
+@property (nonatomic, copy) NSString *text;
+@property (nonatomic) NSTextAlignment textAlignment;
 @end
 
 @interface TrackPageCell : UICollectionViewCell
@@ -48,10 +50,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) WaveformScrubberView *waveformView;
 @property (nonatomic, readonly) UILabel *elapsedLabel;
 // Shows the total duration, or the minus-prefixed remaining time once tapped.
-// Its recognizer is exposed rather than a target: the mode is one setting for
-// the whole app, so the controller owns the toggle and every page follows.
-@property (nonatomic, readonly) VibeTimeLabel *remainingLabel;
-@property (nonatomic, readonly) UITapGestureRecognizer *remainingLabelTap;
+// The mode is one setting for the whole app, so the controller owns the target
+// and every page follows.
+@property (nonatomic, readonly) VibeTimeControl *remainingTimeControl;
 
 // The transport row — previous, play/pause, next — and its buttons. The
 // controller wires the three actions, swaps the play/pause symbol, and fades

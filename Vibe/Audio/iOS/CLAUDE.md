@@ -21,13 +21,13 @@ Four events, four delegate verdicts, each mapped onto the player's public API:
 
 The configuration-change verdict restarts the stopped engine **in place**, so connecting AirPods or CarPlay keeps playing rather than pausing.
 
-**A pause verdict during Loading parks the landing** rather than being dropped — `playPause` toggles `_pendingStartPaused` while Loading — so the engine never starts against an interrupted session.
+**A pause verdict during Loading parks the landing** rather than being dropped. The player's explicit `pause`/`resume` methods update the pending request to the requested state, so duplicate system verdicts are no-ops instead of toggles.
 
 ## AudioPlayer+Recovery
 
 The player's engine-recovery category, on `AudioPlayerInternal.h`'s shared private surface exactly as the mac's `AudioPlayer+Devices` is. It lives here so the mac target never compiles or even sees the API, and `AudioSessionController`'s verdicts are the only callers.
 
-- `recoverFromEngineConfigurationChange` — restarts a stopped engine in place at the cached position, preserving the play state across route and format changes.
+- `recoverFromEngineConfigurationChange` — restarts a stopped engine in place at the cached position, preserving the play state across route and format changes. An iOS-only player-queue sampler refreshes that cache from valid render time while the backgrounded UI timer is dormant.
 - `reinitializeAfterMediaServicesReset` — **every audio object is dead per Apple's contract**, so this drops them without messaging them (`dropEngineBoundStateOnQueue`) and recreates the engine and master bus. `installMasterBusOnQueue` is shared with the ordinary init, so the FX and no-FX configurations rebuild identically — and since the iOS player is created with `enableFX:NO`, it takes the bare mixer-to-output wire. `PlayerViewController` re-parks the current track at the captured position.
 
 ## Verifying

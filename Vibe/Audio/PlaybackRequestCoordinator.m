@@ -86,6 +86,17 @@
     return [self copyOfRequest:request];
 }
 
+- (VibePlaybackRequest *)setPausedIfChanged:(BOOL)paused {
+    VibePlaybackRequest *request = _currentRequest;
+    if (!request || request.intent.paused == paused) {
+        return nil;
+    }
+    VibePendingPlaybackIntent intent = request.intent;
+    intent.paused = paused;
+    request.intent = intent;
+    return [self copyOfRequest:request];
+}
+
 - (BOOL)seekToPosition:(NSTimeInterval)position
       ifCurrentTrackIs:(id)track
  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {

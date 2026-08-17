@@ -111,6 +111,9 @@
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track {
+    if (![_playlist isCurrentTrack:track]) {
+        return;
+    }
     _updateTimer.wanted = NO;
     [_audioSession deactivateWhenIdle];
     [self notifyDidChangePlayState];
@@ -118,6 +121,9 @@
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track {
+    if (![_playlist isCurrentTrack:track]) {
+        return;
+    }
     // A resume from a media-reset (or interrupted-load) park goes through
     // playPause directly, never playCurrentTrack, so the flag clears here.
     _parked = NO;

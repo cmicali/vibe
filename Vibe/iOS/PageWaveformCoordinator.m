@@ -23,6 +23,9 @@
     // when it comes off. An index set, not a queue: only the latest snapshot
     // per page is worth painting.
     NSMutableIndexSet *_heldUpdates;
+    // Terminal failures owed to the receiver after the scroll hold. The
+    // target is cleared immediately so the settle request can retry it.
+    NSMutableIndexSet *_heldFailures;
 }
 
 - (instancetype)initWithCache:(AudioWaveformCache *)cache
@@ -36,6 +39,7 @@
         _snapshots = [NSMutableDictionary dictionary];
         _completePages = [NSMutableIndexSet indexSet];
         _heldUpdates = [NSMutableIndexSet indexSet];
+        _heldFailures = [NSMutableIndexSet indexSet];
     }
     return self;
 }
@@ -53,11 +57,16 @@
     // that releases the hold asks for the page it actually landed on.
     NSMutableIndexSet *owed = _heldUpdates;
     _heldUpdates = [NSMutableIndexSet indexSet];
+    NSMutableIndexSet *failed = _heldFailures;
+    _heldFailures = [NSMutableIndexSet indexSet];
     [owed enumerateIndexesUsingBlock:^(NSUInteger page, BOOL *stop) {
         CodableAudioWaveform *waveform = self->_snapshots[@(page)];
         if (waveform) {
             [self->_delegate pageWaveformCoordinator:self didUpdateWaveform:waveform forIndex:page];
         }
+    }];
+    [failed enumerateIndexesUsingBlock:^(NSUInteger page, BOOL *stop) {
+        [self->_delegate pageWaveformCoordinator:self didFailWaveformForIndex:page];
     }];
 }
 
@@ -101,6 +110,7 @@
     [_snapshots removeAllObjects];
     [_completePages removeAllIndexes];
     [_heldUpdates removeAllIndexes];
+    [_heldFailures removeAllIndexes];
 }
 
 - (CodableAudioWaveform *)snapshotAtIndex:(NSUInteger)index {
@@ -131,6 +141,21 @@
         return;
     }
     [_delegate pageWaveformCoordinator:self didUpdateWaveform:waveform forIndex:_targetIndex];
+}
+
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForURL:(NSURL *)url {
+    if (_targetIndex == NSNotFound || ![url isEqual:_targetURL]) {
+        return;
+    }
+    NSUInteger failedIndex = _targetIndex;
+    _targetIndex = NSNotFound;
+    _targetURL = nil;
+    [_completePages removeIndex:failedIndex];
+    if (_held) {
+        [_heldFailures addIndex:failedIndex];
+        return;
+    }
+    [_delegate pageWaveformCoordinator:self didFailWaveformForIndex:failedIndex];
 }
 
 // audioWaveformCache:didDetectBPM:forURL: and its key twin are optional and

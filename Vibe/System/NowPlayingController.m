@@ -282,10 +282,9 @@ static VibeImage *VibeArtworkForPublishing(VibeImage *artwork) {
         return;
     }
 
-    // The same string the in-app header shows for an untagged file: the
-    // cleaned-up filename, not the raw title with its extension.
-    NSString *title = track.singleLineTitle ?: @"";
-    NSString *artist = track.artist.length > 0 ? track.artist : nil;
+    // Use the same tagged-title-or-filename rule as every in-app track label.
+    NSString *title = track.displayTitle ?: @"";
+    NSString *artist = track.displayArtist;
     // cachedArt is the already-decoded image, or nil, and never blocks: it does
     // no file read and no decode. While it is still nil the caller refreshes
     // once the art resolves, so the card fills in a moment later rather than
