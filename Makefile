@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: setup project build build-ios test test-summary analyze stress release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout
+.PHONY: setup project build build-ios install-ios test test-summary analyze stress release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -29,6 +29,14 @@ build-ios: project
 	xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -configuration $(CONFIG) \
 	    -destination 'generic/platform=iOS Simulator' \
 	    -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
+
+# The iOS app built for a paired physical device, signed, and installed over
+# the CoreDevice tunnel. Needs a development certificate and a profile for the
+# bundle ID — build-ios above is the unsigned simulator slice and installs
+# nothing. The single paired device is picked automatically; with more than one
+# connected, name it: make install-ios DEVICE="cmicali iPhone"
+install-ios: project
+	SKIP_GENERATE=1 scripts/install-ios.sh $(CONFIG)
 
 # Run the unit tests (Tests/, VibeTests target). Always Debug — the suite is
 # host-less pure-logic only, so it needs no window server, no audio hardware,

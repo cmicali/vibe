@@ -16,6 +16,7 @@ xcodegen generate        # or: make project
 | --- | --- |
 | `make build [CONFIG=Debug]` | macOS app; Release by default. Regenerates the project, writes to `build/DerivedData`. |
 | `make build-ios [CONFIG=Debug]` | iOS app, generic simulator destination, unsigned. Exactly what CI's `build-ios` job runs. |
+| `make install-ios [CONFIG=Debug]` | iOS app for a paired physical device — signed, then installed over the CoreDevice tunnel. Needs a development certificate; `DEVICE=<name or identifier>` when more than one device is paired. |
 | `make run` / `make install` | Launch; copy into `/Applications`. |
 | `make clean` | Removes `build/` and the generated project. |
 
