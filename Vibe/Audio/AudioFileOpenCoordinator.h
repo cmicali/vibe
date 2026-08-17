@@ -81,6 +81,14 @@ typedef void (^VibeAudioFileOpenCompletion)(AVAudioFile * _Nullable file,
                          claimed:(nullable dispatch_block_t)claimed
                       completion:(VibeAudioFileOpenCompletion)completion;
 
+// Whether a live claim, any purpose, is materializing this standardized path
+// right now. An advisory answer for scheduling — the metadata lane skips a
+// pending download whose bytes the player or its prefetch is already moving —
+// never proof of ownership: a claim can appear or settle the moment after it
+// answers, so a caller must tolerate both directions, and the lane does, by
+// re-asking when it picks and by standing a running parse aside.
+- (BOOL)isMaterializingURL:(NSURL *)url;
+
 @end
 
 NS_ASSUME_NONNULL_END

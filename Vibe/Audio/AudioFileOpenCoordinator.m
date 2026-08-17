@@ -191,6 +191,24 @@ static const NSTimeInterval kBackgroundAdmissionGraceSeconds = 10.0;
     return token;
 }
 
+- (BOOL)isMaterializingURL:(NSURL *)url {
+    NSString *path = VibeStandardizedAudioOpenPath(url);
+    __block BOOL materializing = NO;
+    dispatch_sync(_stateQueue, ^{
+        for (VibeAudioFileOpenClaim *claim in self->_claims.objectEnumerator) {
+            // Only claims that own a transfer count: a gapless claim opens a
+            // second handle on a file the prefetch already made local, so it
+            // carries no materializer and moves no bytes.
+            if (claim.materializer
+                    && [VibeStandardizedAudioOpenPath(claim.url) isEqualToString:path]) {
+                materializing = YES;
+                return;
+            }
+        }
+    });
+    return materializing;
+}
+
 - (void)detachToken:(AudioFileOpenToken *)token {
     if (!token) {
         return;
