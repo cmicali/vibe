@@ -14,6 +14,7 @@
 //
 
 #import "AudioPlayer.h"
+#import "CloudFileMaterializer.h"
 #import "PlaybackRequestCoordinator.h"
 #import <AVFoundation/AVFoundation.h>
 #import <os/lock.h>
@@ -97,6 +98,17 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AVAudioFile             *_prefetchedFile;
     AudioTrack              *_prefetchedTrack;
     uint64_t                _prefetchRequestId;
+
+    // ---- The two abortable downloads. A dataless file is materialized before
+    // it is opened, because AVAudioFile's own open cannot be interrupted: a
+    // superseded play or prefetch would otherwise go on pulling a whole track
+    // down the wire that nothing will use, against the one the user is waiting
+    // for, and the open timeout would abandon the request while leaving its
+    // worker wedged for the provider's whole transfer. One slot each because a
+    // play and a prefetch overlap; a new request cancels the slot it replaces,
+    // and stop cancels both. Queue-confined, and cancel is thread-safe.
+    CloudFileMaterializer   *_playMaterializer;
+    CloudFileMaterializer   *_prefetchMaterializer;
 
     // _gaplessFile is a private handle opened separately from the prefetch
     // park: AVAudioFile has one stateful read position and the node pre-reads

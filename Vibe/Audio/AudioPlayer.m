@@ -22,6 +22,7 @@
 #import "CoreAudioUtil.h"
 #endif
 #import "NSURL+AudioOpen.h"
+#import "NSURLUtil.h"
 #import "FadeMath.h"
 #import "GaplessSpliceMath.h"
 #import "PlaybackRequestCoordinator.h"
@@ -496,6 +497,13 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // The request id pairs each open with its timeout: whichever fires first
     // consumes the id, and the other becomes a no-op.
     NSURL *openURL = track.url;
+    // This open's own materializer, replacing the previous play's: whatever
+    // that one was still downloading is for a track nothing is waiting on any
+    // more, and it competes with this one for the provider. Cancelling it is
+    // the only way to stop it — see CloudFileMaterializer.
+    [_playMaterializer cancel];
+    CloudFileMaterializer *materializer = [[CloudFileMaterializer alloc] init];
+    _playMaterializer = materializer;
     __weak AudioPlayer *weakSelf = self;
     // Always open on our own user-initiated worker, even when a prefetch open
     // for this exact path is still in flight: that worker runs at utility QoS,
@@ -505,11 +513,30 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // completion can still deliver first, or park the handle if it loses.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *error = nil;
+        CFAbsoluteTime openStartedAt = CFAbsoluteTimeGetCurrent();
+        // The download, as a step of its own, so it can be abandoned. Only for
+        // a placeholder — a local file would pay a coordination round trip on
+        // every track start for nothing. A cancelled one falls through with a
+        // nil file, and the delivery below no-ops because the newer play that
+        // cancelled it has already consumed the request.
+        BOOL materialized = ![NSURLUtil isDatalessFile:openURL]
+                || [materializer materializeURL:openURL error:&error];
         // Empty paths never reach the open: it would leak a descriptor
         // (NSURL+AudioOpen). A nil file lands on the same failure path.
-        AVAudioFile *file = openURL.isEmptyOrDirectory
+        AVAudioFile *file = (!materialized || openURL.isEmptyOrDirectory)
                 ? nil
                 : [[AVAudioFile alloc] initForReading:openURL error:&error];
+        NSTimeInterval openSeconds = CFAbsoluteTimeGetCurrent() - openStartedAt;
+        // An open that outran the loading indicator's own threshold was a
+        // materialization, near enough. How long the provider took is the one
+        // number that explains a slow start, and nothing else records it.
+        if (!materialized) {
+            LogInfo(@"Open of %@ abandoned after %.1fs (%@)", openURL.lastPathComponent,
+                    openSeconds, error.localizedDescription);
+        }
+        else if (openSeconds >= kSlowOpenIndicatorDelaySeconds) {
+            LogInfo(@"Opened %@ in %.1fs", openURL.lastPathComponent, openSeconds);
+        }
         AudioPlayer *strongSelf = weakSelf;
         if (strongSelf) {
             dispatch_async(strongSelf->_queue, ^{
@@ -804,6 +831,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self retireNode:oldNode varispeed:oldVarispeed milliseconds:kFadeDurationMilliseconds];
 
     self.currentTrack = nil;
+    // Superseding an open stops us WAITING on it; the download behind it runs
+    // on regardless unless it is cancelled. File > Close wants neither.
+    [_playMaterializer cancel];
+    [_prefetchMaterializer cancel];
     // This supersedes any in-flight open, publishes Stopped and schedules the
     // engine idle stop that releases the output device.
     [self resetToStoppedStateOnQueue];

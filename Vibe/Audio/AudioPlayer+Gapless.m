@@ -8,6 +8,7 @@
 #import "AudioTrack.h"
 #import "GaplessSpliceMath.h"
 #import "NSURL+AudioOpen.h"
+#import "NSURLUtil.h"
 
 @implementation AudioPlayer (Gapless)
 
@@ -236,11 +237,23 @@
         return; // nil track means end of playlist: just drop the parked handle
     }
     uint64_t prefetchId = _prefetchRequestId;
+    // The previous prefetch's download is for a track that is no longer next.
+    // On a cloud folder that is a whole file still coming down against the one
+    // the user is waiting on, so it is cancelled rather than left to finish;
+    // see the materializer slots in AudioPlayerInternal.h.
+    [_prefetchMaterializer cancel];
+    CloudFileMaterializer *materializer = [[CloudFileMaterializer alloc] init];
+    _prefetchMaterializer = materializer;
     __weak AudioPlayer *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSError *error = nil;
+        // Materialize first so the download is abortable; a plain open is not.
+        // A cancelled one delivers no file, which is exactly what a superseded
+        // prefetch should park — nothing.
+        BOOL materialized = ![NSURLUtil isDatalessFile:track.url]
+                || [materializer materializeURL:track.url error:&error];
         // Empty paths never reach the open; see NSURL+AudioOpen.
-        AVAudioFile *file = track.url.isEmptyOrDirectory
+        AVAudioFile *file = (!materialized || track.url.isEmptyOrDirectory)
                 ? nil
                 : [[AVAudioFile alloc] initForReading:track.url error:&error];
         AudioPlayer *strongSelf = weakSelf;
