@@ -518,7 +518,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     NSURL *openURL = track.url;
     // This open's own materializer; the one it replaces was cancelled above.
     CloudFileMaterializer *materializer = [[CloudFileMaterializer alloc] init];
-    CloudFileMaterializationClaim *materializationClaim = [materializer prepareMaterialization];
+    CloudFileMaterializationToken *materializationToken = [materializer prepareMaterialization];
     _playMaterializer = materializer;
     _playMaterializerRequestId = openId;
     __weak AudioPlayer *weakSelf = self;
@@ -537,7 +537,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         // the delivery below no-ops because the newer play that cancelled it
         // has already consumed the request.
         BOOL materialized = [materializer materializeURL:openURL
-                                                   claim:materializationClaim
+                                                   token:materializationToken
                                                    error:&error];
         // Empty paths never reach the open: it would leak a descriptor
         // (NSURL+AudioOpen). A nil file lands on the same failure path.
@@ -662,7 +662,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self cancelPlayMaterializerForRequest:openId];
     // The matching materializer was cancelled above, so its blocked worker
     // returns promptly. The file stays retryable: a later play mints a fresh
-    // claim and coordinator.
+    // token and coordinator.
     AudioTrack *track = request.track;
     LogError(@"Timed out opening %@", track.url.path);
     [self resetToStoppedStateOnQueue];

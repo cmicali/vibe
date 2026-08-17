@@ -30,12 +30,12 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *),
 }
 #endif
 
-@interface CloudFileMaterializationClaim ()
+@interface CloudFileMaterializationToken ()
 @property (nonatomic, getter=isCancelled) BOOL cancelled;
 - (instancetype)initForMaterializer;
 @end
 
-@implementation CloudFileMaterializationClaim
+@implementation CloudFileMaterializationToken
 
 - (instancetype)initForMaterializer {
     return [super init];
@@ -48,7 +48,7 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *),
     // worker. Keeping the pending call in the same slot as the live
     // coordinator closes the cancel-before-entry window without turning
     // cancellation into a permanent latch.
-    CloudFileMaterializationClaim *_claim;
+    CloudFileMaterializationToken *_token;
     // The coordinator of the download in flight, which is the only thing
     // -cancel has to reach. Held under a lock because cancel is documented as
     // callable from any thread and is the whole point of the class.
@@ -69,19 +69,19 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *),
     return self;
 }
 
-- (CloudFileMaterializationClaim *)prepareMaterialization {
-    CloudFileMaterializationClaim *claim = [[CloudFileMaterializationClaim alloc] initForMaterializer];
+- (CloudFileMaterializationToken *)prepareMaterialization {
+    CloudFileMaterializationToken *token = [[CloudFileMaterializationToken alloc] initForMaterializer];
 
     os_unfair_lock_lock(&_lock);
-    CloudFileMaterializationClaim *oldClaim = _claim;
-    oldClaim.cancelled = YES;
+    CloudFileMaterializationToken *oldToken = _token;
+    oldToken.cancelled = YES;
     NSFileCoordinator *oldCoordinator = _coordinator;
     _coordinator = nil;
 #if DEBUG
     dispatch_semaphore_t oldFakeWait = _fakeWait;
     _fakeWait = nil;
 #endif
-    _claim = claim;
+    _token = token;
     os_unfair_lock_unlock(&_lock);
 
     [oldCoordinator cancel];
@@ -90,21 +90,21 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *),
         dispatch_semaphore_signal(oldFakeWait);
     }
 #endif
-    return claim;
+    return token;
 }
 
 static NSError *VibeMaterializationCancelledError(void) {
     return [NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil];
 }
 
-// Atomically consumes a still-current claim for a URL which was already local.
+// Atomically consumes a still-current token for a URL which was already local.
 // A cancel that wins this lock makes the call fail; one that lands afterwards
 // correctly sees no work left to cancel.
-- (BOOL)consumeLocalClaim:(CloudFileMaterializationClaim *)claim {
+- (BOOL)consumeLocalToken:(CloudFileMaterializationToken *)token {
     os_unfair_lock_lock(&_lock);
-    BOOL current = (_claim == claim && !claim.isCancelled);
+    BOOL current = (_token == token && !token.isCancelled);
     if (current) {
-        _claim = nil;
+        _token = nil;
     }
     os_unfair_lock_unlock(&_lock);
     return current;
@@ -122,15 +122,15 @@ static NSError *VibeMaterializationCancelledError(void) {
 
 // Waits out the fake transfer, or returns NO the moment -cancel signals. The
 // semaphore is the cancel path's only reach into this, so it goes in the slot
-// under the same lock the coordinator uses. The already-prepared claim is
+// under the same lock the coordinator uses. The already-prepared token is
 // checked while installing it, which covers cancellation before this method
 // was entered as well as cancellation during the wait.
 - (BOOL)waitOutFakeTransfer:(NSTimeInterval)seconds
-                       claim:(CloudFileMaterializationClaim *)claim
+                       token:(CloudFileMaterializationToken *)token
                        error:(NSError *__autoreleasing *)error {
     dispatch_semaphore_t wait = dispatch_semaphore_create(0);
     os_unfair_lock_lock(&_lock);
-    BOOL current = (_claim == claim && !claim.isCancelled);
+    BOOL current = (_token == token && !token.isCancelled);
     if (current) {
         _fakeWait = wait;
     }
@@ -150,8 +150,8 @@ static NSError *VibeMaterializationCancelledError(void) {
     if (_fakeWait == wait) {
         _fakeWait = nil;
     }
-    if (_claim == claim) {
-        _claim = nil;
+    if (_token == token) {
+        _token = nil;
     }
     os_unfair_lock_unlock(&_lock);
 
@@ -164,11 +164,11 @@ static NSError *VibeMaterializationCancelledError(void) {
 #endif
 
 - (BOOL)materializeURL:(NSURL *)url
-                 claim:(CloudFileMaterializationClaim *)claim
+                 token:(CloudFileMaterializationToken *)token
                  error:(NSError *__autoreleasing *)error {
-    // Keep the placeholder probe inside the claimed call. Besides making local
+    // Keep the placeholder probe inside the prepared call. Besides making local
     // files cheap, this means callers never have to bypass materialization and
-    // accidentally leave a prepared claim live forever.
+    // accidentally leave a prepared token live forever.
     //
     // TRAP: it must stay AHEAD of the fake transfer below, not behind it. The
     // fake's seconds-for-URL answer is a property of the path alone, while the
@@ -176,7 +176,7 @@ static NSError *VibeMaterializationCancelledError(void) {
     // first would re-run a file's whole download every time it is replayed,
     // and no stress run would ever settle.
     if (![NSURLUtil isDatalessFile:url]) {
-        BOOL current = [self consumeLocalClaim:claim];
+        BOOL current = [self consumeLocalToken:token];
         if (!current && error) {
             *error = VibeMaterializationCancelledError();
         }
@@ -190,7 +190,7 @@ static NSError *VibeMaterializationCancelledError(void) {
     NSTimeInterval fake = fakeSeconds ? fakeSeconds(url) : 0;
     if (fake > 0) {
         // Cancelled leaves the file a placeholder, exactly as a real one does.
-        BOOL completed = [self waitOutFakeTransfer:fake claim:claim error:error];
+        BOOL completed = [self waitOutFakeTransfer:fake token:token error:error];
         if (didFinish) {
             didFinish(url, completed);
         }
@@ -204,7 +204,7 @@ static NSError *VibeMaterializationCancelledError(void) {
     // turn the first abort into a permanent refusal to download anything.
     NSFileCoordinator *coordinator = [[NSFileCoordinator alloc] initWithFilePresenter:nil];
     os_unfair_lock_lock(&_lock);
-    BOOL current = (_claim == claim && !claim.isCancelled);
+    BOOL current = (_token == token && !token.isCancelled);
     if (current) {
         _coordinator = coordinator;
     }
@@ -237,8 +237,8 @@ static NSError *VibeMaterializationCancelledError(void) {
     if (_coordinator == coordinator) {
         _coordinator = nil;
     }
-    if (_claim == claim) {
-        _claim = nil;
+    if (_token == token) {
+        _token = nil;
     }
     os_unfair_lock_unlock(&_lock);
 
@@ -250,8 +250,8 @@ static NSError *VibeMaterializationCancelledError(void) {
 
 - (void)cancel {
     os_unfair_lock_lock(&_lock);
-    _claim.cancelled = YES;
-    _claim = nil;
+    _token.cancelled = YES;
+    _token = nil;
     NSFileCoordinator *coordinator = _coordinator;
     _coordinator = nil;
 #if DEBUG

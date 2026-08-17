@@ -248,7 +248,7 @@
     }
     uint64_t prefetchId = _prefetchRequestId;
     CloudFileMaterializer *materializer = [[CloudFileMaterializer alloc] init];
-    CloudFileMaterializationClaim *materializationClaim = [materializer prepareMaterialization];
+    CloudFileMaterializationToken *materializationToken = [materializer prepareMaterialization];
     _prefetchMaterializer = materializer;
     __weak AudioPlayer *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
@@ -257,7 +257,7 @@
         // A cancelled one delivers no file, which is exactly what a superseded
         // prefetch should park — nothing.
         BOOL materialized = [materializer materializeURL:track.url
-                                                   claim:materializationClaim
+                                                   token:materializationToken
                                                    error:&error];
         // Empty paths never reach the open; see NSURL+AudioOpen.
         AVAudioFile *file = (!materialized || track.url.isEmptyOrDirectory)

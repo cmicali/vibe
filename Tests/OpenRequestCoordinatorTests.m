@@ -135,6 +135,24 @@ static NSArray<NSURL *> *OpenFiles(NSUInteger count) {
     XCTAssertEqual(_deliveries.count, 2u);
 }
 
+// A replacement arriving while an older generation's deadline is still armed
+// must not inherit its arming: the older timer exits on the generation
+// mismatch, so a straggler in the new generation would wait for a deadline
+// that never comes.
+- (void)testAReplacementGetsItsOwnDeadlineWhileAnOlderOneIsArmed {
+    _coordinator.stragglerDeadline = 0.02;
+    [self beginAppending:NO tagged:@"oldWedged"];
+    OpenRequestToken *oldSecond = [self beginAppending:YES tagged:@"oldSecond"];
+    [_coordinator finishRequest:oldSecond files:OpenFiles(2) folderCount:0];
+
+    [self beginAppending:NO tagged:@"newWedged"];
+    OpenRequestToken *newSecond = [self beginAppending:YES tagged:@"newSecond"];
+    [_coordinator finishRequest:newSecond files:OpenFiles(5) folderCount:0];
+
+    [self waitForDeliveryCount:1];
+    XCTAssertEqualObjects(_deliveries, (@[@"newSecond:append:5:0"]));
+}
+
 // Spins the run loop rather than sleeping, because the deadline fires on main.
 - (void)waitForDeliveryCount:(NSUInteger)count {
     NSDate *limit = [NSDate dateWithTimeIntervalSinceNow:2.0];

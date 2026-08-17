@@ -65,7 +65,7 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
     NSMutableArray<VibeCloudParseEntry *>* _cloudParses;
     NSArray<NSURL *>* _neighborhood;   // rank order; empty until a screen names one
     // The suspension verdict shares _cloudParsesLock with the preparation of
-    // the active materialization claim. That closes the race where a hold
+    // the active materialization token. That closes the race where a hold
     // cancelled an empty slot just before an already-started operation filled
     // it and began downloading anyway.
     BOOL _cloudParsesHeld;
@@ -238,11 +238,11 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
     // reach it before materializeURL: enters, or the hold wins and this
     // operation re-queues behind the suspended lane.
     os_unfair_lock_lock(&_cloudParsesLock);
-    CloudFileMaterializationClaim *claim = (!self.isCancelled && !_cloudParsesHeld)
+    CloudFileMaterializationToken *token = (!self.isCancelled && !_cloudParsesHeld)
             ? [_materializer prepareMaterialization]
             : nil;
     os_unfair_lock_unlock(&_cloudParsesLock);
-    if (!claim) {
+    if (!token) {
         if (!self.isCancelled) {
             [self cacheCheckOneTrack:track];
         }
@@ -251,7 +251,7 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
 
     CFAbsoluteTime startedAt = CFAbsoluteTimeGetCurrent();
     NSError *error = nil;
-    if (![_materializer materializeURL:track.url claim:claim error:&error]) {
+    if (![_materializer materializeURL:track.url token:token error:&error]) {
         LogInfo(@"Cloud parse: %@ interrupted after %.1fs (%@)", track.url.lastPathComponent,
                 CFAbsoluteTimeGetCurrent() - startedAt, error.localizedDescription);
         if (!self.isCancelled) {
@@ -538,7 +538,7 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
         return;
     }
     // Open the registration gate before resuming the queue, so its first
-    // operation can prepare a fresh, unpoisoned claim immediately.
+    // operation can prepare a fresh, unpoisoned token immediately.
     os_unfair_lock_lock(&_cloudParsesLock);
     _cloudParsesHeld = NO;
     os_unfair_lock_unlock(&_cloudParsesLock);
@@ -549,7 +549,7 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
     self.isCancelled = YES;
     [_queue cancelAllOperations];
     [_cloudQueue cancelAllOperations];
-    // Close the claim-registration gate before cancelling the current claim.
+    // Close the token-registration gate before cancelling the current token.
     // An operation which already passed the gate is in the materializer's slot
     // and is reached by cancel; one arriving later sees the closed gate.
     if (_cloudQueue) {

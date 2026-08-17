@@ -34,8 +34,9 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
     NSUInteger _nextSequence;
     NSUInteger _nextDeliverySequence;
     NSMutableDictionary<NSNumber *, OpenRequestResult *> *_completed;
-    // One armed deadline at a time; re-armed by the next stalled result.
-    BOOL _stragglerDeadlineArmed;
+    // One armed deadline per generation, re-armed by the next stalled result.
+    // 0 is none; generations start at 1 and only ever climb.
+    NSUInteger _armedDeadlineGeneration;
 }
 
 + (instancetype)sharedCoordinator {
@@ -139,11 +140,11 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
 }
 
 - (void)armStragglerDeadline {
-    if (_stragglerDeadlineArmed) {
+    if (_armedDeadlineGeneration == _openGeneration) {
         return;
     }
-    _stragglerDeadlineArmed = YES;
     NSUInteger generation = _openGeneration;
+    _armedDeadlineGeneration = generation;
     __weak OpenRequestCoordinator *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_stragglerDeadline * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
@@ -151,11 +152,14 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
         if (!strongSelf) {
             return;
         }
-        strongSelf->_stragglerDeadlineArmed = NO;
-        // A replacement since cleared the buffer; its own results re-arm.
-        if (strongSelf->_openGeneration != generation) {
+        // TRAP: a replacement since cleared the buffer and armed a deadline of
+        // its own. Disarming on the way out would be disarming that one, and
+        // the new generation's straggler would then wait for a deadline
+        // nothing arms.
+        if (strongSelf->_armedDeadlineGeneration != generation) {
             return;
         }
+        strongSelf->_armedDeadlineGeneration = 0;
         [strongSelf abandonStalledRequests];
     });
 }

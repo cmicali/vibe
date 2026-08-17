@@ -202,7 +202,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
 
 // The one funnel for a URL from any source. Each request owns an intent number;
 // provider work can overlap, but only the newest result may replace the live
-// session. The caller also takes a temporary claim on the current scope so an
+// session. The caller also takes a temporary hold on the current scope so an
 // older worker can finish safely after a newer result replaces that scope.
 - (void)adoptURL:(NSURL *)url restored:(BOOL)restored {
     uint64_t openIntentGeneration = [self beginOpenIntent];
@@ -394,8 +394,8 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     }
     // Release the previous grant only after the new one is in hand, so a
     // failed pick never strands the current playlist unreadable.
-    // A request that started a fresh claim replaces the previous one even when
-    // both NSURL pointers happen to be identical; otherwise that claim leaks.
+    // A request that started a fresh hold replaces the previous one even when
+    // both NSURL pointers happen to be identical; otherwise that hold leaks.
     if (_scopeActive && (_scopedURL != scopedURL || scopedURLStarted)) {
         [_scopedURL stopAccessingSecurityScopedResource];
     }

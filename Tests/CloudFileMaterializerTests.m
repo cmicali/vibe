@@ -1,7 +1,7 @@
 //
 //  CloudFileMaterializerTests.m
 //
-//  The fake transfer exercises this app's claim and cancellation ordering;
+//  The fake transfer exercises this app's token and cancellation ordering;
 //  NSFileCoordinator's provider behavior remains an integration concern.
 //
 
@@ -37,25 +37,25 @@
     }];
 }
 
-- (void)testCancelBeforeWorkerEntryInvalidatesOnlyThePreparedClaim {
+- (void)testCancelBeforeWorkerEntryInvalidatesOnlyThePreparedToken {
     NSURL *url = [NSURL fileURLWithPath:@"/fake/cloud-track.flac"];
     NSMutableArray<NSNumber *> *completions = [NSMutableArray array];
     [self installFakeCloudCompleting:completions];
 
     CloudFileMaterializer *materializer = [CloudFileMaterializer new];
-    CloudFileMaterializationClaim *cancelledClaim = [materializer prepareMaterialization];
+    CloudFileMaterializationToken *cancelledToken = [materializer prepareMaterialization];
     [materializer cancel];
 
     NSError *error = nil;
-    XCTAssertFalse([materializer materializeURL:url claim:cancelledClaim error:&error]);
+    XCTAssertFalse([materializer materializeURL:url token:cancelledToken error:&error]);
     XCTAssertEqualObjects(error.domain, NSCocoaErrorDomain);
     XCTAssertEqual(error.code, NSUserCancelledError);
 
-    // Cancellation is per claim, not a latch: the reusable metadata lane can
+    // Cancellation is per token, not a latch: the reusable metadata lane can
     // prepare its next call after a hold lifts and complete normally.
-    CloudFileMaterializationClaim *nextClaim = [materializer prepareMaterialization];
+    CloudFileMaterializationToken *nextToken = [materializer prepareMaterialization];
     error = nil;
-    XCTAssertTrue([materializer materializeURL:url claim:nextClaim error:&error]);
+    XCTAssertTrue([materializer materializeURL:url token:nextToken error:&error]);
     XCTAssertNil(error);
     XCTAssertEqualObjects(completions, (@[@NO, @YES]));
 }
@@ -74,7 +74,7 @@
     CloudFileMaterializer *materializer = [CloudFileMaterializer new];
     NSError *error = nil;
     XCTAssertTrue([materializer materializeURL:url
-                                         claim:[materializer prepareMaterialization]
+                                         token:[materializer prepareMaterialization]
                                          error:&error]);
     XCTAssertNil(error);
     XCTAssertEqual(completions.count, 0u);

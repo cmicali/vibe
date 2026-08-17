@@ -29,11 +29,15 @@ NS_ASSUME_NONNULL_BEGIN
 
 // One prepared materialization call. The materializer creates it before the
 // caller dispatches the worker, so -cancel can invalidate work which is
-// committed but has not entered materializeURL:claim:error: yet.
+// committed but has not entered materializeURL:token:error: yet.
 //
-// Opaque by design: identity is the only thing a caller carries across the
-// dispatch boundary.
-@interface CloudFileMaterializationClaim : NSObject
+// A token and not a claim: nothing contends for a materializer — each caller
+// owns one for its own serial lane — so there is no ownership to take and no
+// waiter to serve. What crosses the dispatch boundary is an opaque handle
+// proving the call is still the current one, and a later preparation
+// supersedes the older handle rather than queueing behind it. Same shape as
+// Mac/App's OpenRequestToken.
+@interface CloudFileMaterializationToken : NSObject
 
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
@@ -43,25 +47,25 @@ NS_ASSUME_NONNULL_BEGIN
 @interface CloudFileMaterializer : NSObject
 
 // Registers one call before it is dispatched. A later preparation supersedes
-// the earlier claim, just as -cancel does; callers use one materializer for one
+// the earlier token, just as -cancel does; callers use one materializer for one
 // serial lane, so there is only one prepared or running call at a time.
-- (CloudFileMaterializationClaim *)prepareMaterialization;
+- (CloudFileMaterializationToken *)prepareMaterialization;
 
 // Blocks until url's data is on disk, and answers whether it got there. A
 // local file is already materialized, so this only performs the cheap
-// placeholder probe rather than coordinating a read. claim must have been
+// placeholder probe rather than coordinating a read. token must have been
 // returned by this materializer before the worker was dispatched.
 //
 // BACKGROUND QUEUES ONLY: it blocks for the length of a download, and file
 // coordination on the main thread is how an app deadlocks against its own
 // presenters.
 - (BOOL)materializeURL:(NSURL *)url
-                 claim:(CloudFileMaterializationClaim *)claim
+                 token:(CloudFileMaterializationToken *)token
                  error:(NSError *__autoreleasing _Nullable *_Nullable)error;
 
 // Aborts the prepared or in-progress call, if there is one. Any thread,
-// returns immediately, and materializeURL:claim:error: returns NO with
-// NSUserCancelledError. Cancelling is per-claim, not a latch: the next
+// returns immediately, and materializeURL:token:error: returns NO with
+// NSUserCancelledError. Cancelling is per-token, not a latch: the next
 // prepareMaterialization creates independent work, so the caller's own gate —
 // the cloud lane's suspension — is what decides when work resumes.
 - (void)cancel;
