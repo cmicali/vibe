@@ -34,9 +34,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSString *)cacheName;
 
 // The completion fires on the cache's serial loader queue once the disk cache
-// has been emptied. Decodes already in flight run on a global queue rather
-// than the loader queue, and they cannot repopulate it: a cache-generation
-// check drops their disk writes, though their UI delivery still happens.
+// has been emptied. Decodes already in flight run through the cache's
+// fixed-slot utility scheduler rather than the loader queue, and they cannot
+// repopulate it: a cache-generation check drops their disk writes, though
+// their UI delivery still happens.
 - (void)invalidateWithCompletion:(nullable dispatch_block_t)completion;
 
 // The backing store's entry count and total bytes on disk, enumerated off the
@@ -50,10 +51,13 @@ NS_ASSUME_NONNULL_BEGIN
 // aborted: it detaches, runs to completion in the background, and persists,
 // so the next request for that file is a disk hit — a skip-ahead or a pager
 // peek no longer throws the decode away. Up to two detached decodes run at
-// once; beyond that the oldest is genuinely cancelled. A request for a file
-// whose detached decode is still running reattaches it instead of starting a
-// second one. BPM and key from a detached decode are still delivered, tagged
-// with their URL for the receiver to match against its playlist.
+// once; beyond that the oldest loader is genuinely cancelled. Its
+// uncancellable stat/open worker remains the standardized-path claim until it
+// returns, so a same-file request waits and restarts once rather than adding a
+// stranded worker. Pending work is app-owned and bounded, never pre-dispatched
+// behind those workers. A live detached decode is reattached in place. BPM and
+// key from a detached decode are still delivered, tagged with their URL for
+// the receiver to match against its playlist.
 - (void)cancelLoad;
 
 @end

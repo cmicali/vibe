@@ -8,6 +8,7 @@
 #import "PINCache.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "CloudMetadataRetryRules.h"
 #import "MetadataParseCoordinator.h"
 #import "CloudFileMaterializer.h"
 #import "NSURLUtil.h"
@@ -19,6 +20,10 @@
 @interface VibeCloudParseEntry : NSObject
 @property (nonatomic, strong) NSOperation *operation;
 @property (nonatomic, copy) NSURL *url;
+// A retry after a failed materialization. It stays at the bottom of the lane
+// however the neighborhood moves, so re-ranking cannot promote a known-bad
+// file back in front of tracks that have not been tried at all.
+@property (nonatomic) BOOL deferred;
 @end
 
 @implementation VibeCloudParseEntry
@@ -27,8 +32,12 @@
 // The neighborhood's own order IS the rank: first named is next up. Past it
 // the sweep is one undifferentiated tier — once the tracks the listener is
 // about to reach are out of the way, a folder's worth of downloads has no
-// meaningful order left.
-static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
+// meaningful order left. A deferred retry sits below even that: it has already
+// failed once, so every track that has not tried yet goes first.
+static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank, BOOL deferred) {
+    if (deferred) {
+        return NSOperationQueuePriorityVeryLow;
+    }
     switch (rank) {
         case 0:  return NSOperationQueuePriorityVeryHigh;
         case 1:  return NSOperationQueuePriorityHigh;
@@ -69,6 +78,15 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
     // cancelled an empty slot just before an already-started operation filled
     // it and began downloading anyway.
     BOOL _cloudParsesHeld;
+    // Incremented whenever a foreground-open hold closes the materialization
+    // gate. A worker snapshots it beside its token, so it can still identify
+    // that cancellation after a short hold has already lifted.
+    NSUInteger _cloudHoldGeneration;
+    // Materialization failures per file path, hold cancellations excluded. The
+    // budget is what keeps a transient provider error from costing the row its
+    // tags for the rest of the sweep without letting a dead file retry forever.
+    // Guarded by _cloudParsesLock; bounded by the playlist's failing tracks.
+    NSMutableDictionary<NSString *, NSNumber *> *_cloudAttemptsByPath;
     os_unfair_lock _cloudParsesLock;
     // Makes the download in front of a cloud parse abortable, which a plain
     // read is not; the hold cancels it. See CloudFileMaterializer.
@@ -129,6 +147,7 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
             _cloudQueue.qualityOfService = NSQualityOfServiceUtility;
             _cloudParses = [NSMutableArray array];
             _neighborhood = @[];
+            _cloudAttemptsByPath = [NSMutableDictionary dictionary];
             _cloudParsesLock = OS_UNFAIR_LOCK_INIT;
             _materializer = [[CloudFileMaterializer alloc] init];
         }
@@ -187,6 +206,12 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
 // than a cloud-heavy folder pinning all four workers for a download's duration
 // while fast local parses sit queued behind them.
 - (void)cacheCheckOneTrack:(AudioTrack *)track {
+    [self cacheCheckOneTrack:track deferred:NO];
+}
+
+// deferred marks a re-queue after a failed cloud materialization; see
+// CloudMetadataRetryRules.h. It only reaches the cloud lane's ranking.
+- (void)cacheCheckOneTrack:(AudioTrack *)track deferred:(BOOL)deferred {
     // A second drop can re-queue a track before its first op runs, so skip the
     // redundant work if the earlier loader already produced real metadata.
     // Failed metadata, with parsedOK == NO, does not count as done: re-parsing
@@ -213,7 +238,7 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
         }
     }];
     if (cloud) {
-        [self enqueueCloudParse:op forURL:track.url];
+        [self enqueueCloudParse:op forURL:track.url deferred:deferred];
         return;
     }
     [_queue addOperation:op];
@@ -227,17 +252,24 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
 // letting TagLib's own read do the downloading would own the lane until the
 // provider finished — and it leaves the parse itself reading a local file.
 //
-// A cancelled download re-queues the track at its current rank rather than
-// dropping it: the sweep has no second pass, so the row would otherwise keep
-// its filename fallback until the whole playlist was re-queued. It cannot spin,
-// because the hold suspends the queue BEFORE it cancels, so the replacement
-// cannot start until the hold lifts.
+// A download cancelled by the foreground-open hold re-queues the track at its
+// current rank rather than dropping it: the sweep has no second pass, so the
+// row would otherwise keep its filename fallback until the whole playlist was
+// re-queued. It cannot spin, because the hold suspends the queue BEFORE it
+// cancels, and it spends no attempt budget — nothing about the file failed.
+//
+// Any other failure re-queues at the BOTTOM of the lane instead, with a small
+// per-path attempt budget (CloudMetadataRetryRules.h). Retrying at rank would
+// let one terminal provider error monopolize this serial lane forever;
+// abandoning the track outright would cost a row its tags for the rest of the
+// sweep over a transient blip, since the only later retry is a whole new scan.
 - (void)runCloudParse:(AudioTrack *)track {
     // Register the call under the same gate setCloudParsesHeld: closes before
     // it cancels. Either this preparation wins and the following cancel can
     // reach it before materializeURL: enters, or the hold wins and this
     // operation re-queues behind the suspended lane.
     os_unfair_lock_lock(&_cloudParsesLock);
+    NSUInteger preparedHoldGeneration = _cloudHoldGeneration;
     CloudFileMaterializationToken *token = (!self.isCancelled && !_cloudParsesHeld)
             ? [_materializer prepareMaterialization]
             : nil;
@@ -252,10 +284,43 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
     CFAbsoluteTime startedAt = CFAbsoluteTimeGetCurrent();
     NSError *error = nil;
     if (![_materializer materializeURL:track.url token:token error:&error]) {
-        LogInfo(@"Cloud parse: %@ interrupted after %.1fs (%@)", track.url.lastPathComponent,
-                CFAbsoluteTimeGetCurrent() - startedAt, error.localizedDescription);
-        if (!self.isCancelled) {
-            [self cacheCheckOneTrack:track];
+        NSString *attemptKey = track.url.path ?: track.url.absoluteString;
+        os_unfair_lock_lock(&_cloudParsesLock);
+        NSUInteger currentHoldGeneration = _cloudHoldGeneration;
+        NSUInteger priorAttempts = attemptKey ? _cloudAttemptsByPath[attemptKey].unsignedIntegerValue : 0;
+        VibeCloudMetadataRetry verdict = VibeCloudMetadataRetryForMaterializationFailure(
+                error, preparedHoldGeneration, currentHoldGeneration,
+                priorAttempts, kVibeCloudMetadataMaxAttempts);
+        // Charged under the same lock that read it, so two workers can never
+        // both see the last attempt as available. Only a real failure charges:
+        // a hold cancellation is the app's own doing.
+        if (attemptKey && verdict != VibeCloudMetadataRetryAtCurrentRank) {
+            _cloudAttemptsByPath[attemptKey] = @(priorAttempts + 1);
+        }
+        os_unfair_lock_unlock(&_cloudParsesLock);
+        if (self.isCancelled) {
+            return;
+        }
+        switch (verdict) {
+            case VibeCloudMetadataRetryAtCurrentRank:
+                LogInfo(@"Cloud parse: %@ yielded to foreground open after %.1fs",
+                        track.url.lastPathComponent, CFAbsoluteTimeGetCurrent() - startedAt);
+                [self cacheCheckOneTrack:track deferred:NO];
+                break;
+            case VibeCloudMetadataRetryDeferred:
+                LogWarn(@"Cloud parse: %@ failed after %.1fs (attempt %lu of %lu); re-queued last (%@)",
+                        track.url.lastPathComponent, CFAbsoluteTimeGetCurrent() - startedAt,
+                        (unsigned long)(priorAttempts + 1),
+                        (unsigned long)kVibeCloudMetadataMaxAttempts,
+                        error.localizedDescription);
+                [self cacheCheckOneTrack:track deferred:YES];
+                break;
+            case VibeCloudMetadataRetryNone:
+                LogWarn(@"Cloud parse: %@ failed after %.1fs and is out of attempts; "
+                        @"waiting for a later scan (%@)",
+                        track.url.lastPathComponent, CFAbsoluteTimeGetCurrent() - startedAt,
+                        error.localizedDescription);
+                break;
         }
         return;
     }
@@ -264,13 +329,14 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
             CFAbsoluteTimeGetCurrent() - startedAt);
 }
 
-- (void)enqueueCloudParse:(NSOperation *)op forURL:(NSURL *)url {
+- (void)enqueueCloudParse:(NSOperation *)op forURL:(NSURL *)url deferred:(BOOL)deferred {
     VibeCloudParseEntry *entry = [[VibeCloudParseEntry alloc] init];
     entry.operation = op;
     entry.url = url;
+    entry.deferred = deferred;
     os_unfair_lock_lock(&_cloudParsesLock);
     [self pruneStartedCloudParsesLocked];
-    op.queuePriority = VibeCloudParsePriority([_neighborhood indexOfObject:url]);
+    op.queuePriority = VibeCloudParsePriority([_neighborhood indexOfObject:url], deferred);
     [_cloudParses addObject:entry];
     os_unfair_lock_unlock(&_cloudParsesLock);
     [_cloudQueue addOperation:op];
@@ -285,7 +351,7 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
     [self pruneStartedCloudParsesLocked];
     for (VibeCloudParseEntry *entry in _cloudParses) {
         entry.operation.queuePriority =
-                VibeCloudParsePriority([_neighborhood indexOfObject:entry.url]);
+                VibeCloudParsePriority([_neighborhood indexOfObject:entry.url], entry.deferred);
     }
     os_unfair_lock_unlock(&_cloudParsesLock);
 }
@@ -533,6 +599,7 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
         _cloudQueue.suspended = YES;
         os_unfair_lock_lock(&_cloudParsesLock);
         _cloudParsesHeld = YES;
+        _cloudHoldGeneration++;
         os_unfair_lock_unlock(&_cloudParsesLock);
         [_materializer cancel];
         return;
@@ -567,6 +634,7 @@ static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
     _cloudQueue.suspended = NO;
     os_unfair_lock_lock(&_cloudParsesLock);
     [_cloudParses removeAllObjects];
+    [_cloudAttemptsByPath removeAllObjects];
     os_unfair_lock_unlock(&_cloudParsesLock);
 }
 

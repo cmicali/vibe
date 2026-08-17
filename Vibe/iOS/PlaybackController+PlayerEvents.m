@@ -133,7 +133,15 @@
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {
-    if (![_playlist isCurrentTrack:track]) {
+    // A real track carries the usual identity guard. Nil is the promised settle
+    // after a seek with nothing playable loaded, and it must be judged against
+    // the PLAYER, not the playlist: an end-of-playlist park leaves a current
+    // row with no loaded track, and matching on isCurrentTrack: alone would
+    // drop that settle and strand _seekInFlight — which PlayerViewController
+    // reads to suppress the scrubber's position sync until the next track
+    // change. Same rule as the mac's MainPlayerController+PlayerEvents.
+    if ((track && ![_playlist isCurrentTrack:track])
+            || (!track && !audioPlayer.isStopped)) {
         return;
     }
     _seekInFlight = NO;

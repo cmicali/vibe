@@ -103,9 +103,9 @@
     }
     else if ([menuItem.identifier isEqualToString:@"menu_close"]) {
         menuItem.title = self.playlistController.count > 1 ? STR_MENU_FILE_CLOSE_ALL : STR_MENU_FILE_CLOSE;
-        // Nil-targeted, so this validates only when the player's responder
-        // chain owns ⌘W — the Settings and About windows intercept closeFile:
-        // themselves while key. No key-window check needed here.
+        // Nil-targeted, so the key window's closeFile: target owns both the
+        // action and this shared item's title. Settings and About restore the
+        // singular title in their own validators.
         return self.playlistController.count > 0;
     }
     else if ([menuItem.identifier isEqualToString:@"show_in_finder"]) {

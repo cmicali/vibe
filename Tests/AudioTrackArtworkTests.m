@@ -10,6 +10,8 @@
 #import "FolderArtResolver.h"
 #import "NSImage+Util.h"
 
+#include <os/lock.h>
+
 @interface AudioTrackArtworkTests : XCTestCase
 @end
 
@@ -69,8 +71,10 @@
 
 - (void)testEmbeddedArtBeatsTheFoldersCover {
     NSData *embedded = [self embeddedArtData];
-    AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
-        return embedded;
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        *artData = embedded;
+        return VibeEmbeddedArtExtractionFoundArt;
     }];
     NSImage *art = [artwork loadArtBlocking];
     XCTAssertNotNil(art);
@@ -83,9 +87,10 @@
 - (void)testAnUnreadFileNeverFallsBackToTheFolder {
     __block BOOL extracted = NO;
     AudioTrackArtwork *artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:_trackPath
-                                                                        extractor:^NSData *(NSString *path) {
+                                                                        extractor:^VibeEmbeddedArtExtractionResult(
+                                                                                NSString *path, NSData *__autoreleasing *artData) {
         extracted = YES;
-        return nil;
+        return VibeEmbeddedArtExtractionNoArt;
     }];
     artwork.folderArt = [self resolverWithCover];
     // Non-blocking accessors must not answer with the folder while the file's
@@ -96,8 +101,9 @@
 }
 
 - (void)testTheFolderAnswersOnlyOnceTheFileIsKnownArtless {
-    AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
-        return nil; // the file really has none
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        return VibeEmbeddedArtExtractionNoArt;
     }];
     // The blocking accessor settles the question and then falls back.
     XCTAssertEqualObjects([artwork loadArtBlocking], _folderCover);
@@ -106,8 +112,10 @@
 }
 
 - (void)testUndecodableOwnArtFallsBackToTheFolder {
-    AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
-        return [@"not an image" dataUsingEncoding:NSUTF8StringEncoding];
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        *artData = [@"not an image" dataUsingEncoding:NSUTF8StringEncoding];
+        return VibeEmbeddedArtExtractionFoundArt;
     }];
     XCTAssertEqualObjects([artwork loadArtBlocking], _folderCover);
 }
@@ -119,8 +127,9 @@
 // "artless" would suppress the lookup forever. So the archive's thumbnail is
 // the file's own art or nothing, whatever the folder holds.
 - (void)testTheArchivableThumbnailIsNeverTheFoldersCover {
-    AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
-        return nil;
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        return VibeEmbeddedArtExtractionNoArt;
     }];
     XCTAssertEqualObjects([artwork loadArtBlocking], _folderCover, @"precondition: the folder has one");
     XCTAssertNil(artwork.embeddedThumbnail);
@@ -128,8 +137,10 @@
 
 - (void)testTheArchivableThumbnailIsTheFilesOwnArtWhenItHasSome {
     NSData *embedded = [self embeddedArtData];
-    AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
-        return embedded;
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        *artData = embedded;
+        return VibeEmbeddedArtExtractionFoundArt;
     }];
     (void)[artwork loadArtBlocking]; // decode it
     XCTAssertNotNil(artwork.embeddedThumbnail);
@@ -159,8 +170,9 @@
         return self->_folderCover;
     }];
     AudioTrackArtwork *artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:_trackPath
-                                                                        extractor:^NSData *(NSString *path) {
-        return nil; // artless: the row most likely to reach for a cover
+                                                                        extractor:^VibeEmbeddedArtExtractionResult(
+                                                                                NSString *path, NSData *__autoreleasing *artData) {
+        return VibeEmbeddedArtExtractionNoArt;
     }];
     artwork.folderArt = counting;
 
@@ -177,9 +189,10 @@
 - (void)testACacheHitWithoutAThumbnailIsArtlessAndUsesTheFolder {
     __block BOOL extracted = NO;
     AudioTrackArtwork *artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:_trackPath
-                                                                        extractor:^NSData *(NSString *path) {
+                                                                        extractor:^VibeEmbeddedArtExtractionResult(
+                                                                                NSString *path, NSData *__autoreleasing *artData) {
         extracted = YES;
-        return nil;
+        return VibeEmbeddedArtExtractionNoArt;
     }];
     artwork.folderArt = [self resolverWithCover];
     [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:NO];
@@ -192,8 +205,9 @@
 // drawing — so it answers nil until a background resolve has produced the
 // thumbnail, rather than reading and decoding a cover on the main thread.
 - (void)testTheRowAccessorNeverBlocksForAnUnresolvedFolder {
-    AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
-        return nil;
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        return VibeEmbeddedArtExtractionNoArt;
     }];
     [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:NO];
 
@@ -216,9 +230,11 @@
     NSData *embedded = [self embeddedArtData];
     __block BOOL extracted = NO;
     AudioTrackArtwork *artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:_trackPath
-                                                                        extractor:^NSData *(NSString *path) {
+                                                                        extractor:^VibeEmbeddedArtExtractionResult(
+                                                                                NSString *path, NSData *__autoreleasing *artData) {
         extracted = YES;
-        return embedded;
+        *artData = embedded;
+        return VibeEmbeddedArtExtractionFoundArt;
     }];
     artwork.folderArt = [self resolverWithCover];
     [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
@@ -230,12 +246,208 @@
     XCTAssertNotEqualObjects(art, _folderCover, @"the file's own art, never the folder's");
 }
 
+- (void)testAKnownArtsTransientReadFailureRetriesWithoutUsingTheFolder {
+    NSData *embedded = [self embeddedArtData];
+    __block NSUInteger attempts = 0;
+    __block NSTimeInterval clock = 1000;
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        attempts++;
+        if (attempts == 1) {
+            return VibeEmbeddedArtExtractionReadFailed;
+        }
+        *artData = embedded;
+        return VibeEmbeddedArtExtractionFoundArt;
+    }];
+    artwork.clock = ^NSTimeInterval { return clock; };
+    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
+
+    XCTAssertNil([artwork loadArtBlocking]);
+    XCTAssertNil(artwork.cachedArt, @"a read failure is not permission to use the folder cover");
+    clock += 5; // the retry backoff has its own test
+    XCTAssertTrue(artwork.artNeedsLoad, @"a transient failure must leave another attempt available");
+
+    NSImage *retried = [artwork loadArtBlocking];
+    XCTAssertNotNil(retried);
+    XCTAssertNotEqualObjects(retried, _folderCover);
+    XCTAssertEqual(attempts, 2u);
+}
+
+- (void)testRepeatedReadFailuresAreBoundedAndRearmedOnTrackDemotion {
+    __block NSUInteger attempts = 0;
+    __block NSTimeInterval clock = 0;
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        attempts++;
+        return VibeEmbeddedArtExtractionReadFailed;
+    }];
+    artwork.clock = ^NSTimeInterval { return clock; };
+    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
+
+    for (NSUInteger attempt = 0; attempt < 3; attempt++) {
+        XCTAssertNil([artwork loadArtBlocking]);
+        clock += 60; // past the backoff, so only the count can stop it
+    }
+    XCTAssertFalse(artwork.artNeedsLoad, @"the current display pass must not retry forever");
+    XCTAssertNil(artwork.cachedArt, @"known embedded art still excludes the folder cover");
+    XCTAssertEqual(attempts, 3u);
+    XCTAssertNil([artwork loadArtBlocking], @"and waiting longer must not buy a fourth");
+    XCTAssertEqual(attempts, 3u);
+
+    [artwork discardDecodedArt];
+    XCTAssertTrue(artwork.artNeedsLoad, @"a later visit gets a fresh bounded retry budget");
+}
+
+// The budget bounds how many reads a bad file costs; the backoff bounds how
+// fast they are spent. updateUI fires several times in quick succession at a
+// track start, and without this all three attempts went back to back — each
+// blocking a worker on a read that had no reason to behave differently
+// milliseconds after the last one failed.
+- (void)testAFailedReadIsNotRetriedUntilItsBackoffElapses {
+    __block NSUInteger attempts = 0;
+    __block NSTimeInterval clock = 1000;
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        attempts++;
+        return VibeEmbeddedArtExtractionReadFailed;
+    }];
+    artwork.clock = ^NSTimeInterval { return clock; };
+    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
+
+    XCTAssertNil([artwork loadArtBlocking]);
+    XCTAssertEqual(attempts, 1u);
+
+    // Every pass inside the window is refused, and says so through artNeedsLoad
+    // as well, so updateUI does not spend the dispatch flag on a load that
+    // would immediately no-op.
+    XCTAssertFalse(artwork.artNeedsLoad);
+    clock += 0.5;
+    XCTAssertNil([artwork loadArtBlocking]);
+    clock += 0.5;
+    XCTAssertNil([artwork loadArtBlocking]);
+    XCTAssertEqual(attempts, 1u, @"a burst of passes must not spend the whole budget at once");
+    XCTAssertFalse(artwork.artNeedsLoad);
+
+    clock += 5;
+    XCTAssertTrue(artwork.artNeedsLoad, @"past the backoff the attempt is available again");
+    XCTAssertNil([artwork loadArtBlocking]);
+    XCTAssertEqual(attempts, 2u);
+}
+
+// The backoff must never outlive the failure that set it: a read that succeeds
+// after one that failed leaves nothing behind to hold up a later re-read.
+- (void)testASuccessfulReadClearsTheBackoff {
+    NSData *embedded = [self embeddedArtData];
+    __block NSUInteger attempts = 0;
+    __block NSTimeInterval clock = 1000;
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        attempts++;
+        if (attempts == 1) {
+            return VibeEmbeddedArtExtractionReadFailed;
+        }
+        *artData = embedded;
+        return VibeEmbeddedArtExtractionFoundArt;
+    }];
+    artwork.clock = ^NSTimeInterval { return clock; };
+    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
+
+    XCTAssertNil([artwork loadArtBlocking]);
+    clock += 5;
+    XCTAssertNotNil([artwork loadArtBlocking]);
+
+    // Demote and come back: the re-read is available immediately, with no
+    // leftover window from the failure two visits ago.
+    [artwork discardDecodedArt];
+    XCTAssertTrue(artwork.artNeedsLoad);
+    XCTAssertNotNil([artwork loadArtBlocking]);
+    XCTAssertEqual(attempts, 3u);
+}
+
+// A demotion re-arms the budget, so it must clear the window too — otherwise a
+// track revisited within two seconds of its last failure would be refused on
+// arrival, which is exactly when a user flicking back and forth revisits it.
+- (void)testDemotionClearsTheBackoffAsWellAsTheBudget {
+    __block NSUInteger attempts = 0;
+    __block NSTimeInterval clock = 1000;
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        attempts++;
+        return VibeEmbeddedArtExtractionReadFailed;
+    }];
+    artwork.clock = ^NSTimeInterval { return clock; };
+    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
+
+    XCTAssertNil([artwork loadArtBlocking]);
+    XCTAssertEqual(attempts, 1u);
+    XCTAssertFalse(artwork.artNeedsLoad, @"inside the window");
+
+    [artwork discardDecodedArt]; // the track left the header and came back
+    XCTAssertTrue(artwork.artNeedsLoad, @"the new visit does not inherit the old window");
+    XCTAssertNil([artwork loadArtBlocking]);
+    XCTAssertEqual(attempts, 2u);
+}
+
+- (void)testAStaleReadFailureDoesNotSpendTheNextVisitsRetryBudget {
+    dispatch_semaphore_t extractionStarted = dispatch_semaphore_create(0);
+    dispatch_semaphore_t finishStaleExtraction = dispatch_semaphore_create(0);
+    __block NSUInteger attempts = 0;
+    // Read under a lock: the stale extraction runs on another thread, so the
+    // clock is read from two threads at once.
+    __block NSTimeInterval clock = 1000;
+    os_unfair_lock clockLock = OS_UNFAIR_LOCK_INIT;
+    os_unfair_lock *clockLockPointer = &clockLock;
+    NSTimeInterval (^readClock)(void) = ^NSTimeInterval {
+        os_unfair_lock_lock(clockLockPointer);
+        NSTimeInterval value = clock;
+        os_unfair_lock_unlock(clockLockPointer);
+        return value;
+    };
+    void (^advanceClock)(NSTimeInterval) = ^(NSTimeInterval seconds) {
+        os_unfair_lock_lock(clockLockPointer);
+        clock += seconds;
+        os_unfair_lock_unlock(clockLockPointer);
+    };
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        attempts++;
+        if (attempts == 1) {
+            dispatch_semaphore_signal(extractionStarted);
+            dispatch_semaphore_wait(finishStaleExtraction, DISPATCH_TIME_FOREVER);
+        }
+        return VibeEmbeddedArtExtractionReadFailed;
+    }];
+    artwork.clock = readClock;
+    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
+
+    XCTestExpectation *staleExtractionFinished = [self expectationWithDescription:@"stale extraction"];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        (void)[artwork loadArtBlocking];
+        [staleExtractionFinished fulfill];
+    });
+    XCTAssertEqual(dispatch_semaphore_wait(extractionStarted,
+                                           dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+
+    [artwork discardDecodedArt];
+    dispatch_semaphore_signal(finishStaleExtraction);
+    [self waitForExpectations:@[staleExtractionFinished] timeout:2.0];
+
+    for (NSUInteger attempt = 0; attempt < 3; attempt++) {
+        XCTAssertNil([artwork loadArtBlocking]);
+        advanceClock(60); // past the backoff, so only the count can stop it
+    }
+    XCTAssertEqual(attempts, 4u, @"the stale attempt plus three attempts for the new display pass");
+    XCTAssertFalse(artwork.artNeedsLoad);
+}
+
 // The bytes go, the fact does not: a discard re-arms the re-read, and must not
 // let the track read as artless in the window before that read lands.
 - (void)testDiscardingArtKeepsTheFileKnownToCarrySome {
     NSData *embedded = [self embeddedArtData];
-    AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
-        return embedded;
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        *artData = embedded;
+        return VibeEmbeddedArtExtractionFoundArt;
     }];
     [artwork adoptParsedArtData:embedded];
     XCTAssertTrue(artwork.hasEmbeddedArt);
@@ -248,8 +460,9 @@
 }
 
 - (void)testACacheHitWithAThumbnailKeepsItsOwn {
-    AudioTrackArtwork *artwork = [self artworkWithExtractor:^NSData *(NSString *path) {
-        return nil;
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        return VibeEmbeddedArtExtractionNoArt;
     }];
     [artwork adoptArchivedThumbnailJPEG:[self embeddedArtData] hasEmbeddedArt:YES];
     NSImage *thumbnail = artwork.cachedThumbnail;

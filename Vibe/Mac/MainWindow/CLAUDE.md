@@ -61,7 +61,7 @@ A forward skip past the end calls `AudioPlayer.finishCurrentTrack`, which fires 
 
 Skips need a player that is not Stopped, gated in both `skipByFileSeconds:` (bare keys bypass validation) and menu validation: **after the playlist ends the finished file stays open, so `duration` alone still looks seekable while no node exists.**
 
-File > Close (⌘W, `closeFile:`) is retitled "Close File" / "Close All Files" in validation and **enabled only while the player window is key**, so ⌘W in Settings or About never unloads the playlist. It calls `AudioPlayer.stop` (which fires no delegate event), then clears the playlist, cancels the deferred metadata load, and drops the scan loader with `cancelAll` — a cancelled loader still strongly holds every queued track, thumbnails included.
+File > Close (⌘W, `closeFile:`) is nil-targeted, so the key window's `closeFile:` target owns both the action and the shared menu item's title. The player retitles it "Close File" / "Close All Files" and enables it only for a nonempty playlist; Settings and About restore the singular title and close only themselves. The player's action calls `AudioPlayer.stop` (which fires no delegate event), then clears the playlist, cancels the deferred metadata load, and drops the scan loader with `cancelAll` — a cancelled loader still strongly holds every queued track, thumbnails included.
 
 ## Convert to FLAC: the swap
 

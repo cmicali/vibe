@@ -21,7 +21,6 @@
 #import "AudioDevice.h"
 #import "CoreAudioUtil.h"
 #endif
-#import "NSURL+AudioOpen.h"
 #import "FadeMath.h"
 #import "GaplessSpliceMath.h"
 #import "PlaybackRequestCoordinator.h"
@@ -84,8 +83,8 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 @interface AudioPlayer ()
-- (void)cancelPlayMaterializerOnQueue;
-- (void)cancelPlayMaterializerForRequest:(uint64_t)openId;
+- (void)cancelPlayOpenOnQueue;
+- (void)cancelPlayOpenForRequest:(uint64_t)openId;
 - (void)pauseOnQueue;
 - (void)resumeOnQueue;
 - (void)cancelPendingPauseOnQueue;
@@ -136,10 +135,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // graph-reconfiguration thread, itself at Default QoS. A
         // user-initiated queue blocking on that lower-QoS thread is a priority
         // inversion, which the Thread Performance Checker flagged on the skip
-        // teardown. Matching Default removes it. The latency-critical file open
-        // runs on its own user-initiated global queue (see playOnQueue:), so
-        // leaving control-plane scheduling at Default costs nothing
-        // perceptible.
+        // teardown. Matching Default removes it. The latency-critical file
+        // open runs on the coordinator's bounded user-initiated lane (see
+        // playOnQueue:), so leaving control-plane scheduling at Default costs
+        // nothing perceptible.
         _queue = dispatch_queue_create("com.vibe.audioplayer",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
         dispatch_queue_set_specific(_queue, kAudioPlayerQueueKey, kAudioPlayerQueueKey, NULL);
@@ -150,6 +149,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // and installMasterBusOnQueue wires the mixer straight to the output.
         _fx = enableFX ? [[AudioFX alloc] initWithQueue:_queue] : nil;
         _retiredFades = [NSMutableArray array];
+#if TARGET_OS_OSX
+        _pendingSavedDeviceUID = [deviceUID copy] ?: @"";
+        _pendingSavedDeviceName = [deviceName copy] ?: @"";
+#endif
         self.delegate = delegate;
         dispatch_async(_queue, ^{
 
@@ -158,35 +161,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             [self createEngineAndMasterBusOnQueue];
 
 #if TARGET_OS_OSX
-            // Resolve the saved device here rather than on the main thread.
-            // This is the app's first CoreAudio device enumeration, a set of
-            // per-device HAL property reads that take tens of ms when
-            // Bluetooth or aggregate devices are present, and the caller runs
-            // before the window's first paint. Match by UID first, which is
-            // robust against duplicate device names, and fall back to the name
-            // for settings saved before UIDs.
-            AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForUID:deviceUID];
-            if (!device) {
-                device = [[AudioDeviceManager sharedInstance] outputDeviceForName:deviceName];
-            }
-            // A nil device — an empty or unmatched UID and name — means follow
-            // the system default.
-            NSInteger deviceIndex = device ? device.deviceId : -1;
-            self.currentlyRequestedAudioDeviceId = deviceIndex;
-            if (deviceIndex >= 0) {
-                [self setOutputUnitDevice:(AudioDeviceID)deviceIndex];
-            }
-            else if (deviceUID.length > 0 || deviceName.length > 0) {
-                // A device was saved but has gone. Fall back to System Output
-                // for good, not just for this launch: the delegate persists
-                // the -1 choice, so the old device cannot reclaim the
-                // checkmark if it reappears later.
-                run_on_main_thread({
-                    [self.delegate audioPlayer:self didChangeOutputDevice:-1];
-                });
-            }
-
-            [[AudioDeviceManager sharedInstance] addObserver:self];
+            AudioDeviceManager *deviceManager = [AudioDeviceManager sharedInstance];
+            [deviceManager addObserver:self];
 
             __weak AudioPlayer *weakSelf = self;
             self->_configChangeObserver = [[NSNotificationCenter defaultCenter]
@@ -201,6 +177,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                                     });
                                 }
                             }];
+            // Do not put first-use HAL discovery on the player's sole queue.
+            // The engine begins honestly on System Output; a successful async
+            // snapshot later applies the saved preference through the checked
+            // device-switch path, and an absent device remains pending.
+            [self resolvePendingSavedOutputDeviceOnQueue];
 #endif
             // On iOS there is no HAL device layer: routing belongs to
             // AVAudioSession, and engine-config-change handling lives with the
@@ -306,18 +287,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // with the media server. A download is not engine-bound state, so nothing
     // else here reaches it, and left alone it pulls a whole file down for a
     // play that can never land. Same pair stop cancels.
-    [self cancelPlayMaterializerOnQueue];
-    [_prefetchMaterializer cancel];
-    _prefetchMaterializer = nil;
+    [self cancelPlayOpenOnQueue];
+    [self clearPrefetchOnQueue];
     // Every in-flight open dies with the media server; the coordinator's
     // identifier makes each late delivery a no-op, exactly as on the reset
     // path.
     [_pendingRequest invalidate];
     _pendingDeclick = NO;
-    _prefetchRequestId++;
-    _prefetchedPath = nil;
-    _prefetchedFile = nil;
-    _prefetchedTrack = nil;
     [self clearGaplessOnQueue];
 }
 
@@ -488,14 +464,16 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self publishPlaybackState:VibePlayerStateLoading node:nil file:nil segmentStart:0 position:0];
     [self clearSubmittedPlayIdentifier:submittedPlayIdentifier];
 
-    // The previous play's materializer, whichever way this play goes: whatever
-    // it was still downloading is for a track nothing is waiting on any more,
-    // and it competes with this one for the provider. Cancelling it is the only
-    // way to stop it — see CloudFileMaterializer. It has to happen ABOVE the
-    // prefetch fast path, not beside the replacement below, or a play answered
-    // from the park leaves the superseded transfer pulling a whole file down
-    // against the track the user just picked.
-    [self cancelPlayMaterializerOnQueue];
+    // Detach the previous play from its path claim and cancel any still-
+    // abortable materialization. If AVAudioFile has already blocked in the OS,
+    // the coordinator keeps the claim until it returns instead of losing track
+    // of it and multiplying workers on later requests.
+    [self cancelPlayOpenOnQueue];
+
+    // A park from the previous playlist neighborhood must not compete with
+    // the foreground provider transfer. A same-path park stays to race it.
+    [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtPlaySubmission
+                              playPath:path];
 
     // A prefetched handle for this exact path skips the open entirely, and the
     // transition goes straight to schedule and play. Ownership passes to the
@@ -504,51 +482,27 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // No materializer is minted: there is nothing left to download.
     if (_prefetchedFile && [path isEqualToString:_prefetchedPath]) {
         AVAudioFile *prefetchedFile = _prefetchedFile;
-        _prefetchedFile = nil;
-        _prefetchedPath = nil;
-        _prefetchedTrack = nil;
+        [self clearPrefetchOnQueue];
         [self finishPlayOnQueueWithFile:prefetchedFile error:nil openRequestId:openId];
         return;
     }
 
-    // Open the file off-queue. An iCloud or Dropbox placeholder blocks the
-    // open until it materializes, and that must never wedge the player queue.
-    // The request id pairs each open with its timeout: whichever fires first
-    // consumes the id, and the other becomes a no-op.
+    // Open through the bounded interactive lane. The request id still pairs
+    // the logical open with its timeout, while the coordinator owns the
+    // underlying standardized-path claim until an uncancellable OS call really
+    // returns.
     NSURL *openURL = track.url;
-    // This open's own materializer; the one it replaces was cancelled above.
-    CloudFileMaterializer *materializer = [[CloudFileMaterializer alloc] init];
-    CloudFileMaterializationToken *materializationToken = [materializer prepareMaterialization];
-    _playMaterializer = materializer;
-    _playMaterializerRequestId = openId;
+    _playOpenRequestId = openId;
     __weak AudioPlayer *weakSelf = self;
-    // Always open on our own user-initiated worker, even when a prefetch open
-    // for this exact path is still in flight: that worker runs at utility QoS,
-    // and a block already executing cannot be boosted. Both workers deliver
-    // into finishPlayOnQueueWithFile:, which consumes the open id, so the loser no-ops
-    // (see prefetchOnQueue:). The prefetch claim stays unconsumed, so its
-    // completion can still deliver first, or park the handle if it loses.
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSError *error = nil;
-        CFAbsoluteTime openStartedAt = CFAbsoluteTimeGetCurrent();
-        // The download, as a step of its own, so it can be abandoned. The
-        // materializer's local-file path is only a placeholder probe, not a
-        // coordinated read. A cancelled one falls through with a nil file, and
-        // the delivery below no-ops because the newer play that cancelled it
-        // has already consumed the request.
-        BOOL materialized = [materializer materializeURL:openURL
-                                                   token:materializationToken
-                                                   error:&error];
-        // Empty paths never reach the open: it would leak a descriptor
-        // (NSURL+AudioOpen). A nil file lands on the same failure path.
-        AVAudioFile *file = (!materialized || openURL.isEmptyOrDirectory)
-                ? nil
-                : [[AVAudioFile alloc] initForReading:openURL error:&error];
-        NSTimeInterval openSeconds = CFAbsoluteTimeGetCurrent() - openStartedAt;
+    _playOpenToken = [[AudioFileOpenCoordinator sharedCoordinator]
+            openURL:openURL
+            purpose:VibeAudioFileOpenPurposePlayback
+            completionQueue:_queue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval openSeconds) {
         // An open that outran the loading indicator's own threshold was a
         // materialization, near enough. How long the provider took is the one
         // number that explains a slow start, and nothing else records it.
-        if (!materialized) {
+        if (!file) {
             LogInfo(@"Open of %@ abandoned after %.1fs (%@)", openURL.lastPathComponent,
                     openSeconds, error.localizedDescription);
         }
@@ -557,11 +511,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         }
         AudioPlayer *strongSelf = weakSelf;
         if (strongSelf) {
-            dispatch_async(strongSelf->_queue, ^{
-                [strongSelf finishPlayOnQueueWithFile:file error:error openRequestId:openId];
-            });
+            [strongSelf finishPlayOnQueueWithFile:file error:error openRequestId:openId];
         }
-    });
+    }];
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFileOpenTimeoutSeconds * NSEC_PER_SEC)), _queue, ^{
         [weakSelf fileOpenTimedOutForRequest:openId];
     });
@@ -581,11 +533,14 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (!request) {
         return; // Superseded by a newer play, or already timed out.
     }
-    // The prefetch worker can win this request while its dedicated play worker
-    // is still downloading. Whichever completion wins consumes the request and
-    // retires that request's transfer; an identifier guard keeps a late result
-    // from touching a newer play's materializer.
-    [self cancelPlayMaterializerForRequest:openId];
+    // The prefetch worker can win this request while its dedicated play claim
+    // is still open. Whichever completion wins consumes the request and
+    // detaches that claim; an identifier guard protects a newer play.
+    [self cancelPlayOpenForRequest:openId];
+    // If the interactive open won its same-path prefetch race, retire the
+    // loser before a late result can make the new current track its successor.
+    [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtPlaySettlement
+                              playPath:request.path];
     AudioTrack *track = request.track;
     VibePendingPlaybackIntent startIntent = request.intent;
     NSTimeInterval startPosition = startIntent.position;
@@ -659,10 +614,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (!request) {
         return; // The open landed in time, or a newer play superseded it.
     }
-    [self cancelPlayMaterializerForRequest:openId];
-    // The matching materializer was cancelled above, so its blocked worker
-    // returns promptly. The file stays retryable: a later play mints a fresh
-    // token and coordinator.
+    [self cancelPlayOpenForRequest:openId];
+    // If materialization was still running it is cancelled. If the worker had
+    // entered AVAudioFile, its path claim stays registered until that call
+    // returns, and a same-path retry rebinds to it.
     AudioTrack *track = request.track;
     LogError(@"Timed out opening %@", track.url.path);
     [self resetToStoppedStateOnQueue];
@@ -685,7 +640,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // open must not land later and start playback out of an errored or stopped
     // UI. The request's unique identifier makes every late delivery a no-op.
     [_pendingRequest invalidate];
-    [self cancelPlayMaterializerOnQueue];
+    [self cancelPlayOpenOnQueue];
+    [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtAbandonment
+                              playPath:nil];
     _pendingDeclick = NO;
     [self clearGaplessOnQueue]; // any queued segment died with the node
     // Detach the varispeed that playOnQueue: attached for the failed track.
@@ -702,6 +659,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // full crossfade length.
     [self preemptRetiredFadesOnQueue];
     [self publishPlaybackState:VibePlayerStateStopped node:nil file:nil segmentStart:0 position:0];
+#if TARGET_OS_OSX
+    [self resolvePendingSavedOutputDeviceOnQueue];
+#endif
     // Release the output device once genuinely idle. A quick follow-up play,
     // such as auto-advance past a bad file, reuses the running engine.
     [self scheduleEngineIdleStopOnQueue];
@@ -741,6 +701,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         [finishedNode stop];
         [_engine detachNode:finishedNode];
     }
+#if TARGET_OS_OSX
+    [self resolvePendingSavedOutputDeviceOnQueue];
+#endif
     [self scheduleEngineIdleStopOnQueue];
     // Snapshot before dispatching. If the track has changed by the time the
     // block runs on main, this end event is stale and must be dropped.
@@ -848,13 +811,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self retireNode:oldNode varispeed:oldVarispeed milliseconds:kFadeDurationMilliseconds];
 
     self.currentTrack = nil;
-    // Superseding an open stops us WAITING on it; the download behind it runs
-    // on regardless unless it is cancelled. File > Close wants neither.
-    [self cancelPlayMaterializerOnQueue];
-    [_prefetchMaterializer cancel];
-    _prefetchMaterializer = nil;
-    // This supersedes any in-flight open, publishes Stopped and schedules the
-    // engine idle stop that releases the output device.
+    // Supersede every open and park, publish Stopped, then schedule the engine
+    // idle stop which releases the output device.
     [self resetToStoppedStateOnQueue];
 }
 
@@ -1135,18 +1093,18 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 
 #pragma mark - Helpers
 
-// The play materializer slot is queue-confined. The request-specific form is
-// what completion and timeout use: a delayed terminus must never cancel the
-// transfer installed by a newer play.
-- (void)cancelPlayMaterializerOnQueue {
-    [_playMaterializer cancel];
-    _playMaterializer = nil;
-    _playMaterializerRequestId = 0;
+// The play token slot is queue-confined. The request-specific form is what
+// completion and timeout use: a delayed terminus must never detach a newer
+// play's waiter.
+- (void)cancelPlayOpenOnQueue {
+    [_playOpenToken cancel];
+    _playOpenToken = nil;
+    _playOpenRequestId = 0;
 }
 
-- (void)cancelPlayMaterializerForRequest:(uint64_t)openId {
-    if (_playMaterializerRequestId == openId) {
-        [self cancelPlayMaterializerOnQueue];
+- (void)cancelPlayOpenForRequest:(uint64_t)openId {
+    if (_playOpenRequestId == openId) {
+        [self cancelPlayOpenOnQueue];
     }
 }
 

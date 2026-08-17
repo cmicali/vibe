@@ -79,7 +79,7 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
 
 @end
 
-@interface AboutWindowController () <NSWindowDelegate>
+@interface AboutWindowController () <NSWindowDelegate, NSMenuItemValidation>
 @end
 
 @implementation AboutWindowController {
@@ -200,6 +200,15 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
 // clears the playlist.
 - (IBAction)closeFile:(nullable id)sender {
     [self.window performClose:sender];
+}
+
+// The player may have named the shared nil-targeted item "Close All Files"
+// during its previous validation. This target closes one auxiliary window.
+- (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
+    if ([menuItem.identifier isEqualToString:@"menu_close"]) {
+        menuItem.title = STR_MENU_FILE_CLOSE;
+    }
+    return YES;
 }
 
 - (void)windowWillClose:(NSNotification *)notification {

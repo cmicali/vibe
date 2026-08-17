@@ -2,7 +2,7 @@
 // AudioTrackArtwork.m
 // Vibe
 //
-// The five states, the transitions and the locking discipline are in the
+// The seven states, the transitions and the locking discipline are in the
 // header. These are the fields the table is written in terms of.
 //
 
@@ -10,6 +10,23 @@
 #import "FolderArtRules.h"
 #import "FolderArtResolver.h"
 #import "PlatformImage.h"
+
+// Three consecutive read failures end the current display attempt rather than
+// letting updateUI dispatch forever. discardDecodedArt re-arms them when the
+// track leaves the header, so a later visit can recover after the file or its
+// provider becomes readable again.
+static const NSUInteger kMaxEmbeddedArtExtractionFailures = 3;
+
+// And how long after a failed read the next attempt may start. The count alone
+// bounded how many reads a bad file cost but not how fast they were spent:
+// updateUI runs several times in quick succession at a track start (begin
+// loading, start playing, metadata, art), so all three attempts went back to
+// back, each blocking a user-initiated worker for however long the failing read
+// takes — and nothing about an unreachable provider changes between two calls
+// milliseconds apart. The delay is what makes the second and third attempts
+// worth making. It is not a poll: nothing schedules a retry, it only decides
+// whether the next pass that asks is allowed to try.
+static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
 
 @implementation AudioTrackArtwork {
     VibeImage *_embeddedThumbnail;
@@ -20,7 +37,15 @@
     // by an archive that recorded the fact, and never cleared by a discard —
     // the bytes go, the fact does not.
     BOOL _embeddedArtKnown;
-    BOOL _embeddedExtractionAttempted;
+    // YES only after extraction conclusively found art or found none. A read
+    // failure leaves this NO, keeping the file unknown and the folder fallback
+    // closed.
+    BOOL _embeddedExtractionSettled;
+    BOOL _embeddedExtractionInFlight;
+    NSUInteger _embeddedExtractionFailures;
+    // Monotonic seconds before which no further extraction may start, 0 for
+    // none. Set by a failed read, cleared by anything that re-arms the budget.
+    NSTimeInterval _embeddedExtractionRetryNotBefore;
     BOOL _embeddedUndecodable;
     NSUInteger _artGeneration;
 }
@@ -44,11 +69,27 @@
     return self;
 }
 
+// Read before taking the monitor, never under it — it is cheap and never
+// blocks, but the injected form is arbitrary caller code.
+- (NSTimeInterval)nowSeconds {
+    AudioTrackArtworkClock clock = self.clock;
+    return clock ? clock() : NSProcessInfo.processInfo.systemUptime;
+}
+
+// _embeddedExtractionRetryNotBefore is 0 whenever no read has failed, so this
+// is also the answer for a track that has never been read at all.
+- (BOOL)retryBackoffHasElapsedLocked:(NSTimeInterval)now {
+    return now >= _embeddedExtractionRetryNotBefore;
+}
+
 - (void)adoptParsedArtData:(NSData *)artData {
     @synchronized (self) {
         _embeddedArtData = artData;
         _embeddedArtKnown = (artData != nil);
-        _embeddedExtractionAttempted = YES;
+        _embeddedExtractionSettled = YES;
+        _embeddedExtractionInFlight = NO;
+        _embeddedExtractionFailures = 0;
+        _embeddedExtractionRetryNotBefore = 0;
     }
 }
 
@@ -60,10 +101,13 @@
     @synchronized (self) {
         _embeddedThumbnail = thumbnail;
         _embeddedArtKnown = hasEmbeddedArt;
-        // An entry that knows of no art is artless: mark it attempted rather
+        // An entry that knows of no art is artless: mark it settled rather
         // than re-reading the file for art that is not there. An art-bearing
         // entry stays NO, so the full-resolution image is re-read on demand.
-        _embeddedExtractionAttempted = !hasEmbeddedArt;
+        _embeddedExtractionSettled = !hasEmbeddedArt;
+        _embeddedExtractionInFlight = NO;
+        _embeddedExtractionFailures = 0;
+        _embeddedExtractionRetryNotBefore = 0;
     }
 }
 
@@ -102,7 +146,9 @@
     NSString *pathToExtract = nil;
     NSData *dataToDecode = nil;
     BOOL dataWasInMemory = NO;
+    VibeEmbeddedArtExtractionResult extractionResult = VibeEmbeddedArtExtractionReadFailed;
     NSUInteger generation;
+    NSTimeInterval now = [self nowSeconds];
     @synchronized (self) {
         generation = _artGeneration;
         if (_embeddedArt) {
@@ -112,23 +158,63 @@
             dataToDecode = _embeddedArtData;
             dataWasInMemory = YES;
         }
-        // Re-read the file at most once: an artless or moved file must not pay
-        // for a synchronous TagLib parse on every access. Claim the attempt
-        // under the lock so that concurrent callers do not double-extract.
-        else if (!_sourceFilePath || _embeddedExtractionAttempted || _embeddedUndecodable) {
+        // A conclusive artless result is never re-read, while a failed read gets
+        // a small bounded retry budget, no faster than the backoff. Claim the
+        // call under the lock so concurrent callers do not double-extract.
+        else if (!_sourceFilePath || !_extractor || _embeddedExtractionSettled ||
+                 _embeddedExtractionInFlight || _embeddedUndecodable ||
+                 _embeddedExtractionFailures >= kMaxEmbeddedArtExtractionFailures ||
+                 ![self retryBackoffHasElapsedLocked:now]) {
             return nil;
         }
         else {
-            _embeddedExtractionAttempted = YES;
+            _embeddedExtractionInFlight = YES;
             pathToExtract = _sourceFilePath;
         }
     }
     // File I/O and the decode run outside the lock; see the discipline above.
     if (!dataToDecode && pathToExtract) {
-        dataToDecode = _extractor ? _extractor(pathToExtract) : nil;
+        extractionResult = _extractor(pathToExtract, &dataToDecode);
+        if (extractionResult == VibeEmbeddedArtExtractionFoundArt && !dataToDecode) {
+            LogWarn(@"Embedded art extractor reported art without bytes for %@",
+                    pathToExtract.lastPathComponent);
+            extractionResult = VibeEmbeddedArtExtractionReadFailed;
+        }
     }
-    VibeImage *decoded = VibeDecodedImageWithData(dataToDecode, kVibeDisplayArtDimension);
+    VibeImage *decoded = dataToDecode
+            ? VibeDecodedImageWithData(dataToDecode, kVibeDisplayArtDimension)
+            : nil;
+    // Read before the monitor, like the one at entry. Timed from when the read
+    // RETURNED, not when it started: a read that blocked for a minute has
+    // already given the condition every chance to change, and one that failed
+    // instantly is the case the backoff exists for.
+    NSTimeInterval completedAt = [self nowSeconds];
     @synchronized (self) {
+        if (pathToExtract) {
+            _embeddedExtractionInFlight = NO;
+            if (extractionResult == VibeEmbeddedArtExtractionReadFailed) {
+                // A demotion starts a fresh display pass. Its generation bump
+                // re-armed the budget, so an older read must not spend one of
+                // the new pass's attempts, or hold the new pass off behind a
+                // backoff, when it finally settles.
+                if (generation == _artGeneration) {
+                    _embeddedExtractionFailures = MIN(kMaxEmbeddedArtExtractionFailures,
+                                                       _embeddedExtractionFailures + 1);
+                    _embeddedExtractionRetryNotBefore =
+                            completedAt + kEmbeddedArtExtractionRetryBackoff;
+                }
+                return _embeddedArt; // a concurrent store, if one arrived
+            }
+            _embeddedExtractionFailures = 0;
+            _embeddedExtractionRetryNotBefore = 0;
+            if (extractionResult == VibeEmbeddedArtExtractionNoArt) {
+                _embeddedArtKnown = NO;
+                _embeddedExtractionSettled = YES;
+                return _embeddedArt;
+            }
+            _embeddedArtKnown = YES;
+            _embeddedExtractionSettled = YES;
+        }
         if (dataToDecode && !decoded) {
             // The bytes exist but cannot be decoded, which is permanent for
             // this file. Mark it and drop the bytes rather than pinning them.
@@ -156,7 +242,7 @@
             // Nothing is stored, but the file demonstrably has art, so re-arm
             // the on-demand re-read. This load claimed the attempt flag on
             // entry, and the discard's early return left that claim in place.
-            _embeddedExtractionAttempted = NO;
+            _embeddedExtractionSettled = NO;
         }
         return _embeddedArt ?: decoded;
     }
@@ -171,7 +257,7 @@
     // any of it.
     BOOL hasArtOfItsOwn = _embeddedArtKnown || _embeddedArt != nil ||
                           _embeddedArtData != nil || _embeddedThumbnail != nil;
-    return VibeFileIsKnownToCarryNoArt(hasArtOfItsOwn, _embeddedExtractionAttempted,
+    return VibeFileIsKnownToCarryNoArt(hasArtOfItsOwn, _embeddedExtractionSettled,
                                        _embeddedUndecodable);
 }
 
@@ -201,14 +287,21 @@
 
 - (BOOL)artNeedsLoad {
     NSString *path;
+    NSTimeInterval now = [self nowSeconds];
     @synchronized (self) {
         if (_embeddedArt) {
             return NO;
         }
         // Either there are in-memory bytes still to decode, or the file has
-        // not been read. Both are background work worth dispatching.
-        if (!_embeddedUndecodable &&
-                (_embeddedArtData != nil || (!_embeddedExtractionAttempted && _sourceFilePath != nil))) {
+        // not been read. Both are background work worth dispatching. The
+        // backoff is applied here as well as in embeddedArt, so a pass inside
+        // the window answers NO rather than dispatching a load that would take
+        // the artLoadDispatched flag and immediately no-op.
+        BOOL canExtract = !_embeddedExtractionSettled && !_embeddedExtractionInFlight &&
+                _embeddedExtractionFailures < kMaxEmbeddedArtExtractionFailures &&
+                [self retryBackoffHasElapsedLocked:now] &&
+                _sourceFilePath != nil && _extractor != nil;
+        if (!_embeddedUndecodable && (_embeddedArtData != nil || canExtract)) {
             return YES;
         }
         path = [self folderFallbackPathLocked];
@@ -231,7 +324,7 @@
         // away: the loader calls it right after publishing metadata, racing
         // the current track's first full-resolution decode.
         if (!_embeddedArtData) {
-            // There is nothing to drop. Keep the attempted flag: an artless
+            // There is nothing to drop. Keep the settled flag: an artless
             // track has it set to YES from the parse, and resetting it would
             // trigger a full TagLib re-parse merely to rediscover that there
             // is no art.
@@ -241,7 +334,9 @@
         if (!_embeddedArt) {
             // Art exists but is not yet decoded, so re-arm the on-demand
             // re-read.
-            _embeddedExtractionAttempted = NO;
+            _embeddedExtractionSettled = NO;
+            _embeddedExtractionFailures = 0;
+            _embeddedExtractionRetryNotBefore = 0;
         }
     }
 }
@@ -253,17 +348,27 @@
         // is precisely the case where nothing is stored yet because the load
         // is still in flight.
         _artGeneration++;
+        if (!_embeddedExtractionSettled && !_embeddedUndecodable) {
+            _embeddedExtractionFailures = 0;
+            _embeddedExtractionRetryNotBefore = 0;
+        }
+        // TRAP: _embeddedExtractionInFlight is deliberately NOT cleared here.
+        // It is the single-flight claim over a read that is still running
+        // outside the monitor, and clearing it would let the next display pass
+        // start a second concurrent extraction of the same file. The old read
+        // releases the claim itself when it returns, and the generation bump
+        // above is what stops its failure spending this pass's budget.
         // Nothing to do for the folder's cover: FolderArtResolver owns it, bounded
         // to the few folders in play, and dropping it here would only make the
         // next track in the same folder decode it again.
         if (!_embeddedArt && !_embeddedArtData) {
-            return; // artless or never loaded — keep the attempted flag
+            return; // artless or never loaded — keep the settled flag
         }
         _embeddedArt = nil;
         _embeddedArtData = nil;
         // The file has art, so re-arm the on-demand re-read for the next time
         // this track is shown at full resolution.
-        _embeddedExtractionAttempted = NO;
+        _embeddedExtractionSettled = NO;
     }
 }
 

@@ -177,6 +177,16 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
             });
             return;
         }
+        VibeUncompressedContainer sourceContainer =
+                VibeSniffUncompressedContainer(sourceURL.path);
+        if (sourceContainer == VibeUncompressedContainerUnknown) {
+            run_on_main_thread({
+                self->_converting = NO;
+                completion(nil, [self errorWithCode:VibeConvertErrorNotConvertible
+                                        description:@"The source is not a readable WAV or AIFF file."]);
+            });
+            return;
+        }
         NSError *error = nil;
         NSURL *tempURL = [self encodeSource:sourceURL progress:progress error:&error];
         if (!tempURL) {
@@ -186,8 +196,18 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
             });
             return;
         }
-        // Tag failure is cosmetic: an untagged FLAC is still the user's audio.
-        VibeCopyTagsToFLAC(sourceURL.path, tempURL.path);
+        // Metadata is part of conversion success. The copier revalidates the
+        // header against the preflight result before choosing its tag reader.
+        if (!VibeCopyTagsToFLAC(sourceURL.path, tempURL.path, sourceContainer)) {
+            [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];
+            NSError *tagError = [self errorWithCode:VibeConvertErrorTagCopyFailed
+                                         description:@"The audio converted, but its tags could not be copied safely."];
+            run_on_main_thread({
+                self->_converting = NO;
+                completion(nil, tagError);
+            });
+            return;
+        }
         // Both silent rungs stay off the main thread: file coordination blocks
         // until every other presenter of the URL relinquishes it, unbounded on
         // a cloud or network folder. When the setting says always ask, skip
@@ -429,6 +449,13 @@ static NSString *VibeFileStat(NSURL *url) {
     if (!source) {
         return nil;
     }
+    if (source.length <= 0) {
+        if (error) {
+            *error = [self errorWithCode:VibeConvertErrorNotConvertible
+                             description:@"That file contains no audio."];
+        }
+        return nil;
+    }
 
     NSDictionary *settings = @{
         AVFormatIDKey:         @(kAudioFormatFLAC),
@@ -460,12 +487,13 @@ static NSString *VibeFileStat(NSURL *url) {
         }
         return nil;
     }
+    AVAudioFramePosition expectedFrameCount = source.length;
     BOOL ok = YES;
     double lastReported = 0;
     // The strong local carries a step's error out of its pool; writing the
     // autoreleasing out-param inside would leave it dangling after the drain.
     NSError *streamError = nil;
-    while (source.framePosition < source.length) {
+    while (source.framePosition < expectedFrameCount) {
         // Drained per pass: an hour-long file runs thousands of passes before
         // the queue block's own pool would.
         @autoreleasepool {
@@ -476,14 +504,21 @@ static NSString *VibeFileStat(NSURL *url) {
                 break;
             }
             if (buffer.frameLength == 0) {
-                break; // end of file, whatever framePosition claims
+                if (source.framePosition < expectedFrameCount) {
+                    streamError = [self errorWithCode:VibeConvertErrorEncodeFailed
+                                          description:[NSString stringWithFormat:
+                            @"The source ended early at frame %lld of %lld.",
+                            (long long)source.framePosition, (long long)expectedFrameCount]];
+                    ok = NO;
+                }
+                break;
             }
             if (![destination writeFromBuffer:buffer error:&stepError]) {
                 streamError = stepError;
                 ok = NO;
                 break;
             }
-            double fraction = (double)source.framePosition / (double)source.length;
+            double fraction = (double)source.framePosition / (double)expectedFrameCount;
             if (progress && fraction - lastReported >= 0.01) {
                 lastReported = fraction;
                 progress(fraction);
@@ -506,6 +541,19 @@ static NSString *VibeFileStat(NSURL *url) {
 
     if (!ok) {
         [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];
+        return nil;
+    }
+
+    NSError *validationError = nil;
+    AVAudioFile *encoded = [[AVAudioFile alloc] initForReading:tempURL error:&validationError];
+    if (!encoded || encoded.length != expectedFrameCount) {
+        [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];
+        if (error) {
+            *error = validationError ?: [self errorWithCode:VibeConvertErrorEncodeFailed
+                                                 description:[NSString stringWithFormat:
+                    @"The encoded FLAC contains %lld of %lld expected frames.",
+                    (long long)encoded.length, (long long)expectedFrameCount]];
+        }
         return nil;
     }
     if (progress) {

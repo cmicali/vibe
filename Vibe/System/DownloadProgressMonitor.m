@@ -115,26 +115,31 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
     __weak DownloadProgressMonitor *weakSelf = self;
     // The publishing handler runs on the main thread when a provider begins
     // (or already is) publishing progress for this URL; the returned block
-    // runs when it unpublishes — the download finished or was abandoned.
+    // runs when it unpublishes — the download finished or was abandoned. The
+    // callback cannot distinguish those outcomes, so the poll verifies which.
     _subscriberToken = [NSProgress addSubscriberForFileURL:_url
             withPublishingHandler:^NSProgressUnpublishingHandler(NSProgress *progress) {
         DownloadProgressMonitor *self = weakSelf;
         if (!self || self->_cancelled) {
             return nil;
         }
+        [self detachPublishedProgress];
         self->_publisherActive = YES;
         self->_publishedProgress = progress;
         [progress addObserver:self forKeyPath:@"fractionCompleted"
                       options:NSKeyValueObservingOptionInitial context:kFractionContext];
+        __weak NSProgress *weakProgress = progress;
         return ^{
             dispatch_async(dispatch_get_main_queue(), ^{
                 DownloadProgressMonitor *self = weakSelf;
-                if (!self) {
+                NSProgress *progress = weakProgress;
+                if (!self || !progress || self->_publishedProgress != progress) {
                     return;
                 }
                 [self detachPublishedProgress];
                 if (!self->_cancelled) {
-                    [self reportFraction:1.0];  // unpublish means the download ended
+                    LogInfo(@"Download progress: provider unpublished %@ — poll resumed",
+                            self->_path.lastPathComponent);
                 }
             });
         };
@@ -399,9 +404,11 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
     // own threads, so a strong capture here would resurrect a monitor the main
     // thread is releasing.
     __weak DownloadProgressMonitor *weakSelf = self;
+    __weak NSProgress *weakProgress = object;
     dispatch_async(dispatch_get_main_queue(), ^{
         DownloadProgressMonitor *self = weakSelf;
-        if (self && !self->_cancelled) {
+        NSProgress *progress = weakProgress;
+        if (self && progress && !self->_cancelled && self->_publishedProgress == progress) {
             LogInfo(@"Download progress (provider): %.0f%% %@",
                     fraction * 100, self->_path.lastPathComponent);
             [self reportFraction:(float)fraction];

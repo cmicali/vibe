@@ -7,7 +7,6 @@
 #import "AudioPlayerInternal.h"
 #import "AudioTrack.h"
 #import "GaplessSpliceMath.h"
-#import "NSURL+AudioOpen.h"
 
 @implementation AudioPlayer (Gapless)
 
@@ -26,6 +25,8 @@
     [self setGaplessQueuedOnQueue:NO];
     _gaplessTrack = nil;
     _gaplessFile = nil;
+    [_gaplessOpenToken cancel];
+    _gaplessOpenToken = nil;
     _gaplessOpenPath = nil;
     _gaplessOpenRequestId++; // supersede any in-flight gapless open
 }
@@ -48,33 +49,37 @@
         return;
     }
     uint64_t openId = ++_gaplessOpenRequestId;
-    _gaplessOpenPath = track.url.path;
+    NSString *path = track.url.path;
+    _gaplessOpenPath = path;
     __weak AudioPlayer *weakSelf = self;
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        // The prefetch open just materialized this file, so the second open is
-        // cheap and cannot stall on a cloud placeholder.
-        NSError *error = nil;
-        // Empty paths never reach the open; see NSURL+AudioOpen.
-        AVAudioFile *file = track.url.isEmptyOrDirectory
-                ? nil
-                : [[AVAudioFile alloc] initForReading:track.url error:&error];
+    _gaplessOpenToken = [[AudioFileOpenCoordinator sharedCoordinator]
+            openURL:track.url
+            purpose:VibeAudioFileOpenPurposeGapless
+            completionQueue:_queue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
         AudioPlayer *strongSelf = weakSelf;
         if (!strongSelf) {
             return;
         }
-        dispatch_async(strongSelf->_queue, ^{
-            if (openId != strongSelf->_gaplessOpenRequestId) {
-                return; // superseded: a clear, a newer target, or a promote
-            }
-            strongSelf->_gaplessOpenPath = nil; // spent, success or not
-            if (!file || file.length <= 0) {
-                return; // the classic transition still works off the prefetch park
-            }
-            strongSelf->_gaplessTrack = track;
-            strongSelf->_gaplessFile = file;
-            [strongSelf maybeArmGaplessOnQueue];
-        });
-    });
+        if (openId != strongSelf->_gaplessOpenRequestId) {
+            return; // superseded: a clear, a newer target, or a promote
+        }
+        strongSelf->_gaplessOpenToken = nil;
+        strongSelf->_gaplessOpenPath = nil; // spent, success or not
+        if (!file || file.length <= 0) {
+            return; // the classic transition still works off the prefetch park
+        }
+        // A same-path re-prefetch can replace the playlist with fresh row
+        // objects while this private handle is opening. Bind promotion to the
+        // current park identity, not to the row captured when the open began.
+        AudioTrack *currentTrack = strongSelf->_prefetchedTrack;
+        if (!currentTrack || ![currentTrack.url.path isEqualToString:path]) {
+            return;
+        }
+        strongSelf->_gaplessTrack = currentTrack;
+        strongSelf->_gaplessFile = file;
+        [strongSelf maybeArmGaplessOnQueue];
+    }];
 }
 
 // Schedules the pre-opened next file as a second segment on the current node.
@@ -180,12 +185,27 @@
 
 #pragma mark - The park
 
-// Opens the file on a background queue and parks the handle for playOnQueue:
-// to consume. Utility QoS because this is readahead for a track not needed for
-// minutes; a play: arriving mid-open runs its own user-initiated open (see
-// playOnQueue:). A blocked open on a cloud placeholder strands one worker —
-// the same tradeoff the playback open accepts — and usefully starts the
-// download before the track is due.
+// Supersedes delivery and releases every field which could make a later
+// same-path prefetch look parked or still in flight.
+- (void)clearPrefetchOnQueue {
+    _prefetchRequestId++;
+    [_prefetchOpenToken cancel];
+    _prefetchOpenToken = nil;
+    _prefetchedPath = nil;
+    _prefetchedFile = nil;
+    _prefetchedTrack = nil;
+}
+
+- (void)retirePrefetchOnQueueAtPoint:(VibeAudioPrefetchRetirementPoint)point
+                            playPath:(NSString *)playPath {
+    if (VibeAudioPrefetchShouldRetire(point, _prefetchedPath, playPath)) {
+        [self clearPrefetchOnQueue];
+    }
+}
+
+// Opens the file on the bounded background lane and parks the handle for
+// playOnQueue: to consume. A play arriving mid-open has its own interactive
+// lane, while same-path prefetch requests reuse this claim.
 - (void)prefetchOnQueue:(AudioTrack *)track {
     NSString *path = track.url.path;
     // The armed splice must track the prefetch target. When the playlist's
@@ -217,13 +237,15 @@
     if ([self.pendingRequest isLoadingPath:path]) {
         return; // being opened for playback right now
     }
-    _prefetchRequestId++; // supersede any in-flight prefetch open
+    [self clearPrefetchOnQueue];
     if (_gaplessOpenPath) {
         // The second-handle open tracks the prefetch target too. While it is
         // in flight _gaplessTrack is still nil, so the unschedule guard above
         // could not see the retarget; left alive, the stale track would arm
         // at completion and the boundary would render the wrong file.
         _gaplessOpenRequestId++;
+        [_gaplessOpenToken cancel];
+        _gaplessOpenToken = nil;
         _gaplessOpenPath = nil;
     }
     // Claimed at request time rather than at completion, so that repeated
@@ -232,83 +254,56 @@
     _prefetchedPath = path;
     _prefetchedTrack = track;
     _prefetchedFile = nil;
-    // The previous prefetch's download is for a track that is no longer next.
-    // On a cloud folder that is a whole file still coming down against the one
-    // the user is waiting on, so it is cancelled rather than left to finish;
-    // see the materializer slots in AudioPlayerInternal.h.
-    //
-    // TRAP: this has to precede the nil-path return, not follow it. A nil
-    // track is exactly the last row and File > Close, where nothing takes the
-    // slot afterwards — left uncancelled there, the abandoned download runs on
-    // against the open the user is actually waiting for.
-    [_prefetchMaterializer cancel];
-    _prefetchMaterializer = nil;
     if (!path) {
         return; // nil track means end of playlist: just drop the parked handle
     }
     uint64_t prefetchId = _prefetchRequestId;
-    CloudFileMaterializer *materializer = [[CloudFileMaterializer alloc] init];
-    CloudFileMaterializationToken *materializationToken = [materializer prepareMaterialization];
-    _prefetchMaterializer = materializer;
     __weak AudioPlayer *weakSelf = self;
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        NSError *error = nil;
-        // Materialize first so the download is abortable; a plain open is not.
-        // A cancelled one delivers no file, which is exactly what a superseded
-        // prefetch should park — nothing.
-        BOOL materialized = [materializer materializeURL:track.url
-                                                   token:materializationToken
-                                                   error:&error];
-        // Empty paths never reach the open; see NSURL+AudioOpen.
-        AVAudioFile *file = (!materialized || track.url.isEmptyOrDirectory)
-                ? nil
-                : [[AVAudioFile alloc] initForReading:track.url error:&error];
+    _prefetchOpenToken = [[AudioFileOpenCoordinator sharedCoordinator]
+            openURL:track.url
+            purpose:VibeAudioFileOpenPurposePrefetch
+            completionQueue:_queue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
         AudioPlayer *strongSelf = weakSelf;
         if (!strongSelf) {
             return;
         }
-        dispatch_async(strongSelf->_queue, ^{
-            if (strongSelf->_prefetchMaterializer == materializer) {
-                strongSelf->_prefetchMaterializer = nil;
-            }
-            VibePlaybackRequest *request = strongSelf.pendingRequest.currentRequest;
-            if (request && [path isEqualToString:request.path]) {
-                // A play of this path is waiting on its own open, since plays
-                // never adopt this worker (see playOnQueue:). Deliver on
-                // success only. finishPlayOnQueueWithFile: consumes the open id, so
-                // whichever worker lands second no-ops, and rebinds to
-                // the latest pending row. A failed prefetch open must not consume
-                // the id: the play's own open may yet succeed, and consuming
-                // here would turn that recoverable race into a "Could not
-                // open". Either way this open is spent and nothing gets
-                // parked, so release the claim if it is still ours. Left set,
-                // a later prefetch of the same path would no-op against an
-                // empty park.
-                if (prefetchId == strongSelf->_prefetchRequestId) {
-                    strongSelf->_prefetchedPath = nil;
-                    strongSelf->_prefetchedTrack = nil;
-                }
-                if (file && file.length > 0) {
-                    [strongSelf finishPlayOnQueueWithFile:file error:error
-                                            openRequestId:request.identifier];
-                }
-                return;
-            }
-            if (prefetchId != strongSelf->_prefetchRequestId) {
-                return; // a newer prefetch target, or an adoption, superseded this open
+        if (prefetchId == strongSelf->_prefetchRequestId) {
+            strongSelf->_prefetchOpenToken = nil;
+        }
+        VibePlaybackRequest *request = strongSelf.pendingRequest.currentRequest;
+        if (request && [path isEqualToString:request.path]) {
+            // A play of this path is waiting on its own interactive claim.
+            // Deliver on success only; whichever result consumes the request
+            // first detaches the other, and delivery follows the latest rebound
+            // row through PlaybackRequestCoordinator.
+            if (prefetchId == strongSelf->_prefetchRequestId) {
+                [strongSelf clearPrefetchOnQueue];
             }
             if (file && file.length > 0) {
-                strongSelf->_prefetchedFile = file;
-                [strongSelf maybeOpenGaplessFileForTrack:track prefetchedFile:file];
+                [strongSelf finishPlayOnQueueWithFile:file error:error
+                                        openRequestId:request.identifier];
             }
-            else {
-                // The open failed. Release the claim so that a play of this
-                // track runs its own open and reports the error the usual way.
-                strongSelf->_prefetchedPath = nil;
-                strongSelf->_prefetchedTrack = nil;
+            return;
+        }
+        if (prefetchId != strongSelf->_prefetchRequestId) {
+            return; // a newer prefetch target, or an adoption, superseded this open
+        }
+        if (file && file.length > 0) {
+            strongSelf->_prefetchedFile = file;
+            // Use the current same-path row if prefetch was rebound while the
+            // claim was open, for the same identity reason as the private open.
+            AudioTrack *currentTrack = strongSelf->_prefetchedTrack;
+            if (currentTrack) {
+                [strongSelf maybeOpenGaplessFileForTrack:currentTrack prefetchedFile:file];
             }
-        });
-    });
+        }
+        else {
+            // The open failed. Release the claim so that a play of this track
+            // runs its own open and reports the error the usual way.
+            [strongSelf clearPrefetchOnQueue];
+        }
+    }];
 }
 
 @end

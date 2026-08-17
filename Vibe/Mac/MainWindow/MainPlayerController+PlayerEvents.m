@@ -127,12 +127,18 @@
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track {
+    if (track != self.playlistController.currentTrack) {
+        return;
+    }
     [[AppStats sharedInstance] playbackStopped];
     [self pauseUIUpdateTimer];
     [self updateUI];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track {
+    if (track != self.playlistController.currentTrack) {
+        return;
+    }
     // A device-loss error can mask a track the player merely parked as Paused;
     // see audioPlayer:error:. Resuming proves the mask wrong.
     [self clearErrorMask];
@@ -286,6 +292,13 @@
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {
+    // A real track carries the usual identity guard. Nil is the promised settle
+    // after a seek with nothing playable loaded; accept it only while the player
+    // is still stopped, not after a new load or play has superseded it.
+    if ((track && track != self.playlistController.currentTrack)
+            || (!track && !audioPlayer.isStopped)) {
+        return;
+    }
     [self updatePlaybackUI];
     // The playhead jumped, so resync Control Center's elapsed time.
     [self updateNowPlaying];

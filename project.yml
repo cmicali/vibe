@@ -522,6 +522,8 @@ targets:
       - path: Vibe/Debug/AudioLoadTiming.m
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Audio/AudioError.m
+      - path: Vibe/Audio/AudioWorkScheduler.m
+      - path: Vibe/Audio/AudioFileOpenCoordinator.m
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
       - path: Vibe/Audio/Metadata/MetadataParseRunner.m
       - path: Vibe/Audio/PlaybackRequestCoordinator.m

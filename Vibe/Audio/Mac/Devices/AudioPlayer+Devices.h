@@ -19,9 +19,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (AudioDeviceID)activeOutputDeviceID;
 
 // A raw bind of the engine's output unit to deviceID, with no graph rebuild
-// or restore. The async init uses it to apply the saved device before the
-// engine ever starts.
+// or restore.
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID;
+
+// Resolves the retained launch preference without blocking _queue. It only
+// applies a found device while Stopped; playback winning the lookup race leaves
+// the preference pending for the next Stopped transition or device/default
+// refresh. Runs on _queue.
+- (void)resolvePendingSavedOutputDeviceOnQueue;
 
 // Rebinds the engine to a new output device, restoring the current track, the
 // position and the play or pause state. Runs on _queue.

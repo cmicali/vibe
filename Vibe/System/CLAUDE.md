@@ -24,6 +24,8 @@ Best-effort download progress for a cloud file being materialized by its file pr
 
 Two sources, best wins. Everywhere: a poll of the dataless file's allocated size against its logical size. macOS only: the File Provider `NSProgress` publication, exact when the provider publishes, superseding the poll. iOS has no consumer-side progress API for third-party providers, so the poll is the whole story there — the header records why, so nobody re-researches it.
 
+An `NSProgress` unpublish is not completion: it also covers an abandoned operation or a disappearing provider. It detaches that exact source and lets the poll verify the file; only a reported 100% or materialized filesystem state publishes completion.
+
 **TRAP: a clear `SF_DATALESS` is not proof the file is here.** It is also what a provider that never sets the flag looks like, and treating that as materialized reported a motionless 100% for a download that had not begun. The flag being down and the allocated blocks being there must **both** hold; with no positive fraction the monitor reports nothing at all rather than a zero.
 
 **TRAP: `NSURLIsUbiquitousItemKey` is not an iCloud test.** Every File Provider item answers YES to it — a Dropbox file included — so it only gets as far as "some cloud". The `NSMetadataQuery` is what settles it, and it stops on an item iCloud does not index rather than idling for the length of the download.
@@ -36,7 +38,9 @@ Pulls a file provider's placeholder down to disk as an explicit, **abortable** s
 
 It exists because an ordinary read cannot be interrupted. Opening a dataless file — TagLib's read, `AVAudioFile`'s open — blocks in the kernel until the provider finishes, whatever the app decides meanwhile. `NSFileCoordinator`'s `-cancel` is the one documented way out ("any current invocation will stop waiting and return immediately", from any thread), which is why the download is coordinated here rather than left implicit inside whatever opens the file next.
 
-Three callers, each with a slot of its own so they cannot cancel each other: the metadata scan's cloud lane (`AudioTrackMetadataLoader`, cancelled by the foreground-download hold), and the player's play and prefetch opens (`_playMaterializer` / `_prefetchMaterializer` in `AudioPlayerInternal.h`, each cancelled when superseded and both on `stop`).
+Two callers, each with a slot of its own so they cannot cancel each other: the metadata scan's cloud lane (`AudioTrackMetadataLoader`, cancelled by the foreground-download hold), and `AudioFileOpenCoordinator` (`Vibe/Audio/`), which mints one per path claim for its playback and prefetch opens and cancels it when a waiter detaches. The player no longer holds materializers of its own — `_playOpenToken` / `_prefetchOpenToken` in `AudioPlayerInternal.h` are the coordinator's delivery tokens, and cancelling one reaches the materializer through the claim.
+
+**Cancellation has exactly one spelling here**, `VibeMaterializationCancelledError` (`NSCocoaErrorDomain` / `NSUserCancelledError`, which is also what `NSFileCoordinator` returns for its own `-cancel`). `CloudMetadataRetryRules.h` distinguishes "the app cancelled this" from "the provider failed" on that error alone, so a second spelling would silently change the metadata lane's retry behavior.
 
 **A fresh coordinator per download** — cancelling poisons one for good, so reusing it would turn the first abort into a permanent refusal to download anything. And a caller's gate must **suspend before it cancels**, or the cancelled parse's re-queue restarts the same download immediately: a cancel loop rather than a hold.
 

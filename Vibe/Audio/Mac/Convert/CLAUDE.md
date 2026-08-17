@@ -6,7 +6,7 @@ The controller half — the playlist swap and the undo round trip — is `Mac/Ma
 
 **The encoder is CoreAudio's** (`AVAudioFile` with `kAudioFormatFLAC`): no new dependency, nothing for `THIRD-PARTY-NOTICES.md`. ffmpeg was never an option — the app is sandboxed and ships in the App Store.
 
-`FLACConvertRules.h` holds the eligibility and naming rules as static inlines, so the unit tests reach them without compiling the converter or TagLib. Eligibility is WAV and AIFF only: the sniffed `metadata.fileType` decides once it exists; the extension covers the window before the background scan reaches a freshly dropped row.
+`FLACConvertRules.h` holds the preliminary eligibility and naming rules as static inlines, so the unit tests reach them without compiling the converter or TagLib. Eligibility is WAV and AIFF only: the sniffed `metadata.fileType` decides once it exists; the extension keeps the menu available before the background scan reaches a freshly dropped row. Acceptance always performs a RIFF/FORM header sniff on the converter queue.
 
 **TRAP: the buffer's `commonFormat` is the only thing that sets the FLAC's declared source bit depth.** `AVEncoderBitDepthHintKey` and `AVLinearPCMBitDepthKey` are both silently ignored by this encoder. Int16 buffers give a 16-bit FLAC; anything wider gives 24-bit, the format's ceiling. So `encodeSource:` picks the buffer format from the source's own depth (`Int16` when not float and ≤16 bits, `Int32` otherwise), or a 16-bit recording is written as a 24-bit file that is bit-exact but misdescribes itself and is larger. Float is the one lossy case — FLAC stores integers, and every FLAC encoder quantizes float to 24 bits.
 
@@ -30,7 +30,9 @@ That rung also needs the flac extension declared in `CFBundleDocumentTypes` with
 
 ## Tags, progress and disposal
 
-`FLACTagCopier` carries the source's tag over with TagLib: `setProperties` for the scalars (its `PropertyMap` normalizes ID3 spellings to Vorbis ones, `TBPM` → `BPM`) plus the front-cover picture. Failure is non-fatal — an untagged FLAC is still the user's audio, and every display path falls back to the filename.
+`FLACTagCopier` carries the source's tag over with TagLib: `setProperties` for the scalars (its `PropertyMap` normalizes ID3 spellings to Vorbis ones, `TBPM` → `BPM`) plus the front-cover picture. It revalidates and opens the header-sniffed container rather than trusting the extension or cached metadata. Failure is fatal to the conversion: the temporary FLAC is removed and the original remains in place, so enabling Delete Original can never turn a tag-copy failure into metadata loss.
+
+The encode must reach the source's declared frame count and the finished FLAC must reopen with that same count before tag copying or placement. A zero-frame read before the declared end is truncation, not EOF success; the temporary output is removed and the source remains untouched.
 
 `progressHandler` reports the encode on the main thread at about one-percent steps, with the converting track so the owner can tell whether it is on screen. It drives the waveform's brush-through sweep (`WaveformUI/CLAUDE.md`).
 

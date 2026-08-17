@@ -7,6 +7,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "FLACConvertRules.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -15,12 +16,17 @@ NS_ASSUME_NONNULL_BEGIN
 extern "C" {
 #endif
 
-// Copies the scalar tags and the front-cover picture from sourcePath's ID3v2 tag
-// into flacPath's Vorbis comments and picture blocks, and saves. Returns NO
-// when nothing could be copied — cosmetic, not fatal: every display path
-// falls back to the filename. A free function so the TagLib include graph
-// stays inside the .mm.
-BOOL VibeCopyTagsToFLAC(NSString *sourcePath, NSString *flacPath);
+// Reads the RIFF/FORM header rather than trusting the extension or cached
+// metadata. Unknown means conversion must stop before replacing the source.
+VibeUncompressedContainer VibeSniffUncompressedContainer(NSString *sourcePath);
+
+// Copies the scalar tags and front-cover picture into the FLAC and saves it.
+// The source is revalidated against sourceContainer so a file changed during
+// conversion cannot be opened through the wrong reader. NO means conversion
+// must fail rather than discard metadata. Free functions keep the TagLib
+// include graph inside the .mm.
+BOOL VibeCopyTagsToFLAC(NSString *sourcePath, NSString *flacPath,
+                       VibeUncompressedContainer sourceContainer);
 
 #ifdef __cplusplus
 }

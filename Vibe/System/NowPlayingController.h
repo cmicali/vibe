@@ -39,9 +39,9 @@ typedef NS_ENUM(NSInteger, NowPlayingPlaybackState) {
 };
 
 @protocol NowPlayingControllerDelegate <NSObject>
-// Discrete play and pause, which some remotes and Control Center send. The
-// controller calls play only when not already playing, and pause only when
-// playing.
+// Discrete play and pause, which some remotes and Control Center send. These
+// name destination states, so delegates route them to idempotent start/resume
+// and pause operations rather than through a play/pause toggle.
 - (void)nowPlayingControllerPlay:(NowPlayingController *)controller;
 - (void)nowPlayingControllerPause:(NowPlayingController *)controller;
 // The keyboard play/pause media key sends this toggle.

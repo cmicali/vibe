@@ -36,6 +36,15 @@
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(FILETYPE_WAV, @"mp3"));
 }
 
+- (void)testPreliminaryContainerUsesTheMetadataTypeRatherThanTheExtension {
+    XCTAssertEqual(VibeUncompressedContainerForFile(FILETYPE_WAV, @"mp3"),
+            VibeUncompressedContainerWAV);
+    XCTAssertEqual(VibeUncompressedContainerForFile(FILETYPE_AIFF, @"wav"),
+            VibeUncompressedContainerAIFF);
+    XCTAssertEqual(VibeUncompressedContainerForFile(FILETYPE_MP3, @"wav"),
+            VibeUncompressedContainerUnknown);
+}
+
 #pragma mark - Eligibility before metadata arrives
 
 - (void)testUnparsedTrackFallsBackToItsExtension {
@@ -56,6 +65,13 @@
 - (void)testExtensionFallbackIsCaseInsensitive {
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"WAV"));
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"AIFF"));
+}
+
+- (void)testPreliminaryContainerFallsBackToAnUnparsedFilesExtension {
+    XCTAssertEqual(VibeUncompressedContainerForFile(nil, @"BWF"),
+            VibeUncompressedContainerWAV);
+    XCTAssertEqual(VibeUncompressedContainerForFile(@"", @"AIFF"),
+            VibeUncompressedContainerAIFF);
 }
 
 - (void)testAifcIsNotEligibleOnExtensionAlone {

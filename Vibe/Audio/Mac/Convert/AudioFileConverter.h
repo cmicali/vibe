@@ -21,6 +21,8 @@ typedef NS_ENUM(NSInteger, VibeConvertErrorCode) {
     VibeConvertErrorNotConvertible,
     VibeConvertErrorDestinationExists,
     VibeConvertErrorRestoreFailed,
+    VibeConvertErrorEncodeFailed,
+    VibeConvertErrorTagCopyFailed,
 };
 
 @interface AudioFileConverter : NSObject

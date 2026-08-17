@@ -12,16 +12,25 @@
 // full-size decode and nothing standing in for it, since 128px is fine under
 // the blur but visibly soft in the art card.
 //
-// Five states, and which one holds is decided entirely by these fields:
+// Seven states, and which one holds is decided entirely by these fields:
 //
-//   State         art  data  known  attempted  undecodable   folder fallback
-//   ─────────────────────────────────────────────────────────────────────────
-//   Unknown        —    —      —       NO          NO           REFUSED
-//   BytesHeld      —    ✓      ✓       ✓           NO           refused
-//   Decoded        ✓    ·      ✓       ✓           NO           refused
-//   NotLoaded      —    —      ✓       NO          NO           refused
-//   Artless        —    —      —      YES          NO           allowed
-//   Undecodable    —    —      ·       ·          YES           allowed
+//   State         art  data  known  settled  failures  undecodable  fallback
+//   ──────────────────────────────────────────────────────────────────────────
+//   Unknown        —    —      —      NO        0          NO       REFUSED
+//   ReadFailed     —    —      ·      NO       1–3         NO       refused
+//
+// ReadFailed is bounded twice over, because a file that cannot be read is
+// usually one whose every read is expensive: at most three attempts per display
+// pass, AND no sooner than a short backoff after the last failure. Without the
+// backoff the three ran back to back — updateUI fires several times in quick
+// succession at a track start, and nothing about a provider that just failed
+// changes between two calls a few milliseconds apart, so all three attempts
+// were spent, blocking a worker each time, before the condition could move.
+//   BytesHeld      —    ✓      ✓      YES       0          NO       refused
+//   Decoded        ✓    ·      ✓      YES       0          NO       refused
+//   NotLoaded      —    —      ✓      NO        0          NO       refused
+//   Artless        —    —      —      YES       0          NO       allowed
+//   Undecodable    —    —      ·       ·        0         YES       allowed
 //
 // `known` is hasEmbeddedArt: the file is known to carry art, whether or not any
 // of it is in hand. It is what tells NotLoaded — a cache hit, or a track whose
@@ -40,7 +49,8 @@
 //   adoptArchivedThumbnail…    → Artless when the entry knows of no art, else
 //                                NotLoaded (an archive carries no art bytes;
 //                                loadArtBlocking re-reads the file)
-//   loadArtBlocking            → Unknown → BytesHeld → Decoded, or Undecodable
+//   loadArtBlocking            → Unknown/NotLoaded → BytesHeld → Decoded,
+//                                Artless, ReadFailed, or Undecodable
 //   discardArtData             → drops bytes; re-arms to NotLoaded if nothing
 //                                was decoded, so the file can be read again
 //   discardDecodedArt          → drops everything, re-arms to NotLoaded, and is
@@ -68,9 +78,23 @@ NS_ASSUME_NONNULL_BEGIN
 // Blocking art extraction — a file read and a tag parse — supplied by the
 // owner. TagLib is C++ and stays out of this class so that it compiles as
 // plain ObjC. It is never invoked with the monitor held, because the read can
-// block for minutes on a cloud placeholder. nil means no art, or an unreadable
-// file.
-typedef NSData * _Nullable (^AudioTrackArtworkExtractor)(NSString *path);
+// block for minutes on a cloud placeholder. The result separates a conclusive
+// artless file from a read failure: the former permits the folder fallback;
+// the latter stays unknown and retryable, so a cover can never stand in front
+// of embedded art merely because one read was interrupted.
+typedef NS_ENUM(NSUInteger, VibeEmbeddedArtExtractionResult) {
+    VibeEmbeddedArtExtractionReadFailed,
+    VibeEmbeddedArtExtractionNoArt,
+    VibeEmbeddedArtExtractionFoundArt,
+};
+
+typedef VibeEmbeddedArtExtractionResult (^AudioTrackArtworkExtractor)(
+        NSString *path,
+        NSData * _Nullable __autoreleasing * _Nullable artData);
+
+// Monotonic seconds, for the retry backoff below. Injected so the backoff can
+// be tested without sleeping; production leaves it nil and reads the clock.
+typedef NSTimeInterval (^AudioTrackArtworkClock)(void);
 
 @class FolderArtResolver;
 
@@ -88,11 +112,15 @@ typedef NSData * _Nullable (^AudioTrackArtworkExtractor)(NSString *path);
 // known folder. Set it before the instance is shared across threads.
 @property (nonatomic, strong, nullable) FolderArtResolver *folderArt;
 
+// nil in production, where the retry backoff reads the monotonic clock. Set it
+// before the instance is shared across threads.
+@property (nonatomic, copy, nullable) AudioTrackArtworkClock clock;
+
 // Archived by AudioTrackMetadata's encodeWithCoder:.
 @property (nullable, readonly, copy) NSString *sourceFilePath;
 
 // For a fresh parse: the raw art bytes TagLib found, or nil for an artless
-// file. It marks extraction as attempted either way, so an artless file never
+// file. It settles extraction either way, so an artless file never
 // pays for a second parse merely to rediscover that there is no art.
 - (void)adoptParsedArtData:(nullable NSData *)artData;
 

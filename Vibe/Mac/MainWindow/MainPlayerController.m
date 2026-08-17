@@ -107,11 +107,11 @@
     // applicationShouldTerminateAfterLastWindowClosed never fires.
     self.window.delegate = self;
 
-    // AudioPlayer's async init resolves the saved device on its own queue, by
-    // UID first and name as a fallback. Resolution enumerates CoreAudio
-    // devices through per-device HAL property reads, which take tens of ms
-    // when Bluetooth devices are present, and this method runs before first
-    // paint.
+    // AudioPlayer starts on System Output and asks AudioDeviceManager to
+    // resolve the saved device asynchronously, UID first and name as a
+    // fallback. The HAL sweep can take tens of ms with Bluetooth devices, or
+    // stall entirely when coreaudiod is unavailable; neither case occupies
+    // the player's serial queue or this pre-first-paint path.
     self.audioPlayer = [[AudioPlayer alloc] initWithDeviceUID:Settings.audioOutputDeviceUID
                                                          name:Settings.audioOutputDeviceName
                                                      enableFX:Settings.audioFXEnabled

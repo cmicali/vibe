@@ -20,12 +20,12 @@ NS_ASSUME_NONNULL_BEGIN
 // even in the window before that art is decoded.
 //
 //  hasArtOfItsOwn      — decoded art, undecoded art bytes, or a thumbnail.
-//  extractionAttempted — the file has been read for art, so "none found" is an
-//                        answer rather than a gap.
+//  extractionSettled — the file was read successfully for art, so "none found"
+//                      is an answer rather than a gap. A failed read is not.
 //  undecodable         — the art bytes exist but will not decode, which is
 //                        permanent, so the folder's cover is the better showing.
 static inline BOOL VibeFileIsKnownToCarryNoArt(BOOL hasArtOfItsOwn,
-                                               BOOL extractionAttempted,
+                                               BOOL extractionSettled,
                                                BOOL undecodable) {
     if (undecodable) {
         return YES;
@@ -33,7 +33,7 @@ static inline BOOL VibeFileIsKnownToCarryNoArt(BOOL hasArtOfItsOwn,
     if (hasArtOfItsOwn) {
         return NO;
     }
-    return extractionAttempted;
+    return extractionSettled;
 }
 
 #pragma mark - Where a cover is looked for

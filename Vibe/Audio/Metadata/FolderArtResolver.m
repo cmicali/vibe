@@ -205,6 +205,8 @@ static NSString *const kNoArtMarker = @"";
         if (!decodeSettled) {
             return nil; // settled: this folder has none
         }
+        // Read before the decode, because the decode is what fills it.
+        BOOL thumbnailWasMissing = [_thumbnails objectForKey:directory] == nil;
         VibeImage *display = [self loadDisplayArtAtPath:settled directory:directory
                                              revision:settledRevision];
         os_unfair_lock_lock(&_lock);
@@ -215,16 +217,48 @@ static NSString *const kNoArtMarker = @"";
             pinned.decoding -= 1;
         }
         os_unfair_lock_unlock(&_lock);
+        // The display decode also fills the row-thumbnail cache from the same
+        // bytes, so the first one for a directory is a real redraw edge for
+        // rows that had nothing. Later decodes of the same settled cover are
+        // not: the thumbnail is already cached, and posting again would cost a
+        // reloadVisibleTracks plus an updateUI on every track change through
+        // this folder once the four-entry display cache has evicted it. A
+        // failed decode is never an edge — nothing new became drawable.
+        if (display && thumbnailWasMissing) {
+            [self postResolutionNotificationForDirectory:directory
+                                                 revision:settledRevision
+                                                  artPath:settled];
+        }
         return display;
     }
     uint64_t revision = [self claimDirectory:directory];
     if (revision == 0) {
         return nil;
     }
-    NSString *artPath = [self resolveDirectory:directory revision:revision didSettle:NULL];
+    BOOL settledAnswer = NO;
+    NSString *artPath = [self resolveDirectory:directory revision:revision
+                                      didSettle:&settledAnswer];
     VibeImage *display = artPath ? [self loadDisplayArtAtPath:artPath directory:directory
                                                    revision:revision] : nil;
     [self releaseDirectory:directory revision:revision];
+    // A row that asked while this claim was held skipped its own resolver job,
+    // so the blocking owner supplies its redraw edge. Two answers are one:
+    // pixels this decode produced, and a settled "this folder has none", which
+    // still has to arrive because the header deliberately holds the previous
+    // track's art until the answer does. A settled cover this decode could NOT
+    // read is neither — nothing became drawable and the answer has not moved —
+    // so it gets no edge, and the retry (readArtAtPath: keeps the answer and
+    // counts the failure) supplies one if it succeeds.
+    //
+    // The artPath is the post's fence against a cover replaced while the decode
+    // ran, so it must name what this decode actually drew. nil is "whatever the
+    // entry holds now", correct only for the no-cover case, which has no path.
+    BOOL settledWithNoCover = settledAnswer && artPath == nil;
+    if (display || settledWithNoCover) {
+        [self postResolutionNotificationForDirectory:directory
+                                             revision:revision
+                                              artPath:display ? artPath : nil];
+    }
     return display;
 }
 
@@ -527,6 +561,20 @@ static NSString *const kNoArtMarker = @"";
     return current;
 }
 
+- (void)postResolutionNotificationForDirectory:(NSString *)directory
+                                       revision:(uint64_t)revision
+                                        artPath:(NSString *)artPath {
+    __weak FolderArtResolver *weakSelf = self;
+    run_on_main_thread({
+        FolderArtResolver *strongSelf = weakSelf;
+        if (![strongSelf isRevisionCurrent:revision forDirectory:directory artPath:artPath]) {
+            return;
+        }
+        [NSNotificationCenter.defaultCenter postNotificationName:FolderArtDidResolveNotification
+                                                          object:strongSelf];
+    });
+}
+
 #pragma mark - Resolving
 
 // A cell draw asks on every pass, and a playlist of a thousand tracks in one
@@ -583,16 +631,9 @@ static NSString *const kNoArtMarker = @"";
     if (!settled && !stored) {
         return;
     }
-    __weak FolderArtResolver *weakSelf = self;
-    run_on_main_thread({
-        FolderArtResolver *strongSelf = weakSelf;
-        if (![strongSelf isRevisionCurrent:revision forDirectory:directory
-                                   artPath:stored ? artPath : nil]) {
-            return;
-        }
-        [NSNotificationCenter.defaultCenter postNotificationName:FolderArtDidResolveNotification
-                                                          object:strongSelf];
-    });
+    [self postResolutionNotificationForDirectory:directory
+                                         revision:revision
+                                          artPath:stored ? artPath : nil];
 }
 
 // Finds the folder's cover and settles the answer either way. Blocking: a

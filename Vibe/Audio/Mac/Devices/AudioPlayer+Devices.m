@@ -13,14 +13,26 @@
 #import "CoreAudioUtil.h"
 #import <AudioToolbox/AudioToolbox.h>
 
+static const NSTimeInterval kSystemOutputBindRetryDelay = 2.0;
+
+@interface AudioPlayer (DeviceQueueMutation)
+// The checked mutation shared by explicit selection, automatic fallback and
+// deferred launch binding. Runs on _queue.
+- (BOOL)setOutputDeviceOnQueue:(NSInteger)outputDeviceID;
+- (void)scheduleSystemOutputBindRetryOnQueue;
+@end
+
 #pragma mark - Output devices (internal surface + device-change observing)
 
 @implementation AudioPlayer (DevicesInternal)
 
 - (void)systemDefaultOutputDeviceDidChange {
-    if (self.currentlyRequestedAudioDeviceId == -1) {
-        [self setOutputDevice:self.currentlyRequestedAudioDeviceId];
-    }
+    dispatch_async(_queue, ^{
+        if (self.currentlyRequestedAudioDeviceId == -1) {
+            [self setOutputDeviceOnQueue:-1];
+        }
+        [self resolvePendingSavedOutputDeviceOnQueue];
+    });
 }
 
 // Covers the explicitly chosen device disappearing while playback is idle.
@@ -28,11 +40,80 @@
 // graph. setOutputDevice:-1 rebinds, and the delegate persists the fallback,
 // so System Output stays the choice even after the device returns.
 - (void)audioOutputDevicesDidChange {
-    NSInteger requested = self.currentlyRequestedAudioDeviceId;
-    if (requested >= 0 && ![[AudioDeviceManager sharedInstance] outputDeviceForId:requested]) {
-        LogInfo(@"AudioPlayer: requested output device removed; falling back to system default");
-        [self setOutputDevice:-1];
+    dispatch_async(_queue, ^{
+        // knowsOutputDeviceIsAbsent:, never outputDeviceForId: — this decision
+        // persists System Output, so it must not fire on the empty list a
+        // still-unpublished or retrying snapshot answers with.
+        NSInteger requested = self.currentlyRequestedAudioDeviceId;
+        if ([[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:requested]) {
+            LogInfo(@"AudioPlayer: requested output device removed; falling back to system default");
+            [self setOutputDeviceOnQueue:-1];
+        }
+        [self resolvePendingSavedOutputDeviceOnQueue];
+    });
+}
+
+// Where a deferred launch bind may land. Stopped always, and Loading only
+// while the engine is not running — which is the case that matters: launching
+// by double-clicking a file starts an open within milliseconds of the async
+// init, so a Stopped-only rule lets the FIRST track play through the system
+// default and moves to the saved device only at the next track boundary. At
+// launch nothing is rendering, so configureOutputDeviceOnQueue: rebinds with
+// shouldRestore == NO and the in-flight open starts itself on the new device.
+//
+// TRAP: an ordinary mid-session track change is ALSO Loading, with the
+// outgoing node still fading out on a running engine. Rebinding there stops
+// the engine under that fade and clicks, which is why the engine check is
+// part of the rule rather than a comment about launch. Playing and Paused stay
+// excluded outright: a failed bind there tears down live playback.
+static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunning) {
+    if (state == VibePlayerStateStopped) {
+        return YES;
     }
+    return state == VibePlayerStateLoading && !engineRunning;
+}
+
+- (void)resolvePendingSavedOutputDeviceOnQueue {
+    NSString *savedUID = _pendingSavedDeviceUID;
+    NSString *savedName = _pendingSavedDeviceName;
+    // Launch discovery is opportunistic, not a live device switch. If playback
+    // won the race with HAL setup, leave the saved intent pending; the next
+    // idle transition or device/default refresh can try again.
+    if ((savedUID.length == 0 && savedName.length == 0)
+            || !VibeCanBindSavedOutputDevice(_state, _engine.isRunning)
+            || _pendingSavedDeviceLookupInFlight) {
+        return;
+    }
+    _pendingSavedDeviceLookupInFlight = YES;
+    __weak AudioPlayer *weakSelf = self;
+    [[AudioDeviceManager sharedInstance] resolveOutputDeviceForUID:savedUID
+            name:savedName completion:^(AudioDevice *device) {
+        AudioPlayer *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        dispatch_async(strongSelf->_queue, ^{
+            // Keep this true through setOutputDeviceOnQueue:. Its failure can
+            // publish Stopped synchronously, and that stopped-state hook must
+            // not turn one failed HAL bind into an immediate retry loop.
+            // A user selection queued after this lookup began owns the intent
+            // and clears these fields. It must never be overwritten by a late
+            // launch-time answer.
+            if (![strongSelf->_pendingSavedDeviceUID isEqualToString:savedUID]
+                    || ![strongSelf->_pendingSavedDeviceName isEqualToString:savedName]
+                    || !device
+                    || !VibeCanBindSavedOutputDevice(strongSelf->_state,
+                                                     strongSelf->_engine.isRunning)) {
+                strongSelf->_pendingSavedDeviceLookupInFlight = NO;
+                return;
+            }
+            if ([strongSelf setOutputDeviceOnQueue:device.deviceId]) {
+                strongSelf->_pendingSavedDeviceUID = nil;
+                strongSelf->_pendingSavedDeviceName = nil;
+            }
+            strongSelf->_pendingSavedDeviceLookupInFlight = NO;
+        });
+    }];
 }
 
 - (AudioDeviceID)activeOutputDeviceID {
@@ -189,14 +270,17 @@
 // caused by our own completed rebuilds are no-ops rather than redundant
 // rebuilds.
 - (void)handleEngineConfigurationChange {
+    // This notification comes from AVAudioEngine, not the device manager, so
+    // unlike audioOutputDevicesDidChange it can land before the first snapshot
+    // is published or while one is being retried. knowsOutputDeviceIsAbsent:
+    // is what keeps that from reading as removal and persisting System Output
+    // over a device that is still there; a merely-unpublished list falls
+    // through to the graph rebuild below, which is the right answer anyway.
     NSInteger requested = self.currentlyRequestedAudioDeviceId;
-    if (requested >= 0) {
-        AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:requested];
-        if (!device) {
-            LogError(@"Audio output device failed; falling back to system default");
-            [self setOutputDevice:-1];
-            return;
-        }
+    if ([[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:requested]) {
+        LogError(@"Audio output device failed; falling back to system default");
+        [self setOutputDeviceOnQueue:-1];
+        return;
     }
     os_unfair_lock_lock(&_stateLock);
     VibePlayerState state = _state;
@@ -211,9 +295,20 @@
     }
     // The engine stopped itself in response to the change. Rebuild the graph,
     // preserving the track, the position and the play or pause state.
-    AudioDeviceID deviceID = requested >= 0
-            ? (AudioDeviceID)requested
-            : [CoreAudioUtil systemDefaultOutputDeviceID];
+    AudioDeviceID deviceID = kAudioObjectUnknown;
+    if (requested >= 0) {
+        deviceID = (AudioDeviceID)requested;
+    }
+    else if (![CoreAudioUtil readSystemDefaultOutputDeviceID:&deviceID]) {
+        // A failed property read is not proof that every output vanished. The
+        // coalesced retry below gives CoreAudio one later recovery edge; do not
+        // park a potentially intact track on an unknown verdict.
+        LogWarn(@"AudioPlayer: could not read system default during engine recovery");
+        [self scheduleSystemOutputBindRetryOnQueue];
+        [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
+                @"Could not read the system output device", nil)];
+        return;
+    }
     if (deviceID == kAudioObjectUnknown) {
         // No output device exists at all, because the last one vanished. Park
         // the track as Paused, restorable when a device returns — see
@@ -247,75 +342,130 @@
     return (NSInteger)[self activeOutputDeviceID];
 }
 
-- (void)setOutputDevice:(NSInteger)outputDeviceID {
-    dispatch_async(_queue, ^{
-
-        LogDebug(@"setOutputDevice: %@", @(outputDeviceID));
-
-        AudioDeviceID newDeviceID = kAudioObjectUnknown;
-        if (outputDeviceID >= 0) {
-            newDeviceID = (AudioDeviceID)outputDeviceID;
-        }
-        else {
-            newDeviceID = [CoreAudioUtil systemDefaultOutputDeviceID];
-        }
-
-        if (newDeviceID == kAudioObjectUnknown) {
-            // No output device is left at all: the explicitly chosen device
-            // vanished and it was the last one. Park as
-            // handleEngineConfigurationChange's no-device branch does.
-            LogError(@"Unable to resolve output device %@", @(outputDeviceID));
-            [self parkPlaybackForMissingOutputDeviceOnQueue];
-            // In practice outputDeviceID is -1 here. An explicit id of 0 or
-            // more is used verbatim above, and the only other value that could
-            // land in this branch is 0, which equals kAudioObjectUnknown and
-            // which the HAL never assigns to a device. Recording it matters: a
-            // stale explicit id would blind both observer recovery paths,
-            // whereas with -1 recorded, and persisted by the delegate, the next
-            // default-device arrival restores the parked track.
-            self.currentlyRequestedAudioDeviceId = outputDeviceID;
-            run_on_main_thread({
-                [self.delegate audioPlayer:self didChangeOutputDevice:self.currentlyRequestedAudioDeviceId];
-            });
-            [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
-                    @"Audio output device is unavailable", nil)];
+- (void)scheduleSystemOutputBindRetryOnQueue {
+    if (_systemOutputBindRetryScheduled) {
+        return;
+    }
+    _systemOutputBindRetryScheduled = YES;
+    __weak AudioPlayer *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)(kSystemOutputBindRetryDelay * NSEC_PER_SEC)), _queue, ^{
+        AudioPlayer *strongSelf = weakSelf;
+        if (!strongSelf) {
             return;
         }
-
-        AudioDeviceID currentDeviceID = [self activeOutputDeviceID];
-
-        LogDebug(@"current: %@ new: %@", @(currentDeviceID), @(newDeviceID));
-
-        if (newDeviceID != currentDeviceID) {
-            if (![self configureOutputDeviceOnQueue:newDeviceID]) {
-                // configureOutputDeviceOnQueue has already reported the error.
-                // Do not record or persist a device we failed to switch to.
-                return;
-            }
+        // Keep the guard set through the call. A second read failure must wait
+        // for a real device/default notification rather than polling forever.
+        if (strongSelf.currentlyRequestedAudioDeviceId == -1) {
+            [strongSelf setOutputDeviceOnQueue:-1];
         }
-        else if (outputDeviceID >= 0) {
-            // The chosen device is already the active one, but "active" may
-            // mean only that the output unit is tracking the system default
-            // and was never explicitly bound. An explicit choice must still
-            // pin the unit. Unpinned, a default change while Stopped moves the
-            // next play onto the new default with the old device still
-            // checked, because the config-change recovery rebinds only while
-            // Playing or Paused. The raw bind suffices, since it is the same
-            // device and so needs no graph rebuild, and writing the value the
-            // unit already uses is a no-op mid-render.
-            if (![self setOutputUnitDevice:newDeviceID]) {
-                [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
-                        @"Could not switch audio output device", nil)];
-                return;
-            }
+        strongSelf->_systemOutputBindRetryScheduled = NO;
+    });
+}
+
+- (BOOL)setOutputDeviceOnQueue:(NSInteger)outputDeviceID {
+
+    LogDebug(@"setOutputDevice: %@", @(outputDeviceID));
+
+    AudioDeviceID newDeviceID = kAudioObjectUnknown;
+    if (outputDeviceID >= 0) {
+        newDeviceID = (AudioDeviceID)outputDeviceID;
+    }
+    else if (![CoreAudioUtil readSystemDefaultOutputDeviceID:&newDeviceID]) {
+        // Following System Output is still the durable policy, but a transient
+        // property-read failure says nothing about whether hardware exists. Do
+        // not tear down or park a graph on that unknown verdict.
+        LogWarn(@"AudioPlayer: could not read the system default output device");
+        self.currentlyRequestedAudioDeviceId = -1;
+        [self notifyRequestedOutputDeviceOnQueue];
+        [self scheduleSystemOutputBindRetryOnQueue];
+        [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
+                @"Could not read the system output device", nil)];
+        return NO;
+    }
+
+    if (newDeviceID == kAudioObjectUnknown) {
+        // No output device is left at all. Following System Output remains an
+        // honest -1 choice, but an explicit unknown ID is never committed as
+        // though the HAL had accepted it.
+        LogError(@"Unable to resolve output device %@", @(outputDeviceID));
+        [self parkPlaybackForMissingOutputDeviceOnQueue];
+        if (outputDeviceID < 0) {
+            self.currentlyRequestedAudioDeviceId = outputDeviceID;
+            [self notifyRequestedOutputDeviceOnQueue];
+        }
+        [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
+                @"Audio output device is unavailable", nil)];
+        return NO;
+    }
+
+    AudioDeviceID currentDeviceID = [self activeOutputDeviceID];
+
+    LogDebug(@"current: %@ new: %@", @(currentDeviceID), @(newDeviceID));
+
+    if (newDeviceID != currentDeviceID) {
+        if (![self configureOutputDeviceOnQueue:newDeviceID]) {
+            // configureOutputDeviceOnQueue has already reported the error.
+            // Do not record or persist a device we failed to switch to.
+            return NO;
+        }
+    }
+    else if (outputDeviceID >= 0) {
+        // The chosen device is already the active one, but "active" may mean
+        // only that the output unit is tracking the system default and was
+        // never explicitly bound. Pin it before committing the requested ID.
+        if (![self setOutputUnitDevice:newDeviceID]) {
+            [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
+                    @"Could not switch audio output device", nil)];
+            return NO;
+        }
+    }
+
+    self.currentlyRequestedAudioDeviceId = outputDeviceID;
+    [self notifyRequestedOutputDeviceOnQueue];
+    return YES;
+}
+
+// The single announcement of the committed choice, sent on EVERY settled
+// mutation rather than only when the id moved. The delegate both persists it
+// and drives the menu checkmark, and it is idempotent, so re-sending an
+// unchanged value costs a defaults write nobody notices. Suppressing it made
+// "Settings names the last committed device" an invariant with no enforcement:
+// any path that left the two disagreeing — a failed bind, a launch preference
+// resolved to the id already requested — could then never resynchronize them,
+// because the one call that writes Settings was skipped precisely when they
+// already looked equal. Runs on _queue; the delegate hop is to main.
+- (void)notifyRequestedOutputDeviceOnQueue {
+    NSInteger requested = self.currentlyRequestedAudioDeviceId;
+    run_on_main_thread({
+        [self.delegate audioPlayer:self didChangeOutputDevice:requested];
+    });
+}
+
+- (void)setOutputDevice:(NSInteger)outputDeviceID {
+    dispatch_async(_queue, ^{
+        // System Output is a policy intent, so it supersedes a saved concrete
+        // device even when no output currently exists. Clear before binding to
+        // fence a resolver completion already queued behind this selection.
+        if (outputDeviceID == -1) {
+            self->_pendingSavedDeviceUID = nil;
+            self->_pendingSavedDeviceName = nil;
         }
 
-        self.currentlyRequestedAudioDeviceId = outputDeviceID;
-
-        run_on_main_thread({
-            [self.delegate audioPlayer:self didChangeOutputDevice:self.currentlyRequestedAudioDeviceId];
-        });
-
+        BOOL didBind = [self setOutputDeviceOnQueue:outputDeviceID];
+        if (didBind && outputDeviceID >= 0) {
+            // A concrete choice owns the intent only once the HAL accepted it.
+            // On failure, Settings still names the saved launch preference, so
+            // keep the in-memory pending intent aligned with it.
+            self->_pendingSavedDeviceUID = nil;
+            self->_pendingSavedDeviceName = nil;
+        }
+        // Persistence itself is setOutputDeviceOnQueue:'s, which announces every
+        // committed outcome — the two -1 failures that still commit the policy
+        // (a HAL read failure, and no output device existing at all) included.
+        // A failed graph reconfiguration is the one case that commits nothing:
+        // the engine did not move, so neither the requested id nor Settings may
+        // claim it did.
     });
 }
 

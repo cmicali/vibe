@@ -495,19 +495,27 @@ static NSData *albumArtDataFromTagLibFile(TagLib::File *file) {
 // It captures nothing, being a global block with no lifetime coupling, and
 // TagLib stays here so that AudioTrackArtwork compiles as plain ObjC.
 static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void) {
-    return ^NSData *(NSString *path) {
+    return ^VibeEmbeddedArtExtractionResult(NSString *path,
+                                             NSData *__autoreleasing *artData) {
         if (!path) {
-            return nil;
+            return VibeEmbeddedArtExtractionReadFailed;
         }
         // The same barrier as loadFromURL:. This runs on a background art
         // load, where a TagLib throw would terminate the process. A throw here
-        // simply means no art.
+        // is a failed read, distinct from a valid file carrying no art.
         try {
             TagLibAudioFile fileRef([path UTF8String]);
             if (fileRef.isNull()) {
-                return nil;
+                return VibeEmbeddedArtExtractionReadFailed;
             }
-            return albumArtDataFromTagLibFile(fileRef.file());
+            NSData *found = albumArtDataFromTagLibFile(fileRef.file());
+            if (!found) {
+                return VibeEmbeddedArtExtractionNoArt;
+            }
+            if (artData) {
+                *artData = found;
+            }
+            return VibeEmbeddedArtExtractionFoundArt;
         }
         catch (const std::exception &e) {
             LogError(@"TagLib art extraction failed for %@: %s", path, e.what());
@@ -515,7 +523,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void) {
         catch (...) {
             LogError(@"TagLib art extraction failed for %@", path);
         }
-        return nil;
+        return VibeEmbeddedArtExtractionReadFailed;
     };
 }
 

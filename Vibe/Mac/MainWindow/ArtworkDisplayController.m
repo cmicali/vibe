@@ -53,6 +53,71 @@ static const CGFloat kAccentMinLightnessLight = 0.40;
 static const CGFloat kAccentMaxLightnessLight = 0.52;
 static const CGFloat kAccentMaxChroma         = 0.17;
 
+// Inputs owned by one background render. The private image copy prevents the
+// worker from drawing an NSImage instance used by AppKit on the main thread.
+@interface ArtworkRenderRequest : NSObject
+@property (nonatomic, strong, readonly) NSImage *sourceArt;
+@property (nonatomic, strong, readonly) NSImage *renderSource;
+@property (nonatomic, strong, readonly) AudioTrack *track;
+@property (nonatomic, strong, readonly, nullable) NSColor *cachedColor;
+@property (nonatomic, readonly) NSUInteger artworkRenderGeneration;
+- (instancetype)initWithSourceArt:(NSImage *)sourceArt
+                     renderSource:(NSImage *)renderSource
+                            track:(AudioTrack *)track
+                      cachedColor:(nullable NSColor *)cachedColor
+                       generation:(NSUInteger)generation;
+@end
+
+@implementation ArtworkRenderRequest
+
+- (instancetype)initWithSourceArt:(NSImage *)sourceArt
+                     renderSource:(NSImage *)renderSource
+                            track:(AudioTrack *)track
+                      cachedColor:(nullable NSColor *)cachedColor
+                       generation:(NSUInteger)generation {
+    self = [super init];
+    if (self) {
+        _sourceArt = sourceArt;
+        _renderSource = renderSource;
+        _track = track;
+        _cachedColor = cachedColor;
+        _artworkRenderGeneration = generation;
+    }
+    return self;
+}
+
+@end
+
+// The background render publishes one read-only product: the square bitmap and
+// the color sampled from that exact bitmap. Neither can get ahead of the other
+// at a track transition.
+@interface ArtworkDisplayResult : NSObject
+@property (nonatomic, strong, readonly) NSImage *squareImage;
+@property (nonatomic, strong, readonly, nullable) NSColor *dominantColor;
+- (instancetype)initWithSquareImage:(NSImage *)squareImage
+                       dominantColor:(nullable NSColor *)dominantColor;
+@end
+
+@implementation ArtworkDisplayResult
+
+- (instancetype)initWithSquareImage:(NSImage *)squareImage
+                       dominantColor:(nullable NSColor *)dominantColor {
+    self = [super init];
+    if (self) {
+        _squareImage = squareImage;
+        _dominantColor = dominantColor;
+    }
+    return self;
+}
+
+@end
+
+@interface ArtworkDisplayController ()
+- (void)startRenderRequest:(ArtworkRenderRequest *)request;
+- (void)completeRenderRequest:(ArtworkRenderRequest *)request
+                        result:(ArtworkDisplayResult *)result;
+@end
+
 @implementation ArtworkDisplayController {
     ArtworkImageView            *_artworkView;
     NSView                      *_headerTintView;
@@ -69,14 +134,23 @@ static const CGFloat kAccentMaxChroma         = 0.17;
     // cache, so it self-nils the moment that cache drops the image while the
     // cropped copy stays on screen.
     BOOL                         _showingDefaultArt;
+    // The source whose crop is in flight. Kept separately from _displayedArt:
+    // the latter must describe what the view actually shows, especially while
+    // the slow-load placeholder decides whether the pending track's art won.
+    __weak NSImage              *_pendingArt;
     // The track whose full-resolution art is currently held decoded. The
     // reference is weak, so that if the playlist is replaced the track
     // deallocates and takes its art with it.
     __weak AudioTrack           *_artOwnerTrack;
-    // Pairs each async dominant-color computation with the art that requested
-    // it. Utility-queue blocks can complete out of order, and a stale color
-    // must not land over the tint that superseded it.
-    NSUInteger                  _tintGeneration;
+    // Pairs each async crop-and-color render with the request that owns both
+    // products. Neither a stale image nor its color may land over what
+    // superseded it.
+    NSUInteger                  _artworkRenderGeneration;
+    // Main-confined admission for the serial utility lane. Only the running
+    // request is dispatched; rapid changes replace this one waiting request.
+    dispatch_queue_t            _artworkRenderQueue;
+    ArtworkRenderRequest       *_queuedRenderRequest;
+    BOOL                        _renderInFlight;
     BOOL                        _initialized;
 }
 
@@ -86,6 +160,9 @@ static const CGFloat kAccentMaxChroma         = 0.17;
         _artworkView = contentView.albumArtImageView;
         _headerTintView = contentView.headerTintView;
         _dominantColorByTrack = [NSMapTable weakToStrongObjectsMapTable];
+        dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
+                DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
+        _artworkRenderQueue = dispatch_queue_create("com.vibe.artwork.render", attributes);
     }
     return self;
 }
@@ -168,41 +245,75 @@ static const CGFloat kAccentMaxChroma         = 0.17;
     [layer addAnimation:fade forKey:@"tintFade"];
 }
 
-// Tints the header glass to the art's dominant color. dominantColor renders a
-// 32px downscale and samples 1,024 pixels, which is too much for the main
-// thread on the exact track-transition frame, so it runs off-main —
-// bitmap-context drawing is thread-safe — and applies on main. The tint
-// therefore fades a beat after the art, which the crossfade hides. A track
-// whose color was already computed this session applies synchronously from the
-// cache instead.
-- (void)applyHeaderTintFromArt:(NSImage *)art forTrack:(AudioTrack *)track {
-    NSUInteger generation = ++_tintGeneration;
-    NSColor *cached = track ? [_dominantColorByTrack objectForKey:track] : nil;
-    if (cached) {
-        _dominantArtColor = cached;
-        [self refreshHeaderTint];
+// Produces the square display bitmap and its dominant color together off-main.
+// The source copy belongs only to this worker: the original may be in Now
+// Playing while the result, once complete, belongs to the artwork view. No one
+// NSImage instance is therefore drawn concurrently across threads. The one
+// main-thread delivery starts the image and tint crossfades together.
+- (void)renderArt:(NSImage *)art forTrack:(AudioTrack *)track {
+    // Copy before hopping queues, matching the dock renderer's ownership rule.
+    // NSImage's per-instance drawing cache is not documented thread-safe.
+    NSImage *renderSource = [art copy];
+    if (!renderSource) {
         return;
     }
+    NSUInteger generation = ++_artworkRenderGeneration;
+    _pendingArt = art;
+    NSColor *cachedColor = track ? [_dominantColorByTrack objectForKey:track] : nil;
+    ArtworkRenderRequest *request = [[ArtworkRenderRequest alloc]
+            initWithSourceArt:art renderSource:renderSource track:track
+                   cachedColor:cachedColor generation:generation];
+    if (_renderInFlight) {
+        _queuedRenderRequest = request;
+        return;
+    }
+    [self startRenderRequest:request];
+}
+
+- (void)startRenderRequest:(ArtworkRenderRequest *)request {
+    _renderInFlight = YES;
     __weak ArtworkDisplayController *weakSelf = self;
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        NSColor *color = [art dominantColor];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            ArtworkDisplayController *strongSelf = weakSelf;
-            if (!strongSelf) {
-                return;
-            }
-            // Cache even a stale result. The color is still right for the
-            // track that requested it, merely not for the current tint.
-            if (color && track) {
-                [strongSelf->_dominantColorByTrack setObject:color forKey:track];
-            }
-            if (generation != strongSelf->_tintGeneration) {
-                return; // newer art (or the default) owns the tint now
-            }
-            strongSelf->_dominantArtColor = color;
-            [strongSelf refreshHeaderTint];
-        });
+    dispatch_async(_artworkRenderQueue, ^{
+        @autoreleasepool {
+            NSImage *square = [request.renderSource squareCroppedImage]
+                    ?: request.renderSource;
+            NSColor *color = request.cachedColor ?: [square dominantColor];
+            ArtworkDisplayResult *result = [[ArtworkDisplayResult alloc]
+                    initWithSquareImage:square dominantColor:color];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                ArtworkDisplayController *strongSelf = weakSelf;
+                if (!strongSelf) {
+                    return;
+                }
+                [strongSelf completeRenderRequest:request result:result];
+            });
+        }
     });
+}
+
+- (void)completeRenderRequest:(ArtworkRenderRequest *)request
+                        result:(ArtworkDisplayResult *)result {
+    // Cache even a stale color. It is still right for the track that requested
+    // it, merely not for the current display.
+    if (result.dominantColor) {
+        [_dominantColorByTrack setObject:result.dominantColor forKey:request.track];
+    }
+    if (request.artworkRenderGeneration == _artworkRenderGeneration) {
+        _pendingArt = nil;
+        _artworkView.image = result.squareImage;
+        _dominantArtColor = result.dominantColor;
+        [self refreshHeaderTint];
+        [NSDockTile setDockIcon:result.squareImage];
+        _displayedArt = request.sourceArt;
+        _showingDefaultArt = NO;
+    }
+
+    _renderInFlight = NO;
+    ArtworkRenderRequest *nextRequest = _queuedRenderRequest;
+    _queuedRenderRequest = nil;
+    if (nextRequest) {
+        [self startRenderRequest:nextRequest];
+    }
 }
 
 // The artwork display policy: new art replaces old art directly. While the new
@@ -234,23 +345,19 @@ static const CGFloat kAccentMaxChroma         = 0.17;
         return;
     }
     if (action == VibeArtworkDisplayActionInstall) {
-        if (_displayedArt != art) {
-            // Both surfaces below frame art square and aspect-fit it, so crop
-            // once here rather than letterboxing a wide or tall cover in the
-            // header view and again in the dock tile. The identity mark stays
-            // the source image: the crop is a fresh object every time, and
-            // comparing it would re-crop on every update.
+        if (_displayedArt != art && _pendingArt != art) {
+            // Both surfaces frame art square and aspect-fit it, so the worker
+            // crops once rather than letterboxing a wide or tall cover in the
+            // header view and again in the dock tile. Both identity marks stay
+            // on the source image: the crop is a fresh object every time, and
+            // comparing it would re-render on every update while it is pending
+            // or after it lands.
             //
             // The crop is deliberately confined to these two. Now Playing
             // publishes track.cachedArt itself (NowPlayingController), and must
             // keep receiving the uncropped original — Control Center frames it
             // on its own terms.
-            NSImage *square = [art squareCroppedImage] ?: art;
-            _artworkView.image = square;
-            [self applyHeaderTintFromArt:square forTrack:track];
-            [NSDockTile setDockIcon:square];
-            _displayedArt = art;
-            _showingDefaultArt = NO;
+            [self renderArt:art forTrack:track];
         }
         return;
     }
@@ -298,17 +405,30 @@ static const CGFloat kAccentMaxChroma         = 0.17;
     if (art && _displayedArt == art) {
         return;
     }
-    [self showDefaultArtwork];
+    // If this track's crop is already in flight, the placeholder is only its
+    // backdrop while it finishes; let that result replace the default. A render
+    // for any other source belongs to the departed track and is invalidated.
+    [self showDefaultArtworkInvalidatingRender:(_pendingArt != art || !art)];
 }
 
-// Installs the record-bg default art and clears the glass tint. It is a no-op
-// if they are already showing.
+// Installs the record-bg default art and clears the glass tint. An ordinary
+// default decision invalidates any pending render even when the visuals are
+// already correct; the slow-load placeholder can preserve the current track's
+// render so that its result still replaces the temporary backdrop.
 - (void)showDefaultArtwork {
+    [self showDefaultArtworkInvalidatingRender:YES];
+}
+
+- (void)showDefaultArtworkInvalidatingRender:(BOOL)invalidateRender {
+    if (invalidateRender) {
+        _artworkRenderGeneration++; // orphan any in-flight crop-and-color result
+        _pendingArt = nil;
+        _queuedRenderRequest = nil;
+    }
     if (_showingDefaultArt && _initialized) {
         return;
     }
     _artworkView.image = [NSImage imageNamed:@"record-bg"];
-    _tintGeneration++; // orphan any in-flight dominant-color computation
     _dominantArtColor = nil;
     [self refreshHeaderTint];
     [NSDockTile resetToAppIcon];

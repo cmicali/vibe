@@ -5,6 +5,8 @@
 
 #import "FLACTagCopier.h"
 
+#import "FLACConvertRules.h"
+
 #include <exception>
 #include <memory>
 #include <tfilestream.h>
@@ -18,17 +20,27 @@
 
 namespace {
 
-// The source is always one of the two uncompressed containers — the only case
-// the menu enables — so extension dispatch plus isValid() is enough; no
-// content sniffing.
-std::unique_ptr<TagLib::File> openUncompressedSource(NSString *path, TagLib::IOStream *stream) {
-    NSString *ext = path.pathExtension.uppercaseString;
+VibeUncompressedContainer sniffUncompressedContainer(TagLib::IOStream *stream) {
+    if (TagLib::RIFF::WAV::File::isSupported(stream)) {
+        return VibeUncompressedContainerWAV;
+    }
+    if (TagLib::RIFF::AIFF::File::isSupported(stream)) {
+        return VibeUncompressedContainerAIFF;
+    }
+    return VibeUncompressedContainerUnknown;
+}
+
+std::unique_ptr<TagLib::File> openUncompressedSource(
+        VibeUncompressedContainer sourceContainer, TagLib::IOStream *stream) {
+    if (sniffUncompressedContainer(stream) != sourceContainer) {
+        return nullptr;
+    }
     std::unique_ptr<TagLib::File> file;
-    if ([ext isEqualToString:@"WAV"] || [ext isEqualToString:@"WAVE"] || [ext isEqualToString:@"BWF"]) {
+    if (sourceContainer == VibeUncompressedContainerWAV) {
         // All three spellings are plain RIFF WAVE; RIFF::WAV::File reads them.
         file = std::make_unique<TagLib::RIFF::WAV::File>(stream);
-    } else if ([ext isEqualToString:@"AIF"] || [ext isEqualToString:@"AIFF"] ||
-               [ext isEqualToString:@"AFC"] || [ext isEqualToString:@"AIFC"]) {
+    }
+    else if (sourceContainer == VibeUncompressedContainerAIFF) {
         file = std::make_unique<TagLib::RIFF::AIFF::File>(stream);
     }
     if (file && !file->isValid()) {
@@ -68,7 +80,20 @@ TagLib::ID3v2::AttachedPictureFrame *frontCoverFrame(TagLib::ID3v2::Tag *tag) {
 
 } // namespace
 
-BOOL VibeCopyTagsToFLAC(NSString *sourcePath, NSString *flacPath) {
+VibeUncompressedContainer VibeSniffUncompressedContainer(NSString *sourcePath) {
+    try {
+        TagLib::FileStream sourceStream([sourcePath UTF8String], true);
+        return sourceStream.isOpen()
+                ? sniffUncompressedContainer(&sourceStream)
+                : VibeUncompressedContainerUnknown;
+    }
+    catch (...) {
+        return VibeUncompressedContainerUnknown;
+    }
+}
+
+BOOL VibeCopyTagsToFLAC(NSString *sourcePath, NSString *flacPath,
+                       VibeUncompressedContainer sourceContainer) {
     // A malformed tag can make TagLib throw, and an uncaught C++ exception on
     // the converter queue is std::terminate; the barrier sits at the
     // ObjC-facing boundary.
@@ -78,7 +103,8 @@ BOOL VibeCopyTagsToFLAC(NSString *sourcePath, NSString *flacPath) {
             LogError(@"Tag copy: cannot open source %@", sourcePath);
             return NO;
         }
-        std::unique_ptr<TagLib::File> source = openUncompressedSource(sourcePath, &sourceStream);
+        std::unique_ptr<TagLib::File> source =
+                openUncompressedSource(sourceContainer, &sourceStream);
         if (!source) {
             LogError(@"Tag copy: TagLib did not recognize source %@", sourcePath);
             return NO;

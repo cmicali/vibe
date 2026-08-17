@@ -72,23 +72,28 @@
 
 #pragma mark - NowPlayingControllerDelegate (system media keys / Control Center)
 
-// NowPlayingController marshals commands to the main thread. Route them
-// through the same transport entry points the on-screen buttons and keyboard
-// use.
+// NowPlayingController marshals commands to the main thread. A system Play or
+// Pause is a destination state, unlike the on-screen toggle, so hand that
+// verdict to the player's idempotent operations, which decide beside the
+// mutable state on the player queue rather than from a main-thread snapshot.
+//
+// The one main-thread read left is isStopped, and only to pick which funnel
+// owns the request: a stopped player has no loaded row to resume, so the
+// playlist has to choose and load one. It is safe stale in both directions —
+// resume no-ops on a player that has since stopped, and PlaylistController.play
+// replays the current row on one that has since started.
 
 - (void)nowPlayingControllerPlay:(NowPlayingController *)controller {
-    // A discrete play: start or resume only if not already playing, since
-    // playPause: would otherwise pause a playing track.
-    if (!self.audioPlayer.isPlaying) {
-        [self playPause:nil];
+    if (self.audioPlayer.isStopped) {
+        [self.playlistController play];
+    }
+    else {
+        [self.audioPlayer resume];
     }
 }
 
 - (void)nowPlayingControllerPause:(NowPlayingController *)controller {
-    // A discrete pause: act only when something is actually playing.
-    if (self.audioPlayer.isPlaying) {
-        [self playPause:nil];
-    }
+    [self.audioPlayer pause];
 }
 
 - (void)nowPlayingControllerTogglePlayPause:(NowPlayingController *)controller {

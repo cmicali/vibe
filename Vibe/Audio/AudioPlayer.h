@@ -55,11 +55,12 @@ NS_ASSUME_NONNULL_BEGIN
 // which is how the macOS FX-off setting and the FX-less iOS app run.
 @property (nonatomic, readonly, nullable) AudioFX *fx;
 
-// deviceUID and deviceName name the persisted output device. Empty or
-// unmatched means follow the system default. The async init resolves them on
-// the player's own queue, because resolution enumerates CoreAudio devices and
-// that must stay off the launch path's main thread. enableFX decides for the
-// player's lifetime whether the FX graph segment exists at all; see fx.
+// deviceUID and deviceName name the persisted output device. Empty means follow
+// the system default; an unmatched saved device remains pending. Discovery is
+// asynchronous and never blocks the player's queue. A match is applied only
+// while Stopped and only committed after the HAL bind succeeds; later Stopped
+// transitions retry a pending match. enableFX decides for the player's lifetime
+// whether the FX graph segment exists at all; see fx.
 - (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName
                          enableFX:(BOOL)enableFX delegate:(id <AudioPlayerDelegate>)delegate;
 

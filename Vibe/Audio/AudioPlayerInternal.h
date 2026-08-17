@@ -14,7 +14,7 @@
 //
 
 #import "AudioPlayer.h"
-#import "CloudFileMaterializer.h"
+#import "AudioFileOpenCoordinator.h"
 #import "PlaybackRequestCoordinator.h"
 #import <AVFoundation/AVFoundation.h>
 #import <os/lock.h>
@@ -99,19 +99,14 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AudioTrack              *_prefetchedTrack;
     uint64_t                _prefetchRequestId;
 
-    // ---- The two abortable downloads. A dataless file is materialized before
-    // it is opened, because AVAudioFile's own open cannot be interrupted: a
-    // superseded play or prefetch would otherwise go on pulling a whole track
-    // down the wire that nothing will use, against the one the user is waiting
-    // for, and the open timeout would abandon the request while leaving its
-    // worker wedged for the provider's whole transfer. One slot each because a
-    // play and a prefetch overlap; a new request cancels the slot it replaces,
-    // and stop cancels both. Queue-confined, and cancel is thread-safe.
-    CloudFileMaterializer   *_playMaterializer;
-    // The pending-open identifier which owns _playMaterializer. A timeout or
-    // completion cancels only this exact slot, never a newer play's transfer.
-    uint64_t                _playMaterializerRequestId;
-    CloudFileMaterializer   *_prefetchMaterializer;
+    // ---- Delivery tokens for the bounded open coordinator. Cancelling one
+    // detaches this player and aborts materialization, but an AVAudioFile open
+    // already blocked in the OS remains registered by standardized path until
+    // it returns. A retry can therefore bind to that claim instead of creating
+    // another stranded worker. Queue-confined.
+    AudioFileOpenToken      *_playOpenToken;
+    uint64_t                _playOpenRequestId;
+    AudioFileOpenToken      *_prefetchOpenToken;
 
     // _gaplessFile is a private handle opened separately from the prefetch
     // park: AVAudioFile has one stateful read position and the node pre-reads
@@ -127,7 +122,24 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     BOOL                    _gaplessQueued;
     uint64_t                _gaplessOpenRequestId;
     NSString                *_gaplessOpenPath; // in-flight open's claim, the prefetch pattern
+    AudioFileOpenToken      *_gaplessOpenToken;
     BOOL                    _gaplessArmedForUI; // _stateLock
+
+#if TARGET_OS_OSX
+    // The launch preference awaiting a successful HAL snapshot and bind.
+    // Queue-confined. It is not the reported requested ID: until binding
+    // succeeds the engine honestly follows System Output (-1).
+    NSString                *_pendingSavedDeviceUID;
+    NSString                *_pendingSavedDeviceName;
+    // Covers the async manager lookup and its checked bind. A Stopped-state
+    // hook cannot start another attempt while a failed bind is resetting back
+    // to Stopped, which would otherwise create an immediate retry loop.
+    BOOL                    _pendingSavedDeviceLookupInFlight;
+    // Coalesces the single delayed retry after a system-default property read
+    // fails. It stays set through that retry so a persistent failure cannot
+    // create a polling loop.
+    BOOL                    _systemOutputBindRetryScheduled;
+#endif
 
     // ---- The fades, owned by AudioPlayer+Fades.m.
     // Crossfade-length retired fades in flight, registered by retireNode:.

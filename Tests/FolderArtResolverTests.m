@@ -472,6 +472,42 @@
     XCTAssertEqual(probes, 1u, @"one walk, not two");
 }
 
+- (void)testBlockingResolveNotifiesARowThatSkippedItsOwnJob {
+    dispatch_semaphore_t probeStarted = dispatch_semaphore_create(0);
+    dispatch_semaphore_t continueProbe = dispatch_semaphore_create(0);
+    NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
+    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(
+            NSString *path, unsigned long long *size) {
+        dispatch_semaphore_signal(probeStarted);
+        dispatch_semaphore_wait(continueProbe,
+                dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+        return YES;
+    } dataReader:^NSData *(NSString *path) {
+        return [NSData dataWithBytes:"x" length:1];
+    } decoder:^NSImage *(NSData *data, CGFloat maxPixelSize) {
+        return decoded;
+    }];
+    NSString *track = @"/Library/Albums/HeaderAndRow/track.mp3";
+
+    XCTestExpectation *displayFinished = [self expectationWithDescription:@"display resolved"];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        [resolver displayImageForAudioFilePath:track];
+        [displayFinished fulfill];
+    });
+    XCTAssertEqual(dispatch_semaphore_wait(probeStarted,
+            dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+
+    XCTestExpectation *redraw = [self expectationForNotification:FolderArtDidResolveNotification
+                                                          object:resolver handler:nil];
+    XCTAssertNil([resolver cachedThumbnailForAudioFilePath:track resolveIfUnknown:YES],
+                 @"the header still owns the directory's resolve claim");
+
+    dispatch_semaphore_signal(continueProbe);
+    [self waitForExpectations:@[displayFinished, redraw] timeout:5.0];
+    XCTAssertEqualObjects([resolver cachedThumbnailForAudioFilePath:track
+                                                    resolveIfUnknown:NO], decoded);
+}
+
 // A cover replaced while its decode is in flight: the finished image belongs
 // to the old file and must not be cached against the new answer.
 - (void)testAReplacedCoverDoesNotCacheTheOldDecode {

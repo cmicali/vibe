@@ -13,6 +13,9 @@
 #import "SettingsPlaybackViewController.h"
 #import "VibeStrings.h"
 
+@interface SettingsWindowController () <NSMenuItemValidation>
+@end
+
 // Owns the tab-switch window resize. The panes' size constraints sit just
 // below required (see SettingsPaneViewController), so the tab controller's
 // own layout pass no longer snaps the window; this animates it to the
@@ -126,6 +129,16 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
 // clears the playlist.
 - (IBAction)closeFile:(nullable id)sender {
     [self.window performClose:sender];
+}
+
+// The File menu owns one nil-targeted Close item. Its previous validation may
+// have run through the player and named it "Close All Files", so every other
+// closeFile: target restores the title that describes its own action.
+- (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
+    if ([menuItem.identifier isEqualToString:@"menu_close"]) {
+        menuItem.title = STR_MENU_FILE_CLOSE;
+    }
+    return YES;
 }
 
 @end
