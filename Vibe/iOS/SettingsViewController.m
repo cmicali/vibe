@@ -7,8 +7,11 @@
 
 #import "SettingsViewController.h"
 
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+
 #import "AppSettings.h"
 #import "PlayerDisplaySettings.h"
+#import "SearchFolderStore.h"
 #import "VibeStrings.h"
 #import "WaveformRendererRegistry.h"
 
@@ -16,6 +19,10 @@ typedef NS_ENUM(NSInteger, VibeSettingsSection) {
     VibeSettingsSectionWaveform = 0,
     VibeSettingsSectionTime,
     VibeSettingsSectionFileInfo,
+    // Last, and deliberately: everything above it is what the player draws,
+    // where this grants the app access to a folder. Its footer needs the room a
+    // last section has.
+    VibeSettingsSectionSearchFolders,
     VibeSettingsSectionCount,
 };
 
@@ -28,6 +35,11 @@ typedef NS_ENUM(NSInteger, VibeSettingsTimeRow) {
 
 static NSString *const kChoiceCellIdentifier = @"choice";
 static NSString *const kSwitchCellIdentifier = @"switch";
+static NSString *const kFolderCellIdentifier = @"folder";
+static NSString *const kActionCellIdentifier = @"action";
+
+@interface SettingsViewController () <UIDocumentPickerDelegate>
+@end
 
 @implementation SettingsViewController {
     // Style IDENTIFIERS, sorted by their localized display names so the list
@@ -71,12 +83,25 @@ static NSString *const kSwitchCellIdentifier = @"switch";
     return VibeSettingsSectionCount;
 }
 
+// The folder count, plus the Add row that is always last — so an empty list is
+// still one tappable row rather than a section that draws as nothing.
+- (NSInteger)folderRowCount {
+    return (NSInteger)SearchFolderStore.shared.folderURLs.count + 1;
+}
+
+- (BOOL)isAddFolderRow:(NSIndexPath *)indexPath {
+    return (VibeSettingsSection)indexPath.section == VibeSettingsSectionSearchFolders
+            && indexPath.row == [self folderRowCount] - 1;
+}
+
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     switch ((VibeSettingsSection)section) {
         case VibeSettingsSectionWaveform:
             return (NSInteger)_waveformStyles.count;
         case VibeSettingsSectionTime:
             return VibeSettingsTimeRowCount;
+        case VibeSettingsSectionSearchFolders:
+            return [self folderRowCount];
         default:
             return 1;
     }
@@ -88,6 +113,8 @@ static NSString *const kSwitchCellIdentifier = @"switch";
             return STR_SETTINGS_SECTION_WAVEFORM;
         case VibeSettingsSectionTime:
             return STR_SETTINGS_SECTION_TIME;
+        case VibeSettingsSectionSearchFolders:
+            return STR_SETTINGS_SECTION_SEARCH_FOLDERS;
         default:
             // The switch says what it does; a heading over one row would only
             // repeat it.
@@ -95,8 +122,19 @@ static NSString *const kSwitchCellIdentifier = @"switch";
     }
 }
 
+// The only footer on the screen, and it is load-bearing: without it an empty
+// list reads as a feature that does not work, rather than as one waiting to be
+// given a folder.
+- (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
+    return (VibeSettingsSection)section == VibeSettingsSectionSearchFolders
+            ? STR_SETTINGS_SEARCH_FOLDERS_FOOTER : nil;
+}
+
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    if ((VibeSettingsSection)indexPath.section == VibeSettingsSectionSearchFolders) {
+        return [self folderCellForTableView:tableView indexPath:indexPath];
+    }
     if ((VibeSettingsSection)indexPath.section == VibeSettingsSectionFileInfo) {
         UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kSwitchCellIdentifier];
         if (!cell) {
@@ -138,6 +176,90 @@ static NSString *const kSwitchCellIdentifier = @"switch";
     return cell;
 }
 
+- (UITableViewCell *)folderCellForTableView:(UITableView *)tableView
+                                  indexPath:(NSIndexPath *)indexPath {
+    BOOL isAdd = [self isAddFolderRow:indexPath];
+    NSString *identifier = isAdd ? kActionCellIdentifier : kFolderCellIdentifier;
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
+    if (!cell) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                      reuseIdentifier:identifier];
+    }
+    UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
+    if (isAdd) {
+        content.text = STR_SETTINGS_SEARCH_FOLDERS_ADD;
+        content.textProperties.color = self.view.tintColor ?: UIColor.systemBlueColor;
+        content.image = [UIImage systemImageNamed:@"folder.badge.plus"];
+    }
+    else {
+        content.text = [SearchFolderStore.shared
+                displayNameForFolderAtIndex:(NSUInteger)indexPath.row];
+        content.image = [UIImage systemImageNamed:@"folder"];
+        content.imageProperties.tintColor = UIColor.secondaryLabelColor;
+    }
+    cell.contentConfiguration = content;
+    return cell;
+}
+
+#pragma mark - Search folders
+
+// Swipe to delete, on the folders and never on the Add row. Removing one gives
+// the grant up, so the footer's promise stays true.
+- (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath {
+    return (VibeSettingsSection)indexPath.section == VibeSettingsSectionSearchFolders
+            && ![self isAddFolderRow:indexPath];
+}
+
+- (void)tableView:(UITableView *)tableView
+        commitEditingStyle:(UITableViewCellEditingStyle)style
+         forRowAtIndexPath:(NSIndexPath *)indexPath {
+    if (style != UITableViewCellEditingStyleDelete) {
+        return;
+    }
+    [SearchFolderStore.shared removeFolderAtIndex:(NSUInteger)indexPath.row];
+    [tableView deleteRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+}
+
+// Folders only — asCopy:NO, so the grant is to the real folder rather than to a
+// copy in our container, which is the whole point.
+- (void)presentFolderPicker {
+    UIDocumentPickerViewController *picker =
+            [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeFolder]
+                                                                       asCopy:NO];
+    picker.allowsMultipleSelection = NO;
+    picker.delegate = self;
+    [self presentViewController:picker animated:YES completion:nil];
+}
+
+- (void)documentPicker:(UIDocumentPickerViewController *)controller
+        didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+    NSURL *url = urls.firstObject;
+    if (!url) {
+        return;
+    }
+    if (![SearchFolderStore.shared addFolderURL:url]) {
+        // Silence would read as the pick having failed, when in fact there was
+        // nothing to do — a grant already reaches inside this folder.
+        [self showAlreadyCoveredAlert];
+        return;
+    }
+    [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeSettingsSectionSearchFolders]
+                 withRowAnimation:UITableViewRowAnimationAutomatic];
+}
+
+- (void)showAlreadyCoveredAlert {
+    UIAlertController *alert =
+            [UIAlertController alertControllerWithTitle:STR_SETTINGS_SECTION_SEARCH_FOLDERS
+                                                message:STR_SETTINGS_SEARCH_FOLDERS_COVERED
+                                         preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_OK
+                                             style:UIAlertActionStyleDefault
+                                           handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+#pragma mark - Selection
+
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     switch ((VibeSettingsSection)indexPath.section) {
@@ -147,6 +269,13 @@ static NSString *const kSwitchCellIdentifier = @"switch";
         case VibeSettingsSectionTime:
             VibeSetShowsRemainingTime(indexPath.row == VibeSettingsTimeRowRemaining);
             break;
+        case VibeSettingsSectionSearchFolders:
+            // A folder row is not a choice and not an open — the list is search
+            // scope. Only the Add row does anything.
+            if ([self isAddFolderRow:indexPath]) {
+                [self presentFolderPicker];
+            }
+            return;     // no display setting moved, so nothing to notify
         default:
             return;     // the switch row's own control is what changes it
     }

@@ -154,6 +154,18 @@ NS_ASSUME_NONNULL_BEGIN
 // expand-to-directory applies.
 - (void)openExternalURL:(NSURL *)url openInPlace:(BOOL)openInPlace;
 
+// The file trees the search screen may walk, composed in one place: the
+// session's transient root (FolderSession.searchRoot — the open folder) plus the
+// persistent ones (SearchFolderStore.searchRoots — the folders the user added in
+// Settings, and the app's own Documents directory). Nesting among them is
+// FileSearchIndex's to prune.
+@property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
+
+// A file the search screen found under one of searchRoots. Its own directory
+// becomes the playlist with it selected, so observers see a new folder open —
+// the card presents, exactly as any other open does.
+- (void)openSearchResultURL:(NSURL *)url;
+
 // Restores the persisted folder session. The scene delegate calls exactly one
 // of this and handleOpenURLContexts: at launch — a cold "Open in Vibe" must
 // not pay for (and then discard) a full restore. With nothing to restore, or

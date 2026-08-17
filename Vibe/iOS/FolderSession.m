@@ -51,6 +51,10 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     return _folderURL ? [[NSFileManager defaultManager] displayNameAtPath:_folderURL.path] : nil;
 }
 
+- (NSURL *)searchRoot {
+    return _folderURL;
+}
+
 #pragma mark - Picker
 
 - (void)presentPickerFromViewController:(UIViewController *)presenter {
@@ -80,6 +84,27 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
         return;
     }
     [self adoptURL:url restored:NO];
+}
+
+- (void)openFileFromSearchRoots:(NSURL *)url {
+    NSURL *parent = url.URLByDeletingLastPathComponent;
+    dispatch_async(_workQueue, ^{
+        // The listing is provider IPC, like every other adoption's, so it runs
+        // here. No scope is started: the caller vouched that a root covers it.
+        NSArray<NSURL *> *siblings = [NSURLUtil audioFilesInDirectory:parent];
+        BOOL expanded = siblings.count > 0;
+        run_on_main_thread({
+            // The scope is read HERE, not captured: this queue delivers in
+            // submission order, so a pick submitted while the listing ran has
+            // already replaced the grant, and handing back the captured one
+            // would release the live one.
+            [self deliverTracks:expanded ? siblings : @[url]
+                      folderURL:expanded ? parent : nil
+                    selectedURL:expanded ? url : nil
+                       restored:NO
+                      scopedURL:self->_scopeActive ? self->_scopedURL : nil];
+        });
+    });
 }
 
 #pragma mark - Persistence

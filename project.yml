@@ -515,16 +515,10 @@ targets:
       - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
-      # The loader's phases are tested directly (AVFAudioWaveformLoaderTests);
-      # these three come with it — its base class, and the DEBUG-only phase
-      # timing it records, which the test target builds Debug.
       - path: Vibe/Audio/Waveform/AVFAudioWaveformLoader.mm
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
       - path: Vibe/Debug/AudioLoadTiming.m
       - path: Vibe/Audio/AudioTrack.m
-      # Definitions only. AudioErrorRules.h names the domain constant, so the
-      # rules cannot be linked here without it — and the player that used to
-      # define it is unreachable from a host-less suite by design.
       - path: Vibe/Audio/AudioError.m
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
       - path: Vibe/Audio/Metadata/MetadataParseRunner.m
@@ -544,10 +538,8 @@ targets:
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Util/Categories/NSURL+Hash.m
       - path: Vibe/Util/Categories/NSURL+AudioOpen.m
-      # The iOS pager's waveform bookkeeping: Foundation-only, and its
-      # delivery-matching rule is the app-wide staleness guarantee, so it is
-      # tested here even though it compiles only into VibeiOS.
       - path: Vibe/iOS/PageWaveformCoordinator.m
+      - path: Vibe/iOS/FileSearchIndex.m
       - path: Vibe/Common/PlatformImage.m
       - path: Vibe/Util/Mac/NSImage+Util.m
     settings:

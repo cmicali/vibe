@@ -89,8 +89,14 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" expand_player       # the card, without a gesture; also: minimize_player. The shell presents it only on an open, so this is how to get to it otherwise
 "$S" set_waveform_zoom 0.12 # the DJ zoom, 0-1 = fraction of the track visible; through the same delegate callback a released pinch takes, so it fans out across pages and persists. Replies {waveformZoomRequested, waveformZoomEffective} — they DIFFER when the layout cannot draw the depth asked for, which is the only way to check the clamp
 "$S" select_tab playlist # or files, or search (the UISearchTab circle)
+"$S" dump_search         # {roots, folders} — the search screen's whole scope. roots is what its walk covers: the open folder, then the folders the user added in Settings, then the app's own Documents. folders is just the added ones, i.e. the rows Settings shows
+"$S" add_search_folder <dir>  # {ok, added, roots, folders} — widens the scope as picking a folder in Settings would; also: remove_search_folder <index into dump_search.folders>. The channel cannot drive the system document picker (another process's UI, out of the touch driver's reach either), so these are the only way to set a scope up for a test. added:false is the "a persistent root already covers it" answer, not a failure
 VIBE_DEBUG_TIMEOUT=20 "$S" clear_caches   # blocks until both PINCaches are empty, like the mac verb
 ```
+
+**TRAP: a folder added with `add_search_folder` is NOT security-scoped, so it survives only the session.** The real Settings path mints a bookmark from a picker grant; this one hands over a bare path, which works in the simulator because those paths are readable anyway. A test that relaunches has to add it again — and it is not exercising the bookmark round-trip at all.
+
+**The search screen's own state is not on the channel.** Its index lives in the view controller, so what a query matched is read from `dump_view_tree` — the playlist section's rows draw `displayTitle` (no extension), the files section's draw the filename over the containing folder, which is how the two are told apart.
 
 Exit codes match the mac client: 0 ok, 1 no response (no debug build running), 2 command error. The unknown-command reply is the authoritative verb list. Replies to action verbs are read synchronously and can lag async engine work — the same caveat as the mac: a `seek` or `play_pause` reply may show the pre-action state, so follow with `dump_state`. The app side is `Vibe/Debug/iOS/DebugCommands.m` over the shared transport in `Vibe/Debug/DebugChannel.m`. Most verbs are not there at all: the cross-platform ones live once in `Vibe/Debug/DebugCommonVerbs.m`, so a verb both platforms can answer is added there and appears on each; only a UIKit-specific one goes in the iOS table.
 

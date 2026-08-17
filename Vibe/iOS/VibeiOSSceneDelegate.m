@@ -6,6 +6,7 @@
 #import "VibeiOSSceneDelegate.h"
 #import "PlaybackController.h"
 #import "RootViewController.h"
+#import "SearchFolderStore.h"
 
 @implementation VibeiOSSceneDelegate {
     // The scene owns the one PlaybackController — one engine per process,
@@ -36,6 +37,10 @@
     // session — never both, so the open does not pay for a restore it
     // immediately replaces.
     [root loadViewIfNeeded];
+    // Not part of the either/or below: this opens nothing and plays nothing, it
+    // just takes back the search grants the user gave us. It resolves off main
+    // and reports through its own notification, so it cannot delay either path.
+    [SearchFolderStore.shared restorePersistedFolders];
     if (connectionOptions.URLContexts.count > 0) {
         [_playback handleOpenURLContexts:connectionOptions.URLContexts];
     }

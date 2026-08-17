@@ -12,8 +12,10 @@
 #import "DebugWireFormat.h"
 #import "DebugCommandDispatch.h"
 #import "DebugCommonVerbs.h"
+#import "PlaybackController.h"
 #import "RootViewController.h"
 #import "RootViewController+Debug.h"
+#import "SearchFolderStore.h"
 
 static UIWindow *VibeDebugKeyWindow(void) {
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
@@ -122,6 +124,26 @@ static NSString *VibeScreenshotJSON(NSString *commandId) {
                             @"scale": @(format.scale)});
 }
 
+#pragma mark Search scope
+
+// The whole search scope and the user's half of it. The roots are what the
+// search screen's walk will cover, composed by the model; the folders are the
+// rows Settings shows, which is the only part a user can change.
+static NSDictionary *VibeSearchScopeDictionary(RootViewController *controller) {
+    NSMutableArray<NSString *> *roots = [NSMutableArray array];
+    for (NSURL *root in controller.playback.searchRoots) {
+        [roots addObject:root.path ?: @""];
+    }
+    SearchFolderStore *store = SearchFolderStore.shared;
+    NSMutableArray<NSDictionary *> *folders = [NSMutableArray array];
+    NSArray<NSURL *> *urls = store.folderURLs;
+    for (NSUInteger i = 0; i < urls.count; i++) {
+        [folders addObject:@{@"name": [store displayNameForFolderAtIndex:i],
+                             @"path": urls[i].path ?: @""}];
+    }
+    return @{@"roots": roots, @"folders": folders};
+}
+
 #pragma mark Command table
 
 // The UIKit-only verbs. Everything both platforms answer the same way is in
@@ -177,6 +199,41 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                     @"waveformZoomRequested": ui[@"waveformZoomRequested"] ?: @0,
                     @"waveformZoomEffective": ui[@"waveformZoomEffective"] ?: @0,
                 });
+            }),
+            // The search-folder list is granted through the system document
+            // picker, which the channel cannot drive at all — not even with the
+            // touch driver, since the picker is another process's UI. These three
+            // are how the scope is inspected and set up for a test; the real
+            // grant path is Settings, and only it can raise the picker.
+            //
+            // TRAP: a folder added here is NOT security-scoped, so it survives
+            // only the session. A test that relaunches must add it again.
+            VibeCmd(@"dump_search", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                return VibeJSONString(VibeSearchScopeDictionary(controller));
+            }),
+            VibeCmd(@"add_search_folder <path>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: add_search_folder <path>");
+                }
+                NSURL *url = [NSURL fileURLWithPath:tokens[1] isDirectory:YES];
+                // added:NO is the "already covered" answer, not a failure.
+                BOOL added = [SearchFolderStore.shared addFolderURL:url];
+                NSMutableDictionary *reply =
+                        [VibeSearchScopeDictionary(controller) mutableCopy];
+                reply[@"ok"] = @YES;
+                reply[@"added"] = @(added);
+                return VibeJSONString(reply);
+            }),
+            VibeCmd(@"remove_search_folder <index>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
+                if (index < 0 || (NSUInteger)index >= SearchFolderStore.shared.folderURLs.count) {
+                    return VibeErrorJSON(@"usage: remove_search_folder <index in dump_search.folders>");
+                }
+                [SearchFolderStore.shared removeFolderAtIndex:(NSUInteger)index];
+                NSMutableDictionary *reply =
+                        [VibeSearchScopeDictionary(controller) mutableCopy];
+                reply[@"ok"] = @YES;
+                return VibeJSONString(reply);
             }),
             VibeCmd(@"select_tab <playlist|files|search>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSString *identifier = tokens.count > 1 ? tokens[1] : nil;

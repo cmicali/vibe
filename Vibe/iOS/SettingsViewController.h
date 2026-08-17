@@ -2,12 +2,18 @@
 //  SettingsViewController.h
 //  Vibe (iOS)
 //
-//  Behind the gear on the playlist screen: everything the player DRAWS, which
-//  here is the whole of what there is to set — the engine's own settings are
-//  macOS-only (see Vibe/Common/CLAUDE.md), and the phone owns the rest.
+//  Behind the gear on the playlist screen. Two kinds of thing, in that order:
 //
-//  It writes the settings and posts VibeDisplaySettingsDidChangeNotification;
-//  it never reaches for the screens that draw them.
+//  - everything the player DRAWS — waveform style, time display, file info. The
+//    engine's own settings are macOS-only (see Vibe/Common/CLAUDE.md), so this
+//    is the whole of what there is to set. Writing one posts
+//    VibeDisplaySettingsDidChangeNotification.
+//  - the folders the user has given the app to SEARCH (SearchFolderStore), last
+//    on the screen because it grants access rather than changing an appearance.
+//    The store owns the grants and its own notification.
+//
+//  It writes settings and presents the folder picker; it never reaches for the
+//  screens that draw them, and it holds no playback handle.
 //
 
 #import <UIKit/UIKit.h>

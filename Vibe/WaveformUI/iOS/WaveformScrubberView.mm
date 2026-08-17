@@ -50,6 +50,14 @@ static const CFTimeInterval kScrubTickMinInterval = 1.0 / 28.0;
 // tree to bitmap lands on identical pixels.
 static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 
+// The floor on how often a settled delivery may re-bake. A streaming decode
+// delivers about ten times a second and each bake is 20-35ms of background pixel
+// work plus a multi-megabyte bitmap (measured on device), which three pager
+// cells could be paying at once — so the picture steps forward at this rate
+// instead. Trailing: the last delivery inside a window is the one that bakes,
+// so the newest shape always wins and no delivery is merely dropped.
+static const NSTimeInterval kLoadBakeMinInterval = 0.25;
+
 @interface WaveformScrubberView () <UIScrollViewDelegate, UIGestureRecognizerDelegate>
 @property (nonatomic, strong, nullable) CodableAudioWaveform *waveform;
 @end
@@ -96,6 +104,9 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     CALayer                 *_bakedUnplayed;
     CALayer                 *_bakedPlayed;
     NSUInteger              _bakeGeneration;
+    // When the last bake actually started, for the load-time rate limit. Zero
+    // means "never", which reads as long ago and so bakes at once.
+    CFTimeInterval          _lastBakeAt;
     // The zoom: the requested fraction (see the property), the pinch that
     // drives it, and the fraction the current gesture started from. _isPinching
     // is what tells applyVirtualGeometry to stretch the baked bitmap instead of
@@ -402,9 +413,14 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     if (_bakedHost) {
         _bakedPlayed.bounds = CGRectMake(0, 0, progress * virtualWidth, _bakedHost.bounds.size.height);
         _bakedPlayed.contentsRect = CGRectMake(0, 0, progress, 1);
+        VibeTallyCount(waveform_progress_baked);
     }
     else {
         [_renderer updateProgress:progress waveform:self.waveform.waveform];
+        // The headline number for any change to the bake's lifetime: the two
+        // branches cost the same on THIS thread and nothing like the same in
+        // the render server, so which one a frame took is the measurement.
+        VibeTallyCount(waveform_progress_live);
     }
     [CATransaction commit];
 }
@@ -445,6 +461,9 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 
 - (void)resetWaveformContentState {
     [self teardownBakedWaveform];
+    // A new track's first chunk must not be held back by the previous track's
+    // bake, which is what the rate limit would otherwise do.
+    _lastBakeAt = 0;
     // Stop a coast where it stands, then drop the waveform — which disables
     // the scroll and so cancels any in-flight drag. A drag or coast straddling
     // a track change must not keep scrubbing the new track from the old one's
@@ -491,23 +510,55 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     // prepareForWaveformLoad (per-page cells hydrate directly); the renderer
     // must exist before the draw.
     [self installRendererIfNeeded];
-    // New data retargets the morph, so the live tree takes back over until it
-    // settles again — a mid-load delivery keeps growing bars, and the bake
-    // lands once deliveries stop.
-    [self teardownBakedWaveform];
+    VibeSignpostBegin(waveform_delivery);
+    // An ease needs something to ease FROM, and the only state worth easing from
+    // is nothing: bars at rest on the midline rising into the full shape, which
+    // is what a disk-cached waveform arriving on a freshly reset page does.
+    //
+    // A delivery that replaces a shape already on screen has no such story. The
+    // one that completes a STREAMING decode looks like it should — it is the
+    // last delivery, so the caller asks for an ease — but what it actually
+    // animates is the trailing chunks the partial deliveries left at zero,
+    // springing to full amplitude. Measured: 16-18 full-view path rebuilds with
+    // the bake down for kEnvelopeBakeDelay, which was 70% of the whole load's
+    // rebuild cost and more than the deliveries themselves.
+    BOOL ease = animated && self.waveform == nil;
     self.waveform = waveform;
-    if (animated) {
+    if (ease) {
+        // The morph is the point here, and it is a LIVE TREE surface: the bake
+        // has to come down so the ease can be seen, and it re-lands once the
+        // deliveries stop.
+        [self teardownBakedWaveform];
         [self drawWaveform];
         [self scheduleEnvelopeBakeAfter:kEnvelopeBakeDelay];
     }
     else {
-        // Nothing to wait out: the bars are already on the target, so the bake
-        // is scheduled for the next turn of the main queue rather than for
-        // after a morph that will not run. The live tree stands in only until
-        // it lands.
+        // TRAP: do NOT tear the bake down here. There is no ease to reveal — the
+        // bars land on the target in one rebuild — so the outgoing bitmap is a
+        // fractionally stale picture of the same waveform, and leaving it up is
+        // what keeps a streaming load on the fast path from end to end. Tearing
+        // it down instead unhid the live tree on every one of ~10 deliveries a
+        // second, and since each delivery also pushed the re-bake out by
+        // kEnvelopeBakeDelay, the bitmap never came back for the whole load.
+        //
+        // The live tree is still brought up to date underneath (hidden), so
+        // whatever unhides it next — a track change, a resize, an eased
+        // delivery — finds it drawing the current shape.
         [self drawWaveformSettled];
-        [self scheduleEnvelopeBakeAfter:0];
+        [self scheduleEnvelopeBakeAfter:[self throttledBakeDelay]];
     }
+    VibeSignpostEnd(waveform_delivery);
+}
+
+// 0 when nothing has baked recently, otherwise the remainder of the window — so
+// a burst of deliveries collapses to one bake at the window's end rather than
+// one apiece.
+- (NSTimeInterval)throttledBakeDelay {
+    CFTimeInterval since = CACurrentMediaTime() - _lastBakeAt;
+    if (since >= kLoadBakeMinInterval) {
+        return 0;
+    }
+    return kLoadBakeMinInterval - since;
 }
 
 #pragma mark - Settled bitmap fast path
@@ -561,6 +612,7 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     if (size.width <= 0 || size.height <= 0) {
         return;
     }
+    _lastBakeAt = CACurrentMediaTime();
     DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)_renderer;
     CGFloat scale = [self displayScale];
     // A CALayer whose contents exceed the GPU texture ceiling renders BLANK,
@@ -581,10 +633,14 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     }
     // Samples come out on the main thread — the same access updateWaveform:
     // performs — so only the pixel work leaves it.
+    VibeSignpostBegin(waveform_samples);
     NSData *samples = [renderer envelopeSamplesForWaveform:self.waveform.waveform];
+    VibeSignpostEnd(waveform_samples);
     __weak WaveformScrubberView *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        VibeSignpostBegin(waveform_bake);
         CGImageRef image = [renderer newEnvelopeImageForSize:size scale:scale samples:samples];
+        VibeSignpostEnd(waveform_bake);
         dispatch_async(dispatch_get_main_queue(), ^{
             [weakSelf installEnvelopeImage:image size:size generation:generation];
             CGImageRelease(image);
@@ -601,6 +657,7 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
         !CGSizeEqualToSize(size, [self virtualBounds].size)) {
         return;
     }
+    VibeSignpostBegin(waveform_install);
     CGFloat unplayedOpacity = [(DetailedAudioWaveformRenderer *)_renderer unplayedOverPlayedOpacity];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -630,6 +687,7 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     _rendererHost.hidden = YES;
     [CATransaction commit];
     [self applyScrollAndProgress];
+    VibeSignpostEnd(waveform_install);
 }
 
 - (void)showLoadingIndicator {
@@ -639,7 +697,12 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     [self hideEmptyPlaceholder];
     [self resetWaveformContentState];
     if (_renderer) {
-        [self drawWaveform];
+        // SETTLED, as prepareForWaveformLoad's collapse is, and measured as the
+        // single biggest cost of a track change: eased, this walks 4,096 bars
+        // down to the midline at 60 Hz for ~0.2s — about twelve full-view path
+        // rebuilds with the bake already torn down — which is more than the
+        // whole streaming load that follows it costs.
+        [self drawWaveformSettled];
     }
     _loadingIndicator = [[WaveformLoadingIndicator alloc]
             initInLayer:self.layer
@@ -983,6 +1046,7 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 // answer to a change in it. Layout calls this; so does the zoom, which moves
 // the virtual width without the view's bounds moving at all.
 - (void)applyVirtualGeometry {
+    VibeSignpostBegin(waveform_geometry);
     CGRect virtualBounds = [self virtualBounds];
     CGSize previous = _rendererHost.bounds.size;
     BOOL sizeChanged = !CGSizeEqualToSize(previous, virtualBounds.size);
@@ -1025,15 +1089,33 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     if (sizeChanged && _renderer && !stretchBake) {
         // Sync geometry even with no waveform, as the mac view does, so a
         // mid-collapse morph rebuilds at the new size.
-        [self drawWaveform];
+        //
+        // SETTLED, and the bake asked for on the next turn rather than after
+        // kEnvelopeBakeDelay: a resize is not a delivery, so there is no new
+        // shape to grow into — the bars are already on their target and the
+        // delay was spent waiting out a morph that will not run. What it
+        // actually bought was 0.6s of every frame carried by the live tree,
+        // starting from the frame the teardown above landed on. Where a morph
+        // IS in flight, snapping it is invisible against a view whose own
+        // bounds just changed, and it is the trade showWaveform:animated:NO
+        // already makes for the same reason.
+        //
+        // A trait change is unaffected: traitsDidChange: schedules its own bake
+        // afterwards, and the later call's generation is the one that lands.
+        [self drawWaveformSettled];
         if (!_isPinching) {
-            [self scheduleEnvelopeBakeAfter:kEnvelopeBakeDelay];
+            [self scheduleEnvelopeBakeAfter:0];
         }
     }
     if (sizeChanged) {
         [self layoutLoadingLayer];
         [self layoutPlaceholderLayer];
+        // Separated from the interval below so a trace can tell a layout pass
+        // that merely reached here from one that actually moved the width — the
+        // teardown, the redraw and the re-bake all hang off this branch.
+        VibeSignpostCount(waveform_resize);
     }
+    VibeSignpostEnd(waveform_geometry);
 }
 
 - (void)traitsDidChange:(UITraitCollection *)previous {

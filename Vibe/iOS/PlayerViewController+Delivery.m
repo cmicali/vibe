@@ -27,10 +27,25 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
 
 #pragma mark - PageWaveformCoordinatorDelegate
 
+// Only the delivery that COMPLETES the waveform eases in. A streaming decode
+// delivers about ten times a second, and easing each one kept the morph
+// permanently retargeted and the baked fast path permanently pending, so the
+// whole load ran on the live renderer tree — measured on device as 8 rotation
+// hitches in 35s against 1 for a settled waveform. Partial deliveries therefore
+// land settled, and the bars step forward as chunks arrive rather than growing.
+//
+// Nothing is lost by that: the scrubber draws the track zoomed past 2x, so most
+// of what a morph would animate is off screen. And the case actually worth
+// easing in still is — a disk-cached waveform arrives complete on its first and
+// only delivery, so it takes this branch and morphs exactly as before.
+//
+// `isCompleteAtIndex:` is current here: the coordinator records completeness
+// before it forwards, on the live path and on the held-update replay alike.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
            didUpdateWaveform:(CodableAudioWaveform *)waveform
                     forIndex:(NSUInteger)index {
-    [[self cellAtIndex:index].waveformView showWaveform:waveform];
+    [[self cellAtIndex:index].waveformView showWaveform:waveform
+                                              animated:[pipeline isCompleteAtIndex:index]];
 }
 
 // No BPM or key delivery here: analysis is macOS-only, so the coordinator has

@@ -109,11 +109,23 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)showWaveform:(CodableAudioWaveform *)waveform;
 
 // The same delivery WITHOUT the growing-bars morph: the bars land on the new
-// shape in one rebuild and the envelope bakes at once, instead of easing over
-// ~0.2s and baking 0.6s after the last delivery. For a page the user is not
-// watching — a pager cell scrolling into view, or one re-hydrated from a
-// snapshot it has already shown — where the ease is invisible but its 60 Hz
-// full-view path rebuilds land squarely on the scroll's frame budget.
+// shape in one rebuild, the baked fast path is KEPT UP across it, and the
+// re-bake is rate-limited rather than waiting out an ease that will not run.
+//
+// Two callers want that. A page the user is not watching — a pager cell
+// scrolling into view, or one re-hydrated from a snapshot it has already shown —
+// where the ease is invisible but its 60 Hz full-view path rebuilds land
+// squarely on the scroll's frame budget. And every PARTIAL delivery of a
+// streaming decode, which arrives about ten times a second: the morph would be
+// permanently retargeted and the bake could never re-land, so the whole load
+// would run on the live tree. Measured on device as 8 hitches in 35s of
+// rotation, against 1 for a settled waveform.
+//
+// The bars therefore appear in steps while a track loads, which is deliberate:
+// the view draws the track zoomed past 2x, so most of what a morph animates is
+// off screen anyway. `animated:YES` is for the delivery that COMPLETES the
+// waveform — including a disk-cached one, which arrives complete on its first
+// and only delivery and is the case worth easing in.
 - (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated;
 
 // The shimmer for a slow file open (an undownloaded cloud placeholder), and

@@ -17,6 +17,7 @@
 #import "AudioPlayer+Seek.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
+#import "SearchFolderStore.h"
 #import "UIUpdateTimer.h"
 
 // Fixed, unlike the mac's playhead-speed-scaled rate (Util/UIUpdateMath.h):
@@ -394,6 +395,19 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 - (void)openExternalURL:(NSURL *)url openInPlace:(BOOL)openInPlace {
     [_folderSession openExternalURL:url openInPlace:openInPlace];
+}
+
+// The whole search scope, composed here and nowhere else: the session's own
+// transient root — the open folder — ahead of the persistent ones the store
+// holds. Nesting among them is FileSearchIndex's to prune.
+- (NSArray<NSURL *> *)searchRoots {
+    NSURL *sessionRoot = _folderSession.searchRoot;
+    NSArray<NSURL *> *persistent = SearchFolderStore.shared.searchRoots;
+    return sessionRoot ? [@[sessionRoot] arrayByAddingObjectsFromArray:persistent] : persistent;
+}
+
+- (void)openSearchResultURL:(NSURL *)url {
+    [_folderSession openFileFromSearchRoots:url];
 }
 
 - (void)restorePersistedSession {

@@ -58,6 +58,11 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     // A size transition (rotation, iPad window resize) is animating: the
     // pager's offset is not page-aligned at the new width, so commits hold.
     BOOL                    _windowResizeInFlight;
+    // The size that transition is heading for, and CGSizeZero when none is in
+    // flight. A page is sized from this rather than from the pager's own bounds,
+    // which still hold the OLD geometry when the transition invalidates the
+    // layout — see sizeForItemAtIndexPath:.
+    CGSize                  _transitionTargetSize;
     // A page swipe is in flight (dragging or decelerating). It holds the
     // waveform machinery still for the duration — see the scroll hold in
     // PlayerViewController+Pager.m — and gates the playhead's display link.

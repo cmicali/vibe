@@ -51,6 +51,11 @@ static NSString *const kTabSearch = @"search";
     // Whether the accessory is installed. Kept rather than read back off the
     // tab bar controller, because it is also nil'd while the card is up.
     BOOL                 _miniWanted;
+    // The two ways the card can be somewhere between up and away, which is the
+    // only time the tabs behind it are worth rendering — see
+    // updateBackdropVisibility.
+    BOOL                 _cardAnimating;
+    BOOL                 _interactiveDrag;
 }
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback {
@@ -316,9 +321,16 @@ static NSString *const kTabSearch = @"search";
 // and re-bakes it (0.6s later) on any bounds change — over a layer tree twice
 // the view's width. Animating the card's frame would pay that on every
 // single expand, on every page.
+//
+// This is also the one place that knows the card is in motion, so the backdrop's
+// visibility is bracketed here rather than at each caller.
 - (void)animate:(BOOL)animated changes:(void (^)(void))changes completion:(void (^)(void))completion {
+    _cardAnimating = YES;
+    [self updateBackdropVisibility];
     if (!animated) {
         changes();
+        _cardAnimating = NO;
+        [self updateBackdropVisibility];
         completion();
         return;
     }
@@ -328,7 +340,36 @@ static NSString *const kTabSearch = @"search";
           initialSpringVelocity:0
                         options:UIViewAnimationOptionAllowUserInteraction
                      animations:changes
-                     completion:^(BOOL finished) { completion(); }];
+                     completion:^(BOOL finished) {
+        // Not gated on `finished`: an interrupted animation still leaves the
+        // card wherever it stopped, and a drag that interrupted it owns the
+        // visibility through _interactiveDrag anyway.
+        self->_cardAnimating = NO;
+        [self updateBackdropVisibility];
+        completion();
+    }];
+}
+
+// A card that has fully ARRIVED covers every pixel the tabs could draw, so they
+// are hidden for as long as it does. Left visible they stay a full-screen
+// subtree carrying a scale transform and a 38pt corner mask, which the render
+// server composites on every frame of every rotation — measured on device as
+// offscreen passes inside 6 of 8 rotation hitches.
+//
+// The claim that nothing shows through rests on two constants together: the
+// card's own corners are cut to kCardCornerRadius (14pt), revealing this
+// controller's black background, and the tabs are inset well inside that by
+// kBackdropScale (0.92, so 16pt horizontally on an iPhone). Raise the scale to
+// 1 and the corner wedges would show the tabs instead.
+//
+// Hidden only when the card is at rest: both its animation and the interactive
+// drag reveal what is behind it, and either can be in flight while `_expanded`
+// is already YES.
+- (void)updateBackdropVisibility {
+    BOOL hidden = _expanded && !_cardAnimating && !_interactiveDrag;
+    if (_tabs.view.hidden != hidden) {
+        _tabs.view.hidden = hidden;
+    }
 }
 
 // 0 is the card fully up (the screen behind it scaled back), 1 is the card
@@ -358,10 +399,18 @@ static NSString *const kTabSearch = @"search";
     switch (state) {
         case UIGestureRecognizerStateBegan:
         case UIGestureRecognizerStateChanged:
+            // The finger is about to move the card off what it covers, so the
+            // tabs have to be back before the first frame of travel.
+            _interactiveDrag = YES;
+            [self updateBackdropVisibility];
             _player.view.transform = CGAffineTransformMakeTranslation(0, translation);
             [self applyBackdropProgress:translation / height];
             break;
         case UIGestureRecognizerStateEnded:
+            // Cleared BEFORE the settle, so the animation that follows owns the
+            // visibility through _cardAnimating and its completion can hide the
+            // backdrop again.
+            _interactiveDrag = NO;
             if (translation > height * kDismissTravelFraction || velocity > kDismissFlickVelocity) {
                 [self minimizePlayerAnimated:YES];
             }
@@ -371,6 +420,7 @@ static NSString *const kTabSearch = @"search";
             break;
         case UIGestureRecognizerStateCancelled:
         case UIGestureRecognizerStateFailed:
+            _interactiveDrag = NO;
             [self springCardBackUp];
             break;
         default:

@@ -326,6 +326,7 @@ static const float kWaveformOpacity = 0.75f;
     if (count == 0) {
         return;
     }
+    VibeSignpostBegin(waveform_path);
     CGSize maskSize = _morph.size;
     CGFloat width = maskSize.width;
     CGFloat midY = maskSize.height / 2;
@@ -356,6 +357,7 @@ static const float kWaveformOpacity = 0.75f;
     _barMask.path = path;
     [CATransaction commit];
     CGPathRelease(path);
+    VibeSignpostEnd(waveform_path);
 }
 
 #pragma mark - Envelope bitmap

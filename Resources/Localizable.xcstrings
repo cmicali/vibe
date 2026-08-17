@@ -955,6 +955,18 @@
       },
       "extractionState": "manual"
     },
+    "button.ok": {
+      "comment": "Dismiss button of an alert that only reports something, with nothing to choose. Use the wording the system uses for this button in this language.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "button.open": {
       "comment": "iOS: button that opens the system document picker to choose a folder or file to play.",
       "localizations": {
@@ -3980,7 +3992,7 @@
       "extractionState": "manual"
     },
     "label.search": {
-      "comment": "iOS: title and placeholder of the search screen that filters the current folder's tracks.",
+      "comment": "iOS: title and placeholder of the search screen, which searches both the current playlist and the files in reach.",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -15895,6 +15907,42 @@
       },
       "extractionState": "manual"
     },
+    "search.files.scanning": {
+      "comment": "iOS: shown under the search results while the app is still looking through the user's files, so a short list reads as incomplete rather than final. Ends with an ellipsis character.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Searching files…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "search.section.files": {
+      "comment": "iOS: header of the search results section listing matching audio files found elsewhere in the user's files, which are not in the playlist yet.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "search.section.playlist": {
+      "comment": "iOS: header of the search results section listing matches among the tracks queued to play.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.advanced": {
       "comment": "Settings window: the Advanced pane's toolbar item, and the window's title while that pane is selected. macOS uses this same name in every app's settings.",
       "localizations": {
@@ -25610,6 +25658,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$ld / %2$ld / %3$ld小節"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.search_folders.add": {
+      "comment": "iOS settings screen: the last row under the searchable folders, which opens the system folder picker. Ends with a real ellipsis character (…), not three periods.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Folder…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.search_folders.covered": {
+      "comment": "iOS settings screen: alert message shown when the user adds a folder that sits inside a folder already on the list. Permission to a folder covers everything inside it, so nothing needed to be added.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That folder is already inside one you added, so it is being searched already."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.search_folders.footer": {
+      "comment": "iOS settings screen: explanation under the list of searchable folders. Says what search already covers, that subfolders are included, and why adding a folder is necessary — iOS gives an app no access to files the user has not handed it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search looks through the folder you have open and anything you add here, including subfolders. Vibe cannot search your files without being given a folder first."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.section.search_folders": {
+      "comment": "iOS settings screen: heading above the list of folders the user has given the app permission to search.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folders to search"
           }
         }
       },

@@ -302,12 +302,22 @@ static inline NSString *VibeAppName(void) {
 
 #pragma mark - iOS
 
-#define STR_LABEL_SEARCH        NSLS(@"label.search",        @"Search",                      @"iOS: title and placeholder of the search screen that filters the current folder's tracks.")
+#define STR_LABEL_SEARCH        NSLS(@"label.search",        @"Search",                      @"iOS: title and placeholder of the search screen, which searches both the current playlist and the files in reach.")
+
+#define STR_SEARCH_SECTION_PLAYLIST NSLS(@"search.section.playlist", @"Playlist",         @"iOS: header of the search results section listing matches among the tracks queued to play.")
+#define STR_SEARCH_SECTION_FILES    NSLS(@"search.section.files",    @"Files",            @"iOS: header of the search results section listing matching audio files found elsewhere in the user's files, which are not in the playlist yet.")
+#define STR_SEARCH_FILES_SCANNING   NSLS(@"search.files.scanning",   @"Searching files…", @"iOS: shown under the search results while the app is still looking through the user's files, so a short list reads as incomplete rather than final. Ends with an ellipsis character.")
 #define STR_ERROR_FOLDER_EMPTY  NSLS(@"error.folder_empty",  @"No audio files in this folder",  @"iOS: shown after picking a folder that contains no playable audio files.")
 
 #define STR_SETTINGS_TITLE            NSLS(@"settings.title",            @"Settings",       @"iOS: title of the settings screen, and the label of the gear button on the playlist screen that opens it. Use the name Apple gives the Settings app in this language.")
 #define STR_SETTINGS_SECTION_WAVEFORM NSLS(@"settings.section.waveform", @"Waveform style", @"iOS settings screen: heading above the list of waveform drawing styles.")
 #define STR_SETTINGS_SECTION_TIME     NSLS(@"settings.section.time",     @"Time display",   @"iOS settings screen: heading above the choice between showing the track's total duration and the time remaining.")
+
+#define STR_SETTINGS_SECTION_SEARCH_FOLDERS NSLS(@"settings.section.search_folders", @"Folders to search", @"iOS settings screen: heading above the list of folders the user has given the app permission to search.")
+#define STR_SETTINGS_SEARCH_FOLDERS_FOOTER  NSLS(@"settings.search_folders.footer",  @"Search looks through the folder you have open and anything you add here, including subfolders. Vibe cannot search your files without being given a folder first.", @"iOS settings screen: explanation under the list of searchable folders. Says what search already covers, that subfolders are included, and why adding a folder is necessary — iOS gives an app no access to files the user has not handed it.")
+#define STR_SETTINGS_SEARCH_FOLDERS_ADD     NSLS(@"settings.search_folders.add",     @"Add Folder…",       @"iOS settings screen: the last row under the searchable folders, which opens the system folder picker. Ends with a real ellipsis character (…), not three periods.")
+#define STR_SETTINGS_SEARCH_FOLDERS_COVERED NSLS(@"settings.search_folders.covered", @"That folder is already inside one you added, so it is being searched already.", @"iOS settings screen: alert message shown when the user adds a folder that sits inside a folder already on the list. Permission to a folder covers everything inside it, so nothing needed to be added.")
+#define STR_BUTTON_OK                       NSLS(@"button.ok",                       @"OK",                @"Dismiss button of an alert that only reports something, with nothing to choose. Use the wording the system uses for this button in this language.")
 
 #define STR_TAB_PLAYLIST        NSLS(@"tab.playlist",        @"Playlist",                    @"iOS: title of the tab showing the tracks queued to play.")
 #define STR_TAB_FILES           NSLS(@"tab.files",           @"Files",                       @"iOS: title of the tab showing the system file browser, for picking music to play.")

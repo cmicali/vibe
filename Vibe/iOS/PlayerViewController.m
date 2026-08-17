@@ -396,10 +396,14 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // Paused unless the playhead is actually moving where someone can see it. A
 // page swipe counts as nowhere: the waveform translating a fraction of a pixel
 // under a page that is itself sliding across the screen is invisible, and the
-// frames it costs are exactly the ones the swipe needs.
+// frames it costs are exactly the ones the swipe needs. A size transition
+// counts as nowhere for the same reason and a sharper one — the bake is down
+// for its duration, so each of those writes is a full re-composite of the live
+// tree rather than a texture crop. Both are the frame-budget hold; see
+// applyFrameBudgetHold in +Pager.
 - (void)updateScrollLinkState {
-    _scrollLink.paused = !(_playback.isPlaying && _foreground
-                           && self.isPresented && !_pagerScrolling);
+    _scrollLink.paused = !(_playback.isPlaying && _foreground && self.isPresented
+                           && !_pagerScrolling && !_windowResizeInFlight);
 }
 
 - (void)scrollTick:(CADisplayLink *)link {

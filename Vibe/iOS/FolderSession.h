@@ -46,6 +46,16 @@ NS_ASSUME_NONNULL_BEGIN
 // after a single-file open).
 @property (nonatomic, readonly, nullable) NSString *folderDisplayName;
 
+// This session's contribution to the search scope: the open folder, or nil. A
+// folder grant covers the WHOLE subtree, so its subfolders are searchable even
+// though the directory-as-playlist listing is flat.
+//
+// TRANSIENT, unlike the roots SearchFolderStore holds — it is gone at the next
+// open. That is why adding a folder inside it in Settings is not redundant, and
+// so why coverage there is tested against the persistent roots and never
+// against this one. PlaybackController.searchRoots composes the two.
+@property (nonatomic, readonly, nullable) NSURL *searchRoot;
+
 // Presents the system document picker (folders + the declared audio types,
 // in place, single selection).
 - (void)presentPickerFromViewController:(UIViewController *)presenter;
@@ -53,6 +63,15 @@ NS_ASSUME_NONNULL_BEGIN
 // Adopts a URL delivered from outside the picker ("Open in Vibe" from Files
 // or the share sheet). openInPlace mirrors UIOpenURLContext.options.
 - (void)openExternalURL:(NSURL *)url openInPlace:(BOOL)openInPlace;
+
+// A file found under one of searchRoots, so already covered by a grant in hand.
+// Expands to its OWN directory as the playlist with it selected, exactly as
+// picking it would — a search hit deep in the tree is not a one-track playlist.
+//
+// The grant and the bookmark are deliberately left as they are: the scope in
+// hand already covers the subtree, and re-pointing the bookmark at a subfolder
+// would shrink next launch's searchable root to it.
+- (void)openFileFromSearchRoots:(NSURL *)url;
 
 // Kicks off resolving the persisted bookmark; the folder re-delivers through
 // the delegate with restored:YES. NO means nothing was persisted and no

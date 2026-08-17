@@ -41,7 +41,7 @@ The picked location's owner: picker presentation, the security scope, the bookma
 
 **Adoption happens on the session's own serial queue, never main**: bookmark resolution and the listing are both file-provider IPC that can run seconds on a cloud folder. Delegate deliveries land on main, in submission order.
 
-A single-file pick is a one-track playlist: **iOS grants no sibling access from a file grant.** A relaunch restore **parks** the remembered track — header, waveform, metadata loaded, nothing playing, card left minimized — and the scene delegate runs exactly one of restore-or-adopt at launch, so a cold "Open in Vibe" never pays for a restore it immediately replaces.
+A single-file pick is a one-track playlist: **iOS grants no sibling access from a file grant.** A *folder* grant, by contrast, covers the whole subtree, which is what `searchRoots` and `openFileFromSearchRoots:` are built on — the latter expands a search hit deep in the tree to its own directory as the playlist, and deliberately leaves the grant and the bookmark alone: the scope in hand already covers it, and re-pointing the bookmark at a subfolder would shrink next launch's searchable root to it. A relaunch restore **parks** the remembered track — header, waveform, metadata loaded, nothing playing, card left minimized — and the scene delegate runs exactly one of restore-or-adopt at launch, so a cold "Open in Vibe" never pays for a restore it immediately replaces.
 
 Persistence is `FolderSession`'s own `NSUserDefaults` keys (`VibeiOSFolderBookmark`, `VibeiOSLastTrackFileName`), deliberately not the shared `AppSettings`.
 
@@ -77,9 +77,7 @@ The accessory's content: artwork (the 128px thumbnail, never the card's full-siz
 
 The Files tab: `UIDocumentBrowserViewController`, the system's own browser over every Files provider. A picked file goes through `PlaybackController.openExternalURL:openInPlace:` — the same road the picker takes.
 
-**This tab opens FOLDERS too, and that is why the playlist screen needs no Open button.** `UTTypeFolder` leads its content types, so navigating into a folder puts an **Open** button in the browser's own top right that hands that directory back through the same delegate — and `openExternalURL:openInPlace:YES` funnels into `FolderSession.adoptURL:`, exactly where the document picker's own delegate lands. The subtree grant, the directory-as-playlist listing and the persisted folder bookmark are therefore bit for bit what the picker produces. Only the empty state still presents a picker, for the first run.
-
-It is the browser rather than an embedded `UIDocumentPickerViewController` because the picker is a modal presentation and unsupported as a child, and it takes **no navigation controller**: the browser brings its own bar and hierarchy, and wrapping it stacks two.
+**This tab opens FOLDERS too, and that is why the playlist screen needs no Open button.** `UTTypeFolder` leads its content types, so navigating into a folder puts an **Open** button in the browser's own top right that hands that directory back through the same delegate — and `openExternalURL:openInPlace:YES` funnels into `FolderSession.adoptURL:`, exactly where the document picker's own delegate lands. The subtree grant, the directory-as-playlist listing and the persisted folder bookmark are therefore bit for bit what the picker produces. Only the empty state still presents a picker, for the first run. It is the browser rather than an embedded `UIDocumentPickerViewController` because the picker is a modal presentation and unsupported as a child, and it takes **no navigation controller**: the browser brings its own bar and hierarchy, and wrapping it stacks two.
 
 **TRAP: it needs `additionalSafeAreaInsets` for the mini strip, and it is the only tab that does.** UIKit insets tab children for the tab bar but **not** for the `bottomAccessory`, and the browser places its own Recents/Shared/Browse bar against its safe area — so with the strip up that bar ends up half underneath it. A scroll view never shows this, because it just receives extra content inset; a view controller that positions its own chrome does. `RootViewController.applyFilesBottomInset` **measures the live accessory** rather than assuming 48pt, so a system height change cannot silently reopen the overlap.
 
@@ -105,7 +103,56 @@ Behind the gear, **pushed onto this tab's navigation stack rather than presented
 
 ### SearchViewController
 
-Behind the search circle: a `UISearchController` over the open folder's tracks, matching title, artist and filename. It installs the field on its own `navigationItem`, and `UISearchTab` hoists that field into the collapsed tab bar — so there is **one** search controller, not one per bar. The empty query lists everything, so it doubles as a browse list. It re-*filters* rather than reloading on a playlist change, because its rows are indexes into a playlist that has just been replaced. It deliberately does not focus the field on appear.
+Behind the search circle: a `UISearchController` over **two** sections — the playlist, and the audio files reachable anywhere under the locations the app holds. It installs the field on its own `navigationItem`, and `UISearchTab` hoists that field into the collapsed tab bar — so there is **one** search controller, not one per bar. It deliberately does not focus the field on appear.
+
+**The two sections are deliberately unsynchronized, and that is the feature.** The playlist half is a synchronous pass over `Playlist.tracks` and lands on the same run-loop turn as the keystroke; the files half draws off whatever the walk has delivered so far and grows underneath it. Neither waits on the other — the instant answer must never be held for a provider listing. `reloadSections:` on the files section alone is what a walk batch costs, since the playlist half cannot have changed.
+
+The empty query lists the whole playlist, so that section doubles as a browse list; the files section is empty there, because a recursive dump of a provider tree is not a browse list. A section with no rows draws no header, so a query with no file matches leaves no bare heading — the one exception is a walk still running, where the heading plus a "Searching files…" footer is how a partial answer says it is partial.
+
+It re-*filters* rather than reloading on a playlist change, because its rows are indexes into a playlist that has just been replaced. A playlist change is also a new exclusion set (below) and possibly new roots. **`viewWillAppear` re-filters unconditionally**, not on the stale flag: the walk delivers while this screen is in the wings and its reloads are dropped there, so appearing is the one place both sections are known to be current.
+
+**A playlist row is a selection and stays here; a file row is an open.** Its folder becomes the playlist with it selected, so observers see a new folder open and the card presents — the same road every other open takes.
+
+**The table dismisses the keyboard on drag, and it has to.** `UISearchTab` hoists the field into the *tab bar*, so the keyboard covers the results rather than sitting under a field inside them, and without `keyboardDismissMode` nothing on this screen ever puts it away — the bottom half of a result list is simply unreachable. Not `interactive`: that mode tracks a field the scroll view contains, and this one does not contain it. Picking a row resigns the field too, but leaves the query in it, so the results stay put for a second pick.
+
+### FileSearchIndex
+
+The files section's data: one streaming walk into memory, then a filter per keystroke.
+
+**There is no public API that searches the Files app.** No search hook on `UIDocumentPickerViewController` or `UIDocumentBrowserViewController`, and `NSFileProviderSearchQuery` is the provider *extension*'s side, not a host app's. An app can only search trees it actually holds — which is why the scope is something the user grants, folder by folder (`SearchFolderStore`, below).
+
+**`PlaybackController.searchRoots` composes the scope, and it is the only place that does.** Two halves, and the split is load-bearing:
+
+- **transient** — `FolderSession.searchRoot`, the open folder. Its grant covers the whole subtree, which the flat directory-as-playlist listing never reaches. Gone at the next open.
+- **persistent** — `SearchFolderStore.searchRoots`: the folders the user added in Settings, plus the app's own **Documents** directory, which is what Files shows as "On My iPhone → Vibe" and needs no grant at all.
+
+Roots nested inside one another are pruned by the index, so a folder added *inside* Documents cannot list every file in it twice.
+
+**The walk reads directory listings and nothing else** — never a file's bytes, never its tags — so a provider tree costs IPC per directory and no downloads. It runs at `QOS_CLASS_UTILITY` on its own serial queue: a listing is the same provider IPC an open needs, and the open the user is waiting on outranks it (root `CLAUDE.md`). It starts on the search screen's **appearance**, not on the first keystroke — arriving there is the signal the work is wanted, and it is what lets the first query answer off an index already filling — and never before, so the other two tabs pay nothing.
+
+Batches land on main every 128 files or 200ms, whichever comes first; the interval is what makes results appear promptly on a provider tree where one listing can take a second by itself. `buildGeneration` is stamped on the walk and checked on every batch, so a root change drops a walk in flight rather than mixing its results into the next index. The index caps at 20,000 files and logs when it stops — the ceiling is a few megabytes, and past it a one-letter query would be reloading thousands of rows per keystroke. The section itself caps at 200 rows.
+
+**A hit is named entirely from its path**, filename over containing folder, with a `music.note` glyph rather than art — nothing was stat'd, read or parsed. The folder name is *matched* as well as drawn (`FileSearchRules.h`), because on a music tree that folder is the album or the artist, and it is how a directory of tracks named nothing like the query gets found.
+
+**A track the playlist already lists is not offered twice.** The screen passes its playlist paths as the exclusion set, rebuilt on a playlist change rather than per keystroke, and the index tests it before the string match because a set lookup is the cheaper of the two. Each hit carries its `path` for exactly that, so a keystroke never recomputes `NSURL.path` per row.
+
+`FileSearchRules.h` is the matching rule for **both** sections, tested from the macOS suite: a filename that matched in one and not the other would read as a broken walk rather than as two comparisons that drifted apart. The one place the two deliberately disagree is the empty query — no constraint for the playlist, no match at all for a file. It also holds `VibeSearchRootCoversPath`, the coverage decision the index's pruning and the settings list's "you already added a folder that reaches this one" both read, so those two cannot drift either.
+
+### SearchFolderStore
+
+The folders the user handed the app to search, and the grants that make them readable: a persisted list of security-scoped bookmarks, each scope started at launch and held for the session. A singleton, and the iOS twin of the mac's `FolderAccessManager` — the same job, the folders the app keeps access to, listed in a settings pane. Its own `NSUserDefaults` key beside `FolderSession`'s and `PlayerDisplaySettings`', deliberately not an `AppSettings` property: there is no macOS counterpart to keep it in step with.
+
+**A folder here is search scope and nothing else.** Not a second way to open something — tapping a search hit already opens its folder as the playlist, so a folder on this list becomes playable *through search* without the list competing with the Files tab.
+
+**Coverage is tested against the persistent roots and never against the open folder**, and that asymmetry is the point. A grant reaches the whole subtree, so adding a subfolder of a listed folder — or anything inside the app's own Documents — buys nothing and is refused with a word rather than in silence, since silence reads as the pick having failed. But the session's root is gone at the next open, so refusing a folder because it happens to be open *right now* would drop a grant the user wants the moment they open something else. A folder that **covers** existing rows replaces them, and a restored folder some root now covers is dropped: a row that contributes nothing is a lie.
+
+**The bookmark is minted off main and the scope is started on it.** Minting is provider IPC, and it needs the scope *open*, so a stale bookmark can only be refreshed after resolving — the same ordering `FolderSession` documents. Until the mint lands the folder is already searchable but would not survive a relaunch, which is the right way round: the scope is open, so the walk can start now.
+
+**It posts `VibeSearchFoldersDidChangeNotification` and the search screen listens.** Appearance alone is not enough: the launch resolve is asynchronous and can land while that screen is already up, and nothing else would then tell it.
+
+`restorePersistedFolders` runs at launch **beside** the scene delegate's restore-or-adopt rather than as a third branch of it — it opens nothing and plays nothing, so it is not exclusive with either.
+
+The channel cannot drive the system document picker (it is another process's UI, out of reach of the touch driver too), so `dump_search`, `add_search_folder` and `remove_search_folder` exist to inspect and set up a scope for a test. **TRAP: a folder added through the channel is not security-scoped and survives only the session** — a test that relaunches must add it again.
 
 ### PlayerViewController — the card
 

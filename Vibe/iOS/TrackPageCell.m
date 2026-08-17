@@ -464,6 +464,10 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
     if (_layoutApplied && landscape == _landscapeActive) {
         return;
     }
+    // Only the swap itself, not the test that usually declines it: this is
+    // ~55 constraints deactivated and reactivated, and the question is what one
+    // rotation costs, not how often layoutSubviews asks.
+    VibeSignpostBegin(cell_constraints);
     _layoutApplied = YES;
     _landscapeActive = landscape;
     if (landscape) {
@@ -481,27 +485,38 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
     // The mac title is one line; the portrait card gives it two. Both shrink
     // to fit rather than truncate.
     _titleLabel.numberOfLines = landscape ? 1 : 2;
+    VibeSignpostEnd(cell_constraints);
 }
 
 // The portrait label band's reserved height and its two single-line labels',
 // restated on the fonts the labels are currently drawing at — Dynamic Type
 // rescales them under us. The band is the worst case, a two-line title, so the
 // art band above it never moves.
+//
+// The codec line is the one thing that can leave the band entirely, when the
+// setting is off or a track has no readout yet: it gives up its line AND the
+// gap above it, so the band tightens by the whole row rather than leaving its
+// height behind as slack. Every page is drawing the same setting, so the
+// waveform still sits at the same y across the pager.
 - (void)updateHeaderMetrics {
     CGFloat artist = ceil(_artistLabel.font.lineHeight);
-    CGFloat fileInfo = ceil(_fileInfoLabel.font.lineHeight);
+    BOOL showFileInfo = !_fileInfoLabel.hidden;
+    CGFloat fileInfo = showFileInfo ? ceil(_fileInfoLabel.font.lineHeight) : 0;
+    CGFloat fileInfoGap = showFileInfo ? kCellLabelGap : 0;
     CGFloat band = ceil(_titleLabel.font.lineHeight * 2) + kCellLabelGap + artist
-            + kCellLabelGap + fileInfo + 2 * kCellLabelBandPadding;
+            + fileInfoGap + fileInfo + 2 * kCellLabelBandPadding;
     if (_labelBandHeight.constant == band && _artistHeight.constant == artist
-            && _fileInfoHeight.constant == fileInfo) {
+            && _fileInfoHeight.constant == fileInfo && _fileInfoTop.constant == fileInfoGap) {
         return;
     }
     _labelBandHeight.constant = band;
     _artistHeight.constant = artist;
     _fileInfoHeight.constant = fileInfo;
+    _fileInfoTop.constant = fileInfoGap;
 }
 
 - (void)layoutSubviews {
+    VibeSignpostBegin(cell_layout);
     [self applyLayoutForBounds:self.bounds];
     [self updateHeaderMetrics];
     [super layoutSubviews];
@@ -511,6 +526,7 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
     _previousButton.layer.rasterizationScale = scale;
     _playPauseButton.layer.rasterizationScale = scale;
     _nextButton.layer.rasterizationScale = scale;
+    VibeSignpostEnd(cell_layout);
 }
 
 - (UILabel *)makeTimeLabel {

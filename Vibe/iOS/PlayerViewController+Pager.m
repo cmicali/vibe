@@ -189,9 +189,25 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
     return cell;
 }
 
+// A page fills the pager exactly, which is what makes the paging math work.
+//
+// TRAP: that size is NOT the pager's own bounds during a size transition. The
+// alongside block invalidates the layout while the bounds still hold the old
+// geometry, so a rotation sized every item PORTRAIT inside an already-landscape
+// collection view — 402x874 items in an 874x402 view — which UIKit reports as
+// "the behavior of the UICollectionViewFlowLayout is not defined" and lays out
+// as a 19296-point-wide content of the wrong shape until the next pass corrects
+// it. The transition's target size is the one honest answer available that early.
 - (CGSize)collectionView:(UICollectionView *)collectionView
                   layout:(UICollectionViewLayout *)layout
   sizeForItemAtIndexPath:(NSIndexPath *)indexPath {
+    // Counted, not timed: the body is a bounds read, and the question is how
+    // many times the flow layout asks — implementing this at all puts it on the
+    // per-item delegate path, so one invalidation costs one call per TRACK.
+    VibeTallyCount(pager_itemSize);
+    if (!CGSizeEqualToSize(_transitionTargetSize, CGSizeZero)) {
+        return _transitionTargetSize;
+    }
     return _pagesView.bounds.size;
 }
 
@@ -209,6 +225,7 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
         return;
     }
     _lastLayoutSize = size;
+    VibeSignpostCount(pager_invalidate);
     [_pagesLayout invalidateLayout];
     if (!_pagesView.isDragging && !_pagesView.isDecelerating) {
         [self scrollToCurrentPageAnimated:NO];
@@ -223,12 +240,41 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
        withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
     [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
     _windowResizeInFlight = YES;
+    // Before the invalidation below, which is what asks for the item sizes.
+    _transitionTargetSize = size;
+    // The same hold a page swipe takes, and for a stronger reason: every
+    // scrubber tears its baked bitmap down on the bounds change, so the whole
+    // animation runs on the live renderer tree. Held, the ~10 Hz decode
+    // deliveries that would each retarget a 4,096-bar morph are recorded
+    // instead of painted, and the playhead's display link stops writing over
+    // a picture the rotation is already moving.
+    [self applyFrameBudgetHold];
+    // The tally's window is the whole cost of one rotation, which outlives the
+    // animation: the scrubbers' re-bake is scheduled kEnvelopeBakeDelay after
+    // the LAST layout pass, so a window that closed with the transition would
+    // report the teardown and none of the work it causes.
+    VibeWorkTallyBegin("rotation");
     [coordinator animateAlongsideTransition:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+        VibeSignpostCount(pager_invalidate);
         [self->_pagesLayout invalidateLayout];
         [self scrollToCurrentPageAnimated:NO];
     } completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
         self->_windowResizeInFlight = NO;
+        // The bounds have caught up, so they are the answer again.
+        self->_transitionTargetSize = CGSizeZero;
         [self scrollToCurrentPageAnimated:NO];
+        // Releasing the hold forwards whatever snapshot arrived during it, so
+        // the page repaints once here instead of ten times across the
+        // animation. The request is re-issued for the same reason
+        // commitVisiblePage re-issues one after a swipe: a request DROPPED by
+        // the hold is not replayed, and nothing else would ask again. It
+        // no-ops when this page is already the pipeline's target.
+        [self applyFrameBudgetHold];
+        [self requestWaveformForIndex:self->_playlist.currentIndex];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            VibeWorkTallyEnd();
+        });
     }];
 }
 
@@ -409,22 +455,30 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
     }
 }
 
-#pragma mark - The scroll hold
+#pragma mark - The frame-budget hold
 
-// A swipe is the one moment the main thread has nothing to spare, so for its
-// duration the waveform machinery stands still: the coordinator holds
-// deliveries and requests (see its `held`), and the playhead's display link
-// pauses — its per-frame translation is invisible under a moving page, and it
-// resumes on the settled track's position anyway. UIScrollView always follows
-// a drag with exactly one of the two end callbacks below, so the hold cannot
-// be stranded on.
+// A swipe is not the only moment the main thread has nothing to spare — a size
+// transition is the other, and it is the worse of the two, because every
+// scrubber has just torn its baked bitmap down and is carrying the animation on
+// the live renderer tree. So the hold is DERIVED from both reasons rather than
+// owned by either: while it is on, the coordinator holds deliveries and
+// requests (see its `held`) and the playhead's display link pauses.
+//
+// Neither can strand it. UIScrollView always follows a drag with exactly one of
+// the two end callbacks below, and the transition coordinator always runs its
+// completion.
+- (void)applyFrameBudgetHold {
+    BOOL held = _pagerScrolling || _windowResizeInFlight;
+    _waveformCoordinator.held = held;
+    [self updateScrollLinkState];
+}
+
 - (void)holdForPagerScrolling:(BOOL)scrolling {
     if (_pagerScrolling == scrolling) {
         return;
     }
     _pagerScrolling = scrolling;
-    _waveformCoordinator.held = scrolling;
-    [self updateScrollLinkState];
+    [self applyFrameBudgetHold];
 }
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {

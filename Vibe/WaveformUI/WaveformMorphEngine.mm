@@ -191,6 +191,10 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     if (_morphTimer) {
         return; // already easing — the updated target just bends the motion
     }
+    // Which rebuilds are the 60 Hz ease and which are one-shot settles is not
+    // answerable from the renderer's own count, and getting it wrong sends an
+    // optimization at the wrong path.
+    VibeSignpostCount(morph_started);
     _lastMorphTick = CACurrentMediaTime();
     __weak __typeof__(self) weakSelf = self;
     _morphTimer = [NSTimer timerWithTimeInterval:kMorphFrameInterval repeats:YES block:^(NSTimer *timer) {
@@ -225,6 +229,7 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     CGFloat vscale = _vscale ? _vscale(_size.height) : _size.height;
     _pendingRebuildPx += (float)(maxDistance * k * vscale);
     if (_pendingRebuildPx >= 0.25f) {
+        VibeTallyCount(morph_eased_rebuild);
         [self runRebuild];
     }
 }
