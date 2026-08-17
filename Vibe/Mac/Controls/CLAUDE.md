@@ -1,4 +1,26 @@
 # Custom-drawn controls (macOS)
 
-- `SymbolButton` draws CALayer content instead of an asset-catalog image, which keeps it resolution independent and composites its state changes on the render server. It rasterizes an SF Symbol — `symbolName`, say "play.fill" — at the backing scale into a CALayer *mask* over a flat color layer. CALayer cannot tint its contents, and the mask keeps the hover, press and disabled transitions as animatable color-property fades. Each button sets its own `symbolPointSize` and the icon sits centered in the frame, so the 50pt transport hit targets carry icons of about 31pt.
-- **The playing-row indicator is not here** — `EqualizerIndicatorView` moved to the shared `Vibe/Controls/` when iOS grew a track list to draw it in. Only `SymbolButton` is genuinely mac-only, and what makes it so is the hover and press states an `NSButton` has and a touch control does not.
+CALayer-drawn AppKit controls. A control belongs here when it is genuinely AppKit — hover and press states a touch control does not have, or an `NSControl` subclass. **A control both apps must draw the *same* one of goes in the shared `Vibe/Controls/` instead**, which is where `EqualizerIndicatorView` (the playing-row bars) lives, since the iOS library rows draw it too.
+
+## SymbolButton
+
+A borderless momentary push button (`NSControl`) drawing an SF Symbol. It rasterizes the symbol at the backing scale into a CALayer **mask** over a flat color layer — CALayer cannot tint its contents, and the mask is what keeps hover, press and disabled transitions as animatable color-property fades composited on the render server. No asset-catalog images are involved, so it stays resolution independent.
+
+It fades to its highlight color on hover, dims to half that opacity while pressed, tracks a drag off and back, sends its action on mouse-up inside, and is click-through when disabled. Swapping `symbolName` redraws instantly with no fade.
+
+Each button sets its own `symbolPointSize` and the icon is drawn centered in the frame, so the 50pt transport hit targets carry icons of about 31pt.
+
+## Image views
+
+- **`CrossfadingImageView`** — the layer-backed `NSImageView` base for both artwork views, so `setImage:` cross-fades the incoming image over the outgoing one. It vends `kVibeArtCrossfadeDuration`, **shared with the header tint wash so art and tint fade on the same clock** (`MainWindow/APPEARANCE.md`). It is opted out of drag-and-drop, so file drops fall through to the window.
+- **`ArtworkImageView`** — `CrossfadingImageView` plus `NSDraggingSource`: the foreground art card, draggable out by its `fileURL`.
+- **`ScaledImageView`** — an `NSImageView` with a `drawImageOverlayInRect:` hook for subclasses.
+
+## Pitch control
+
+- **`PitchFaderView`** — the fader itself, with its own delegate.
+- **`PitchControlPanel`** — the panel around it, and what the rest of the app talks to. **The fader inside is an implementation detail, so gestures are reported with the *panel* as the sender.** It vends `kPitchPanelWidth`, the width the main window grows by when the panel is revealed — see `MainWindow/CLAUDE.md` for why the reveal is the one resize the two `contentView` siblings must not follow.
+
+Both delegates fire `…DidEndAdjusting:` **once** when a pitch gesture ends — on the mouse-up after a click or drag, or on a double-click reset. That is the hook for work too heavy to run on every drag tick; the per-tick callback is the separate `didChangePitch:`.
+
+`VibeQuartzLockGreen(a)` is the quartz-lock green shared by the fader's zero LED and the panel's readout, parameterized by alpha so the LED glow can use a low-alpha variant.

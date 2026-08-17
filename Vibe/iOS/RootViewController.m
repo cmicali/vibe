@@ -313,8 +313,8 @@ static NSString *const kTabSearch = @"search";
 
 // TRAP: the card moves by TRANSFORM and never by frame. Its pages carry
 // WaveformScrubberViews, and a scrubber tears down its baked envelope bitmap
-// and re-bakes it (0.6s later) on any bounds change — over a layer tree four
-// screen-widths wide. Animating the card's frame would pay that on every
+// and re-bakes it (0.6s later) on any bounds change — over a layer tree twice
+// the view's width. Animating the card's frame would pay that on every
 // single expand, on every page.
 - (void)animate:(BOOL)animated changes:(void (^)(void))changes completion:(void (^)(void))completion {
     if (!animated) {

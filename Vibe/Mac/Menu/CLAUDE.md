@@ -1,37 +1,55 @@
-# Menus and app bootstrap
+# Menu bar (macOS)
 
-The bootstrap guidance below also governs `main.m` (repo root) and `AppDelegate` (`Vibe/Mac/App/`), which live outside this directory.
+There is no main nib. `MainMenuBuilder` is a stateless one-shot class method, called from `AppDelegate.applicationWillFinishLaunching:` after `MainPlayerController` exists. One builder method per top-level menu.
 
-## Bootstrap
+Vended item constructors (`copyNameItemWithTarget:`, `copyFileItemWithTarget:`, `convertToFLACItemWithTarget:`) exist so an item that appears in more than one menu carries the same identifier, SF Symbol and action everywhere — the window-body and playlist context menus build theirs from these.
 
-There is no main nib. `main.m` creates the `AppDelegate` and keeps it alive in a global, because `NSApplication.delegate` is weak. `applicationWillFinishLaunching:` creates `MainPlayerController`, which owns its `OutputDevicesMenuController`, and installs the menu bar through `MainMenuBuilder`, a stateless one-shot class method.
+**Live submenus belong to per-menu delegates**, each owned by the object it works for and wired at build time: Open Recent to `AppDelegate`'s `OpenRecentMenuController` (backed by `NSDocumentController.recentDocumentURLs`), Output to `MainPlayerController`'s `OutputDevicesMenuController`, and waveform Style to the player controller itself.
 
-The live submenus belong to per-menu delegates, each owned by the object it works for and wired at build time: Open Recent to the app delegate's `OpenRecentMenuController`, backed by `NSDocumentController.recentDocumentURLs`; Output to the player controller's `OutputDevicesMenuController`; and waveform Style to the player controller itself.
+**TRAP: bare key equivalents must set `keyEquivalentModifierMask = 0` explicitly**, since `NSMenuItem` defaults to Command. Every item here goes through a helper that takes the mask as a parameter, so the bare-key items (Space, B, N, A/S/D, Z/X/C, Q/W/E/R/T) pass `0`.
 
-Bare key equivalents must set `keyEquivalentModifierMask = 0` explicitly, since `NSMenuItem` defaults to Command.
+**TRAP: a shifted key equivalent rides in the capital letter** (`"Z"`, `"C"`) per the `NSMenuItem` contract — a lowercase key with Shift in the mask draws right but never matches a real press.
 
-## Menu items
+Bare-key items are **display and fallback only**: `TransportKeyMonitor` (`Mac/MainWindow/`) handles the actual presses, because only it can tell a tap from a hold.
 
-The Play item's SF Symbol icon flips with its Play/Pause title in validation.
+## Edit
 
-The **Edit** menu's items all explicitly target the player controller — the app has no text editing, so there is no responder-chain ambiguity to serve — with one deliberate exception, **Select All**, which is nil-targeted because ⌘A has to reach whichever list has keyboard focus (today the granted-folder list in Settings > Permissions). Without a menu item carrying that key equivalent nothing sends `selectAll:` at all: AppKit dispatches ⌘A through the menu bar, and `NSTableView` never claims it itself. It follows that any table reachable by the chain must answer honestly — `NSTableView` responds to the selector whether or not it can act — so `PlaylistTableView` returns NO from `validateMenuItem:` for it, being single-selection, rather than leaving the item enabled and inert whenever the playlist has focus. Undo/Redo forward to the window's lazily created `NSUndoManager`; the only registered action is Convert to FLAC; see `MainWindow/CLAUDE.md` for what its undo round trip does. Validation takes the titles from `undoMenuItemTitle` and `redoMenuItemTitle` and enables from `canUndo`/`canRedo`, the stack alone, never a stat — see `Audio/Mac/Convert/CLAUDE.md` for why no Convert-adjacent rule may touch the file system during validation. Copy Name copies the current track's `singleLineTitle` and Copy File puts its file URL on the general pasteboard (a Finder paste then duplicates the file) — both validate against `currentTrack`, like Show in Finder, and both also appear in the window-body and playlist context menus (`MainWindow/CLAUDE.md` and `Playlist/`; the playlist's pair acts on the clicked row). macOS force-appends AutoFill, Start Dictation and Emoji & Symbols to any menu it takes for an Edit menu, all inert in an app with no text input. `VibeEditMenuCleaner` (in `MainMenuBuilder.m`), the Edit menu's delegate, strips them in `menuNeedsUpdate:` by dropping every item without a `menu_edit_*` identifier — the one uniform public-API path, since AppKit's suppression defaults cover only Dictation and the character palette, and nothing covers AutoFill. The cleaner deliberately does **not** implement `menuHasKeyEquivalent:…` the way the app's other menu delegates do: Edit carries real key equivalents, and that override would answer for them instead of letting AppKit walk the items. Shifted equivalents ride in the capital letter (`"Z"`, `"C"`) per the NSMenuItem contract — a lowercase key with Shift in the mask draws right but never matches a real press.
+Every Edit item explicitly targets the player controller — the app has no text editing, so there is no responder-chain ambiguity to serve — **with one deliberate exception, Select All**, which is nil-targeted because ⌘A has to reach whichever list has keyboard focus (today the granted-folder list in Settings > Permissions). Without a menu item carrying that key equivalent nothing sends `selectAll:` at all: AppKit dispatches ⌘A through the menu bar and `NSTableView` never claims it itself.
 
-The top-level **Convert** menu, between View and Output, is Convert to FLAC, a separator, then Delete Original.
+It follows that any table reachable by the chain must answer honestly — `NSTableView` responds to the selector whether or not it can act — so `PlaylistTableView.validateMenuItem:` returns NO for it, being single-selection, rather than leaving the item enabled and inert whenever the playlist has focus.
 
-**Convert to FLAC** re-encodes an uncompressed current track as FLAC beside it: enabled only for WAV and AIFF with no FLAC already there, retitled with the reason otherwise — "Converting…" or "FLAC Already Exists". The rule is `AudioFileConverter.validateConvertMenuItem:forTrack:`, shared with the window-body menu's item, which reuses this one's identifier. Only the current track is convertible, so there is deliberately no playlist row item. The engine is in `Audio/Mac/Convert/`; the swap that follows is in `MainWindow/`.
+**TRAP: macOS force-appends AutoFill, Start Dictation and Emoji & Symbols to any menu it takes for an Edit menu**, all inert in an app with no text input. `VibeEditMenuCleaner` (in `MainMenuBuilder.m`), the Edit menu's delegate, strips them in `menuNeedsUpdate:` by dropping every item without a `menu_edit_*` identifier — the one uniform public-API path, since AppKit's suppression defaults cover only Dictation and the character palette, and nothing covers AutoFill.
 
-**Delete Original**, off by default, sends a converted source to the Trash once its FLAC is in place. A checkmarked preference rather than an action, so it is never disabled — one setting, `AppSettings.deleteOriginalAfterConvert`, one place that acts on it, `AudioFileConverter.trashSourceIfEnabled:convertedTo:`, which snapshots it as a conversion is accepted, so a mid-encode flip applies to the next conversion only. Undoing the deletion is Edit > Undo, which reverses the whole conversion, not just the trashing.
+**The cleaner deliberately does not implement `menuHasKeyEquivalent:…`** the way the app's other menu delegates do: Edit carries real key equivalents, and that override would answer for them instead of letting AppKit walk the items.
 
-**View > Show File Info**, a checkmarked preference below Show Pitch Control, flips `AppSettings.showFileInfo` (default on) and repaints through `MainPlayerController.refreshFileInfoDisplay`, shared with the Settings > Appearance checkbox. Off hides the header's codec and BPM/key readouts; the FX symbols riding the codec line are deck state, not file info, and keep rendering (`MainWindow/APPEARANCE.md`).
+Undo/Redo forward to the window's lazily created `NSUndoManager`; the only registered action is Convert to FLAC (`MainWindow/CLAUDE.md`). Validation takes titles from `undoMenuItemTitle`/`redoMenuItemTitle` and enables from `canUndo`/`canRedo` — **the stack alone, never a stat**, since no Convert-adjacent rule may touch the file system during validation (`Audio/Mac/Convert/CLAUDE.md`).
 
-**View > Always on Top**, a checkmarked toggle in its own group at the end of the View menu, flips `AppSettings.alwaysOnTop` and funnels through `MainPlayerController.applyAlwaysOnTop`, shared with the Settings > General checkbox (`Settings/CLAUDE.md` has the window-level detail).
+Copy Name copies the current track's `singleLineTitle`; Copy File puts its file URL on the general pasteboard. Both validate against `currentTrack`, like Show in Finder.
 
-**View > Size** (Small, Default, Large) snaps the window to `kMainWindowMinContentWidth`, `kMainWindowContentWidth` or `kMainWindowLargeContentWidth`. These are *body* widths — the window is that plus the pitch panel's slice — and the height is deliberately untouched, since it belongs to Show Playlist and the resize handle. One identifier-to-width mapping, `contentWidthForSizeIdentifier:`, serves both the action and the checkmarks, so dragging off a preset simply matches none of them.
+## Convert
 
-The top-level **FX** menu is one checkmarked toggle per performance effect: Low Kill, Low Kill Boost, Reverb, Delay 1/8 and Delay 1/16, on bare Q, W, E, R and T. They are always enabled, being deck controls that persist across tracks. As with the skip keys, their key equivalents are display and fallback only, since `TransportKeyMonitor` handles the presses and only it can tell a tap from a hold. The toggle actions live in `MainPlayerController+Transport` and are written against its state pass-throughs, so a menu toggle and a bare-key tap are the same flip.
+Between View and Output: Convert to FLAC, a separator, then Delete Original.
 
-## Output devices
+**Convert to FLAC** re-encodes an uncompressed current track as FLAC beside it. The rule is `AudioFileConverter.validateConvertMenuItem:forTrack:`, shared with the window-body menu's item, which reuses this one's `menu_convert_to_flac` identifier: enabled only for WAV and AIFF with no FLAC already there, retitled with the reason otherwise — "Converting…" or "FLAC Already Exists". **Only the current track is convertible, so there is deliberately no playlist row item.**
 
-`OutputDevicesMenuController` populates the audio device menu from the `AudioDeviceManager` singleton and, as an `AudioDeviceManagerObserver`, rebuilds the menu in place when devices change while it is open. A second instance serves the Output popup in Settings > General (`Settings/CLAUDE.md`), so the two layouts cannot drift.
+**Delete Original**, off by default, sends a converted source to the Trash once its FLAC is in place. A checkmarked *preference* rather than an action, so it is never disabled — one setting (`AppSettings.deleteOriginalAfterConvert`), one place that acts on it (`AudioFileConverter.trashSourceIfEnabled:convertedTo:`), which snapshots it as a conversion is accepted, so a mid-encode flip applies to the next conversion only. Undoing the deletion is Edit > Undo, which reverses the whole conversion.
 
-The layout is "System Output (<default device>)" — tag -1, the default choice — then a separator, then every output device. The checkmark tracks `AudioPlayer.currentlyRequestedAudioDeviceId`. An explicitly chosen device that disappears, whether mid-playback, while idle or at launch, falls back to System Output, and the fallback is persisted.
+## View
+
+- **Show File Info** — a checkmarked preference flipping `AppSettings.showFileInfo` (default on), repainted through `MainPlayerController.refreshFileInfoDisplay`, shared with the Settings > Appearance checkbox. Off hides the header's codec and BPM/key readouts; **the FX symbols riding the codec line are deck state, not file info, and keep rendering** (`MainWindow/APPEARANCE.md`).
+- **Always on Top** — flips `AppSettings.alwaysOnTop` and funnels through `MainPlayerController.applyAlwaysOnTop`, shared with the Settings > General checkbox.
+- **Size** (Small, Default, Large) — snaps the window to `kMainWindowMinContentWidth`, `kMainWindowContentWidth` or `kMainWindowLargeContentWidth`. These are *body* widths — the window is that plus the pitch panel's slice — and the height is deliberately untouched, since it belongs to Show Playlist and the resize handle. One identifier-to-width mapping, `contentWidthForSizeIdentifier:`, serves both the action and the checkmarks, so dragging off a preset simply matches none of them.
+
+## FX
+
+One checkmarked toggle per performance effect: Low Kill, Low Kill Boost, Reverb, Delay 1/8, Delay 1/16, on bare Q, W, E, R, T. Always enabled, being deck controls that persist across tracks. The toggle actions live in `MainPlayerController+Transport` and are written against its state pass-throughs, so a menu toggle and a bare-key tap are the same flip.
+
+**With `AppSettings.audioFXEnabled` off, `MainMenuBuilder` omits the whole FX menu** and `TransportKeyMonitor` passes Q/W/E/R/T through unhandled. The setting is read once at player init, so it lands on relaunch.
+
+## Output
+
+`OutputDevicesMenuController` populates the audio device menu from the `AudioDeviceManager` singleton and, as an `AudioDeviceManagerObserver`, rebuilds it in place when devices change **while it is open** — which is why the manager fans out in the common run-loop modes (`Audio/Mac/Devices/CLAUDE.md`).
+
+Layout: "System Output (<default device>)" — tag -1, the default choice — then a separator, then every output device. The checkmark tracks `AudioPlayer.currentlyRequestedAudioDeviceId`. An explicitly chosen device that disappears falls back to System Output, persisted.
+
+**A second instance serves the Output popup in Settings > General**, using the same controller as the popup menu's delegate and builder, so the two layouts cannot drift.

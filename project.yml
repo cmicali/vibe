@@ -473,7 +473,7 @@ targets:
   # UIKit cannot do in-process (no public UITouch synthesis). One resident
   # XCUITest command loop; drive-ios.sh in the vibe-debug skill starts it and
   # sends gestures. Sources live under Tests/ for the same reason VibeTests'
-  # do: anything under Vibe/ is swept into the app targets.
+  # do: the app targets recurse whole subsystem directories under Vibe/.
   VibeiOSDriver:
     type: bundle.ui-testing
     platform: iOS
@@ -500,9 +500,9 @@ targets:
   # from the app — hence the curated list below, which is the point: the
   # tested surface is a deliberate choice, not whatever the glob swept up.
   #
-  # Tests live in /Tests, OUTSIDE Vibe/, because the app target's `- path:
-  # Vibe` recurses unconditionally — anything under Vibe/ would be compiled
-  # into the shipping binary.
+  # Tests live in /Tests, OUTSIDE Vibe/, because the app targets list whole
+  # subsystem directories and XcodeGen recurses each one — a test file dropped
+  # into any of them would be compiled into the shipping binaries.
   VibeTests:
     type: bundle.unit-test
     platform: macOS
