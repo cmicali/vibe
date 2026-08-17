@@ -153,24 +153,40 @@ static const NSTimeInterval kBackgroundAdmissionGraceSeconds = 10.0;
                          purpose:(VibeAudioFileOpenPurpose)purpose
                  completionQueue:(dispatch_queue_t)completionQueue
                       completion:(VibeAudioFileOpenCompletion)completion {
+    return [self openURL:url purpose:purpose completionQueue:completionQueue
+                 claimed:nil completion:completion];
+}
+
+- (AudioFileOpenToken *)openURL:(NSURL *)url
+                         purpose:(VibeAudioFileOpenPurpose)purpose
+                 completionQueue:(dispatch_queue_t)completionQueue
+                         claimed:(dispatch_block_t)claimed
+                      completion:(VibeAudioFileOpenCompletion)completion {
     NSString *key = [self keyForURL:url purpose:purpose];
     AudioFileOpenToken *token = [[AudioFileOpenToken alloc] initWithCoordinator:self
             key:key completionQueue:completionQueue completion:completion];
     dispatch_async(_stateQueue, ^{
         VibeAudioFileOpenClaim *claim = self->_claims[key];
-        if (claim) {
+        if (!claim) {
+            claim = [[VibeAudioFileOpenClaim alloc] init];
+            claim.key = key;
+            claim.url = url;
+            claim.purpose = purpose;
+            claim.waiter = token;
+            self->_claims[key] = claim;
+            [self startClaim:claim];
+        }
+        else {
             // Rebinding is the single-flight handoff: the old logical request
             // no longer owns delivery, while the same blocked OS call remains.
             claim.waiter = token;
-            return;
         }
-        claim = [[VibeAudioFileOpenClaim alloc] init];
-        claim.key = key;
-        claim.url = url;
-        claim.purpose = purpose;
-        claim.waiter = token;
-        self->_claims[key] = claim;
-        [self startClaim:claim];
+        // Acknowledged after the register-or-rebind either way: the state
+        // queue is serial, so any query issued after this block observes the
+        // claim.
+        if (claimed) {
+            dispatch_async(completionQueue, claimed);
+        }
     });
     return token;
 }

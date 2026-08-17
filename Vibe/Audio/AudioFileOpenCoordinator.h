@@ -70,6 +70,17 @@ typedef void (^VibeAudioFileOpenCompletion)(AVAudioFile * _Nullable file,
                  completionQueue:(dispatch_queue_t)completionQueue
                       completion:(VibeAudioFileOpenCompletion)completion;
 
+// openURL: plus an acknowledgement, fired once on completionQueue when the
+// request's claim is registered or joined — the point after which any
+// same-path query observes it. Registration, never admission: a parked
+// admission cannot delay it. This is what lets a caller order work after
+// "the claim exists" without polling.
+- (AudioFileOpenToken *)openURL:(NSURL *)url
+                         purpose:(VibeAudioFileOpenPurpose)purpose
+                 completionQueue:(dispatch_queue_t)completionQueue
+                         claimed:(nullable dispatch_block_t)claimed
+                      completion:(VibeAudioFileOpenCompletion)completion;
+
 @end
 
 NS_ASSUME_NONNULL_END

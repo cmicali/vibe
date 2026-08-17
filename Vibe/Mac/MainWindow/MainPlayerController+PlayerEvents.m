@@ -23,6 +23,19 @@
 
 @implementation MainPlayerController (PlayerEvents)
 
+// The pre-submit edge: synchronous on play:'s calling thread (main at every
+// call site), before the open is submitted to the player queue. The scan's
+// cloud lane stands down here, so the foreground open never contends with a
+// background download it could have suspended — armed from the 0.5s slow-open
+// timer, the hold used to hand every play a half-second of contention, and a
+// raced track change skipped it entirely. Deliberately NOT stale-guarded:
+// this fires before the playlist reflects the play, and the hold is
+// idempotent. Cleared exactly once by the matching settlement —
+// didStartPlaying:'s prefetch acknowledgement, the error path, or Close.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer willSubmitPlayForTrack:(AudioTrack *)track {
+    [self.metadataCache setCloudParsesHeld:YES];
+}
+
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track {
     // Guarded like didStartPlaying:'s check: a stale delivery from a
     // superseded open must not load metadata, paint loading UI, or clear an
@@ -38,11 +51,11 @@
     // loading line rides the Loading display state this renders, which resolved
     // back when the play was initiated; nothing shows it from here.
     [self updateUI];
-    // A slow open is a materializing file often enough to treat it as one: the
-    // scan's cloud lane stands down until this open settles, so a folder's
-    // worth of background downloads cannot queue ahead of the one the user is
-    // waiting on. Cleared everywhere the monitor below is.
-    [self.metadataCache setCloudParsesHeld:YES];
+    // The cloud-lane hold is willSubmitPlayForTrack:'s now, not this timer's:
+    // this callback owns only the slow-open UI, and the monitor below — which
+    // deliberately stays here, so a fast local or prefetched play never
+    // constructs a metadata query and provider subscriber it would cancel
+    // moments later.
     // Best-effort determinate fill while the provider materializes the file.
     // The monitor drops a sample whose track has since changed; see
     // monitorReplacing:forURL:currentURL:handler:.
@@ -84,7 +97,9 @@
     [self clearErrorMask];
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
-    [self.metadataCache setCloudParsesHeld:NO];
+    // The cloud-lane hold is NOT released here: it rides until the successor
+    // prefetch below acknowledges its claim, or the lane's next transfer and
+    // the prefetch would race to download the same file.
     [self.trackDisplay hideWaveformLoadingIndicator];
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
     // The now-playing track jumps the scan queue: its header tags and art must
@@ -102,7 +117,24 @@
     // file open, which dominates transition latency. It is recomputed on every
     // track start, since next, previous, a double-click and a re-drop all land
     // here. Past the last track, nil drops the parked handle.
-    [self.audioPlayer prefetchTrack:[self.playlistController trackAtIndex:self.playlistController.currentIndex + 1]];
+    //
+    // The cloud-lane hold releases in the acknowledgement, after the
+    // successor's open claim is registered — prefetchTrack: alone is async
+    // onto the player queue, so releasing inline would let the resumed lane
+    // race the claim's registration and start a second transfer of the same
+    // file. The stale guard mirrors every other callback's: an acknowledgement
+    // arriving after a rapid next has re-asserted the hold for a newer play
+    // must not strip it from that play's pending open — the newer play's own
+    // settlement releases it.
+    __weak MainPlayerController *weakSelf = self;
+    [self.audioPlayer prefetchTrack:[self.playlistController trackAtIndex:self.playlistController.currentIndex + 1]
+                        whenClaimed:^{
+        MainPlayerController *strongSelf = weakSelf;
+        if (!strongSelf || track != [strongSelf.playlistController currentTrack]) {
+            return;
+        }
+        [strongSelf.metadataCache setCloudParsesHeld:NO];
+    }];
     // Whoever initiated this play has already fully rendered the row: play:'s
     // reloadData, next and previous's two-row window, or doubleClick's pair.
     // The mark makes resumeUIUpdateTimer, and so updateUI, refresh only the

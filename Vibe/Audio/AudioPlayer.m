@@ -350,6 +350,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _lastSubmittedPlayIdentifier = submittedPlayIdentifier;
     _lastSubmittedPlayTrack = track;
     os_unfair_lock_unlock(&_stateLock);
+    // The pre-submit edge: synchronous, outside the state lock, and ahead of
+    // the queue dispatch, so the shell's background-download hold is asserted
+    // before the open it protects can start. This is the only delegate send
+    // not marshalled to main — it rides play:'s own calling thread.
+    [self.delegate audioPlayer:self willSubmitPlayForTrack:track];
     dispatch_async(_queue, ^{
         [self playOnQueue:track intent:intent declick:declick
    submittedPlayIdentifier:submittedPlayIdentifier];
@@ -627,8 +632,19 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 }
 
 - (void)prefetchTrack:(AudioTrack *)track {
+    [self prefetchTrack:track whenClaimed:nil];
+}
+
+- (void)prefetchTrack:(AudioTrack *)track whenClaimed:(void (^)(void))claimed {
+    // The acknowledgement always bounces to main, whichever prefetch branch
+    // acks it, so the shell's hold release runs where the hold lives.
+    void (^ackOnMain)(void) = claimed ? ^{
+        run_on_main_thread({
+            claimed();
+        });
+    } : nil;
     dispatch_async(_queue, ^{
-        [self prefetchOnQueue:track];
+        [self prefetchOnQueue:track whenClaimed:ackOnMain];
     });
 }
 

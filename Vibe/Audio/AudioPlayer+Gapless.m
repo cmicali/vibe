@@ -206,7 +206,7 @@
 // Opens the file on the bounded background lane and parks the handle for
 // playOnQueue: to consume. A play arriving mid-open has its own interactive
 // lane, while same-path prefetch requests reuse this claim.
-- (void)prefetchOnQueue:(AudioTrack *)track {
+- (void)prefetchOnQueue:(AudioTrack *)track whenClaimed:(void (^)(void))claimed {
     NSString *path = track.url.path;
     // The armed splice must track the prefetch target. When the playlist's
     // next changes under it — a convert swap of that row, or the parked
@@ -232,9 +232,15 @@
         else if (_prefetchedFile && !_gaplessQueued) {
             [self maybeOpenGaplessFileForTrack:track prefetchedFile:_prefetchedFile];
         }
+        if (claimed) {
+            claimed(); // the earlier request's claim, or the parked file, covers it
+        }
         return;
     }
     if ([self.pendingRequest isLoadingPath:path]) {
+        if (claimed) {
+            claimed(); // the in-flight play's own claim owns this path
+        }
         return; // being opened for playback right now
     }
     [self clearPrefetchOnQueue];
@@ -255,6 +261,9 @@
     _prefetchedTrack = track;
     _prefetchedFile = nil;
     if (!path) {
+        if (claimed) {
+            claimed(); // end of playlist: nothing to claim
+        }
         return; // nil track means end of playlist: just drop the parked handle
     }
     uint64_t prefetchId = _prefetchRequestId;
@@ -263,6 +272,7 @@
             openURL:track.url
             purpose:VibeAudioFileOpenPurposePrefetch
             completionQueue:_queue
+            claimed:claimed
             completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
         AudioPlayer *strongSelf = weakSelf;
         if (!strongSelf) {

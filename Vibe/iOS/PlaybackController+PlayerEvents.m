@@ -29,16 +29,26 @@
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer {
 }
 
+// The pre-submit edge: synchronous on play:'s calling thread (main at every
+// call site), before the open is submitted to the player queue, so the scan's
+// cloud lane stands down before the foreground open contends with a download
+// it could have suspended. Deliberately NOT stale-guarded: this fires before
+// the playlist reflects the play, and the hold is idempotent. Cleared exactly
+// once by the matching settlement — didStartPlaying:'s prefetch
+// acknowledgement, or the error path. Same rule as the mac's
+// MainPlayerController+PlayerEvents.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer willSubmitPlayForTrack:(AudioTrack *)track {
+    [_metadataCache setCloudParsesHeld:YES];
+}
+
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track {
     if (![_playlist isCurrentTrack:track]) {
         return;
     }
     [self notifyDidBeginLoading];
-    // A slow open is a materializing file often enough to treat it as one: the
-    // scan's cloud lane stands down until this open settles, so a folder's
-    // worth of background downloads cannot queue ahead of the one the user is
-    // waiting on. Cleared everywhere the monitor below is.
-    [_metadataCache setCloudParsesHeld:YES];
+    // The cloud-lane hold is willSubmitPlayForTrack:'s now; this callback owns
+    // only the slow-open UI and the monitor below, which stays here so a fast
+    // local play never constructs a monitor it would cancel moments later.
     // Best-effort determinate fill while the provider materializes the file.
     // The monitor drops a sample whose track has since changed; see
     // monitorReplacing:forURL:currentURL:handler:.
@@ -80,10 +90,12 @@
     // of its own to clear the flag.
     _seekInFlight = NO;
     // The open landed, so the file is materialized; the monitor's work is
-    // done whatever it last reported.
+    // done whatever it last reported. The cloud-lane hold is NOT released
+    // here: it rides until the successor prefetch below acknowledges its
+    // claim, or the lane's next transfer and the prefetch would race to
+    // download the same file.
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
-    [_metadataCache setCloudParsesHeld:NO];
     [self notifyDidRenderCurrentTrack];
     // Not a blanket "hide the loading indicator": the open landing says
     // nothing about the waveform decode, which may still be streaming over the
@@ -95,8 +107,20 @@
     [_metadataCache loadMetadataNow:track];
     // The open settled, so the playlist-wide sweep it was deferred behind runs.
     [self startPendingMetadataLoad];
+    // The cloud-lane hold releases in the acknowledgement, after the
+    // successor's open claim is registered, and the stale guard drops an
+    // acknowledgement a newer play has outrun — same rule as the mac's
+    // MainPlayerController+PlayerEvents.
     NSUInteger nextIndex = _playlist.currentIndex + 1;
-    [_player prefetchTrack:_playlist.hasNextTrack ? [_playlist trackAtIndex:nextIndex] : nil];
+    __weak PlaybackController *weakSelf = self;
+    [_player prefetchTrack:_playlist.hasNextTrack ? [_playlist trackAtIndex:nextIndex] : nil
+               whenClaimed:^{
+        PlaybackController *strongSelf = weakSelf;
+        if (!strongSelf || ![strongSelf->_playlist isCurrentTrack:track]) {
+            return;
+        }
+        [strongSelf->_metadataCache setCloudParsesHeld:NO];
+    }];
     _folderSession.persistedTrackFileName = track.url.lastPathComponent;
     // The landing can be parked — a pause verdict during the load, or the
     // media-reset re-park — in which case playback is idle, so the session is

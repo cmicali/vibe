@@ -459,6 +459,12 @@
 
 - (void)play:(NSArray<NSURL *> *)urls {
     _emptyStateSuppressed = NO; // a real track supersedes the launch grace
+    // The old playlist's scan dies before the new first track is submitted —
+    // its in-flight cloud transfer would otherwise compete with the open the
+    // user is waiting on, and its _queuedTracks would pin the departed
+    // playlist. iOS has always done this (PlaybackController's folder-open
+    // path); replacement only — next and previous must keep the sweep.
+    [self.metadataCache cancelAll];
     [self.playlistController play:urls];
     // Defer the playlist-wide metadata load until playback has actually
     // started. Four workers reading every file can starve the player's own
@@ -474,14 +480,20 @@
         return;
     }
     [self.playlistController append:urls];
-    // A still-pending deferred sweep reads the playlist when it fires. Once it
-    // has started, re-queue the whole list; already-parsed tracks are skipped.
-    if (!_metadataLoadPending) {
-        [self.metadataCache loadMetadata:self.playlistController.playlist];
-    }
+    // Re-queue the whole list through the same deferral every open uses — an
+    // append mid-open must not restart stage-two metadata work while the
+    // picked track is still materializing. The generation-guarded timer
+    // coalesces repeated appends, and already-parsed tracks are skipped when
+    // it fires.
+    [self scheduleDeferredMetadataLoad];
     // The current track may have gained a successor, so refresh the parked
-    // handle and the state of the Next button and menu item.
-    [self.audioPlayer prefetchTrack:[self.playlistController trackAtIndex:self.playlistController.currentIndex + 1]];
+    // handle and the state of the Next button and menu item. Not while a
+    // foreground open is pending, though: the prefetch would compete with it
+    // for the provider, and that open's own didStartPlaying: recomputes the
+    // prefetch anyway.
+    if (!self.audioPlayer.isLoading) {
+        [self.audioPlayer prefetchTrack:[self.playlistController trackAtIndex:self.playlistController.currentIndex + 1]];
+    }
     [self updateUI];
 }
 

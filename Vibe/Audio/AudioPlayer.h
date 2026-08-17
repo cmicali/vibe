@@ -114,6 +114,20 @@ NS_ASSUME_NONNULL_BEGIN
 // the playlist's own next-track object.
 - (void)prefetchTrack:(nullable AudioTrack *)track;
 
+// prefetchTrack: plus an acknowledgement, delivered once on the main thread,
+// that the prefetch's open claim is REGISTERED — or that no claim is needed:
+// a nil track, a path already parked, or a path the in-flight play already
+// owns. Registration, not admission or completion: the block says the claim
+// is visible to any later same-path query, not that the file has begun or
+// finished opening, so it cannot be delayed by a parked admission. It is how
+// the shell orders "release the background-download hold" after "the
+// successor's claim exists", closing the window where the metadata lane and
+// the prefetch would each start a transfer of the same file. The
+// acknowledgement can arrive after a newer play has re-asserted the hold, so
+// its handler must drop it when the track it was issued for is no longer the
+// playlist's current one.
+- (void)prefetchTrack:(nullable AudioTrack *)track whenClaimed:(nullable void (^)(void))claimed;
+
 @end
 
 // Everything a caller off the player queue may ask the player about itself,
@@ -169,6 +183,17 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol AudioPlayerDelegate <NSObject>
 
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer;
+
+// A play has been accepted and is about to be submitted to the player queue.
+// SYNCHRONOUS, on play:'s calling thread — main at every call site — and
+// strictly before the open can start, which is what makes it the shell's
+// provider-bandwidth edge: acquire the background-download hold here, before
+// the foreground open contends with anything the hold suspends. Fired for
+// every play — fast local files, parked-prefetch fast paths, and same-file
+// rebinds included, where the hold is briefly held and promptly released by
+// the play's own settlement. The handler must not block and must not call
+// back into the player.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer willSubmitPlayForTrack:(AudioTrack *)track;
 
 // Fires when a play request's file open is still pending after a short grace
 // period, as on a slow disk or a downloading cloud placeholder. Show a
