@@ -19,6 +19,7 @@
 #import <QuartzCore/QuartzCore.h>
 
 #import <os/log.h>
+#include <sys/time.h>
 
 #import "AppSettings.h"
 #import "HelperMacros.h"
@@ -32,17 +33,63 @@ static inline os_log_t VibeLog(void) {
     return log;
 }
 
+#if DEBUG
+// --log-stderr: mirror every message to stderr as well as to os_log. It exists
+// for ONE case, a debug build on a real iPhone, where the unified log is out
+// of a script's reach — `log stream` has no device mode any more, and
+// syslog_relay (idevicesyslog) does not carry a third-party subsystem's
+// messages at all, however much it carries ABOUT the app from SpringBoard.
+// stderr comes straight back over `devicectl device process launch --console`.
+// Debug builds only, opt-in, and off by default, so the simulator and mac
+// loops keep reading the unified log exactly as before.
+static inline BOOL VibeLogStderrEnabled(void) {
+    static BOOL enabled;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        enabled = [NSProcessInfo.processInfo.arguments containsObject:@"--log-stderr"];
+    });
+    return enabled;
+}
+#endif
+
+// The enabled check is what makes disabled levels free: without it the
+// stringWithFormat: below runs unconditionally — info/debug are off-stream by
+// default, so every LogDebug on a hot path would pay full ObjC formatting for
+// a discarded message. The stderr mirror joins the test rather than sitting
+// under it, or a level os_log has switched off would never reach the mirror.
+static inline BOOL VibeLogWants(os_log_type_t type) {
+#if DEBUG
+    if (VibeLogStderrEnabled()) {
+        return YES;
+    }
+#endif
+    return os_log_type_enabled(VibeLog(), type);
+}
+
 // os_log requires a compile-time constant format string, so messages are
-// pre-formatted with NSString. %{public} keeps them readable in Console
-// (os_log redacts dynamic strings by default). The enabled check is what
-// makes disabled levels free: without it the stringWithFormat: runs
-// unconditionally — info/debug are off-stream by default, so every LogDebug
-// on a hot path would pay full ObjC formatting for a discarded message.
+// pre-formatted with NSString by the macro below. %{public} keeps them
+// readable in Console (os_log redacts dynamic strings by default).
+static inline void VibeLogEmit(os_log_type_t type, NSString *message) {
+#if DEBUG
+    if (VibeLogStderrEnabled()) {
+        // Stamped, because os_log's own timestamps do not come with the
+        // mirror and ordering IS the question this flag is usually asked.
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        struct tm now;
+        localtime_r(&tv.tv_sec, &now);
+        char stamp[16];
+        strftime(stamp, sizeof(stamp), "%H:%M:%S", &now);
+        fprintf(stderr, "%s.%03d %s\n", stamp, tv.tv_usec / 1000, message.UTF8String);
+    }
+#endif
+    os_log_with_type(VibeLog(), type, "%{public}@", message);
+}
+
 #define VibeLogAt(type, fmt, ...)                                                              \
     do {                                                                                       \
-        if (os_log_type_enabled(VibeLog(), type)) {                                            \
-            os_log_with_type(VibeLog(), type, "%{public}@",                                    \
-                             [NSString stringWithFormat:(fmt), ##__VA_ARGS__]);                \
+        if (VibeLogWants(type)) {                                                              \
+            VibeLogEmit(type, [NSString stringWithFormat:(fmt), ##__VA_ARGS__]);               \
         }                                                                                      \
     } while (0)
 

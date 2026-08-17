@@ -21,6 +21,7 @@
 #import "AudioPlayer+Debug.h"
 #import "OpenBurstCoalescer+Debug.h"
 #import "OpenRequestCoordinator+Debug.h"
+#import "AudioTrackMetadataCache+Debug.h"
 #import "AudioTrackMetadataCacheInternal.h"
 #import "AppDelegate.h"
 #import "OpenRequestCoordinator.h"
@@ -68,8 +69,24 @@ static NSUInteger VibeMachPortCount(void) {
 
 // A leaked AVAudioFile or an unclosed cache handle shows here long before it
 // shows in the footprint. Passing a null buffer asks only for the size.
+// TRAP: the sizing call is not a count. proc_pidinfo(PROC_PIDLISTFDS) with a
+// NULL buffer answers how big the process's descriptor TABLE is, and that table
+// grows with peak concurrency and never shrinks — so using it as the count
+// reports every burst of parallel opens as a permanent leak that survives even
+// a quiesce. Measured: 420 "descriptors" against lsof's 41 after 400 rapid
+// plays. The listing has to be fetched for real; the bytes it actually writes
+// are the open ones.
 static NSUInteger VibeOpenFileDescriptorCount(void) {
-    int bytes = proc_pidinfo(getpid(), PROC_PIDLISTFDS, 0, NULL, 0);
+    int capacity = proc_pidinfo(getpid(), PROC_PIDLISTFDS, 0, NULL, 0);
+    if (capacity <= 0) {
+        return 0;
+    }
+    struct proc_fdinfo *entries = malloc((size_t)capacity);
+    if (!entries) {
+        return 0;
+    }
+    int bytes = proc_pidinfo(getpid(), PROC_PIDLISTFDS, 0, entries, capacity);
+    free(entries);
     if (bytes <= 0) {
         return 0;
     }
@@ -154,6 +171,13 @@ static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerControl
         out[@"openBurstQueued"] = @([appDelegate debugQueuedOpenCount]);
     }
     out[@"retiredFades"] = engineCounts[@"retiredFades"];
+    // Both belong at rest. A queued cloud parse that never ran is a row stuck
+    // on its filename forever, and a lane still HELD once everything has
+    // settled is the whole sweep suspended — the hold is set when a slow open
+    // starts and cleared when it settles, so any teardown that loses the
+    // clearing edge shows up here and nowhere else.
+    out[@"cloudParsesPending"] = @([controller.metadataCache debugPendingCloudParseCount]);
+    out[@"cloudLaneHeld"] = @([controller.metadataCache debugCloudParsesHeld] ? 1 : 0);
     return out;
 }
 

@@ -231,9 +231,15 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
         if (timeout <= 0) {
             timeout = 5;
         }
-        int maxPolls = (int)(timeout / 0.05);
-        for (int i = 0; i < maxPolls; i++) {
-            usleep(50 * 1000);
+        // Check first, then back off — a fixed pre-sleep charged EVERY command
+        // the full interval even when the app had already answered, which for a
+        // 50ms interval was most of the round trip and the whole reason driving
+        // the app through this channel felt like a hardware limit. Starting at
+        // 0.5ms and doubling to a 20ms ceiling keeps a fast reply fast, an idle
+        // wait cheap, and a slow verb's polling as sparse as it ever was.
+        useconds_t backoff = 500;
+        NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:timeout];
+        while (YES) {
             if ([fileManager fileExistsAtPath:responsePath]) {
                 NSString *response = [NSString stringWithContentsOfFile:responsePath
                                                                encoding:NSUTF8StringEncoding
@@ -292,6 +298,11 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
                 }
                 return failed ? 2 : 0;
             }
+            if ([deadline timeIntervalSinceNow] <= 0) {
+                break;
+            }
+            usleep(backoff);
+            backoff = MIN(backoff * 2, 20 * 1000);
         }
         [fileManager removeItemAtPath:commandPath error:nil];
         fprintf(stderr, "vibe: no response after %.0fs — is a debug build of Vibe running?\n", timeout);

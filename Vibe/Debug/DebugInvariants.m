@@ -35,6 +35,12 @@ void VibeDebugViolation(NSMutableArray<NSDictionary *> *violations, NSString *id
 // against its own baseline.
 static const NSUInteger kVibeMaxReasonableEngineNodes = 128;
 
+// How long a track may render before its metadata not having been attempted
+// counts as a fault rather than a race. Generous on purpose: the parse itself
+// is milliseconds on a local file, and the only thing this needs to clear is
+// the window between the open landing and the priority lane's op running.
+static const NSTimeInterval kVibeMetadataDeadlineSeconds = 5.0;
+
 static BOOL VibeIsFiniteNonNegative(double value) {
     return isfinite(value) && value >= 0;
 }
@@ -115,6 +121,29 @@ NSUInteger VibeDebugAppendSharedInvariants(NSMutableArray<NSDictionary *> *v,
     if (nodes > kVibeMaxReasonableEngineNodes) {
         VibeDebugViolation(v, @"engine.node_count_bounded",
                 @"%lu nodes attached to the engine", (unsigned long)nodes);
+    }
+
+    // ---- Track: the now-playing track's metadata actually arrives ----
+
+    // The whole point of the current-track lane is that the playing track's
+    // tags and art never wait behind the playlist sweep. Nothing observed
+    // whether they arrived, and the one time that lane silently stopped
+    // working — a stale NSURL resource value freezing the dataless test, so
+    // every retry skipped the parse — the symptom was art appearing half a
+    // minute late, from the background sweep, and no check anywhere noticed.
+    //
+    // Nil metadata is the signal, and it means "no parse was ever attempted":
+    // a parse that ran and FAILED leaves a non-nil object with parsedOK NO,
+    // which is legitimate and stays legitimate. Audio rendering past the
+    // deadline means the file opened, so it is local, so the priority lane's
+    // parse is milliseconds of work it has had seconds to do. The rare
+    // in-flight window is what the caller's settle-and-re-check filters.
+    checked++;
+    if (current && player.isPlaying && !surface.debugIsLoading
+            && player.position > kVibeMetadataDeadlineSeconds && !current.metadata) {
+        VibeDebugViolation(v, @"track.metadata_arrives_for_playing_track",
+                @"%@ has played %.1fs with no metadata parse attempted",
+                current.url.lastPathComponent, player.position);
     }
 
     // ---- Track: tag-over-analysis precedence ----

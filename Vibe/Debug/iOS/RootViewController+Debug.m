@@ -84,6 +84,11 @@
     [self.playback previous];
 }
 
+- (void)debugPlayIndex:(NSUInteger)index {
+    // Exactly what tapping a library row does; selectTrackAtIndex: range-checks.
+    [self.playback selectTrackAtIndex:index];
+}
+
 - (void)debugSeekToSeconds:(NSTimeInterval)seconds {
     // The player's duration is 0 while it holds nothing — a parked track — and
     // that is precisely the case worth being able to drive: a scrub there

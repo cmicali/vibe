@@ -38,6 +38,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)debugPrevious;
 - (void)debugSeekToSeconds:(NSTimeInterval)seconds;
 
+// Play an arbitrary row, which next/previous cannot reach: a listener picking
+// track 56 out of a folder is a different load pattern from walking to it, and
+// on a cloud folder it is THE pattern — it lands somewhere the background sweep
+// has not been, with neighbors nothing has prefetched. Out-of-range is a no-op,
+// like every other transport verb on an empty playlist.
+- (void)debugPlayIndex:(NSUInteger)index;
+
 // The platform's own open pipeline — the mac's expand-and-filter walk, the
 // iOS folder session — behind one name. Asynchronous on both, so the verb
 // only acks; poll dump_state for the resulting playlist.

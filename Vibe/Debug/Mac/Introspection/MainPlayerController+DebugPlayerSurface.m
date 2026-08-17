@@ -32,6 +32,16 @@
     [self previous:nil];
 }
 
+- (void)debugPlayIndex:(NSUInteger)index {
+    // What a double-click on a row does, minus the hit-testing: set the row,
+    // then play it.
+    if (index >= self.playlistController.count) {
+        return;
+    }
+    self.playlistController.currentIndex = index;
+    [self.playlistController play];
+}
+
 - (void)debugSeekToSeconds:(NSTimeInterval)seconds {
     [self.audioPlayer seekToPosition:seconds];
     // The tick would land it eventually; refreshing here means the reply the

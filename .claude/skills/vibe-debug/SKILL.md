@@ -343,6 +343,24 @@ The `LogError`, `LogWarn`, `LogInfo` and `LogDebug` macros in `Vibe-Prefix.pch` 
 /usr/bin/log stream --level debug --predicate 'subsystem == "com.commonwealthrecordings.Vibe"'
 ```
 
+### On a real device, os_log is out of reach — use `--log-stderr`
+
+**None of the log-streaming above works against an iPhone.** `log stream` has no device mode any more on current macOS (no `--device`/`--device-name`), and `idevicesyslog` — which does connect, over USB, once `brew install libimobiledevice` and a cable are in place — carries plenty *about* the app from SpringBoard and runningboardd but **nothing the app itself logs**: a third-party subsystem's `os_log` output never reaches `syslog_relay`. Measured: 62,833 syslog lines in eight seconds, not one of them from Vibe.
+
+So debug builds take `--log-stderr` (`Vibe-Prefix.pch`), which mirrors every `Log*` message to stderr, timestamped, alongside `os_log`. `devicectl` relays stderr straight back:
+
+```bash
+xcrun devicectl device install app --device <udid> build/DerivedData/Build/Products/Debug-iphoneos/Vibe.app
+xcrun devicectl device process launch --device <udid> --console --terminate-existing \
+    com.commonwealthrecordings.Vibe --log-stderr
+```
+
+Off by default, so the simulator and mac loops keep reading the unified log exactly as before. Build for a device with `-destination 'generic/platform=iOS' -allowProvisioningUpdates`; the app signs with the team already in `project.yml`.
+
+TRAP: the `--console` session owns the process. When its tunnel drops — which it does — the app goes down with it, and the error names RemoteXPC rather than anything about Vibe. Relaunch without `--console` if you only need the app up.
+
+The debug command channel does **not** reach a device yet: it is command and response files in the app container, and the host cannot write there directly. `xcrun devicectl device copy to/from --domain-type appDataContainer --domain-identifier com.commonwealthrecordings.Vibe` can, so the same protocol would work over it — unbuilt, and the reason the device loop is log-only today.
+
 ### Build provenance: which build produced this log?
 
 `applicationDidFinishLaunching` logs a provenance block through `AppDelegate.logBuildInfo`, so a log excerpt identifies the exact build it came from — version, config, git commit and dirty flag, compiler, SDK and host OS. How it is recovered at runtime, and why the git fields need a build-time script phase: **`references/build-provenance.md`**.

@@ -31,6 +31,7 @@
 - (NSDictionary *)debugActionSummary;
 - (void)debugPlayPause;
 - (void)debugNext;
+- (void)debugPlayIndex:(NSUInteger)index;
 - (void)debugPrevious;
 // Routes through the scrubber's didSeek path so the seek-in-flight guard
 // behaves exactly as a real drag's release.

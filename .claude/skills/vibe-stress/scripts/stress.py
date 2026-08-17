@@ -101,15 +101,33 @@ class Failure(Exception):
 
 
 class Channel:
-    """One `Vibe --debug-cmd` invocation per op.
+    """The channel client: one `Vibe --debug-cmd` invocation, or one per batch.
 
-    Batching through `script -` was measured at 57ms/op against 81ms/op here —
-    the cost is the client's 50ms response poll, not the process spawn — so the
-    per-op form is used for its per-op exit codes, which the shrinker needs.
+    The per-op cost was ~133ms, in two halves. The client used to sleep a fixed
+    50ms BEFORE first checking for its response, so every command paid it in
+    full whether or not the app had already answered — fixed in the client
+    itself now (DebugClient.m) — leaving ~80ms of fork/exec, dyld and sandbox
+    container setup. run_batch removes that half too, by running a whole batch
+    in one process through the channel's script mode.
+
+    Both halves matter most under a sanitizer, where the client pays the
+    instrumented startup as well: see the client_app note below.
     """
 
-    def __init__(self, app: Path, verbose=False):
-        self.binary = app / "Contents/MacOS/Vibe"
+    def __init__(self, app: Path, verbose=False, client_app: Path = None):
+        # The client need not be the app under test. The channel is command and
+        # response FILES in a shared container plus a Darwin notify wake-up, so
+        # any build of the same source can drive any other — which matters
+        # enormously under a sanitizer, where an instrumented client pays the
+        # instrumented startup too: measured 2.38s per op with a TSan-built
+        # client against 0.133s with a plain one, driving the same TSan app.
+        #
+        # Same source for both or the protocol can skew, which is why it is
+        # opt-in rather than automatic.
+        self.binary = (client_app or app) / "Contents/MacOS/Vibe"
+        # Off by default so anything that needs each op's own timing — the
+        # shrinker, a replay — gets it without asking.
+        self.batch = False
         self.verbose = verbose
         if not self.binary.exists():
             sys.exit(f"no app at {app} — build first (make build CONFIG=Debug), or pass --app")
@@ -151,6 +169,57 @@ class Channel:
         if self.verbose:
             print(f"    {' '.join(argv)} -> {code} {out.strip()[:120]}", file=sys.stderr)
         return code, payload, elapsed
+
+    def run_batch(self, argv_list, timeout):
+        """Run many commands in ONE client process, through script mode.
+
+        Spawning a client per op costs ~80ms of fork/exec, dyld and sandbox
+        container setup, and after the response-poll fix that is the whole
+        per-op budget. Script mode reads a command list on stdin and prints one
+        compact JSON reply per line, so a batch pays the setup once and each
+        command costs only the app's own dispatch.
+
+        What batching gives up is the per-op PROCESS exit code, and with it the
+        timeout the stall oracle reads. Success and failure survive — every
+        reply carries `error` when the verb failed — so only a hang is
+        ambiguous, and a hang shows up as a SHORT reply stream. The caller
+        re-runs from there one at a time, which is exactly where the stall
+        diagnosis was wanted anyway.
+
+        Returns [(exit_code, payload)] as far as the stream got, which may be
+        shorter than argv_list, or None if the batch could not be expressed.
+        """
+        lines = []
+        for argv in argv_list:
+            # The channel's tokenizer groups quoted tokens but has no escapes,
+            # so an argument containing a quote cannot be expressed. Rare enough
+            # to hand back to the per-op path rather than mangle.
+            if any('"' in a or "'" in a for a in argv):
+                return None
+            lines.append(" ".join(f'"{a}"' if " " in a else a for a in argv))
+        try:
+            proc = subprocess.run(
+                [str(self.binary), "--debug-cmd", "script", "-"],
+                input="\n".join(lines) + "\n",
+                capture_output=True, text=True, timeout=timeout,
+            )
+            out = proc.stdout
+        except subprocess.TimeoutExpired as expired:
+            # Partial output still says how far it got, which is what the caller
+            # needs in order to resume one at a time from the right op.
+            raw = expired.stdout
+            out = raw.decode() if isinstance(raw, bytes) else (raw or "")
+        results = []
+        for line in out.splitlines():
+            line = line.strip()
+            if not line.startswith("{"):
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                break
+            results.append((2 if payload.get("error") is not None else 0, payload))
+        return results
 
 
 def app_pid():
@@ -320,6 +389,24 @@ class OpGenerator:
     def op_clear_caches(self):
         return [("clear_caches", ["clear_caches"], [])]
 
+    def op_cloud_churn(self):
+        """Re-arms the fake provider mid-run, and sometimes tears it out.
+
+        The uninstall/reinstall edges are the point as much as the numbers: they
+        swap the dataless probe and the transfer block out from under workers
+        that are mid-flight, which is the one thing about the seam that could
+        deadlock rather than merely misreport.
+
+        Never 100% cloudy — the mixture is what proves the cloud machinery has
+        not slowed the local path down.
+        """
+        seconds = f"{self.rng.uniform(0.6, 1.6):.2f}"
+        percent = self.rng.choice([30, 50, 80])
+        if self.rng.random() < 0.15:
+            return [("cloud_off", ["set_fake_cloud", "0"], []),
+                    ("cloud_on", ["set_fake_cloud", seconds, str(percent)], [])]
+        return [("cloud_on", ["set_fake_cloud", seconds, str(percent)], [])]
+
     # -- transport ----------------------------------------------------------
 
     def op_transport(self):
@@ -329,6 +416,39 @@ class OpGenerator:
             "skip_back", "skip_back_more", "skip_back_most",
         ])
         return [("transport", [verb], [])]
+
+    def op_playlist_jump(self):
+        """Land on an arbitrary row, the way a listener picks a track.
+
+        next/previous only ever walk to the adjacent track, which is the one
+        case every prefetch and every neighborhood rank has already prepared
+        for. A jump lands where the background sweep has not been, with
+        neighbors nothing has fetched.
+
+        The index is drawn against a generous ceiling rather than the live
+        playlist length: out of range is a documented no-op, and asking for it
+        costs one round trip while sparing the driver a dump_state per jump.
+        """
+        return [("playlist_jump", ["play_index", str(self.rng.randrange(0, 400))], [])]
+
+    def op_burst(self):
+        """Hundreds of track changes in-process, at main-queue rate.
+
+        The channel cannot reach the rate a race needs: ~80ms per op against a
+        plain build and ~2.4 SECONDS against a ThreadSanitizer one. `burst`
+        moves the loop inside the app, where a jump lands every main-queue turn.
+
+        Issued right after an open on purpose — that is when the sweep's four
+        stage-1 workers are live, so the burst contends with real background
+        work rather than a settled app.
+        """
+        folder = str(self.rng.choice(self.dirs)) if self.dirs else None
+        jumps = self.rng.choice([120, 300, 600])
+        ops = []
+        if folder:
+            ops.append(("open_dir", ["open", folder], []))
+        ops.append(("burst", ["burst", str(jumps), str(self.rng.randrange(1, 1 << 30))], []))
+        return ops
 
     def op_seek(self):
         # Deliberately unreasonable values as well as reasonable ones: the
@@ -464,6 +584,7 @@ PROFILES = {
         "fx": 5, "held_fx": 4, "key": 4,
         "window": 3, "resize": 3, "click": 4, "drag": 2, "drag_drop": 3,
         "menu": 3, "undo": 1, "settle": 6, "folder_art": 1,
+        "playlist_jump": 4, "burst": 0,
     },
     # Everything pointed at the open path and the async deliveries that race it.
     "loading": {
@@ -486,6 +607,35 @@ PROFILES = {
         "fx": 0, "held_fx": 0, "key": 2,
         "window": 10, "resize": 4, "click": 3, "drag": 0, "drag_drop": 4,
         "menu": 1, "undo": 0, "settle": 6, "folder_art": 10,
+    },
+    # The cloud path: files that are placeholders and take real time to arrive,
+    # so the scan's serial cloud lane, the foreground-download hold, the
+    # neighborhood re-ranking and the abandoned play and prefetch opens are all
+    # live at once. Needs the fake provider armed, which --profile cloud does at
+    # launch, and a corpus of BIG folders with real tags and embedded art —
+    # make-cloud-corpus.py builds one.
+    #
+    # The weights are the opposite of `loading`'s, and the first version of this
+    # profile got it exactly wrong by copying them. Opens are what this profile
+    # must be SPARING with: the sweep is deferred until playback starts or two
+    # seconds pass, and a replacement playlist drops the loader outright, so a
+    # stream of opens 80ms apart means the sweep never runs and the lane this
+    # profile exists to test is never even populated. Measured on the first
+    # attempt: 11 downloads cancelled, 1 completed, cloudParsesPending never
+    # above zero.
+    #
+    # So: heavy settle, so a sweep gets seconds to work through a folder; heavy
+    # jumping, because landing on an arbitrary row is what moves the ranking and
+    # raises the hold where nothing has prefetched; and clear_caches often,
+    # because a cache hit means no parse and therefore no download to race.
+    "cloud": {
+        "open_file": 3, "open_dir": 8, "open_burst": 3, "open_playlist": 1,
+        "cache_churn": 3, "clear_caches": 5, "cloud_churn": 4,
+        "transport": 18, "seek": 6, "pitch": 0,
+        "playlist_jump": 18, "burst": 12,
+        "fx": 0, "held_fx": 0, "key": 1,
+        "window": 1, "resize": 1, "click": 2, "drag": 0, "drag_drop": 1,
+        "menu": 1, "undo": 0, "settle": 30, "folder_art": 1,
     },
     # No file loading at all: pure UI monkey against whatever is loaded.
     "ui": {
@@ -551,7 +701,14 @@ PENDING_KEYS = ("metadataHolders", "metadataWaiters", "openResultsBuffered",
 GROWTH_LIMITS = {
     # path in dump_health -> (absolute headroom, human name)
     ("process", "footprintBytes"): (400 * 1024 * 1024, "memory footprint"),
-    ("process", "fileDescriptors"): (200, "open file descriptors"),
+    # Tightened from 200 once the metric started measuring descriptors rather
+    # than the descriptor TABLE, which only ever grew (see
+    # VibeOpenFileDescriptorCount). True counts sit in single digits at rest and
+    # a few dozen mid-burst, so this is now a real detector rather than a number
+    # that could not fire — and an fd leak IS a documented hazard here: a failed
+    # AVAudioFile open against an empty file strands its descriptor, and 300 of
+    # those meet a 256 soft limit.
+    ("process", "fileDescriptors"): (64, "open file descriptors"),
     ("process", "threads"): (48, "threads"),
     ("process", "machPorts"): (2000, "mach ports"),
     ("ui", "windows"): (3, "windows"),
@@ -591,7 +748,7 @@ GROWTH_LIMITS = {
 RESTING_GROWTH_LIMITS = {
     ("process", "mallocLiveBytes"): (64 * 1024 * 1024, "resting live heap"),
     ("process", "footprintBytes"): (256 * 1024 * 1024, "resting memory footprint"),
-    ("process", "fileDescriptors"): (32, "resting file descriptors"),
+    ("process", "fileDescriptors"): (8, "resting file descriptors"),
     ("process", "threads"): (24, "resting threads"),
     ("process", "machPorts"): (300, "resting mach ports"),
     ("ui", "windows"): (1, "resting windows"),
@@ -652,11 +809,31 @@ def health_growth(baseline, current, streaks, limits=GROWTH_LIMITS,
     series separately.
     """
     findings = []
+    # The footprint is a BACKSTOP, and on its own it is not evidence. It tracks
+    # the allocator's and the VM's high-water mark rather than anything the app
+    # retains, so it wanders in BOTH directions by hundreds of megabytes — one
+    # measured resting series read 553, 494, 749, 606, 838 MB while the live
+    # heap sat at 2.2 MB, byte-identical, with every pending counter at zero. A
+    # sanitizer build inflates it further still, its shadow memory alone
+    # clearing the limit on any long run.
+    #
+    # So it only counts when the live heap agrees. That keeps the gross-leak
+    # backstop — a real one grows both — without the false failure the skill
+    # otherwise tells every reader to expect and dismiss by hand.
+    live_limit = limits.get(("process", "mallocLiveBytes"))
+    live_was = baseline.get("process", {}).get("mallocLiveBytes")
+    live_now = current.get("process", {}).get("mallocLiveBytes")
+    live_grew = (live_limit is not None and live_was is not None and live_now is not None
+                 and live_now - live_was > live_limit[0])
+
     for metric, (headroom, label) in limits.items():
         section, key = metric
         was = baseline.get(section, {}).get(key)
         now = current.get(section, {}).get(key)
         if was is None or now is None:
+            continue
+        if key == "footprintBytes" and not live_grew:
+            streaks[metric] = 0
             continue
         if now - was > headroom:
             streaks[metric] = streaks.get(metric, 0) + 1
@@ -845,8 +1022,23 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
     main-thread stalls are sampled and counted there rather than failing the
     run outright.
     """
+    # One client process for the whole batch. Anything the batch could not
+    # deliver — a hang, an unquotable argument — falls through to the per-op
+    # loop, which resumes exactly where the reply stream stopped, so the op that
+    # wedged still gets its own timeout and its own stall diagnosis.
+    batched = {}
+    if getattr(channel, "batch", False) and len(ops) > 1:
+        budget = sum(VERB_TIMEOUTS.get(argv[0], 30) for _, argv, _ in ops)
+        results = channel.run_batch([argv for _, argv, _ in ops], timeout=min(budget, 300))
+        if results:
+            batched = dict(enumerate(results))
+
     for i, (name, argv, tolerated) in enumerate(ops):
-        code, payload, elapsed = channel.run(argv, timeout=VERB_TIMEOUTS.get(argv[0], 30))
+        if i in batched:
+            code, payload = batched[i]
+            elapsed = 0   # a batched op has no round trip of its own to time
+        else:
+            code, payload, elapsed = channel.run(argv, timeout=VERB_TIMEOUTS.get(argv[0], 30))
         entry = {"i": i, "op": name, "argv": argv, "exit": code, "ms": elapsed}
         if tolerated:
             # Journaled so replay and shrink apply the SAME rules. Without it,
@@ -937,7 +1129,9 @@ def run(args):
 
     seed = args.seed if args.seed is not None else random.randrange(1, 2**31)
     rng = random.Random(seed)
-    channel = Channel(app, verbose=args.verbose)
+    channel = Channel(app, verbose=args.verbose,
+                      client_app=Path(args.client_app) if args.client_app else None)
+    channel.batch = not args.no_batch
 
     files, playlists, dirs = scan_corpus(corpus)
     print(f"corpus: {len(files)} audio files, {len(playlists)} playlists, "
@@ -953,6 +1147,23 @@ def run(args):
     print(f"menu:   {len(menu_ids)} clickable items after the modal/quit denylist")
     print(f"clicks: avoiding {len(exclusions)} window-chrome rects (close/minimize)")
     print(f"settings: {describe_feature_settings(channel)}")
+
+    if args.profile == "cloud":
+        # Armed before the first op rather than as one: the profile's premise is
+        # that an open is already a download, and a run that spent its first
+        # batch against local files would be scoring a different app.
+        #
+        # 0.9s BASE, deliberately above the player's own 0.5s slow-open
+        # threshold — below it didBeginLoading: never fires, the
+        # foreground-download hold is never raised, and half of what this
+        # profile tests never happens. Per-file times spread around it with a
+        # slow and an effectively-stuck tail; see VibeFakeCloud.
+        code, payload, _ = channel.run(["set_fake_cloud", "0.9", str(args.cloud_percent)])
+        if code != 0 or not (payload or {}).get("installed"):
+            sys.exit("cloud profile: could not arm the fake provider "
+                     f"(exit {code}, reply {payload}) — needs a Debug build")
+        print(f"cloud:  fake provider armed, {payload['percent']}% of files cloudy, "
+              f"0.90s base with slow and stuck tails")
 
     generator = OpGenerator(rng, files, playlists, dirs, menu_ids, args.profile, exclusions)
     journal_path = (Path(args.journal) if args.journal
@@ -1120,7 +1331,8 @@ def shrink(args):
     """
     app = Path(args.app).expanduser().resolve() if args.app else DEFAULT_APP
     corpus = Path(args.corpus).expanduser().resolve()
-    channel = Channel(app, verbose=args.verbose)
+    channel = Channel(app, verbose=args.verbose,
+                      client_app=Path(args.client_app) if args.client_app else None)
     ops = load_journal(Path(args.shrink))
     print(f"shrinking {len(ops)} ops from {args.shrink}")
 
@@ -1178,6 +1390,19 @@ def main():
                              "each one is sampled either way")
     parser.add_argument("--profile", default="base", choices=sorted(PROFILES),
                         help="op weighting (default base)")
+    parser.add_argument("--cloud-percent", type=int, default=60,
+                        help="cloud profile only: share of the corpus behaving as "
+                             "placeholders (default 60, deliberately MIXED — the local files "
+                             "are there to prove the cloud machinery has not slowed them "
+                             "down). 100 for an all-cloud folder.")
+    parser.add_argument("--client-app",
+                        help="app bundle to use as the channel CLIENT, when it should differ "
+                             "from --app. For sanitizer runs: an instrumented client costs "
+                             "~2.4s per op against ~0.13s for a plain one driving the same "
+                             "instrumented app. Build both from the same source.")
+    parser.add_argument("--no-batch", action="store_true",
+                        help="one client process per op instead of one per batch. Slower; "
+                             "only needed when every op's own timing matters.")
     parser.add_argument("--journal",
                         help=f"NDJSON journal path (default {DEFAULT_OUTPUT_DIR}/"
                              "stress-<seed>.ndjson; the health series, stall samples and "
@@ -1198,7 +1423,8 @@ def main():
     if args.replay:
         app = Path(args.app).expanduser().resolve() if args.app else DEFAULT_APP
         corpus = Path(args.corpus).expanduser().resolve()
-        channel = Channel(app, verbose=args.verbose)
+        channel = Channel(app, verbose=args.verbose,
+                          client_app=Path(args.client_app) if args.client_app else None)
         ops = load_journal(Path(args.replay))
         print(f"replaying {len(ops)} ops from {args.replay}")
         launch(corpus, app)

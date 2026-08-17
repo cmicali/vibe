@@ -22,6 +22,9 @@
 #import "MusicalKey.h"
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
+#import "AudioTrackMetadata.h"
+#import "NSURLUtil.h"
+#import "VibeFakeCloud.h"
 
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
@@ -48,6 +51,40 @@ NSString *VibeDebugPlayerStateName(AudioPlayer *player) {
 // How many filenames dump_state lists before it summarises the rest. A big
 // folder would otherwise put tens of thousands of names through the channel.
 static const NSUInteger kMaxListedFiles = 100;
+
+// A runaway guard, not a budget: the burst below is one main-queue turn per
+// jump, so even the ceiling costs under a second of wall clock.
+static const NSUInteger kMaxBurstJumps = 5000;
+
+// Track changes at the rate the main queue will take them, which is the only
+// way to reach the interleavings that matter.
+//
+// The channel itself cannot: one --debug-cmd invocation per op costs ~80ms
+// against a plain build and ~2.4 SECONDS against a ThreadSanitizer one, almost
+// all of it spawning an instrumented sandboxed client. At that rate two threads
+// never collide, so a race hunt through the channel is hunting with the safety
+// on. In-process, a jump lands every main-queue turn — hundreds a second,
+// concurrent with a sweep's four stage-1 workers, which is exactly the pressure
+// the cloud lane's lock and the materializer slots are there to survive.
+//
+// Re-dispatched rather than looped, deliberately: a tight loop on main would
+// starve the very deliveries it is trying to race, and the app would look busy
+// while nothing interleaved. The LCG makes a burst reproducible from its seed.
+static void VibeBurstJumps(__weak id<VibeDebugPlayerSurface> surface,
+                           NSUInteger remaining, uint32_t state) {
+    id<VibeDebugPlayerSurface> strongSurface = surface;
+    if (!strongSurface || remaining == 0) {
+        return;
+    }
+    NSUInteger count = strongSurface.debugPlaylistCount;
+    if (count > 0) {
+        state = state * 1664525u + 1013904223u;
+        [strongSurface debugPlayIndex:(state >> 16) % count];
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        VibeBurstJumps(surface, remaining - 1, state);
+    });
+}
 
 NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> surface) {
     AudioPlayer *player = surface.debugPlayer;
@@ -148,6 +185,99 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 [surface debugSeekToSeconds:seconds];
                 return VibeJSONString(surface.debugActionSummary);
             }),
+            // How far the metadata sweep has actually got. Nothing else says:
+            // dump_state describes the current track alone, and the sweep is
+            // otherwise observable only as rows filling in on screen. It is
+            // what turns "has the scan finished" into a number, which is what
+            // any measurement of the scan's cost needs.
+            //
+            // parsed counts real metadata; attempted counts tracks a parse has
+            // landed on at all, so a file that failed to parse — legitimate,
+            // and permanent — is not mistaken for one still waiting.
+            // The cost of the dataless test itself, which is the ONLY price the
+            // cloud machinery makes a local file pay — the materialize step is
+            // gated behind it, so a local file never reaches one. End-to-end
+            // timing cannot see it: the whole test is microseconds against a
+            // TagLib parse of milliseconds, and both scale with the corpus, so
+            // the ratio stays under the noise at any size. Hence a direct
+            // measurement rather than a bigger folder.
+            // Iterations first, path LAST: a path argument swallows every token
+            // after it, so that a filename with spaces needs no quoting.
+            VibeDebugCmd(@"bench_dataless <iterations> <file>", 30,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                double iterations = 0;
+                if (tokens.count < 3 || !VibeParseDouble(tokens[1], &iterations) || iterations < 1) {
+                    return VibeErrorJSON(@"usage: bench_dataless <iterations> <file>");
+                }
+                NSString *path = [[tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)]
+                        componentsJoinedByString:@" "];
+                if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
+                    return VibeErrorJSON(@"no file at '%@'", path);
+                }
+                NSUInteger count = MAX((NSUInteger)iterations, (NSUInteger)1);
+                // A fresh NSURL per call, deliberately: the app asks about a
+                // long-lived AudioTrack.url, and measuring one URL over and
+                // over would measure NSURL's own resource-value memoization
+                // instead of the work.
+                CFAbsoluteTime started = CFAbsoluteTimeGetCurrent();
+                NSUInteger dataless = 0;
+                for (NSUInteger i = 0; i < count; i++) {
+                    if ([NSURLUtil isDatalessFile:[NSURL fileURLWithPath:path]]) {
+                        dataless++;
+                    }
+                }
+                double elapsed = CFAbsoluteTimeGetCurrent() - started;
+                return VibeJSONString(@{@"iterations": @(count),
+                                        @"totalMs": @(elapsed * 1000.0),
+                                        @"perCallMicroseconds": @(elapsed * 1e6 / count),
+                                        @"datalessAnswers": @(dataless)});
+            }),
+            VibeDebugCmd(@"dump_metadata_progress", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                NSUInteger total = surface.debugPlaylistCount, parsed = 0, attempted = 0;
+                for (NSUInteger i = 0; i < total; i++) {
+                    AudioTrackMetadata *metadata = [surface debugPlaylistTrackAtIndex:i].metadata;
+                    if (!metadata) {
+                        continue;
+                    }
+                    attempted++;
+                    if (metadata.parsedOK) {
+                        parsed++;
+                    }
+                }
+                return VibeJSONString(@{@"total": @(total), @"parsed": @(parsed),
+                                        @"attempted": @(attempted)});
+            }),
+            VibeDebugCmd(@"burst <jumps> [<seed>]", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                double jumps = 0, seed = 1;
+                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &jumps) || jumps < 1) {
+                    return VibeErrorJSON(@"usage: burst <jumps> [<seed>]");
+                }
+                if (tokens.count > 2 && !VibeParseDouble(tokens[2], &seed)) {
+                    return VibeErrorJSON(@"seed must be a number");
+                }
+                NSUInteger count = MIN((NSUInteger)jumps, kMaxBurstJumps);
+                // Replies at once and keeps firing: the caller's NEXT command
+                // then lands mid-burst, which is more contention rather than
+                // less, and the oracles' settle-and-re-check absorbs the
+                // transients that come with sampling a moving app.
+                VibeBurstJumps(surface, count, (uint32_t)seed);
+                return VibeJSONString(@{@"ok": @YES, @"jumps": @(count),
+                                        @"playlist": @(surface.debugPlaylistCount)});
+            }),
+            VibeDebugCmd(@"play_index <n>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                            id<VibeDebugPlayerSurface> surface) {
+                double index = 0;
+                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &index) || index < 0) {
+                    return VibeErrorJSON(@"usage: play_index <n>");
+                }
+                [surface debugPlayIndex:(NSUInteger)index];
+                return VibeJSONString(surface.debugActionSummary);
+            }),
             VibeDebugCmd(@"open <file-or-directory>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                                      id<VibeDebugPlayerSurface> surface) {
                 if (tokens.count < 2) {
@@ -202,6 +332,34 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"checked": @(checked),
                     @"violations": violations,
                 });
+            }),
+            // The stress harness's cloud simulator; see VibeFakeCloud. Seconds
+            // of 0 uninstalls and puts the real dataless test and the real
+            // coordinated read back.
+            VibeDebugCmd(@"set_fake_cloud <seconds> [<percent>] [sticky]", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                double seconds = 0;
+                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &seconds) || seconds < 0) {
+                    return VibeErrorJSON(@"usage: set_fake_cloud <seconds> [<percent>] [sticky]");
+                }
+                double percent = 100;
+                if (tokens.count > 2 && (!VibeParseDouble(tokens[2], &percent)
+                        || percent < 0 || percent > 100)) {
+                    return VibeErrorJSON(@"percent must be 0-100");
+                }
+                if (seconds == 0) {
+                    [VibeFakeCloud uninstall];
+                }
+                else {
+                    [VibeFakeCloud installWithTransferSeconds:seconds
+                                              datalessPercent:(NSUInteger)percent];
+                    // The fault-injection mode; see VibeFakeCloud.
+                    if (tokens.count > 3 && [tokens[3] isEqualToString:@"sticky"]) {
+                        [VibeFakeCloud setStickyDataless:YES];
+                    }
+                }
+                return VibeJSONString([VibeFakeCloud statistics]);
             }),
             VibeDebugCmd(@"dump_timing", 5, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                         id<VibeDebugPlayerSurface> surface) {
