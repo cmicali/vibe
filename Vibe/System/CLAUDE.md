@@ -28,6 +28,8 @@ Two sources, best wins. Everywhere: a poll of the dataless file's allocated size
 
 **TRAP: `NSURLIsUbiquitousItemKey` is not an iCloud test.** Every File Provider item answers YES to it — a Dropbox file included — so it only gets as far as "some cloud". The `NSMetadataQuery` is what settles it, and it stops on an item iCloud does not index rather than idling for the length of the download.
 
+`Vibe/Debug/VibeFakeCloud` stands in for the provider's reporting too, and its seam **replaces** the sources above rather than joining them: under a fake transfer the file on disk is genuinely local, so the poll would answer a final 100% on its first tick. `DownloadProgressMonitor+Debug.h` carries the whole rule.
+
 ## CloudFileMaterializer
 
 Pulls a file provider's placeholder down to disk as an explicit, **abortable** step, for background work that needs a cloud file's bytes and must be able to stop wanting them. Background only — it blocks for a transfer, and coordinating on main is how an app deadlocks against its own presenters.

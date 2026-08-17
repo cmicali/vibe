@@ -41,7 +41,7 @@ To launch by hand instead:
 
 ## Test audio files
 
-Use the generated files in `Assets/test_audio_files/` (gitignored) rather than synthesizing your own; `.claude/skills/vibe-debug/scripts/generate-test-audio.sh` creates them (idempotent, `--force` regenerates). Tones for transport and playlist tests, a FLAC, three MP3s (CBR, VBR, ID3v2-tagged with art — these need `lame` or `ffmpeg`, since `afconvert` cannot encode MP3), two tagged files with art, five exact-tempo loops and four in known keys. Which file for which test, plus how to simulate a slow cloud open (`slow-open.sh`) and the one-shot BPM/key scans: **`references/test-audio.md`**.
+Use the generated files in `Assets/test_audio_files/` (gitignored) rather than synthesizing your own; `.claude/skills/vibe-debug/scripts/generate-test-audio.sh` creates them (idempotent, `--force` regenerates). Tones for transport and playlist tests, a FLAC, three MP3s (CBR, VBR, ID3v2-tagged with art — these need `lame` or `ffmpeg`, since `afconvert` cannot encode MP3), two tagged files with art, five exact-tempo loops and four in known keys. Which file for which test, plus how to simulate a slow cloud open (`set_fake_cloud`) and the one-shot BPM/key scans: **`references/test-audio.md`**.
 
 ## iOS: the simulator loop
 
@@ -183,7 +183,8 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 "$V" --debug-cmd settings_close               # {ok, open, endedSheet} — ends an attached sheet first, then closes
 "$V" --debug-cmd dump_screenshot -   # PNG bytes on stdout (redirect to a file), JSON reply on stderr — in-process snapshot
 "$V" --debug-cmd play_pause          # also: next, previous, skip_forward[_more|_most], skip_back[_more|_most], toggle_size, toggle_pitch_panel
-"$V" --debug-cmd set_loading 0.42   # {ok, fraction} — drives the waveform loading indicator directly: `off`, `indeterminate`, or a 0..1 fraction for the determinate fill. The only way to capture either mode without a real slow cloud open
+"$V" --debug-cmd set_loading 0.42   # {ok, fraction} — drives the waveform loading indicator directly: `off`, `indeterminate`, or a 0..1 fraction for the determinate fill. Draws the control with no play behind it; for a REAL Loading state use set_fake_cloud
+"$V" --debug-cmd set_fake_cloud 4 100  # {installed, percent, baseSeconds, materialized, completed, cancelled, …} — makes the corpus answer as cloud placeholders and each open wait for a hashed transfer time; `set_fake_cloud 0` uninstalls. The only way to reach the Loading state, the shimmer and the open timeout. See references/test-audio.md
 "$V" --debug-cmd set_window_width 900  # {ok, frame, bodyWidth} — body width in points (pitch panel excluded); the window is user-resizable and restores the autosaved width, so a reproducible capture has to set one
 "$V" --debug-cmd toggle_low_kill     # FX, also: low_kill_boost_on/_off, reverb_send_on/_off, delay_send_on/_off, short_delay_send_on/_off (the *_on/_off pairs mirror the hold-down W/E/R/T keys)
 "$V" --debug-cmd set_pitch -4.5      # drives fader (clamps), player, and time labels together

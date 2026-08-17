@@ -24,14 +24,29 @@ Use the generated files in `Assets/test_audio_files/` (gitignored) rather than s
 
 The short files end after eight seconds. Pause early, or use `tone-long.wav`, when a test needs playback still running at capture time.
 
-**Simulating a slow cloud file open.** The Loading state, the shimmer, the load-timeout error and anything else gated on `didBeginLoading:` need an open that blocks, which no local file provides:
+**Simulating a slow cloud file open.** The Loading state, the shimmer, the load-timeout error and anything else gated on `didBeginLoading:` need an open that blocks, which no local file provides. `set_fake_cloud` is the way — the same injected provider the stress harness runs on, so it needs no network, no account and no provider anywhere in reach:
 
 ```bash
-.claude/skills/vibe-debug/scripts/slow-open.sh           # app enters Loading; shimmer at 0.5s, inline timeout error at 20s
-.claude/skills/vibe-debug/scripts/slow-open.sh cleanup   # after your checks — fails a still-pending open instantly (into the inline error) and removes the pipe
+# $V is the skill's binary handle: <app>/Contents/MacOS/Vibe
+"$V" --debug-cmd set_fake_cloud 4 100   # base seconds, percent of the corpus that reads as cloud
+"$V" --debug-cmd previous               # any play that is NOT the prefetched next track — see the trap below.
+                                        # The header flips to Loading; shimmer at 0.5s, timeout error at 20s
+"$V" --debug-cmd set_fake_cloud 0       # after your checks — uninstalls, real dataless test back
 ```
 
-It opens a named pipe in the app container's tmp. `AVAudioFile`'s open blocks reading it forever, exactly as it would on an undownloaded iCloud or Dropbox placeholder.
+It replaces the three things the app asks about a file and leaves everything above them unchanged: `NSURLUtil.isDatalessFile:` answers YES for the chosen paths, `CloudFileMaterializer`'s coordinated read becomes a cancellable wait, and `DownloadProgressMonitor` reports that wait's progress instead of polling the (genuinely local) file. Same cloud lane, same foreground hold, same abandoned opens, same loading indicator — **including its determinate fill**, which arrives in twelfths at 1 Hz like a real provider's, and which a third of the corpus stalls partway through so the "a stall stays honest" rule has something to fail against. `VibeFakeCloud.h` is the contract; **the seconds you pass are a base, not the answer** — each file's time comes from a hash of its path, 0.5x to 2x, with one in ten at 18x and one in fifty stuck past the player's open timeout. Sending it again re-arms and puts the whole corpus back in the cloud. It is a common verb, so `debug-ios.sh set_fake_cloud` works the same.
+
+Watch it move in the log, which names its source (`fake`, `poll`, `iCloud` or `provider`) — the fastest way to tell the fill apart from the shimmer without a screenshot:
+
+```
+Download progress (fake): 17% (1.0s) tone-long.wav
+Download progress (fake): 33% (2.0s) tone-long.wav
+Download progress (fake): 42% (5.0s) tone-long.wav   <- the stall, 2s of it
+```
+
+**TRAP: `next` alone often proves nothing** — `didStartPlaying:` prefetches the following track, so the next open is answered from the parked handle and starts instantly however slow the fake provider is. Aim at a track that is not the parked one: `previous`, a double-click on a distant row, or an `open`.
+
+**A blocking file on disk is not an option, and a named pipe is the trap to avoid.** A fifo stats as `st_size == 0`, and `NSURL+AudioOpen.isEmptyOrDirectory` — the guard that stops `AVAudioFile` leaking a descriptor on an empty path — filters it out of the open funnel before anything opens it, so the command logs "dispatched" and nothing happens at all.
 
 **One-shot BPM and key measurement.** `scan_bpm` (and its twin `scan_key`) runs in the CLI's own process with no channel round-trip: no app launch, no window, no caches. It works with no app running and leaves a running Vibe instance untouched. The script streams the file through stdin (`scan_bpm - < file`) because the direct-exec'd binary is still sandboxed and cannot read arbitrary argv paths, for the same reason argv opens fail. The client stages the bytes in its own container tmp, which keeps shell processes out of `~/Library/Containers/` and so avoids the TCC prompt described under Screenshots:
 

@@ -10,11 +10,17 @@
 //  rate. A real provider is seconds per file, non-deterministic, and needs a
 //  network and an account; and the placeholders themselves cannot be staged by
 //  hand, since SF_DATALESS belongs to the dataless-file machinery and a file
-//  merely carrying the flag would not block on read. So the two chokepoints
-//  are injected instead — NSURLUtil's dataless probe and
-//  CloudFileMaterializer's transfer — and everything above them runs unchanged:
-//  the same cloud lane, the same hold, the same ranking, the same abandoned
-//  opens.
+//  merely carrying the flag would not block on read. So the three chokepoints
+//  are injected instead — NSURLUtil's dataless probe, CloudFileMaterializer's
+//  transfer, and DownloadProgressMonitor's reporting of it — and everything
+//  above them runs unchanged: the same cloud lane, the same hold, the same
+//  ranking, the same abandoned opens, the same loading indicator.
+//
+//  The progress side is not decoration. Under the fake the file on disk is
+//  genuinely local, so the monitor's real allocated-size poll reports a final
+//  100% on its first tick and cancels itself — a full fill before the transfer
+//  has moved. Standing in for it is what makes the determinate half of the
+//  indicator observable at all; see DownloadProgressMonitor+Debug.h.
 //
 //  What it does NOT test is NSFileCoordinator's own cancellation semantics,
 //  which are Apple's and are exercised on a device instead. What it does test

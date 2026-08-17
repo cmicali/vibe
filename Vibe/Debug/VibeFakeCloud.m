@@ -9,6 +9,7 @@
 
 #import "CloudFileMaterializer+Debug.h"
 #import "CloudFileMaterializer.h"
+#import "DownloadProgressMonitor+Debug.h"
 #import "NSURLUtil+Debug.h"
 #import "NSURLUtil.h"
 
@@ -28,6 +29,12 @@ static NSMutableSet<NSString *> *sMaterialized;
 // several sites that lead to no download at all — the loader's lane routing,
 // the priority lane's skip, the player's open — so probe hits are not attempts.
 static NSUInteger sCompleted, sCancelled;
+// When each transfer in flight began, which is the whole of what the progress
+// side needs: how long a file takes is already a function of its path, so
+// elapsed-over-total is the fraction. Stamped in the transfer provider, which
+// is asked exactly once per download and at its start, and dropped when that
+// download ends either way.
+static NSMutableDictionary<NSString *, NSNumber *> *sTransferStartedAt;
 static NSTimeInterval sBaseSeconds;
 // Fault injection; see setStickyDataless:.
 static BOOL sSticky;
@@ -83,6 +90,54 @@ static NSTimeInterval VibeTransferSecondsForPath(NSString *path, NSTimeInterval 
     return base * spread;
 }
 
+// How far a transfer that began elapsed seconds ago has got. Two things it is
+// deliberately not: smooth, and linear in the time elapsed.
+//
+// Not smooth, because a real provider's fraction arrives as ~1 Hz steps and
+// the indicator eases between them (WaveformUI/CLAUDE.md) — a ramp fed a
+// per-tick 1% would exercise an easing production never sees. So the answer is
+// quantized to kProgressChunks.
+//
+// And a third of the corpus STALLS partway, because "the fill never runs past
+// what was reported, leaving a stall honest" is a rule with no other way to
+// test it: it needs a transfer that stops moving and then resumes. Which files
+// stall, and where, come off the path hash like everything else here, so a
+// file behaves the same on every run.
+static const NSUInteger kProgressChunks = 12;
+static const NSUInteger kStallPercent = 33;
+static const double kStallShareOfTransfer = 0.3;
+
+static double VibeProgressForPath(NSString *path, NSTimeInterval elapsed, NSTimeInterval total) {
+    if (total <= 0 || elapsed <= 0) {
+        return 0;
+    }
+    uint64_t hash = VibePathHash(path);
+    // Its own decimal window, so stalling is independent of the cloud draw and
+    // of the speed bucket.
+    NSUInteger bucket = (hash / 1000000) % 100;
+    double stallSeconds = 0, stallAt = 0, moving = total;
+    if (bucket < kStallPercent) {
+        stallSeconds = total * kStallShareOfTransfer;
+        moving = total - stallSeconds;   // the transfer still takes `total` in all
+        stallAt = 0.35 + (double)((hash / 100000000) % 40) / 100.0;
+    }
+    double fraction;
+    double stallBegins = stallAt * moving;
+    if (stallSeconds <= 0 || elapsed < stallBegins) {
+        fraction = elapsed / moving;
+    }
+    else if (elapsed < stallBegins + stallSeconds) {
+        fraction = stallAt;              // motionless, and the fill must stay put
+    }
+    else {
+        fraction = (elapsed - stallSeconds) / moving;
+    }
+    fraction = MIN(1.0, MAX(0.0, fraction));
+    // The last chunk is never rounded down, or a finished transfer would sit
+    // at 11/12 for good.
+    return fraction >= 1.0 ? 1.0 : floor(fraction * kProgressChunks) / kProgressChunks;
+}
+
 @implementation VibeFakeCloud
 
 + (void)installWithTransferSeconds:(NSTimeInterval)transferSeconds
@@ -97,6 +152,7 @@ static NSTimeInterval VibeTransferSecondsForPath(NSString *path, NSTimeInterval 
     // re-arm, which read as "almost nothing downloaded" on a run that had
     // downloaded plenty.
     sMaterialized = [NSMutableSet set];
+    sTransferStartedAt = [NSMutableDictionary dictionary];
     sSticky = NO;
     os_unfair_lock_unlock(&sLock);
 
@@ -120,6 +176,11 @@ static NSTimeInterval VibeTransferSecondsForPath(NSString *path, NSTimeInterval 
         os_unfair_lock_lock(&sLock);
         NSTimeInterval seconds = VibePathIsCloud(path, sPercent)
                 ? VibeTransferSecondsForPath(path, sBaseSeconds) : 0;
+        // Asked once per download, at its start, so this call IS the stamp the
+        // progress side reads. A file that is not ours gets none.
+        if (seconds > 0) {
+            sTransferStartedAt[path] = @(CFAbsoluteTimeGetCurrent());
+        }
         os_unfair_lock_unlock(&sLock);
         return seconds;
     }                                    didFinish:^(NSURL *url, BOOL completed) {
@@ -128,6 +189,7 @@ static NSTimeInterval VibeTransferSecondsForPath(NSString *path, NSTimeInterval 
             return;
         }
         os_unfair_lock_lock(&sLock);
+        [sTransferStartedAt removeObjectForKey:path];
         if (completed) {
             [sMaterialized addObject:path];
             sCompleted++;
@@ -136,6 +198,31 @@ static NSTimeInterval VibeTransferSecondsForPath(NSString *path, NSTimeInterval 
             sCancelled++;
         }
         os_unfair_lock_unlock(&sLock);
+    }];
+
+    // The determinate half of the loading indicator. Negative is "not a file
+    // of ours", which sends the monitor to its real sources; zero is "mine,
+    // but nothing to report yet", which leaves the shimmer indeterminate —
+    // the distinction matters, because a real local file's poll answers an
+    // instant 100% and would fill the bar before the transfer had begun.
+    [DownloadProgressMonitor setFakeProgressProvider:^float(NSURL *url) {
+        NSString *path = url.path;
+        if (!path) {
+            return -1;
+        }
+        os_unfair_lock_lock(&sLock);
+        BOOL mine = VibePathIsCloud(path, sPercent);
+        NSNumber *startedAt = mine ? sTransferStartedAt[path] : nil;
+        NSTimeInterval total = startedAt ? VibeTransferSecondsForPath(path, sBaseSeconds) : 0;
+        os_unfair_lock_unlock(&sLock);
+        if (!mine) {
+            return -1;
+        }
+        if (!startedAt) {
+            return 0;   // between transfers: no download of ours is in flight
+        }
+        return (float)VibeProgressForPath(path,
+                CFAbsoluteTimeGetCurrent() - startedAt.doubleValue, total);
     }];
 }
 
@@ -148,9 +235,11 @@ static NSTimeInterval VibeTransferSecondsForPath(NSString *path, NSTimeInterval 
 + (void)uninstall {
     [NSURLUtil setDatalessProbe:nil];
     [CloudFileMaterializer setFakeTransferProvider:nil didFinish:nil];
+    [DownloadProgressMonitor setFakeProgressProvider:nil];
     os_unfair_lock_lock(&sLock);
     sInstalled = NO;
     sMaterialized = nil;
+    sTransferStartedAt = nil;
     os_unfair_lock_unlock(&sLock);
 }
 

@@ -4,14 +4,40 @@
 //
 
 #import "DownloadProgressMonitor.h"
+#if DEBUG
+#import "DownloadProgressMonitor+Debug.h"   // the fake progress, declared out of the shipping header
+#endif
 
 #include <errno.h>
+#include <os/lock.h>
 #include <sys/stat.h>
 
 // 4 Hz: fast enough for a live-feeling bar, cheap enough that a stat per
 // tick is free. Sampling is a timer on a utility queue — never the main
 // thread, and never the player or loader queues.
 static const NSTimeInterval kPollIntervalSeconds = 0.25;
+
+#if DEBUG
+// 1 Hz, because that is what the real thing delivers: the File Provider
+// publication lands about once a second and polling between firings returns
+// the same value, so a fake that ticked faster would exercise an easing the
+// indicator never sees in production.
+static const NSTimeInterval kFakeProgressIntervalSeconds = 1.0;
+
+// TRAP: installed and cleared from wherever VibeFakeCloud is driven, and read
+// on this class's own paths, so it takes the lock for the same reason
+// CloudFileMaterializer's hooks do — an unsynchronized read of a block global
+// is a retain racing a release, not merely something TSan dislikes.
+static os_unfair_lock sFakeProgressLock = OS_UNFAIR_LOCK_INIT;
+static VibeFakeDownloadProgress sFakeProgress;
+
+static VibeFakeDownloadProgress VibeFakeProgressHook(void) {
+    os_unfair_lock_lock(&sFakeProgressLock);
+    VibeFakeDownloadProgress provider = sFakeProgress;
+    os_unfair_lock_unlock(&sFakeProgressLock);
+    return provider;
+}
+#endif
 
 static void *kFractionContext = &kFractionContext;
 
@@ -76,6 +102,12 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
 - (void)startWithHandler:(void (^)(float))handler {
     _handler = [handler copy];
     _startedAt = CFAbsoluteTimeGetCurrent();
+
+#if DEBUG
+    if ([self startFakeProgress]) {
+        return; // the fake stands in for all three sources; see +Debug.h
+    }
+#endif
 
     [self startMetadataQueryIfUbiquitous];
 
@@ -197,6 +229,55 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
     });
     dispatch_resume(_timer);
 }
+
+#if DEBUG
+
+#pragma mark - The fake source
+
++ (void)setFakeProgressProvider:(VibeFakeDownloadProgress)provider {
+    os_unfair_lock_lock(&sFakeProgressLock);
+    sFakeProgress = [provider copy];
+    os_unfair_lock_unlock(&sFakeProgressLock);
+}
+
+// YES when a fake transfer owns this URL, and the timer is now running in
+// place of the three real sources. Asked once: a URL the installer disowns is
+// a real file and has to reach those sources instead.
+- (BOOL)startFakeProgress {
+    VibeFakeDownloadProgress provider = VibeFakeProgressHook();
+    if (!provider || provider(_url) < 0) {
+        return NO;
+    }
+    NSURL *url = _url;
+    __weak DownloadProgressMonitor *weakSelf = self;
+    // Main queue: the arithmetic is free and reportFraction: is main-confined
+    // anyway, so there is nothing to hop for.
+    _timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    dispatch_source_set_timer(_timer, DISPATCH_TIME_NOW,
+            (uint64_t)(kFakeProgressIntervalSeconds * NSEC_PER_SEC), 50 * NSEC_PER_MSEC);
+    dispatch_source_set_event_handler(_timer, ^{
+        DownloadProgressMonitor *self = weakSelf;
+        if (!self || self->_cancelled) {
+            return;
+        }
+        float fraction = provider(url);
+        if (fraction <= 0) {
+            return; // nothing worth reporting: the indicator stays indeterminate, as with the poll
+        }
+        if (fraction > self->_lastReported) {
+            LogInfo(@"Download progress (fake): %.0f%% (%.1fs) %@", fraction * 100,
+                    CFAbsoluteTimeGetCurrent() - self->_startedAt, self->_path.lastPathComponent);
+        }
+        [self reportFraction:fraction];
+        if (fraction >= 1.0f) {
+            [self cancel]; // the transfer is done: the 1.0 above was final
+        }
+    });
+    dispatch_resume(_timer);
+    return YES;
+}
+
+#endif
 
 #pragma mark - The iCloud source
 
