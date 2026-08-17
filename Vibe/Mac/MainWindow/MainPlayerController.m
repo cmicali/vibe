@@ -145,18 +145,20 @@
             [strongSelf.trackDisplay setConvertSweepFraction:fraction];
         }
     };
-    // A double-click starts a play the controller does not see until the
-    // player's async events land, which can take up to half a second on a slow
-    // open. Refresh the header at initiation, so that it does not keep
-    // describing the previous track after the row indicator has already moved.
+    // Every play starts one the controller does not see until the player's
+    // async events land, which is up to half a second on a slow open — so the
+    // header is refreshed at initiation instead. It hangs off the playlist's
+    // one play funnel rather than off each entry point; see playWillStartHandler.
     __weak MainPlayerController *weakControllerForPlaylist = self;
-    self.playlistController.userDidChangeTrackHandler = ^{
+    self.playlistController.playWillStartHandler = ^{
         MainPlayerController *strongSelf = weakControllerForPlaylist;
         if (!strongSelf) {
             return;
         }
-        // doubleClick has just fully rendered both affected rows, and the mark
-        // keeps the updateUI below to the play-state cell; see next:.
+        // The start has already rendered both affected rows — a double-click
+        // and next/previous through the index-change observer, an open through
+        // its reloadData — so the mark keeps this updateUI to the play-state
+        // cell rather than rebuilding a row that was just built.
         strongSelf->_lastReloadedTrack = strongSelf.playlistController.currentTrack;
         [strongSelf updateUI];
     };
@@ -516,8 +518,6 @@
     [[AppStats sharedInstance] playbackStopped]; // stop fires no delegate callback
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
-    [self.audioPlayer stop];
-    [self.audioPlayer prefetchTrack:nil]; // drop the parked next-track handle
     // The hold rides the monitor's lifetime, and its clearing edge is
     // didStartPlaying: or the error path — neither of which a Close reaches,
     // because stop fires no callback and the caller owns the reset. Left set,
@@ -529,6 +529,8 @@
     // it suspends the NEXT folder's cloud lane too, since the flag outlives
     // the loader.
     [self.metadataCache setCloudParsesHeld:NO];
+    [self.audioPlayer stop];
+    [self.audioPlayer prefetchTrack:nil]; // drop the parked next-track handle
     [self.waveformCache cancelLoad];
     [self.playlistController clear];
     // Cancel the deferred playlist-wide metadata load, since nothing will play
@@ -543,17 +545,14 @@
 }
 
 - (IBAction)next:(nullable id)sender {
+    // The mark and the refresh ride playWillStartHandler now, off the playlist's
+    // play funnel; at the end of the playlist next starts nothing and there is
+    // nothing to refresh.
     [self.playlistController next];
-    // next has just fully rendered the outgoing and incoming rows. Without the
-    // mark, the updateUI below would rebuild the incoming row a second time.
-    _lastReloadedTrack = self.playlistController.currentTrack;
-    [self updateUI];
 }
 
 - (IBAction)previous:(nullable id)sender {
-    [self.playlistController previous];
-    _lastReloadedTrack = self.playlistController.currentTrack; // see next:
-    [self updateUI];
+    [self.playlistController previous];   // refresh rides the funnel; see next:
 }
 
 - (IBAction)closeApp:(id)sender {

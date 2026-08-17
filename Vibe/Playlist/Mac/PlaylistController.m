@@ -229,8 +229,15 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 
 - (void)play {
     AudioTrack *track = self.currentTrack;
-    if (track) {
-        [self.audioPlayer play:track];
+    if (!track) {
+        return;
+    }
+    [self.audioPlayer play:track];
+    // AFTER the play is submitted, so the owner's refresh describes the track
+    // that is now current; see playWillStartHandler for why every start needs
+    // it and not just the double-click.
+    if (self.playWillStartHandler) {
+        self.playWillStartHandler();
     }
 }
 
@@ -301,9 +308,6 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     // round-trip.
     self.currentIndex = (NSUInteger) [_tableView clickedRow];
     [self play];
-    if (self.userDidChangeTrackHandler) {
-        self.userDidChangeTrackHandler();
-    }
 }
 
 // The clicked row's counterparts of the Edit menu's Show in Finder, Copy File

@@ -22,12 +22,20 @@ NS_ASSUME_NONNULL_BEGIN
 // context menu. The table's construction itself lives in PlaylistTableView.
 @property (weak) PlaylistTableView *tableView;
 
-// Fires after a double-click has started a new track. The player's own events
-// arrive only once its async open makes progress, since didBeginLoading is
-// gated on the 0.5-second slow-open threshold. Without this the owner's header
-// would keep describing the previous track after the row indicator had already
-// moved.
-@property (nonatomic, copy, nullable) void (^userDidChangeTrackHandler)(void);
+// Fires as a play is STARTED, before the player has opened anything. The
+// player's own events arrive only once its async open makes progress, since
+// didBeginLoading is gated on the 0.5-second slow-open threshold, so without
+// this the owner's header keeps describing the previous track after the row
+// indicator has already moved.
+//
+// It hangs off `play` — the one funnel every start goes through — rather than
+// off any single entry point, and that is the whole of the fix: it used to
+// fire from the double-click alone, so a play begun any OTHER way (an open, a
+// drop, Open Recent) kept the stale header for the full half second. On local
+// files that window is invisible, which is why it survived; against a file
+// provider it is half a second of the wrong title on every track you pick, and
+// the cloud stress profile fails an invariant on it every time.
+@property (nonatomic, copy, nullable) void (^playWillStartHandler)(void);
 
 // The artwork-derived accent for the playing row's equalizer bars. The owner
 // sets it from the current track's dominant art color, and nil falls back to
