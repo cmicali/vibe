@@ -12,6 +12,9 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "MetadataParseCoordinator.h"
+#if DEBUG
+#import "AudioTrackMetadataCache+Debug.h"   // the loader's debug selector, declared there
+#endif
 
 @implementation AudioTrackMetadataCache {
     AudioTrackMetadataLoader*   _currentLoader;
@@ -25,6 +28,12 @@
     dispatch_queue_t            _cacheQueue;
     // Bumped by invalidateWithCompletion:; see the class-extension comment.
     atomic_uint_fast64_t        _cacheGeneration;
+    // The foreground-download hold and the cloud lane's ranking, kept here
+    // rather than only on the loader because loadMetadata: mints a new one:
+    // neither a hold set during an open nor the neighborhood the screen last
+    // named may be lost by the sweep that open is racing.
+    BOOL                        _cloudParsesHeld;
+    NSArray<NSURL *>            *_neighborhood;
 }
 
 - (uint64_t)cacheGeneration {
@@ -101,8 +110,36 @@
                                                                               delegate:self.delegate
                                                                                   lane:VibeMetadataLaneScan];
     _currentLoader = loader;
+    [loader setCloudParsesHeld:_cloudParsesHeld];
+    [loader setNeighborhoodURLs:_neighborhood];
     [loader load:tracks];
 }
+
+- (void)setCloudParsesHeld:(BOOL)held {
+    if (held == _cloudParsesHeld) {
+        return;
+    }
+    _cloudParsesHeld = held;
+    LogInfo(@"Metadata cloud lane %@", held ? @"held" : @"released");
+    [_currentLoader setCloudParsesHeld:held];
+}
+
+- (void)setNeighborhoodURLs:(NSArray<NSURL *> *)urls {
+    _neighborhood = [urls copy];
+    [_currentLoader setNeighborhoodURLs:_neighborhood];
+}
+
+#if DEBUG
+// Declared in Debug/AudioTrackMetadataCache+Debug.h; implemented here because
+// the loader and the hold flag are this file's.
+- (NSUInteger)debugPendingCloudParseCount {
+    return [_currentLoader debugPendingCloudParseCount];
+}
+
+- (BOOL)debugCloudParsesHeld {
+    return _cloudParsesHeld;
+}
+#endif
 
 - (void)loadMetadataNow:(AudioTrack *)track {
     if (!track || track.metadata.parsedOK) {

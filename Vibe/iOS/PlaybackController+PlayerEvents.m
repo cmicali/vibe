@@ -34,6 +34,11 @@
         return;
     }
     [self notifyDidBeginLoading];
+    // A slow open is a materializing file often enough to treat it as one: the
+    // scan's cloud lane stands down until this open settles, so a folder's
+    // worth of background downloads cannot queue ahead of the one the user is
+    // waiting on. Cleared everywhere the monitor below is.
+    [_metadataCache setCloudParsesHeld:YES];
     // Best-effort determinate fill while the provider materializes the file.
     // The monitor drops a sample whose track has since changed; see
     // monitorReplacing:forURL:currentURL:handler:.
@@ -78,6 +83,7 @@
     // done whatever it last reported.
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
+    [_metadataCache setCloudParsesHeld:NO];
     [self notifyDidRenderCurrentTrack];
     // Not a blanket "hide the loading indicator": the open landing says
     // nothing about the waveform decode, which may still be streaming over the
@@ -87,6 +93,8 @@
     // The dataless-placeholder retry: a cache miss skipped while the player's
     // own open was materializing the file parses now.
     [_metadataCache loadMetadataNow:track];
+    // The open settled, so the playlist-wide sweep it was deferred behind runs.
+    [self startPendingMetadataLoad];
     NSUInteger nextIndex = _playlist.currentIndex + 1;
     [_player prefetchTrack:_playlist.hasNextTrack ? [_playlist trackAtIndex:nextIndex] : nil];
     _folderSession.persistedTrackFileName = track.url.lastPathComponent;
@@ -188,6 +196,9 @@
     _trackStartPending = NO;
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
+    [_metadataCache setCloudParsesHeld:NO];
+    // Nothing is going to start now, so the deferred sweep stops waiting.
+    [self startPendingMetadataLoad];
     [self notifyDidFailCurrentTrack];
     if (current) {
         [self notifyDidRenderCurrentTrack];

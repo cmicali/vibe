@@ -37,6 +37,11 @@
     // Show the pending track's title and artist while it loads.
     [self updateUI];
     [self.trackDisplay showWaveformLoadingIndicator];
+    // A slow open is a materializing file often enough to treat it as one: the
+    // scan's cloud lane stands down until this open settles, so a folder's
+    // worth of background downloads cannot queue ahead of the one the user is
+    // waiting on. Cleared everywhere the monitor below is.
+    [self.metadataCache setCloudParsesHeld:YES];
     // Best-effort determinate fill while the provider materializes the file.
     // The monitor drops a sample whose track has since changed; see
     // monitorReplacing:forURL:currentURL:handler:.
@@ -78,6 +83,7 @@
     [self clearErrorMask];
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
+    [self.metadataCache setCloudParsesHeld:NO];
     [self.trackDisplay hideWaveformLoadingIndicator];
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
     // The now-playing track jumps the scan queue: its header tags and art must
@@ -244,6 +250,7 @@
     _currentTrackDuration = 0;
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
+    [self.metadataCache setCloudParsesHeld:NO];
     [self.trackDisplay hideWaveformLoadingIndicator];
     // Errors present inline, with no modal and no auto-skip. A sheet on this
     // borderless window breaks key status and the bare transport keys. The

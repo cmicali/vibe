@@ -37,6 +37,26 @@ NS_ASSUME_NONNULL_BEGIN
 // call on every track start. Main thread only, like loadMetadata:.
 - (void)loadMetadataNow:(AudioTrack *)track;
 
+// The foreground-download hold: the one open the user is waiting on outranks
+// every background parse that would download a file of its own. Held, the
+// scan's cloud lane stops starting parses of dataless files; the wide lane's
+// local parses and both lanes' stage-1 cache checks — a stat and a small disk
+// read — carry on, so rows keep populating from cache while the current track
+// materializes. It survives a loadMetadata:, which mints a fresh loader.
+// Set it while the player's own open is in flight and clear it when that open
+// lands or fails; both screens hang it off the download monitor's lifetime.
+// Main thread only, like the two loads above.
+- (void)setCloudParsesHeld:(BOOL)held;
+
+// The neighborhood: the tracks worth parsing before the rest of the sweep, in
+// the order given — next up first, then the one after, then the one behind.
+// It only reorders the cloud lane, where the order is the whole story, because
+// each of those parses is a whole file coming down a wire one at a time and a
+// listener reaches the next track long before the folder's tail. Local parses
+// need no such help: they are milliseconds apart. Re-send it on every track
+// change; like the hold, it survives a loadMetadata:. Main thread only.
+- (void)setNeighborhoodURLs:(nullable NSArray<NSURL *> *)urls;
+
 // Empties the disk cache. The completion fires on the cache's internal queue
 // once the entries are gone. A parse already in flight cannot repopulate it:
 // a cache-generation check drops its disk write, though its UI delivery

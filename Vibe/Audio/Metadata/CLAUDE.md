@@ -24,7 +24,8 @@ loadMetadata:
  └ one setup op (high priority)          builds the work list ON the queue, not on main
     └ per-track STAGE 1 (high)           cacheCheckOneTrack:
        ├ hit  → loadTrackFromDiskCache: ─────────────────────→ publishTrack:
-       └ miss → enqueue STAGE 2          normal, or LOW for a dataless placeholder
+       └ miss → enqueue STAGE 2          wide queue, or the CLOUD LANE (serial,
+          │                              holdable) for a dataless placeholder
           └ parseOneTrack: → MetadataParseFlow.runForParticipant:key:   (key = track.url)
              ├ claimParseForKey: → Waiter | AlreadyOwner → return, the owner fans out to it
              └ Owner:
@@ -48,6 +49,12 @@ DELIVERY — three channels, one destination
 ```
 
 **The two stages exist for one reason:** stage 1 touches a stat and a small disk read and *never* the audio data, so the whole sweep drains at disk speed even on a playlist of cloud placeholders. Only stage 2 can block on a download.
+
+**The cloud lane is serial, so its ORDER is the whole of what it decides.** A listener reaches the next track long before the folder's tail, and the sweep left to itself works in filename order however far that is from where they actually are — so the lane is re-ranked in place on every track change (`setNeighborhoodURLs:`, sent by each shell from its one current-index funnel): next, then the one after, then the one behind, then everything else. `NSOperationQueue` honors a `queuePriority` written any time before an operation starts, which is what makes re-ranking a queued sweep possible at all; the pending operations are kept for exactly that, and pruned of any that have already begun, since those can no longer be moved. Measured on a 61-track cloud folder: tapping track 56 moved the very next parses to 57, 58 and 55, skipping the L-to-S range the sweep was about to work through.
+
+**And a parse on that lane can be abandoned mid-download**, which an ordinary read never can: stage 2 there is materialize-then-parse (`CloudFileMaterializer`, `Vibe/System/`), so the hold cancels the transfer in flight rather than only refusing to start the next one. A cancelled parse re-queues itself at its current rank — the sweep has no second pass, so the row would otherwise keep its filename fallback until the whole playlist was re-queued — and it cannot spin, because the hold suspends the queue *before* it cancels.
+
+**And the download is the unit of contention, not the worker thread**, which is why stage 2 splits again. A dataless file's parse pulls the *whole* file through the file provider, so four of them at once is not four busy threads, it is four transfers competing with the one the user is waiting on — the difference between a Dropbox folder starting a track in a second and starting it in a minute. Those parses therefore run on a **serial cloud lane** of their own, and `setCloudParsesHeld:` suspends that lane outright while the player's own open is materializing a file: **the foreground open outranks every background parse that would download something.** Local parses and both lanes' stage-1 cache checks are untouched by the hold, so rows keep filling from cache while the current track lands. Both screens set the hold where they start the download monitor and clear it where they cancel it (`didBeginLoading:` / `didStartPlaying:` / the error path), and the flag lives on the cache rather than the loader because `loadMetadata:` mints a fresh loader — a sweep starting mid-open must not lose the hold. It pairs with the deferring the two shells do on their side: neither starts the sweep at all until the picked track's open settles (`MainPlayerController.scheduleDeferredMetadataLoad`, `PlaybackController.scheduleDeferredMetadataLoad`).
 
 ### The art accessors state their own contract
 

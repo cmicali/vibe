@@ -57,6 +57,13 @@ NS_ASSUME_NONNULL_BEGIN
     // Polls a materializing cloud file's size while an open is in flight; nil
     // otherwise.
     DownloadProgressMonitor *_downloadMonitor;
+
+    // The deferred playlist-wide metadata sweep; see scheduleDeferredMetadataLoad.
+    // The generation pairs each open's fallback timer with its own playlist, so
+    // a timer armed by playlist A and firing after a replacement cannot start
+    // playlist B's sweep while B's first track is still opening.
+    BOOL                    _metadataLoadPending;
+    NSUInteger              _metadataLoadGeneration;
 }
 
 #pragma mark - The broadcast
@@ -74,6 +81,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)notifyDidUpdateLoadingProgress:(float)fraction;
 - (void)notifyDidFinishLoading;
 - (void)notifyDidFailCurrentTrack;
+
+#pragma mark - The deferred metadata sweep
+
+// Starts the playlist-wide sweep if one is still pending. The player-event
+// category calls it the moment the current track's own open settles, which is
+// the whole point of deferring it.
+- (void)startPendingMetadataLoad;
 
 @end
 

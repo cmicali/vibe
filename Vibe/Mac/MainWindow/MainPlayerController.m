@@ -518,6 +518,17 @@
     _downloadMonitor = nil;
     [self.audioPlayer stop];
     [self.audioPlayer prefetchTrack:nil]; // drop the parked next-track handle
+    // The hold rides the monitor's lifetime, and its clearing edge is
+    // didStartPlaying: or the error path — neither of which a Close reaches,
+    // because stop fires no callback and the caller owns the reset. Left set,
+    // it suspends the NEXT folder's cloud lane too, since the flag outlives
+    // the loader.
+    // The hold rides the monitor's lifetime, and its clearing edge is
+    // didStartPlaying: or the error path — neither of which a Close reaches,
+    // because stop fires no callback and the caller owns the reset. Left set,
+    // it suspends the NEXT folder's cloud lane too, since the flag outlives
+    // the loader.
+    [self.metadataCache setCloudParsesHeld:NO];
     [self.waveformCache cancelLoad];
     [self.playlistController clear];
     // Cancel the deferred playlist-wide metadata load, since nothing will play

@@ -4,6 +4,9 @@
 //
 
 #import "NSURLUtilInternal.h"
+#if DEBUG
+#import "NSURLUtil+Debug.h"   // the dataless probe, declared out of the shipping header
+#endif
 #import "FolderArtRules.h"
 #import "NSURL+AudioOpen.h"
 #import "PlaylistFile.h"
@@ -16,6 +19,16 @@
 static VibePlaylistFolderGrantHandler sPlaylistFolderGrantHandler;
 static VibeWalkedDirectoriesHandler sWalkedDirectoriesHandler;
 static VibeBulkOpenDirectoriesHandler sBulkOpenDirectoriesHandler;
+
+#if DEBUG
+static VibeDatalessProbe sDatalessProbe;
+
+static VibeDatalessProbe DatalessProbe(void) {
+    @synchronized (NSURLUtil.class) {
+        return sDatalessProbe;
+    }
+}
+#endif
 
 static VibeWalkedDirectoriesHandler WalkedDirectoriesHandler(void) {
     @synchronized (NSURLUtil.class) {
@@ -50,7 +63,50 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
     }
 }
 
+#if DEBUG
++ (void)setDatalessProbe:(VibeDatalessProbe)probe {
+    @synchronized (self) {
+        sDatalessProbe = [probe copy];
+    }
+}
+#endif
+
+// One stat, and SF_DATALESS is the whole answer.
+//
+// It briefly also consulted NSURLUbiquitousItemDownloadingStatus, to cover a
+// provider whose placeholders the kernel might not flag. Both halves of that
+// turned out badly and it is recorded here so nobody adds it back:
+//
+//   It was not needed. MEASURED on a device against Dropbox — the case it was
+//   written for — the flag IS set: `dataless=1 flags=0x40000060`, with the
+//   ubiquitous status agreeing.
+//
+//   It cost 10x. This test runs once per track in the scan's lane routing, and
+//   the resource-value read is a getattrlist round trip: 25us per call against
+//   2.3us for the stat alone (20,000 iterations, debug build). Over a 50,000
+//   file library that is a second of syscall per scan, all of it on local
+//   files, to answer a question the stat had already answered.
+//
+//   And it was wrong in a way that took hours to find. NSURL memoizes resource
+//   values on the INSTANCE, and these URLs live as long as their AudioTrack, so
+//   the first answer froze for the file's whole life: a placeholder read once
+//   while downloading still said "not downloaded" after it materialized, and
+//   the current-track lane — which skips a dataless file and retries when the
+//   open lands — skipped forever, leaving the playing track's tags and art to
+//   whenever the background sweep happened to reach them.
+//
+// If a provider ever does appear whose placeholders carry no flag, the symptom
+// is specific: its files route to the wide scan lane instead of the serial
+// cloud one, so opening a folder starts four downloads at once and starves the
+// track the user picked. Fix it there, and pay the round trip once per
+// directory rather than once per file.
 + (BOOL)isDatalessFile:(NSURL *)url {
+#if DEBUG
+    VibeDatalessProbe probe = DatalessProbe();
+    if (probe) {
+        return probe(url);
+    }
+#endif
     struct stat st;
     if (stat(url.fileSystemRepresentation, &st) != 0) {
         return NO;

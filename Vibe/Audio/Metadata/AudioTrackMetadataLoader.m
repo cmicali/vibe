@@ -9,7 +9,33 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "MetadataParseCoordinator.h"
+#import "CloudFileMaterializer.h"
 #import "NSURLUtil.h"
+
+#include <os/lock.h>
+
+// One pending cloud parse. The URL is kept beside the operation because the
+// rank is decided by URL and an NSOperation cannot be asked what it captured.
+@interface VibeCloudParseEntry : NSObject
+@property (nonatomic, strong) NSOperation *operation;
+@property (nonatomic, copy) NSURL *url;
+@end
+
+@implementation VibeCloudParseEntry
+@end
+
+// The neighborhood's own order IS the rank: first named is next up. Past it
+// the sweep is one undifferentiated tier — once the tracks the listener is
+// about to reach are out of the way, a folder's worth of downloads has no
+// meaningful order left.
+static NSOperationQueuePriority VibeCloudParsePriority(NSUInteger rank) {
+    switch (rank) {
+        case 0:  return NSOperationQueuePriorityVeryHigh;
+        case 1:  return NSOperationQueuePriorityHigh;
+        case 2:  return NSOperationQueuePriorityNormal;
+        default: return NSOperationQueuePriorityLow;
+    }
+}
 
 @implementation AudioTrackMetadataLoader {
     // Weak, since the owner strongly holds its current loader, and re-read at
@@ -27,6 +53,21 @@
     // lane touches it only on main, since loadSingleTrack: runs on the caller's
     // thread, always main, and the completion removal is dispatched to main.
     NSMutableSet<AudioTrack *>* _queuedTracks;
+    // The scan lane's cloud queue: stage-2 parses of files whose data is not on
+    // disk yet. Nil in the current-track lane, which never parses one. See
+    // initWithOwner:delegate:lane: for why it is separate and serial.
+    NSOperationQueue* _cloudQueue;
+    // Because that queue is serial, the pending operations' ORDER is the whole
+    // of what decides which file downloads next — so every one of them is kept
+    // here and re-ranked in place when the neighborhood moves. NSOperationQueue
+    // honors a queuePriority written any time before the operation starts.
+    // Touched from the four stage-1 workers and from main, hence the lock.
+    NSMutableArray<VibeCloudParseEntry *>* _cloudParses;
+    NSArray<NSURL *>* _neighborhood;   // rank order; empty until a screen names one
+    os_unfair_lock _cloudParsesLock;
+    // Makes the download in front of a cloud parse abortable, which a plain
+    // read is not; the hold cancels it. See CloudFileMaterializer.
+    CloudFileMaterializer* _materializer;
     // The parse ordering, over the owner's shared coordinator. Held strongly,
     // and it holds this loader weakly back.
     MetadataParseFlow* _parseFlow;
@@ -67,6 +108,24 @@
             _queue.name = @"AudioTrackMetadataLoader";
             _queue.maxConcurrentOperationCount = 4;
             _queue.qualityOfService = NSQualityOfServiceUtility;
+            // The cloud lane, and the reason it is not just a low queue
+            // priority on the queue above. Parsing a dataless file downloads
+            // the WHOLE file through the file provider, so the unit of
+            // contention is the provider's transfer, not a worker thread:
+            // four of those at once is what turns opening a Dropbox folder
+            // into minutes of thrash, and it starves the one open the user is
+            // actually waiting on. Serial, therefore, and suspended outright
+            // while a foreground open is materializing (setCloudParsesHeld:).
+            // Local parses and every stage-1 cache check stay on the wide
+            // queue above, which touches nothing but a stat and a small read.
+            _cloudQueue = [[NSOperationQueue alloc] init];
+            _cloudQueue.name = @"AudioTrackMetadataLoader.cloud";
+            _cloudQueue.maxConcurrentOperationCount = 1;
+            _cloudQueue.qualityOfService = NSQualityOfServiceUtility;
+            _cloudParses = [NSMutableArray array];
+            _neighborhood = @[];
+            _cloudParsesLock = OS_UNFAIR_LOCK_INIT;
+            _materializer = [[CloudFileMaterializer alloc] init];
         }
     }
     return self;
@@ -113,13 +172,15 @@
     }];
     setup.queuePriority = NSOperationQueuePriorityHigh;
     [_queue addOperation:setup];
+    LogInfo(@"Metadata sweep: %lu tracks", (unsigned long)tracks.count);
 }
 
 // The stage-1 worker: publish from the disk cache, or hand off to a stage-2
-// parse op. Local files parse ahead of dataless placeholders, because a
-// placeholder read blocks until the provider materializes the file, and a
-// cloud-heavy folder would otherwise pin all four workers for a download's
-// duration while fast local parses sat queued behind them.
+// parse op. Which queue that op lands on is the whole point: a placeholder
+// read blocks until the provider materializes the file, so dataless files go
+// to the serial, holdable cloud lane and local ones to the wide queue, rather
+// than a cloud-heavy folder pinning all four workers for a download's duration
+// while fast local parses sit queued behind them.
 - (void)cacheCheckOneTrack:(AudioTrack *)track {
     // A second drop can re-queue a track before its first op runs, so skip the
     // redundant work if the earlier loader already produced real metadata.
@@ -135,14 +196,102 @@
         return;
     }
     __weak __typeof(self) weakSelf = self;
+    BOOL cloud = _cloudQueue && [NSURLUtil isDatalessFile:track.url];
     NSOperation *op = [NSBlockOperation blockOperationWithBlock:^{
         __typeof(self) strongSelf = weakSelf;
         if (!strongSelf || strongSelf.isCancelled) return;
-        [strongSelf parseOneTrack:track];
+        if (cloud) {
+            [strongSelf runCloudParse:track];
+        }
+        else {
+            [strongSelf parseOneTrack:track];
+        }
     }];
-    op.queuePriority = [NSURLUtil isDatalessFile:track.url]
-            ? NSOperationQueuePriorityLow : NSOperationQueuePriorityNormal;
+    if (cloud) {
+        [self enqueueCloudParse:op forURL:track.url];
+        return;
+    }
     [_queue addOperation:op];
+}
+
+#pragma mark - The cloud lane's order
+
+// The cloud lane's stage 2, in two halves, because on this lane the download
+// is the expensive part and the parse is an afterthought. Materializing first
+// is what makes the download abortable — a hold cancels it mid-transfer, where
+// letting TagLib's own read do the downloading would own the lane until the
+// provider finished — and it leaves the parse itself reading a local file.
+//
+// A cancelled download re-queues the track at its current rank rather than
+// dropping it: the sweep has no second pass, so the row would otherwise keep
+// its filename fallback until the whole playlist was re-queued. It cannot spin,
+// because the hold suspends the queue BEFORE it cancels, so the replacement
+// cannot start until the hold lifts.
+- (void)runCloudParse:(AudioTrack *)track {
+    CFAbsoluteTime startedAt = CFAbsoluteTimeGetCurrent();
+    NSError *error = nil;
+    if (![_materializer materializeURL:track.url error:&error]) {
+        LogInfo(@"Cloud parse: %@ interrupted after %.1fs (%@)", track.url.lastPathComponent,
+                CFAbsoluteTimeGetCurrent() - startedAt, error.localizedDescription);
+        if (!self.isCancelled) {
+            [self cacheCheckOneTrack:track];
+        }
+        return;
+    }
+    [self parseOneTrack:track];
+    LogInfo(@"Cloud parse: %@ in %.1fs", track.url.lastPathComponent,
+            CFAbsoluteTimeGetCurrent() - startedAt);
+}
+
+- (void)enqueueCloudParse:(NSOperation *)op forURL:(NSURL *)url {
+    VibeCloudParseEntry *entry = [[VibeCloudParseEntry alloc] init];
+    entry.operation = op;
+    entry.url = url;
+    os_unfair_lock_lock(&_cloudParsesLock);
+    [self pruneStartedCloudParsesLocked];
+    op.queuePriority = VibeCloudParsePriority([_neighborhood indexOfObject:url]);
+    [_cloudParses addObject:entry];
+    os_unfair_lock_unlock(&_cloudParsesLock);
+    [_cloudQueue addOperation:op];
+}
+
+- (void)setNeighborhoodURLs:(NSArray<NSURL *> *)urls {
+    if (!_cloudQueue) {
+        return;
+    }
+    os_unfair_lock_lock(&_cloudParsesLock);
+    _neighborhood = [urls copy] ?: @[];
+    [self pruneStartedCloudParsesLocked];
+    for (VibeCloudParseEntry *entry in _cloudParses) {
+        entry.operation.queuePriority =
+                VibeCloudParsePriority([_neighborhood indexOfObject:entry.url]);
+    }
+    os_unfair_lock_unlock(&_cloudParsesLock);
+}
+
+#if DEBUG
+// Declared in Debug/AudioTrackMetadataCache+Debug.h; implemented here because
+// the list it counts is this file's.
+- (NSUInteger)debugPendingCloudParseCount {
+    if (!_cloudQueue) {
+        return 0;
+    }
+    os_unfair_lock_lock(&_cloudParsesLock);
+    [self pruneStartedCloudParsesLocked];
+    NSUInteger count = _cloudParses.count;
+    os_unfair_lock_unlock(&_cloudParsesLock);
+    return count;
+}
+#endif
+
+// An operation that has started can no longer be re-ranked, so it is only
+// weight here. Pruning on each write keeps the list to what is still pending
+// without a completion block per operation — which would retain the loader
+// from the queue and outlive a cancel.
+- (void)pruneStartedCloudParsesLocked {
+    [_cloudParses filterUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(VibeCloudParseEntry *entry, NSDictionary *bindings) {
+        return !entry.operation.isExecuting && !entry.operation.isFinished;
+    }]];
 }
 
 // The current-track jump-the-queue lane, for priority loaders only; see
@@ -281,11 +430,11 @@
     // an invalidate arriving mid-parse makes this result stale for the cache.
     uint64_t generation = owner.cacheGeneration;
     AudioTrackMetadata *metadata = [AudioTrackMetadata metadataWithURL:track.url];
-    // Decode the table's thumbnail before publication so the main thread never
+    // Decode the row thumbnail before publication so the main thread never
     // pays ImageIO work. Folder fallback remains lazy and visibility-driven.
-    // A no-op on iOS, which keeps no thumbnail: the pager's art window decodes
-    // full size for the few pages it needs and nothing for the rest, so a scan
-    // there does no image work at all.
+    // Both platforms want it — the mac playlist's art cells, the iOS library
+    // rows and mini strip — while the iOS pager deliberately draws none of it
+    // and decodes full size for the few pages in its window.
     [metadata prewarmEmbeddedThumbnail];
     // Never clobber real metadata with a failed parse. A cancelled loader's op
     // can still be mid-parse when this loader re-parses successfully, and
@@ -348,9 +497,31 @@
     }
 }
 
+- (void)setCloudParsesHeld:(BOOL)held {
+    // Suspend BEFORE cancelling, never after: the cancelled parse re-queues
+    // itself, and on a queue still running that replacement would start the
+    // same download again immediately — a cancel loop rather than a hold.
+    _cloudQueue.suspended = held;
+    if (held) {
+        [_materializer cancel];
+    }
+}
+
 - (void)cancel {
     self.isCancelled = YES;
     [_queue cancelAllOperations];
+    [_cloudQueue cancelAllOperations];
+    // The download in flight belongs to a playlist that is gone. Its op checks
+    // isCancelled above and re-queues nothing.
+    [_materializer cancel];
+    // TRAP: a suspended queue never starts its cancelled operations, and an
+    // operation that never runs never releases the track it captured. Lifting
+    // the hold lets them drain — each returns immediately on isCancelled —
+    // rather than pinning the discarded playlist for the loader's lifetime.
+    _cloudQueue.suspended = NO;
+    os_unfair_lock_lock(&_cloudParsesLock);
+    [_cloudParses removeAllObjects];
+    os_unfair_lock_unlock(&_cloudParsesLock);
 }
 
 @end

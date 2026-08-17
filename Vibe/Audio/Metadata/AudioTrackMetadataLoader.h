@@ -40,6 +40,15 @@ typedef NS_ENUM(NSUInteger, VibeMetadataLane) {
 - (void)load:(NSArray<AudioTrack *> *)tracks;
 // The current-track lane's single-track entry point.
 - (void)loadSingleTrack:(AudioTrack *)track;
+// Suspends and resumes the scan lane's cloud queue; see the class extension's
+// _cloudQueue and AudioTrackMetadataCache.setCloudParsesHeld:. A no-op in the
+// current-track lane, which never parses a dataless file.
+- (void)setCloudParsesHeld:(BOOL)held;
+
+// Re-ranks the pending cloud parses so these URLs go first, in the order
+// given; everything else falls to the back of the sweep. See
+// AudioTrackMetadataCache.setNeighborhoodURLs:.
+- (void)setNeighborhoodURLs:(nullable NSArray<NSURL *> *)urls;
 - (void)cancel;
 
 @end

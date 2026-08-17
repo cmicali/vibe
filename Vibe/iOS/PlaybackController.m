@@ -327,6 +327,62 @@ static const NSUInteger kUIUpdateHz = 3;
     }
 }
 
+#pragma mark - What the sweep does first
+
+// The tracks the listener reaches soonest, in the order they reach them: the
+// next one, the one after it, then the one behind — a back-skip is the fourth
+// thing a hand does, not the first. It only matters on the cloud lane, where
+// each parse is a whole file coming down a wire and the sweep would otherwise
+// work through the folder in filename order however far that is from where the
+// user actually is. Re-sent on every current-index change, which is the one
+// funnel every play, skip and auto-advance passes through.
+static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
+
+- (void)updateMetadataNeighborhood {
+    NSInteger current = (NSInteger)_playlist.currentIndex;
+    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+    for (NSUInteger i = 0; i < sizeof(kNeighborhoodOffsets) / sizeof(*kNeighborhoodOffsets); i++) {
+        NSInteger index = current + kNeighborhoodOffsets[i];
+        AudioTrack *track = index >= 0 ? [_playlist trackAtIndex:(NSUInteger)index] : nil;
+        if (track) {
+            [urls addObject:track.url];
+        }
+    }
+    [_metadataCache setNeighborhoodURLs:urls];
+}
+
+#pragma mark - The deferred metadata sweep
+
+// The playlist-wide sweep waits for the track the user picked to settle. Four
+// workers reading every file in the folder starve the player's own open — on a
+// file-provider folder they starve it for as long as the provider takes to
+// materialize a file each, which is the difference between a track starting in
+// a second and starting in a minute. The fallback covers an open that never
+// settles at all. Its mac twin is MainPlayerController.scheduleDeferredMetadataLoad.
+static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
+
+- (void)scheduleDeferredMetadataLoad {
+    _metadataLoadPending = YES;
+    NSUInteger generation = ++_metadataLoadGeneration;
+    __weak PlaybackController *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)(kDeferredMetadataFallbackSeconds * NSEC_PER_SEC)),
+            dispatch_get_main_queue(), ^{
+        PlaybackController *self = weakSelf;
+        if (self && generation == self->_metadataLoadGeneration) {
+            [self startPendingMetadataLoad];
+        }
+    });
+}
+
+- (void)startPendingMetadataLoad {
+    if (!_metadataLoadPending) {
+        return;
+    }
+    _metadataLoadPending = NO;
+    [_metadataCache loadMetadata:_playlist.tracks];
+}
+
 #pragma mark - Opening
 
 - (void)presentPickerFromViewController:(UIViewController *)presenter {
@@ -377,7 +433,7 @@ static const NSUInteger kUIUpdateHz = 3;
              restored:(BOOL)restored {
     [_playlist replaceAllWithURLs:urls];
     [_metadataCache cancelAll];
-    [_metadataCache loadMetadata:_playlist.tracks];
+    [self scheduleDeferredMetadataLoad];
 
     if (selectedURL) {
         // A file pick that expanded to its directory: play the picked file,
@@ -435,6 +491,9 @@ static const NSUInteger kUIUpdateHz = 3;
 #pragma mark - PlaylistObserver
 
 - (void)playlistDidReplaceAllTracks:(Playlist *)playlist {
+    // A replacement resets the index to 0 without moving it, so the
+    // index-change hook below never fires for the first track of a new folder.
+    [self updateMetadataNeighborhood];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidReplacePlaylist:)]) {
             [observer playbackDidReplacePlaylist:self];
@@ -459,6 +518,7 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)playlist:(Playlist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {
+    [self updateMetadataNeighborhood];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playback:didChangeCurrentIndexFromIndex:)]) {
             [observer playback:self didChangeCurrentIndexFromIndex:previousIndex];
