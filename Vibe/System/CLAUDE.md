@@ -42,7 +42,7 @@ Two callers, each with a slot of its own so they cannot cancel each other: the m
 
 **Cancellation has exactly one spelling here**, `VibeMaterializationCancelledError` (`NSCocoaErrorDomain` / `NSUserCancelledError`, which is also what `NSFileCoordinator` returns for its own `-cancel`). `CloudMetadataRetryRules.h` distinguishes "the app cancelled this" from "the provider failed" on that error alone, so a second spelling would silently change the metadata lane's retry behavior.
 
-**A fresh coordinator per download** — cancelling poisons one for good, so reusing it would turn the first abort into a permanent refusal to download anything. And a caller's gate must **suspend before it cancels**, or the cancelled parse's re-queue restarts the same download immediately: a cancel loop rather than a hold.
+**A fresh coordinator per download** — cancelling poisons one for good, so reusing it would turn the first abort into a permanent refusal to download anything. And a caller's gate must **close before it cancels**, or the cancelled parse's re-queue restarts the same download immediately: a cancel loop rather than a hold.
 
 **TRAP: cancelling stops *us* waiting.** Whether the provider abandons the transfer is its own business — a replicated extension's `fetchContents` gets an `NSProgress` the system *may* cancel once nothing waits on it, but nothing promises that. It frees the lane and the thread at once; it does not promise to free the bandwidth.
 
