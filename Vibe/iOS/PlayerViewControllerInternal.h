@@ -68,7 +68,7 @@ NS_ASSUME_NONNULL_BEGIN
     WaveformScrubberView    *_waveformView;
     UILabel                 *_elapsedLabel;
     UILabel                 *_remainingLabel;
-    UIButton                *_playPauseButton;  // bound: the current page's glyph
+    UIView                  *_transportView;    // bound: the current page's transport row
     // Whichever scrubber currently holds the pager still, which is NOT always
     // the bound page's: playback runs on through a scrub, so a track ending
     // mid-drag rebinds the chrome above while the finger is still down on the
@@ -101,8 +101,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)updatePlaybackUI;
 // The transport glyph's symbol and, through updateChrome, its visibility.
 - (void)updatePlayButton;
-// Playing hides the play glyph — a screen tap pauses — and pausing brings it
-// back. The empty state shows none either.
+// The transport row is up whenever there is something to play: only the empty
+// state hides it.
 - (CGFloat)chromeAlpha;
 // The display link runs only while playing in the foreground.
 - (void)updateScrollLinkState;
@@ -122,9 +122,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Transport
 
-// The page glyph's target, and the screen tap's. Forwards to _playback so
-// every surface takes the one path.
+// The page transport's targets — the play glyph's is the screen tap's too.
+// All three forward to _playback, so every surface takes the one path.
 - (void)playPauseTapped;
+- (void)previousTapped;
+- (void)nextTapped;
 
 @end
 

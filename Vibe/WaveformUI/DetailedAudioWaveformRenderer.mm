@@ -438,15 +438,4 @@ static const float kWaveformOpacity = 0.75f;
     return playedTop > 0 ? CGColorGetAlpha(unplayed.firstObject.CGColor) / playedTop : 1;
 }
 
-- (CGFloat)baselineAlphaForPlayed:(BOOL)played {
-    VibeColor *base = self.isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
-    NSArray<VibeColor *> *stops = played ? [self playedGradientColors:base isDark:self.isDark]
-                                         : [self unplayedGradientColors:base isDark:self.isDark];
-    // configureGradient:'s band is symmetric about the midline, so the
-    // midline's stop is the mean of the two ends.
-    CGFloat top = CGColorGetAlpha(stops.firstObject.CGColor);
-    CGFloat bottom = CGColorGetAlpha(stops.lastObject.CGColor);
-    return (top + bottom) / 2 * kWaveformOpacity;
-}
-
 @end

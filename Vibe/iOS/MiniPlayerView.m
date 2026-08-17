@@ -106,8 +106,19 @@ static const CGFloat kGlyphPointSize = 19;
     swipe.delegate = self;
     [self addGestureRecognizer:swipe];
 
+    // TRAP: the row's give, and it has to be one of these rather than nothing.
+    // The strip is pinned to the edges of UIKit's accessory container, and the
+    // container reports a width of ZERO on at least one pass on device — but
+    // not in the simulator, so this never shows up here. The rest of the row is
+    // required and needs 160pt (12 + art + 10 + 6 + two 40pt controls + 8), so
+    // at zero UIKit has to break something and logs the whole conflict. Below
+    // required, the left block simply slides off and that pass costs nothing.
+    NSLayoutConstraint *artLeading =
+            [_artView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:12];
+    artLeading.priority = UILayoutPriorityRequired - 1;
+
     [NSLayoutConstraint activateConstraints:@[
-        [_artView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:12],
+        artLeading,
         [_artView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
         [_artView.widthAnchor constraintEqualToConstant:kArtSide],
         [_artView.heightAnchor constraintEqualToConstant:kArtSide],

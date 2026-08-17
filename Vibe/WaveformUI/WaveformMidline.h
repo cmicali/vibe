@@ -3,14 +3,17 @@
 //  Vibe
 //
 //  The metrics of every non-waveform midline: the loading indicator's track,
-//  filled head and shimmer band, the empty state's static line, and the iOS
-//  scrubber's off-track baselines.
+//  filled head and shimmer band, and the empty state's static line.
 //
 //  THEY ARE ONE ELEMENT IN DIFFERENT STATES, so they share a height and a
 //  palette and cannot drift apart. That claim used to be made by a Mac-only
 //  private header, which is exactly how the iOS scrubber came to draw its
 //  placeholder at 2pt while drawing its own baselines at 1pt, and its shimmer
 //  half again as bright as the mac's. Both views read these now.
+//
+//  Nothing here draws beside a loaded waveform any more: the scrubber's
+//  off-track baselines are gone, so a track showing its waveform shows no
+//  midline at all.
 //
 
 #import <CoreGraphics/CoreGraphics.h>

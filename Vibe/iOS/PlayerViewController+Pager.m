@@ -56,7 +56,7 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
     _waveformView = cell.waveformView;
     _elapsedLabel = cell.elapsedLabel;
     _remainingLabel = cell.remainingLabel;
-    _playPauseButton = cell.playPauseButton;
+    _transportView = cell.transportView;
     // A rebind means a fresh (or reloaded) cell whose labels came back at
     // their reuse defaults; while paused no timer tick will repopulate them,
     // so refresh now — the play glyph's symbol and visibility included.
@@ -115,8 +115,12 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
         // scrubber's pan refuses to begin, so the swipe falls through here.
         [_pagesView.panGestureRecognizer
                 requireGestureRecognizerToFail:page.waveformView.scrubPanRecognizer];
+        [page.previousButton addTarget:self action:@selector(previousTapped)
+                      forControlEvents:UIControlEventTouchUpInside];
         [page.playPauseButton addTarget:self action:@selector(playPauseTapped)
                        forControlEvents:UIControlEventTouchUpInside];
+        [page.nextButton addTarget:self action:@selector(nextTapped)
+                  forControlEvents:UIControlEventTouchUpInside];
     }
 
     [self hydrateWaveformInCell:page atIndex:index];
@@ -152,6 +156,10 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
                                         : [UIColor secondaryLabelColor])
                     fileInfo:track.metadata.fileInfoLine
                          art:(track.cachedArt ?: [UIImage imageNamed:@"record-bg"])];
+    // Off the page's own index, not the playing one, so the last page arrives
+    // with next already dimmed. Playlist.hasNextTrack is the same test against
+    // the cursor — the one place the boundary is decided.
+    [cell setNextEnabled:index + 1 < _playlist.count];
 }
 
 - (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView
@@ -160,9 +168,9 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
             dequeueReusableCellWithReuseIdentifier:TrackPageCell.reuseIdentifier
                                       forIndexPath:indexPath];
     [self configurePage:cell atIndex:(NSUInteger)indexPath.item];
-    // Reuse hands back the glyph at its resting look; stamp the live chrome
-    // state so a page never appears with the wrong visibility.
-    cell.playPauseButton.alpha = [self chromeAlpha];
+    // Reuse hands back the transport at its resting look; stamp the live
+    // chrome state so a page never appears with the wrong visibility.
+    cell.transportView.alpha = [self chromeAlpha];
     return cell;
 }
 

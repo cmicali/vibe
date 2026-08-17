@@ -22,14 +22,6 @@
 // shows more time and, as a free consequence, shrinks the virtual layer tree.
 static const CGFloat kWaveformVisibleFraction = 0.48;
 
-// How far past the content's edges the baseline hairline segments extend, as a
-// multiple of the view's width. They have to still cover the exposed space at
-// full bounce, which is centerX plus the bounce — and the bounce measures
-// about 0.27 of a width in both orientations, because one finger travel cannot
-// reach the loose end of UIScrollView's curve on a screen this narrow. So 0.8
-// is the floor and this is margin.
-static const CGFloat kBaselineOverhangWidths = 2.0;
-
 // One haptic tick per this many points of scrub travel, and how hard each one
 // hits. Tight spacing so a slow, deliberate scrub ratchets continuously under
 // the finger instead of landing on occasional detents; the per-frame bucket
@@ -84,14 +76,6 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     // is showing.
     WaveformLoadingIndicator *_loadingIndicator;
     CALayer                 *_placeholderLayer;
-    // The centerline past the track's ends: two hairline segments continuing
-    // the waveform's silence baseline across the off-track space — left of
-    // the content before the start (played styling, it sits on the playhead's
-    // played side) and right of it near the end (unplayed). Fixed-size, glued
-    // to the content's edges, so they ride the scroll rather than being
-    // resized to the gap every frame; hidden without a waveform.
-    CALayer                 *_leadingBaseline;
-    CALayer                 *_trailingBaseline;
     // The scrub-tick haptic and the last virtual-x bucket that fired it.
     UIImpactFeedbackGenerator *_scrubHaptics;
     NSInteger               _lastTickBucket;
@@ -144,13 +128,6 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     _rendererHost.bounds = [self virtualBounds];
     _rendererHost.position = CGPointZero;
     [_scroll.layer addSublayer:_rendererHost];
-
-    _leadingBaseline = [CALayer layer];
-    _leadingBaseline.hidden = YES;
-    [_scroll.layer addSublayer:_leadingBaseline];
-    _trailingBaseline = [CALayer layer];
-    _trailingBaseline.hidden = YES;
-    [_scroll.layer addSublayer:_trailingBaseline];
 
     UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self
                                                                           action:@selector(handleTap:)];
@@ -241,26 +218,10 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     _renderer = [[rendererClass alloc] initWithLayer:_rendererHost
                                               bounds:[self virtualBounds]
                                               isDark:self.isDark];
-    [self updateBaselineColors];
-}
-
-// The baseline segments take the waveform's own midline alpha per side, so
-// they join the silence hairline with no visible seam.
-- (void)updateBaselineColors {
-    if (![_renderer isKindOfClass:DetailedAudioWaveformRenderer.class]) {
-        return;
-    }
-    DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)_renderer;
-    UIColor *base = self.isDark ? UIColor.whiteColor : UIColor.blackColor;
-    _leadingBaseline.backgroundColor =
-            [base colorWithAlphaComponent:[renderer baselineAlphaForPlayed:YES]].CGColor;
-    _trailingBaseline.backgroundColor =
-            [base colorWithAlphaComponent:[renderer baselineAlphaForPlayed:NO]].CGColor;
 }
 
 - (void)drawWaveform {
     [_renderer updateWaveform:[self virtualBounds] progress:_progress waveform:self.waveform.waveform];
-    [self layoutBaselines];
     [self applyScrollAndProgress];
 }
 
@@ -331,23 +292,6 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     else {
         [_renderer updateProgress:progress waveform:self.waveform.waveform];
     }
-    [CATransaction commit];
-}
-
-// The off-track hairlines, placed once per layout rather than resized to the
-// gap every frame: fixed segments glued to the content's edges ride the scroll
-// and the bounce for free. kVibeMidlineHeight and the midY placement match the
-// settled hairline's pixel rows exactly.
-- (void)layoutBaselines {
-    CGFloat overhang = self.bounds.size.width * kBaselineOverhangWidths;
-    CGFloat y = self.bounds.size.height / 2 - kVibeMidlineHeight / 2;
-    BOOL show = self.waveform != nil;
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    _leadingBaseline.hidden = !show;
-    _trailingBaseline.hidden = !show;
-    _leadingBaseline.frame = CGRectMake(-overhang, y, overhang, kVibeMidlineHeight);
-    _trailingBaseline.frame = CGRectMake([self virtualWidth], y, overhang, kVibeMidlineHeight);
     [CATransaction commit];
 }
 
@@ -754,7 +698,6 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     _scroll.contentSize = CGSizeMake(virtualBounds.size.width, self.bounds.size.height);
     _rendererHost.bounds = virtualBounds;
     [CATransaction commit];
-    [self layoutBaselines];
     [self applyScrollAndProgress];
     if (sizeChanged && _renderer) {
         // Sync geometry even with no waveform, as the mac view does, so a
@@ -783,7 +726,6 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
         [_renderer updateColors:self.isDark];
         [_loadingIndicator updateColorsForDark:self.isDark];
         [self updatePlaceholderColor];
-        [self updateBaselineColors];
     }
     if (scaleChanged || styleChanged) {
         [self applyScrollAndProgress];

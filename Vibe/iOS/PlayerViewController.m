@@ -180,8 +180,8 @@
     _grabberTarget = grabberTarget;
 
     // Tap anywhere (off the waveform and the controls) — the art card
-    // included — toggles play/pause: the glyph hides while playing, so the
-    // tap IS the pause control.
+    // included — toggles play/pause, the whole page standing in for the
+    // transport row's middle button.
     _screenTap = [[UITapGestureRecognizer alloc] initWithTarget:self
                                                           action:@selector(screenTapped)];
     _screenTap.delegate = self;
@@ -209,7 +209,7 @@
 
         [_grabberView.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
         [_grabberView.topAnchor constraintEqualToAnchor:safe.topAnchor constant:6],
-        [_grabberView.widthAnchor constraintEqualToConstant:38],
+        [_grabberView.widthAnchor constraintEqualToConstant:46],
         [_grabberView.heightAnchor constraintEqualToConstant:5],
 
         [_grabberTarget.centerXAnchor constraintEqualToAnchor:_grabberView.centerXAnchor],
@@ -270,8 +270,13 @@
     // controls own their touches; the screen tap applies everywhere else.
     // Class membership, not frames: every page cell carries a waveform view
     // in its own coordinate space.
+    //
+    // The transport ROW is declined as a whole, not just its buttons: a
+    // disabled button is not handed back by hit-testing, so next at the end of
+    // the playlist would otherwise pass its tap through to the pause below it.
     for (UIView *view = touch.view; view && view != self.view; view = view.superview) {
         if ([view isKindOfClass:[UIControl class]]
+                || [view isKindOfClass:[VibeTransportRowView class]]
                 || [view isKindOfClass:[WaveformScrubberView class]]
                 || (view == _grabberTarget && gestureRecognizer != _minimizePan)) {
             return NO;
@@ -320,7 +325,7 @@
         _waveformView = nil;
         _elapsedLabel = nil;
         _remainingLabel = nil;
-        _playPauseButton = nil;
+        _transportView = nil;
     }
 }
 
@@ -329,21 +334,20 @@
     [self updateChrome];
 }
 
-// Playing hides the play glyph — a screen tap pauses — and pausing (parked
-// and stopped included) brings it back between the time labels. The empty
-// state shows no glyph either: there is nothing to play until a folder is
-// chosen.
+// The transport stays up whatever the play state — it is the page's controls,
+// not a paused-state affordance. The empty state is the one thing that hides
+// it: there is nothing to play until a folder is chosen.
 - (CGFloat)chromeAlpha {
-    return (_playback.isPlaying || _playback.screenState == VibePlayerScreenStateEmpty) ? 0 : 1;
+    return _playback.screenState == VibePlayerScreenStateEmpty ? 0 : 1;
 }
 
 - (void)updateChrome {
-    CGFloat buttonAlpha = [self chromeAlpha];
-    if (_playPauseButton.alpha == buttonAlpha) {
+    CGFloat rowAlpha = [self chromeAlpha];
+    if (_transportView.alpha == rowAlpha) {
         return;
     }
     [UIView animateWithDuration:0.3 animations:^{
-        self->_playPauseButton.alpha = buttonAlpha;
+        self->_transportView.alpha = rowAlpha;
     }];
 }
 
@@ -430,8 +434,17 @@
     [_playback playPause];
 }
 
+- (void)previousTapped {
+    [_playback previous];
+}
+
+- (void)nextTapped {
+    [_playback next];
+}
+
 - (void)screenTapped {
-    // The grabber is the minimize target; everywhere else pauses.
+    // The grabber is the minimize target, the transport buttons own their own
+    // touches; everywhere else — the art card included — toggles play/pause.
     [_playback playPause];
 }
 

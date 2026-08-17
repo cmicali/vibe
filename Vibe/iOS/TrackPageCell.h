@@ -8,9 +8,12 @@
 //  pulled into view shows its own track's waveform, already loading. In
 //  landscape the cell rearranges into the mac main window: a small square
 //  art card top-left, artist over title beside it, the codec line top-right,
-//  the waveform full-width. The play glyph rides the page too, between the
-//  time labels; only the search bar and folder button stay overlaid in
-//  PlayerViewController.
+//  the waveform full-width. The transport row rides the page too — under the
+//  time labels in portrait, on their centerline in landscape.
+//
+//  The waveform, the time row and the transport are one chain off the safe
+//  bottom, and the header labels have reserved heights, so the waveform sits
+//  at the same y on every page whatever the title and artist are.
 //
 
 #import <UIKit/UIKit.h>
@@ -18,6 +21,15 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class WaveformScrubberView;
+
+// The transport row's container, a class of its own so the card's
+// tap-anywhere-to-pause can decline every touch that lands in the row.
+//
+// TRAP: a UIControl check is not enough. Hit-testing does NOT hand back a
+// disabled button — the touch falls through to the view behind it — so a tap
+// on next at the end of the playlist paused playback instead of doing nothing.
+@interface VibeTransportRowView : UIView
+@end
 
 @interface TrackPageCell : UICollectionViewCell
 
@@ -31,12 +43,21 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) UILabel *elapsedLabel;
 @property (nonatomic, readonly) UILabel *remainingLabel;
 
-// The paused-state play glyph between the time labels. The controller wires
-// the action, swaps the symbol, and drives visibility (hidden while playing).
+// The transport row — previous, play/pause, next — and its buttons. The
+// controller wires the three actions, swaps the play/pause symbol, and fades
+// the row as a unit (the empty state shows none of it).
+@property (nonatomic, readonly) VibeTransportRowView *transportView;
+@property (nonatomic, readonly) UIButton *previousButton;
 @property (nonatomic, readonly) UIButton *playPauseButton;
+@property (nonatomic, readonly) UIButton *nextButton;
 
 // Swaps the glyph between play and pause (symbol + accessibility label).
 - (void)setGlyphPlaying:(BOOL)playing;
+
+// Dims and disables next at the playlist's end. Per PAGE, not per playing
+// track: the button is the page's own, so a swipe onto the last one finds it
+// already dimmed.
+- (void)setNextEnabled:(BOOL)enabled;
 
 - (void)configureWithTitle:(NSString *)title
                 titleColor:(UIColor *)titleColor

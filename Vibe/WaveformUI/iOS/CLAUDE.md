@@ -6,7 +6,9 @@ The renderer is told the host layer's *virtual* bounds — view width / `kWavefo
 
 **Everything that scrolls is a sublayer of the scroll's layer, and everything that does not is a sublayer of the view's** — the loading indicator and the empty placeholder must not move with the content.
 
-The played/unplayed gradient boundary is the only playhead marker (no line), and it stays pinned at center **by construction** rather than by synchronization: the played clip spans content x `0..progress·virtualWidth`, the same space the scroll translates. The two hairline baseline segments covering the off-track space are likewise fixed-size and glued to the content's edges — they ride the scroll and the bounce for free — and are colored via `DetailedAudioWaveformRenderer.baselineAlphaForPlayed:` so they continue the waveform's own silence hairline seamlessly. `kBaselineOverhangWidths` keeps them reaching the view's edge at full bounce.
+The played/unplayed gradient boundary is the only playhead marker (no line), and it stays pinned at center **by construction** rather than by synchronization: the played clip spans content x `0..progress·virtualWidth`, the same space the scroll translates.
+
+**The off-track space is empty, deliberately.** It used to carry two hairline segments continuing the waveform's midline past the content's ends, colored to match it and glued to its edges so they rode the scroll and the bounce for free. They read as a stray line across the card near the start of a track — which is most of what the eye catches — so they are gone, along with the renderer's `baselineAlphaForPlayed:` that existed only to color them. The empty state's placeholder and the loading track are a different element and still draw (`WaveformMidline.h`).
 
 The renderer tree hangs off a `geometryFlipped` sublayer giving the shared math the mac's y-up space. **Do not "fix" coordinates in shared renderer code for iOS.**
 

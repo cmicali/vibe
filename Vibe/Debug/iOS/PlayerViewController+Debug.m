@@ -24,7 +24,7 @@
     return @{
         @"elapsed": _elapsedLabel.text ?: @"",
         @"remaining": _remainingLabel.text ?: @"",
-        @"transportShown": @(_playPauseButton.alpha > 0),
+        @"transportShown": @(_transportView.alpha > 0),
         @"waveformProgress": @(_waveformView.progress),
         @"waveformOverscroll": @(_waveformView.overscroll),
         @"waveformScrollGeom": _waveformView.scrollGeometry ?: @[],

@@ -45,12 +45,6 @@ NS_ASSUME_NONNULL_BEGIN
                                        samples:(NSData *)samples CF_RETURNS_RETAINED;
 - (CGFloat)unplayedOverPlayedOpacity;
 
-// The effective alpha of the hairline baseline at the vertical midline — the
-// gradient's midpoint stop times the overall waveform opacity. The iOS
-// scrubber colors its off-track baseline segments with it, so they read as
-// the waveform's own centerline continuing past the track's ends.
-- (CGFloat)baselineAlphaForPlayed:(BOOL)played;
-
 @end
 
 NS_ASSUME_NONNULL_END

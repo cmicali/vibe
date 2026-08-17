@@ -17,20 +17,64 @@ static const CGFloat kCellWaveformHeightLandscape = 120;
 // the search field are the shell's — so it is an ordinary bottom margin.
 static const CGFloat kCellBottomMargin = 16;
 
-// Portrait: two stacked boxes — art + header labels, then waveform + time
-// labels — separated by kCellBoxGap and centered as one unit in the area
-// between the safe top and that bottom margin.
-static const CGFloat kCellBoxGap = 32;              // padding between the two boxes
-static const CGFloat kCellArtTopPadding = 16;       // pushes art + labels down inside the group; taken back out of kCellBoxGap so the waveform box stays put
-static const CGFloat kCellTimeWaveformGap = 3;
+// Portrait is four bands, and only one of them moves:
+//
+//   1. a fixed strip under the safe top, holding the grabber pill the card's
+//      own chrome draws (kCellTopBandHeight),
+//   2. the ART band — everything left over, so it is the one that grows with
+//      the screen; the card sits centered in it at kCellArtBandFill, leaving
+//      the rest as padding all round,
+//   3. the LABEL band, fixed because the header labels are given exact
+//      line-count heights,
+//   4. the waveform, time row and transport row, one chain off the SAFE
+//      BOTTOM — which is what puts the waveform at the same y on every page.
+static const CGFloat kCellTopBandHeight = 36;       // safe top → art band
+static const CGFloat kCellArtBandFill = 0.8;        // art : its band — the rest is padding
+static const CGFloat kCellLabelGap = 6;             // one gap for both label seams
+static const CGFloat kCellLabelBandPadding = 10;    // label band's own top and bottom inset
+static const CGFloat kCellWaveformTransportGap = 32;  // waveform ↔ transport row, the time row between them
+
+// The scrubber reserves headroom above and below its envelope, so the time row
+// is pulled UP into the bottom of the view: the edge the eye measures against
+// is the drawn waveform, not the view's frame.
+static const CGFloat kCellTimeWaveformOverlap = 12;
 static const CGFloat kArtCornerRadius = 12;
-static const CGFloat kCellGlyphPointSize = 41;
+static const CGFloat kCellGlyphPointSize = 41;      // play/pause
+static const CGFloat kCellSideGlyphPointSize = 28;  // previous/next
+static const CGFloat kTransportButtonSide = 66;     // the tap target, not the glyph
+static const CGFloat kTransportButtonGap = 20;
+static const CGFloat kTransportDisabledAlpha = 0.5;
 
 // Landscape: the mac main window's arrangement — a small square art card
 // top-left, artist over title beside it with the codec line in the top-right
 // corner, and the full-width waveform + time row bottom-anchored.
 static const CGFloat kCellHeaderGapLandscape = 16;   // art trailing → header text leading
 static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
+// The waveform is a third shorter here and the transport rides the time row's
+// centerline, so portrait's pull-up would put a glyph over the envelope.
+static const CGFloat kCellTimeWaveformGapLandscape = 3;
+
+// The art card restates its shadow path from ITS OWN layout pass.
+//
+// TRAP: doing it in the cell's layoutSubviews is not enough. The constraints
+// that size the card belong to the contentView, so a later pass — the header
+// metrics landing, Dynamic Type, anything that moves the label band — resizes
+// the card without the cell's layoutSubviews running again, and the shadow
+// stays drawn at the previous, larger size. On screen that is a wide dark halo
+// around the art that vanishes the moment a swipe recycles the cell.
+@interface VibeArtCardView : UIView
+@end
+
+@implementation VibeTransportRowView
+@end
+
+@implementation VibeArtCardView
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    self.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:self.bounds
+                                                       cornerRadius:kArtCornerRadius].CGPath;
+}
+@end
 
 @implementation TrackPageCell {
     // The page's backdrop: the artwork blurred and darkened ONCE, into an
@@ -45,6 +89,15 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
     UILabel            *_artistLabel;
     UILabel            *_titleLabel;
     UILabel            *_fileInfoLabel;
+
+    // Portrait only: the label band's height is nailed to what its labels can
+    // ever need — a two-line title, one line each below — so a long title
+    // cannot push the band's edges, and with them the art, up or down. The
+    // labels themselves size to their content and ride centered in it. The
+    // constants follow the scaled fonts; layoutSubviews restates them.
+    NSLayoutConstraint *_labelBandHeight;
+    NSLayoutConstraint *_artistHeight;
+    NSLayoutConstraint *_fileInfoHeight;
 
     // The orientation-specific constraint sets; layoutSubviews swaps them on
     // the cell's own aspect, so a rotation mid-reuse can never strand a cell
@@ -76,7 +129,7 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         // The Apple Music now-playing card: rounded art on a large soft
         // shadow. The shadow lives on the container (masksToBounds off), the
         // corner clip on the image view inside.
-        _artCard = [[UIView alloc] init];
+        _artCard = [[VibeArtCardView alloc] init];
         _artCard.layer.shadowColor = UIColor.blackColor.CGColor;
         _artCard.layer.shadowOpacity = 0.35;
         _artCard.layer.shadowRadius = 24;
@@ -104,11 +157,15 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         // Title over artist over the codec line, centered under the art,
         // Apple Music style. All Dynamic Type: the fonts scale with the
         // user's text size, and the vertical chain squeezes the art card —
-        // never the text — when they grow.
+        // never the text — when they grow. All three shrink to fit their
+        // width rather than truncate: the header block's height is fixed, so
+        // a long title has nowhere to grow into.
         _titleLabel = [[UILabel alloc] init];
         _titleLabel.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleTitle2]
                 scaledFontForFont:[UIFont boldSystemFontOfSize:28]];
         _titleLabel.adjustsFontForContentSizeCategory = YES;
+        _titleLabel.adjustsFontSizeToFitWidth = YES;
+        _titleLabel.minimumScaleFactor = 0.6;
         _titleLabel.numberOfLines = 2;
         _titleLabel.textAlignment = NSTextAlignmentCenter;
         [_titleLabel setContentCompressionResistancePriority:UILayoutPriorityRequired
@@ -120,6 +177,8 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         _artistLabel.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleSubheadline]
                 scaledFontForFont:[UIFont boldSystemFontOfSize:20]];
         _artistLabel.adjustsFontForContentSizeCategory = YES;
+        _artistLabel.adjustsFontSizeToFitWidth = YES;
+        _artistLabel.minimumScaleFactor = 0.7;
         _artistLabel.textAlignment = NSTextAlignmentCenter;
         [_artistLabel setContentCompressionResistancePriority:UILayoutPriorityRequired
                                                       forAxis:UILayoutConstraintAxisVertical];
@@ -130,6 +189,8 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         _fileInfoLabel.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleFootnote]
                 scaledFontForFont:[UIFont systemFontOfSize:14.5]];
         _fileInfoLabel.adjustsFontForContentSizeCategory = YES;
+        _fileInfoLabel.adjustsFontSizeToFitWidth = YES;
+        _fileInfoLabel.minimumScaleFactor = 0.7;
         _fileInfoLabel.textColor = [UIColor secondaryLabelColor];
         _fileInfoLabel.textAlignment = NSTextAlignmentCenter;
         [_fileInfoLabel setContentCompressionResistancePriority:UILayoutPriorityRequired
@@ -147,23 +208,23 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         _remainingLabel.textAlignment = NSTextAlignmentRight;
         [content addSubview:_remainingLabel];
 
-        // The paused-state play glyph, centered between the time labels. The
-        // owning controller wires the action and drives its visibility; the
-        // shadow keeps it legible on arbitrary art.
-        _playPauseButton = [UIButton buttonWithType:UIButtonTypeSystem];
-        _playPauseButton.tintColor = [UIColor labelColor];
-        _playPauseButton.layer.shadowColor = UIColor.blackColor.CGColor;
-        _playPauseButton.layer.shadowOpacity = 0.5;
-        _playPauseButton.layer.shadowRadius = 8;
-        _playPauseButton.layer.shadowOffset = CGSizeMake(0, 2);
-        // The shadow follows the glyph's alpha, so it cannot be given a
-        // shadowPath — a rect would put a block behind the triangle. Without
-        // one the layer re-renders offscreen every composited frame, so cache
-        // the result instead: it changes only when the glyph does, and the
-        // fade between states applies to the cached bitmap.
-        _playPauseButton.layer.shouldRasterize = YES;
-        _playPauseButton.translatesAutoresizingMaskIntoConstraints = NO;
-        [content addSubview:_playPauseButton];
+        // The transport: previous, play/pause, next, in one row the controller
+        // fades as a unit. It is a plain container rather than a stack view so
+        // the buttons keep their oversized tap targets while the glyphs inside
+        // stay small — the mini player's rule, and Apple Music's.
+        _transportView = [[VibeTransportRowView alloc] init];
+        _transportView.translatesAutoresizingMaskIntoConstraints = NO;
+        [content addSubview:_transportView];
+
+        _previousButton = [self makeTransportButton];
+        _previousButton.accessibilityLabel = STR_TRANSPORT_PREVIOUS;
+        [self setGlyph:@"backward.end.fill" onButton:_previousButton
+             pointSize:kCellSideGlyphPointSize];
+        _playPauseButton = [self makeTransportButton];
+        _nextButton = [self makeTransportButton];
+        _nextButton.accessibilityLabel = STR_TRANSPORT_NEXT;
+        [self setGlyph:@"forward.end.fill" onButton:_nextButton
+             pointSize:kCellSideGlyphPointSize];
         [self setGlyphPlaying:NO];
 
         // The codec line must survive beside the artist line in landscape;
@@ -185,9 +246,14 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
             [_artCardView.trailingAnchor constraintEqualToAnchor:_artCard.trailingAnchor],
             [_artCard.widthAnchor constraintEqualToAnchor:_artCard.heightAnchor],
 
-            [_playPauseButton.centerYAnchor constraintEqualToAnchor:_elapsedLabel.centerYAnchor],
-            [_playPauseButton.widthAnchor constraintGreaterThanOrEqualToConstant:66],
-            [_playPauseButton.heightAnchor constraintGreaterThanOrEqualToConstant:66],
+            [_transportView.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
+            [_transportView.heightAnchor constraintEqualToConstant:kTransportButtonSide],
+            [_previousButton.leadingAnchor constraintEqualToAnchor:_transportView.leadingAnchor],
+            [_playPauseButton.leadingAnchor constraintEqualToAnchor:_previousButton.trailingAnchor
+                                                           constant:kTransportButtonGap],
+            [_nextButton.leadingAnchor constraintEqualToAnchor:_playPauseButton.trailingAnchor
+                                                      constant:kTransportButtonGap],
+            [_nextButton.trailingAnchor constraintEqualToAnchor:_transportView.trailingAnchor],
         ]];
 
         _portraitConstraints = [self buildPortraitConstraints];
@@ -196,60 +262,109 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
     return self;
 }
 
+// One transport button: a large tap target around a small glyph, legible on
+// arbitrary art.
+//
+// The shadow follows the glyph's alpha, so it cannot be given a shadowPath — a
+// rect would put a block behind the triangle. Without one the layer re-renders
+// offscreen every composited frame, so cache the result instead: it changes
+// only when the glyph does, and the fade between states applies to the cached
+// bitmap.
+- (UIButton *)makeTransportButton {
+    UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+    button.tintColor = [UIColor labelColor];
+    button.layer.shadowColor = UIColor.blackColor.CGColor;
+    button.layer.shadowOpacity = 0.5;
+    button.layer.shadowRadius = 8;
+    button.layer.shadowOffset = CGSizeMake(0, 2);
+    button.layer.shouldRasterize = YES;
+    button.translatesAutoresizingMaskIntoConstraints = NO;
+    [_transportView addSubview:button];
+    [NSLayoutConstraint activateConstraints:@[
+        [button.topAnchor constraintEqualToAnchor:_transportView.topAnchor],
+        [button.bottomAnchor constraintEqualToAnchor:_transportView.bottomAnchor],
+        [button.widthAnchor constraintEqualToConstant:kTransportButtonSide],
+    ]];
+    return button;
+}
+
+- (void)setGlyph:(NSString *)symbol onButton:(UIButton *)button pointSize:(CGFloat)pointSize {
+    UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration
+            configurationWithPointSize:pointSize
+                                weight:UIImageSymbolWeightMedium];
+    UIImage *glyph = [UIImage systemImageNamed:symbol withConfiguration:config];
+    [button setImage:glyph forState:UIControlStateNormal];
+    // See setNextEnabled: — the disabled look is drawn here, at exactly the
+    // alpha asked for, instead of being left to the button's own adjustment.
+    [button setImage:[[glyph imageWithTintColor:
+                    [UIColor.labelColor colorWithAlphaComponent:kTransportDisabledAlpha]
+                                  renderingMode:UIImageRenderingModeAlwaysOriginal]
+                     imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal]
+            forState:UIControlStateDisabled];
+}
+
 - (NSArray<NSLayoutConstraint *> *)buildPortraitConstraints {
     UIView *content = self.contentView;
     UILayoutGuide *safe = content.safeAreaLayoutGuide;
 
-    // The area between the safe top and the glass bar, and the two-box
-    // stack centered in it. Centering yields (priority below required)
-    // when accessibility text needs the room.
-    UILayoutGuide *band = [[UILayoutGuide alloc] init];
-    [content addLayoutGuide:band];
-    UILayoutGuide *group = [[UILayoutGuide alloc] init];
-    [content addLayoutGuide:group];
-    // The space the waveform centers in: label block bottom to paused-glyph
-    // top. The time row keeps the position the old waveform-chained layout
-    // gave it, so only the waveform floats up.
-    UILayoutGuide *waveBand = [[UILayoutGuide alloc] init];
-    [content addLayoutGuide:waveBand];
-    NSLayoutConstraint *groupCentered =
-            [group.centerYAnchor constraintEqualToAnchor:band.centerYAnchor];
-    groupCentered.priority = UILayoutPriorityDefaultHigh;
+    // The art band: what the fixed strip at the top and the label band below
+    // leave over, so it is the band the screen's height lands in.
+    UILayoutGuide *artBand = [[UILayoutGuide alloc] init];
+    [content addLayoutGuide:artBand];
+    // The label band, fixed at what its labels can ever need, and the three
+    // labels riding centered in it — so a one-line title sits in the middle of
+    // the band rather than at the top of a two-line box with the slack showing
+    // as a gap under it.
+    UILayoutGuide *labelBand = [[UILayoutGuide alloc] init];
+    [content addLayoutGuide:labelBand];
+    UILayoutGuide *labels = [[UILayoutGuide alloc] init];
+    [content addLayoutGuide:labels];
 
-    // As wide as the margins allow — unless the label chain below needs
-    // the room (large accessibility text), in which case the card is the
-    // one that gives.
-    NSLayoutConstraint *artFullWidth =
-            [_artCard.widthAnchor constraintEqualToAnchor:safe.widthAnchor
-                                               multiplier:0.85 constant:-41];
-    artFullWidth.priority = UILayoutPriorityDefaultHigh;
+    // layoutSubviews keeps these on the scaled fonts. The two single-line
+    // labels keep their line reserved so a track with no artist lays out like
+    // one that has it.
+    _labelBandHeight = [labelBand.heightAnchor constraintEqualToConstant:0];
+    _artistHeight = [_artistLabel.heightAnchor constraintEqualToConstant:0];
+    _fileInfoHeight = [_fileInfoLabel.heightAnchor constraintEqualToConstant:0];
+
+    // As big as its band allows, leaving the padding all round. The two
+    // required caps bound it on each axis; this makes it take what it can,
+    // and it is the one that gives at oversized accessibility text.
+    NSLayoutConstraint *artFill =
+            [_artCard.heightAnchor constraintEqualToAnchor:artBand.heightAnchor
+                                                multiplier:kCellArtBandFill];
+    artFill.priority = UILayoutPriorityDefaultHigh;
 
     return @[
-        // The whole stack — art box over waveform box — floats centered
-        // between the safe top and the bottom margin; the required edge
-        // bounds still win at oversized accessibility text, shrinking
-        // the square card — never the text.
-        [band.topAnchor constraintEqualToAnchor:safe.topAnchor],
-        [band.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor
-                                          constant:-kCellBottomMargin],
-        [_artCard.topAnchor constraintEqualToAnchor:group.topAnchor
-                                           constant:kCellArtTopPadding],
-        [group.bottomAnchor constraintEqualToAnchor:_elapsedLabel.bottomAnchor],
-        groupCentered,
-        [_artCard.topAnchor constraintGreaterThanOrEqualToAnchor:band.topAnchor constant:12],
+        [artBand.topAnchor constraintEqualToAnchor:safe.topAnchor
+                                          constant:kCellTopBandHeight],
+        [artBand.bottomAnchor constraintEqualToAnchor:labelBand.topAnchor],
+        [_artCard.centerYAnchor constraintEqualToAnchor:artBand.centerYAnchor],
         [_artCard.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
-        [_artCard.widthAnchor constraintLessThanOrEqualToAnchor:safe.widthAnchor constant:-48],
-        artFullWidth,
+        [_artCard.heightAnchor constraintLessThanOrEqualToAnchor:artBand.heightAnchor
+                                                      multiplier:kCellArtBandFill],
+        [_artCard.widthAnchor constraintLessThanOrEqualToAnchor:safe.widthAnchor
+                                                    multiplier:kCellArtBandFill],
+        artFill,
 
-        [_titleLabel.topAnchor constraintEqualToAnchor:_artCard.bottomAnchor constant:20],
+        [labelBand.bottomAnchor constraintEqualToAnchor:_waveformView.topAnchor],
+        _labelBandHeight,
+        [labels.topAnchor constraintEqualToAnchor:_titleLabel.topAnchor],
+        [labels.bottomAnchor constraintEqualToAnchor:_fileInfoLabel.bottomAnchor],
+        [labels.centerYAnchor constraintEqualToAnchor:labelBand.centerYAnchor],
+
         [_titleLabel.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
         [_titleLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor constant:20],
         [_titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-20],
-        [_artistLabel.topAnchor constraintEqualToAnchor:_titleLabel.bottomAnchor constant:4],
+        _artistHeight,
+        _fileInfoHeight,
+        [_artistLabel.topAnchor constraintEqualToAnchor:_titleLabel.bottomAnchor
+                                               constant:kCellLabelGap],
         [_artistLabel.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
         [_artistLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor constant:20],
         [_artistLabel.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-20],
-        [_fileInfoLabel.topAnchor constraintEqualToAnchor:_artistLabel.bottomAnchor constant:6],
+        [_fileInfoLabel.topAnchor constraintEqualToAnchor:_artistLabel.bottomAnchor
+                                                 constant:kCellLabelGap],
         [_fileInfoLabel.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
         [_fileInfoLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor constant:20],
         [_fileInfoLabel.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-20],
@@ -257,20 +372,18 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         [_waveformView.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
         [_waveformView.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
         [_waveformView.heightAnchor constraintEqualToConstant:kCellWaveformHeight],
-        // The waveform centers between the label block and the paused
-        // glyph; the time row hangs off the labels at the distance the
-        // old waveform-chained layout produced, and the stack's required
-        // bottom bound keeps the time labels inside the card at any text
-        // size.
-        [waveBand.topAnchor constraintEqualToAnchor:_fileInfoLabel.bottomAnchor],
-        [waveBand.bottomAnchor constraintEqualToAnchor:_playPauseButton.topAnchor],
-        [_waveformView.centerYAnchor constraintEqualToAnchor:waveBand.centerYAnchor],
-        [_elapsedLabel.topAnchor constraintEqualToAnchor:_fileInfoLabel.bottomAnchor
-                                                constant:kCellBoxGap - kCellArtTopPadding
-                                                         + kCellWaveformHeight
-                                                         + kCellTimeWaveformGap],
-        [_elapsedLabel.bottomAnchor constraintLessThanOrEqualToAnchor:band.bottomAnchor
-                                                             constant:-12],
+        // The bottom chain, and the reason it is a chain: transport row and
+        // waveform both hang off the SAFE BOTTOM, so the waveform sits at the
+        // same y on every page. Anything above it — a two-line title, a
+        // missing artist — moves the art, never this. The time row hangs off
+        // the waveform rather than sitting between the two, so tightening it
+        // against the waveform cannot push the waveform down.
+        [_transportView.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor
+                                                    constant:-kCellBottomMargin],
+        [_waveformView.bottomAnchor constraintEqualToAnchor:_transportView.topAnchor
+                                                   constant:-kCellWaveformTransportGap],
+        [_elapsedLabel.topAnchor constraintEqualToAnchor:_waveformView.bottomAnchor
+                                                constant:-kCellTimeWaveformOverlap],
         [_elapsedLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
         [_elapsedLabel.trailingAnchor constraintLessThanOrEqualToAnchor:content.centerXAnchor
                                                             constant:-6],
@@ -278,8 +391,6 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         [_remainingLabel.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
         [_remainingLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:content.centerXAnchor
                                                             constant:6],
-
-        [_playPauseButton.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
     ];
 }
 
@@ -314,7 +425,7 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         [_waveformView.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
         [_waveformView.heightAnchor constraintEqualToConstant:kCellWaveformHeightLandscape],
         [_waveformView.bottomAnchor constraintEqualToAnchor:_elapsedLabel.topAnchor
-                                                   constant:-kCellTimeWaveformGap],
+                                                   constant:-kCellTimeWaveformGapLandscape],
         [_elapsedLabel.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor
                                                    constant:-(kCellBottomMargin + 12)],
         [_elapsedLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
@@ -325,7 +436,10 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
         [_remainingLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:content.centerXAnchor
                                                             constant:6],
 
-        [_playPauseButton.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
+        // Landscape has the height for no more than one row down here, so the
+        // transport rides the time row's centerline, between the two times —
+        // there is width to spare for it where portrait has none.
+        [_transportView.centerYAnchor constraintEqualToAnchor:_elapsedLabel.centerYAnchor],
     ];
 }
 
@@ -351,21 +465,39 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
     _titleLabel.textAlignment = alignment;
     _artistLabel.textAlignment = alignment;
     _fileInfoLabel.textAlignment = landscape ? NSTextAlignmentRight : NSTextAlignmentCenter;
-    // The mac title is one shrink-to-fit line; the portrait card gives it two.
+    // The mac title is one line; the portrait card gives it two. Both shrink
+    // to fit rather than truncate.
     _titleLabel.numberOfLines = landscape ? 1 : 2;
-    _titleLabel.adjustsFontSizeToFitWidth = landscape;
-    _titleLabel.minimumScaleFactor = landscape ? 0.6 : 1.0;
+}
+
+// The portrait label band's reserved height and its two single-line labels',
+// restated on the fonts the labels are currently drawing at — Dynamic Type
+// rescales them under us. The band is the worst case, a two-line title, so the
+// art band above it never moves.
+- (void)updateHeaderMetrics {
+    CGFloat artist = ceil(_artistLabel.font.lineHeight);
+    CGFloat fileInfo = ceil(_fileInfoLabel.font.lineHeight);
+    CGFloat band = ceil(_titleLabel.font.lineHeight * 2) + kCellLabelGap + artist
+            + kCellLabelGap + fileInfo + 2 * kCellLabelBandPadding;
+    if (_labelBandHeight.constant == band && _artistHeight.constant == artist
+            && _fileInfoHeight.constant == fileInfo) {
+        return;
+    }
+    _labelBandHeight.constant = band;
+    _artistHeight.constant = artist;
+    _fileInfoHeight.constant = fileInfo;
 }
 
 - (void)layoutSubviews {
     [self applyLayoutForBounds:self.bounds];
+    [self updateHeaderMetrics];
     [super layoutSubviews];
-    _artCard.layer.shadowPath = [UIBezierPath
-            bezierPathWithRoundedRect:_artCard.bounds
-                         cornerRadius:kArtCornerRadius].CGPath;
-    // Left at the default 1 the cached glyph would draw soft on every Retina
+    // Left at the default 1 the cached glyphs would draw soft on every Retina
     // display.
-    _playPauseButton.layer.rasterizationScale = self.traitCollection.displayScale;
+    CGFloat scale = self.traitCollection.displayScale;
+    _previousButton.layer.rasterizationScale = scale;
+    _playPauseButton.layer.rasterizationScale = scale;
+    _nextButton.layer.rasterizationScale = scale;
 }
 
 - (UILabel *)makeTimeLabel {
@@ -401,17 +533,32 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
     _elapsedLabel.text = STR_LABEL_TIME_UNKNOWN;
     _remainingLabel.text = STR_LABEL_TIME_UNKNOWN;
     [self setGlyphPlaying:NO];
+    [self setNextEnabled:YES];
 }
 
 - (void)setGlyphPlaying:(BOOL)playing {
-    UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration
-            configurationWithPointSize:kCellGlyphPointSize
-                                weight:UIImageSymbolWeightMedium];
-    [_playPauseButton setImage:[UIImage systemImageNamed:(playing ? @"pause.fill"
-                                                                  : @"play.fill")
-                                       withConfiguration:config]
-                      forState:UIControlStateNormal];
+    [self setGlyph:(playing ? @"pause.fill" : @"play.fill")
+          onButton:_playPauseButton
+         pointSize:kCellGlyphPointSize];
     _playPauseButton.accessibilityLabel = playing ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
+}
+
+// `enabled`, and the dimming spelled out rather than left to the button.
+//
+// TRAP: a system-type button dims its own template image for the disabled
+// state, so an alpha on top compounds — the glyph measured 52/255 over the
+// card's backdrop instead of the half it asks for. The disabled image is
+// therefore installed pre-tinted and AlwaysOriginal, which opts out of the
+// tinting the adjustment rides on, and carries the alpha itself.
+//
+// Swallowing the tap is VibeTransportRowView's job, not this one's: a
+// disabled button is not handed back by hit-testing at all, so the row has to
+// decline the touch on its behalf.
+- (void)setNextEnabled:(BOOL)enabled {
+    _nextButton.enabled = enabled;
+    _nextButton.accessibilityTraits = enabled
+            ? UIAccessibilityTraitButton
+            : (UIAccessibilityTraitButton | UIAccessibilityTraitNotEnabled);
 }
 
 - (void)configureWithTitle:(NSString *)title
