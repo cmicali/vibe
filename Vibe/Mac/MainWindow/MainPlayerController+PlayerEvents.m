@@ -65,6 +65,11 @@
                       forURL:track.url
                   currentURL:^NSURL *{ return [weakSelf.playlistController currentTrack].url; }
                      handler:^(float fraction) {
+        // Every delivery is a whole-percent forward move (the monitor's
+        // reportFraction: coalesces and never runs backwards), so each one is
+        // the transfer genuinely moving — exactly what extends the open's
+        // abandon deadline, and a stalled transfer stops extending by itself.
+        [weakSelf.audioPlayer noteOpenProgressForURL:track.url];
         [weakSelf.trackDisplay setWaveformLoadingProgress:fraction];
     }];
     // This runs after updateUI, which shows the pending track's art if it is
@@ -280,6 +285,15 @@
     if (!self.audioPlayer.isStopped) {
         [self updateUI];
         return;
+    }
+    // Keep fetching the pick after a timed-out open: ranked first, the serial
+    // lane's next download is the file the user asked for, so a retry lands
+    // fast — while the error UI stands and nothing auto-resumes playback. The
+    // entry drops on the next track change, and the lane's own attempt budget
+    // bounds a file that keeps failing.
+    if ([error.domain isEqualToString:kVibeAudioErrorDomain]
+            && error.code == VibeAudioErrorFileOpenTimedOut && failedURL) {
+        [self.metadataCache prependNeighborhoodURL:failedURL];
     }
     [self startPendingMetadataLoad];
     [[AppStats sharedInstance] playbackStopped];

@@ -65,6 +65,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setNeighborhoodAroundIndex:(NSUInteger)index
                           inTracks:(NSArray<AudioTrack *> *)tracks;
 
+// Ranks one URL ahead of the current neighborhood: the timed-out pick, so the
+// serial lane's next download is the file the user asked for and a retry
+// lands fast. The next track change re-sends the neighborhood and drops it.
+// Main thread only.
+- (void)prependNeighborhoodURL:(NSURL *)url;
+
 // Empties the disk cache. The completion fires on the cache's internal queue
 // once the entries are gone. A parse already in flight cannot repopulate it:
 // a cache-generation check drops its disk write, though its UI delivery

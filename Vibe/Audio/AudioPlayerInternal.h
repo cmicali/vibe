@@ -108,6 +108,15 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     uint64_t                _playOpenRequestId;
     AudioFileOpenToken      *_prefetchOpenToken;
 
+    // ---- The pending open's abandon deadline, queue-confined. Stamped at
+    // submission; _openLastProgressAt is 0 until the shell's download monitor
+    // reports the transfer moving (noteOpenProgressForURL:), and each sample
+    // can only extend the deadline (AudioFileOpenRules.h). One logical
+    // deadline re-arms for the remainder rather than accumulating timers, and
+    // a stale firing fails the request-identifier check.
+    CFAbsoluteTime          _openSubmittedAt;
+    CFAbsoluteTime          _openLastProgressAt;
+
     // _gaplessFile is a private handle opened separately from the prefetch
     // park: AVAudioFile has one stateful read position and the node pre-reads
     // scheduled files on its own worker, so the armed segment must never share

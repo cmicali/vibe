@@ -129,6 +129,19 @@
     [_currentLoader setNeighborhoodURLs:_neighborhood];
 }
 
+- (void)prependNeighborhoodURL:(NSURL *)url {
+    if (!url) {
+        return;
+    }
+    NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithObject:url];
+    for (NSURL *existing in _neighborhood) {
+        if (![existing isEqual:url]) {
+            [urls addObject:existing];
+        }
+    }
+    [self setNeighborhoodURLs:urls];
+}
+
 // The tracks the listener reaches soonest, in the order they reach them: the
 // next one, the one after it, then the one behind — a back-skip is the fourth
 // thing a hand does, not the first.

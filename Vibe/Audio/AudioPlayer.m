@@ -21,6 +21,7 @@
 #import "AudioDevice.h"
 #import "CoreAudioUtil.h"
 #endif
+#import "AudioFileOpenRules.h"
 #import "FadeMath.h"
 #import "GaplessSpliceMath.h"
 #import "PlaybackRequestCoordinator.h"
@@ -55,15 +56,10 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
     return [NSError errorWithDomain:error.domain code:error.code userInfo:info];
 }
 
-// How long a file open may block, since cloud placeholders download on
-// demand, before the play request is abandoned with an error.
-#if TARGET_OS_OSX
-static const NSTimeInterval kFileOpenTimeoutSeconds = 20.0;
-#else
-// iOS opens are almost always Files-provider downloads over a mobile
-// network, where 20s abandons loads that would have landed.
-static const NSTimeInterval kFileOpenTimeoutSeconds = 60.0;
-#endif
+// How long a file open may block before the play request is abandoned is
+// AudioFileOpenRules.h's VibeAudioOpenEffectiveDeadline: a 60s no-progress
+// baseline both platforms share, extended — never shortened — by download
+// progress the shell feeds through noteOpenProgressForURL:.
 
 // An open still pending after this long is worth a visible loading state.
 static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
@@ -493,11 +489,13 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     }
 
     // Open through the bounded interactive lane. The request id still pairs
-    // the logical open with its timeout, while the coordinator owns the
+    // the logical open with its deadline, while the coordinator owns the
     // underlying standardized-path claim until an uncancellable OS call really
     // returns.
     NSURL *openURL = track.url;
     _playOpenRequestId = openId;
+    _openSubmittedAt = CFAbsoluteTimeGetCurrent();
+    _openLastProgressAt = 0;
     __weak AudioPlayer *weakSelf = self;
     _playOpenToken = [[AudioFileOpenCoordinator sharedCoordinator]
             openURL:openURL
@@ -519,8 +517,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
             [strongSelf finishPlayOnQueueWithFile:file error:error openRequestId:openId];
         }
     }];
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFileOpenTimeoutSeconds * NSEC_PER_SEC)), _queue, ^{
-        [weakSelf fileOpenTimedOutForRequest:openId];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kOpenNoProgressBudgetSeconds * NSEC_PER_SEC)), _queue, ^{
+        [weakSelf fileOpenDeadlineDueForRequest:openId];
     });
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kSlowOpenIndicatorDelaySeconds * NSEC_PER_SEC)), _queue, ^{
         AudioPlayer *strongSelf = weakSelf;
@@ -614,10 +612,29 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     });
 }
 
-- (void)fileOpenTimedOutForRequest:(uint64_t)openId {
+// One logical deadline: the firing checks the effective deadline against the
+// progress the open has shown, re-arms itself for the remainder when a sample
+// has pushed it out, and abandons only when genuinely due. Progress can only
+// extend (AudioFileOpenRules.h), so re-arming never shortens anything, and a
+// stale firing for a superseded or landed open fails the identifier check
+// before it can read another request's stamps.
+- (void)fileOpenDeadlineDueForRequest:(uint64_t)openId {
+    VibePlaybackRequest *pending = _pendingRequest.currentRequest;
+    if (!pending || pending.identifier != openId) {
+        return; // The open landed in time, or a newer play superseded it.
+    }
+    CFAbsoluteTime deadline = VibeAudioOpenEffectiveDeadline(_openSubmittedAt, _openLastProgressAt);
+    NSTimeInterval remaining = deadline - CFAbsoluteTimeGetCurrent();
+    if (remaining > 0.05) {
+        __weak AudioPlayer *weakSelf = self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(remaining * NSEC_PER_SEC)), _queue, ^{
+            [weakSelf fileOpenDeadlineDueForRequest:openId];
+        });
+        return;
+    }
     VibePlaybackRequest *request = [_pendingRequest consumeRequest:openId];
     if (!request) {
-        return; // The open landed in time, or a newer play superseded it.
+        return;
     }
     [self cancelPlayOpenForRequest:openId];
     // If materialization was still running it is cancelled. If the worker had
@@ -629,6 +646,24 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorFileOpenTimedOut,
             [NSString stringWithFormat:@"Timed out opening %@ — it may still be downloading from iCloud/Dropbox or the network may be unavailable",
                                        track.url.lastPathComponent], nil, track.url)];
+}
+
+- (void)noteOpenProgressForURL:(NSURL *)url {
+    NSString *path = url.path;
+    if (!path) {
+        return;
+    }
+    dispatch_async(_queue, ^{
+        // Matched against the pending request's path, and stamped only while
+        // one exists: a late sample from a settled or superseded open finds
+        // nothing to extend, and a same-path retry can only be extended by a
+        // transfer that is genuinely still moving that path's bytes.
+        VibePlaybackRequest *pending = self->_pendingRequest.currentRequest;
+        if (!pending || ![pending.path isEqualToString:path]) {
+            return;
+        }
+        self->_openLastProgressAt = CFAbsoluteTimeGetCurrent();
+    });
 }
 
 - (void)prefetchTrack:(AudioTrack *)track {

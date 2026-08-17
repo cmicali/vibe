@@ -128,6 +128,15 @@ NS_ASSUME_NONNULL_BEGIN
 // playlist's current one.
 - (void)prefetchTrack:(nullable AudioTrack *)track whenClaimed:(nullable void (^)(void))claimed;
 
+// The provider reported the pending open's transfer MOVING. Extends that
+// open's abandon deadline (AudioFileOpenRules.h) — and can only extend it,
+// never shorten, so feeding a sample is always safe — matched against the
+// pending request's path and dropped when none is pending. Call it only when
+// the reported fraction increased: a repeated fraction is a stall, and a
+// stalled transfer must run out of its budget. The shells feed it from the
+// download monitor they start in didBeginLoading:.
+- (void)noteOpenProgressForURL:(NSURL *)url;
+
 @end
 
 // Everything a caller off the player queue may ask the player about itself,

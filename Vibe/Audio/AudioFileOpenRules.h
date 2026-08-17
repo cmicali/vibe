@@ -43,4 +43,22 @@ static inline NSString *VibeStandardizedAudioOpenPath(NSURL *url) {
     return url.absoluteString ?: @"";
 }
 
+// The playback open's abandon deadline. A provider reporting no progress —
+// and a sparse or one-shot sample degrades to exactly that — gets the whole
+// no-progress budget; genuine movement extends the open by the stall budget
+// past each sample. The max() is the contract: a sample can only ever extend,
+// never abandon an open before its baseline, so feeding one is always safe.
+// Both platforms share it — the baseline IS iOS's old flat timeout, and macOS
+// was abandoning healthy 150-300MB transfers at a flat 20 seconds.
+static const NSTimeInterval kOpenNoProgressBudgetSeconds = 60.0;
+static const NSTimeInterval kOpenStallBudgetSeconds = 20.0;
+
+// lastProgressAt is 0 when no sample has arrived; the baseline then stands.
+static inline CFAbsoluteTime VibeAudioOpenEffectiveDeadline(CFAbsoluteTime submittedAt,
+                                                            CFAbsoluteTime lastProgressAt) {
+    CFAbsoluteTime baseline = submittedAt + kOpenNoProgressBudgetSeconds;
+    CFAbsoluteTime extended = lastProgressAt + kOpenStallBudgetSeconds;
+    return baseline > extended ? baseline : extended;
+}
+
 NS_ASSUME_NONNULL_END

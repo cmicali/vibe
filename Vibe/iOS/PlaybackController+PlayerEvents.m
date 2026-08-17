@@ -60,6 +60,13 @@
         PlaybackController *self = weakSelf;
         return self ? self->_playlist.currentTrack.url : nil;
     }                handler:^(float fraction) {
+        // Every delivery is a whole-percent forward move — the transfer
+        // genuinely moving — so each one extends the open's abandon deadline;
+        // a stalled transfer stops extending by itself.
+        PlaybackController *self = weakSelf;
+        if (self) {
+            [self->_player noteOpenProgressForURL:track.url];
+        }
         [weakSelf notifyDidUpdateLoadingProgress:fraction];
     }];
     [self publishNowPlaying];
@@ -235,6 +242,14 @@
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
     [_metadataCache setCloudParsesHeld:NO];
+    // Keep fetching the pick after a timed-out open: ranked first, the serial
+    // lane's next download is the file the user asked for, so a retry lands
+    // fast — while the error UI stands and nothing auto-resumes playback.
+    // Same rule as the mac's MainPlayerController+PlayerEvents.
+    if ([error.domain isEqualToString:kVibeAudioErrorDomain]
+            && error.code == VibeAudioErrorFileOpenTimedOut && url) {
+        [_metadataCache prependNeighborhoodURL:url];
+    }
     // Nothing is going to start now, so the deferred sweep stops waiting.
     [self startPendingMetadataLoad];
     [self notifyDidFailCurrentTrack];
