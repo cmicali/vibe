@@ -34,9 +34,10 @@
     // A slow cloud open is in flight, and the header can still show cached
     // tags and art for the pending track while it materializes.
     [self.metadataCache loadMetadataNow:track];
-    // Show the pending track's title and artist while it loads.
+    // Show the pending track's title and artist while it loads. The waveform's
+    // loading line rides the Loading display state this renders, which resolved
+    // back when the play was initiated; nothing shows it from here.
     [self updateUI];
-    [self.trackDisplay showWaveformLoadingIndicator];
     // A slow open is a materializing file often enough to treat it as one: the
     // scan's cloud lane stands down until this open settles, so a folder's
     // worth of background downloads cannot queue ahead of the one the user is

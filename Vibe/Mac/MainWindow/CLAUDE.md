@@ -91,6 +91,7 @@ The right time label shows total duration (default) or minus-prefixed remaining 
 
 **All header rendering resolves through one five-state `TrackDisplayState`** — track, loading, empty, launch-grace, error — resolved in one place (`displayState`, using `TrackDisplayRules.h`, tested) and shared by `updateUI`, `updatePlaybackUI` and the Now Playing publish, so the branches cannot drift. `TrackDisplayController` draws it and holds no player or playlist state: pure decide-vs-draw.
 
+- **Loading**: the incoming track's tags, `--:--` for both times, and the waveform's loading line. **The state resolves as the play is initiated, so this is what replaces the outgoing waveform** — the player's `didBeginLoading:` is gated on its 0.5s slow-open threshold and puts nothing up.
 - **Empty**: static midline waveform placeholder, both time labels `--:--`, a "Drop a file or press ⌘O" hint, all at half strength. At launch the `revealEmptyState` grace suppresses it to a blank header, so a launch-time open never flashes it.
 - **Error**: rendered inline in the same style — no modal, no auto-skip. `displayedTrack` masks the errored track through the `_erroredTrack`/`_errorStatus` pair, written only via `setErrorMaskForTrack:status:` and `clearErrorMask`; the error text sits on the artist line over the title. The track stays in the playlist for a retry, and late metadata and art deliveries are ignored while masked.
 
