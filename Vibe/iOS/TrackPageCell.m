@@ -65,6 +65,9 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
 @interface VibeArtCardView : UIView
 @end
 
+@implementation VibeTimeLabel
+@end
+
 @implementation VibeTransportRowView
 @end
 
@@ -204,8 +207,14 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
 
         _elapsedLabel = [self makeTimeLabel];
         [content addSubview:_elapsedLabel];
-        _remainingLabel = [self makeTimeLabel];
+        _remainingLabel = (VibeTimeLabel *)[self makeTimeLabelOfClass:VibeTimeLabel.class];
         _remainingLabel.textAlignment = NSTextAlignmentRight;
+        // The tap target is the label's own bounds, which at the default text
+        // size is a short strip — but it sits in the card's bottom corner with
+        // nothing else near it, and widening it would eat into the screen tap.
+        _remainingLabel.userInteractionEnabled = YES;
+        _remainingLabelTap = [[UITapGestureRecognizer alloc] init];
+        [_remainingLabel addGestureRecognizer:_remainingLabelTap];
         [content addSubview:_remainingLabel];
 
         // The transport: previous, play/pause, next, in one row the controller
@@ -501,7 +510,13 @@ static const CGFloat kCellTimeWaveformGapLandscape = 3;
 }
 
 - (UILabel *)makeTimeLabel {
-    UILabel *label = [[UILabel alloc] init];
+    return [self makeTimeLabelOfClass:UILabel.class];
+}
+
+// The right label is a VibeTimeLabel so the screen tap can decline it by class;
+// the left one has no tap and stays a plain UILabel.
+- (UILabel *)makeTimeLabelOfClass:(Class)labelClass {
+    UILabel *label = [[labelClass alloc] init];
     // Monospaced digits so the ticking text does not shimmy, scaled with the
     // user's text size off the subheadline curve.
     label.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleSubheadline]

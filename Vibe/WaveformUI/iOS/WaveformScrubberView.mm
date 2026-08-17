@@ -11,16 +11,17 @@
 // The midline height and palette, shared with the mac view.
 #import "WaveformMidline.h"
 #import "WaveformLoadingIndicator.h"
+// The zoom range and the bake's ceilings, which are one set of numbers.
+#import "WaveformZoomMath.h"
 #import "UIView+DarkMode.h"
 #import "AppSettings.h"
 
-// Fraction of the track visible across the view: the DJ zoom level, and the
-// one knob the whole scrubber's scale hangs off — a preference or a pinch
-// gesture would drive this and nothing else. The renderer draws the full track
-// at width / fraction (about 2 screens) and that is the scroll's content
-// width, so the play position sits at the view's horizontal center. Raising it
-// shows more time and, as a free consequence, shrinks the virtual layer tree.
-static const CGFloat kWaveformVisibleFraction = 0.48;
+// The XCUITest driver's pinch needs an ELEMENT to center on — XCUITest has no
+// coordinate-based multi-touch, only pinchWithScale:velocity: on an element.
+// An accessibilityIdentifier alone puts the view in the element tree;
+// isAccessibilityElement stays off, so VoiceOver behavior is unchanged. Spelled
+// the same in Tests/iOSDriver/VibeiOSDriverTests.m.
+static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 
 // One haptic tick per this many points of scrub travel, and how hard each one
 // hits. Tight spacing so a slow, deliberate scrub ratchets continuously under
@@ -49,7 +50,7 @@ static const CFTimeInterval kScrubTickMinInterval = 1.0 / 28.0;
 // tree to bitmap lands on identical pixels.
 static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 
-@interface WaveformScrubberView () <UIScrollViewDelegate>
+@interface WaveformScrubberView () <UIScrollViewDelegate, UIGestureRecognizerDelegate>
 @property (nonatomic, strong, nullable) CodableAudioWaveform *waveform;
 @end
 
@@ -92,6 +93,20 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     CALayer                 *_bakedUnplayed;
     CALayer                 *_bakedPlayed;
     NSUInteger              _bakeGeneration;
+    // The zoom: the requested fraction (see the property), the pinch that
+    // drives it, and the fraction the current gesture started from. _isPinching
+    // is what tells applyVirtualGeometry to stretch the baked bitmap instead of
+    // tearing it down.
+    CGFloat                 _visibleFraction;
+    UIPinchGestureRecognizer *_pinch;
+    BOOL                    _isPinching;
+    CGFloat                 _pinchStartFraction;
+    // The scrub the PINCH drives once the scroll's pan has died under it (see
+    // handlePinch:): the last centroid x it was measured from, and the touch
+    // count that centroid belongs to — a change in the count moves the point
+    // without the hand moving, so it re-anchors rather than scrubbing.
+    CGFloat                 _zoomScrubLastX;
+    NSUInteger              _zoomScrubTouches;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -106,6 +121,8 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     self.opaque = NO;
     // The content extends several screen widths past both edges.
     self.clipsToBounds = YES;
+    self.accessibilityIdentifier = kWaveformScrubberIdentifier;
+    _visibleFraction = kVibeWaveformDefaultZoomFraction;
 
     _scroll = [[UIScrollView alloc] initWithFrame:self.bounds];
     _scroll.delegate = self;
@@ -119,6 +136,15 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     // TRAP: a UIScrollView owns its pan's delegate and raises on assignment,
     // so the "no waveform, no scrub" gate rides scrollEnabled instead — see
     // setWaveform:.
+    //
+    // TRAP: this pan cannot carry a gesture across a change in touch count. It
+    // ENDS the moment a finger is added or lifted — measured on device — and an
+    // ended recognizer is never given touches that were already down, so it
+    // cannot come back for the finger still on the glass. Capping it at one
+    // touch only makes that happen sooner. Everything from the pinch's first
+    // frame to the hand leaving is therefore carried by the pinch instead
+    // (trackZoomGestureScrub:); this pan owns the ordinary one-finger scrub and
+    // nothing else.
     _scroll.scrollEnabled = NO;
     [self addSubview:_scroll];
 
@@ -133,6 +159,11 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
                                                                           action:@selector(handleTap:)];
     [self addGestureRecognizer:tap];
 
+    _pinch = [[UIPinchGestureRecognizer alloc] initWithTarget:self
+                                                       action:@selector(handlePinch:)];
+    _pinch.delegate = self;
+    [self addGestureRecognizer:_pinch];
+
     __weak WaveformScrubberView *weakSelf = self;
     [self registerForTraitChanges:@[UITraitUserInterfaceStyle.class, UITraitDisplayScale.class]
                       withHandler:^(id<UITraitEnvironment> env, UITraitCollection *previous) {
@@ -142,8 +173,11 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 
 - (BOOL)isScrubbing {
     // The whole content motion, finger and coast and bounce alike: the span
-    // over which the progress writers must keep off the scroll.
-    return _scroll.isDragging || _scroll.isDecelerating || _scroll.isTracking;
+    // over which the progress writers must keep off the scroll. A live pinch
+    // counts even after the scroll's pan has died under it, because the pinch
+    // is then driving the position itself — without this the 3 Hz tick and the
+    // display link would both write playback's position over the finger's.
+    return _isPinching || _scroll.isDragging || _scroll.isDecelerating || _scroll.isTracking;
 }
 
 - (NSArray<NSNumber *> *)scrollGeometry {
@@ -154,6 +188,10 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 
 - (UIPanGestureRecognizer *)scrubPanRecognizer {
     return _scroll.panGestureRecognizer;
+}
+
+- (UIPinchGestureRecognizer *)zoomPinchRecognizer {
+    return _pinch;
 }
 
 // How far the offset is outside its valid range: positive past the start,
@@ -184,15 +222,51 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     return _bakedHost != nil;
 }
 
-#pragma mark - Renderer lifecycle
+#pragma mark - Zoom
 
 - (CGFloat)displayScale {
     return VibeBackingScaleOrDefault(self.traitCollection.displayScale);
 }
 
-// The zoomed content width the renderer draws into; 0 before layout.
+// The deepest zoom this geometry's settled bitmap can hold. It moves with the
+// view size and the display scale, which is the whole reason the request is
+// kept apart from what is drawn.
+- (CGFloat)minimumVisibleFraction {
+    return VibeWaveformMinimumVisibleFraction(self.bounds.size.width,
+                                              self.bounds.size.height,
+                                              [self displayScale]);
+}
+
+- (CGFloat)effectiveVisibleFraction {
+    return VibeWaveformClampVisibleFraction(_visibleFraction, [self minimumVisibleFraction]);
+}
+
+- (CGFloat)visibleFraction {
+    return _visibleFraction;
+}
+
+- (void)setVisibleFraction:(CGFloat)fraction {
+    fraction = VibeWaveformClampRequestedFraction(fraction);
+    if (fraction == _visibleFraction) {
+        return;
+    }
+    CGFloat previous = [self effectiveVisibleFraction];
+    _visibleFraction = fraction;
+    // A request the floor swallows moves nothing on screen, so it costs no
+    // layout — which is also what makes the pinch's hard stop free.
+    if ([self effectiveVisibleFraction] != previous) {
+        [self applyVirtualGeometry];
+    }
+}
+
+#pragma mark - Renderer lifecycle
+
+// The zoomed content width the renderer draws into; 0 before layout. Reads the
+// EFFECTIVE fraction, so everything derived from it — the scroll's content
+// size, the offset/progress mapping, the buckets, the bake — is clamped to
+// what can actually be drawn without any of them knowing about the clamp.
 - (CGFloat)virtualWidth {
-    return self.bounds.size.width / kWaveformVisibleFraction;
+    return self.bounds.size.width / [self effectiveVisibleFraction];
 }
 
 - (CGRect)virtualBounds {
@@ -261,6 +335,24 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
         return;
     }
     CGFloat x = [self contentOffsetForProgress:MAX(0.0, MIN(1.0, _progress))];
+    if (fabs(_scroll.contentOffset.x - x) < 0.01) {
+        return;
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _scroll.contentOffset = CGPointMake(x, 0);
+    [CATransaction commit];
+}
+
+// The same park, written whether or not the scroll believes it is being
+// touched. TRAP: the guard above declines while isScrubbing, and a cancelled
+// scroll does not clear isDragging/isTracking until the touch is delivered —
+// so a reset, or a pinch whose own fingers are still down, has to write it
+// unconditionally or the content stays where the last gesture left it.
+- (void)parkContentOffsetAtProgress {
+    CGFloat x = [self contentOffsetForProgress:MAX(0.0, MIN(1.0, _progress))];
+    // Also what bounds the re-entry: a pinch frame parks from inside
+    // scrollViewDidScroll:, whose write comes straight back here.
     if (fabs(_scroll.contentOffset.x - x) < 0.01) {
         return;
     }
@@ -347,7 +439,7 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     // TRAP: the cancel above does not clear isDragging until the touch is
     // delivered, so the progress write can skip its park and leave a recycled
     // cell scrolled to the previous track's position. Park unconditionally.
-    _scroll.contentOffset = CGPointMake([self contentOffsetForProgress:0], 0);
+    [self parkContentOffsetAtProgress];
 }
 
 - (void)prepareForWaveformLoad {
@@ -450,15 +542,17 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)_renderer;
     CGFloat scale = [self displayScale];
     // A CALayer whose contents exceed the GPU texture ceiling renders BLANK,
-    // and the virtual width crosses 16384px on wide iPad windows (view width
-    // / kWaveformVisibleFraction × scale). Bake at a reduced scale instead —
-    // the layers' default resize gravity stretches it back, softening the
-    // bars slightly, which beats an invisible waveform. A width that cannot
-    // fit even at 1x would need a ~3250pt view; bail to the live tree if it
-    // ever happens.
-    static const CGFloat kMaxBakeImagePixels = 16384;
-    if (size.width * scale > kMaxBakeImagePixels) {
-        scale = kMaxBakeImagePixels / size.width;
+    // and the virtual width crosses it on wide iPad windows (view width /
+    // visibleFraction × scale). Bake at a reduced scale instead — the layers'
+    // default resize gravity stretches it back, softening the bars slightly,
+    // which beats an invisible waveform. A width that cannot fit even at 1x
+    // would need a ~3250pt view; bail to the live tree if it ever happens.
+    //
+    // The zoom floor is derived from this same ceiling, so a PINCH can never
+    // get here; what does is a layout wide enough that even the resting zoom
+    // overflows.
+    if (size.width * scale > kVibeMaxBakeImagePixels) {
+        scale = kVibeMaxBakeImagePixels / size.width;
         if (scale < 1) {
             return;
         }
@@ -488,6 +582,11 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     CGFloat unplayedOpacity = [(DetailedAudioWaveformRenderer *)_renderer unplayedOverPlayedOpacity];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
+    // TRAP: this cannot assume there is no bake standing. Every bake used to be
+    // preceded by a teardown; the pinch's stretch path (applyVirtualGeometry)
+    // deliberately leaves one up, and without this removal the old layer stays
+    // in the scroll's layer tree for the life of the view.
+    [_bakedHost removeFromSuperlayer];
     // No geometryFlipped here: the bake draws in CG's y-up space, whose top
     // row lands at the layer's top, matching what the flipped live tree shows.
     _bakedHost = [CALayer layer];
@@ -595,21 +694,45 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 // cancelled drag just stops; the next progress push restores the true
 // position.
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+    // While a pinch is up the zoom owns the picture: the pan is still running
+    // (it has to be, so scrubbing can resume when a finger stays down) and it
+    // still moves the offset, but each pinch frame parks that offset back at
+    // the playhead. Reading progress out of it here would let the first finger
+    // drag the position around underneath the zoom.
+    if (_isPinching) {
+        // The pan is still running underneath — it has to be, or scrubbing
+        // could not resume when a finger stays down — so its translation keeps
+        // arriving here. Pull the content back to the playhead rather than
+        // reading a position out of it: the zoom owns the picture, and a pinch
+        // that drifts across the glass would otherwise slide the waveform out
+        // from under the center between one scale change and the next.
+        [self parkContentOffsetAtProgress];
+        [self applyPlayedClip];
+        return;
+    }
     if (self.isScrubbing) {
         _progress = MAX(0.0, MIN(1.0, [self progressForContentOffset:scrollView.contentOffset.x]));
         _progressTracker = [self progressBucket];
-        NSInteger bucket = [self tickBucket];
-        if (bucket != _lastTickBucket) {
-            _lastTickBucket = bucket;
-            CFTimeInterval now = CACurrentMediaTime();
-            if (now - _lastTickTime >= kScrubTickMinInterval) {
-                _lastTickTime = now;
-                [_scrubHaptics impactOccurredWithIntensity:kScrubTickIntensity];
-                [_scrubHaptics prepare];
-            }
-        }
+        [self.delegate waveformScrubberView:self didScrubToProgress:_progress];
+        [self emitScrubTickIfNeeded];
     }
     [self applyPlayedClip];
+}
+
+// One haptic tick per bucket of scrub travel, rate-limited. Shared with the
+// pinch's own scrub so a gesture that changes hands does not lose its ratchet.
+- (void)emitScrubTickIfNeeded {
+    NSInteger bucket = [self tickBucket];
+    if (bucket == _lastTickBucket) {
+        return;
+    }
+    _lastTickBucket = bucket;
+    CFTimeInterval now = CACurrentMediaTime();
+    if (now - _lastTickTime >= kScrubTickMinInterval) {
+        _lastTickTime = now;
+        [_scrubHaptics impactOccurredWithIntensity:kScrubTickIntensity];
+        [_scrubHaptics prepare];
+    }
 }
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
@@ -640,6 +763,15 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 // down. UIScrollView also reports isDecelerating DURING a drag, so there is no
 // "still moving" test that separates a coast from a finger.
 - (void)endScrub {
+    if (_isPinching) {
+        // TRAP: the scroll's pan dies mid-gesture — it ends the instant the
+        // touch count changes, which is every pinch that starts from or ends
+        // in a one-finger drag. Nothing is finished here: seeking now would
+        // commit a position the finger is still moving away from, and
+        // releasing the pager would re-open the swipe under it. The pinch owns
+        // the seek, the haptics and the hold until the hand leaves.
+        return;
+    }
     [self commitScrubSeek];
     _scrubHaptics = nil;
     [self.delegate waveformScrubberView:self didChangeScrubbing:NO];
@@ -677,13 +809,171 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     [self.delegate waveformScrubberView:self didSeek:(float)MAX(0.0, MIN(1.0, p))];
 }
 
+#pragma mark - Pinch to zoom
+
+// Zoom is anchored at the playhead for free. The design guarantee
+// `contentOffset.x == progress·virtualWidth - centerX` puts the played
+// boundary at the view's center whatever the virtual width is, so changing the
+// width and re-parking the offset opens the picture about it with no anchor
+// math — and around the point being listened to, which is the DJ behavior.
+//
+// The fraction is written LIVE rather than accumulated into a transform and
+// committed on release. One number means the scroll's content size, insets and
+// end stops stay honest on every frame and every reader of virtualWidth stays
+// correct with no gesture-aware special case; what is deferred is only the
+// bake. See applyVirtualGeometry for the other half.
+// TRAP: without this a pinch cannot START during a scrub. By the time the
+// second finger lands the scroll's pan has already recognized, and UIKit's
+// default is that one gesture belongs to one recognizer — so the pinch is
+// refused, the second finger does nothing, and the zoom is simply unreachable
+// from a drag, which is how a finger already on the waveform arrives at it.
+//
+// The pan is left running rather than cancelled, but do not count on it to
+// last: it ends on its own the moment the touch count changes. What carries
+// the gesture after that is trackZoomGestureScrub:.
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)recognizer
+        shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other {
+    return recognizer == _pinch && other == _scroll.panGestureRecognizer;
+}
+
+- (void)handlePinch:(UIPinchGestureRecognizer *)pinch {
+    switch (pinch.state) {
+        case UIGestureRecognizerStateBegan:
+            if (self.waveform) {
+                [self beginZoomGesture];
+            }
+            break;
+        case UIGestureRecognizerStateChanged:
+            if (_isPinching) {
+                if (pinch.numberOfTouches >= 2 && pinch.scale > 0) {
+                    // Pinch open (scale > 1) is zoom IN, so LESS of the track
+                    // is visible. Clamped against the EFFECTIVE floor, not the
+                    // absolute one, so the gesture stops exactly where the
+                    // picture does — a hard stop — and the committed request
+                    // can never sit below what this geometry can draw.
+                    self.visibleFraction = VibeWaveformClampVisibleFraction(
+                            _pinchStartFraction / pinch.scale, [self minimumVisibleFraction]);
+                }
+                [self trackZoomGestureScrub:pinch];
+                [self parkContentOffsetAtProgress];
+            }
+            break;
+        default:
+            if (_isPinching) {
+                [self endZoomGesture];
+            }
+            break;
+    }
+}
+
+// The scrub, once the pinch owns it.
+//
+// TRAP: UIScrollView's pan ENDS the moment the touch count changes, so lifting
+// the second finger of a pinch kills it with a finger still on the glass — and
+// an ended recognizer cannot begin again for a touch that is already down.
+// UIPinchGestureRecognizer, meanwhile, stays in Changed with one finger left.
+// So from the pinch's first frame the pinch is the only thing that can carry
+// the gesture to its end, and this is what moves the track under the remaining
+// finger. Measured on device: 148 frames of one-touch pinch with the pan dead.
+//
+// Only ONE touch scrubs. With two the centroid is the zoom's own anchor and
+// moving it is how a pinch drifts, not how a scrub is asked for — so the
+// position holds still while zooming, which is what "switch to pinch" means.
+- (void)trackZoomGestureScrub:(UIPinchGestureRecognizer *)pinch {
+    CGFloat x = [pinch locationInView:self].x;
+    NSUInteger touches = pinch.numberOfTouches;
+    CGFloat virtualWidth = [self virtualWidth];
+    // A change in the touch count moves the centroid without the hand moving.
+    // Re-anchor on it or the 2->1 jump lands as one enormous scrub.
+    if (touches == 1 && touches == _zoomScrubTouches && virtualWidth > 0) {
+        // Dragging left carries the track forward under the fixed playhead.
+        CGFloat delta = (x - _zoomScrubLastX) / virtualWidth;
+        CGFloat next = MAX(0.0, MIN(1.0, _progress - delta));
+        if (next != _progress) {
+            _progress = next;
+            _progressTracker = [self progressBucket];
+            _seekPending = YES;     // committed when the hand finally leaves
+            [self.delegate waveformScrubberView:self didScrubToProgress:_progress];
+            [self emitScrubTickIfNeeded];
+        }
+    }
+    _zoomScrubLastX = x;
+    _zoomScrubTouches = touches;
+}
+
+- (void)beginZoomGesture {
+    _isPinching = YES;
+    _pinchStartFraction = _visibleFraction;
+    _zoomScrubLastX = [_pinch locationInView:self].x;
+    _zoomScrubTouches = _pinch.numberOfTouches;
+    // Stop a coast where it stands. A pending seek is deliberately NOT dropped:
+    // the picture is frozen where the scrub left it, so committing there on
+    // lift is the position the user is looking at.
+    [_scroll setContentOffset:_scroll.contentOffset animated:NO];
+    // Kept, not dropped: the pinch may hand the scrub back to one finger, and
+    // that half of the gesture ratchets like any other.
+    if (!_scrubHaptics) {
+        _scrubHaptics = [[UIImpactFeedbackGenerator alloc]
+                initWithStyle:UIImpactFeedbackStyleRigid];
+        [_scrubHaptics prepare];
+        _lastTickBucket = [self tickBucket];
+    }
+    // The same hold a scrub takes, for the same reason — see the protocol
+    // comment. A zoom is direct manipulation of the waveform too.
+    [self.delegate waveformScrubberView:self didChangeScrubbing:YES];
+    // The gesture wants the fast path: with a bake up a frame is a texture
+    // scale, without one it is a full-width mask rebuild. Settling and baking
+    // now collapses that window to the frame or two before it lands.
+    if (!_bakedHost && _renderer) {
+        [self drawWaveformSettled];
+        [self scheduleEnvelopeBakeAfter:0];
+    }
+}
+
+- (void)endZoomGesture {
+    _isPinching = NO;
+    if (_renderer) {
+        // The live tree was left at the geometry the gesture started from —
+        // applyVirtualGeometry stretched the bitmap instead of redrawing it —
+        // so bring it back in sync before anything can unhide it, and re-bake
+        // so the stretched, soft bitmap is replaced by one at the true size.
+        [self drawWaveformSettled];
+        [self scheduleEnvelopeBakeAfter:0];
+    }
+    [self parkContentOffsetAtProgress];
+    // The hand has left: this is the end of the whole gesture, however it
+    // started. endScrub declined all of this while the pinch was live, so the
+    // seek, the haptics and the pager hold are all settled here.
+    [self commitScrubSeek];
+    _scrubHaptics = nil;
+    [self.delegate waveformScrubberView:self didChangeScrubbing:NO];
+    [self.delegate waveformScrubberView:self didChangeVisibleFraction:_visibleFraction];
+}
+
 #pragma mark - Layout and appearance
 
 - (void)layoutSubviews {
     [super layoutSubviews];
+    [self applyVirtualGeometry];
+}
+
+// The scroll's content geometry for the current bounds and zoom, and the bake's
+// answer to a change in it. Layout calls this; so does the zoom, which moves
+// the virtual width without the view's bounds moving at all.
+- (void)applyVirtualGeometry {
     CGRect virtualBounds = [self virtualBounds];
-    BOOL sizeChanged = !CGSizeEqualToSize(_rendererHost.bounds.size, virtualBounds.size);
-    if (sizeChanged) {
+    CGSize previous = _rendererHost.bounds.size;
+    BOOL sizeChanged = !CGSizeEqualToSize(previous, virtualBounds.size);
+    // A pinch frame STRETCHES the baked bitmap rather than tearing it down: the
+    // picture goes slightly soft until the re-bake lands on release, which is
+    // invisible against a moving one, and it is the whole reason a zoom frame
+    // costs a texture scale instead of a 4,096-rect mask rebuild over a
+    // multi-screen layer. Only the width moves under a pinch; every other
+    // resize — rotation, a trait change — keeps the teardown, so nothing
+    // outside the gesture changes behavior.
+    BOOL stretchBake = _isPinching && _bakedHost
+            && previous.height == virtualBounds.size.height;
+    if (sizeChanged && !stretchBake) {
         // The bitmap is baked for the old size; the live tree carries the
         // resize and the bake re-lands at the new one.
         [self teardownBakedWaveform];
@@ -697,13 +987,26 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     _scroll.contentInset = UIEdgeInsetsMake(0, centerX, 0, centerX);
     _scroll.contentSize = CGSizeMake(virtualBounds.size.width, self.bounds.size.height);
     _rendererHost.bounds = virtualBounds;
+    if (stretchBake) {
+        // The layers' default resize gravity does the scaling. applyPlayedClip
+        // recomputes the played crop from virtualWidth, so it follows for free.
+        _bakedHost.bounds = virtualBounds;
+        _bakedUnplayed.frame = virtualBounds;
+    }
     [CATransaction commit];
     [self applyScrollAndProgress];
-    if (sizeChanged && _renderer) {
+    // Nothing to redraw while a bake is being stretched — the live tree is
+    // hidden, and endZoomGesture re-syncs it before it can be unhidden. Without
+    // a bake to stretch the pinch has to fall back to redrawing, which is the
+    // expensive path it exists to avoid; beginZoomGesture keeps that window to
+    // the frame or two before its bake lands.
+    if (sizeChanged && _renderer && !stretchBake) {
         // Sync geometry even with no waveform, as the mac view does, so a
         // mid-collapse morph rebuilds at the new size.
         [self drawWaveform];
-        [self scheduleEnvelopeBakeAfter:kEnvelopeBakeDelay];
+        if (!_isPinching) {
+            [self scheduleEnvelopeBakeAfter:kEnvelopeBakeDelay];
+        }
     }
     if (sizeChanged) {
         [self layoutLoadingLayer];
@@ -721,6 +1024,10 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
     if (scaleChanged) {
         VibeApplyContentsScale(self.layer, [self displayScale]);
         [_renderer backingScaleDidChange];
+        // The scale is an input to the zoom floor (WaveformZoomMath.h), so it
+        // can move the virtual width with the view's own bounds unchanged —
+        // and then no layout pass would follow to resize the content.
+        [self applyVirtualGeometry];
     }
     if (styleChanged) {
         [_renderer updateColors:self.isDark];

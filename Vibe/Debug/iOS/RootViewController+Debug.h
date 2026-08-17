@@ -36,6 +36,8 @@
 // Routes through the scrubber's didSeek path so the seek-in-flight guard
 // behaves exactly as a real drag's release.
 - (void)debugSeekToSeconds:(NSTimeInterval)seconds;
+// The waveform zoom, the one gesture the command channel cannot synthesize.
+- (void)debugSetWaveformZoom:(CGFloat)fraction;
 - (void)debugOpenPath:(NSString *)path;
 - (AudioTrackMetadataCache *)debugMetadataCache;
 - (AudioWaveformCache *)debugWaveformCache;

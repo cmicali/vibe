@@ -18,6 +18,12 @@
 #   drive-ios.sh press 201 640 1.5
 #   drive-ios.sh drag 300 640 100 640 1.0    # x1 y1 x2 y2 [seconds]; give
 #                               # seconds for 1:1 scrubs, omit for a flick
+#   drive-ios.sh pinch 2.0 1.0  # scale velocity, on the WAVEFORM (the only
+#                               #   pinchable element). scale > 1 zooms in;
+#                               #   velocity is scale-factors/sec and must be
+#                               #   negative to zoom out. Expand the card first.
+#                               #   Read the result with debug-ios.sh dump_state:
+#                               #   ui.waveformZoomRequested / ...Effective
 #   drive-ios.sh type "key"     # into whatever holds focus. Use this for the
 #                               #   keyboard: it is in a window of its own, so a
 #                               #   tap aimed at a key hits the app BEHIND it

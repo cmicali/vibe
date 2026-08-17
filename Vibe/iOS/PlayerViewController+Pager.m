@@ -115,13 +115,26 @@ static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
         // scrubber's pan refuses to begin, so the swipe falls through here.
         [_pagesView.panGestureRecognizer
                 requireGestureRecognizerToFail:page.waveformView.scrubPanRecognizer];
+        // And a zoom pinch on the waveform is never the start of a swipe. The
+        // pager's own one-touch limit already rules out a two-finger drag; this
+        // covers the pan that begins with one finger and becomes a pinch.
+        [_pagesView.panGestureRecognizer
+                requireGestureRecognizerToFail:page.waveformView.zoomPinchRecognizer];
         [page.previousButton addTarget:self action:@selector(previousTapped)
                       forControlEvents:UIControlEventTouchUpInside];
         [page.playPauseButton addTarget:self action:@selector(playPauseTapped)
                        forControlEvents:UIControlEventTouchUpInside];
         [page.nextButton addTarget:self action:@selector(nextTapped)
                   forControlEvents:UIControlEventTouchUpInside];
+        // Total time vs remaining, toggled from any page — the mode is one
+        // setting, so every page redraws, not just the tapped one.
+        [page.remainingLabelTap addTarget:self action:@selector(remainingLabelTapped)];
     }
+
+    // Unconditional, not part of the one-time block above: a recycled cell
+    // keeps the zoom it was last shown at, which is stale the moment the user
+    // pinches while it is off screen. The setter no-ops when it matches.
+    [self applyWaveformZoomToCell:page];
 
     [self hydrateWaveformInCell:page atIndex:index];
     if (![_waveformCoordinator isCompleteAtIndex:index]) {

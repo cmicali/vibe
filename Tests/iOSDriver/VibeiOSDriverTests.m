@@ -204,10 +204,35 @@ static void DisableQuiescenceWaits(void) {
         }
         return JSONString(@{@"ok": @YES});
     }
+    // The one gesture with no coordinate form: XCUITest synthesizes multi-touch
+    // only through an ELEMENT (pinchWithScale:velocity:), never through
+    // XCUICoordinate. So this is the driver's only element query, and the
+    // waveform carries an accessibilityIdentifier purely to be findable here —
+    // see kWaveformScrubberIdentifier in WaveformScrubberView.mm.
+    //
+    // Scale > 1 opens the fingers, which zooms IN (less of the track visible).
+    // Velocity is scale-factors per second and must be negative to zoom out.
+    if ([verb isEqualToString:@"pinch"]) {
+        if (tokens.count != 3 || !ParseDouble(tokens[1], &a1) || !ParseDouble(tokens[2], &a2)
+                || a1 <= 0) {
+            return JSONString(@{@"error": @"pinch needs: scale velocity"});
+        }
+        [self ensureForeground];
+        XCUIElement *waveform = _app.otherElements[@"waveform-scrubber"];
+        // The card has one per page and only the current one is hittable; the
+        // query is resolved rather than waited on, so a missing element is an
+        // error rather than a 60s hang.
+        if (!waveform.exists) {
+            return JSONString(@{@"error": @"no waveform on screen — expand the player first"});
+        }
+        [waveform pinchWithScale:(CGFloat)a1 velocity:(XCUIGestureVelocity)a2];
+        return JSONString(@{@"ok": @YES, @"scale": @(a1), @"velocity": @(a2)});
+    }
     return JSONString(@{@"error": [NSString stringWithFormat:
             @"unknown command '%@'. Commands: tap <x> <y>, double_tap <x> <y>, "
             @"press <x> <y> <seconds>, drag <x1> <y1> <x2> <y2> [seconds], "
-            @"type <text>, rotate portrait|left|right, home, quit", verb]});
+            @"pinch <scale> <velocity>, type <text>, "
+            @"rotate portrait|left|right, home, quit", verb]});
 }
 
 // Returns YES when the command asked the session to end.

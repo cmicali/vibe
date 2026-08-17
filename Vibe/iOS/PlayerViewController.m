@@ -80,6 +80,8 @@
     // label and the waveform must read over arbitrary blurred art.
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.backgroundColor = [UIColor systemBackgroundColor];
+    // Before buildUI, so the first cell to display already has it.
+    [self restoreWaveformZoom];
     [self buildUI];
 
     _waveformCache = [[AudioWaveformCache alloc] init];
@@ -122,6 +124,35 @@
     [_scrollLink invalidate];
 }
 
+#pragma mark - The right time label's mode
+
+// An iOS-owned NSUserDefaults key, beside FolderSession's and the waveform
+// zoom's, rather than AppSettings.showRemainingTime: that one is inside the
+// macOS-only block, and it is there because it is read on every playback tick
+// and rides the hot cache the whole block exists for. iOS reads this a few
+// times a second, so it does not need the cache and does not have to reopen
+// that split. The default matches the mac's — total duration.
+static NSString *const kShowRemainingTimeKey = @"VibeiOSShowRemainingTime";
+
+BOOL VibeShowsRemainingTime(void) {
+    return [NSUserDefaults.standardUserDefaults boolForKey:kShowRemainingTimeKey];
+}
+
+void VibeSetShowsRemainingTime(BOOL remaining) {
+    [NSUserDefaults.standardUserDefaults setBool:remaining forKey:kShowRemainingTimeKey];
+}
+
+NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
+    Formatters *formatters = [Formatters sharedInstance];
+    if (!VibeShowsRemainingTime()) {
+        return [formatters durationStringFromTimeInterval:duration];
+    }
+    // Same spelling as the mac's renderRightTimeLabel: a literal minus, not a
+    // localized one — it is arithmetic notation, not prose.
+    return [VibeNotLocalized(@"-") stringByAppendingString:
+            [formatters durationStringFromTimeInterval:MAX(0, duration - position)]];
+}
+
 #pragma mark - UI construction
 
 - (void)buildUI {
@@ -136,6 +167,8 @@
     _pagesView.pagingEnabled = YES;
     _pagesView.showsHorizontalScrollIndicator = NO;
     _pagesView.allowsSelection = NO;
+    // A two-finger touch on this screen is a waveform zoom, never a page swipe.
+    _pagesView.panGestureRecognizer.maximumNumberOfTouches = 1;
     // Photos-style edge give: pulling past the first or last page reveals the
     // backdrop and springs back. alwaysBounce keeps the pull alive on a
     // one-track playlist too, where content exactly fills the bounds.
@@ -229,7 +262,10 @@
     elapsed.text = known
             ? [[Formatters sharedInstance] durationStringFromTimeInterval:0]
             : STR_LABEL_TIME_UNKNOWN;
-    remaining.text = known ? track.durationString : STR_LABEL_TIME_UNKNOWN;
+    // At rest the position is 0, so remaining is the whole duration — but it
+    // still goes through the one rule, or a page at rest would show a bare
+    // total while a playing one showed a minus-prefixed remaining.
+    remaining.text = known ? VibeRightTimeText(0, track.duration) : STR_LABEL_TIME_UNKNOWN;
 }
 
 - (void)renderRestingTimesForTrack:(AudioTrack *)track {
@@ -277,6 +313,7 @@
     for (UIView *view = touch.view; view && view != self.view; view = view.superview) {
         if ([view isKindOfClass:[UIControl class]]
                 || [view isKindOfClass:[VibeTransportRowView class]]
+                || [view isKindOfClass:[VibeTimeLabel class]]
                 || [view isKindOfClass:[WaveformScrubberView class]]
                 || (view == _grabberTarget && gestureRecognizer != _minimizePan)) {
             return NO;
@@ -392,6 +429,13 @@
 }
 
 - (void)updatePlaybackUI {
+    if (_waveformView.isScrubbing) {
+        // The scrub owns the whole readout for its duration: the waveform,
+        // which it moves under the finger, and the labels, which show where
+        // the release will land rather than what is still playing
+        // (didScrubToProgress:). Same bail as scrollTick:, one tier up.
+        return;
+    }
     if (VibePlayerScreenRendersRestingTimes(_playback.screenState)) {
         // Same precedence as scrollTick:: a seek in flight is a better answer
         // for where the playhead is than "at rest".
@@ -415,7 +459,7 @@
     if (duration > 0) {
         Formatters *formatters = [Formatters sharedInstance];
         _elapsedLabel.text = [formatters durationStringFromTimeInterval:position];
-        _remainingLabel.text = [formatters durationStringFromTimeInterval:MAX(0, duration - position)];
+        _remainingLabel.text = VibeRightTimeText(position, duration);
         // The display link owns the waveform while playing; this 3 Hz write
         // is the only one while paused or parked, and they agree otherwise.
         if (!_waveformView.isScrubbing && !_playback.seekInFlight) {
@@ -440,6 +484,24 @@
 
 - (void)nextTapped {
     [_playback next];
+}
+
+- (void)remainingLabelTapped {
+    VibeSetShowsRemainingTime(!VibeShowsRemainingTime());
+    // Every visible page, not just the tapped one: the neighbors are drawn at
+    // rest and would keep the old spelling until they were recycled.
+    for (TrackPageCell *cell in _pagesView.visibleCells) {
+        if (cell == _boundPage) {
+            continue;   // the bound page is live; updatePlaybackUI has it
+        }
+        NSInteger index = [_pagesView indexPathForCell:cell].item;
+        if (index >= 0 && (NSUInteger)index < (NSInteger)_playlist.count) {
+            [PlayerViewController renderRestingTimesForTrack:[_playlist trackAtIndex:(NSUInteger)index]
+                                                     elapsed:cell.elapsedLabel
+                                                   remaining:cell.remainingLabel];
+        }
+    }
+    [self updatePlaybackUI];
 }
 
 - (void)screenTapped {

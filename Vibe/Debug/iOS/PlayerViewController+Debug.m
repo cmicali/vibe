@@ -30,6 +30,13 @@
         @"waveformScrollGeom": _waveformView.scrollGeometry ?: @[],
         @"waveformBaked": @(_waveformView.isShowingBakedWaveform),
         @"isScrubbing": @(_waveformView.isScrubbing),
+        // Both, deliberately: the request is what is persisted and what a
+        // rotation must not touch, the effective one is what is drawn, and
+        // telling them apart is the only way to check the clamp from outside.
+        // Equal is the ordinary case; differing means this geometry could not
+        // afford the depth the user asked for.
+        @"waveformZoomRequested": @(_waveformZoom),
+        @"waveformZoomEffective": @(_waveformView.effectiveVisibleFraction),
         @"foreground": @(_foreground),
     };
 }
@@ -65,6 +72,19 @@
 
 - (void)debugSeekToProgress:(float)progress {
     [self waveformScrubberView:_waveformView didSeek:progress];
+}
+
+// Through the same delegate callback a released pinch takes, so the fan-out
+// across pages and the persistence behave exactly as a real gesture's.
+- (void)debugSetWaveformZoom:(CGFloat)fraction {
+    if (!_waveformView) {
+        return;     // no page bound: nothing to clamp the value against
+    }
+    // Via the view's setter first, so what reaches the callback — and so the
+    // persisted value — is already held to the absolute range.
+    _waveformView.visibleFraction = fraction;
+    [self waveformScrubberView:_waveformView
+      didChangeVisibleFraction:_waveformView.visibleFraction];
 }
 
 - (AudioWaveformCache *)debugWaveformCache {

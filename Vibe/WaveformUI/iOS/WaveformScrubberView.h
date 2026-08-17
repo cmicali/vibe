@@ -7,7 +7,7 @@
 //  play position is fixed at the view's horizontal center and the zoomed
 //  waveform scrolls beneath it; a drag moves the content 1:1 and seeks on
 //  release, both ends give and spring back, a tap nudges to the tapped point
-//  in the visible window.
+//  in the visible window, and a pinch changes the zoom about the playhead.
 //
 
 #import <UIKit/UIKit.h>
@@ -21,13 +21,29 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)waveformScrubberView:(WaveformScrubberView *)view didSeek:(float)percentage;
 
-// A scrub is starting or has finished. The owner must stop any ANCESTOR scroll
-// view from scrolling for the duration: UIKit chains an inner scroll view's
+// A direct-manipulation gesture on the waveform — a scrub or a zoom pinch —
+// is starting or has finished. The owner must stop any ANCESTOR scroll view
+// from scrolling for the duration: UIKit chains an inner scroll view's
 // overscroll to an enclosing one, so while the pager can still scroll the way
 // the finger is going, the scrubber clamps at its end instead of bouncing.
 // Declining the pager's gesture is not enough — the chaining is decided from
 // geometry, not from which recognizer won.
 - (void)waveformScrubberView:(WaveformScrubberView *)view didChangeScrubbing:(BOOL)scrubbing;
+
+// Where the scrub currently sits, delivered as the content moves under the
+// finger. The owner renders it as the time the release will land on: the
+// playhead itself never moves, so the labels are the only place a scrub's
+// target is legible. Sent per frame of scroll — a receiver that formats must
+// guard on the value it actually displays.
+- (void)waveformScrubberView:(WaveformScrubberView *)view
+          didScrubToProgress:(CGFloat)progress;
+
+// The user pinched to a new zoom, delivered on release rather than per frame.
+// The owner shares one zoom across every page — a swipe must not change it —
+// and persists it; see Vibe/iOS/CLAUDE.md. The value is the REQUEST, which is
+// what must be stored: see visibleFraction.
+- (void)waveformScrubberView:(WaveformScrubberView *)view
+    didChangeVisibleFraction:(CGFloat)fraction;
 
 @end
 
@@ -61,6 +77,25 @@ NS_ASSUME_NONNULL_BEGIN
 // The scrub pan, so the pager can require it to fail. Owned by an inner scroll
 // view, hence not reachable through the view's own gestureRecognizers.
 @property (nonatomic, readonly) UIPanGestureRecognizer *scrubPanRecognizer;
+
+// The zoom pinch, so the pager can require it to fail as well.
+@property (nonatomic, readonly) UIPinchGestureRecognizer *zoomPinchRecognizer;
+
+// The DJ zoom level: the fraction of the track visible across the view, from
+// 1.0 (the whole track spans the view) down to a close-up. This is the user's
+// REQUEST, held only to the absolute design range — NOT necessarily what is
+// drawn. The geometry's own floor is applied by effectiveVisibleFraction, so a
+// layout that cannot afford this depth shallows the picture without rewriting
+// what the user asked for, and rotating back restores it.
+//
+// Persist THIS one. Persisting the effective value would let a launch in one
+// orientation permanently shallow a zoom the other could have drawn.
+@property (nonatomic) CGFloat visibleFraction;
+
+// What the view actually draws at: the request clamped against what this
+// geometry's settled bitmap can hold (WaveformZoomMath.h). Diagnostic as well
+// as internal — the two differing is the only outside sign the clamp ran.
+@property (nonatomic, readonly) CGFloat effectiveVisibleFraction;
 
 // Same contract as the mac view: reset ahead of a load (installing the
 // persisted style on first use), then hand snapshots to showWaveform:.

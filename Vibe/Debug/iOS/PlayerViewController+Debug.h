@@ -37,6 +37,12 @@
 // exactly as a real drag's release does.
 - (void)debugSeekToProgress:(float)progress;
 
+// The waveform zoom, through the same delegate callback a released pinch
+// takes: the fan-out across pages and the persistence behave as a real
+// gesture's. What is DRAWN is clamped further by each view's own geometry —
+// read waveformZoomEffective back to see whether that happened.
+- (void)debugSetWaveformZoom:(CGFloat)fraction;
+
 - (AudioWaveformCache *)debugWaveformCache;
 
 @end

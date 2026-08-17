@@ -87,6 +87,7 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" seek 90             # seconds; routes through the scrubber's didSeek path, so the seek-in-flight guard behaves as a real drag release
 "$S" open <path>         # file INSIDE the container (seed via launch-ios.sh); the FolderSession open-in-place path. Replaces the playlist, plays, AND expands the card
 "$S" expand_player       # the card, without a gesture; also: minimize_player. The shell presents it only on an open, so this is how to get to it otherwise
+"$S" set_waveform_zoom 0.12 # the DJ zoom, 0-1 = fraction of the track visible; through the same delegate callback a released pinch takes, so it fans out across pages and persists. Replies {waveformZoomRequested, waveformZoomEffective} — they DIFFER when the layout cannot draw the depth asked for, which is the only way to check the clamp
 "$S" select_tab playlist # or files, or search (the UISearchTab circle)
 VIBE_DEBUG_TIMEOUT=20 "$S" clear_caches   # blocks until both PINCaches are empty, like the mac verb
 ```
@@ -122,6 +123,12 @@ D=.claude/skills/vibe-debug/scripts/drive-ios.sh
 "$D" tap 201 250              # also: double_tap x y, press x y seconds, home
 "$D" drag 300 560 100 560 1.0 # x1 y1 x2 y2 [seconds] — give seconds for a 1:1 scrub
                               #   (the waveform drag), omit for a flick
+"$D" pinch 2.0 1.0            # scale velocity — the waveform zoom. The ONLY
+                              #   element-targeted verb: XCUITest has no
+                              #   coordinate multi-touch, so it finds the
+                              #   scrubber by accessibilityIdentifier and needs
+                              #   the card expanded. scale > 1 zooms in;
+                              #   velocity must be negative to zoom out
 "$D" status                   # {"ready": true|false, "appStale": true|false}
 "$D" stop                     # end the session
 ```

@@ -161,6 +161,23 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 [controller minimizePlayerAnimated:NO];
                 return VibeJSONString([controller debugActionSummary]);
             }),
+            // The zoom pinch is the other gesture the channel cannot
+            // synthesize. Both numbers come back because they are allowed to
+            // differ: what is asked for is persisted, what is drawn is clamped
+            // to what this layout's settled bitmap can hold.
+            VibeCmd(@"set_waveform_zoom <fraction>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                double fraction = 0;
+                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &fraction)) {
+                    return VibeErrorJSON(@"usage: set_waveform_zoom <fraction 0-1>");
+                }
+                [controller debugSetWaveformZoom:fraction];
+                NSDictionary *ui = [controller debugStateDictionary][@"ui"];
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"waveformZoomRequested": ui[@"waveformZoomRequested"] ?: @0,
+                    @"waveformZoomEffective": ui[@"waveformZoomEffective"] ?: @0,
+                });
+            }),
             VibeCmd(@"select_tab <playlist|files|search>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSString *identifier = tokens.count > 1 ? tokens[1] : nil;
                 if (![@[@"playlist", @"files", @"search"] containsObject:identifier ?: @""]) {

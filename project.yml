@@ -583,6 +583,9 @@ targets:
           - "$(SRCROOT)/Vibe/Audio/Metadata"
           - "$(SRCROOT)/Vibe/Audio/Waveform"
           - "$(SRCROOT)/Vibe/Audio/Analysis"
+          # WaveformZoomMath.h only: header-only, so nothing from the rendering
+          # half is compiled in here.
+          - "$(SRCROOT)/Vibe/WaveformUI"
           - "$(SRCROOT)/Vibe/Debug"
           - "$(SRCROOT)/Vibe/Mac/MainWindow"
           - "$(SRCROOT)/Vibe/Audio/Mac/Convert"

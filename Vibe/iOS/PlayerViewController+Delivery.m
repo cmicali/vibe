@@ -12,8 +12,16 @@
 #import "PlayerViewControllerInternal.h"
 #import "PlayerViewController+Pager.h"
 
+#import "AudioTrack.h"
+#import "Formatters.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
+#import "WaveformZoomMath.h"
+
+// The waveform zoom, kept here rather than in AppSettings for the same reason
+// FolderSession keeps its own two: it is an iOS-only value, and that class's
+// platform split is one #if TARGET_OS_OSX block with no iOS-only side.
+static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
 
 @implementation PlayerViewController (Delivery)
 
@@ -38,6 +46,39 @@
     [_playback seekToProgress:percentage];
 }
 
+// The scrub's target, in the time labels. The playhead is pinned at the view's
+// center and never moves, so without this a drag gives no reading at all of
+// where it will land — the waveform slides past and the labels keep counting
+// the position still playing.
+//
+// The duration falls back to the track's own, as the seek path does: a parked
+// track has none on the player, and scrubbing one is exactly how it gets
+// opened at a position.
+- (void)waveformScrubberView:(WaveformScrubberView *)view
+          didScrubToProgress:(CGFloat)progress {
+    if (view != _waveformView) {
+        return;  // a neighbor page's preview waveform does not drive the chrome
+    }
+    NSTimeInterval duration = _playback.duration;
+    if (duration <= 0) {
+        duration = _playback.currentTrack.duration;
+    }
+    if (duration <= 0) {
+        return;  // nothing to render against; the resting labels stand
+    }
+    NSTimeInterval position = MAX(0.0, MIN(1.0, progress)) * duration;
+    // This arrives per frame of scroll and the labels show whole seconds.
+    NSInteger second = (NSInteger)position;
+    if (second == _scrubLabelSecond) {
+        return;
+    }
+    _scrubLabelSecond = second;
+    _elapsedLabel.text = [[Formatters sharedInstance] durationStringFromTimeInterval:position];
+    // In total-duration mode this does not move during a scrub, which is
+    // correct: only the elapsed side tracks where the release will land.
+    _remainingLabel.text = VibeRightTimeText(position, duration);
+}
+
 // Hold the pager still for the length of a scrub. See the protocol comment:
 // while an enclosing scroll view can still scroll the way the finger is going,
 // UIKit chains the scrubber's overscroll into it and the band never appears —
@@ -49,6 +90,10 @@
 // next page while the finger is still down on the outgoing one. Filtering the
 // lift on the binding drops it, and the pager stays unswipeable.
 - (void)waveformScrubberView:(WaveformScrubberView *)view didChangeScrubbing:(BOOL)scrubbing {
+    // Whichever way this went, the labels' second guard is stale: a starting
+    // scrub must render its first frame, and a finished one hands the labels
+    // back to updatePlaybackUI at whatever the position turns out to be.
+    _scrubLabelSecond = NSIntegerMin;
     if (scrubbing) {
         _scrubbingView = view;
     }
@@ -59,6 +104,36 @@
         _scrubbingView = nil;
     }
     _pagesView.scrollEnabled = !scrubbing;
+}
+
+#pragma mark - Waveform zoom
+
+// One zoom for the whole pager: every page's scrubber draws at it, so a swipe
+// cannot change it and a page arriving mid-gesture comes up at the same depth.
+- (void)waveformScrubberView:(WaveformScrubberView *)view
+    didChangeVisibleFraction:(CGFloat)fraction {
+    if (fraction == _waveformZoom) {
+        return;
+    }
+    _waveformZoom = fraction;
+    for (TrackPageCell *cell in _pagesView.visibleCells) {
+        [self applyWaveformZoomToCell:cell];
+    }
+    // The REQUEST is what is stored. Persisting what a view drew would let a
+    // rotation, or a launch in the shallower orientation, permanently shallow
+    // a zoom the other one could have shown.
+    [NSUserDefaults.standardUserDefaults setDouble:fraction forKey:kWaveformZoomKey];
+}
+
+- (void)restoreWaveformZoom {
+    // A missing key reads back as 0, which the clamp sends to the default
+    // rather than to maximum zoom.
+    _waveformZoom = VibeWaveformClampRequestedFraction(
+            [NSUserDefaults.standardUserDefaults doubleForKey:kWaveformZoomKey]);
+}
+
+- (void)applyWaveformZoomToCell:(TrackPageCell *)cell {
+    cell.waveformView.visibleFraction = _waveformZoom;
 }
 
 @end

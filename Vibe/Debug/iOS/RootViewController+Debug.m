@@ -55,6 +55,10 @@
     return state;
 }
 
+- (void)debugSetWaveformZoom:(CGFloat)fraction {
+    [self.player debugSetWaveformZoom:fraction];
+}
+
 - (NSDictionary *)debugArtDictionary {
     return [self.player debugArtDictionary];
 }

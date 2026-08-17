@@ -34,6 +34,15 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// The right-hand time label's mode, and the one place the two spellings live.
+// NO — the default, and the macOS default — shows the track's total duration;
+// YES shows the minus-prefixed remaining time ("-1:50"). Tapping the label
+// toggles it, as it does on the mac. Every render path goes through
+// VibeRightTimeText so a scrub, a tick and a page at rest cannot disagree.
+BOOL VibeShowsRemainingTime(void);
+void VibeSetShowsRemainingTime(BOOL remaining);
+NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
+
 // These two conformances stay on the class because PlayerViewController.m
 // implements them. Every other one is declared on the category that implements
 // it, so the compiler checks each against the file that holds it.
@@ -91,6 +100,18 @@ NS_ASSUME_NONNULL_BEGIN
     // Whether the scene is foregrounded. Core state, here because the debug
     // channel's state dump reports it.
     BOOL                    _foreground;
+
+    // The whole second the time labels last rendered for a scrub. The scrub
+    // position arrives per frame of scroll and the labels show seconds, so
+    // this is what keeps a drag from formatting two strings at display rate.
+    // NSIntegerMin means "not scrubbing", so the first frame always renders.
+    NSInteger               _scrubLabelSecond;
+
+    // The waveform zoom, shared by every page's scrubber — the pager carries
+    // one per cell, so a swipe would otherwise change it. This is the user's
+    // REQUEST (see WaveformScrubberView.visibleFraction), which is what gets
+    // persisted; each view applies its own geometry's floor to it.
+    CGFloat                 _waveformZoom;
 }
 
 #pragma mark - The refresh funnel
@@ -127,6 +148,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)playPauseTapped;
 - (void)previousTapped;
 - (void)nextTapped;
+
+// The right time label's tap: flips total-vs-remaining and repaints every
+// visible page, since the mode is one setting rather than the tapped page's.
+- (void)remainingLabelTapped;
 
 @end
 
