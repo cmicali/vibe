@@ -6,6 +6,8 @@
 //
 
 #import "DebugCommonVerbs.h"
+// kLevelBandCount, for dump_levels.
+#import "AudioLevelMath.h"
 
 #if DEBUG
 
@@ -315,6 +317,40 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             // this verb an iOS run cannot see a stuck hold or a stranded
             // pending parse at all — and the hold lifecycle is the same code on
             // both. Both belong at zero once a sweep has settled.
+            // Whether the band-level tap is running, and what it last
+            // published. SHARED, and the macOS answer is the point of it being
+            // shared: the tap is iOS-only by a single nil levelSource rather
+            // than by compilation, so "macOS runs no FFT" is a claim about
+            // runtime state that only a runtime verb can check. It must read
+            // levelsEnabled:false there forever.
+            //
+            // On iOS it is also the only way to tell a working indicator from a
+            // broken one, because --silent zeroes the mixer the tap sits under
+            // and every band legitimately reads 0 — which a screenshot cannot
+            // distinguish from dead. The reply carries `silent` so a flat run
+            // explains itself.
+            VibeDebugCmd(@"dump_levels", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                AudioPlayer *player = surface.debugPlayer;
+                float levels[kLevelBandCount] = {0};
+                BOOL published = [player copyBandLevels:levels count:kLevelBandCount];
+                NSMutableArray<NSNumber *> *bands =
+                        [NSMutableArray arrayWithCapacity:kLevelBandCount];
+                for (NSUInteger i = 0; i < kLevelBandCount; i++) {
+                    [bands addObject:@(published ? levels[i] : 0)];
+                }
+                NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
+                return VibeJSONString(@{
+                    // NO means no tap is running at all — nothing playing, the
+                    // app backgrounded, no indicator on screen, or macOS —
+                    // which is a different answer from five zeroes.
+                    @"levelsEnabled": @(player.levelsEnabled),
+                    @"published": @(published),
+                    @"bands": bands,
+                    @"silent": @([arguments containsObject:@"--silent"]),
+                });
+            }),
             VibeDebugCmd(@"dump_cloud_health", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {

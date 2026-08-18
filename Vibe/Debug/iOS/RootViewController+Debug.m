@@ -64,30 +64,6 @@
     return [self.player debugArtDictionary];
 }
 
-// TRAP: launch.sh passes --silent by default, which zeroes mainMixerNode's
-// outputVolume — and the tap sits on that mixer's output, so every band reads
-// exactly 0 under a normal debug run. That is not a bug to fix by moving the
-// tap: upstream of the mute is upstream of the mixer, which means per-track and
-// re-plumbed on every crossfade. It is why this verb exists — a screenshot
-// cannot tell a flat run from a broken one, and this can.
-- (NSDictionary *)debugLevelsDictionary {
-    AudioPlayer *player = self.playback.debugPlayer;
-    float levels[kLevelBandCount] = {0};
-    BOOL published = [player copyBandLevels:levels count:kLevelBandCount];
-    NSMutableArray<NSNumber *> *bands = [NSMutableArray arrayWithCapacity:kLevelBandCount];
-    for (NSUInteger i = 0; i < kLevelBandCount; i++) {
-        [bands addObject:@(published ? levels[i] : 0)];
-    }
-    return @{
-        // NO means no tap is running at all — backgrounded, or nothing playing
-        // — which is a different answer from five zeroes.
-        @"levelsEnabled": @(player.levelsEnabled),
-        @"published": @(published),
-        @"bands": bands,
-        @"silent": @([NSProcessInfo.processInfo.arguments containsObject:@"--silent"]),
-    };
-}
-
 - (NSDictionary *)debugActionSummary {
     PlaybackController *playback = self.playback;
     return @{
