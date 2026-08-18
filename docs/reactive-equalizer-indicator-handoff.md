@@ -1,13 +1,11 @@
 # Handoff: the audio-reactive equalizer indicator
 
-Written 2026-08-18. **The feature is implemented and pushed; it has never been compiled.** This file is the pickup point for whoever takes it to green.
+Written 2026-08-18, **taken to green the same day** — every gate below now passes and the
+feature has been verified against both running apps. Kept because the design rationale, the
+traps and the tuning knobs are still the reference; the verification table records what was
+actually run rather than what was hoped.
 
-Branch `claude/live-eq-animation`, two commits on top of `ios-app` at `ca124c8`:
-
-```
-15aebb1 git: ignore Claude Code worktrees
-e39e705 ios: make the equalizer indicator follow the audio
-```
+Branch `claude/live-eq-animation`, on top of `ios-app` at `ca124c8`.
 
 It replaces `docs/future/reactive-equalizer-indicator.md`, which was the plan and is deleted in `e39e705`. Re-check every file:line below before trusting it — `AudioPlayer.m` moves often.
 
@@ -39,25 +37,71 @@ No `project.yml` change: `Vibe/Audio` and `Vibe/Controls` are already source ent
 
 | Gate | State |
 | --- | --- |
-| `make check-layout` | **passes** |
-| `make check-vocabulary` | **passes** |
-| `AudioLevelMath.h` arithmetic | **verified**, 45 assertions, 0 failures — but see below |
-| `make build` (macOS) | **NEVER RUN** |
-| `make build-ios` | **NEVER RUN** |
-| `make test` | **NEVER RUN** |
-| `make analyze CONFIG=Release` | **NEVER RUN** |
-| Anything against a running app | **NEVER RUN** |
+| `make check-layout` | passes |
+| `make check-vocabulary` | passes |
+| `make build` (macOS) | passes, no warnings |
+| `make build-ios` | passes, no warnings |
+| `make test` | passes — 694 cases, `AudioLevelMathTests` included |
+| `make analyze CONFIG=Release` | clean, both targets |
+| Runtime, iOS simulator | verified — see below |
+| Runtime, macOS | builds and runs; keyframe path unchanged by construction (see the layout trap) |
 
-The math was verified by compiling `AudioLevelMath.h` as plain C against a Foundation shim on Linux and running the same assertions `Tests/AudioLevelMathTests.m` makes — the authoring environment had no Xcode. That harness caught a real bug (adjacent bands overlapped by a bin, so one bin drove two bars; fixed by `VibeLevelBandEdgeBin`, which both ends of a band now share) and two wrong assertions. **`Tests/AudioLevelMathTests.m` itself has never been run by XCTest.** It is expected to pass; treat a failure there as a suite/compile problem first, not as a math problem.
+Nothing in the original diff failed to compile. Three defects were found *after* it compiled,
+all of them invisible to a compiler and to the host-less suite:
 
-## Do this first
+1. **`copyBandLevels:count:` was declared in the `(State)` category but implemented in the
+   main `@implementation`** — an `-Wincomplete-implementation` warning on both targets. It
+   never belonged in `(State)`, which is documented as taking the state lock; this one is
+   lock-free via the atomic `levelTap`. Moved beside `levelsEnabled`, the property that arms it.
+2. **`kLevelReferenceFloor` was three orders of magnitude below the noise it exists to
+   reject** — see the section below.
+3. **`layoutBars` hardcoded the collapsed pose**, which on iOS silently defeated the whole
+   feature — see the section below.
 
-1. `make build-ios CONFIG=Debug` and `make build`. **Expect to fix compile errors** — nothing here has met a compiler.
-2. `make test`. `AudioLevelMathTests` is new.
-3. `make analyze CONFIG=Release` — CI gates on Release, and this adds a `malloc`/`free` pair and a raw pointer captured by a block, which is exactly what the analyzer has opinions about.
-4. Runtime, per the section below.
+The math was originally verified by compiling `AudioLevelMath.h` as plain C against a Foundation shim on Linux and running the same assertions `Tests/AudioLevelMathTests.m` makes — the authoring environment had no Xcode. That harness caught a real bug (adjacent bands overlapped by a bin, so one bin drove two bars; fixed by `VibeLevelBandEdgeBin`, which both ends of a band now share) and two wrong assertions. The suite now runs under XCTest and passes.
 
-### Where a compiler is most likely to complain
+## The two defects the gates could not have caught
+
+Both were found by measuring the running app, and both are the kind of bug that ships looking
+fine: the feature was *on*, the tap was publishing, and nothing logged an error.
+
+### The reference floor sat below the noise floor
+
+`kLevelReferenceFloor` was `1e-7`. Measured 16-bit quantization noise is `1e-7..5e-7` in the
+unnormalized magnitude-squared units the tap works in — so the floor never engaged, and the
+per-band AGC divided each signal-free band by its own hiss. On a pure 220 Hz tone the two
+**emptiest** bands published the **highest** levels: bands 3 and 4 averaged 0.979 and 0.990
+against 0.669 for the band actually carrying the tone, whose energy was ten orders of
+magnitude greater. Five bars pinned near full scale is exactly the "drive them all from
+amplitude" look the feature exists to avoid.
+
+Raised to `1e-2`, measured against the sweep in the commit message: signal-free bands read
+0.000, and the band carrying the tone holds 0.669 unchanged down to -60 dBFS, so the AGC's
+"a quiet track still moves its bars" property survives. Two tests pin both halves.
+
+**Re-measure it if `kFrameSize` changes** — it is an absolute energy in unnormalized FFT
+units, which is why the constant carries a `TRAP:`.
+
+### `layoutBars` clobbered the reactive pose every frame
+
+It ended with a hardcoded `bar.transform = CATransform3DMakeScale(1, collapsed, 1)`. On macOS
+that is harmless — the row lays out once, and collapsed is the model value the keyframes
+animate around. On iOS a table cell lays out on **every displayed frame** (measured: 377
+`layoutBars` calls in 6 seconds), and `layoutSubviews` runs after the display link's write, so
+the reactive value was overwritten before it could ever render. The bars sat at exactly the
+dot pose while the tap published perfectly good levels — and `startLevelLink` early-returns
+when the link already exists, so nothing re-applied them.
+
+`layoutBars` now settles the **current** pose by calling `applyBarScales`, which resolves to
+exactly `collapsed` while no link is running. macOS is therefore unchanged by construction:
+same model value, same write.
+
+**This is why a screenshot was worth taking.** `dump_levels` reported healthy, differentiated
+bands the whole time. Only pixels showed the bars were dead — and note that macOS's
+`dump_screenshot` renders the *model* tree on glass-bearing windows, so it structurally cannot
+show the keyframe animation and must not be used to judge that path.
+
+### Where a compiler was most likely to complain (all clean)
 
 - **`[self displayLinkWithTarget:selector:]` in `EqualizerIndicatorView.m`.** `CADisplayLink`'s class constructor is UIKit-only; a mac link is minted from the view, and that method is macOS 14.0 — the deployment floor exactly. `CLANG_WARN_UNGUARDED_AVAILABILITY: YES_AGGRESSIVE` is on, so if the floor ever moves down this needs an `@available`.
 - **Cross-directory imports.** `Vibe/Controls/EqualizerIndicatorView.m` imports `AudioLevelMath.h` (from `Vibe/Audio/`) and `VibeWeakProxy.h` (from `Vibe/Util/`), relying on Xcode's project-wide headermap rather than a search path. Both are shared directories, so neither breaks the platform-boundary rule, but a headermap miss shows up here first.
@@ -68,6 +112,12 @@ The math was verified by compiling `AudioLevelMath.h` as plain C against a Found
 
 **TRAP: `launch-ios.sh` passes `--silent` by default, and it makes every band read exactly 0.** `--silent` zeroes `mainMixerNode.outputVolume` and the tap is downstream of that, so a normal debug run shows flat bars and a screenshot cannot tell that from broken. This is not a bug to fix by moving the tap: upstream of the mute is upstream of the mixer, which means per-track and re-plumbed on every crossfade. `--no-audio-hw` is fine — its pump still renders, so the tap still fires.
 
+**The touch driver re-arms this trap.** `drive-ios.sh` relaunches the app with the
+audio-silencing flags, so a `drive-ios.sh start` — or any gesture that finds the app dead —
+silently puts `--silent` back and every band returns to 0. Re-launch by hand
+(`simctl launch <udid> <bundle> --no-audio-hw`) after driving, and check the `silent` field in
+the reply rather than trusting the launch you remember.
+
 So: launch **without `--silent`**, then
 
 1. `debug-ios.sh dump_levels` repeatedly while a track plays. `levelsEnabled` true, `published` true, and the five `bands` values differing and moving. The reply carries `silent` so a flat run explains itself.
@@ -76,14 +126,40 @@ So: launch **without `--silent`**, then
 4. Pause → bars settle to the dot pose. Scroll the playing row off and back → it reattaches (`didMoveToWindowShared`).
 5. Background while playing → `levelsEnabled` goes false, nothing spent.
 6. macOS: the table indicator is unchanged and still runs keyframes.
-7. **Measure the CPU claim rather than asserting it.** The keyframe path costs zero per frame because Core Animation runs it on the render server, and this gives that up. Xcode's gauge, library visible and playing, against the same build with `levelsEnabled` forced false. A 1024-point real FFT ~47 times a second should be far under 0.1% of one core, but the number is the point.
+7. **Measure the CPU claim rather than asserting it.** The keyframe path costs zero per frame because Core Animation runs it on the render server, and this gives that up. A 1024-point real FFT ~47 times a second should be far under 0.1% of one core, but the number is the point.
+
+### The measured numbers
+
+Debug build, iPhone simulator, sustained 220 Hz tone playing, library visible with the card
+minimized, bars actively moving. Average CPU over three 20s windows, from cumulative CPU-time
+deltas — **not** `ps %cpu`, which averages over the whole process lifetime and hides the effect.
+The baseline is the same build with `levelSource` nil and `levelsEnabled` forced NO, which is
+the pre-feature behaviour exactly: canned keyframes, no tap.
+
+| State | CPU (one core) |
+| --- | --- |
+| Baseline — keyframes, no tap | 1.75% |
+| Tap only — FFT running, view on keyframes | 1.80–1.85% |
+| Full feature — tap + reactive bars | 1.80–1.95% |
+
+**The whole feature costs about 0.1 of a percentage point of one core**, and the FFT is the
+cheaper half of it. The claim holds.
+
+**TRAP: measure with the card MINIMIZED and say so.** The expanded now-playing card renders
+its own waveform and playhead and costs ~4% by itself, which swamps the indicator and reads as
+a catastrophic regression. An early reading here did exactly that before the card state was
+controlled for.
+
+Release could not be A/B'd this way: the debug command channel and the `--silent` /
+`--no-audio-hw` flags all compile out of Release, so a Release build can be neither driven nor
+kept quiet. Debug is the pessimistic case for the view half anyway.
 
 ## If it works but looks wrong
 
 Every knob is in `AudioLevelMath.h`, and each is one line:
 
 - bars slam to the floor between hits → `kLevelDynamicRangeDB` too narrow, or `kLevelReleaseSeconds` too short
-- bars twitch in quiet passages → range too wide, or `kLevelReferenceFloor` too low
+- bars twitch in quiet passages, or a band with no content reads bright → range too wide, or `kLevelReferenceFloor` too low. This one actually happened; see the defects section above before turning the knob
 - treble bars dead → the per-band AGC is not doing its job; check `VibeLevelBandBinRange` against the delivered sample rate
 - motion reads as the canned loop with a wobble → a keyframe animation survived alongside the reactive path; `startLevelLink` is what removes it
 
