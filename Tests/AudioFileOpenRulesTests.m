@@ -37,41 +37,4 @@
     XCTAssertEqual(state, VibeAudioFileOpenDeliveryRunning);
 }
 
-#pragma mark - The open's abandon deadline
-
-- (void)testNoProgressGetsTheWholeBaseline {
-    CFAbsoluteTime submitted = 1000;
-    XCTAssertEqual(VibeAudioOpenEffectiveDeadline(submitted, 0),
-                   submitted + kOpenNoProgressBudgetSeconds);
-}
-
-- (void)testAnEarlySampleCannotShortenTheBaseline {
-    // One sample at t+1 and silence after: the deadline is still the full
-    // baseline, never t+1 plus the stall budget. This is the max()'s whole
-    // point — a sparse or one-shot progress source degrades to no-progress,
-    // and feeding a sample is always safe.
-    CFAbsoluteTime submitted = 1000;
-    XCTAssertEqual(VibeAudioOpenEffectiveDeadline(submitted, submitted + 1),
-                   submitted + kOpenNoProgressBudgetSeconds);
-}
-
-- (void)testLateProgressExtendsPastTheBaseline {
-    // A sample near the baseline's edge pushes the deadline out by the stall
-    // budget: a healthy transfer that keeps moving is never abandoned merely
-    // for being long.
-    CFAbsoluteTime submitted = 1000;
-    CFAbsoluteTime sample = submitted + kOpenNoProgressBudgetSeconds - 1;
-    XCTAssertEqual(VibeAudioOpenEffectiveDeadline(submitted, sample),
-                   sample + kOpenStallBudgetSeconds);
-}
-
-- (void)testAStalledTransferRunsOutOfItsStallBudget {
-    // Progress that stops after the baseline: the deadline is the last
-    // sample plus the stall budget, and nothing extends it further.
-    CFAbsoluteTime submitted = 1000;
-    CFAbsoluteTime lastSample = submitted + kOpenNoProgressBudgetSeconds + 30;
-    CFAbsoluteTime deadline = VibeAudioOpenEffectiveDeadline(submitted, lastSample);
-    XCTAssertEqual(deadline, lastSample + kOpenStallBudgetSeconds);
-}
-
 @end

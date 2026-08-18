@@ -22,6 +22,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "DownloadProgressMonitor.h"
+#import "ForegroundContentHoldRules.h"
 #import "UIUpdateTimer.h"
 
 @implementation PlaybackController (PlayerEvents)
@@ -49,7 +50,9 @@
     [_metadataCache setCloudParsesHeld:YES];
 }
 
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track {
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+     didBeginLoading:(AudioTrack *)track
+openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (![_playlist isCurrentTrack:track]) {
         return;
     }
@@ -60,25 +63,26 @@
     // Best-effort determinate fill while the provider materializes the file.
     // The monitor drops a sample whose track has since changed; see
     // monitorReplacing:forURL:currentURL:handler:.
-    __weak PlaybackController *weakSelf = self;
-    _downloadMonitor = [DownloadProgressMonitor
-            monitorReplacing:_downloadMonitor
-                      forURL:track.url
-                  currentURL:^NSURL *{
-        PlaybackController *self = weakSelf;
-        return self ? self->_playlist.currentTrack.url : nil;
-    }                movement:^{
-        // The uncoalesced feed: any raw byte progress extends the open's
-        // abandon deadline — never the whole-percent fraction handler, whose
-        // gate can stay silent for tens of seconds on a huge slow file that
-        // is moving fine.
-        PlaybackController *self = weakSelf;
-        if (self) {
-            [self->_player noteOpenProgressForURL:track.url];
-        }
-    }                handler:^(float fraction) {
-        [weakSelf notifyDidUpdateLoadingProgress:fraction];
-    }];
+    if (!_downloadMonitor
+            || _downloadMonitorOpenRequestIdentifier != openRequestIdentifier) {
+        __weak PlaybackController *weakSelf = self;
+        _downloadMonitor = [DownloadProgressMonitor
+                monitorReplacing:_downloadMonitor
+                          forURL:track.url
+                      currentURL:^NSURL *{
+            PlaybackController *self = weakSelf;
+            return self ? self->_playlist.currentTrack.url : nil;
+        }                movement:^{
+            PlaybackController *self = weakSelf;
+            if (self) {
+                [self->_player
+                        noteOpenProgressForOpenRequestIdentifier:openRequestIdentifier];
+            }
+        }                handler:^(float fraction) {
+            [weakSelf notifyDidUpdateLoadingProgress:fraction];
+        }];
+        _downloadMonitorOpenRequestIdentifier = openRequestIdentifier;
+    }
     [self publishNowPlaying];
 }
 
@@ -113,6 +117,7 @@
     // download the same file.
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
+    _downloadMonitorOpenRequestIdentifier = 0;
     [self notifyDidRenderCurrentTrack];
     // Not a blanket "hide the loading indicator": the open landing says
     // nothing about the waveform decode, which may still be streaming over the
@@ -136,7 +141,8 @@
     [_player prefetchTrack:_playlist.hasNextTrack ? [_playlist trackAtIndex:nextIndex] : nil
                whenClaimed:^{
         PlaybackController *strongSelf = weakSelf;
-        if (!strongSelf || holdGeneration != strongSelf->_foregroundHoldGeneration) {
+        if (!strongSelf || !VibeForegroundContentHoldMayRelease(
+                holdGeneration, strongSelf->_foregroundHoldGeneration)) {
             return;
         }
         [strongSelf->_metadataCache setCloudParsesHeld:NO];
@@ -254,16 +260,8 @@
     _trackStartPending = NO;
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
+    _downloadMonitorOpenRequestIdentifier = 0;
     [_metadataCache setCloudParsesHeld:NO];
-    // Keep fetching the pick after a timed-out open, but only one that was
-    // still moving when the deadline ran out — a transfer that never showed
-    // progress is not chased. Same rule as the mac's
-    // MainPlayerController+PlayerEvents, which states the reasoning.
-    if ([error.domain isEqualToString:kVibeAudioErrorDomain]
-            && error.code == VibeAudioErrorFileOpenTimedOut && url
-            && [error.userInfo[kVibeAudioErrorOpenMadeProgressKey] boolValue]) {
-        [_metadataCache prependNeighborhoodURL:url];
-    }
     // Nothing is going to start now, so the deferred sweep stops waiting.
     [self startPendingMetadataLoad];
     [self notifyDidFailCurrentTrack];

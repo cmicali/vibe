@@ -32,6 +32,7 @@ NSString *VibeJSONString(NSDictionary *dict);
 NSString *VibeErrorJSON(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);
 
 BOOL VibeParseDouble(NSString *token, double *out);
+BOOL VibeParseNonnegativeInteger(NSString *token, NSUInteger *out);
 
 // The command table's per-verb spec — {usage, clientTimeout, handler} —
 // defined in DebugUtil.m. The client reads clientTimeout from it, so its

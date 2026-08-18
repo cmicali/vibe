@@ -17,13 +17,6 @@ extern NSString *const kVibeAudioErrorDomain;
 // deliveries can race a track change, so receivers must match it against the
 // current track before treating the error as the current track's.
 extern NSString *const kVibeAudioErrorTrackURLKey;
-// userInfo key on a timed-out open, NSNumber-boxed BOOL: whether the transfer
-// had shown any byte progress before the deadline ran out. It separates "big
-// and slow, nearly here" from "not moving at all", which the error code alone
-// cannot, and which decides whether continuing to fetch the file behind the
-// error is spending bandwidth usefully.
-extern NSString *const kVibeAudioErrorOpenMadeProgressKey;
-
 typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
     VibeAudioErrorFileOpenFailed = 1,
     VibeAudioErrorEngineStartFailed,

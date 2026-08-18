@@ -18,8 +18,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// dump_state, dump_now_playing, play_pause, next, previous, seek, open,
-// clear_caches.
+// Shared transport, state, loading-configuration, fake-cloud and cache verbs.
 NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void);
 
 // The three dump_state blocks both platforms answer identically — "player",

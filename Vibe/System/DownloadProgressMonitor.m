@@ -4,6 +4,7 @@
 //
 
 #import "DownloadProgressMonitor.h"
+#import "DownloadProgressRules.h"
 #if DEBUG
 #import "DownloadProgressMonitor+Debug.h"   // the fake progress, declared out of the shipping header
 #endif
@@ -82,7 +83,7 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
         _url = [url copy];
         _path = [url.path copy];
         _lastReported = -1;
-        _lastRawReported = -1;
+        _lastRawReported = 0;
     }
     return self;
 }
@@ -277,8 +278,8 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
             return;
         }
         float fraction = provider(url);
-        if (fraction <= 0) {
-            return; // nothing worth reporting: the indicator stays indeterminate, as with the poll
+        if (fraction < 0) {
+            return; // negative is the fake provider's "not mine" sentinel
         }
         if (fraction > self->_lastReported) {
             LogInfo(@"Download progress (fake): %.0f%% (%.1fs) %@", fraction * 100,
@@ -393,9 +394,12 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
     // moves real bytes without moving a whole percent is never abandoned as
     // stalled. The wobble guard doubles as the stall guard: a repeated or
     // backslid fraction feeds nothing.
-    if (_movementHandler && fraction > _lastRawReported) {
+    if (_movementHandler && VibeDownloadProgressIsMovement(_lastRawReported, fraction)) {
         _lastRawReported = fraction;
         _movementHandler();
+    }
+    if (!isfinite(fraction) || fraction < 0) {
+        return;
     }
     if (!_handler) {
         return;

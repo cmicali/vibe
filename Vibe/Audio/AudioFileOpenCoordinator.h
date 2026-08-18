@@ -25,6 +25,12 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenErrorCode) {
     // than reporting it — so it exists to keep "a completion always carries a
     // file or a reason" true by construction.
     VibeAudioFileOpenErrorAbandoned,
+    // The central path-wide materialization request stood down. Playback and
+    // prefetch do not normally yield, but the outer completion remains total
+    // if a role policy changes.
+    VibeAudioFileOpenErrorMaterializationYielded,
+    // The central path-wide request failed before AVAudioFile was attempted.
+    VibeAudioFileOpenErrorMaterializationFailed,
 };
 
 typedef NS_ENUM(NSInteger, VibeAudioFileOpenPurpose) {
@@ -37,16 +43,21 @@ typedef void (^VibeAudioFileOpenCompletion)(AVAudioFile * _Nullable file,
                                              NSError * _Nullable error,
                                              NSTimeInterval elapsed);
 
+typedef NS_ENUM(NSInteger, VibeAudioFileOpenClaimResult) {
+    VibeAudioFileOpenClaimResultClaimed = 0,
+    VibeAudioFileOpenClaimResultCancelled,
+};
+
 @interface AudioFileOpenToken : NSObject
 
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 
 // Stops this request from receiving a result whose completion-queue block has
-// not begun, and cancels any still-abortable cloud materialization. An open
-// which has already entered AVAudioFile is not cancellable: its path claim
-// stays registered until the call returns, so a same-path retry binds to it
-// rather than multiplying an uncancellable open.
+// not begun and detaches its path-wide materialization waiter. An AVAudioFile
+// open which has already begun is not cancellable: its purpose-keyed claim
+// stays registered until the call returns, so a same-purpose/path retry binds
+// to it rather than multiplying an uncancellable handle open.
 //
 // There is deliberately no detach-without-cancel variant. Cancellation is also
 // what marks the run abandoned, which is how a claim whose waiter left and came
@@ -54,14 +65,26 @@ typedef void (^VibeAudioFileOpenCompletion)(AVAudioFile * _Nullable file,
 // abandoned one's empty result.
 - (void)cancel;
 
+// Observes the token's own registration rather than a path-shaped intent in
+// AudioPlayer. An observer added before registration parks; one added after
+// settlement is delivered asynchronously exactly once. Claimed means the
+// request is atomically visible both here and, except for gapless, in the
+// path-wide materialization coordinator. It does not mean either worker has
+// admitted it. Cancellation or central rejection before that point settles
+// Cancelled.
+- (void)whenClaimedOnQueue:(dispatch_queue_t)queue
+                completion:(void (^)(VibeAudioFileOpenClaimResult result))completion;
+
 @end
 
 @interface AudioFileOpenCoordinator : NSObject
 
 + (instancetype)sharedCoordinator;
 
-// One current waiter per purpose and standardized path. A later request for
-// that key replaces the delivery binding without starting another operation.
+// One current AVAudioFile waiter per purpose and standardized path. A later
+// request for that key replaces the delivery binding without starting another
+// handle open. Playback and prefetch first join one path-wide materialization
+// claim across purposes; gapless opens a second local handle directly.
 // Completions run on completionQueue. An admission failure uses
 // VibeAudioFileOpenErrorAdmissionExhausted, distinct from a file open which
 // began and hit the player's ordinary per-file timeout.
@@ -70,24 +93,12 @@ typedef void (^VibeAudioFileOpenCompletion)(AVAudioFile * _Nullable file,
                  completionQueue:(dispatch_queue_t)completionQueue
                       completion:(VibeAudioFileOpenCompletion)completion;
 
-// openURL: plus an acknowledgement, fired once on completionQueue when the
-// request's claim is registered or joined — the point after which any
-// same-path query observes it. Registration, never admission: a parked
-// admission cannot delay it. This is what lets a caller order work after
-// "the claim exists" without polling.
+// Compatibility convenience over AudioFileOpenToken.whenClaimedOnQueue:.
 - (AudioFileOpenToken *)openURL:(NSURL *)url
                          purpose:(VibeAudioFileOpenPurpose)purpose
                  completionQueue:(dispatch_queue_t)completionQueue
                          claimed:(nullable dispatch_block_t)claimed
                       completion:(VibeAudioFileOpenCompletion)completion;
-
-// Whether a live claim, any purpose, is materializing this standardized path
-// right now. An advisory answer for scheduling — the metadata lane skips a
-// pending download whose bytes the player or its prefetch is already moving —
-// never proof of ownership: a claim can appear or settle the moment after it
-// answers, so a caller must tolerate both directions, and the lane does, by
-// re-asking when it picks and by standing a running parse aside.
-- (BOOL)isMaterializingURL:(NSURL *)url;
 
 @end
 

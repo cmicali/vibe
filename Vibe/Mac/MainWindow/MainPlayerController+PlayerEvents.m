@@ -16,6 +16,7 @@
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "DownloadProgressMonitor.h"
+#import "ForegroundContentHoldRules.h"
 #import "AudioFileConverter.h"
 #import "PlaylistController.h"
 #import "TrackDisplayController.h"
@@ -42,7 +43,9 @@
     [self.metadataCache setCloudParsesHeld:YES];
 }
 
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track {
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+     didBeginLoading:(AudioTrack *)track
+openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // Guarded like didStartPlaying:'s check: a stale delivery from a
     // superseded open must not load metadata, paint loading UI, or clear an
     // error mask for a track the playlist no longer points at.
@@ -65,20 +68,21 @@
     // Best-effort determinate fill while the provider materializes the file.
     // The monitor drops a sample whose track has since changed; see
     // monitorReplacing:forURL:currentURL:handler:.
-    __weak MainPlayerController *weakSelf = self;
-    _downloadMonitor = [DownloadProgressMonitor
-            monitorReplacing:_downloadMonitor
-                      forURL:track.url
-                  currentURL:^NSURL *{ return [weakSelf.playlistController currentTrack].url; }
-                    movement:^{
-        // The uncoalesced feed: any raw byte progress extends the open's
-        // abandon deadline. Deliberately not the fraction handler below,
-        // whose whole-percent gate can stay silent for tens of seconds on a
-        // huge slow file that is moving fine.
-        [weakSelf.audioPlayer noteOpenProgressForURL:track.url];
-    }                handler:^(float fraction) {
-        [weakSelf.trackDisplay setWaveformLoadingProgress:fraction];
-    }];
+    if (!_downloadMonitor
+            || _downloadMonitorOpenRequestIdentifier != openRequestIdentifier) {
+        __weak MainPlayerController *weakSelf = self;
+        _downloadMonitor = [DownloadProgressMonitor
+                monitorReplacing:_downloadMonitor
+                          forURL:track.url
+                      currentURL:^NSURL *{ return [weakSelf.playlistController currentTrack].url; }
+                        movement:^{
+            [weakSelf.audioPlayer
+                    noteOpenProgressForOpenRequestIdentifier:openRequestIdentifier];
+        }                handler:^(float fraction) {
+            [weakSelf.trackDisplay setWaveformLoadingProgress:fraction];
+        }];
+        _downloadMonitorOpenRequestIdentifier = openRequestIdentifier;
+    }
     // This runs after updateUI, which shows the pending track's art if it is
     // already resolved: the previous track's art must not outlive the shimmer.
     [_artworkController showPlaceholderForSlowLoad];
@@ -109,6 +113,7 @@
     [self clearErrorMask];
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
+    _downloadMonitorOpenRequestIdentifier = 0;
     // The cloud-lane hold is NOT released here: it rides until the successor
     // prefetch below acknowledges its claim, or the lane's next transfer and
     // the prefetch would race to download the same file.
@@ -144,7 +149,8 @@
     [self.audioPlayer prefetchTrack:[self.playlistController trackAtIndex:self.playlistController.currentIndex + 1]
                         whenClaimed:^{
         MainPlayerController *strongSelf = weakSelf;
-        if (!strongSelf || holdGeneration != strongSelf->_foregroundHoldGeneration) {
+        if (!strongSelf || !VibeForegroundContentHoldMayRelease(
+                holdGeneration, strongSelf->_foregroundHoldGeneration)) {
             return;
         }
         [strongSelf.metadataCache setCloudParsesHeld:NO];
@@ -295,23 +301,6 @@
         [self updateUI];
         return;
     }
-    // Keep fetching the pick after a timed-out open, but ONLY one that was
-    // still moving when the deadline ran out: ranked first, the serial lane's
-    // next download is the file the user asked for, so a retry lands fast —
-    // while the error UI stands and nothing auto-resumes playback. The entry
-    // drops on the next track change, and the lane's own attempt budget bounds
-    // a file that keeps failing.
-    //
-    // A transfer that showed no progress at all is the case this deliberately
-    // does NOT chase. Spending the provider's slot re-fetching a file that
-    // never arrived, unasked and behind a terminal error the user is looking
-    // at, buys nothing: the retry it would speed up is one that would fail the
-    // same way. It stays an ordinary sweep candidate.
-    if ([error.domain isEqualToString:kVibeAudioErrorDomain]
-            && error.code == VibeAudioErrorFileOpenTimedOut && failedURL
-            && [error.userInfo[kVibeAudioErrorOpenMadeProgressKey] boolValue]) {
-        [self.metadataCache prependNeighborhoodURL:failedURL];
-    }
     [self startPendingMetadataLoad];
     [[AppStats sharedInstance] playbackStopped];
     [self pauseUIUpdateTimer];
@@ -320,6 +309,7 @@
     _currentTrackDuration = 0;
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
+    _downloadMonitorOpenRequestIdentifier = 0;
     [self.metadataCache setCloudParsesHeld:NO];
     [self.trackDisplay hideWaveformLoadingIndicator];
     // Errors present inline, with no modal and no auto-skip. A sheet on this

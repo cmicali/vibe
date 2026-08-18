@@ -63,6 +63,7 @@ NS_ASSUME_NONNULL_BEGIN
     // Polls a materializing cloud file's size while an open is in flight; nil
     // otherwise.
     DownloadProgressMonitor *_downloadMonitor;
+    uint64_t                 _downloadMonitorOpenRequestIdentifier;
 
     // Stamped on every play at the pre-submit edge (willSubmitPlayForTrack:),
     // captured by didStartPlaying:'s prefetch acknowledgement, and compared at

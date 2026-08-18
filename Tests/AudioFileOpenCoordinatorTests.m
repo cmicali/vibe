@@ -8,6 +8,198 @@
 #import <AVFoundation/AVFoundation.h>
 
 #import "AudioFileOpenCoordinator.h"
+#import "AudioFileOpenCoordinatorInternal.h"
+#import "AudioFileMaterializationCoordinatorInternal.h"
+#import "AudioWorkScheduler.h"
+
+@class VibeOpenTestMaterializationHarness;
+
+@interface VibeOpenTestMaterializationOperation : NSObject <AudioFileMaterializationOperation>
+- (instancetype)initWithRole:(VibeAudioFileMaterializationRole)role
+                       harness:(VibeOpenTestMaterializationHarness *)harness;
+@property (nonatomic, readonly) VibeAudioFileMaterializationRole role;
+@property (nonatomic, readonly) NSUInteger cancellationCount;
+- (void)deferCancellationCompletion;
+- (void)completeReady;
+- (void)completeFailed;
+@end
+
+@interface VibeOpenTestMaterializationHarness : NSObject
+- (id<AudioFileMaterializationOperation>)operationForURL:(NSURL *)url
+                                                    role:(VibeAudioFileMaterializationRole)role;
+- (void)didStartOperation:(VibeOpenTestMaterializationOperation *)operation;
+- (BOOL)waitForStartedCount:(NSUInteger)count;
+- (BOOL)waitForCancellationCount:(NSUInteger)count;
+- (NSArray<VibeOpenTestMaterializationOperation *> *)startedOperations;
+- (void)completeAllReady;
+@end
+
+@implementation VibeOpenTestMaterializationOperation {
+    NSCondition *_condition;
+    __weak VibeOpenTestMaterializationHarness *_harness;
+    BOOL _finished;
+    BOOL _ready;
+    BOOL _defersCancellationCompletion;
+    NSUInteger _cancellationCount;
+}
+
+- (instancetype)initWithRole:(VibeAudioFileMaterializationRole)role
+                       harness:(VibeOpenTestMaterializationHarness *)harness {
+    self = [super init];
+    if (self) {
+        _role = role;
+        _harness = harness;
+        _condition = [[NSCondition alloc] init];
+    }
+    return self;
+}
+
+- (BOOL)runWithError:(NSError *__autoreleasing *)error {
+    [_harness didStartOperation:self];
+    [_condition lock];
+    while (!_finished) {
+        [_condition wait];
+    }
+    BOOL ready = _ready;
+    [_condition unlock];
+    if (!ready && error) {
+        *error = [NSError errorWithDomain:NSCocoaErrorDomain
+                                     code:NSUserCancelledError userInfo:nil];
+    }
+    return ready;
+}
+
+- (void)cancel {
+    [_condition lock];
+    _cancellationCount++;
+    if (!_defersCancellationCompletion) {
+        _finished = YES;
+        _ready = NO;
+        [_condition broadcast];
+    }
+    [_condition unlock];
+}
+
+- (void)deferCancellationCompletion {
+    [_condition lock];
+    _defersCancellationCompletion = YES;
+    [_condition unlock];
+}
+
+- (void)completeReady {
+    [_condition lock];
+    if (!_finished) {
+        _finished = YES;
+        _ready = YES;
+        [_condition broadcast];
+    }
+    [_condition unlock];
+}
+
+- (void)completeFailed {
+    [_condition lock];
+    if (!_finished) {
+        _finished = YES;
+        _ready = NO;
+        [_condition broadcast];
+    }
+    [_condition unlock];
+}
+
+- (NSUInteger)cancellationCount {
+    [_condition lock];
+    NSUInteger count = _cancellationCount;
+    [_condition unlock];
+    return count;
+}
+
+@end
+
+@implementation VibeOpenTestMaterializationHarness {
+    NSCondition *_condition;
+    NSMutableArray<VibeOpenTestMaterializationOperation *> *_operations;
+    NSMutableArray<VibeOpenTestMaterializationOperation *> *_startedOperations;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _condition = [[NSCondition alloc] init];
+        _operations = [NSMutableArray array];
+        _startedOperations = [NSMutableArray array];
+    }
+    return self;
+}
+
+- (id<AudioFileMaterializationOperation>)operationForURL:(NSURL *)url
+                                                    role:(VibeAudioFileMaterializationRole)role {
+    VibeOpenTestMaterializationOperation *operation =
+            [[VibeOpenTestMaterializationOperation alloc] initWithRole:role harness:self];
+    [_condition lock];
+    [_operations addObject:operation];
+    [_condition broadcast];
+    [_condition unlock];
+    return operation;
+}
+
+- (void)didStartOperation:(VibeOpenTestMaterializationOperation *)operation {
+    [_condition lock];
+    [_startedOperations addObject:operation];
+    [_condition broadcast];
+    [_condition unlock];
+}
+
+- (BOOL)waitForStartedCount:(NSUInteger)count {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:2];
+    [_condition lock];
+    while (_startedOperations.count < count) {
+        if (![_condition waitUntilDate:deadline]) {
+            [_condition unlock];
+            return NO;
+        }
+    }
+    [_condition unlock];
+    return YES;
+}
+
+- (BOOL)waitForCancellationCount:(NSUInteger)count {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:2];
+    [_condition lock];
+    while (YES) {
+        NSArray *operations = [_operations copy];
+        [_condition unlock];
+        NSUInteger total = 0;
+        for (VibeOpenTestMaterializationOperation *operation in operations) {
+            total += operation.cancellationCount;
+        }
+        if (total >= count) {
+            return YES;
+        }
+        if (deadline.timeIntervalSinceNow <= 0) {
+            return NO;
+        }
+        [_condition lock];
+        [_condition waitUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    }
+}
+
+- (NSArray<VibeOpenTestMaterializationOperation *> *)startedOperations {
+    [_condition lock];
+    NSArray *operations = [_startedOperations copy];
+    [_condition unlock];
+    return operations;
+}
+
+- (void)completeAllReady {
+    [_condition lock];
+    NSArray *operations = [_operations copy];
+    [_condition unlock];
+    for (VibeOpenTestMaterializationOperation *operation in operations) {
+        [operation completeReady];
+    }
+}
+
+@end
 
 @interface AudioFileOpenCoordinatorTests : XCTestCase
 @end
@@ -68,6 +260,184 @@
     return url;
 }
 
+- (AudioFileOpenCoordinator *)coordinatorWithStateQueue:(dispatch_queue_t)stateQueue
+                                    backgroundScheduler:(AudioWorkScheduler *)backgroundScheduler {
+    return [self coordinatorWithStateQueue:stateQueue
+                        backgroundScheduler:backgroundScheduler
+                 materializationCoordinator:
+                         [AudioFileMaterializationCoordinator sharedCoordinator]];
+}
+
+- (AudioFileOpenCoordinator *)coordinatorWithStateQueue:(dispatch_queue_t)stateQueue
+                                    backgroundScheduler:(AudioWorkScheduler *)backgroundScheduler
+                             materializationCoordinator:
+                                     (AudioFileMaterializationCoordinator *)materializationCoordinator {
+    AudioWorkScheduler *playbackScheduler = [[AudioWorkScheduler alloc]
+            initWithLabel:@"com.vibe.tests.open.playback"
+            qualityOfService:QOS_CLASS_USER_INITIATED
+            maximumRunningCount:1 maximumPendingCount:1 pendingGrace:5];
+    AudioWorkScheduler *background = backgroundScheduler ?: [[AudioWorkScheduler alloc]
+            initWithLabel:@"com.vibe.tests.open.background"
+            qualityOfService:QOS_CLASS_UTILITY
+            maximumRunningCount:1 maximumPendingCount:2 pendingGrace:5];
+    return [[AudioFileOpenCoordinator alloc] initWithStateQueue:stateQueue
+            playbackScheduler:playbackScheduler backgroundScheduler:background
+            materializationCoordinator:materializationCoordinator];
+}
+
+- (AudioFileMaterializationCoordinator *)materializationCoordinatorWithHarness:
+        (VibeOpenTestMaterializationHarness *)harness {
+    return [self materializationCoordinatorWithHarness:harness
+            configuration:[AudioLoadingConfiguration productionConfiguration]];
+}
+
+- (AudioFileMaterializationCoordinator *)materializationCoordinatorWithHarness:
+        (VibeOpenTestMaterializationHarness *)harness
+        configuration:(AudioLoadingConfiguration *)configuration {
+    return [[AudioFileMaterializationCoordinator alloc]
+            initWithConfiguration:configuration
+            operationFactory:^id<AudioFileMaterializationOperation>(
+                    NSURL *url, VibeAudioFileMaterializationRole role) {
+        return [harness operationForURL:url role:role];
+    } clock:^NSTimeInterval{
+        return NSProcessInfo.processInfo.systemUptime;
+    }];
+}
+
+#pragma mark - Claim observation
+
+- (void)testWhenClaimedWaitsUntilStateQueueRegistersTheClaim {
+    dispatch_queue_t stateQueue = dispatch_queue_create(
+            "com.vibe.tests.open.blocked-state", DISPATCH_QUEUE_SERIAL);
+    dispatch_semaphore_t gate = dispatch_semaphore_create(0);
+    dispatch_async(stateQueue, ^{
+        dispatch_semaphore_wait(gate, DISPATCH_TIME_FOREVER);
+    });
+    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:stateQueue
+                                                        backgroundScheduler:nil];
+    NSURL *url = [self writeToneNamed:@"claim-waits.wav"];
+    AudioFileOpenToken *token = [coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposePlayback
+            completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {}];
+    XCTestExpectation *early = [self expectationWithDescription:@"claim not registered early"];
+    early.inverted = YES;
+    [token whenClaimedOnQueue:_completionQueue completion:^(VibeAudioFileOpenClaimResult result) {
+        [early fulfill];
+    }];
+    [self waitForExpectations:@[early] timeout:0.05];
+    XCTestExpectation *claimed = [self expectationWithDescription:@"claim registered"];
+    [token whenClaimedOnQueue:_completionQueue completion:^(VibeAudioFileOpenClaimResult result) {
+        XCTAssertEqual(result, VibeAudioFileOpenClaimResultClaimed);
+        [claimed fulfill];
+    }];
+    dispatch_semaphore_signal(gate);
+    [self waitForExpectations:@[claimed] timeout:5];
+}
+
+- (void)testMultipleObserversFireOnceForOneRegistration {
+    NSURL *url = [self writeToneNamed:@"claim-observers.wav"];
+    AudioFileOpenToken *token = [_coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposePlayback
+            completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {}];
+    XCTestExpectation *first = [self expectationWithDescription:@"first observer"];
+    XCTestExpectation *second = [self expectationWithDescription:@"second observer"];
+    [token whenClaimedOnQueue:_completionQueue completion:^(VibeAudioFileOpenClaimResult result) {
+        XCTAssertEqual(result, VibeAudioFileOpenClaimResultClaimed);
+        [first fulfill];
+    }];
+    [token whenClaimedOnQueue:_completionQueue completion:^(VibeAudioFileOpenClaimResult result) {
+        XCTAssertEqual(result, VibeAudioFileOpenClaimResultClaimed);
+        [second fulfill];
+    }];
+    [self waitForExpectations:@[first, second] timeout:5];
+}
+
+- (void)testObserverAddedAfterRegistrationFiresExactlyOnce {
+    NSURL *url = [self writeToneNamed:@"claim-late-observer.wav"];
+    AudioFileOpenToken *token = [_coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposePlayback
+            completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {}];
+    XCTestExpectation *registered = [self expectationWithDescription:@"registered"];
+    [token whenClaimedOnQueue:_completionQueue completion:^(VibeAudioFileOpenClaimResult result) {
+        [registered fulfill];
+    }];
+    [self waitForExpectations:@[registered] timeout:5];
+    XCTestExpectation *late = [self expectationWithDescription:@"late observer"];
+    late.expectedFulfillmentCount = 1;
+    [token whenClaimedOnQueue:_completionQueue completion:^(VibeAudioFileOpenClaimResult result) {
+        XCTAssertEqual(result, VibeAudioFileOpenClaimResultClaimed);
+        [late fulfill];
+    }];
+    [self waitForExpectations:@[late] timeout:5];
+}
+
+- (void)testCancellationBeforeRegistrationSettlesCancelled {
+    dispatch_queue_t stateQueue = dispatch_queue_create(
+            "com.vibe.tests.open.cancelled-state", DISPATCH_QUEUE_SERIAL);
+    dispatch_semaphore_t gate = dispatch_semaphore_create(0);
+    dispatch_async(stateQueue, ^{
+        dispatch_semaphore_wait(gate, DISPATCH_TIME_FOREVER);
+    });
+    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:stateQueue
+                                                        backgroundScheduler:nil];
+    NSURL *url = [self writeToneNamed:@"claim-cancelled.wav"];
+    AudioFileOpenToken *token = [coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposePlayback
+            completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        XCTFail(@"cancelled token must not deliver");
+    }];
+    XCTestExpectation *cancelled = [self expectationWithDescription:@"cancelled before claim"];
+    [token whenClaimedOnQueue:_completionQueue completion:^(VibeAudioFileOpenClaimResult result) {
+        XCTAssertEqual(result, VibeAudioFileOpenClaimResultCancelled);
+        [cancelled fulfill];
+    }];
+    [token cancel];
+    [self waitForExpectations:@[cancelled] timeout:5];
+    dispatch_semaphore_signal(gate);
+}
+
+- (void)testClaimAcknowledgementDoesNotWaitForBackgroundAdmission {
+    AudioWorkScheduler *background = [[AudioWorkScheduler alloc]
+            initWithLabel:@"com.vibe.tests.open.occupied-background"
+            qualityOfService:QOS_CLASS_UTILITY
+            maximumRunningCount:1 maximumPendingCount:1 pendingGrace:5];
+    dispatch_semaphore_t gate = dispatch_semaphore_create(0);
+    [background submitWork:^{
+        dispatch_semaphore_wait(gate, DISPATCH_TIME_FOREVER);
+    } failureQueue:_completionQueue admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {}];
+    VibeOpenTestMaterializationHarness *harness =
+            [[VibeOpenTestMaterializationHarness alloc] init];
+    AudioFileMaterializationCoordinator *materialization =
+            [self materializationCoordinatorWithHarness:harness];
+    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:
+            dispatch_queue_create("com.vibe.tests.open.claim-before-admit", DISPATCH_QUEUE_SERIAL)
+            backgroundScheduler:background materializationCoordinator:materialization];
+    NSURL *url = [self writeToneNamed:@"claim-before-admission.wav"];
+    XCTestExpectation *opened = [self expectationWithDescription:@"opened after admission"];
+    AudioFileOpenToken *token = [coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposePrefetch
+            completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertNotNil(file);
+        XCTAssertNil(error);
+        [opened fulfill];
+    }];
+    XCTestExpectation *claimed = [self expectationWithDescription:@"claim before admission"];
+    [token whenClaimedOnQueue:_completionQueue completion:^(VibeAudioFileOpenClaimResult result) {
+        XCTAssertEqual(result, VibeAudioFileOpenClaimResultClaimed);
+        [claimed fulfill];
+    }];
+    XCTAssertTrue([harness waitForStartedCount:1]);
+    [self waitForExpectations:@[claimed] timeout:5];
+    [harness completeAllReady];
+    dispatch_semaphore_signal(gate);
+    [self waitForExpectations:@[opened] timeout:5];
+}
+
 #pragma mark - The completion contract
 
 - (void)testAnOpenDeliversTheFile {
@@ -84,7 +454,7 @@
     [self waitForExpectations:@[opened] timeout:5];
 }
 
-// The invariant every caller depends on: a completion carries a file, or a
+// The guarantee every caller depends on: a completion carries a file, or a
 // reason there is none. Nothing may hand out nil/nil, because callers read
 // error.code and log error.localizedDescription off it.
 - (void)testAMissingFileFailsWithAnErrorRatherThanSilently {
@@ -155,6 +525,73 @@
     [self waitForExpectations:@[delivered] timeout:5];
 }
 
+- (void)testARebindWhileAnAbandonedHandleOpenReturnsGetsAFreshRun {
+    NSURL *url = [self writeToneNamed:@"controlled-rebound.wav"];
+    dispatch_semaphore_t firstOpenBegan = dispatch_semaphore_create(0);
+    dispatch_semaphore_t releaseFirstOpen = dispatch_semaphore_create(0);
+    NSLock *countLock = [[NSLock alloc] init];
+    __block NSUInteger openCount = 0;
+    VibeAudioFileOpener opener = ^AVAudioFile *(NSURL *openURL, NSError **error) {
+        [countLock lock];
+        NSUInteger invocation = ++openCount;
+        [countLock unlock];
+        if (invocation == 1) {
+            dispatch_semaphore_signal(firstOpenBegan);
+            dispatch_semaphore_wait(releaseFirstOpen, DISPATCH_TIME_FOREVER);
+            return nil;
+        }
+        return [[AVAudioFile alloc] initForReading:openURL error:error];
+    };
+    AudioWorkScheduler *playbackScheduler = [[AudioWorkScheduler alloc]
+            initWithLabel:@"com.vibe.tests.open.controlled-playback"
+            qualityOfService:QOS_CLASS_USER_INITIATED
+            maximumRunningCount:1 maximumPendingCount:1 pendingGrace:5];
+    AudioWorkScheduler *backgroundScheduler = [[AudioWorkScheduler alloc]
+            initWithLabel:@"com.vibe.tests.open.controlled-background"
+            qualityOfService:QOS_CLASS_UTILITY
+            maximumRunningCount:1 maximumPendingCount:1 pendingGrace:5];
+    AudioFileOpenCoordinator *coordinator = [[AudioFileOpenCoordinator alloc]
+            initWithStateQueue:dispatch_queue_create(
+                    "com.vibe.tests.open.controlled-rebind", DISPATCH_QUEUE_SERIAL)
+            playbackScheduler:playbackScheduler
+            backgroundScheduler:backgroundScheduler
+            materializationCoordinator:[AudioFileMaterializationCoordinator sharedCoordinator]
+            fileOpener:opener];
+
+    XCTestExpectation *oldSilent = [self expectationWithDescription:@"old handle waiter silent"];
+    oldSilent.inverted = YES;
+    AudioFileOpenToken *first = [coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposeGapless completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        [oldSilent fulfill];
+    }];
+    XCTAssertEqual(dispatch_semaphore_wait(firstOpenBegan,
+            dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0);
+    [first cancel];
+
+    XCTestExpectation *secondClaimed = [self expectationWithDescription:@"new handle waiter claimed"];
+    XCTestExpectation *secondOpened = [self expectationWithDescription:@"fresh handle run opened"];
+    AudioFileOpenToken *second = [coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposeGapless completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertNotNil(file);
+        XCTAssertNil(error);
+        [secondOpened fulfill];
+    }];
+    [second whenClaimedOnQueue:_completionQueue completion:^(VibeAudioFileOpenClaimResult result) {
+        XCTAssertEqual(result, VibeAudioFileOpenClaimResultClaimed);
+        [secondClaimed fulfill];
+    }];
+    [self waitForExpectations:@[secondClaimed] timeout:2];
+    dispatch_semaphore_signal(releaseFirstOpen);
+    [self waitForExpectations:@[secondOpened] timeout:2];
+    [self waitForExpectations:@[oldSilent] timeout:0.1];
+    [countLock lock];
+    NSUInteger deliveredOpenCount = openCount;
+    [countLock unlock];
+    XCTAssertEqual(deliveredOpenCount, 2u);
+}
+
 // Same purpose, same path, no cancel: the second request replaces the first as
 // the claim's waiter rather than starting a second open of the same file.
 - (void)testASamePathRequestRebindsDeliveryToTheLatestWaiter {
@@ -221,6 +658,294 @@
     }];
     [self waitForExpectations:@[playback] timeout:5];
     [self waitForExpectations:@[prefetchSilent] timeout:0.5];
+}
+
+#pragma mark - Path-wide materialization integration
+
+- (void)testPurposesMapToCentralRolesAndGaplessBypassesMaterialization {
+    VibeOpenTestMaterializationHarness *harness =
+            [[VibeOpenTestMaterializationHarness alloc] init];
+    AudioFileMaterializationCoordinator *materialization =
+            [self materializationCoordinatorWithHarness:harness];
+    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:
+            dispatch_queue_create("com.vibe.tests.open.roles", DISPATCH_QUEUE_SERIAL)
+            backgroundScheduler:nil materializationCoordinator:materialization];
+    NSURL *playURL = [self writeToneNamed:@"role-playback.wav"];
+    NSURL *prefetchURL = [self writeToneNamed:@"role-prefetch.wav"];
+    NSURL *gaplessURL = [self writeToneNamed:@"role-gapless.wav"];
+    XCTestExpectation *play = [self expectationWithDescription:@"play opened"];
+    XCTestExpectation *prefetch = [self expectationWithDescription:@"prefetch opened"];
+    XCTestExpectation *gapless = [self expectationWithDescription:@"gapless opened"];
+    __unused AudioFileOpenToken *playToken = [coordinator openURL:playURL
+            purpose:VibeAudioFileOpenPurposePlayback completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertNotNil(file);
+        [play fulfill];
+    }];
+    __unused AudioFileOpenToken *prefetchToken = [coordinator openURL:prefetchURL
+            purpose:VibeAudioFileOpenPurposePrefetch completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertNotNil(file);
+        [prefetch fulfill];
+    }];
+    XCTAssertTrue([harness waitForStartedCount:2]);
+    NSSet<NSNumber *> *roles = [NSSet setWithArray:
+            [[harness.startedOperations valueForKey:@"role"] copy]];
+    XCTAssertTrue([roles containsObject:@(VibeAudioFileMaterializationRolePlayback)]);
+    XCTAssertTrue([roles containsObject:@(VibeAudioFileMaterializationRolePrefetch)]);
+
+    __unused AudioFileOpenToken *gaplessToken = [coordinator openURL:gaplessURL
+            purpose:VibeAudioFileOpenPurposeGapless completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertNotNil(file);
+        [gapless fulfill];
+    }];
+    [self waitForExpectations:@[gapless] timeout:2];
+    XCTAssertEqual(harness.startedOperations.count, 2u);
+    [harness completeAllReady];
+    [self waitForExpectations:@[play, prefetch] timeout:2];
+}
+
+- (void)testPlaybackAndPrefetchShareOneMaterializationThenOpenSeparateHandles {
+    VibeOpenTestMaterializationHarness *harness =
+            [[VibeOpenTestMaterializationHarness alloc] init];
+    AudioFileMaterializationCoordinator *materialization =
+            [self materializationCoordinatorWithHarness:harness];
+    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:
+            dispatch_queue_create("com.vibe.tests.open.shared-materialization", DISPATCH_QUEUE_SERIAL)
+            backgroundScheduler:nil materializationCoordinator:materialization];
+    NSURL *url = [self writeToneNamed:@"shared-materialization.wav"];
+    XCTestExpectation *playClaimed = [self expectationWithDescription:@"play registered"];
+    XCTestExpectation *prefetchClaimed = [self expectationWithDescription:@"prefetch registered"];
+    XCTestExpectation *playOpened = [self expectationWithDescription:@"play handle"];
+    XCTestExpectation *prefetchOpened = [self expectationWithDescription:@"prefetch handle"];
+    __block AVAudioFile *playFile = nil;
+    __block AVAudioFile *prefetchFile = nil;
+    AudioFileOpenToken *playToken = [coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposePlayback completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        playFile = file;
+        [playOpened fulfill];
+    }];
+    [playToken whenClaimedOnQueue:_completionQueue
+                       completion:^(VibeAudioFileOpenClaimResult result) {
+        XCTAssertEqual(result, VibeAudioFileOpenClaimResultClaimed);
+        [playClaimed fulfill];
+    }];
+    XCTAssertTrue([harness waitForStartedCount:1]);
+    AudioFileOpenToken *prefetchToken = [coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposePrefetch completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        prefetchFile = file;
+        [prefetchOpened fulfill];
+    }];
+    [prefetchToken whenClaimedOnQueue:_completionQueue
+                           completion:^(VibeAudioFileOpenClaimResult result) {
+        XCTAssertEqual(result, VibeAudioFileOpenClaimResultClaimed);
+        [prefetchClaimed fulfill];
+    }];
+    [self waitForExpectations:@[playClaimed, prefetchClaimed] timeout:2];
+    VibeAudioFileMaterializationCoordinatorSnapshot snapshot =
+            [materialization stateSnapshotForTesting];
+    XCTAssertEqual(snapshot.claimCount, 1u);
+    XCTAssertEqual(snapshot.waiterCount, 2u);
+    XCTAssertEqual(harness.startedOperations.count, 1u);
+    [harness completeAllReady];
+    [self waitForExpectations:@[playOpened, prefetchOpened] timeout:2];
+    XCTAssertNotNil(playFile);
+    XCTAssertNotNil(prefetchFile);
+    XCTAssertNotEqual(playFile, prefetchFile);
+}
+
+- (void)testSamePurposeRebindAndOldCancellationKeepOneCentralOperation {
+    VibeOpenTestMaterializationHarness *harness =
+            [[VibeOpenTestMaterializationHarness alloc] init];
+    AudioFileMaterializationCoordinator *materialization =
+            [self materializationCoordinatorWithHarness:harness];
+    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:
+            dispatch_queue_create("com.vibe.tests.open.rebind-materialization", DISPATCH_QUEUE_SERIAL)
+            backgroundScheduler:nil materializationCoordinator:materialization];
+    NSURL *url = [self writeToneNamed:@"rebind-materialization.wav"];
+    XCTestExpectation *firstSilent = [self expectationWithDescription:@"old waiter silent"];
+    firstSilent.inverted = YES;
+    AudioFileOpenToken *first = [coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposePlayback completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        [firstSilent fulfill];
+    }];
+    XCTAssertTrue([harness waitForStartedCount:1]);
+    XCTestExpectation *secondClaimed = [self expectationWithDescription:@"new waiter registered"];
+    XCTestExpectation *secondOpened = [self expectationWithDescription:@"new waiter opened"];
+    AudioFileOpenToken *second = [coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposePlayback completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertNotNil(file);
+        [secondOpened fulfill];
+    }];
+    [second whenClaimedOnQueue:_completionQueue completion:^(VibeAudioFileOpenClaimResult result) {
+        XCTAssertEqual(result, VibeAudioFileOpenClaimResultClaimed);
+        [secondClaimed fulfill];
+    }];
+    [self waitForExpectations:@[secondClaimed] timeout:2];
+    [first cancel];
+    XCTAssertEqual(harness.startedOperations.count, 1u);
+    XCTAssertEqual(harness.startedOperations.firstObject.cancellationCount, 0u);
+    [harness completeAllReady];
+    [self waitForExpectations:@[secondOpened] timeout:2];
+    [self waitForExpectations:@[firstSilent] timeout:0.1];
+}
+
+- (void)testCancellingCurrentWaiterDetachesTheCentralRequest {
+    VibeOpenTestMaterializationHarness *harness =
+            [[VibeOpenTestMaterializationHarness alloc] init];
+    AudioFileMaterializationCoordinator *materialization =
+            [self materializationCoordinatorWithHarness:harness];
+    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:
+            dispatch_queue_create("com.vibe.tests.open.cancel-materialization", DISPATCH_QUEUE_SERIAL)
+            backgroundScheduler:nil materializationCoordinator:materialization];
+    NSURL *url = [self writeToneNamed:@"cancel-materialization.wav"];
+    XCTestExpectation *silent = [self expectationWithDescription:@"cancelled delivery"];
+    silent.inverted = YES;
+    AudioFileOpenToken *token = [coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposePlayback completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        [silent fulfill];
+    }];
+    XCTAssertTrue([harness waitForStartedCount:1]);
+    [token cancel];
+    XCTAssertTrue([harness waitForCancellationCount:1]);
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:2];
+    while ([materialization stateSnapshotForTesting].claimCount != 0
+            && deadline.timeIntervalSinceNow > 0) {
+        [NSThread sleepForTimeInterval:0.005];
+    }
+    XCTAssertEqual([materialization stateSnapshotForTesting].claimCount, 0u);
+    [self waitForExpectations:@[silent] timeout:0.1];
+}
+
+- (void)testOuterRebindJoinsAndRestartsADelayedCancelledMaterialization {
+    VibeOpenTestMaterializationHarness *harness =
+            [[VibeOpenTestMaterializationHarness alloc] init];
+    AudioFileMaterializationCoordinator *materialization =
+            [self materializationCoordinatorWithHarness:harness];
+    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:
+            dispatch_queue_create("com.vibe.tests.open.delayed-central-rebind",
+                                  DISPATCH_QUEUE_SERIAL)
+            backgroundScheduler:nil materializationCoordinator:materialization];
+    NSURL *url = [self writeToneNamed:@"delayed-central-rebind.wav"];
+    XCTestExpectation *oldSilent = [self expectationWithDescription:@"cancelled outer waiter silent"];
+    oldSilent.inverted = YES;
+    AudioFileOpenToken *old = [coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposePlayback completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        [oldSilent fulfill];
+    }];
+    XCTAssertTrue([harness waitForStartedCount:1]);
+    VibeOpenTestMaterializationOperation *first = harness.startedOperations.firstObject;
+    [first deferCancellationCompletion];
+    [old cancel];
+
+    XCTestExpectation *newClaimed = [self expectationWithDescription:@"replacement outer waiter claimed"];
+    XCTestExpectation *newOpened = [self expectationWithDescription:@"replacement outer waiter opened"];
+    AudioFileOpenToken *replacement = [coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposePlayback completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertNotNil(file);
+        XCTAssertNil(error);
+        [newOpened fulfill];
+    }];
+    [replacement whenClaimedOnQueue:_completionQueue
+                         completion:^(VibeAudioFileOpenClaimResult result) {
+        XCTAssertEqual(result, VibeAudioFileOpenClaimResultClaimed);
+        [newClaimed fulfill];
+    }];
+    [self waitForExpectations:@[newClaimed] timeout:2];
+    VibeAudioFileMaterializationCoordinatorSnapshot rebound =
+            [materialization stateSnapshotForTesting];
+    XCTAssertEqual(rebound.claimCount, 1u);
+    XCTAssertEqual(rebound.waiterCount, 1u);
+    XCTAssertEqual(harness.startedOperations.count, 1u);
+    XCTAssertEqual(first.cancellationCount, 1u);
+
+    [first completeFailed];
+    XCTAssertTrue([harness waitForStartedCount:2]);
+    VibeOpenTestMaterializationOperation *second = harness.startedOperations.lastObject;
+    XCTAssertEqual(second.role, VibeAudioFileMaterializationRolePlayback);
+    [second completeReady];
+    [self waitForExpectations:@[newOpened] timeout:2];
+    [self waitForExpectations:@[oldSilent] timeout:0.1];
+    VibeAudioFileMaterializationCoordinatorSnapshot settled =
+            [materialization stateSnapshotForTesting];
+    XCTAssertEqual(settled.claimCount, 0u);
+    XCTAssertEqual(settled.waiterCount, 0u);
+}
+
+- (void)testCentralFailureIsTerminalWithoutAnAudioFileOpen {
+    VibeOpenTestMaterializationHarness *harness =
+            [[VibeOpenTestMaterializationHarness alloc] init];
+    AudioFileMaterializationCoordinator *materialization =
+            [self materializationCoordinatorWithHarness:harness];
+    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:
+            dispatch_queue_create("com.vibe.tests.open.materialization-failure", DISPATCH_QUEUE_SERIAL)
+            backgroundScheduler:nil materializationCoordinator:materialization];
+    NSURL *url = [self writeToneNamed:@"materialization-failure.wav"];
+    XCTestExpectation *failed = [self expectationWithDescription:@"terminal failure"];
+    __unused AudioFileOpenToken *token = [coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposePlayback completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertNil(file);
+        XCTAssertEqualObjects(error.domain, VibeAudioFileOpenErrorDomain);
+        XCTAssertEqual(error.code, VibeAudioFileOpenErrorMaterializationFailed);
+        [failed fulfill];
+    }];
+    XCTAssertTrue([harness waitForStartedCount:1]);
+    [harness.startedOperations.firstObject completeFailed];
+    [self waitForExpectations:@[failed] timeout:2];
+}
+
+- (void)testCentralAdmissionFailureRejectsClaimAndSkipsAudioFileOpen {
+    VibeOpenTestMaterializationHarness *harness =
+            [[VibeOpenTestMaterializationHarness alloc] init];
+    VibeAudioLoadingConfigurationValues values =
+            VibeAudioLoadingProductionConfigurationValues();
+    values.maximumInteractiveMaterializations = 1;
+    values.maximumInteractivePendingMaterializations = 0;
+    NSError *configurationError = nil;
+    AudioLoadingConfiguration *configuration = [[AudioLoadingConfiguration alloc]
+            initWithValues:values error:&configurationError];
+    XCTAssertNotNil(configuration);
+    XCTAssertNil(configurationError);
+    AudioFileMaterializationCoordinator *materialization =
+            [self materializationCoordinatorWithHarness:harness configuration:configuration];
+    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:
+            dispatch_queue_create("com.vibe.tests.open.materialization-admission", DISPATCH_QUEUE_SERIAL)
+            backgroundScheduler:nil materializationCoordinator:materialization];
+    NSURL *blockerURL = [self writeToneNamed:@"admission-blocker.wav"];
+    NSURL *rejectedURL = [self writeToneNamed:@"admission-rejected.wav"];
+    AudioFileOpenToken *blocker = [coordinator openURL:blockerURL
+            purpose:VibeAudioFileOpenPurposePlayback completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {}];
+    XCTAssertTrue([harness waitForStartedCount:1]);
+
+    XCTestExpectation *claimRejected = [self expectationWithDescription:@"claim rejected"];
+    XCTestExpectation *openRejected = [self expectationWithDescription:@"open rejected"];
+    AudioFileOpenToken *rejected = [coordinator openURL:rejectedURL
+            purpose:VibeAudioFileOpenPurposePlayback completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertNil(file);
+        XCTAssertEqualObjects(error.domain, VibeAudioFileOpenErrorDomain);
+        XCTAssertEqual(error.code, VibeAudioFileOpenErrorAdmissionExhausted);
+        [openRejected fulfill];
+    }];
+    [rejected whenClaimedOnQueue:_completionQueue
+                      completion:^(VibeAudioFileOpenClaimResult result) {
+        XCTAssertEqual(result, VibeAudioFileOpenClaimResultCancelled);
+        [claimRejected fulfill];
+    }];
+    [self waitForExpectations:@[claimRejected, openRejected] timeout:2];
+    XCTAssertEqual(harness.startedOperations.count, 1u);
+    [blocker cancel];
+    XCTAssertTrue([harness waitForCancellationCount:1]);
 }
 
 #pragma mark - Bounding

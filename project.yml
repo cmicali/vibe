@@ -520,8 +520,12 @@ targets:
       - path: Vibe/Audio/Waveform/AVFAudioWaveformLoader.mm
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
       - path: Vibe/Debug/AudioLoadTiming.m
+      - path: Vibe/Debug/AudioLoadingConfiguration+Debug.m
+      - path: Vibe/Debug/DebugWireFormat.m
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Audio/AudioError.m
+      - path: Vibe/Audio/AudioLoadingConfiguration.m
+      - path: Vibe/Audio/AudioFileMaterializationCoordinator.m
       - path: Vibe/Audio/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
       - path: Vibe/Audio/Levels/AudioLevelPublisher.m

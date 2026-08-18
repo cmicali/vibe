@@ -25,10 +25,9 @@ typedef struct {
     BOOL matched;
     BOOL trackChanged;
     BOOL pausedChanged;
-    // The slow-load delegate call already fired against the OLD row object,
-    // and the controller drops deliveries whose track is not the playlist's
-    // current one — so a rebound row needs it again, or its loading UI never
-    // appears for the rest of the open.
+    // A slow-load delivery is stamped with submission identity on its hop to
+    // main. A rebound row or same-row replay needs a current delivery after an
+    // older one is dropped, while preserving the underlying open identifier.
     BOOL shouldNotifySlowLoad;
     BOOL shouldNotifyLoadingPaused;
 } VibePlaybackRequestRebind;

@@ -524,14 +524,10 @@
     // coalesces repeated appends, and already-parsed tracks are skipped when
     // it fires.
     [self scheduleDeferredMetadataLoad];
-    // The current track may have gained a successor, so refresh the parked
-    // handle and the state of the Next button and menu item. Not while a
-    // foreground open is pending, though: the prefetch would compete with it
-    // for the provider, and that open's own didStartPlaying: recomputes the
-    // prefetch anyway.
-    if (!self.audioPlayer.isLoading) {
-        [self.audioPlayer prefetchTrack:[self.playlistController trackAtIndex:self.playlistController.currentIndex + 1]];
-    }
+    // The player queue owns the Loading decision. This call is FIFO behind a
+    // play submitted in the same main turn, so it can suppress an unrelated
+    // append prefetch after that play has published its pending request.
+    [self.audioPlayer prefetchTrack:[self.playlistController trackAtIndex:self.playlistController.currentIndex + 1]];
     [self updateUI];
 }
 
@@ -580,6 +576,7 @@
     [[AppStats sharedInstance] playbackStopped]; // stop fires no delegate callback
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
+    _downloadMonitorOpenRequestIdentifier = 0;
     // The hold rides the monitor's lifetime, and its clearing edge is
     // didStartPlaying: or the error path — neither of which a Close reaches,
     // because stop fires no callback and the caller owns the reset. Left set,

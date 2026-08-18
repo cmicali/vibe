@@ -5,22 +5,23 @@
 
 #import "AudioTrackMetadataLoader.h"
 #import "AudioTrackMetadataCacheInternal.h"
+#import "AudioFileMaterializationCoordinator.h"
+#import "AudioLoadingConfiguration.h"
 #import "PINCache.h"
-#import "AudioFileOpenCoordinator.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
-#import "CloudMetadataRetryRules.h"
 #import "CloudParseOrderRules.h"
+#import "MetadataMaterializationRetryRules.h"
+#import "MetadataRetryMath.h"
+#import "MetadataStageOneRules.h"
 #import "MetadataParseCoordinator.h"
-#import "CloudFileMaterializer.h"
-#import "NSURLUtil.h"
 
 #include <os/lock.h>
 
-// One pending cloud parse: a plain record, never a pre-built NSOperation. The
-// lane dispatches at most one at a time and picks the next from these under
-// the lock, so everything still pending is re-rankable by construction.
-@interface VibeCloudParseEntry : NSObject
+// One pending scan parse: a plain record, never a pre-built operation. The
+// lane submits at most one materialization request at a time, so everything
+// still pending remains re-rankable.
+@interface VibeMetadataParseEntry : NSObject <VibeCloudParseOrderCandidate>
 @property (nonatomic, strong) AudioTrack *track;
 @property (nonatomic, copy) NSURL *url;
 // The playlist row this sweep queued the track from, the comparator's
@@ -33,31 +34,8 @@
 @property (nonatomic) BOOL deferred;
 @end
 
-@implementation VibeCloudParseEntry
+@implementation VibeMetadataParseEntry
 @end
-
-// How long a lane parked on nothing-but-blocked entries waits before asking
-// again. The picker skips an entry whose path the player or its prefetch is
-// already materializing; when every pending entry is blocked and the lane has
-// gone idle, this bounded re-check is what picks the survivor up after the
-// player's transfer settles, since nothing else would kick the lane.
-static const NSTimeInterval kCloudParseBlockedRecheckSeconds = 1.0;
-
-// How many of the best pending entries the picker carries out of the lock.
-//
-// TRAP: it must stay comfortably above the number of paths the player can be
-// materializing at once, because that is the only thing that can make the
-// picker skip an entry — a playback open and its prefetch, so two. If every
-// candidate in the window were ever blocked the lane would park with work it
-// could have done. Eight is four times the reachable maximum.
-//
-// The window exists because the pending list is the whole playlist's misses:
-// measured against a real provider, a Dropbox tree opened as one playlist left
-// 104,000 entries pending, and the picker runs on the MAIN thread at every
-// track change (setNeighborhoodURLs:). Selecting the best few in one pass is
-// what keeps that off the main thread's critical path; fully ordering the list
-// there cost ~300ms per track change.
-static const NSUInteger kCloudParsePickWindow = 8;
 
 @implementation AudioTrackMetadataLoader {
     // Weak, since the owner strongly holds its current loader, and re-read at
@@ -75,48 +53,50 @@ static const NSUInteger kCloudParsePickWindow = 8;
     // lane touches it only on main, since loadSingleTrack: runs on the caller's
     // thread, always main, and the completion removal is dispatched to main.
     NSMutableSet<AudioTrack *>* _queuedTracks;
-    // The scan lane's cloud queue: stage-2 parses of files whose data is not on
-    // disk yet. Nil in the current-track lane, which never parses one. See
-    // initWithOwner:delegate:lane: for why it is separate and serial.
-    NSOperationQueue* _cloudQueue;
-    // The lane's authoritative pending queue. Because the lane is serial, this
-    // list's ORDER is the whole of what decides which file downloads next —
-    // so entries stay here, app-owned and never pre-submitted, until
-    // dispatchNextCloudParse picks exactly one by (deferred, rank, index).
-    // Touched from the four stage-1 workers and from main, hence the lock.
-    NSMutableArray<VibeCloudParseEntry *>* _cloudParses;
-    // The one dispatched parse. The dispatch gate: nothing new is submitted
-    // to _cloudQueue while it is set, which is what makes every pending entry
-    // re-rankable and the pick order authoritative.
-    BOOL _cloudParseInFlight;
-    // One armed blocked-lane re-check at a time; see the constant above.
-    BOOL _cloudParseRecheckArmed;
-    // Stage-1 checks the sweep has queued but not finished. The picker waits
-    // for zero: the sweep's misses trickle in over the first few milliseconds
-    // in stage-1 COMPLETION order, and a pick taken mid-burst — which the
-    // hold's release inside didStartPlaying: makes the common case — chooses
-    // from a half-populated list, sending a tail row's download out ahead of
-    // the neighborhood's. The last check to finish kicks the lane.
-    NSUInteger _stageOneOutstanding;
+    // A later lifecycle edge arrived while the priority request was still
+    // waiting for its yielded delivery. The delivery consumes this marker and
+    // retries only then, so a didStartPlaying: edge cannot be lost behind it.
+    NSMutableSet<AudioTrack *>* _priorityRetryRequestedTracks;
+    // Yielded requests whose later lifecycle edge arrived before the cache's
+    // hold release. Retired priority loaders keep this set until that release.
+    NSMutableSet<AudioTrack *>* _priorityParkedTracks;
+    BOOL _isScanLane;
+    // Every scan cache miss takes this provider-independent path. Entries stay
+    // app-owned until one exact pick is atomically registered with the shared
+    // materialization coordinator.
+    NSMutableArray<VibeMetadataParseEntry *>* _pendingParses;
+    // Admission-exhausted entries waiting for their bounded eligibility edge.
+    // A set makes cancellation observable to the delayed block and keeps the
+    // debug pending count honest while no coordinator request exists.
+    NSMutableSet<VibeMetadataParseEntry *>* _delayedScanRetryEntries;
+    BOOL _scanMaterializationInFlight;
+    BOOL _scanDispatchKickPending;
+    // Bumped by every pending-list or neighborhood mutation. The picker works
+    // outside the lock, then verifies this snapshot before removing its choice.
+    NSUInteger _parseOrderGeneration;
+    // The setup operation discovers checks while earlier checks can already be
+    // finishing. Stage 2 therefore waits for both facts — enumeration finished
+    // and every discovered check settled — never a bare count reaching zero in
+    // the middle of enumeration.
+    VibeMetadataStageOneState _stageOneState;
     NSArray<NSURL *>* _neighborhood;   // rank order; empty until a screen names one
-    // The suspension verdict shares _cloudParsesLock with the preparation of
-    // the active materialization token. That closes the race where a hold
-    // cancelled an empty slot just before an already-started operation filled
-    // it and began downloading anyway.
+    // This local gate prevents a yielded scan request from resubmitting until
+    // the shell's matching foreground-open settlement. The central hold owns
+    // the provider-independent admission and cancellation edge.
     BOOL _cloudParsesHeld;
-    // Incremented whenever a foreground-open hold closes the materialization
-    // gate. A worker snapshots it beside its token, so it can still identify
-    // that cancellation after a short hold has already lifted.
-    NSUInteger _cloudHoldGeneration;
     // Materialization failures per file path, hold cancellations excluded. The
     // budget is what keeps a transient provider error from costing the row its
     // tags for the rest of the sweep without letting a dead file retry forever.
-    // Guarded by _cloudParsesLock; bounded by the playlist's failing tracks.
+    // Guarded by _materializationLock; bounded by the playlist's failing tracks.
     NSMutableDictionary<NSString *, NSNumber *> *_cloudAttemptsByPath;
-    os_unfair_lock _cloudParsesLock;
-    // Makes the download in front of a cloud parse abortable, which a plain
-    // read is not; the hold cancels it. See CloudFileMaterializer.
-    CloudFileMaterializer* _materializer;
+    NSUInteger _cloudMaterializationMaximumAttempts;
+    os_unfair_lock _materializationLock;
+    AudioFileMaterializationCoordinator *_materializationCoordinator;
+    dispatch_queue_t _materializationCallbackQueue;
+    NSMutableSet<AudioFileMaterializationRequestToken *> *_liveMaterializationTokens;
+    AudioFileMaterializationRequestToken *_scanMaterializationToken;
+    BOOL _retiring;
+    dispatch_block_t _retireCompletion;
     // The parse ordering, over the owner's shared coordinator. Held strongly,
     // and it holds this loader weakly back.
     MetadataParseRunner* _parseRunner;
@@ -125,11 +105,28 @@ static const NSUInteger kCloudParsePickWindow = 8;
 - (instancetype)initWithOwner:(AudioTrackMetadataCache *)owner
                      delegate:(id <AudioTrackMetadataCacheDelegate>)delegate
                          lane:(VibeMetadataLane)lane {
+    return [self initWithOwner:owner delegate:delegate lane:lane
+          loadingConfiguration:[AudioLoadingConfiguration productionConfiguration]];
+}
+
+- (instancetype)initWithOwner:(AudioTrackMetadataCache *)owner
+                     delegate:(id <AudioTrackMetadataCacheDelegate>)delegate
+                         lane:(VibeMetadataLane)lane
+         loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration {
     self = [super init];
     if (self) {
+        NSParameterAssert(loadingConfiguration);
         _isCancelled = NO;
         _owner = owner;
         _queuedTracks = [NSMutableSet set];
+        _priorityRetryRequestedTracks = [NSMutableSet set];
+        _priorityParkedTracks = [NSMutableSet set];
+        _materializationLock = OS_UNFAIR_LOCK_INIT;
+        _materializationCoordinator = [AudioFileMaterializationCoordinator sharedCoordinator];
+        _liveMaterializationTokens = [NSMutableSet set];
+        _cloudMaterializationMaximumAttempts =
+                VibeMetadataMaximumAttemptsForRetryCount(
+                        loadingConfiguration.metadataRetryCount);
         _parseRunner = [[MetadataParseRunner alloc] initWithCoordinator:owner.parseCoordinator
                                                            delegate:self];
         _delegate = delegate;
@@ -137,46 +134,41 @@ static const NSUInteger kCloudParsePickWindow = 8;
         if (lane == VibeMetadataLaneCurrentTrack) {
             // The current-track lane, loadSingleTrack:. Only the newest
             // request is user-visible, so the width exists purely to absorb
-            // blocked predecessors. Dataless placeholders never parse inline,
-            // but a slow yet materialized file, on a network mount or a
-            // sleeping disk, can block a worker for minutes. A width of 4
-            // means it takes four consecutive wedged opens before the header's
-            // load queues behind one, at the cost of one stranded thread each.
+            // blocked predecessors. A slow materialized file, on a network
+            // mount or a sleeping disk, can block a worker for minutes. The configured
+            // width controls how many consecutive wedged opens it takes before
+            // the header's load queues behind one, at one stranded thread each.
             // The QoS is user-initiated because the user is looking at a
             // header waiting on this exact load.
             _queue.name = @"AudioTrackMetadataLoader.priority";
-            _queue.maxConcurrentOperationCount = 4;
+            _queue.maxConcurrentOperationCount =
+                    (NSInteger)loadingConfiguration.localMetadataParseConcurrency;
             _queue.qualityOfService = NSQualityOfServiceUserInitiated;
+            dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
+                    DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
+            _materializationCallbackQueue = dispatch_queue_create(
+                    "com.vibe.metadata-priority-materialization", attributes);
         }
         else {
-            // A concurrency of 4 lets a single slow file, on a network mount
-            // or a sleeping disk, stall only its own worker rather than the
-            // whole playlist. Utility is the right QoS band: the work is
+            _isScanLane = YES;
+            // Configurable concurrency lets a single slow file, on a network
+            // mount or a sleeping disk, stall only its own worker rather than
+            // the whole playlist. Utility is the right QoS band: the work is
             // user-visible, since it drives the playlist UI, but not
             // user-initiated.
             _queue.name = @"AudioTrackMetadataLoader";
-            _queue.maxConcurrentOperationCount = 4;
+            _queue.maxConcurrentOperationCount =
+                    (NSInteger)loadingConfiguration.localMetadataParseConcurrency;
             _queue.qualityOfService = NSQualityOfServiceUtility;
-            // The cloud lane, and the reason it is not just a low queue
-            // priority on the queue above. Parsing a dataless file downloads
-            // the WHOLE file through the file provider, so the unit of
-            // contention is the provider's transfer, not a worker thread:
-            // four of those at once is what turns opening a Dropbox folder
-            // into minutes of thrash, and it starves the one open the user is
-            // actually waiting on. Serial, therefore, and suspended outright
-            // while a foreground open is materializing (setCloudParsesHeld:).
-            // Local parses and every stage-1 cache check stay on the wide
-            // queue above, which touches nothing but a stat and a small read.
-            _cloudQueue = [[NSOperationQueue alloc] init];
-            _cloudQueue.name = @"AudioTrackMetadataLoader.cloud";
-            _cloudQueue.maxConcurrentOperationCount = 1;
-            _cloudQueue.qualityOfService = NSQualityOfServiceUtility;
-            _cloudParses = [NSMutableArray array];
+            _pendingParses = [NSMutableArray array];
+            _delayedScanRetryEntries = [NSMutableSet set];
             _neighborhood = @[];
+            _stageOneState = VibeMetadataStageOneStateMake();
             _cloudAttemptsByPath = [NSMutableDictionary dictionary];
-            _cloudParsesLock = OS_UNFAIR_LOCK_INIT;
-            _materializer = [[CloudFileMaterializer alloc] init];
-            _materializer.label = @"metadata";
+            dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
+                    DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
+            _materializationCallbackQueue = dispatch_queue_create(
+                    "com.vibe.metadata-scan-materialization", attributes);
         }
     }
     return self;
@@ -212,12 +204,12 @@ static const NSUInteger kCloudParsePickWindow = 8;
             // every previously seen track's row populates at disk speed even
             // when the playlist is mostly slow cloud files. Misses re-enqueue
             // as stage-2 work; the playlist index rides along because the
-            // cloud lane's tie-break is the row order this loop walks in. See
+            // materialization lane's tie-break is the row order this loop walks in. See
             // cacheCheckOneTrack:index:deferred:.
-            if (setupSelf->_cloudQueue) {
-                os_unfair_lock_lock(&setupSelf->_cloudParsesLock);
-                setupSelf->_stageOneOutstanding++;
-                os_unfair_lock_unlock(&setupSelf->_cloudParsesLock);
+            if (setupSelf->_isScanLane) {
+                os_unfair_lock_lock(&setupSelf->_materializationLock);
+                VibeMetadataStageOneBeginCheck(&setupSelf->_stageOneState);
+                os_unfair_lock_unlock(&setupSelf->_materializationLock);
             }
             NSOperation *op = [NSBlockOperation blockOperationWithBlock:^{
                 __typeof(self) strongSelf = weakSelf;
@@ -229,6 +221,7 @@ static const NSUInteger kCloudParsePickWindow = 8;
             op.queuePriority = NSOperationQueuePriorityHigh;
             [setupSelf->_queue addOperation:op];
         }
+        [setupSelf noteStageOneEnumerationFinished];
     }];
     setup.queuePriority = NSOperationQueuePriorityHigh;
     [_queue addOperation:setup];
@@ -236,14 +229,12 @@ static const NSUInteger kCloudParsePickWindow = 8;
 }
 
 // The stage-1 worker: publish from the disk cache, or hand off to stage 2.
-// Which lane that lands on is the whole point: a placeholder read blocks until
-// the provider materializes the file, so dataless files become pending entries
-// on the serial, holdable cloud lane and local ones parse on the wide queue,
-// rather than a cloud-heavy folder pinning all four workers for a download's
-// duration while fast local parses sit queued behind them.
+// Every miss first takes the shared materialization path. A local file settles
+// immediately; an unflagged provider placeholder cannot bypass the foreground
+// hold and wedge one of the wide TagLib workers.
 //
-// deferred marks a re-queue after a failed cloud materialization; see
-// CloudMetadataRetryRules.h. It only reaches the cloud lane's ordering.
+// deferred marks a re-queue after a failed materialization. It only affects
+// the scan lane's ordering.
 - (void)cacheCheckOneTrack:(AudioTrack *)track index:(NSUInteger)playlistIndex deferred:(BOOL)deferred {
     // A second drop can re-queue a track before its first op runs, so skip the
     // redundant work if the earlier loader already produced real metadata.
@@ -258,344 +249,508 @@ static const NSUInteger kCloudParsePickWindow = 8;
     if (self.isCancelled) {
         return;
     }
-    if (_cloudQueue && [NSURLUtil isDatalessFile:track.url]) {
-        VibeCloudParseEntry *entry = [[VibeCloudParseEntry alloc] init];
+    if (_isScanLane) {
+        VibeMetadataParseEntry *entry = [[VibeMetadataParseEntry alloc] init];
         entry.track = track;
         entry.url = track.url;
         entry.playlistIndex = playlistIndex;
         entry.deferred = deferred;
-        [self enqueueCloudParseEntry:entry];
+        [self enqueueScanParseEntry:entry];
+        return;
+    }
+    [self submitPriorityMaterializationForTrack:track];
+}
+
+#pragma mark - The scan materialization lane
+
+- (void)enqueueScanParseEntry:(VibeMetadataParseEntry *)entry {
+    os_unfair_lock_lock(&_materializationLock);
+    if (!self.isCancelled) {
+        [_pendingParses addObject:entry];
+        _parseOrderGeneration++;
+    }
+    os_unfair_lock_unlock(&_materializationLock);
+    [self dispatchStageTwoIfReady];
+}
+
+// A check can finish while the setup operation is still discovering later
+// checks, so neither edge is sufficient alone. Whichever edge completes the
+// pair kicks stage 2.
+- (void)noteStageOneCheckFinished {
+    if (!_isScanLane) {
+        return;
+    }
+    BOOL canDispatch = NO;
+    os_unfair_lock_lock(&_materializationLock);
+    VibeMetadataStageOneFinishCheck(&_stageOneState);
+    canDispatch = VibeMetadataStageTwoCanDispatch(
+            _stageOneState, _pendingParses.count);
+    os_unfair_lock_unlock(&_materializationLock);
+    if (canDispatch) {
+        [self dispatchStageTwoIfReady];
+    }
+}
+
+- (void)noteStageOneEnumerationFinished {
+    if (!_isScanLane) {
+        return;
+    }
+    BOOL canDispatch = NO;
+    os_unfair_lock_lock(&_materializationLock);
+    VibeMetadataStageOneFinishEnumeration(&_stageOneState);
+    canDispatch = VibeMetadataStageTwoCanDispatch(
+            _stageOneState, _pendingParses.count);
+    os_unfair_lock_unlock(&_materializationLock);
+    if (canDispatch) {
+        [self dispatchStageTwoIfReady];
+    }
+}
+
+- (void)dispatchStageTwoIfReady {
+    [self dispatchNextScanMaterialization];
+}
+
+- (void)dispatchNextScanMaterialization {
+    BOOL shouldSchedule = NO;
+    os_unfair_lock_lock(&_materializationLock);
+    if (!_scanDispatchKickPending && !self.isCancelled) {
+        _scanDispatchKickPending = YES;
+        shouldSchedule = YES;
+    }
+    os_unfair_lock_unlock(&_materializationLock);
+    if (!shouldSchedule) {
         return;
     }
     __weak __typeof(self) weakSelf = self;
-    [_queue addOperationWithBlock:^{
+    dispatch_async(_materializationCallbackQueue, ^{
         __typeof(self) strongSelf = weakSelf;
-        if (!strongSelf || strongSelf.isCancelled) return;
-        [strongSelf parseOneTrack:track];
-    }];
+        if (!strongSelf) return;
+        os_unfair_lock_lock(&strongSelf->_materializationLock);
+        strongSelf->_scanDispatchKickPending = NO;
+        os_unfair_lock_unlock(&strongSelf->_materializationLock);
+        [strongSelf dispatchNextScanMaterializationOnCallbackQueue];
+    });
 }
 
-#pragma mark - The cloud lane's order
-
-// The cloud lane's stage 2, in two halves, because on this lane the download
-// is the expensive part and the parse is an afterthought. Materializing first
-// is what makes the download abortable — a hold cancels it mid-transfer, where
-// letting TagLib's own read do the downloading would own the lane until the
-// provider finished — and it leaves the parse itself reading a local file.
-//
-// A download cancelled by the foreground-open hold re-queues the track at its
-// current rank rather than dropping it: the sweep has no second pass, so the
-// row would otherwise keep its filename fallback until the whole playlist was
-// re-queued. It cannot spin, because the hold suspends the queue BEFORE it
-// cancels, and it spends no attempt budget — nothing about the file failed.
-//
-// Any other failure re-queues at the BOTTOM of the lane instead, with a small
-// per-path attempt budget (CloudMetadataRetryRules.h). Retrying at rank would
-// let one terminal provider error monopolize this serial lane forever;
-// abandoning the track outright would cost a row its tags for the rest of the
-// sweep over a transient blip, since the only later retry is a whole new scan.
-- (void)runCloudParseEntry:(VibeCloudParseEntry *)entry {
-    AudioTrack *track = entry.track;
-    // The stand-aside, asked again here because the picker's answer can go
-    // stale between choosing and running: the player or its prefetch is
-    // already materializing this exact path, and a second transfer of the
-    // same file would spend the provider's scarce slot on bytes already
-    // moving. Reinsert at current rank with no attempt spent — nothing about
-    // the file failed — and the picker skips it while the claim lives; once
-    // the player's transfer settles, the file is local and the parse costs a
-    // read. It cannot spin: reinsertion is a pending-list append, and the
-    // picker, not this method, decides what runs next.
-    if ([[AudioFileOpenCoordinator sharedCoordinator] isMaterializingURL:entry.url]) {
-        LogInfo(@"Cloud parse: %@ standing aside for the player's own transfer",
-                entry.url.lastPathComponent);
-        [self enqueueCloudParseEntry:entry];
-        return;
+- (void)dispatchNextScanMaterializationOnCallbackQueue {
+    NSArray<VibeMetadataParseEntry *> *pending = nil;
+    NSArray<NSURL *> *neighborhood = nil;
+    NSUInteger orderGeneration = 0;
+    os_unfair_lock_lock(&_materializationLock);
+    if (!_scanMaterializationInFlight && !_cloudParsesHeld && !self.isCancelled
+            && VibeMetadataStageTwoCanDispatch(_stageOneState,
+                                                _pendingParses.count)) {
+        pending = [_pendingParses copy];
+        neighborhood = _neighborhood;
+        orderGeneration = _parseOrderGeneration;
     }
-    // Register the call under the same gate setCloudParsesHeld: closes before
-    // it cancels. Either this preparation wins and the following cancel can
-    // reach it before materializeURL: enters, or the hold wins and this
-    // parse re-queues behind the closed dispatch gate.
-    os_unfair_lock_lock(&_cloudParsesLock);
-    NSUInteger preparedHoldGeneration = _cloudHoldGeneration;
-    CloudFileMaterializationToken *token = (!self.isCancelled && !_cloudParsesHeld)
-            ? [_materializer prepareMaterialization]
-            : nil;
-    os_unfair_lock_unlock(&_cloudParsesLock);
-    if (!token) {
-        if (!self.isCancelled) {
-            [self cacheCheckOneTrack:track index:entry.playlistIndex deferred:entry.deferred];
-        }
+    os_unfair_lock_unlock(&_materializationLock);
+    if (!pending.count) {
         return;
     }
 
-    CFAbsoluteTime startedAt = CFAbsoluteTimeGetCurrent();
-    NSError *error = nil;
-    if (![_materializer materializeURL:track.url token:token error:&error]) {
-        NSString *attemptKey = track.url.path ?: track.url.absoluteString;
-        os_unfair_lock_lock(&_cloudParsesLock);
-        NSUInteger currentHoldGeneration = _cloudHoldGeneration;
-        NSUInteger priorAttempts = attemptKey ? _cloudAttemptsByPath[attemptKey].unsignedIntegerValue : 0;
-        VibeCloudMetadataRetry verdict = VibeCloudMetadataRetryForMaterializationFailure(
-                error, preparedHoldGeneration, currentHoldGeneration,
-                priorAttempts, kVibeCloudMetadataMaxAttempts);
-        // Charged under the same lock that read it, so two workers can never
-        // both see the last attempt as available. Only a real failure charges:
-        // a hold cancellation is the app's own doing.
-        if (attemptKey && verdict != VibeCloudMetadataRetryAtCurrentRank) {
-            _cloudAttemptsByPath[attemptKey] = @(priorAttempts + 1);
-        }
-        os_unfair_lock_unlock(&_cloudParsesLock);
-        if (self.isCancelled) {
-            return;
-        }
-        switch (verdict) {
-            case VibeCloudMetadataRetryAtCurrentRank:
-                LogInfo(@"Cloud parse: %@ yielded to foreground open after %.1fs",
-                        track.url.lastPathComponent, CFAbsoluteTimeGetCurrent() - startedAt);
-                [self cacheCheckOneTrack:track index:entry.playlistIndex deferred:NO];
-                break;
-            case VibeCloudMetadataRetryDeferred:
-                LogWarn(@"Cloud parse: %@ failed after %.1fs (attempt %lu of %lu); re-queued last (%@)",
-                        track.url.lastPathComponent, CFAbsoluteTimeGetCurrent() - startedAt,
-                        (unsigned long)(priorAttempts + 1),
-                        (unsigned long)kVibeCloudMetadataMaxAttempts,
-                        error.localizedDescription);
-                [self cacheCheckOneTrack:track index:entry.playlistIndex deferred:YES];
-                break;
-            case VibeCloudMetadataRetryNone:
-                LogWarn(@"Cloud parse: %@ failed after %.1fs and is out of attempts; "
-                        @"waiting for a later scan (%@)",
-                        track.url.lastPathComponent, CFAbsoluteTimeGetCurrent() - startedAt,
-                        error.localizedDescription);
-                break;
-        }
-        return;
-    }
-    [self parseOneTrack:track];
-    LogInfo(@"Cloud parse: %@ in %.1fs", track.url.lastPathComponent,
-            CFAbsoluteTimeGetCurrent() - startedAt);
-}
-
-- (void)enqueueCloudParseEntry:(VibeCloudParseEntry *)entry {
-    os_unfair_lock_lock(&_cloudParsesLock);
-    [_cloudParses addObject:entry];
-    os_unfair_lock_unlock(&_cloudParsesLock);
-    [self dispatchNextCloudParse];
-}
-
-// The stage-1 drain edge. Not gated on isCancelled: a cancelled loader's
-// counter still settles, and the kick no-ops against its emptied list.
-- (void)noteStageOneCheckFinished {
-    if (!_cloudQueue) {
-        return;
-    }
-    BOOL drained = NO;
-    os_unfair_lock_lock(&_cloudParsesLock);
-    if (_stageOneOutstanding > 0) {
-        _stageOneOutstanding--;
-        drained = (_stageOneOutstanding == 0);
-    }
-    os_unfair_lock_unlock(&_cloudParsesLock);
-    if (drained) {
-        [self dispatchNextCloudParse];
-    }
-}
-
-// The lane's picker: with the lane idle and the gate open, choose exactly one
-// pending entry by (deferred, rank, index) and dispatch it. The blocked check
-// runs OUTSIDE the lock — it hops to the open coordinator's state queue — so
-// the pick is snapshot, ask, then re-take the lock and verify the chosen
-// entry is still pending before removing it.
-// The best kCloudParsePickWindow entries by (deferred, rank, index), in one
-// pass over the pending list. Called with _cloudParsesLock held.
-//
-// One pass rather than a sort, and a rank looked up once per entry rather than
-// inside a comparator, because both costs are paid on the main thread at every
-// track change and both scale with the playlist: sorting is O(n log n)
-// comparisons, and -[NSArray indexOfObject:] inside the comparator made each
-// one a linear walk of NSURL equality tests on top. Against a real cloud tree
-// with 104,000 entries pending that measured ~300ms per track change; a track
-// change on a 14-row playlist costs 49ms.
-- (NSArray<VibeCloudParseEntry *> *)bestCloudParseCandidatesLocked {
-    NSMutableDictionary<NSURL *, NSNumber *> *rankByURL =
-            [NSMutableDictionary dictionaryWithCapacity:_neighborhood.count];
-    [_neighborhood enumerateObjectsUsingBlock:^(NSURL *url, NSUInteger rank, BOOL *stop) {
-        // First spelling wins: a URL listed twice keeps its better rank.
-        if (rankByURL[url] == nil) {
-            rankByURL[url] = @(rank);
-        }
-    }];
-
-    NSMutableArray<VibeCloudParseEntry *> *best =
-            [NSMutableArray arrayWithCapacity:kCloudParsePickWindow];
-    NSMutableArray<NSNumber *> *bestRanks =
-            [NSMutableArray arrayWithCapacity:kCloudParsePickWindow];
-    for (VibeCloudParseEntry *entry in _cloudParses) {
-        NSNumber *found = rankByURL[entry.url];
-        NSUInteger rank = found != nil ? found.unsignedIntegerValue : NSNotFound;
-        // Insertion sort into a window this small is cheaper than any
-        // alternative, and it is the same total order the seam defines.
-        NSUInteger at = best.count;
-        while (at > 0) {
-            VibeCloudParseEntry *above = best[at - 1];
-            if (VibeCloudParseOrderedBefore(above.deferred,
-                                            bestRanks[at - 1].unsignedIntegerValue,
-                                            above.playlistIndex,
-                                            entry.deferred, rank, entry.playlistIndex)) {
-                break;
-            }
-            at--;
-        }
-        if (at >= kCloudParsePickWindow) {
-            continue;
-        }
-        [best insertObject:entry atIndex:at];
-        [bestRanks insertObject:@(rank) atIndex:at];
-        if (best.count > kCloudParsePickWindow) {
-            [best removeLastObject];
-            [bestRanks removeLastObject];
-        }
-    }
-    return best;
-}
-
-- (void)dispatchNextCloudParse {
-    NSArray<VibeCloudParseEntry *> *ordered = nil;
-    os_unfair_lock_lock(&_cloudParsesLock);
-    if (!_cloudParseInFlight && !_cloudParsesHeld && !self.isCancelled
-            && _stageOneOutstanding == 0 && _cloudParses.count) {
-        ordered = [self bestCloudParseCandidatesLocked];
-    }
-    os_unfair_lock_unlock(&_cloudParsesLock);
-    if (!ordered.count) {
-        return;
-    }
-    VibeCloudParseEntry *chosen = nil;
-    BOOL anyBlocked = NO;
-    for (VibeCloudParseEntry *candidate in ordered) {
-        // The player or its prefetch already owns a transfer of this path;
-        // skip it at its rank rather than downloading the same bytes twice.
-        if ([[AudioFileOpenCoordinator sharedCoordinator] isMaterializingURL:candidate.url]) {
-            anyBlocked = YES;
-            continue;
-        }
-        chosen = candidate;
-        break;
-    }
-    BOOL armRecheck = NO;
-    os_unfair_lock_lock(&_cloudParsesLock);
-    if (_cloudParseInFlight || _cloudParsesHeld || self.isCancelled) {
+    VibeMetadataParseEntry *chosen =
+            (VibeMetadataParseEntry *)VibeBestCloudParseCandidate(
+            (NSArray<id<VibeCloudParseOrderCandidate>> *)pending,
+            neighborhood, [NSSet set]);
+    BOOL retryPick = NO;
+    os_unfair_lock_lock(&_materializationLock);
+    if (_scanMaterializationInFlight || _cloudParsesHeld || self.isCancelled) {
         chosen = nil;
     }
+    else if (orderGeneration != _parseOrderGeneration) {
+        chosen = nil;
+        retryPick = YES;
+    }
     else if (chosen) {
-        if ([_cloudParses containsObject:chosen]) {
-            [_cloudParses removeObjectIdenticalTo:chosen];
-            _cloudParseInFlight = YES;
+        if ([_pendingParses containsObject:chosen]) {
+            [_pendingParses removeObjectIdenticalTo:chosen];
+            _parseOrderGeneration++;
+            _scanMaterializationInFlight = YES;
         }
         else {
-            chosen = nil; // a cancel emptied the list between snapshot and now
+            chosen = nil;
+            retryPick = YES;
         }
     }
-    else if (anyBlocked && _cloudParses.count && !_cloudParseRecheckArmed) {
-        // Everything pending is blocked behind the player's transfers and the
-        // lane is idle: park, and re-ask on a bounded clock, because nothing
-        // else kicks the lane when a claim it is waiting out settles.
-        _cloudParseRecheckArmed = YES;
-        armRecheck = YES;
-    }
-    os_unfair_lock_unlock(&_cloudParsesLock);
-    __weak __typeof(self) weakSelf = self;
-    if (armRecheck) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
-                (int64_t)(kCloudParseBlockedRecheckSeconds * NSEC_PER_SEC)),
-                dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-            __typeof(self) strongSelf = weakSelf;
-            if (!strongSelf) return;
-            os_unfair_lock_lock(&strongSelf->_cloudParsesLock);
-            strongSelf->_cloudParseRecheckArmed = NO;
-            os_unfair_lock_unlock(&strongSelf->_cloudParsesLock);
-            [strongSelf dispatchNextCloudParse];
-        });
+    os_unfair_lock_unlock(&_materializationLock);
+    if (retryPick) {
+        [self dispatchNextScanMaterialization];
         return;
     }
     if (!chosen) {
         return;
     }
-    [_cloudQueue addOperationWithBlock:^{
-        __typeof(self) runSelf = weakSelf;
-        if (runSelf && !runSelf.isCancelled) {
-            [runSelf runCloudParseEntry:chosen];
+    [self submitScanMaterializationForEntry:chosen];
+}
+
+- (void)submitScanMaterializationForEntry:(VibeMetadataParseEntry *)entry {
+    __weak __typeof(self) weakSelf = self;
+    dispatch_async(_materializationCallbackQueue, ^{
+        __typeof(self) strongSelf = weakSelf;
+        if (!strongSelf) return;
+
+        BOOL requeueBehindHold = NO;
+        os_unfair_lock_lock(&strongSelf->_materializationLock);
+        if (strongSelf.isCancelled) {
+            strongSelf->_scanMaterializationInFlight = NO;
         }
-        // Re-taken, so a parse that outlived the loader's last outside owner
-        // still settles the flag on whatever remains.
-        __typeof(self) finishSelf = weakSelf;
-        if (!finishSelf) return;
-        os_unfair_lock_lock(&finishSelf->_cloudParsesLock);
-        finishSelf->_cloudParseInFlight = NO;
-        os_unfair_lock_unlock(&finishSelf->_cloudParsesLock);
-        [finishSelf dispatchNextCloudParse];
-    }];
+        else if (strongSelf->_cloudParsesHeld) {
+            [strongSelf->_pendingParses addObject:entry];
+            strongSelf->_parseOrderGeneration++;
+            strongSelf->_scanMaterializationInFlight = NO;
+            requeueBehindHold = YES;
+        }
+        BOOL shouldSubmit = !strongSelf.isCancelled && !requeueBehindHold;
+        os_unfair_lock_unlock(&strongSelf->_materializationLock);
+        if (!shouldSubmit) {
+            return;
+        }
+
+        __block __weak AudioFileMaterializationRequestToken *weakToken = nil;
+        AudioFileMaterializationRequestToken *token =
+                [strongSelf->_materializationCoordinator
+                        materializeURL:entry.url
+                                  role:VibeAudioFileMaterializationRoleMetadataScan
+                       completionQueue:strongSelf->_materializationCallbackQueue
+                            registered:nil
+                            completion:^(VibeAudioFileMaterializationResult result,
+                                         NSError *error,
+                                         NSTimeInterval elapsed) {
+            [weakSelf completeScanMaterializationForEntry:entry
+                                                     token:weakToken
+                                                    result:result
+                                                     error:error
+                                                   elapsed:elapsed];
+        }];
+        weakToken = token;
+
+        BOOL cancelToken = NO;
+        os_unfair_lock_lock(&strongSelf->_materializationLock);
+        if (strongSelf.isCancelled || !strongSelf->_scanMaterializationInFlight) {
+            cancelToken = YES;
+        }
+        else {
+            strongSelf->_scanMaterializationToken = token;
+            [strongSelf->_liveMaterializationTokens addObject:token];
+        }
+        os_unfair_lock_unlock(&strongSelf->_materializationLock);
+        if (cancelToken) {
+            [token cancel];
+        }
+    });
+}
+
+- (void)completeScanMaterializationForEntry:(VibeMetadataParseEntry *)entry
+                                      token:(AudioFileMaterializationRequestToken *)token
+                                     result:(VibeAudioFileMaterializationResult)result
+                                      error:(NSError *)error
+                                    elapsed:(NSTimeInterval)elapsed {
+    BOOL shouldParse = NO;
+    BOOL didRequeue = NO;
+    BOOL didScheduleDelayedRetry = NO;
+    NSTimeInterval retryDelay = 0;
+    NSUInteger attempt = 0;
+    NSString *attemptKey = entry.url.path ?: entry.url.absoluteString;
+
+    os_unfair_lock_lock(&_materializationLock);
+    if (_scanMaterializationToken != token) {
+        [_liveMaterializationTokens removeObject:token];
+        os_unfair_lock_unlock(&_materializationLock);
+        return;
+    }
+    [_liveMaterializationTokens removeObject:token];
+    _scanMaterializationToken = nil;
+    _scanMaterializationInFlight = NO;
+    if (!self.isCancelled) {
+        if (result == VibeAudioFileMaterializationResultReady) {
+            shouldParse = YES;
+            if (attemptKey) {
+                [_cloudAttemptsByPath removeObjectForKey:attemptKey];
+            }
+        }
+        else {
+            NSUInteger priorAttempts = attemptKey
+                    ? _cloudAttemptsByPath[attemptKey].unsignedIntegerValue : 0;
+            VibeMetadataMaterializationRetry retry =
+                    VibeMetadataMaterializationRetryForResult(
+                            result, priorAttempts,
+                            _cloudMaterializationMaximumAttempts);
+            if (retry != VibeMetadataMaterializationRetryNone) {
+                if (retry == VibeMetadataMaterializationRetryDeferred
+                        || retry == VibeMetadataMaterializationRetryDeferredAfterDelay) {
+                    attempt = priorAttempts + 1;
+                    entry.deferred = YES;
+                    if (attemptKey) {
+                        _cloudAttemptsByPath[attemptKey] = @(attempt);
+                    }
+                }
+                if (retry == VibeMetadataMaterializationRetryDeferredAfterDelay) {
+                    retryDelay = VibeMetadataAdmissionRetryDelay(priorAttempts);
+                    [_delayedScanRetryEntries addObject:entry];
+                    didScheduleDelayedRetry = YES;
+                }
+                else {
+                    [_pendingParses addObject:entry];
+                    _parseOrderGeneration++;
+                }
+                didRequeue = YES;
+            }
+            else if (result == VibeAudioFileMaterializationResultFailed
+                    || result == VibeAudioFileMaterializationResultAdmissionExhausted) {
+                attempt = priorAttempts + 1;
+                if (attemptKey) {
+                    _cloudAttemptsByPath[attemptKey] = @(attempt);
+                }
+            }
+        }
+    }
+    os_unfair_lock_unlock(&_materializationLock);
+
+    if (shouldParse) {
+        __weak __typeof(self) weakSelf = self;
+        [_queue addOperationWithBlock:^{
+            __typeof(self) strongSelf = weakSelf;
+            if (strongSelf && !strongSelf.isCancelled) {
+                [strongSelf parseOneTrack:entry.track];
+            }
+        }];
+        LogInfo(@"Metadata scan materialized %@ in %.1fs",
+                entry.url.lastPathComponent, elapsed);
+    }
+    else if (result == VibeAudioFileMaterializationResultYielded) {
+        LogInfo(@"Metadata scan yielded %@ after %.1fs",
+                entry.url.lastPathComponent, elapsed);
+    }
+    else if (result == VibeAudioFileMaterializationResultFailed
+            || result == VibeAudioFileMaterializationResultAdmissionExhausted) {
+        if (didRequeue) {
+            LogWarn(@"Metadata scan materialization failed for %@ "
+                    @"(attempt %lu of %lu); re-queued last (%@)",
+                    entry.url.lastPathComponent, (unsigned long)attempt,
+                    (unsigned long)_cloudMaterializationMaximumAttempts,
+                    error.localizedDescription);
+        }
+        else {
+            LogWarn(@"Metadata scan materialization failed for %@ and is out of attempts (%@)",
+                    entry.url.lastPathComponent, error.localizedDescription);
+        }
+    }
+    if (didScheduleDelayedRetry) {
+        [self scheduleDelayedScanRetryForEntry:entry delay:retryDelay];
+    }
+    [self dispatchNextScanMaterialization];
+}
+
+- (void)scheduleDelayedScanRetryForEntry:(VibeMetadataParseEntry *)entry
+                                   delay:(NSTimeInterval)delay {
+    __weak __typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
+                   _materializationCallbackQueue, ^{
+        __typeof(self) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        BOOL shouldDispatch = NO;
+        os_unfair_lock_lock(&strongSelf->_materializationLock);
+        if ([strongSelf->_delayedScanRetryEntries containsObject:entry]) {
+            [strongSelf->_delayedScanRetryEntries removeObject:entry];
+            if (!strongSelf.isCancelled) {
+                [strongSelf->_pendingParses addObject:entry];
+                strongSelf->_parseOrderGeneration++;
+                shouldDispatch = YES;
+            }
+        }
+        os_unfair_lock_unlock(&strongSelf->_materializationLock);
+        if (shouldDispatch) {
+            [strongSelf dispatchNextScanMaterialization];
+        }
+    });
 }
 
 - (void)setNeighborhoodURLs:(NSArray<NSURL *> *)urls {
-    if (!_cloudQueue) {
+    if (!_isScanLane) {
         return;
     }
-    os_unfair_lock_lock(&_cloudParsesLock);
+    os_unfair_lock_lock(&_materializationLock);
     _neighborhood = [urls copy] ?: @[];
-    os_unfair_lock_unlock(&_cloudParsesLock);
-    // Pending entries carry no rank of their own — the picker reads the live
-    // neighborhood — so a move re-ranks by construction. The kick covers a
-    // lane parked on blocked entries: a track change can unblock the pick.
-    [self dispatchNextCloudParse];
+    _parseOrderGeneration++;
+    os_unfair_lock_unlock(&_materializationLock);
+    [self dispatchNextScanMaterialization];
 }
 
 #if DEBUG
 // Declared in Debug/AudioTrackMetadataCache+Debug.h; implemented here because
 // the list it counts is this file's.
 - (NSUInteger)debugPendingCloudParseCount {
-    if (!_cloudQueue) {
+    if (!_isScanLane) {
         return 0;
     }
-    os_unfair_lock_lock(&_cloudParsesLock);
-    NSUInteger count = _cloudParses.count + (_cloudParseInFlight ? 1 : 0);
-    os_unfair_lock_unlock(&_cloudParsesLock);
+    os_unfair_lock_lock(&_materializationLock);
+    NSUInteger count = _pendingParses.count + _delayedScanRetryEntries.count
+            + (_scanMaterializationInFlight ? 1 : 0);
+    os_unfair_lock_unlock(&_materializationLock);
     return count;
 }
 #endif
 
-// The current-track jump-the-queue lane, for priority loaders only; see
-// -[AudioTrackMetadataCache loadMetadataNow:]. A cache hit publishes
-// immediately. A miss parses inline unless the file is still a dataless
-// placeholder: the player's own open is already materializing that same file,
-// so blocking a lane worker on the download buys nothing, and the
-// didStartPlaying-driven call retries once it is local. Unlike the scan
-// loader's keep-forever set, _queuedTracks here marks only in-flight tracks,
-// removed on completion on main, so a later re-click can retry a failed parse.
+// The current-track lane asks the same central coordinator with the priority
+// role. A same-path playback request is joined atomically; a didStart edge
+// racing a Yielded callback either retries after release or parks until it.
 - (void)loadSingleTrack:(AudioTrack *)track {
     if (track.metadata.parsedOK) {
         return;
     }
     if ([_queuedTracks containsObject:track]) {
+        [_priorityRetryRequestedTracks addObject:track];
         return;
     }
     [_queuedTracks addObject:track];
     __weak __typeof(self) weakSelf = self;
     [_queue addOperationWithBlock:^{
         __typeof(self) strongSelf = weakSelf;
-        if (strongSelf && !strongSelf.isCancelled
-                && ![strongSelf loadTrackFromDiskCache:track]
-                && ![NSURLUtil isDatalessFile:track.url]) {
-            [strongSelf parseOneTrack:track];
+        if (!strongSelf || strongSelf.isCancelled) {
+            run_on_main_thread({
+                [weakSelf clearInFlightTrack:track];
+            });
+            return;
         }
-        run_on_main_thread({
-            [weakSelf clearInFlightTrack:track];
-        });
+        if ([strongSelf loadTrackFromDiskCache:track]) {
+            run_on_main_thread({
+                [weakSelf clearInFlightTrack:track];
+            });
+            return;
+        }
+        [strongSelf submitPriorityMaterializationForTrack:track];
     }];
+}
+
+- (void)submitPriorityMaterializationForTrack:(AudioTrack *)track {
+    __weak __typeof(self) weakSelf = self;
+    dispatch_async(_materializationCallbackQueue, ^{
+        __typeof(self) strongSelf = weakSelf;
+        if (!strongSelf || strongSelf.isCancelled) {
+            run_on_main_thread({
+                [weakSelf clearInFlightTrack:track];
+            });
+            return;
+        }
+
+        __block __weak AudioFileMaterializationRequestToken *weakToken = nil;
+        AudioFileMaterializationRequestToken *token =
+                [strongSelf->_materializationCoordinator
+                        materializeURL:track.url
+                                  role:VibeAudioFileMaterializationRoleMetadataPriority
+                       completionQueue:strongSelf->_materializationCallbackQueue
+                            registered:nil
+                            completion:^(VibeAudioFileMaterializationResult result,
+                                         NSError *error,
+                                         NSTimeInterval elapsed) {
+            [weakSelf completePriorityMaterializationForTrack:track
+                                                        token:weakToken
+                                                       result:result
+                                                        error:error
+                                                      elapsed:elapsed];
+        }];
+        weakToken = token;
+
+        BOOL cancelToken = NO;
+        os_unfair_lock_lock(&strongSelf->_materializationLock);
+        if (strongSelf.isCancelled) {
+            cancelToken = YES;
+        }
+        else {
+            [strongSelf->_liveMaterializationTokens addObject:token];
+        }
+        os_unfair_lock_unlock(&strongSelf->_materializationLock);
+        if (cancelToken) {
+            [token cancel];
+        }
+    });
+}
+
+- (void)completePriorityMaterializationForTrack:(AudioTrack *)track
+                                           token:(AudioFileMaterializationRequestToken *)token
+                                          result:(VibeAudioFileMaterializationResult)result
+                                           error:(NSError *)error
+                                         elapsed:(NSTimeInterval)elapsed {
+    __weak __typeof(self) weakSelf = self;
+    os_unfair_lock_lock(&_materializationLock);
+    [_liveMaterializationTokens removeObject:token];
+    BOOL cancelled = self.isCancelled;
+    os_unfair_lock_unlock(&_materializationLock);
+
+    if (result == VibeAudioFileMaterializationResultReady && !cancelled) {
+        __weak __typeof(self) weakSelf = self;
+        [_queue addOperationWithBlock:^{
+            __typeof(self) strongSelf = weakSelf;
+            if (strongSelf && !strongSelf.isCancelled) {
+                [strongSelf parseOneTrack:track];
+            }
+            run_on_main_thread({
+                [weakSelf clearInFlightTrack:track];
+            });
+        }];
+        LogInfo(@"Priority metadata materialized %@ in %.1fs",
+                track.url.lastPathComponent, elapsed);
+        return;
+    }
+    if (result == VibeAudioFileMaterializationResultYielded && !cancelled) {
+        run_on_main_thread({
+            __typeof(self) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            VibeMetadataPriorityYieldAction action =
+                    VibeMetadataPriorityActionForYield(
+                            [strongSelf->_priorityRetryRequestedTracks containsObject:track],
+                            strongSelf->_cloudParsesHeld,
+                            strongSelf.isCancelled);
+            [strongSelf->_priorityRetryRequestedTracks removeObject:track];
+            switch (action) {
+                case VibeMetadataPriorityYieldActionRetry:
+                    [strongSelf submitPriorityMaterializationForTrack:track];
+                    break;
+                case VibeMetadataPriorityYieldActionPark:
+                    [strongSelf->_priorityParkedTracks addObject:track];
+                    break;
+                case VibeMetadataPriorityYieldActionClear:
+                    [strongSelf clearInFlightTrack:track];
+                    break;
+            }
+        });
+        return;
+    }
+    if (!cancelled && result != VibeAudioFileMaterializationResultYielded) {
+        LogWarn(@"Priority metadata materialization failed for %@ (%@)",
+                track.url.lastPathComponent, error.localizedDescription);
+    }
+    run_on_main_thread({
+        [weakSelf clearInFlightTrack:track];
+    });
 }
 
 - (void)clearInFlightTrack:(AudioTrack *)track {
     [_queuedTracks removeObject:track];
+    [_priorityRetryRequestedTracks removeObject:track];
+    [_priorityParkedTracks removeObject:track];
+    [self finishRetirementIfPossible];
+}
+
+- (void)retireWithCompletion:(dispatch_block_t)completion {
+    _retiring = YES;
+    _retireCompletion = [completion copy];
+    [self finishRetirementIfPossible];
+}
+
+- (void)finishRetirementIfPossible {
+    if (!_retiring || _queuedTracks.count) {
+        return;
+    }
+    dispatch_block_t completion = _retireCompletion;
+    _retireCompletion = nil;
+    _retiring = NO;
+    [_queue addBarrierBlock:^{
+        run_on_main_thread({
+            completion();
+        });
+    }];
 }
 
 // A disk-cache attempt. It returns YES on a hit, with the metadata set on the
@@ -652,8 +807,8 @@ static const NSUInteger kCloudParsePickWindow = 8;
     return YES;
 }
 
-// The stage-2 worker: the TagLib parse. It opens the audio file, and this is
-// the call that can block for a download's duration on a cloud placeholder.
+// The stage-2 worker: the TagLib parse. The central materialization result has
+// already made provider-backed content ready before this opens the audio file.
 // The claim, the recheck under it and the duplicate-row fan-out are
 // MetadataParseRunner's; the four steps below are what it calls back into.
 - (void)parseOneTrack:(AudioTrack *)track {
@@ -670,8 +825,7 @@ static const NSUInteger kCloudParsePickWindow = 8;
     // all. When the holder is a DIFFERENT track for the same file, skipping
     // outright would leave this row bare, since the winner's result lands on
     // its own track — so the runner registers it as a waiter and the winner fans
-    // its result out once, avoiding one polling chain per duplicate row while
-    // a cloud parse is wedged.
+    // its result out once, avoiding one redundant file read per duplicate row.
     [_parseRunner runForParticipant:track key:track.url];
 }
 
@@ -772,49 +926,63 @@ static const NSUInteger kCloudParsePickWindow = 8;
 }
 
 - (void)setCloudParsesHeld:(BOOL)held {
-    if (!_cloudQueue) {
-        return;
+    os_unfair_lock_lock(&_materializationLock);
+    _cloudParsesHeld = held;
+    os_unfair_lock_unlock(&_materializationLock);
+    if (!held) {
+        if (_isScanLane) {
+            [self dispatchNextScanMaterialization];
+        }
+        else {
+            NSArray<AudioTrack *> *parkedTracks = _priorityParkedTracks.allObjects;
+            [_priorityParkedTracks removeAllObjects];
+            for (AudioTrack *track in parkedTracks) {
+                VibeMetadataPriorityYieldAction action =
+                        VibeMetadataPriorityActionForHoldRelease(
+                                [_priorityRetryRequestedTracks containsObject:track],
+                                self.isCancelled);
+                [_priorityRetryRequestedTracks removeObject:track];
+                if (action == VibeMetadataPriorityYieldActionRetry) {
+                    [self submitPriorityMaterializationForTrack:track];
+                }
+                else {
+                    [self clearInFlightTrack:track];
+                }
+            }
+        }
     }
-    // Close the gate BEFORE cancelling, never after: the cancelled parse
-    // re-queues itself, and with the gate open its replacement would dispatch
-    // and start the same download again immediately — a cancel loop rather
-    // than a hold. The one flag closes both doors under the one lock: the
-    // picker stops dispatching, and a parse already running fails the token
-    // preparation and re-queues behind it.
-    if (held) {
-        os_unfair_lock_lock(&_cloudParsesLock);
-        _cloudParsesHeld = YES;
-        _cloudHoldGeneration++;
-        os_unfair_lock_unlock(&_cloudParsesLock);
-        [_materializer cancel];
-        return;
-    }
-    os_unfair_lock_lock(&_cloudParsesLock);
-    _cloudParsesHeld = NO;
-    os_unfair_lock_unlock(&_cloudParsesLock);
-    [self dispatchNextCloudParse];
 }
 
 - (void)cancel {
     self.isCancelled = YES;
     [_queue cancelAllOperations];
-    // Close the token-registration gate before cancelling the current token.
-    // A parse which already passed the gate is in the materializer's slot and
-    // is reached by cancel; one arriving later sees the closed gate. The
-    // pending entries are plain records, dropped here directly — nothing is
-    // pre-submitted, so there is no suspended queue pinning the discarded
-    // playlist, and the one dispatched block still runs its own cancellation
-    // checks and settles the in-flight flag on a loader that is already gone.
-    if (_cloudQueue) {
-        os_unfair_lock_lock(&_cloudParsesLock);
+    NSArray<AudioFileMaterializationRequestToken *> *tokens = nil;
+    os_unfair_lock_lock(&_materializationLock);
+    tokens = _liveMaterializationTokens.allObjects;
+    [_liveMaterializationTokens removeAllObjects];
+    _scanMaterializationToken = nil;
+    _scanMaterializationInFlight = NO;
+    _scanDispatchKickPending = NO;
+    if (_isScanLane) {
         _cloudParsesHeld = YES;
-        [_cloudParses removeAllObjects];
+        VibeMetadataStageOneCancel(&_stageOneState);
+        [_pendingParses removeAllObjects];
+        [_delayedScanRetryEntries removeAllObjects];
+        _parseOrderGeneration++;
         [_cloudAttemptsByPath removeAllObjects];
-        os_unfair_lock_unlock(&_cloudParsesLock);
     }
-    // The download in flight belongs to a playlist that is gone. Its parse
-    // checks isCancelled and re-queues nothing.
-    [_materializer cancel];
+    os_unfair_lock_unlock(&_materializationLock);
+    for (AudioFileMaterializationRequestToken *token in tokens) {
+        [token cancel];
+    }
+    if (!_isScanLane) {
+        run_on_main_thread({
+            [self->_queuedTracks removeAllObjects];
+            [self->_priorityRetryRequestedTracks removeAllObjects];
+            [self->_priorityParkedTracks removeAllObjects];
+            [self finishRetirementIfPossible];
+        });
+    }
 }
 
 @end

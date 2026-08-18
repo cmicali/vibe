@@ -81,6 +81,19 @@ static const useconds_t kSlotPollMicroseconds = 20000;   // 20ms
 static const NSTimeInterval kSparseProgressStepSeconds = 10.0;
 static const double kStallProgressCeiling = 0.4;
 
+static BOOL VibeFakeCloudRoleIsMetadata(NSString *role) {
+    return [role hasPrefix:@"metadata"];
+}
+
+static BOOL VibeFakeCloudRolesContainMetadata(NSArray<NSString *> *roles) {
+    for (NSString *role in roles) {
+        if (VibeFakeCloudRoleIsMetadata(role)) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
 // Stable across launches and across runs, so a seeded run picks the same files
 // as placeholders and gives them the same speeds. FNV-1a over the path: a hash
 // of convenience, not of quality.
@@ -251,7 +264,7 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
     sSticky = NO;
     // Every determinism switch resets: an install describes a whole scenario,
     // and a leftover mode from the previous one would silently reshape it.
-    sCapacity = 0;
+    sCapacity = 1;
     sUniform = NO;
     sProgressMode = VibeFakeCloudProgressHashed;
     sUnflagged = NO;
@@ -333,11 +346,11 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
                 VibeTraceLocked(@"started", role, path, @{
                     @"queuedMs": @((NSUInteger)((CFAbsoluteTimeGetCurrent() - queuedAt) * 1000.0)),
                 });
-                if (roles.count > 1 && [roles containsObject:@"metadata"]) {
+                if (roles.count > 1 && VibeFakeCloudRolesContainMetadata(roles)) {
                     sMetadataOverlapTransfers++;
                     VibeTraceLocked(@"overlap", role, path, @{@"roles": [roles copy]});
                 }
-                if ([whose isEqualToString:@"metadata"] && playbackInFlight > 0) {
+                if (VibeFakeCloudRoleIsMetadata(whose) && playbackInFlight > 0) {
                     sForegroundContentionStarts++;
                     VibeTraceLocked(@"contention", role, path,
                                     @{@"playbackInFlight": @(playbackInFlight)});

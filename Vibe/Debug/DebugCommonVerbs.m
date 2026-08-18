@@ -17,6 +17,10 @@
 #import "DebugWireFormat.h"
 #import "DebugChannel.h"
 #import "DebugConsistency.h"
+#import "AudioFileMaterializationCoordinator.h"
+#import "AudioFileMaterializationCoordinator+Debug.h"
+#import "AudioLoadingConfiguration.h"
+#import "AudioLoadingConfiguration+Debug.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioTrackMetadataCache+Debug.h"
 #import "AudioWaveformCache.h"
@@ -64,6 +68,10 @@ static const NSUInteger kMaxBurstJumps = 5000;
 // block_main's ceiling. Well under the stress driver's 20s liveness probe, so
 // a stray one is never mistaken for the hang it deliberately imitates.
 static const double kMaxBlockMainSeconds = 5.0;
+
+static BOOL VibeParseConfigurationCount(NSString *text, NSUInteger *value) {
+    return VibeParseNonnegativeInteger(text, value);
+}
 
 // Track changes at the rate the main queue will take them, which is the only
 // way to reach the interleavings that matter.
@@ -406,6 +414,47 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 return VibeJSONString(@{
                     @"cloudParsesPending": @([cache debugPendingCloudParseCount]),
                     @"cloudLaneHeld": @([cache debugCloudParsesHeld] ? 1 : 0),
+                    @"materialization":
+                            [AudioFileMaterializationCoordinator.sharedCoordinator debugState],
+                });
+            }),
+            VibeDebugCmd(@"dump_audio_loading", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                AudioLoadingConfiguration *materialization =
+                        AudioFileMaterializationCoordinator.sharedCoordinator.currentConfiguration;
+                AudioLoadingConfiguration *player = surface.debugPlayer.loadingConfiguration;
+                AudioLoadingConfiguration *metadata = surface.debugMetadataCache.loadingConfiguration;
+                return VibeJSONString([AudioLoadingConfiguration
+                        debugConsumerDictionaryWithMaterialization:materialization
+                                                           player:player
+                                                         metadata:metadata]);
+            }),
+            VibeDebugCmd(@"set_audio_loading <defaults | key=value ...>", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: set_audio_loading <defaults | key=value ...>");
+                }
+                AudioLoadingConfiguration *current = AudioFileMaterializationCoordinator
+                        .sharedCoordinator.currentConfiguration;
+                NSError *error = nil;
+                NSArray<NSString *> *arguments = [tokens subarrayWithRange:
+                        NSMakeRange(1, tokens.count - 1)];
+                AudioLoadingConfiguration *configuration = [AudioLoadingConfiguration
+                        debugConfigurationByApplyingArguments:arguments
+                        toConfiguration:current error:&error];
+                if (!configuration) {
+                    return VibeErrorJSON(@"%@", error.localizedDescription);
+                }
+                [surface.debugPlayer applyLoadingConfiguration:configuration];
+                [surface.debugMetadataCache applyLoadingConfiguration:configuration];
+                [AudioFileMaterializationCoordinator.sharedCoordinator
+                        applyConfiguration:configuration];
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"configuration": configuration.debugDictionary,
+                    @"appliesTo": @"new admissions, loaders, prefetch decisions, and opens",
                 });
             }),
             VibeDebugCmd(@"burst <jumps> [<seed>]", 0,
@@ -543,12 +592,12 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                         [VibeFakeCloud setUnflaggedPlaceholders:YES];
                     }
                     else if ([option hasPrefix:@"capacity="]) {
-                        double capacity = 0;
-                        if (!VibeParseDouble([option substringFromIndex:9], &capacity)
-                                || capacity < 0) {
-                            return VibeErrorJSON(@"capacity must be a non-negative number");
+                        NSUInteger capacity = 0;
+                        if (!VibeParseConfigurationCount(
+                                [option substringFromIndex:9], &capacity)) {
+                            return VibeErrorJSON(@"capacity must be a non-negative integer");
                         }
-                        [VibeFakeCloud setTransferCapacity:(NSUInteger)capacity];
+                        [VibeFakeCloud setTransferCapacity:capacity];
                     }
                     else if ([option hasPrefix:@"progress="]) {
                         NSNumber *mode = progressModes[[option substringFromIndex:9]];

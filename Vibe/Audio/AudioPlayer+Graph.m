@@ -6,7 +6,6 @@
 #import "AudioPlayer+Graph.h"
 #import "AudioPlayerInternal.h"
 #import "AudioScheduleMath.h"
-#import "AudioTrack.h"
 
 @implementation AudioPlayer (Graph)
 
@@ -50,31 +49,22 @@
     }
 }
 
-- (AVAudioPlayerNode *)attachConnectedNodeForFormat:(AVAudioFormat *)format
-                                 failureDescription:(NSString *)description
-                                                url:(NSURL *)url {
+- (AVAudioPlayerNode *)attachConnectedNodeForFormat:(AVAudioFormat *)format {
     AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
     [_engine attachNode:node];
     if (![self connectNode:node throughVarispeedWithFormat:format]) {
         [self detachNodeAfterFailedConnect:node];
         [self resetToStoppedStateOnQueue];
-        [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
-                description, nil, url)];
         return nil;
     }
     return node;
 }
 
-- (void)abandonNodeAfterFailedStart:(AVAudioPlayerNode *)node
-                 failureDescription:(NSString *)description
-                              error:(NSError *)error
-                                url:(NSURL *)url {
+- (void)abandonNodeAfterFailedStart:(AVAudioPlayerNode *)node {
     _segmentGeneration++; // drop the scheduled segment's stop-fired completion
     [node stop];
     [_engine detachNode:node];
     [self resetToStoppedStateOnQueue];
-    [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
-            description, error, url)];
 }
 
 // Schedules the remainder of the file from startFrame, with a completion

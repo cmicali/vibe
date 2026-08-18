@@ -60,6 +60,24 @@
     XCTAssertNil([state markSlowForRequest:identifier]);
 }
 
+- (void)testSlowSameRowReplayRequestsACurrentLoadingDelivery {
+    PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
+    NSObject *track = [NSObject new];
+    uint64_t identifier = [state beginWithTrack:track path:@"/same.flac"
+                                         intent:VibePendingPlaybackIntentMake(0, NO)
+                        submittedPlayIdentifier:1];
+    XCTAssertNotNil([state markSlowForRequest:identifier]);
+
+    VibePlaybackRequestRebind result = [state rebindTrack:track
+                                                     path:@"/same.flac"
+                                                   intent:VibePendingPlaybackIntentMake(0, NO)
+                                  submittedPlayIdentifier:2];
+    XCTAssertFalse(result.trackChanged);
+    XCTAssertTrue(result.shouldNotifySlowLoad);
+    XCTAssertEqual(state.currentRequest.identifier, identifier);
+    XCTAssertEqual(state.currentRequest.submittedPlayIdentifier, 2u);
+}
+
 - (void)testRebindRefreshesPausedDeliveryForAReplacementTrack {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
     NSObject *first = [NSObject new];
@@ -292,7 +310,7 @@
                                @"trace %lu event %lu", (unsigned long)trace, (unsigned long)event);
                 XCTAssertEqual(result.pausedChanged, currentIntent.paused != intent.paused,
                                @"trace %lu event %lu", (unsigned long)trace, (unsigned long)event);
-                XCTAssertEqual(result.shouldNotifySlowLoad, currentSlow && currentTrack != rebound,
+                XCTAssertEqual(result.shouldNotifySlowLoad, currentSlow,
                                @"trace %lu event %lu", (unsigned long)trace, (unsigned long)event);
                 XCTAssertEqual(result.shouldNotifyLoadingPaused,
                                currentTrack != rebound || currentIntent.paused != intent.paused,

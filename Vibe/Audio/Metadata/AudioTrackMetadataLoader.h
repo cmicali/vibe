@@ -13,6 +13,7 @@
 #import "MetadataParseRunner.h"
 
 @class AudioTrack;
+@class AudioLoadingConfiguration;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -36,13 +37,23 @@ typedef NS_ENUM(NSUInteger, VibeMetadataLane) {
                      delegate:(id <AudioTrackMetadataCacheDelegate>)delegate
                          lane:(VibeMetadataLane)lane;
 
+- (instancetype)initWithOwner:(AudioTrackMetadataCache *)owner
+                     delegate:(id <AudioTrackMetadataCacheDelegate>)delegate
+                         lane:(VibeMetadataLane)lane
+         loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration
+        NS_DESIGNATED_INITIALIZER;
+
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+
 // Stage 1 of the playlist sweep; see the directory's CLAUDE.md for the map.
 - (void)load:(NSArray<AudioTrack *> *)tracks;
 // The current-track lane's single-track entry point.
 - (void)loadSingleTrack:(AudioTrack *)track;
-// Suspends and resumes the scan lane's cloud queue; see the class extension's
-// _cloudQueue and AudioTrackMetadataCache.setCloudParsesHeld:. A no-op in the
-// current-track lane, which never parses a dataless file.
+// Locally gates new scan materialization requests. The cache also owns the
+// central coordinator hold that yields an already-registered request. The
+// current-track lane uses the same edge to park a delayed yielded retry until
+// the foreground hold releases.
 - (void)setCloudParsesHeld:(BOOL)held;
 
 // Re-ranks the pending cloud parses so these URLs go first, in the order

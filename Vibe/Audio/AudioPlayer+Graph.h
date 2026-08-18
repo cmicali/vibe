@@ -24,20 +24,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)connectNode:(AVAudioPlayerNode *)node throughVarispeedWithFormat:(AVAudioFormat *)format;
 - (void)detachNodeAfterFailedConnect:(AVAudioNode *)node;
 
-// The two failure paths, shared by the play path and the device restore so
-// their intentional differences stay visible at the call sites.
-// attachConnectedNodeForFormat: mints a node and connects it through a fresh
-// varispeed; on connect failure it detaches, resets to Stopped, reports
-// description (against url when the failure names a track), and returns nil.
-// abandonNodeAfterFailedStart: retires the scheduled segment's stop-fired
-// completion, silences and detaches the node, resets to Stopped and reports.
-- (nullable AVAudioPlayerNode *)attachConnectedNodeForFormat:(AVAudioFormat *)format
-                                          failureDescription:(NSString *)description
-                                                         url:(nullable NSURL *)url;
-- (void)abandonNodeAfterFailedStart:(AVAudioPlayerNode *)node
-                 failureDescription:(NSString *)description
-                              error:(nullable NSError *)error
-                                url:(nullable NSURL *)url;
+// The two cleanup paths are shared by a submitted play and device restore,
+// but error ownership is not. They reset to Stopped and never notify the
+// delegate; each caller must report with the identity appropriate to its path.
+- (nullable AVAudioPlayerNode *)attachConnectedNodeForFormat:(AVAudioFormat *)format;
+- (void)abandonNodeAfterFailedStart:(AVAudioPlayerNode *)node;
 - (void)scheduleFile:(AVAudioFile *)file onNode:(AVAudioPlayerNode *)node fromFrame:(AVAudioFramePosition)startFrame;
 
 @end

@@ -79,8 +79,8 @@ typedef NS_ENUM(NSInteger, VibeFakeCloudProgressMode) {
 
 // The provider's scarce resource, made explicit: at most capacity transfers
 // run at once and the rest queue, so a background download genuinely delays a
-// foreground one. 0 — the default, and what install resets to — is unlimited,
-// the old per-file behavior.
+// foreground one. Install resets to one; 0 explicitly selects unlimited
+// capacity.
 + (void)setTransferCapacity:(NSUInteger)capacity;
 
 // Every file takes exactly the base transferSeconds: no spread, no slow or
@@ -107,10 +107,9 @@ typedef NS_ENUM(NSInteger, VibeFakeCloudProgressMode) {
 // at the transfer rather than at the probe, which is asked at sites that never
 // download. Also carries the live queued/executing counts, the maximum
 // concurrency the run has observed, and metadataOverlapTransfers — how many
-// times the metadata lane downloaded a file another role was already
-// downloading. That is what the lane's stand-aside exists to prevent and it
-// shows up in no other counter, since both transfers complete. A same-path
-// playback/prefetch overlap is deliberately NOT counted: that race is designed.
+// times metadata downloaded a file another role was already downloading.
+// Path-wide single-flight ownership keeps that at zero; it shows up in no
+// other counter, since both transfers can otherwise complete.
 // foregroundContentionStarts is the foreground hold's job stated as a number —
 // metadata downloads that BEGAN while a playback download was still running.
 + (NSDictionary *)statistics;

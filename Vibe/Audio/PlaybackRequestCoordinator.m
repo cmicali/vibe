@@ -60,7 +60,9 @@
     result.matched = YES;
     result.trackChanged = request.track != track;
     result.pausedChanged = request.intent.paused != intent.paused;
-    result.shouldNotifySlowLoad = result.trackChanged && request.isSlow;
+    BOOL submissionChanged = request.submittedPlayIdentifier != submittedPlayIdentifier;
+    result.shouldNotifySlowLoad = request.isSlow
+            && (result.trackChanged || submissionChanged);
     result.shouldNotifyLoadingPaused = result.trackChanged || result.pausedChanged;
     request.track = track;
     request.intent = intent;

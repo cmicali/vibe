@@ -10,4 +10,3 @@
 
 NSString *const kVibeAudioErrorDomain = @"com.commonwealthrecordings.Vibe";
 NSString *const kVibeAudioErrorTrackURLKey = @"VibeAudioErrorTrackURL";
-NSString *const kVibeAudioErrorOpenMadeProgressKey = @"VibeAudioErrorOpenMadeProgress";

@@ -50,6 +50,9 @@ NS_ASSUME_NONNULL_BEGIN
     // download progress while the loading shimmer is up; nil otherwise. The
     // player events start and cancel it.
     DownloadProgressMonitor*    _downloadMonitor;
+    // The underlying playback open this monitor observes. A same-row replay
+    // preserves it; a later open of the same URL does not. Main-confined.
+    uint64_t                     _downloadMonitorOpenRequestIdentifier;
     // Stamped on every play at the pre-submit edge (willSubmitPlayForTrack:),
     // captured by didStartPlaying:'s prefetch acknowledgement, and compared at
     // delivery: an acknowledgement outrun by a newer submission must not

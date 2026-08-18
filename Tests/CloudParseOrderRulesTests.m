@@ -10,10 +10,29 @@
 
 #import "CloudParseOrderRules.h"
 
+@interface FakeCloudParseCandidate : NSObject <VibeCloudParseOrderCandidate>
+@property (nonatomic) BOOL deferred;
+@property (nonatomic) NSUInteger playlistIndex;
+@property (nonatomic, copy) NSURL *url;
+@end
+
+@implementation FakeCloudParseCandidate
+@end
+
 @interface CloudParseOrderRulesTests : XCTestCase
 @end
 
 @implementation CloudParseOrderRulesTests
+
+- (FakeCloudParseCandidate *)candidateAtIndex:(NSUInteger)index
+                                           url:(NSURL *)url
+                                      deferred:(BOOL)deferred {
+    FakeCloudParseCandidate *candidate = [[FakeCloudParseCandidate alloc] init];
+    candidate.playlistIndex = index;
+    candidate.url = url;
+    candidate.deferred = deferred;
+    return candidate;
+}
 
 - (void)testNeighborhoodRankBeatsPlaylistIndex {
     // The next track (rank 0) goes ahead of an earlier row outside the
@@ -71,6 +90,53 @@
         @[@YES, @(NSNotFound), @1],
     ];
     XCTAssertEqualObjects(sorted, expected);
+}
+
+- (void)testExactPickerFindsTheBestRegardlessOfArrivalOrder {
+    NSURL *next = [NSURL fileURLWithPath:@"/next.flac"];
+    NSURL *tail = [NSURL fileURLWithPath:@"/tail.flac"];
+    FakeCloudParseCandidate *earlyTail = [self candidateAtIndex:20 url:tail deferred:NO];
+    FakeCloudParseCandidate *lateNext = [self candidateAtIndex:1 url:next deferred:NO];
+
+    id<VibeCloudParseOrderCandidate> best = VibeBestCloudParseCandidate(
+            @[earlyTail, lateNext], @[next], [NSSet set]);
+
+    XCTAssertEqual(best, lateNext);
+}
+
+- (void)testMoreThanEightDuplicateBlockedPathsCannotHideAnUnblockedCandidate {
+    NSURL *blocked = [NSURL fileURLWithPath:@"/claimed.flac"];
+    NSURL *available = [NSURL fileURLWithPath:@"/available.flac"];
+    NSMutableArray<id<VibeCloudParseOrderCandidate>> *pending = [NSMutableArray array];
+    for (NSUInteger index = 0; index < 12; index++) {
+        [pending addObject:[self candidateAtIndex:index url:blocked deferred:NO]];
+    }
+    FakeCloudParseCandidate *survivor = [self candidateAtIndex:12
+                                                           url:available
+                                                      deferred:NO];
+    [pending addObject:survivor];
+
+    id<VibeCloudParseOrderCandidate> best = VibeBestCloudParseCandidate(
+            pending, @[], [NSSet setWithObject:blocked]);
+
+    XCTAssertEqual(best, survivor);
+}
+
+- (void)testDuplicateNeighborhoodURLKeepsItsFirstAndBestRank {
+    NSURL *duplicate = [NSURL fileURLWithPath:@"/duplicate.flac"];
+    NSURL *other = [NSURL fileURLWithPath:@"/other.flac"];
+    FakeCloudParseCandidate *duplicateCandidate = [self candidateAtIndex:99
+                                                                      url:duplicate
+                                                                 deferred:NO];
+    FakeCloudParseCandidate *otherCandidate = [self candidateAtIndex:0
+                                                                  url:other
+                                                             deferred:NO];
+
+    id<VibeCloudParseOrderCandidate> best = VibeBestCloudParseCandidate(
+            @[otherCandidate, duplicateCandidate],
+            @[duplicate, other, duplicate], [NSSet set]);
+
+    XCTAssertEqual(best, duplicateCandidate);
 }
 
 @end

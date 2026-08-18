@@ -211,10 +211,10 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
                     @"Could not restore track on the new audio device", nil)];
             return NO;
         }
-        AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat
-                failureDescription:@"Could not restore track on the new audio device"
-                               url:nil];
+        AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat];
         if (!node) {
+            [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
+                    @"Could not restore track on the new audio device", nil)];
             return NO;
         }
         double sampleRate = file.processingFormat.sampleRate;
@@ -231,10 +231,9 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         if (wasPlaying) {
             NSError *startError = nil;
             if (![self startEngineAndPlayNode:node error:&startError]) {
-                [self abandonNodeAfterFailedStart:node
-                               failureDescription:@"Could not restart playback on the new audio device"
-                                            error:startError
-                                              url:nil];
+                [self abandonNodeAfterFailedStart:node];
+                [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
+                        @"Could not restart playback on the new audio device", startError)];
                 return NO;
             }
         }

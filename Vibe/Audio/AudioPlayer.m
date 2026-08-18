@@ -12,6 +12,7 @@
 #import "VibeManualRenderPump.h"
 #endif
 #import "AudioFX.h"
+#import "AudioLoadingConfiguration.h"
 #import "AudioTrack.h"
 // The HAL device layer is macOS-only; iOS routing is AVAudioSession's, handled
 // in the app layer (Audio/iOS/AudioSessionController).
@@ -21,7 +22,8 @@
 #import "AudioDevice.h"
 #import "CoreAudioUtil.h"
 #endif
-#import "AudioFileOpenRules.h"
+#import "AudioFileOpenTimeoutMath.h"
+#import "PlaybackDeliveryRules.h"
 #import "FadeMath.h"
 #import "GaplessSpliceMath.h"
 #import "PlaybackRequestCoordinator.h"
@@ -63,9 +65,8 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 }
 
 // How long a file open may block before the play request is abandoned is
-// AudioFileOpenRules.h's VibeAudioOpenEffectiveDeadline: a 60s no-progress
-// baseline both platforms share, extended — never shortened — by download
-// progress the shell feeds through noteOpenProgressForURL:.
+// AudioFileOpenTimeoutMath.h's monotonic deadline: a 60s no-progress baseline
+// and 60s of silence after positive movement, configurable for diagnostics.
 
 // An open still pending after this long is worth a visible loading state.
 static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
@@ -79,9 +80,9 @@ static const NSTimeInterval kRecoveryPositionSampleIntervalSeconds = 0.5;
 // Default pitch fader range in percent: ±8%, matching a stock SL-1200.
 static const float kDefaultMaxPitchPercent = 8.0f;
 
-// Queue-specific key marking _queue, so dealloc can tell whether it is
-// already running on the queue, as it is when a queued block drops the last
-// reference. dispatch_sync onto the current queue deadlocks.
+// Queue-specific key marking _queue, so synchronous helpers can tell whether
+// they already run on this exact player's queue. A process can briefly own two
+// players during lifecycle tests or replacement.
 static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 @interface AudioPlayer ()
@@ -108,6 +109,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // Written by playOnQueue: alongside the matching retire, read by
     // finishPlayOnQueueWithFile:error:openRequestId:'s fade-in. Queue-confined.
     uint64_t                _incomingFadeMilliseconds;
+    AudioLoadingConfiguration *_loadingConfiguration;
     id                      _configChangeObserver;
 #if DEBUG
     // --no-audio-hw's stand-in for the HAL IO thread; see
@@ -121,6 +123,19 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 - (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName
                          enableFX:(BOOL)enableFX delegate:(id <AudioPlayerDelegate>)delegate {
+    return [self initWithDeviceUID:deviceUID
+                              name:deviceName
+                          enableFX:enableFX
+                          delegate:delegate
+              loadingConfiguration:[AudioLoadingConfiguration productionConfiguration]];
+}
+
+- (instancetype)initWithDeviceUID:(NSString *)deviceUID
+                              name:(NSString *)deviceName
+                          enableFX:(BOOL)enableFX
+                          delegate:(id<AudioPlayerDelegate>)delegate
+              loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration {
+    NSParameterAssert(loadingConfiguration);
     self = [super init];
     if (self) {
         _stateLock = OS_UNFAIR_LOCK_INIT;
@@ -128,6 +143,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _pendingRequest = [PlaybackRequestCoordinator new];
         _maxPitch = kDefaultMaxPitchPercent;
         _crossfadeMilliseconds = kFadeDurationMilliseconds;
+        _loadingConfiguration = [loadingConfiguration copy];
         // Meaningful before the async init block resolves the saved device:
         // -1 means follow the system default, rather than a bogus device id 0.
         self.currentlyRequestedAudioDeviceId = -1;
@@ -143,7 +159,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // nothing perceptible.
         _queue = dispatch_queue_create("com.vibe.audioplayer",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
-        dispatch_queue_set_specific(_queue, kAudioPlayerQueueKey, kAudioPlayerQueueKey, NULL);
+        dispatch_queue_set_specific(_queue, kAudioPlayerQueueKey,
+                                    (__bridge void *)self, NULL);
         // Created before the async engine init so that fx is non-nil from the
         // caller's first moment. Intent set early, by a key press or the BPM
         // feed, is recorded and applied when installInEngine: runs below.
@@ -151,6 +168,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // and installMasterBusOnQueue wires the mixer straight to the output.
         _fx = enableFX ? [[AudioFX alloc] initWithQueue:_queue] : nil;
         _retiredFades = [NSMutableArray array];
+        _prefetchAcknowledgementState = VibeAudioPrefetchAcknowledgementStateMake();
         _levelNormalizationMode = kLevelDefaultNormalizationMode;
         _levelPublisher = [[AudioLevelPublisher alloc] init];
 #if TARGET_OS_OSX
@@ -198,6 +216,33 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         });
     }
     return self;
+}
+
+- (void)applyLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration {
+    NSParameterAssert(loadingConfiguration);
+    dispatch_block_t apply = ^{
+        self->_loadingConfiguration = [loadingConfiguration copy];
+    };
+    if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
+        apply();
+    }
+    else {
+        dispatch_sync(_queue, apply);
+    }
+}
+
+- (AudioLoadingConfiguration *)loadingConfiguration {
+    __block AudioLoadingConfiguration *configuration;
+    dispatch_block_t read = ^{
+        configuration = self->_loadingConfiguration;
+    };
+    if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
+        read();
+    }
+    else {
+        dispatch_sync(_queue, read);
+    }
+    return configuration;
 }
 
 // Runs on _queue. Creates the engine and wires the master bus, applying the
@@ -374,7 +419,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _levelTap = nil;
     AVAudioPlayerNode *node = _node;
     AVAudioEngine *engine = _engine;
-    if (dispatch_get_specific(kAudioPlayerQueueKey) == kAudioPlayerQueueKey) {
+    if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
         [levelTap remove];
         [node stop];
         [engine stop];
@@ -425,6 +470,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
              declick:(BOOL)declick
 submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     NSString *path = track.url.path;
+    // Every explicit play submission retires the successor request belonging
+    // to the playback context it superseded. This precedes same-path rebind,
+    // which returns early below but is still a newer submission.
+    [self terminallyRetirePrefetchRequestOnQueue];
     // Attempted only inside Loading, because rebindTrack: MUTATES the request
     // it matches: outside this branch the mutation would be made and then
     // thrown away by the beginWithTrack: below.
@@ -456,6 +505,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
             return;
         }
     }
+
+    _activeSubmittedPlayIdentifier = 0;
 
     _pendingDeclick = declick;
     _segmentGeneration++;
@@ -557,8 +608,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // returns.
     NSURL *openURL = track.url;
     _playOpenRequestId = openId;
-    _openSubmittedAt = CFAbsoluteTimeGetCurrent();
-    _openLastProgressAt = 0;
+    _openTimeoutSnapshot = _loadingConfiguration.openTimeouts;
+    _openSubmittedUptime = NSProcessInfo.processInfo.systemUptime;
+    _openLastPositiveMovementUptime = 0;
     __weak AudioPlayer *weakSelf = self;
     _playOpenToken = [[AudioFileOpenCoordinator sharedCoordinator]
             openURL:openURL
@@ -580,7 +632,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
             [strongSelf finishPlayOnQueueWithFile:file error:error openRequestId:openId];
         }
     }];
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kOpenNoProgressBudgetSeconds * NSEC_PER_SEC)), _queue, ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)(_openTimeoutSnapshot.noProgressSeconds * NSEC_PER_SEC)), _queue, ^{
         [weakSelf fileOpenDeadlineDueForRequest:openId];
     });
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kSlowOpenIndicatorDelaySeconds * NSEC_PER_SEC)), _queue, ^{
@@ -621,11 +674,12 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
 
-    AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat
-            failureDescription:[NSString stringWithFormat:@"Could not play %@ (unsupported format)",
-                                track.url.lastPathComponent]
-                           url:track.url];
+    AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat];
     if (!node) {
+        [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
+                [NSString stringWithFormat:@"Could not play %@ (unsupported format)",
+                                           track.url.lastPathComponent], nil, track.url)
+               forSubmittedPlay:request.submittedPlayIdentifier];
         return;
     }
 
@@ -648,10 +702,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     else {
         NSError *startError = nil;
         if (![self startEngineAndPlayNode:node error:&startError]) {
-            [self abandonNodeAfterFailedStart:node
-                           failureDescription:@"Could not start audio engine"
-                                        error:startError
-                                          url:track.url];
+            [self abandonNodeAfterFailedStart:node];
+            [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
+                    @"Could not start audio engine", startError, track.url)
+                   forSubmittedPlay:request.submittedPlayIdentifier];
             return;
         }
 
@@ -670,7 +724,14 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     }
 
     self.currentTrack = track;
+    _activeSubmittedPlayIdentifier = request.submittedPlayIdentifier;
     track.duration = self.duration;
+    if ([self submittedPlayIsCurrent:request.submittedPlayIdentifier]) {
+        [self playbackDidSucceedForPrefetchOnQueue];
+    }
+    else {
+        [self terminallyRetirePrefetchRequestOnQueue];
+    }
     // Dropped for a superseded submission, for the same reason its error is:
     // the shell's own guard compares the track, and a replay of the SAME row
     // is the same AudioTrack, so a start that belongs to the previous play
@@ -693,7 +754,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // One logical deadline: the firing checks the effective deadline against the
 // progress the open has shown, re-arms itself for the remainder when a sample
 // has pushed it out, and abandons only when genuinely due. Progress can only
-// extend (AudioFileOpenRules.h), so re-arming never shortens anything, and a
+// extend (AudioFileOpenTimeoutMath.h), so re-arming never shortens anything, and a
 // stale firing for a superseded or landed open fails the identifier check
 // before it can read another request's stamps.
 - (void)fileOpenDeadlineDueForRequest:(uint64_t)openId {
@@ -701,9 +762,11 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (!pending || pending.identifier != openId) {
         return; // The open landed in time, or a newer play superseded it.
     }
-    CFAbsoluteTime deadline = VibeAudioOpenEffectiveDeadline(_openSubmittedAt, _openLastProgressAt);
-    NSTimeInterval remaining = deadline - CFAbsoluteTimeGetCurrent();
-    if (remaining > 0.05) {
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    NSTimeInterval remaining = VibeAudioOpenDeadlineRemaining(
+            now, _openSubmittedUptime, _openLastPositiveMovementUptime,
+            _openTimeoutSnapshot);
+    if (remaining > 0) {
         __weak AudioPlayer *weakSelf = self;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(remaining * NSEC_PER_SEC)), _queue, ^{
             [weakSelf fileOpenDeadlineDueForRequest:openId];
@@ -719,39 +782,29 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // entered AVAudioFile, its path claim stays registered until that call
     // returns, and a same-path retry rebinds to it.
     AudioTrack *track = request.track;
-    // Whether the transfer was moving when the deadline ran out, read here on
-    // the queue that owns both stamps. It is the difference between a big
-    // healthy file that needed more than the baseline and a file that never
-    // arrived at all, and it is what decides whether continuing to fetch it
-    // behind the error spends bandwidth on something the user will get.
-    BOOL madeProgress = _openLastProgressAt > _openSubmittedAt;
+    // Useful in the log, but not a recovery instruction: a timeout never
+    // changes metadata priority or continues playback intent behind the error.
+    BOOL madeProgress = _openLastPositiveMovementUptime > _openSubmittedUptime;
     LogError(@"Timed out opening %@ (progress seen: %@)", track.url.path,
              madeProgress ? @"yes" : @"no");
     [self resetToStoppedStateOnQueue];
     NSError *timedOut = VibeAudioErrorForTrack(VibeAudioErrorFileOpenTimedOut,
             [NSString stringWithFormat:@"Timed out opening %@ — it may still be downloading from iCloud/Dropbox or the network may be unavailable",
                                        track.url.lastPathComponent], nil, track.url);
-    NSMutableDictionary *info = [timedOut.userInfo mutableCopy];
-    info[kVibeAudioErrorOpenMadeProgressKey] = @(madeProgress);
-    timedOut = [NSError errorWithDomain:timedOut.domain code:timedOut.code userInfo:info];
     [self sendDelegateError:timedOut forSubmittedPlay:request.submittedPlayIdentifier];
 }
 
-- (void)noteOpenProgressForURL:(NSURL *)url {
-    NSString *path = url.path;
-    if (!path) {
+- (void)noteOpenProgressForOpenRequestIdentifier:(uint64_t)openRequestIdentifier {
+    if (!openRequestIdentifier) {
         return;
     }
     dispatch_async(_queue, ^{
-        // Matched against the pending request's path, and stamped only while
-        // one exists: a late sample from a settled or superseded open finds
-        // nothing to extend, and a same-path retry can only be extended by a
-        // transfer that is genuinely still moving that path's bytes.
         VibePlaybackRequest *pending = self->_pendingRequest.currentRequest;
-        if (!pending || ![pending.path isEqualToString:path]) {
+        if (!pending || pending.identifier != openRequestIdentifier
+                || self->_playOpenRequestId != openRequestIdentifier) {
             return;
         }
-        self->_openLastProgressAt = CFAbsoluteTimeGetCurrent();
+        self->_openLastPositiveMovementUptime = NSProcessInfo.processInfo.systemUptime;
     });
 }
 
@@ -768,7 +821,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         });
     } : nil;
     dispatch_async(_queue, ^{
-        [self prefetchOnQueue:track whenClaimed:ackOnMain];
+        AudioTrack *target = VibeAudioPrefetchDepthAllowsSuccessor(
+                self->_loadingConfiguration.prefetchDepth) ? track : nil;
+        [self prefetchOnQueue:target whenClaimed:ackOnMain];
     });
 }
 
@@ -780,6 +835,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // open must not land later and start playback out of an errored or stopped
     // UI. The request's unique identifier makes every late delivery a no-op.
     [_pendingRequest invalidate];
+    _activeSubmittedPlayIdentifier = 0;
     [self cancelPlayOpenOnQueue];
     [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtAbandonment
                               playPath:nil];
@@ -849,8 +905,11 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // Snapshot before dispatching. If the track has changed by the time the
     // block runs on main, this end event is stale and must be dropped.
     AudioTrack *track = self.currentTrack;
+    uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
+    _activeSubmittedPlayIdentifier = 0;
     run_on_main_thread({
-        if (!track || self.currentTrack != track) {
+        if (!track || self.currentTrack != track
+                || ![self submittedPlayIsCurrent:owningSubmittedPlayIdentifier]) {
             return;
         }
         [self.delegate audioPlayer:self didFinishPlaying:track];
@@ -1144,7 +1203,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return @{@"attachedNodes": @(self->_engine.attachedNodes.count),
                  @"retiredFades": @(self->_retiredFades.count)};
     };
-    if (dispatch_get_specific(kAudioPlayerQueueKey) == kAudioPlayerQueueKey) {
+    if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
         return counts();
     }
     __block NSDictionary *result = nil;
@@ -1183,7 +1242,7 @@ static NSString *VibeAudioLevelNormalizationModeName(
             [self applyLevelTapOnQueue];
         }
     };
-    if (dispatch_get_specific(kAudioPlayerQueueKey) == kAudioPlayerQueueKey) {
+    if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
         applyMode();
         return;
     }
@@ -1202,7 +1261,7 @@ static NSString *VibeAudioLevelNormalizationModeName(
                 VibeAudioLevelNormalizationModeName(self->_levelNormalizationMode);
         return state;
     };
-    if (dispatch_get_specific(kAudioPlayerQueueKey) == kAudioPlayerQueueKey) {
+    if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
         return snapshot();
     }
     __block NSDictionary *result = nil;
@@ -1334,8 +1393,17 @@ static NSString *VibeAudioLevelNormalizationModeName(
 
 - (void)notifyDidBeginLoadingForRequest:(VibePlaybackRequest *)request {
     AudioTrack *track = request.track;
+    uint64_t openRequestIdentifier = request.identifier;
+    uint64_t submittedPlayIdentifier = request.submittedPlayIdentifier;
     run_on_main_thread({
-        [self.delegate audioPlayer:self didBeginLoading:track];
+        if (![self submittedPlayIsCurrent:submittedPlayIdentifier]) {
+            LogInfo(@"Dropping didBeginLoading for superseded play %llu",
+                    submittedPlayIdentifier);
+            return;
+        }
+        [self.delegate audioPlayer:self
+                  didBeginLoading:track
+            openRequestIdentifier:openRequestIdentifier];
     });
 }
 
@@ -1442,9 +1510,10 @@ static NSString *VibeAudioLevelNormalizationModeName(
     });
 }
 
-// Whether a submission is still the newest one. Call it ON MAIN, from inside
-// the delivery block: what matters is whether a newer play had been submitted
-// by the time the callback actually ran, not when it was posted.
+// Whether a submission is still the newest one. Delivery sites call it on main
+// from inside their delivery block, because what matters there is whether a
+// newer play had been submitted by the time the callback actually ran. The
+// gapless park also reads it on _queue before starting successor work.
 //
 // TRAP: the counter is _nextSubmittedPlayIdentifier, which only ever
 // increments, and NOT _lastSubmittedPlayIdentifier, which looks like the same
@@ -1455,7 +1524,7 @@ static NSString *VibeAudioLevelNormalizationModeName(
     os_unfair_lock_lock(&_stateLock);
     uint64_t newest = _nextSubmittedPlayIdentifier;
     os_unfair_lock_unlock(&_stateLock);
-    return submittedPlayIdentifier == newest;
+    return VibePlaybackDeliveryIsCurrent(submittedPlayIdentifier, newest);
 }
 
 // The play-path variant: an error belonging to a submission a newer play has

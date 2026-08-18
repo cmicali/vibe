@@ -15,6 +15,7 @@
 
 #import "AudioPlayer.h"
 #import "AudioFileOpenCoordinator.h"
+#import "AudioFileOpenTimeoutMath.h"
 #import "AudioLevelTap.h"
 #import "PlaybackRequestCoordinator.h"
 #import <AVFoundation/AVFoundation.h>
@@ -43,10 +44,10 @@ typedef NS_ENUM(NSInteger, VibePlayerState) {
     VibePlayerStateStopped = 0,
     VibePlayerStatePlaying,
     VibePlayerStatePaused,
-    // A play was requested and the file open is in flight, which can take up
-    // to kFileOpenTimeoutSeconds for a cloud placeholder. There is no node or
-    // file yet. isPlaying/isPaused reflect the pending start intent, while
-    // position and duration read 0 rather than the previous track's values.
+    // A play was requested and the file open is in flight, potentially for
+    // the snapshotted cloud-open timeout budget. There is no node or file yet.
+    // isPlaying/isPaused reflect the pending start intent, while position and
+    // duration read 0 rather than the previous track's values.
     VibePlayerStateLoading,
 };
 
@@ -80,6 +81,11 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AVAudioFile             *_file;
     AVAudioFramePosition    _segmentStartFrame;
     uint64_t                _segmentGeneration;
+    // The explicit play submission which owns the currently sounding graph.
+    // Gapless promotion preserves it; a newer explicit play, stop, or failure
+    // clears it. Natural-end and promotion deliveries capture it so replaying
+    // the same row cannot pass a track-identity guard on main.
+    uint64_t                _activeSubmittedPlayIdentifier;
     // Bumped by every path that preempts an async volume ramp: pause, resume,
     // seek, skip and device switch. Each ramp step aborts once its captured
     // value goes stale, so a resume fade-in cannot drive the volume back up
@@ -101,6 +107,11 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AVAudioFile             *_prefetchedFile;
     AudioTrack              *_prefetchedTrack;
     uint64_t                _prefetchRequestId;
+    AudioTrack              *_requestedPrefetchTrack;
+    NSString                *_requestedPrefetchPath;
+    VibeAudioPrefetchAcknowledgementState _prefetchAcknowledgementState;
+    dispatch_block_t        _prefetchClaimWaiter;
+    AudioFileOpenToken      *_prefetchClaimObservationToken;
 
     // ---- Delivery tokens for the bounded open coordinator. Cancelling one
     // detaches this player and aborts materialization, but an AVAudioFile open
@@ -111,14 +122,14 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     uint64_t                _playOpenRequestId;
     AudioFileOpenToken      *_prefetchOpenToken;
 
-    // ---- The pending open's abandon deadline, queue-confined. Stamped at
-    // submission; _openLastProgressAt is 0 until the shell's download monitor
-    // reports the transfer moving (noteOpenProgressForURL:), and each sample
-    // can only extend the deadline (AudioFileOpenRules.h). One logical
-    // deadline re-arms for the remainder rather than accumulating timers, and
-    // a stale firing fails the request-identifier check.
-    CFAbsoluteTime          _openSubmittedAt;
-    CFAbsoluteTime          _openLastProgressAt;
+    // ---- The pending open's abandon deadline, queue-confined and measured
+    // in monotonic uptime. A new underlying open snapshots its configuration;
+    // a same-row replay preserves that open identifier and snapshot. Positive
+    // movement alone stamps the second clock. One logical deadline re-arms
+    // for the remainder, and stale firings fail the open-identifier check.
+    NSTimeInterval          _openSubmittedUptime;
+    NSTimeInterval          _openLastPositiveMovementUptime;
+    VibeAudioOpenTimeoutConfiguration _openTimeoutSnapshot;
 
     // _gaplessFile is a private handle opened separately from the prefetch
     // park: AVAudioFile has one stateful read position and the node pre-reads
@@ -295,6 +306,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // liveness. Every tracked fade completion and state publication funnels here.
 - (void)refreshOutputAudioActiveOnQueue;
 - (void)sendDelegateError:(NSError *)error;
+// Thread-safe submission identity check. Delivery sites call it inside their
+// main hop; the gapless park also uses it on _queue before starting work for a
+// playback settlement a newer submission already superseded.
+- (BOOL)submittedPlayIsCurrent:(uint64_t)submittedPlayIdentifier;
 // The play-path variant, which drops an error whose submission a newer play
 // has already replaced. Every error carrying kVibeAudioErrorTrackURLKey must
 // use it: the shells cannot tell a superseded same-row failure from a current

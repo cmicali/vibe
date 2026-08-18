@@ -72,12 +72,12 @@ NS_ASSUME_NONNULL_BEGIN
 // and later cancel. currentURL, movement, and handler all run on the main
 // thread.
 //
-// movement is the UNCOALESCED liveness feed: it fires on any strictly
-// increasing raw fraction, before the whole-percent gate the fraction handler
-// rides. The open's abandon deadline eats this one, never the gated stream —
-// a huge slow file can make real byte progress for tens of seconds without
-// moving a whole percent, and a deadline fed the UI's samples would abandon
-// a healthy transfer for being big. Nil when the caller only paints.
+// movement is the UNCOALESCED liveness feed: it fires on any finite, strictly
+// positive increase in the raw fraction, before the whole-percent gate the
+// fraction handler rides. Initial zero, repeated, backward, negative and NaN
+// samples are status, stalls or invalid — never movement. The open's abandon
+// deadline eats this stream, never the gated one. Nil when the caller only
+// paints.
 + (instancetype)monitorReplacing:(nullable DownloadProgressMonitor *)existing
                           forURL:(NSURL *)url
                       currentURL:(NSURL *_Nullable (^)(void))currentURL

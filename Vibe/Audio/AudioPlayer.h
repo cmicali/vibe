@@ -16,6 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class AudioTrack;
 @class AudioDevice;
 @class AudioFX;
+@class AudioLoadingConfiguration;
 
 @interface AudioPlayer : NSObject
 
@@ -80,6 +81,28 @@ NS_ASSUME_NONNULL_BEGIN
 // whether the FX graph segment exists at all; see fx.
 - (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName
                          enableFX:(BOOL)enableFX delegate:(id <AudioPlayerDelegate>)delegate;
+
+// No settings surface uses this initializer. It is the diagnostic/test seam
+// for loading budgets. The player starts with this immutable snapshot, and
+// each new underlying file open snapshots its timeout values. A same-row
+// replay keeps the open and therefore keeps its snapshot.
+- (instancetype)initWithDeviceUID:(NSString *)deviceUID
+                              name:(NSString *)deviceName
+                          enableFX:(BOOL)enableFX
+                          delegate:(id <AudioPlayerDelegate>)delegate
+              loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration
+        NS_DESIGNATED_INITIALIZER;
+
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+
+@property (nonatomic, copy, readonly) AudioLoadingConfiguration *loadingConfiguration;
+
+// Replaces the immutable snapshot used by future opens and prefetch
+// decisions. An open already in flight keeps its timeout snapshot and active
+// work is never cancelled. Main-thread callers may use this as a synchronous
+// no-UI configuration seam.
+- (void)applyLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration;
 
 - (void)play:(AudioTrack *)track;
 // The user's transport action: toggles the state which exists when it reaches
@@ -146,14 +169,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)prefetchTrack:(nullable AudioTrack *)track whenClaimed:(nullable void (^)(void))claimed;
 
 // The provider reported the pending open's transfer MOVING. Extends that
-// open's abandon deadline (AudioFileOpenRules.h) — and can only extend it,
-// never shorten, so feeding a sample is always safe — matched against the
-// pending request's path and dropped when none is pending. Call it only on a
-// raw increase: a repeated fraction is a stall, and a stalled transfer must
-// run out of its budget. The shells feed it from the download monitor's
-// UNCOALESCED movement feed, never its whole-percent fraction handler, whose
-// gate can stay silent for tens of seconds on a huge slow file moving fine.
-- (void)noteOpenProgressForURL:(NSURL *)url;
+// open's abandon deadline, matched against the underlying open request's
+// unique identifier rather than its path. A same-row replay preserves that
+// identifier; a later open of the same URL gets a new one, so an old monitor
+// cannot extend it. Call only from the monitor's uncoalesced positive-movement
+// feed, never its whole-percent UI handler.
+- (void)noteOpenProgressForOpenRequestIdentifier:(uint64_t)openRequestIdentifier;
 
 @end
 
@@ -233,7 +254,9 @@ NS_ASSUME_NONNULL_BEGIN
 // loading state. It is followed by didStartPlaying:, by error:, or, when a
 // newer play supersedes the load, by the newer track's events. A superseded
 // load gets no terminal callback of its own.
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+     didBeginLoading:(AudioTrack *)track
+openRequestIdentifier:(uint64_t)openRequestIdentifier;
 
 // Fires when play/pause changes what an in-flight open will do when it lands,
 // and when a same-file rebind replaces its playlist row. No audio has started
