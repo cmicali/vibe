@@ -290,13 +290,21 @@
         [self updateUI];
         return;
     }
-    // Keep fetching the pick after a timed-out open: ranked first, the serial
-    // lane's next download is the file the user asked for, so a retry lands
-    // fast — while the error UI stands and nothing auto-resumes playback. The
-    // entry drops on the next track change, and the lane's own attempt budget
-    // bounds a file that keeps failing.
+    // Keep fetching the pick after a timed-out open, but ONLY one that was
+    // still moving when the deadline ran out: ranked first, the serial lane's
+    // next download is the file the user asked for, so a retry lands fast —
+    // while the error UI stands and nothing auto-resumes playback. The entry
+    // drops on the next track change, and the lane's own attempt budget bounds
+    // a file that keeps failing.
+    //
+    // A transfer that showed no progress at all is the case this deliberately
+    // does NOT chase. Spending the provider's slot re-fetching a file that
+    // never arrived, unasked and behind a terminal error the user is looking
+    // at, buys nothing: the retry it would speed up is one that would fail the
+    // same way. It stays an ordinary sweep candidate.
     if ([error.domain isEqualToString:kVibeAudioErrorDomain]
-            && error.code == VibeAudioErrorFileOpenTimedOut && failedURL) {
+            && error.code == VibeAudioErrorFileOpenTimedOut && failedURL
+            && [error.userInfo[kVibeAudioErrorOpenMadeProgressKey] boolValue]) {
         [self.metadataCache prependNeighborhoodURL:failedURL];
     }
     [self startPendingMetadataLoad];

@@ -656,12 +656,22 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // entered AVAudioFile, its path claim stays registered until that call
     // returns, and a same-path retry rebinds to it.
     AudioTrack *track = request.track;
-    LogError(@"Timed out opening %@", track.url.path);
+    // Whether the transfer was moving when the deadline ran out, read here on
+    // the queue that owns both stamps. It is the difference between a big
+    // healthy file that needed more than the baseline and a file that never
+    // arrived at all, and it is what decides whether continuing to fetch it
+    // behind the error spends bandwidth on something the user will get.
+    BOOL madeProgress = _openLastProgressAt > _openSubmittedAt;
+    LogError(@"Timed out opening %@ (progress seen: %@)", track.url.path,
+             madeProgress ? @"yes" : @"no");
     [self resetToStoppedStateOnQueue];
-    [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorFileOpenTimedOut,
+    NSError *timedOut = VibeAudioErrorForTrack(VibeAudioErrorFileOpenTimedOut,
             [NSString stringWithFormat:@"Timed out opening %@ — it may still be downloading from iCloud/Dropbox or the network may be unavailable",
-                                       track.url.lastPathComponent], nil, track.url)
-           forSubmittedPlay:request.submittedPlayIdentifier];
+                                       track.url.lastPathComponent], nil, track.url);
+    NSMutableDictionary *info = [timedOut.userInfo mutableCopy];
+    info[kVibeAudioErrorOpenMadeProgressKey] = @(madeProgress);
+    timedOut = [NSError errorWithDomain:timedOut.domain code:timedOut.code userInfo:info];
+    [self sendDelegateError:timedOut forSubmittedPlay:request.submittedPlayIdentifier];
 }
 
 - (void)noteOpenProgressForURL:(NSURL *)url {

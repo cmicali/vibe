@@ -640,34 +640,63 @@ def s11_append_and_fast_path(ctx):
     return f"{len(done)} materialized; replay cost no transfer"
 
 
-def s12_timed_out_pick_is_ranked_back_in(ctx):
-    """A timed-out pick is ranked first in the neighborhood, so the file the
-    user asked for keeps downloading behind its error UI — and playback does
-    not auto-resume."""
-    ctx.arm(seconds=200, capacity=1, uniform=True, progress="none")
+def _timeout_promotion_scenario(ctx, progress_mode, seconds, watch, expect_promoted):
+    """Time an open out under a scripted progress source and report whether the
+    failed pick was ranked back into the neighborhood.
+
+    Promotion is gated on the transfer having been MOVING when the deadline
+    ran out, so the two progress modes are the two halves of one rule and are
+    asserted against each other rather than in isolation."""
+    ctx.arm(seconds=seconds, capacity=1, uniform=True, progress=progress_mode)
     folder = ctx.folders[0]
     ctx.cmd("open", str(folder))
     events = ctx.wait_for("the playback transfer to start",
                           lambda ev: events_of(ev, event="started", role="playback"))
     picked = events_of(events, event="started", role="playback")[-1]["file"]
-    deadline = time.monotonic() + 95
+    deadline = time.monotonic() + watch
     while time.monotonic() < deadline:
         if events_of(ctx.trace(), event="cancelled", role="playback"):
             break
         time.sleep(1.0)
     else:
         raise Failed("the open was never abandoned, so there is no timeout to follow")
-    state = ctx.state()
-    if state.get("player", {}).get("state") == "playing":
+
+    if ctx.state().get("player", {}).get("state") == "playing":
         raise Failed("playback auto-resumed after a timeout")
+
+    # Whatever the verdict, the sweep must run: the deferred load is released
+    # by the error path either way.
     events = ctx.wait_for("the lane to pick something after the timeout",
                           lambda ev: events_of(ev, event="requested", role="metadata"),
-                          timeout=30)
+                          timeout=40)
     first = events_of(events, event="requested", role="metadata")[0]["file"]
-    if first != picked:
-        raise Failed(f"after the timeout the lane fetched {first}, not the file the "
-                     f"user asked for ({picked})")
-    return f"{picked} was ranked back in first, playback stayed stopped"
+    promoted = first == picked
+    if expect_promoted and not promoted:
+        raise Failed(f"a transfer that was still moving was NOT ranked back in: the "
+                     f"lane fetched {first}, not {picked}")
+    if not expect_promoted and promoted:
+        raise Failed(f"a transfer that never moved WAS ranked back in ({picked}) — "
+                     "bandwidth spent re-fetching a file that never arrived, behind "
+                     "a terminal error the user is looking at")
+    return (f"{picked} {'ranked back in first' if promoted else 'left as an ordinary sweep candidate'}, "
+            "playback stayed stopped")
+
+
+def s12a_a_dead_timeout_is_not_chased(ctx):
+    """A pick that timed out having shown NO progress is not promoted: it stays
+    an ordinary sweep candidate rather than taking the provider's next slot."""
+    return _timeout_promotion_scenario(ctx, "none", seconds=200,
+                                       watch=NO_PROGRESS_BUDGET + 35,
+                                       expect_promoted=False)
+
+
+def s12b_a_moving_timeout_keeps_downloading(ctx):
+    """A pick that was still moving when the deadline ran out IS ranked back in,
+    so the file the user asked for keeps downloading behind its error UI and a
+    retry lands fast."""
+    return _timeout_promotion_scenario(ctx, "stall", seconds=100,
+                                       watch=NO_PROGRESS_BUDGET + STALL_BUDGET + 35,
+                                       expect_promoted=True)
 
 
 def s13_stand_aside_is_advisory(ctx):
@@ -738,7 +767,8 @@ SCENARIOS = [
     ("S9", s9_unflagged_placeholders, True),
     ("S10", s10_error_and_close_settle_clean, False),
     ("S11", s11_append_and_fast_path, False),
-    ("S12", s12_timed_out_pick_is_ranked_back_in, False),
+    ("S12a", s12a_a_dead_timeout_is_not_chased, False),
+    ("S12b", s12b_a_moving_timeout_keeps_downloading, False),
     ("S13", s13_stand_aside_is_advisory, True),
 ]
 

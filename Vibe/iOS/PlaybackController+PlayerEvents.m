@@ -248,12 +248,13 @@
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
     [_metadataCache setCloudParsesHeld:NO];
-    // Keep fetching the pick after a timed-out open: ranked first, the serial
-    // lane's next download is the file the user asked for, so a retry lands
-    // fast — while the error UI stands and nothing auto-resumes playback.
-    // Same rule as the mac's MainPlayerController+PlayerEvents.
+    // Keep fetching the pick after a timed-out open, but only one that was
+    // still moving when the deadline ran out — a transfer that never showed
+    // progress is not chased. Same rule as the mac's
+    // MainPlayerController+PlayerEvents, which states the reasoning.
     if ([error.domain isEqualToString:kVibeAudioErrorDomain]
-            && error.code == VibeAudioErrorFileOpenTimedOut && url) {
+            && error.code == VibeAudioErrorFileOpenTimedOut && url
+            && [error.userInfo[kVibeAudioErrorOpenMadeProgressKey] boolValue]) {
         [_metadataCache prependNeighborhoodURL:url];
     }
     // Nothing is going to start now, so the deferred sweep stops waiting.
