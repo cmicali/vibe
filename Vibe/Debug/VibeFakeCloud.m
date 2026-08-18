@@ -35,6 +35,32 @@ static NSUInteger sCompleted, sCancelled;
 // shared slot — a transfer queued for capacity has not begun — and dropped
 // when that download ends either way.
 static NSMutableDictionary<NSString *, NSNumber *> *sTransferStartedAt;
+// Which roles hold a slot for each path right now, and how many times a
+// METADATA transfer overlapped another transfer of the same file. That overlap
+// is the duplicate whole-file download the lane's stand-aside exists to
+// prevent, and it is invisible in every other counter here: both transfers
+// complete, so the tally reads as ordinary work.
+//
+// TRAP: a plain same-path overlap is NOT a defect. A prefetch already
+// materializing a file the user then plays is a designed race — purpose-keyed
+// claims, whichever open finishes first consumes the play request (Audio/
+// CLAUDE.md) — so counting every duplicate would fire on ordinary playback of
+// a prefetched cloud track. Only the metadata lane is supposed to stand aside.
+static NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *sInFlightRolesByPath;
+static NSUInteger sMetadataOverlapTransfers;
+// How many transfers of each role are in flight across all paths, and how many
+// times a metadata transfer took a slot while a PLAYBACK transfer already held
+// one. That is the foreground hold's whole job stated as a number: from play
+// submission until the open settles the background lane is closed, so a
+// background download beginning inside that window means the hold was lost —
+// whichever edge lost it. It is the one symptom every lost-release bug shares,
+// and no other counter shows it.
+//
+// The reverse order is NOT counted and must not be: a metadata transfer already
+// running when a play is submitted is exactly what the hold cancels, and it is
+// still briefly in flight while that cancel travels.
+static NSMutableDictionary<NSString *, NSNumber *> *sInFlightByRole;
+static NSUInteger sForegroundContentionStarts;
 static NSTimeInterval sBaseSeconds;
 // Fault injection; see setStickyDataless:.
 static BOOL sSticky;
@@ -218,6 +244,10 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
     // downloaded plenty.
     sMaterialized = [NSMutableSet set];
     sTransferStartedAt = [NSMutableDictionary dictionary];
+    sInFlightRolesByPath = [NSMutableDictionary dictionary];
+    sMetadataOverlapTransfers = 0;
+    sInFlightByRole = [NSMutableDictionary dictionary];
+    sForegroundContentionStarts = 0;
     sSticky = NO;
     // Every determinism switch resets: an install describes a whole scenario,
     // and a leftover mode from the previous one would silently reshape it.
@@ -291,19 +321,53 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
                 // when it asked: a queued transfer has not begun, and the
                 // progress side must read it as motionless.
                 sTransferStartedAt[path] = @(CFAbsoluteTimeGetCurrent());
+                NSString *whose = role ?: @"unlabeled";
+                NSMutableArray<NSString *> *roles = sInFlightRolesByPath[path];
+                if (!roles) {
+                    roles = [NSMutableArray array];
+                    sInFlightRolesByPath[path] = roles;
+                }
+                [roles addObject:whose];
+                NSUInteger playbackInFlight = sInFlightByRole[@"playback"].unsignedIntegerValue;
+                sInFlightByRole[whose] = @(sInFlightByRole[whose].unsignedIntegerValue + 1);
                 VibeTraceLocked(@"started", role, path, @{
                     @"queuedMs": @((NSUInteger)((CFAbsoluteTimeGetCurrent() - queuedAt) * 1000.0)),
                 });
+                if (roles.count > 1 && [roles containsObject:@"metadata"]) {
+                    sMetadataOverlapTransfers++;
+                    VibeTraceLocked(@"overlap", role, path, @{@"roles": [roles copy]});
+                }
+                if ([whose isEqualToString:@"metadata"] && playbackInFlight > 0) {
+                    sForegroundContentionStarts++;
+                    VibeTraceLocked(@"contention", role, path,
+                                    @{@"playbackInFlight": @(playbackInFlight)});
+                }
                 os_unfair_lock_unlock(&sLock);
                 return YES;
             }
             os_unfair_lock_unlock(&sLock);
             usleep(kSlotPollMicroseconds);
         }
-    }                                   releaseSlot:^(NSURL *url) {
+    }                                   releaseSlot:^(NSURL *url, NSString *role) {
+        NSString *path = url.path ?: @"";
         os_unfair_lock_lock(&sLock);
         if (sExecuting > 0) {
             sExecuting--;
+        }
+        // Paired with the acquire that stamped them, which is why both live
+        // here and not in didFinish: didFinish also fires for a transfer
+        // cancelled while still queued, which never took a slot.
+        NSString *whose = role ?: @"unlabeled";
+        NSMutableArray<NSString *> *roles = sInFlightRolesByPath[path];
+        NSUInteger which = [roles indexOfObject:whose];
+        if (which != NSNotFound) {
+            [roles removeObjectAtIndex:which];
+        }
+        NSUInteger byRole = sInFlightByRole[whose].unsignedIntegerValue;
+        sInFlightByRole[whose] = @(byRole > 0 ? byRole - 1 : 0);
+        if (roles.count == 0) {
+            [sInFlightRolesByPath removeObjectForKey:path];
+            [sTransferStartedAt removeObjectForKey:path];
         }
         os_unfair_lock_unlock(&sLock);
     }                                     didFinish:^(NSURL *url, NSString *role, BOOL completed) {
@@ -312,7 +376,6 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
             return;
         }
         os_unfair_lock_lock(&sLock);
-        [sTransferStartedAt removeObjectForKey:path];
         if (completed) {
             [sMaterialized addObject:path];
             sCompleted++;
@@ -394,6 +457,8 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
     sInstalled = NO;
     sMaterialized = nil;
     sTransferStartedAt = nil;
+    sInFlightRolesByPath = nil;
+    sInFlightByRole = nil;
     sTrace = nil;
     os_unfair_lock_unlock(&sLock);
 }
@@ -425,6 +490,8 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
         @"executing": @(sExecuting),
         @"queued": @(sQueued),
         @"maxConcurrency": @(sMaxObservedConcurrency),
+        @"metadataOverlapTransfers": @(sMetadataOverlapTransfers),
+        @"foregroundContentionStarts": @(sForegroundContentionStarts),
         @"traceCount": @(sTrace.count),
     };
     os_unfair_lock_unlock(&sLock);

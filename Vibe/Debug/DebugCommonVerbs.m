@@ -16,6 +16,7 @@
 #import "DebugChannel.h"
 #import "DebugConsistency.h"
 #import "AudioTrackMetadataCache.h"
+#import "AudioTrackMetadataCache+Debug.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformCache+Debug.h"
 #import "AudioLoadTiming.h"
@@ -56,6 +57,9 @@ static const NSUInteger kMaxListedFiles = 100;
 // A runaway guard, not a budget: the burst below is one main-queue turn per
 // jump, so even the ceiling costs under a second of wall clock.
 static const NSUInteger kMaxBurstJumps = 5000;
+// block_main's ceiling. Well under the stress driver's 20s liveness probe, so
+// a stray one is never mistaken for the hang it deliberately imitates.
+static const double kMaxBlockMainSeconds = 5.0;
 
 // Track changes at the rate the main queue will take them, which is the only
 // way to reach the interleavings that matter.
@@ -250,6 +254,75 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 }
                 return VibeJSONString(@{@"total": @(total), @"parsed": @(parsed),
                                         @"attempted": @(attempted)});
+            }),
+            // Occupy the main thread for a while and then, WITHOUT yielding it,
+            // run another verb — one main-thread turn, not two.
+            //
+            // It stages one class of defect and could not be replaced by two
+            // commands: a callback the app dispatched to main from a worker,
+            // arriving while a user action is already underway, and therefore
+            // running AFTER that action even though it was raised before it.
+            // A click handler is such an action; so is a menu item. Two
+            // separate channel commands cannot imitate one, because the
+            // channel's own intake is on the main queue — while main is held,
+            // nothing else can even be enqueued, so the callback always wins.
+            //
+            // Only the shared table's verbs can be run this way; the platform
+            // tables are typed to their own controllers. Bounded hard, because
+            // a wedged main thread is indistinguishable from a hang to every
+            // oracle that watches this app.
+            VibeDebugCmd(@"block_main <seconds> [<verb> ...]", 30,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                double seconds = 0;
+                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &seconds)
+                        || seconds <= 0 || seconds > kMaxBlockMainSeconds) {
+                    return VibeErrorJSON(@"usage: block_main <seconds 0-%g> [<verb> ...]",
+                                         kMaxBlockMainSeconds);
+                }
+                NSArray<NSString *> *then = tokens.count > 2
+                        ? [tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)] : nil;
+                NSDictionary *spec = then
+                        ? VibeDebugSpecForVerb(VibeDebugCommonCommandTable(), then.firstObject)
+                        : nil;
+                if (then && !spec) {
+                    return VibeErrorJSON(@"block_main can only chain a shared verb, not '%@'",
+                                         then.firstObject);
+                }
+                if ([then.firstObject isEqualToString:@"block_main"]) {
+                    return VibeErrorJSON(@"block_main cannot chain itself");
+                }
+                usleep((useconds_t)(seconds * 1e6));
+                if (!spec) {
+                    return VibeJSONString(@{@"ok": @YES, @"blockedSeconds": @(seconds)});
+                }
+                VibeDebugSurfaceHandler handler = spec[@"handler"];
+                NSString *chained = handler(then, commandId, surface);
+                // A nil reply means the chained verb answers asynchronously
+                // through VibeWriteDebugResponse under this same commandId, so
+                // returning anything here would write a second response for one
+                // command. Its reply is the authoritative one; stand down.
+                if (!chained) {
+                    return nil;
+                }
+                return VibeJSONString(@{@"ok": @YES, @"blockedSeconds": @(seconds),
+                                        @"then": then.firstObject,
+                                        @"thenReply": chained});
+            }),
+            // The cloud lane's two at-rest facts, on both platforms. macOS also
+            // reports them inside dump_health, which is where its stress driver
+            // scores them; iOS has no dump_health and no quiesce, so without
+            // this verb an iOS run cannot see a stuck hold or a stranded
+            // pending parse at all — and the hold lifecycle is the same code on
+            // both. Both belong at zero once a sweep has settled.
+            VibeDebugCmd(@"dump_cloud_health", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                AudioTrackMetadataCache *cache = surface.debugMetadataCache;
+                return VibeJSONString(@{
+                    @"cloudParsesPending": @([cache debugPendingCloudParseCount]),
+                    @"cloudLaneHeld": @([cache debugCloudParsesHeld] ? 1 : 0),
+                });
             }),
             VibeDebugCmd(@"burst <jumps> [<seed>]", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,

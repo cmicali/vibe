@@ -105,8 +105,14 @@ typedef NS_ENUM(NSInteger, VibeFakeCloudProgressMode) {
 // The run's tally, for the health oracle: completed are the downloads that ran
 // to term, cancelled those a hold or a newer play cut short. Both are counted
 // at the transfer rather than at the probe, which is asked at sites that never
-// download. Also carries the live queued/executing counts and the maximum
-// concurrency the run has observed.
+// download. Also carries the live queued/executing counts, the maximum
+// concurrency the run has observed, and metadataOverlapTransfers — how many
+// times the metadata lane downloaded a file another role was already
+// downloading. That is what the lane's stand-aside exists to prevent and it
+// shows up in no other counter, since both transfers complete. A same-path
+// playback/prefetch overlap is deliberately NOT counted: that race is designed.
+// foregroundContentionStarts is the foreground hold's job stated as a number —
+// metadata downloads that BEGAN while a playback download was still running.
 + (NSDictionary *)statistics;
 
 // The bounded admission trace: one entry per transfer event — requested,

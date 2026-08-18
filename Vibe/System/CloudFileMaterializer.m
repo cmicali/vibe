@@ -20,12 +20,12 @@
 static os_unfair_lock sFakeLock = OS_UNFAIR_LOCK_INIT;
 static NSTimeInterval (^sFakeTransferSeconds)(NSURL *, NSString *);   // nil, or 0 for a URL = the real read
 static BOOL (^sFakeAcquireSlot)(NSURL *, NSString *, BOOL (^)(void));
-static void (^sFakeReleaseSlot)(NSURL *);
+static void (^sFakeReleaseSlot)(NSURL *, NSString *);
 static void (^sFakeTransferDidFinish)(NSURL *, NSString *, BOOL);
 
 static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *),
                                   BOOL (^*acquireSlot)(NSURL *, NSString *, BOOL (^)(void)),
-                                  void (^*releaseSlot)(NSURL *),
+                                  void (^*releaseSlot)(NSURL *, NSString *),
                                   void (^*didFinish)(NSURL *, NSString *, BOOL)) {
     os_unfair_lock_lock(&sFakeLock);
     *seconds = sFakeTransferSeconds;
@@ -120,7 +120,7 @@ static NSError *VibeMaterializationCancelledError(void) {
 
 + (void)setFakeTransferProvider:(NSTimeInterval (^)(NSURL *url, NSString *role))secondsForURL
                     acquireSlot:(BOOL (^)(NSURL *url, NSString *role, BOOL (^cancelled)(void)))acquireSlot
-                    releaseSlot:(void (^)(NSURL *url))releaseSlot
+                    releaseSlot:(void (^)(NSURL *url, NSString *role))releaseSlot
                       didFinish:(void (^)(NSURL *url, NSString *role, BOOL completed))didFinish {
     os_unfair_lock_lock(&sFakeLock);
     sFakeTransferSeconds = [secondsForURL copy];
@@ -193,7 +193,7 @@ static NSError *VibeMaterializationCancelledError(void) {
     // already completed, so a replayed file is not re-downloaded.
     NSTimeInterval (^fakeSeconds)(NSURL *, NSString *) = nil;
     BOOL (^acquireSlot)(NSURL *, NSString *, BOOL (^)(void)) = nil;
-    void (^releaseSlot)(NSURL *) = nil;
+    void (^releaseSlot)(NSURL *, NSString *) = nil;
     void (^didFinish)(NSURL *, NSString *, BOOL) = nil;
     VibeFakeTransferHooks(&fakeSeconds, &acquireSlot, &releaseSlot, &didFinish);
     NSString *role = self.label ?: @"unlabeled";
@@ -212,7 +212,7 @@ static NSError *VibeMaterializationCancelledError(void) {
         }
         BOOL completed = admitted && [self waitOutFakeTransfer:fake token:token error:error];
         if (admitted && releaseSlot) {
-            releaseSlot(url);
+            releaseSlot(url, role);
         }
         if (!admitted && error) {
             *error = VibeMaterializationCancelledError();

@@ -46,7 +46,8 @@ NS_ASSUME_NONNULL_BEGIN
 // acquireSlot models the provider's scarce transfer capacity: it blocks until
 // the shared slot is free, polling cancelled() to abort a queued transfer the
 // way -cancel aborts a running one, and returns whether the slot was taken.
-// releaseSlot returns it. Nil means unlimited capacity.
+// releaseSlot returns it, and carries the same role so the installer can tell
+// WHICH of several transfers of one path ended. Nil means unlimited capacity.
 //
 // didFinish fires once per fake transfer, on the materializing thread, saying
 // which way it ended: completed means the file is now "local" and should stop
@@ -55,7 +56,7 @@ NS_ASSUME_NONNULL_BEGIN
 // while still queued for the slot, too.
 + (void)setFakeTransferProvider:(nullable NSTimeInterval (^)(NSURL *url, NSString *role))secondsForURL
                     acquireSlot:(nullable BOOL (^)(NSURL *url, NSString *role, BOOL (^cancelled)(void)))acquireSlot
-                    releaseSlot:(nullable void (^)(NSURL *url))releaseSlot
+                    releaseSlot:(nullable void (^)(NSURL *url, NSString *role))releaseSlot
                       didFinish:(nullable void (^)(NSURL *url, NSString *role, BOOL completed))didFinish;
 
 @end

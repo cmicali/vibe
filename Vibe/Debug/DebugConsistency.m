@@ -15,8 +15,10 @@
 #import "AudioPlayer+Debug.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "AudioTrackMetadataCache+Debug.h"
 #import "MusicalKey.h"
 #import "AppSettings.h"
+#import "VibeFakeCloud.h"
 
 void VibeDebugViolation(NSMutableArray<NSDictionary *> *violations, NSString *identifier,
                         NSString *format, ...) {
@@ -184,6 +186,70 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
         if (!VibeMusicalKeyIsValid(current.detectedKey) && current.detectedKey != VibeMusicalKeyNone) {
             VibeDebugViolation(v, @"track.detected_key_in_range",
                     @"detectedKey is %ld", (long)current.detectedKey);
+        }
+    }
+
+    // ---- The cloud lane ----
+    //
+    // The foreground hold is asserted at play submission and released by
+    // exactly one settlement — the successor prefetch's claim acknowledgement,
+    // the error path, or Close. Every one of those edges either has a pending
+    // open behind it or ends playback, so a hold that outlives a stopped,
+    // not-loading player is an edge that was lost. That is the only symptom a
+    // lost release produces until the sweep visibly never runs, and it is
+    // invisible to every other check here.
+    //
+    // The state settles on the player queue while the hold is taken
+    // synchronously on main, so a sample taken between the two reads as a
+    // violation. The caller's settle-and-re-check is what filters that, the
+    // same way it filters an in-flight metadata parse above.
+    checked++;
+    if ([surface.debugMetadataCache debugCloudParsesHeld]
+            && player.isStopped && !isLoading) {
+        VibeDebugViolation(v, @"cloud.hold_outlives_playback",
+                @"cloud lane held with the player stopped and no open in flight");
+    }
+
+    // What the fake provider can see and nothing else can, checked only while
+    // it is installed. All three are silent in every other counter: a run whose
+    // transfers all completed looks identical whether or not more of them ran
+    // at once than the provider had slots, the metadata lane downloaded a file
+    // another role was already downloading, or it began a download inside the
+    // user's own.
+    //
+    // The counters are cumulative for the life of the install, so one
+    // occurrence keeps failing until the next re-arm rather than being filtered
+    // away by the caller's re-check. Deliberate: unlike the churn that re-check
+    // exists to absorb, none of these is ever transiently true. Each re-arm
+    // resets them, which is what keeps a churn run scoring the current install
+    // rather than the whole session.
+    NSDictionary *fake = [VibeFakeCloud statistics];
+    if ([fake[@"installed"] boolValue]) {
+        NSUInteger capacity = [fake[@"capacity"] unsignedIntegerValue];
+        checked++;
+        if (capacity > 0 && [fake[@"maxConcurrency"] unsignedIntegerValue] > capacity) {
+            VibeDebugViolation(v, @"cloud.concurrency_within_capacity",
+                    @"%@ transfers ran at once against a capacity of %lu",
+                    fake[@"maxConcurrency"], (unsigned long)capacity);
+        }
+
+        checked++;
+        if ([fake[@"metadataOverlapTransfers"] unsignedIntegerValue] > 0) {
+            VibeDebugViolation(v, @"cloud.metadata_lane_stands_aside",
+                    @"the metadata lane downloaded a file already in transfer %@ time(s)",
+                    fake[@"metadataOverlapTransfers"]);
+        }
+
+        // The hold's whole job, as a number. A background download that BEGAN
+        // while the user's own was still running says the lane was open when
+        // it should have been closed, whichever release edge lost it — which
+        // is why this is checked here rather than only in the scenario that
+        // stages one particular way of losing it.
+        checked++;
+        if ([fake[@"foregroundContentionStarts"] unsignedIntegerValue] > 0) {
+            VibeDebugViolation(v, @"cloud.foreground_outranks_background",
+                    @"a metadata download began during a playback download %@ time(s)",
+                    fake[@"foregroundContentionStarts"]);
         }
     }
 
