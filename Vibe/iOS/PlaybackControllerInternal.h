@@ -43,6 +43,9 @@ NS_ASSUME_NONNULL_BEGIN
     AudioSessionController  *_audioSession;
     FolderSession           *_folderSession;
     UIUpdateTimer           *_updateTimer;
+    // Indicators currently consuming band levels. The tap is off at zero; see
+    // syncLevelsEnabled.
+    NSInteger                _levelConsumers;
 
     float                   _pendingSeekProgress;
     BOOL                    _seekInFlight;

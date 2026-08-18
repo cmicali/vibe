@@ -113,16 +113,49 @@ static const NSUInteger kUIUpdateHz = 3;
 
 #pragma mark - Equalizer levels
 
-// The level tap runs on exactly the two gates the position tick runs on:
-// something is playing, and there is a screen to draw it on. Backgrounded, no
-// indicator is visible and the FFT would be pure waste — the same rule as the
-// mac window's occlusion gate.
+// The tap exists to feed indicators, so it runs only while an indicator is
+// actually reading it: the FFT is pure waste otherwise. Three conditions, and
+// none of them subsumes the others.
+//
+// _levelConsumers is the demand the indicators declare for themselves, which is
+// what covers every way a row stops being drawn without the app changing state
+// — the playing row scrolled out of the table, a switch to the Files or Search
+// tab, a playlist replaced out from under the row. Each of those takes the cell
+// out of a window, and the indicator releases its demand there.
+//
+// levelsOccluded is the one case an indicator cannot see: the card covers the
+// library by transform, over children that remain in the hierarchy and remain
+// "appeared", so the row goes on believing it is on screen. Only the shell
+// knows, and it says so.
+//
+// The timer's own two gates stay because neither of the above implies them: a
+// backgrounded app takes no view out of any window, so demand survives it.
 //
 // Hung off notifyDidChangePlayState because that is the funnel every play-state
 // transition already passes through, rather than beside each of the six places
 // the timer's own gate is written, which would be six chances to drift.
 - (void)syncLevelsEnabled {
-    _player.levelsEnabled = _updateTimer.wanted && _updateTimer.windowVisible;
+    _player.levelsEnabled = _levelConsumers > 0 && !_levelsOccluded
+            && _updateTimer.wanted && _updateTimer.windowVisible;
+}
+
+- (void)setLevelsOccluded:(BOOL)levelsOccluded {
+    if (_levelsOccluded == levelsOccluded) {
+        return;
+    }
+    _levelsOccluded = levelsOccluded;
+    [self syncLevelsEnabled];
+}
+
+// Counted rather than a flag: cell reuse hands the model to a new indicator
+// before the old one lets go, so the count is briefly two and must not read as
+// "nobody". EqualizerIndicatorView guarantees one NO per YES, dealloc included.
+- (void)equalizerLevelsWanted:(BOOL)wanted {
+    _levelConsumers += wanted ? 1 : -1;
+    if (_levelConsumers < 0) {
+        _levelConsumers = 0;   // a source that miscounts must not wedge the tap on
+    }
+    [self syncLevelsEnabled];
 }
 
 - (BOOL)copyEqualizerLevels:(float *)out count:(NSUInteger)count {

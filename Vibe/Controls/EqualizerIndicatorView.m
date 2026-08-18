@@ -56,6 +56,10 @@ static const CFTimeInterval kMaxLevelFrameSeconds = 0.1;
     CADisplayLink      *_levelLink;
     float               _envelope[kBarCount];
     CFTimeInterval      _lastLevelTimestamp;
+    // The source we currently hold demand against, or nil. Held rather than a
+    // BOOL so a levelSource swap under a running link releases the OLD source
+    // instead of leaving it producing for nobody.
+    __weak id<EqualizerLevelSource> _levelsDeclaredTo;
 }
 
 - (instancetype)initWithFrame:(CGRect)frameRect {
@@ -203,6 +207,10 @@ static const CFTimeInterval kMaxLevelFrameSeconds = 0.1;
     // With a source the bars follow the audio; without one they run the canned
     // keyframes, which is every macOS row and any iOS row before the model is
     // handed over.
+    //
+    // Demand is reconciled here rather than in startLevelLink, which early-
+    // returns on an already-running link and so would miss a source swap.
+    [self declareLevelsWanted:(run && _levelSource != nil)];
     if (run && _levelSource) {
         [self startLevelLink];
         return;
@@ -226,6 +234,18 @@ static const CFTimeInterval kMaxLevelFrameSeconds = 0.1;
 }
 
 #pragma mark - Reactive bars
+
+// Balances itself: a source is told YES once and NO once, and a swap tells the
+// outgoing one NO before the incoming one YES, so a counting source stays exact.
+- (void)declareLevelsWanted:(BOOL)wanted {
+    id<EqualizerLevelSource> target = wanted ? _levelSource : nil;
+    if (target == _levelsDeclaredTo) {
+        return;
+    }
+    [_levelsDeclaredTo equalizerLevelsWanted:NO];
+    _levelsDeclaredTo = target;
+    [target equalizerLevelsWanted:YES];
+}
 
 - (void)startLevelLink {
     if (_levelLink) {
@@ -308,6 +328,9 @@ static const CFTimeInterval kMaxLevelFrameSeconds = 0.1;
 
 - (void)dealloc {
     [_levelLink invalidate];
+    // The last NO. A cell's indicator is deallocated without ever leaving a
+    // window on a playlist replace, so this is not merely belt and braces.
+    [_levelsDeclaredTo equalizerLevelsWanted:NO];
 }
 
 @end

@@ -116,6 +116,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - The player, non-blocking reads
 
+// YES while the now-playing card covers the library, so the band-level tap can
+// be switched off with it. The shell has to say so: the card moves by transform
+// over children that stay in the hierarchy and stay "appeared", so no view under
+// it ever learns it was covered. See RootViewController.
+@property (nonatomic) BOOL levelsOccluded;
+
 @property (nonatomic, readonly) BOOL isPlaying;
 @property (nonatomic, readonly) NSTimeInterval position;
 @property (nonatomic, readonly) NSTimeInterval duration;

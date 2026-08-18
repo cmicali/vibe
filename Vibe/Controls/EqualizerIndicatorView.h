@@ -39,6 +39,16 @@ NS_ASSUME_NONNULL_BEGIN
 // as silence.
 - (BOOL)copyEqualizerLevels:(float *)out count:(NSUInteger)count;
 
+// Whether this indicator is consuming levels at all, so a source can keep the
+// analysis it feeds them from switched off when nothing will read it. Sent only
+// on a change and exactly balanced — one NO per YES, the last of them from
+// dealloc — so a source may simply count its consumers.
+//
+// It is demand, not visibility: the indicator says what it needs, and only the
+// source knows what producing it costs. A source with nothing to switch off can
+// implement this as a no-op.
+- (void)equalizerLevelsWanted:(BOOL)wanted;
+
 @end
 
 // The bar color follows the view's own appearance — white in dark mode, black

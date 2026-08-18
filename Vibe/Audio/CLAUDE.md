@@ -79,7 +79,7 @@ CoreAudio honors LAME/iTunes gapless metadata, so tagged MP3/AAC and all lossles
 
 ### Band levels
 
-`levelsEnabled` installs an `AudioLevelTap` on `mainMixerNode` bus 0 and `copyBandLevels:count:` reads its five published levels lock-free, for the equalizer indicator to follow. Demand-driven rather than fixed at init like `enableFX`, so the tap idles whenever nothing is playing or the app is backgrounded; iOS drives it from the two gates the position tick already uses.
+`levelsEnabled` installs an `AudioLevelTap` on `mainMixerNode` bus 0 and `copyBandLevels:count:` reads its five published levels lock-free, for the equalizer indicator to follow. Demand-driven rather than fixed at init like `enableFX`, so the tap idles whenever nothing will read it: an FFT nobody draws is pure waste. **The demand is the indicators', not the player's** — the shell counts the indicators declaring themselves consumers (`equalizerLevelsWanted:`) and switches the tap with that count, which is what covers a row scrolled out of the table or a tab switched away from as well as a pause. See `iOS/CLAUDE.md`; iOS is the only platform that installs it at all.
 
 **TRAP: the tap is installed from `installMasterBusOnQueue` and nowhere else.** That method is what the media-services rebuild re-runs, so a tap installed anywhere else dies with the old engine and silently never returns — no error, no log, the bars just stop. Installing there also re-reads the sample rate a reset is free to have changed, which is what the band edges are bound from. `dropEngineBoundStateOnQueue` **abandons** the tap rather than removing it, since removing would message the defunct engine's node.
 

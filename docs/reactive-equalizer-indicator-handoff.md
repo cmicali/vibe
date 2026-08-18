@@ -165,5 +165,6 @@ Every knob is in `AudioLevelMath.h`, and each is one line:
 
 ## Known accepted costs
 
-- With the now-playing card covering the library, that one row's display link still runs. Five CALayer transform writes on one offscreen view was judged not worth machinery to suppress; backgrounding stops both link and tap anyway.
+- With the now-playing card covering the library, that one row's display link still runs. Five CALayer transform writes on one offscreen view was judged not worth machinery to suppress. **The FFT behind it is no longer in that bargain**: the tap is now switched by counted indicator demand plus the shell's `levelsOccluded`, so a covered card, a switched tab and a scrolled-away row all stop it. Only the view's own link is still spent while covered.
+- The tap follows the cell's window attachment, and `UITableView` keeps a buffer of prepared cells just past the visible bounds — so a row scrolled *marginally* off keeps the tap alive until the cell is really let go. That is cheap hysteresis, not a leak; it is why a scroll test has to push the row well clear before asserting the tap stopped.
 - `AudioLevelTap`'s scratch buffers are freed in `dealloc` rather than in `remove`, so a concurrent display-rate reader holding it through the atomic property cannot touch freed memory. Freeing in `remove` would need a lock on that path.

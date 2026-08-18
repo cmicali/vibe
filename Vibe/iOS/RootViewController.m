@@ -290,6 +290,10 @@ static NSString *const kTabSearch = @"search";
     }
     [self interruptCardAnimationPreservingVisualState];
     _expanded = YES;
+    // Set with _expanded, not in the animation's completion: the library is
+    // covered for the whole of the travel, and an interrupted animation never
+    // runs one.
+    _playback.levelsOccluded = YES;
     _player.view.hidden = NO;
     [_player beginAppearanceTransition:YES animated:animated];
     _playerAppearanceTransitionActive = YES;
@@ -309,6 +313,7 @@ static NSString *const kTabSearch = @"search";
     }
     [self interruptCardAnimationPreservingVisualState];
     _expanded = NO;
+    _playback.levelsOccluded = NO;
     [_player beginAppearanceTransition:NO animated:animated];
     _playerAppearanceTransitionActive = YES;
     _player.presented = NO;
