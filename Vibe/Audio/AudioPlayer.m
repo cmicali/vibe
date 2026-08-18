@@ -267,6 +267,41 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         [_engine connect:_engine.mainMixerNode to:_engine.outputNode
                   format:[_engine.mainMixerNode outputFormatForBus:0]];
     }
+    // TRAP: the level tap must be (re)installed HERE and nowhere else. This
+    // method is what the iOS media-services rebuild re-runs, so a tap installed
+    // anywhere else dies with the old engine and never comes back — no error,
+    // no log, the bars simply stop moving. Binding it here also re-reads the
+    // sample rate, which a reset is free to change.
+    [self applyLevelTapOnQueue];
+}
+
+// Runs on _queue. Reconciles the tap with the queue-side intent, which is the
+// only thing either caller has to get right.
+- (void)applyLevelTapOnQueue {
+    if (_levelsWanted && _engine && !self.levelTap) {
+        self.levelTap = [[AudioLevelTap alloc] initWithNode:_engine.mainMixerNode];
+    }
+    else if (!_levelsWanted && self.levelTap) {
+        [self.levelTap remove];
+        self.levelTap = nil;
+    }
+}
+
+- (void)setLevelsEnabled:(BOOL)levelsEnabled {
+    if (_levelsEnabled == levelsEnabled) {
+        return;
+    }
+    _levelsEnabled = levelsEnabled;
+    // The intent crosses to the queue as a captured value rather than as a
+    // read of the main-thread property from the block.
+    dispatch_async(_queue, ^{
+        self->_levelsWanted = levelsEnabled;
+        [self applyLevelTapOnQueue];
+    });
+}
+
+- (BOOL)copyBandLevels:(float *)out count:(NSUInteger)count {
+    return [self.levelTap copyLevels:out count:count];
 }
 
 // Runs on _queue. Forgets every reference bound to the current engine without
@@ -278,6 +313,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 - (void)dropEngineBoundStateOnQueue {
     [_retiredFades removeAllObjects];
     _varispeed = nil;
+    // Abandoned rather than removed: removeTapOnBus: would message a node
+    // belonging to the engine this method exists to stop touching. The rebuild
+    // installs a fresh tap from installMasterBusOnQueue.
+    [self.levelTap abandon];
+    self.levelTap = nil;
     // Neither transfer has a consumer any more — the deliveries below are
     // invalidated by identifier, and the file handles they would produce died
     // with the media server. A download is not engine-bound state, so nothing

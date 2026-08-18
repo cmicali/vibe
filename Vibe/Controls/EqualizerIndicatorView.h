@@ -29,6 +29,18 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Where the bars get real audio, when they have it. One method, so this shared
+// control gains no dependency on Audio/ — the source is whatever holds a
+// player, and on iOS that is PlaybackController.
+@protocol EqualizerLevelSource <NSObject>
+
+// Fills `out` with `count` levels in 0..1. NO means there is nothing to show
+// right now and `out` is untouched, which the indicator reads as "settle", not
+// as silence.
+- (BOOL)copyEqualizerLevels:(float *)out count:(NSUInteger)count;
+
+@end
+
 // The bar color follows the view's own appearance — white in dark mode, black
 // in light — and re-resolves on an appearance change. A snapshot taken while
 // the view was detached would resolve against the app or system appearance
@@ -46,6 +58,14 @@ NS_ASSUME_NONNULL_BEGIN
 // Overrides the appearance-derived bar color with the playlist's
 // artwork-derived accent. nil returns to the white or black default.
 @property (nonatomic, strong, nullable) VibeColor *barColor;
+
+// Set this and the bars follow the audio instead of the canned keyframes,
+// sampling per displayed frame while animating. nil — which is what macOS
+// leaves it, since the mac's tap point sits upstream of the FX returns — keeps
+// the keyframes, so that path is bit-for-bit what it always was.
+//
+// Weak: the source is the app's playback model and outlives every row.
+@property (nonatomic, weak, nullable) id<EqualizerLevelSource> levelSource;
 
 @end
 

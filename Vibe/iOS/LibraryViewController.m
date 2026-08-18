@@ -33,6 +33,10 @@ static const CGFloat kArtTextGap = 14;
 // the very same EqualizerIndicatorView the mac table draws, which is why it
 // lives in the shared Vibe/Controls/.
 @interface LibraryTrackCell : UITableViewCell
+// Where the indicator's bars get their audio. Set at dequeue rather than in
+// build, because the cell is minted by the table and never sees the model;
+// a reused cell already carries it.
+@property (nonatomic, weak, nullable) id<EqualizerLevelSource> levelSource;
 // Answers whether the row's height can have moved — the artist line appearing
 // or leaving is the only thing here that changes it. A caller rendering in
 // place owes the table a height recompute when it does; see
@@ -137,6 +141,7 @@ static const CGFloat kArtTextGap = 14;
                                                              forIndexPath:indexPath];
     NSUInteger index = (NSUInteger)indexPath.row;
     BOOL playing = index == _playlist.currentIndex && _playlist.count > 0;
+    cell.levelSource = _playback;
     [cell renderTrack:[_playlist trackAtIndex:index]
                number:index + 1
               playing:playing
@@ -231,6 +236,8 @@ static const CGFloat kArtTextGap = 14;
 @implementation LibraryTrackCell {
     UILabel                 *_numberLabel;
     EqualizerIndicatorView  *_indicatorView;
+    // No ivar for levelSource: it forwards straight to the indicator, so the
+    // cell keeps no second copy to fall out of step with it.
     UIImageView *_artView;
     UILabel     *_titleLabel;
     UILabel     *_artistLabel;
@@ -351,6 +358,14 @@ static const CGFloat kArtTextGap = 14;
         [_durationLabel.topAnchor constraintGreaterThanOrEqualToAnchor:content.topAnchor constant:8],
         [_durationLabel.bottomAnchor constraintLessThanOrEqualToAnchor:content.bottomAnchor constant:-8],
     ]];
+}
+
+- (void)setLevelSource:(id<EqualizerLevelSource>)levelSource {
+    _indicatorView.levelSource = levelSource;
+}
+
+- (id<EqualizerLevelSource>)levelSource {
+    return _indicatorView.levelSource;
 }
 
 - (BOOL)renderTrack:(AudioTrack *)track

@@ -77,6 +77,16 @@ Because a promote can land between a main-thread action and its queue block, int
 
 CoreAudio honors LAME/iTunes gapless metadata, so tagged MP3/AAC and all lossless files splice seamlessly; an untagged MP3's baked-in encoder padding is the one gap this cannot remove. `isGaplessArmed` (lock-free) surfaces the armed state to `dump_state`.
 
+### Band levels
+
+`levelsEnabled` installs an `AudioLevelTap` on `mainMixerNode` bus 0 and `copyBandLevels:count:` reads its five published levels lock-free, for the equalizer indicator to follow. Demand-driven rather than fixed at init like `enableFX`, so the tap idles whenever nothing is playing or the app is backgrounded; iOS drives it from the two gates the position tick already uses.
+
+**TRAP: the tap is installed from `installMasterBusOnQueue` and nowhere else.** That method is what the media-services rebuild re-runs, so a tap installed anywhere else dies with the old engine and silently never returns — no error, no log, the bars just stop. Installing there also re-reads the sample rate a reset is free to have changed, which is what the band edges are bound from. `dropEngineBoundStateOnQueue` **abandons** the tap rather than removing it, since removing would message the defunct engine's node.
+
+The tunable half is `AudioLevelMath.h` — band edges, normalization, the per-band AGC reference and the envelope — header-only and tested, because it is what decides how the bars look. The tap publishes instantaneous levels at the hop rate and smooths nothing; the envelope belongs to the view, per displayed frame, so a tap that stops firing decays instead of freezing.
+
+**TRAP: `--silent` zeroes `mainMixerNode.outputVolume`, and the tap is downstream of it**, so every band reads 0 under a normal debug run. Verify with the iOS channel's `dump_levels`, not a screenshot. Moving the tap upstream to dodge this would put it upstream of the mixer too — per-track, and re-plumbed on every crossfade.
+
 ### Robustness
 
 A last-valid-position cache preserves the playhead when the engine stops itself before recovery can read it. A `playPause` during Loading toggles whether the in-flight open lands playing or parked (`_pendingStartPaused`) rather than being dropped — on iOS that is how an interruption mid-load avoids starting the engine against an inactive session. Files open off-queue against an abandon deadline, so an undownloaded cloud placeholder cannot wedge playback; a slow open surfaces Loading instead. The deadline is `AudioFileOpenRules.h`'s `VibeAudioOpenEffectiveDeadline` — a 60s no-progress baseline both platforms share, extended (never shortened) 20s past each raw progress sample the shell's download monitor feeds through `noteOpenProgressForURL:` from its uncoalesced movement feed — re-armed as one logical deadline whose stale firings fail the request-identifier check.

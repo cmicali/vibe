@@ -85,6 +85,10 @@ The Files tab: `UIDocumentBrowserViewController`, the system's own browser over 
 
 The Playlist tab, and the home screen. The mac playlist table's four columns re-proportioned to Apple Music's list: number — replaced on the playing row by `EqualizerIndicatorView`, the very same bars the mac table draws, which is why that class is in the shared `Vibe/Controls/` — artwork, **title over artist on two lines**, and the duration out on the right.
 
+**Here the bars follow the audio, where the mac's run canned keyframes.** The cell is handed `PlaybackController` as its `EqualizerLevelSource` at dequeue — the model is the only thing holding a player, and the protocol is one method wide so the shared control gains no dependency on `Audio/`. With a source the indicator runs its own `CADisplayLink` and eases five band levels per frame; with none it keeps the keyframes, which is every mac row and any row built before the model arrives. Only the playing row animates at all, so there is only ever one link. The engine tap behind it is `Audio/CLAUDE.md`'s, gated on playing-and-foreground, and `dump_levels` is how it is verified — screenshots run `--silent`, where every band is legitimately zero.
+
+Accepted deliberately: with the now-playing card covering the library, that one row's link still runs. Five CALayer transform writes on a single offscreen view is not worth the machinery to suppress, and backgrounding stops both the link and the tap anyway.
+
 The number and duration take the **artist line's text style**, not a fixed size, so the three secondary columns scale together under Dynamic Type instead of agreeing only at the default size.
 
 An empty playlist gets `UIContentUnavailableConfiguration` with the same Open action, saying something different when the last pick found no audio. **Selecting a row plays it and stays here** — expanding the card is the strip's job, not a side effect of picking a track.

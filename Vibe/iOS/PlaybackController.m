@@ -103,11 +103,30 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)notifyDidChangePlayState {
+    [self syncLevelsEnabled];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidChangePlayState:)]) {
             [observer playbackDidChangePlayState:self];
         }
     }
+}
+
+#pragma mark - Equalizer levels
+
+// The level tap runs on exactly the two gates the position tick runs on:
+// something is playing, and there is a screen to draw it on. Backgrounded, no
+// indicator is visible and the FFT would be pure waste — the same rule as the
+// mac window's occlusion gate.
+//
+// Hung off notifyDidChangePlayState because that is the funnel every play-state
+// transition already passes through, rather than beside each of the six places
+// the timer's own gate is written, which would be six chances to drift.
+- (void)syncLevelsEnabled {
+    _player.levelsEnabled = _updateTimer.wanted && _updateTimer.windowVisible;
+}
+
+- (BOOL)copyEqualizerLevels:(float *)out count:(NSUInteger)count {
+    return [_player copyBandLevels:out count:count];
 }
 
 - (void)notifyDidTick {
@@ -447,10 +466,12 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 - (void)sceneDidEnterBackground {
     _updateTimer.windowVisible = NO;
+    [self syncLevelsEnabled];
 }
 
 - (void)sceneWillEnterForeground {
     _updateTimer.windowVisible = YES;
+    [self syncLevelsEnabled];
     [self notifyDidTick];
 }
 

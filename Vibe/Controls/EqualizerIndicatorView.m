@@ -9,6 +9,9 @@
 
 #import "EqualizerIndicatorView.h"
 
+#import "AudioLevelMath.h"   // the envelope only: header-only, no Audio/ code
+#import "VibeWeakProxy.h"
+
 #if TARGET_OS_OSX
 #import "NSView+DarkMode.h"
 #else
@@ -35,8 +38,24 @@ static NSArray<NSNumber *> *barValues(NSUInteger bar) {
 }
 static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0, 1.25, 0.95};
 
+// The bars ARE the bands: one each, and the reactive path would have nothing to
+// map if they ever diverged.
+_Static_assert(kBarCount == kLevelBandCount, "one bar per band");
+
+// A frame this long is a stall — a scroll hitch, a resumed app — and easing
+// across it would land the bars somewhere arbitrary. Clamped, they simply
+// continue from where they were.
+static const CFTimeInterval kMaxLevelFrameSeconds = 0.1;
+
 @implementation EqualizerIndicatorView {
     NSArray<CALayer *> *_bars;
+    // The paused pose, recomputed on every layout: the scale at which a bar is
+    // as tall as it is wide. It is the floor the reactive path grows from, so
+    // level 0 and "not playing" draw the identical row of dots.
+    CGFloat             _collapsedScale;
+    CADisplayLink      *_levelLink;
+    float               _envelope[kBarCount];
+    CFTimeInterval      _lastLevelTimestamp;
 }
 
 - (instancetype)initWithFrame:(CGRect)frameRect {
@@ -106,6 +125,7 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0, 1.25, 0.
     CGFloat barWidth = (self.bounds.size.width - kBarGap * (kBarCount - 1)) / (CGFloat)kBarCount;
     CGFloat height = self.bounds.size.height;
     CGFloat collapsed = [self collapsedScaleForBarWidth:barWidth height:height];
+    _collapsedScale = collapsed;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (NSUInteger i = 0; i < kBarCount; i++) {
@@ -168,8 +188,21 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0, 1.25, 0.
 }
 #endif
 
+- (void)setLevelSource:(id<EqualizerLevelSource>)levelSource {
+    _levelSource = levelSource;
+    [self updateAnimations];
+}
+
 - (void)updateAnimations {
     BOOL run = _animating && self.window != nil;
+    // With a source the bars follow the audio; without one they run the canned
+    // keyframes, which is every macOS row and any iOS row before the model is
+    // handed over.
+    if (run && _levelSource) {
+        [self startLevelLink];
+        return;
+    }
+    [self stopLevelLink];
     for (NSUInteger i = 0; i < kBarCount; i++) {
         CALayer *bar = _bars[i];
         if (!run) {
@@ -185,6 +218,91 @@ static const CFTimeInterval kBarDurations[kBarCount] = {0.9, 1.15, 1.0, 1.25, 0.
         bounce.repeatCount = HUGE_VALF;
         [bar addAnimation:bounce forKey:@"eq"];
     }
+}
+
+#pragma mark - Reactive bars
+
+- (void)startLevelLink {
+    if (_levelLink) {
+        return;
+    }
+    // TRAP: the two modes drive the same property. A keyframe animation left
+    // running would composite over every per-frame write, and the bars would
+    // read as the canned loop with a wobble rather than as the audio.
+    for (CALayer *bar in _bars) {
+        [bar removeAnimationForKey:@"eq"];
+    }
+    _lastLevelTimestamp = 0;
+    // Through a weak proxy, because the link retains its target and a table
+    // cell's indicator must still reach dealloc. 30-60 is the same band the
+    // card's playhead link asks for: the envelope is time-based, so a dropped
+    // frame costs smoothness and never position.
+    //
+    // The constructor is the one genuine platform difference: a mac link is
+    // minted by the view it will draw for, since a display can come and go
+    // under a window, while +displayLinkWithTarget:selector: is UIKit-only.
+    id proxy = [VibeWeakProxy proxyWithTarget:self];
+#if TARGET_OS_OSX
+    _levelLink = [self displayLinkWithTarget:proxy selector:@selector(levelTick:)];
+#else
+    _levelLink = [CADisplayLink displayLinkWithTarget:proxy selector:@selector(levelTick:)];
+#endif
+    _levelLink.preferredFrameRateRange = CAFrameRateRangeMake(30, 60, 60);
+    [_levelLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+}
+
+- (void)stopLevelLink {
+    if (!_levelLink) {
+        return;
+    }
+    [_levelLink invalidate];
+    _levelLink = nil;
+    for (NSUInteger i = 0; i < kBarCount; i++) {
+        _envelope[i] = 0;
+    }
+    // The reactive path writes the model transform directly, so unlike the
+    // keyframe path there is no animation to remove that would restore the
+    // paused pose. Settle it by hand.
+    [self applyBarScales];
+}
+
+- (void)levelTick:(CADisplayLink *)link {
+    CFTimeInterval now = link.timestamp;
+    CFTimeInterval dt = _lastLevelTimestamp > 0 ? now - _lastLevelTimestamp : link.duration;
+    _lastLevelTimestamp = now;
+    if (dt <= 0 || dt > kMaxLevelFrameSeconds) {
+        dt = MIN(link.duration > 0 ? link.duration : 1.0 / 60.0, kMaxLevelFrameSeconds);
+    }
+
+    float levels[kBarCount] = {0};
+    // No levels is not silence: the engine's deferred idle stop takes the tap
+    // a few seconds after a pause, and the bars should fall rather than freeze
+    // where they were.
+    BOOL published = [_levelSource copyEqualizerLevels:levels count:kBarCount];
+    for (NSUInteger i = 0; i < kBarCount; i++) {
+        float target = published ? levels[i] : 0.0f;
+        _envelope[i] = VibeLevelEnvelope(_envelope[i], target, (float)dt,
+                                         kLevelAttackSeconds, kLevelReleaseSeconds);
+    }
+    [self applyBarScales];
+}
+
+// Level 0 is the paused pose and level 1 is full height, so a bar can never
+// draw shorter than the dot it collapses to.
+- (void)applyBarScales {
+    CGFloat collapsed = _collapsedScale > 0 ? _collapsedScale : 1.0;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    for (NSUInteger i = 0; i < kBarCount; i++) {
+        CGFloat level = _levelLink ? (CGFloat)_envelope[i] : 0.0;
+        CGFloat scale = collapsed + (1.0 - collapsed) * level;
+        _bars[i].transform = CATransform3DMakeScale(1, scale, 1);
+    }
+    [CATransaction commit];
+}
+
+- (void)dealloc {
+    [_levelLink invalidate];
 }
 
 @end

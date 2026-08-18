@@ -15,6 +15,7 @@
 
 #import "AudioPlayer.h"
 #import "AudioFileOpenCoordinator.h"
+#import "AudioLevelTap.h"
 #import "PlaybackRequestCoordinator.h"
 #import <AVFoundation/AVFoundation.h>
 #import <os/lock.h>
@@ -163,6 +164,13 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // yield to a pending pause, which owns the transport.
     BOOL                    _pausePending;
 
+    // ---- The equalizer indicator's level tap.
+    // The public levelsEnabled's intent, carried onto the queue by its setter
+    // and queue-confined thereafter. It is read again by every master-bus
+    // wiring, which is how a media-services rebuild comes back with the tap it
+    // had; the public property is main-thread state and must not be read here.
+    BOOL                    _levelsWanted;
+
     // ---- Read by AudioPlayer+State, written by publishPlaybackState:.
     // Last position computed from a valid playerTime, guarded by _stateLock.
     // When the engine stops itself, on a device unplug or format change,
@@ -202,6 +210,15 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // The in-flight open's generation, path, current rebound row and start intent;
 // see PlaybackRequestCoordinator.
 @property (nonatomic, readonly, nullable) PlaybackRequestCoordinator *pendingRequest;
+
+// The band-level tap, nil unless levelsEnabled. Written only by AudioPlayer.m
+// and only on the queue, like everything else here — readwrite rather than
+// readonly because it is ATOMIC, and a direct ivar write would bypass exactly
+// the synchronization it exists for. copyBandLevels: reads it from the main
+// thread at display rate, and an atomic strong read retains the tap for the
+// call, which is what lets the queue drop the last reference concurrently
+// without the reader ever touching a freed object. See AudioLevelTap's dealloc.
+@property (atomic, strong, nullable) AudioLevelTap *levelTap;
 
 // The loading intent, mirrored under _stateLock so that main-thread getters and
 // a seek's identity snapshot never touch queue-confined pending state. The

@@ -172,6 +172,11 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             VibeCmd(@"dump_art", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString([controller debugArtDictionary]);
             }),
+            // The bars follow the audio, and --silent makes every band zero, so
+            // a screenshot cannot tell working from broken. This can.
+            VibeCmd(@"dump_levels", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                return VibeJSONString([controller debugLevelsDictionary]);
+            }),
             // The card presents and dismisses by gesture, and the channel
             // cannot synthesize a touch; these are how it is driven without
             // the XCUITest driver.

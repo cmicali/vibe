@@ -22,7 +22,8 @@
 
 #import <UIKit/UIKit.h>
 
-#import "PlayerScreenRules.h"   // VibePlayerScreenState, returned below
+#import "EqualizerIndicatorView.h"   // EqualizerLevelSource, adopted below
+#import "PlayerScreenRules.h"        // VibePlayerScreenState, returned below
 
 @class AudioTrack;
 @class PlaybackController;
@@ -83,7 +84,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-@interface PlaybackController : NSObject
+// It is the app's EqualizerLevelSource as well: the library row's indicator
+// draws the audio this object is playing, and this is the only thing that
+// holds the player. The protocol is one method wide precisely so the shared
+// control needs nothing else from here.
+@interface PlaybackController : NSObject <EqualizerLevelSource>
 
 #pragma mark - Observers
 

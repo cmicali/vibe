@@ -27,6 +27,9 @@
 // "not decoded yet" from "no art at all" — both are the placeholder — so this
 // is the only way to see whether the prefetch is keeping up.
 - (NSDictionary *)debugArtDictionary;
+// The equalizer indicator's band levels. The PRIMARY way to verify them:
+// screenshots run --silent, where every band is legitimately zero.
+- (NSDictionary *)debugLevelsDictionary;
 // The compact reply the transport verbs share.
 - (NSDictionary *)debugActionSummary;
 - (void)debugPlayPause;

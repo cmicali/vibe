@@ -46,6 +46,15 @@ NS_ASSUME_NONNULL_BEGIN
 // lowering it back re-arms parked material.
 @property (atomic) NSInteger crossfadeMilliseconds;
 
+// Whether a tap publishes band levels for the equalizer indicator to follow.
+// Off by default, and demand-driven rather than fixed at init like enableFX
+// below: it is set from whether anything is both playing and on screen, so the
+// tap costs nothing while backgrounded. Setting it installs or removes the tap
+// on the player queue, and a media-services rebuild re-installs to match.
+//
+// Main thread only, like every other transport-facing setter here.
+@property (nonatomic) BOOL levelsEnabled;
+
 // The DJ performance effects: low kill and its boost, the reverb and delay
 // sends, and the delay's tempo feed. See AudioFX.h. With enableFX it is
 // non-nil from init, so a caller can set intent immediately; the graph work
@@ -170,6 +179,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSUInteger)numChannels;
 - (NSTimeInterval)duration;
+
+// The equalizer indicator's band levels, 0..1, newest published frame. Fills
+// `out` with `count` values and returns NO — leaving `out` untouched — when no
+// tap is running, which a caller should read as "nothing to show", not as
+// silence. Lock-free, for a caller running at display rate.
+- (BOOL)copyBandLevels:(float *)out count:(NSUInteger)count;
 
 @end
 
