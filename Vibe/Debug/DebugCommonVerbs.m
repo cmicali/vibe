@@ -6,7 +6,7 @@
 //
 
 #import "DebugCommonVerbs.h"
-// kLevelBandCount, for dump_levels.
+// kLevelBandCount, for dump_equalizer.
 #import "AudioLevelMath.h"
 
 #if DEBUG
@@ -329,7 +329,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             // therefore never be used to judge reactive motion. In contrast,
             // `--no-audio-hw` can engage the manual renderer without zeroing
             // the signal; the three launch facts make that distinction visible.
-            VibeDebugCmd(@"dump_levels", 0,
+            VibeDebugCmd(@"dump_equalizer", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 AudioPlayer *player = surface.debugPlayer;

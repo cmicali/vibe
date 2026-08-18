@@ -18,7 +18,6 @@
 #import "PlayerViewController+Debug.h"
 
 #import "AppSettings.h"
-#import "AudioLevelMath.h"      // kLevelBandCount, for dump_levels
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"

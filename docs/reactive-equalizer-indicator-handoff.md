@@ -159,7 +159,7 @@ history but retains the process-local selection; relaunch returns to `spectrum`.
 
 ## Runtime verification
 
-Use the `vibe-debug` skill and `dump_levels`. Its nested
+Use the `vibe-debug` skill and `dump_equalizer`. Its nested
 `audio.normalizationMode` is the canonical `activity` or `spectrum` string. Both debug
 clients also expose `set_equalizer_mode activity|spectrum`; a successful reply carries
 the same string plus `requested`, `tapObject` and `installed`, so a failed active-tap
@@ -209,7 +209,7 @@ the tap is intentionally downstream, so every band is legitimately zero. On macO
 `--no-audio-hw` alone keeps the manual renderer and tap moving; it is suitable for
 functional counter checks but not audible-start-latency measurements. On the iOS
 simulator use `VIBE_AUDIBLE=1` when judging reactive motion. Never infer health from a
-screenshot without checking the launch flags and `dump_levels` first.
+screenshot without checking the launch flags and `dump_equalizer` first.
 
 ## Tuning homes
 
