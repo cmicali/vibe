@@ -1,0 +1,846 @@
+#!/usr/bin/env python3
+"""Deterministic cloud-loading scenarios, asserted on the fake provider's trace.
+
+Where stress.py drives randomly and watches for violations, this drives ONE
+named situation at a time and asserts what the trace must contain. It exists
+because the cloud work's guarantees are all about ORDER — which download runs
+next, which is abandoned, which never starts — and order is exactly what a
+seeded monkey cannot state.
+
+Three rules the whole file is built on:
+
+  ASSERT ON THE TRACE, NEVER ON ELAPSED TIME. `dump_cloud_trace` records every
+  transfer's requested/started/completed/cancelled with its role and a sequence
+  number. Timing is used only to decide when to stop waiting.
+
+  ONE LAUNCH PER SCENARIO. `set_fake_cloud` deliberately preserves the
+  completed/cancelled tally across a re-arm, the metadata cache persists to
+  disk, and a hold left over from a previous scenario would be indistinguishable
+  from one this scenario lost. A fresh process is the only honest reset.
+
+  capacity=1 uniform UNLESS THE SCENARIO SAYS OTHERWISE. The provider's default
+  is unlimited capacity and a 0.5x-2x per-file spread; neither can express
+  "background work starved foreground work", which is the thing under test.
+
+A scenario may be marked expected-fail. Those are the two guarantees the
+implementation knowingly does not provide (see fable-post-implementation-review
+items 4 and 5); they are run and reported rather than skipped, so the day one
+starts passing is visible. An expected-fail that PASSES is reported as XPASS and
+is a finding in its own right.
+
+    cloud-scenarios.py --corpus build/cloud-scenarios-corpus
+    cloud-scenarios.py --corpus <dir> --only S4b,S7 --verbose
+"""
+
+import argparse
+import os
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from stress import Channel, launch  # noqa: E402
+
+DEFAULT_APP = Path("build/DerivedData/Build/Products/Debug/Vibe.app")
+
+# The base transfer, in seconds. Long enough that a scenario can observe a
+# transfer mid-flight over a channel whose round trip is ~130ms, short enough
+# that a dozen of them do not make the suite a soak.
+TRANSFER = 1.0
+
+# How long any wait_for gives up after. Every scenario's longest legitimate wait
+# is a handful of transfers.
+WAIT_TIMEOUT = 40.0
+POLL = 0.15
+
+
+# --------------------------------------------------------------------------
+# Result plumbing
+# --------------------------------------------------------------------------
+
+
+class Failed(Exception):
+    """A scenario's own assertion. Carries the trace for the report."""
+
+
+class Ctx:
+    def __init__(self, channel, corpus, verbose):
+        self.channel = channel
+        self.corpus = corpus
+        self.verbose = verbose
+        self.folders = sorted(p for p in corpus.iterdir() if p.is_dir())
+        if len(self.folders) < 2:
+            sys.exit(f"{corpus} needs at least two subfolders — see make-cloud-corpus.py")
+
+    # -- channel ----------------------------------------------------------
+
+    def cmd(self, *argv, timeout=40):
+        code, payload, _ = self.channel.run([str(a) for a in argv], timeout=timeout)
+        if self.verbose:
+            print(f"      $ {' '.join(str(a) for a in argv)} -> {code}", file=sys.stderr)
+        if code not in (0,):
+            raise Failed(f"`{' '.join(str(a) for a in argv)}` failed: exit {code} {payload}")
+        return payload or {}
+
+    def arm(self, seconds=TRANSFER, percent=100, capacity=1, uniform=True,
+            progress=None, unflagged=False, sticky=False):
+        argv = ["set_fake_cloud", f"{seconds}", f"{percent}", f"capacity={capacity}"]
+        if uniform:
+            argv.append("uniform")
+        if progress:
+            argv.append(f"progress={progress}")
+        if unflagged:
+            argv.append("unflagged")
+        if sticky:
+            argv.append("sticky")
+        stats = self.cmd(*argv)
+        if not stats.get("installed"):
+            raise Failed(f"could not arm the fake provider: {stats}")
+        return stats
+
+    def trace(self):
+        return self.cmd("dump_cloud_trace").get("events", [])
+
+    def stats(self):
+        return self.cmd("dump_cloud_trace").get("stats", {})
+
+    def health(self):
+        return self.cmd("dump_cloud_health")
+
+    def state(self):
+        return self.cmd("dump_state")
+
+    def playlist(self):
+        """{"count", "currentIndex", "files"} — files are basenames, in row
+        order, which is the same identity the cloud trace records."""
+        return self.cmd("dump_state").get("playlist", {})
+
+    def wait_for(self, describe, predicate, timeout=WAIT_TIMEOUT):
+        """Poll the trace until predicate(events) is true. Returns the events."""
+        deadline = time.monotonic() + timeout
+        events = []
+        while time.monotonic() < deadline:
+            events = self.trace()
+            if predicate(events):
+                return events
+            time.sleep(POLL)
+        raise Failed(f"timed out after {timeout:.0f}s waiting for {describe}")
+
+    def settle(self, seconds):
+        """Let the app run. `sleep` is served in-app, so it costs one round trip."""
+        self.cmd("sleep", f"{seconds}")
+
+
+
+# -- trace helpers ---------------------------------------------------------
+
+
+def events_of(events, event=None, role=None, file=None):
+    out = events
+    if event is not None:
+        out = [e for e in out if e["event"] == event]
+    if role is not None:
+        out = [e for e in out if e["role"] == role]
+    if file is not None:
+        out = [e for e in out if e["file"] == file]
+    return out
+
+
+def started_order(events, role):
+    return [e["file"] for e in events_of(events, event="started", role=role)]
+
+
+def windows(events, role):
+    """[(start_seq, end_seq)] for each transfer of `role` that started.
+
+    end_seq is the matching completed/cancelled, or None if still in flight.
+    Matched by file, oldest-open-first, which is exact here because one file
+    never has two transfers of the same role in flight — and if it ever did,
+    the fake's own metadataOverlapTransfers counter would already have fired.
+    """
+    open_by_file, spans = {}, []
+    for e in events:
+        if e["role"] != role:
+            continue
+        if e["event"] == "started":
+            open_by_file.setdefault(e["file"], []).append(len(spans))
+            spans.append([e["seq"], None, e["file"]])
+        elif e["event"] in ("completed", "cancelled"):
+            pending = open_by_file.get(e["file"])
+            if pending:
+                spans[pending.pop(0)][1] = e["seq"]
+    return [(s, t, f) for s, t, f in spans]
+
+
+def role_started_inside(events, inner_role, outer_role):
+    """Transfers of inner_role that began inside an outer_role transfer's span."""
+    hits = []
+    outer = windows(events, outer_role)
+    for e in events_of(events, event="started", role=inner_role):
+        for start, end, ofile in outer:
+            if start < e["seq"] and (end is None or e["seq"] < end):
+                hits.append((e["file"], ofile))
+    return hits
+
+
+def fmt_trace(events, limit=60):
+    lines = []
+    for e in events[-limit:]:
+        extra = ""
+        if "queuedMs" in e:
+            extra = f" queued={e['queuedMs']}ms"
+        if "roles" in e:
+            extra = f" roles={e['roles']}"
+        lines.append(f"  {e['seq']:>3} {e['tMs']:>7}ms {e['event']:<10} "
+                     f"{e['role']:<9} {e['file']}{extra}")
+    return "\n".join(lines) or "  (no events)"
+
+
+# --------------------------------------------------------------------------
+# Shared assertions
+# --------------------------------------------------------------------------
+
+
+def assert_no_foreground_contention(ctx, events):
+    """The hold's whole job: no background download begins inside a foreground one.
+
+    Checked from the trace here as well as from the app's own cumulative
+    counter, because the trace names WHICH files, which is what a failure
+    report needs.
+    """
+    hits = role_started_inside(events, "metadata", "playback")
+    if hits:
+        raise Failed("a metadata download began during a playback download: "
+                     + ", ".join(f"{m} inside {p}" for m, p in hits))
+    counted = ctx.stats().get("foregroundContentionStarts", 0)
+    if counted:
+        raise Failed(f"the app counted {counted} foreground contention start(s)")
+
+
+def open_and_play(ctx, folder, index=0, wait=True):
+    """Open a folder and play a row, returning once the play has been submitted.
+
+    The mac's folder open auto-plays row 0, so an explicit play_index is a
+    REBIND for index 0 rather than a new open. Scenarios that need a distinct
+    foreground open therefore pick a row the auto-play did not.
+    """
+    ctx.cmd("open", str(folder))
+    if wait:
+        ctx.wait_for("the folder's first playback transfer",
+                     lambda ev: events_of(ev, event="requested", role="playback"))
+    if index is not None:
+        ctx.cmd("play_index", index)
+
+
+# --------------------------------------------------------------------------
+# Scenarios
+# --------------------------------------------------------------------------
+#
+# Each takes a Ctx, raises Failed with a sentence, and returns a short note for
+# the report on success. The app is freshly launched and its caches cleared
+# before each one.
+
+
+def s1_replacement_cancels_the_old_scan(ctx):
+    """A folder replacement stops the old folder's downloads before the new
+    folder's first open starts. macOS did not do this before the change: only
+    iOS cancelled the loader at replacement."""
+    a, b = ctx.folders[0], ctx.folders[1]
+    ctx.arm()
+    ctx.cmd("open", str(a))
+    ctx.wait_for("an A metadata transfer to start",
+                 lambda ev: events_of(ev, event="started", role="metadata"))
+    a_started = {e["file"] for e in events_of(ctx.trace(), event="started", role="metadata")}
+
+    # Which files belong to B is known from disk, so B's own playback transfer
+    # is identified by name rather than by "the last one", which a rebind or a
+    # superseded open would make wrong.
+    b_names = {p.name for p in b.iterdir() if p.is_file()}
+    ctx.cmd("open", str(b))
+    events = ctx.wait_for("B's own playback transfer to start",
+                          lambda ev: [e for e in events_of(ev, event="started", role="playback")
+                                      if e["file"] in b_names])
+    b_playback = [e for e in events_of(events, event="started", role="playback")
+                  if e["file"] in b_names][0]
+
+    # Every A metadata transfer must have ended before B's playback one began.
+    for start, end, f in windows(events, "metadata"):
+        if f in a_started and (end is None or end > b_playback["seq"]):
+            raise Failed(f"A's metadata transfer of {f} was still running when "
+                         f"B's playback open started ({b_playback['file']})")
+    assert_no_foreground_contention(ctx, events)
+    return f"{len(a_started)} A transfer(s) cancelled before B's open"
+
+
+def s2_hold_is_armed_at_submission(ctx):
+    """No background download is admitted while the picked track's own open is
+    in flight, and rows still fill from cache meanwhile."""
+    ctx.arm()
+    open_and_play(ctx, ctx.folders[0], index=5)
+    events = ctx.wait_for("several metadata transfers after the open settles",
+                          lambda ev: len(events_of(ev, event="completed", role="metadata")) >= 2)
+    assert_no_foreground_contention(ctx, events)
+    progress = ctx.cmd("dump_metadata_progress")
+    if progress.get("attempted", 0) == 0:
+        raise Failed("no row had metadata attempted at all — the sweep never ran")
+    return (f"{len(events_of(events, event='started', role='metadata'))} metadata transfers, "
+            f"none inside a playback one; {progress['attempted']}/{progress['total']} rows attempted")
+
+
+def s3_successor_prefetch_runs_once(ctx):
+    """The successor is prefetched exactly once — the lane must not resume
+    before that claim is registered and race it to the same file."""
+    ctx.arm()
+    open_and_play(ctx, ctx.folders[0], index=3)
+    events = ctx.wait_for("the successor prefetch to complete",
+                          lambda ev: events_of(ev, event="completed", role="prefetch"))
+    prefetched = [e["file"] for e in events_of(events, event="completed", role="prefetch")]
+    target = prefetched[-1]
+    # Whatever role asked, the successor's bytes must be pulled once. A
+    # cancelled-and-reissued prefetch of the same file is the recomputation at
+    # didStartPlaying and is not a second download of anything.
+    completed_for_target = [e for e in events_of(events, event="completed", file=target)]
+    if len(completed_for_target) > 1:
+        raise Failed(f"{target} was downloaded to term {len(completed_for_target)} times "
+                     f"by {[e['role'] for e in completed_for_target]}")
+    if ctx.stats().get("metadataOverlapTransfers"):
+        raise Failed("the metadata lane downloaded a file another role was already downloading")
+    return f"successor {target} materialized exactly once"
+
+
+def s4a_rapid_next_keeps_the_hold(ctx):
+    """A prefetch acknowledgement outrun by a newer play must not strip the
+    newer play's hold. Driven by rapid `next` while acks are in flight."""
+    ctx.arm()
+    open_and_play(ctx, ctx.folders[0], index=0, wait=True)
+    for _ in range(8):
+        ctx.cmd("next")
+    ctx.settle(6)
+    events = ctx.trace()
+    assert_no_foreground_contention(ctx, events)
+    return f"{len(events_of(events, event='requested', role='playback'))} rapid plays, no contention"
+
+
+def s4b_replay_during_a_queued_error(ctx):
+    """The review's item-1 case: an error for a row, delivered after the SAME
+    row was replayed, must not release the hold the replay asserted.
+
+    Track identity cannot tell the two plays apart — same AudioTrack, same URL —
+    which is why the acknowledgement path guards on a hold generation instead.
+    The error path does not, so this stages the one interleaving that would
+    exploit that:
+
+        [ one main-thread turn: wait, then submit the replay ] [ queued error ]
+
+    Both halves are load-bearing and were each got wrong once while writing
+    this. The replay must be submitted from a main-thread turn that was ALREADY
+    RUNNING when the error was dispatched, because the channel's own intake is
+    on the main queue — two separate commands cannot straddle a callback, since
+    while main is held nothing else can even be enqueued. And it must be
+    `play_index`, not `open`: the open funnel is asynchronous, so its play lands
+    in a later turn, behind the error rather than ahead of it.
+
+    WHAT THIS DOES AND DOES NOT PROVE. It reaches the interleaving the review
+    describes. It does not reach the remaining window inside it: the error's own
+    `isStopped` test is a second, incidental guard, and by the time the error
+    block runs the replay has reached the player queue and the state is
+    Loading, so the error returns early. The unreachable remainder is the few
+    microseconds between the replay's synchronous submission on main and the
+    player queue publishing Loading. Nothing in this harness can widen it."""
+    folder = ctx.folders[1]
+    bad = folder / "zzz-bad.mp3"
+    # Not empty: an empty file fails the coordinator's own check before any
+    # transfer, so the error would arrive in milliseconds with nothing staged.
+    # Garbage of a real size costs the whole transfer and then fails to open.
+    bad.write_bytes(os.urandom(64 * 1024))
+    try:
+        # Sticky, so the file never reads as materialized and EVERY open of it
+        # pays the transfer again — otherwise the replay's open returns
+        # instantly and a stripped hold would have no window to show in.
+        # Unlimited capacity, so a resumed lane can actually start a download
+        # rather than queue behind the foreground one.
+        ctx.arm(capacity=0, sticky=True)
+        ctx.cmd("open", str(folder))
+        ctx.wait_for("the folder's rows to be listed",
+                     lambda ev: events_of(ev, event="requested", role="playback"))
+        rows = ctx.playlist()["files"]
+        if bad.name not in rows:
+            raise Failed(f"{bad.name} did not appear in the playlist")
+        row = rows.index(bad.name)
+
+        for _ in range(6):
+            ctx.cmd("play_index", row)
+            time.sleep(TRANSFER * 0.45)
+            # The turn: hold main across the first play's failure, then submit
+            # the replay without yielding, so the queued error lands behind it.
+            ctx.cmd("block_main", TRANSFER * 0.9, "play_index", row, timeout=60)
+            ctx.settle(TRANSFER * 1.5)
+            if not ctx.health().get("cloudLaneHeld"):
+                state = ctx.state().get("player", {}).get("state")
+                if state == "loading":
+                    raise Failed("the cloud lane was released while the replayed open "
+                                 "was still loading — the previous play's queued error "
+                                 "stripped the hold the replay had just asserted")
+        ctx.settle(2)
+        events = ctx.trace()
+        assert_no_foreground_contention(ctx, events)
+        if ctx.health().get("cloudLaneHeld"):
+            raise Failed("the cloud lane is still held after the errors settled")
+        return ("6 staged error-behind-replay turns; hold held across both plays "
+                "(the error's isStopped test also guards this)")
+    finally:
+        bad.unlink(missing_ok=True)
+
+
+def s5_lane_follows_rank_then_index(ctx):
+    """With one provider slot and uniform durations, the serial lane's order is
+    the neighborhood's rank and then ascending playlist index — not the order
+    the stage-one cache checks happened to finish in."""
+    ctx.arm()
+    folder = ctx.folders[0]
+    open_and_play(ctx, folder, index=0)
+    events = ctx.wait_for("most of the folder to be swept",
+                          lambda ev: len(events_of(ev, event="completed", role="metadata")) >= 6)
+    order = started_order(events, "metadata")
+    rows = ctx.playlist()["files"]
+    index_of = {name: i for i, name in enumerate(rows)}
+    unknown = [f for f in order if f not in index_of]
+    if unknown:
+        raise Failed(f"traced files not found in the playlist: {unknown[:3]}")
+    # The neighborhood (next, the one after, the one behind) is ranked ahead of
+    # the tail, so only the tail is required to ascend. Find where the tail
+    # starts: the first entry after which every entry ascends.
+    tail = [index_of[f] for f in order]
+    descents = [(order[i], order[i + 1]) for i in range(len(tail) - 1) if tail[i + 1] < tail[i]]
+    if len(descents) > 1:
+        raise Failed("the lane's order descends more than once, so it is not "
+                     f"(rank, index): {descents}")
+    return f"{len(order)} transfers in playlist order after the neighborhood ({order[0]} first)"
+
+
+def s6_no_stage_two_before_stage_one_drains(ctx):
+    """The arrival boundary. Sorting only what has arrived does not make the
+    sweep deterministic, so the lane waits for every stage-one cache check
+    before dispatching the first download."""
+    ctx.arm()
+    folder = ctx.folders[0]
+    open_and_play(ctx, folder, index=2)
+    events = ctx.wait_for("the lane to be well under way",
+                          lambda ev: len(events_of(ev, event="completed", role="metadata")) >= 4)
+    order = started_order(events, "metadata")
+    # A lane that dispatched from a half-populated list picks whichever cache
+    # check happened to finish first, which on a folder of one file type is
+    # effectively arbitrary. The observable consequence is the FIRST pick: it
+    # must be the best-ranked entry, and which entry that is cannot be known
+    # until every stage-one check has landed.
+    rows = ctx.playlist()["files"]
+    if order[0] not in rows:
+        raise Failed(f"first lane pick {order[0]} is not in the playlist")
+    played = [e["file"] for e in events_of(events, event="requested", role="playback")]
+    if not played:
+        raise Failed("nothing was ever played, so there is no neighborhood to rank against")
+    here = rows.index(played[-1])
+    # Next, the one after, the one behind — the neighborhood the cache ranks by.
+    neighborhood = {rows[i] for i in (here + 1, here + 2, here - 1) if 0 <= i < len(rows)}
+    if order[0] not in neighborhood:
+        raise Failed(f"the lane's first pick was {order[0]}, outside the neighborhood "
+                     f"of {played[-1]} ({sorted(neighborhood)}) — it dispatched before "
+                     "the stage-one checks had drained")
+    return f"first pick {order[0]} was in the neighborhood of {played[-1]}"
+
+
+def s7_stand_aside_and_no_stranding(ctx):
+    """The lane must not download a file the player or its prefetch is already
+    downloading, and a lane blocked on nothing else must still make progress
+    once the block clears."""
+    ctx.arm()
+    folder = ctx.folders[0]
+    open_and_play(ctx, folder, index=1)
+    events = ctx.wait_for("the sweep to get going",
+                          lambda ev: len(events_of(ev, event="completed", role="metadata")) >= 3)
+    if ctx.stats().get("metadataOverlapTransfers"):
+        raise Failed("the metadata lane downloaded a file another role was already downloading")
+    # No stranding: the lane must keep draining to the end of the folder.
+    total = len([p for p in folder.iterdir() if p.is_file()])
+    events = ctx.wait_for(f"the lane to drain all {total} rows",
+                          lambda ev: len(events_of(ev, event="completed", role="metadata"))
+                                     + len(events_of(ev, event="completed", role="playback"))
+                                     + len(events_of(ev, event="completed", role="prefetch"))
+                                     >= total,
+                          timeout=total * TRANSFER * 2 + 20)
+    assert_no_foreground_contention(ctx, events)
+    return f"{total} rows drained with no overlap and no stranding"
+
+
+# The two budgets AudioFileOpenRules.h holds, restated so the scenarios below
+# can size themselves against the policy rather than against a guessed number.
+NO_PROGRESS_BUDGET = 60.0
+STALL_BUDGET = 20.0
+
+
+def _deadline_scenario(ctx, progress_mode, expect_timeout, seconds=200, watch=95):
+    """Shared body for S8a/b/c: one very slow transfer under a scripted progress
+    source, watched for whether the open is abandoned.
+
+    `seconds` is chosen per mode so the expected verdict lands inside `watch`.
+    It has to be: the stall script climbs to 40% of the transfer before
+    stopping, so a 200s transfer keeps reporting movement until t=80 and its
+    deadline is t=100 — past a 95s watch, which reads as "never abandoned" and
+    is a harness fault, not the app's."""
+    ctx.arm(seconds=seconds, capacity=1, uniform=True, progress=progress_mode)
+    folder = ctx.folders[0]
+    ctx.cmd("open", str(folder))
+    ctx.wait_for("the playback transfer to start",
+                 lambda ev: events_of(ev, event="started", role="playback"))
+    deadline = time.monotonic() + watch
+    abandoned = False
+    while time.monotonic() < deadline:
+        ev = ctx.trace()
+        if events_of(ev, event="cancelled", role="playback"):
+            abandoned = True
+            break
+        time.sleep(1.0)
+    if abandoned and not expect_timeout:
+        raise Failed(f"a healthy transfer under progress={progress_mode} was abandoned")
+    if not abandoned and expect_timeout:
+        raise Failed(f"a transfer under progress={progress_mode} was never abandoned")
+    return ("abandoned as it should be" if expect_timeout
+            else "kept its transfer, as a healthy one must")
+
+
+def s8a_no_progress_times_out(ctx):
+    """A provider that publishes no fraction at all gets the flat 60s baseline."""
+    return _deadline_scenario(ctx, "none", expect_timeout=True)
+
+
+def s8b_sparse_progress_survives(ctx):
+    """The review's item 6: a healthy transfer whose UI-visible percentage moves
+    only every 10s must not be abandoned. It survives because the deadline is
+    fed from the monitor's uncoalesced movement feed, not the whole-percent
+    handler."""
+    return _deadline_scenario(ctx, "sparse", expect_timeout=False)
+
+
+def s8c_a_stall_after_progress_times_out(ctx):
+    """Progress to 40% and then nothing: the stall budget must still fire.
+
+    Sized so the stall begins well inside the baseline — 40% of 100s is t=40,
+    so the deadline is 40 + the 20s stall budget = t=60 — rather than after it,
+    where the watch would expire first."""
+    return _deadline_scenario(ctx, "stall", expect_timeout=True,
+                              seconds=100, watch=NO_PROGRESS_BUDGET + STALL_BUDGET + 30)
+
+
+def s9_unflagged_placeholders(ctx):
+    """EXPECTED FAIL — review item 4.
+
+    A provider-backed placeholder whose dataless probe answers NO is routed to
+    the ordinary four-wide TagLib lane, which the cloud-lane hold does not
+    suspend. So during a foreground open, background reads of files that still
+    cost a whole download proceed anyway.
+
+    The property has to be measured DURING the picked track's open, not after
+    it. "Rows were parsed" is true either way once the open settles — that is
+    the sweep doing its job. What only happens under the unflagged routing is
+    rows filling while the user is still waiting, so the open is made long
+    enough to sample inside, and the assertion is that the count does not climb
+    across that window.
+
+    Under the flagged routing the same shape produces no movement at all: the
+    lane holds, and every miss waits. Note also that the reads never reach the
+    metadata role's materializer here — they go straight through TagLib — so
+    the trace shows no metadata transfers even as rows fill, which is why the
+    row count rather than the trace is the evidence."""
+    # A long transfer for the picked file, so there is a window to sample in.
+    ctx.arm(seconds=10, capacity=1, uniform=True, unflagged=True)
+    folder = ctx.folders[0]
+    ctx.cmd("open", str(folder))
+    ctx.wait_for("the picked track's own transfer to start",
+                 lambda ev: events_of(ev, event="started", role="playback"))
+    ctx.settle(1)
+    before = ctx.cmd("dump_metadata_progress")
+    ctx.settle(5)
+    during = ctx.cmd("dump_metadata_progress")
+    events = ctx.trace()
+
+    # Still inside the open, or the sample proves nothing.
+    spans = windows(events, "playback")
+    if not spans or spans[-1][1] is not None:
+        raise Failed("the picked track's open had already settled before the "
+                     "sample — the transfer was not long enough to measure in")
+
+    hits = role_started_inside(events, "metadata", "playback")
+    if hits:
+        raise Failed(f"background downloads ran inside the foreground open: {hits}")
+    climbed = during.get("attempted", 0) - before.get("attempted", 0)
+    if climbed > 0:
+        raise Failed(f"{climbed} more rows were parsed while the picked track's own "
+                     f"open was still in flight ({before.get('attempted')} -> "
+                     f"{during.get('attempted')} of {during.get('total')}) — the "
+                     "unflagged placeholder bypassed the cloud lane and its hold")
+    return (f"rows held at {during.get('attempted')}/{during.get('total')} across the "
+            "open; no bypass observed")
+
+
+def s10_error_and_close_settle_clean(ctx):
+    """An open error, then Close: nothing is left held, pending or in flight."""
+    bad = ctx.corpus / "zz-unreadable-close.mp3"
+    bad.write_bytes(b"")
+    try:
+        ctx.arm()
+        ctx.cmd("open", str(ctx.folders[0]))
+        ctx.wait_for("the folder to start playing",
+                     lambda ev: events_of(ev, event="requested", role="playback"))
+        ctx.cmd("open", str(bad))
+        ctx.settle(2)
+        health = ctx.health()
+        if health.get("cloudLaneHeld"):
+            raise Failed("the error path left the cloud lane held")
+        ctx.cmd("quiesce", timeout=60)
+        health = ctx.health()
+        if health.get("cloudLaneHeld") or health.get("cloudParsesPending"):
+            raise Failed(f"quiesce left cloud state behind: {health}")
+        return "error then Close settled to zero"
+    finally:
+        bad.unlink(missing_ok=True)
+
+
+def s11_append_and_fast_path(ctx):
+    """Appending files while an open is in flight must not start a sweep of its
+    own, and a second play of an already-materialized file is a fast path with
+    no transfer at all."""
+    ctx.arm()
+    folder = ctx.folders[0]
+    files = sorted(p for p in folder.iterdir() if p.is_file())
+    ctx.cmd("open", str(files[0]))
+    ctx.wait_for("the first file's transfer to start",
+                 lambda ev: events_of(ev, event="started", role="playback"))
+    # Appending during Loading: the pending open's own didStartPlaying
+    # recomputes the sweep and the prefetch, so this must add no transfer.
+    for f in files[1:4]:
+        ctx.cmd("open", str(f))
+    ctx.settle(6)
+    events = ctx.trace()
+    assert_no_foreground_contention(ctx, events)
+
+    # The fast path: replay a file whose transfer has already completed.
+    done = {e["file"] for e in events_of(events, event="completed")}
+    if not done:
+        raise Failed("nothing completed, so there is no materialized file to replay")
+    # By sequence number, not by list position: the trace is a bounded ring, so
+    # an index into it stops meaning the same event once it wraps.
+    mark = max((e["seq"] for e in ctx.trace()), default=-1)
+    ctx.cmd("play_index", 0)
+    ctx.settle(2)
+    replayed = [e for e in ctx.trace()
+                if e["seq"] > mark and e["event"] == "requested" and e["file"] in done]
+    if replayed:
+        raise Failed(f"replaying an already-materialized file asked for a second "
+                     f"transfer: {[e['file'] for e in replayed]}")
+    return f"{len(done)} materialized; replay cost no transfer"
+
+
+def s12_timed_out_pick_is_ranked_back_in(ctx):
+    """A timed-out pick is ranked first in the neighborhood, so the file the
+    user asked for keeps downloading behind its error UI — and playback does
+    not auto-resume."""
+    ctx.arm(seconds=200, capacity=1, uniform=True, progress="none")
+    folder = ctx.folders[0]
+    ctx.cmd("open", str(folder))
+    events = ctx.wait_for("the playback transfer to start",
+                          lambda ev: events_of(ev, event="started", role="playback"))
+    picked = events_of(events, event="started", role="playback")[-1]["file"]
+    deadline = time.monotonic() + 95
+    while time.monotonic() < deadline:
+        if events_of(ctx.trace(), event="cancelled", role="playback"):
+            break
+        time.sleep(1.0)
+    else:
+        raise Failed("the open was never abandoned, so there is no timeout to follow")
+    state = ctx.state()
+    if state.get("player", {}).get("state") == "playing":
+        raise Failed("playback auto-resumed after a timeout")
+    events = ctx.wait_for("the lane to pick something after the timeout",
+                          lambda ev: events_of(ev, event="requested", role="metadata"),
+                          timeout=30)
+    first = events_of(events, event="requested", role="metadata")[0]["file"]
+    if first != picked:
+        raise Failed(f"after the timeout the lane fetched {first}, not the file the "
+                     f"user asked for ({picked})")
+    return f"{picked} was ranked back in first, playback stayed stopped"
+
+
+def s13_stand_aside_is_advisory(ctx):
+    """EXPECTED FAIL — review item 5.
+
+    isMaterializingURL: is a query followed later by an act, so a claim
+    registered between the two should let both paths download the same bytes.
+
+    Measured, it does not — and the trace says why, which is worth more than
+    the verdict. Aiming a play straight at the lane's own current pick produces
+    `cancelled metadata` immediately followed by `started playback` for that
+    file, every time: the play's pre-submit hold suspends the lane and cancels
+    its transfer BEFORE the playback claim is registered, so the interval a
+    check-then-act query could be wrong in never contains a second claim. The
+    prefetch role is the only one that registers without a hold, and the
+    successor handshake keeps the lane closed until that claim exists. The gap
+    is real in the type system and closed by the ordering."""
+    # Unlimited capacity: with one slot the second transfer would merely queue,
+    # and a queued duplicate is not the duplicate DOWNLOAD under test. Short
+    # transfers so the lane churns through many picks per second of wall clock,
+    # which is what makes the window come round often.
+    ctx.arm(seconds=0.35, capacity=0)
+    folder = ctx.folders[0]
+    ctx.cmd("open", str(folder))
+    ctx.wait_for("the sweep to start",
+                 lambda ev: events_of(ev, event="started", role="metadata"))
+    rows = ctx.playlist()["files"]
+    index_of = {name: i for i, name in enumerate(rows)}
+
+    # Aim at the window rather than stirring: play whatever the lane has just
+    # asked for. The claim then registers while that same pick is between its
+    # stand-aside check and its materializeURL:, which is the only interval in
+    # which a check-then-act query can be wrong.
+    chased = 0
+    for _ in range(60):
+        ev = ctx.trace()
+        asked = events_of(ev, event="requested", role="metadata")
+        if not asked:
+            ctx.settle(0.1)
+            continue
+        target = asked[-1]["file"]
+        if target in index_of:
+            ctx.cmd("play_index", index_of[target])
+            chased += 1
+        if ctx.stats().get("metadataOverlapTransfers"):
+            break
+    ctx.settle(3)
+    overlaps = ctx.stats().get("metadataOverlapTransfers", 0)
+    if overlaps:
+        raise Failed(f"the metadata lane downloaded a file another role was "
+                     f"already downloading {overlaps} time(s)")
+    return (f"{chased} plays aimed at the lane's own current pick produced no "
+            "duplicate download")
+
+
+SCENARIOS = [
+    ("S1", s1_replacement_cancels_the_old_scan, False),
+    ("S2", s2_hold_is_armed_at_submission, False),
+    ("S3", s3_successor_prefetch_runs_once, False),
+    ("S4a", s4a_rapid_next_keeps_the_hold, False),
+    ("S4b", s4b_replay_during_a_queued_error, False),
+    ("S5", s5_lane_follows_rank_then_index, False),
+    ("S6", s6_no_stage_two_before_stage_one_drains, False),
+    ("S7", s7_stand_aside_and_no_stranding, False),
+    ("S8a", s8a_no_progress_times_out, False),
+    ("S8b", s8b_sparse_progress_survives, False),
+    ("S8c", s8c_a_stall_after_progress_times_out, False),
+    ("S9", s9_unflagged_placeholders, True),
+    ("S10", s10_error_and_close_settle_clean, False),
+    ("S11", s11_append_and_fast_path, False),
+    ("S12", s12_timed_out_pick_is_ranked_back_in, False),
+    ("S13", s13_stand_aside_is_advisory, True),
+]
+
+
+# --------------------------------------------------------------------------
+
+
+def check_unique_basenames(corpus: Path):
+    """The trace records a transfer by last path component alone, so two files
+    sharing a basename are one file to every assertion in this file."""
+    seen, dupes = {}, set()
+    for path in corpus.rglob("*"):
+        if path.is_file():
+            if path.name in seen:
+                dupes.add(path.name)
+            seen[path.name] = path
+    if dupes:
+        sys.exit(f"{corpus} has {len(dupes)} duplicate basename(s) — the cloud "
+                 f"trace could not tell them apart. Rebuild with "
+                 f"make-cloud-corpus.py.\n  e.g. {sorted(dupes)[:3]}")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--corpus", required=True,
+                        help="folder of folders, from make-cloud-corpus.py")
+    parser.add_argument("--app", help=f"path to Vibe.app (default {DEFAULT_APP})")
+    parser.add_argument("--only", help="comma-separated scenario ids to run")
+    parser.add_argument("--verbose", action="store_true")
+    args = parser.parse_args()
+
+    corpus = Path(args.corpus).resolve()
+    if not corpus.is_dir():
+        sys.exit(f"no corpus at {corpus}")
+    check_unique_basenames(corpus)
+    app = Path(args.app).resolve() if args.app else DEFAULT_APP.resolve()
+
+    wanted = {s.strip() for s in args.only.split(",")} if args.only else None
+    plan = [(i, f, x) for i, f, x in SCENARIOS if not wanted or i in wanted]
+    if not plan:
+        sys.exit(f"--only matched nothing; ids are {[i for i, _, _ in SCENARIOS]}")
+
+    channel = Channel(app, verbose=args.verbose)
+    results = []
+    folders = [p for p in corpus.iterdir() if p.is_dir()]
+    print(f"corpus: {corpus}  ({len(folders)} folders, "
+          f"{sum(1 for _ in corpus.rglob('*') if _.is_file())} files)")
+    print(f"app:    {app}\n")
+
+    for ident, fn, expect_fail in plan:
+        label = f"{ident} {fn.__name__.split('_', 1)[1].replace('_', ' ')}"
+        print(f"{label} ... ", end="", flush=True)
+        # A fresh process per scenario: the fake's tally, the metadata cache and
+        # any hold all survive a re-arm, and a leftover is indistinguishable
+        # from a failure.
+        launch(corpus, app)
+        ctx = Ctx(channel, corpus, args.verbose)
+        started = time.monotonic()
+        try:
+            ctx.cmd("clear_caches", timeout=60)
+            note = fn(ctx)
+            outcome = "XPASS" if expect_fail else "PASS"
+            detail = note
+        except Failed as exc:
+            outcome = "XFAIL" if expect_fail else "FAIL"
+            detail = str(exc)
+        except Exception as exc:  # harness fault, not the app's
+            outcome, detail = "ERROR", f"{type(exc).__name__}: {exc}"
+        elapsed = time.monotonic() - started
+        trace = []
+        if outcome in ("FAIL", "XFAIL", "XPASS"):
+            try:
+                trace = ctx.trace()
+            except Exception:
+                pass
+        results.append((ident, label, outcome, detail, elapsed, trace))
+        print(f"{outcome}  ({elapsed:.0f}s)")
+        if outcome in ("FAIL", "ERROR"):
+            print(f"    {detail}")
+        try:
+            channel.run(["quit"], timeout=10)
+        except Exception:
+            pass
+
+    print("\n" + "=" * 78)
+    for ident, label, outcome, detail, elapsed, trace in results:
+        print(f"{outcome:<6} {label}  ({elapsed:.0f}s)")
+        print(f"       {detail}")
+        if outcome in ("FAIL", "XFAIL", "XPASS") and trace:
+            print(fmt_trace(trace, limit=40))
+    print("=" * 78)
+
+    counts = {}
+    for _, _, outcome, _, _, _ in results:
+        counts[outcome] = counts.get(outcome, 0) + 1
+    print("  ".join(f"{k}={v}" for k, v in sorted(counts.items())))
+    # XFAIL is a recorded gap, not a failure of the run. XPASS is a finding —
+    # a guarantee the code now provides and nothing claimed — so it is reported
+    # loudly but does not fail either.
+    hard = counts.get("FAIL", 0) + counts.get("ERROR", 0)
+    return 1 if hard else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

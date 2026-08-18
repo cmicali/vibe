@@ -1,11 +1,13 @@
 ---
 name: vibe-stress
-description: Stress, soak, fuzz, and torture the running Vibe app against a folder of real audio files — seeded random driving with consistency, leak, hang, and crash oracles, a single-playlist skip/seek torture suite for the delivery races that only open when transport outruns the metadata scan, plus the sanitizer (ASan/UBSan/TSan) and malloc-debug build matrix. Use for soak or endurance runs, memory-leak and resource-growth hunting, race hunting, fuzzing the file-loading path, hammering skips and seeks on a large playlist, or minimizing a failing run to a repro.
+description: Stress, soak, fuzz, and torture the running Vibe app against a folder of real audio files — seeded random driving with consistency, leak, hang, and crash oracles, a single-playlist skip/seek torture suite for the delivery races that only open when transport outruns the metadata scan, a deterministic cloud-loading scenario suite over a fake file provider (download ordering, the foreground hold, the open deadline), plus the sanitizer (ASan/UBSan/TSan) and malloc-debug build matrix. Use for soak or endurance runs, memory-leak and resource-growth hunting, race hunting, fuzzing the file-loading path, hammering skips and seeks on a large playlist, testing cloud/placeholder loading order, or minimizing a failing run to a repro.
 ---
 
 # Stress and fuzz testing Vibe
 
 **Read the `vibe-debug` skill first.** This harness is built entirely on that skill's `--debug-cmd` channel: it drives the app with those verbs, launches through that skill's `launch.sh`, and inherits every one of its traps — the sandbox grant rules, the off-hardware flags, the two-instance raciness, the stale-binary check. Nothing here restates them.
+
+There are three drivers here, and they answer different questions. **`stress.py`** drives randomly for hours and notices when something breaks. **`torture.py`** hammers transport on one playlist so track changes outrun everything async. **`cloud-scenarios.py`** drives one named situation at a time and asserts what the fake provider's trace must contain — because the cloud work's guarantees are all about *order*, which no amount of random driving can state.
 
 The division: **`vibe-debug` drives the app; this drives it *randomly, for hours, and notices when something breaks*.** The three oracle verbs themselves — `dump_health`, `check_consistency`, `quiesce` — are ordinary channel commands documented in `vibe-debug`'s command list, and are useful on their own.
 
@@ -31,7 +33,7 @@ Between batches (`--batch`, default 25 ops) it checks:
 | Oracle | What it catches | How |
 | --- | --- | --- |
 | liveness | main-thread stalls | the channel is delivered on the **main queue**, so a timeout whose recovery probe is *also* slow is a stall. It samples the app first, then re-probes: a stall it recovers from is counted (`--max-stalls`, default 3) rather than failing the run, but is sampled either way. A timeout that probes clean at the usual ~110 ms was a slow verb, not a stall — journaled as `slow`, uncounted. `VERB_TIMEOUTS` keeps each verb's client deadline above its own in-app wait, because a client timeout underneath the app's deadline reports work still in progress as an unresponsive app |
-| `check_consistency` | state that went inconsistent | violations surviving a settle and a second sample |
+| `check_consistency` | state that went inconsistent | violations surviving a settle and a second sample. Its `cloud.*` checks are the exception to that filter: they read counters that are cumulative for the life of the fake provider's install, because neither a background download inside a foreground one nor a duplicate download of one file is ever *transiently* true |
 | `dump_health` | leaks and unbounded growth | footprint, fds, threads, mach ports, windows, views, layers, engine nodes, and the `pending` counters, each against a post-warmup baseline |
 | crash | death | `pgrep`, plus any `Vibe*.ips` in `~/Library/Logs/DiagnosticReports` newer than the run |
 
@@ -49,7 +51,9 @@ On a failure it writes a `stress-<seed>-failure/` directory with the sample or c
 
 ## The `pending` counters, and why sampling at rest matters
 
-`dump_health`'s `pending` section counts every unbounded container in the app that holds work in flight: `metadataHolders` and `metadataWaiters` (`MetadataParseCoordinator`'s claim table, whose waiter tables are per key), `openResultsBuffered` (`OpenRequestCoordinator` results held for in-order delivery), `openBurstQueued` (`OpenBurstCoalescer`'s quiet-period queue), and `retiredFades` (`AudioPlayer`'s in-flight crossfade pairs). All belong at zero once the app settles. They matter because a stranded parse claim or an undelivered open result is a few hundred bytes — a thousand of them would not move the footprint, yet each is work that will never finish.
+`dump_health`'s `pending` section counts every unbounded container in the app that holds work in flight: `metadataHolders` and `metadataWaiters` (`MetadataParseCoordinator`'s claim table, whose waiter tables are per key), `openResultsBuffered` (`OpenRequestCoordinator` results held for in-order delivery), `openBurstQueued` (`OpenBurstCoalescer`'s quiet-period queue), `retiredFades` (`AudioPlayer`'s in-flight crossfade pairs), and the metadata cloud lane's `cloudParsesPending` and `cloudLaneHeld`. All belong at zero once the app settles.
+
+**The two cloud counters are deliberately not scored for *growth*, and a future reader should not add them.** Neither is a growth metric: a sweep of a cloud folder legitimately holds dozens of pending parses, and the lane is legitimately held for the whole of every foreground open, so a headroom over a min-of-three baseline would either never fire or fire constantly. They are covered where they mean something instead — `quiesce` refuses to settle until both reach zero and names the counter that held out, and `check_consistency` tests the *conditions* rather than the magnitudes. `dump_cloud_health` reports the same two on both platforms, which is the only way to see them on iOS at all: there is no `dump_health` and no `quiesce` there. They matter because a stranded parse claim or an undelivered open result is a few hundred bytes — a thousand of them would not move the footprint, yet each is work that will never finish.
 
 `retiredFades` is reported alongside `engineNodes` rather than folded into it because the two fail apart: a fade entry dropped with its nodes still attached and a fade entry stranded after its nodes were detached are different bugs that either number alone cannot distinguish. Both come from one `dispatch_sync` onto the player queue.
 
@@ -87,6 +91,19 @@ So the resting cap stays at +256 MB as a gross backstop, and **sensitivity comes
 
 `--profile base` mixes everything. `--profile loading` weights the open path and the async deliveries that race it — the documented hazard, where waveform, BPM, key and metadata deliveries land after the track has already changed — including `open_burst`, two to four opens landing on top of each other with no settle. `--profile ui` does no file loading at all: a pure monkey over transport, seeks, pitch, FX, clicks, drags, resizes and menus against whatever is loaded.
 
+`--profile cloud` puts the whole corpus behind a fake file provider, so an open *is* a download and the metadata scan's serial cloud lane, the foreground-download hold, the neighborhood re-ranking and the abandoned play and prefetch opens are all live at once. It arms `set_fake_cloud` before the first op — the premise is that opening already costs a transfer, and a run that spent its first batch on local files would be scoring a different app — and re-arms it mid-run through `cloud_churn`, sometimes tearing the seam out from under in-flight workers, which is the one thing about it that could deadlock rather than merely misreport. `--cloud-percent` (default 60) sets how much of the corpus is cloudy; the rest being local is what proves the cloud machinery has not slowed the local path down.
+
+**Its weights are the inverse of `loading`'s, and copying them was the first version's mistake.** Opens are what this profile must be *sparing* with: the sweep is deferred until playback starts or two seconds pass, and a replacement playlist drops the loader outright, so a stream of opens 80 ms apart means the sweep never runs and the lane the profile exists to test is never populated. Measured on that first attempt: 11 downloads cancelled, 1 completed, `cloudParsesPending` never above zero. So instead — heavy `settle`, so a sweep gets seconds to work; heavy `playlist_jump`, because landing on an arbitrary row is what moves the ranking and raises the hold where nothing has prefetched; and `clear_caches` often, because a cache hit means no parse and therefore no download to race.
+
+**`capacity=1` is what makes the profile score anything.** The fake provider's default is unlimited concurrency, and under it a background download never actually delays a foreground one — every transfer starts the moment it is asked for, so "the user's open outranks the sweep" has nothing to be true about. One or two slots is the shape a real provider has and the shape the hold, the stand-aside and the lane ordering were written for.
+
+Pair it with `make-cloud-corpus.py`, which builds what the profile needs and the default test corpus cannot give it: **big folders** (against 19 files the sweep finishes instantly), **real tags and embedded art** (generated tones carry neither, and the worst bug this machinery has had showed itself in the art path), a **mixture** including artless files, and **globally unique basenames** — the cloud trace records a transfer by last path component alone, so two folders holding a same-named track are one file to any ordering assertion.
+
+```bash
+.claude/skills/vibe-stress/scripts/make-cloud-corpus.py --folders 12 --per-folder 40   # needs ffmpeg
+make stress CORPUS=build/stress-corpus ARGS="--profile cloud --duration 2400 --iterations 100000"
+```
+
 `--profile artwork` aims at the folder-artwork fallback: opens through all three resolve strategies (a folder, a burst of files, a lone file), the playlist visible far more often than elsewhere so cell draws pull thumbnails off the resolver concurrently with the header's display-size load, and the setting flipped underneath both. Pair it with a corpus built for it — one cover per accepted filename, the near-miss names, the unreadable and undecodable and oversize covers, a cover that is a directory and one that is a FIFO.
 
 Four op kinds exist because nothing else would produce them: `open_burst` above, `held_fx` (a `key_down w` whose `key_up` is sometimes lost across a track change, latching a momentary effect), out-of-range `seek` and `set_pitch` values, where the clamp escaping is the finding, and `folder_art`, which flips `set_folder_art` — the one change that drops every answer the resolver holds, landing on resolves and decodes already in flight while the playlist draws cells off the same tables.
@@ -94,6 +111,29 @@ Four op kinds exist because nothing else would produce them: `open_burst` above,
 **`folder_art` emits `off` and `on` as a pair, and that shape is load-bearing.** See the settings trap below.
 
 **Deliberately excluded from every profile**: `convert_to_flac`, which writes beside the source and can trash the original — the corpus is real music. Right-clicks and lone `mouse_down` are excluded too, for the wedge reasons in `vibe-debug`, and menu items are filtered through a denylist covering anything modal, quitting, hiding or closing, since the channel cannot be served while a modal panel is up.
+
+## The cloud scenario suite: named situations, asserted on the trace
+
+`stress.py` drives randomly and watches for violations. `cloud-scenarios.py` is the third shape, and it exists because the cloud work's guarantees are all about **order** — which download runs next, which is abandoned, which never starts — and order is exactly what a seeded monkey cannot state.
+
+```bash
+.claude/skills/vibe-stress/scripts/cloud-scenarios.py --corpus build/cloud-scenarios-corpus
+.claude/skills/vibe-stress/scripts/cloud-scenarios.py --corpus <dir> --only S4b,S7 --verbose
+```
+
+A small corpus is enough (3 folders × 14 tracks builds in a minute) and the whole suite runs in about six minutes, most of it the three deadline scenarios, which are 60–95 s of real waiting each by construction.
+
+Three rules the file is built on, each of which was got wrong first:
+
+- **Assert on the trace, never on elapsed time.** `dump_cloud_trace` records every transfer's requested / started / completed / cancelled with its role and a sequence number; timing decides only when to stop waiting.
+- **One launch per scenario.** `set_fake_cloud` deliberately preserves the completed/cancelled tally across a re-arm, the metadata cache persists to disk, and a hold left over from a previous scenario is indistinguishable from one this scenario lost.
+- **`capacity=1 uniform` unless a scenario says otherwise**, for the reason above, and because the 0.5x–2x per-file spread would otherwise fight every ordering assertion.
+
+**Sizing a deadline scenario against the policy, not against a guessed number.** The stall script climbs to 40 % of the transfer before stopping, so a 200 s transfer reports movement until t=80 and its deadline is t=100 — past a 95 s watch, which reads as "never abandoned" and is a harness fault. The suite derives each transfer length from `kOpenNoProgressBudgetSeconds` and `kOpenStallBudgetSeconds` instead.
+
+**Expected-fail scenarios are run and reported, never skipped**, so the day one starts passing is visible. An expected-fail that passes is reported as `XPASS` and is a finding in its own right — it means either the gap closed or the scenario stopped reaching it, and both are worth knowing. `XFAIL` and `XPASS` do not fail the run; `FAIL` and `ERROR` do.
+
+**`block_main <seconds> [<verb> ...]` is the instrument that makes main-thread ordering testable at all**, and it is worth knowing why two commands cannot replace it. The channel's own intake is on the main queue, so while main is held nothing else can even be *enqueued* — a callback the app dispatched to main from a worker always wins the race against a command the test sends afterwards. Blocking and then running the next verb *without yielding* is the only way to imitate what a click handler is: a main-thread turn that was already underway when the callback arrived. `open` will not do as the chained verb, either — the open funnel is asynchronous, so its play lands in a later turn, behind the callback rather than ahead of it. `play_index` is synchronous and does.
 
 ## The torture suite: one playlist, transport hammered
 

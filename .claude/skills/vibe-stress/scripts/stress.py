@@ -399,13 +399,25 @@ class OpGenerator:
 
         Never 100% cloudy — the mixture is what proves the cloud machinery has
         not slowed the local path down.
+
+        The CAPACITY is what makes this profile score the foreground hold at
+        all. Unlimited capacity — the provider's default, and all this op used
+        to arm — means a background download never actually delays a foreground
+        one, so "the user's open outranks the sweep" has nothing to be true
+        about: every transfer starts the moment it is asked for. One or two
+        slots is the shape a real provider has, and the shape the hold, the
+        stand-aside and the lane's ordering were all written for.
         """
         seconds = f"{self.rng.uniform(0.6, 1.6):.2f}"
         percent = self.rng.choice([30, 50, 80])
+        # Weighted towards a scarce provider; 0 keeps the unbounded shape in the
+        # mix so the two are compared rather than one simply replaced.
+        capacity = self.rng.choice([1, 1, 2, 2, 0])
+        argv = ["set_fake_cloud", seconds, str(percent), f"capacity={capacity}"]
         if self.rng.random() < 0.15:
             return [("cloud_off", ["set_fake_cloud", "0"], []),
-                    ("cloud_on", ["set_fake_cloud", seconds, str(percent)], [])]
-        return [("cloud_on", ["set_fake_cloud", seconds, str(percent)], [])]
+                    ("cloud_on", argv, [])]
+        return [("cloud_on", argv, [])]
 
     # -- transport ----------------------------------------------------------
 
@@ -695,6 +707,18 @@ def check_consistency(channel, settle=0.35):
 PENDING_KEYS = ("metadataHolders", "metadataWaiters", "openResultsBuffered",
                 "openBurstQueued", "retiredFades")
 
+# dump_health's pending section also carries cloudParsesPending and
+# cloudLaneHeld, and they are deliberately NOT scored here. Neither is a growth
+# metric: a sweep of a cloud folder legitimately holds dozens of pending parses,
+# and the lane is legitimately held for the whole of every foreground open, so
+# a headroom over a min-of-first-three baseline would either never fire or fire
+# constantly. Both are already covered where they mean something —
+#   at rest: quiesce refuses to settle until both reach zero, and a
+#            `settled: false` reply is a `pending` failure naming the counter;
+#   mid-run: check_consistency's cloud.* checks, which test the CONDITIONS
+#            (held with nothing playing, a background download inside a
+#            foreground one) rather than the magnitudes.
+
 # In-flight limits: sampled mid-run, so they have to tolerate a decode's worth
 # of churn. Loose by necessity — see the resting limits below for the sensitive
 # version of the same measurement.
@@ -935,8 +959,14 @@ def capture_diagnostics(channel, out_dir: Path, failure: Failure, since):
         notes.append(f"crash report: {report.name}")
 
     if app_is_running():
+        # The cloud trace is the ONLY record of which transfer ran when and for
+        # which role, and the cloud.* consistency checks report a count without
+        # naming the files. A run that fires one of them and does not keep the
+        # trace cannot be diagnosed at all afterwards: the app is gone and the
+        # trace with it. Learned by losing exactly that on a 6,758-op run.
         for verb, name in (("dump_state", "state.json"),
                            ("dump_view_tree", "view-tree.json"),
+                           ("dump_cloud_trace", "cloud-trace.json"),
                            ("dump_health", "health.json")):
             code, payload, _ = channel.run([verb], timeout=20)
             if code == 0 and payload:
@@ -1154,16 +1184,23 @@ def run(args):
         # batch against local files would be scoring a different app.
         #
         # 0.9s BASE, deliberately above the player's own 0.5s slow-open
-        # threshold — below it didBeginLoading: never fires, the
-        # foreground-download hold is never raised, and half of what this
-        # profile tests never happens. Per-file times spread around it with a
-        # slow and an effectively-stuck tail; see VibeFakeCloud.
-        code, payload, _ = channel.run(["set_fake_cloud", "0.9", str(args.cloud_percent)])
+        # threshold, so the slow-open UI — the loading state, the download fill,
+        # the placeholder artwork — is exercised rather than skipped. It is NOT
+        # what arms the foreground hold: that is taken at play submission, in
+        # the player's pre-submit delegate edge, whatever the open costs.
+        # Per-file times spread around the base with a slow and an
+        # effectively-stuck tail; see VibeFakeCloud.
+        #
+        # capacity=1 from the start, for the reason op_cloud_churn spells out:
+        # with an unlimited provider nothing ever waits on anything, and the
+        # ordering this profile exists to score is unobservable.
+        code, payload, _ = channel.run(
+            ["set_fake_cloud", "0.9", str(args.cloud_percent), "capacity=1"])
         if code != 0 or not (payload or {}).get("installed"):
             sys.exit("cloud profile: could not arm the fake provider "
                      f"(exit {code}, reply {payload}) — needs a Debug build")
         print(f"cloud:  fake provider armed, {payload['percent']}% of files cloudy, "
-              f"0.90s base with slow and stuck tails")
+              f"0.90s base with slow and stuck tails, {payload['capacity']} transfer slot")
 
     generator = OpGenerator(rng, files, playlists, dirs, menu_ids, args.profile, exclusions)
     journal_path = (Path(args.journal) if args.journal

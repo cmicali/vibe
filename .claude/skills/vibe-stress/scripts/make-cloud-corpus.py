@@ -81,7 +81,11 @@ def main():
             artless = rng.randrange(100) < args.artless_percent
             src = rng.choice(without_art if artless else with_art)
             artist, title = rng.choice(ARTISTS), rng.choice(TITLES)
-            dest = folder / f"{artist} - {title} ({i:02d}){src.suffix}"
+            # The folder number is in the FILE name, not just the directory,
+            # because the fake provider's admission trace records a transfer by
+            # last path component alone — two folders holding a same-named track
+            # would be one file as far as any ordering assertion could tell.
+            dest = folder / f"{artist} - {title} ({d + 1:02d}-{i:02d}){src.suffix}"
             # -c copy keeps the audio and, on these containers, the attached
             # cover; only the tag frames are rewritten.
             subprocess.run(
