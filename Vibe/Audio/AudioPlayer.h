@@ -55,6 +55,12 @@ NS_ASSUME_NONNULL_BEGIN
 // Main thread only, like every other transport-facing setter here.
 @property (nonatomic) BOOL levelsEnabled;
 
+// The equalizer indicator's band levels, 0..1, newest published frame. Fills
+// `out` with `count` values and returns NO — leaving `out` untouched — when no
+// tap is running, which a caller should read as "nothing to show", not as
+// silence. Lock-free, for a caller running at display rate.
+- (BOOL)copyBandLevels:(float *)out count:(NSUInteger)count;
+
 // The DJ performance effects: low kill and its boost, the reverb and delay
 // sends, and the delay's tempo feed. See AudioFX.h. With enableFX it is
 // non-nil from init, so a caller can set intent immediately; the graph work
@@ -179,12 +185,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSUInteger)numChannels;
 - (NSTimeInterval)duration;
-
-// The equalizer indicator's band levels, 0..1, newest published frame. Fills
-// `out` with `count` values and returns NO — leaving `out` untouched — when no
-// tap is running, which a caller should read as "nothing to show", not as
-// silence. Lock-free, for a caller running at display rate.
-- (BOOL)copyBandLevels:(float *)out count:(NSUInteger)count;
 
 @end
 
