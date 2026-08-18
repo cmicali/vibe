@@ -553,7 +553,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (!file || file.length <= 0) {
         [self resetToStoppedStateOnQueue];
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorFileOpenFailed,
-                [NSString stringWithFormat:@"Could not open %@", track.url.lastPathComponent], error, track.url)];
+                [NSString stringWithFormat:@"Could not open %@", track.url.lastPathComponent], error, track.url)
+               forSubmittedPlay:request.submittedPlayIdentifier];
         return;
     }
 
@@ -607,7 +608,21 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 
     self.currentTrack = track;
     track.duration = self.duration;
+    // Dropped for a superseded submission, for the same reason its error is:
+    // the shell's own guard compares the track, and a replay of the SAME row
+    // is the same AudioTrack, so a start that belongs to the previous play
+    // reads as current. Acting on it re-runs didStartPlaying:'s whole tail —
+    // including the successor prefetch whose acknowledgement releases the
+    // cloud-lane hold, stamped with the NEWER play's generation because that
+    // play was submitted while this callback was still travelling. The
+    // background lane then resumes against an open the user is still waiting
+    // on. Measured: a background download beginning 15ms into it.
+    uint64_t settledPlay = request.submittedPlayIdentifier;
     run_on_main_thread({
+        if (![self submittedPlayIsCurrent:settledPlay]) {
+            LogInfo(@"Dropping didStartPlaying for superseded play %llu", settledPlay);
+            return;
+        }
         [self.delegate audioPlayer:self didStartPlaying:track];
     });
 }
@@ -645,7 +660,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self resetToStoppedStateOnQueue];
     [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorFileOpenTimedOut,
             [NSString stringWithFormat:@"Timed out opening %@ — it may still be downloading from iCloud/Dropbox or the network may be unavailable",
-                                       track.url.lastPathComponent], nil, track.url)];
+                                       track.url.lastPathComponent], nil, track.url)
+           forSubmittedPlay:request.submittedPlayIdentifier];
 }
 
 - (void)noteOpenProgressForURL:(NSURL *)url {
@@ -1265,6 +1281,50 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 - (void)sendDelegateError:(NSError *)error {
     LogError(@"AudioPlayer Error: %@", error.localizedDescription);
     run_on_main_thread({
+        [self.delegate audioPlayer:self error:error];
+    });
+}
+
+// Whether a submission is still the newest one. Call it ON MAIN, from inside
+// the delivery block: what matters is whether a newer play had been submitted
+// by the time the callback actually ran, not when it was posted.
+//
+// TRAP: the counter is _nextSubmittedPlayIdentifier, which only ever
+// increments, and NOT _lastSubmittedPlayIdentifier, which looks like the same
+// thing and is not — that one is the pre-Loading handoff, cleared to 0 the
+// moment its play reaches Loading, so comparing against it reports EVERY
+// settlement as superseded.
+- (BOOL)submittedPlayIsCurrent:(uint64_t)submittedPlayIdentifier {
+    os_unfair_lock_lock(&_stateLock);
+    uint64_t newest = _nextSubmittedPlayIdentifier;
+    os_unfair_lock_unlock(&_stateLock);
+    return submittedPlayIdentifier == newest;
+}
+
+// The play-path variant: an error belonging to a submission a newer play has
+// already replaced is dropped rather than delivered.
+//
+// TRAP: the delegate cannot make this judgement itself, and its existing
+// guards look like they can. A play failure is published as Stopped and its
+// error hops to main; if the user re-plays the SAME row in the window before
+// that hop lands, the shell sees a matching URL and a player that has not yet
+// published Loading for the replacement — because that happens on the player
+// queue, one hop later — so every guard it has says the error is current. It
+// then tears down state the newer play had just set up. Measured: the shell's
+// cloud-lane hold released 11ms after the replay's own open began, and the
+// background lane started downloading against it.
+//
+// The identifier is what settles it, and it is exact rather than heuristic: a
+// re-drop of a file already loading REBINDS its request and adopts the new
+// submission's identifier, so a rebound request still matches and its error is
+// still delivered.
+- (void)sendDelegateError:(NSError *)error forSubmittedPlay:(uint64_t)submittedPlayIdentifier {
+    LogError(@"AudioPlayer Error: %@", error.localizedDescription);
+    run_on_main_thread({
+        if (![self submittedPlayIsCurrent:submittedPlayIdentifier]) {
+            LogInfo(@"Dropping error for superseded play %llu", submittedPlayIdentifier);
+            return;
+        }
         [self.delegate audioPlayer:self error:error];
     });
 }

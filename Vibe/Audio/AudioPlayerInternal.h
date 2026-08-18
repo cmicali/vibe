@@ -262,6 +262,11 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
                 segmentStart:(AVAudioFramePosition)segmentStart
                     position:(NSTimeInterval)position;
 - (void)sendDelegateError:(NSError *)error;
+// The play-path variant, which drops an error whose submission a newer play
+// has already replaced. Every error carrying kVibeAudioErrorTrackURLKey must
+// use it: the shells cannot tell a superseded same-row failure from a current
+// one, and acting on it strips state the newer play has already set up.
+- (void)sendDelegateError:(NSError *)error forSubmittedPlay:(uint64_t)submittedPlayIdentifier;
 
 @end
 
