@@ -8,8 +8,7 @@
 
 #import "AudioTrack.h"
 #import "AudioPlayer.h"
-// EqualizerLevelSource, for the levelSource property below.
-#import "EqualizerIndicatorView.h"
+#import "EqualizerLevelSource.h"
 
 @class PlaylistTableView;
 
@@ -21,11 +20,16 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (weak) AudioPlayer *audioPlayer;
 
-// Handed to every row's EqualizerIndicatorView, so the playing row's bars
-// follow the audio instead of the canned keyframes. The window controller owns
-// it, because deciding whether the analysis behind it runs needs the occlusion
-// gate this class has no part of.
+// Handed to every row's EqualizerIndicatorView so the playing row can consume
+// the window controller's coherent audio snapshots. The controller owns this
+// source because it also reconciles the producer with window occlusion.
 @property (weak, nullable) id<EqualizerLevelSource> levelSource;
+// The two shell-owned inputs the playing-row indicator cannot derive from the
+// audio snapshot itself. `equalizerSurfaceVisible` is the window-level gate;
+// the controller combines it with the row's actual intersection with the
+// scroll clip before handing it to the view.
+@property (nonatomic) BOOL equalizerAudioOutputActive;
+@property (nonatomic) BOOL equalizerSurfaceVisible;
 // Attaching the table also wires the double-click action and installs the row
 // context menu. The table's construction itself lives in PlaylistTableView.
 @property (weak) PlaylistTableView *tableView;
@@ -53,13 +57,6 @@ NS_ASSUME_NONNULL_BEGIN
 // ranking (AudioTrackMetadataCache.setNeighborhoodAroundIndex:inTracks:). Row
 // repainting is NOT its business — that rides the observer directly.
 @property (nonatomic, copy, nullable) void (^currentIndexDidChangeHandler)(void);
-
-// The artwork-derived accent for the playing row's equalizer bars. The owner
-// sets it from the current track's dominant art color, and nil falls back to
-// the appearance default. It is deliberately the only accented element in the
-// row: the title text keeps its normal label color and the row background
-// stays neutral; see PlaylistRowView.
-@property (nonatomic, strong, nullable) NSColor *accentColor;
 
 - (NSArray<AudioTrack *> *)playlist;
 

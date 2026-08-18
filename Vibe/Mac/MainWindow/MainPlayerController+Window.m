@@ -129,7 +129,7 @@
         [self updateUI];
     }
     _uiTimer.windowVisible = [self isWindowVisible];
-    [self syncLevelsEnabled];
+    [self syncEqualizerActivity];
 }
 
 // The window's own height rule, applied to drags only: the app's animated
@@ -154,9 +154,10 @@
     // waveform is a faster playhead, and the re-arm is a no-op until the width
     // crosses a whole-Hz boundary.
     [self syncUITimerRate];
-    // The compact size hides the playlist by height alone, so this is also
-    // where the playing row stops being on screen.
-    [self syncLevelsEnabled];
+    // Re-evaluate the playing row against the window's live clip. Programmatic
+    // collapse sets its final intent before the resize animation starts, but
+    // the indicator remains visible for part of that travel.
+    [self syncEqualizerActivity];
     if (!self.window.inLiveResize) {
         [self.trackDisplay refitTitleIfWidthChanged];
     }

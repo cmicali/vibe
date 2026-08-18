@@ -198,11 +198,6 @@
     _artworkController.artDidResolveHandler = ^{
         [weakControllerForArt updateUI];
     };
-    // The playing row's equalizer bars take the artwork-derived accent, and
-    // the playlist controller reloads the row when it changes.
-    _artworkController.accentColorDidChangeHandler = ^(NSColor *accentColor) {
-        weakControllerForArt.playlistController.accentColor = accentColor;
-    };
     // The header art tint depends on the appearance — a dark wash against a
     // light pastel — so re-derive it whenever the window's appearance flips.
     self.playerContentView.appearanceChangedHandler = ^{
@@ -259,13 +254,14 @@
 
     [self.playlistTableView reloadData];
     [self updateUI];
+    [self syncEqualizerActivity];
 
     [NSApp activate];
 }
 
 - (void)pauseUIUpdateTimer {
     _uiTimer.wanted = NO;
-    [self syncLevelsEnabled];
+    [self syncEqualizerActivity];
 }
 
 - (void)resumeUIUpdateTimer {
@@ -275,49 +271,46 @@
     // notification, and playback can start before the first one fires.
     _uiTimer.windowVisible = [self isWindowVisible];
     _uiTimer.wanted = YES;
-    [self syncLevelsEnabled];
+    [self syncEqualizerActivity];
 }
 
 #pragma mark - Equalizer levels
 
-// The band-level tap feeds the playing row's bars and nothing else, so it runs
-// only while a row is actually reading it. Same rule and same three conditions
-// as iOS (Vibe/iOS/CLAUDE.md); what differs is only where each comes from.
-//
-// _levelConsumers is the indicators' own demand, declared as they start and
-// stop their display links. On this platform that is what covers the playing
-// row scrolled out of the table and the playlist collapsed away by
-// toggle_size — both take the cell out of a window, which is the edge the
-// indicator already watches.
-//
-// The timer's two gates are the window's: wanted is "playback wants updates"
-// and windowVisible is the occlusion state, so an occluded or minimized window
-// stops the FFT exactly as backgrounding does on iOS.
-//
-// isPlaylistShown is this platform's version of the iOS card, and it has to be
-// asked for the same reason: the compact size hides the playlist by SHRINKING
-// THE WINDOW, leaving the table in the hierarchy, unhidden, still in a window
-// and merely clipped out of view. No row can tell, so the window says.
-// windowDidResize: is what re-asks, since that is where the height lands.
-- (void)syncLevelsEnabled {
-    MainWindow *window = (MainWindow *)self.window;
-    self.audioPlayer.levelsEnabled = _levelConsumers > 0 && window.isPlaylistShown
-            && _uiTimer.wanted && _uiTimer.windowVisible;
+// One reconciliation point for the producer and renderer. PlaylistController
+// combines the window gate with the playing row's real scroll/window
+// intersection before starting its snapshot poller. A running poller declares one
+// consumer, so the tap follows the exact same decision rather than maintaining
+// a second approximation of visibility.
+- (void)syncEqualizerActivity {
+    BOOL surfaceVisible = [self isWindowVisible];
+    BOOL audioOutputActive = self.audioPlayer.outputAudioActive;
+    self.playlistController.equalizerSurfaceVisible = surfaceVisible;
+    self.playlistController.equalizerAudioOutputActive = audioOutputActive;
+    self.audioPlayer.levelsEnabled = _levelConsumers > 0
+            && surfaceVisible && audioOutputActive;
 }
 
 // Counted rather than a flag: NSTableView reuses row views, so a new indicator
 // can take the source before the outgoing one lets go and the count is briefly
 // two. EqualizerIndicatorView guarantees one NO per YES, dealloc included.
 - (void)equalizerLevelsWanted:(BOOL)wanted {
-    _levelConsumers += wanted ? 1 : -1;
-    if (_levelConsumers < 0) {
-        _levelConsumers = 0;   // a miscount must not wedge the tap on
+    if (wanted) {
+        _levelConsumers++;
     }
-    [self syncLevelsEnabled];
+    else {
+        NSAssert(_levelConsumers > 0, @"unbalanced equalizer level demand");
+        if (_levelConsumers == 0) {
+            return;
+        }
+        _levelConsumers--;
+    }
+    [self syncEqualizerActivity];
 }
 
-- (BOOL)copyEqualizerLevels:(float *)out count:(NSUInteger)count {
-    return [self.audioPlayer copyBandLevels:out count:count];
+- (BOOL)copyEqualizerLevels:(float *)out
+                      count:(NSUInteger)count
+                   sequence:(uint64_t *)sequence {
+    return [self.audioPlayer copyBandLevels:out count:count sequence:sequence];
 }
 
 // Scale the tick rate to how fast the playhead crosses the waveform, so that a

@@ -121,10 +121,10 @@ targets:
     platform: macOS
     sources:
       - path: main.m                          # repo root, outside Vibe/
-      # Per-directory entries, one per subsystem, rather than the recursive
-      # `- path: Vibe`, so that adding a directory is a deliberate edit here
-      # and per-directory build settings have somewhere to go. A NEW DIRECTORY
-      # NEEDS A NEW ENTRY — nothing globs it in.
+      # Recursive entries, one per top-level subsystem, rather than `- path:
+      # Vibe`, so adding a subsystem is a deliberate edit and per-subsystem
+      # build settings have somewhere to go. Nested feature directories are
+      # covered by their subsystem; a new top-level boundary needs a new entry.
       #
       # The tree is sorted by feature. THE DIRECTORY IS THE PLATFORM BOUNDARY:
       # a shared subsystem keeps its shared code at the top level and its
@@ -523,6 +523,8 @@ targets:
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Audio/AudioError.m
       - path: Vibe/Audio/AudioWorkScheduler.m
+      - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
+      - path: Vibe/Audio/Levels/AudioLevelPublisher.m
       - path: Vibe/Audio/AudioFileOpenCoordinator.m
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
       - path: Vibe/Audio/Metadata/MetadataParseRunner.m
@@ -577,9 +579,12 @@ targets:
           - "$(SRCROOT)/Vibe/Util/Categories"
           - "$(SRCROOT)/Vibe/Util/Mac"
           - "$(SRCROOT)/Vibe/Audio"
+          - "$(SRCROOT)/Vibe/Audio/Levels"
           - "$(SRCROOT)/Vibe/Audio/Metadata"
           - "$(SRCROOT)/Vibe/Audio/Waveform"
           - "$(SRCROOT)/Vibe/Audio/Analysis"
+          # Header-only activity/animation seams shared by both controls.
+          - "$(SRCROOT)/Vibe/Controls"
           # WaveformZoomMath.h only: header-only, so nothing from the rendering
           # half is compiled in here.
           - "$(SRCROOT)/Vibe/WaveformUI"

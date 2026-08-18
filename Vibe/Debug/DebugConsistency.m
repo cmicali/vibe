@@ -16,6 +16,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache+Debug.h"
+#import "EqualizerIndicatorView+Debug.h"
 #import "MusicalKey.h"
 #import "AppSettings.h"
 #import "VibeFakeCloud.h"
@@ -123,6 +124,43 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     if (nodes > kVibeMaxReasonableEngineNodes) {
         VibeDebugViolation(v, @"engine.node_count_bounded",
                 @"%lu nodes attached to the engine", (unsigned long)nodes);
+    }
+
+    // ---- Equalizer producer and renderer ----
+
+    NSDictionary *equalizer = [player debugEqualizerState];
+    NSUInteger activeLinks =
+            (NSUInteger)[EqualizerIndicatorView vibeDebugActiveDisplayLinkCount];
+    BOOL queueRequested = [equalizer[@"requested"] boolValue];
+    BOOL tapObject = [equalizer[@"tapObject"] boolValue];
+    BOOL tapInstalled = [equalizer[@"installed"] boolValue];
+
+    checked++;
+    if (activeLinks > 1) {
+        VibeDebugViolation(v, @"equalizer.single_visible_renderer",
+                @"%lu equalizer display links are active", (unsigned long)activeLinks);
+    }
+
+    checked++;
+    if ((activeLinks > 0) != player.levelsEnabled
+            || queueRequested != player.levelsEnabled) {
+        VibeDebugViolation(v, @"equalizer.demand_balanced",
+                @"links=%lu, main request=%d, queue request=%d",
+                (unsigned long)activeLinks, player.levelsEnabled, queueRequested);
+    }
+
+    checked++;
+    if (tapInstalled != tapObject || (tapInstalled && !queueRequested)) {
+        VibeDebugViolation(v, @"equalizer.tap_follows_demand",
+                @"installed=%d, tap object=%d, requested=%d",
+                tapInstalled, tapObject, queueRequested);
+    }
+
+    checked++;
+    if ((activeLinks > 0 || tapInstalled) && !player.outputAudioActive) {
+        VibeDebugViolation(v, @"equalizer.requires_audio_output",
+                @"links=%lu and installed=%d while output is inactive",
+                (unsigned long)activeLinks, tapInstalled);
     }
 
     // ---- Track: the now-playing track's metadata actually arrives ----

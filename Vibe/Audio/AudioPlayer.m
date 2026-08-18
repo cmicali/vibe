@@ -29,6 +29,12 @@
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>
 
+#if DEBUG
+@interface AudioLevelPublisher (AudioPlayerDebugPrivate)
+- (NSDictionary<NSString *, NSNumber *> *)debugState;
+@end
+#endif
+
 // Descriptions are NOT localized: every consumer is a log site. The UI status
 // comes from VibeStatusForPlayError (AudioErrorRules.h), which maps the error
 // code and localizes there, once for both platforms.
@@ -145,6 +151,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // and installMasterBusOnQueue wires the mixer straight to the output.
         _fx = enableFX ? [[AudioFX alloc] initWithQueue:_queue] : nil;
         _retiredFades = [NSMutableArray array];
+        _levelNormalizationMode = kLevelDefaultNormalizationMode;
+        _levelPublisher = [[AudioLevelPublisher alloc] init];
 #if TARGET_OS_OSX
         _pendingSavedDeviceUID = [deviceUID copy] ?: @"";
         _pendingSavedDeviceName = [deviceName copy] ?: @"";
@@ -278,18 +286,20 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // Runs on _queue. Reconciles the tap with the queue-side intent, which is the
 // only thing either caller has to get right.
 - (void)applyLevelTapOnQueue {
-    if (_levelsWanted && _engine && !self.levelTap) {
+    if (_levelsWanted && _engine && !_levelTap && _levelPublisher) {
         // Whatever feeds the output, which is the only place the bars can
         // follow what is actually heard: the FX segment's sum when there is
         // one, and the mixer itself when there is not. Tapping the mixer
         // unconditionally would miss every reverb and delay tail, since those
         // returns re-enter downstream of it.
         AVAudioNode *tapNode = _fx.masterBusOutputNode ?: _engine.mainMixerNode;
-        self.levelTap = [[AudioLevelTap alloc] initWithNode:tapNode];
+        _levelTap = [[AudioLevelTap alloc] initWithNode:tapNode
+                                              publisher:_levelPublisher
+                                       normalizationMode:_levelNormalizationMode];
     }
-    else if (!_levelsWanted && self.levelTap) {
-        [self.levelTap remove];
-        self.levelTap = nil;
+    else if (!_levelsWanted && _levelTap) {
+        [_levelTap remove];
+        _levelTap = nil;
     }
 }
 
@@ -306,8 +316,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     });
 }
 
-- (BOOL)copyBandLevels:(float *)out count:(NSUInteger)count {
-    return [self.levelTap copyLevels:out count:count];
+- (BOOL)copyBandLevels:(float *)out count:(NSUInteger)count sequence:(uint64_t *)sequence {
+    return [_levelPublisher copyLevels:out count:count sequence:sequence];
 }
 
 // Runs on _queue. Forgets every reference bound to the current engine without
@@ -322,8 +332,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // Abandoned rather than removed: removeTapOnBus: would message a node
     // belonging to the engine this method exists to stop touching. The rebuild
     // installs a fresh tap from installMasterBusOnQueue.
-    [self.levelTap abandon];
-    self.levelTap = nil;
+    [_levelTap abandon];
+    _levelTap = nil;
+    _retiredOutputGeneration++;
+    _activeRetiredOutputCount = 0;
+    [self refreshOutputAudioActiveOnQueue];
     // Neither transfer has a consumer any more — the deliveries below are
     // invalidated by identifier, and the file handles they would produce died
     // with the media server. A download is not engine-bound state, so nothing
@@ -357,14 +370,18 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // The one remaining hazard is dealloc itself running on _queue, when a
     // queued block releases the last reference, so that case tears down
     // inline.
+    AudioLevelTap *levelTap = _levelTap;
+    _levelTap = nil;
     AVAudioPlayerNode *node = _node;
     AVAudioEngine *engine = _engine;
     if (dispatch_get_specific(kAudioPlayerQueueKey) == kAudioPlayerQueueKey) {
+        [levelTap remove];
         [node stop];
         [engine stop];
     }
     else {
         dispatch_sync(_queue, ^{
+            [levelTap remove];
             [node stop];
             [engine stop];
         });
@@ -824,6 +841,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         [finishedNode stop];
         [_engine detachNode:finishedNode];
     }
+    [self refreshOutputAudioActiveOnQueue];
 #if TARGET_OS_OSX
     [self resolvePendingSavedOutputDeviceOnQueue];
 #endif
@@ -1135,6 +1153,64 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     });
     return result;
 }
+
+static NSString *VibeAudioLevelNormalizationModeName(
+        VibeAudioLevelNormalizationMode normalizationMode) {
+    switch (normalizationMode) {
+        case VibeAudioLevelNormalizationModeSharedSpectrum:
+            return @"spectrum";
+        case VibeAudioLevelNormalizationModeRelativeActivity:
+        default:
+            return @"activity";
+    }
+}
+
+- (void)debugSetEqualizerNormalizationMode:(VibeAudioLevelNormalizationMode)normalizationMode {
+    if (normalizationMode != VibeAudioLevelNormalizationModeRelativeActivity
+            && normalizationMode != VibeAudioLevelNormalizationModeSharedSpectrum) {
+        return;
+    }
+    void (^applyMode)(void) = ^{
+        if (self->_levelNormalizationMode == normalizationMode) {
+            return;
+        }
+        if (self->_levelTap) {
+            [self->_levelTap remove];
+            self->_levelTap = nil;
+        }
+        self->_levelNormalizationMode = normalizationMode;
+        if (self->_levelsWanted) {
+            [self applyLevelTapOnQueue];
+        }
+    };
+    if (dispatch_get_specific(kAudioPlayerQueueKey) == kAudioPlayerQueueKey) {
+        applyMode();
+        return;
+    }
+    dispatch_sync(_queue, applyMode);
+}
+
+- (NSDictionary<NSString *, id> *)debugEqualizerState {
+    NSDictionary *(^snapshot)(void) = ^NSDictionary *{
+        NSMutableDictionary<NSString *, id> *state =
+                [[self->_levelPublisher debugState] mutableCopy];
+        state[@"requested"] = @(self->_levelsWanted);
+        state[@"tapObject"] = @(self->_levelTap != nil);
+        state[@"retiredOutputCount"] = @(self->_activeRetiredOutputCount);
+        state[@"outputAudioActive"] = @(self.outputAudioActive);
+        state[@"normalizationMode"] =
+                VibeAudioLevelNormalizationModeName(self->_levelNormalizationMode);
+        return state;
+    };
+    if (dispatch_get_specific(kAudioPlayerQueueKey) == kAudioPlayerQueueKey) {
+        return snapshot();
+    }
+    __block NSDictionary *result = nil;
+    dispatch_sync(_queue, ^{
+        result = snapshot();
+    });
+    return result;
+}
 #endif
 
 #pragma mark - Crossfade
@@ -1308,12 +1384,37 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         _loadingSubmittedPlayIdentifier = 0;
     }
     os_unfair_lock_unlock(&_stateLock);
+    [self refreshOutputAudioActiveOnQueue];
 #if TARGET_OS_IOS
     uint64_t recoveryPositionGeneration = ++_recoveryPositionGeneration;
     if (state == VibePlayerStatePlaying) {
         [self scheduleRecoveryPositionSampleForGeneration:recoveryPositionGeneration];
     }
 #endif
+}
+
+// Output liveness is deliberately narrower than transport intent. Loading has
+// no current node, but remains active while a retired crossfade is audibly
+// finishing; a pause stays active through its fade because the state remains
+// Playing until [node pause] lands. AudioFX does not expose wet-tail lifetime,
+// so claiming one here would be a timer-shaped guess rather than actual state.
+- (void)refreshOutputAudioActiveOnQueue {
+    BOOL active = _engine.isRunning
+            && ((_state == VibePlayerStatePlaying && _node != nil)
+                || _activeRetiredOutputCount > 0);
+    os_unfair_lock_lock(&_stateLock);
+    BOOL changed = _outputAudioActive != active;
+    _outputAudioActive = active;
+    os_unfair_lock_unlock(&_stateLock);
+    if (!changed) {
+        return;
+    }
+    run_on_main_thread({
+        id<AudioPlayerDelegate> delegate = self.delegate;
+        if ([delegate respondsToSelector:@selector(audioPlayer:didChangeOutputAudioActive:)]) {
+            [delegate audioPlayer:self didChangeOutputAudioActive:active];
+        }
+    });
 }
 
 #if TARGET_OS_IOS

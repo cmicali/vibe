@@ -1,6 +1,6 @@
 # Audio
 
-Playback engine, FX, devices, and pointers to the four sub-directories with their own files: **`Metadata/`** (tags, cache, scan, artwork), **`Waveform/`** (waveform data), **`Analysis/`** (BPM and key), **`Mac/Convert/`** (FLAC encoding). Rendering is elsewhere again — `Vibe/WaveformUI/`.
+Playback engine, FX, devices, and pointers to the sub-directories with their own files: **`Metadata/`** (tags, cache, scan, artwork), **`Waveform/`** (waveform data), **`Analysis/`** (offline BPM and key), **`Levels/`** (live output metering), and **`Mac/Convert/`** (FLAC encoding). Rendering is elsewhere again — `Vibe/WaveformUI/`.
 
 ## AudioPlayer
 
@@ -77,19 +77,11 @@ Because a promote can land between a main-thread action and its queue block, int
 
 CoreAudio honors LAME/iTunes gapless metadata, so tagged MP3/AAC and all lossless files splice seamlessly; an untagged MP3's baked-in encoder padding is the one gap this cannot remove. `isGaplessArmed` (lock-free) surfaces the armed state to `dump_state`.
 
-### Band levels
+### Live output levels
 
-`levelsEnabled` installs an `AudioLevelTap` and `copyBandLevels:count:` reads its five published levels lock-free, for the equalizer indicator to follow. **Both platforms**, from one FFT.
+`levelsEnabled` installs the demand-driven tap in `Levels/`; `copyBandLevels:count:sequence:` reads its latest coherent snapshot without taking the player queue or allocating. `outputAudioActive` is the shell-facing liveness fact: a current playing node or a counted retired fade is active, while Loading intent alone is not.
 
-**The tap goes on whatever feeds `outputNode`, and that is not the same node on both.** With no FX segment — which is what `enableFX:NO` gives the iOS player — `mainMixerNode` *is* that node: post-fade, post-varispeed, and the crossfade sum comes free because both chains already meet there. With the segment present, the reverb and delay returns re-enter **downstream** of the mixer, so a tap there would miss every wet tail; the signal reaching the speaker is `AudioFX.masterBusOutputNode`, the sum of the dry path and every return. `applyLevelTapOnQueue` picks between them, so the bars follow what is actually heard on either platform, and macOS with FX switched off in Settings quietly lands on the iOS wiring.
-
-Demand-driven rather than fixed at init like `enableFX`, so the tap idles whenever nothing will read it: an FFT nobody draws is pure waste. **The demand is the indicators', not the player's** — each shell counts the indicators declaring themselves consumers (`equalizerLevelsWanted:`) and switches the tap with that count, which is what covers a playing row scrolled out of the list. Each shell adds the conditions only it can see; `iOS/CLAUDE.md` and `Playlist/Mac/CLAUDE.md` have those.
-
-**TRAP: the tap is installed from `installMasterBusOnQueue` and nowhere else.** That method is what the media-services rebuild re-runs, so a tap installed anywhere else dies with the old engine and silently never returns — no error, no log, the bars just stop. Installing there also re-reads the sample rate a reset is free to have changed, which is what the band edges are bound from. `dropEngineBoundStateOnQueue` **abandons** the tap rather than removing it, since removing would message the defunct engine's node.
-
-The tunable half is `AudioLevelMath.h` — band edges, normalization, the per-band AGC reference and the envelope — header-only and tested, because it is what decides how the bars look. The tap publishes instantaneous levels at the hop rate and smooths nothing; the envelope belongs to the view, per displayed frame, so a tap that stops firing decays instead of freezing.
-
-**TRAP: `--silent` zeroes `mainMixerNode.outputVolume`, and the tap is downstream of it**, so every band reads 0 under a normal debug run. Verify with the iOS channel's `dump_levels`, not a screenshot. Moving the tap upstream to dodge this would put it upstream of the mixer too — per-track, and re-plumbed on every crossfade.
+**TRAP: `installMasterBusOnQueue` is the only tap-installation edge, and `dropEngineBoundStateOnQueue` abandons rather than removes a tap bound to a defunct engine.** The ownership, callback, FFT, publication, visibility-demand and `--silent` contracts live beside their implementation in `Levels/CLAUDE.md`.
 
 ### Robustness
 

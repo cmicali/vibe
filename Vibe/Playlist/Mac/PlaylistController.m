@@ -25,6 +25,15 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     // maps its change notifications onto table reloads.
     Playlist *_model;
     __weak PlaylistTableView *_tableView;
+    __weak NSClipView *_observedClipView;
+}
+
+- (void)dealloc {
+    if (_observedClipView) {
+        [NSNotificationCenter.defaultCenter removeObserver:self
+                                                      name:NSViewBoundsDidChangeNotification
+                                                    object:_observedClipView];
+    }
 }
 
 - (NSArray<AudioTrack *> *)playlist {
@@ -48,6 +57,11 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 }
 
 - (void)setTableView:(PlaylistTableView *)tableView {
+    if (_observedClipView) {
+        [NSNotificationCenter.defaultCenter removeObserver:self
+                                                      name:NSViewBoundsDidChangeNotification
+                                                    object:_observedClipView];
+    }
     _tableView = tableView;
     _tableView.delegate = self;
     _tableView.dataSource = self;
@@ -79,6 +93,17 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
                                                 target:self
                                             identifier:@"copy_clicked_track_file"]];
     _tableView.menu = menu;
+
+    NSClipView *clipView = tableView.enclosingScrollView.contentView;
+    if (!clipView) {
+        return;
+    }
+    clipView.postsBoundsChangedNotifications = YES;
+    _observedClipView = clipView;
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(playlistClipBoundsDidChange:)
+                                               name:NSViewBoundsDidChangeNotification
+                                             object:clipView];
 }
 
 - (instancetype)initWithAudioPlayer:(AudioPlayer *)audioPlayer {
@@ -177,6 +202,66 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 
 #pragma mark - Cell population
 
+- (BOOL)isCurrentEqualizerRowVisible {
+    PlaylistTableView *tableView = self.tableView;
+    if (!tableView.window || self.currentIndex >= _model.count) {
+        return NO;
+    }
+    NSClipView *clipView = tableView.enclosingScrollView.contentView;
+    NSView *windowContent = tableView.window.contentView;
+    if (!clipView || !windowContent) {
+        return NO;
+    }
+
+    NSRect rowInClip = [tableView convertRect:[tableView rectOfRow:(NSInteger)self.currentIndex]
+                                      toView:clipView];
+    NSRect visibleInClip = NSIntersectionRect(rowInClip, clipView.bounds);
+    if (NSIsEmptyRect(visibleInClip)) {
+        return NO;
+    }
+
+    NSRect visibleInWindow = [clipView convertRect:visibleInClip toView:windowContent];
+    return !NSIsEmptyRect(NSIntersectionRect(visibleInWindow, windowContent.bounds));
+}
+
+- (void)updateCurrentEqualizerActivity {
+    PlaylistTableView *tableView = self.tableView;
+    NSInteger column = [tableView columnWithIdentifier:kPlaylistColumnNumber];
+    if (column < 0 || self.currentIndex >= _model.count) {
+        return;
+    }
+    NSTableCellView *cell = [tableView viewAtColumn:column
+                                                row:(NSInteger)self.currentIndex
+                                    makeIfNecessary:NO];
+    EqualizerIndicatorView *indicator = cell
+            ? [PlaylistTableView equalizerViewInCell:cell] : nil;
+    if (!indicator) {
+        return;
+    }
+    indicator.audioOutputActive = self.equalizerAudioOutputActive;
+    indicator.presentationVisible = self.equalizerSurfaceVisible
+            && [self isCurrentEqualizerRowVisible];
+}
+
+- (void)playlistClipBoundsDidChange:(NSNotification *)notification {
+    [self updateCurrentEqualizerActivity];
+}
+
+- (void)setEqualizerAudioOutputActive:(BOOL)equalizerAudioOutputActive {
+    if (_equalizerAudioOutputActive == equalizerAudioOutputActive) {
+        return;
+    }
+    _equalizerAudioOutputActive = equalizerAudioOutputActive;
+    [self updateCurrentEqualizerActivity];
+}
+
+- (void)setEqualizerSurfaceVisible:(BOOL)equalizerSurfaceVisible {
+    _equalizerSurfaceVisible = equalizerSurfaceVisible;
+    // The boolean can stay true while a resize clips the row away, so every
+    // reconciliation also refreshes the material row intersection.
+    [self updateCurrentEqualizerActivity];
+}
+
 // Structure and styling — cell construction, fonts and the column set — live
 // in PlaylistTableView. This method decides content alone.
 - (nullable NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row {
@@ -185,21 +270,21 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     NSTableCellView *view = [_tableView cellViewForColumn:tableColumn];
     if ([tableColumn.identifier isEqualToString:kPlaylistColumnNumber]) {
         EqualizerIndicatorView *eqView = [PlaylistTableView equalizerViewInCell:view];
-        // Reset on every population, because cells are reused across rows.
-        eqView.barColor = isCurrentRow ? self.accentColor : nil;
-        // Unconditional, as the iOS list does it: the indicator only declares
-        // demand for levels while it is also animating, which is the playing
-        // row alone.
+        // Unconditional, as the iOS list does it: a reused view releases the
+        // old source before it can declare demand against the new row's state.
         eqView.levelSource = self.levelSource;
         if (isCurrentRow) {
             view.textField.hidden = YES;
             eqView.hidden = NO;
-            eqView.animating = self.audioPlayer.isPlaying;
+            eqView.audioOutputActive = self.equalizerAudioOutputActive;
+            eqView.presentationVisible = self.equalizerSurfaceVisible
+                    && [self isCurrentEqualizerRowVisible];
         }
         else {
             view.textField.hidden = NO;
             eqView.hidden = YES;
-            eqView.animating = NO;
+            eqView.audioOutputActive = NO;
+            eqView.presentationVisible = NO;
             view.textField.attributedStringValue = [PlaylistTableView numberCellString:(NSUInteger)row + 1];
         }
     }
@@ -217,16 +302,6 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 }
 
 #pragma mark - Public API
-
-- (void)setAccentColor:(NSColor *)accentColor {
-    if (_accentColor == accentColor || [_accentColor isEqual:accentColor]) {
-        return;
-    }
-    _accentColor = accentColor;
-    // Only the playing row renders the accent, and only on its equalizer bars:
-    // the title text deliberately keeps the normal label color.
-    [self reloadCurrentTrack];
-}
 
 - (AudioTrack *)currentTrack {
     return [_model currentTrack];

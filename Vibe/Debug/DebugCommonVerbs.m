@@ -24,8 +24,10 @@
 #import "AudioLoadTiming.h"
 #import "MusicalKey.h"
 #import "AudioPlayer.h"
+#import "AudioPlayer+Debug.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "EqualizerIndicatorView+Debug.h"
 #import "NSURLUtil.h"
 #import "NSURLUtil+Debug.h"
 #import "VibeFakeCloud.h"
@@ -317,38 +319,84 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             // this verb an iOS run cannot see a stuck hold or a stranded
             // pending parse at all — and the hold lifecycle is the same code on
             // both. Both belong at zero once a sweep has settled.
-            // Whether the band-level tap is running, and what it last
-            // published. SHARED, and the macOS answer is the point of it being
-            // shared: the tap is iOS-only by a single nil levelSource rather
-            // than by compilation, so "macOS runs no FFT" is a claim about
-            // runtime state that only a runtime verb can check. It must read
-            // levelsEnabled:false there forever.
+            // The producer and renderer clocks in one reply. All counters are
+            // cumulative. Once an activity transition and any cell/layout
+            // work settle, two samples prove that an inactive state did no
+            // callbacks, FFT windows or display ticks. Geometry and layer-write
+            // counters additionally require stable bounds and cell population.
             //
-            // On iOS it is also the only way to tell a working indicator from a
-            // broken one, because --silent zeroes the mixer the tap sits under
-            // and every band legitimately reads 0 — which a screenshot cannot
-            // distinguish from dead. The reply carries `silent` so a flat run
-            // explains itself.
+            // `--silent` zeroes the mixer before this downstream tap and must
+            // therefore never be used to judge reactive motion. In contrast,
+            // `--no-audio-hw` can engage the manual renderer without zeroing
+            // the signal; the three launch facts make that distinction visible.
             VibeDebugCmd(@"dump_levels", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 AudioPlayer *player = surface.debugPlayer;
+                // Drain any queued tap install/removal before reading the
+                // lock-free publication, so one reply never combines opposite
+                // sides of an activity edge.
+                NSDictionary *audio = [player debugEqualizerState];
                 float levels[kLevelBandCount] = {0};
-                BOOL published = [player copyBandLevels:levels count:kLevelBandCount];
+                uint64_t sequence = 0;
+                BOOL published = [player copyBandLevels:levels
+                                                  count:kLevelBandCount
+                                               sequence:&sequence];
                 NSMutableArray<NSNumber *> *bands =
                         [NSMutableArray arrayWithCapacity:kLevelBandCount];
                 for (NSUInteger i = 0; i < kLevelBandCount; i++) {
                     [bands addObject:@(published ? levels[i] : 0)];
                 }
                 NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
+                NSDictionary *renderer = @{
+                    @"activeDisplayLinks":
+                            @([EqualizerIndicatorView vibeDebugActiveDisplayLinkCount]),
+                    @"displayTicks":
+                            @([EqualizerIndicatorView vibeDebugTotalDisplayTickCount]),
+                    @"geometryLayouts":
+                            @([EqualizerIndicatorView vibeDebugTotalGeometryLayoutCount]),
+                    @"transformWrites":
+                            @([EqualizerIndicatorView vibeDebugTotalTransformWriteCount]),
+                };
                 return VibeJSONString(@{
-                    // NO means no tap is running at all — nothing playing, the
-                    // app backgrounded, no indicator on screen, or macOS —
-                    // which is a different answer from five zeroes.
+                    // Kept at top level for existing stress/debug consumers.
                     @"levelsEnabled": @(player.levelsEnabled),
+                    @"outputAudioActive": @(player.outputAudioActive),
                     @"published": @(published),
+                    @"sequence": @(sequence),
                     @"bands": bands,
+                    @"audio": audio,
+                    @"renderer": renderer,
                     @"silent": @([arguments containsObject:@"--silent"]),
+                    @"noAudioHw": @([arguments containsObject:@"--no-audio-hw"]),
+                    @"manualRendering": @([player manualRenderingActive]),
+                });
+            }),
+            VibeDebugCmd(@"set_equalizer_mode <activity|spectrum>", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                if (tokens.count != 2) {
+                    return VibeErrorJSON(@"usage: set_equalizer_mode <activity|spectrum>");
+                }
+                VibeAudioLevelNormalizationMode normalizationMode;
+                if ([tokens[1] isEqualToString:@"activity"]) {
+                    normalizationMode = VibeAudioLevelNormalizationModeRelativeActivity;
+                }
+                else if ([tokens[1] isEqualToString:@"spectrum"]) {
+                    normalizationMode = VibeAudioLevelNormalizationModeSharedSpectrum;
+                }
+                else {
+                    return VibeErrorJSON(@"usage: set_equalizer_mode <activity|spectrum>");
+                }
+                AudioPlayer *player = surface.debugPlayer;
+                [player debugSetEqualizerNormalizationMode:normalizationMode];
+                NSDictionary<NSString *, id> *audio = [player debugEqualizerState];
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"normalizationMode": audio[@"normalizationMode"],
+                    @"requested": audio[@"requested"],
+                    @"tapObject": audio[@"tapObject"],
+                    @"installed": audio[@"installed"],
                 });
             }),
             VibeDebugCmd(@"dump_cloud_health", 0,

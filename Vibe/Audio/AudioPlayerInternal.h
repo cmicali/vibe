@@ -67,6 +67,8 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 @interface VibeRetiredFade : NSObject
 @property (nonatomic, strong) AVAudioPlayerNode *node;
 @property (nonatomic, strong) AVAudioUnitVarispeed *varispeed;
+@property (nonatomic) BOOL countedAsOutput;
+@property (nonatomic) uint64_t outputGeneration;
 @end
 
 // Only the state a category also touches lives here; the rest stays private to
@@ -170,6 +172,23 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // wiring, which is how a media-services rebuild comes back with the tap it
     // had; the public property is main-thread state and must not be read here.
     BOOL                    _levelsWanted;
+    // Queue-confined analyzer mode. Debug may replace the active tap to change it.
+    VibeAudioLevelNormalizationMode _levelNormalizationMode;
+    // Stable for the AudioPlayer lifetime. Engine resets replace only the tap
+    // session, so main-thread readers never load an atomic Objective-C owner and a
+    // snapshot sequence never goes backwards.
+    AudioLevelPublisher     *_levelPublisher;
+    // Queue-confined. Display readers use _levelPublisher, not this object.
+    AudioLevelTap           *_levelTap;
+
+    // ---- Actual modeled audio-output liveness.
+    // _activeRetiredOutputCount and its generation are queue-confined. The
+    // published bool is guarded by _stateLock for the shell's nonblocking
+    // getter. A generation lets a completion retained by a dead engine no-op
+    // after media-services reset has cleared the count.
+    NSUInteger              _activeRetiredOutputCount;
+    uint64_t                _retiredOutputGeneration;
+    BOOL                    _outputAudioActive;
 
     // ---- Read by AudioPlayer+State, written by publishPlaybackState:.
     // Last position computed from a valid playerTime, guarded by _stateLock.
@@ -210,15 +229,6 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // The in-flight open's generation, path, current rebound row and start intent;
 // see PlaybackRequestCoordinator.
 @property (nonatomic, readonly, nullable) PlaybackRequestCoordinator *pendingRequest;
-
-// The band-level tap, nil unless levelsEnabled. Written only by AudioPlayer.m
-// and only on the queue, like everything else here — readwrite rather than
-// readonly because it is ATOMIC, and a direct ivar write would bypass exactly
-// the synchronization it exists for. copyBandLevels: reads it from the main
-// thread at display rate, and an atomic strong read retains the tap for the
-// call, which is what lets the queue drop the last reference concurrently
-// without the reader ever touching a freed object. See AudioLevelTap's dealloc.
-@property (atomic, strong, nullable) AudioLevelTap *levelTap;
 
 // The loading intent, mirrored under _stateLock so that main-thread getters and
 // a seek's identity snapshot never touch queue-confined pending state. The
@@ -269,6 +279,9 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // Wires the master bus on a fresh engine: the FX segment, or, with FX
 // disabled, the mixer straight to the output. The rebuild's second half.
 - (void)installMasterBusOnQueue;
+// Reconciles tap demand. Also called after a successful engine start so a
+// temporary unusable-format failure can recover without toggling demand.
+- (void)applyLevelTapOnQueue;
 // Creates the engine and wires the master bus, debug argv flags
 // (--no-audio-hw, --silent) included — the init path and the iOS
 // media-services rebuild must configure the engine identically.
@@ -278,6 +291,9 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
                         file:(nullable AVAudioFile *)file
                 segmentStart:(AVAudioFramePosition)segmentStart
                     position:(NSTimeInterval)position;
+// Recomputes and, on an edge, publishes current-node + retired-fade output
+// liveness. Every tracked fade completion and state publication funnels here.
+- (void)refreshOutputAudioActiveOnQueue;
 - (void)sendDelegateError:(NSError *)error;
 // The play-path variant, which drops an error whose submission a newer play
 // has already replaced. Every error carrying kVibeAudioErrorTrackURLKey must

@@ -19,6 +19,13 @@
 // reconnection is needed (see AudioFX's wiring note).
 - (void)recoverFromEngineConfigurationChange {
     dispatch_async(_queue, ^{
+        BOOL engineRunning = self->_engine.isRunning;
+        if (!engineRunning) {
+            // The notification arrives after the graph has already stopped.
+            // Publish that edge before any state-specific recovery can return
+            // or wait; a quick successful restart coalesces active on main.
+            [self refreshOutputAudioActiveOnQueue];
+        }
         if (self->_state != VibePlayerStatePlaying || self->_pausePending) {
             // Paused and stopped recover lazily on the next start, and a
             // pending pause owns the transport: its completion pauses in
@@ -27,7 +34,7 @@
         }
         AVAudioPlayerNode *node = self->_node;
         AVAudioFile *file = self->_file;
-        if (!node || !file || self->_engine.isRunning) {
+        if (!node || !file || engineRunning) {
             return; // Loading, or the engine survived the change.
         }
         // The getter serves the last-valid cache here: lastRenderTime went

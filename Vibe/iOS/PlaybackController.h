@@ -22,7 +22,7 @@
 
 #import <UIKit/UIKit.h>
 
-#import "EqualizerIndicatorView.h"   // EqualizerLevelSource, adopted below
+#import "EqualizerLevelSource.h"
 #import "PlayerScreenRules.h"        // VibePlayerScreenState, returned below
 
 @class AudioTrack;
@@ -86,8 +86,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // It is the app's EqualizerLevelSource as well: the library row's indicator
 // draws the audio this object is playing, and this is the only thing that
-// holds the player. The protocol is one method wide precisely so the shared
-// control needs nothing else from here.
+// holds the player.
 @interface PlaybackController : NSObject <EqualizerLevelSource>
 
 #pragma mark - Observers
@@ -116,11 +115,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - The player, non-blocking reads
 
-// YES while the now-playing card covers the library, so the band-level tap can
-// be switched off with it. The shell has to say so: the card moves by transform
-// over children that stay in the hierarchy and stay "appeared", so no view under
-// it ever learns it was covered. See RootViewController.
-@property (nonatomic) BOOL levelsOccluded;
+// Set by the scene delegate from activation callbacks. Foreground-inactive is
+// deliberately false: Control Center and the app switcher leave views attached
+// to a window even though none of their animation is visible.
+@property (nonatomic, getter=isSceneActive) BOOL sceneActive;
+
+// Actual modeled graph output: a playing source or tracked outgoing fade.
+// Unlike isPlaying, this is false while a requested track is merely Loading.
+@property (nonatomic, readonly) BOOL audioOutputActive;
 
 @property (nonatomic, readonly) BOOL isPlaying;
 @property (nonatomic, readonly) NSTimeInterval position;

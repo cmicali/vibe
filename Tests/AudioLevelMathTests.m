@@ -18,6 +18,19 @@
 
 #pragma mark - Band bin ranges
 
+- (void)testBassForwardNominalEdgesAreExplicit {
+    const double expected[] = {40.0, 100.0, 250.0, 800.0, 4000.0, 20000.0};
+    for (NSUInteger edge = 0; edge <= kLevelBandCount; edge++) {
+        XCTAssertEqual(kLevelBandEdgesHz[edge], expected[edge]);
+        XCTAssertEqual(VibeLevelBandEdgeHz(edge, 48000.0), expected[edge]);
+    }
+}
+
+- (void)testSharedSpectrumIsTheShippingDefault {
+    XCTAssertEqual(kLevelDefaultNormalizationMode,
+                   VibeAudioLevelNormalizationModeSharedSpectrum);
+}
+
 // Contiguous, not merely ascending: a band's top IS its neighbour's bottom, so
 // no bin drives two bars and none drives none.
 - (void)testBandsAreContiguous {
@@ -34,22 +47,67 @@
     }
 }
 
-// Bin 0 packs DC and Nyquist in a real FFT, and neither belongs to a band.
-- (void)testLowestBandSkipsTheDCBin {
-    NSUInteger lo = 0, hi = 0;
-    VibeLevelBandBinRange(0, 1024, 44100.0, &lo, &hi);
-    XCTAssertGreaterThanOrEqual(lo, 1u);
+// A half-open band starts at the first bin center on or above its lower edge.
+// These exact grids cover every output-rate family the analyzer supports.
+- (void)testBandEdgesUseExactBinCenterMembershipAtEveryHardwareRate {
+    const double rates[] = {44100.0, 48000.0, 88200.0, 96000.0,
+                            176400.0, 192000.0};
+    const NSUInteger expected[][kLevelBandCount + 1] = {
+        {2, 5, 12, 38, 186, 929},
+        {2, 5, 11, 35, 171, 854},
+        {2, 5, 12, 38, 186, 929},
+        {2, 5, 11, 35, 171, 854},
+        {2, 5, 12, 38, 186, 929},
+        {2, 5, 11, 35, 171, 854},
+    };
+    for (NSUInteger rateIndex = 0;
+         rateIndex < sizeof(rates) / sizeof(rates[0]); rateIndex++) {
+        double rate = rates[rateIndex];
+        NSUInteger fftSize = VibeLevelFFTSizeForSampleRate(rate);
+        double binWidth = rate / (double)fftSize;
+        for (NSUInteger edge = 0; edge <= kLevelBandCount; edge++) {
+            NSUInteger bin = VibeLevelBandEdgeBin(edge, fftSize, rate);
+            double edgeHz = VibeLevelBandEdgeHz(edge, rate);
+            XCTAssertEqual(bin, expected[rateIndex][edge],
+                           @"rate %.0f edge %lu", rate, (unsigned long)edge);
+            XCTAssertGreaterThanOrEqual((double)bin * binWidth, edgeHz);
+            XCTAssertLessThan((double)(bin - 1) * binWidth, edgeHz);
+        }
+    }
 }
 
-- (void)testTopBandStopsAtNyquist {
-    NSUInteger lo = 0, hi = 0;
-    VibeLevelBandBinRange(kLevelBandCount - 1, 1024, 48000.0, &lo, &hi);
-    XCTAssertLessThanOrEqual(hi, 1024u / 2);
+- (void)testLowestBandExcludesCentersBelowFortyHertz {
+    for (NSNumber *rateValue in @[@44100.0, @48000.0, @88200.0, @96000.0,
+                                  @176400.0, @192000.0]) {
+        double rate = rateValue.doubleValue;
+        NSUInteger fftSize = VibeLevelFFTSizeForSampleRate(rate);
+        NSUInteger lo = 0, hi = 0;
+        VibeLevelBandBinRange(0, fftSize, rate, &lo, &hi);
+        XCTAssertGreaterThanOrEqual((double)lo * rate / (double)fftSize,
+                                    kLevelBandEdgesHz[0]);
+        XCTAssertLessThan((double)(lo - 1) * rate / (double)fftSize,
+                          kLevelBandEdgesHz[0]);
+    }
 }
 
-// Log spacing: each band must be wider in bins than the one below it, which is
-// the whole reason the treble bars are not dead.
-- (void)testBandsWidenGeometrically {
+- (void)testTopBandIncludesEveryCenterBelowTheAudibleCeiling {
+    for (NSNumber *rateValue in @[@44100.0, @48000.0, @88200.0, @96000.0,
+                                  @176400.0, @192000.0]) {
+        double rate = rateValue.doubleValue;
+        NSUInteger fftSize = VibeLevelFFTSizeForSampleRate(rate);
+        NSUInteger lo = 0, hi = 0;
+        VibeLevelBandBinRange(kLevelBandCount - 1, fftSize, rate, &lo, &hi);
+        XCTAssertLessThan((double)(hi - 1) * rate / (double)fftSize,
+                          kLevelBandEdgesHz[kLevelBandCount]);
+        XCTAssertGreaterThanOrEqual((double)hi * rate / (double)fftSize,
+                                    kLevelBandEdgesHz[kLevelBandCount]);
+        XCTAssertLessThan(hi, fftSize / 2);
+    }
+}
+
+// The chosen regions grow in linear bandwidth while reserving three bars for
+// everything below 800 Hz.
+- (void)testBassForwardBandsWidenInBinCount {
     NSUInteger previousWidth = 0;
     for (NSUInteger b = 0; b < kLevelBandCount; b++) {
         NSUInteger lo = 0, hi = 0;
@@ -64,23 +122,119 @@
     }
 }
 
+- (void)testSharedSpectrumScaleExpressesEveryBandAsEnergyPerOctave {
+    for (NSUInteger band = 0; band < kLevelBandCount; band++) {
+        double octaveWidth = log2(kLevelBandEdgesHz[band + 1]
+                                  / kLevelBandEdgesHz[band]);
+        float scale = VibeLevelEnergyPerOctaveScale(band, 48000.0);
+        XCTAssertEqualWithAccuracy(octaveWidth * scale, 1.0, 0.000001,
+                                   @"band %lu", (unsigned long)band);
+    }
+    XCTAssertEqualWithAccuracy(VibeLevelEnergyPerOctaveScale(0, 48000.0),
+                               VibeLevelEnergyPerOctaveScale(1, 48000.0),
+                               0.000001);
+    XCTAssertEqualWithAccuracy(VibeLevelEnergyPerOctaveScale(3, 48000.0),
+                               VibeLevelEnergyPerOctaveScale(4, 48000.0),
+                               0.000001);
+    XCTAssertGreaterThan(VibeLevelEnergyPerOctaveScale(0, 48000.0),
+                         VibeLevelEnergyPerOctaveScale(4, 48000.0));
+    XCTAssertEqual(VibeLevelEnergyPerOctaveScale(kLevelBandCount, 48000.0),
+                   0.0f);
+}
+
 // The edges are bound from the delivered format, so a rate change must move
 // them — a constant here would put the bands in the wrong places silently.
-- (void)testBandEdgesFollowSampleRate {
+- (void)testBandBinRangesFollowSampleRate {
     NSUInteger lo44 = 0, hi44 = 0, lo96 = 0, hi96 = 0;
     VibeLevelBandBinRange(0, 1024, 44100.0, &lo44, &hi44);
     VibeLevelBandBinRange(0, 1024, 96000.0, &lo96, &hi96);
     XCTAssertNotEqual(hi44, hi96);
 }
 
-- (void)testDegenerateFormatsStillProduceAUsableRange {
+- (void)testAudibleBandEdgesDoNotStretchAtHighSampleRates {
+    for (NSUInteger edge = 0; edge <= kLevelBandCount; edge++) {
+        XCTAssertEqualWithAccuracy(VibeLevelBandEdgeHz(edge, 48000.0),
+                                   VibeLevelBandEdgeHz(edge, 192000.0), 0.001);
+    }
+}
+
+#pragma mark - Analysis cadence and energy
+
+- (void)testFFTWindowDurationIsStableAcrossHardwareRates {
+    for (NSNumber *rateValue in @[@44100.0, @48000.0, @88200.0, @96000.0,
+                                  @176400.0, @192000.0]) {
+        double rate = rateValue.doubleValue;
+        double duration = (double)VibeLevelFFTSizeForSampleRate(rate) / rate;
+        XCTAssertGreaterThan(duration, 0.040);
+        XCTAssertLessThan(duration, 0.047);
+    }
+}
+
+- (void)testTapRequestsTheMinimumDocumentedDuration {
+    XCTAssertEqual(VibeLevelTapBufferFrameCount(44100.0), 4410u);
+    XCTAssertEqual(VibeLevelTapBufferFrameCount(48000.0), 4800u);
+    XCTAssertEqual(VibeLevelTapBufferFrameCount(192000.0), 19200u);
+}
+
+- (void)testFFTEnergyScalingIsFrameSizeIndependent {
+    // Equivalent FFTs have raw squared magnitude proportional to N^2.
+    float at2048 = VibeLevelScaleFFTEnergy(2048.0f * 2048.0f, 2048);
+    float at8192 = VibeLevelScaleFFTEnergy(8192.0f * 8192.0f, 8192);
+    XCTAssertEqualWithAccuracy(at2048, at8192, 0.0001);
+}
+
+- (void)testChannelEnergyCombinationPreservesAntiphaseStereo {
+    // Magnitude-squared spectra for +x and -x are identical. Averaging those
+    // spectra must preserve the tone rather than downmixing it to zero.
+    float antiphaseEnergy[] = {0.25f, 0.25f};
+    XCTAssertEqualWithAccuracy(VibeLevelMeanChannelEnergy(antiphaseEnergy, 2),
+                               0.25f, 0.0001);
+}
+
+- (void)testChannelEnergyCombinationSanitizesCorruptInputs {
+    float energies[] = {NAN, INFINITY};
+    XCTAssertEqual(VibeLevelMeanChannelEnergy(energies, 2), 0.0f);
+    XCTAssertEqual(VibeLevelScaleFFTEnergy(NAN, 2048), 0.0f);
+    XCTAssertEqual(VibeLevelScaleFFTEnergy(INFINITY, 2048), 0.0f);
+    XCTAssertEqual(VibeLevelScaleFFTEnergy(1.0f, 0), 0.0f);
+}
+
+- (void)testDegenerateZeroRateStillProducesAUsableRange {
     NSUInteger lo = 0, hi = 0;
     VibeLevelBandBinRange(0, 1024, 0.0, &lo, &hi);
     XCTAssertLessThan(lo, hi);
+}
 
-    VibeLevelBandBinRange(kLevelBandCount - 1, 64, 8000.0, &lo, &hi);
-    XCTAssertLessThan(lo, hi);
-    XCTAssertLessThanOrEqual(hi, 64u / 2);
+- (void)testLowSampleRatesKeepEveryBandContiguousAndScaled {
+    for (NSNumber *rateValue in @[@8000.0, @16000.0, @22050.0,
+                                  @32000.0, @40000.0]) {
+        double sampleRate = rateValue.doubleValue;
+        NSUInteger fftSize = VibeLevelFFTSizeForSampleRate(sampleRate);
+        NSUInteger previousHigh = 0;
+        for (NSUInteger band = 0; band < kLevelBandCount; band++) {
+            NSUInteger lo = 0, hi = 0;
+            VibeLevelBandBinRange(band, fftSize, sampleRate, &lo, &hi);
+            XCTAssertLessThan(lo, hi, @"Band %lu at %.0f Hz must not be empty",
+                              (unsigned long)band, sampleRate);
+            XCTAssertLessThanOrEqual(hi, fftSize / 2,
+                                     @"Band %lu at %.0f Hz exceeds Nyquist",
+                                     (unsigned long)band, sampleRate);
+            if (band > 0) {
+                XCTAssertEqual(lo, previousHigh,
+                               @"Band %lu at %.0f Hz must meet its predecessor",
+                               (unsigned long)band, sampleRate);
+            }
+
+            float scale = VibeLevelEnergyPerOctaveScale(band, sampleRate);
+            XCTAssertTrue(isfinite(scale),
+                          @"Band %lu at %.0f Hz needs a finite scale",
+                          (unsigned long)band, sampleRate);
+            XCTAssertGreaterThan(scale, 0.0f,
+                                 @"Band %lu at %.0f Hz needs a positive scale",
+                                 (unsigned long)band, sampleRate);
+            previousHigh = hi;
+        }
+    }
 }
 
 #pragma mark - Normalization
@@ -152,14 +306,14 @@
 }
 
 // A band carrying nothing but a noise floor must stay DARK. This is the whole
-// job of the absolute floor, and the case that motivates its value: the AGC
-// divides each band by its own running reference, so without a floor above the
-// noise a signal-free band normalizes its own hiss to full scale and the
-// emptiest bar reads the brightest. Measured on a pure 220 Hz tone, bands 3 and
-// 4 averaged 0.98 before the floor was raised.
+// job of the absolute floor, and the case that motivates its value: in
+// relative-activity mode, the AGC divides each band by its own running
+// reference. Without a floor above the noise, a signal-free band normalizes
+// its own hiss to full scale and the emptiest bar reads the brightest. Measured
+// on a pure 220 Hz tone, bands 3 and 4 averaged 0.98 before the floor was raised.
 - (void)testSignalFreeBandStaysDarkAcrossItsWholeDecay {
-    // 16-bit quantization noise, in the unnormalized units the tap works in.
-    const float noise = 3.3e-7f;
+    // Approximate 16-bit quantization noise after FFT-size normalization.
+    const float noise = 1e-10f;
     float reference = 1.0f;   // the band was loud once, so the floor is reached by decay
     for (int i = 0; i < 4000; i++) {
         reference = VibeLevelUpdateReference(reference, noise, 0.02f);
@@ -169,14 +323,15 @@
 }
 
 // The converse, and the reason the floor cannot simply be raised without bound:
-// the AGC exists so a QUIET track still moves its bars. A band carrying real
-// signal reaches full scale on its own peaks at any level, however far down —
-// right up to the point its energy crosses the absolute floor.
+// relative-activity mode relies on the per-band AGC so a QUIET track still
+// moves its bars. A band carrying real signal reaches full scale on its own
+// peaks at any level, however far down — right up to the point its energy
+// crosses the absolute floor.
 - (void)testQuietBandStillReachesFullScale {
-    // 6.6e3 is a full-scale tone's measured mean band energy; -40 dB from there
-    // is 0.66, still well clear of the floor.
+    // A full-scale tone's mean depends on band width; 0.05 is representative.
+    // Forty dB below it remains above the stable reference floor.
     for (float gainDB = 0.0f; gainDB >= -40.0f; gainDB -= 10.0f) {
-        float energy = 6.6e3f * powf(10.0f, gainDB / 10.0f);
+        float energy = 0.05f * powf(10.0f, gainDB / 10.0f);
         float reference = VibeLevelUpdateReference(kLevelReferenceFloor, energy, 0.02f);
         XCTAssertEqualWithAccuracy(VibeLevelNormalize(energy, reference), 1.0f, 0.0001,
                                    @"%.0f dB band should still reach full scale", gainDB);
@@ -201,62 +356,6 @@
     XCTAssertGreaterThanOrEqual(VibeLevelUpdateReference(1.0f, NAN, 0.02f), kLevelReferenceFloor);
     XCTAssertEqualWithAccuracy(VibeLevelUpdateReference(1.0f, 0.0f, NAN), 1.0f, 0.0001);
     XCTAssertEqualWithAccuracy(VibeLevelUpdateReference(1.0f, 0.0f, 0.0f), 1.0f, 0.0001);
-}
-
-#pragma mark - The envelope
-
-// The asymmetry is the point: a transient arrives at once and leaves slowly.
-- (void)testAttackIsFasterThanRelease {
-    float dt = 1.0f / 60.0f;
-    float rise = VibeLevelEnvelope(0.0f, 1.0f, dt, kLevelAttackSeconds, kLevelReleaseSeconds);
-    float fall = 1.0f - VibeLevelEnvelope(1.0f, 0.0f, dt, kLevelAttackSeconds, kLevelReleaseSeconds);
-    XCTAssertGreaterThan(rise, fall);
-}
-
-- (void)testEnvelopeConvergesOnItsTarget {
-    float value = 0.0f;
-    for (int i = 0; i < 600; i++) {
-        value = VibeLevelEnvelope(value, 0.75f, 1.0f / 60.0f,
-                                  kLevelAttackSeconds, kLevelReleaseSeconds);
-    }
-    XCTAssertEqualWithAccuracy(value, 0.75f, 0.001);
-}
-
-- (void)testEnvelopeNeverOvershoots {
-    float value = 0.0f;
-    for (int i = 0; i < 300; i++) {
-        value = VibeLevelEnvelope(value, 1.0f, 1.0f / 60.0f,
-                                  kLevelAttackSeconds, kLevelReleaseSeconds);
-        XCTAssertLessThanOrEqual(value, 1.0f);
-        XCTAssertGreaterThanOrEqual(value, 0.0f);
-    }
-}
-
-// Time-constant based, so the same wall-clock span lands in the same place
-// whatever the display rate — a 60 Hz phone and a 120 Hz one must agree.
-- (void)testEnvelopeIsFrameRateIndependent {
-    float slow = VibeLevelEnvelope(0.0f, 1.0f, 1.0f / 60.0f,
-                                   kLevelAttackSeconds, kLevelReleaseSeconds);
-    float fast = 0.0f;
-    for (int i = 0; i < 2; i++) {
-        fast = VibeLevelEnvelope(fast, 1.0f, 1.0f / 120.0f,
-                                 kLevelAttackSeconds, kLevelReleaseSeconds);
-    }
-    XCTAssertEqualWithAccuracy(slow, fast, 0.005);
-}
-
-- (void)testEnvelopeSanitizesHostileInput {
-    XCTAssertGreaterThan(VibeLevelEnvelope(NAN, 0.5f, 1.0f / 60.0f,
-                                           kLevelAttackSeconds, kLevelReleaseSeconds), 0.0f);
-    // A NaN target is sanitized to 0 and then EASED toward, not snapped to:
-    // one corrupt frame must not drop the bar to the floor.
-    float decayed = VibeLevelEnvelope(0.5f, NAN, 1.0f / 60.0f,
-                                      kLevelAttackSeconds, kLevelReleaseSeconds);
-    XCTAssertGreaterThanOrEqual(decayed, 0.0f);
-    XCTAssertLessThan(decayed, 0.5f);
-    // A zero or negative frame time snaps rather than dividing by zero.
-    XCTAssertEqual(VibeLevelEnvelope(0.0f, 0.5f, 0.0f,
-                                     kLevelAttackSeconds, kLevelReleaseSeconds), 0.5f);
 }
 
 @end

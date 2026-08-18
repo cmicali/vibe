@@ -3,22 +3,20 @@
 //  Vibe
 //
 //  The playing-row indicator: five vertically centered pill bars, the app
-//  icon's waveform, that grow and shrink independently. They are plain
-//  CALayers driven either by a levelSource's real band levels or, with none, by
-//  repeating keyframe animations composited on the render server. An
-//  animated-GIF image view, by contrast, re-decodes frames on the CPU every
-//  tick, even when clipped offscreen.
+//  icon's waveform, that grow and shrink independently. Five retained CALayers
+//  represent them. Snapshot updates retarget only materially changed vertical
+//  transforms; no path is rebuilt or rasterized on each displayed frame.
 //
 //  SHARED, because the bars ARE the app's playing marker and both platforms
 //  must draw the same ones — the mac playlist table's number column and the
 //  iOS library row's. Everything that gives the indicator its character is
 //  QuartzCore and identical on both: the pill layers, the collapsed-to-dots
-//  paused pose, the per-bar keyframe tables, and the deliberately mismatched
-//  durations that keep the combined pattern from visibly repeating. Only the superclass, the
-//  layout and appearance hooks and the alpha property differ, which is the
-//  whole of the #if in the implementation.
+//  idle pose, the snapshot poller capped at 30 Hz, and explicit scalar
+//  animations for material level changes. Only the superclass, layout
+//  and appearance hooks, and alpha property differ.
 //
 
+#import "EqualizerLevelSource.h"
 #import "PlatformTypes.h"
 
 #if TARGET_OS_OSX
@@ -28,28 +26,6 @@
 #endif
 
 NS_ASSUME_NONNULL_BEGIN
-
-// Where the bars get real audio, when they have it. One method, so this shared
-// control gains no dependency on Audio/ — the source is whatever holds a
-// player, and on iOS that is PlaybackController.
-@protocol EqualizerLevelSource <NSObject>
-
-// Fills `out` with `count` levels in 0..1. NO means there is nothing to show
-// right now and `out` is untouched, which the indicator reads as "settle", not
-// as silence.
-- (BOOL)copyEqualizerLevels:(float *)out count:(NSUInteger)count;
-
-// Whether this indicator is consuming levels at all, so a source can keep the
-// analysis it feeds them from switched off when nothing will read it. Sent only
-// on a change and exactly balanced — one NO per YES, the last of them from
-// dealloc — so a source may simply count its consumers.
-//
-// It is demand, not visibility: the indicator says what it needs, and only the
-// source knows what producing it costs. A source with nothing to switch off can
-// implement this as a no-op.
-- (void)equalizerLevelsWanted:(BOOL)wanted;
-
-@end
 
 // The bar color follows the view's own appearance — white in dark mode, black
 // in light — and re-resolves on an appearance change. A snapshot taken while
@@ -61,18 +37,25 @@ NS_ASSUME_NONNULL_BEGIN
 @interface EqualizerIndicatorView : UIView
 #endif
 
-// YES makes the bars bounce, for a playing track. NO collapses them to a row
-// of dots — each bar squashed to its own width — for a paused one.
-@property (nonatomic) BOOL animating;
+// These two facts are deliberately separate. Audio output means the graph has
+// a playing source node or a tracked outgoing fade; presentation visibility
+// means the platform has established that this row and its surface are
+// materially exposed. Both default to NO, and both must be YES before the view
+// asks for level production or creates its snapshot poller.
+@property (nonatomic) BOOL audioOutputActive;
+@property (nonatomic) BOOL presentationVisible;
 
-// Overrides the appearance-derived bar color with the playlist's
-// artwork-derived accent. nil returns to the white or black default.
+// The derived state after source, attachment, and nonempty geometry have also
+// been checked. Useful for live diagnostics without exposing debug-only API in
+// a shipping header.
+@property (nonatomic, readonly, getter=isAudioReactive) BOOL audioReactive;
+
+// Overrides the appearance-derived bar color. nil returns to the white or
+// black default.
 @property (nonatomic, strong, nullable) VibeColor *barColor;
 
-// Set this and the bars follow the audio instead of the canned keyframes,
-// sampling per displayed frame while animating. Both platforms set it — iOS
-// from PlaybackController, macOS from MainPlayerController — and nil keeps the
-// keyframes, which is any row built before the model reaches it.
+// Both platforms set this to the model that owns their player. A missing source
+// is inactive, never a request for synthetic fallback animation.
 //
 // Weak: the source is the app's playback model and outlives every row.
 @property (nonatomic, weak, nullable) id<EqualizerLevelSource> levelSource;

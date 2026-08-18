@@ -51,6 +51,13 @@
     return stopped;
 }
 
+- (BOOL)outputAudioActive {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL active = _outputAudioActive;
+    os_unfair_lock_unlock(&_stateLock);
+    return active;
+}
+
 - (NSTimeInterval)duration {
     os_unfair_lock_lock(&_stateLock);
     AVAudioFile *file = _file;

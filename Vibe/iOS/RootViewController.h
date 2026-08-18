@@ -33,6 +33,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_UNAVAILABLE;
 
 @property (nonatomic, readonly) PlaybackController *playback;
+// Foreground-active, supplied by the scene delegate. The root combines this
+// with its own appearance and the card's actual exposure of the tabs before
+// allowing the library's equalizer to run.
+@property (nonatomic, getter=isSceneActive) BOOL sceneActive;
 // The card. Exposed for the debug channel's dump_art, which asks the pager
 // about its art window.
 @property (nonatomic, readonly) PlayerViewController *player;

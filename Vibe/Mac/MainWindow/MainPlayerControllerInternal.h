@@ -17,7 +17,7 @@
 #import "TrackDisplayController.h" // TrackDisplayState, returned below
 #import "MainWindow.h"             // FileDropDelegate, adopted below
 #import "PitchControlPanel.h"      // PitchControlPanelDelegate, adopted below
-#import "EqualizerIndicatorView.h" // EqualizerLevelSource, adopted below
+#import "EqualizerLevelSource.h"
 
 @class ArtworkDisplayController;
 @class AudioTrack;
@@ -44,7 +44,7 @@ NS_ASSUME_NONNULL_BEGIN
     // feeds it the visibility gate.
     UIUpdateTimer*              _uiTimer;
     // Playing-row indicators currently reading band levels. The tap is off at
-    // zero; see syncLevelsEnabled.
+    // zero; see syncEqualizerActivity.
     NSInteger                   _levelConsumers;
     // Polls (and on macOS subscribes to) a materializing cloud file's
     // download progress while the loading shimmer is up; nil otherwise. The
@@ -131,10 +131,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)pauseUIUpdateTimer;
 - (void)resumeUIUpdateTimer;
 
-// Reconciles the band-level tap with the indicators' demand and the window's
-// two gates. Call it wherever either gate moves; +Window does, from the
-// occlusion notification.
-- (void)syncLevelsEnabled;
+// Reconciles the playing row's renderer and the band-level producer with real
+// output and material window/row visibility.
+- (void)syncEqualizerActivity;
 
 #pragma mark - Deferred metadata load and the error mask
 

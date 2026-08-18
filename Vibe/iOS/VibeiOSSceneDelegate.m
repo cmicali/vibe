@@ -13,6 +13,7 @@
     // which is why UIApplicationSupportsMultipleScenes is off. The screens
     // borrow it.
     PlaybackController *_playback;
+    RootViewController *_root;
 }
 
 - (void)scene:(UIScene *)scene
@@ -28,6 +29,7 @@
     windowScene.sizeRestrictions.minimumSize = CGSizeMake(320, 480);
     _playback = [[PlaybackController alloc] init];
     RootViewController *root = [[RootViewController alloc] initWithPlayback:_playback];
+    _root = root;
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
     self.window.rootViewController = root;
     [self.window makeKeyAndVisible];
@@ -37,6 +39,7 @@
     // session — never both, so the open does not pay for a restore it
     // immediately replaces.
     [root loadViewIfNeeded];
+    [self setSceneActive:scene.activationState == UISceneActivationStateForegroundActive];
     // Not part of the either/or below: this opens nothing and plays nothing, it
     // just takes back the search grants the user gave us. It resolves off main
     // and reports through its own notification, so it cannot delay either path.
@@ -47,6 +50,26 @@
     else {
         [_playback restorePersistedSession];
     }
+}
+
+// Foreground-inactive is an off state, not a halfway foreground. Views remain
+// attached under Control Center and the app switcher, so only the scene owner
+// can make both the UI timer and the equalizer fail closed there.
+- (void)setSceneActive:(BOOL)active {
+    _playback.sceneActive = active;
+    _root.sceneActive = active;
+}
+
+- (void)sceneDidBecomeActive:(UIScene *)scene {
+    [self setSceneActive:YES];
+}
+
+- (void)sceneWillResignActive:(UIScene *)scene {
+    [self setSceneActive:NO];
+}
+
+- (void)sceneDidDisconnect:(UIScene *)scene {
+    [self setSceneActive:NO];
 }
 
 - (void)scene:(UIScene *)scene openURLContexts:(NSSet<UIOpenURLContext *> *)URLContexts {

@@ -46,6 +46,9 @@ NS_ASSUME_NONNULL_BEGIN
     // Indicators currently consuming band levels. The tap is off at zero; see
     // syncLevelsEnabled.
     NSInteger                _levelConsumers;
+    // Foreground-active, supplied by the scene delegate. Defaults false so a
+    // controller that has not joined an active scene cannot start UI work.
+    BOOL                     _sceneActive;
 
     float                   _pendingSeekProgress;
     BOOL                    _seekInFlight;

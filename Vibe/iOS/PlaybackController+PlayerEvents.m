@@ -26,6 +26,13 @@
 
 @implementation PlaybackController (PlayerEvents)
 
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didChangeOutputAudioActive:(BOOL)outputAudioActive {
+    // The actual render state, not pending play intent, is what starts and
+    // stops both the playing-row display link and the FFT behind it.
+    [self notifyDidChangePlayState];
+}
+
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer {
 }
 
