@@ -22,7 +22,8 @@
 
 #import <UIKit/UIKit.h>
 
-#import "PlayerScreenRules.h"   // VibePlayerScreenState, returned below
+#import "EqualizerLevelSource.h"
+#import "PlayerScreenRules.h"        // VibePlayerScreenState, returned below
 
 @class AudioTrack;
 @class PlaybackController;
@@ -83,7 +84,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-@interface PlaybackController : NSObject
+// It is the app's EqualizerLevelSource as well: the library row's indicator
+// draws the audio this object is playing, and this is the only thing that
+// holds the player.
+@interface PlaybackController : NSObject <EqualizerLevelSource>
 
 #pragma mark - Observers
 
@@ -110,6 +114,15 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, nullable) NSString *errorText;
 
 #pragma mark - The player, non-blocking reads
+
+// Set by the scene delegate from activation callbacks. Foreground-inactive is
+// deliberately false: Control Center and the app switcher leave views attached
+// to a window even though none of their animation is visible.
+@property (nonatomic, getter=isSceneActive) BOOL sceneActive;
+
+// Actual modeled graph output: a playing source or tracked outgoing fade.
+// Unlike isPlaying, this is false while a requested track is merely Loading.
+@property (nonatomic, readonly) BOOL audioOutputActive;
 
 @property (nonatomic, readonly) BOOL isPlaying;
 @property (nonatomic, readonly) NSTimeInterval position;

@@ -10,6 +10,7 @@
 #if DEBUG
 
 #import "AudioPlayer.h"
+#import "AudioLevelMath.h"
 
 @interface AudioPlayer (Debug)
 
@@ -32,6 +33,13 @@
 // channel runs on the main thread and would otherwise never see the player
 // wedged.
 - (NSDictionary<NSString *, NSNumber *> *)debugEngineCounts;
+
+// Demand, installation, actual output liveness, audio callback/window/
+// publication counts, newest lifetime sequence and delivered format. Counters
+// are atomics incremented by the tap; creating this dictionary happens only on
+// the command thread, never on the audio render thread.
+- (void)debugSetEqualizerNormalizationMode:(VibeAudioLevelNormalizationMode)normalizationMode;
+- (NSDictionary<NSString *, id> *)debugEqualizerState;
 
 @end
 

@@ -23,6 +23,11 @@
 
 @implementation MainPlayerController (PlayerEvents)
 
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didChangeOutputAudioActive:(BOOL)outputAudioActive {
+    [self syncEqualizerActivity];
+}
+
 // The pre-submit edge: synchronous on play:'s calling thread (main at every
 // call site), before the open is submitted to the player queue. The scan's
 // cloud lane stands down here, so the foreground open never contends with a
@@ -147,8 +152,8 @@
     // Whoever initiated this play has already fully rendered the row: play:'s
     // reloadData, next and previous's two-row window, or doubleClick's pair.
     // The mark makes resumeUIUpdateTimer, and so updateUI, refresh only the
-    // play-state cell, where the equalizer indicator must flip to animating,
-    // rather than rebuilding the whole row again.
+    // play-state cell, where the equalizer indicator adopts the new output
+    // state, rather than rebuilding the whole row again.
     _lastReloadedTrack = track;
     // next and previous scroll at the click; this covers the other play paths.
     [self.playlistController scrollCurrentTrackToVisible];

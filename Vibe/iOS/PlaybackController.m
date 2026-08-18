@@ -56,16 +56,9 @@ static const NSUInteger kUIUpdateHz = 3;
         _updateTimer = [[UIUpdateTimer alloc] initWithHz:kUIUpdateHz handler:^{
             [weakSelf notifyDidTick];
         }];
-        _updateTimer.windowVisible = YES;
-
-        // In the background the system extrapolates position from the last
-        // Now Playing publish, so the tick is pure waste there — the same rule
-        // as the mac window's occlusion gate.
-        NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
-        [center addObserver:self selector:@selector(sceneDidEnterBackground)
-                       name:UISceneDidEnterBackgroundNotification object:nil];
-        [center addObserver:self selector:@selector(sceneWillEnterForeground)
-                       name:UISceneWillEnterForegroundNotification object:nil];
+        // Fail closed until VibeiOSSceneDelegate reports foreground-active.
+        // A controller may be constructed while its scene is still inactive.
+        _updateTimer.windowVisible = NO;
     }
     return self;
 }
@@ -103,11 +96,73 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)notifyDidChangePlayState {
+    [self syncLevelsEnabled];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidChangePlayState:)]) {
             [observer playbackDidChangePlayState:self];
         }
     }
+}
+
+#pragma mark - Equalizer levels
+
+// The tap exists to feed indicators, so it runs only while an indicator is
+// actually reading it, the scene is active, and the graph is producing audio.
+//
+// _levelConsumers is the final demand declared by indicators after their shell
+// has combined card, tab, controller-appearance and row-intersection facts.
+// Count zero therefore means no equalizer is materially visible.
+//
+// RootViewController and LibraryViewController jointly decide presentation
+// visibility before an indicator can declare demand. The scene and audio facts
+// remain here as fail-closed producer gates, so a stale view cannot spend FFT
+// work on its own.
+- (void)syncLevelsEnabled {
+    _player.levelsEnabled = _levelConsumers > 0 && _sceneActive
+            && _player.outputAudioActive;
+}
+
+- (void)setSceneActive:(BOOL)sceneActive {
+    if (_sceneActive == sceneActive) {
+        return;
+    }
+    _sceneActive = sceneActive;
+    _updateTimer.windowVisible = sceneActive;
+    [self syncLevelsEnabled];
+    if (sceneActive) {
+        [self notifyDidTick];
+    }
+}
+
+- (BOOL)isSceneActive {
+    return _sceneActive;
+}
+
+- (BOOL)audioOutputActive {
+    return _player.outputAudioActive;
+}
+
+// Counted rather than a flag: cell reuse hands the model to a new indicator
+// before the old one lets go, so the count is briefly two and must not read as
+// "nobody". EqualizerIndicatorView guarantees one NO per YES, dealloc included.
+- (void)equalizerLevelsWanted:(BOOL)wanted {
+    if (wanted) {
+        _levelConsumers++;
+    }
+    else {
+        NSAssert(_levelConsumers > 0, @"unbalanced equalizer level demand");
+        if (_levelConsumers == 0) {
+            return;
+        }
+        _levelConsumers--;
+    }
+    [self syncLevelsEnabled];
+}
+
+- (BOOL)copyEqualizerLevels:(float *)out
+                      count:(NSUInteger)count
+                   sequence:(uint64_t *)sequence {
+    return [_player copyBandLevels:out count:count sequence:sequence];
 }
 
 - (void)notifyDidTick {
@@ -441,17 +496,6 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     if (![_folderSession restorePersistedFolder]) {
         [self notifyHasNothingToRestore];
     }
-}
-
-#pragma mark - Scene lifecycle
-
-- (void)sceneDidEnterBackground {
-    _updateTimer.windowVisible = NO;
-}
-
-- (void)sceneWillEnterForeground {
-    _updateTimer.windowVisible = YES;
-    [self notifyDidTick];
 }
 
 #pragma mark - FolderSessionDelegate

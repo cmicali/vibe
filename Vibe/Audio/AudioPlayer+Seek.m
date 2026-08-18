@@ -101,6 +101,27 @@
     });
 }
 
+// A restart failure outranks whichever ramp preempted this seek. Cancel that
+// ramp, keep the newly scheduled frame parked, and expose Paused rather than a
+// Playing state backed by a stopped node. A newer seek's cancelled completion
+// still runs and can park its newer frame before it settles.
+- (void)parkSeekAfterStartFailureForNode:(AVAudioPlayerNode *)node
+                                    file:(AVAudioFile *)file
+                              startFrame:(AVAudioFramePosition)startFrame
+                           framePosition:(NSTimeInterval)framePosition
+                                   error:(NSError *)error {
+    if (_node != node || _file != file || _state != VibePlayerStatePlaying) {
+        [self refreshOutputAudioActiveOnQueue];
+        return;
+    }
+    [self preemptRampsOnQueue];
+    [self publishPlaybackState:VibePlayerStatePaused node:node file:file
+                  segmentStart:startFrame position:framePosition];
+    [self scheduleEngineIdleStopOnQueue];
+    [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
+            @"Could not resume playback after seek", error)];
+}
+
 // The playing seek's fade-out completion; the parameters are what
 // seekToPosition: captured when the seek was requested. Four outcomes, each
 // with an early return: the node was replaced, the fade was preempted, the
@@ -155,7 +176,13 @@
             // volume stays wherever the preemptor's ramp has it: that
             // ramp keeps stepping, and a completing pause finds the node
             // where completePauseOfNode: expects it.
-            [self startEngineAndPlayNode:node error:NULL];
+            NSError *startError = nil;
+            if (![self startEngineAndPlayNode:node error:&startError]) {
+                [self parkSeekAfterStartFailureForNode:node file:file
+                                            startFrame:startFrame
+                                         framePosition:framePosition
+                                                 error:startError];
+            }
         }
         run_on_main_thread({
             [self.delegate audioPlayer:self didFinishSeeking:track];
@@ -171,9 +198,10 @@
         // orphans it: resume plays to the end, no didFinishPlaying:, the
         // position pinned at the duration with the state stuck Playing.)
         // Keep the seeked frame, and report paused so the UI recovers.
-        [self publishPlaybackState:VibePlayerStatePaused node:node file:file segmentStart:startFrame position:framePosition];
-        [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-                @"Could not resume playback after seek", startError)];
+        [self parkSeekAfterStartFailureForNode:node file:file
+                                    startFrame:startFrame
+                                 framePosition:framePosition
+                                         error:startError];
         run_on_main_thread({
             [self.delegate audioPlayer:self didFinishSeeking:track];
         });

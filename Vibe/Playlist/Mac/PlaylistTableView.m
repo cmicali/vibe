@@ -12,6 +12,9 @@
 
 // This is also the scroll view's line scroll and the cell prototypes' height.
 static const CGFloat kPlaylistRowHeight = 28;
+static const CGFloat kArtworkCellBleed = 4;
+static const CGFloat kEqualizerWidth = 16;
+static const CGFloat kEqualizerHeight = 14;
 
 NSString *const kPlaylistColumnNumber = @"numColumn";
 NSString *const kPlaylistColumnArt = @"artColumn";
@@ -176,7 +179,21 @@ static NSTextField *makeCellTextField(NSRect frame) {
     NSTableCellView *view = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, width, rowHeight)];
     view.identifier = identifier;
     if ([identifier isEqualToString:kPlaylistColumnNumber]) {
-        EqualizerIndicatorView *eqView = [[EqualizerIndicatorView alloc] initWithFrame:NSMakeRect(8, (rowHeight - 14) / 2, 16, 14)];
+        // A full-width table includes its leading row padding in the first
+        // column rect, outside this cell. Center from the row edge to the
+        // artwork bleed, then translate that position into cell coordinates.
+        NSInteger column = [self columnWithIdentifier:kPlaylistColumnNumber];
+        CGFloat columnWidth = NSWidth([self rectOfColumn:column]);
+        CGFloat cellLeadingInset = columnWidth - width;
+        CGFloat visibleGutterWidth = columnWidth - kArtworkCellBleed;
+        CGFloat equalizerX = (visibleGutterWidth - kEqualizerWidth) / 2
+                - cellLeadingInset;
+        EqualizerIndicatorView *eqView = [[EqualizerIndicatorView alloc]
+                initWithFrame:NSMakeRect(equalizerX,
+                                         (rowHeight - kEqualizerHeight) / 2,
+                                         kEqualizerWidth,
+                                         kEqualizerHeight)];
+        eqView.barColor = NSColor.whiteColor;
         eqView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
         [view addSubview:eqView];
         NSTextField *field = makeCellTextField(NSMakeRect(-2, 0, 24, rowHeight));
@@ -187,7 +204,9 @@ static NSTextField *makeCellTextField(NSRect frame) {
     else if ([identifier isEqualToString:kPlaylistColumnArt]) {
         // It bleeds past the cell on every side, so artwork rows tile
         // seamlessly.
-        PlaylistCoverImageView *imageView = [[PlaylistCoverImageView alloc] initWithFrame:NSInsetRect(view.bounds, -4, -4)];
+        PlaylistCoverImageView *imageView = [[PlaylistCoverImageView alloc]
+                initWithFrame:NSInsetRect(view.bounds, -kArtworkCellBleed,
+                                          -kArtworkCellBleed)];
         imageView.imageScaling = NSImageScaleAxesIndependently;
         imageView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
         [view addSubview:imageView];

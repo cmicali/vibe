@@ -44,15 +44,6 @@ static const CGFloat kTintMinLightnessLight  = 0.87;
 static const CGFloat kTintMaxLightnessLight  = 0.94;
 static const CGFloat kTintMaxChromaLight     = 0.10;
 
-// The playlist accent, on the playing row's equalizer bars, is the same
-// dominant color normalized into a band that reads as color over the playlist
-// frost: lighter than the wash in dark mode, darker in light.
-static const CGFloat kAccentMinLightnessDark  = 0.72;
-static const CGFloat kAccentMaxLightnessDark  = 0.84;
-static const CGFloat kAccentMinLightnessLight = 0.40;
-static const CGFloat kAccentMaxLightnessLight = 0.52;
-static const CGFloat kAccentMaxChroma         = 0.17;
-
 // Inputs owned by one background render. The private image copy prevents the
 // worker from drawing an NSImage instance used by AppKit on the main thread.
 @interface ArtworkRenderRequest : NSObject
@@ -205,24 +196,6 @@ static const CGFloat kAccentMaxChroma         = 0.17;
                                                               lightnessMax:kTintMaxLightnessLight
                                                                  chromaMax:kTintMaxChromaLight
                                                                      alpha:kTintAlphaLight];
-    }
-    // The accent rides the tint's resolution: the same source color and the
-    // same triggers — a track or art change, an appearance flip, a clear to
-    // the default.
-    if (self.accentColorDidChangeHandler) {
-        NSColor *accent = nil;
-        if (_dominantArtColor) {
-            accent = dark
-                    ? [_dominantArtColor vibe_colorByClampingOKLCHLightnessMin:kAccentMinLightnessDark
-                                                                  lightnessMax:kAccentMaxLightnessDark
-                                                                     chromaMax:kAccentMaxChroma
-                                                                         alpha:1.0]
-                    : [_dominantArtColor vibe_colorByClampingOKLCHLightnessMin:kAccentMinLightnessLight
-                                                                  lightnessMax:kAccentMaxLightnessLight
-                                                                     chromaMax:kAccentMaxChroma
-                                                                         alpha:1.0];
-        }
-        self.accentColorDidChangeHandler(accent);
     }
     // AppKit disables implicit actions on a view's backing layer, so the fade
     // is explicit: set the model value action-free, then animate from the

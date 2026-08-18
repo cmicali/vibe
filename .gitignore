@@ -31,6 +31,10 @@ DerivedData/
 Vibe/Mac/App/Info.plist
 Vibe/iOS/Info.plist
 
+# Claude Code worktrees are checkouts of this repo living inside it; the rest
+# of .claude/ (skills, commands) stays tracked.
+/.claude/worktrees/
+
 # Generated test audio (.claude/skills/vibe-debug/scripts/generate-test-audio.sh)
 /Assets/test_audio_files/
 

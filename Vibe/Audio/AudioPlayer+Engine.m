@@ -32,8 +32,14 @@ static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
                 return NO;
             }
         }
+        // A tap request made against a not-yet-runnable graph can observe a
+        // temporarily unusable output format and return nil. Playback start is
+        // the next meaningful lifecycle edge, so retry here without requiring
+        // the UI to toggle demand off and on.
+        [self applyLevelTapOnQueue];
         @try {
             [node play];
+            [self refreshOutputAudioActiveOnQueue];
             return YES;
         }
         @catch (NSException *exception) {

@@ -29,18 +29,23 @@ static const CGFloat kArtTextGap = 14;
 #pragma mark - The row
 
 // The mac playlist table's four columns in one iOS row. The number column
-// carries the app's bouncing bars on the playing row instead of its index —
+// carries the app's live equalizer bars on the playing row instead of its index —
 // the very same EqualizerIndicatorView the mac table draws, which is why it
 // lives in the shared Vibe/Controls/.
 @interface LibraryTrackCell : UITableViewCell
+// Where the indicator's bars get their audio. Set at dequeue rather than in
+// build, because the cell is minted by the table and never sees the model;
+// a reused cell already carries it.
+@property (nonatomic, weak, nullable) id<EqualizerLevelSource> levelSource;
+@property (nonatomic) BOOL equalizerAudioOutputActive;
+@property (nonatomic) BOOL equalizerPresentationVisible;
 // Answers whether the row's height can have moved — the artist line appearing
 // or leaving is the only thing here that changes it. A caller rendering in
 // place owes the table a height recompute when it does; see
 // refreshVisibleRowAtIndex:.
 - (BOOL)renderTrack:(AudioTrack *)track
              number:(NSUInteger)number
-            playing:(BOOL)playing
-          animating:(BOOL)animating;
+            playing:(BOOL)playing;
 @end
 
 #pragma mark - The screen
@@ -54,6 +59,11 @@ static const CGFloat kArtTextGap = 14;
     // The last pick found no audio. It changes what the empty state says, and
     // it is cleared by the next open that does find something.
     BOOL               _lastPickWasEmpty;
+    // UIKit appearance handles tab switches and navigation pushes. The root's
+    // separate surface fact handles the card, which moves over this view
+    // without causing an appearance transition.
+    BOOL               _viewPresentationVisible;
+    BOOL               _equalizerSurfaceVisible;
 }
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback {
@@ -85,6 +95,40 @@ static const CGFloat kArtTextGap = 14;
 
     [_playback addObserver:self];
     [self refreshChrome];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    _viewPresentationVisible = YES;
+    [self syncCurrentEqualizerActivity];
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    [self syncCurrentEqualizerActivity];
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
+    _viewPresentationVisible = NO;
+    [self syncCurrentEqualizerActivity];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    [self syncCurrentEqualizerActivity];
+}
+
+- (void)setEqualizerSurfaceVisible:(BOOL)equalizerSurfaceVisible {
+    if (_equalizerSurfaceVisible == equalizerSurfaceVisible) {
+        return;
+    }
+    _equalizerSurfaceVisible = equalizerSurfaceVisible;
+    [self syncCurrentEqualizerActivity];
+}
+
+- (BOOL)equalizerSurfaceVisible {
+    return _equalizerSurfaceVisible;
 }
 
 - (void)openTapped {
@@ -137,11 +181,71 @@ static const CGFloat kArtTextGap = 14;
                                                              forIndexPath:indexPath];
     NSUInteger index = (NSUInteger)indexPath.row;
     BOOL playing = index == _playlist.currentIndex && _playlist.count > 0;
+    cell.levelSource = _playback;
     [cell renderTrack:[_playlist trackAtIndex:index]
                number:index + 1
-              playing:playing
-            animating:(playing && _playback.isPlaying)];
+              playing:playing];
+    [self syncEqualizerActivityForCell:cell];
     return cell;
+}
+
+- (void)tableView:(UITableView *)tableView
+  willDisplayCell:(UITableViewCell *)cell
+forRowAtIndexPath:(NSIndexPath *)indexPath {
+    if ([cell isKindOfClass:LibraryTrackCell.class]) {
+        [self syncEqualizerActivityForCell:(LibraryTrackCell *)cell];
+    }
+}
+
+- (void)tableView:(UITableView *)tableView
+didEndDisplayingCell:(UITableViewCell *)cell
+ forRowAtIndexPath:(NSIndexPath *)indexPath {
+    if ([cell isKindOfClass:LibraryTrackCell.class]) {
+        LibraryTrackCell *trackCell = (LibraryTrackCell *)cell;
+        trackCell.equalizerPresentationVisible = NO;
+        trackCell.equalizerAudioOutputActive = NO;
+    }
+}
+
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+    [self syncCurrentEqualizerActivity];
+}
+
+// Window attachment alone includes UITableView's prepared-cell buffer. This
+// intersection is the narrower fact the control needs: some part of the
+// current row is actually inside both the table viewport and the window.
+- (BOOL)isCellMateriallyVisible:(LibraryTrackCell *)cell {
+    UIWindow *window = cell.window;
+    if (!window || !_equalizerSurfaceVisible || !_viewPresentationVisible) {
+        return NO;
+    }
+    CGRect rowInTable = [cell convertRect:cell.bounds toView:self.tableView];
+    CGRect visibleInTable = CGRectIntersection(rowInTable, self.tableView.bounds);
+    if (CGRectIsNull(visibleInTable) || CGRectIsEmpty(visibleInTable)) {
+        return NO;
+    }
+    CGRect visibleInWindow = [self.tableView convertRect:visibleInTable toView:window];
+    return !CGRectIsEmpty(CGRectIntersection(visibleInWindow, window.bounds));
+}
+
+- (void)syncEqualizerActivityForCell:(LibraryTrackCell *)cell {
+    NSIndexPath *path = [self.tableView indexPathForCell:cell];
+    BOOL current = path && _playlist.count > 0
+            && (NSUInteger)path.row == _playlist.currentIndex;
+    cell.equalizerAudioOutputActive = current && _playback.audioOutputActive;
+    cell.equalizerPresentationVisible = current && [self isCellMateriallyVisible:cell];
+}
+
+- (void)syncCurrentEqualizerActivity {
+    if (_playlist.currentIndex >= _playlist.count) {
+        return;
+    }
+    NSIndexPath *path = [NSIndexPath indexPathForRow:(NSInteger)_playlist.currentIndex
+                                           inSection:0];
+    UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:path];
+    if ([cell isKindOfClass:LibraryTrackCell.class]) {
+        [self syncEqualizerActivityForCell:(LibraryTrackCell *)cell];
+    }
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -161,8 +265,8 @@ static const CGFloat kArtTextGap = 14;
     BOOL playing = index == _playlist.currentIndex;
     BOOL heightMoved = [cell renderTrack:[_playlist trackAtIndex:index]
                                   number:index + 1
-                                 playing:playing
-                               animating:(playing && _playback.isPlaying)];
+                                 playing:playing];
+    [self syncEqualizerActivityForCell:cell];
     // TRAP: rendering in place does NOT re-run an automatic-dimension row's
     // height. The artist line arriving with metadata grows the text stack, and
     // at accessibility sizes that no longer fits the height the row was given —
@@ -231,6 +335,8 @@ static const CGFloat kArtTextGap = 14;
 @implementation LibraryTrackCell {
     UILabel                 *_numberLabel;
     EqualizerIndicatorView  *_indicatorView;
+    // No ivar for levelSource: it forwards straight to the indicator, so the
+    // cell keeps no second copy to fall out of step with it.
     UIImageView *_artView;
     UILabel     *_titleLabel;
     UILabel     *_artistLabel;
@@ -245,6 +351,12 @@ static const CGFloat kArtTextGap = 14;
         [self build];
     }
     return self;
+}
+
+- (void)prepareForReuse {
+    [super prepareForReuse];
+    _indicatorView.presentationVisible = NO;
+    _indicatorView.audioOutputActive = NO;
 }
 
 - (void)build {
@@ -268,8 +380,8 @@ static const CGFloat kArtTextGap = 14;
     _numberLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [content addSubview:_numberLabel];
 
-    // The mac's five bouncing bars, literally: same layers, same keyframe
-    // tables, same mismatched durations.
+    // The mac's five live bars, literally: the same retained pill layers and
+    // compositor-driven response to the latest level targets.
     _indicatorView = [[EqualizerIndicatorView alloc] initWithFrame:CGRectZero];
     _indicatorView.hidden = YES;
     _indicatorView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -353,14 +465,36 @@ static const CGFloat kArtTextGap = 14;
     ]];
 }
 
+- (void)setLevelSource:(id<EqualizerLevelSource>)levelSource {
+    _indicatorView.levelSource = levelSource;
+}
+
+- (id<EqualizerLevelSource>)levelSource {
+    return _indicatorView.levelSource;
+}
+
+- (void)setEqualizerAudioOutputActive:(BOOL)equalizerAudioOutputActive {
+    _indicatorView.audioOutputActive = equalizerAudioOutputActive;
+}
+
+- (BOOL)equalizerAudioOutputActive {
+    return _indicatorView.audioOutputActive;
+}
+
+- (void)setEqualizerPresentationVisible:(BOOL)equalizerPresentationVisible {
+    _indicatorView.presentationVisible = equalizerPresentationVisible;
+}
+
+- (BOOL)equalizerPresentationVisible {
+    return _indicatorView.presentationVisible;
+}
+
 - (BOOL)renderTrack:(AudioTrack *)track
              number:(NSUInteger)number
-            playing:(BOOL)playing
-          animating:(BOOL)animating {
+            playing:(BOOL)playing {
     _numberLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)number];
     _numberLabel.hidden = playing;
     _indicatorView.hidden = !playing;
-    _indicatorView.animating = animating;
     _artView.image = track.cachedThumbnail ?: [UIImage imageNamed:@"record-bg"];
     _durationLabel.text = track.durationString;
     _titleLabel.text = track.displayTitle ?: @"";

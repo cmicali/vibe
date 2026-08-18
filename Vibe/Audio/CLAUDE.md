@@ -1,6 +1,6 @@
 # Audio
 
-Playback engine, FX, devices, and pointers to the four sub-directories with their own files: **`Metadata/`** (tags, cache, scan, artwork), **`Waveform/`** (waveform data), **`Analysis/`** (BPM and key), **`Mac/Convert/`** (FLAC encoding). Rendering is elsewhere again — `Vibe/WaveformUI/`.
+Playback engine, FX, devices, and pointers to the sub-directories with their own files: **`Metadata/`** (tags, cache, scan, artwork), **`Waveform/`** (waveform data), **`Analysis/`** (offline BPM and key), **`Levels/`** (live output metering), and **`Mac/Convert/`** (FLAC encoding). Rendering is elsewhere again — `Vibe/WaveformUI/`.
 
 ## AudioPlayer
 
@@ -76,6 +76,12 @@ The current segment's completion then means "boundary passed", not "playback sto
 Because a promote can land between a main-thread action and its queue block, intent is snapshotted: `seekToPosition:` and `finishCurrentTrack` capture the current track at dispatch and drop the request if the boundary advanced it.
 
 CoreAudio honors LAME/iTunes gapless metadata, so tagged MP3/AAC and all lossless files splice seamlessly; an untagged MP3's baked-in encoder padding is the one gap this cannot remove. `isGaplessArmed` (lock-free) surfaces the armed state to `dump_state`.
+
+### Live output levels
+
+`levelsEnabled` installs the demand-driven tap in `Levels/`; `copyBandLevels:count:sequence:` reads its latest coherent snapshot without taking the player queue or allocating. `outputAudioActive` is the shell-facing liveness fact: a current playing node or a counted retired fade is active, while Loading intent alone is not.
+
+**TRAP: `installMasterBusOnQueue` is the only tap-installation edge, and `dropEngineBoundStateOnQueue` abandons rather than removes a tap bound to a defunct engine.** The ownership, callback, FFT, publication, visibility-demand and `--silent` contracts live beside their implementation in `Levels/CLAUDE.md`.
 
 ### Robustness
 

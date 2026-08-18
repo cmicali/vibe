@@ -26,6 +26,11 @@ NS_ASSUME_NONNULL_BEGIN
                          bundle:(nullable NSBundle *)bundle NS_UNAVAILABLE;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_UNAVAILABLE;
 
+// RootViewController owns the card above the tabs and supplies whether this
+// surface is materially exposed. The library combines it with its own
+// appearance and the playing row's actual scroll/window intersection.
+@property (nonatomic) BOOL equalizerSurfaceVisible;
+
 @end
 
 NS_ASSUME_NONNULL_END

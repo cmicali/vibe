@@ -181,6 +181,11 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     os_unfair_lock_unlock(&_stateLock);
     [oldNode stop];
     [_engine stop];
+    // The state still says Playing so it can be restored below, but no node is
+    // published and the engine is stopped. Drop the display/FFT activity now,
+    // before a potentially slow HAL rebind, rather than waiting for the final
+    // restored state.
+    [self refreshOutputAudioActiveOnQueue];
     if (oldNode) {
         [_engine detachNode:oldNode];
     }
@@ -277,19 +282,26 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     // over a device that is still there; a merely-unpublished list falls
     // through to the graph rebuild below, which is the right answer anyway.
     NSInteger requested = self.currentlyRequestedAudioDeviceId;
+    os_unfair_lock_lock(&_stateLock);
+    VibePlayerState state = _state;
+    BOOL hasNode = (_node != nil);
+    os_unfair_lock_unlock(&_stateLock);
+    BOOL graphHealthy = _engine.isRunning && hasNode;
+    if (!graphHealthy) {
+        // Publish the stopped graph before any recovery branch can wait or
+        // return. Transport state intentionally remains unchanged so a
+        // successful rebuild can resume it.
+        [self refreshOutputAudioActiveOnQueue];
+    }
     if ([[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:requested]) {
         LogError(@"Audio output device failed; falling back to system default");
         [self setOutputDeviceOnQueue:-1];
         return;
     }
-    os_unfair_lock_lock(&_stateLock);
-    VibePlayerState state = _state;
-    BOOL hasNode = (_node != nil);
-    os_unfair_lock_unlock(&_stateLock);
     if (state == VibePlayerStateStopped) {
         return;
     }
-    if (_engine.isRunning && hasNode) {
+    if (graphHealthy) {
         // The graph survived, so there is nothing to recover.
         return;
     }

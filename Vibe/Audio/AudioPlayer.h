@@ -46,6 +46,23 @@ NS_ASSUME_NONNULL_BEGIN
 // lowering it back re-arms parked material.
 @property (atomic) NSInteger crossfadeMilliseconds;
 
+// Whether a tap publishes band levels for active equalizer indicators. Off by
+// default and demand-driven rather than fixed at init like enableFX below. The
+// shells enable it only for counted indicator demand, modeled output audio and
+// material presentation visibility. Setting it installs or removes the tap on
+// the player queue, and a media-services rebuild re-installs to match.
+//
+// Main thread only, like every other transport-facing setter here.
+@property (nonatomic) BOOL levelsEnabled;
+
+// The equalizer indicator's newest coherent band-level snapshot, 0..1. Fills
+// `out` with `count` values and returns NO — leaving `out` untouched — when no
+// tap is running, which a caller should read as "nothing to show", not as
+// silence. `sequence` is monotonic for this player's lifetime and advances for
+// every publication, even when the numeric levels did not change. Lock-free
+// for the main-thread snapshot poller.
+- (BOOL)copyBandLevels:(float *)out count:(NSUInteger)count sequence:(uint64_t *)sequence;
+
 // The DJ performance effects: low kill and its boost, the reverb and delay
 // sends, and the delay's tempo feed. See AudioFX.h. With enableFX it is
 // non-nil from init, so a caller can set intent immediately; the graph work
@@ -160,6 +177,12 @@ NS_ASSUME_NONNULL_BEGIN
 // splice at the boundary. Observability (the debug channel); lock-free.
 @property (readonly, getter=isGaplessArmed) BOOL gaplessArmed;
 
+// Actual modeled output liveness, unlike isPlaying's transport intent:
+// Loading is false unless an outgoing crossfade is still audible, while a
+// playing node and every tracked retired fade are true. FX wet-tail liveness
+// is not exposed by AVAudioEngine and is therefore not guessed here.
+@property (readonly) BOOL outputAudioActive;
+
 - (BOOL)isPlaying;
 - (BOOL)isPaused;
 - (BOOL)isStopped;
@@ -239,6 +262,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceID;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error;
+
+@optional
+// Main-thread delivery, only when actual modeled output crosses between active
+// and inactive. Read outputAudioActive for the current value when refreshing.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didChangeOutputAudioActive:(BOOL)outputAudioActive;
 
 @end
 

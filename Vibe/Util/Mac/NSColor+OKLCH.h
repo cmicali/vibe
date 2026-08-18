@@ -10,8 +10,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Perceptual, OKLCH clamping for artwork-derived colors. OKLab lightness is
 // hue-independent, unlike HSB brightness: a yellow and a blue at the same HSB
 // brightness differ wildly in perceived lightness. That is exactly the failure
-// mode when clamping a tint that must keep contrast with content drawn over
-// it, as with the header wash under the waveform and the playlist accent.
+// mode when clamping the header wash beneath the waveform and track text.
 @interface NSColor (OKLCH)
 
 // Converts to OKLCh, clamps L into [minL, maxL] and C to at most maxC, then

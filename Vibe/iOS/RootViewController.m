@@ -39,12 +39,13 @@ static NSString *const kTabFiles = @"files";
 static NSString *const kTabSearch = @"search";
 
 @interface RootViewController () <PlaybackObserver, MiniPlayerViewDelegate,
-        PlayerViewControllerDelegate>
+        PlayerViewControllerDelegate, UITabBarControllerDelegate>
 @end
 
 @implementation RootViewController {
     UITabBarController   *_tabs;
     UITab                *_filesTab;
+    LibraryViewController *_library;
     MiniPlayerView       *_miniPlayer;
     PlayerViewController *_player;
     BOOL                 _expanded;
@@ -58,6 +59,8 @@ static NSString *const kTabSearch = @"search";
     BOOL                 _interactiveDrag;
     UIViewPropertyAnimator *_cardAnimator;
     BOOL                   _playerAppearanceTransitionActive;
+    BOOL                   _rootPresentationVisible;
+    BOOL                   _sceneActive;
 }
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback {
@@ -84,6 +87,7 @@ static NSString *const kTabSearch = @"search";
 
     [_playback addObserver:self];
     [self refreshMiniPlayer];
+    [self syncLibraryEqualizerSurface];
 }
 
 // The iOS 26 tab shape, and Apple Music's: two tabs in the capsule and search
@@ -104,6 +108,8 @@ static NSString *const kTabSearch = @"search";
         RootViewController *root = weakSelf;
         LibraryViewController *library =
                 [[LibraryViewController alloc] initWithPlayback:root.playback];
+        root->_library = library;
+        [root syncLibraryEqualizerSurface];
         return [[UINavigationController alloc] initWithRootViewController:library];
     }];
 
@@ -128,6 +134,7 @@ static NSString *const kTabSearch = @"search";
     search.automaticallyActivatesSearch = YES;
 
     _tabs = [[UITabBarController alloc] init];
+    _tabs.delegate = self;
     _tabs.tabs = @[playlist, files, search];
 
     [self addChildViewController:_tabs];
@@ -136,6 +143,7 @@ static NSString *const kTabSearch = @"search";
     _tabs.view.layer.cornerCurve = kCACornerCurveContinuous;
     [self.view addSubview:_tabs.view];
     [_tabs didMoveToParentViewController:self];
+    [self syncLibraryEqualizerSurface];
 }
 
 - (void)buildMiniPlayer {
@@ -201,6 +209,8 @@ static NSString *const kTabSearch = @"search";
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
+    _rootPresentationVisible = YES;
+    [self syncLibraryEqualizerSurface];
     for (UIViewController *child in [self appearingChildren]) {
         [child beginAppearanceTransition:YES animated:animated];
     }
@@ -225,6 +235,29 @@ static NSString *const kTabSearch = @"search";
     for (UIViewController *child in [self appearingChildren]) {
         [child endAppearanceTransition];
     }
+    _rootPresentationVisible = NO;
+    [self syncLibraryEqualizerSurface];
+}
+
+- (void)setSceneActive:(BOOL)sceneActive {
+    if (_sceneActive == sceneActive) {
+        return;
+    }
+    _sceneActive = sceneActive;
+    [self syncLibraryEqualizerSurface];
+}
+
+- (BOOL)isSceneActive {
+    return _sceneActive;
+}
+
+// The library owns tab/navigation/row visibility. The root contributes only
+// what no descendant can know: whether this scene/root is being presented and
+// whether the overlay card leaves any of the tab surface materially exposed.
+- (void)syncLibraryEqualizerSurface {
+    BOOL playlistSelected = [_tabs.selectedTab.identifier isEqualToString:kTabPlaylist];
+    _library.equalizerSurfaceVisible = _sceneActive
+            && _rootPresentationVisible && !_tabs.view.hidden && playlistSelected;
 }
 
 #pragma mark - The mini player
@@ -412,6 +445,7 @@ static NSString *const kTabSearch = @"search";
     if (_tabs.view.hidden != hidden) {
         _tabs.view.hidden = hidden;
     }
+    [self syncLibraryEqualizerSurface];
 }
 
 // 0 is the card fully up (the screen behind it scaled back), 1 is the card
@@ -482,6 +516,11 @@ static NSString *const kTabSearch = @"search";
 
 #pragma mark - Tabs
 
+- (void)tabBarController:(UITabBarController *)tabBarController
+ didSelectViewController:(UIViewController *)viewController {
+    [self syncLibraryEqualizerSurface];
+}
+
 // UISearchTab's identifier is UIKit's, not ours, so it is matched by kind —
 // the two we mint are matched by the identifiers we gave them.
 - (NSString *)selectedTabIdentifier {
@@ -498,6 +537,7 @@ static NSString *const kTabSearch = @"search";
         BOOL isSearch = [tab isKindOfClass:UISearchTab.class];
         if (wantsSearch ? isSearch : [tab.identifier isEqualToString:identifier]) {
             _tabs.selectedTab = tab;
+            [self syncLibraryEqualizerSurface];
             return;
         }
     }

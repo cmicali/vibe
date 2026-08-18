@@ -129,6 +129,7 @@
         [self updateUI];
     }
     _uiTimer.windowVisible = [self isWindowVisible];
+    [self syncEqualizerActivity];
 }
 
 // The window's own height rule, applied to drags only: the app's animated
@@ -153,6 +154,10 @@
     // waveform is a faster playhead, and the re-arm is a no-op until the width
     // crosses a whole-Hz boundary.
     [self syncUITimerRate];
+    // Re-evaluate the playing row against the window's live clip. Programmatic
+    // collapse sets its final intent before the resize animation starts, but
+    // the indicator remains visible for part of that travel.
+    [self syncEqualizerActivity];
     if (!self.window.inLiveResize) {
         [self.trackDisplay refitTitleIfWidthChanged];
     }

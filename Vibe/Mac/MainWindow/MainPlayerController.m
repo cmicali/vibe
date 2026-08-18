@@ -134,6 +134,7 @@
     self.fileConverter = [[AudioFileConverter alloc] init];
 
     self.playlistController = [[PlaylistController alloc] initWithAudioPlayer:self.audioPlayer];
+    self.playlistController.levelSource = self;
     self.playlistController.tableView = self.playlistTableView;
     // The brush-through-the-waveform progress, gated on the converting track
     // still being on screen, so a track change mid-conversion stops the sweep
@@ -197,11 +198,6 @@
     _artworkController.artDidResolveHandler = ^{
         [weakControllerForArt updateUI];
     };
-    // The playing row's equalizer bars take the artwork-derived accent, and
-    // the playlist controller reloads the row when it changes.
-    _artworkController.accentColorDidChangeHandler = ^(NSColor *accentColor) {
-        weakControllerForArt.playlistController.accentColor = accentColor;
-    };
     // The header art tint depends on the appearance — a dark wash against a
     // light pastel — so re-derive it whenever the window's appearance flips.
     self.playerContentView.appearanceChangedHandler = ^{
@@ -258,12 +254,14 @@
 
     [self.playlistTableView reloadData];
     [self updateUI];
+    [self syncEqualizerActivity];
 
     [NSApp activate];
 }
 
 - (void)pauseUIUpdateTimer {
     _uiTimer.wanted = NO;
+    [self syncEqualizerActivity];
 }
 
 - (void)resumeUIUpdateTimer {
@@ -273,6 +271,46 @@
     // notification, and playback can start before the first one fires.
     _uiTimer.windowVisible = [self isWindowVisible];
     _uiTimer.wanted = YES;
+    [self syncEqualizerActivity];
+}
+
+#pragma mark - Equalizer levels
+
+// One reconciliation point for the producer and renderer. PlaylistController
+// combines the window gate with the playing row's real scroll/window
+// intersection before starting its snapshot poller. A running poller declares one
+// consumer, so the tap follows the exact same decision rather than maintaining
+// a second approximation of visibility.
+- (void)syncEqualizerActivity {
+    BOOL surfaceVisible = [self isWindowVisible];
+    BOOL audioOutputActive = self.audioPlayer.outputAudioActive;
+    self.playlistController.equalizerSurfaceVisible = surfaceVisible;
+    self.playlistController.equalizerAudioOutputActive = audioOutputActive;
+    self.audioPlayer.levelsEnabled = _levelConsumers > 0
+            && surfaceVisible && audioOutputActive;
+}
+
+// Counted rather than a flag: NSTableView reuses row views, so a new indicator
+// can take the source before the outgoing one lets go and the count is briefly
+// two. EqualizerIndicatorView guarantees one NO per YES, dealloc included.
+- (void)equalizerLevelsWanted:(BOOL)wanted {
+    if (wanted) {
+        _levelConsumers++;
+    }
+    else {
+        NSAssert(_levelConsumers > 0, @"unbalanced equalizer level demand");
+        if (_levelConsumers == 0) {
+            return;
+        }
+        _levelConsumers--;
+    }
+    [self syncEqualizerActivity];
+}
+
+- (BOOL)copyEqualizerLevels:(float *)out
+                      count:(NSUInteger)count
+                   sequence:(uint64_t *)sequence {
+    return [self.audioPlayer copyBandLevels:out count:count sequence:sequence];
 }
 
 // Scale the tick rate to how fast the playhead crosses the waveform, so that a
