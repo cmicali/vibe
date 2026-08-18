@@ -16,6 +16,10 @@ Row backgrounds belong to `PlaylistRowView`, not to AppKit. **`drawSelectionInRe
 
 `rowViewForRow:` sets `playingRow`, and `refreshRowViewPlayingStates` re-stamps it across the visible rows on every `currentIndex` change, because `reloadDataForRowIndexes:` rebuilds cell views but keeps row views.
 
+**The playing row's bars follow the audio, from the same FFT iOS uses.** `PlaylistController` hands every row the `levelSource` it was given — `MainPlayerController`, which owns both the player and the window gates — and the indicator drives itself from there; see `Audio/CLAUDE.md` for the tap, which on this platform sits on the FX segment's output so the bars include the reverb and delay tails.
+
+The tap runs only while a row is reading it. Three conditions, in `MainPlayerController.syncLevelsEnabled`: the indicators' own counted demand, which covers the playing row scrolled out of the table; the UI timer's `wanted` and `windowVisible`, the latter being the window's occlusion state, so an occluded or minimized window stops the FFT; and **`isPlaylistShown`, which has to be asked** — the compact size hides the playlist by *shrinking the window*, leaving the table unhidden and still in a window, merely clipped, so no row can tell. `windowDidResize:` re-asks.
+
 The artwork-derived accent appears **only** in the playing row's `EqualizerIndicatorView.barColor` — deliberately never a full-width saturated fill, and never on the title text, which keeps its normal label color like every other row. The indicator and the neutral wash are the whole "playing" marking. The color arrives from `ArtworkDisplayController`'s `accentColorDidChangeHandler` — the same dominant-color resolution as the header wash, clamped into a legible OKLCH band — through `PlaylistController.accentColor`, which reloads the playing row on change.
 
 ## Wiring and the context menu

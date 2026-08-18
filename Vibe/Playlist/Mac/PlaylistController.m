@@ -187,6 +187,10 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
         EqualizerIndicatorView *eqView = [PlaylistTableView equalizerViewInCell:view];
         // Reset on every population, because cells are reused across rows.
         eqView.barColor = isCurrentRow ? self.accentColor : nil;
+        // Unconditional, as the iOS list does it: the indicator only declares
+        // demand for levels while it is also animating, which is the playing
+        // row alone.
+        eqView.levelSource = self.levelSource;
         if (isCurrentRow) {
             view.textField.hidden = YES;
             eqView.hidden = NO;

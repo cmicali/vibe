@@ -6,6 +6,7 @@
 #import <Foundation/Foundation.h>
 
 @class AVAudioEngine;
+@class AVAudioNode;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -42,6 +43,17 @@ NS_ASSUME_NONNULL_BEGIN
 // recorded before the engine existed. It must run on the queue, once, before
 // the engine first starts, and AudioPlayer's async init calls it.
 - (void)installInEngine:(AVAudioEngine *)engine;
+
+// The last node of the segment — the sum of the dry path and every wet return,
+// and what installInEngine: connects to the engine's outputNode. nil until
+// then.
+//
+// It exists for the band-level tap, which has to sit on whatever feeds the
+// output if the bars are to follow what is actually heard. mainMixerNode is
+// that node only while this segment is absent; with it, the reverb and delay
+// returns re-enter downstream of the mixer, so a tap there would miss every wet
+// tail. Player-queue only, like the rest of this class.
+@property (nonatomic, readonly, nullable) AVAudioNode *masterBusOutputNode;
 
 // DJ-style low kill on the Q key: a resonant high-pass filter on the master
 // bus that cuts the bass. It is a deck control, so it persists across tracks

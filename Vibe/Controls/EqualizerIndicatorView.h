@@ -4,10 +4,10 @@
 //
 //  The playing-row indicator: five vertically centered pill bars, the app
 //  icon's waveform, that grow and shrink independently. They are plain
-//  CALayers driven by repeating keyframe animations, composited on the render
-//  server, so the app spends no CPU per frame. An animated-GIF image view, by
-//  contrast, re-decodes frames on the CPU every tick, even when clipped
-//  offscreen.
+//  CALayers driven either by a levelSource's real band levels or, with none, by
+//  repeating keyframe animations composited on the render server. An
+//  animated-GIF image view, by contrast, re-decodes frames on the CPU every
+//  tick, even when clipped offscreen.
 //
 //  SHARED, because the bars ARE the app's playing marker and both platforms
 //  must draw the same ones — the mac playlist table's number column and the
@@ -70,9 +70,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong, nullable) VibeColor *barColor;
 
 // Set this and the bars follow the audio instead of the canned keyframes,
-// sampling per displayed frame while animating. nil — which is what macOS
-// leaves it, since the mac's tap point sits upstream of the FX returns — keeps
-// the keyframes, so that path is bit-for-bit what it always was.
+// sampling per displayed frame while animating. Both platforms set it — iOS
+// from PlaybackController, macOS from MainPlayerController — and nil keeps the
+// keyframes, which is any row built before the model reaches it.
 //
 // Weak: the source is the app's playback model and outlives every row.
 @property (nonatomic, weak, nullable) id<EqualizerLevelSource> levelSource;

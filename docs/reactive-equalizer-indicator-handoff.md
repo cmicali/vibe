@@ -13,13 +13,13 @@ It replaces `docs/future/reactive-equalizer-indicator.md`, which was the plan an
 
 The library row's playing indicator ran canned keyframe tables on both platforms. On iOS it now follows the audio: a tap on `mainMixerNode` bus 0 publishes five log-spaced band levels at the FFT hop rate, and `EqualizerIndicatorView` eases them onto its bars per displayed frame.
 
-macOS is untouched — `levelSource` is nil there, so the keyframe path is bit for bit what it was.
+macOS followed later, from the same FFT tapped at a different node — see the tap-point section, which was written when this was iOS-only and is now the rule for both.
 
 ## Why the design is what it is
 
 Three decisions that will look arbitrary otherwise, and should not be undone casually.
 
-**The tap point.** `mainMixerNode` bus 0 is exactly the signal reaching the speaker *only while the FX segment is absent*, which is what `enableFX:NO` gives the iOS player: post-fade, post-varispeed, and the crossfade sum comes free because both chains already meet at that mixer. With FX on — macOS — the reverb and delay returns re-enter downstream of it, so the same tap would miss every wet tail. That is the real reason this is iOS-only, beyond scope.
+**The tap point.** `mainMixerNode` bus 0 is exactly the signal reaching the speaker *only while the FX segment is absent*, which is what `enableFX:NO` gives the iOS player: post-fade, post-varispeed, and the crossfade sum comes free because both chains already meet at that mixer. With FX on — macOS — the reverb and delay returns re-enter downstream of it, so the same tap would miss every wet tail. That is why the tap point is chosen per graph rather than fixed: `AudioFX.masterBusOutputNode` is the node on macOS, `mainMixerNode` where there is no FX segment, and `applyLevelTapOnQueue` picks. It was iOS-only until that was resolved.
 
 **Smoothing lives in the view, not the tap.** The tap publishes instantaneous levels and smooths nothing. Motion is therefore tied to the display rather than the hop rate, and a tap that stops firing — the engine's deferred idle stop takes it a few seconds after a pause — decays gracefully instead of freezing mid-pose.
 

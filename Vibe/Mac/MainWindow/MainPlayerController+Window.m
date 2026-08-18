@@ -129,6 +129,7 @@
         [self updateUI];
     }
     _uiTimer.windowVisible = [self isWindowVisible];
+    [self syncLevelsEnabled];
 }
 
 // The window's own height rule, applied to drags only: the app's animated
@@ -153,6 +154,9 @@
     // waveform is a faster playhead, and the re-arm is a no-op until the width
     // crosses a whole-Hz boundary.
     [self syncUITimerRate];
+    // The compact size hides the playlist by height alone, so this is also
+    // where the playing row stops being on screen.
+    [self syncLevelsEnabled];
     if (!self.window.inLiveResize) {
         [self.trackDisplay refitTitleIfWidthChanged];
     }

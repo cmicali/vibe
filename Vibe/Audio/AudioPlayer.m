@@ -279,7 +279,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // only thing either caller has to get right.
 - (void)applyLevelTapOnQueue {
     if (_levelsWanted && _engine && !self.levelTap) {
-        self.levelTap = [[AudioLevelTap alloc] initWithNode:_engine.mainMixerNode];
+        // Whatever feeds the output, which is the only place the bars can
+        // follow what is actually heard: the FX segment's sum when there is
+        // one, and the mixer itself when there is not. Tapping the mixer
+        // unconditionally would miss every reverb and delay tail, since those
+        // returns re-enter downstream of it.
+        AVAudioNode *tapNode = _fx.masterBusOutputNode ?: _engine.mainMixerNode;
+        self.levelTap = [[AudioLevelTap alloc] initWithNode:tapNode];
     }
     else if (!_levelsWanted && self.levelTap) {
         [self.levelTap remove];

@@ -8,6 +8,8 @@
 
 #import "AudioTrack.h"
 #import "AudioPlayer.h"
+// EqualizerLevelSource, for the levelSource property below.
+#import "EqualizerIndicatorView.h"
 
 @class PlaylistTableView;
 
@@ -18,6 +20,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property NSUInteger currentIndex;
 
 @property (weak) AudioPlayer *audioPlayer;
+
+// Handed to every row's EqualizerIndicatorView, so the playing row's bars
+// follow the audio instead of the canned keyframes. The window controller owns
+// it, because deciding whether the analysis behind it runs needs the occlusion
+// gate this class has no part of.
+@property (weak, nullable) id<EqualizerLevelSource> levelSource;
 // Attaching the table also wires the double-click action and installs the row
 // context menu. The table's construction itself lives in PlaylistTableView.
 @property (weak) PlaylistTableView *tableView;

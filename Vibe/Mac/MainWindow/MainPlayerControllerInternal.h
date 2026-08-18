@@ -17,6 +17,7 @@
 #import "TrackDisplayController.h" // TrackDisplayState, returned below
 #import "MainWindow.h"             // FileDropDelegate, adopted below
 #import "PitchControlPanel.h"      // PitchControlPanelDelegate, adopted below
+#import "EqualizerIndicatorView.h" // EqualizerLevelSource, adopted below
 
 @class ArtworkDisplayController;
 @class AudioTrack;
@@ -30,18 +31,21 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// These two conformances stay on the class because MainPlayerController.m
+// These conformances stay on the class because MainPlayerController.m
 // implements them. Every other one is declared on the category that implements
 // it, so the compiler checks each against the file that holds it.
 //
 // Only the state a category also touches lives here; the rest stays private to
 // MainPlayerController.m.
-@interface MainPlayerController () <FileDropDelegate, PitchControlPanelDelegate> {
+@interface MainPlayerController () <FileDropDelegate, PitchControlPanelDelegate, EqualizerLevelSource> {
     // The occlusion-gated position-update timer. It drives updatePlaybackUI
     // only while playback wants updates and the window is unoccluded, at the
     // rate syncUITimerRate scales to the playhead's on-screen speed. +Window
     // feeds it the visibility gate.
     UIUpdateTimer*              _uiTimer;
+    // Playing-row indicators currently reading band levels. The tap is off at
+    // zero; see syncLevelsEnabled.
+    NSInteger                   _levelConsumers;
     // Polls (and on macOS subscribes to) a materializing cloud file's
     // download progress while the loading shimmer is up; nil otherwise. The
     // player events start and cancel it.
@@ -126,6 +130,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)pauseUIUpdateTimer;
 - (void)resumeUIUpdateTimer;
+
+// Reconciles the band-level tap with the indicators' demand and the window's
+// two gates. Call it wherever either gate moves; +Window does, from the
+// occlusion notification.
+- (void)syncLevelsEnabled;
 
 #pragma mark - Deferred metadata load and the error mask
 

@@ -184,6 +184,10 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 
 #pragma mark - Graph construction
 
+- (AVAudioNode *)masterBusOutputNode {
+    return _masterMix;
+}
+
 - (void)installInEngine:(AVAudioEngine *)engine {
     _engine = engine;
 
