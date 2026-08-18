@@ -1,170 +1,228 @@
-# Handoff: the audio-reactive equalizer indicator
+# Reference: the audio-reactive equalizer indicator
 
-Written 2026-08-18, **taken to green the same day** — every gate below now passes and the
-feature has been verified against both running apps. Kept because the design rationale, the
-traps and the tuning knobs are still the reference; the verification table records what was
-actually run rather than what was hoped.
+The macOS playlist and iOS library draw the same five-bar playing marker from the
+same demand-driven analyzer. This document records the shape of the finished design
+and the traps that are easy to reintroduce.
 
-Branch `claude/live-eq-animation`, on top of `ios-app` at `ca124c8`.
+## The two clocks
 
-It replaces `docs/future/reactive-equalizer-indicator.md`, which was the plan and is deleted in `e39e705`. Re-check every file:line below before trusting it — `AudioPlayer.m` moves often.
+Audio analysis and visible motion deliberately do not share a clock:
 
-## What it does
+1. `AudioLevelAnalyzer` makes about 24 decisions per second. For the complete windows
+   in a roughly 100 ms tap callback, activity mode retains normalized per-band peaks;
+   spectrum mode time-averages energy per octave and normalizes one coherent result.
+   `AudioLevelTap` publishes that callback summary through `AudioLevelPublisher` as a
+   five-level snapshot with a monotonic sequence.
+2. `EqualizerIndicatorView` reads the latest sequence from its own display link,
+   requested at 20–30 Hz. That link only polls snapshots and the 0.5-second staleness
+   deadline. A new sequence retargets the materially changed bars with explicit
+   scalar Core Animation animations: 0.135-second attack, 0.55-second release and
+   ease-out timing, starting from each bar's current presentation scale.
 
-The library row's playing indicator ran canned keyframe tables on both platforms. On iOS it now follows the audio: a tap on `mainMixerNode` bus 0 publishes five log-spaced band levels at the FFT hop rate, and `EqualizerIndicatorView` eases them onto its bars per displayed frame.
+Repeated polls therefore cost no FFT. Core Animation evaluates the explicit
+animations at the display cadence — 60 fps on a 60 Hz display — so the app does not
+need a 60 Hz callback or transform write loop to keep motion smooth. The analyzer
+never knows how a view moves.
 
-macOS followed later, from the same FFT tapped at a different node — see the tap-point section, which was written when this was iOS-only and is now the rule for both.
+## Rendering
 
-## Why the design is what it is
+The indicator creates five pill-shaped `CALayer`s once. Geometry is rebuilt only
+when bounds change, and implicit layer actions are permanently disabled. On a new
+sequence, a bar whose target changed by at least 0.005 gets one model
+`transform.scale.y` write and one explicit scalar animation from its current
+presentation scale; unchanged bars get neither. Those writes are grouped in one
+transaction. Animation objects are created per changed target, never per displayed
+frame. No EQ tick calls `draw`, rebuilds a path, lays out the bars or invalidates a
+waveform.
 
-Three decisions that will look arbitrary otherwise, and should not be undone casually.
+Level zero is the dot pose and level one is full height. When audio alone stops while
+the row remains visible, the view invalidates the poller, balances demand and writes
+the collapsed model pose once, then replaces each noncollapsed bar's keyed animation
+with one 0.55-second release from its presentation scale. Core Animation finishes
+that release without a display link, timer, callback or app-side frame loop. Geometry
+or visibility loss, detachment and source replacement remove animations and settle
+directly to dots, so motion based on invisible pixels, stale geometry or stale
+ownership cannot survive. A missing `EqualizerLevelSource` is an inactive view, not
+permission to run canned keyframes.
 
-**The tap point.** `mainMixerNode` bus 0 is exactly the signal reaching the speaker *only while the FX segment is absent*, which is what `enableFX:NO` gives the iOS player: post-fade, post-varispeed, and the crossfade sum comes free because both chains already meet at that mixer. With FX on — macOS — the reverb and delay returns re-enter downstream of it, so the same tap would miss every wet tail. That is why the tap point is chosen per graph rather than fixed: `AudioFX.masterBusOutputNode` is the node on macOS, `mainMixerNode` where there is no FX segment, and `applyLevelTapOnQueue` picks. It was iOS-only until that was resolved.
+The source returns a coherent snapshot and its nonzero sequence through
+`copyEqualizerLevels:count:sequence:`. The view updates targets only for a new
+sequence; Core Animation supplies the motion between publications. A source that
+stalls for 0.5 seconds causes one retarget to zero rather than holding stale music
+forever.
 
-**Smoothing lives in the view, not the tap.** The tap publishes instantaneous levels and smooths nothing. Motion is therefore tied to the display rather than the hop rate, and a tap that stops firing — the engine's deferred idle stop takes it a few seconds after a pause — decays gracefully instead of freezing mid-pose.
+## One fail-closed activity gate
 
-**Levels are demand-driven, not a constructor flag.** `AudioPlayer.levelsEnabled` is set from the two gates the position tick already uses (playing, and foreground), so nothing is spent while backgrounded. A lifetime flag beside `enableFX` could not do that.
+An indicator may start its snapshot poller only when all five facts are true:
 
-## The files
+- the engine reports actual output audio;
+- the platform says this row and surface are materially visible;
+- the view is attached to a window;
+- a level source exists;
+- the view has nonempty drawable geometry.
 
-**New:** `Vibe/Audio/AudioLevelMath.h`, `Vibe/Audio/AudioLevelTap.{h,m}`, `Tests/AudioLevelMathTests.m`.
+Starting the poller declares one `equalizerLevelsWanted:YES`; stopping, replacement
+and deallocation balance it with exactly one `NO`. Each shell counts consumers, and
+the player installs the tap only while that count, output activity and the shell's
+own visibility gate all agree. Thus every inactive state has no poller or FFT callback
+to service. The audio-loss-only state can retain the finite compositor release above;
+all pixel and ownership gate failures have no explicit level animation either.
 
-**Modified:** `Vibe/Audio/AudioPlayer.{h,m}`, `Vibe/Audio/AudioPlayerInternal.h`, `Vibe/Controls/EqualizerIndicatorView.{h,m}`, `Vibe/iOS/PlaybackController.{h,m}`, `Vibe/iOS/LibraryViewController.m`, `Vibe/Debug/iOS/{DebugCommands.m,RootViewController+Debug.{h,m}}`, plus the root, `Audio/` and `iOS/` `CLAUDE.md`s.
+Actual output is intentionally narrower than play intent. A file still Loading with
+no outgoing sound is inactive. A tracked outgoing fade remains active until the
+audio is really silent, even if a successor is Loading.
 
-No `project.yml` change: `Vibe/Audio` and `Vibe/Controls` are already source entries on both targets, and `Vibe/Audio` is already on the `VibeTests` header search path.
+This is modeled liveness, not an invented tail clock. `AVAudioEngine` exposes no
+reliable edge for a reverb or delay return becoming silent, so a wet FX tail after all
+source nodes have stopped is not represented. The implementation deliberately does
+not keep the analyzer awake for a guessed duration.
 
-## Verification status — read this before reporting anything as working
+### macOS visibility
 
-| Gate | State |
-| --- | --- |
-| `make check-layout` | passes |
-| `make check-vocabulary` | passes |
-| `make build` (macOS) | passes, no warnings |
-| `make build-ios` | passes, no warnings |
-| `make test` | passes — 694 cases, `AudioLevelMathTests` included |
-| `make analyze CONFIG=Release` | clean, both targets |
-| Runtime, iOS simulator | verified — see below |
-| Runtime, macOS | builds and runs; keyframe path unchanged by construction (see the layout trap) |
+`MainPlayerController.syncEqualizerActivity` supplies output activity and window
+occlusion. `PlaylistController` intersects the playing row with both the scroll clip
+and window content and refreshes the result on scrolling and resizing. Compact mode
+is covered by that real intersection: shrinking the window clips the playlist away,
+without a separate `isPlaylistShown` approximation or any dependency on the UI timer.
 
-Nothing in the original diff failed to compile. Three defects were found *after* it compiled,
-all of them invisible to a compiler and to the host-less suite:
+### iOS visibility
 
-1. **`copyBandLevels:count:` was declared in the `(State)` category but implemented in the
-   main `@implementation`** — an `-Wincomplete-implementation` warning on both targets. It
-   never belonged in `(State)`, which is documented as taking the state lock; this one is
-   lock-free via the atomic `levelTap`. Moved beside `levelsEnabled`, the property that arms it.
-2. **`kLevelReferenceFloor` was three orders of magnitude below the noise it exists to
-   reject** — see the section below.
-3. **`layoutBars` hardcoded the collapsed pose**, which on iOS silently defeated the whole
-   feature — see the section below.
+The scene delegate supplies foreground-active state. The library combines its own
+appearance with `willDisplayCell:` / `didEndDisplayingCell:`, scrolling and a real
+table/window intersection. The root adds the selected tab and card exposure because
+the card moves by transform over children that remain attached and "appeared."
 
-The math was originally verified by compiling `AudioLevelMath.h` as plain C against a Foundation shim on Linux and running the same assertions `Tests/AudioLevelMathTests.m` makes — the authoring environment had no Xcode. That harness caught a real bug (adjacent bands overlapped by a bin, so one bin drove two bars; fixed by `VibeLevelBandEdgeBin`, which both ends of a band now share) and two wrong assertions. The suite now runs under XCTest and passes.
+The tab surface is live while an expand, minimize or interactive drag visibly exposes
+it, then is inactive once the card settles fully over it. Interrupted and cancelled
+card motion runs the same reconciliation. Switching tabs, scrolling the row away or
+resigning scene activity stops both clocks.
 
-## The two defects the gates could not have caught
+## Analyzer
 
-Both were found by measuring the running app, and both are the kind of bug that ships looking
-fine: the feature was *on*, the tap was publishing, and nothing logged an error.
+The tap is installed on the node that feeds the output:
 
-### The reference floor sat below the noise floor
+- without the optional FX segment, `mainMixerNode` carries the post-fade,
+  post-varispeed crossfade sum;
+- with FX, `AudioFX.masterBusOutputNode` carries dry audio plus reverb and delay
+  returns.
 
-`kLevelReferenceFloor` was `1e-7`. Measured 16-bit quantization noise is `1e-7..5e-7` in the
-unnormalized magnitude-squared units the tap works in — so the floor never engaged, and the
-per-band AGC divided each signal-free band by its own hiss. On a pure 220 Hz tone the two
-**emptiest** bands published the **highest** levels: bands 3 and 4 averaged 0.979 and 0.990
-against 0.669 for the band actually carrying the tone, whose energy was ten orders of
-magnitude greater. Five bars pinned near full scale is exactly the "drive them all from
-amplitude" look the feature exists to avoid.
+`installTapOnBus:` receives `format:nil` because this is a connected output bus. The
+current output format supplies the initial analyzer configuration and a legal buffer
+request; scratch is already fixed for the maximum supported FFT. The delivered
+buffer's sample rate is authoritative and rebinds the analyzer without allocating,
+discarding any partial window and normalization history tied to the old rate.
 
-Raised to `1e-2`, measured against the sweep in the commit message: signal-free bands read
-0.000, and the band carrying the tone holds 0.669 unchanged down to -60 dBFS, so the AGC's
-"a quiet track still moves its bars" property survives. Two tests pin both halves.
+`AudioLevelMath.h` chooses the power-of-two FFT nearest 24 decisions per second,
+bounded from 256 through 8192 frames. Five explicit bands cover 40–100, 100–250,
+250–800, 800–4000 and 4000–20000 Hz, reserving three bars for bass and low mids. A
+96 or 192 kHz route therefore does not add ultrasonic bars or multiply analysis
+cadence. The larger high-rate windows still cost more arithmetic per decision:
+192 kHz uses 8192 points, while 48 kHz uses 2048. FFT energy is normalized for
+window size before the selected reference is applied. Each edge uses `ceil` to select
+the first FFT bin whose center is at or above it. Adjacent half-open bands share that
+exact bin boundary, so they neither admit a below-edge bin nor overlap one another.
 
-**Re-measure it if `kFrameSize` changes** — it is an absolute energy in unnormalized FFT
-units, which is why the constant carries a `TRAP:`.
+The analyzer has two normalization modes:
 
-### `layoutBars` clobbered the reactive pose every frame
+- `SharedSpectrum`, the shipping default and debug token `spectrum`, integrates each
+  band's power, divides by that band's octave span, averages the result over every
+  complete window, then advances one strongest-band reference once for the callback's
+  full analyzed duration and normalizes all five averages together. Heights therefore
+  describe the callback-time average bass-to-treble balance against a common scale,
+  not an instantaneous spectrum; octave compensation keeps the unequal ranges
+  comparable.
+- `RelativeActivity`, debug token `activity`, averages the bins in each band. For each
+  complete window it advances five independent references and normalizes five levels,
+  retaining each band's largest normalized level across the callback. Every spectral
+  region remains expressive, but heights are relative to that band's own recent
+  activity.
 
-It ended with a hardcoded `bar.transform = CATransform3DMakeScale(1, collapsed, 1)`. On macOS
-that is harmless — the row lays out once, and collapsed is the model value the keyframes
-animate around. On iOS a table cell lays out on **every displayed frame** (measured: 377
-`layoutBars` calls in 6 seconds), and `layoutSubviews` runs after the display link's write, so
-the reactive value was overwritten before it could ever render. The bars sat at exactly the
-dot pose while the tap published perfectly good levels — and `startLevelLink` early-returns
-when the link already exists, so nothing re-applied them.
+The activity mode is an A/B alternative, not a reconstruction of Apple's visualizer.
+Apple does not publish its band boundaries or normalization, and this design does not
+pretend to know them.
 
-`layoutBars` now settles the **current** pose by calling `applyBarScales`, which resolves to
-exactly `collapsed` while no link is running. macOS is therefore unchanged by construction:
-same model value, same write.
+Left and right are transformed separately. Their magnitude-squared power is averaged
+afterward, so opposite-polarity stereo has the same energy as in-phase stereo instead
+of cancelling as a sample downmix would.
 
-**This is why a screenshot was worth taking.** `dump_levels` reported healthy, differentiated
-bands the whole time. Only pixels showed the bars were dead — and note that macOS's
-`dump_screenshot` renders the *model* tree on glass-bearing windows, so it structurally cannot
-show the keyframe animation and must not be used to judge that path.
+The callback's AVFoundation adapter reads the delivered buffer, then runs the analyzer
+from preallocated storage with no allocation, locks or logging. It publishes all five
+levels as one versioned snapshot. The lifetime-stable `AudioLevelPublisher` outlives
+individual graph sessions. Removing or abandoning a session invalidates its snapshot;
+an engine reset can never expose the old graph's levels through the new one.
 
-### Where a compiler was most likely to complain (all clean)
-
-- **`[self displayLinkWithTarget:selector:]` in `EqualizerIndicatorView.m`.** `CADisplayLink`'s class constructor is UIKit-only; a mac link is minted from the view, and that method is macOS 14.0 — the deployment floor exactly. `CLANG_WARN_UNGUARDED_AVAILABILITY: YES_AGGRESSIVE` is on, so if the floor ever moves down this needs an `@available`.
-- **Cross-directory imports.** `Vibe/Controls/EqualizerIndicatorView.m` imports `AudioLevelMath.h` (from `Vibe/Audio/`) and `VibeWeakProxy.h` (from `Vibe/Util/`), relying on Xcode's project-wide headermap rather than a search path. Both are shared directories, so neither breaks the platform-boundary rule, but a headermap miss shows up here first.
-- **`_Atomic float` and `atomic_store_explicit`** in `AudioLevelTap.m` — C11 in an ObjC TU.
-- **`LibraryTrackCell.levelSource`** implements both accessors and deliberately has no ivar; it forwards to the indicator.
+Mode is fixed when a tap is created. Changing it through the debug command synchronously
+removes and replaces an active tap, invalidating the old snapshot and starting with an
+empty partial window and fresh references. If the tap is inactive, the next eligible
+installation takes the selected mode. Graph replacement also starts fresh analyzer
+history but retains the process-local selection; relaunch returns to `spectrum`.
 
 ## Runtime verification
 
-**TRAP: `launch-ios.sh` passes `--silent` by default, and it makes every band read exactly 0.** `--silent` zeroes `mainMixerNode.outputVolume` and the tap is downstream of that, so a normal debug run shows flat bars and a screenshot cannot tell that from broken. This is not a bug to fix by moving the tap: upstream of the mute is upstream of the mixer, which means per-track and re-plumbed on every crossfade. `--no-audio-hw` is fine — its pump still renders, so the tap still fires.
+Use the `vibe-debug` skill and `dump_levels`. Its nested
+`audio.normalizationMode` is the canonical `activity` or `spectrum` string. Both debug
+clients also expose `set_equalizer_mode activity|spectrum`; a successful reply carries
+the same string plus `requested`, `tapObject` and `installed`, so a failed active-tap
+replacement is visible immediately. A useful run checks both movement and quiescence:
 
-**The touch driver re-arms this trap.** `drive-ios.sh` relaunches the app with the
-audio-silencing flags, so a `drive-ios.sh start` — or any gesture that finds the app dead —
-silently puts `--silent` back and every band returns to 0. Re-launch by hand
-(`simctl launch <udid> <bundle> --no-audio-hw`) after driving, and check the `silent` field in
-the reply rather than trusting the launch you remember.
+1. While a differentiated test track plays with its row visible, snapshots advance,
+   bands differ, one display link is active and `renderer.displayTicks` advances no
+   faster than 30 per second. This counter measures snapshot polls, not displayed
+   animation frames.
+2. Pause or stop while the row remains visible. The bars release to dots, while the
+   tap, poller and demand stop immediately. The transition may add one synchronous
+   changed-bar model-write pass; during the compositor-only release, tap callbacks,
+   analyzed windows, publications, display ticks and transform writes stay flat.
+   Then scroll the row away, cover it, switch tabs, minimize or occlude the window,
+   and background the iOS scene; those pixel-loss edges settle immediately, with all
+   counters flat after the transition when no resize or cell population occurs.
+3. Bring the same surface back while output continues. Both clocks restart without a
+   stale pose or an unbalanced consumer.
+4. Exercise a slow Loading request both with and without an audible outgoing fade.
+   Only the latter remains active, and only until its fade ends.
+5. A/B the same track and passage in both modes. A switch invalidates the old
+   publication, so wait for `published:true` and a new sequence before judging the
+   bands. Analyzer and renderer counters remain cumulative across the switch.
 
-So: launch **without `--silent`**, then
+The exact counter homes are `audio.callbacks`, `audio.analyzedWindows`,
+`audio.publications`, `renderer.displayTicks`, `renderer.geometryLayouts` and
+`renderer.transformWrites`; every one is cumulative. With one active indicator and
+stable bounds, `renderer.geometryLayouts` stays flat. `renderer.transformWrites`
+counts model-target and immediate reconciliation writes, not displayed animation
+frames: publication flow adds at most one per materially changed bar — no more than
+five for each newly observed publication — while geometry, source or activity
+reconciliation, an audio-stop release and one stale-to-zero settle can add one
+changed-bar pass of their own. The release's displayed frames add no model writes.
+Cell reuse can transiently overlap two pollers and consumers within the
+main-thread handoff. Once that handoff unwinds, stable observable state permits one
+active poller and the publication bound applies to it. After an inactive transition,
+audio counters and `displayTicks` stay flat; geometry and transform writes require
+stable bounds and cell population as well. Also expect `levelsEnabled:false`,
+`audio.requested:false`, `audio.tapObject:false`, `audio.installed:false` and
+`renderer.activeDisplayLinks:0`. `audio.outputAudioActive` records the queue-synchronized
+producer fact as well. The top-level snapshot contains `published`,
+`sequence` and `bands`; launch diagnosis is `silent`, `noAudioHw` and
+`manualRendering`.
 
-1. `debug-ios.sh dump_levels` repeatedly while a track plays. `levelsEnabled` true, `published` true, and the five `bands` values differing and moving. The reply carries `silent` so a flat run explains itself.
-2. Compare a bass-heavy track against a sparse one — band 0 and band 4 should behave visibly differently. That difference is the entire point of doing this rather than driving all five bars from amplitude.
-3. Screenshot the library for the look.
-4. Pause → bars settle to the dot pose. Scroll the playing row off and back → it reattaches (`didMoveToWindowShared`).
-5. Background while playing → `levelsEnabled` goes false, nothing spent.
-6. macOS: the table indicator is unchanged and still runs keyframes.
-7. **Measure the CPU claim rather than asserting it.** The keyframe path costs zero per frame because Core Animation runs it on the render server, and this gives that up. A 1024-point real FFT ~47 times a second should be far under 0.1% of one core, but the number is the point.
+**`--silent` is not a reactive-EQ test.** It zeros `mainMixerNode.outputVolume`, and
+the tap is intentionally downstream, so every band is legitimately zero. On macOS,
+`--no-audio-hw` alone keeps the manual renderer and tap moving; it is suitable for
+functional counter checks but not audible-start-latency measurements. On the iOS
+simulator use `VIBE_AUDIBLE=1` when judging reactive motion. Never infer health from a
+screenshot without checking the launch flags and `dump_levels` first.
 
-### The measured numbers
+## Tuning homes
 
-Debug build, iPhone simulator, sustained 220 Hz tone playing, library visible with the card
-minimized, bars actively moving. Average CPU over three 20s windows, from cumulative CPU-time
-deltas — **not** `ps %cpu`, which averages over the whole process lifetime and hides the effect.
-The baseline is the same build with `levelSource` nil and `levelsEnabled` forced NO, which is
-the pre-feature behaviour exactly: canned keyframes, no tap.
-
-| State | CPU (one core) |
+| File | Owns |
 | --- | --- |
-| Baseline — keyframes, no tap | 1.75% |
-| Tap only — FFT running, view on keyframes | 1.80–1.85% |
-| Full feature — tap + reactive bars | 1.80–1.95% |
+| `Vibe/Audio/Levels/AudioLevelTap.{h,m}` | `AVAudioNode` installation/removal and one graph session's lifetime. |
+| `Vibe/Audio/Levels/AudioLevelAnalyzer.{h,m}` | Preallocated FFT, chunking, stereo power and mode-specific callback aggregation. |
+| `Vibe/Audio/Levels/AudioLevelPublisher.{h,m}` | Coherent player-lifetime snapshots, session validity and sequence. |
+| `Vibe/Audio/Levels/AudioLevelPublisherInternal.h` | The tap's writer API; never a display dependency. |
+| `Vibe/Audio/Levels/AudioLevelMath.h` | Analysis cadence, band edges, energy normalization and level mapping. |
+| `Vibe/Controls/EqualizerAnimationMath.h` | Material-target threshold and explicit attack/release animation durations. |
+| `Vibe/Controls/EqualizerActivityRules.h` | The renderer's fail-closed activity truth table. |
 
-**The whole feature costs about 0.1 of a percentage point of one core**, and the FFT is the
-cheaper half of it. The claim holds.
-
-**TRAP: measure with the card MINIMIZED and say so.** The expanded now-playing card renders
-its own waveform and playhead and costs ~4% by itself, which swamps the indicator and reads as
-a catastrophic regression. An early reading here did exactly that before the card state was
-controlled for.
-
-Release could not be A/B'd this way: the debug command channel and the `--silent` /
-`--no-audio-hw` flags all compile out of Release, so a Release build can be neither driven nor
-kept quiet. Debug is the pessimistic case for the view half anyway.
-
-## If it works but looks wrong
-
-Every knob is in `AudioLevelMath.h`, and each is one line:
-
-- bars slam to the floor between hits → `kLevelDynamicRangeDB` too narrow, or `kLevelReleaseSeconds` too short
-- bars twitch in quiet passages, or a band with no content reads bright → range too wide, or `kLevelReferenceFloor` too low. This one actually happened; see the defects section above before turning the knob
-- treble bars dead → the per-band AGC is not doing its job; check `VibeLevelBandBinRange` against the delivered sample rate
-- motion reads as the canned loop with a wobble → a keyframe animation survived alongside the reactive path; `startLevelLink` is what removes it
-
-## Known accepted costs
-
-- With the now-playing card covering the library, that one row's display link still runs. Five CALayer transform writes on one offscreen view was judged not worth machinery to suppress. **The FFT behind it is no longer in that bargain**: the tap is now switched by counted indicator demand plus the shell's `levelsOccluded`, so a covered card, a switched tab and a scrolled-away row all stop it. Only the view's own link is still spent while covered.
-- The tap follows the cell's window attachment, and `UITableView` keeps a buffer of prepared cells just past the visible bounds — so a row scrolled *marginally* off keeps the tap alive until the cell is really let go. That is cheap hysteresis, not a leak; it is why a scroll test has to push the row well clear before asserting the tap stopped.
-- `AudioLevelTap`'s scratch buffers are freed in `dealloc` rather than in `remove`, so a concurrent display-rate reader holding it through the atomic property cannot touch freed memory. Freeing in `remove` would need a lock on that path.
+Keep those concerns separate. Changing the poll range or visible animation timing
+must never raise FFT cadence, and changing audio normalization must never create an
+app-side per-display-frame rendering loop.
