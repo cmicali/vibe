@@ -151,6 +151,51 @@
     XCTAssertEqual(VibeLevelNormalize(0.0f, reference), 0.0f);
 }
 
+// A band carrying nothing but a noise floor must stay DARK. This is the whole
+// job of the absolute floor, and the case that motivates its value: the AGC
+// divides each band by its own running reference, so without a floor above the
+// noise a signal-free band normalizes its own hiss to full scale and the
+// emptiest bar reads the brightest. Measured on a pure 220 Hz tone, bands 3 and
+// 4 averaged 0.98 before the floor was raised.
+- (void)testSignalFreeBandStaysDarkAcrossItsWholeDecay {
+    // 16-bit quantization noise, in the unnormalized units the tap works in.
+    const float noise = 3.3e-7f;
+    float reference = 1.0f;   // the band was loud once, so the floor is reached by decay
+    for (int i = 0; i < 4000; i++) {
+        reference = VibeLevelUpdateReference(reference, noise, 0.02f);
+        XCTAssertEqual(VibeLevelNormalize(noise, reference), 0.0f);
+    }
+    XCTAssertEqualWithAccuracy(reference, kLevelReferenceFloor, kLevelReferenceFloor * 0.01f);
+}
+
+// The converse, and the reason the floor cannot simply be raised without bound:
+// the AGC exists so a QUIET track still moves its bars. A band carrying real
+// signal reaches full scale on its own peaks at any level, however far down —
+// right up to the point its energy crosses the absolute floor.
+- (void)testQuietBandStillReachesFullScale {
+    // 6.6e3 is a full-scale tone's measured mean band energy; -40 dB from there
+    // is 0.66, still well clear of the floor.
+    for (float gainDB = 0.0f; gainDB >= -40.0f; gainDB -= 10.0f) {
+        float energy = 6.6e3f * powf(10.0f, gainDB / 10.0f);
+        float reference = VibeLevelUpdateReference(kLevelReferenceFloor, energy, 0.02f);
+        XCTAssertEqualWithAccuracy(VibeLevelNormalize(energy, reference), 1.0f, 0.0001,
+                                   @"%.0f dB band should still reach full scale", gainDB);
+    }
+}
+
+// Below the floor the bar rolls off rather than cutting out, which is what
+// makes a fade-out fall smoothly instead of snapping dark at a threshold.
+- (void)testBelowTheFloorTheLevelRollsOffRatherThanCutting {
+    float previous = 1.0f;
+    for (float scale = 1.0f; scale >= 1e-4f; scale *= 0.5f) {
+        float energy = kLevelReferenceFloor * scale;
+        float level = VibeLevelNormalize(energy, kLevelReferenceFloor);
+        XCTAssertLessThanOrEqual(level, previous);
+        previous = level;
+    }
+    XCTAssertEqual(previous, 0.0f);
+}
+
 - (void)testReferenceSanitizesHostileInput {
     XCTAssertGreaterThanOrEqual(VibeLevelUpdateReference(NAN, 0.0f, 0.02f), kLevelReferenceFloor);
     XCTAssertGreaterThanOrEqual(VibeLevelUpdateReference(1.0f, NAN, 0.02f), kLevelReferenceFloor);

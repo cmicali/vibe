@@ -38,8 +38,17 @@ static const double kLevelLowestBandHz = 40.0;
 static const float kLevelDynamicRangeDB = 28.0f;
 
 // The reference can fall this far and no further, so true silence stays flat
-// instead of amplifying the noise floor into a light show.
-static const float kLevelReferenceFloor = 1e-7f;
+// instead of amplifying the noise floor into a light show. Without an effective
+// floor the per-band AGC divides a signal-free band by its own noise and the
+// emptiest bar reads the brightest.
+//
+// TRAP: an ABSOLUTE energy, in the unnormalized magnitude-squared units
+// VibeLevelTapProcessFrame leaves vDSP_fft_zrip's output in — so it is tied to
+// kFrameSize and has to be re-measured if that changes. Calibrated against
+// 16-bit quantization noise, 1e-7..5e-7 in those units: a pure 220 Hz tone left
+// bands 3 and 4 averaging 0.98 at the old 1e-7 and 0.00 here, while the band
+// carrying the tone holds 0.669 unchanged down to -60 dBFS.
+static const float kLevelReferenceFloor = 1e-2f;
 
 // How long the reference takes to forget a loud passage, in seconds. Slow
 // enough that a bar does not re-normalize within a single phrase.
