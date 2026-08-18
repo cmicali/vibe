@@ -43,6 +43,22 @@
 // player's transfer settles, since nothing else would kick the lane.
 static const NSTimeInterval kCloudParseBlockedRecheckSeconds = 1.0;
 
+// How many of the best pending entries the picker carries out of the lock.
+//
+// TRAP: it must stay comfortably above the number of paths the player can be
+// materializing at once, because that is the only thing that can make the
+// picker skip an entry — a playback open and its prefetch, so two. If every
+// candidate in the window were ever blocked the lane would park with work it
+// could have done. Eight is four times the reachable maximum.
+//
+// The window exists because the pending list is the whole playlist's misses:
+// measured against a real provider, a Dropbox tree opened as one playlist left
+// 104,000 entries pending, and the picker runs on the MAIN thread at every
+// track change (setNeighborhoodURLs:). Selecting the best few in one pass is
+// what keeps that off the main thread's critical path; fully ordering the list
+// there cost ~300ms per track change.
+static const NSUInteger kCloudParsePickWindow = 8;
+
 @implementation AudioTrackMetadataLoader {
     // Weak, since the owner strongly holds its current loader, and re-read at
     // use time rather than snapshotted. The owner constructs its PINCache
@@ -390,22 +406,65 @@ static const NSTimeInterval kCloudParseBlockedRecheckSeconds = 1.0;
 // runs OUTSIDE the lock — it hops to the open coordinator's state queue — so
 // the pick is snapshot, ask, then re-take the lock and verify the chosen
 // entry is still pending before removing it.
+// The best kCloudParsePickWindow entries by (deferred, rank, index), in one
+// pass over the pending list. Called with _cloudParsesLock held.
+//
+// One pass rather than a sort, and a rank looked up once per entry rather than
+// inside a comparator, because both costs are paid on the main thread at every
+// track change and both scale with the playlist: sorting is O(n log n)
+// comparisons, and -[NSArray indexOfObject:] inside the comparator made each
+// one a linear walk of NSURL equality tests on top. Against a real cloud tree
+// with 104,000 entries pending that measured ~300ms per track change; a track
+// change on a 14-row playlist costs 49ms.
+- (NSArray<VibeCloudParseEntry *> *)bestCloudParseCandidatesLocked {
+    NSMutableDictionary<NSURL *, NSNumber *> *rankByURL =
+            [NSMutableDictionary dictionaryWithCapacity:_neighborhood.count];
+    [_neighborhood enumerateObjectsUsingBlock:^(NSURL *url, NSUInteger rank, BOOL *stop) {
+        // First spelling wins: a URL listed twice keeps its better rank.
+        if (rankByURL[url] == nil) {
+            rankByURL[url] = @(rank);
+        }
+    }];
+
+    NSMutableArray<VibeCloudParseEntry *> *best =
+            [NSMutableArray arrayWithCapacity:kCloudParsePickWindow];
+    NSMutableArray<NSNumber *> *bestRanks =
+            [NSMutableArray arrayWithCapacity:kCloudParsePickWindow];
+    for (VibeCloudParseEntry *entry in _cloudParses) {
+        NSNumber *found = rankByURL[entry.url];
+        NSUInteger rank = found != nil ? found.unsignedIntegerValue : NSNotFound;
+        // Insertion sort into a window this small is cheaper than any
+        // alternative, and it is the same total order the seam defines.
+        NSUInteger at = best.count;
+        while (at > 0) {
+            VibeCloudParseEntry *above = best[at - 1];
+            if (VibeCloudParseOrderedBefore(above.deferred,
+                                            bestRanks[at - 1].unsignedIntegerValue,
+                                            above.playlistIndex,
+                                            entry.deferred, rank, entry.playlistIndex)) {
+                break;
+            }
+            at--;
+        }
+        if (at >= kCloudParsePickWindow) {
+            continue;
+        }
+        [best insertObject:entry atIndex:at];
+        [bestRanks insertObject:@(rank) atIndex:at];
+        if (best.count > kCloudParsePickWindow) {
+            [best removeLastObject];
+            [bestRanks removeLastObject];
+        }
+    }
+    return best;
+}
+
 - (void)dispatchNextCloudParse {
     NSArray<VibeCloudParseEntry *> *ordered = nil;
     os_unfair_lock_lock(&_cloudParsesLock);
     if (!_cloudParseInFlight && !_cloudParsesHeld && !self.isCancelled
             && _stageOneOutstanding == 0 && _cloudParses.count) {
-        NSArray<NSURL *> *neighborhood = _neighborhood;
-        ordered = [_cloudParses sortedArrayUsingComparator:^NSComparisonResult(VibeCloudParseEntry *a,
-                                                                               VibeCloudParseEntry *b) {
-            if (a == b) {
-                return NSOrderedSame;
-            }
-            return VibeCloudParseOrderedBefore(
-                    a.deferred, [neighborhood indexOfObject:a.url], a.playlistIndex,
-                    b.deferred, [neighborhood indexOfObject:b.url], b.playlistIndex)
-                    ? NSOrderedAscending : NSOrderedDescending;
-        }];
+        ordered = [self bestCloudParseCandidatesLocked];
     }
     os_unfair_lock_unlock(&_cloudParsesLock);
     if (!ordered.count) {
