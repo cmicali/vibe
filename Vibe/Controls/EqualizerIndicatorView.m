@@ -133,9 +133,14 @@ static const CFTimeInterval kMaxLevelFrameSeconds = 0.1;
         bar.bounds = CGRectMake(0, 0, barWidth, height);
         bar.position = CGPointMake(i * (barWidth + kBarGap) + barWidth / 2, height / 2);
         bar.cornerRadius = barWidth / 2; // pill ends, like the icon's bars
-        bar.transform = CATransform3DMakeScale(1, collapsed, 1);
     }
     [CATransaction commit];
+    // TRAP: settle the CURRENT pose, never a hardcoded collapsed one. An iOS
+    // table cell lays out on every displayed frame, so a collapsed write here
+    // lands after the display link's and the bars never leave the dots.
+    // applyBarScales resolves to exactly collapsed while no link is running,
+    // which is the model value the keyframes animate around.
+    [self applyBarScales];
 }
 
 #if TARGET_OS_OSX
