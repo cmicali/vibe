@@ -613,6 +613,10 @@
     [self.playlistController previous];   // refresh rides the funnel; see next:
 }
 
+- (IBAction)playSelectedTrack:(nullable id)sender {
+    [self.playlistController playSelectedTrack];   // refresh rides the funnel; see next:
+}
+
 - (IBAction)closeApp:(id)sender {
     [self close];
 }

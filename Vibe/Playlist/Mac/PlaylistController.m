@@ -403,6 +403,27 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     [self play];
 }
 
+// Return's counterpart of the double-click, from the Playback menu's Play
+// Selected Track and TransportKeyMonitor. Both read the selection at action
+// time, like the context menu's clicked row, because the playlist can be
+// replaced between the press and here.
+
+- (BOOL)hasSelectedTrack {
+    NSInteger row = _tableView.selectedRow;
+    return row >= 0 && row < (NSInteger)_model.count;
+}
+
+- (void)playSelectedTrack {
+    if (![self hasSelectedTrack]) {
+        return;
+    }
+    // Same two steps as doubleClick:, and for the same reason — the model's
+    // index-change notification repaints the departed and chosen rows now,
+    // rather than after the async didStartPlaying round-trip.
+    self.currentIndex = (NSUInteger)_tableView.selectedRow;
+    [self play];
+}
+
 // The clicked row's counterparts of the Edit menu's Show in Finder, Copy File
 // and Copy Name, which act on the current track (MainPlayerController). Same
 // three commands, different track.

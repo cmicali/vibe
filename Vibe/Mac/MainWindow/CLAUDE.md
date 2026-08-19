@@ -39,7 +39,9 @@ See `Audio/Metadata/CLAUDE.md` for why neither invalidation may be a full wipe.
 
 ## Transport keys
 
-`TransportKeyMonitor` handles the bare keys: Space, B, N, P, Tab; A/S/D skip forward, Z/X/C skip back; and the dual-mode effect keys Q, W, E, R, T (R = 1/8-note delay taps, T = 1/16). **A tap toggles, a hold is momentary**: the effect flips at keyDown, and keyUp reverts to the pre-press state when the press ran past the ~0.35s tap threshold — **keyUp is what decides tap vs hold**, which is why the menu items' key equivalents are display and fallback only.
+`TransportKeyMonitor` handles the bare keys: Space, B, N, P, Tab; A/S/D skip forward, Z/X/C skip back; the playlist's Return and arrows; and the dual-mode effect keys Q, W, E, R, T (R = 1/8-note delay taps, T = 1/16). **A tap toggles, a hold is momentary**: the effect flips at keyDown, and keyUp reverts to the pre-press state when the press ran past the ~0.35s tap threshold — **keyUp is what decides tap vs hold**, which is why the menu items' key equivalents are display and fallback only.
+
+**The playlist keys are dead while the playlist is collapsed** — Return, the keypad's Enter, and the up and down arrows. The table keeps focus off screen when the window shrinks, so without this the arrows would walk a selection nobody can see; the monitor swallows all four rather than passing them on, because an unhandled key reaching the focused table wedges its input context. With the pane showing, the arrows go through to the table's own `moveUp:`/`moveDown:` and Return plays the selected row through `PlaylistController.playSelectedTrack` — the same two steps the double-click takes. Playback > Play Selected Track carries the same bare Return as display and fallback, validated on both halves: the playlist showing, and a row selected.
 
 The five effect-state setters in `+Transport` are the single funnel for menus, bare-key taps and holds, and debug commands; each calls `updateFXIndicators`, **which re-reads the live `AudioFX` flags rather than trusting the caller's intent.** The codec line doubles as the FX indicator; its rendering is in `APPEARANCE.md`.
 

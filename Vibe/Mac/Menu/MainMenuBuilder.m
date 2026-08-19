@@ -226,6 +226,12 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSymbolItem(playbackMenu, STR_TRANSPORT_PLAY, @"play.fill", @selector(playPause:), player, @" ", 0, @"menu_play");
     AddSymbolItem(playbackMenu, STR_TRANSPORT_PREVIOUS, @"backward.end.fill", @selector(previous:), player, @"b", 0, @"menu_previous_track");
     AddSymbolItem(playbackMenu, STR_TRANSPORT_NEXT, @"forward.end.fill", @selector(next:), player, @"n", 0, @"menu_next_track");
+    // Bare Return, the keyboard twin of a double-click on the row. It is
+    // enabled only while the playlist is showing and a row is selected; see
+    // the Menus category. TransportKeyMonitor handles the press itself, like
+    // every other bare key here.
+    AddSymbolItem(playbackMenu, STR_MENU_PLAY_SELECTED, @"play.circle", @selector(playSelectedTrack:), player,
+                  [NSString stringWithFormat:@"%c", NSCarriageReturnCharacter], 0, @"menu_play_selected");
     AddSeparator(playbackMenu);
 
     // Bare A, S, D, Z, X and C, like the other transport keys, at mask 0.

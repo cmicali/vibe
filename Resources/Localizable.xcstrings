@@ -11815,6 +11815,18 @@
       },
       "extractionState": "manual"
     },
+    "menu.playback.play_selected": {
+      "comment": "Playback menu item: play the playlist row the user has selected, rather than the one already playing.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play Selected Track"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "menu.playback.skip_back": {
       "comment": "Playback menu item: seek backward a short step.",
       "localizations": {

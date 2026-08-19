@@ -6,7 +6,7 @@ Vended item constructors (`copyNameItemWithTarget:`, `copyFileItemWithTarget:`, 
 
 **Live submenus belong to per-menu delegates**, each owned by the object it works for and wired at build time: Open Recent to `AppDelegate`'s `OpenRecentMenuController` (backed by `NSDocumentController.recentDocumentURLs`), Output to `MainPlayerController`'s `OutputDevicesMenuController`, and waveform Style to the player controller itself.
 
-**TRAP: bare key equivalents must set `keyEquivalentModifierMask = 0` explicitly**, since `NSMenuItem` defaults to Command. Every item here goes through a helper that takes the mask as a parameter, so the bare-key items (Space, B, N, A/S/D, Z/X/C, Q/W/E/R/T) pass `0`.
+**TRAP: bare key equivalents must set `keyEquivalentModifierMask = 0` explicitly**, since `NSMenuItem` defaults to Command. Every item here goes through a helper that takes the mask as a parameter, so the bare-key items (Space, B, N, Return, A/S/D, Z/X/C, Q/W/E/R/T) pass `0`.
 
 **TRAP: a shifted key equivalent rides in the capital letter** (`"Z"`, `"C"`) per the `NSMenuItem` contract — a lowercase key with Shift in the mask draws right but never matches a real press.
 
@@ -25,6 +25,10 @@ It follows that any table reachable by the chain must answer honestly — `NSTab
 Undo/Redo forward to the window's lazily created `NSUndoManager`; the only registered action is Convert to FLAC (`MainWindow/CLAUDE.md`). Validation takes titles from `undoMenuItemTitle`/`redoMenuItemTitle` and enables from `canUndo`/`canRedo` — **the stack alone, never a stat**, since no Convert-adjacent rule may touch the file system during validation (`Audio/Mac/Convert/CLAUDE.md`).
 
 Copy Name copies the current track's `singleLineTitle`; Copy File puts its file URL on the general pasteboard. Both validate against `currentTrack`, like Show in Finder.
+
+## Playback
+
+Transport first — Play, Previous Track, Next Track, then **Play Selected Track** on bare Return, the keyboard twin of a double-click on a playlist row. It is the one Playback item validated against the *window*: enabled only while the playlist is showing and a row is selected, because with the pane collapsed the arrow keys do not move a selection either (`MainWindow/CLAUDE.md`). Below the separator are the six skip-seek items, then the Pitch Range submenu.
 
 ## Convert
 

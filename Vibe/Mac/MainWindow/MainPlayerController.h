@@ -62,6 +62,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)next:(nullable id)sender;
 - (IBAction)previous:(nullable id)sender;
 
+// Playback > Play Selected Track (Return), and the same bare key through
+// TransportKeyMonitor: plays the playlist row the arrow keys have selected,
+// exactly as a double-click on it does.
+- (IBAction)playSelectedTrack:(nullable id)sender;
+
 // File > Close (⌘W). It stops playback, clears the playlist and returns the
 // app to the empty state.
 - (IBAction)closeFile:(nullable id)sender;
