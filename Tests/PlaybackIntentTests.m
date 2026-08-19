@@ -16,7 +16,7 @@
 
 - (void)testLoadingPauseIntentTogglesAndPreservesSeek {
     VibePendingPlaybackIntent intent = VibePendingPlaybackIntentMake(12.5, NO);
-    XCTAssertTrue(VibePendingPlaybackIntentIsPlaying(intent));
+    XCTAssertFalse(intent.paused);
     intent = VibePendingPlaybackIntentByTogglingPause(intent);
     XCTAssertTrue(intent.paused);
     XCTAssertEqualWithAccuracy(intent.position, 12.5, 0.001);
@@ -24,7 +24,7 @@
     XCTAssertTrue(intent.paused);
     XCTAssertEqualWithAccuracy(intent.position, 42, 0.001);
     intent = VibePendingPlaybackIntentByTogglingPause(intent);
-    XCTAssertTrue(VibePendingPlaybackIntentIsPlaying(intent));
+    XCTAssertFalse(intent.paused);
 }
 
 - (void)testLoadingSeekClampsNegativePositions {

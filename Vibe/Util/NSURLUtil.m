@@ -260,14 +260,14 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
         // stay out of results but still reach the folder-art bookkeeping
         // below: a cover is exactly a non-audio entry.
         NSString *path = url.path;
-        if ([supported containsObject:path.pathExtension.lowercaseString]) {
+        BOOL isAudio = [supported containsObject:path.pathExtension.lowercaseString];
+        if (isAudio) {
             [results addObject:url];
         }
         if (!VibePathIsDirectlyInside(path, lastDirectory)) {
             lastDirectory = path.stringByDeletingLastPathComponent;
         }
-        if (lastDirectory.length > 0 &&
-                [supported containsObject:path.pathExtension.lowercaseString]) {
+        if (lastDirectory.length > 0 && isAudio) {
             [directoriesWalked addObject:lastDirectory];
         }
         VibeFolderArtNoteCandidate(lastDirectory, path.lastPathComponent,
@@ -471,12 +471,22 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
 + (NSArray<NSURL *> *)expandPlaylistFile:(NSURL *)playlistURL {
     NSArray<NSURL *> *resolved = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlistURL];
 #if TARGET_OS_OSX
+    // Each probe is a blocking syscall that can hang on a dead mount, so the
+    // scan's verdicts are kept for the readable filter below (partial when the
+    // scan exits early) and dropped only when a grant re-resolve replaces the
+    // URLs — a grant changes readability.
+    NSMutableDictionary<NSString *, NSNumber *> *scannedAccessByPath =
+            [NSMutableDictionary dictionaryWithCapacity:resolved.count];
     BOOL anyUnreadable = NO;
     BOOL anyDenied = NO;
     for (NSURL *url in resolved) {
         VibeReadAccess access = ReadAccessForURL(url);
+        scannedAccessByPath[url.path] = @(access);
         anyUnreadable |= (access != VibeReadAccessReadable);
         anyDenied |= (access == VibeReadAccessDenied);
+        if (anyUnreadable && anyDenied) {
+            break;  // both facts settled; stop paying probes
+        }
     }
     // A missing-looking entry still warrants the grant prompt while the
     // playlist's own folder is denied: unresolved entries fall back to their
@@ -490,11 +500,19 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
     if (anyUnreadable && (anyDenied || folderDenied)
             && grantHandler && grantHandler(playlistURL)) {
         resolved = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlistURL];
+        [scannedAccessByPath removeAllObjects];
     }
 #endif
     NSMutableArray<NSURL *> *readable = [NSMutableArray arrayWithCapacity:resolved.count];
     for (NSURL *url in resolved) {
-        if (ReadAccessForURL(url) == VibeReadAccessReadable) {
+#if TARGET_OS_OSX
+        NSNumber *scanned = scannedAccessByPath[url.path];
+        VibeReadAccess access = scanned != nil
+                ? (VibeReadAccess)scanned.integerValue : ReadAccessForURL(url);
+#else
+        VibeReadAccess access = ReadAccessForURL(url);
+#endif
+        if (access == VibeReadAccessReadable) {
             [readable addObject:url];
         }
         else {

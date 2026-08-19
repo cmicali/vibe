@@ -101,7 +101,8 @@ private:
     }
 
     // The extension-to-format mapping, copied from
-    // FileRef::detectByExtension.
+    // FileRef::detectByExtension, plus the wave/bwf spellings
+    // NSURLUtil's supported set admits.
     static std::unique_ptr<TagLib::File> openByExtension(const char *path, TagLib::IOStream *stream) {
         NSString *ext = [@(path) pathExtension].uppercaseString;
         if ([ext isEqualToString:@"MP3"] || [ext isEqualToString:@"MP2"] || [ext isEqualToString:@"AAC"])
@@ -114,7 +115,7 @@ private:
         if ([ext isEqualToString:@"AIF"] || [ext isEqualToString:@"AIFF"] ||
             [ext isEqualToString:@"AFC"] || [ext isEqualToString:@"AIFC"])
             return std::make_unique<TagLib::RIFF::AIFF::File>(stream);
-        if ([ext isEqualToString:@"WAV"])
+        if ([ext isEqualToString:@"WAV"] || [ext isEqualToString:@"WAVE"] || [ext isEqualToString:@"BWF"])
             return std::make_unique<TagLib::RIFF::WAV::File>(stream);
         return nullptr;
     }

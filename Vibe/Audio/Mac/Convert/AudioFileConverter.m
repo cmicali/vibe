@@ -178,42 +178,38 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
         // mount, and a stat there can block until the mount times out — so
         // the exists re-check runs here, never on the main thread at accept.
         if (!askWhereToSave && [NSFileManager.defaultManager fileExistsAtPath:destinationURL.path]) {
-            run_on_main_thread({
-                self->_converting = NO;
-                completion(nil, [self errorWithCode:VibeConvertErrorDestinationExists
-                                        description:@"A FLAC of that name already exists."]);
-            });
+            [self finishConversionWithURL:nil
+                                    error:[self errorWithCode:VibeConvertErrorDestinationExists
+                                                  description:@"A FLAC of that name already exists."]
+                          tempURLToRemove:nil
+                               completion:completion];
             return;
         }
         VibeUncompressedContainer sourceContainer =
                 VibeSniffUncompressedContainer(sourceURL.path);
         if (sourceContainer == VibeUncompressedContainerUnknown) {
-            run_on_main_thread({
-                self->_converting = NO;
-                completion(nil, [self errorWithCode:VibeConvertErrorNotConvertible
-                                        description:@"The source is not a readable WAV or AIFF file."]);
-            });
+            [self finishConversionWithURL:nil
+                                    error:[self errorWithCode:VibeConvertErrorNotConvertible
+                                                  description:@"The source is not a readable WAV or AIFF file."]
+                          tempURLToRemove:nil
+                               completion:completion];
             return;
         }
         NSError *error = nil;
         NSURL *tempURL = [self encodeSource:sourceURL progress:progress error:&error];
         if (!tempURL) {
-            run_on_main_thread({
-                self->_converting = NO;
-                completion(nil, error);
-            });
+            // encodeSource: removed its own temp on failure.
+            [self finishConversionWithURL:nil error:error tempURLToRemove:nil completion:completion];
             return;
         }
         // Metadata is part of conversion success. The copier revalidates the
         // header against the preflight result before choosing its tag reader.
         if (!VibeCopyTagsToFLAC(sourceURL.path, tempURL.path, sourceContainer)) {
-            [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];
-            NSError *tagError = [self errorWithCode:VibeConvertErrorTagCopyFailed
-                                         description:@"The audio converted, but its tags could not be copied safely."];
-            run_on_main_thread({
-                self->_converting = NO;
-                completion(nil, tagError);
-            });
+            [self finishConversionWithURL:nil
+                                    error:[self errorWithCode:VibeConvertErrorTagCopyFailed
+                                                  description:@"The audio converted, but its tags could not be copied safely."]
+                          tempURLToRemove:tempURL
+                               completion:completion];
             return;
         }
         // Both silent rungs stay off the main thread: file coordination blocks
@@ -225,18 +221,15 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
                                                           source:sourceURL
                                                      destination:destinationURL
                                                            error:&placeError];
+        if (placedURL) {
+            [self finishConversionWithURL:placedURL error:nil tempURLToRemove:nil completion:completion];
+            return;
+        }
+        if (!window) {
+            [self finishConversionWithURL:nil error:placeError tempURLToRemove:tempURL completion:completion];
+            return;
+        }
         run_on_main_thread({
-            if (placedURL) {
-                self->_converting = NO;
-                completion(placedURL, nil);
-                return;
-            }
-            if (!window) {
-                self->_converting = NO;
-                [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];
-                completion(nil, placeError);
-                return;
-            }
             if (askWhereToSave) {
                 LogInfo(@"Settings say ask where to save the converted FLAC");
             }
@@ -247,13 +240,30 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
                           destination:destinationURL
                                window:window
                            completion:^(NSURL *outputURL, NSError *panelError) {
-                self->_converting = NO;
-                if (!outputURL) {
-                    [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];
-                }
-                completion(outputURL, panelError);
+                [self finishConversionWithURL:outputURL
+                                        error:panelError
+                              tempURLToRemove:(outputURL ? nil : tempURL)
+                                   completion:completion];
             }];
         });
+    });
+}
+
+// Every terminal path of a conversion that reached _converting = YES funnels
+// through here: the temp is removed unless it was placed, and _converting
+// flips back on main before the completion runs. The refusals ahead of that
+// flag must NOT route through this — the busy refusal would clear a running
+// conversion's flag. Callable from any thread.
+- (void)finishConversionWithURL:(nullable NSURL *)outputURL
+                          error:(nullable NSError *)error
+                tempURLToRemove:(nullable NSURL *)tempURL
+                     completion:(void (^)(NSURL *_Nullable, NSError *_Nullable))completion {
+    if (tempURL) {
+        [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];
+    }
+    run_on_main_thread({
+        self->_converting = NO;
+        completion(outputURL, error);
     });
 }
 

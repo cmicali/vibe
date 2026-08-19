@@ -55,9 +55,8 @@
 }
 
 - (CGRect)seekHitBandForBounds:(CGRect)bounds {
-    CGFloat bottomY = bounds.size.height/2 - (bounds.size.height/2 * .5);
-    CGFloat topY = bounds.size.height/2 + (bounds.size.height/2 * .5);
-    return CGRectMake(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
+    NSAssert(NO, @"%@ must override seekHitBandForBounds:", NSStringFromClass(self.class));
+    return bounds;
 }
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {

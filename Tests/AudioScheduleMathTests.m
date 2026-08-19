@@ -13,7 +13,6 @@
 
 - (void)testSingleChunkAtFrameCountLimit {
     uint64_t frames = UINT32_MAX;
-    XCTAssertEqual(VibeAudioScheduleChunkCount(frames), 1u);
     XCTAssertEqual(VibeAudioScheduleChunkFrames(frames), UINT32_MAX);
 }
 
@@ -39,7 +38,6 @@
         chunks++;
     }
     XCTAssertEqual(scheduled, expected);
-    XCTAssertEqual(chunks, VibeAudioScheduleChunkCount(expected));
     XCTAssertEqual(chunks, 3u);
 }
 

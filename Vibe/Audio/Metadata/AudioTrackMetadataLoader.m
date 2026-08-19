@@ -18,8 +18,9 @@
 
 #include <os/lock.h>
 
-// One scan miss waiting for materialization: a plain record, never a pre-built operation. The
-// lane submits at most one materialization request at a time, so everything
+// One scan row's record, from its stage-1 cache check through stage-2
+// materialization: a plain record, never a pre-built operation. The lane
+// submits at most one materialization request at a time, so everything
 // still pending remains re-rankable.
 @interface MetadataScanEntry : NSObject <MetadataScanOrderCandidate>
 @property (nonatomic, strong) AudioTrack *track;
@@ -172,14 +173,15 @@
 
 - (void)load:(NSArray<AudioTrack*>*)tracks {
     __weak __typeof(self) weakSelf = self;
-    // One setup op, rather than a per-track loop on the caller's main thread.
-    // A drop of several thousand tracks would otherwise pay for thousands of
-    // NSBlockOperation allocations and addOperation: locks in one main-thread
-    // burst. It runs at high priority so that the sweep still starts ahead of
-    // any queued stage-2 parses.
+    // One setup op, rather than a per-track loop on the caller's main thread:
+    // the parsedOK and dedupe walk over a large drop must not cost the main
+    // thread a burst. It runs at high priority so that the sweep still starts
+    // ahead of any queued stage-2 parses.
     NSOperation *setup = [NSBlockOperation blockOperationWithBlock:^{
         __typeof(self) setupSelf = weakSelf;
         if (!setupSelf) return;
+        NSMutableArray<MetadataScanEntry *> *worklist =
+                [NSMutableArray arrayWithCapacity:tracks.count];
         for (NSUInteger index = 0; index < tracks.count; index++) {
             if (setupSelf.isCancelled) break;
             AudioTrack *track = tracks[index];
@@ -193,24 +195,15 @@
             // A track appearing twice in the array must not parse twice.
             if ([setupSelf->_queuedTracks containsObject:track]) continue;
             [setupSelf->_queuedTracks addObject:track];
-            // Stage 1 of the two-stage scan: the cache check, a stat and a
-            // small disk read, never the audio data, so a dataless cloud
-            // placeholder cannot block it on a download. High priority makes
-            // the whole cache sweep drain before any parse gets a worker, so
-            // every previously seen track's row populates at disk speed even
-            // when the playlist is mostly slow cloud files. Misses re-enqueue
-            // as stage-2 work; the playlist index rides along because the
-            // materialization lane's tie-break is the row order this loop walks in. See
-            // cacheCheckOneTrack:index:.
-            NSOperation *op = [NSBlockOperation blockOperationWithBlock:^{
-                __typeof(self) strongSelf = weakSelf;
-                if (strongSelf && !strongSelf.isCancelled) {
-                    [strongSelf cacheCheckOneTrack:track index:index];
-                }
-            }];
-            op.queuePriority = NSOperationQueuePriorityHigh;
-            [setupSelf->_queue addOperation:op];
+            MetadataScanEntry *entry = [[MetadataScanEntry alloc] init];
+            entry.track = track;
+            entry.url = track.url;
+            // The materialization lane's tie-break is the row order this loop
+            // walks in.
+            entry.playlistIndex = index;
+            [worklist addObject:entry];
         }
+        [setupSelf enqueueStageOneWorkersForWorklist:worklist];
         [setupSelf->_queue addBarrierBlock:^{
             __typeof(self) strongSelf = weakSelf;
             if (!strongSelf) return;
@@ -231,13 +224,54 @@
     LogInfo(@"Metadata sweep: %lu tracks", (unsigned long)tracks.count);
 }
 
-// The stage-1 worker: publish from the disk cache, or hand off to stage 2.
-// Every miss first takes the shared materialization path. A local file settles
-// immediately; an unflagged provider placeholder cannot bypass the foreground
-// hold and wedge one of the wide TagLib workers.
-- (void)cacheCheckOneTrack:(AudioTrack *)track index:(NSUInteger)playlistIndex {
-    // A second drop can re-queue a track before its first op runs, so skip the
-    // redundant work if the earlier loader already produced real metadata.
+// Stage 1 of the two-stage scan: the cache check, a stat and a small disk
+// read, never the audio data, so a dataless cloud placeholder cannot block it
+// on a download. High priority makes the whole cache sweep drain before any
+// parse gets a worker, so every previously seen track's row populates at disk
+// speed even when the playlist is mostly slow cloud files.
+//
+// A bounded worker set drains the records in playlist order — never one
+// pre-built operation per row, because a playlist can hold over 100,000 rows
+// and each resident operation would retain a track and a block before stage 2
+// admits its first miss. Each worker rechecks isCancelled before every
+// record, so a cancel stops the sweep at per-track granularity.
+- (void)enqueueStageOneWorkersForWorklist:(NSArray<MetadataScanEntry *> *)worklist {
+    if (worklist.count == 0) {
+        return;
+    }
+    NSUInteger workerCount = MIN((NSUInteger)_queue.maxConcurrentOperationCount,
+                                 worklist.count);
+    // Shared by the workers alone; guarded by _materializationLock.
+    __block NSUInteger cursor = 0;
+    __weak __typeof(self) weakSelf = self;
+    for (NSUInteger worker = 0; worker < workerCount; worker++) {
+        NSOperation *op = [NSBlockOperation blockOperationWithBlock:^{
+            for (;;) {
+                __typeof(self) strongSelf = weakSelf;
+                if (!strongSelf || strongSelf.isCancelled) return;
+                MetadataScanEntry *entry = nil;
+                os_unfair_lock_lock(&strongSelf->_materializationLock);
+                if (cursor < worklist.count) {
+                    entry = worklist[cursor++];
+                }
+                os_unfair_lock_unlock(&strongSelf->_materializationLock);
+                if (!entry) return;
+                [strongSelf cacheCheckEntry:entry];
+            }
+        }];
+        op.queuePriority = NSOperationQueuePriorityHigh;
+        [_queue addOperation:op];
+    }
+}
+
+// The stage-1 worker step: publish from the disk cache, or hand the record to
+// stage 2. Every miss first takes the shared materialization path. A local
+// file settles immediately; an unflagged provider placeholder cannot bypass
+// the foreground hold and wedge one of the wide TagLib workers.
+- (void)cacheCheckEntry:(MetadataScanEntry *)entry {
+    AudioTrack *track = entry.track;
+    // A second drop can re-queue a track before its first check runs, so skip
+    // the redundant work if the earlier loader already produced real metadata.
     // Failed metadata, with parsedOK == NO, does not count as done: re-parsing
     // it is the whole point of the re-queue.
     if (track.metadata.parsedOK) {
@@ -250,10 +284,6 @@
         return;
     }
     if (_isScanLane) {
-        MetadataScanEntry *entry = [[MetadataScanEntry alloc] init];
-        entry.track = track;
-        entry.url = track.url;
-        entry.playlistIndex = playlistIndex;
         [self enqueueScanMaterialization:entry];
         return;
     }

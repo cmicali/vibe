@@ -57,7 +57,7 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
 @property (nonatomic, strong, nullable) AudioWorkToken *workToken;
 @property (nonatomic, strong) NSMutableArray<AudioFileOpenToken *> *unclaimedTokens;
 @property (nonatomic) BOOL materializationRegistered;
-@property (nonatomic) uint64_t sequence;
+@property (nonatomic) uint64_t runGeneration;
 @property (nonatomic) BOOL runWasCancelled;
 @property (nonatomic) CFAbsoluteTime submittedAt;
 @end
@@ -375,14 +375,13 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
 }
 
 - (void)startClaim:(VibeAudioFileOpenClaim *)claim {
-    claim.sequence++;
-    uint64_t sequence = claim.sequence;
+    claim.runGeneration++;
+    uint64_t runGeneration = claim.runGeneration;
     claim.runWasCancelled = NO;
     claim.submittedAt = CFAbsoluteTimeGetCurrent();
     claim.materializationRegistered = claim.purpose == VibeAudioFileOpenPurposeGapless;
     if (claim.purpose == VibeAudioFileOpenPurposeGapless) {
-        [claim.waiter markClaimed];
-        [self scheduleAudioFileOpenForClaim:claim sequence:sequence];
+        [self scheduleAudioFileOpenForClaim:claim runGeneration:runGeneration];
         return;
     }
 
@@ -398,22 +397,22 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
                registered:^{
         AudioFileOpenCoordinator *strongSelf = weakSelf;
         if (strongSelf) {
-            [strongSelf materializationRegisteredForClaim:claim sequence:sequence];
+            [strongSelf materializationRegisteredForClaim:claim runGeneration:runGeneration];
         }
     } completion:^(VibeAudioFileMaterializationResult result,
                    NSError *error, NSTimeInterval elapsed) {
         AudioFileOpenCoordinator *strongSelf = weakSelf;
         if (strongSelf) {
-            [strongSelf materializationSettledForClaim:claim sequence:sequence
+            [strongSelf materializationSettledForClaim:claim runGeneration:runGeneration
                                                 result:result error:error];
         }
     }];
 }
 
 - (void)materializationRegisteredForClaim:(VibeAudioFileOpenClaim *)claim
-                                  sequence:(uint64_t)sequence {
+                             runGeneration:(uint64_t)runGeneration {
     VibeAudioFileOpenClaim *current = _claims[claim.key];
-    if (current != claim || current.sequence != sequence) {
+    if (current != claim || current.runGeneration != runGeneration) {
         return;
     }
     current.materializationRegistered = YES;
@@ -453,11 +452,11 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
 }
 
 - (void)materializationSettledForClaim:(VibeAudioFileOpenClaim *)claim
-                               sequence:(uint64_t)sequence
+                          runGeneration:(uint64_t)runGeneration
                                  result:(VibeAudioFileMaterializationResult)result
                                   error:(NSError *)error {
     VibeAudioFileOpenClaim *current = _claims[claim.key];
-    if (current != claim || current.sequence != sequence) {
+    if (current != claim || current.runGeneration != runGeneration) {
         return;
     }
     current.materializationToken = nil;
@@ -466,10 +465,10 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
         // A completed operation necessarily passed central registration. Make
         // this robust to a zero-duration fake whose completion delivery raced
         // its asynchronous registration delivery.
-        [self materializationRegisteredForClaim:current sequence:sequence];
+        [self materializationRegisteredForClaim:current runGeneration:runGeneration];
     }
     if (result == VibeAudioFileMaterializationResultReady) {
-        [self scheduleAudioFileOpenForClaim:current sequence:sequence];
+        [self scheduleAudioFileOpenForClaim:current runGeneration:runGeneration];
         return;
     }
     for (AudioFileOpenToken *token in current.unclaimedTokens) {
@@ -478,11 +477,11 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
     [current.unclaimedTokens removeAllObjects];
     NSError *reported = [self openErrorForMaterializationResult:result underlying:error];
     NSTimeInterval elapsed = CFAbsoluteTimeGetCurrent() - current.submittedAt;
-    [self finishClaim:current sequence:sequence file:nil error:reported elapsed:elapsed];
+    [self finishClaim:current runGeneration:runGeneration file:nil error:reported elapsed:elapsed];
 }
 
 - (void)scheduleAudioFileOpenForClaim:(VibeAudioFileOpenClaim *)claim
-                              sequence:(uint64_t)sequence {
+                         runGeneration:(uint64_t)runGeneration {
 
     AudioWorkScheduler *scheduler = claim.purpose == VibeAudioFileOpenPurposePlayback
             ? _playbackScheduler : _backgroundScheduler;
@@ -495,17 +494,18 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
         __block BOOL hasWaiter = NO;
         dispatch_sync(strongSelf->_stateQueue, ^{
             VibeAudioFileOpenClaim *current = strongSelf->_claims[claim.key];
-            hasWaiter = current == claim && current.sequence == sequence && current.waiter != nil;
+            hasWaiter = current == claim && current.runGeneration == runGeneration
+                    && current.waiter != nil;
         });
         if (!hasWaiter) {
-            [strongSelf finishClaim:claim sequence:sequence file:nil error:nil elapsed:0];
+            [strongSelf finishClaim:claim runGeneration:runGeneration file:nil error:nil elapsed:0];
             return;
         }
 
         NSError *error = nil;
         AVAudioFile *file = strongSelf->_fileOpener(claim.url, &error);
         NSTimeInterval elapsed = CFAbsoluteTimeGetCurrent() - claim.submittedAt;
-        [strongSelf finishClaim:claim sequence:sequence file:file error:error elapsed:elapsed];
+        [strongSelf finishClaim:claim runGeneration:runGeneration file:file error:error elapsed:elapsed];
     } failureQueue:_stateQueue admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
         AudioFileOpenCoordinator *strongSelf = weakSelf;
         if (!strongSelf) {
@@ -518,18 +518,18 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
                 code:VibeAudioFileOpenErrorAdmissionExhausted
                 userInfo:@{NSLocalizedDescriptionKey: description}];
         NSTimeInterval elapsed = CFAbsoluteTimeGetCurrent() - claim.submittedAt;
-        [strongSelf finishClaim:claim sequence:sequence file:nil error:error elapsed:elapsed];
+        [strongSelf finishClaim:claim runGeneration:runGeneration file:nil error:error elapsed:elapsed];
     }];
 }
 
 - (void)finishClaim:(VibeAudioFileOpenClaim *)claim
-            sequence:(uint64_t)sequence
+       runGeneration:(uint64_t)runGeneration
                 file:(AVAudioFile *)file
                error:(NSError *)error
              elapsed:(NSTimeInterval)elapsed {
     dispatch_async(_stateQueue, ^{
         VibeAudioFileOpenClaim *current = self->_claims[claim.key];
-        if (current != claim || current.sequence != sequence) {
+        if (current != claim || current.runGeneration != runGeneration) {
             return;
         }
         AudioFileOpenToken *waiter = current.waiter;

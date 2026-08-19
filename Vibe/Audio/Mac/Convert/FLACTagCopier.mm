@@ -129,7 +129,11 @@ BOOL VibeCopyTagsToFLAC(NSString *sourcePath, NSString *flacPath,
         if (TagLib::ID3v2::Tag *sourceTag = id3v2TagOf(source.get())) {
             if (TagLib::ID3v2::AttachedPictureFrame *cover = bestCoverFrame(sourceTag)) {
                 auto picture = std::make_unique<TagLib::FLAC::Picture>();
-                picture->setType(TagLib::FLAC::Picture::FrontCover);
+                // The frame's own type carries across — a fallback FileIcon
+                // must not be relabeled a front cover. Both enums come from
+                // TagLib's DECLARE_PICTURE_TYPE_ENUM, the shared ID3v2 APIC
+                // numbering, so the cast is value-preserving.
+                picture->setType(static_cast<TagLib::FLAC::Picture::Type>(cover->type()));
                 picture->setMimeType(cover->mimeType());
                 picture->setDescription(cover->description());
                 picture->setData(cover->picture());

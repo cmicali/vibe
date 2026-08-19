@@ -44,6 +44,7 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
 - (void)materializeSourceForRequest:(ArtworkLoadRequest *)request;
 - (void)scheduleAdmissionRetryForRequest:(ArtworkLoadRequest *)request;
 - (void)admitWaitingRequestIfPossible;
+- (BOOL)requestIsMoot:(ArtworkLoadRequest *)request;
 @end
 
 @implementation ArtworkLoadRegistry
@@ -101,6 +102,17 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
     // grow an orphaned tail behind an uncancellable provider read.
 }
 
+// Cancelled, demoted, or no longer wanted: this request's answer must not
+// reach its artwork or its completion.
+- (BOOL)requestIsMoot:(ArtworkLoadRequest *)request {
+    return request.stale ||
+            ![request.artwork isGenerationCurrent:request.artGeneration] ||
+            !request.stillWanted();
+}
+
+// Deliberately narrower than requestIsMoot:: a stale request is already being
+// torn down, and a demoted-but-wanted one must reach finishRequest:'s retry
+// tail rather than be cancelled here.
 - (void)pruneUnwantedRequests {
     for (ArtworkLoadRequest *waiting in [_waitingRequests copy]) {
         if (waiting.stale || waiting.stillWanted()) {
@@ -190,9 +202,7 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
             return;
         }
         request.materializationToken = nil;
-        if (request.stale ||
-                ![request.artwork isGenerationCurrent:request.artGeneration] ||
-                !request.stillWanted()) {
+        if ([strongSelf requestIsMoot:request]) {
             [strongSelf finishRequest:request image:nil];
             return;
         }
@@ -241,9 +251,7 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
         if (!strongSelf || ![strongSelf containsRequest:request]) {
             return;
         }
-        if (request.stale ||
-                ![request.artwork isGenerationCurrent:request.artGeneration] ||
-                !request.stillWanted()) {
+        if ([strongSelf requestIsMoot:request]) {
             [strongSelf finishRequest:request image:nil];
             return;
         }
@@ -256,9 +264,9 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
             _waitingRequests.count > 0) {
         ArtworkLoadRequest *request = _waitingRequests.firstObject;
         [_waitingRequests removeObjectAtIndex:0];
-        if (request.stale ||
-                ![request.artwork isGenerationCurrent:request.artGeneration] ||
-                !request.stillWanted()) {
+        if ([self requestIsMoot:request]) {
+            // Never activated, so there is no claim to release and no
+            // finishRequest: retry tail to run — drop it here.
             [request.artwork invalidateDecodedArtForGeneration:request.artGeneration];
             continue;
         }
@@ -299,9 +307,7 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
         }
         request.workToken = nil;
         request.workSubmitted = NO;
-        if (request.stale ||
-                ![request.artwork isGenerationCurrent:request.artGeneration] ||
-                !request.stillWanted()) {
+        if ([strongSelf requestIsMoot:request]) {
             [strongSelf finishRequest:request image:nil];
             return;
         }

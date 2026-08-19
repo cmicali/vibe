@@ -28,8 +28,10 @@ NS_ASSUME_NONNULL_BEGIN
     dispatch_queue_t _queue;
     // Presenters for FLACs only the related-item path could write, kept
     // registered for the session: the sandbox extension dies with the
-    // registration, leaving a just-written file unreadable. Converter-queue
-    // confined.
+    // registration, leaving a just-written file unreadable. Mutated only on
+    // the converter queue; created in init before publication, and dealloc's
+    // teardown iteration never races the queue because the app-lifetime
+    // instance is never released.
     NSMutableArray<VibeRelatedItemPresenter *> *_relatedItemPresenters;
 }
 @end

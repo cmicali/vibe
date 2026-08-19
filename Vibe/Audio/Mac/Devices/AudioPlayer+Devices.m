@@ -392,15 +392,14 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     }
 
     if (newDeviceID == kAudioObjectUnknown) {
-        // No output device is left at all. Following System Output remains an
-        // honest -1 choice, but an explicit unknown ID is never committed as
-        // though the HAL had accepted it.
-        LogError(@"Unable to resolve output device %@", @(outputDeviceID));
+        // The default read succeeded and answered "none": no output device
+        // exists at all. Only the -1 path can land here — every concrete id
+        // is a real enumerated device — so following System Output remains
+        // the honest committed choice while nothing exists to bind.
+        LogError(@"AudioPlayer: no output device exists to fall back to");
         [self parkPlaybackForMissingOutputDeviceOnQueue];
-        if (outputDeviceID < 0) {
-            self.currentlyRequestedAudioDeviceId = outputDeviceID;
-            [self notifyRequestedOutputDeviceOnQueue];
-        }
+        self.currentlyRequestedAudioDeviceId = outputDeviceID;
+        [self notifyRequestedOutputDeviceOnQueue];
         [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
                 @"Audio output device is unavailable", nil)];
         return NO;

@@ -538,23 +538,14 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     }
     // Devices without a UID keep an empty uid rather than a shared sentinel.
     // Two of them would collide on a sentinel, and a persisted sentinel would
-    // resolve to whichever enumerated first. outputDeviceForUID: skips empty
-    // queries, so resolution for these devices falls through to the name match.
+    // resolve to whichever enumerated first. +deviceForUID:name:inDevices:
+    // skips an empty UID query, so resolution for these devices falls through
+    // to the name match.
     *device = [[AudioDevice alloc] initWithName:name
                                             uid:uid ?: @""
                                        deviceId:(NSInteger)deviceID
                                 isSystemDefault:(deviceID == defaultID)];
     return YES;
-}
-
-// Both getters delegate to +deviceForUID:name:inDevices:, the single home of
-// the identity loops and of the empty-uid-sentinel skip.
-- (AudioDevice *)outputDeviceForName:(NSString *)name {
-    return [AudioDeviceManager deviceForUID:nil name:name inDevices:self.outputDevices];
-}
-
-- (AudioDevice *)outputDeviceForUID:(NSString *)uid {
-    return [AudioDeviceManager deviceForUID:uid name:nil inDevices:self.outputDevices];
 }
 
 - (AudioDevice *)outputDeviceForId:(NSInteger)deviceId {

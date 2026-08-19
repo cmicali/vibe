@@ -54,23 +54,18 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface DownloadProgressMonitor : NSObject
 
-// Observes url until cancelled or the file is fully materialized. The
-// monitor never triggers the download itself — the player's open does that.
-// handler runs on the main thread with fraction in [0, 1]; it fires only
-// when the value moves by at least a percent, and a final 1.0 fires when
-// materialization completes. Never fires after cancel. Main thread only,
-// like the delegate paths it feeds.
-- (instancetype)initWithURL:(NSURL *)url;
-- (void)startWithHandler:(void (^)(float fraction))handler;
-- (void)cancel;
-
-// The one way a screen starts one, because the guard below is the part both
-// were restating. It cancels `existing`, starts a fresh monitor for url, and
-// delivers a fraction ONLY while currentURL still answers url — a monitor
+// The one way a screen starts one. It cancels `existing`, starts a fresh
+// monitor observing url until cancelled or the file is fully materialized,
+// and delivers a fraction ONLY while currentURL still answers url — a monitor
 // outlives fast track changes, so a late sample would otherwise paint the
 // wrong track's loading bar. Returns the new monitor for the caller to hold
-// and later cancel. currentURL, movement, and handler all run on the main
-// thread.
+// and later cancel. The monitor never triggers the download itself — the
+// player's open does that. Main thread only, like the delegate paths it
+// feeds: currentURL, movement, and handler all run there.
+//
+// handler receives fraction in [0, 1]; it fires only when the value moves by
+// at least a percent, a final 1.0 fires when materialization completes, and
+// nothing fires after cancel.
 //
 // movement is the UNCOALESCED liveness feed: it fires on any finite, strictly
 // positive increase in the raw fraction, before the whole-percent gate the
@@ -83,6 +78,8 @@ NS_ASSUME_NONNULL_BEGIN
                       currentURL:(NSURL *_Nullable (^)(void))currentURL
                         movement:(nullable void (^)(void))movement
                          handler:(void (^)(float fraction))handler;
+
+- (void)cancel;
 
 @end
 

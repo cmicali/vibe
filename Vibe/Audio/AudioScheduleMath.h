@@ -16,7 +16,3 @@ static inline uint64_t VibeAudioFramesToSchedule(AVAudioFramePosition fileLength
 static inline AVAudioFrameCount VibeAudioScheduleChunkFrames(uint64_t remainingFrames) {
     return (AVAudioFrameCount)MIN(remainingFrames, (uint64_t)UINT32_MAX);
 }
-
-static inline uint64_t VibeAudioScheduleChunkCount(uint64_t frames) {
-    return frames / UINT32_MAX + (frames % UINT32_MAX != 0);
-}

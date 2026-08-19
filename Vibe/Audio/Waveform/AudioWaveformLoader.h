@@ -40,6 +40,10 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 
 - (instancetype)initWithDelegate:(id <AudioWaveformLoaderDelegate>)delegate;
 
+// The decode finished. Set on the decode thread before the final delivery
+// block reaches main (see CLAUDE.md on why detach must still cover it), and
+// the loader is not the only writer: the cache sets it on a disk hit, so the
+// detached-loader pool treats a hit like a finished decode.
 @property (atomic) BOOL isComplete;
 @property (atomic) BOOL isCancelled;
 // Superseded but still decoding: deliveries stop, the decode runs on and the

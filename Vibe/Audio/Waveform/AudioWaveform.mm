@@ -56,10 +56,8 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
     if (numChunksToCombine == 1) {
         return chunks[startIndex];
     }
-    // Clamp so we never read past the buffer.
-    if (startIndex + numChunksToCombine > numChunks) {
-        numChunksToCombine = numChunks - startIndex;
-    }
+    // In bounds by construction: endIndex = numChunks*(index+1)/size and
+    // index < size, so startIndex + numChunksToCombine = endIndex <= numChunks.
     if (numChunksToCombine < 16) {
         // vDSP setup overhead dominates for tiny strided ranges, so use a
         // plain loop.

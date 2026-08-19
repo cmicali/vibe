@@ -74,7 +74,7 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 @property (nonatomic) VibeMaterializationLane lane;
 @property (nonatomic) VibeMaterializationClaimState state;
 @property (nonatomic) uint64_t ordinal;
-@property (nonatomic) uint64_t runSequence;
+@property (nonatomic) uint64_t runGeneration;
 @property (nonatomic) NSTimeInterval deadline;
 @property (nonatomic) BOOL runWasCancelled;
 @property (nonatomic, strong, nullable) id<AudioFileMaterializationOperation> operation;
@@ -528,7 +528,7 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
             claim.effectiveRole = [self effectiveRoleForClaim:claim];
             if (claim.state == VibeMaterializationClaimStatePending
                     && claim.effectiveRole != oldRole) {
-                [self readmitPendingClaim:claim resetDeadline:YES];
+                [self readmitPendingClaim:claim];
             }
             [token deliverRegistration];
             [self drainPendingClaims];
@@ -640,22 +640,17 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
     [_backgroundPending removeObjectIdenticalTo:claim];
 }
 
-- (void)readmitPendingClaim:(VibeAudioFileMaterializationClaim *)claim
-              resetDeadline:(BOOL)resetDeadline {
-    NSTimeInterval oldDeadline = claim.deadline;
+- (void)readmitPendingClaim:(VibeAudioFileMaterializationClaim *)claim {
     [self removePendingClaim:claim];
     [self admitClaim:claim preserveExistingAdmission:YES];
-    if (!resetDeadline && claim.state == VibeMaterializationClaimStatePending) {
-        claim.deadline = oldDeadline;
-    }
 }
 
 - (void)startClaim:(VibeAudioFileMaterializationClaim *)claim {
     claim.state = VibeMaterializationClaimStateRunning;
     claim.lane = VibeLaneForRole(claim.effectiveRole);
-    claim.runSequence++;
+    claim.runGeneration++;
     claim.runWasCancelled = NO;
-    uint64_t runSequence = claim.runSequence;
+    uint64_t runGeneration = claim.runGeneration;
     if (claim.lane == VibeMaterializationLaneInteractive) {
         _interactiveRunningCount++;
     }
@@ -667,7 +662,7 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
             _operationFactory(claim.url, claim.effectiveRole);
     claim.operation = operation;
     if (!operation) {
-        [self finishClaim:claim runSequence:runSequence ready:NO
+        [self finishClaim:claim runGeneration:runGeneration ready:NO
                     error:[self missingFailureError]];
         return;
     }
@@ -683,17 +678,17 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
             return;
         }
         dispatch_async(strongSelf->_stateQueue, ^{
-            [strongSelf finishClaim:claim runSequence:runSequence ready:ready error:error];
+            [strongSelf finishClaim:claim runGeneration:runGeneration ready:ready error:error];
         });
     });
 }
 
 - (void)finishClaim:(VibeAudioFileMaterializationClaim *)claim
-          runSequence:(uint64_t)runSequence
+       runGeneration:(uint64_t)runGeneration
                 ready:(BOOL)ready
                 error:(NSError *)error {
     VibeAudioFileMaterializationClaim *current = _claims[claim.path];
-    if (current != claim || claim.runSequence != runSequence
+    if (current != claim || claim.runGeneration != runGeneration
             || claim.state != VibeMaterializationClaimStateRunning) {
         return;
     }
@@ -832,7 +827,7 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
             }
             else if (claim.state == VibeMaterializationClaimStatePending
                     && claim.effectiveRole != oldRole) {
-                [self readmitPendingClaim:claim resetDeadline:YES];
+                [self readmitPendingClaim:claim];
             }
         }
         [self drainPendingClaims];

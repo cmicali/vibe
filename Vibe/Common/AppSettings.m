@@ -120,6 +120,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
     self = [super init];
     if (self) {
         [self registerDefaults];
+        [self migrateLegacyWaveformStyle];
 #if TARGET_OS_OSX
         [self installHotCacheInvalidator];
 #endif
@@ -163,15 +164,18 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     return stored ? (legacy[stored] ?: stored) : nil;
 }
 
-- (NSString *)waveformStyle {
+// Migrate a legacy value in place, once at init, so the getter is a pure read.
+- (void)migrateLegacyWaveformStyle {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     NSString *stored = [defaults stringForKey:SETTING_WAVEFORM_STYLE];
     NSString *normalized = NormalizedWaveformStyle(stored);
-    // Migrate a legacy value in place on first read.
     if (stored && ![normalized isEqualToString:stored]) {
         [defaults setObject:normalized forKey:SETTING_WAVEFORM_STYLE];
     }
-    return normalized;
+}
+
+- (NSString *)waveformStyle {
+    return [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_STYLE];
 }
 
 - (void)setWaveformStyle:(NSString *)identifier {

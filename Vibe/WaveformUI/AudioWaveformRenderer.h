@@ -77,8 +77,8 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // The vertical band, in view coordinates, a click must land in to count as a
 // seek. AudioWaveformView queries it on mouseDown, and it is computed from the
 // given bounds alone: a pure function rather than per-draw mutable state, so
-// each renderer has exactly one band definition. The base is the middle 50% of
-// the height, and renderers with a known drawn extent override it.
+// each renderer has exactly one band definition, derived from its drawn
+// extent. Every renderer must override it; the base only asserts.
 - (CGRect)seekHitBandForBounds:(CGRect)bounds;
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;

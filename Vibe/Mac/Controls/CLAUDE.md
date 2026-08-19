@@ -8,7 +8,7 @@ A borderless momentary push button (`NSControl`) drawing an SF Symbol. It raster
 
 It fades to its highlight color on hover, dims to half that opacity while pressed, tracks a drag off and back, sends its action on mouse-up inside, and is click-through when disabled. Swapping `symbolName` redraws instantly with no fade.
 
-Each button sets its own `symbolPointSize` and the icon is drawn centered in the frame, so the 50pt transport hit targets carry icons of about 31pt.
+Each button sets its own `symbolPointSize` and the icon is drawn centered in the frame, so the 50pt transport hit targets carry symbols configured at 31pt, whose glyphs draw at roughly 0.8 times that (~25pt).
 
 ## Image views
 

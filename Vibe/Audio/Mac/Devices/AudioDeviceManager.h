@@ -50,8 +50,6 @@ NS_ASSUME_NONNULL_BEGIN
                               name:(NSString *)name
                         completion:(void (^)(AudioDevice * _Nullable device))completion;
 
-- (nullable AudioDevice *)outputDeviceForName:(NSString *)name;
-- (nullable AudioDevice *)outputDeviceForUID:(NSString *)uid;
 - (nullable AudioDevice *)outputDeviceForId:(NSInteger)deviceId;
 
 @end

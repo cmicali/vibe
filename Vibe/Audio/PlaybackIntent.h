@@ -26,7 +26,3 @@ static inline VibePendingPlaybackIntent VibePendingPlaybackIntentBySeeking(
     intent.position = MAX(0, position);
     return intent;
 }
-
-static inline BOOL VibePendingPlaybackIntentIsPlaying(VibePendingPlaybackIntent intent) {
-    return !intent.paused;
-}

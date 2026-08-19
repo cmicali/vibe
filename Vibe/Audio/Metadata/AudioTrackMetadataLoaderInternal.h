@@ -18,8 +18,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 typedef NS_ENUM(NSUInteger, VibeMetadataLane) {
     // The playlist-wide sweep. Utility QoS, cancelled and released wholesale on
-    // File > Close, and it remembers every track it queued so a re-drop does
-    // not re-scan the same rows.
+    // File > Close, and it remembers every track it queued so one drop cannot
+    // queue a repeated row twice; across drops, track.metadata.parsedOK is what
+    // skips already-scanned rows.
     VibeMetadataLaneScan,
     // The jump-the-queue lane for the track the user just started. Lives for
     // the cache's lifetime, never cancelled, user-initiated QoS, and remembers

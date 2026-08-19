@@ -19,9 +19,10 @@ NS_ASSUME_NONNULL_BEGIN
 // SF Symbol name (e.g. "play.fill"). Swapping it redraws instantly, no fade.
 @property (nonatomic, copy) NSString *symbolName;
 
-// Point size the symbol is configured at; it is drawn centered in the bounds,
-// so the frame can be much larger than the icon (the transport buttons are
-// 50pt frames around ~26pt symbols).
+// Point size the symbol is configured at — SF Symbol glyphs draw at roughly
+// 0.8 times it. The icon is drawn centered in the bounds, so the frame can be
+// much larger (the transport buttons are 50pt frames around 31pt-configured,
+// ~25pt-drawn symbols).
 @property (nonatomic) CGFloat symbolPointSize;
 @property (nonatomic) NSFontWeight symbolWeight;
 

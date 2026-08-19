@@ -265,6 +265,9 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         copy->_thumbnailDecoder = [_thumbnailDecoder copy];
         copy->_embeddedArtKnown = _embeddedArtKnown;
         copy->_embeddedUndecodable = _embeddedUndecodable;
+        // Known-and-decodable re-arms extraction, since the copy carries no
+        // full-size bytes; known-undecodable stays settled; unknown or artless
+        // inherits.
         copy->_embeddedExtractionSettled = _embeddedArtKnown
                 ? _embeddedUndecodable : _embeddedExtractionSettled;
     }
