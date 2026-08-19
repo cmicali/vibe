@@ -113,9 +113,9 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     // The pitch fader and its range setting are macOS-only; iOS never leaves
     // the default, so there is no setting to agree with.
     checked++;
-    if (fabsf(player.maxPitch - Settings.pitchRange) > 0.001f) {
+    if (fabsf(player.maxPitch - AppSettings.sharedInstance.pitchRange) > 0.001f) {
         VibeDebugViolation(v, @"player.max_pitch_matches_setting",
-                @"player maxPitch %.4f, setting %ld", player.maxPitch, (long)Settings.pitchRange);
+                @"player maxPitch %.4f, setting %ld", player.maxPitch, (long)AppSettings.sharedInstance.pitchRange);
     }
 #endif
 
@@ -242,7 +242,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     // violation. The caller's settle-and-re-check is what filters that, the
     // same way it filters an in-flight metadata parse above.
     checked++;
-    if ([surface.debugMetadataCache debugCloudParsesHeld]
+    if ([surface.debugMetadataCache debugBackgroundMaterializationHeld]
             && player.isStopped && !isLoading) {
         VibeDebugViolation(v, @"cloud.hold_outlives_playback",
                 @"cloud lane held with the player stopped and no open in flight");

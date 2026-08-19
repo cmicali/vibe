@@ -4,6 +4,7 @@
 //
 
 #import "SettingsAdvancedViewController.h"
+#import "AppSettings.h"
 #import "AppStats.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
@@ -36,7 +37,9 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     NSArray<NSString *> *rateTitles = @[STR_SETTINGS_REFRESH_RATE_LOW,
                                         STR_SETTINGS_REFRESH_RATE_NORMAL,
                                         STR_SETTINGS_REFRESH_RATE_HIGH];
-    for (NSUInteger i = 0; i < rateTitles.count; i++) {
+    NSAssert(rateTitles.count == kVibeUIUpdateHzCapPresetCount,
+             @"Every refresh-rate preset needs a title");
+    for (size_t i = 0; i < kVibeUIUpdateHzCapPresetCount; i++) {
         [_refreshRatePopUp addItemWithTitle:rateTitles[i]];
         _refreshRatePopUp.lastItem.tag = kVibeUIUpdateHzCapPresets[i];
     }
@@ -61,7 +64,7 @@ static const CGFloat kAdvancedPopUpWidth = 200;
 
 - (void)refreshFromSettings {
     // The getter snaps to a preset, so this always matches an item.
-    [_refreshRatePopUp selectItemWithTag:Settings.uiUpdateHzCap];
+    [_refreshRatePopUp selectItemWithTag:AppSettings.sharedInstance.uiUpdateHzCap];
     [self refreshCacheSize];
     [self refreshPlaybackStats];
 }
@@ -69,7 +72,7 @@ static const CGFloat kAdvancedPopUpWidth = 200;
 #pragma mark - Playhead refresh
 
 - (void)refreshRateChanged:(id)sender {
-    Settings.uiUpdateHzCap = _refreshRatePopUp.selectedTag;
+    AppSettings.sharedInstance.uiUpdateHzCap = _refreshRatePopUp.selectedTag;
     // The live half: the timer re-arms at once, without waiting for the next
     // track start or resize to recompute the rate.
     [self.playerController syncUITimerRate];

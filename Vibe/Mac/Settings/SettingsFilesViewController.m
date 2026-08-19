@@ -130,7 +130,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     [_tableView reloadData];
     _removeButton.enabled = _tableView.selectedRowIndexes.count > 0;
     [self refreshCommonFolderMenu];
-    NSString *albumArtSource = Settings.useFolderArt ? kAlbumArtFolder : kAlbumArtFileOnly;
+    NSString *albumArtSource = AppSettings.sharedInstance.useFolderArt ? kAlbumArtFolder : kAlbumArtFileOnly;
     [_albumArtPopUp selectItemAtIndex:[_albumArtPopUp indexOfItemWithRepresentedObject:albumArtSource]];
 }
 
@@ -269,7 +269,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 #pragma mark - Actions
 
 - (void)albumArtSourceChanged:(id)sender {
-    Settings.useFolderArt = [_albumArtPopUp.selectedItem.representedObject isEqual:kAlbumArtFolder];
+    AppSettings.sharedInstance.useFolderArt = [_albumArtPopUp.selectedItem.representedObject isEqual:kAlbumArtFolder];
     [self.playerController refreshFolderArt];
 }
 

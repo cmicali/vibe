@@ -178,30 +178,4 @@
                           @"the streaming and whole-listing forms rank identically");
 }
 
-#pragma mark - When the fallback applies
-
-// The guarantee behind "a tagged library never opens a cover file".
-
-- (void)testAFileWithArtOfItsOwnIsNeverKnownArtless {
-    XCTAssertFalse(VibeFileIsKnownToCarryNoArt(YES, NO, NO));
-    XCTAssertFalse(VibeFileIsKnownToCarryNoArt(YES, YES, NO), @"even once extraction has run");
-}
-
-- (void)testUnknownIsNotArtless {
-    // Nothing found yet and nothing looked for: the folder must not step in,
-    // or it would stand in front of art that is about to appear.
-    XCTAssertFalse(VibeFileIsKnownToCarryNoArt(NO, NO, NO));
-}
-
-- (void)testArtlessOnceExtractionHasRunAndFoundNothing {
-    XCTAssertTrue(VibeFileIsKnownToCarryNoArt(NO, YES, NO));
-}
-
-- (void)testUndecodableArtCountsAsArtlessEvenWhileBytesRemain {
-    // Permanent for the file's content, so the folder's cover is the better
-    // showing — and this must hold even though the bytes are still in hand.
-    XCTAssertTrue(VibeFileIsKnownToCarryNoArt(YES, YES, YES));
-    XCTAssertTrue(VibeFileIsKnownToCarryNoArt(NO, NO, YES));
-}
-
 @end

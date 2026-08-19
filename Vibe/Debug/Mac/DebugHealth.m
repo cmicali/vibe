@@ -26,6 +26,7 @@
 #import "AppDelegate.h"
 #import "OpenRequestCoordinator.h"
 #import "AudioTrackMetadataCache.h"
+#import "ArtworkDisplayController+Debug.h"
 #import "MainPlayerController+Debug.h"
 #import "MainPlayerController+NowPlaying.h"   // displayState, displayedTrack
 #import "TrackDisplayController.h"
@@ -176,8 +177,8 @@ static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerControl
     // settled is the whole sweep suspended — the hold is set when a slow open
     // starts and cleared when it settles, so any teardown that loses the
     // clearing edge shows up here and nowhere else.
-    out[@"cloudParsesPending"] = @([controller.metadataCache debugPendingCloudParseCount]);
-    out[@"cloudLaneHeld"] = @([controller.metadataCache debugCloudParsesHeld] ? 1 : 0);
+    out[@"cloudParsesPending"] = @([controller.metadataCache debugPendingBackgroundMaterializationCount]);
+    out[@"cloudLaneHeld"] = @([controller.metadataCache debugBackgroundMaterializationHeld] ? 1 : 0);
     return out;
 }
 
@@ -328,9 +329,9 @@ void VibeDebugQuiesce(MainPlayerController *controller, void (^completion)(NSStr
 
 #pragma mark - check_consistency
 
-// The macOS-only checks: the header labels the mac renders, the pitch fader,
-// the playlist table's row count, and the scaled UI tick rate. Everything that
-// holds on both platforms is VibeDebugCheckShared, in
+// The macOS-only checks: the header labels and artwork the mac renders, the
+// pitch fader, the playlist table's row count, and the scaled UI tick rate.
+// Everything that holds on both platforms is VibeDebugCheckShared, in
 // Debug/DebugConsistency.m, and `check_consistency` runs that first and
 // this through the surface protocol's optional hook.
 //
@@ -374,13 +375,53 @@ NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *v,
                 (unsigned long)armedHz, (unsigned long)expectedHz);
     }
 
+    // ---- Header artwork against the settled display track ----
+
+    AudioTrack *shown = [controller displayedTrack];
+    AudioTrackMetadata *metadata = shown.metadata;
+    NSImage *cachedArt = metadata.cachedArt;
+    BOOL metadataArtworkSettled = metadata && !metadata.artNeedsLoad &&
+            !metadata.artLoadPending;
+    ArtworkDisplayController *artwork = controller.debugArtworkController;
+    AudioTrack *target = artwork.debugArtworkTargetTrack;
+    AudioTrackMetadata *targetMetadata = artwork.debugArtworkTargetMetadata;
+    NSImage *targetArt = artwork.debugArtworkTargetArt;
+    BOOL targetIsCurrent = target == shown && targetMetadata == metadata &&
+            targetArt == cachedArt;
+    if (state == TrackDisplayStateTrack && shown && metadataArtworkSettled &&
+            targetIsCurrent && !artwork.debugArtworkRenderPending) {
+        AudioTrack *owner = artwork.debugInstalledArtworkOwnerTrack;
+        AudioTrackMetadata *installedMetadata = artwork.debugInstalledArtworkMetadata;
+        NSImage *installedSource = artwork.debugInstalledArtworkSource;
+        if (cachedArt != nil) {
+            checked++;
+            if (owner != shown || installedMetadata != metadata ||
+                    installedSource != cachedArt) {
+                VibeDebugViolation(v, @"artwork.owner_matches_displayed_track",
+                        @"header track %@, installed owner %@; metadata %@, source %@",
+                        shown.url.lastPathComponent ?: @"(nil)",
+                        owner.url.lastPathComponent ?: @"(nil)",
+                        installedMetadata == metadata ? @"current" : @"stale",
+                        installedSource == cachedArt ? @"current" : @"stale");
+            }
+        }
+        else {
+            checked++;
+            if (!artwork.debugShowingDefaultArtwork) {
+                VibeDebugViolation(v, @"artwork.default_matches_artless_track",
+                        @"header track %@ settled without art; installed owner %@",
+                        shown.url.lastPathComponent ?: @"(nil)",
+                        owner.url.lastPathComponent ?: @"(nil)");
+            }
+        }
+    }
+
     // ---- Header labels against the resolved state ----
 
     NSString *title = display.titleTextField.stringValue ?: @"";
     NSString *artist = display.artistTextField.stringValue ?: @"";
 
     if (state == TrackDisplayStateTrack || state == TrackDisplayStateLoading) {
-        AudioTrack *shown = [controller displayedTrack];
         checked++;
         NSString *expectedTitle = shown.hasArtistAndTitle ? shown.title : shown.singleLineTitle;
         if (shown && ![title isEqualToString:expectedTitle ?: @""]) {

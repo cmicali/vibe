@@ -4,6 +4,7 @@
 //
 
 #import "SettingsConvertViewController.h"
+#import "AppSettings.h"
 #import "VibeStrings.h"
 
 static const CGFloat kConvertPaneHeight = 160;
@@ -36,16 +37,16 @@ static const CGFloat kConvertPopUpWidth = 220;
 }
 
 - (void)refreshFromSettings {
-    [_destinationPopUp selectItemWithTag:Settings.convertAsksWhereToSave ? 1 : 0];
-    _deleteOriginalCheckbox.state = Settings.deleteOriginalAfterConvert ? NSControlStateValueOn : NSControlStateValueOff;
+    [_destinationPopUp selectItemWithTag:AppSettings.sharedInstance.convertAsksWhereToSave ? 1 : 0];
+    _deleteOriginalCheckbox.state = AppSettings.sharedInstance.deleteOriginalAfterConvert ? NSControlStateValueOn : NSControlStateValueOff;
 }
 
 - (void)destinationChanged:(id)sender {
-    Settings.convertAsksWhereToSave = (_destinationPopUp.selectedTag == 1);
+    AppSettings.sharedInstance.convertAsksWhereToSave = (_destinationPopUp.selectedTag == 1);
 }
 
 - (void)toggleDeleteOriginal:(id)sender {
-    Settings.deleteOriginalAfterConvert = (_deleteOriginalCheckbox.state == NSControlStateValueOn);
+    AppSettings.sharedInstance.deleteOriginalAfterConvert = (_deleteOriginalCheckbox.state == NSControlStateValueOn);
 }
 
 @end

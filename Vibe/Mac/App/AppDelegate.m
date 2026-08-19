@@ -7,6 +7,7 @@
 //
 
 #import "AppDelegate.h"
+#import "AppSettings.h"
 #import "MainPlayerController.h"
 #import "NSURLUtil.h"
 #import "AboutWindowController.h"
@@ -317,7 +318,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 }
 
 - (void)applyAuxiliaryWindowLevels {
-    NSWindowLevel level = Settings.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel;
+    NSWindowLevel level = AppSettings.sharedInstance.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel;
     self.aboutWindowController.window.level = level;
     self.settingsWindowController.window.level = level;
 }

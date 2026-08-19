@@ -19,6 +19,7 @@
 #import "TrackDisplayController.h"
 
 @class AudioTrack;
+@class ArtworkDisplayController;
 @class SymbolButton;
 @class PitchControlPanel;
 @class MainPlayerContentView;
@@ -39,6 +40,9 @@ NS_ASSUME_NONNULL_BEGIN
 // check_consistency compares the table's row count against the playlist's,
 // which is the only way to catch a reloadData the model never got.
 @property (weak, readonly) PlaylistTableView *playlistTableView;
+// The artwork ownership oracle reads the renderer's exact target, installed
+// owner, default and pending state through its own Debug declaration header.
+@property (strong, readonly) ArtworkDisplayController *debugArtworkController;
 
 // The header's resolved state, and the track it describes — nil while the
 // empty or error state is up. dump_state reports both, and check_consistency

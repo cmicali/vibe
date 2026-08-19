@@ -35,7 +35,8 @@ NSUInteger VibeAudioLevelAnalyzerFFTSize(const VibeAudioLevelAnalyzer *analyzer)
 // reports the maximum normalized level seen per band. Shared spectrum converts
 // each band's summed energy to energy per octave, averages it over the completed
 // windows, then advances its one reference for the full analyzed duration and
-// normalizes all five once.
+// normalizes all five once. Balanced spectrum computes both summaries from one
+// FFT per window and lets gated relative activity assist the shared result.
 NSUInteger VibeAudioLevelAnalyzerConsume(VibeAudioLevelAnalyzer *analyzer,
                                          float * _Nonnull const * _Nonnull channels,
                                          NSUInteger channelCount,

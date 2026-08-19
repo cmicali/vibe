@@ -414,7 +414,7 @@ static const NSUInteger kUIUpdateHz = 3;
 
 // The ranking itself — which neighbors, in what order — is the cache's, so
 // both shells send the same one; see setNeighborhoodAroundIndex:inTracks:. It
-// only matters on the cloud lane, where each parse is a whole file coming down
+// only matters on the scan lane, where each parse may pull a whole file down
 // a wire and the sweep would otherwise work through the folder in filename
 // order however far that is from where the user actually is. Re-sent on every
 // current-index change, which is the one funnel every play, skip and
@@ -506,7 +506,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
           selectedURL:(NSURL *)selectedURL
              restored:(BOOL)restored {
     [_playlist replaceAllWithURLs:urls];
-    [_metadataCache cancelAll];
+    [_metadataCache cancelScan];
     [self scheduleDeferredMetadataLoad];
 
     if (selectedURL) {

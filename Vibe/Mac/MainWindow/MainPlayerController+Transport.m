@@ -5,6 +5,7 @@
 
 #import "MainPlayerController+Transport.h"
 #import "MainPlayerControllerInternal.h"
+#import "AppSettings.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Seek.h"
 #import "AudioFX.h"
@@ -26,7 +27,7 @@ static const NSTimeInterval kSkipMostSeconds = 60.0;
 @implementation MainPlayerController (Transport)
 
 static double SkipBaseBars(void) {
-    NSInteger base = Settings.skipBaseBars;
+    NSInteger base = AppSettings.sharedInstance.skipBaseBars;
     return base > 0 ? (double)base : 8.0;
 }
 

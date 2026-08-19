@@ -27,6 +27,10 @@ static const CGFloat kDragHysteresis = 3;
     }
 }
 
+- (BOOL)acceptsFirstMouse:(NSEvent *)event {
+    return self.fileURL != nil;
+}
+
 - (void)mouseDown:(NSEvent *)event {
 
     _pendingDragEvent = nil;

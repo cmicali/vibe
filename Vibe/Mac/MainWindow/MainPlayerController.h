@@ -75,34 +75,34 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (IBAction)setPitchRange:(id)sender;
 
-// Pushes Settings.pitchRange to the player and the fader UI. The Settings
+// Pushes AppSettings.sharedInstance.pitchRange to the player and fader UI. The Settings
 // pane calls it after writing the setting; the menu action funnels through it
 // too.
 - (void)applyPitchRange;
 
-// Re-renders the time labels after Settings.showRemainingTime changes
+// Re-renders the time labels after AppSettings.sharedInstance.showRemainingTime changes
 // somewhere other than the label click, i.e. the Settings pane.
 - (void)refreshTimeDisplay;
 
-// Re-renders the key half of the BPM line after Settings.keyNotation changes,
+// Re-renders the key half of the BPM line after AppSettings.sharedInstance.keyNotation changes,
 // i.e. from the Settings pane.
 - (void)refreshKeyDisplay;
 
 // Re-scales the playback-UI tick rate to the playhead's on-screen speed. It
 // runs from the internal paths whose inputs it reads — a track start, a fader
 // tick, a resize — and is public for the one input that lives elsewhere,
-// Settings.uiUpdateHzCap, which the Settings pane writes.
+// AppSettings.sharedInstance.uiUpdateHzCap, which the Settings pane writes.
 - (void)syncUITimerRate;
 
 - (IBAction)toggleFileInfo:(nullable id)sender;
 
-// Re-renders the codec and BPM/key lines after Settings.showFileInfo changes.
+// Re-renders the codec and BPM/key lines after AppSettings.sharedInstance.showFileInfo changes.
 // The Settings pane calls it after writing the setting; the menu action
 // funnels through it too.
 - (void)refreshFileInfoDisplay;
 
 // Drops FolderArtResolver's decoded covers and redraws, after
-// Settings.useFolderArt changes. Cheap: nothing per track holds a cover, so
+// AppSettings.sharedInstance.useFolderArt changes. Cheap: nothing per track holds a cover, so
 // only the folders still on screen are decoded again, in the background, with
 // no file re-parsed and no cache touched.
 - (void)refreshFolderArt;

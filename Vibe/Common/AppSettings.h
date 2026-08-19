@@ -2,8 +2,8 @@
 // Created by Christopher Micali on 12/30/19.
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
-// Every persisted preference, as properties over NSUserDefaults, reached
-// through the `Settings` macro in the prefix header.
+// Every persisted preference, as properties over NSUserDefaults. Callers
+// import this header explicitly so their dependency is visible.
 //
 // THE PLATFORM SPLIT IS ONE BLOCK, not a guard per property. Almost everything
 // here is a macOS preference, because almost everything it configures — the
@@ -39,9 +39,12 @@
 // normalize-on-read like keyNotation, so the pane's selection, the engine,
 // and the skip math always agree instead of the pane displaying one value
 // while the audio uses another.
-static const NSInteger kVibeSkipBasePresets[] = {4, 8, 16};
-static const NSInteger kVibeCrossfadePresets[] = {10, 500, 2000};
-static const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
+FOUNDATION_EXPORT const NSInteger kVibeSkipBasePresets[];
+FOUNDATION_EXPORT const size_t kVibeSkipBasePresetCount;
+FOUNDATION_EXPORT const NSInteger kVibeCrossfadePresets[];
+FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
+FOUNDATION_EXPORT const NSInteger kVibeUIUpdateHzCapPresets[];
+FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 
 #endif  // TARGET_OS_OSX
 
@@ -49,7 +52,7 @@ static const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
 
 #pragma mark - Both platforms
 
-+ (AppSettings*)sharedInstance;
+@property(class, nonatomic, readonly) AppSettings *sharedInstance;
 
 // Both app delegates call this; its body is macOS-only today.
 - (void)applicationDidFinishLaunching;

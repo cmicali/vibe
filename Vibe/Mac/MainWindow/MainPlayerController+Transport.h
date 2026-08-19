@@ -14,7 +14,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MainPlayerController (Transport)
 
 // Seeks relative to the current position. With a known tempo the three sizes
-// are Settings.skipBaseBars, twice it and four times it; without one they fall
+// are AppSettings.sharedInstance.skipBaseBars, twice it and four times it;
+// without one they fall
 // back to fixed wall-clock distances, the units the time labels show. Going
 // forward past the end advances to the next track, or stops at the end of the
 // playlist; going back before the start seeks to 0.

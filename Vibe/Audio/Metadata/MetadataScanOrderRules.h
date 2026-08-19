@@ -1,9 +1,9 @@
 //
-//  CloudParseOrderRules.h
+//  MetadataScanOrderRules.h
 //  Vibe
 //
-//  Which pending cloud parse the serial lane runs next. Because that lane is
-//  one download at a time, this ordering is the whole of what it decides —
+//  Which pending scan miss is materialized next. Because that lane admits one
+//  file at a time, this ordering is the whole of what it decides —
 //  and the tail used to have none: every non-neighborhood entry shared one
 //  NSOperationQueue priority, whose ties the queue resolves arbitrarily, so a
 //  folder of large evicted files downloaded in whatever order the four
@@ -14,7 +14,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@protocol VibeCloudParseOrderCandidate <NSObject>
+@protocol MetadataScanOrderCandidate <NSObject>
 @property (nonatomic, readonly) BOOL deferred;
 @property (nonatomic, readonly) NSUInteger playlistIndex;
 @property (nonatomic, readonly, copy) NSURL *url;
@@ -26,7 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 // built. A deferred retry sorts below everything: it has already failed once,
 // so every track that has not tried yet goes first, however the neighborhood
 // moves.
-static inline BOOL VibeCloudParseOrderedBefore(
+static inline BOOL VibeMetadataScanOrderedBefore(
         BOOL aDeferred, NSUInteger aRank, NSUInteger aIndex,
         BOOL bDeferred, NSUInteger bRank, NSUInteger bIndex) {
     if (aDeferred != bDeferred) {
@@ -38,14 +38,10 @@ static inline BOOL VibeCloudParseOrderedBefore(
     return aIndex < bIndex;
 }
 
-// Exact one-pass selection from everything still pending. Excluding a URL
-// excludes every duplicate row for that path at once; otherwise a fixed-size
-// candidate window can be filled by duplicates of one blocked path and park
-// even though an unblocked entry exists immediately after the window.
-static inline id<VibeCloudParseOrderCandidate> _Nullable VibeBestCloudParseCandidate(
-        NSArray<id<VibeCloudParseOrderCandidate>> *candidates,
-        NSArray<NSURL *> *neighborhood,
-        NSSet<NSURL *> *excludedURLs) {
+// Exact one-pass selection from everything still pending.
+static inline id<MetadataScanOrderCandidate> _Nullable VibeBestMetadataScanCandidate(
+        NSArray<id<MetadataScanOrderCandidate>> *candidates,
+        NSArray<NSURL *> *neighborhood) {
     NSMutableDictionary<NSURL *, NSNumber *> *rankByURL =
             [NSMutableDictionary dictionaryWithCapacity:neighborhood.count];
     [neighborhood enumerateObjectsUsingBlock:^(NSURL *url, NSUInteger rank, BOOL *stop) {
@@ -54,15 +50,12 @@ static inline id<VibeCloudParseOrderCandidate> _Nullable VibeBestCloudParseCandi
         }
     }];
 
-    id<VibeCloudParseOrderCandidate> best = nil;
+    id<MetadataScanOrderCandidate> best = nil;
     NSUInteger bestRank = NSNotFound;
-    for (id<VibeCloudParseOrderCandidate> candidate in candidates) {
-        if ([excludedURLs containsObject:candidate.url]) {
-            continue;
-        }
+    for (id<MetadataScanOrderCandidate> candidate in candidates) {
         NSNumber *found = rankByURL[candidate.url];
         NSUInteger rank = found != nil ? found.unsignedIntegerValue : NSNotFound;
-        if (!best || VibeCloudParseOrderedBefore(
+        if (!best || VibeMetadataScanOrderedBefore(
                 candidate.deferred, rank, candidate.playlistIndex,
                 best.deferred, bestRank, best.playlistIndex)) {
             best = candidate;

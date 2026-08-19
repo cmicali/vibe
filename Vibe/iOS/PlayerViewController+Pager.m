@@ -18,7 +18,6 @@
 
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
-#import "AudioTrackMetadata+ArtLoad.h"
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
@@ -337,10 +336,12 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
         return;
     }
     [_playback loadMetadataNowForTrack:track];   // no-op once parsed
+    AudioTrackMetadata *metadata = track.metadata;
     __weak PlayerViewController *weakSelf = self;
-    [track.metadata dispatchArtLoadIfNeededStillWanted:^BOOL{
+    [metadata loadArtIfNeededStillWanted:^BOOL{
         // A dead controller answers "not wanted", which demotes the decode.
-        return [weakSelf artStillWantedForTrack:track atIndex:index];
+        return track.metadata == metadata &&
+                [weakSelf artStillWantedForTrack:track atIndex:index];
     } completion:^(VibeImage *loaded) {
         PlayerViewController *self = weakSelf;
         if (!self || !loaded) {

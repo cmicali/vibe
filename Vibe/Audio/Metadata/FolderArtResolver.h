@@ -40,40 +40,9 @@ NS_ASSUME_NONNULL_BEGIN
 // answer is pending, and would otherwise leave it there.
 extern NSNotificationName const FolderArtDidResolveNotification;
 
-typedef BOOL (^FolderArtEnabledProvider)(void);
-typedef BOOL (^FolderArtAccessProvider)(NSString *directory);
-typedef NSArray<NSString *> * _Nullable (^FolderArtDirectoryLister)(NSString *directory);
-typedef BOOL (^FolderArtFileInfoProvider)(NSString *path,
-                                               unsigned long long * _Nullable size);
-typedef NSData * _Nullable (^FolderArtDataReader)(NSString *path);
-typedef VibeImage * _Nullable (^FolderArtDecoder)(NSData *data, CGFloat maxPixelSize);
-
 @interface FolderArtResolver : NSObject
 
 + (instancetype)sharedInstance;
-
-// Dependency injection for deterministic resolver tests. Production uses the
-// shared instance and the ordinary initializer.
-- (instancetype)initWithEnabledProvider:(FolderArtEnabledProvider)enabledProvider
-                         accessProvider:(FolderArtAccessProvider)accessProvider
-                                 lister:(FolderArtDirectoryLister)lister
-                               fileInfo:(FolderArtFileInfoProvider)fileInfo
-                             dataReader:(FolderArtDataReader)dataReader
-                                decoder:(FolderArtDecoder)decoder NS_DESIGNATED_INITIALIZER;
-
-// Uses production filesystem validation and decoding with injected policy.
-- (instancetype)initWithEnabledProvider:(FolderArtEnabledProvider)enabledProvider
-                         accessProvider:(FolderArtAccessProvider)accessProvider;
-
-// Diagnostic surface used to enforce the resolver's bounded bookkeeping.
-@property (nonatomic, readonly) NSUInteger recordedDirectoryCount;
-
-// Diagnostic: what this folder has settled on — the cover's full path, the
-// empty string for "settled, it has none", or nil for "not looked at yet".
-// Answers from memory and touches nothing. Lets a test see what a folder walk
-// handed over, which is otherwise invisible: the walk's answers are paths, and
-// nothing decodes until something asks for pixels.
-- (nullable NSString *)settledArtPathForDirectory:(nullable NSString *)directory;
 
 // The playlist-cell thumbnail for this file's folder, or nil while unknown or
 // when the folder has no cover. **Never blocks, never touches the file system,
@@ -124,16 +93,12 @@ typedef VibeImage * _Nullable (^FolderArtDecoder)(NSData *data, CGFloat maxPixel
 // toggle off and on would lose the art for every other spelling.
 - (void)folderArtSettingDidChange;
 
-// Forgets everything: answers, images and the cached setting. Diagnostic — a
-// settled answer only goes stale if the disk changes under it, which the next
-// launch settles anyway.
-- (void)invalidate;
-
-// Forgets only the folders left alone for want of a grant — the right answer to
-// a grant *arriving*, which can unlock a folder the resolver declined to touch
-// but cannot change a cover already found. A full invalidate here is actively
-// harmful: opening a folder auto-adds its grant milliseconds later, so wiping
-// everything discards the covers that same open's walk harvested for free.
+// Reconsiders only access-dependent answers: folders left unresolved for want
+// of a grant, and known cover paths whose reads were paused after a scope ended.
+// The latter keep their donated path and recheck access before the next read. A
+// full invalidate here is actively harmful: opening a folder auto-adds its grant
+// milliseconds later, so wiping everything discards the covers that same open's
+// walk harvested for free.
 - (void)invalidateDirectoriesSettledWithoutGrant;
 
 @end

@@ -44,91 +44,6 @@ typedef struct {
 // quarter.
 static const vector_float3 kRedLightViewPos = { -8.0f, -6.0f, -20.0f };
 
-static NSString *const kShaderSource =
-    @"#include <metal_stdlib>\n"
-     "using namespace metal;\n"
-     "struct Inst { float4 home; float4 scatter; float4 attr; };\n"
-     "struct Uniforms {\n"
-     "    float4x4 model; float4x4 view; float4x4 projection;\n"
-     "    float4 params; float4 lightView;\n"
-     "};\n"
-     "struct VOut {\n"
-     "    float4 position [[position]];\n"
-     "    float2 uv;\n"
-     "    float3 centerView;\n" // ball centre in view space, for lighting
-     "};\n"
-     "vertex VOut vb_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],\n"
-     "                      constant Inst *instances [[buffer(0)]],\n"
-     "                      constant Uniforms &u [[buffer(1)]]) {\n"
-     "    float2 corner = float2((vid & 1u) ? 1.0 : -1.0, (vid & 2u) ? 1.0 : -1.0);\n"
-     "    constant Inst &inst = instances[iid];\n"
-     "    float t = u.params.x;\n"
-     "    float3 p = mix(inst.scatter.xyz, inst.home.xyz, t);\n"
-     "    // Gentle travelling wave across the word once the intro has landed.\n"
-     "    p.y += sin(u.params.z * 1.7 + inst.home.x * 0.55) * 0.28 * t;\n"
-     "    float4 centerView = u.view * (u.model * float4(p, 1.0));\n"
-     "    float4 viewPos = centerView;\n"
-     "    viewPos.xy += corner * inst.attr.x;\n" // billboard, per-dot radius
-     "    VOut out;\n"
-     "    out.position = u.projection * viewPos;\n"
-     "    out.uv = corner;\n"
-     "    out.centerView = centerView.xyz;\n"
-     "    return out;\n"
-     "}\n"
-     // A procedural studio environment, sampled by the mirror reflection
-     // vector and standing in for a chrome cubemap: a floor-to-sky gradient, a
-     // broad overhead softbox, and two sharp light streaks that give chrome
-     // its signature pop.
-     "float3 vb_env(float3 d) {\n"
-     "    d = normalize(d);\n"
-     "    float up = d.y * 0.5 + 0.5;\n"
-     "    float3 col = mix(float3(0.10, 0.11, 0.14), float3(0.80, 0.86, 1.00), up);\n"
-     "    col += smoothstep(0.30, 1.0, d.y) * float3(1.0, 1.05, 1.2);\n"        // broad overhead softbox
-     "    float key = smoothstep(0.88, 0.999, dot(d, normalize(float3(0.55, 0.65, 0.52))));\n"
-     "    col += key * float3(3.2, 3.0, 2.7);\n"                                 // hot key glint
-     "    float fill = smoothstep(0.84, 1.0, dot(d, normalize(float3(-0.7, 0.15, 0.35))));\n"
-     "    col += fill * float3(0.7, 0.85, 1.1);\n"                               // cool fill streak
-     "    col += clamp(-d.y, 0.0, 1.0) * float3(0.14, 0.10, 0.08);\n"           // warm floor bounce
-     "    return col;\n"
-     "}\n"
-     "fragment float4 vb_fragment(VOut in [[stage_in]], constant Uniforms &u [[buffer(1)]]) {\n"
-     "    float r2 = dot(in.uv, in.uv);\n"
-     "    if (r2 > 1.0) discard_fragment();\n"
-     "    float r = sqrt(r2);\n"
-     "    // Flat top with a beveled rim so each dot reads as an embossed disc.\n"
-     "    float slope = smoothstep(0.74, 1.0, r);\n"
-     "    float2 dir = r > 1e-4 ? in.uv / r : float2(0.0);\n"
-     "    float3 n = normalize(float3(dir * slope * 2.1, 1.0));\n"
-     "    // Perfect-mirror chrome (metallic 1.0, roughness 0.0): reflect the view\n"
-     "    // vector about the normal and sample the environment directly (no blur).\n"
-     "    float3 vdir = float3(0.0, 0.0, 1.0);\n"          // surface -> camera
-     "    float3 R = reflect(-vdir, n);\n"
-     "    float3x3 rot = float3x3(u.model[0].xyz, u.model[1].xyz, u.model[2].xyz);\n"
-     "    float3 Rw = rot * R + float3(in.centerView.xy * 0.02, 0.0);\n" // world-anchored + per-dot parallax
-     "    float3 envc = vb_env(Rw);\n"
-     "    // Schlick Fresnel with a chrome F0; a pure metal has no diffuse term.\n"
-     "    float3 F0 = float3(0.95, 0.96, 0.98);\n"
-     "    float ct = clamp(dot(n, vdir), 0.0, 1.0);\n"
-     "    float3 F = F0 + (1.0 - F0) * pow(1.0 - ct, 5.0);\n"
-     "    float3 c = envc * F;\n"
-     "    // Red point light from the bottom-left. On a mirror metal it reads as a\n"
-     "    // red specular hit plus a faint wash, and the quadratic attenuation\n"
-     "    // keeps it on the dots nearest the lamp (lower-left quarter).\n"
-     "    float3 Lv = u.lightView.xyz - in.centerView;\n"
-     "    float ldist = length(Lv);\n"
-     "    float3 Ldir = Lv / max(ldist, 1e-3);\n"
-     "    float latten = 1.0 / (1.0 + 0.05 * ldist * ldist);\n"
-     "    float3 Hl = normalize(Ldir + vdir);\n"
-     "    float rspec = pow(max(dot(n, Hl), 0.0), 28.0);\n"
-     "    float rdiff = max(dot(n, Ldir), 0.0);\n"
-     "    c += float3(1.0, 0.06, 0.05) * (rspec * 5.0 + rdiff * 0.7) * latten;\n"
-     "    // Depth cue: fade distant dots toward the dark record background.\n"
-     "    float depth = -in.centerView.z;\n"
-     "    float fade = clamp((depth - 16.0) / 20.0, 0.0, 1.0);\n"
-     "    c = mix(c, float3(0.03, 0.03, 0.04), fade);\n"
-     "    return float4(c, 1.0);\n"
-     "}\n";
-
 #pragma mark - Matrix helpers
 
 static matrix_float4x4 vb_perspective(float fovyRadians, float aspect, float nearZ, float farZ) {
@@ -195,24 +110,88 @@ static float vb_random01(void) {
     return self;
 }
 
-// Compile the shader source once per process. The view is deliberately rebuilt
-// on every About open, in AboutWindowController, and the source front-end
-// compile is the expensive part of the setup. Main thread only, since it is
-// called from the view's init. The library is device-bound, so a changed
-// default device, after an eGPU unplug, simply recompiles.
-static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
-    static id<MTLLibrary> cached;
-    if (cached && cached.device == device) {
-        return cached;
-    }
-    NSError *error = nil;
-    id<MTLLibrary> library = [device newLibraryWithSource:kShaderSource options:nil error:&error];
-    if (!library) {
-        LogError(@"VectorBallsView: shader compile failed: %@", error.localizedDescription);
-        return nil;
-    }
-    cached = library;
-    return library;
+typedef void (^VibeVectorBallsPipelineCompletion)(
+        id<MTLRenderPipelineState> pipeline);
+
+// The shader stays a readable bundle resource, while compilation and pipeline
+// creation run on one utility queue. The queue also owns the device-bound
+// cache, so a rapid close/reopen joins the first compile without main-thread
+// synchronization.
+static void VibeRequestVectorBallsPipeline(
+        id<MTLDevice> device,
+        MTLPixelFormat colorFormat,
+        MTLPixelFormat depthFormat,
+        NSUInteger sampleCount,
+        VibeVectorBallsPipelineCompletion completion) {
+    static dispatch_queue_t queue;
+    static id<MTLDevice> cachedDevice;
+    static id<MTLRenderPipelineState> cachedPipeline;
+    static MTLPixelFormat cachedColorFormat;
+    static MTLPixelFormat cachedDepthFormat;
+    static NSUInteger cachedSampleCount;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        queue = dispatch_queue_create("com.vibe.vector-balls-pipeline",
+                                      DISPATCH_QUEUE_SERIAL);
+        dispatch_set_target_queue(queue,
+                dispatch_get_global_queue(QOS_CLASS_UTILITY, 0));
+    });
+
+    dispatch_async(queue, ^{
+        id<MTLRenderPipelineState> pipeline = nil;
+        if (cachedPipeline && cachedDevice == device &&
+                cachedColorFormat == colorFormat &&
+                cachedDepthFormat == depthFormat &&
+                cachedSampleCount == sampleCount) {
+            pipeline = cachedPipeline;
+        }
+        else {
+            NSURL *sourceURL = [NSBundle.mainBundle URLForResource:@"VectorBalls.metal"
+                                                     withExtension:@"txt"];
+            NSError *error = nil;
+            NSString *source = sourceURL
+                    ? [NSString stringWithContentsOfURL:sourceURL
+                                              encoding:NSUTF8StringEncoding
+                                                 error:&error]
+                    : nil;
+            if (!source) {
+                LogError(@"VectorBallsView: shader source unavailable: %@",
+                         error.localizedDescription ?: @"missing resource");
+            }
+            id<MTLLibrary> library = source
+                    ? [device newLibraryWithSource:source options:nil error:&error]
+                    : nil;
+            if (!library) {
+                LogError(@"VectorBallsView: shader compile failed: %@",
+                         error.localizedDescription);
+            }
+            if (library) {
+                MTLRenderPipelineDescriptor *desc =
+                        [[MTLRenderPipelineDescriptor alloc] init];
+                desc.vertexFunction = [library newFunctionWithName:@"vb_vertex"];
+                desc.fragmentFunction = [library newFunctionWithName:@"vb_fragment"];
+                desc.colorAttachments[0].pixelFormat = colorFormat;
+                desc.depthAttachmentPixelFormat = depthFormat;
+                desc.rasterSampleCount = sampleCount;
+                pipeline = [device newRenderPipelineStateWithDescriptor:desc
+                                                                  error:&error];
+                if (!pipeline) {
+                    LogError(@"VectorBallsView: pipeline creation failed: %@",
+                             error.localizedDescription);
+                }
+            }
+            if (pipeline) {
+                cachedDevice = device;
+                cachedPipeline = pipeline;
+                cachedColorFormat = colorFormat;
+                cachedDepthFormat = depthFormat;
+                cachedSampleCount = sampleCount;
+            }
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(pipeline);
+        });
+    });
 }
 
 - (void)setupMetal {
@@ -232,37 +211,32 @@ static id<MTLLibrary> VibeVectorBallsLibrary(id<MTLDevice> device) {
         self.sampleCount = 4;
     }
 
-    NSError *error = nil;
-    id<MTLLibrary> library = VibeVectorBallsLibrary(self.device);
-    if (!library) {
-        return;
-    }
+    id<MTLDevice> device = self.device;
+    __weak VectorBallsView *weakSelf = self;
+    VibeRequestVectorBallsPipeline(device,
+                                   self.colorPixelFormat,
+                                   self.depthStencilPixelFormat,
+                                   self.sampleCount,
+                                   ^(id<MTLRenderPipelineState> pipeline) {
+        VectorBallsView *strongSelf = weakSelf;
+        if (!strongSelf || !pipeline || strongSelf.device != device) {
+            return;
+        }
+        // The balls are opaque, since depth is a darkening cue rather than
+        // transparency, so a plain depth test sorts them correctly.
+        MTLDepthStencilDescriptor *depthDesc =
+                [[MTLDepthStencilDescriptor alloc] init];
+        depthDesc.depthCompareFunction = MTLCompareFunctionLess;
+        depthDesc.depthWriteEnabled = YES;
 
-    MTLRenderPipelineDescriptor *desc = [[MTLRenderPipelineDescriptor alloc] init];
-    desc.vertexFunction = [library newFunctionWithName:@"vb_vertex"];
-    desc.fragmentFunction = [library newFunctionWithName:@"vb_fragment"];
-    desc.colorAttachments[0].pixelFormat = self.colorPixelFormat;
-    desc.depthAttachmentPixelFormat = self.depthStencilPixelFormat;
-    desc.rasterSampleCount = self.sampleCount;
-    id<MTLRenderPipelineState> pipeline = [self.device newRenderPipelineStateWithDescriptor:desc error:&error];
-    if (!pipeline) {
-        LogError(@"VectorBallsView: pipeline creation failed: %@", error.localizedDescription);
-        return;
-    }
-
-    // The balls are opaque, since depth is a darkening cue rather than
-    // transparency, so a plain depth test sorts them correctly with no CPU
-    // work.
-    MTLDepthStencilDescriptor *depthDesc = [[MTLDepthStencilDescriptor alloc] init];
-    depthDesc.depthCompareFunction = MTLCompareFunctionLess;
-    depthDesc.depthWriteEnabled = YES;
-
-    _commandQueue = [self.device newCommandQueue];
-    _pipeline = pipeline;
-    _depthState = [self.device newDepthStencilStateWithDescriptor:depthDesc];
-    [self buildInstances];
-    _startTime = CACurrentMediaTime();
-    self.delegate = self;
+        strongSelf->_commandQueue = [device newCommandQueue];
+        strongSelf->_pipeline = pipeline;
+        strongSelf->_depthState =
+                [device newDepthStencilStateWithDescriptor:depthDesc];
+        [strongSelf buildInstances];
+        strongSelf->_startTime = CACurrentMediaTime();
+        strongSelf.delegate = strongSelf;
+    });
 }
 
 - (void)buildInstances {

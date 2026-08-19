@@ -5,7 +5,7 @@
 #import <XCTest/XCTest.h>
 
 #import "FolderArtRules.h"
-#import "FolderArtResolver.h"
+#import "FolderArtResolverInternal.h"
 
 @interface FolderArtResolverTests : XCTestCase
 @end
@@ -588,6 +588,59 @@
 
     XCTAssertEqualObjects([resolver displayImageForAudioFilePath:track], decoded);
     XCTAssertEqual(listings, 0u, @"the walk's answer should have been used, not re-resolved");
+}
+
+// A donated cover path can outlive the scope that made the listing. If its
+// decoded images are later evicted, reopening that known path still requires a
+// currently active grant; the path itself survives so restoring access does not
+// demote a cover.png to the lone-file .jpg probes.
+- (void)testARevokedGrantBlocksKnownCoverReadsUntilAccessReturns {
+    __block BOOL granted = YES;
+    __block NSUInteger reads = 0;
+    __block NSUInteger probes = 0;
+    NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
+    FolderArtResolver *resolver = [[FolderArtResolver alloc]
+            initWithEnabledProvider:^BOOL{
+        return YES;
+    } accessProvider:^BOOL(NSString *directory) {
+        return granted;
+    } lister:^NSArray<NSString *> *(NSString *directory) {
+        return @[];
+    } fileInfo:^BOOL(NSString *path, unsigned long long *size) {
+        probes++;
+        return NO;
+    } dataReader:^NSData *(NSString *path) {
+        reads++;
+        return [NSData dataWithBytes:"x" length:1];
+    } decoder:^NSImage *(NSData *data, CGFloat maxPixelSize) {
+        return decoded;
+    }];
+    NSString *directory = @"/Library/Albums/Revoked";
+    NSString *track = [directory stringByAppendingPathComponent:@"track.mp3"];
+    NSString *cover = [directory stringByAppendingPathComponent:@"cover.png"];
+    [resolver noteListedDirectories:[NSSet setWithObject:directory]
+             artFilenameByDirectory:@{directory: @"cover.png"}];
+
+    XCTAssertEqualObjects([resolver displayImageForAudioFilePath:track], decoded);
+    XCTAssertEqual(reads, 1u);
+    [resolver folderArtSettingDidChange]; // deterministically evicts decoded images
+
+    granted = NO;
+    [resolver invalidateDirectoriesSettledWithoutGrant];
+    XCTAssertNil([resolver displayImageForAudioFilePath:track]);
+    XCTAssertEqual(reads, 1u, @"revocation must be observed before the file reader runs");
+    XCTAssertFalse([resolver needsBackgroundLoadForAudioFilePath:track],
+                   @"a blocked path must not dispatch again on every UI pass");
+    XCTAssertNil([resolver displayImageForAudioFilePath:track]);
+    XCTAssertEqual(reads, 1u);
+
+    granted = YES;
+    [resolver invalidateDirectoriesSettledWithoutGrant];
+    XCTAssertTrue([resolver needsBackgroundLoadForAudioFilePath:track]);
+    XCTAssertEqualObjects([resolver displayImageForAudioFilePath:track], decoded);
+    XCTAssertEqual(reads, 2u);
+    XCTAssertEqual(probes, 0u, @"restoring access must reuse the donated cover path");
+    XCTAssertEqualObjects([resolver settledArtPathForDirectory:directory], cover);
 }
 
 // The other half: a folder skipped for want of a grant is exactly what a grant

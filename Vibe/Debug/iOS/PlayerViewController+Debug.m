@@ -54,7 +54,7 @@
             @"metadata": @(metadata != nil),
             @"art": @(track.cachedArt != nil),
             @"needsLoad": @(metadata.artNeedsLoad),
-            @"loading": @(metadata.artLoadDispatched),
+            @"loading": @(metadata.artLoadPending),
             @"inWindow": @(NSLocationInRange(index, window)),
             @"cellUp": @([self cellAtIndex:index] != nil),
         }];

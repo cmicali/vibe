@@ -9,6 +9,7 @@
 
 #import <notify.h>
 #import <unistd.h>
+#import "AppSettings.h"
 #import "DebugWireFormat.h"
 
 // The CLI half of the debug command channel: VibeDebugCommandClientMain, which
@@ -145,7 +146,7 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
                 fprintf(stderr, "usage: Vibe --debug-cmd set_appearance <light|dark|system>\n");
                 return 64;
             }
-            Settings.windowAppearanceStyle = value;
+            AppSettings.sharedInstance.windowAppearanceStyle = value;
             // Short-lived process: force the cfprefsd flush before exit.
             [NSUserDefaults.standardUserDefaults synchronize];
             VibeClientPrintReply(VibeJSONString(@{@"ok": @YES, @"windowAppearance": args[1]}), inScript);
@@ -170,8 +171,8 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
                 fprintf(stderr, "usage: Vibe --debug-cmd set_key_display <camelot|musical> <colors|plain>\n");
                 return 64;
             }
-            Settings.keyNotation = notation;
-            Settings.keyColorsEnabled = colorsOn;
+            AppSettings.sharedInstance.keyNotation = notation;
+            AppSettings.sharedInstance.keyColorsEnabled = colorsOn;
             [NSUserDefaults.standardUserDefaults synchronize];
             VibeClientPrintReply(VibeJSONString(@{@"ok": @YES, @"keyNotation": notation,
                                                   @"keyColors": @(colorsOn)}), inScript);
@@ -193,15 +194,15 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
                 return 64;
             }
             if (isBPM) {
-                Settings.analyzeBPM = on;
+                AppSettings.sharedInstance.analyzeBPM = on;
             }
             else {
-                Settings.analyzeKey = on;
+                AppSettings.sharedInstance.analyzeKey = on;
             }
             [NSUserDefaults.standardUserDefaults synchronize];
             VibeClientPrintReply(VibeJSONString(@{@"ok": @YES,
-                                                  @"analyzeBPM": @(Settings.analyzeBPM),
-                                                  @"analyzeKey": @(Settings.analyzeKey)}), inScript);
+                                                  @"analyzeBPM": @(AppSettings.sharedInstance.analyzeBPM),
+                                                  @"analyzeKey": @(AppSettings.sharedInstance.analyzeKey)}), inScript);
             return 0;
         }
         NSString *commandId = NSUUID.UUID.UUIDString;

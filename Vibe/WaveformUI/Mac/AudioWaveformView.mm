@@ -86,6 +86,10 @@
 }
 
 - (void)mouseDown:(NSEvent *)event {
+    _didClickInside = NO;
+    if (!_waveform || !_currentWaveformRenderer || self.bounds.size.width <= 0) {
+        return;
+    }
     NSPoint e = [event locationInWindow];
     NSPoint mouseLoc = [self convertPoint:e fromView:nil];
     if ([self mouse:mouseLoc inRect:self.bounds]) {
@@ -101,6 +105,9 @@
         return;
     }
     _didClickInside = NO;
+    if (!_waveform || !_currentWaveformRenderer || self.bounds.size.width <= 0) {
+        return;
+    }
     NSPoint e = [event locationInWindow];
     NSPoint mouseLoc = [self convertPoint:e fromView:nil];
     if ([self mouse:mouseLoc inRect:[self bounds]]) {
@@ -211,6 +218,7 @@
 // must not survive, and redraw, themselves.
 - (void)resetWaveformContentState {
     [self hideHoverIndicator];
+    _didClickInside = NO;
     _convertSweepFraction = 0;
     _waveform = nil;
     self.progress = 0;

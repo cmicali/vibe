@@ -1,16 +1,16 @@
 //
-//  MetadataMaterializationRetryRulesTests.m
+//  MetadataRetryRulesTests.m
 //  VibeTests
 //
 
 #import <XCTest/XCTest.h>
 
-#import "MetadataMaterializationRetryRules.h"
+#import "MetadataRetryRules.h"
 
-@interface MetadataMaterializationRetryRulesTests : XCTestCase
+@interface MetadataRetryRulesTests : XCTestCase
 @end
 
-@implementation MetadataMaterializationRetryRulesTests
+@implementation MetadataRetryRulesTests
 
 - (void)testYieldRequeuesAtCurrentRankWithoutSpendingAttemptBudget {
     for (NSUInteger failures = 0; failures < 8; failures++) {
@@ -60,6 +60,26 @@
     XCTAssertEqual(VibeMetadataMaterializationRetryForResult(
             VibeAudioFileMaterializationResultReady, 0, 3),
             VibeMetadataMaterializationRetryNone);
+}
+
+- (void)testNoRetriesStillAllowsTheInitialAttempt {
+    XCTAssertEqual(VibeMetadataMaximumAttemptsForRetryCount(0), 1u);
+}
+
+- (void)testProductionRetryCountAllowsThreeTotalAttempts {
+    XCTAssertEqual(VibeMetadataMaximumAttemptsForRetryCount(2), 3u);
+}
+
+- (void)testHostileMaximumRetryCountSaturates {
+    XCTAssertEqual(VibeMetadataMaximumAttemptsForRetryCount(NSUIntegerMax),
+                   NSUIntegerMax);
+}
+
+- (void)testAdmissionRetryDelayIsPositiveAndBounded {
+    XCTAssertEqualWithAccuracy(VibeMetadataAdmissionRetryDelay(0), 0.25, 0.001);
+    XCTAssertEqualWithAccuracy(VibeMetadataAdmissionRetryDelay(1), 0.5, 0.001);
+    XCTAssertEqualWithAccuracy(VibeMetadataAdmissionRetryDelay(7), 2.0, 0.001);
+    XCTAssertEqualWithAccuracy(VibeMetadataAdmissionRetryDelay(NSUIntegerMax), 2.0, 0.001);
 }
 
 - (void)testDidStartRecordedBeforeDelayedYieldDeliveryRequestsRetry {

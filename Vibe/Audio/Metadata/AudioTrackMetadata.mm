@@ -4,8 +4,9 @@
 //
 
 #import "AudioTrackMetadata.h"
+#import "AudioTrackMetadataInternal.h"
+#import "AudioTrackArtworkInternal.h"
 #import "NSString+CPPStrings.h"
-#import "AudioTrackArtwork.h"
 #import "MusicalKey.h"
 #import "Formatters.h"
 #import "VibeStrings.h"
@@ -136,13 +137,21 @@ private:
 
 } // namespace
 
-static NSString *fileTypeForTagLibFile(TagLib::File *file);
+static VibeAudioFileFormat _Nullable fileTypeForTagLibFile(TagLib::File *file);
 static NSData *albumArtDataFromTagLibFile(TagLib::File *file);
 static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 
 // Writable inside the class, and atomic like every other field here, since it
 // is built on a worker thread and read from main.
 @interface AudioTrackMetadata ()
+@property (copy, nullable, readwrite) NSString *title;
+@property (copy, nullable, readwrite) NSString *artist;
+@property (copy, nullable, readwrite) VibeAudioFileFormat fileType;
+@property (copy, nullable, readwrite) NSNumber *bitrate;
+@property (copy, nullable, readwrite) NSNumber *sampleRate;
+@property (assign, readwrite) NSTimeInterval duration;
+@property (assign, readwrite) float bpm;
+@property (assign, readwrite) VibeMusicalKey key;
 @property (assign) BOOL parsedOK;
 // The whole art lifecycle lives in AudioTrackArtwork, and the art API below
 // delegates to it one for one. Both initializers create it, so it is never nil
@@ -175,13 +184,8 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 
 #endif
 
-// The art accessors delegate to AudioTrackArtwork, which owns the lazy
-// decode, discard and re-read state machine. AudioTrackMetadata.h documents
-// the contracts.
-- (VibeImage *)loadArtBlocking {
-    return [self.artwork loadArtBlocking];
-}
-
+// The display-facing art API delegates to AudioTrackArtwork, which owns the
+// lazy decode, request and discard state machines.
 - (VibeImage *)cachedArt {
     return [self.artwork cachedArt];
 }
@@ -190,28 +194,50 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     return [self.artwork artNeedsLoad];
 }
 
-- (void)discardArtData {
-    [self.artwork discardArtData];
+- (BOOL)isArtLoadPending {
+    return self.artwork.isArtLoadPending;
+}
+
+- (void)loadArtIfNeededStillWanted:(BOOL (^)(void))stillWanted
+                        completion:(void (^)(VibeImage *_Nullable))completion {
+    [self.artwork loadArtIfNeededWithLabel:self.title
+                               stillWanted:stillWanted completion:completion];
 }
 
 - (void)discardDecodedArt {
     [self.artwork discardDecodedArt];
-    // A UI-side dispatch flag, main thread only, which stays out of
-    // AudioTrackArtwork.
-    self.artLoadDispatched = NO;
 }
 
 - (VibeImage *)cachedThumbnail {
     return [self.artwork cachedThumbnail];
 }
 
-- (void)prewarmEmbeddedThumbnail {
-    [self.artwork prewarmEmbeddedThumbnail];
+- (instancetype)initForCopy {
+    self = [super init];
+    if (self) {
+        self.key = VibeMusicalKeyNone;
+    }
+    return self;
+}
+
+- (id)copyWithZone:(NSZone *)zone {
+    AudioTrackMetadata *copy = [[[self class] allocWithZone:zone] initForCopy];
+    copy.title = self.title;
+    copy.artist = self.artist;
+    copy.fileType = self.fileType;
+    copy.bitrate = self.bitrate;
+    copy.sampleRate = self.sampleRate;
+    copy.duration = self.duration;
+    copy.bpm = self.bpm;
+    copy.key = self.key;
+    copy.parsedOK = self.parsedOK;
+    copy.artwork = [self.artwork copy];
+    return copy;
 }
 
 // The archive stays small, at roughly 5-20KB per track, so that the disk cache
-// holds thousands of tracks: it carries only the thumbnail as a compressed
-// JPEG, plus the scalar fields. The art bytes are deliberately not archived,
+// holds thousands of tracks: it carries only the thumbnail as compressed
+// PNG or JPEG data, plus the scalar fields. The original art is not archived,
 // because at their original sizes they blow the cache's byte limit and turn
 // every launch into a full TagLib re-parse of the library.
 //
@@ -223,7 +249,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 - (void)encodeWithCoder:(NSCoder *)coder {
     [coder encodeObject:self.title forKey:@"title"];
     [coder encodeObject:self.artist forKey:@"artist"];
-    [coder encodeObject:[self thumbnailJPEGData] forKey:@"thumbnailJPEG"];
+    [coder encodeObject:[self encodedThumbnailData] forKey:@"thumbnailJPEG"];
     [coder encodeBool:self.artwork.hasEmbeddedArt forKey:@"hasEmbeddedArt"];
     [coder encodeObject:self.artwork.sourceFilePath forKey:@"sourceFilePath"];
     [coder encodeObject:self.fileType forKey:@"fileType"];
@@ -251,14 +277,14 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
         // allowed, since these are all optional fields.
         id title = [coder decodeObjectForKey:@"title"];
         id artist = [coder decodeObjectForKey:@"artist"];
-        id thumbnailJPEG = [coder decodeObjectForKey:@"thumbnailJPEG"];
+        id encodedThumbnail = [coder decodeObjectForKey:@"thumbnailJPEG"];
         id sourceFilePath = [coder decodeObjectForKey:@"sourceFilePath"];
         id fileType = [coder decodeObjectForKey:@"fileType"];
         id bitrate = [coder decodeObjectForKey:@"bitrate"];
         id sampleRate = [coder decodeObjectForKey:@"sampleRate"];
         if (title && ![title isKindOfClass:[NSString class]]) return nil;
         if (artist && ![artist isKindOfClass:[NSString class]]) return nil;
-        if (thumbnailJPEG && ![thumbnailJPEG isKindOfClass:[NSData class]]) return nil;
+        if (encodedThumbnail && ![encodedThumbnail isKindOfClass:[NSData class]]) return nil;
         if (sourceFilePath && ![sourceFilePath isKindOfClass:[NSString class]]) return nil;
         if (fileType && ![fileType isKindOfClass:[NSString class]]) return nil;
         if (bitrate && ![bitrate isKindOfClass:[NSNumber class]]) return nil;
@@ -270,8 +296,8 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
         // Entries written before the flag existed carry no key, which decodes
         // as NO; there a thumbnail is still the proof that the file has art,
         // exactly as it used to be. Both platforms read both forms.
-        BOOL hasEmbeddedArt = [coder decodeBoolForKey:@"hasEmbeddedArt"] || thumbnailJPEG != nil;
-        [self.artwork adoptArchivedThumbnailJPEG:thumbnailJPEG hasEmbeddedArt:hasEmbeddedArt];
+        BOOL hasEmbeddedArt = [coder decodeBoolForKey:@"hasEmbeddedArt"] || encodedThumbnail != nil;
+        [self.artwork adoptArchivedThumbnailData:encodedThumbnail hasEmbeddedArt:hasEmbeddedArt];
         self.fileType = fileType;
         self.bitrate = bitrate;
         self.sampleRate = sampleRate;
@@ -297,7 +323,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     return self;
 }
 
-- (NSData *)thumbnailJPEGData {
+- (NSData *)encodedThumbnailData {
     // The file's own art only. Folder art must never be archived; see
     // AudioTrackArtwork.embeddedThumbnail.
     VibeImage *thumbnail = [self.artwork embeddedThumbnail];
@@ -349,7 +375,10 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 }
 
 + (AudioTrackMetadata *)metadataWithURL:(NSURL *)url {
-    return [[AudioTrackMetadata alloc] initWithURL:url];
+    AudioTrackMetadata *metadata = [[AudioTrackMetadata alloc] initWithURL:url];
+    [metadata.artwork prewarmEmbeddedThumbnail];
+    [metadata.artwork discardArtData];
+    return metadata;
 }
 
 - (void)loadFromURL:(NSURL*)url {
@@ -434,31 +463,31 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 // The codec label for the format dispatch. It is a free function rather than a
 // method so that it cannot touch instance state: the on-demand art re-read
 // shares the dispatch and must never mutate the displayed fileType.
-static NSString *fileTypeForTagLibFile(TagLib::File *file) {
+static VibeAudioFileFormat _Nullable fileTypeForTagLibFile(TagLib::File *file) {
     if (auto mpeg = dynamic_cast<TagLib::MPEG::File*>(file)) {
         // .mp2 and .aac open as MPEG::File too, and the header tells them
         // apart: ADTS is AAC, layer 2 is MP2 and layer 3 is MP3.
         if (auto props = mpeg->audioProperties()) {
-            if (props->isADTS()) return FILETYPE_AAC;
-            if (props->layer() == 2) return FILETYPE_MP2;
+            if (props->isADTS()) return VibeAudioFileFormatAAC;
+            if (props->layer() == 2) return VibeAudioFileFormatMP2;
         }
-        return FILETYPE_MP3;
+        return VibeAudioFileFormatMP3;
     }
     if (dynamic_cast<TagLib::FLAC::File*>(file)) {
-        return FILETYPE_FLAC;
+        return VibeAudioFileFormatFLAC;
     }
     if (auto mp4 = dynamic_cast<TagLib::MP4::File*>(file)) {
         auto props = mp4->audioProperties();
         if (props && props->codec() == TagLib::MP4::Properties::ALAC) {
-            return FILETYPE_ALAC;
+            return VibeAudioFileFormatALAC;
         }
-        return FILETYPE_MP4;
+        return VibeAudioFileFormatMP4;
     }
     if (dynamic_cast<TagLib::RIFF::AIFF::File*>(file)) {
-        return FILETYPE_AIFF;
+        return VibeAudioFileFormatAIFF;
     }
     if (dynamic_cast<TagLib::RIFF::WAV::File*>(file)) {
-        return FILETYPE_WAV;
+        return VibeAudioFileFormatWAV;
     }
     return nil;
 }
@@ -528,10 +557,10 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void) {
 }
 
 - (bool)isLossless {
-    if ([FILETYPE_FLAC isEqualToString:self.fileType]) return YES;
-    if ([FILETYPE_ALAC isEqualToString:self.fileType]) return YES;
-    if ([FILETYPE_AIFF isEqualToString:self.fileType]) return YES;
-    if ([FILETYPE_WAV isEqualToString:self.fileType]) return YES;
+    if ([VibeAudioFileFormatFLAC isEqualToString:self.fileType]) return YES;
+    if ([VibeAudioFileFormatALAC isEqualToString:self.fileType]) return YES;
+    if ([VibeAudioFileFormatAIFF isEqualToString:self.fileType]) return YES;
+    if ([VibeAudioFileFormatWAV isEqualToString:self.fileType]) return YES;
     return NO;
 }
 

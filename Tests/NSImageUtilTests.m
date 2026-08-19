@@ -68,4 +68,14 @@
     XCTAssertNil([[[NSImage alloc] initWithSize:NSZeroSize] squareCroppedImage]);
 }
 
+- (void)testSameSizeResizeCreatesAPrivateRaster {
+    NSImage *source = [self coverWithSize:NSMakeSize(128, 128)];
+    NSImage *raster = [source resizedImage:source.size];
+
+    XCTAssertNotNil(raster);
+    XCTAssertNotEqual(raster, source);
+    XCTAssertTrue([raster.representations.firstObject isKindOfClass:NSBitmapImageRep.class]);
+    XCTAssertNotEqual(raster.representations.firstObject, source.representations.firstObject);
+}
+
 @end

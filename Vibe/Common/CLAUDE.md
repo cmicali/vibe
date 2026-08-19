@@ -6,13 +6,22 @@ What every other directory is written in terms of, and nothing else. **If you ca
 
 ## What is here
 
-**`AppSettings`** — every persisted preference, as properties over `NSUserDefaults`, reached everywhere through the `Settings` macro in the prefix header rather than an import. Its pure decision logic — the value ladders a stored setting is snapped to on read — is `SettingsRules.h`, so a rule about a setting is testable without a defaults store.
+**`AppSettings`** — every persisted preference, as properties over
+`NSUserDefaults`. Every reader imports `AppSettings.h` explicitly and uses
+`AppSettings.sharedInstance`, so a file's import list exposes the dependency.
+The preset ladders are exported once from the implementation rather than copied
+from the header into every translation unit. Its pure decision logic — the
+value ladders a stored setting is snapped to on read — is `SettingsRules.h`,
+so a rule about a setting is testable without a defaults store.
 
 **`SettingsRules.h`** — the header-only seam above, tested by `SettingsRulesTests`.
 
 **`VibeStrings.h`** — the localized-string registry. Every user-facing string is declared here and nowhere else; call sites use a `STR_*` macro. See the root `CLAUDE.md` and the `vibe-strings` skill, and run `make strings` after.
 
-**`Vibe-Prefix.pch`** — the prefix header, the one place an import reaches every translation unit. It carries the log macros, the `Settings` accessor and `VibeNotLocalized`. Adding an import here recompiles the world and hides a dependency from the file that has it, so add one only for something genuinely universal.
+**`Vibe-Prefix.pch`** — the prefix header, the one place an import reaches
+every translation unit. It carries the log macros and `VibeNotLocalized`.
+Feature APIs, including `AppSettings`, never belong here: adding one
+recompiles the world and hides a dependency from the file that has it.
 
 **`PlatformTypes.h`** — `VibeImage` and `VibeColor`, `NSImage`/`NSColor` on macOS and `UIImage`/`UIColor` elsewhere. They let a model header carry an image without importing AppKit or UIKit, so one model serves both targets. Do not add aliases for their own sake.
 

@@ -21,26 +21,25 @@
 // thing the request handler hands back. The handler is invoked on the media
 // daemon's threads, and `artwork` is the live NSImage the header, the dock
 // tile and the playlist cells are drawing from — NSImage is not safe to draw
-// concurrently from two threads, so scaling inside the handler races the UI.
-// Scaling once, here, also costs one redraw per track rather than one per
+// concurrently from two threads, so drawing inside the handler races the UI.
+// Rasterizing once, here, also costs one redraw per track rather than one per
 // surface the system asks about.
-static VibeImage *VibeArtworkForPublishing(VibeImage *artwork) {
+static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
 #if TARGET_OS_OSX
+    NSCAssert(NSThread.isMainThread, @"Now Playing artwork must be rasterized on main");
     static const CGFloat kPublishedArtworkMaxSide = 512;
     CGSize source = artwork.size;
     if (source.width <= 0 || source.height <= 0) {
-        return artwork;
+        // resizedImage: clamps these dimensions to one pixel. Drawing may
+        // still recover a representation whose logical NSImage size is bad.
+        return [artwork resizedImage:NSMakeSize(1, 1)];
     }
-    CGFloat scale = MIN(kPublishedArtworkMaxSide / source.width,
-                        kPublishedArtworkMaxSide / source.height);
-    // Already small enough — the 128px thumbnail stand-in takes this path.
-    if (scale >= 1.0) {
-        return artwork;
-    }
-    // Aspect preserved, so a non-square cover is not stretched. A failed
-    // redraw falls back to the original: oversized beats artwork-less.
+    CGFloat scale = MIN(1.0, MIN(kPublishedArtworkMaxSide / source.width,
+                                kPublishedArtworkMaxSide / source.height));
+    // Even an already-small thumbnail is redrawn. The different NSImage and
+    // bitmap rep are the ownership boundary between AppKit UI and MediaPlayer.
     return [artwork resizedImage:NSMakeSize(round(source.width * scale),
-                                            round(source.height * scale))] ?: artwork;
+                                            round(source.height * scale))];
 #else
     return artwork;
 #endif
@@ -340,24 +339,32 @@ static VibeImage *VibeArtworkForPublishing(VibeImage *artwork) {
 
     if (artwork) {
         if (artwork != _publishedArtworkImage || _publishedArtworkWrapper == nil) {
-            // Scaled once, here on the main thread, and captured. The handler
+            // Rasterized once, here on the main thread, and captured. The handler
             // itself must do no drawing — see VibeArtworkForPublishing — so it
             // returns the same image whatever size the system asks for, which
             // MediaPlayer scales on its side. boundsSize advertises what that
             // image actually is, so nothing asks for more than exists.
             VibeImage *published = VibeArtworkForPublishing(artwork);
-            _publishedArtworkWrapper =
-                [[MPMediaItemArtwork alloc] initWithBoundsSize:published.size
-                                                requestHandler:^VibeImage *(CGSize size) {
-                                                    return published;
-                                                }];
+            if (published) {
+                _publishedArtworkWrapper =
+                    [[MPMediaItemArtwork alloc] initWithBoundsSize:published.size
+                                                    requestHandler:^VibeImage *(CGSize size) {
+                                                        return published;
+                                                    }];
+            }
+            else {
+                _publishedArtworkWrapper = nil;
+            }
         }
-        info[MPMediaItemPropertyArtwork] = _publishedArtworkWrapper;
+        if (_publishedArtworkWrapper) {
+            info[MPMediaItemPropertyArtwork] = _publishedArtworkWrapper;
+        }
     }
     else {
         _publishedArtworkWrapper = nil;
     }
-    _publishedArtworkImage = artwork;
+    // A failed rasterization is retryable on the next publish pass.
+    _publishedArtworkImage = _publishedArtworkWrapper ? artwork : nil;
 
     center.nowPlayingInfo = info;
     _hasPublished = YES;

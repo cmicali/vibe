@@ -6,7 +6,6 @@
 #import <stdatomic.h>
 
 #import "AudioTrackMetadataCacheInternal.h"
-#import "AudioTrackMetadataLoader.h"
 #import "AudioTrackMetadataLoaderInternal.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioLoadingConfiguration.h"
@@ -16,12 +15,30 @@
 #import "AudioTrackMetadata.h"
 #import "MetadataParseCoordinator.h"
 #if DEBUG
-#import "AudioTrackMetadataCache+Debug.h"   // the loader's debug selector, declared there
+#import "AudioTrackMetadataCache+Debug.h"
+#endif
+
+@interface AudioTrackMetadataCache ()
+@property (nonatomic, readonly) AudioLoadingConfiguration *loadingConfiguration;
+- (instancetype)initWithLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration;
+- (void)applyLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration;
++ (NSString *)cacheName;
+- (void)setNeighborhoodURLs:(nullable NSArray<NSURL *> *)urls;
+@end
+
+@interface AudioTrackMetadataLoader (CacheRetirement)
+- (void)retireWithCompletion:(dispatch_block_t)completion;
+@end
+
+#if DEBUG
+@interface AudioTrackMetadataLoader (CacheDebug)
+- (NSUInteger)debugPendingBackgroundMaterializationCount;
+@end
 #endif
 
 @implementation AudioTrackMetadataCache {
     AudioTrackMetadataLoader*   _currentLoader;
-    // The current-track lane, loadMetadataNow:. It normally lives for the
+    // The priority lane, loadMetadataNow:. It normally lives for the
     // cache's lifetime and is never cancelled; applying a new immutable loading
     // configuration retires it after its submitted work. Unlike the scan
     // loaders, its work is per-track and a stale publish is harmless, because
@@ -33,11 +50,11 @@
     dispatch_queue_t            _cacheQueue;
     // Bumped by invalidateWithCompletion:; see the class-extension comment.
     atomic_uint_fast64_t        _cacheGeneration;
-    // The foreground-download hold and the cloud lane's ranking, kept here
+    // The foreground-download hold and scan ranking, kept here
     // rather than only on the loader because loadMetadata: mints a new one:
     // neither a hold set during an open nor the neighborhood the screen last
     // named may be lost by the sweep that open is racing.
-    BOOL                        _cloudParsesHeld;
+    BOOL                        _backgroundMaterializationHeld;
     AudioFileMaterializationHoldToken *_materializationHoldToken;
     NSArray<NSURL *>            *_neighborhood;
     AudioLoadingConfiguration   *_loadingConfiguration;
@@ -135,7 +152,7 @@
     });
 }
 
-- (void)cancelAll {
+- (void)cancelScan {
     // Release it, rather than merely cancelling. _queuedTracks strongly holds
     // every queued track, pinning the old playlist until a next loadMetadata:
     // that may never come. Duplicate parse waiters are weak, and the priority
@@ -145,7 +162,7 @@
 }
 
 -(void)loadMetadata:(NSArray<AudioTrack*>*)tracks {
-    [self cancelAll];
+    [self cancelScan];
     if (!tracks.count) {
         return;
     }
@@ -154,36 +171,36 @@
                                                                                   lane:VibeMetadataLaneScan
                                                                    loadingConfiguration:_loadingConfiguration];
     _currentLoader = loader;
-    [loader setCloudParsesHeld:_cloudParsesHeld];
+    [loader setBackgroundMaterializationHeld:_backgroundMaterializationHeld];
     [loader setNeighborhoodURLs:_neighborhood];
     [loader load:tracks];
 }
 
-- (void)setCloudParsesHeld:(BOOL)held {
-    if (held == _cloudParsesHeld) {
+- (void)setBackgroundMaterializationHeld:(BOOL)held {
+    if (held == _backgroundMaterializationHeld) {
         return;
     }
     if (held) {
-        _cloudParsesHeld = YES;
-        [_currentLoader setCloudParsesHeld:YES];
-        [_priorityLoader setCloudParsesHeld:YES];
+        _backgroundMaterializationHeld = YES;
+        [_currentLoader setBackgroundMaterializationHeld:YES];
+        [_priorityLoader setBackgroundMaterializationHeld:YES];
         for (AudioTrackMetadataLoader *loader in _retiredPriorityLoaders.allObjects) {
-            [loader setCloudParsesHeld:YES];
+            [loader setBackgroundMaterializationHeld:YES];
         }
         _materializationHoldToken =
                 [AudioFileMaterializationCoordinator.sharedCoordinator acquireMetadataHold];
     }
     else {
-        _cloudParsesHeld = NO;
+        _backgroundMaterializationHeld = NO;
         AudioFileMaterializationHoldToken *token = _materializationHoldToken;
         _materializationHoldToken = nil;
         [token invalidate];
-        [_currentLoader setCloudParsesHeld:NO];
-        [_priorityLoader setCloudParsesHeld:NO];
+        [_currentLoader setBackgroundMaterializationHeld:NO];
+        [_priorityLoader setBackgroundMaterializationHeld:NO];
         // A retired loader can still own a priority request that yielded after
         // didStartPlaying:. Its parked track must drain before retirement ends.
         for (AudioTrackMetadataLoader *loader in _retiredPriorityLoaders.allObjects) {
-            [loader setCloudParsesHeld:NO];
+            [loader setBackgroundMaterializationHeld:NO];
         }
     }
     LogInfo(@"Metadata content lane %@", held ? @"held" : @"released");
@@ -218,12 +235,12 @@ static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
 #if DEBUG
 // Declared in Debug/AudioTrackMetadataCache+Debug.h; implemented here because
 // the loader and the hold flag are this file's.
-- (NSUInteger)debugPendingCloudParseCount {
-    return [_currentLoader debugPendingCloudParseCount];
+- (NSUInteger)debugPendingBackgroundMaterializationCount {
+    return [_currentLoader debugPendingBackgroundMaterializationCount];
 }
 
-- (BOOL)debugCloudParsesHeld {
-    return _cloudParsesHeld;
+- (BOOL)debugBackgroundMaterializationHeld {
+    return _backgroundMaterializationHeld;
 }
 #endif
 
@@ -234,14 +251,14 @@ static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
     if (!_priorityLoader) {
         _priorityLoader = [[AudioTrackMetadataLoader alloc] initWithOwner:self
                                                                  delegate:self.delegate
-                                                                     lane:VibeMetadataLaneCurrentTrack
+                                                                     lane:VibeMetadataLanePriority
                                                       loadingConfiguration:_loadingConfiguration];
-        [_priorityLoader setCloudParsesHeld:_cloudParsesHeld];
+        [_priorityLoader setBackgroundMaterializationHeld:_backgroundMaterializationHeld];
     }
     // The scan loaders snapshot the delegate once per loadMetadata:, whereas
     // the long-lived priority loader refreshes it on every call.
     _priorityLoader.delegate = self.delegate;
-    [_priorityLoader loadSingleTrack:track];
+    [_priorityLoader loadPriorityTrack:track];
 }
 
 @end

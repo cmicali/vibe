@@ -27,7 +27,10 @@ The view only routes the cursor's x to the renderer, through `setHoverHighlightX
 
 Sonic Cirrus must restore the bar's *resting* played or unplayed color when the hover moves off, and **re-apply the highlight after `updateProgress:` repaints a range covering it**. Otherwise the playhead crossing the hovered bar, or a full repaint after `updateColors:`, erases it. Renderers keep the x so a resize can re-place the highlight.
 
-The view gates on having a waveform at all, which is how the empty, loading and parked states opt out, and the state transitions that clear the waveform also clear the highlight. Click-to-seek is unaffected.
+The view gates both hover and click-to-seek on having a waveform at all, which
+is how the empty, loading and parked states opt out. Every presentation reset
+also clears a press in flight, so a mouse-up cannot seek after the track
+changed underneath it.
 
 ## The convert sweep
 

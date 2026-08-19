@@ -7,6 +7,7 @@
 #import "MainPlayerControllerInternal.h"
 
 #import "AppDelegate.h"
+#import "AppSettings.h"
 #import "AudioPlayer.h"
 #import "MainMenuBuilder.h" // vends the context-menu items shared with the main menu
 #import "MainPlayerContentView.h"
@@ -219,12 +220,12 @@
 }
 
 - (IBAction) toggleAlwaysOnTop:(id)sender {
-    Settings.alwaysOnTop = !Settings.alwaysOnTop;
+    AppSettings.sharedInstance.alwaysOnTop = !AppSettings.sharedInstance.alwaysOnTop;
     [self applyAlwaysOnTop];
 }
 
 - (void)applyAlwaysOnTop {
-    self.window.level = Settings.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel;
+    self.window.level = AppSettings.sharedInstance.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel;
     // About and Settings follow the player's level, or it would bury them.
     [(AppDelegate *)NSApp.delegate applyAuxiliaryWindowLevels];
 }
@@ -233,16 +234,16 @@
     if([sender isKindOfClass:[NSMenuItem class]]) {
         NSMenuItem *item = sender;
         if ([item.identifier isEqualToString:@"view_appearance_light"]) {
-            Settings.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
+            AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
         }
         else if ([item.identifier isEqualToString:@"view_appearance_dark"]) {
-            Settings.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK;
+            AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK;
         }
         else {
-            Settings.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
+            AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
         }
     }
-    self.window.appearance = Settings.windowAppearance;
+    self.window.appearance = AppSettings.sharedInstance.windowAppearance;
     [self.playlistController reloadCurrentTrack];
 }
 

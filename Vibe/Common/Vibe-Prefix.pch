@@ -21,7 +21,6 @@
 #import <os/log.h>
 #include <sys/time.h>
 
-#import "AppSettings.h"
 #import "HelperMacros.h"
 
 static inline os_log_t VibeLog(void) {
@@ -192,8 +191,6 @@ __END_DECLS
 #define VibeTallyCount(name)       ((void)0)
 
 #endif  // DEBUG
-
-#define Settings [AppSettings sharedInstance]
 
 // Marks a user-visible string deliberately NOT localized (format acronyms,
 // layout punctuation, product names, titles AppKit never draws). No runtime

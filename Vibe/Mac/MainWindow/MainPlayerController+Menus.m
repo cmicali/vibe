@@ -6,6 +6,7 @@
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Window.h" // contentWidthForSizeIdentifier:, for the Size checkmarks
+#import "AppSettings.h"
 #import "AudioFX.h"
 #import "MainWindow.h"
 #import "PlaylistController.h"
@@ -26,11 +27,11 @@
     }
     // A preference, not an action, so never disabled.
     else if ([menuItem.identifier isEqualToString:@"menu_show_file_info"]) {
-        menuItem.state = StateForBOOL(Settings.showFileInfo);
+        menuItem.state = StateForBOOL(AppSettings.sharedInstance.showFileInfo);
     }
     // A preference, not an action, so never disabled.
     else if ([menuItem.identifier isEqualToString:@"menu_always_on_top"]) {
-        menuItem.state = StateForBOOL(Settings.alwaysOnTop);
+        menuItem.state = StateForBOOL(AppSettings.sharedInstance.alwaysOnTop);
     }
     // Size: checkmark whichever preset the current body width already sits at,
     // which after a drag-resize is none of them.
@@ -39,13 +40,13 @@
                 [MainPlayerController contentWidthForSizeIdentifier:menuItem.identifier]);
     }
     else if ([menuItem.identifier isEqualToString:@"view_appearance_system_default"]) {
-        menuItem.state = StateForString(Settings.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT);
+        menuItem.state = StateForString(AppSettings.sharedInstance.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT);
     }
     else if ([menuItem.identifier isEqualToString:@"view_appearance_light"]) {
-        menuItem.state = StateForString(Settings.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT);
+        menuItem.state = StateForString(AppSettings.sharedInstance.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT);
     }
     else if ([menuItem.identifier isEqualToString:@"view_appearance_dark"]) {
-        menuItem.state = StateForString(Settings.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK);
+        menuItem.state = StateForString(AppSettings.sharedInstance.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_next_track"]) {
         // Only when there really is a track after the current one. At the end
@@ -86,10 +87,10 @@
         menuItem.state = StateForBOOL(self.audioPlayer.fx.shortDelaySendEnabled);
     }
     else if ([menuItem.identifier isEqualToString:@"pitch_range_8"]) {
-        menuItem.state = StateForBOOL(Settings.pitchRange == 8);
+        menuItem.state = StateForBOOL(AppSettings.sharedInstance.pitchRange == 8);
     }
     else if ([menuItem.identifier isEqualToString:@"pitch_range_16"]) {
-        menuItem.state = StateForBOOL(Settings.pitchRange == 16);
+        menuItem.state = StateForBOOL(AppSettings.sharedInstance.pitchRange == 16);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_play"]) {
         // The action is playPause:, so mirror the toggle in the title and
@@ -136,7 +137,7 @@
     }
     // A preference, not an action, so never disabled.
     else if ([menuItem.identifier isEqualToString:@"menu_convert_delete_original"]) {
-        menuItem.state = StateForBOOL(Settings.deleteOriginalAfterConvert);
+        menuItem.state = StateForBOOL(AppSettings.sharedInstance.deleteOriginalAfterConvert);
     }
     // show_clicked_track_in_finder, on the playlist's row context menu,
     // targets PlaylistController, which validates it.
@@ -207,7 +208,7 @@
         return;
     }
     self.waveformView.waveformStyle = identifier;
-    Settings.waveformStyle = identifier;
+    AppSettings.sharedInstance.waveformStyle = identifier;
 }
 
 @end

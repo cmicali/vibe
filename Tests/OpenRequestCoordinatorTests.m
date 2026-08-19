@@ -153,6 +153,37 @@ static NSArray<NSURL *> *OpenFiles(NSUInteger count) {
     XCTAssertEqualObjects(_deliveries, (@[@"newSecond:append:5:0"]));
 }
 
+// A gap that drains before its deadline leaves the old timer in flight. A
+// later gap in the same burst must get a full deadline of its own rather than
+// being abandoned when that old timer fires.
+- (void)testALaterGapDoesNotInheritADrainedGapsDeadline {
+    _coordinator.stragglerDeadline = 0.3;
+    OpenRequestToken *first = [self beginAppending:NO tagged:@"first"];
+    OpenRequestToken *firstAppend = [self beginAppending:YES tagged:@"firstAppend"];
+    [_coordinator finishRequest:firstAppend files:OpenFiles(2) folderCount:0];
+
+    [self spinRunLoopFor:0.2];
+    XCTAssertEqual(_deliveries.count, 0u);
+    [_coordinator finishRequest:first files:OpenFiles(1) folderCount:0];
+    XCTAssertEqualObjects(_deliveries, (@[@"first:replace:1:0", @"firstAppend:append:2:0"]));
+
+    OpenRequestToken *laterWedged = [self beginAppending:YES tagged:@"laterWedged"];
+    OpenRequestToken *laterAppend = [self beginAppending:YES tagged:@"laterAppend"];
+    NSDate *laterGapStarted = [NSDate date];
+    [_coordinator finishRequest:laterAppend files:OpenFiles(4) folderCount:0];
+
+    [self waitForDeliveryCount:3];
+    XCTAssertGreaterThanOrEqual([[NSDate date] timeIntervalSinceDate:laterGapStarted], 0.2);
+    XCTAssertEqualObjects(_deliveries, (@[
+        @"first:replace:1:0",
+        @"firstAppend:append:2:0",
+        @"laterAppend:append:4:0",
+    ]));
+
+    [_coordinator finishRequest:laterWedged files:OpenFiles(9) folderCount:1];
+    XCTAssertEqual(_deliveries.count, 3u);
+}
+
 // Spins the run loop rather than sleeping, because the deadline fires on main.
 - (void)waitForDeliveryCount:(NSUInteger)count {
     NSDate *limit = [NSDate dateWithTimeIntervalSinceNow:2.0];
@@ -161,6 +192,14 @@ static NSArray<NSURL *> *OpenFiles(NSUInteger count) {
                                beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
     }
     XCTAssertEqual(_deliveries.count, count);
+}
+
+- (void)spinRunLoopFor:(NSTimeInterval)duration {
+    NSDate *limit = [NSDate dateWithTimeIntervalSinceNow:duration];
+    while (limit.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode
+                               beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.005]];
+    }
 }
 
 - (void)testAbandonIsANoOpWithNothingWaiting {

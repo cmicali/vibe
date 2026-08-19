@@ -4,6 +4,7 @@
 //
 
 #import "SettingsPlaybackViewController.h"
+#import "AppSettings.h"
 #import "AudioPlayer.h"
 #import "MainPlayerController.h"
 #import "VibeStrings.h"
@@ -40,7 +41,7 @@ static const CGFloat kPlaybackPopUpWidth = 200;
     pitchRadios.spacing = 12;
 
     _skipStepsPopUp = [self popUpButtonWithWidth:kPlaybackPopUpWidth action:@selector(skipStepsChanged:)];
-    for (size_t i = 0; i < sizeof(kVibeSkipBasePresets) / sizeof(kVibeSkipBasePresets[0]); i++) {
+    for (size_t i = 0; i < kVibeSkipBasePresetCount; i++) {
         NSInteger base = kVibeSkipBasePresets[i];
         [_skipStepsPopUp addItemWithTitle:[NSString stringWithFormat:STR_SETTINGS_SKIP_STEPS_OPTION,
                                            (long)base, (long)(base * 2), (long)(base * 4)]];
@@ -51,7 +52,9 @@ static const CGFloat kPlaybackPopUpWidth = 200;
     NSArray<NSString *> *crossfadeTitles = @[STR_SETTINGS_CROSSFADE_INSTANT,
                                              STR_SETTINGS_CROSSFADE_SHORT,
                                              STR_SETTINGS_CROSSFADE_LONG];
-    for (NSUInteger i = 0; i < crossfadeTitles.count; i++) {
+    NSAssert(crossfadeTitles.count == kVibeCrossfadePresetCount,
+             @"Every crossfade preset needs a title");
+    for (size_t i = 0; i < kVibeCrossfadePresetCount; i++) {
         [_crossfadePopUp addItemWithTitle:crossfadeTitles[i]];
         _crossfadePopUp.lastItem.tag = kVibeCrossfadePresets[i];
     }
@@ -85,43 +88,43 @@ static const CGFloat kPlaybackPopUpWidth = 200;
 }
 
 - (void)refreshFromSettings {
-    NSInteger range = Settings.pitchRange;
+    NSInteger range = AppSettings.sharedInstance.pitchRange;
     _pitchRange8.state = range != 16 ? NSControlStateValueOn : NSControlStateValueOff;
     _pitchRange16.state = range == 16 ? NSControlStateValueOn : NSControlStateValueOff;
     // The getters snap to a preset, so these always match an item.
-    [_skipStepsPopUp selectItemWithTag:Settings.skipBaseBars];
-    [_crossfadePopUp selectItemWithTag:Settings.crossfadeMilliseconds];
-    _enableFXCheckbox.state = Settings.audioFXEnabled ? NSControlStateValueOn : NSControlStateValueOff;
-    _detectBPMCheckbox.state = Settings.analyzeBPM ? NSControlStateValueOn : NSControlStateValueOff;
-    _detectKeyCheckbox.state = Settings.analyzeKey ? NSControlStateValueOn : NSControlStateValueOff;
+    [_skipStepsPopUp selectItemWithTag:AppSettings.sharedInstance.skipBaseBars];
+    [_crossfadePopUp selectItemWithTag:AppSettings.sharedInstance.crossfadeMilliseconds];
+    _enableFXCheckbox.state = AppSettings.sharedInstance.audioFXEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+    _detectBPMCheckbox.state = AppSettings.sharedInstance.analyzeBPM ? NSControlStateValueOn : NSControlStateValueOff;
+    _detectKeyCheckbox.state = AppSettings.sharedInstance.analyzeKey ? NSControlStateValueOn : NSControlStateValueOff;
 }
 
 - (void)pitchRangeChanged:(NSButton *)sender {
-    Settings.pitchRange = sender.tag;
+    AppSettings.sharedInstance.pitchRange = sender.tag;
     // The live half: re-clamps the pitch and redraws the fader scale.
     [self.playerController applyPitchRange];
 }
 
 - (void)skipStepsChanged:(id)sender {
-    Settings.skipBaseBars = _skipStepsPopUp.selectedTag;
+    AppSettings.sharedInstance.skipBaseBars = _skipStepsPopUp.selectedTag;
 }
 
 - (void)crossfadeChanged:(id)sender {
     NSInteger milliseconds = _crossfadePopUp.selectedTag;
-    Settings.crossfadeMilliseconds = milliseconds;
+    AppSettings.sharedInstance.crossfadeMilliseconds = milliseconds;
     self.playerController.audioPlayer.crossfadeMilliseconds = milliseconds;
 }
 
 - (void)toggleEnableFX:(id)sender {
-    Settings.audioFXEnabled = (_enableFXCheckbox.state == NSControlStateValueOn);
+    AppSettings.sharedInstance.audioFXEnabled = (_enableFXCheckbox.state == NSControlStateValueOn);
 }
 
 - (void)toggleDetectBPM:(id)sender {
-    Settings.analyzeBPM = (_detectBPMCheckbox.state == NSControlStateValueOn);
+    AppSettings.sharedInstance.analyzeBPM = (_detectBPMCheckbox.state == NSControlStateValueOn);
 }
 
 - (void)toggleDetectKey:(id)sender {
-    Settings.analyzeKey = (_detectKeyCheckbox.state == NSControlStateValueOn);
+    AppSettings.sharedInstance.analyzeKey = (_detectKeyCheckbox.state == NSControlStateValueOn);
 }
 
 @end

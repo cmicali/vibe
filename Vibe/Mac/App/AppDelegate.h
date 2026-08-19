@@ -33,7 +33,8 @@
 // a Finder open.
 - (void)openDroppedURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append;
 
-// Re-levels the About and Settings windows to match Settings.alwaysOnTop.
+// Re-levels the About and Settings windows to match
+// AppSettings.sharedInstance.alwaysOnTop.
 // They must ride at the player's level: left at normal level, the floating
 // player would bury them — Settings being where the very checkbox that turns
 // the mode off lives. MainPlayerController's applyAlwaysOnTop calls it on
@@ -42,4 +43,3 @@
 - (void)applyAuxiliaryWindowLevels;
 
 @end
-

@@ -7,6 +7,7 @@
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+NowPlaying.h"
 
+#import "AppSettings.h"
 #import "AppStats.h"
 #import "ArtworkDisplayController.h"
 #import "AudioDevice.h"
@@ -31,7 +32,7 @@
 
 // The pre-submit edge: synchronous on play:'s calling thread (main at every
 // call site), before the open is submitted to the player queue. The scan's
-// cloud lane stands down here, so the foreground open never contends with a
+// scan materialization stands down here, so the foreground open never contends with a
 // background download it could have suspended — armed from the 0.5s slow-open
 // timer, the hold used to hand every play a half-second of contention, and a
 // raced track change skipped it entirely. Deliberately NOT stale-guarded:
@@ -40,7 +41,7 @@
 // didStartPlaying:'s prefetch acknowledgement, the error path, or Close.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer willSubmitPlayForTrack:(AudioTrack *)track {
     _foregroundHoldGeneration++;
-    [self.metadataCache setCloudParsesHeld:YES];
+    [self.metadataCache setBackgroundMaterializationHeld:YES];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
@@ -153,7 +154,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
                 holdGeneration, strongSelf->_foregroundHoldGeneration)) {
             return;
         }
-        [strongSelf.metadataCache setCloudParsesHeld:NO];
+        [strongSelf.metadataCache setBackgroundMaterializationHeld:NO];
     }];
     // Whoever initiated this play has already fully rendered the row: play:'s
     // reloadData, next and previous's two-row window, or doubleClick's pair.
@@ -310,7 +311,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
     _downloadMonitorOpenRequestIdentifier = 0;
-    [self.metadataCache setCloudParsesHeld:NO];
+    [self.metadataCache setBackgroundMaterializationHeld:NO];
     [self.trackDisplay hideWaveformLoadingIndicator];
     // Errors present inline, with no modal and no auto-skip. A sheet on this
     // borderless window breaks key status and the bare transport keys. The
@@ -329,8 +330,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceIndex {
     LogDebug(@"MainPlayerController: didChangeOutputDevice: %zd", newDeviceIndex);
     if (newDeviceIndex == -1) {
-        Settings.audioOutputDeviceName = @"";
-        Settings.audioOutputDeviceUID = @"";
+        AppSettings.sharedInstance.audioOutputDeviceName = @"";
+        AppSettings.sharedInstance.audioOutputDeviceUID = @"";
     }
     else {
         AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:newDeviceIndex];
@@ -338,8 +339,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         // failed transiently. Keep the previous persisted choice rather than
         // erasing it.
         if (device) {
-            Settings.audioOutputDeviceName = device.name;
-            Settings.audioOutputDeviceUID = device.uid;
+            AppSettings.sharedInstance.audioOutputDeviceName = device.name;
+            AppSettings.sharedInstance.audioOutputDeviceUID = device.uid;
         }
     }
 }

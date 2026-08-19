@@ -7,6 +7,7 @@
 //
 
 #import "MainPlayerControllerInternal.h"
+#import "AppSettings.h"
 #import "ArtworkDisplayController.h"
 #import "TrackDisplayController.h"
 #import "OutputDevicesMenuController.h"
@@ -112,9 +113,9 @@
     // fallback. The HAL sweep can take tens of ms with Bluetooth devices, or
     // stall entirely when coreaudiod is unavailable; neither case occupies
     // the player's serial queue or this pre-first-paint path.
-    self.audioPlayer = [[AudioPlayer alloc] initWithDeviceUID:Settings.audioOutputDeviceUID
-                                                         name:Settings.audioOutputDeviceName
-                                                     enableFX:Settings.audioFXEnabled
+    self.audioPlayer = [[AudioPlayer alloc] initWithDeviceUID:AppSettings.sharedInstance.audioOutputDeviceUID
+                                                         name:AppSettings.sharedInstance.audioOutputDeviceName
+                                                     enableFX:AppSettings.sharedInstance.audioFXEnabled
                                                      delegate:self];
     self.metadataCache = [[AudioTrackMetadataCache alloc] init];
     self.metadataCache.delegate = self;
@@ -128,7 +129,7 @@
     // set_analysis both land on the next load with nothing to republish. iOS
     // installs no provider: it never analyzes.
     self.waveformCache.analysisProvider = ^VibeWaveformAnalysis{
-        return (VibeWaveformAnalysis){Settings.analyzeBPM, Settings.analyzeKey};
+        return (VibeWaveformAnalysis){AppSettings.sharedInstance.analyzeBPM, AppSettings.sharedInstance.analyzeKey};
     };
 
     self.fileConverter = [[AudioFileConverter alloc] init];
@@ -164,7 +165,7 @@
         [strongSelf updateUI];
     };
 
-    // The cloud lane's ranking follows the cursor, not the playback state: on a
+    // The scan's ranking follows the cursor, not the playback state: on a
     // file-provider folder each background parse is a whole file coming down a
     // wire, one at a time, and left unranked the sweep works through the folder
     // in filename order however far that is from the track the listener has
@@ -212,11 +213,11 @@
     // Wire the collaborators to the views. MainPlayerContentView applies all
     // the appearance and layout at construction.
 
-    self.window.appearance = Settings.windowAppearance;
+    self.window.appearance = AppSettings.sharedInstance.windowAppearance;
     [self applyAlwaysOnTop];
 
     self.waveformView.delegate = self;
-    self.waveformView.waveformStyle = Settings.waveformStyle;
+    self.waveformView.waveformStyle = AppSettings.sharedInstance.waveformStyle;
 
     // The bare transport keys, through a local event monitor. See
     // TransportKeyMonitor for the key list, and for why the menu
@@ -245,7 +246,7 @@
     _pitchPanel.delegate = self;
     [contentView addSubview:_pitchPanel];
     [self applyPitchRange];
-    self.audioPlayer.crossfadeMilliseconds = Settings.crossfadeMilliseconds;
+    self.audioPlayer.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
 
     __weak MainPlayerController *weakSelf = self;
     _uiTimer = [[UIUpdateTimer alloc] initWithHz:kVibeUIUpdateHzMin handler:^{
@@ -325,7 +326,7 @@
 - (void)syncUITimerRate {
     CGFloat widthPx = self.waveformView.devicePixelWidth;
     NSUInteger hz = VibeUIUpdateHzForPlayhead(widthPx, _currentTrackDuration, self.playbackRate,
-                                              Settings.uiUpdateHzCap);
+                                              AppSettings.sharedInstance.uiUpdateHzCap);
     if (hz != _uiTimer.hz) {
         LogDebug(@"UI update rate %lu Hz (waveform %.0f px, duration %.2fs, rate %.3f)",
                  (unsigned long)hz, widthPx, _currentTrackDuration, self.playbackRate);
@@ -362,6 +363,22 @@
     }
 }
 
+- (void)renderTrackPresentationForState:(TrackDisplayState)state
+                                  track:(AudioTrack *)track
+                           displayTrack:(AudioTrack *)displayTrack {
+    // Full header refreshes have one order. renderState rewrites the codec and
+    // waveform presentation, so tempo/key and FX are reapplied afterwards;
+    // artwork then resolves against the same display-track decision.
+    [self.trackDisplay renderState:state
+                             track:(state == TrackDisplayStateError ? track : displayTrack)
+                          duration:self.audioPlayer.duration
+                              rate:self.playbackRate
+                       errorStatus:_errorStatus];
+    [self effectiveTempoDidChange];
+    [self updateFXIndicators];
+    [_artworkController updateForTrack:displayTrack];
+}
+
 - (void)updateUI {
 
     TrackDisplayState state = [self displayState];
@@ -389,22 +406,9 @@
     self.playerContentView.playlistDropZoneView.playlistEmpty =
             self.playlistController.count == 0;
 
-    // The error state passes the masked, errored track, whose title renders
-    // under the error status. The other states describe displayTrack, which is
-    // nil when empty.
-    [self.trackDisplay renderState:state
-                             track:(state == TrackDisplayStateError ? track : displayTrack)
-                          duration:self.audioPlayer.duration
-                              rate:self.playbackRate
-                       errorStatus:_errorStatus];
-
-    [self effectiveTempoDidChange];
-
-    // The codec line shares its run with the FX symbols, and renderState: has
-    // just rewritten its text, so re-assert the symbols alongside it.
-    [self updateFXIndicators];
-
-    [_artworkController updateForTrack:displayTrack];
+    [self renderTrackPresentationForState:state
+                                    track:track
+                             displayTrack:displayTrack];
 
     if (displayTrack && displayTrack == _lastReloadedTrack) {
         // The same track as last time, so only the play-pause indicator can
@@ -470,13 +474,13 @@
     NSInteger key = track ? track.key : -1;
     NSString *keyText = @"";
     if (key >= 0) {
-        keyText = [Settings.keyNotation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]
+        keyText = [AppSettings.sharedInstance.keyNotation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]
                 ? VibeMusicalKeyMusicalName(key)
                 : VibeMusicalKeyCamelotName(key);
     }
     [self.trackDisplay renderBPM:(track ? scaledBPM : 0)
                          keyText:keyText
-                        colorKey:(Settings.keyColorsEnabled ? key : -1)];
+                        colorKey:(AppSettings.sharedInstance.keyColorsEnabled ? key : -1)];
 }
 
 - (IBAction)playPause:(nullable id)sender {
@@ -502,7 +506,7 @@
     // user is waiting on, and its _queuedTracks would pin the departed
     // playlist. iOS has always done this (PlaybackController's folder-open
     // path); replacement only — next and previous must keep the sweep.
-    [self.metadataCache cancelAll];
+    [self.metadataCache cancelScan];
     [self.playlistController play:urls];
     // Defer the playlist-wide metadata load until playback has actually
     // started. Four workers reading every file can starve the player's own
@@ -580,17 +584,17 @@
     // The hold rides the monitor's lifetime, and its clearing edge is
     // didStartPlaying: or the error path — neither of which a Close reaches,
     // because stop fires no callback and the caller owns the reset. Left set,
-    // it suspends the NEXT folder's cloud lane too, since the flag outlives
+    // it suspends the NEXT folder's scan materialization too, since the flag outlives
     // the loader.
-    [self.metadataCache setCloudParsesHeld:NO];
+    [self.metadataCache setBackgroundMaterializationHeld:NO];
     [self.audioPlayer stop];
     [self.audioPlayer prefetchTrack:nil]; // drop the parked next-track handle
     [self.waveformCache cancelLoad];
     [self.playlistController clear];
     // Cancel the deferred playlist-wide metadata load, since nothing will play
-    // to start it later, and release the scan loader; see cancelAll.
+    // to start it later, and release the scan loader.
     [self cancelDeferredMetadataLoad];
-    [self.metadataCache cancelAll];
+    [self.metadataCache cancelScan];
     [self clearErrorMask];
     _emptyStateSuppressed = NO; // Close explicitly asks for the empty state
     _currentTrackDuration = 0;
@@ -638,7 +642,7 @@
 #pragma mark - Actions
 
 - (IBAction) toggleFileInfo:(id)sender {
-    Settings.showFileInfo = !Settings.showFileInfo;
+    AppSettings.sharedInstance.showFileInfo = !AppSettings.sharedInstance.showFileInfo;
     [self refreshFileInfoDisplay];
 }
 
@@ -659,9 +663,9 @@
     [self updateUI];
 }
 
-// A grant arrived or went. It can only unlock a folder the resolver left alone
-// for want of one, so only those answers are forgotten — NOT everything. A full
-// invalidate here is self-defeating: opening a folder auto-adds its grant a
+// A grant arrived or went. No-grant discovery answers are forgotten; a known
+// cover path stays recorded but every future read rechecks active access. A
+// full invalidate is self-defeating: opening a folder auto-adds its grant a
 // moment later, and wiping every answer discards the covers that same open's
 // walk just harvested for free.
 - (void)grantedFoldersDidChange:(NSNotification *)notification {
@@ -700,13 +704,13 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 - (IBAction)setPitchRange:(id)sender {
     if ([sender isKindOfClass:[NSMenuItem class]]) {
         NSMenuItem *item = sender;
-        Settings.pitchRange = [item.identifier isEqualToString:@"pitch_range_16"] ? 16 : 8;
+        AppSettings.sharedInstance.pitchRange = [item.identifier isEqualToString:@"pitch_range_16"] ? 16 : 8;
         [self applyPitchRange];
     }
 }
 
 - (void)applyPitchRange {
-    float range = (float)Settings.pitchRange;
+    float range = (float)AppSettings.sharedInstance.pitchRange;
     self.audioPlayer.maxPitch = range;
     _pitchPanel.maxPitch = range;
     // A narrower range clamps the current pitch, so resync the fader and the
@@ -753,7 +757,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 // re-renders. The full updateUI funnel keeps the label's change guards
 // coherent.
 - (IBAction)toggleTimeDisplayMode:(id)sender {
-    Settings.showRemainingTime = !Settings.showRemainingTime;
+    AppSettings.sharedInstance.showRemainingTime = !AppSettings.sharedInstance.showRemainingTime;
     [self updateUI];
 }
 
@@ -785,6 +789,10 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     return _pitchPanel;
 }
 
+- (ArtworkDisplayController *)debugArtworkController {
+    return _artworkController;
+}
+
 - (void)debugRefreshUI {
     [self updateUI];
 }
@@ -800,7 +808,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     return VibeUIUpdateHzForPlayhead(self.waveformView.devicePixelWidth,
                                      _currentTrackDuration,
                                      self.playbackRate,
-                                     Settings.uiUpdateHzCap);
+                                     AppSettings.sharedInstance.uiUpdateHzCap);
 }
 #endif
 

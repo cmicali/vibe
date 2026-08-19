@@ -105,10 +105,11 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     }
 }
 
-- (void)testHannWindowedDCDoesNotReachEitherNormalizationMode {
+- (void)testHannWindowedDCDoesNotReachAnyNormalizationMode {
     const VibeAudioLevelNormalizationMode modes[] = {
         VibeAudioLevelNormalizationModeRelativeActivity,
         VibeAudioLevelNormalizationModeSharedSpectrum,
+        VibeAudioLevelNormalizationModeBalancedSpectrum,
     };
     for (NSNumber *rateValue in @[@44100.0, @48000.0, @88200.0, @96000.0,
                                   @176400.0, @192000.0]) {
@@ -168,6 +169,177 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
 
     VibeAudioLevelAnalyzerDestroy(relative);
     VibeAudioLevelAnalyzerDestroy(shared);
+}
+
+- (void)testBalancedSpectrumUsesSharedShapeAndBriefRelativeActivity {
+    const double sampleRate = 48000.0;
+    VibeAudioLevelAnalyzer *relative = VibeAudioLevelAnalyzerCreate(
+            sampleRate, VibeAudioLevelNormalizationModeRelativeActivity);
+    VibeAudioLevelAnalyzer *shared = VibeAudioLevelAnalyzerCreate(
+            sampleRate, VibeAudioLevelNormalizationModeSharedSpectrum);
+    VibeAudioLevelAnalyzer *balanced = VibeAudioLevelAnalyzerCreate(
+            sampleRate, VibeAudioLevelNormalizationModeBalancedSpectrum);
+    NSUInteger window = VibeAudioLevelAnalyzerFFTSize(balanced);
+    NSMutableData *samples = [NSMutableData dataWithLength:window * 2 * sizeof(float)];
+    float *values = samples.mutableBytes;
+    VibeTestAddBinTone(values, window, 3, 0.5f);
+    VibeTestAddBinTone(values + window, window, 3, 0.5f);
+    VibeTestAddBinTone(values, window, 400, 0.1f);
+    float *channels[] = {values};
+    float relativeLevels[kLevelBandCount] = {0};
+    float sharedLevels[kLevelBandCount] = {0};
+    float balancedLevels[kLevelBandCount] = {0};
+
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(relative, channels, 1,
+                                                  window * 2, relativeLevels), 2u);
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(shared, channels, 1,
+                                                  window * 2, sharedLevels), 2u);
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(balanced, channels, 1,
+                                                  window * 2, balancedLevels), 2u);
+    for (NSUInteger band = 0; band < kLevelBandCount; band++) {
+        float expected = VibeLevelBalancedSpectrumLevel(sharedLevels[band],
+                                                         relativeLevels[band]);
+        XCTAssertEqualWithAccuracy(balancedLevels[band], expected, 0.001f,
+                                   @"band %lu", (unsigned long)band);
+        XCTAssertLessThanOrEqual(balancedLevels[band], kLevelBalancedOutputScale);
+    }
+    XCTAssertGreaterThan(sharedLevels[0], 0.99f);
+    XCTAssertEqualWithAccuracy(balancedLevels[0], kLevelBalancedOutputScale,
+                               0.001f);
+    XCTAssertGreaterThan(relativeLevels[4], 0.99f);
+    XCTAssertGreaterThan(sharedLevels[4], kLevelBalancedFullSharedSupport);
+    XCTAssertGreaterThan(balancedLevels[4],
+                         kLevelBalancedOutputScale * sharedLevels[4] + 0.1f);
+
+    VibeAudioLevelAnalyzerDestroy(relative);
+    VibeAudioLevelAnalyzerDestroy(shared);
+    VibeAudioLevelAnalyzerDestroy(balanced);
+}
+
+- (void)testBalancedSpectrumLeavesUnsupportedBandsDark {
+    const double sampleRate = 48000.0;
+    VibeAudioLevelAnalyzer *analyzer = VibeAudioLevelAnalyzerCreate(
+            sampleRate, VibeAudioLevelNormalizationModeBalancedSpectrum);
+    NSUInteger window = VibeAudioLevelAnalyzerFFTSize(analyzer);
+    NSMutableData *samples = [NSMutableData dataWithLength:window * sizeof(float)];
+    VibeTestAddBinTone(samples.mutableBytes, window, 3, 0.5f);
+    float *channels[] = {samples.mutableBytes};
+    float levels[kLevelBandCount] = {0};
+
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, channels, 1,
+                                                  window, levels), 1u);
+    XCTAssertEqualWithAccuracy(levels[0], kLevelBalancedOutputScale, 0.001f);
+    for (NSUInteger band = 1; band < kLevelBandCount; band++) {
+        XCTAssertLessThan(levels[band], 0.001f, @"band %lu", (unsigned long)band);
+    }
+    VibeAudioLevelAnalyzerDestroy(analyzer);
+}
+
+- (void)testBalancedSpectrumKeepsNonBinCenteredLeakageNearSharedShape {
+    const double sampleRate = 48000.0;
+    VibeAudioLevelAnalyzer *relative = VibeAudioLevelAnalyzerCreate(
+            sampleRate, VibeAudioLevelNormalizationModeRelativeActivity);
+    VibeAudioLevelAnalyzer *shared = VibeAudioLevelAnalyzerCreate(
+            sampleRate, VibeAudioLevelNormalizationModeSharedSpectrum);
+    VibeAudioLevelAnalyzer *balanced = VibeAudioLevelAnalyzerCreate(
+            sampleRate, VibeAudioLevelNormalizationModeBalancedSpectrum);
+    NSUInteger window = VibeAudioLevelAnalyzerFFTSize(balanced);
+    double toneBin = 220.0 * (double)window / sampleRate;
+    XCTAssertGreaterThan(fabs(toneBin - round(toneBin)), 0.25);
+    NSMutableData *samples = [NSMutableData dataWithLength:window * sizeof(float)];
+    VibeTestFillTone(samples.mutableBytes, window, sampleRate, 220.0, 1.0f);
+    float *channels[] = {samples.mutableBytes};
+    float relativeLevels[kLevelBandCount] = {0};
+    float sharedLevels[kLevelBandCount] = {0};
+    float balancedLevels[kLevelBandCount] = {0};
+
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(relative, channels, 1,
+                                                  window, relativeLevels), 1u);
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(shared, channels, 1,
+                                                  window, sharedLevels), 1u);
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(balanced, channels, 1,
+                                                  window, balancedLevels), 1u);
+    const NSUInteger adjacentBand = 2;
+    XCTAssertGreaterThan(sharedLevels[1], 0.99f);
+    XCTAssertGreaterThan(relativeLevels[adjacentBand], 0.9f);
+    XCTAssertGreaterThan(relativeLevels[adjacentBand],
+                         sharedLevels[adjacentBand] + 0.1f);
+
+    float expected = VibeLevelBalancedSpectrumLevel(
+            sharedLevels[adjacentBand], relativeLevels[adjacentBand]);
+    float scaledShared = kLevelBalancedOutputScale * sharedLevels[adjacentBand];
+    float scaledActivity = kLevelBalancedOutputScale * relativeLevels[adjacentBand];
+    XCTAssertEqualWithAccuracy(balancedLevels[adjacentBand], expected, 0.001f);
+    XCTAssertGreaterThanOrEqual(balancedLevels[adjacentBand], scaledShared);
+    XCTAssertLessThan(fabsf(balancedLevels[adjacentBand] - scaledShared),
+                      fabsf(scaledActivity - balancedLevels[adjacentBand]));
+
+    VibeAudioLevelAnalyzerDestroy(relative);
+    VibeAudioLevelAnalyzerDestroy(shared);
+    VibeAudioLevelAnalyzerDestroy(balanced);
+}
+
+- (void)testBalancedSpectrumDoesNotLetPrivateActivityRestoreReducedKick {
+    const double sampleRate = 48000.0;
+    VibeAudioLevelAnalyzer *balanced = VibeAudioLevelAnalyzerCreate(
+            sampleRate, VibeAudioLevelNormalizationModeBalancedSpectrum);
+    VibeAudioLevelAnalyzer *relative = VibeAudioLevelAnalyzerCreate(
+            sampleRate, VibeAudioLevelNormalizationModeRelativeActivity);
+    NSUInteger window = VibeAudioLevelAnalyzerFFTSize(balanced);
+
+    NSMutableData *strongSamples = [NSMutableData
+            dataWithLength:window * sizeof(float)];
+    VibeTestAddBinTone(strongSamples.mutableBytes, window, 3, 0.5f);
+    VibeTestAddBinTone(strongSamples.mutableBytes, window, 7, 0.5f);
+    float *strongChannels[] = {strongSamples.mutableBytes};
+    float initialBalanced[kLevelBandCount] = {0};
+    float relativeLevels[kLevelBandCount] = {0};
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(balanced, strongChannels, 1,
+                                                  window, initialBalanced), 1u);
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(relative, strongChannels, 1,
+                                                  window, relativeLevels), 1u);
+    XCTAssertEqualWithAccuracy(initialBalanced[0], kLevelBalancedOutputScale,
+                               0.001f);
+
+    // Band 1 holds the shared reference while band 0's private reference falls
+    // below the reduced kick that follows.
+    const NSUInteger referenceDecayWindows = 128;
+    NSMutableData *continuedSamples = [NSMutableData
+            dataWithLength:window * referenceDecayWindows * sizeof(float)];
+    float *continuedValues = continuedSamples.mutableBytes;
+    for (NSUInteger index = 0; index < referenceDecayWindows; index++) {
+        VibeTestAddBinTone(continuedValues + index * window, window, 7, 0.5f);
+    }
+    float *continuedChannels[] = {continuedValues};
+    float continuedBalanced[kLevelBandCount] = {0};
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(
+            balanced, continuedChannels, 1, window * referenceDecayWindows,
+            continuedBalanced), referenceDecayWindows);
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(
+            relative, continuedChannels, 1, window * referenceDecayWindows,
+            relativeLevels), referenceDecayWindows);
+    XCTAssertEqualWithAccuracy(continuedBalanced[1], kLevelBalancedOutputScale,
+                               0.001f);
+
+    NSMutableData *reducedSamples = [NSMutableData
+            dataWithLength:window * sizeof(float)];
+    VibeTestAddBinTone(reducedSamples.mutableBytes, window, 3, 0.1f);
+    VibeTestAddBinTone(reducedSamples.mutableBytes, window, 7, 0.5f);
+    float *reducedChannels[] = {reducedSamples.mutableBytes};
+    float reducedBalanced[kLevelBandCount] = {0};
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(balanced, reducedChannels, 1,
+                                                  window, reducedBalanced), 1u);
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(relative, reducedChannels, 1,
+                                                  window, relativeLevels), 1u);
+
+    XCTAssertGreaterThan(relativeLevels[0], 0.99f);
+    XCTAssertGreaterThan(initialBalanced[0] - reducedBalanced[0], 0.25f);
+    XCTAssertLessThan(reducedBalanced[0], relativeLevels[0] - 0.3f);
+    XCTAssertEqualWithAccuracy(reducedBalanced[1], kLevelBalancedOutputScale,
+                               0.001f);
+
+    VibeAudioLevelAnalyzerDestroy(balanced);
+    VibeAudioLevelAnalyzerDestroy(relative);
 }
 
 - (void)testSharedSpectrumPreservesRelativeEnergyAcrossSeparateWindowsInEitherOrder {
@@ -303,6 +475,46 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     }
 }
 
+- (void)testBalancedSpectrumZeroWindowLeavesSentinelUntilNextCompletion {
+    const double sampleRate = 48000.0;
+    VibeAudioLevelAnalyzer *chunked = VibeAudioLevelAnalyzerCreate(
+            sampleRate, VibeAudioLevelNormalizationModeBalancedSpectrum);
+    VibeAudioLevelAnalyzer *whole = VibeAudioLevelAnalyzerCreate(
+            sampleRate, VibeAudioLevelNormalizationModeBalancedSpectrum);
+    NSUInteger window = VibeAudioLevelAnalyzerFFTSize(chunked);
+    NSMutableData *samples = [NSMutableData dataWithLength:window * sizeof(float)];
+    float *values = samples.mutableBytes;
+    VibeTestAddBinTone(values, window, 3, 0.5f);
+    VibeTestAddBinTone(values, window, 400, 0.2f);
+    float *wholeChannels[] = {values};
+    float expected[kLevelBandCount] = {0};
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(whole, wholeChannels, 1,
+                                                  window, expected), 1u);
+
+    const float sentinel = -7.0f;
+    float levels[kLevelBandCount];
+    for (NSUInteger band = 0; band < kLevelBandCount; band++) {
+        levels[band] = sentinel;
+    }
+    float *firstHalfChannels[] = {values};
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(chunked, firstHalfChannels, 1,
+                                                  window / 2, levels), 0u);
+    for (NSUInteger band = 0; band < kLevelBandCount; band++) {
+        XCTAssertEqual(levels[band], sentinel);
+    }
+
+    float *secondHalfChannels[] = {values + window / 2};
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(chunked, secondHalfChannels, 1,
+                                                  window / 2, levels), 1u);
+    for (NSUInteger band = 0; band < kLevelBandCount; band++) {
+        XCTAssertNotEqual(levels[band], sentinel);
+        XCTAssertEqualWithAccuracy(levels[band], expected[band], 0.0001f,
+                                   @"band %lu", (unsigned long)band);
+    }
+    VibeAudioLevelAnalyzerDestroy(chunked);
+    VibeAudioLevelAnalyzerDestroy(whole);
+}
+
 - (void)testSharedSpectrumIsStableAcrossHardwareRates {
     float baseline[kLevelBandCount] = {0};
     BOOL hasBaseline = NO;
@@ -334,6 +546,41 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     }
 }
 
+- (void)testBalancedSpectrumIsStableAcrossSupportedHardwareRates {
+    float baseline[kLevelBandCount] = {0};
+    BOOL hasBaseline = NO;
+    for (NSNumber *rateValue in @[@44100.0, @48000.0, @88200.0, @96000.0,
+                                  @176400.0, @192000.0]) {
+        double sampleRate = rateValue.doubleValue;
+        VibeAudioLevelAnalyzer *analyzer = VibeAudioLevelAnalyzerCreate(
+                sampleRate, VibeAudioLevelNormalizationModeBalancedSpectrum);
+        NSUInteger window = VibeAudioLevelAnalyzerFFTSize(analyzer);
+        NSUInteger strongBin = (NSUInteger)llround(3445.3125 * window / sampleRate);
+        NSUInteger transientBin = strongBin * 2;
+        NSMutableData *samples = [NSMutableData
+                dataWithLength:window * 2 * sizeof(float)];
+        float *values = samples.mutableBytes;
+        VibeTestAddBinTone(values, window, strongBin, 0.5f);
+        VibeTestAddBinTone(values + window, window, strongBin, 0.5f);
+        VibeTestAddBinTone(values, window, transientBin, 0.1f);
+        float *channels[] = {values};
+        float levels[kLevelBandCount] = {0};
+        XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, channels, 1,
+                                                      window * 2, levels), 2u);
+        if (!hasBaseline) {
+            memcpy(baseline, levels, sizeof(baseline));
+            hasBaseline = YES;
+        }
+        for (NSUInteger band = 0; band < kLevelBandCount; band++) {
+            XCTAssertEqualWithAccuracy(levels[band], baseline[band], 0.003f,
+                                       @"rate %.0f band %lu", sampleRate,
+                                       (unsigned long)band);
+            XCTAssertLessThanOrEqual(levels[band], kLevelBalancedOutputScale);
+        }
+        VibeAudioLevelAnalyzerDestroy(analyzer);
+    }
+}
+
 - (void)testOneAnalyzerRebindsToADeliveredRateChangeWithoutAllocation {
     VibeAudioLevelAnalyzer *analyzer = VibeAudioLevelAnalyzerCreate(
             48000.0, VibeAudioLevelNormalizationModeRelativeActivity);
@@ -349,6 +596,55 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     XCTAssertEqual(VibeTestStrongestBand(levels), 3u);
     XCTAssertGreaterThan(levels[3], 0.9f);
     VibeAudioLevelAnalyzerDestroy(analyzer);
+}
+
+- (void)testBalancedSpectrumRateRebindResetsPartialInputAndBothReferences {
+    const double oldRate = 48000.0;
+    const double newRate = 192000.0;
+    VibeAudioLevelAnalyzer *rebound = VibeAudioLevelAnalyzerCreate(
+            oldRate, VibeAudioLevelNormalizationModeBalancedSpectrum);
+    NSUInteger oldWindow = VibeAudioLevelAnalyzerFFTSize(rebound);
+    NSMutableData *oldSamples = [NSMutableData
+            dataWithLength:oldWindow * sizeof(float)];
+    VibeTestAddBinTone(oldSamples.mutableBytes, oldWindow, 3, 0.8f);
+    VibeTestAddBinTone(oldSamples.mutableBytes, oldWindow, 400, 0.4f);
+    float *oldChannels[] = {oldSamples.mutableBytes};
+    float oldLevels[kLevelBandCount] = {0};
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(rebound, oldChannels, 1,
+                                                  oldWindow, oldLevels), 1u);
+    XCTAssertGreaterThan(oldLevels[VibeTestStrongestBand(oldLevels)], 0.8f);
+
+    NSMutableData *partialSamples = [NSMutableData
+            dataWithLength:(oldWindow / 2) * sizeof(float)];
+    VibeTestFillTone(partialSamples.mutableBytes, oldWindow / 2,
+                     oldRate, 6000.0, 1.0f);
+    float *partialChannels[] = {partialSamples.mutableBytes};
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(rebound, partialChannels, 1,
+                                                  oldWindow / 2, oldLevels), 0u);
+
+    XCTAssertTrue(VibeAudioLevelAnalyzerSetSampleRate(rebound, newRate));
+    VibeAudioLevelAnalyzer *fresh = VibeAudioLevelAnalyzerCreate(
+            newRate, VibeAudioLevelNormalizationModeBalancedSpectrum);
+    NSUInteger newWindow = VibeAudioLevelAnalyzerFFTSize(rebound);
+    XCTAssertEqual(newWindow, VibeAudioLevelAnalyzerFFTSize(fresh));
+    NSMutableData *newSamples = [NSMutableData
+            dataWithLength:newWindow * sizeof(float)];
+    VibeTestAddBinTone(newSamples.mutableBytes, newWindow, 7, 0.05f);
+    VibeTestAddBinTone(newSamples.mutableBytes, newWindow, 300, 0.025f);
+    float *newChannels[] = {newSamples.mutableBytes};
+    float reboundLevels[kLevelBandCount] = {0};
+    float freshLevels[kLevelBandCount] = {0};
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(rebound, newChannels, 1,
+                                                  newWindow, reboundLevels), 1u);
+    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(fresh, newChannels, 1,
+                                                  newWindow, freshLevels), 1u);
+    for (NSUInteger band = 0; band < kLevelBandCount; band++) {
+        XCTAssertEqualWithAccuracy(reboundLevels[band], freshLevels[band], 0.0001f,
+                                   @"band %lu", (unsigned long)band);
+    }
+
+    VibeAudioLevelAnalyzerDestroy(rebound);
+    VibeAudioLevelAnalyzerDestroy(fresh);
 }
 
 - (void)testAntiphaseStereoMatchesInPhaseStereo {
@@ -437,10 +733,11 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     VibeAudioLevelAnalyzerDestroy(analyzer);
 }
 
-- (void)testCorruptSamplesProduceFiniteLevelsInBothModes {
+- (void)testCorruptSamplesProduceFiniteLevelsInAllModes {
     const VibeAudioLevelNormalizationMode modes[] = {
         VibeAudioLevelNormalizationModeRelativeActivity,
         VibeAudioLevelNormalizationModeSharedSpectrum,
+        VibeAudioLevelNormalizationModeBalancedSpectrum,
     };
     for (NSUInteger modeIndex = 0;
          modeIndex < sizeof(modes) / sizeof(modes[0]); modeIndex++) {

@@ -4,6 +4,7 @@
 //
 
 #import "TrackDisplayController.h"
+#import "AppSettings.h"
 #import "MainPlayerContentView.h"
 #import "AudioWaveformView.h"
 #import "AudioWaveformView+Loading.h" // the shimmer and empty-state pass-throughs
@@ -242,7 +243,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         }
         // The line itself is AudioTrackMetadata's, shared with the iOS page
         // header; the setting decides only whether it is shown.
-        [self setFileMetadataText:(Settings.showFileInfo ? track.metadata.fileInfoLine : @"")];
+        [self setFileMetadataText:(AppSettings.sharedInstance.showFileInfo ? track.metadata.fileInfoLine : @"")];
         break;
 
     case TrackDisplayStateLaunchGrace:
@@ -328,7 +329,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
                                        duration:(NSTimeInterval)duration
                                            rate:(double)rate {
     NSString *text;
-    if (Settings.showRemainingTime) {
+    if (AppSettings.sharedInstance.showRemainingTime) {
         NSTimeInterval remaining = MAX(0, duration / rate - displayPosition);
         text = [VibeNotLocalized(@"-") stringByAppendingString:
                 [[Formatters sharedInstance] durationStringFromTimeInterval:remaining]];
@@ -351,7 +352,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 }
 
 - (void)renderBPM:(float)displayBPM keyText:(NSString *)keyText colorKey:(NSInteger)colorKey {
-    if (!Settings.showFileInfo) {
+    if (!AppSettings.sharedInstance.showFileInfo) {
         // Hidden along with the codec text above it; the FX symbols are deck
         // state, not file info, and keep rendering.
         displayBPM = 0;

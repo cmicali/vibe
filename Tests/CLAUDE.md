@@ -20,7 +20,7 @@ Anything that needs the app running — transport, FX, menus, drag-and-drop, lay
 
 **Sources under test are compiled into the test target, not linked from the app.** Adding a test for a new file means adding that file to the `VibeTests` source list in `project.yml`. Keep the list curated, and keep TagLib out of it — nothing here needs it, and the vendored subset would dominate the build.
 
-**Where a test needs an `AudioTrackMetadata`, use a duck-typed fake cast to the property type.** `AudioTrackTests.m` declares `FakeTrackMetadata : NSObject` and assigns it with `track.metadata = (AudioTrackMetadata *)fake` — `objc_msgSend` does not care about the static type, and `AudioTrack` only ever sends messages to its metadata, never names the class.
+**Where a test needs an `AudioTrackMetadata`, use a duck-typed fake cast to the property type.** `AudioTrackTests.m` declares `FakeTrackMetadata : NSObject` and installs it through `AudioTrackInternal.h` — `objc_msgSend` does not care about the static type, and `AudioTrack` only ever sends messages to its metadata, never names the class.
 
 **Where the thing under test is a private class method, share it through an `*Internal.h` the implementation file imports too** (`NSURLUtilInternal.h`), rather than re-declaring selectors in the test: a rename then breaks the build instead of the run.
 

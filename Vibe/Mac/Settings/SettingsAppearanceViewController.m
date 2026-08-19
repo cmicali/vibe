@@ -4,6 +4,7 @@
 //
 
 #import "SettingsAppearanceViewController.h"
+#import "AppSettings.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Window.h"
 #import "MainPlayerController+Menus.h"
@@ -87,7 +88,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
 }
 
 - (void)refreshFromSettings {
-    NSString *style = Settings.windowAppearanceStyle;
+    NSString *style = AppSettings.sharedInstance.windowAppearanceStyle;
     if ([style isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT]) {
         [_appearancePopUp selectItemWithTag:VibeAppearanceTagLight];
     }
@@ -102,7 +103,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     // waveform view's own fallback — so the popup shows that rather than
     // leaving whatever was selected before standing, which would misreport
     // what is on screen.
-    NSString *current = Settings.waveformStyle;
+    NSString *current = AppSettings.sharedInstance.waveformStyle;
     NSMenuItem *match = nil;
     for (NSMenuItem *item in _waveformPopUp.itemArray) {
         if ([item.representedObject isEqualToString:current]) {
@@ -122,32 +123,32 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
         [_waveformPopUp selectItem:match];
     }
 
-    _fileInfoCheckbox.state = Settings.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
+    _fileInfoCheckbox.state = AppSettings.sharedInstance.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
 
-    BOOL remaining = Settings.showRemainingTime;
+    BOOL remaining = AppSettings.sharedInstance.showRemainingTime;
     _timeTotalRadio.state = remaining ? NSControlStateValueOff : NSControlStateValueOn;
     _timeRemainingRadio.state = remaining ? NSControlStateValueOn : NSControlStateValueOff;
 
-    NSString *notation = Settings.keyNotation;
+    NSString *notation = AppSettings.sharedInstance.keyNotation;
     for (NSMenuItem *item in _keyNotationPopUp.itemArray) {
         if ([item.representedObject isEqualToString:notation]) {
             [_keyNotationPopUp selectItem:item];
             break;
         }
     }
-    _keyColorsCheckbox.state = Settings.keyColorsEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+    _keyColorsCheckbox.state = AppSettings.sharedInstance.keyColorsEnabled ? NSControlStateValueOn : NSControlStateValueOff;
 }
 
 - (void)appearanceChanged:(id)sender {
     switch (_appearancePopUp.selectedTag) {
         case VibeAppearanceTagLight:
-            Settings.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
+            AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
             break;
         case VibeAppearanceTagDark:
-            Settings.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK;
+            AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK;
             break;
         default:
-            Settings.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
+            AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
             break;
     }
     // A non-menu sender applies the stored setting without rewriting it.
@@ -159,22 +160,22 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
 }
 
 - (void)toggleFileInfo:(id)sender {
-    Settings.showFileInfo = (_fileInfoCheckbox.state == NSControlStateValueOn);
+    AppSettings.sharedInstance.showFileInfo = (_fileInfoCheckbox.state == NSControlStateValueOn);
     [self.playerController refreshFileInfoDisplay];
 }
 
 - (void)timeDisplayChanged:(NSButton *)sender {
-    Settings.showRemainingTime = (sender == _timeRemainingRadio);
+    AppSettings.sharedInstance.showRemainingTime = (sender == _timeRemainingRadio);
     [self.playerController refreshTimeDisplay];
 }
 
 - (void)keyNotationChanged:(id)sender {
-    Settings.keyNotation = _keyNotationPopUp.selectedItem.representedObject;
+    AppSettings.sharedInstance.keyNotation = _keyNotationPopUp.selectedItem.representedObject;
     [self.playerController refreshKeyDisplay];
 }
 
 - (void)toggleKeyColors:(id)sender {
-    Settings.keyColorsEnabled = (_keyColorsCheckbox.state == NSControlStateValueOn);
+    AppSettings.sharedInstance.keyColorsEnabled = (_keyColorsCheckbox.state == NSControlStateValueOn);
     [self.playerController refreshKeyDisplay];
 }
 

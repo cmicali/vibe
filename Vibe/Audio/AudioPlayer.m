@@ -737,7 +737,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // is the same AudioTrack, so a start that belongs to the previous play
     // reads as current. Acting on it re-runs didStartPlaying:'s whole tail —
     // including the successor prefetch whose acknowledgement releases the
-    // cloud-lane hold, stamped with the NEWER play's generation because that
+    // metadata materialization hold, stamped with the NEWER play's generation because that
     // play was submitted while this callback was still travelling. The
     // background lane then resumes against an open the user is still waiting
     // on. Measured: a background download beginning 15ms into it.
@@ -1216,6 +1216,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 static NSString *VibeAudioLevelNormalizationModeName(
         VibeAudioLevelNormalizationMode normalizationMode) {
     switch (normalizationMode) {
+        case VibeAudioLevelNormalizationModeBalancedSpectrum:
+            return @"balanced";
         case VibeAudioLevelNormalizationModeSharedSpectrum:
             return @"spectrum";
         case VibeAudioLevelNormalizationModeRelativeActivity:
@@ -1226,7 +1228,8 @@ static NSString *VibeAudioLevelNormalizationModeName(
 
 - (void)debugSetEqualizerNormalizationMode:(VibeAudioLevelNormalizationMode)normalizationMode {
     if (normalizationMode != VibeAudioLevelNormalizationModeRelativeActivity
-            && normalizationMode != VibeAudioLevelNormalizationModeSharedSpectrum) {
+            && normalizationMode != VibeAudioLevelNormalizationModeSharedSpectrum
+            && normalizationMode != VibeAudioLevelNormalizationModeBalancedSpectrum) {
         return;
     }
     void (^applyMode)(void) = ^{
@@ -1537,7 +1540,7 @@ static NSString *VibeAudioLevelNormalizationModeName(
 // published Loading for the replacement — because that happens on the player
 // queue, one hop later — so every guard it has says the error is current. It
 // then tears down state the newer play had just set up. Measured: the shell's
-// cloud-lane hold released 11ms after the replay's own open began, and the
+// metadata materialization hold released 11ms after the replay's own open began, and the
 // background lane started downloading against it.
 //
 // The identifier is what settles it, and it is exact rather than heuristic: a

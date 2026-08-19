@@ -8,7 +8,6 @@
 #import "MainPlayerContentView.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
-#import "AudioTrackMetadata+ArtLoad.h"
 #import "ArtworkImageView.h"
 #import "NSDockTile+Util.h"
 #import "NSImage+Util.h"
@@ -16,6 +15,9 @@
 #import "NSView+DarkMode.h"
 #import "CrossfadingImageView.h"
 #import <QuartzCore/QuartzCore.h>
+#if DEBUG
+#import "ArtworkDisplayController+Debug.h"
+#endif
 
 // The raw dominant color can be anything from neon to near-black. Pulling it
 // into an appearance-specific band keeps the tint recognizable as the art's
@@ -50,11 +52,13 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
 @property (nonatomic, strong, readonly) NSImage *sourceArt;
 @property (nonatomic, strong, readonly) NSImage *renderSource;
 @property (nonatomic, strong, readonly) AudioTrack *track;
+@property (nonatomic, strong, readonly) AudioTrackMetadata *metadata;
 @property (nonatomic, strong, readonly, nullable) NSColor *cachedColor;
 @property (nonatomic, readonly) NSUInteger artworkRenderGeneration;
 - (instancetype)initWithSourceArt:(NSImage *)sourceArt
                      renderSource:(NSImage *)renderSource
                             track:(AudioTrack *)track
+                         metadata:(AudioTrackMetadata *)metadata
                       cachedColor:(nullable NSColor *)cachedColor
                        generation:(NSUInteger)generation;
 @end
@@ -64,6 +68,7 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
 - (instancetype)initWithSourceArt:(NSImage *)sourceArt
                      renderSource:(NSImage *)renderSource
                             track:(AudioTrack *)track
+                         metadata:(AudioTrackMetadata *)metadata
                       cachedColor:(nullable NSColor *)cachedColor
                        generation:(NSUInteger)generation {
     self = [super init];
@@ -71,6 +76,7 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
         _sourceArt = sourceArt;
         _renderSource = renderSource;
         _track = track;
+        _metadata = metadata;
         _cachedColor = cachedColor;
         _artworkRenderGeneration = generation;
     }
@@ -113,18 +119,21 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     ArtworkImageView            *_artworkView;
     NSView                      *_headerTintView;
     NSColor                     *_dominantArtColor; // raw; clamps applied per-appearance at apply time
-    // The raw dominant color per track, under weak keys so it dies with the
-    // playlist. The color is a pure function of the track's art, which is
-    // stable for the track's lifetime. Revisiting a track re-decodes its
-    // demoted art, a deliberate memory tradeoff, but need not resample it for
-    // the tint.
-    NSMapTable<AudioTrack *, NSColor *> *_dominantColorByTrack;
+    // The raw dominant color per source image, under weak keys so it dies with
+    // the decoded art. A shared folder cover is sampled once, while a replaced
+    // source cannot inherit the previous image's tint.
+    NSMapTable<NSImage *, NSColor *> *_dominantColorByArt;
     __weak NSImage              *_displayedArt;
     // What is actually installed, which _displayedArt cannot answer: it is
     // weak, and a FOLDER cover's only strong owner is FolderArtResolver's image
     // cache, so it self-nils the moment that cache drops the image while the
     // cropped copy stays on screen.
     BOOL                         _showingDefaultArt;
+    // The track whose crop is actually installed. Unlike _displayedArt this
+    // survives the source image's weak reference disappearing, so ownership
+    // remains exact through a KeepPrevious transition.
+    __weak AudioTrack           *_displayedArtTrack;
+    __weak AudioTrackMetadata   *_displayedArtMetadata;
     // The source whose crop is in flight. Kept separately from _displayedArt:
     // the latter must describe what the view actually shows, especially while
     // the slow-load placeholder decides whether the pending track's art won.
@@ -133,6 +142,12 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     // reference is weak, so that if the playlist is replaced the track
     // deallocates and takes its art with it.
     __weak AudioTrack           *_artOwnerTrack;
+    // The exact track, metadata and source image the header currently
+    // describes. Changing any identity invalidates stale crops without
+    // replacing the installed image kept through an unresolved transition.
+    __weak AudioTrack           *_artworkTargetTrack;
+    __weak AudioTrackMetadata   *_artworkTargetMetadata;
+    __weak NSImage              *_artworkTargetArt;
     // Pairs each async crop-and-color render with the request that owns both
     // products. Neither a stale image nor its color may land over what
     // superseded it.
@@ -150,7 +165,7 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     if (self) {
         _artworkView = contentView.albumArtImageView;
         _headerTintView = contentView.headerTintView;
-        _dominantColorByTrack = [NSMapTable weakToStrongObjectsMapTable];
+        _dominantColorByArt = [NSMapTable weakToStrongObjectsMapTable];
         dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
                 DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
         _artworkRenderQueue = dispatch_queue_create("com.vibe.artwork.render", attributes);
@@ -223,7 +238,9 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
 // Playing while the result, once complete, belongs to the artwork view. No one
 // NSImage instance is therefore drawn concurrently across threads. The one
 // main-thread delivery starts the image and tint crossfades together.
-- (void)renderArt:(NSImage *)art forTrack:(AudioTrack *)track {
+- (void)renderArt:(NSImage *)art
+         forTrack:(AudioTrack *)track
+         metadata:(AudioTrackMetadata *)metadata {
     // Copy before hopping queues, matching the dock renderer's ownership rule.
     // NSImage's per-instance drawing cache is not documented thread-safe.
     NSImage *renderSource = [art copy];
@@ -232,10 +249,11 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     }
     NSUInteger generation = ++_artworkRenderGeneration;
     _pendingArt = art;
-    NSColor *cachedColor = track ? [_dominantColorByTrack objectForKey:track] : nil;
+    NSColor *cachedColor = [_dominantColorByArt objectForKey:art];
     ArtworkRenderRequest *request = [[ArtworkRenderRequest alloc]
             initWithSourceArt:art renderSource:renderSource track:track
-                   cachedColor:cachedColor generation:generation];
+                      metadata:metadata cachedColor:cachedColor
+                    generation:generation];
     if (_renderInFlight) {
         _queuedRenderRequest = request;
         return;
@@ -266,18 +284,28 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
 
 - (void)completeRenderRequest:(ArtworkRenderRequest *)request
                         result:(ArtworkDisplayResult *)result {
-    // Cache even a stale color. It is still right for the track that requested
-    // it, merely not for the current display.
+    // Cache even a stale color. It is still right for the source image that
+    // requested it, merely not for the current display.
     if (result.dominantColor) {
-        [_dominantColorByTrack setObject:result.dominantColor forKey:request.track];
+        [_dominantColorByArt setObject:result.dominantColor
+                                forKey:request.sourceArt];
     }
-    if (request.artworkRenderGeneration == _artworkRenderGeneration) {
+    if (VibeArtworkRenderResultMayInstall(request.artworkRenderGeneration,
+                                          _artworkRenderGeneration,
+                                          request.track,
+                                          request.metadata,
+                                          request.sourceArt,
+                                          _artworkTargetTrack,
+                                          _artworkTargetMetadata,
+                                          _artworkTargetArt)) {
         _pendingArt = nil;
         _artworkView.image = result.squareImage;
         _dominantArtColor = result.dominantColor;
         [self refreshHeaderTint];
         [NSDockTile setDockIcon:result.squareImage];
         _displayedArt = request.sourceArt;
+        _displayedArtTrack = request.track;
+        _displayedArtMetadata = request.metadata;
         _showingDefaultArt = NO;
     }
 
@@ -295,19 +323,29 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
 // so the default never flashes between tracks. The default backdrop is
 // installed only once the track is known to be artless.
 - (void)updateForTrack:(AudioTrack *)track {
+    // Snapshot before choosing the render target. A failed fallback may be
+    // replaced by successful metadata on the same AudioTrack, and one metadata
+    // object can acquire a new cached source after an asynchronous art load.
+    AudioTrackMetadata *metadata = track.metadata;
+    NSImage *art = metadata.cachedArt;
+    if (_artworkTargetTrack != track || _artworkTargetMetadata != metadata ||
+            _artworkTargetArt != art) {
+        _artworkTargetTrack = track;
+        _artworkTargetMetadata = metadata;
+        _artworkTargetArt = art;
+        _artworkRenderGeneration++;
+        _pendingArt = nil;
+        _queuedRenderRequest = nil;
+    }
     // The art view doubles as the track's drag-out source, and the URL follows
     // the displayed track directly rather than the keep-previous art policy
     // below: a drag during the unresolved gap must export the track the header
     // names.
     _artworkView.fileURL = track.url;
-    // One read, because the identity check and the install must see the same
-    // object.
-    NSImage *art = track.cachedArt;
-    AudioTrackMetadata *metadata = track.metadata;
-    // artLoadDispatched is cleared when a load completes, so here it
-    // means exactly that a load is in flight.
+    // artLoadPending is cleared before a load completes, so here it means
+    // exactly that a load is in flight.
     BOOL artResolved = metadata != nil && !metadata.artNeedsLoad &&
-                       !metadata.artLoadDispatched;
+                       !metadata.artLoadPending;
     VibeArtworkDisplayAction action = VibeArtworkDisplayActionFor(track != nil, art != nil,
                                                                   artResolved, _initialized);
     _initialized = YES;
@@ -318,7 +356,15 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
         return;
     }
     if (action == VibeArtworkDisplayActionInstall) {
-        if (_displayedArt != art && _pendingArt != art) {
+        if (_displayedArt == art) {
+            // Adjacent files can share one folder-cover image. The installed
+            // crop is already exact; transfer its presentation identity rather
+            // than repeat the crop and color pass.
+            _displayedArtTrack = track;
+            _displayedArtMetadata = metadata;
+            _showingDefaultArt = NO;
+        }
+        else if (_pendingArt != art) {
             // Both surfaces frame art square and aspect-fit it, so the worker
             // crops once rather than letterboxing a wide or tall cover in the
             // header view and again in the dock tile. Both identity marks stay
@@ -330,7 +376,7 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
             // publishes track.cachedArt itself (NowPlayingController), and must
             // keep receiving the uncropped original — Control Center frames it
             // on its own terms.
-            [self renderArt:art forTrack:track];
+            [self renderArt:art forTrack:track metadata:metadata];
         }
         return;
     }
@@ -339,11 +385,11 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     // than stranding it: a track that never started playing never becomes
     // _artOwnerTrack, so nothing else would drop the 4-9MB this load pinned.
     __weak ArtworkDisplayController *weakSelf = self;
-    [metadata dispatchArtLoadIfNeededStillWanted:^BOOL{
+    [metadata loadArtIfNeededStillWanted:^BOOL{
         ArtworkDisplayController *strongSelf = weakSelf;
         AudioTrack *currentTrack = strongSelf.currentTrackProvider
                 ? strongSelf.currentTrackProvider() : nil;
-        return currentTrack == track;
+        return currentTrack == track && track.metadata == metadata;
     } completion:^(NSImage *loaded) {
         ArtworkDisplayController *strongSelf = weakSelf;
         // The same rule the pass above applies, so a load's outcome and a plain
@@ -374,14 +420,19 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
 // keep that.
 - (void)showPlaceholderForSlowLoad {
     AudioTrack *track = self.currentTrackProvider ? self.currentTrackProvider() : nil;
-    NSImage *art = track.cachedArt;
-    if (art && _displayedArt == art) {
+    AudioTrackMetadata *metadata = track.metadata;
+    NSImage *art = metadata.cachedArt;
+    if (art && _displayedArt == art && _displayedArtTrack == track &&
+            _displayedArtMetadata == metadata) {
         return;
     }
     // If this track's crop is already in flight, the placeholder is only its
     // backdrop while it finishes; let that result replace the default. A render
     // for any other source belongs to the departed track and is invalidated.
-    [self showDefaultArtworkInvalidatingRender:(_pendingArt != art || !art)];
+    BOOL currentCropPending = art && _pendingArt == art &&
+            _artworkTargetTrack == track && _artworkTargetMetadata == metadata &&
+            _artworkTargetArt == art;
+    [self showDefaultArtworkInvalidatingRender:!currentCropPending];
 }
 
 // Installs the record-bg default art and clears the glass tint. An ordinary
@@ -406,6 +457,8 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     [self refreshHeaderTint];
     [NSDockTile resetToAppIcon];
     _displayedArt = nil;
+    _displayedArtTrack = nil;
+    _displayedArtMetadata = nil;
     _showingDefaultArt = YES;
 }
 
@@ -420,5 +473,39 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     }
     _artOwnerTrack = track;
 }
+
+#if DEBUG
+- (AudioTrack *)debugArtworkTargetTrack {
+    return _artworkTargetTrack;
+}
+
+- (AudioTrackMetadata *)debugArtworkTargetMetadata {
+    return _artworkTargetMetadata;
+}
+
+- (NSImage *)debugArtworkTargetArt {
+    return _artworkTargetArt;
+}
+
+- (AudioTrack *)debugInstalledArtworkOwnerTrack {
+    return _displayedArtTrack;
+}
+
+- (AudioTrackMetadata *)debugInstalledArtworkMetadata {
+    return _displayedArtMetadata;
+}
+
+- (NSImage *)debugInstalledArtworkSource {
+    return _displayedArt;
+}
+
+- (BOOL)debugShowingDefaultArtwork {
+    return _showingDefaultArt;
+}
+
+- (BOOL)debugArtworkRenderPending {
+    return _pendingArt != nil && _pendingArt == _artworkTargetArt;
+}
+#endif
 
 @end

@@ -3,10 +3,15 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
-#import "AudioTrack.h"
+#import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
 #import "NSURL+Hash.h"
+
+@interface AudioTrack ()
+@property(copy, readwrite) NSURL *url;
+@property(atomic, strong, nullable, readwrite) AudioTrackMetadata *metadata;
+@end
 #import "VibeStrings.h"
 
 @interface AudioTrack ()
@@ -23,7 +28,7 @@
     NSTimeInterval _durationStringDuration;
 }
 
-- (instancetype)initWithUrl:(NSURL *)url {
+- (instancetype)initWithURL:(NSURL *)url {
     self = [super init];
     if (self) {
         self.url = url;
@@ -34,7 +39,29 @@
 }
 
 + (AudioTrack *)withURL:(NSURL *)url {
-    return [[AudioTrack alloc] initWithUrl:url];
+    return [[AudioTrack alloc] initWithURL:url];
+}
+
+- (BOOL)installMetadataIfUnresolved:(AudioTrackMetadata *)metadata {
+    @synchronized (self) {
+        if (self.metadata.parsedOK) {
+            return NO;
+        }
+        self.metadata = metadata;
+        return YES;
+    }
+}
+
+- (BOOL)deliverIfMetadataStillInstalled:(AudioTrackMetadata *)metadata
+                              usingBlock:(NS_NOESCAPE dispatch_block_t)delivery {
+    NSParameterAssert(delivery);
+    @synchronized (self) {
+        if (self.metadata != metadata) {
+            return NO;
+        }
+        delivery();
+        return YES;
+    }
 }
 
 - (nullable NSString *)cacheKey {

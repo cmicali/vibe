@@ -7,6 +7,7 @@
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Debug.h"
 
+#import "AppSettings.h"
 #import "AudioFileConverter.h"
 #import "VibeStrings.h"
 #import "AudioPlayer.h"
@@ -380,7 +381,7 @@
 // Convert > Delete Original. A preference, not an action: it takes effect on
 // the next conversion — a running one keeps the value it was accepted with.
 - (IBAction)toggleDeleteOriginalAfterConvert:(id)sender {
-    Settings.deleteOriginalAfterConvert = !Settings.deleteOriginalAfterConvert;
+    AppSettings.sharedInstance.deleteOriginalAfterConvert = !AppSettings.sharedInstance.deleteOriginalAfterConvert;
 }
 
 @end

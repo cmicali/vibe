@@ -3,7 +3,7 @@
 //  Vibe
 //
 
-#import "FolderAccessManager.h"
+#import "FolderAccessManagerInternal.h"
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderAccessRules.h"
 #import "VibeStrings.h"
@@ -26,6 +26,7 @@ static NSString *const kEntryPowerboxActiveKey = @"powerboxActive";
 // The ceiling on every wait for a restored grant, shared by the launch drain
 // and the per-open waiters, so the two cannot drift apart.
 static const NSTimeInterval kRestoreDeadline = 2.0;
+const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
 
 @interface VibeRestorationWaiter : NSObject
 @property (copy) NSArray<NSURL *> *urls;
@@ -33,6 +34,36 @@ static const NSTimeInterval kRestoreDeadline = 2.0;
 @end
 
 @implementation VibeRestorationWaiter
+@end
+
+// TRAP: promotion cancels and re-enqueues a queued operation, but cancellation
+// can race its start. The claim keeps the two lanes from resolving it twice.
+@interface FolderAccessRestoration : NSObject
+// Exact row identity. The immutable snapshot below is the background input;
+// this object is only compared by pointer on main.
+@property (strong) NSMutableDictionary *liveEntry;
+@property (copy) NSDictionary *stored;
+@property (strong) NSOperation *operation;
+@property (copy) dispatch_block_t work;
+@property BOOL eligible;
+@property BOOL prioritized;
+- (BOOL)claim;
+@end
+
+@implementation FolderAccessRestoration {
+    BOOL _claimed;
+}
+
+- (BOOL)claim {
+    @synchronized (self) {
+        if (_claimed) {
+            return NO;
+        }
+        _claimed = YES;
+        return YES;
+    }
+}
+
 @end
 
 @interface VibeGrantedFolder ()
@@ -62,8 +93,10 @@ static const NSTimeInterval kRestoreDeadline = 2.0;
     // Mutated on the main thread only; background work operates on snapshots
     // and merges back on main.
     NSMutableArray<NSMutableDictionary *> *_entries;
-    NSMutableSet<NSString *> *_restoringPaths;
     NSMutableArray<VibeRestorationWaiter *> *_restorationWaiters;
+    NSOperationQueue *_restorationQueue;
+    NSOperationQueue *_urgentRestorationQueue;
+    NSMutableArray<FolderAccessRestoration *> *_pendingRestorations;
     // Until the launch restore runs, no stored bookmark has been tried, so a
     // row that is neither live nor resolving is pending rather than failed.
     BOOL _restoreStarted;
@@ -83,8 +116,17 @@ static const NSTimeInterval kRestoreDeadline = 2.0;
     self = [super init];
     if (self) {
         _entries = [NSMutableArray array];
-        _restoringPaths = [NSMutableSet set];
         _restorationWaiters = [NSMutableArray array];
+        _restorationQueue = [NSOperationQueue new];
+        _restorationQueue.name = @"com.commonwealthrecordings.Vibe.folder-access-restore";
+        _restorationQueue.qualityOfService = NSQualityOfServiceUtility;
+        // Leave one slot for a grant an open is actively waiting on.
+        _restorationQueue.maxConcurrentOperationCount = VibeFolderAccessRestoreConcurrencyLimit - 1;
+        _urgentRestorationQueue = [NSOperationQueue new];
+        _urgentRestorationQueue.name = @"com.commonwealthrecordings.Vibe.folder-access-restore.open";
+        _urgentRestorationQueue.qualityOfService = NSQualityOfServiceUserInitiated;
+        _urgentRestorationQueue.maxConcurrentOperationCount = 1;
+        _pendingRestorations = [NSMutableArray array];
         NSArray *stored = [NSUserDefaults.standardUserDefaults arrayForKey:kGrantedFoldersDefaultsKey];
         for (NSDictionary *entry in stored) {
             NSString *path = entry[kEntryPathKey];
@@ -126,6 +168,12 @@ static NSString *VibeAliasFreePath(NSString *path) {
     return path;
 }
 
+static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
+    NSString *path = VibeAliasFreePath(url.URLByStandardizingPath.path);
+    return VibeUncanonicalPathIsUnderFolder(path,
+                                            VibeAliasFreePath(grantedPath));
+}
+
 - (BOOL)canReadInsideDirectory:(NSString *)path {
     if (path.length == 0) {
         return NO;
@@ -150,46 +198,66 @@ static NSString *VibeAliasFreePath(NSString *path) {
     if (entry[kEntryAccessedURLKey] || [entry[kEntryPowerboxActiveKey] boolValue]) {
         return VibeGrantedFolderStateActive;
     }
-    if (!_restoreStarted || [_restoringPaths containsObject:entry[kEntryPathKey]]) {
+    if (!_restoreStarted || [self hasEligibleRestorationForEntry:entry]) {
         return VibeGrantedFolderStateRestoring;
     }
     return VibeGrantedFolderStateUnavailable;
 }
 
+- (BOOL)hasEligibleRestorationForEntry:(NSDictionary *)entry {
+    for (FolderAccessRestoration *restoration in _pendingRestorations) {
+        if (restoration.eligible && restoration.liveEntry == entry) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
 #pragma mark - Restore
 
 - (void)restoreGrantedAccessWithCompletion:(void (^)(void))completion {
-    NSArray<NSDictionary *> *snapshot = [[NSArray alloc] initWithArray:_entries copyItems:YES];
+    NSArray<NSMutableDictionary *> *liveEntries = [_entries copy];
     _restoreStarted = YES;
-    if (snapshot.count == 0) {
+    if (liveEntries.count == 0) {
         if (completion) {
             completion();
         }
         return;
     }
     dispatch_group_t group = dispatch_group_create();
-    for (NSDictionary *stored in snapshot) {
-        [_restoringPaths addObject:stored[kEntryPathKey]];
-    }
-    for (NSDictionary *stored in snapshot) {
-        // One block per bookmark: a resolve can block for an automounter
-        // timeout on an unreachable mount, and serialized behind it every
-        // later folder's grant would wait too.
+    for (NSMutableDictionary *liveEntry in liveEntries) {
+        NSDictionary *stored = @{kEntryPathKey: liveEntry[kEntryPathKey],
+                                 kEntryBookmarkKey: liveEntry[kEntryBookmarkKey]};
         dispatch_group_enter(group);
-        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        FolderAccessRestoration *restoration = [FolderAccessRestoration new];
+        restoration.liveEntry = liveEntry;
+        restoration.stored = stored;
+        restoration.eligible = YES;
+        __weak FolderAccessRestoration *weakRestoration = restoration;
+        restoration.work = ^{
             NSDictionary *restored = [self resolveStoredEntry:stored];
             dispatch_async(dispatch_get_main_queue(), ^{
-                if (restored) {
+                FolderAccessRestoration *finished = weakRestoration;
+                if (restored && finished) {
                     [self mergeRestoredURL:restored[kEntryAccessedURLKey]
                                   bookmark:restored[kEntryBookmarkKey]
-                               forOriginal:stored];
+                            forRestoration:finished];
                 }
-                [self->_restoringPaths removeObject:stored[kEntryPathKey]];
+                if (finished) {
+                    finished.eligible = NO;
+                    [self->_pendingRestorations removeObjectIdenticalTo:finished];
+                    finished.operation = nil;
+                    finished.work = nil;
+                    finished.liveEntry = nil;
+                }
                 [self postCoalescedChangeNotification];
                 [self drainRestorationWaiters];
                 dispatch_group_leave(group);
             });
-        });
+        };
+        restoration.operation = [self operationForRestoration:restoration];
+        [_pendingRestorations addObject:restoration];
+        [_restorationQueue addOperation:restoration.operation];
     }
     if (!completion) {
         return;
@@ -207,6 +275,41 @@ static NSString *VibeAliasFreePath(NSString *path) {
     dispatch_group_notify(group, dispatch_get_main_queue(), finish);
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRestoreDeadline * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), finish);
+}
+
+- (NSBlockOperation *)operationForRestoration:(FolderAccessRestoration *)restoration {
+    __weak FolderAccessRestoration *weakRestoration = restoration;
+    return [NSBlockOperation blockOperationWithBlock:^{
+        FolderAccessRestoration *strongRestoration = weakRestoration;
+        if ([strongRestoration claim]) {
+            strongRestoration.work();
+        }
+    }];
+}
+
+// A removed or reactivated row no longer competes for an open's reserved lane.
+// Its resolution still has to run once: that is what balances the launch group,
+// and a resolution already in flight may have started a scope that merge must
+// release. A pending urgent admission is therefore moved back to utility work;
+// the restoration's claim arbitrates the cancel/start race between operations.
+- (void)invalidateRestorationsForEntry:(NSMutableDictionary *)entry {
+    for (FolderAccessRestoration *restoration in [_pendingRestorations copy]) {
+        if (!restoration.eligible || restoration.liveEntry != entry) {
+            continue;
+        }
+        restoration.eligible = NO;
+        if (!restoration.prioritized) {
+            continue;
+        }
+        NSOperation *urgentOperation = restoration.operation;
+        if (!urgentOperation || urgentOperation.executing || urgentOperation.finished) {
+            continue;
+        }
+        [urgentOperation cancel];
+        restoration.prioritized = NO;
+        restoration.operation = [self operationForRestoration:restoration];
+        [_restorationQueue addOperation:restoration.operation];
+    }
 }
 
 // Background thread. Resolves and starts the scope; the main-thread caller
@@ -252,10 +355,11 @@ static NSString *VibeAliasFreePath(NSString *path) {
 
 - (void)awaitRestoredAccessForURLs:(NSArray<NSURL *> *)urls
                         completion:(dispatch_block_t)completion {
-    if (![self anyURL:urls coveredByPaths:_restoringPaths]) {
+    if (![self shouldWaitForRestorationOfURLs:urls]) {
         completion();
         return;
     }
+    [self prioritizeRestorationsForURLs:urls];
     VibeRestorationWaiter *waiter = [VibeRestorationWaiter new];
     waiter.urls = urls;
     waiter.completion = completion;
@@ -270,12 +374,78 @@ static NSString *VibeAliasFreePath(NSString *path) {
     });
 }
 
-- (void)drainRestorationWaiters {
-    for (VibeRestorationWaiter *waiter in [_restorationWaiters copy]) {
-        if (![self anyURL:waiter.urls coveredByPaths:_restoringPaths]) {
-            [self releaseWaiter:waiter];
+- (void)prioritizeRestorationsForURLs:(NSArray<NSURL *> *)urls {
+    NSMutableArray<FolderAccessRestoration *> *selected = [NSMutableArray array];
+    for (NSURL *url in urls) {
+        if ([self hasActiveAccessForURL:url]) {
+            continue;
+        }
+        FolderAccessRestoration *mostSpecific = nil;
+        NSUInteger mostSpecificDepth = 0;
+        for (FolderAccessRestoration *restoration in _pendingRestorations) {
+            NSString *path = restoration.stored[kEntryPathKey];
+            if (!restoration.eligible || !VibeURLIsCoveredByPath(url, path)) {
+                continue;
+            }
+            NSUInteger depth = VibeAliasFreePath(path).pathComponents.count;
+            if (!mostSpecific || depth > mostSpecificDepth) {
+                mostSpecific = restoration;
+                mostSpecificDepth = depth;
+            }
+        }
+        if (mostSpecific && ![selected containsObject:mostSpecific]) {
+            [selected addObject:mostSpecific];
         }
     }
+
+    for (FolderAccessRestoration *restoration in selected) {
+        NSOperation *operation = restoration.operation;
+        if (!operation || restoration.prioritized || operation.executing || operation.finished) {
+            continue;
+        }
+        restoration.prioritized = YES;
+        [operation cancel];
+        restoration.operation = [self operationForRestoration:restoration];
+        [_urgentRestorationQueue addOperation:restoration.operation];
+    }
+}
+
+- (void)drainRestorationWaiters {
+    for (VibeRestorationWaiter *waiter in [_restorationWaiters copy]) {
+        if (![self shouldWaitForRestorationOfURLs:waiter.urls]) {
+            [self releaseWaiter:waiter];
+        }
+        else {
+            // If the most-specific candidate failed, promote the next covering
+            // grant instead of leaving it behind unrelated launch restores.
+            [self prioritizeRestorationsForURLs:waiter.urls];
+        }
+    }
+}
+
+- (BOOL)shouldWaitForRestorationOfURLs:(NSArray<NSURL *> *)urls {
+    for (NSURL *url in urls) {
+        if (![self hasActiveAccessForURL:url]
+                && [self hasEligibleRestorationCoveringURL:url]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (BOOL)hasEligibleRestorationCoveringURL:(NSURL *)url {
+    for (FolderAccessRestoration *restoration in _pendingRestorations) {
+        if (restoration.eligible
+                && VibeURLIsCoveredByPath(url, restoration.stored[kEntryPathKey])) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (BOOL)hasActiveAccessForURL:(NSURL *)url {
+    return [self.class readablePath:url.URLByStandardizingPath.path
+                   isCoveredByAnyOf:self.activePathSnapshot ?: @[]];
 }
 
 // One shot, whichever fires first — the grant settling or its deadline.
@@ -289,42 +459,29 @@ static NSString *VibeAliasFreePath(NSString *path) {
     completion();
 }
 
-- (BOOL)anyURL:(NSArray<NSURL *> *)urls coveredByPaths:(NSSet<NSString *> *)paths {
-    for (NSURL *url in urls) {
-        // Alias-free on both sides, like every other coverage test here, or a
-        // grant remembered as /private/tmp/set fails to cover an open spelled
-        // /tmp/set, which then runs before the scope has started.
-        NSString *path = VibeAliasFreePath(url.URLByStandardizingPath.path);
-        for (NSString *granted in paths) {
-            // The uncanonical form: these URLs come straight off Launch
-            // Services, argv or a pasteboard, unlike noteOpenedURLs:'s.
-            if (VibeUncanonicalPathIsUnderFolder(path, VibeAliasFreePath(granted))) {
-                return YES;
-            }
-        }
-    }
-    return NO;
-}
-
 // Matches a background resolution back onto the live entry, which may have
 // been removed while the resolve ran — then the scope is released untracked.
-- (void)mergeRestoredURL:(NSURL *)url bookmark:(NSData *)bookmark forOriginal:(NSDictionary *)original {
-    for (NSMutableDictionary *entry in _entries) {
-        if ([entry[kEntryBookmarkKey] isEqual:original[kEntryBookmarkKey]]) {
-            BOOL pathChanged = ![entry[kEntryPathKey] isEqualToString:url.path];
-            entry[kEntryAccessedURLKey] = url;
-            [entry removeObjectForKey:kEntryPowerboxActiveKey];
-            entry[kEntryBookmarkKey] = bookmark;
-            entry[kEntryPathKey] = url.path;
-            LogInfo(@"Restored access to granted folder: %@", url.path);
-            if (pathChanged || ![bookmark isEqual:original[kEntryBookmarkKey]]) {
-                [self persist];
-            }
-            [self publishActivePaths];
-            // The caller posts for every settled entry, failures included, so
-            // this path does not post its own.
-            return;
+- (void)mergeRestoredURL:(NSURL *)url
+                bookmark:(NSData *)bookmark
+          forRestoration:(FolderAccessRestoration *)restoration {
+    NSMutableDictionary *entry = restoration.liveEntry;
+    NSDictionary *stored = restoration.stored;
+    if (restoration.eligible
+            && [_entries indexOfObjectIdenticalTo:entry] != NSNotFound
+            && [entry[kEntryBookmarkKey] isEqual:stored[kEntryBookmarkKey]]) {
+        BOOL pathChanged = ![entry[kEntryPathKey] isEqualToString:url.path];
+        entry[kEntryAccessedURLKey] = url;
+        [entry removeObjectForKey:kEntryPowerboxActiveKey];
+        entry[kEntryBookmarkKey] = bookmark;
+        entry[kEntryPathKey] = url.path;
+        LogInfo(@"Restored access to granted folder: %@", url.path);
+        if (pathChanged || ![bookmark isEqual:stored[kEntryBookmarkKey]]) {
+            [self persist];
         }
+        [self publishActivePaths];
+        // The caller posts for every settled entry, failures included, so
+        // this path does not post its own.
+        return;
     }
     // The row was removed or explicitly reopened while resolution was in
     // flight, so this scope has no owner.
@@ -397,6 +554,7 @@ static NSString *VibeAliasFreePath(NSString *path) {
         }
         NSMutableDictionary *reusable = [self inactiveEntryForDirectory:path];
         if (reusable) {
+            [self invalidateRestorationsForEntry:reusable];
             reusable[kEntryPathKey] = path;
             reusable[kEntryBookmarkKey] = addition[kEntryBookmarkKey];
             reusable[kEntryPowerboxActiveKey] = @YES;
@@ -413,6 +571,7 @@ static NSString *VibeAliasFreePath(NSString *path) {
     if (changed) {
         [self persist];
         [self publishActivePaths];
+        [self drainRestorationWaiters];
         [NSNotificationCenter.defaultCenter postNotificationName:FolderAccessManagerDidChangeNotification
                                                           object:self];
     }
@@ -511,12 +670,9 @@ static NSString *VibeAliasFreePath(NSString *path) {
         return;
     }
     [_entries enumerateObjectsAtIndexes:valid options:0 usingBlock:^(NSMutableDictionary *entry, NSUInteger index, BOOL *stop) {
+        [self invalidateRestorationsForEntry:entry];
         NSURL *accessed = entry[kEntryAccessedURLKey];
         [accessed stopAccessingSecurityScopedResource];
-        // A row removed while its bookmark is still resolving must stop holding
-        // opens: left in _restoringPaths, every later open under it waits out
-        // the full deadline for a grant that no longer exists.
-        [_restoringPaths removeObject:entry[kEntryPathKey]];
         LogInfo(@"Granted folder removed: %@", entry[kEntryPathKey]);
     }];
     [_entries removeObjectsAtIndexes:valid];

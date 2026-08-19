@@ -1,5 +1,5 @@
 //
-//  MetadataMaterializationRetryRules.h
+//  MetadataRetryRules.h
 //  Vibe
 //
 
@@ -34,9 +34,26 @@ VibeMetadataMaterializationRetryForResult(
     return VibeMetadataMaterializationRetryNone;
 }
 
+static inline NSUInteger VibeMetadataMaximumAttemptsForRetryCount(
+        NSUInteger retryCount) {
+    return retryCount == NSUIntegerMax ? NSUIntegerMax : retryCount + 1;
+}
+
+// Admission exhaustion is capacity pressure, not a file verdict. Give a live
+// claim time to settle without allowing diagnostics to stretch a scan forever.
+static inline NSTimeInterval VibeMetadataAdmissionRetryDelay(
+        NSUInteger priorFailures) {
+    const NSTimeInterval step = 0.25;
+    const NSTimeInterval maximum = 2.0;
+    if (priorFailures >= (NSUInteger)(maximum / step) - 1) {
+        return maximum;
+    }
+    return step * (priorFailures + 1);
+}
+
 // didStartPlaying: can arrive on either side of an earlier Yielded callback.
-// Every held delivery parks; the duplicate load call records the successful
-// play edge, and hold release retries only a park carrying that marker.
+// Every held delivery parks; hold release retries only a park for which a later
+// priority load was requested.
 typedef NS_ENUM(NSUInteger, VibeMetadataPriorityYieldAction) {
     VibeMetadataPriorityYieldActionClear = 0,
     VibeMetadataPriorityYieldActionRetry,

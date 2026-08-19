@@ -27,9 +27,9 @@
 // command channel runs on the main thread and would otherwise never notice.
 NSString *VibeDebugHealthJSON(MainPlayerController *controller);
 
-// The macOS-only half of `check_consistency` — the rendered header labels, the
-// pitch fader, the table's row count and the scaled tick rate. The verb itself
-// is shared (Debug/DebugCommonVerbs.m): it runs
+// The macOS-only half of `check_consistency` — the rendered header labels and
+// settled artwork ownership, the pitch fader, the table's row count and the
+// scaled tick rate. The verb itself is shared (Debug/DebugCommonVerbs.m): it runs
 // VibeDebugCheckShared first and reaches this through the surface
 // protocol's optional debugCheckPlatform: hook, which
 // MainPlayerController implements. Main thread only; returns how many checks

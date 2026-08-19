@@ -13,13 +13,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioTrack : NSObject
 
-@property (copy) NSURL *url;
+@property (copy, readonly) NSURL *url;
 
 // Atomic, so that the loader workers — utility QoS, up to four in flight —
 // can publish new metadata while the main thread reads it for cell rendering
 // and the currently-playing track header. It is nil until a loader delivers,
 // and every consumer below nil-checks it.
-@property(atomic, strong, nullable) AudioTrackMetadata *metadata;
+@property(atomic, strong, nullable, readonly) AudioTrackMetadata *metadata;
 
 // The tempo from the waveform decode pass; 0 means not yet analyzed or
 // undetectable. It is transient, because persistence lives in the waveform
@@ -47,8 +47,11 @@ NS_ASSUME_NONNULL_BEGIN
 // mirroring bpm.
 - (VibeMusicalKey)key;
 
-- (instancetype)initWithUrl:(NSURL *)url;
+- (instancetype)initWithURL:(NSURL *)url NS_DESIGNATED_INITIALIZER;
 + (AudioTrack *)withURL:(NSURL *)url;
+
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
 
 // The memoized file-identity key for the metadata and waveform caches; see
 // NSURL+Hash. It is nil when the file cannot be statted, which is treated as

@@ -10,7 +10,8 @@ Audio analysis and visible motion deliberately do not share a clock:
 
 1. `AudioLevelAnalyzer` makes about 24 decisions per second. For the complete windows
    in a roughly 100 ms tap callback, activity mode retains normalized per-band peaks;
-   spectrum mode time-averages energy per octave and normalizes one coherent result.
+   spectrum mode time-averages energy per octave and normalizes one coherent result;
+   balanced mode combines those two summaries without another FFT or callback cadence.
    `AudioLevelTap` publishes that callback summary through `AudioLevelPublisher` as a
    five-level snapshot with a monotonic sequence.
 2. `EqualizerIndicatorView` reads the latest sequence from its own display link,
@@ -122,9 +123,14 @@ window size before the selected reference is applied. Each edge uses `ceil` to s
 the first FFT bin whose center is at or above it. Adjacent half-open bands share that
 exact bin boundary, so they neither admit a below-edge bin nor overlap one another.
 
-The analyzer has two normalization modes:
+The analyzer has three normalization modes:
 
-- `SharedSpectrum`, the shipping default and debug token `spectrum`, integrates each
+- `BalancedSpectrum`, the shipping default and debug token `balanced`, starts from the
+  coherent shared energy-per-octave callback average, reserves 9% display headroom,
+  and adds a shared-support-gated 35% of only the positive difference to the existing
+  per-window private-reference activity summary. Unsupported bands remain dark. It
+  reuses the same FFT windows and callback cadence as the two endpoint modes.
+- `SharedSpectrum`, debug token `spectrum`, integrates each
   band's power, divides by that band's octave span, averages the result over every
   complete window, then advances one strongest-band reference once for the callback's
   full analyzed duration and normalizes all five averages together. Heights therefore
@@ -137,9 +143,10 @@ The analyzer has two normalization modes:
   region remains expressive, but heights are relative to that band's own recent
   activity.
 
-The activity mode is an A/B alternative, not a reconstruction of Apple's visualizer.
-Apple does not publish its band boundaries or normalization, and this design does not
-pretend to know them.
+The activity and spectrum modes remain unmodified comparison endpoints around the
+balanced default. None is a reconstruction of Apple's visualizer. Apple does not
+publish its band boundaries or normalization, and this design does not pretend to
+know them.
 
 Left and right are transformed separately. Their magnitude-squared power is averaged
 afterward, so opposite-polarity stereo has the same energy as in-phase stereo instead
@@ -155,15 +162,16 @@ Mode is fixed when a tap is created. Changing it through the debug command synch
 removes and replaces an active tap, invalidating the old snapshot and starting with an
 empty partial window and fresh references. If the tap is inactive, the next eligible
 installation takes the selected mode. Graph replacement also starts fresh analyzer
-history but retains the process-local selection; relaunch returns to `spectrum`.
+history but retains the process-local selection; relaunch returns to `balanced`.
 
 ## Runtime verification
 
 Use the `vibe-debug` skill and `dump_equalizer`. Its nested
-`audio.normalizationMode` is the canonical `activity` or `spectrum` string. Both debug
-clients also expose `set_equalizer_mode activity|spectrum`; a successful reply carries
-the same string plus `requested`, `tapObject` and `installed`, so a failed active-tap
-replacement is visible immediately. A useful run checks both movement and quiescence:
+`audio.normalizationMode` is the canonical `balanced`, `activity` or `spectrum` string.
+Both debug clients expose `set_equalizer_mode balanced|activity|spectrum`; a successful
+reply carries the same string plus `requested`, `tapObject` and `installed`, so a failed
+active-tap replacement is visible immediately. A useful run checks both movement and
+quiescence:
 
 1. While a differentiated test track plays with its row visible, snapshots advance,
    bands differ, one display link is active and `renderer.displayTicks` advances no
@@ -180,7 +188,7 @@ replacement is visible immediately. A useful run checks both movement and quiesc
    stale pose or an unbalanced consumer.
 4. Exercise a slow Loading request both with and without an audible outgoing fade.
    Only the latter remains active, and only until its fade ends.
-5. A/B the same track and passage in both modes. A switch invalidates the old
+5. Compare the same track and passage in all three modes. A switch invalidates the old
    publication, so wait for `published:true` and a new sequence before judging the
    bands. Analyzer and renderer counters remain cumulative across the switch.
 

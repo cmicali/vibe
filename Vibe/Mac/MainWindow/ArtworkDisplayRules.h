@@ -28,7 +28,7 @@ typedef NS_ENUM(NSInteger, VibeArtworkDisplayAction) {
 // can also mean "another worker holds this folder's resolve claim", and treating
 // that as artless flashes the backdrop over a cover that appears a moment later.
 // Only the metadata's own account of what is pending (`artNeedsLoad`,
-// `artLoadDispatched`) tells the two apart.
+// `artLoadPending`) tells the two apart.
 //
 //  hasTrack    — a file is loaded at all. Nothing loaded is definitively
 //                artless, or closing a file would leave its art on screen.
@@ -53,6 +53,22 @@ static inline VibeArtworkDisplayAction VibeArtworkDisplayActionFor(BOOL hasTrack
                            : VibeArtworkDisplayActionShowDefault;
     }
     return VibeArtworkDisplayActionShowDefault;
+}
+
+// A crop may finish after a rapid track or metadata replacement. Generation
+// orders renders for one target; both identities also matter when the
+// replacement is unresolved and therefore has not started a render of its own.
+static inline BOOL VibeArtworkRenderResultMayInstall(NSUInteger requestGeneration,
+                                                      NSUInteger currentGeneration,
+                                                      id _Nullable requestTrack,
+                                                      id _Nullable requestMetadata,
+                                                      id _Nullable requestArt,
+                                                      id _Nullable targetTrack,
+                                                      id _Nullable targetMetadata,
+                                                      id _Nullable targetArt) {
+    return requestGeneration == currentGeneration &&
+            requestTrack == targetTrack && requestMetadata == targetMetadata &&
+            requestArt == targetArt;
 }
 
 NS_ASSUME_NONNULL_END

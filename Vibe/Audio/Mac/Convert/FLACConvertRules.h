@@ -8,7 +8,7 @@
 
 #import <Foundation/Foundation.h>
 
-#import "AudioTrackMetadata.h"
+#import "AudioFileFormat.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -42,12 +42,12 @@ static inline BOOL VibeExtensionIsUncompressed(NSString *_Nullable ext) {
 // type wins when present; while metadata is pending, the extension keeps a
 // fresh row enabled. Conversion still performs a mandatory header sniff.
 static inline VibeUncompressedContainer VibeUncompressedContainerForFile(
-        NSString *_Nullable fileType, NSString *_Nullable ext) {
+        VibeAudioFileFormat _Nullable fileType, NSString *_Nullable ext) {
     if (fileType.length > 0) {
-        if ([fileType isEqualToString:FILETYPE_WAV]) {
+        if ([fileType isEqualToString:VibeAudioFileFormatWAV]) {
             return VibeUncompressedContainerWAV;
         }
-        if ([fileType isEqualToString:FILETYPE_AIFF]) {
+        if ([fileType isEqualToString:VibeAudioFileFormatAIFF]) {
             return VibeUncompressedContainerAIFF;
         }
         return VibeUncompressedContainerUnknown;
@@ -59,7 +59,7 @@ static inline VibeUncompressedContainer VibeUncompressedContainerForFile(
 // The sniffed fileType wins when present. It is nil until the background scan
 // reaches a track, and the extension covers that window so fresh rows are not
 // disabled; it is never the converter's final content check.
-static inline BOOL VibeTrackIsConvertibleToFLAC(NSString *_Nullable fileType,
+static inline BOOL VibeTrackIsConvertibleToFLAC(VibeAudioFileFormat _Nullable fileType,
                                                 NSString *_Nullable ext) {
     return VibeUncompressedContainerForFile(fileType, ext) != VibeUncompressedContainerUnknown;
 }

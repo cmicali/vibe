@@ -380,21 +380,26 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"manualRendering": @([player manualRenderingActive]),
                 });
             }),
-            VibeDebugCmd(@"set_equalizer_mode <activity|spectrum>", 0,
+            VibeDebugCmd(@"set_equalizer_mode <balanced|activity|spectrum>", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 if (tokens.count != 2) {
-                    return VibeErrorJSON(@"usage: set_equalizer_mode <activity|spectrum>");
+                    return VibeErrorJSON(
+                            @"usage: set_equalizer_mode <balanced|activity|spectrum>");
                 }
                 VibeAudioLevelNormalizationMode normalizationMode;
-                if ([tokens[1] isEqualToString:@"activity"]) {
+                if ([tokens[1] isEqualToString:@"balanced"]) {
+                    normalizationMode = VibeAudioLevelNormalizationModeBalancedSpectrum;
+                }
+                else if ([tokens[1] isEqualToString:@"activity"]) {
                     normalizationMode = VibeAudioLevelNormalizationModeRelativeActivity;
                 }
                 else if ([tokens[1] isEqualToString:@"spectrum"]) {
                     normalizationMode = VibeAudioLevelNormalizationModeSharedSpectrum;
                 }
                 else {
-                    return VibeErrorJSON(@"usage: set_equalizer_mode <activity|spectrum>");
+                    return VibeErrorJSON(
+                            @"usage: set_equalizer_mode <balanced|activity|spectrum>");
                 }
                 AudioPlayer *player = surface.debugPlayer;
                 [player debugSetEqualizerNormalizationMode:normalizationMode];
@@ -412,8 +417,8 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                                      id<VibeDebugPlayerSurface> surface) {
                 AudioTrackMetadataCache *cache = surface.debugMetadataCache;
                 return VibeJSONString(@{
-                    @"cloudParsesPending": @([cache debugPendingCloudParseCount]),
-                    @"cloudLaneHeld": @([cache debugCloudParsesHeld] ? 1 : 0),
+                    @"cloudParsesPending": @([cache debugPendingBackgroundMaterializationCount]),
+                    @"cloudLaneHeld": @([cache debugBackgroundMaterializationHeld] ? 1 : 0),
                     @"materialization":
                             [AudioFileMaterializationCoordinator.sharedCoordinator debugState],
                 });

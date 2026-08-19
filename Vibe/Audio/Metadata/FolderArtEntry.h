@@ -14,7 +14,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface VibeFolderArtEntry : NSObject
+@interface FolderArtEntry : NSObject
 
 // The cover's full path, kNoArtMarker for "settled, it has none", or nil for
 // "not looked at yet".
@@ -33,6 +33,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Settled as artless only because the app held no grant for the folder. These
 // are the only answers a grant change may clear.
 @property (nonatomic) BOOL settledWithoutGrant;
+// A cover path is known, but its security scope is no longer active. Keep the
+// donated path so a later grant can resume without demoting it to stat probes,
+// while preventing every redraw from retrying the forbidden read.
+@property (nonatomic) BOOL readBlockedWithoutGrant;
 // The folder came from a bulk open, so one listing beats the lone file's stat
 // probes. A fact about how the user opened it rather than a cached answer, so
 // it survives an invalidate.

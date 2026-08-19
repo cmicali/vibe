@@ -2,12 +2,13 @@
 // AudioTrackArtwork.m
 // Vibe
 //
-// The seven states, the transitions and the locking discipline are in the
-// header. These are the fields the table is written in terms of.
+// One row's embedded-art state plus the private bounded async registry. All
+// per-row transitions use the artwork monitor; no monitor spans I/O or decode.
 //
 
-#import "AudioTrackArtwork.h"
-#import "FolderArtRules.h"
+#import "AudioTrackArtworkInternal.h"
+#import "AudioFileMaterializationCoordinator.h"
+#import "AudioWorkScheduler.h"
 #import "FolderArtResolver.h"
 #import "PlatformImage.h"
 
@@ -27,6 +28,417 @@ static const NSUInteger kMaxEmbeddedArtExtractionFailures = 3;
 // worth making. It is not a poll: nothing schedules a retry, it only decides
 // whether the next pass that asks is allowed to try.
 static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
+
+static const NSUInteger kArtworkLoadMaximumRunningCount = 2;
+static const NSUInteger kArtworkLoadMaximumPendingCount = 5;
+static const NSUInteger kArtworkLoadMaximumActiveCount =
+        kArtworkLoadMaximumRunningCount + kArtworkLoadMaximumPendingCount;
+static const NSUInteger kArtworkLoadMaximumWaitingCount = 7;
+static const NSTimeInterval kArtworkLoadPendingGrace = 30;
+static const NSUInteger kArtworkMaterializationMaximumFailures = 3;
+static const NSTimeInterval kArtworkAdmissionInitialRetryDelay = 0.1;
+static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
+
+@interface ArtworkLoadRequest : NSObject
+@property (nonatomic, strong) AudioTrackArtwork *artwork;
+@property (nonatomic) NSUInteger generation;
+@property (nonatomic, copy) NSString *label;
+@property (nonatomic, copy) BOOL (^stillWanted)(void);
+@property (nonatomic, copy) void (^completion)(VibeImage * _Nullable image);
+@property (nonatomic, strong, nullable) NSURL *sourceURL;
+@property (atomic) BOOL stale;
+@property (nonatomic) BOOL workSubmitted;
+@property (nonatomic) NSUInteger materializationFailureCount;
+@property (nonatomic) NSUInteger admissionRetryStep;
+@property (nonatomic, strong, nullable) AudioFileMaterializationRequestToken *materializationToken;
+@property (nonatomic, strong, nullable) AudioWorkToken *workToken;
+@end
+
+@implementation ArtworkLoadRequest
+@end
+
+@interface AudioTrackArtwork ()
+@property (nonatomic, strong, nullable) FolderArtResolver *folderArt;
+@property (nonatomic, copy, nullable) AudioTrackArtworkClock clock;
+@property (nullable, readonly, copy) NSString *sourceFilePath;
+- (VibeImage *)embeddedArtForExpectedGeneration:(NSUInteger)expectedGeneration
+                           sourceFileReadAllowed:(BOOL)sourceFileReadAllowed;
+- (BOOL)prepareAsyncLoadReturningGeneration:(NSUInteger *)generation
+                                  sourceURL:(NSURL * _Nullable * _Nonnull)sourceURL;
+- (BOOL)isGenerationCurrent:(NSUInteger)generation;
+- (void)clearLoadPendingForGeneration:(NSUInteger)generation;
+- (void)invalidateDecodedArtForGeneration:(NSUInteger)generation;
+- (void)discardDecodedArtStateLocked;
+@end
+
+@interface ArtworkLoadRegistry : NSObject
+- (instancetype)initWithMaterializationCoordinator:
+        (AudioFileMaterializationCoordinator *)materializationCoordinator
+                                      workScheduler:(AudioWorkScheduler *)workScheduler;
+- (void)loadArtwork:(AudioTrackArtwork *)artwork
+               label:(nullable NSString *)label
+         stillWanted:(BOOL (^)(void))stillWanted
+           completion:(void (^)(VibeImage * _Nullable image))completion;
+- (void)cancelLoadsForArtwork:(AudioTrackArtwork *)artwork;
+@property (nonatomic, readonly) NSUInteger registeredRequestCount;
+@end
+
+@interface ArtworkLoadRegistry ()
+@property (nonatomic, strong) AudioFileMaterializationCoordinator *materializationCoordinator;
+@property (nonatomic, strong) AudioWorkScheduler *workScheduler;
+@property (nonatomic, strong) NSMutableArray<ArtworkLoadRequest *> *requests;
+@property (nonatomic, strong) NSMutableArray<ArtworkLoadRequest *> *waitingRequests;
+- (void)beginRequest:(ArtworkLoadRequest *)request;
+- (void)materializeSourceForRequest:(ArtworkLoadRequest *)request;
+- (void)scheduleAdmissionRetryForRequest:(ArtworkLoadRequest *)request;
+- (void)admitWaitingRequestIfPossible;
+@end
+
+@implementation ArtworkLoadRegistry
+
+- (instancetype)initWithMaterializationCoordinator:
+        (AudioFileMaterializationCoordinator *)materializationCoordinator
+                                      workScheduler:(AudioWorkScheduler *)workScheduler {
+    NSParameterAssert(materializationCoordinator);
+    NSParameterAssert(workScheduler);
+    self = [super init];
+    if (self) {
+        _materializationCoordinator = materializationCoordinator;
+        _workScheduler = workScheduler;
+        _requests = [NSMutableArray array];
+        _waitingRequests = [NSMutableArray array];
+    }
+    return self;
+}
+
+- (NSUInteger)registeredRequestCount {
+    NSParameterAssert(NSThread.isMainThread);
+    return _requests.count + _waitingRequests.count;
+}
+
+- (BOOL)containsRequest:(ArtworkLoadRequest *)request {
+    return [_requests indexOfObjectIdenticalTo:request] != NSNotFound;
+}
+
+- (void)detachRequest:(ArtworkLoadRequest *)request {
+    NSUInteger index = [_requests indexOfObjectIdenticalTo:request];
+    if (index != NSNotFound) {
+        [_requests removeObjectAtIndex:index];
+    }
+    request.materializationToken = nil;
+    request.workToken = nil;
+}
+
+- (void)cancelRequest:(ArtworkLoadRequest *)request {
+    if (![self containsRequest:request]) {
+        return;
+    }
+    request.stale = YES;
+    if (request.materializationToken) {
+        [request.materializationToken cancel];
+        [self detachRequest:request];
+        [self admitWaitingRequestIfPossible];
+        return;
+    }
+    if (!request.workSubmitted || [request.workToken cancelIfPending]) {
+        [self detachRequest:request];
+        [self admitWaitingRequestIfPossible];
+    }
+    // A running read remains registered until it returns. It keeps one of the
+    // seven global entries and one scheduler slot, so repeated demotions cannot
+    // grow an orphaned tail behind an uncancellable provider read.
+}
+
+- (void)pruneUnwantedRequests {
+    for (ArtworkLoadRequest *waiting in [_waitingRequests copy]) {
+        if (waiting.stale || waiting.stillWanted()) {
+            continue;
+        }
+        [_waitingRequests removeObjectIdenticalTo:waiting];
+        [waiting.artwork invalidateDecodedArtForGeneration:waiting.generation];
+    }
+    for (ArtworkLoadRequest *request in [_requests copy]) {
+        if (request.stale || request.stillWanted()) {
+            continue;
+        }
+        [request.artwork invalidateDecodedArtForGeneration:request.generation];
+        [self cancelRequest:request];
+    }
+}
+
+- (void)loadArtwork:(AudioTrackArtwork *)artwork
+               label:(NSString *)label
+         stillWanted:(BOOL (^)(void))stillWanted
+           completion:(void (^)(VibeImage *))completion {
+    NSParameterAssert(NSThread.isMainThread);
+    [self pruneUnwantedRequests];
+    if (!stillWanted()) {
+        return;
+    }
+    for (ArtworkLoadRequest *waiting in _waitingRequests) {
+        if (waiting.artwork == artwork) {
+            return;
+        }
+    }
+    if (_requests.count >= kArtworkLoadMaximumActiveCount &&
+            _waitingRequests.count >= kArtworkLoadMaximumWaitingCount) {
+        return;
+    }
+
+    NSUInteger generation = 0;
+    NSURL *sourceURL = nil;
+    if (![artwork prepareAsyncLoadReturningGeneration:&generation sourceURL:&sourceURL]) {
+        return;
+    }
+
+    ArtworkLoadRequest *request = [ArtworkLoadRequest new];
+    request.artwork = artwork;
+    request.generation = generation;
+    request.label = label ?: @"?";
+    request.stillWanted = stillWanted;
+    request.completion = completion;
+    request.sourceURL = sourceURL;
+    if (_requests.count >= kArtworkLoadMaximumActiveCount) {
+        // Pager shifts can expose new edges while uncancellable stale reads
+        // still occupy slots. Keep at most one desired request per artwork and
+        // no more than a full seven-artwork window outside the active-work bound.
+        [_waitingRequests addObject:request];
+        return;
+    }
+    [_requests addObject:request];
+
+    [self beginRequest:request];
+}
+
+- (void)beginRequest:(ArtworkLoadRequest *)request {
+    if (!request.sourceURL) {
+        [self submitWorkForRequest:request];
+        return;
+    }
+
+    [self materializeSourceForRequest:request];
+}
+
+- (void)materializeSourceForRequest:(ArtworkLoadRequest *)request {
+    NSURL *sourceURL = request.sourceURL;
+    if (!sourceURL || ![self containsRequest:request]) {
+        return;
+    }
+
+    __weak ArtworkLoadRegistry *weakSelf = self;
+    request.materializationToken = [_materializationCoordinator
+            materializeURL:sourceURL
+            role:VibeAudioFileMaterializationRoleMetadataPriority
+            completionQueue:dispatch_get_main_queue()
+            registered:nil
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error,
+                         NSTimeInterval elapsed) {
+        ArtworkLoadRegistry *strongSelf = weakSelf;
+        if (!strongSelf || ![strongSelf containsRequest:request]) {
+            return;
+        }
+        request.materializationToken = nil;
+        if (request.stale ||
+                ![request.artwork isGenerationCurrent:request.generation] ||
+                !request.stillWanted()) {
+            [strongSelf finishRequest:request image:nil];
+            return;
+        }
+        switch (result) {
+            case VibeAudioFileMaterializationResultReady:
+                request.materializationFailureCount = 0;
+                [strongSelf submitWorkForRequest:request];
+                return;
+            case VibeAudioFileMaterializationResultYielded:
+                // A foreground hold is not a file failure. Keep this request
+                // admitted and retry at a capped rate until the hold releases.
+                [strongSelf scheduleAdmissionRetryForRequest:request];
+                return;
+            case VibeAudioFileMaterializationResultAdmissionExhausted:
+                // Capacity pressure says nothing about this file. Keep the one
+                // wanted request admitted and retry it at the same bounded rate
+                // as a foreground yield.
+                [strongSelf scheduleAdmissionRetryForRequest:request];
+                return;
+            case VibeAudioFileMaterializationResultFailed:
+                request.materializationFailureCount++;
+                if (request.materializationFailureCount <
+                        kArtworkMaterializationMaximumFailures) {
+                    [strongSelf scheduleAdmissionRetryForRequest:request];
+                }
+                else {
+                    [strongSelf finishRequest:request image:nil];
+                }
+                return;
+        }
+    }];
+}
+
+- (void)scheduleAdmissionRetryForRequest:(ArtworkLoadRequest *)request {
+    if (![self containsRequest:request]) {
+        return;
+    }
+    NSUInteger step = MIN(request.admissionRetryStep, 4u);
+    request.admissionRetryStep++;
+    NSTimeInterval delay = MIN(kArtworkAdmissionInitialRetryDelay * (1u << step),
+                               kArtworkAdmissionMaximumRetryDelay);
+    __weak ArtworkLoadRegistry *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        ArtworkLoadRegistry *strongSelf = weakSelf;
+        if (!strongSelf || ![strongSelf containsRequest:request]) {
+            return;
+        }
+        if (request.stale ||
+                ![request.artwork isGenerationCurrent:request.generation] ||
+                !request.stillWanted()) {
+            [strongSelf finishRequest:request image:nil];
+            return;
+        }
+        [strongSelf beginRequest:request];
+    });
+}
+
+- (void)admitWaitingRequestIfPossible {
+    while (_requests.count < kArtworkLoadMaximumActiveCount &&
+            _waitingRequests.count > 0) {
+        ArtworkLoadRequest *request = _waitingRequests.firstObject;
+        [_waitingRequests removeObjectAtIndex:0];
+        if (request.stale ||
+                ![request.artwork isGenerationCurrent:request.generation] ||
+                !request.stillWanted()) {
+            [request.artwork invalidateDecodedArtForGeneration:request.generation];
+            continue;
+        }
+        [_requests addObject:request];
+        [self beginRequest:request];
+    }
+}
+
+- (void)submitWorkForRequest:(ArtworkLoadRequest *)request {
+    if (![self containsRequest:request]) {
+        return;
+    }
+    request.workSubmitted = YES;
+    BOOL sourceFileReadAllowed = request.sourceURL != nil;
+    CFAbsoluteTime startedAt = CFAbsoluteTimeGetCurrent();
+    __weak ArtworkLoadRegistry *weakSelf = self;
+    request.workToken = [_workScheduler submitWork:^{
+        VibeImage *image = nil;
+        if (!request.stale) {
+            image = [request.artwork
+                    loadArtBlockingForExpectedGeneration:request.generation
+                    sourceFileReadAllowed:sourceFileReadAllowed];
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            ArtworkLoadRegistry *strongSelf = weakSelf;
+            if (strongSelf) {
+                LogInfo(@"Art load: %@ for '%@' in %.1fs", image ? @"image" : @"nothing",
+                        request.label, CFAbsoluteTimeGetCurrent() - startedAt);
+                [strongSelf finishRequest:request image:image];
+            }
+        });
+    } failureQueue:dispatch_get_main_queue()
+      admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
+        (void)failure;
+        ArtworkLoadRegistry *strongSelf = weakSelf;
+        if (!strongSelf || ![strongSelf containsRequest:request]) {
+            return;
+        }
+        request.workToken = nil;
+        request.workSubmitted = NO;
+        if (request.stale ||
+                ![request.artwork isGenerationCurrent:request.generation] ||
+                !request.stillWanted()) {
+            [strongSelf finishRequest:request image:nil];
+            return;
+        }
+        // Like central AdmissionExhausted, scheduler rejection is capacity,
+        // not an answer about whether the track has art.
+        [strongSelf scheduleAdmissionRetryForRequest:request];
+    }];
+}
+
+- (void)finishRequest:(ArtworkLoadRequest *)request image:(VibeImage *)image {
+    NSParameterAssert(NSThread.isMainThread);
+    if (![self containsRequest:request]) {
+        return;
+    }
+
+    AudioTrackArtwork *artwork = request.artwork;
+    NSUInteger generation = request.generation;
+    BOOL generationCurrent = [artwork isGenerationCurrent:generation];
+    BOOL wanted = request.stillWanted();
+    NSString *label = request.label;
+    BOOL (^stillWanted)(void) = request.stillWanted;
+    void (^completion)(VibeImage *) = request.completion;
+    BOOL stale = request.stale;
+    [self detachRequest:request];
+
+    if (!generationCurrent) {
+        // An extraction already in progress kept its single-flight claim across
+        // demotion. Its return releases that claim before this retry, so a
+        // redisplay can start one fresh read but never overlap the old one.
+        if (wanted) {
+            [self loadArtwork:artwork label:label stillWanted:stillWanted
+                   completion:completion];
+        }
+        [self admitWaitingRequestIfPossible];
+        return;
+    }
+
+    [artwork clearLoadPendingForGeneration:generation];
+    if (!wanted || stale) {
+        [artwork invalidateDecodedArtForGeneration:generation];
+        [self admitWaitingRequestIfPossible];
+        return;
+    }
+    [self admitWaitingRequestIfPossible];
+    completion(image);
+}
+
+- (void)cancelLoadsForArtwork:(AudioTrackArtwork *)artwork {
+    NSParameterAssert(NSThread.isMainThread);
+    for (ArtworkLoadRequest *waiting in [_waitingRequests copy]) {
+        if (waiting.artwork == artwork) {
+            [_waitingRequests removeObjectIdenticalTo:waiting];
+        }
+    }
+    for (ArtworkLoadRequest *request in [_requests copy]) {
+        if (request.artwork == artwork) {
+            [self cancelRequest:request];
+        }
+    }
+}
+
+@end
+
+static ArtworkLoadRegistry *sArtworkLoadRegistry;
+
+static ArtworkLoadRegistry *VibeSharedArtworkLoadRegistry(void) {
+    NSCAssert(NSThread.isMainThread, @"Artwork load admission is main-thread only");
+    @synchronized ([AudioTrackArtwork class]) {
+        if (!sArtworkLoadRegistry) {
+            AudioWorkScheduler *scheduler = [[AudioWorkScheduler alloc]
+                    initWithLabel:@"com.vibe.artwork"
+                    qualityOfService:QOS_CLASS_USER_INITIATED
+                    maximumRunningCount:kArtworkLoadMaximumRunningCount
+                    maximumPendingCount:kArtworkLoadMaximumPendingCount
+                    pendingGrace:kArtworkLoadPendingGrace];
+            sArtworkLoadRegistry = [[ArtworkLoadRegistry alloc]
+                    initWithMaterializationCoordinator:
+                            AudioFileMaterializationCoordinator.sharedCoordinator
+                    workScheduler:scheduler];
+        }
+        return sArtworkLoadRegistry;
+    }
+}
+
+static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
+    @synchronized ([AudioTrackArtwork class]) {
+        return sArtworkLoadRegistry;
+    }
+}
 
 @implementation AudioTrackArtwork {
     VibeImage *_embeddedThumbnail;
@@ -48,6 +460,22 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
     NSTimeInterval _embeddedExtractionRetryNotBefore;
     BOOL _embeddedUndecodable;
     NSUInteger _artGeneration;
+    BOOL _artLoadPending;
+}
+
++ (void)installArtLoadServicesForTesting:
+        (AudioFileMaterializationCoordinator *)materializationCoordinator
+                              workScheduler:(AudioWorkScheduler *)workScheduler {
+    NSParameterAssert(NSThread.isMainThread);
+    NSParameterAssert(materializationCoordinator);
+    NSParameterAssert(workScheduler);
+    @synchronized (self) {
+        NSAssert(!sArtworkLoadRegistry || sArtworkLoadRegistry.registeredRequestCount == 0,
+                 @"Cannot replace artwork load services while requests are live");
+        sArtworkLoadRegistry = [[ArtworkLoadRegistry alloc]
+                initWithMaterializationCoordinator:materializationCoordinator
+                workScheduler:workScheduler];
+    }
 }
 
 - (instancetype)initWithSourceFilePath:(NSString *)sourceFilePath
@@ -69,6 +497,24 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
     return self;
 }
 
+- (id)copyWithZone:(NSZone *)zone {
+    AudioTrackArtwork *copy = [[[self class] allocWithZone:zone]
+            initWithSourceFilePath:self.sourceFilePath extractor:_extractor];
+    copy.folderArt = self.folderArt;
+    copy.clock = self.clock;
+    @synchronized (self) {
+        // Pixel objects may be shared, but every transition field belongs to
+        // the new holder. A copied art-bearing row carries only its thumbnail,
+        // matching a disk-cache hit, and re-reads full-size bytes on demand.
+        copy->_embeddedThumbnail = _embeddedThumbnail;
+        copy->_embeddedArtKnown = _embeddedArtKnown;
+        copy->_embeddedUndecodable = _embeddedUndecodable;
+        copy->_embeddedExtractionSettled = _embeddedArtKnown
+                ? _embeddedUndecodable : _embeddedExtractionSettled;
+    }
+    return copy;
+}
+
 // Read before taking the monitor, never under it — it is cheap and never
 // blocks, but the injected form is arbitrary caller code.
 - (NSTimeInterval)nowSeconds {
@@ -82,6 +528,14 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
     return now >= _embeddedExtractionRetryNotBefore;
 }
 
+- (BOOL)canStartEmbeddedExtractionLockedAt:(NSTimeInterval)now {
+    return !_embeddedExtractionSettled && !_embeddedExtractionInFlight &&
+            !_embeddedUndecodable &&
+            _embeddedExtractionFailures < kMaxEmbeddedArtExtractionFailures &&
+            [self retryBackoffHasElapsedLocked:now] &&
+            _sourceFilePath != nil && _extractor != nil;
+}
+
 - (void)adoptParsedArtData:(NSData *)artData {
     @synchronized (self) {
         _embeddedArtData = artData;
@@ -93,11 +547,11 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
     }
 }
 
-- (void)adoptArchivedThumbnailJPEG:(NSData *)jpegData
+- (void)adoptArchivedThumbnailData:(NSData *)encodedData
                     hasEmbeddedArt:(BOOL)hasEmbeddedArt {
     // Decode outside the monitor, per the file's discipline, though in
     // practice this runs during unarchiving, before the object is shared.
-    VibeImage *thumbnail = VibeDecodedImageWithData(jpegData, kVibeThumbnailArtDimension);
+    VibeImage *thumbnail = VibeDecodedImageWithData(encodedData, kVibeThumbnailArtDimension);
     @synchronized (self) {
         _embeddedThumbnail = thumbnail;
         _embeddedArtKnown = hasEmbeddedArt;
@@ -125,14 +579,26 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
 // paths; the folder side resolves its directory the first time any track in it
 // asks — see FolderArtResolver, which owns the cost rules.
 - (VibeImage *)loadArtBlocking {
-    VibeImage *embedded = [self embeddedArt];
+    NSUInteger generation;
+    @synchronized (self) {
+        generation = _artGeneration;
+    }
+    return [self loadArtBlockingForExpectedGeneration:generation
+                                sourceFileReadAllowed:YES];
+}
+
+- (VibeImage *)loadArtBlockingForExpectedGeneration:(NSUInteger)generation
+                              sourceFileReadAllowed:(BOOL)sourceFileReadAllowed {
+    VibeImage *embedded = [self embeddedArtForExpectedGeneration:generation
+                                           sourceFileReadAllowed:sourceFileReadAllowed];
     if (embedded) {
         return embedded;
     }
     NSString *path;
     @synchronized (self) {
-        // embeddedArt just settled the question by reading the file, so
-        // this is the artless answer, not the unknown one.
+        if (generation != _artGeneration) {
+            return nil;
+        }
         path = [self folderFallbackPathLocked];
     }
     return [self.folderArt displayImageForAudioFilePath:path];
@@ -142,7 +608,8 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
 // pay the decode and memory cost. Cache-hit instances carry no art bytes,
 // which are not archived, and re-extract from the audio file on demand. Only
 // the current track ever takes that path.
-- (VibeImage *)embeddedArt {
+- (VibeImage *)embeddedArtForExpectedGeneration:(NSUInteger)expectedGeneration
+                           sourceFileReadAllowed:(BOOL)sourceFileReadAllowed {
     NSString *pathToExtract = nil;
     NSData *dataToDecode = nil;
     BOOL dataWasInMemory = NO;
@@ -150,7 +617,13 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
     NSUInteger generation;
     NSTimeInterval now = [self nowSeconds];
     @synchronized (self) {
-        generation = _artGeneration;
+        // This check and the source-extraction claim are one critical section.
+        // A demotion therefore lands wholly before the read (which never starts)
+        // or wholly after its claim (when it is legitimately uncancellable).
+        if (expectedGeneration != _artGeneration) {
+            return nil;
+        }
+        generation = expectedGeneration;
         if (_embeddedArt) {
             return _embeddedArt;
         }
@@ -158,18 +631,18 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
             dataToDecode = _embeddedArtData;
             dataWasInMemory = YES;
         }
+        else if ([self canStartEmbeddedExtractionLockedAt:now]) {
+            if (!sourceFileReadAllowed) {
+                return nil;
+            }
+            _embeddedExtractionInFlight = YES;
+            pathToExtract = _sourceFilePath;
+        }
         // A conclusive artless result is never re-read, while a failed read gets
         // a small bounded retry budget, no faster than the backoff. Claim the
         // call under the lock so concurrent callers do not double-extract.
-        else if (!_sourceFilePath || !_extractor || _embeddedExtractionSettled ||
-                 _embeddedExtractionInFlight || _embeddedUndecodable ||
-                 _embeddedExtractionFailures >= kMaxEmbeddedArtExtractionFailures ||
-                 ![self retryBackoffHasElapsedLocked:now]) {
-            return nil;
-        }
         else {
-            _embeddedExtractionInFlight = YES;
-            pathToExtract = _sourceFilePath;
+            return nil;
         }
     }
     // File I/O and the decode run outside the lock; see the discipline above.
@@ -248,8 +721,7 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
     }
 }
 
-// The gate on every folder-art fallback below; the rule itself lives in
-// FolderArtRules.h. Call with the monitor held.
+// The gate on every folder-art fallback below. Call with the monitor held.
 - (BOOL)knownToCarryNoArtLocked {
     // _embeddedArtKnown covers what the other three cannot: a cache hit whose
     // entry was written before the thumbnail was archived, and a parsed track
@@ -257,8 +729,13 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
     // any of it.
     BOOL hasArtOfItsOwn = _embeddedArtKnown || _embeddedArt != nil ||
                           _embeddedArtData != nil || _embeddedThumbnail != nil;
-    return VibeFileIsKnownToCarryNoArt(hasArtOfItsOwn, _embeddedExtractionSettled,
-                                       _embeddedUndecodable);
+    if (_embeddedUndecodable) {
+        return YES;
+    }
+    if (hasArtOfItsOwn) {
+        return NO;
+    }
+    return _embeddedExtractionSettled;
 }
 
 // The file to ask the folder about, or nil when the folder must not be asked.
@@ -296,11 +773,8 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
         // not been read. Both are background work worth dispatching. The
         // backoff is applied here as well as in embeddedArt, so a pass inside
         // the window answers NO rather than dispatching a load that would take
-        // the artLoadDispatched flag and immediately no-op.
-        BOOL canExtract = !_embeddedExtractionSettled && !_embeddedExtractionInFlight &&
-                _embeddedExtractionFailures < kMaxEmbeddedArtExtractionFailures &&
-                [self retryBackoffHasElapsedLocked:now] &&
-                _sourceFilePath != nil && _extractor != nil;
+        // the pending marker and immediately no-op.
+        BOOL canExtract = [self canStartEmbeddedExtractionLockedAt:now];
         if (!_embeddedUndecodable && (_embeddedArtData != nil || canExtract)) {
             return YES;
         }
@@ -313,6 +787,59 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
     return [self.folderArt needsBackgroundLoadForAudioFilePath:path];
 }
 
+- (BOOL)isArtLoadPending {
+    @synchronized (self) {
+        return _artLoadPending;
+    }
+}
+
+- (BOOL)prepareAsyncLoadReturningGeneration:(NSUInteger *)generation
+                                  sourceURL:(NSURL **)sourceURL {
+    NSParameterAssert(generation);
+    NSParameterAssert(sourceURL);
+    if (![self artNeedsLoad]) {
+        return NO;
+    }
+    NSTimeInterval now = [self nowSeconds];
+    @synchronized (self) {
+        if (_artLoadPending || _embeddedArt) {
+            return NO;
+        }
+        BOOL canExtract = [self canStartEmbeddedExtractionLockedAt:now];
+        BOOL needsEmbeddedWork = !_embeddedUndecodable &&
+                (_embeddedArtData != nil || canExtract);
+        *sourceURL = needsEmbeddedWork && canExtract && !_embeddedArtData
+                ? [NSURL fileURLWithPath:_sourceFilePath] : nil;
+        *generation = _artGeneration;
+        _artLoadPending = YES;
+        return YES;
+    }
+}
+
+- (void)loadArtIfNeededWithLabel:(NSString *)label
+                     stillWanted:(BOOL (^)(void))stillWanted
+                       completion:(void (^)(VibeImage *))completion {
+    NSParameterAssert(NSThread.isMainThread);
+    NSParameterAssert(stillWanted);
+    NSParameterAssert(completion);
+    [VibeSharedArtworkLoadRegistry() loadArtwork:self label:label
+                                     stillWanted:stillWanted completion:completion];
+}
+
+- (BOOL)isGenerationCurrent:(NSUInteger)generation {
+    @synchronized (self) {
+        return _artGeneration == generation;
+    }
+}
+
+- (void)clearLoadPendingForGeneration:(NSUInteger)generation {
+    @synchronized (self) {
+        if (_artGeneration == generation) {
+            _artLoadPending = NO;
+        }
+    }
+}
+
 // Drops the full-size compressed art bytes once the thumbnail exists. Freshly
 // parsed instances otherwise pin 0.5-5MB per track for the whole session.
 // Afterwards the instance behaves like a cache hit: loadArtBlocking re-reads the
@@ -321,8 +848,7 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
     @synchronized (self) {
         // There is deliberately no generation bump. This only wants the raw
         // bytes released, not an in-flight decode of those same bytes thrown
-        // away: the loader calls it right after publishing metadata, racing
-        // the current track's first full-resolution decode.
+        // away.
         if (!_embeddedArtData) {
             // There is nothing to drop. Keep the settled flag: an artless
             // track has it set to YES from the parse, and resetting it would
@@ -343,33 +869,39 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
 
 // Called by the UI, on the main thread, when this track stops being current.
 - (void)discardDecodedArt {
+    NSParameterAssert(NSThread.isMainThread);
     @synchronized (self) {
-        // Bump before the early return. The demotion race this guards against
-        // is precisely the case where nothing is stored yet because the load
-        // is still in flight.
-        _artGeneration++;
-        if (!_embeddedExtractionSettled && !_embeddedUndecodable) {
-            _embeddedExtractionFailures = 0;
-            _embeddedExtractionRetryNotBefore = 0;
-        }
-        // TRAP: _embeddedExtractionInFlight is deliberately NOT cleared here.
-        // It is the single-flight claim over a read that is still running
-        // outside the monitor, and clearing it would let the next display pass
-        // start a second concurrent extraction of the same file. The old read
-        // releases the claim itself when it returns, and the generation bump
-        // above is what stops its failure spending this pass's budget.
-        // Nothing to do for the folder's cover: FolderArtResolver owns it, bounded
-        // to the few folders in play, and dropping it here would only make the
-        // next track in the same folder decode it again.
-        if (!_embeddedArt && !_embeddedArtData) {
-            return; // artless or never loaded — keep the settled flag
-        }
-        _embeddedArt = nil;
-        _embeddedArtData = nil;
-        // The file has art, so re-arm the on-demand re-read for the next time
-        // this track is shown at full resolution.
-        _embeddedExtractionSettled = NO;
+        [self discardDecodedArtStateLocked];
     }
+    [VibeExistingArtworkLoadRegistry() cancelLoadsForArtwork:self];
+}
+
+- (void)invalidateDecodedArtForGeneration:(NSUInteger)generation {
+    @synchronized (self) {
+        if (_artGeneration == generation) {
+            [self discardDecodedArtStateLocked];
+        }
+    }
+}
+
+// Call with the monitor held.
+- (void)discardDecodedArtStateLocked {
+    // Bump before every early exit. This is both the store fence and the request
+    // identity presented under the extraction-claim lock.
+    _artGeneration++;
+    _artLoadPending = NO;
+    if (!_embeddedExtractionSettled && !_embeddedUndecodable) {
+        _embeddedExtractionFailures = 0;
+        _embeddedExtractionRetryNotBefore = 0;
+    }
+    // TRAP: _embeddedExtractionInFlight is deliberately NOT cleared here. It is
+    // the single-flight claim over a read already running outside the monitor.
+    if (!_embeddedArt && !_embeddedArtData) {
+        return;
+    }
+    _embeddedArt = nil;
+    _embeddedArtData = nil;
+    _embeddedExtractionSettled = NO;
 }
 
 - (VibeImage *)cachedThumbnail {

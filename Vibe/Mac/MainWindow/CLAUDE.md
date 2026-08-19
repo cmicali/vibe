@@ -31,7 +31,7 @@ The feature lives in `Audio/Metadata/FolderArtResolver`, but this controller own
 
 `refreshFolderArt` (public) runs when Settings > Files changes the album-art setting and calls the resolver's `folderArtSettingDidChange`. **The setting is cached in the resolver, on the hot cell-draw path, so this call is what makes the write observable at all** — not merely a redraw. It deliberately keeps the settled answers.
 
-A **grant** change is answered separately in `grantedFoldersDidChange:`, with the resolver's narrow `invalidateDirectoriesSettledWithoutGrant`. The controller observes `FolderAccessManagerDidChangeNotification` itself, because a grant usually arrives from a drop or an open with the Files pane never opened.
+A **grant** change is answered separately in `grantedFoldersDidChange:`, with the resolver's narrow `invalidateDirectoriesSettledWithoutGrant`. It forgets no-grant discovery answers and re-arms known cover reads, which recheck active access before touching the file. The controller observes `FolderAccessManagerDidChangeNotification` itself, because a grant can change after a drop, open, or Settings edit with the Files pane no longer visible.
 
 `folderArtDidResolve:` observes the resolver's notification — which fires for "this folder has none" as well as for a cover — and coalesces the redraw over a short delay, reloading the *visible* rows alone. The delay is the point: the resolver is serial, so a per-run-loop-turn gate would coalesce nothing. These two observers are why the class has a `dealloc`.
 
@@ -45,7 +45,7 @@ The five effect-state setters in `+Transport` are the single funnel for menus, b
 
 ## The UI tick
 
-A `UIUpdateTimer` (`Vibe/Util/`) drives `updatePlaybackUI`, only while playback wants updates and the window is unoccluded; `windowDidChangeOcclusionState:` pushes the gate and refreshes once on reveal, since Control Center keeps counting on its own. The full `updateUI` runs on transport events and metadata deliveries.
+A `UIUpdateTimer` (`Vibe/Util/`) drives `updatePlaybackUI`, only while playback wants updates and the window is unoccluded; `windowDidChangeOcclusionState:` pushes the gate and refreshes once on reveal, since Control Center keeps counting on its own. The full `updateUI` runs on transport events and metadata deliveries. Its header work has one named phase, `renderTrackPresentationForState:track:displayTrack:`: base state first, then tempo/key and FX, then artwork, all against the same display-state decision. Rate-only and position updates stay separate so they do not reload artwork or playlist rows.
 
 **Its rate is scaled to the playhead's on-screen speed rather than fixed.** `syncUITimerRate` feeds the waveform's `devicePixelWidth`, the cached duration and the varispeed rate to `VibeUIUpdateHzForPlayhead` (`Util/UIUpdateMath.h`, tested), which asks for the Hz that steps the playhead ~2 device pixels, floored at 3 and capped by `AppSettings.uiUpdateHzCap` (Settings > Advanced: 3, 30 default, or 60). An ordinary song computes under the floor and costs what it always did; a five-second sample takes the whole cap.
 
@@ -61,7 +61,7 @@ A forward skip past the end calls `AudioPlayer.finishCurrentTrack`, which fires 
 
 Skips need a player that is not Stopped, gated in both `skipByFileSeconds:` (bare keys bypass validation) and menu validation: **after the playlist ends the finished file stays open, so `duration` alone still looks seekable while no node exists.**
 
-File > Close (⌘W, `closeFile:`) is nil-targeted, so the key window's `closeFile:` target owns both the action and the shared menu item's title. The player retitles it "Close File" / "Close All Files" and enables it only for a nonempty playlist; Settings and About restore the singular title and close only themselves. The player's action calls `AudioPlayer.stop` (which fires no delegate event), then clears the playlist, cancels the deferred metadata load, and drops the scan loader with `cancelAll` — a cancelled loader still strongly holds every queued track, thumbnails included.
+File > Close (⌘W, `closeFile:`) is nil-targeted, so the key window's `closeFile:` target owns both the action and the shared menu item's title. The player retitles it "Close File" / "Close All Files" and enables it only for a nonempty playlist; Settings and About restore the singular title and close only themselves. The player's action calls `AudioPlayer.stop` (which fires no delegate event), then clears the playlist, cancels the deferred metadata load, and drops the scan loader with `cancelScan` — a cancelled loader still strongly holds every queued track, thumbnails included.
 
 ## Convert to FLAC: the swap
 

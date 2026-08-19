@@ -6,8 +6,8 @@
 
 #import <XCTest/XCTest.h>
 
-#import "AudioTrackArtwork.h"
-#import "FolderArtResolver.h"
+#import "AudioTrackArtworkInternal.h"
+#import "FolderArtResolverInternal.h"
 #import "NSImage+Util.h"
 
 #include <os/lock.h>
@@ -195,7 +195,7 @@
         return VibeEmbeddedArtExtractionNoArt;
     }];
     artwork.folderArt = [self resolverWithCover];
-    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:NO];
+    [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:NO];
 
     XCTAssertEqualObjects([artwork loadArtBlocking], _folderCover);
     XCTAssertFalse(extracted, @"an archived artless entry must not re-parse the file");
@@ -209,7 +209,7 @@
             NSString *path, NSData *__autoreleasing *artData) {
         return VibeEmbeddedArtExtractionNoArt;
     }];
-    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:NO];
+    [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:NO];
 
     XCTAssertNil(artwork.cachedThumbnail, @"nothing is decoded yet, so nothing to hand back");
 
@@ -237,7 +237,7 @@
         return VibeEmbeddedArtExtractionFoundArt;
     }];
     artwork.folderArt = [self resolverWithCover];
-    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
+    [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:YES];
 
     XCTAssertTrue(artwork.artNeedsLoad, @"art the entry knows about is still worth a load");
     NSImage *art = [artwork loadArtBlocking];
@@ -260,7 +260,7 @@
         return VibeEmbeddedArtExtractionFoundArt;
     }];
     artwork.clock = ^NSTimeInterval { return clock; };
-    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
+    [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:YES];
 
     XCTAssertNil([artwork loadArtBlocking]);
     XCTAssertNil(artwork.cachedArt, @"a read failure is not permission to use the folder cover");
@@ -282,7 +282,7 @@
         return VibeEmbeddedArtExtractionReadFailed;
     }];
     artwork.clock = ^NSTimeInterval { return clock; };
-    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
+    [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:YES];
 
     for (NSUInteger attempt = 0; attempt < 3; attempt++) {
         XCTAssertNil([artwork loadArtBlocking]);
@@ -312,7 +312,7 @@
         return VibeEmbeddedArtExtractionReadFailed;
     }];
     artwork.clock = ^NSTimeInterval { return clock; };
-    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
+    [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:YES];
 
     XCTAssertNil([artwork loadArtBlocking]);
     XCTAssertEqual(attempts, 1u);
@@ -350,7 +350,7 @@
         return VibeEmbeddedArtExtractionFoundArt;
     }];
     artwork.clock = ^NSTimeInterval { return clock; };
-    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
+    [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:YES];
 
     XCTAssertNil([artwork loadArtBlocking]);
     clock += 5;
@@ -376,7 +376,7 @@
         return VibeEmbeddedArtExtractionReadFailed;
     }];
     artwork.clock = ^NSTimeInterval { return clock; };
-    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
+    [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:YES];
 
     XCTAssertNil([artwork loadArtBlocking]);
     XCTAssertEqual(attempts, 1u);
@@ -418,7 +418,7 @@
         return VibeEmbeddedArtExtractionReadFailed;
     }];
     artwork.clock = readClock;
-    [artwork adoptArchivedThumbnailJPEG:nil hasEmbeddedArt:YES];
+    [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:YES];
 
     XCTestExpectation *staleExtractionFinished = [self expectationWithDescription:@"stale extraction"];
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
@@ -464,10 +464,34 @@
             NSString *path, NSData *__autoreleasing *artData) {
         return VibeEmbeddedArtExtractionNoArt;
     }];
-    [artwork adoptArchivedThumbnailJPEG:[self embeddedArtData] hasEmbeddedArt:YES];
+    [artwork adoptArchivedThumbnailData:[self embeddedArtData] hasEmbeddedArt:YES];
     NSImage *thumbnail = artwork.cachedThumbnail;
     XCTAssertNotNil(thumbnail);
     XCTAssertNotEqualObjects(thumbnail, _folderCover);
+}
+
+#pragma mark - Duplicate-row copies
+
+- (void)testDuplicateRowsOwnIndependentArtworkState {
+    NSData *embedded = [self embeddedArtData];
+    __block NSUInteger extractions = 0;
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        extractions++;
+        *artData = embedded;
+        return VibeEmbeddedArtExtractionFoundArt;
+    }];
+    [artwork adoptArchivedThumbnailData:embedded hasEmbeddedArt:YES];
+    AudioTrackArtwork *duplicate = [artwork copy];
+
+    XCTAssertNotEqual(artwork, duplicate);
+    XCTAssertNotNil([artwork loadArtBlocking]);
+    XCTAssertNotNil([duplicate loadArtBlocking]);
+    XCTAssertEqual(extractions, 2u, @"each row owns its full-resolution decode state");
+
+    [artwork discardDecodedArt];
+    XCTAssertNil(artwork.cachedArt);
+    XCTAssertNotNil(duplicate.cachedArt, @"demoting one row must not demote its duplicate");
 }
 
 @end

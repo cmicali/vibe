@@ -4,6 +4,7 @@
 //
 
 #import "VibeiOSAppDelegate.h"
+#import "AppSettings.h"
 #import "NSBundle+BuildInfo.h"
 #if DEBUG
 #import "DebugCommands.h"

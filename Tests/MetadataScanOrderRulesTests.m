@@ -1,33 +1,34 @@
 //
-//  CloudParseOrderRulesTests.m
+//  MetadataScanOrderRulesTests.m
 //
-//  The cloud lane's pick order: (deferred, neighborhood rank, playlist index).
+//  The scan materialization lane's pick order: deferred work, neighborhood
+//  rank, then playlist index.
 //  Because the lane is serial, this comparator is the whole of what decides
 //  which file downloads next.
 //
 
 #import <XCTest/XCTest.h>
 
-#import "CloudParseOrderRules.h"
+#import "MetadataScanOrderRules.h"
 
-@interface FakeCloudParseCandidate : NSObject <VibeCloudParseOrderCandidate>
+@interface MetadataScanCandidateFake : NSObject <MetadataScanOrderCandidate>
 @property (nonatomic) BOOL deferred;
 @property (nonatomic) NSUInteger playlistIndex;
 @property (nonatomic, copy) NSURL *url;
 @end
 
-@implementation FakeCloudParseCandidate
+@implementation MetadataScanCandidateFake
 @end
 
-@interface CloudParseOrderRulesTests : XCTestCase
+@interface MetadataScanOrderRulesTests : XCTestCase
 @end
 
-@implementation CloudParseOrderRulesTests
+@implementation MetadataScanOrderRulesTests
 
-- (FakeCloudParseCandidate *)candidateAtIndex:(NSUInteger)index
+- (MetadataScanCandidateFake *)candidateAtIndex:(NSUInteger)index
                                            url:(NSURL *)url
                                       deferred:(BOOL)deferred {
-    FakeCloudParseCandidate *candidate = [[FakeCloudParseCandidate alloc] init];
+    MetadataScanCandidateFake *candidate = [[MetadataScanCandidateFake alloc] init];
     candidate.playlistIndex = index;
     candidate.url = url;
     candidate.deferred = deferred;
@@ -37,29 +38,29 @@
 - (void)testNeighborhoodRankBeatsPlaylistIndex {
     // The next track (rank 0) goes ahead of an earlier row outside the
     // neighborhood, however small that row's index is.
-    XCTAssertTrue(VibeCloudParseOrderedBefore(NO, 0, 7, NO, NSNotFound, 0));
-    XCTAssertFalse(VibeCloudParseOrderedBefore(NO, NSNotFound, 0, NO, 0, 7));
+    XCTAssertTrue(VibeMetadataScanOrderedBefore(NO, 0, 7, NO, NSNotFound, 0));
+    XCTAssertFalse(VibeMetadataScanOrderedBefore(NO, NSNotFound, 0, NO, 0, 7));
     // Within the neighborhood the stated order holds: next, second-next,
     // previous.
-    XCTAssertTrue(VibeCloudParseOrderedBefore(NO, 0, 9, NO, 1, 2));
-    XCTAssertTrue(VibeCloudParseOrderedBefore(NO, 1, 9, NO, 2, 2));
+    XCTAssertTrue(VibeMetadataScanOrderedBefore(NO, 0, 9, NO, 1, 2));
+    XCTAssertTrue(VibeMetadataScanOrderedBefore(NO, 1, 9, NO, 2, 2));
 }
 
 - (void)testEqualRankFollowsPlaylistIndex {
     // The tail — everything past the neighborhood — is stable playlist order,
     // never stage-1 completion order.
-    XCTAssertTrue(VibeCloudParseOrderedBefore(NO, NSNotFound, 3, NO, NSNotFound, 4));
-    XCTAssertFalse(VibeCloudParseOrderedBefore(NO, NSNotFound, 4, NO, NSNotFound, 3));
+    XCTAssertTrue(VibeMetadataScanOrderedBefore(NO, NSNotFound, 3, NO, NSNotFound, 4));
+    XCTAssertFalse(VibeMetadataScanOrderedBefore(NO, NSNotFound, 4, NO, NSNotFound, 3));
 }
 
 - (void)testDeferredSortsLastWhateverTheNeighborhoodSays {
     // A deferred retry has already failed once; even rank 0 cannot promote it
     // past a track that has not tried at all.
-    XCTAssertTrue(VibeCloudParseOrderedBefore(NO, NSNotFound, 99, YES, 0, 0));
-    XCTAssertFalse(VibeCloudParseOrderedBefore(YES, 0, 0, NO, NSNotFound, 99));
+    XCTAssertTrue(VibeMetadataScanOrderedBefore(NO, NSNotFound, 99, YES, 0, 0));
+    XCTAssertFalse(VibeMetadataScanOrderedBefore(YES, 0, 0, NO, NSNotFound, 99));
     // Two deferred entries keep rank-then-index order among themselves.
-    XCTAssertTrue(VibeCloudParseOrderedBefore(YES, 0, 5, YES, NSNotFound, 1));
-    XCTAssertTrue(VibeCloudParseOrderedBefore(YES, NSNotFound, 1, YES, NSNotFound, 2));
+    XCTAssertTrue(VibeMetadataScanOrderedBefore(YES, 0, 5, YES, NSNotFound, 1));
+    XCTAssertTrue(VibeMetadataScanOrderedBefore(YES, NSNotFound, 1, YES, NSNotFound, 2));
 }
 
 - (void)testATotalOrderOverAMixedPendingList {
@@ -77,7 +78,7 @@
         if (a == b) {
             return NSOrderedSame;
         }
-        return VibeCloudParseOrderedBefore(
+        return VibeMetadataScanOrderedBefore(
                 [a[0] boolValue], [a[1] unsignedIntegerValue], [a[2] unsignedIntegerValue],
                 [b[0] boolValue], [b[1] unsignedIntegerValue], [b[2] unsignedIntegerValue])
                 ? NSOrderedAscending : NSOrderedDescending;
@@ -95,46 +96,28 @@
 - (void)testExactPickerFindsTheBestRegardlessOfArrivalOrder {
     NSURL *next = [NSURL fileURLWithPath:@"/next.flac"];
     NSURL *tail = [NSURL fileURLWithPath:@"/tail.flac"];
-    FakeCloudParseCandidate *earlyTail = [self candidateAtIndex:20 url:tail deferred:NO];
-    FakeCloudParseCandidate *lateNext = [self candidateAtIndex:1 url:next deferred:NO];
+    MetadataScanCandidateFake *earlyTail = [self candidateAtIndex:20 url:tail deferred:NO];
+    MetadataScanCandidateFake *lateNext = [self candidateAtIndex:1 url:next deferred:NO];
 
-    id<VibeCloudParseOrderCandidate> best = VibeBestCloudParseCandidate(
-            @[earlyTail, lateNext], @[next], [NSSet set]);
+    id<MetadataScanOrderCandidate> best = VibeBestMetadataScanCandidate(
+            @[earlyTail, lateNext], @[next]);
 
     XCTAssertEqual(best, lateNext);
-}
-
-- (void)testMoreThanEightDuplicateBlockedPathsCannotHideAnUnblockedCandidate {
-    NSURL *blocked = [NSURL fileURLWithPath:@"/claimed.flac"];
-    NSURL *available = [NSURL fileURLWithPath:@"/available.flac"];
-    NSMutableArray<id<VibeCloudParseOrderCandidate>> *pending = [NSMutableArray array];
-    for (NSUInteger index = 0; index < 12; index++) {
-        [pending addObject:[self candidateAtIndex:index url:blocked deferred:NO]];
-    }
-    FakeCloudParseCandidate *survivor = [self candidateAtIndex:12
-                                                           url:available
-                                                      deferred:NO];
-    [pending addObject:survivor];
-
-    id<VibeCloudParseOrderCandidate> best = VibeBestCloudParseCandidate(
-            pending, @[], [NSSet setWithObject:blocked]);
-
-    XCTAssertEqual(best, survivor);
 }
 
 - (void)testDuplicateNeighborhoodURLKeepsItsFirstAndBestRank {
     NSURL *duplicate = [NSURL fileURLWithPath:@"/duplicate.flac"];
     NSURL *other = [NSURL fileURLWithPath:@"/other.flac"];
-    FakeCloudParseCandidate *duplicateCandidate = [self candidateAtIndex:99
+    MetadataScanCandidateFake *duplicateCandidate = [self candidateAtIndex:99
                                                                       url:duplicate
                                                                  deferred:NO];
-    FakeCloudParseCandidate *otherCandidate = [self candidateAtIndex:0
+    MetadataScanCandidateFake *otherCandidate = [self candidateAtIndex:0
                                                                   url:other
                                                              deferred:NO];
 
-    id<VibeCloudParseOrderCandidate> best = VibeBestCloudParseCandidate(
+    id<MetadataScanOrderCandidate> best = VibeBestMetadataScanCandidate(
             @[otherCandidate, duplicateCandidate],
-            @[duplicate, other, duplicate], [NSSet set]);
+            @[duplicate, other, duplicate]);
 
     XCTAssertEqual(best, duplicateCandidate);
 }

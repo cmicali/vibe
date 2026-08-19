@@ -5,7 +5,7 @@
 
 #import "FolderArtEntry.h"
 
-@implementation VibeFolderArtEntry
+@implementation FolderArtEntry
 
 - (BOOL)settled {
     return _artPath != nil;
@@ -24,6 +24,7 @@
     _revision = 0;
     _resolving = 0;
     _settledWithoutGrant = NO;
+    _readBlockedWithoutGrant = NO;
     _readFailures = 0;
 }
 

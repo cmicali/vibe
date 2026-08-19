@@ -232,11 +232,15 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
         }
         return nil;
     }
-    // Skip seek. A, S and D go forward by the base bar count
-    // (Settings.skipBaseBars), twice it and four times it; Z, X and C go back
-    // the same, or 10, 30 and 60 seconds when the track has no BPM. They form
-    // a two-by-three grid on the keyboard, forward on top and back below, and
-    // the further the key, the longer the skip.
+    // Transport, navigation, skip and size keys deliberately honor hardware
+    // repeat. Only the effect keys above suppress it because they carry
+    // keyDown-to-keyUp state.
+    //
+    // Skip seek. A, S and D go forward by the configured base bar count,
+    // twice it and four times it; Z, X and C go back the same, or 10, 30 and
+    // 60 seconds when the track has no BPM. The six bindings form a two-by-three
+    // grid, forward on top and back below; the further the key, the longer the
+    // skip.
     if ([chars isEqualToString:@"a"]) {
         [controller skipForward:nil];
         return nil;

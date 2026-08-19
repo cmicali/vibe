@@ -14,3 +14,12 @@ static inline BOOL VibeDownloadProgressIsMovement(float previousRawFraction,
     return isfinite(rawFraction) && rawFraction > 0
             && rawFraction > previousRawFraction;
 }
+
+// Exact provider percentages silence the allocated-size heuristic only while
+// the file remains dataless. A materialized filesystem sample is final truth
+// even if an exact source has not unpublished yet.
+static inline BOOL VibeDownloadPollShouldPublish(BOOL dataless,
+                                                 BOOL iCloudActive,
+                                                 BOOL fileProviderActive) {
+    return !dataless || (!iCloudActive && !fileProviderActive);
+}

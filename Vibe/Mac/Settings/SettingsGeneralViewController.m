@@ -4,6 +4,7 @@
 //
 
 #import "SettingsGeneralViewController.h"
+#import "AppSettings.h"
 #import "AudioDeviceManager.h"
 #import "AudioPlayer.h"
 #import "DefaultAppRegistration.h"
@@ -74,11 +75,11 @@ static const CGFloat kOutputPopUpWidth = 280;
 - (void)refreshFromSettings {
     [self refreshOutputPopUp];
     [self refreshDefaultPlayerButton];
-    _alwaysOnTopCheckbox.state = Settings.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
+    _alwaysOnTopCheckbox.state = AppSettings.sharedInstance.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
 }
 
 - (void)toggleAlwaysOnTop:(id)sender {
-    Settings.alwaysOnTop = (_alwaysOnTopCheckbox.state == NSControlStateValueOn);
+    AppSettings.sharedInstance.alwaysOnTop = (_alwaysOnTopCheckbox.state == NSControlStateValueOn);
     [self.playerController applyAlwaysOnTop];
 }
 

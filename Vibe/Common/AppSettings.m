@@ -39,6 +39,16 @@
 // → folder-art vocabulary and stays as written.
 #define SETTING_FOLDER_ART                          @"Audio.folderArtwork"
 
+const NSInteger kVibeSkipBasePresets[] = {4, 8, 16};
+const size_t kVibeSkipBasePresetCount =
+        sizeof(kVibeSkipBasePresets) / sizeof(kVibeSkipBasePresets[0]);
+const NSInteger kVibeCrossfadePresets[] = {10, 500, 2000};
+const size_t kVibeCrossfadePresetCount =
+        sizeof(kVibeCrossfadePresets) / sizeof(kVibeCrossfadePresets[0]);
+const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
+const size_t kVibeUIUpdateHzCapPresetCount =
+        sizeof(kVibeUIUpdateHzCapPresets) / sizeof(kVibeUIUpdateHzCapPresets[0]);
+
 // See the preset declarations in the header: an out-of-list persisted value
 // reads as the nearest preset, so display and behavior cannot disagree.
 static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, size_t count) {
@@ -342,8 +352,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 
 - (NSInteger)skipBaseBars {
     NSInteger stored = [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_SKIP_BASE_BARS];
-    return VibeNearestPreset(stored, kVibeSkipBasePresets,
-                             sizeof(kVibeSkipBasePresets) / sizeof(kVibeSkipBasePresets[0]));
+    return VibeNearestPreset(stored, kVibeSkipBasePresets, kVibeSkipBasePresetCount);
 }
 
 - (void)setSkipBaseBars:(NSInteger)bars {
@@ -352,8 +361,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 
 - (NSInteger)crossfadeMilliseconds {
     NSInteger stored = [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_CROSSFADE_MILLISECONDS];
-    return VibeNearestPreset(stored, kVibeCrossfadePresets,
-                             sizeof(kVibeCrossfadePresets) / sizeof(kVibeCrossfadePresets[0]));
+    return VibeNearestPreset(stored, kVibeCrossfadePresets, kVibeCrossfadePresetCount);
 }
 
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds {
@@ -362,8 +370,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 
 - (NSInteger)storedUIUpdateHzCap {
     NSInteger stored = [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_UI_UPDATE_HZ_CAP];
-    return VibeNearestPreset(stored, kVibeUIUpdateHzCapPresets,
-                             sizeof(kVibeUIUpdateHzCapPresets) / sizeof(kVibeUIUpdateHzCapPresets[0]));
+    return VibeNearestPreset(stored, kVibeUIUpdateHzCapPresets, kVibeUIUpdateHzCapPresetCount);
 }
 
 // Cached; read on every live-resize frame through syncUITimerRate.

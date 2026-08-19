@@ -57,17 +57,19 @@ typedef NS_ENUM(NSInteger, VibeGrantedFolderState) {
 // FolderAccessManagerDidChangeNotification is the signal to reconsider.
 - (BOOL)canReadInsideDirectory:(nullable NSString *)path;
 
-// Resolves every stored bookmark and starts its security scope, each on its
-// own background block so one unreachable mount cannot stall the grants
-// behind it. Call once at launch. completion runs on the main thread once
-// every scope has started — or at a short deadline, because a launch open
-// gated on it cannot usefully wait out an automounter timeout.
+// Resolves every stored bookmark and starts its security scope on a bounded
+// background scheduler. A queued grant that an open needs is promoted ahead of
+// unrelated queued work. Call once at launch. completion runs on the main
+// thread once every scope has started — or at a short deadline, because a
+// launch open gated on it cannot usefully wait out an automounter timeout.
 - (void)restoreGrantedAccessWithCompletion:(void (^_Nullable)(void))completion;
 
-// Runs completion on the main thread once every still-restoring remembered
-// grant that covers one of urls has settled — or at the same deadline
-// restoreGrantedAccessWithCompletion: uses, whichever comes first. An open
-// unrelated to any restoring grant runs synchronously, right now.
+// Runs completion on the main thread once every url is covered by an active
+// grant, or has no covering restoration left — or at the same deadline
+// restoreGrantedAccessWithCompletion: uses, whichever comes first. Of nested
+// covering grants, the most specific queued one is promoted first; an active
+// child satisfies the wait even while a stale parent is still resolving. An
+// open unrelated to any restoring grant runs synchronously, right now.
 //
 // The deadline is not optional: a bookmark on an unreachable mount can take an
 // automounter timeout to resolve, or never resolve at all, and an open held

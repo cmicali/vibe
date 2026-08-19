@@ -6,6 +6,7 @@
 //
 
 #import "DebugInternal.h"
+#import "AppSettings.h"
 
 #if DEBUG
 
@@ -171,9 +172,9 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 if (![arg isEqualToString:@"on"] && ![arg isEqualToString:@"off"]) {
                     return VibeErrorJSON(@"usage: set_folder_art <on|off>");
                 }
-                Settings.useFolderArt = [arg isEqualToString:@"on"];
+                AppSettings.sharedInstance.useFolderArt = [arg isEqualToString:@"on"];
                 [controller refreshFolderArt];
-                return VibeJSONString(@{@"ok": @YES, @"folderArt": @(Settings.useFolderArt)});
+                return VibeJSONString(@{@"ok": @YES, @"folderArt": @(AppSettings.sharedInstance.useFolderArt)});
             }),
             VibeCmd(@"set_window_width <body-points>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 double bodyPoints = 0;
@@ -302,7 +303,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     return VibeErrorJSON(@"no track to convert");
                 }
                 if (mode) {
-                    Settings.deleteOriginalAfterConvert = [mode isEqualToString:@"delete"];
+                    AppSettings.sharedInstance.deleteOriginalAfterConvert = [mode isEqualToString:@"delete"];
                 }
                 // Read before the swap replaces the track; reported back so a
                 // test can assert the deletion without reading the Trash,

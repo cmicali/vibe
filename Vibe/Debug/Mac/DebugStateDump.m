@@ -6,6 +6,7 @@
 //
 
 #import "DebugInternal.h"
+#import "AppSettings.h"
 
 #if DEBUG
 
@@ -60,18 +61,18 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"keyWindow": @(window.isKeyWindow),
         },
         @"settings": @{
-            @"pitchRange": @(Settings.pitchRange),
-            @"playlistShown": @(Settings.isPlaylistShown),
-            @"pitchPanelShown": @(Settings.isPitchPanelShown),
-            @"waveformStyle": Settings.waveformStyle ?: @"",
-            @"outputDeviceName": Settings.audioOutputDeviceName ?: @"",
-            @"deleteOriginalAfterConvert": @(Settings.deleteOriginalAfterConvert),
-            @"analyzeBPM": @(Settings.analyzeBPM),
-            @"analyzeKey": @(Settings.analyzeKey),
-            @"keyNotation": Settings.keyNotation ?: @"",
-            @"keyColors": @(Settings.keyColorsEnabled),
-            @"uiUpdateHzCap": @(Settings.uiUpdateHzCap),
-            @"folderArt": @(Settings.useFolderArt),
+            @"pitchRange": @(AppSettings.sharedInstance.pitchRange),
+            @"playlistShown": @(AppSettings.sharedInstance.isPlaylistShown),
+            @"pitchPanelShown": @(AppSettings.sharedInstance.isPitchPanelShown),
+            @"waveformStyle": AppSettings.sharedInstance.waveformStyle ?: @"",
+            @"outputDeviceName": AppSettings.sharedInstance.audioOutputDeviceName ?: @"",
+            @"deleteOriginalAfterConvert": @(AppSettings.sharedInstance.deleteOriginalAfterConvert),
+            @"analyzeBPM": @(AppSettings.sharedInstance.analyzeBPM),
+            @"analyzeKey": @(AppSettings.sharedInstance.analyzeKey),
+            @"keyNotation": AppSettings.sharedInstance.keyNotation ?: @"",
+            @"keyColors": @(AppSettings.sharedInstance.keyColorsEnabled),
+            @"uiUpdateHzCap": @(AppSettings.sharedInstance.uiUpdateHzCap),
+            @"folderArt": @(AppSettings.sharedInstance.useFolderArt),
         },
     }];
     return state;

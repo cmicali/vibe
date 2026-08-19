@@ -4,6 +4,7 @@
 //
 
 #import "MainWindow.h"
+#import "AppSettings.h"
 #import "WindowAnimation.h"
 #import "AppDelegate.h" // drops enter the app's one open funnel; see performDragOperation:
 #import "MainPlayerController.h"
@@ -119,7 +120,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     BOOL shown = (self.frame.size.height > kMainWindowSmallHeight);
     if (shown != _playlistShown) {
         _playlistShown = shown;
-        Settings.playlistShown = shown;
+        AppSettings.sharedInstance.playlistShown = shown;
     }
 }
 
@@ -233,13 +234,13 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
 - (void)setSmallSize:(BOOL)animate {
     _playlistShown = NO;
-    Settings.playlistShown = NO;
+    AppSettings.sharedInstance.playlistShown = NO;
     [self setHeight:kMainWindowSmallHeight animate:animate];
 }
 
 - (void)setLargeSize:(BOOL)animate {
     _playlistShown = YES;
-    Settings.playlistShown = YES;
+    AppSettings.sharedInstance.playlistShown = YES;
     [self setHeight:kMainWindowLargeHeight animate:animate];
 }
 
@@ -315,7 +316,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         return;
     }
     _pitchPanelShown = shown;
-    Settings.pitchPanelShown = shown;
+    AppSettings.sharedInstance.pitchPanelShown = shown;
     CGFloat minWidth = [self applyMinWidthForPitchPanelShown:shown];
     NSRect frame = self.frame;
     // Widen/narrow by exactly the panel's slice: the body keeps whatever width
@@ -337,7 +338,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 - (void)loadSettings {
     NSRect frame = self.frame;
 
-    _playlistShown = Settings.isPlaylistShown;
+    _playlistShown = AppSettings.sharedInstance.isPlaylistShown;
     CGFloat height = frame.size.height;
     if (!_playlistShown) {
         height = kMainWindowSmallHeight;
@@ -355,7 +356,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
     frame.size.height = height;
 
-    _pitchPanelShown = Settings.isPitchPanelShown;
+    _pitchPanelShown = AppSettings.sharedInstance.isPitchPanelShown;
     frame.size.width = MAX(frame.size.width,
                            [self applyMinWidthForPitchPanelShown:_pitchPanelShown]);
 

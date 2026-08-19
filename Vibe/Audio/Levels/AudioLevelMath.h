@@ -10,17 +10,20 @@
 //
 //  A BAND is a frequency range. Its ENERGY is magnitude-squared power,
 //  normalized for FFT size and averaged across channels. Relative-activity
-//  mode averages that power across a band's bins; shared-spectrum mode sums it
-//  and compensates for the band's octave width. The published 0..1 value is a
-//  LEVEL. Visual response belongs to EqualizerAnimationMath.h in Controls;
-//  audio publishes targets and never knows how a view moves.
+//  mode averages that power across a band's bins; the spectrum modes sum it
+//  and compensate for the band's octave width. Balanced spectrum admits a
+//  bounded amount of relative activity only where shared spectrum also sees
+//  signal. The published 0..1 value is a LEVEL. Visual response belongs to
+//  EqualizerAnimationMath.h in Controls; audio publishes targets and never
+//  knows how a view moves.
 //
 //  Why each piece exists, since raw magnitudes look wrong rather than merely
 //  unpolished: the fixed band edges give bass and low mids three of the five
 //  bars. Relative-activity mode gives each band its own reference so all five
 //  remain lively; shared-spectrum mode compares energy per octave against one
-//  reference. Either reference decays rather than being fixed, so quiet tracks
-//  can still move the bars.
+//  reference; balanced spectrum keeps that comparison as its foundation while
+//  allowing supported activity to lift a weak band. Either reference decays
+//  rather than being fixed, so quiet tracks can still move the bars.
 //
 
 #import <Foundation/Foundation.h>
@@ -38,6 +41,9 @@ typedef NS_ENUM(NSUInteger, VibeAudioLevelNormalizationMode) {
     // Energy per octave follows one reference set by the strongest band. Bar
     // heights retain the callback-time spectrum's bass-to-treble balance.
     VibeAudioLevelNormalizationModeSharedSpectrum,
+    // Shared spectrum is the foundation. Private per-band activity can only
+    // assist upward where that shared result already carries signal.
+    VibeAudioLevelNormalizationModeBalancedSpectrum,
 };
 
 // Bass-forward musical regions: sub/kick, bass, low mids, mids/presence and
@@ -47,10 +53,9 @@ static const double kLevelBandEdgesHz[kLevelBandCount + 1] = {
     40.0, 100.0, 250.0, 800.0, 4000.0, 20000.0,
 };
 
-// The shipping mode. Debug can replace the analyzer with the activity mode for
-// a process-local A/B comparison.
+// The shipping mode. Other modes remain available to callers for comparison.
 static const VibeAudioLevelNormalizationMode kLevelDefaultNormalizationMode =
-        VibeAudioLevelNormalizationModeSharedSpectrum;
+        VibeAudioLevelNormalizationModeBalancedSpectrum;
 
 // Roughly how often the analyzer makes a new musical decision. A power-of-two
 // FFT nearest this interval is selected for the delivered sample rate.
@@ -66,6 +71,19 @@ static const double kLevelTapBufferSeconds = 0.1;
 // bands and reduces inter-band contrast; narrower lowers them and separates
 // the spectrum more strongly, at the cost of hitting the floor between hits.
 static const float kLevelDynamicRangeDB = 28.0f;
+
+// Balanced spectrum moves this fraction of the way from the shared level to a
+// higher relative-activity level. It never lets activity reduce shared output.
+static const float kLevelBalancedLocalAssistance = 0.35f;
+
+// The activity assist fades in as shared spectrum rises from zero and reaches
+// full weight here. This keeps a private reference from lighting leakage that
+// has no meaningful support on the common spectrum scale.
+static const float kLevelBalancedFullSharedSupport = 0.12f;
+
+// Scales the whole balanced result, reserving headroom even below the maximum;
+// this is deliberately not only a clip applied to full-scale values.
+static const float kLevelBalancedOutputScale = 0.91f;
 
 // A reference can fall this far and no further, so true silence stays flat
 // instead of amplifying the noise floor into a light show. The floor is
@@ -247,6 +265,45 @@ static inline float VibeLevelNormalize(float energy, float reference) {
         return 0.0f;
     }
     return level > 1.0f ? 1.0f : level;
+}
+
+// Smoothly opens the balanced mode's activity assist over the bottom of the
+// shared scale. Smoothstep keeps both ends free of a visible slope change.
+static inline float VibeLevelBalancedSharedSupport(float sharedLevel) {
+    if (!isfinite(sharedLevel) || sharedLevel <= 0.0f) {
+        return 0.0f;
+    }
+    float position = sharedLevel / kLevelBalancedFullSharedSupport;
+    if (position >= 1.0f) {
+        return 1.0f;
+    }
+    return position * position * (3.0f - 2.0f * position);
+}
+
+// Shared spectrum remains the base shape. Relative activity contributes only
+// its positive difference, gated by shared support, and the entire result is
+// scaled down to leave visual headroom.
+static inline float VibeLevelBalancedSpectrumLevel(float sharedLevel,
+                                                    float relativeActivityLevel) {
+    if (!isfinite(sharedLevel) || sharedLevel <= 0.0f) {
+        return 0.0f;
+    }
+    sharedLevel = MIN(sharedLevel, 1.0f);
+    if (!isfinite(relativeActivityLevel) || relativeActivityLevel <= 0.0f) {
+        relativeActivityLevel = 0.0f;
+    }
+    else {
+        relativeActivityLevel = MIN(relativeActivityLevel, 1.0f);
+    }
+    float positiveActivity = MAX(relativeActivityLevel - sharedLevel, 0.0f);
+    float combined = sharedLevel
+            + kLevelBalancedLocalAssistance
+            * VibeLevelBalancedSharedSupport(sharedLevel)
+            * positiveActivity;
+    if (!isfinite(combined) || combined <= 0.0f) {
+        return 0.0f;
+    }
+    return kLevelBalancedOutputScale * MIN(combined, 1.0f);
 }
 
 // An automatic gain reference after observing `observed` over `dt` seconds.

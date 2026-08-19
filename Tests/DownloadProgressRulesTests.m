@@ -39,4 +39,20 @@
     XCTAssertFalse(VibeDownloadProgressIsMovement(0, INFINITY));
 }
 
+- (void)testDatalessPollYieldsToICloudPercentage {
+    XCTAssertFalse(VibeDownloadPollShouldPublish(YES, YES, NO));
+}
+
+- (void)testDatalessPollYieldsToFileProviderPercentage {
+    XCTAssertFalse(VibeDownloadPollShouldPublish(YES, NO, YES));
+}
+
+- (void)testDatalessPollPublishesWithoutAnExactSource {
+    XCTAssertTrue(VibeDownloadPollShouldPublish(YES, NO, NO));
+}
+
+- (void)testMaterializedPollPublishesEvenBeforeExactSourcesDetach {
+    XCTAssertTrue(VibeDownloadPollShouldPublish(NO, YES, YES));
+}
+
 @end

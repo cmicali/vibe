@@ -39,7 +39,7 @@
 
 // The pre-submit edge: synchronous on play:'s calling thread (main at every
 // call site), before the open is submitted to the player queue, so the scan's
-// cloud lane stands down before the foreground open contends with a download
+// scan materialization stands down before the foreground open contends with a download
 // it could have suspended. Deliberately NOT stale-guarded: this fires before
 // the playlist reflects the play, and the hold is idempotent. Cleared exactly
 // once by the matching settlement — didStartPlaying:'s prefetch
@@ -47,7 +47,7 @@
 // MainPlayerController+PlayerEvents.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer willSubmitPlayForTrack:(AudioTrack *)track {
     _foregroundHoldGeneration++;
-    [_metadataCache setCloudParsesHeld:YES];
+    [_metadataCache setBackgroundMaterializationHeld:YES];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
@@ -145,7 +145,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
                 holdGeneration, strongSelf->_foregroundHoldGeneration)) {
             return;
         }
-        [strongSelf->_metadataCache setCloudParsesHeld:NO];
+        [strongSelf->_metadataCache setBackgroundMaterializationHeld:NO];
     }];
     _folderSession.persistedTrackFileName = track.url.lastPathComponent;
     // The landing can be parked — a pause verdict during the load, or the
@@ -261,7 +261,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
     _downloadMonitorOpenRequestIdentifier = 0;
-    [_metadataCache setCloudParsesHeld:NO];
+    [_metadataCache setBackgroundMaterializationHeld:NO];
     // Nothing is going to start now, so the deferred sweep stops waiting.
     [self startPendingMetadataLoad];
     [self notifyDidFailCurrentTrack];

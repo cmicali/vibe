@@ -66,7 +66,7 @@ static NSString *const kActionCellIdentifier = @"action";
 // a later version, or a hand-edited one, renders as the default, and a
 // checkmark on a row nothing draws would misreport the screen.
 - (NSString *)currentWaveformStyle {
-    return [WaveformRendererRegistry resolveStyleIdentifier:Settings.waveformStyle];
+    return [WaveformRendererRegistry resolveStyleIdentifier:AppSettings.sharedInstance.waveformStyle];
 }
 
 // One notification for all of them: the screens that draw these settings are
@@ -264,7 +264,7 @@ static NSString *const kActionCellIdentifier = @"action";
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     switch ((VibeSettingsSection)indexPath.section) {
         case VibeSettingsSectionWaveform:
-            Settings.waveformStyle = _waveformStyles[(NSUInteger)indexPath.row];
+            AppSettings.sharedInstance.waveformStyle = _waveformStyles[(NSUInteger)indexPath.row];
             break;
         case VibeSettingsSectionTime:
             VibeSetShowsRemainingTime(indexPath.row == VibeSettingsTimeRowRemaining);

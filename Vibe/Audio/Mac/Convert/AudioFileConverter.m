@@ -11,6 +11,8 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #import "AudioTrack.h"
+#import "AudioTrackMetadata.h"
+#import "AppSettings.h"
 #import "FLACConvertRules.h"
 #import "FLACTagCopier.h"
 #import "NSURL+AudioOpen.h"
@@ -107,7 +109,7 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
     // conversion's own check refuses the write — a beep, not an overwrite.
     // Irrelevant in ask-mode: the save panel handles an existing name itself,
     // and the conversion lifts its refusal to match.
-    BOOL destinationExists = !Settings.convertAsksWhereToSave &&
+    BOOL destinationExists = !AppSettings.sharedInstance.convertAsksWhereToSave &&
             _destinationExists &&
             [_destinationCheckedURL isEqual:[self.class flacDestinationForURL:track.url]];
     [self refreshDestinationStateForTrack:track];
@@ -131,7 +133,7 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
     // to the next conversion, never the one in flight. Ask-mode also lifts
     // the destination-exists refusal below — the panel can save under
     // another name, or replace atomically after its own prompt.
-    BOOL askWhereToSave = Settings.convertAsksWhereToSave && window != nil;
+    BOOL askWhereToSave = AppSettings.sharedInstance.convertAsksWhereToSave && window != nil;
     NSError *refusal = nil;
     if (self.converting) {
         refusal = [self errorWithCode:VibeConvertErrorBusy
@@ -153,7 +155,7 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
     }
 
     _converting = YES;
-    _deleteOriginalAtAccept = Settings.deleteOriginalAfterConvert;
+    _deleteOriginalAtAccept = AppSettings.sharedInstance.deleteOriginalAfterConvert;
 
     __weak AudioFileConverter *weakSelf = self;
     void (^progress)(double) = ^(double fraction) {

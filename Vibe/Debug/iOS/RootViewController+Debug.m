@@ -50,7 +50,7 @@
     // No analyzeBPM/analyzeKey: BPM and key analysis are macOS-only, so those
     // settings do not exist here. A track's bpm/key still report its tags.
     state[@"settings"] = @{
-        @"waveformStyle": Settings.waveformStyle ?: @"",
+        @"waveformStyle": AppSettings.sharedInstance.waveformStyle ?: @"",
     };
     return state;
 }

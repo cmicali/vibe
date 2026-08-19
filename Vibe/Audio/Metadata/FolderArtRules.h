@@ -2,39 +2,14 @@
 //  FolderArtRules.h
 //  Vibe
 //
-//  The folder-artwork fallback's rules as pure functions: when a file's own art
-//  has been ruled out, what a cover beside it may be called, and which name
-//  wins. FolderArtResolver applies them to real folders; NSURLUtil's folder walk
-//  applies the same matching to the entries it is already visiting.
+//  What a cover beside an audio file may be called, and which name wins.
+//  FolderArtResolver applies these rules to real folders; NSURLUtil's folder
+//  walk applies the same matching to entries it is already visiting.
 //
 
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
-
-#pragma mark - When the fallback applies
-
-// Whether the file itself is KNOWN to carry no art worth showing — the gate on
-// every folder-art fallback. While the file's own art is merely *unknown* this
-// is NO, so a folder cover can never stand in front of a track's own art, not
-// even in the window before that art is decoded.
-//
-//  hasArtOfItsOwn      — decoded art, undecoded art bytes, or a thumbnail.
-//  extractionSettled — the file was read successfully for art, so "none found"
-//                      is an answer rather than a gap. A failed read is not.
-//  undecodable         — the art bytes exist but will not decode, which is
-//                        permanent, so the folder's cover is the better showing.
-static inline BOOL VibeFileIsKnownToCarryNoArt(BOOL hasArtOfItsOwn,
-                                               BOOL extractionSettled,
-                                               BOOL undecodable) {
-    if (undecodable) {
-        return YES;
-    }
-    if (hasArtOfItsOwn) {
-        return NO;
-    }
-    return extractionSettled;
-}
 
 #pragma mark - Where a cover is looked for
 

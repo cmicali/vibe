@@ -26,9 +26,9 @@
     }
 }
 
-- (void)testSharedSpectrumIsTheShippingDefault {
+- (void)testBalancedSpectrumIsTheShippingDefault {
     XCTAssertEqual(kLevelDefaultNormalizationMode,
-                   VibeAudioLevelNormalizationModeSharedSpectrum);
+                   VibeAudioLevelNormalizationModeBalancedSpectrum);
 }
 
 // Contiguous, not merely ascending: a band's top IS its neighbour's bottom, so
@@ -267,6 +267,82 @@
     XCTAssertEqual(VibeLevelNormalize(1e-12f, NAN), 0.0f);
     // Louder than the reference is clamped, never over-driven.
     XCTAssertEqual(VibeLevelNormalize(100.0f, 1.0f), 1.0f);
+}
+
+#pragma mark - Balanced spectrum
+
+- (void)testBalancedSpectrumTuningAndSmoothSupportAreExplicit {
+    XCTAssertEqualWithAccuracy(kLevelBalancedLocalAssistance, 0.35f, 0.000001f);
+    XCTAssertEqualWithAccuracy(kLevelBalancedFullSharedSupport, 0.12f, 0.000001f);
+    XCTAssertEqualWithAccuracy(kLevelBalancedOutputScale, 0.91f, 0.000001f);
+
+    XCTAssertEqual(VibeLevelBalancedSharedSupport(0.0f), 0.0f);
+    XCTAssertEqualWithAccuracy(
+            VibeLevelBalancedSharedSupport(kLevelBalancedFullSharedSupport / 2.0f),
+            0.5f, 0.000001f);
+    XCTAssertEqual(VibeLevelBalancedSharedSupport(kLevelBalancedFullSharedSupport),
+                   1.0f);
+    XCTAssertEqual(VibeLevelBalancedSharedSupport(1.0f), 1.0f);
+}
+
+- (void)testBalancedSpectrumScalesTheWholeCurveAndNeverReachesClipping {
+    XCTAssertEqualWithAccuracy(VibeLevelBalancedSpectrumLevel(1.0f, 1.0f),
+                               kLevelBalancedOutputScale, 0.000001f);
+    for (NSUInteger sharedStep = 0; sharedStep <= 20; sharedStep++) {
+        for (NSUInteger activityStep = 0; activityStep <= 20; activityStep++) {
+            float level = VibeLevelBalancedSpectrumLevel(
+                    (float)sharedStep / 20.0f, (float)activityStep / 20.0f);
+            XCTAssertGreaterThanOrEqual(level, 0.0f);
+            XCTAssertLessThanOrEqual(level, kLevelBalancedOutputScale);
+        }
+    }
+}
+
+- (void)testBalancedSpectrumPreservesTheScaledSharedFoundationMonotonically {
+    float previous = 0.0f;
+    for (NSUInteger step = 0; step <= 100; step++) {
+        float shared = (float)step / 100.0f;
+        float foundation = kLevelBalancedOutputScale * shared;
+        XCTAssertEqualWithAccuracy(VibeLevelBalancedSpectrumLevel(shared, shared),
+                                   foundation, 0.000001f);
+        XCTAssertEqualWithAccuracy(VibeLevelBalancedSpectrumLevel(shared, 0.0f),
+                                   foundation, 0.000001f);
+        float assisted = VibeLevelBalancedSpectrumLevel(shared, 1.0f);
+        XCTAssertGreaterThanOrEqual(assisted, foundation);
+        XCTAssertGreaterThanOrEqual(assisted, previous);
+        previous = assisted;
+    }
+}
+
+- (void)testBalancedSpectrumGateKeepsUnsupportedActivityDark {
+    XCTAssertEqual(VibeLevelBalancedSpectrumLevel(0.0f, 1.0f), 0.0f);
+    float sharedLeakage = 0.001f;
+    float foundation = kLevelBalancedOutputScale * sharedLeakage;
+    float assisted = VibeLevelBalancedSpectrumLevel(sharedLeakage, 1.0f);
+    XCTAssertGreaterThanOrEqual(assisted, foundation);
+    XCTAssertLessThan(assisted - foundation, 0.0001f);
+}
+
+- (void)testBalancedSpectrumAddsMeaningfulButBoundedLocalActivity {
+    float shared = 0.3f;
+    float activity = 0.9f;
+    float expected = kLevelBalancedOutputScale
+            * (shared + kLevelBalancedLocalAssistance * (activity - shared));
+    float level = VibeLevelBalancedSpectrumLevel(shared, activity);
+    XCTAssertEqualWithAccuracy(level, expected, 0.000001f);
+    XCTAssertGreaterThan(level, kLevelBalancedOutputScale * shared);
+    XCTAssertLessThan(level, kLevelBalancedOutputScale * activity);
+}
+
+- (void)testBalancedSpectrumSanitizesZeroAndCorruptLevels {
+    XCTAssertEqual(VibeLevelBalancedSpectrumLevel(0.0f, 0.0f), 0.0f);
+    XCTAssertEqual(VibeLevelBalancedSpectrumLevel(NAN, 1.0f), 0.0f);
+    XCTAssertEqual(VibeLevelBalancedSpectrumLevel(INFINITY, 1.0f), 0.0f);
+    XCTAssertEqual(VibeLevelBalancedSpectrumLevel(-1.0f, 1.0f), 0.0f);
+    XCTAssertEqualWithAccuracy(VibeLevelBalancedSpectrumLevel(0.4f, NAN),
+                               kLevelBalancedOutputScale * 0.4f, 0.000001f);
+    XCTAssertEqualWithAccuracy(VibeLevelBalancedSpectrumLevel(0.4f, INFINITY),
+                               kLevelBalancedOutputScale * 0.4f, 0.000001f);
 }
 
 #pragma mark - The automatic gain reference

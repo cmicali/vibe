@@ -34,9 +34,10 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
     NSUInteger _nextSequence;
     NSUInteger _nextDeliverySequence;
     NSMutableDictionary<NSNumber *, OpenRequestResult *> *_completed;
-    // One armed deadline per generation, re-armed by the next stalled result.
-    // 0 is none; generations start at 1 and only ever climb.
+    // One armed deadline per missing head. 0 is none; generations start at 1
+    // and only ever climb.
     NSUInteger _armedDeadlineGeneration;
+    NSUInteger _armedDeadlineSequence;
 }
 
 + (instancetype)sharedCoordinator {
@@ -140,11 +141,14 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
 }
 
 - (void)armStragglerDeadline {
-    if (_armedDeadlineGeneration == _openGeneration) {
+    NSUInteger generation = _openGeneration;
+    NSUInteger missingSequence = _nextDeliverySequence;
+    if (_armedDeadlineGeneration == generation &&
+            _armedDeadlineSequence == missingSequence) {
         return;
     }
-    NSUInteger generation = _openGeneration;
     _armedDeadlineGeneration = generation;
+    _armedDeadlineSequence = missingSequence;
     __weak OpenRequestCoordinator *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_stragglerDeadline * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
@@ -152,14 +156,17 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
         if (!strongSelf) {
             return;
         }
-        // TRAP: a replacement since cleared the buffer and armed a deadline of
-        // its own. Disarming on the way out would be disarming that one, and
-        // the new generation's straggler would then wait for a deadline
-        // nothing arms.
-        if (strongSelf->_armedDeadlineGeneration != generation) {
+        // TRAP: a replacement or a later gap may have armed a deadline of its
+        // own. Disarming on the way out would strand that missing request.
+        if (strongSelf->_armedDeadlineGeneration != generation ||
+                strongSelf->_armedDeadlineSequence != missingSequence) {
             return;
         }
         strongSelf->_armedDeadlineGeneration = 0;
+        if (strongSelf->_openGeneration != generation ||
+                strongSelf->_nextDeliverySequence != missingSequence) {
+            return;
+        }
         [strongSelf abandonStalledRequests];
     });
 }
