@@ -8,6 +8,7 @@
 #import "MainPlayerController.h"
 #import "MainPlayerController+Window.h"
 #import "MainPlayerController+Transport.h"
+#import "MainWindow.h"
 
 // The dual-mode performance-effect keys. Each flips its effect at keyDown, and
 // keyUp decides what the press meant: a tap, shorter than
@@ -164,6 +165,31 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
 
 #pragma mark - Event handling
 
+// Return, the numeric keypad's Enter, and the up and down arrows: everything
+// whose meaning is the playlist's, and so is dead while it is collapsed.
+- (BOOL)isPlaylistKey:(NSString *)chars {
+    if (chars.length != 1) {
+        return NO;
+    }
+    switch ([chars characterAtIndex:0]) {
+        case NSCarriageReturnCharacter:
+        case NSEnterCharacter:
+        case NSUpArrowFunctionKey:
+        case NSDownArrowFunctionKey:
+            return YES;
+    }
+    return NO;
+}
+
+// Return and the keypad's Enter both mean "play the selected row".
+- (BOOL)isPlaySelectionKey:(NSString *)chars {
+    if (chars.length != 1) {
+        return NO;
+    }
+    unichar c = [chars characterAtIndex:0];
+    return c == NSCarriageReturnCharacter || c == NSEnterCharacter;
+}
+
 // Returns nil to swallow a handled key, or the event to pass it on.
 - (NSEvent *)handleKeyEvent:(NSEvent *)event {
     MainPlayerController *controller = _controller;
@@ -212,6 +238,20 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
     if ([chars isEqualToString:@"p"]) {
         [controller togglePitchPanel:nil];
         return nil;
+    }
+    // The playlist keys, dead while the playlist is collapsed: the table keeps
+    // focus off screen, and moving a selection nobody can see is not
+    // navigation. Swallowed rather than passed on, because an unhandled key
+    // reaching the focused table wedges its input context.
+    if ([self isPlaylistKey:chars]) {
+        if (!((MainWindow *)controller.window).isPlaylistShown) {
+            return nil;
+        }
+        if ([self isPlaySelectionKey:chars]) {
+            [controller playSelectedTrack:nil];   // the keyboard's double-click
+            return nil;
+        }
+        return event;   // the arrows are the table's own moveUp:/moveDown:
     }
     // For the effect keys, flip the effect right at keyDown, so that both
     // meanings of the press get an instant response. The keyUp branch above

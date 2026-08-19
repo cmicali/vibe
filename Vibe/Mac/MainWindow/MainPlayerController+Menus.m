@@ -56,6 +56,12 @@
     else if ([menuItem.identifier isEqualToString:@"menu_previous_track"]) {
         return self.playlistController.hasPreviousTrack;
     }
+    else if ([menuItem.identifier isEqualToString:@"menu_play_selected"]) {
+        // A selection nobody can see is not a selection: with the playlist
+        // collapsed the arrow keys do not move it either (TransportKeyMonitor),
+        // so Return has nothing to act on.
+        return window.isPlaylistShown && self.playlistController.hasSelectedTrack;
+    }
     else if ([menuItem.identifier isEqualToString:@"menu_skip_forward"] ||
              [menuItem.identifier isEqualToString:@"menu_skip_forward_more"] ||
              [menuItem.identifier isEqualToString:@"menu_skip_forward_most"] ||

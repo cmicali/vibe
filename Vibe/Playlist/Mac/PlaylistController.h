@@ -108,6 +108,16 @@ NS_ASSUME_NONNULL_BEGIN
 // Playback is untouched; a caller replacing the playing row restarts it.
 - (AudioTrack * _Nullable)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url;
 
+// The keyboard selection, which is not the playing row: the arrow keys move
+// selectedRow, and it stays put while playback moves currentIndex. NO when
+// nothing is selected, or when a playlist replacement has outrun the
+// selection.
+- (BOOL)hasSelectedTrack;
+
+// Plays the selected row, exactly as a double-click on it does. A no-op with
+// no selection.
+- (void)playSelectedTrack;
+
 - (BOOL)isCurrentTrack:(AudioTrack *)track;
 - (AudioTrack * _Nullable)trackForURL:(NSURL *)url;
 

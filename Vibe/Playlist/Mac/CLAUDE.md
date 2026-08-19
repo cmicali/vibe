@@ -32,6 +32,12 @@ The macOS indicator is always white and never inherits artwork color. `PlaylistT
 
 All three act on the **clicked** row, and read `clickedRow` at action time rather than capturing it when the menu opened, since the playlist can be replaced while the menu is up. The window-body menu's items and the Convert menu's act on the *current* track and stay with `MainPlayerController`. **Convert to FLAC is deliberately not a row action** — it converts the current track only.
 
+## Keyboard
+
+The up and down arrows are `NSTableView`'s own `moveUp:`/`moveDown:`; nothing here implements them. Return is their counterpart, `playSelectedTrack`, which takes the same two steps `doubleClick:` does. Both read the selection **at action time**, like the context menu's clicked row, because the playlist can be replaced between the press and here.
+
+Neither works while the playlist is collapsed. That gate is not here — the table has no say in the window's height — but in `TransportKeyMonitor` (`Mac/MainWindow/CLAUDE.md`), which swallows all four keys, and in the Playback menu's validation of Play Selected Track, which needs the pane showing *and* `hasSelectedTrack`.
+
 ## Scrolling and swaps
 
 `play:` replaces the list; `append:` extends it without touching playback or `currentIndex`. Every track change calls `scrollCurrentTrackToVisible`, a no-op while the row is already visible. Nothing else scrolls the table.
