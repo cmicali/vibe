@@ -178,8 +178,12 @@ static BOOL IsCueFileTypeKeyword(NSString *token) {
     NSCharacterSet *whitespace = NSCharacterSet.whitespaceCharacterSet;
     [text enumerateLinesUsingBlock:^(NSString *line, BOOL *stop) {
         NSString *trimmed = [line stringByTrimmingCharactersInSet:whitespace];
-        if (trimmed.length < 5 || [trimmed compare:@"FILE " options:NSCaseInsensitiveSearch
-                                             range:NSMakeRange(0, 5)] != NSOrderedSame) {
+        // Any whitespace after the keyword: sloppy writers tab-delimit too,
+        // and a missed FILE line is the parser's worst case — an empty sheet.
+        if (trimmed.length < 5
+                || [trimmed compare:@"FILE" options:NSCaseInsensitiveSearch
+                              range:NSMakeRange(0, 4)] != NSOrderedSame
+                || ![whitespace characterIsMember:[trimmed characterAtIndex:4]]) {
             return;
         }
         NSString *rest = [[trimmed substringFromIndex:5] stringByTrimmingCharactersInSet:whitespace];

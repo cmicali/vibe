@@ -22,6 +22,10 @@
 // Rebuilt from NSDocumentController each time the menu opens.
 - (void)menuNeedsUpdate:(NSMenu *)menu {
     [menu removeAllItems];
+    // Enablement is ours: Clear Menu targets NSDocumentController, which
+    // always responds to clearRecentDocuments:, so autoenable would leave an
+    // empty list's one item an enabled no-op. The system menu disables it.
+    menu.autoenablesItems = NO;
     NSArray<NSURL *> *urls = [[NSDocumentController sharedDocumentController] recentDocumentURLs];
     for (NSURL *url in urls) {
         NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:url.lastPathComponent
@@ -38,6 +42,7 @@
                                                    action:@selector(clearRecentDocuments:)
                                             keyEquivalent:@""];
     clear.target = [NSDocumentController sharedDocumentController];
+    clear.enabled = urls.count > 0;
     [menu addItem:clear];
 }
 

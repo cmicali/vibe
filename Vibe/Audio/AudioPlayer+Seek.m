@@ -12,6 +12,11 @@
 @implementation AudioPlayer (Seek)
 
 - (void)seekToPosition:(NSTimeInterval)pos {
+    [self seekToPosition:pos restoringPreemptedPause:NO];
+}
+
+- (void)seekToPosition:(NSTimeInterval)pos
+        restoringPreemptedPause:(BOOL)restoringPreemptedPause {
     // The caller computed pos against the track that is current NOW — a
     // scrubber fraction of its duration, a bar skip from its tempo. A gapless
     // boundary can promote the next track before the block below runs, and
@@ -94,6 +99,13 @@
         // deferred into the fade-out completion, because the node must stay
         // audible through the ramp, and the position state is rewritten there
         // so that the getter follows the node.
+        //
+        // A user seek deliberately cancels a pending pause; the internal
+        // splice-unschedule seek must not — the user pressed pause during a
+        // playlist retarget they never see, so the preempt below would
+        // silently drop their pause and fade back up. Capture the intent
+        // before the preempt clears it; finishSeekOnQueue lands parked.
+        BOOL reissuePause = restoringPreemptedPause && self->_pausePending;
         uint64_t rampGen = [self preemptRampsOnQueue];
         __weak AudioPlayer *weakSelf = self;
         [self rampNodeAsync:node step:1 from:node.volume to:0 generation:rampGen completion:^{
@@ -103,7 +115,8 @@
                           framePosition:framePosition
                          rampGeneration:rampGen
                                   track:track
-                submittedPlayIdentifier:owningSubmittedPlayIdentifier];
+                submittedPlayIdentifier:owningSubmittedPlayIdentifier
+                           reissuePause:reissuePause];
         }];
     });
 }
@@ -142,7 +155,8 @@
             framePosition:(NSTimeInterval)framePosition
            rampGeneration:(uint64_t)rampGen
                     track:(AudioTrack *)track
-  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
+  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier
+             reissuePause:(BOOL)reissuePause {
     if (_node != node || _file != file) {
         // A new play, track change, stop or device switch replaced the
         // node while this faded. That operation owns playback and this
@@ -197,6 +211,22 @@
             }
         }
         run_on_main_thread({
+            [self.delegate audioPlayer:self didFinishSeeking:track];
+        });
+        return;
+    }
+    if (reissuePause) {
+        // The pause this internal seek preempted still owns the outcome: land
+        // the reschedule parked, as the completed pause fade would have. The
+        // stopped node holds the new segment, so resume plays it from here —
+        // the paused-seek shape, plus the pause's own delegate settlement.
+        node.volume = 0; // resume ramps up from silence, as after a real pause
+        [self publishPlaybackState:VibePlayerStatePaused node:node file:file
+                      segmentStart:startFrame position:framePosition];
+        [self scheduleEngineIdleStopOnQueue];
+        AudioTrack *pausedTrack = self.currentTrack;
+        run_on_main_thread({
+            [self.delegate audioPlayer:self didPausePlaying:pausedTrack];
             [self.delegate audioPlayer:self didFinishSeeking:track];
         });
         return;

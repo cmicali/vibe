@@ -622,12 +622,10 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
             initWithSourceFilePath:self.sourceFilePath extractor:_extractor];
     copy.folderArt = self.folderArt;
     copy.clock = self.clock;
-    EmbeddedThumbnailKey *thumbnailCacheKey;
     @synchronized (self) {
         // Every transition field belongs to the new holder. A copied
         // art-bearing row carries only the thumbnail's compact bytes, matching
         // a disk-cache hit, and re-reads full-size bytes on demand.
-        thumbnailCacheKey = _thumbnailCacheKey;
         copy->_encodedThumbnailData = [_encodedThumbnailData copy];
         copy->_thumbnailDecoder = [_thumbnailDecoder copy];
         copy->_embeddedArtKnown = _embeddedArtKnown;
@@ -635,10 +633,10 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         copy->_embeddedExtractionSettled = _embeddedArtKnown
                 ? _embeddedUndecodable : _embeddedExtractionSettled;
     }
-    VibeImage *thumbnail = [VibeEmbeddedThumbnailCache() imageForKey:thumbnailCacheKey];
-    if (thumbnail) {
-        [VibeEmbeddedThumbnailCache() setImage:thumbnail forKey:copy->_thumbnailCacheKey];
-    }
+    // Deliberately no thumbnail transfer into the display LRU: only the
+    // display request path populates it, and copies are made on parse workers
+    // — a scan's duplicate rows must not evict visible rows' pixels. The
+    // copy's thumbnail decodes on demand through the bounded display path.
     return copy;
 }
 

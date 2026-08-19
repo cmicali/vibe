@@ -187,8 +187,11 @@
         // the node just as the wrong file starts sounding, a blip plus a
         // click — so stale it now; the seek replays the current remainder
         // from here and the re-run boundary advances normally, unarmed.
+        // Restoring the preempted pause: this seek is internal, so a pause
+        // the user raced against the retarget must survive it rather than
+        // being silently cancelled the way a user seek cancels one.
         _segmentGeneration++;
-        [self seekToPosition:self.position];
+        [self seekToPosition:self.position restoringPreemptedPause:YES];
     }
 }
 

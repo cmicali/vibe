@@ -39,7 +39,7 @@
 
 @interface AudioTrackMetadataLoader ()
 - (AudioTrackMetadata *)parseAndCacheMetadataForTrack:(AudioTrack *)track;
-- (void)serveWaitersFromCache:(NSArray<AudioTrack *> *)waiters;
+- (void)serveWaitersFromCache:(NSArray<AudioTrack *> *)waiters owner:(AudioTrack *)owner;
 - (NSArray<AudioTrack *> *)installCopiesOfMetadata:(AudioTrackMetadata *)metadata
                                            onTracks:(NSArray<AudioTrack *> *)tracks;
 - (void)publishTrack:(AudioTrack *)track
@@ -776,7 +776,7 @@
     // Another lane can resolve this row, or a prior holder can populate the
     // disk entry, between the entry check and claim acquisition.
     if (track.metadata.parsedOK || [self loadTrackFromDiskCache:track]) {
-        [self serveWaitersFromCache:[_parseCoordinator completeClaim:claim]];
+        [self serveWaitersFromCache:[_parseCoordinator completeClaim:claim] owner:track];
         return;
     }
 
@@ -814,11 +814,27 @@
     }
 }
 
-- (void)serveWaitersFromCache:(NSArray<AudioTrack *> *)waiters {
+- (void)serveWaitersFromCache:(NSArray<AudioTrack *> *)waiters owner:(AudioTrack *)owner {
+    NSMutableArray<AudioTrack *> *unserved = [NSMutableArray array];
     for (AudioTrack *waiter in waiters) {
-        if (!waiter.metadata.parsedOK) {
-            [self loadTrackFromDiskCache:waiter];
+        if (!waiter.metadata.parsedOK && ![self loadTrackFromDiskCache:waiter]) {
+            [unserved addObject:waiter];
         }
+    }
+    if (unserved.count == 0) {
+        return;
+    }
+    // The disk entry can vanish between the owner's hit and a waiter's read —
+    // Clear Cache racing the drain, or eviction. The owner's installed result
+    // is the same metadata, so copy it rather than stranding the row on
+    // filename-only display with nothing left to re-parse it.
+    AudioTrackMetadata *ownerMetadata = owner.metadata;
+    if (!ownerMetadata.parsedOK) {
+        return;
+    }
+    for (AudioTrack *waiter in [self installCopiesOfMetadata:ownerMetadata
+                                                    onTracks:unserved]) {
+        [self publishTrack:waiter];
     }
 }
 
