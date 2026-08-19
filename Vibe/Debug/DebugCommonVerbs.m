@@ -202,15 +202,6 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 [surface debugSeekToSeconds:seconds];
                 return VibeJSONString(surface.debugActionSummary);
             }),
-            // How far the metadata sweep has actually got. Nothing else says:
-            // dump_state describes the current track alone, and the sweep is
-            // otherwise observable only as rows filling in on screen. It is
-            // what turns "has the scan finished" into a number, which is what
-            // any measurement of the scan's cost needs.
-            //
-            // parsed counts real metadata; attempted counts tracks a parse has
-            // landed on at all, so a file that failed to parse — legitimate,
-            // and permanent — is not mistaken for one still waiting.
             // The cost of the dataless test itself, which is the ONLY price the
             // cloud machinery makes a local file pay — the materialize step is
             // gated behind it, so a local file never reaches one. End-to-end
@@ -250,6 +241,15 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                                         @"perCallMicroseconds": @(elapsed * 1e6 / count),
                                         @"datalessAnswers": @(dataless)});
             }),
+            // How far the metadata sweep has actually got. Nothing else says:
+            // dump_state describes the current track alone, and the sweep is
+            // otherwise observable only as rows filling in on screen. It is
+            // what turns "has the scan finished" into a number, which is what
+            // any measurement of the scan's cost needs.
+            //
+            // parsed counts real metadata; attempted counts tracks a parse has
+            // landed on at all, so a file that failed to parse — legitimate,
+            // and permanent — is not mistaken for one still waiting.
             VibeDebugCmd(@"dump_metadata_progress", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -321,12 +321,6 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                                         @"then": then.firstObject,
                                         @"thenReply": chained});
             }),
-            // The cloud lane's two at-rest facts, on both platforms. macOS also
-            // reports them inside dump_health, which is where its stress driver
-            // scores them; iOS has no dump_health and no quiesce, so without
-            // this verb an iOS run cannot see a stuck hold or a stranded
-            // pending parse at all — and the hold lifecycle is the same code on
-            // both. Both belong at zero once a sweep has settled.
             // The producer and renderer clocks in one reply. All counters are
             // cumulative. Once an activity transition and any cell/layout
             // work settle, two samples prove that an inactive state did no
@@ -412,6 +406,12 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"installed": audio[@"installed"],
                 });
             }),
+            // The cloud lane's two at-rest facts, on both platforms. macOS also
+            // reports them inside dump_health, which is where its stress driver
+            // scores them; iOS has no dump_health and no quiesce, so without
+            // this verb an iOS run cannot see a stuck hold or a stranded
+            // pending parse at all — and the hold lifecycle is the same code on
+            // both. Both belong at zero once a sweep has settled.
             VibeDebugCmd(@"dump_cloud_health", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -648,6 +648,11 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                                      id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString([NSURLUtil datalessDiagnostics]);
             }),
+            // The in-process phase timings of recent waveform decodes, newest
+            // first — every load, whether it came from playing a track or from
+            // file_cache. This is the accurate measure of what the BPM and key
+            // analyzers cost: the app's total CPU also carries the render pump,
+            // the metadata scan and the UI.
             VibeDebugCmd(@"dump_timing", 5, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                         id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString(@{@"loads": [AudioLoadTiming recentJSON]});

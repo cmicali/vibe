@@ -3,11 +3,9 @@
 //  Vibe
 //
 //  Which pending scan miss is materialized next. Because that lane admits one
-//  file at a time, this ordering is the whole of what it decides —
-//  and the tail used to have none: every non-neighborhood entry shared one
-//  NSOperationQueue priority, whose ties the queue resolves arbitrarily, so a
-//  folder of large evicted files downloaded in whatever order the four
-//  stage-1 workers happened to finish.
+//  file at a time, this ordering is the whole of what it decides — the tail
+//  included: without an explicit tail order, a folder of large evicted files
+//  downloads in whatever order the four stage-1 workers happen to finish.
 //
 
 #import <Foundation/Foundation.h>

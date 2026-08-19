@@ -32,10 +32,10 @@
 
 // The pre-submit edge: synchronous on play:'s calling thread (main at every
 // call site), before the open is submitted to the player queue. The scan's
-// scan materialization stands down here, so the foreground open never contends with a
-// background download it could have suspended — armed from the 0.5s slow-open
-// timer, the hold used to hand every play a half-second of contention, and a
-// raced track change skipped it entirely. Deliberately NOT stale-guarded:
+// materialization stands down here, so the foreground open never contends
+// with a background download it could have suspended — any later edge hands
+// the play that much contention, and a raced track change can skip it
+// entirely. Deliberately NOT stale-guarded:
 // this fires before the playlist reflects the play, and the hold is
 // idempotent. Cleared exactly once by the matching settlement —
 // didStartPlaying:'s prefetch acknowledgement, the error path, or Close.
@@ -148,7 +148,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // settlement releases it.
     NSUInteger holdGeneration = _foregroundHoldGeneration;
     __weak MainPlayerController *weakSelf = self;
-    [self.audioPlayer prefetchTrack:[self.playlistController trackAtIndex:self.playlistController.currentIndex + 1]
+    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack
                         whenClaimed:^{
         MainPlayerController *strongSelf = weakSelf;
         if (!strongSelf || !VibeForegroundContentHoldMayRelease(
@@ -222,17 +222,23 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // Folds the finished run.
     [[AppStats sharedInstance] playbackStopped];
     [self pauseUIUpdateTimer];
-    // The end of the playlist must be read from the playlist before next:,
-    // because the play it starts is async on the player queue, so the player
-    // still reads Stopped right after an ordinary mid-playlist advance.
-    BOOL hasNextTrack = self.playlistController.hasNextTrack;
-    [self next:self];
-    // At the end of the playlist, where next: started nothing, the cached
-    // duration would go stale against the idle player. Mid-playlist the cache
-    // must survive the Loading gap, because the live duration reads 0 there
-    // and updatePlaybackUI uses the cache to keep the waveform progress pinned
-    // rather than frozen.
-    if (!hasNextTrack) {
+    // Whether this end advances at all. The end of the playlist must be read
+    // from the playlist before next:, because the play it starts is async on
+    // the player queue, so the player still reads Stopped right after an
+    // ordinary mid-playlist advance. Settings > Playback > On end = Pause
+    // parks on the finished track exactly as the end of the playlist does;
+    // nothing has spliced, because successorPrefetchTrack parked nothing to
+    // arm.
+    BOOL advances = self.playlistController.hasNextTrack &&
+            !AppSettings.sharedInstance.pauseAtTrackEnd;
+    if (advances) {
+        [self next:self];
+    }
+    // With nothing started, the cached duration would go stale against the
+    // idle player. When it does advance the cache must survive the Loading
+    // gap, because the live duration reads 0 there and updatePlaybackUI uses
+    // the cache to keep the waveform progress pinned rather than frozen.
+    if (!advances) {
         _currentTrackDuration = 0;
         // The park is the one place a zeroed duration is not followed by an
         // updateUI, so the tick rate would rest at the finished track's.

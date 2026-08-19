@@ -43,7 +43,7 @@ typedef void (^OpenBurstScheduler)(NSTimeInterval delay, dispatch_block_t block)
 // A deliberate open — the open panel, Open Recent, a window drop: ends any
 // burst rather than joining it. append is the caller's own decision, not the
 // burst's: a drop onto the empty-state add well appends, everything else
-// replaces. Before start it only queues, exactly like enqueueURLs, and the
+// replaces. Before start it only queues, exactly like openBurstURLs:, and the
 // launch drain picks it up.
 - (void)openDeliberateURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append;
 

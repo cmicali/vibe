@@ -190,8 +190,10 @@
 // mono block to the chunker and both analyzers on a serial queue one block
 // behind the decode. NO when the pass has nothing worth keeping — a cancel
 // that landed while chunks were still missing, or buffers that would not
-// allocate. A read failure answers YES and is reported through
-// pass->readError instead, because a partial waveform is still worth showing.
+// allocate. A read failure answers YES with the error in pass->readError;
+// isDecodeComplete: still fails the pass, so the partial result is never
+// delivered or persisted — only the progressive snapshots already shown
+// survive, and they survive a NO the same way.
 - (BOOL)runDecodePass:(struct VibeWaveformDecodePass *)pass
                  file:(AVAudioFile *)file
              filename:(NSString *)filename

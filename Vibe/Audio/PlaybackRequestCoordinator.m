@@ -44,10 +44,6 @@
     return request.identifier;
 }
 
-- (BOOL)isLoadingPath:(NSString *)path {
-    return path && _currentRequest && [_currentRequest.path isEqualToString:path];
-}
-
 - (VibePlaybackRequestRebind)rebindTrack:(id)track
                                     path:(NSString *)path
                                   intent:(VibePendingPlaybackIntent)intent

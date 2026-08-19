@@ -204,9 +204,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     // Everything past this point is the app's ordinary open funnel — the
     // deliberate-open door on the burst coalescer, then the ordering token,
     // the wait for a restoring grant, the bookmark, the expansion, the stats
-    // and the empty-result handling. A drop used to run its own copy of the
-    // first half and stop short of the second, which is how it came to skip
-    // revealEmptyState on a drop that expanded to nothing.
+    // and the empty-result handling. A drop must take the whole funnel, or it
+    // silently skips a tail step such as revealEmptyState.
     [(AppDelegate *)NSApp.delegate openDroppedURLs:urls appending:append];
     return YES;
 }

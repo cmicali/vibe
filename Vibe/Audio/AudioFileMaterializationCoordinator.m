@@ -505,10 +505,6 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
         token = [[AudioFileMaterializationRequestToken alloc]
                 initWithCoordinator:self path:path identifier:identifier
                 completionQueue:completionQueue registered:registered completion:completion];
-        if (token.isDetached) {
-            return;
-        }
-
         [self expirePendingClaimsAtTime:self->_clock() drain:NO];
         VibeAudioFileMaterializationClaim *claim = self->_claims[path];
         BOOL heldMetadata = VibeMaterializationRoleIsMetadata(role)

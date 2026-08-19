@@ -270,11 +270,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 });
                 return nil; // response written by the block above
             }),
-            // The in-process phase timings of recent waveform decodes, newest
-            // first — every load, whether it came from playing a track or from
-            // file_cache. This is the accurate measure of what the BPM and key
-            // analyzers cost: the app's total CPU also carries the render pump,
-            // the metadata scan and the UI.
             VibeCmd(@"scan_key <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *errorJSON = nil;
                 NSString *path = VibeExistingFileArgument(tokens, &errorJSON);

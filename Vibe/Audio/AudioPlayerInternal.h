@@ -110,7 +110,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     NSString                *_prefetchedPath;
     AVAudioFile             *_prefetchedFile;
     AudioTrack              *_prefetchedTrack;
-    uint64_t                _prefetchRequestId;
+    uint64_t                _prefetchGeneration;
     AudioTrack              *_requestedPrefetchTrack;
     NSString                *_requestedPrefetchPath;
     VibeAudioPrefetchAcknowledgementState _prefetchAcknowledgementState;
@@ -147,7 +147,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AudioTrack              *_gaplessTrack;
     AVAudioFile             *_gaplessFile;
     BOOL                    _gaplessQueued;
-    uint64_t                _gaplessOpenRequestId;
+    uint64_t                _gaplessOpenGeneration;
     NSString                *_gaplessOpenPath; // in-flight open's claim, the prefetch pattern
     AudioFileOpenToken      *_gaplessOpenToken;
     BOOL                    _gaplessArmedForUI; // _stateLock

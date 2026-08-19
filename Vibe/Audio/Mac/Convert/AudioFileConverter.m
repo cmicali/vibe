@@ -33,6 +33,10 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
     // and off the converter queue, or an undo would wait out a running encode.
     // Serial, because an undo must follow the trash it reverses.
     dispatch_queue_t _disposeQueue;
+    // The destination stats, serial: each menu open against an unreachable
+    // mount would otherwise park another global-pool worker for the whole
+    // mount timeout — the generation drops stale answers but not stale work.
+    dispatch_queue_t _statQueue;
     // Whether the FLAC beside the track the menus name exists, and which
     // destination that answer is about. Menu validation reads this rather than
     // statting — a stat on an unreachable mount blocks the main thread.
@@ -62,6 +66,8 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
         _disposeQueue = dispatch_queue_create("com.vibe.flacconvert.dispose",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
+        _statQueue = dispatch_queue_create("com.vibe.flacconvert.stat",
+                dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
     }
     return self;
 }
@@ -80,7 +86,7 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
         return;
     }
     NSURL *destinationURL = [self.class flacDestinationForURL:sourceURL];
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    dispatch_async(_statQueue, ^{
         BOOL exists = [NSFileManager.defaultManager fileExistsAtPath:destinationURL.path];
         run_on_main_thread({
             if (generation != self->_destinationGeneration) {

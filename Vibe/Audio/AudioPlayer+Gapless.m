@@ -36,7 +36,7 @@
     [_gaplessOpenToken cancel];
     _gaplessOpenToken = nil;
     _gaplessOpenPath = nil;
-    _gaplessOpenRequestId++; // supersede any in-flight gapless open
+    _gaplessOpenGeneration++; // supersede any in-flight gapless open
 }
 
 // Acquires the splice's private handle for the prefetched next track, then
@@ -56,7 +56,7 @@
                                                  prefetchedFile.processingFormat.channelCount)) {
         return;
     }
-    uint64_t openId = ++_gaplessOpenRequestId;
+    uint64_t openGeneration = ++_gaplessOpenGeneration;
     NSString *path = track.url.path;
     _gaplessOpenPath = path;
     __weak AudioPlayer *weakSelf = self;
@@ -69,7 +69,7 @@
         if (!strongSelf) {
             return;
         }
-        if (openId != strongSelf->_gaplessOpenRequestId) {
+        if (openGeneration != strongSelf->_gaplessOpenGeneration) {
             return; // superseded: a clear, a newer target, or a promote
         }
         strongSelf->_gaplessOpenToken = nil;
@@ -198,7 +198,7 @@
 // Supersedes delivery and releases every field which could make a later
 // same-path prefetch look parked or still in flight.
 - (void)clearPrefetchOnQueue {
-    _prefetchRequestId++;
+    _prefetchGeneration++;
     [_prefetchOpenToken cancel];
     _prefetchOpenToken = nil;
     _prefetchedPath = nil;
@@ -410,7 +410,7 @@
         // in flight _gaplessTrack is still nil, so the unschedule guard above
         // could not see the retarget; left alive, the stale track would arm
         // at completion and the boundary would render the wrong file.
-        _gaplessOpenRequestId++;
+        _gaplessOpenGeneration++;
         [_gaplessOpenToken cancel];
         _gaplessOpenToken = nil;
         _gaplessOpenPath = nil;
@@ -425,7 +425,7 @@
         [self settlePrefetchRequestOnQueueForIdentifier:requestIdentifier];
         return; // nil track means end of playlist: just drop the parked handle
     }
-    uint64_t prefetchId = _prefetchRequestId;
+    uint64_t prefetchGeneration = _prefetchGeneration;
     __weak AudioPlayer *weakSelf = self;
     _prefetchOpenToken = [[AudioFileOpenCoordinator sharedCoordinator]
             openURL:track.url
@@ -436,7 +436,7 @@
         if (!strongSelf) {
             return;
         }
-        if (prefetchId == strongSelf->_prefetchRequestId) {
+        if (prefetchGeneration == strongSelf->_prefetchGeneration) {
             strongSelf->_prefetchOpenToken = nil;
             if ([path isEqualToString:strongSelf->_requestedPrefetchPath]) {
                 [strongSelf settlePrefetchRequestOnQueueForIdentifier:
@@ -449,7 +449,7 @@
             // Deliver on success only; whichever result consumes the request
             // first detaches the other, and delivery follows the latest rebound
             // row through PlaybackRequestCoordinator.
-            if (prefetchId == strongSelf->_prefetchRequestId) {
+            if (prefetchGeneration == strongSelf->_prefetchGeneration) {
                 [strongSelf clearPrefetchOnQueue];
             }
             if (file && file.length > 0) {
@@ -458,7 +458,7 @@
             }
             return;
         }
-        if (prefetchId != strongSelf->_prefetchRequestId) {
+        if (prefetchGeneration != strongSelf->_prefetchGeneration) {
             return; // a newer prefetch target, or an adoption, superseded this open
         }
         if (file && file.length > 0) {

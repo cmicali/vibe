@@ -388,8 +388,6 @@
                                @"trace %lu event %lu", (unsigned long)trace, (unsigned long)event);
                 XCTAssertEqual(request.isSlow, currentSlow,
                                @"trace %lu event %lu", (unsigned long)trace, (unsigned long)event);
-                XCTAssertTrue([state isLoadingPath:currentPath],
-                              @"trace %lu event %lu", (unsigned long)trace, (unsigned long)event);
             }
         }
     }

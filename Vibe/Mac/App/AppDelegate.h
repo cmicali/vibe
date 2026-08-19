@@ -8,8 +8,6 @@
 
 #import <Cocoa/Cocoa.h>
 
-#define SHOW_EXTENDED_BUILD_INFO 0
-
 @class MainPlayerController;
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>

@@ -526,8 +526,9 @@ awaitPersist:(BOOL)awaitPersist
 }
 
 // On the main thread, from the loader's throttled progress callback. A new
-// load cancels the old loader before taking _currentLoadURL, so the URL here
-// always belongs to the loader that is still delivering.
+// load detaches the old loader before taking _currentLoadURL (cancel is cap
+// eviction's, not the track change's), so the URL here always belongs to the
+// loader that is still delivering.
 - (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded {
     if (!loader.isCancelled && !loader.isDetached && _currentLoadURL) {
         [self.delegate audioWaveform:waveform didLoadData:percentLoaded forURL:_currentLoadURL];

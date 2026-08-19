@@ -66,6 +66,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"pitchPanelShown": @(AppSettings.sharedInstance.isPitchPanelShown),
             @"waveformStyle": AppSettings.sharedInstance.waveformStyle ?: @"",
             @"outputDeviceName": AppSettings.sharedInstance.audioOutputDeviceName ?: @"",
+            @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
             @"deleteOriginalAfterConvert": @(AppSettings.sharedInstance.deleteOriginalAfterConvert),
             @"analyzeBPM": @(AppSettings.sharedInstance.analyzeBPM),
             @"analyzeKey": @(AppSettings.sharedInstance.analyzeKey),
@@ -228,8 +229,5 @@ NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller) {
 NSString *VibeActionSummary(MainPlayerController *controller) {
     return VibeJSONString(VibeActionSummaryDictionary(controller));
 }
-
-// Writes the per-command response file the client polls for. Both the
-// synchronous path, VibeHandleDebugCommandFile, and commands that finish
 
 #endif

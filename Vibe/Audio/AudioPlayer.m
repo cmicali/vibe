@@ -422,13 +422,32 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     _levelTap = nil;
     AVAudioPlayerNode *node = _node;
     AVAudioEngine *engine = _engine;
+    // Locals, not self: the coordinator claims and their path-wide
+    // materialization requests outlive the player otherwise, pulling a whole
+    // file down for a play that can never land — same waste the reset path's
+    // cancelPlayOpenOnQueue/clearPrefetchOnQueue pair exists to stop.
+    AudioFileOpenToken *playOpenToken = _playOpenToken;
+    _playOpenToken = nil;
+    AudioFileOpenToken *prefetchOpenToken = _prefetchOpenToken;
+    _prefetchOpenToken = nil;
+    AudioFileOpenToken *gaplessOpenToken = _gaplessOpenToken;
+    _gaplessOpenToken = nil;
+    PlaybackRequestCoordinator *pendingRequest = _pendingRequest;
     if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
+        [playOpenToken cancel];
+        [prefetchOpenToken cancel];
+        [gaplessOpenToken cancel];
+        [pendingRequest invalidate];
         [levelTap remove];
         [node stop];
         [engine stop];
     }
     else {
         dispatch_sync(_queue, ^{
+            [playOpenToken cancel];
+            [prefetchOpenToken cancel];
+            [gaplessOpenToken cancel];
+            [pendingRequest invalidate];
             [levelTap remove];
             [node stop];
             [engine stop];

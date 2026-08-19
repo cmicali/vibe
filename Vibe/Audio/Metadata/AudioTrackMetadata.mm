@@ -160,14 +160,13 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 // delegates to it one for one. Both initializers create it, so it is never nil
 // on a live instance.
 //
-// It is an atomic property, not the bare ivar it began as, for the same reason
-// as every other field: an instance is built on a metadata worker — the
-// unarchive in initWithCoder: included — and read on main from the moment it
-// is published. The handle is written once and never reassigned, so a bare
-// ivar is safe on the hardware, but the publish and the read then share no
-// lock the way the other fields do, and ThreadSanitizer reports the pair as a
-// race (found by a stress run, main's cachedArt against a worker's
-// initWithCoder:). AudioTrackArtwork guards its own mutable state.
+// An atomic property, never a bare ivar: an instance is built on a metadata
+// worker — the unarchive in initWithCoder: included — and read on main from
+// the moment it is published. The handle is written once and never
+// reassigned, so a bare ivar is safe on the hardware, but the publish and the
+// read would then share no lock the way the other fields do, and
+// ThreadSanitizer reports the pair as a race. AudioTrackArtwork guards its
+// own mutable state.
 @property (strong, nullable) AudioTrackArtwork *artwork;
 @end
 

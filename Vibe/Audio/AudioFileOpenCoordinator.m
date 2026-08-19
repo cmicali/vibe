@@ -338,24 +338,6 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
     return token;
 }
 
-- (AudioFileOpenToken *)openURL:(NSURL *)url
-                         purpose:(VibeAudioFileOpenPurpose)purpose
-                 completionQueue:(dispatch_queue_t)completionQueue
-                         claimed:(dispatch_block_t)claimed
-                      completion:(VibeAudioFileOpenCompletion)completion {
-    AudioFileOpenToken *token = [self openURL:url purpose:purpose
-            completionQueue:completionQueue completion:completion];
-    if (claimed) {
-        [token whenClaimedOnQueue:completionQueue
-                       completion:^(VibeAudioFileOpenClaimResult result) {
-            if (result == VibeAudioFileOpenClaimResultClaimed) {
-                claimed();
-            }
-        }];
-    }
-    return token;
-}
-
 - (void)detachToken:(AudioFileOpenToken *)token {
     if (!token) {
         return;

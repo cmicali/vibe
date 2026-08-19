@@ -61,8 +61,6 @@ typedef struct {
                     intent:(VibePendingPlaybackIntent)intent
    submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier;
 
-- (BOOL)isLoadingPath:(nullable NSString *)path;
-
 // A play for the path already in flight: adopt its row and intent rather than
 // starting a second open. It MUTATES on a match, so call it only from the
 // branch that acts on the result.

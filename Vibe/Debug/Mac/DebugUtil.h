@@ -27,13 +27,12 @@ extern "C" {
 //
 // It renders the window's layer tree in-process, with no window server
 // capture, so it needs no screen-recording permission and works with the
-// display asleep or the window occluded. NSGlassEffectView and
-// NSVisualEffectView layers cannot render this way: they are hidden and
-// painted over with an appearance-matched flat proxy fill. Hiding them also
-// forces a *model*-tree render on glass-bearing windows, so animations land at
-// their target values, while glass-free windows still render the presentation
-// tree mid-flight. Metal content, such as the About window, does not render
-// either.
+// display asleep or the window occluded. NSGlassEffectView layers cannot
+// render this way: they are hidden, with an appearance-matched flat proxy
+// fill painted behind the whole window. Hiding them also forces a *model*-tree
+// render on glass-bearing windows, so animations land at their target values,
+// while glass-free windows still render the presentation tree mid-flight.
+// Metal content, such as the About window, does not render either.
 void VibeInstallDebugScreenshotHook(void);
 
 // Debug command channel: the Vibe binary doubles as its own CLI client.
@@ -53,7 +52,8 @@ void VibeInstallDebugScreenshotHook(void);
 //
 // The command set covers inspection dumps (dump_*), transport and UI actions,
 // opening files, and per-file waveform-cache control. VibeDebugCommandTable in
-// DebugUtil.m is the authoritative list: one entry per verb, carrying its
+// DebugCommandTable.m, merged with the shared verbs in DebugCommonVerbs.m, is
+// the authoritative list: one entry per verb, carrying its
 // usage string, its per-verb client wait and its handler, and both dispatch
 // and the unknown-command reply derive from it. The usage docs live in
 // .claude/skills/vibe-debug/SKILL.md.

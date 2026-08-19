@@ -2,7 +2,7 @@
 //  MainPlayerController+Debug.h
 //  Vibe
 //
-//  Extra surface for the debug command channel in Debug/DebugUtil.m: internal
+//  Extra surface for the debug command channel (Debug/Mac/DebugCommandTable.m): internal
 //  outlets re-declared so that the state dump can read them. The accessors are
 //  the ones the class extension in MainPlayerController.m synthesizes, and
 //  there is deliberately no @implementation for this category — the
@@ -61,8 +61,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Fired on the main thread when an undo or redo of a conversion settles,
 // success or failure; cleared before it runs, so a handler a timed-out debug
-// command left behind cannot fire on a later menu undo. DebugUtil's undo/redo
-// verbs are the only setter; synthesized in MainPlayerController.m.
+// command left behind cannot fire on a later menu undo. DebugCommandTable.m's
+// undo/redo verbs are the only setter; synthesized in MainPlayerController.m.
 @property (copy, nullable) void (^conversionUndoRedoSettledHandler)(void);
 
 @end

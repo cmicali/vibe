@@ -11,7 +11,11 @@
 // The launch banner both app delegates print, so a log excerpt identifies the
 // build it came from the same way on either platform. Source and build time
 // always; the compiler, flags, toolchain and host only under
-// SHOW_EXTENDED_BUILD_INFO, which is where the expensive sysctl lives.
+// SHOW_EXTENDED_BUILD_INFO, which is where the expensive sysctl lives. The
+// switch lives here so the implementation actually sees it — defined anywhere
+// else, the #if reads an undefined macro and the flip is silently inert.
+#define SHOW_EXTENDED_BUILD_INFO 0
+
 void VibeLogBuildProvenance(void);
 
 @interface NSBundle (BuildInfo)

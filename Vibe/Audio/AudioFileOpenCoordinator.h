@@ -93,13 +93,6 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenClaimResult) {
                  completionQueue:(dispatch_queue_t)completionQueue
                       completion:(VibeAudioFileOpenCompletion)completion;
 
-// Compatibility convenience over AudioFileOpenToken.whenClaimedOnQueue:.
-- (AudioFileOpenToken *)openURL:(NSURL *)url
-                         purpose:(VibeAudioFileOpenPurpose)purpose
-                 completionQueue:(dispatch_queue_t)completionQueue
-                         claimed:(nullable dispatch_block_t)claimed
-                      completion:(VibeAudioFileOpenCompletion)completion;
-
 @end
 
 NS_ASSUME_NONNULL_END

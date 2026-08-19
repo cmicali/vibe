@@ -283,6 +283,8 @@ static void VibeEqualizerDebugDisplayLinkStopped(void) {
     }
     BOOL stopped = [self stopLevelLink];
     [self declareLevelsWanted:NO];
+    // Reentrancy: the NO declaration can synchronously re-enter refreshActivity
+    // and restart the link; the release below must not run over a live poller.
     if (_levelLink) {
         return;
     }
@@ -312,8 +314,16 @@ static void VibeEqualizerDebugDisplayLinkStopped(void) {
     }
     if (_hasDeclaredLevels) {
         NSAssert(current != nil, @"Equalizer level demand must have a source");
-        [current equalizerLevelsWanted:NO];
+        // Cleared before the send: the NO callback can synchronously re-enter
+        // refreshActivity, and a re-entrant declaration reading the stale YES
+        // would early-return and leave the poller running with zero consumers.
         _hasDeclaredLevels = NO;
+        _levelsDeclaredTo = nil;
+        [current equalizerLevelsWanted:NO];
+        if (_hasDeclaredLevels) {
+            // A re-entrant declaration already settled demand; it is fresher.
+            return;
+        }
     }
     _levelsDeclaredTo = nil;
     if (target) {

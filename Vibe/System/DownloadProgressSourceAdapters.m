@@ -252,16 +252,21 @@ static void *kFileProviderFractionContext = &kFileProviderFractionContext;
     __weak DownloadFileProviderProgressSource *weakSelf = self;
     _subscriberToken = [NSProgress addSubscriberForFileURL:_url
             withPublishingHandler:^NSProgressUnpublishingHandler(NSProgress *progress) {
-        DownloadFileProviderProgressSource *source = weakSelf;
-        if (!source || source->_cancelled) {
-            return nil;
-        }
-        [source detachPublishedProgress];
-        source->_active = YES;
-        source->_publishedProgress = progress;
-        [progress addObserver:source forKeyPath:@"fractionCompleted"
-                      options:NSKeyValueObservingOptionInitial
-                      context:kFileProviderFractionContext];
+        // The publishing handler arrives on an arbitrary thread; _active and
+        // _publishedProgress are main-confined (cancel, isActive), so attach on
+        // main. The cancelled check moves inside the hop for the same reason.
+        dispatch_async(dispatch_get_main_queue(), ^{
+            DownloadFileProviderProgressSource *source = weakSelf;
+            if (!source || source->_cancelled) {
+                return;
+            }
+            [source detachPublishedProgress];
+            source->_active = YES;
+            source->_publishedProgress = progress;
+            [progress addObserver:source forKeyPath:@"fractionCompleted"
+                          options:NSKeyValueObservingOptionInitial
+                          context:kFileProviderFractionContext];
+        });
         __weak NSProgress *weakProgress = progress;
         return ^{
             dispatch_async(dispatch_get_main_queue(), ^{

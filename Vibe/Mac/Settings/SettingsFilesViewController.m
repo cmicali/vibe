@@ -107,15 +107,26 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     [grid columnAtIndex:1].xPlacement = NSGridCellPlacementLeading;
     [grid rowAtIndex:0].bottomPadding = 8;
     [self loadPaneWithSize:NSMakeSize(kSettingsPaneWidth, kFilesPaneHeight) grid:grid];
+}
 
+// Observed only while visible, like the base class's own observers: the window
+// controller keeps every pane alive forever, so a loadView-registered observer
+// would reload the list and stat the file-provider roots on every folder open
+// for a pane nobody can see. refreshFromSettings on each appearance covers
+// whatever changed while hidden.
+- (void)viewDidAppear {
+    [super viewDidAppear];
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(grantedFoldersChanged:)
                                                name:FolderAccessManagerDidChangeNotification
                                              object:nil];
 }
 
-- (void)dealloc {
-    [NSNotificationCenter.defaultCenter removeObserver:self];
+- (void)viewWillDisappear {
+    [super viewWillDisappear];
+    [NSNotificationCenter.defaultCenter removeObserver:self
+                                                  name:FolderAccessManagerDidChangeNotification
+                                                object:nil];
 }
 
 - (void)grantedFoldersChanged:(NSNotification *)notification {

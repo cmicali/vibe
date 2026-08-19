@@ -201,11 +201,11 @@
             // when the playlist is mostly slow cloud files. Misses re-enqueue
             // as stage-2 work; the playlist index rides along because the
             // materialization lane's tie-break is the row order this loop walks in. See
-            // cacheCheckOneTrack:index:deferred:.
+            // cacheCheckOneTrack:index:.
             NSOperation *op = [NSBlockOperation blockOperationWithBlock:^{
                 __typeof(self) strongSelf = weakSelf;
                 if (strongSelf && !strongSelf.isCancelled) {
-                    [strongSelf cacheCheckOneTrack:track index:index deferred:NO];
+                    [strongSelf cacheCheckOneTrack:track index:index];
                 }
             }];
             op.queuePriority = NSOperationQueuePriorityHigh;
@@ -235,10 +235,7 @@
 // Every miss first takes the shared materialization path. A local file settles
 // immediately; an unflagged provider placeholder cannot bypass the foreground
 // hold and wedge one of the wide TagLib workers.
-//
-// deferred marks a re-queue after a failed materialization. It only affects
-// the scan lane's ordering.
-- (void)cacheCheckOneTrack:(AudioTrack *)track index:(NSUInteger)playlistIndex deferred:(BOOL)deferred {
+- (void)cacheCheckOneTrack:(AudioTrack *)track index:(NSUInteger)playlistIndex {
     // A second drop can re-queue a track before its first op runs, so skip the
     // redundant work if the earlier loader already produced real metadata.
     // Failed metadata, with parsedOK == NO, does not count as done: re-parsing
@@ -257,7 +254,6 @@
         entry.track = track;
         entry.url = track.url;
         entry.playlistIndex = playlistIndex;
-        entry.deferred = deferred;
         [self enqueueScanMaterialization:entry];
         return;
     }
@@ -642,7 +638,6 @@
     os_unfair_lock_unlock(&_materializationLock);
 
     if (result == VibeAudioFileMaterializationResultReady && !cancelled) {
-        __weak __typeof(self) weakSelf = self;
         [_queue addOperationWithBlock:^{
             __typeof(self) strongSelf = weakSelf;
             if (strongSelf && !strongSelf.isCancelled) {
@@ -935,6 +930,9 @@
 }
 
 - (void)cancel {
+    // Scan lane only: the cache cancels _currentLoader and nothing else — the
+    // priority lane always retires through retireWithCompletion:.
+    NSAssert(_isScanLane, @"Only the scan lane is ever cancelled");
     self.isCancelled = YES;
     [_queue cancelAllOperations];
     NSArray<AudioFileMaterializationRequestToken *> *tokens = nil;
@@ -955,14 +953,6 @@
     os_unfair_lock_unlock(&_materializationLock);
     for (AudioFileMaterializationRequestToken *token in tokens) {
         [token cancel];
-    }
-    if (!_isScanLane) {
-        run_on_main_thread({
-            [self->_queuedTracks removeAllObjects];
-            [self->_priorityRetryRequestedTracks removeAllObjects];
-            [self->_priorityParkedTracks removeAllObjects];
-            [self finishRetirementIfPossible];
-        });
     }
 }
 
