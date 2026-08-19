@@ -332,10 +332,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeCmd(@"redo", 30, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeRunUndoRedoCommand(commandId, controller, YES);
             }),
-            // A clientTimeout of 20 exceeds the app-side 15-second
-            // dispatch_group_wait. The waveform clear queues behind any
-            // in-flight waveform load, and a flat 5-second client wait could
-            // give up on a clear that then succeeds.
         ];
     });
     return table;

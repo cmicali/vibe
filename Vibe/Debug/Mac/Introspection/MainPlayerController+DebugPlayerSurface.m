@@ -50,8 +50,9 @@
 }
 
 - (void)debugOpenPath:(NSString *)path {
-    // The same expand, filter and play pipeline as a Finder open or a file
-    // drop: a directory is walked and unsupported files are dropped.
+    // Direct expand-and-play: a directory is walked and unsupported files are
+    // dropped, but this bypasses AppDelegate's open funnel — no burst
+    // coalescing, no open supersession. Use drag_drop to exercise the funnel.
     [NSURLUtil expandAndFilterList:@[[NSURL fileURLWithPath:path]]
                         completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
         if (expanded.count > 0) {

@@ -311,9 +311,11 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     }
 
     if (published && displayed) {
+        // Derived exactly as NowPlayingController publishes them: displayTitle
+        // and displayArtist, where a nil displayArtist publishes no artist key.
         checked++;
         NSString *publishedTitle = published[MPMediaItemPropertyTitle] ?: @"";
-        NSString *expected = displayed.singleLineTitle ?: @"";
+        NSString *expected = displayed.displayTitle ?: @"";
         if (![publishedTitle isEqualToString:expected]) {
             VibeDebugViolation(v, @"nowplaying.title_matches_track",
                     @"card shows \"%@\", track is \"%@\"", publishedTitle, expected);
@@ -321,7 +323,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
 
         checked++;
         NSString *publishedArtist = published[MPMediaItemPropertyArtist] ?: @"";
-        NSString *expectedArtist = displayed.artist.length > 0 ? displayed.artist : @"";
+        NSString *expectedArtist = displayed.displayArtist ?: @"";
         if (![publishedArtist isEqualToString:expectedArtist]) {
             VibeDebugViolation(v, @"nowplaying.artist_matches_track",
                     @"card shows \"%@\", track is \"%@\"", publishedArtist, expectedArtist);

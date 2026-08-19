@@ -218,8 +218,10 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 if (tokens.count < 3 || !VibeParseDouble(tokens[1], &iterations) || iterations < 1) {
                     return VibeErrorJSON(@"usage: bench_dataless <iterations> <file>");
                 }
-                NSString *path = [[tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)]
-                        componentsJoinedByString:@" "];
+                // The shared path contract (join, tilde expansion), minus the
+                // iterations token it treats as the verb slot.
+                NSString *path = VibePathArgument(
+                        [tokens subarrayWithRange:NSMakeRange(1, tokens.count - 1)]);
                 if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
                     return VibeErrorJSON(@"no file at '%@'", path);
                 }
@@ -507,6 +509,10 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 [surface debugOpenPath:path];
                 return VibeJSONString(@{@"ok": @YES, @"opening": path});
             }),
+            // clientTimeout 20 exceeds the 15-second dispatch_group_wait
+            // below: the waveform clear queues behind any in-flight waveform
+            // load, and a flat 5-second client wait could give up on a clear
+            // that then succeeds.
             VibeDebugCmd(@"clear_caches", 20, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                           id<VibeDebugPlayerSurface> surface) {
                 // This blocks the main thread until both PINCache stores are
@@ -575,8 +581,6 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 else {
                     percent = 100;
                 }
-                [VibeFakeCloud installWithTransferSeconds:seconds
-                                          datalessPercent:(NSUInteger)percent];
                 static NSDictionary<NSString *, NSNumber *> *progressModes;
                 static dispatch_once_t modesOnce;
                 dispatch_once(&modesOnce, ^{
@@ -585,35 +589,56 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                                       @"sparse": @(VibeFakeCloudProgressSparse),
                                       @"stall": @(VibeFakeCloudProgressStall)};
                 });
+                // Every option is validated before the install re-arms, so a
+                // rejected command leaves the previous install untouched.
+                BOOL sticky = NO, uniform = NO, unflagged = NO, hasCapacity = NO;
+                NSUInteger capacity = 0;
+                NSNumber *progressMode = nil;
                 for (NSUInteger i = firstOption; i < tokens.count; i++) {
                     NSString *option = tokens[i];
                     if ([option isEqualToString:@"sticky"]) {
-                        [VibeFakeCloud setStickyDataless:YES];
+                        sticky = YES;
                     }
                     else if ([option isEqualToString:@"uniform"]) {
-                        [VibeFakeCloud setUniformDurations:YES];
+                        uniform = YES;
                     }
                     else if ([option isEqualToString:@"unflagged"]) {
-                        [VibeFakeCloud setUnflaggedPlaceholders:YES];
+                        unflagged = YES;
                     }
                     else if ([option hasPrefix:@"capacity="]) {
-                        NSUInteger capacity = 0;
                         if (!VibeParseConfigurationCount(
                                 [option substringFromIndex:9], &capacity)) {
                             return VibeErrorJSON(@"capacity must be a non-negative integer");
                         }
-                        [VibeFakeCloud setTransferCapacity:capacity];
+                        hasCapacity = YES;
                     }
                     else if ([option hasPrefix:@"progress="]) {
-                        NSNumber *mode = progressModes[[option substringFromIndex:9]];
-                        if (!mode) {
+                        progressMode = progressModes[[option substringFromIndex:9]];
+                        if (!progressMode) {
                             return VibeErrorJSON(@"progress must be none, linear, sparse, or stall");
                         }
-                        [VibeFakeCloud setProgressMode:(VibeFakeCloudProgressMode)mode.integerValue];
                     }
                     else {
                         return VibeErrorJSON(@"unknown option '%@'", option);
                     }
+                }
+                [VibeFakeCloud installWithTransferSeconds:seconds
+                                          datalessPercent:(NSUInteger)percent];
+                if (sticky) {
+                    [VibeFakeCloud setStickyDataless:YES];
+                }
+                if (uniform) {
+                    [VibeFakeCloud setUniformDurations:YES];
+                }
+                if (unflagged) {
+                    [VibeFakeCloud setUnflaggedPlaceholders:YES];
+                }
+                if (hasCapacity) {
+                    [VibeFakeCloud setTransferCapacity:capacity];
+                }
+                if (progressMode) {
+                    [VibeFakeCloud setProgressMode:
+                            (VibeFakeCloudProgressMode)progressMode.integerValue];
                 }
                 return VibeJSONString([VibeFakeCloud statistics]);
             }),

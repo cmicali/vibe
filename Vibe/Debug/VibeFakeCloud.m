@@ -315,25 +315,43 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
                                                           BOOL (^cancelled)(void)) {
         NSString *path = url.path ?: @"";
         os_unfair_lock_lock(&sLock);
+        if (!sInstalled) {
+            os_unfair_lock_unlock(&sLock);
+            return NO;
+        }
         sQueued++;
         CFAbsoluteTime queuedAt = CFAbsoluteTimeGetCurrent();
         os_unfair_lock_unlock(&sLock);
         for (;;) {
             if (cancelled()) {
                 os_unfair_lock_lock(&sLock);
-                sQueued--;
+                // Balance only against a live install: uninstall already
+                // zeroed the counters this acquire had incremented.
+                if (sInstalled && sQueued > 0) {
+                    sQueued--;
+                }
                 os_unfair_lock_unlock(&sLock);
                 return NO;
             }
             os_unfair_lock_lock(&sLock);
+            if (!sInstalled) {
+                os_unfair_lock_unlock(&sLock);
+                return NO;
+            }
             if (sCapacity == 0 || sExecuting < sCapacity) {
                 sQueued--;
                 sExecuting++;
                 sMaxObservedConcurrency = MAX(sMaxObservedConcurrency, sExecuting);
                 // The transfer's clock starts when it takes the slot, never
                 // when it asked: a queued transfer has not begun, and the
-                // progress side must read it as motionless.
-                sTransferStartedAt[path] = @(CFAbsoluteTimeGetCurrent());
+                // progress side must read it as motionless. First acquire
+                // wins: a second role joining a path already in transfer —
+                // the designed prefetch/playback overlap — must not restart
+                // the clock, or reported progress would regress mid-transfer,
+                // a shape no real provider produces.
+                if (!sTransferStartedAt[path]) {
+                    sTransferStartedAt[path] = @(CFAbsoluteTimeGetCurrent());
+                }
                 NSString *whose = role ?: @"unlabeled";
                 NSMutableArray<NSString *> *roles = sInFlightRolesByPath[path];
                 if (!roles) {
@@ -364,6 +382,12 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
     }                                   releaseSlot:^(NSURL *url, NSString *role) {
         NSString *path = url.path ?: @"";
         os_unfair_lock_lock(&sLock);
+        // A transfer in flight across uninstall still calls these captured
+        // blocks; its bookkeeping is already gone, so mutate nothing.
+        if (!sInstalled) {
+            os_unfair_lock_unlock(&sLock);
+            return;
+        }
         if (sExecuting > 0) {
             sExecuting--;
         }
@@ -389,6 +413,10 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
             return;
         }
         os_unfair_lock_lock(&sLock);
+        if (!sInstalled) {
+            os_unfair_lock_unlock(&sLock);
+            return;
+        }
         if (completed) {
             [sMaterialized addObject:path];
             sCompleted++;
@@ -473,6 +501,16 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
     sInFlightRolesByPath = nil;
     sInFlightByRole = nil;
     sTrace = nil;
+    // The live counters and the per-install config go too, or a transfer in
+    // flight keeps mutating stats and later reads report a config the fake no
+    // longer has. The captured blocks bail on !sInstalled before touching any
+    // of these. The completed/cancelled tally deliberately survives, as it
+    // does across re-arms.
+    sExecuting = 0;
+    sQueued = 0;
+    sMaxObservedConcurrency = 0;
+    sPercent = 0;
+    sBaseSeconds = 0;
     os_unfair_lock_unlock(&sLock);
 }
 
