@@ -765,6 +765,7 @@ static NSString *const kNoArtMarker = @"";
     }
     LogDebug(@"Loading folder art %@", artPath);
     NSData *data = _dataReader(artPath);
+    BOOL settledArtless = NO;
     os_unfair_lock_lock(&_lock);
     FolderArtEntry *entry = [self currentEntryLocked:directory revision:revision artPath:artPath];
     if (data) {
@@ -778,12 +779,19 @@ static NSString *const kNoArtMarker = @"";
             [self settleEntryLocked:entry artPath:nil];
             [_thumbnails removeObjectForKey:directory];
             [_displayImages removeObjectForKey:directory];
+            settledArtless = YES;
         }
         else {
             LogWarn(@"Folder art at %@ could not be read; keeping it for another try", artPath);
         }
     }
     os_unfair_lock_unlock(&_lock);
+    // "It has none" is an answer and is posted too (header contract): the
+    // entry held a cover path until this settle, so this is always a
+    // transition, never a re-confirmation.
+    if (settledArtless) {
+        [self postResolutionNotificationForDirectory:directory revision:revision artPath:nil];
+    }
     return data;
 }
 
@@ -807,6 +815,12 @@ static NSString *const kNoArtMarker = @"";
         [_displayImages removeObjectForKey:directory];
     }
     os_unfair_lock_unlock(&_lock);
+    // "It has none" is an answer and is posted too (header contract): the
+    // entry held a cover path until this settle, so this is always a
+    // transition, never a re-confirmation.
+    if (entry) {
+        [self postResolutionNotificationForDirectory:directory revision:revision artPath:nil];
+    }
     return nil;
 }
 

@@ -217,9 +217,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-// The output-device half of the player, implemented in AudioPlayer+Devices.m.
-// It is a category only so the file split compiles cleanly; to callers it is
-// simply part of AudioPlayer.
+// The output-device half of the player, implemented in AudioPlayer+Devices.m —
+// the macOS-only CoreAudio HAL layer, so the declaration is guarded too: an
+// unguarded shared caller would compile on iOS and crash at runtime. It is a
+// category only so the file split compiles cleanly; to callers it is simply
+// part of AudioPlayer.
+#if TARGET_OS_OSX
 @interface AudioPlayer (Devices)
 
 - (NSInteger)currentlyActiveAudioDeviceId;
@@ -231,6 +234,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setOutputDevice:(NSInteger)outputDeviceID;
 
 @end
+#endif
 
 // Every method is required: the player invokes them all unconditionally,
 // with no respondsToSelector: guards at the send sites.

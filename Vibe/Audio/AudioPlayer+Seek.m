@@ -26,17 +26,20 @@
     AudioTrack *intendedTrack = self.currentTrack;
     uint64_t intendedSubmittedPlayIdentifier = 0;
     os_unfair_lock_lock(&_stateLock);
-    if (_state == VibePlayerStateLoading) {
-        intendedTrack = self.loadingTrack;
-        intendedSubmittedPlayIdentifier = self.loadingSubmittedPlayIdentifier;
-    }
-    else if (self.lastSubmittedPlayTrack) {
+    if (self.lastSubmittedPlayTrack) {
         // A play is queued but has not reached the player queue yet, so
-        // currentTrack still names the outgoing track. Aim at the play the
-        // user just started — the row they are looking at — rather than at the
-        // one it is replacing.
+        // currentTrack still names the outgoing track. The handoff is cleared
+        // the moment its play reaches Loading, so when it is set it is
+        // strictly newer than any Loading mirror — it wins even while an
+        // older play's open is still in flight. Aim at the play the user just
+        // started — the row they are looking at — rather than at the one it
+        // is replacing.
         intendedTrack = self.lastSubmittedPlayTrack;
         intendedSubmittedPlayIdentifier = self.lastSubmittedPlayIdentifier;
+    }
+    else if (_state == VibePlayerStateLoading) {
+        intendedTrack = self.loadingTrack;
+        intendedSubmittedPlayIdentifier = self.loadingSubmittedPlayIdentifier;
     }
     os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{

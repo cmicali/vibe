@@ -40,6 +40,13 @@
     if (![[self.playlistController currentTrack].url isEqual:url]) {
         return;
     }
+    // The URL match alone is not enough: a hard mid-play error masks the
+    // still-current track behind the error placeholder, and a late snapshot of
+    // that same track must not repaint over it. Same resolution the header
+    // renders through; a retry's didBeginLoading: clears the mask first.
+    if ([self displayState] == TrackDisplayStateError) {
+        return;
+    }
     [self.trackDisplay showWaveform:waveform];
 }
 

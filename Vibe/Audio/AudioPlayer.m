@@ -100,9 +100,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // is private to this file.
 @implementation AudioPlayer {
     float                   _maxPitch;
-    // Forces the declick minimum on this play's crossfade — the convert
-    // swap's same-audio replace. Rides with the pending request.
-    BOOL                    _pendingDeclick;
     // The fade-in length for the play in flight: the user-set crossfade when
     // it replaced an audibly playing track, the declick minimum otherwise.
     // Written by playOnQueue: alongside the matching retire, read by
@@ -319,11 +316,12 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         [_engine connect:_engine.mainMixerNode to:_engine.outputNode
                   format:[_engine.mainMixerNode outputFormatForBus:0]];
     }
-    // TRAP: the level tap must be (re)installed HERE and nowhere else. This
-    // method is what the iOS media-services rebuild re-runs, so a tap installed
-    // anywhere else dies with the old engine and never comes back — no error,
-    // no log, the bars simply stop moving. Binding it here also re-reads the
-    // sample rate, which a reset is free to change.
+    // TRAP: this is the only rebuild edge that re-reconciles the level tap.
+    // This method is what the iOS media-services rebuild re-runs, so a tap
+    // installed outside applyLevelTapOnQueue dies with the old engine and
+    // never comes back — no error, no log, the bars simply stop moving.
+    // Reconciling here also re-reads the sample rate, which a reset is free
+    // to change.
     [self applyLevelTapOnQueue];
 }
 
@@ -396,7 +394,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // identifier makes each late delivery a no-op, exactly as on the reset
     // path.
     [_pendingRequest invalidate];
-    _pendingDeclick = NO;
     [self clearGaplessOnQueue];
 }
 
@@ -534,7 +531,6 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 
     _activeSubmittedPlayIdentifier = 0;
 
-    _pendingDeclick = declick;
     _segmentGeneration++;
     [self preemptRampsOnQueue]; // preempt any in-flight resume fade-in
     // Any armed splice dies with the node this play retires; the retiring
@@ -573,7 +569,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                                   && _state == VibePlayerStatePlaying);
     _incomingFadeMilliseconds = VibeIncomingFadeMilliseconds(self.crossfadeMilliseconds,
                                                              replacingAudibleTrack,
-                                                             _pendingDeclick,
+                                                             declick,
                                                              segmentWasQueued);
     os_unfair_lock_lock(&_stateLock);
     _node = nil;
@@ -690,7 +686,6 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     VibePendingPlaybackIntent startIntent = request.intent;
     NSTimeInterval startPosition = startIntent.position;
     BOOL startPaused = startIntent.paused;
-    _pendingDeclick = NO;
 
     if (!file || file.length <= 0) {
         [self resetToStoppedStateOnQueue];
@@ -865,7 +860,6 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self cancelPlayOpenOnQueue];
     [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtAbandonment
                               playPath:nil];
-    _pendingDeclick = NO;
     [self clearGaplessOnQueue]; // any queued segment died with the node
     // Detach the varispeed that playOnQueue: attached for the failed track.
     // Otherwise it stays attached across Stopped until the next play or stop;
@@ -1157,6 +1151,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
     NSError *startError = nil;
     if (![self startEngineAndPlayNode:node error:&startError]) {
+        // startEngineAndPlayNode: cancelled the pending idle stop at entry;
+        // the state stays Paused, so re-arm it or a running engine holds the
+        // output device forever.
+        [self scheduleEngineIdleStopOnQueue];
         [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
                 @"Could not resume playback", startError)
                forSubmittedPlay:owningSubmittedPlayIdentifier];
@@ -1441,7 +1439,13 @@ static NSString *VibeAudioLevelNormalizationModeName(
 - (void)notifyLoadingPausedForRequest:(VibePlaybackRequest *)request {
     AudioTrack *track = request.track;
     BOOL paused = request.intent.paused;
+    uint64_t submittedPlayIdentifier = request.submittedPlayIdentifier;
     run_on_main_thread({
+        if (![self submittedPlayIsCurrent:submittedPlayIdentifier]) {
+            LogInfo(@"Dropping didChangeLoadingPaused for superseded play %llu",
+                    submittedPlayIdentifier);
+            return;
+        }
         [self.delegate audioPlayer:self didChangeLoadingPaused:paused forTrack:track];
     });
 }

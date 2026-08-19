@@ -95,7 +95,7 @@ The right time label shows total duration (default) or minus-prefixed remaining 
 
 - **Loading**: the incoming track's tags and `--:--` for both times resolve as the play is initiated. The waveform's loading line begins only when the player's 0.5s slow-open threshold fires `didBeginLoading:`, so a fast local or prefetched play never flashes it; until then the outgoing waveform may remain under the incoming title.
 - **Empty**: static midline waveform placeholder, both time labels `--:--`, a "Drop a file or press ⌘O" hint, all at half strength. At launch the `revealEmptyState` grace suppresses it to a blank header, so a launch-time open never flashes it.
-- **Error**: rendered inline in the same style — no modal, no auto-skip. `displayedTrack` masks the errored track through the `_erroredTrack`/`_errorStatus` pair, written only via `setErrorMaskForTrack:status:` and `clearErrorMask`; the error text sits on the artist line over the title. The track stays in the playlist for a retry, and late metadata and art deliveries are ignored while masked.
+- **Error**: rendered inline in the same style — no modal, no auto-skip. `displayedTrack` masks the errored track through the `_erroredTrack`/`_errorStatus` pair, written only via `setErrorMaskForTrack:status:` and `clearErrorMask`; the error text sits on the artist line over the title. The track stays in the playlist for a retry, and late metadata, art, and waveform deliveries are ignored while masked.
 
 ## Now Playing
 

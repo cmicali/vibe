@@ -73,8 +73,6 @@ NS_ASSUME_NONNULL_BEGIN
     ArtworkDisplayController*   _artworkController;
 }
 
-// The system Now Playing bridge. The publish and command-routing code lives in
-// MainPlayerController+NowPlaying.
 // The public collaborators' single assignment point is init's construction
 // path; they are readonly in MainPlayerController.h.
 @property (readwrite, strong) OutputDevicesMenuController *devicesMenuController;
@@ -84,6 +82,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readwrite, strong) AudioWaveformCache *waveformCache;
 @property (readwrite, strong) AudioFileConverter *fileConverter;
 
+// The system Now Playing bridge. The publish and command-routing code lives in
+// MainPlayerController+NowPlaying.
 @property (strong) NowPlayingController *nowPlayingController;
 
 // The header and waveform rendering surface: the labels, times, codec and BPM
@@ -146,6 +146,12 @@ NS_ASSUME_NONNULL_BEGIN
 // Reconciles the playing row's renderer and the band-level producer with real
 // output and material window/row visibility.
 - (void)syncEqualizerActivity;
+
+#pragma mark - The download monitor
+
+// The one place the monitor and its open-request identifier reset; implemented
+// in MainPlayerController.m, which carries why the pair is inseparable.
+- (void)teardownDownloadMonitor;
 
 #pragma mark - The successor prefetch
 

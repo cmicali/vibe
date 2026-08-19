@@ -108,14 +108,20 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (track != [self.playlistController currentTrack]) {
         return;
     }
+    [self performPerTrackRefreshForStartedTrack:track];
+}
+
+// Everything a track start refreshes: artwork, recents, metadata, waveform,
+// the duration cache, the successor prefetch and its hold release, the row
+// mark, the Convert cache, stats and the UI timer. Callers own didStartPlaying:'s
+// identity guard — the playlist must already point at the started track.
+- (void)performPerTrackRefreshForStartedTrack:(AudioTrack *)track {
     // The convert swap's Now Playing resume hint is spent: the live position
     // republishes from here.
     self.convertSwapResumeTrack = nil;
     [_artworkController trackDidStartPlaying:track];
     [self clearErrorMask];
-    [_downloadMonitor cancel];
-    _downloadMonitor = nil;
-    _downloadMonitorOpenRequestIdentifier = 0;
+    [self teardownDownloadMonitor];
     // The cloud-lane hold is NOT released here: it rides until the successor
     // prefetch below acknowledges its claim, or the lane's next transfer and
     // the prefetch would race to download the same file.
@@ -219,6 +225,13 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         }
         return;
     }
+    [self advanceOrParkAtTrackEnd];
+}
+
+// The end of the still-current track: advance when the playlist and Settings >
+// Playback allow, park on it otherwise. Callers own didFinishPlaying:'s
+// staleness guard.
+- (void)advanceOrParkAtTrackEnd {
     // Folds the finished run.
     [[AppStats sharedInstance] playbackStopped];
     [self pauseUIUpdateTimer];
@@ -240,15 +253,16 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // the cache to keep the waveform progress pinned rather than frozen.
     if (!advances) {
         _currentTrackDuration = 0;
-        // The park is the one place a zeroed duration is not followed by an
-        // updateUI, so the tick rate would rest at the finished track's.
-        [self syncUITimerRate];
-        // Pin the resting header deterministically. The updateUI inside next:
-        // read the player mid-teardown, where its position and duration race
-        // the async stop, which could leave the waveform pinned at 100% while
-        // the elapsed label read 0:00. Park the finished track at its start,
-        // and let its metadata duration feed the resting right label, since
-        // the player's own duration is torn down by now.
+        // The full refresh, not a tick: only updateUI writes the transport
+        // icon and the Now Playing publish, which must both read parked, and
+        // its syncUITimerRate rests the tick rate off the zeroed duration.
+        [self updateUI];
+        // Pin the resting header deterministically, after updateUI: that
+        // refresh read the player mid-teardown, where its position and
+        // duration race the async stop, which could leave the waveform pinned
+        // at 100% while the elapsed label read 0:00. Park the finished track
+        // at its start, and let its metadata duration feed the resting right
+        // label, since the player's own duration is torn down by now.
         [self.trackDisplay resetPlayheadToStartWithDuration:self.playlistController.currentTrack.duration
                                                        rate:self.playbackRate];
     }
@@ -268,18 +282,20 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // The playlist owns what "next" means. If its next row is no longer the
     // track the player spliced into — a swap or re-target raced the boundary —
     // correctness beats gaplessness: treat it as an ordinary track end, whose
-    // next: plays the real successor and replaces the spliced audio.
+    // next: plays the real successor and replaces the spliced audio. The guard
+    // above already proved the finished track current, which is the staleness
+    // precondition the track-end handler leaves to its caller.
     NSUInteger nextIndex = self.playlistController.currentIndex + 1;
     if (startedTrack != [self.playlistController trackAtIndex:nextIndex]) {
-        [self audioPlayer:audioPlayer didFinishPlaying:finishedTrack];
+        [self advanceOrParkAtTrackEnd];
         return;
     }
     [self.playlistController advanceToNextTrackWithoutPlaying];
     // The whole per-track refresh — metadata, waveform, duration cache,
     // recents, prefetch of the new next (which re-arms the splice), stats and
-    // the UI timer — is exactly didStartPlaying:'s body, and its identity
-    // guard now passes.
-    [self audioPlayer:audioPlayer didStartPlaying:startedTrack];
+    // the UI timer — is exactly a start's. The advance above satisfies the
+    // refresh's precondition: the playlist now points at the started track.
+    [self performPerTrackRefreshForStartedTrack:startedTrack];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
@@ -314,16 +330,14 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // Playback failed, so the duration cached at the last didStartPlaying no
     // longer describes anything the player holds.
     _currentTrackDuration = 0;
-    [_downloadMonitor cancel];
-    _downloadMonitor = nil;
-    _downloadMonitorOpenRequestIdentifier = 0;
+    [self teardownDownloadMonitor];
     [self.metadataCache setBackgroundMaterializationHeld:NO];
     [self.trackDisplay hideWaveformLoadingIndicator];
     // Errors present inline, with no modal and no auto-skip. A sheet on this
     // borderless window breaks key status and the bare transport keys. The
     // header shows the error state, the track stays in the playlist for a
-    // retry, and the errored mark stops late metadata and art deliveries from
-    // repopulating the header.
+    // retry, and the errored mark stops late metadata, art, and waveform
+    // deliveries from repopulating the header.
     [self setErrorMaskForTrack:self.playlistController.currentTrack
                         status:VibeStatusForPlayError(error)];
     [self updateUI];

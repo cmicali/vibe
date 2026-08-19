@@ -54,8 +54,8 @@
     // The error mask: the track whose play attempt failed, plus the short
     // status for the error rendering's artist line. The full error text goes
     // to the log. While that track is still current and the player is stopped,
-    // the header renders the error state and ignores the track, late metadata
-    // and art deliveries included. The reference is weak, because the track
+    // the header renders the error state and ignores the track, late metadata,
+    // art, and waveform deliveries included. The reference is weak, because the track
     // stays in the playlist for a retry and replacing the playlist dissolves
     // the mark. Only setErrorMaskForTrack:status: and clearErrorMask write it.
     __weak AudioTrack*          _erroredTrack;
@@ -582,15 +582,22 @@
     _errorStatus = nil;
 }
 
+// One teardown for the pair: a monitor surviving its identifier — or the
+// reverse — lets didBeginLoading:'s identifier-reuse check keep a monitor for
+// an open it no longer observes, or rebuild one it already has.
+- (void)teardownDownloadMonitor {
+    [_downloadMonitor cancel];
+    _downloadMonitor = nil;
+    _downloadMonitorOpenRequestIdentifier = 0;
+}
+
 // File > Close (⌘W): unload everything and return to the empty state. The
 // player's stop sends no delegate callback, so nothing auto-advances, and
 // didFinishPlaying:'s stale-track guard drops any end-of-track callback
 // already in flight.
 - (IBAction)closeFile:(nullable id)sender {
     [[AppStats sharedInstance] playbackStopped]; // stop fires no delegate callback
-    [_downloadMonitor cancel];
-    _downloadMonitor = nil;
-    _downloadMonitorOpenRequestIdentifier = 0;
+    [self teardownDownloadMonitor];
     // The hold rides the monitor's lifetime, and its clearing edge is
     // didStartPlaying: or the error path — neither of which a Close reaches,
     // because stop fires no callback and the caller owns the reset. Left set,
@@ -614,8 +621,9 @@
 
 - (IBAction)next:(nullable id)sender {
     // The mark and the refresh ride playWillStartHandler now, off the playlist's
-    // play funnel; at the end of the playlist next starts nothing and there is
-    // nothing to refresh.
+    // play funnel; at the end of the playlist next starts nothing, and the
+    // stopped transport icon and Now Playing publish are the park's updateUI in
+    // advanceOrParkAtTrackEnd, not this action's.
     [self.playlistController next];
 }
 

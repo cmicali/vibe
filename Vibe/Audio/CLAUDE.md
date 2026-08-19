@@ -83,7 +83,7 @@ CoreAudio honors LAME/iTunes gapless metadata, so tagged MP3/AAC and all lossles
 
 `levelsEnabled` installs the demand-driven tap in `Levels/`; `copyBandLevels:count:sequence:` reads its latest coherent snapshot without taking the player queue or allocating. `outputAudioActive` is the shell-facing liveness fact: a current playing node or a counted retired fade is active, while Loading intent alone is not.
 
-**TRAP: `installMasterBusOnQueue` is the only tap-installation edge, and `dropEngineBoundStateOnQueue` abandons rather than removes a tap bound to a defunct engine.** The ownership, callback, FFT, publication, visibility-demand and `--silent` contracts live beside their implementation in `Levels/CLAUDE.md`.
+**TRAP: `applyLevelTapOnQueue` is the only tap reconciliation point, `installMasterBusOnQueue` the only rebuild edge, and `dropEngineBoundStateOnQueue` abandons rather than removes a tap bound to a defunct engine.** The ownership, callback, FFT, publication, visibility-demand and `--silent` contracts live beside their implementation in `Levels/CLAUDE.md`.
 
 ### Robustness
 
