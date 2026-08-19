@@ -403,6 +403,15 @@ static NSString *VibeFileStat(NSURL *url) {
 
 #pragma mark - Encode
 
+// The one refusal for a source with no frames. The pre-open
+// isEmptyOrDirectory guard is the load-bearing check (descriptor leak, see
+// NSURL+AudioOpen); the per-open length checks back it up with this same
+// answer.
+- (NSError *)emptySourceError {
+    return [self errorWithCode:VibeConvertErrorNotConvertible
+                   description:@"That file contains no audio."];
+}
+
 // Encodes into the app's own tmp, always writable, so nothing partial ever
 // appears beside the user's music. progress runs on the converter queue at
 // about one-percent steps, plus a final 1.0.
@@ -418,8 +427,7 @@ static NSString *VibeFileStat(NSURL *url) {
     // take this same URL, so one guard covers them.
     if (sourceURL.isEmptyOrDirectory) {
         if (error) {
-            *error = [self errorWithCode:VibeConvertErrorNotConvertible
-                             description:@"That file contains no audio."];
+            *error = [self emptySourceError];
         }
         return nil;
     }
@@ -432,8 +440,7 @@ static NSString *VibeFileStat(NSURL *url) {
         // Zero frames would skip the loop and "succeed", swapping a playable
         // row for a FLAC nothing can play.
         if (error) {
-            *error = [self errorWithCode:VibeConvertErrorNotConvertible
-                             description:@"That file contains no audio."];
+            *error = [self emptySourceError];
         }
         return nil;
     }
@@ -459,8 +466,7 @@ static NSString *VibeFileStat(NSURL *url) {
     }
     if (source.length <= 0) {
         if (error) {
-            *error = [self errorWithCode:VibeConvertErrorNotConvertible
-                             description:@"That file contains no audio."];
+            *error = [self emptySourceError];
         }
         return nil;
     }

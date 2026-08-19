@@ -101,13 +101,22 @@
 }
 
 - (void)windowDidLoad {
+    [self buildCollaborators];
+    [self wireCollaboratorHandlers];
+    [self registerGrantAndArtworkObservers];
+    [self wireWindowAndViews];
+    [self buildPitchPanel];
 
-    // Closing the player means quitting. Without this, closing the main window
-    // while the About window is open leaves the app running with no way to get
-    // the player back, because About still counts as a window and so
-    // applicationShouldTerminateAfterLastWindowClosed never fires.
-    self.window.delegate = self;
+    [self.playlistTableView reloadData];
+    [self updateUI];
+    [self syncEqualizerActivity];
 
+    [NSApp activate];
+}
+
+// Construction only: every collaborator exists after this, so the handler
+// wiring in the next phase can capture any of them. No block contracts here.
+- (void)buildCollaborators {
     // AudioPlayer starts on System Output and asks AudioDeviceManager to
     // resolve the saved device asynchronously, UID first and name as a
     // fallback. The HAL sweep can take tens of ms with Bluetooth devices, or
@@ -117,6 +126,9 @@
                                                          name:AppSettings.sharedInstance.audioOutputDeviceName
                                                      enableFX:AppSettings.sharedInstance.audioFXEnabled
                                                      delegate:self];
+    self.audioPlayer.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
+    self.devicesMenuController.audioPlayer = self.audioPlayer;
+
     self.metadataCache = [[AudioTrackMetadataCache alloc] init];
     self.metadataCache.delegate = self;
 
@@ -125,6 +137,34 @@
     // deliveries: waveform snapshots to the view, BPM to the label.
     self.waveformCache = [[AudioWaveformCache alloc] init];
     self.waveformCache.delegate = self;
+
+    self.fileConverter = [[AudioFileConverter alloc] init];
+
+    self.playlistController = [[PlaylistController alloc] initWithAudioPlayer:self.audioPlayer];
+    self.playlistController.levelSource = self;
+    self.playlistController.tableView = self.playlistTableView;
+
+    _artworkController = [[ArtworkDisplayController alloc] initWithContentView:self.playerContentView];
+
+    // The bare transport keys, through a local event monitor. See
+    // TransportKeyMonitor for the key list, and for why the menu
+    // key-equivalent path cannot be trusted with unmodified keys.
+    _keyMonitor = [[TransportKeyMonitor alloc] initWithController:self];
+
+    // The system media keys, Control Center and Bluetooth transport controls.
+    // updateNowPlaying publishes its now-playing info, called from the
+    // updateUI funnel. Registering the command handlers now lets the media
+    // keys route to us as soon as the first track starts playing.
+    self.nowPlayingController = [[NowPlayingController alloc] initWithDelegate:self];
+
+    __weak MainPlayerController *weakSelf = self;
+    _uiTimer = [[UIUpdateTimer alloc] initWithHz:kVibeUIUpdateHzMin handler:^{
+        [weakSelf updatePlaybackUI];
+    }];
+}
+
+// The inline block wirings, one contract per block, each stated beside it.
+- (void)wireCollaboratorHandlers {
     // Asked once per decode, so Settings > Playback and the debug channel's
     // set_analysis both land on the next load with nothing to republish. iOS
     // installs no provider: it never analyzes.
@@ -132,11 +172,6 @@
         return (VibeWaveformAnalysis){AppSettings.sharedInstance.analyzeBPM, AppSettings.sharedInstance.analyzeKey};
     };
 
-    self.fileConverter = [[AudioFileConverter alloc] init];
-
-    self.playlistController = [[PlaylistController alloc] initWithAudioPlayer:self.audioPlayer];
-    self.playlistController.levelSource = self;
-    self.playlistController.tableView = self.playlistTableView;
     // The brush-through-the-waveform progress, gated on the converting track
     // still being on screen, so a track change mid-conversion stops the sweep
     // at the next report.
@@ -147,6 +182,7 @@
             [strongSelf.trackDisplay setConvertSweepFraction:fraction];
         }
     };
+
     // Every play starts one the controller does not see until the player's
     // async events land, which is up to half a second on a slow open — so the
     // header is refreshed at initiation instead. It hangs off the playlist's
@@ -177,25 +213,6 @@
                                                     inTracks:strongSelf.playlistController.playlist];
     };
 
-    // A folder granted after a scan may hold the cover for tracks already
-    // loaded, whose lookup FolderArtResolver declined for want of a grant. Every
-    // grant path posts this — a drop, an open, the Files pane's Add Folder
-    // panel — and that pane may never have been opened, so the observation
-    // belongs here rather than in it.
-    [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(grantedFoldersDidChange:)
-                                               name:FolderAccessManagerDidChangeNotification
-                                             object:nil];
-    [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(folderArtDidResolve:)
-                                               name:FolderArtDidResolveNotification
-                                             object:nil];
-    [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(thumbnailDidLoad:)
-                                               name:AudioTrackMetadataThumbnailDidLoadNotification
-                                             object:nil];
-
-    _artworkController = [[ArtworkDisplayController alloc] initWithContentView:self.playerContentView];
     __weak MainPlayerController *weakControllerForArt = self;
     _artworkController.currentTrackProvider = ^AudioTrack *{
         return weakControllerForArt.playlistController.currentTrack;
@@ -211,11 +228,36 @@
             [strongSelf->_artworkController refreshHeaderTint];
         }
     };
+}
 
-    self.devicesMenuController.audioPlayer = self.audioPlayer;
+// A folder granted after a scan may hold the cover for tracks already
+// loaded, whose lookup FolderArtResolver declined for want of a grant. Every
+// grant path posts this — a drop, an open, the Files pane's Add Folder
+// panel — and that pane may never have been opened, so the observation
+// belongs here rather than in it.
+- (void)registerGrantAndArtworkObservers {
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(grantedFoldersDidChange:)
+                                               name:FolderAccessManagerDidChangeNotification
+                                             object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(folderArtDidResolve:)
+                                               name:FolderArtDidResolveNotification
+                                             object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(thumbnailDidLoad:)
+                                               name:AudioTrackMetadataThumbnailDidLoadNotification
+                                             object:nil];
+}
 
-    // Wire the collaborators to the views. MainPlayerContentView applies all
-    // the appearance and layout at construction.
+// Wire the collaborators to the views. MainPlayerContentView applies all
+// the appearance and layout at construction.
+- (void)wireWindowAndViews {
+    // Closing the player means quitting. Without this, closing the main window
+    // while the About window is open leaves the app running with no way to get
+    // the player back, because About still counts as a window and so
+    // applicationShouldTerminateAfterLastWindowClosed never fires.
+    self.window.delegate = self;
 
     self.window.appearance = AppSettings.sharedInstance.windowAppearance;
     [self applyAlwaysOnTop];
@@ -223,45 +265,24 @@
     self.waveformView.delegate = self;
     self.waveformView.waveformStyle = AppSettings.sharedInstance.waveformStyle;
 
-    // The bare transport keys, through a local event monitor. See
-    // TransportKeyMonitor for the key list, and for why the menu
-    // key-equivalent path cannot be trusted with unmodified keys.
-    _keyMonitor = [[TransportKeyMonitor alloc] initWithController:self];
-
-    // The system media keys, Control Center and Bluetooth transport controls.
-    // updateNowPlaying publishes its now-playing info, called from the
-    // updateUI funnel. Registering the command handlers now lets the media
-    // keys route to us as soon as the first track starts playing.
-    self.nowPlayingController = [[NowPlayingController alloc] initWithDelegate:self];
-
     MainWindow *window = (MainWindow *)self.window;
     window.dropDelegate = self;
+}
 
-    // Built here rather than in MainPlayerContentView, because the panel must
-    // be a sibling of the player body rather than a child: it is revealed by
-    // widening the window past the body, and its size comes from the window's
-    // restored frame, not the design size. It is right-anchored, with a fixed
-    // width and a flexible left margin, so a drag-resize keeps it on the right
-    // edge, or, while hidden, keeps it parked the same distance past it.
-    // heightSizable tracks the small-large layout toggle.
+// Built here rather than in MainPlayerContentView, because the panel must
+// be a sibling of the player body rather than a child: it is revealed by
+// widening the window past the body, and its size comes from the window's
+// restored frame, not the design size. It is right-anchored, with a fixed
+// width and a flexible left margin, so a drag-resize keeps it on the right
+// edge, or, while hidden, keeps it parked the same distance past it.
+// heightSizable tracks the small-large layout toggle.
+- (void)buildPitchPanel {
     NSView *contentView = self.window.contentView;
     _pitchPanel = [[PitchControlPanel alloc] initWithFrame:[self pitchPanelFrame]];
     _pitchPanel.autoresizingMask = NSViewMinXMargin | NSViewHeightSizable;
     _pitchPanel.delegate = self;
     [contentView addSubview:_pitchPanel];
     [self applyPitchRange];
-    self.audioPlayer.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
-
-    __weak MainPlayerController *weakSelf = self;
-    _uiTimer = [[UIUpdateTimer alloc] initWithHz:kVibeUIUpdateHzMin handler:^{
-        [weakSelf updatePlaybackUI];
-    }];
-
-    [self.playlistTableView reloadData];
-    [self updateUI];
-    [self syncEqualizerActivity];
-
-    [NSApp activate];
 }
 
 - (void)pauseUIUpdateTimer {

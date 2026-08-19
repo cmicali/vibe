@@ -663,9 +663,10 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
 #pragma mark - Removing
 
 - (void)removeFoldersAtIndexes:(NSIndexSet *)indexes {
-    NSIndexSet *valid = [indexes indexesInRange:NSMakeRange(0, _entries.count)
-                                        options:0
-                                    passingTest:^BOOL(NSUInteger index, BOOL *stop) { return YES; }];
+    // Clamp to the live row range; a stale caller index must not crash the
+    // batch removal.
+    NSMutableIndexSet *valid = [indexes mutableCopy];
+    [valid removeIndexesInRange:NSMakeRange(_entries.count, NSNotFound - _entries.count)];
     if (valid.count == 0) {
         return;
     }

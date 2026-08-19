@@ -153,7 +153,9 @@ static AudioWorkScheduler *VibeEmbeddedThumbnailDecodeScheduler(void) {
 
 @interface ArtworkLoadRequest : NSObject
 @property (nonatomic, strong) AudioTrackArtwork *artwork;
-@property (nonatomic) NSUInteger generation;
+// A snapshot of the artwork's _artGeneration, per the vocabulary rule:
+// a mismatch at completion means superseded, drop it.
+@property (nonatomic) NSUInteger artGeneration;
 @property (nonatomic, copy) NSString *label;
 @property (nonatomic, copy) BOOL (^stillWanted)(void);
 @property (nonatomic, copy) void (^completion)(VibeImage * _Nullable image);
@@ -268,13 +270,13 @@ static AudioWorkScheduler *VibeEmbeddedThumbnailDecodeScheduler(void) {
             continue;
         }
         [_waitingRequests removeObjectIdenticalTo:waiting];
-        [waiting.artwork invalidateDecodedArtForGeneration:waiting.generation];
+        [waiting.artwork invalidateDecodedArtForGeneration:waiting.artGeneration];
     }
     for (ArtworkLoadRequest *request in [_requests copy]) {
         if (request.stale || request.stillWanted()) {
             continue;
         }
-        [request.artwork invalidateDecodedArtForGeneration:request.generation];
+        [request.artwork invalidateDecodedArtForGeneration:request.artGeneration];
         [self cancelRequest:request];
     }
 }
@@ -306,7 +308,7 @@ static AudioWorkScheduler *VibeEmbeddedThumbnailDecodeScheduler(void) {
 
     ArtworkLoadRequest *request = [ArtworkLoadRequest new];
     request.artwork = artwork;
-    request.generation = generation;
+    request.artGeneration = generation;
     request.label = label ?: @"?";
     request.stillWanted = stillWanted;
     request.completion = completion;
@@ -352,7 +354,7 @@ static AudioWorkScheduler *VibeEmbeddedThumbnailDecodeScheduler(void) {
         }
         request.materializationToken = nil;
         if (request.stale ||
-                ![request.artwork isGenerationCurrent:request.generation] ||
+                ![request.artwork isGenerationCurrent:request.artGeneration] ||
                 !request.stillWanted()) {
             [strongSelf finishRequest:request image:nil];
             return;
@@ -403,7 +405,7 @@ static AudioWorkScheduler *VibeEmbeddedThumbnailDecodeScheduler(void) {
             return;
         }
         if (request.stale ||
-                ![request.artwork isGenerationCurrent:request.generation] ||
+                ![request.artwork isGenerationCurrent:request.artGeneration] ||
                 !request.stillWanted()) {
             [strongSelf finishRequest:request image:nil];
             return;
@@ -418,9 +420,9 @@ static AudioWorkScheduler *VibeEmbeddedThumbnailDecodeScheduler(void) {
         ArtworkLoadRequest *request = _waitingRequests.firstObject;
         [_waitingRequests removeObjectAtIndex:0];
         if (request.stale ||
-                ![request.artwork isGenerationCurrent:request.generation] ||
+                ![request.artwork isGenerationCurrent:request.artGeneration] ||
                 !request.stillWanted()) {
-            [request.artwork invalidateDecodedArtForGeneration:request.generation];
+            [request.artwork invalidateDecodedArtForGeneration:request.artGeneration];
             continue;
         }
         [_requests addObject:request];
@@ -440,7 +442,7 @@ static AudioWorkScheduler *VibeEmbeddedThumbnailDecodeScheduler(void) {
         VibeImage *image = nil;
         if (!request.stale) {
             image = [request.artwork
-                    loadArtBlockingForExpectedGeneration:request.generation
+                    loadArtBlockingForExpectedGeneration:request.artGeneration
                     sourceFileReadAllowed:sourceFileReadAllowed];
         }
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -461,7 +463,7 @@ static AudioWorkScheduler *VibeEmbeddedThumbnailDecodeScheduler(void) {
         request.workToken = nil;
         request.workSubmitted = NO;
         if (request.stale ||
-                ![request.artwork isGenerationCurrent:request.generation] ||
+                ![request.artwork isGenerationCurrent:request.artGeneration] ||
                 !request.stillWanted()) {
             [strongSelf finishRequest:request image:nil];
             return;
@@ -479,7 +481,7 @@ static AudioWorkScheduler *VibeEmbeddedThumbnailDecodeScheduler(void) {
     }
 
     AudioTrackArtwork *artwork = request.artwork;
-    NSUInteger generation = request.generation;
+    NSUInteger generation = request.artGeneration;
     BOOL generationCurrent = [artwork isGenerationCurrent:generation];
     BOOL wanted = request.stillWanted();
     NSString *label = request.label;

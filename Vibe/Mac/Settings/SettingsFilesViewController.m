@@ -19,6 +19,25 @@ static NSString *const kFolderCellIdentifier = @"FolderCell";
 static NSString *const kAlbumArtFileOnly = @"file_only";
 static NSString *const kAlbumArtFolder = @"file_then_folder";
 
+// One Add Common Folder candidate, so call sites read .name/.path rather than
+// decoding positional two-element arrays.
+@interface VibeCommonFolder : NSObject
++ (instancetype)folderWithName:(NSString *)name path:(NSString *)path;
+@property (nonatomic, copy) NSString *name;
+@property (nonatomic, copy) NSString *path;
+@end
+
+@implementation VibeCommonFolder
+
++ (instancetype)folderWithName:(NSString *)name path:(NSString *)path {
+    VibeCommonFolder *folder = [[self alloc] init];
+    folder.name = name;
+    folder.path = path;
+    return folder;
+}
+
+@end
+
 @interface SettingsFilesViewController () <NSTableViewDataSource, NSTableViewDelegate>
 @end
 
@@ -183,9 +202,9 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     NSMenu *menu = [[NSMenu alloc] init];
     menu.autoenablesItems = NO;
     [menu addItemWithTitle:STR_SETTINGS_ADD_COMMON_FOLDER action:NULL keyEquivalent:@""];
-    for (NSArray<NSString *> *folder in [self.class commonFoldersWithExistence:_commonFolderExists]) {
-        NSString *name = folder.firstObject;
-        NSString *path = folder.lastObject;
+    for (VibeCommonFolder *folder in [self.class commonFoldersWithExistence:_commonFolderExists]) {
+        NSString *name = folder.name;
+        NSString *path = folder.path;
         NSString *title = name;
         BOOL available = YES;
         NSNumber *exists = _commonFolderExists[path];
@@ -230,7 +249,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 // answers. Pure — no file system — so it is safe on the main thread; an
 // unprobed path counts as present, which is what keeps the classic Dropbox
 // location the one offered until the probe says otherwise.
-+ (NSArray<NSArray<NSString *> *> *)commonFoldersWithExistence:
++ (NSArray<VibeCommonFolder *> *)commonFoldersWithExistence:
         (NSDictionary<NSString *, NSNumber *> *)existsByPath {
     NSString *home = self.homeFolderPath;
     NSString *dropbox = [home stringByAppendingPathComponent:kDropboxClassicSubpath];
@@ -239,11 +258,13 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
         dropbox = [home stringByAppendingPathComponent:kDropboxCloudStorageSubpath];
     }
     return @[
-        @[STR_SETTINGS_FOLDER_HOME, home],
-        @[STR_SETTINGS_FOLDER_DOCUMENTS, [home stringByAppendingPathComponent:@"Documents"]],
-        @[VibeNotLocalized(@"iCloud Drive"),
-          [home stringByAppendingPathComponent:@"Library/Mobile Documents/com~apple~CloudDocs"]],
-        @[VibeNotLocalized(@"Dropbox"), dropbox],
+        [VibeCommonFolder folderWithName:STR_SETTINGS_FOLDER_HOME path:home],
+        [VibeCommonFolder folderWithName:STR_SETTINGS_FOLDER_DOCUMENTS
+                                    path:[home stringByAppendingPathComponent:@"Documents"]],
+        [VibeCommonFolder folderWithName:VibeNotLocalized(@"iCloud Drive")
+                                    path:[home stringByAppendingPathComponent:
+                                            @"Library/Mobile Documents/com~apple~CloudDocs"]],
+        [VibeCommonFolder folderWithName:VibeNotLocalized(@"Dropbox") path:dropbox],
     ];
 }
 

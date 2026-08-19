@@ -277,7 +277,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 - (void)encodeWithCoder:(NSCoder *)coder {
     [coder encodeObject:self.title forKey:@"title"];
     [coder encodeObject:self.artist forKey:@"artist"];
-    [coder encodeObject:[self encodedThumbnailData] forKey:@"thumbnailJPEG"];
+    [coder encodeObject:[self encodeThumbnailDataIfNeeded] forKey:@"thumbnailJPEG"];
     [coder encodeBool:self.artwork.hasEmbeddedArt forKey:@"hasEmbeddedArt"];
     [coder encodeObject:self.artwork.sourceFilePath forKey:@"sourceFilePath"];
     [coder encodeObject:self.fileType forKey:@"fileType"];
@@ -351,7 +351,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     return self;
 }
 
-- (NSData *)encodedThumbnailData {
+- (NSData *)encodeThumbnailDataIfNeeded {
     NSData *stored = [self.artwork encodedThumbnailDataForStorage];
     if (stored) {
         return stored;
@@ -415,7 +415,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     // One decode on this worker produces the compact bytes, off the display
     // cache entirely, then the original art bytes are released. The first
     // visible row decodes pixels on demand through the bounded request path.
-    (void)[metadata encodedThumbnailData];
+    (void)[metadata encodeThumbnailDataIfNeeded];
     [metadata.artwork discardArtData];
     return metadata;
 }

@@ -64,7 +64,7 @@ TagLib::ID3v2::Tag *id3v2TagOf(TagLib::File *file) {
 // Front cover preferred, as in AudioTrackMetadata.mm: a file can carry a
 // 32x32 FileIcon ahead of the cover, and taking the first picture blindly
 // would carry that across instead.
-TagLib::ID3v2::AttachedPictureFrame *frontCoverFrame(TagLib::ID3v2::Tag *tag) {
+TagLib::ID3v2::AttachedPictureFrame *bestCoverFrame(TagLib::ID3v2::Tag *tag) {
     const TagLib::ID3v2::FrameList &frames = tag->frameList("APIC");
     TagLib::ID3v2::AttachedPictureFrame *chosen = nullptr;
     for (auto it = frames.begin(); it != frames.end(); ++it) {
@@ -127,7 +127,7 @@ BOOL VibeCopyTagsToFLAC(NSString *sourcePath, NSString *flacPath,
         flac.setProperties(source->properties());
 
         if (TagLib::ID3v2::Tag *sourceTag = id3v2TagOf(source.get())) {
-            if (TagLib::ID3v2::AttachedPictureFrame *cover = frontCoverFrame(sourceTag)) {
+            if (TagLib::ID3v2::AttachedPictureFrame *cover = bestCoverFrame(sourceTag)) {
                 auto picture = std::make_unique<TagLib::FLAC::Picture>();
                 picture->setType(TagLib::FLAC::Picture::FrontCover);
                 picture->setMimeType(cover->mimeType());

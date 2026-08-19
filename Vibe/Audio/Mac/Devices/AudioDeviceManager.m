@@ -389,14 +389,11 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
 // there is no sweep at all, only guesses, so those three failures return nil
 // whatever acceptPartial says. This runs only on the refresh queue.
 - (NSArray<AudioDevice *>*)enumerateOutputDevicesAcceptingPartial:(BOOL)acceptPartial {
-    AudioObjectPropertyAddress addr = {
-            kAudioHardwarePropertyDevices,
-            kAudioObjectPropertyScopeGlobal,
-            kAudioObjectPropertyElementMain
-    };
+    // kDevicesAddress, the property the change listener watches: the sweep and
+    // the listener must never drift onto different properties.
     UInt32 size = 0;
     OSStatus sizeStatus = AudioObjectGetPropertyDataSize(kAudioObjectSystemObject,
-            &addr, 0, NULL, &size);
+            &kDevicesAddress, 0, NULL, &size);
     if (sizeStatus != noErr) {
         LogWarn(@"AudioDeviceManager could not read device-list size (OSStatus %d)", (int)sizeStatus);
         return nil;
@@ -418,7 +415,7 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
         return nil;
     }
     OSStatus dataStatus = AudioObjectGetPropertyData(kAudioObjectSystemObject,
-            &addr, 0, NULL, &size, deviceIDs);
+            &kDevicesAddress, 0, NULL, &size, deviceIDs);
     if (dataStatus != noErr) {
         free(deviceIDs);
         LogWarn(@"AudioDeviceManager could not read device list (OSStatus %d)", (int)dataStatus);
@@ -552,28 +549,14 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     return YES;
 }
 
+// Both getters delegate to +deviceForUID:name:inDevices:, the single home of
+// the identity loops and of the empty-uid-sentinel skip.
 - (AudioDevice *)outputDeviceForName:(NSString *)name {
-    if (name.length == 0) {
-        return nil;
-    }
-    for (AudioDevice *device in self.outputDevices) {
-        if ([device.name isEqualToString:name]) {
-            return device;
-        }
-    }
-    return nil;
+    return [AudioDeviceManager deviceForUID:nil name:name inDevices:self.outputDevices];
 }
 
 - (AudioDevice *)outputDeviceForUID:(NSString *)uid {
-    if (uid.length == 0) {
-        return nil;
-    }
-    for (AudioDevice *device in self.outputDevices) {
-        if ([device.uid isEqualToString:uid]) {
-            return device;
-        }
-    }
-    return nil;
+    return [AudioDeviceManager deviceForUID:uid name:nil inDevices:self.outputDevices];
 }
 
 - (AudioDevice *)outputDeviceForId:(NSInteger)deviceId {
