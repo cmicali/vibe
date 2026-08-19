@@ -227,12 +227,6 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
             setStringValueIfChanged(self.totalTimeTextField, STR_LABEL_TIME_UNKNOWN);
             setStringValueIfChanged(self.currentTimeTextField, STR_LABEL_TIME_UNKNOWN);
             _lastPosition = -1;
-            // The state resolves the moment a play is initiated, so the line
-            // replaces the outgoing waveform with the title rather than at the
-            // player's 0.5s slow-open threshold — which would leave the
-            // previous track's shape under the new track's name. Idempotent:
-            // every updateUI through the gap lands here.
-            [_waveformView showLoadingIndicator];
         }
         else {
             // -1 poisons the elapsed-label cache rather than naming a

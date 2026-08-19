@@ -7,7 +7,7 @@
 ## The three states
 
 - **Waveform** — the renderer's layer tree.
-- **Loading** — `showLoadingIndicator`, while a file open is pending. The control itself is the shared `WaveformLoadingIndicator`. It is put up by the header's `TrackDisplayStateLoading` rendering, which resolves as the play is *initiated*, not by the player's 0.5s slow-open threshold — otherwise the outgoing track's waveform sits under the incoming track's title for that half second.
+- **Loading** — `showLoadingIndicator`, once a file open crosses the player's 0.5s slow-open threshold. The control itself is the shared `WaveformLoadingIndicator`. Fast local and prefetched opens settle without showing it; until the threshold, the outgoing waveform may remain under the incoming track's title.
 - **Empty** — `showEmptyPlaceholder`, a static midline for the no-track state, which is that same control at rest.
 
 Loading and empty are mutually exclusive, and `prepareForWaveformLoad` clears both.

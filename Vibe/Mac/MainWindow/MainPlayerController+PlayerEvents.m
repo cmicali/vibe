@@ -57,10 +57,11 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // A slow cloud open is in flight, and the header can still show cached
     // tags and art for the pending track while it materializes.
     [self.metadataCache loadMetadataNow:track];
-    // Show the pending track's title and artist while it loads. The waveform's
-    // loading line rides the Loading display state this renders, which resolved
-    // back when the play was initiated; nothing shows it from here.
+    // Show the pending track's title and artist, then put up the loading line.
+    // This callback is the player's slow-open threshold, so a fast local or
+    // prefetched play never flashes the indicator.
     [self updateUI];
+    [self.trackDisplay showWaveformLoadingIndicator];
     // The cloud-lane hold is willSubmitPlayForTrack:'s now, not this timer's:
     // this callback owns only the slow-open UI, and the monitor below — which
     // deliberately stays here, so a fast local or prefetched play never

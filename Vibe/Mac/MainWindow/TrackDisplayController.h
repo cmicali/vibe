@@ -116,8 +116,7 @@ typedef struct {
 // controller.
 - (void)prepareForWaveformLoad;
 - (void)showWaveform:(CodableAudioWaveform *)waveform;
-// The Loading display state puts the line up itself, in renderState:. This is
-// the debug channel's set_loading, which drives it with no play behind it.
+// Slow-open playback and the debug channel's set_loading drive this directly.
 - (void)showWaveformLoadingIndicator;
 - (void)hideWaveformLoadingIndicator;
 // Determinate download fill while the indicator shows; negative reverts to
