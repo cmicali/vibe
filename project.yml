@@ -539,6 +539,7 @@ targets:
       - path: Vibe/Audio/Metadata/FolderArtEntry.m
       - path: Vibe/Audio/Metadata/FolderArtFileIO.m
       - path: Vibe/Audio/Metadata/AudioTrackArtwork.m
+      - path: Vibe/Audio/Metadata/ArtworkLoadRegistry.m
       - path: Vibe/Common/AppSettings.m
       - path: Vibe/System/CloudFileMaterializer.m
       - path: Vibe/Mac/App/FolderAccessManager.m

@@ -116,6 +116,22 @@
     return NSMakeRect(x, 0, kPitchPanelWidth, bounds.size.height);
 }
 
+// A contentView sibling of the player body rather than a child of
+// MainPlayerContentView: it is revealed by widening the window past the body,
+// and its size comes from the window's restored frame, not the design size.
+// It is right-anchored, with a fixed width and a flexible left margin, so a
+// drag-resize keeps it on the right edge, or, while hidden, keeps it parked
+// the same distance past it. heightSizable tracks the small-large layout
+// toggle.
+- (void)buildPitchPanel {
+    NSView *contentView = self.window.contentView;
+    _pitchPanel = [[PitchControlPanel alloc] initWithFrame:[self pitchPanelFrame]];
+    _pitchPanel.autoresizingMask = NSViewMinXMargin | NSViewHeightSizable;
+    _pitchPanel.delegate = self;
+    [contentView addSubview:_pitchPanel];
+    [self applyPitchRange];
+}
+
 - (void)windowWillClose:(NSNotification *)notification {
     [NSApp terminate:nil];
 }

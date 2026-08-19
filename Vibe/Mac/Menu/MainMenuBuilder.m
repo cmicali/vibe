@@ -180,9 +180,13 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // Edit: undo, redo, and the two copy items below — the app has no text
     // selection, so none of the standard editing items. Validation retitles
     // undo and redo from NSUndoManager.
-    NSMenu *editMenu = Submenu(mainMenu, STR_MENU_EDIT).submenu;
-    static VibeEditMenuCleaner *editMenuCleaner;
-    editMenuCleaner = editMenuCleaner ?: [VibeEditMenuCleaner new];
+    NSMenuItem *editItem = Submenu(mainMenu, STR_MENU_EDIT);
+    NSMenu *editMenu = editItem.submenu;
+    // The delegate reference is weak, so the Edit item itself retains its
+    // cleaner: ownership rides the menu it works for, per the header's rule,
+    // and the builder stays a stateless one-shot.
+    VibeEditMenuCleaner *editMenuCleaner = [VibeEditMenuCleaner new];
+    editItem.representedObject = editMenuCleaner;
     editMenu.delegate = editMenuCleaner;
     AddSymbolItem(editMenu, STR_MENU_EDIT_UNDO, @"arrow.uturn.backward", @selector(undo:), player, @"z", NSEventModifierFlagCommand, @"menu_edit_undo");
     // ⇧⌘Z — capital "Z", same contract as Copy Name's "C" below.

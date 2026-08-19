@@ -8,7 +8,7 @@
 // Writable only in here. Everything handed out is a copy, so the readonly
 // declaration in the header is the whole caller-facing contract.
 @interface VibePlaybackRequest ()
-@property (nonatomic, strong) id track;
+@property (nonatomic, strong) AudioTrack *track;
 @property (nonatomic, copy) NSString *path;
 @property (nonatomic) VibePendingPlaybackIntent intent;
 @property (nonatomic) uint64_t identifier;
@@ -30,7 +30,7 @@
     return [self copyOfRequest:_currentRequest];
 }
 
-- (uint64_t)beginWithTrack:(id)track
+- (uint64_t)beginWithTrack:(AudioTrack *)track
                       path:(NSString *)path
                     intent:(VibePendingPlaybackIntent)intent
    submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
@@ -44,7 +44,7 @@
     return request.identifier;
 }
 
-- (VibePlaybackRequestRebind)rebindTrack:(id)track
+- (VibePlaybackRequestRebind)rebindTrack:(AudioTrack *)track
                                     path:(NSString *)path
                                   intent:(VibePendingPlaybackIntent)intent
                  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
@@ -96,7 +96,7 @@
 }
 
 - (BOOL)seekToPosition:(NSTimeInterval)position
-      ifCurrentTrackIs:(id)track
+      ifCurrentTrackIs:(AudioTrack *)track
  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     VibePlaybackRequest *request = _currentRequest;
     if (!request) {

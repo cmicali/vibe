@@ -25,16 +25,18 @@ NS_ASSUME_NONNULL_BEGIN
 // delegate.
 @interface MainPlayerController : NSWindowController <NSMenuDelegate>
 
-// The collaborators, created in init. MainMenuBuilder wires
+// The collaborators, created once in init and never replaced — readonly here,
+// readwrite only inside the class extension, so a caller cannot swap a live
+// collaborator and orphan its delegate wiring. MainMenuBuilder wires
 // devicesMenuController as the Output menu's delegate.
-@property (strong) OutputDevicesMenuController *devicesMenuController;
-@property (strong) AudioPlayer *audioPlayer;
-@property (strong) PlaylistController *playlistController;
-@property (strong) AudioTrackMetadataCache *metadataCache;
-@property (strong) AudioWaveformCache *waveformCache;
+@property (readonly, strong) OutputDevicesMenuController *devicesMenuController;
+@property (readonly, strong) AudioPlayer *audioPlayer;
+@property (readonly, strong) PlaylistController *playlistController;
+@property (readonly, strong) AudioTrackMetadataCache *metadataCache;
+@property (readonly, strong) AudioWaveformCache *waveformCache;
 // Convert to FLAC's engine. The controller owns it because it also owns the
 // swap afterwards, and every menu's item validates against it.
-@property (strong) AudioFileConverter *fileConverter;
+@property (readonly, strong) AudioFileConverter *fileConverter;
 
 - (void)play:(NSArray<NSURL *> *)urls;
 

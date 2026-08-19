@@ -30,6 +30,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSRect)playerBodyFrame;
 - (NSRect)pitchPanelFrame;
 
+// Installs the pitch panel as the second contentView sibling. Runs from
+// windowDidLoad, after buildContentInWindow: has built the body it sits
+// beside.
+- (void)buildPitchPanel;
+
 // The playlist reveal: ⇥ and View > Show Playlist. It is a window height
 // change, hence a window action.
 - (IBAction)toggleSize:(nullable id)sender;

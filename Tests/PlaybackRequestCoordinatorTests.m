@@ -9,6 +9,13 @@
 
 #import "PlaybackRequestCoordinator.h"
 
+// Identity-only stand-in, duck-typed like FakeTrackMetadata: the coordinator
+// stores and compares the row pointer without ever messaging it, so a plain
+// NSObject serves as the AudioTrack and the suite stays host-less.
+static AudioTrack *FakeTrack(void) {
+    return (AudioTrack *)[NSObject new];
+}
+
 @interface PlaybackRequestCoordinatorTests : XCTestCase
 @end
 
@@ -16,8 +23,8 @@
 
 - (void)testRebindBeforeSlowDeliveryUsesTheLatestTrackAndIntent {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    NSObject *first = [NSObject new];
-    NSObject *rebound = [NSObject new];
+    AudioTrack *first = FakeTrack();
+    AudioTrack *rebound = FakeTrack();
     uint64_t identifier = [state beginWithTrack:first path:@"/same.flac"
                                          intent:VibePendingPlaybackIntentMake(0, NO)
                           submittedPlayIdentifier:1];
@@ -40,8 +47,8 @@
 
 - (void)testSlowRebindRequestsAReplacementLoadingDelivery {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    NSObject *first = [NSObject new];
-    NSObject *rebound = [NSObject new];
+    AudioTrack *first = FakeTrack();
+    AudioTrack *rebound = FakeTrack();
     uint64_t identifier = [state beginWithTrack:first path:@"/same.flac"
                                          intent:VibePendingPlaybackIntentMake(0, NO)
                           submittedPlayIdentifier:1];
@@ -62,7 +69,7 @@
 
 - (void)testSlowSameRowReplayRequestsACurrentLoadingDelivery {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    NSObject *track = [NSObject new];
+    AudioTrack *track = FakeTrack();
     uint64_t identifier = [state beginWithTrack:track path:@"/same.flac"
                                          intent:VibePendingPlaybackIntentMake(0, NO)
                         submittedPlayIdentifier:1];
@@ -80,8 +87,8 @@
 
 - (void)testRebindRefreshesPausedDeliveryForAReplacementTrack {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    NSObject *first = [NSObject new];
-    NSObject *rebound = [NSObject new];
+    AudioTrack *first = FakeTrack();
+    AudioTrack *rebound = FakeTrack();
     [state beginWithTrack:first path:@"/same.flac"
              intent:VibePendingPlaybackIntentMake(0, NO)
       submittedPlayIdentifier:1];
@@ -105,8 +112,8 @@
 
 - (void)testStaleWorkersCannotMutateOrConsumeANewerRequest {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    NSObject *first = [NSObject new];
-    NSObject *second = [NSObject new];
+    AudioTrack *first = FakeTrack();
+    AudioTrack *second = FakeTrack();
     uint64_t oldIdentifier = [state beginWithTrack:first path:@"/first.flac"
                                             intent:VibePendingPlaybackIntentMake(0, NO)
                              submittedPlayIdentifier:1];
@@ -126,9 +133,9 @@
 // Either identity is enough, and neither alone is required — see the header.
 - (void)testSeekIsAcceptedByEitherTheRowOrTheSubmittedPlay {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    NSObject *first = [NSObject new];
-    NSObject *rebound = [NSObject new];
-    NSObject *stranger = [NSObject new];
+    AudioTrack *first = FakeTrack();
+    AudioTrack *rebound = FakeTrack();
+    AudioTrack *stranger = FakeTrack();
     [state beginWithTrack:first path:@"/same.flac"
              intent:VibePendingPlaybackIntentMake(2, NO)
       submittedPlayIdentifier:1];
@@ -156,7 +163,7 @@
 
 - (void)testRequestedPauseAndResumeAreIdempotentWhileLoading {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    [state beginWithTrack:[NSObject new] path:@"/same.flac"
+    [state beginWithTrack:FakeTrack() path:@"/same.flac"
                    intent:VibePendingPlaybackIntentMake(12.5, NO)
   submittedPlayIdentifier:1];
 
@@ -183,7 +190,7 @@
     NSMutableSet<NSNumber *> *seen = [NSMutableSet set];
     uint64_t previous = 0;
     for (NSUInteger i = 0; i < 200; i++) {
-        uint64_t identifier = [state beginWithTrack:[NSObject new] path:@"/same.flac"
+        uint64_t identifier = [state beginWithTrack:FakeTrack() path:@"/same.flac"
                                              intent:VibePendingPlaybackIntentMake(0, NO)
                             submittedPlayIdentifier:i + 1];
         XCTAssertGreaterThan(identifier, previous);
@@ -204,8 +211,8 @@
 
 - (void)testDifferentPathDoesNotRebindTheCurrentRequest {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    NSObject *first = [NSObject new];
-    NSObject *second = [NSObject new];
+    AudioTrack *first = FakeTrack();
+    AudioTrack *second = FakeTrack();
     uint64_t firstIdentifier = [state beginWithTrack:first path:@"/first.flac"
                                                intent:VibePendingPlaybackIntentMake(0, NO)
                                 submittedPlayIdentifier:1];
@@ -227,7 +234,7 @@
 
 - (void)testInvalidateRejectsEveryLateDelivery {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    uint64_t identifier = [state beginWithTrack:[NSObject new] path:@"/same.flac"
+    uint64_t identifier = [state beginWithTrack:FakeTrack() path:@"/same.flac"
                                           intent:VibePendingPlaybackIntentMake(0, NO)
                            submittedPlayIdentifier:1];
     [state invalidate];
@@ -239,7 +246,7 @@
 
 - (void)testSameTrackRebindDoesNotNeedAnotherDelegateRefresh {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    NSObject *track = [NSObject new];
+    AudioTrack *track = FakeTrack();
     [state beginWithTrack:track path:@"/same.flac"
              intent:VibePendingPlaybackIntentMake(4, YES)
       submittedPlayIdentifier:1];
@@ -260,14 +267,14 @@
     static const NSUInteger kTraces = 80;
     static const NSUInteger kEventsPerTrace = 1500;
     static const NSUInteger kTracks = 17;
-    NSArray<NSObject *> *tracks = [self tracks:kTracks];
+    NSArray<AudioTrack *> *tracks = [self tracks:kTracks];
     NSArray<NSString *> *paths = @[@"/a.flac", @"/b.flac", @"/c.flac", @"/d.flac"];
 
     for (NSUInteger trace = 0; trace < kTraces; trace++) {
         PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
         uint64_t random = 0x9E3779B97F4A7C15ULL ^ trace;
         uint64_t currentIdentifier = 0;
-        NSObject *currentTrack = nil;
+        AudioTrack *currentTrack = nil;
         NSString *currentPath = nil;
         VibePendingPlaybackIntent currentIntent = VibePendingPlaybackIntentMake(0, NO);
         BOOL currentSlow = NO;
@@ -296,7 +303,7 @@
             }
             else if (action == 1) {
                 random = [self nextRandom:random];
-                NSObject *rebound = tracks[random % tracks.count];
+                AudioTrack *rebound = tracks[random % tracks.count];
                 random = [self nextRandom:random];
                 VibePendingPlaybackIntent intent = VibePendingPlaybackIntentMake(
                         (NSTimeInterval)(random % 240), (random & 1) != 0);
@@ -326,7 +333,7 @@
             }
             else if (action == 3) {
                 random = [self nextRandom:random];
-                NSObject *target = (random & 1) ? currentTrack : tracks[random % tracks.count];
+                AudioTrack *target = (random & 1) ? currentTrack : tracks[random % tracks.count];
                 random = [self nextRandom:random];
                 NSTimeInterval position = (NSTimeInterval)((NSInteger)(random % 480) - 120);
                 // All three arms of the identifier check: the live play, a
@@ -393,10 +400,10 @@
     }
 }
 
-- (NSArray<NSObject *> *)tracks:(NSUInteger)count {
-    NSMutableArray<NSObject *> *tracks = [NSMutableArray arrayWithCapacity:count];
+- (NSArray<AudioTrack *> *)tracks:(NSUInteger)count {
+    NSMutableArray<AudioTrack *> *tracks = [NSMutableArray arrayWithCapacity:count];
     for (NSUInteger index = 0; index < count; index++) {
-        [tracks addObject:[NSObject new]];
+        [tracks addObject:FakeTrack()];
     }
     return tracks;
 }

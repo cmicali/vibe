@@ -345,13 +345,9 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 
 @end
 
-#pragma mark - Output devices (public API, declared in AudioPlayer.h)
+#pragma mark - Output devices (queue-side mutation, declared at the top of this file)
 
-@implementation AudioPlayer (Devices)
-
-- (NSInteger)currentlyActiveAudioDeviceId {
-    return (NSInteger)[self activeOutputDeviceID];
-}
+@implementation AudioPlayer (DeviceQueueMutation)
 
 - (void)scheduleSystemOutputBindRetryOnQueue {
     if (_systemOutputBindRetryScheduled) {
@@ -441,7 +437,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 // mutation rather than only when the id moved. The delegate both persists it
 // and drives the menu checkmark, and it is idempotent, so re-sending an
 // unchanged value costs a defaults write nobody notices. Suppressing it made
-// "Settings names the last committed device" an invariant with no enforcement:
+// "Settings names the last committed device" a guarantee with no enforcement:
 // any path that left the two disagreeing — a failed bind, a launch preference
 // resolved to the id already requested — could then never resynchronize them,
 // because the one call that writes Settings was skipped precisely when they
@@ -451,6 +447,16 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     run_on_main_thread({
         [self.delegate audioPlayer:self didChangeOutputDevice:requested];
     });
+}
+
+@end
+
+#pragma mark - Output devices (public API, declared in AudioPlayer.h)
+
+@implementation AudioPlayer (Devices)
+
+- (NSInteger)currentlyActiveAudioDeviceId {
+    return (NSInteger)[self activeOutputDeviceID];
 }
 
 - (void)setOutputDevice:(NSInteger)outputDeviceID {

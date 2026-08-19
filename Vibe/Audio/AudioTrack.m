@@ -7,14 +7,11 @@
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
 #import "NSURL+Hash.h"
+#import "VibeStrings.h"
 
 @interface AudioTrack ()
 @property(copy, readwrite) NSURL *url;
 @property(atomic, strong, nullable, readwrite) AudioTrackMetadata *metadata;
-@end
-#import "VibeStrings.h"
-
-@interface AudioTrack ()
 // cacheKey's memo. It is atomic so that the lock-free fast-path read below is
 // race-free against the first store. A plain ivar read racing the
 // @synchronized writer is formally a torn read, even though an aligned pointer

@@ -536,16 +536,14 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     if (![CoreAudioUtil readUID:&uid forDeviceID:deviceID]) {
         return NO;
     }
-    AudioDevice *readDevice = [[AudioDevice alloc] init];
-    readDevice.name = name;
     // Devices without a UID keep an empty uid rather than a shared sentinel.
     // Two of them would collide on a sentinel, and a persisted sentinel would
     // resolve to whichever enumerated first. outputDeviceForUID: skips empty
     // queries, so resolution for these devices falls through to the name match.
-    readDevice.uid = uid ?: @"";
-    readDevice.deviceId = (NSInteger)deviceID;
-    readDevice.isSystemDefault = (deviceID == defaultID);
-    *device = readDevice;
+    *device = [[AudioDevice alloc] initWithName:name
+                                            uid:uid ?: @""
+                                       deviceId:(NSInteger)deviceID
+                                isSystemDefault:(deviceID == defaultID)];
     return YES;
 }
 

@@ -75,6 +75,15 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The system Now Playing bridge. The publish and command-routing code lives in
 // MainPlayerController+NowPlaying.
+// The public collaborators' single assignment point is init's construction
+// path; they are readonly in MainPlayerController.h.
+@property (readwrite, strong) OutputDevicesMenuController *devicesMenuController;
+@property (readwrite, strong) AudioPlayer *audioPlayer;
+@property (readwrite, strong) PlaylistController *playlistController;
+@property (readwrite, strong) AudioTrackMetadataCache *metadataCache;
+@property (readwrite, strong) AudioWaveformCache *waveformCache;
+@property (readwrite, strong) AudioFileConverter *fileConverter;
+
 @property (strong) NowPlayingController *nowPlayingController;
 
 // The header and waveform rendering surface: the labels, times, codec and BPM

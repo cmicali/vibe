@@ -17,6 +17,11 @@
 
 #import "PlaybackIntent.h"
 
+// Forward-declared, never imported: the coordinator stores and compares the
+// row pointer without messaging it, which keeps this header Foundation-only
+// for the host-less tests while every consumer stays typed.
+@class AudioTrack;
+
 NS_ASSUME_NONNULL_BEGIN
 
 // What a same-path play changed about the request already in flight, and who
@@ -37,7 +42,7 @@ typedef struct {
 // later rebind.
 @interface VibePlaybackRequest : NSObject
 
-@property (nonatomic, readonly, strong) id track;
+@property (nonatomic, readonly, strong) AudioTrack *track;
 @property (nonatomic, readonly, copy) NSString *path;
 @property (nonatomic, readonly) VibePendingPlaybackIntent intent;
 @property (nonatomic, readonly) uint64_t identifier;
@@ -56,7 +61,7 @@ typedef struct {
 // Starting a request supersedes every previous one. Identifiers never repeat
 // during this object's lifetime — not even across invalidate — so a late
 // worker cannot consume a later open for the same path.
-- (uint64_t)beginWithTrack:(id)track
+- (uint64_t)beginWithTrack:(AudioTrack *)track
                       path:(NSString *)path
                     intent:(VibePendingPlaybackIntent)intent
    submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier;
@@ -64,7 +69,7 @@ typedef struct {
 // A play for the path already in flight: adopt its row and intent rather than
 // starting a second open. It MUTATES on a match, so call it only from the
 // branch that acts on the result.
-- (VibePlaybackRequestRebind)rebindTrack:(id)track
+- (VibePlaybackRequestRebind)rebindTrack:(AudioTrack *)track
                                     path:(NSString *)path
                                   intent:(VibePendingPlaybackIntent)intent
                  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier;
@@ -86,7 +91,7 @@ typedef struct {
 // Pass 0 for an identifier the caller could not determine; the decision then
 // rests on the row alone.
 - (BOOL)seekToPosition:(NSTimeInterval)position
-      ifCurrentTrackIs:(nullable id)track
+      ifCurrentTrackIs:(nullable AudioTrack *)track
  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier;
 
 // Atomically returns and invalidates the matching request. A completion or
