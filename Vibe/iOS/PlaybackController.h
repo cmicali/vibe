@@ -13,7 +13,7 @@
 //  is deliberate and it is the reason this class exists: three views describe
 //  the same playback at once — the library's playing row, the mini player and
 //  the full-screen card — and Playlist has exactly one observer slot, so the
-//  fan-out had to live somewhere. Observers are held weakly and delivered to
+//  fan-out had to live somewhere. Observers are held weakly and delivered
 //  synchronously on the main thread, in registration order.
 //
 //  Main thread only. Every callback below lands there, and every method here

@@ -36,4 +36,20 @@
     XCTAssertFalse(VibePlaybackDeliveryIsCurrent(0, 1));
 }
 
+- (void)testResumeErrorQueuedBeforeSameRowReplayIsDropped {
+    XCTAssertFalse(VibePlaybackDeliveryIsCurrent(14, 15));
+}
+
+- (void)testSeekRestartErrorQueuedBeforeSameRowReplayIsDropped {
+    XCTAssertFalse(VibePlaybackDeliveryIsCurrent(21, 22));
+}
+
+- (void)testMediaResetCompletionCanUseTheInitialSubmissionState {
+    XCTAssertTrue(VibePlaybackSubmissionStateIsUnchanged(0, 0));
+}
+
+- (void)testMediaResetCompletionCannotReparkOverANewerPlay {
+    XCTAssertFalse(VibePlaybackSubmissionStateIsUnchanged(31, 32));
+}
+
 @end

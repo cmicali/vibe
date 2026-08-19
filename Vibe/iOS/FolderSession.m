@@ -5,7 +5,9 @@
 
 #import "FolderSession.h"
 #import "DocumentTypes.h"
+#import "FileSearchRules.h"
 #import "NSURLUtil.h"
+#import "SearchFolderStoreInternal.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <stdatomic.h>
 
@@ -25,6 +27,9 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     NSURL *_scopedURL;
     BOOL _scopeActive;
     NSURL *_folderURL;
+    // A playlist opened from a persistent search root must keep that root's
+    // scope alive independently of whether its Settings row still exists.
+    SearchFolderGrant *_searchGrant;
     // Bookmark resolution and directory listings are file-provider IPC. Opens
     // run concurrently so a new user intent is not parked behind an older
     // provider call; openIntentGeneration decides which result may deliver.
@@ -94,7 +99,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
         uint64_t openIntentGeneration = [self beginOpenIntent];
         [self finishOpenIntent:openIntentGeneration tracks:@[url]
                      folderURL:nil selectedURL:nil restored:NO
-                     scopedURL:nil scopedURLStarted:NO bookmark:nil];
+                     scopedURL:nil scopedURLStarted:NO searchGrant:nil bookmark:nil];
         return;
     }
     [self adoptURL:url restored:NO];
@@ -103,7 +108,19 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
 - (void)openFileFromSearchRoots:(NSURL *)url {
     uint64_t openIntentGeneration = [self beginOpenIntent];
     NSURL *parent = url.URLByDeletingLastPathComponent;
-    NSURL *sessionScopedURL = _scopeActive ? _scopedURL : nil;
+    SearchFolderGrant *searchGrant = [SearchFolderStore.shared grantCoveringURL:url];
+    if (!searchGrant && _searchGrant && VibeSearchRootCoversPath(
+            _searchGrant.rootURL.URLByStandardizingPath.path,
+            url.URLByStandardizingPath.path)) {
+        // The row may have been removed after it produced the current playlist.
+        // Transfer that playlist's retained grant to this open instead of
+        // revoking it when the result wins.
+        searchGrant = _searchGrant;
+    }
+    BOOL sessionScopeCoversResult = _scopeActive && VibeSearchRootCoversPath(
+            _scopedURL.URLByStandardizingPath.path,
+            url.URLByStandardizingPath.path);
+    NSURL *sessionScopedURL = sessionScopeCoversResult ? _scopedURL : nil;
     BOOL scopeHoldStarted = [sessionScopedURL startAccessingSecurityScopedResource];
     dispatch_async(_workQueue, ^{
         if (![self isCurrentOpenIntent:openIntentGeneration]) {
@@ -127,6 +144,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
                           restored:NO
                          scopedURL:sessionScopedURL
                   scopedURLStarted:NO
+                       searchGrant:searchGrant
                           bookmark:nil];
         });
     });
@@ -165,7 +183,8 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
         // needs the security scope OPEN, and adoption re-persists after the
         // scope starts anyway — the refresh before it always failed.
         [self adoptOnWorkQueue:url restored:YES sessionFolder:nil sessionScopedURL:nil
-              scopeHoldStarted:NO openIntentGeneration:openIntentGeneration];
+            sessionSearchGrant:nil scopeHoldStarted:NO
+          openIntentGeneration:openIntentGeneration];
     });
     return YES;
 }
@@ -208,10 +227,12 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     uint64_t openIntentGeneration = [self beginOpenIntent];
     NSURL *sessionFolder = _folderURL;
     NSURL *sessionScopedURL = _scopeActive ? _scopedURL : nil;
+    SearchFolderGrant *sessionSearchGrant = _searchGrant;
     BOOL scopeHoldStarted = [sessionScopedURL startAccessingSecurityScopedResource];
     dispatch_async(_workQueue, ^{
         [self adoptOnWorkQueue:url restored:restored
                  sessionFolder:sessionFolder sessionScopedURL:sessionScopedURL
+            sessionSearchGrant:sessionSearchGrant
               scopeHoldStarted:scopeHoldStarted
           openIntentGeneration:openIntentGeneration];
     });
@@ -221,6 +242,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
                 restored:(BOOL)restored
            sessionFolder:(NSURL *)sessionFolder
          sessionScopedURL:(NSURL *)sessionScopedURL
+      sessionSearchGrant:(SearchFolderGrant *)sessionSearchGrant
          scopeHoldStarted:(BOOL)scopeHoldStarted
      openIntentGeneration:(uint64_t)openIntentGeneration {
     if (![self isCurrentOpenIntent:openIntentGeneration]) {
@@ -233,6 +255,12 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     // inbox URLs are not security-scoped. Track what we actually started so
     // the paired stop is balanced.
     BOOL scoped = [url startAccessingSecurityScopedResource];
+    SearchFolderGrant *coveringSessionSearchGrant = nil;
+    if (sessionSearchGrant && VibeSearchRootCoversPath(
+            sessionSearchGrant.rootURL.URLByStandardizingPath.path,
+            url.URLByStandardizingPath.path)) {
+        coveringSessionSearchGrant = sessionSearchGrant;
+    }
 
     NSNumber *isDirectory = nil;
     [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
@@ -297,6 +325,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
                                  folderURL:granted selectedURL:url restored:restored
                                  scopedURL:scopedURL
                           scopedURLStarted:grantScopeStarted
+                               searchGrant:coveringSessionSearchGrant
                                   bookmark:bookmark];
                 });
                 return;
@@ -321,7 +350,9 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     run_on_main_thread({
         [self finishOpenIntent:openIntentGeneration tracks:tracks
                      folderURL:folderURL selectedURL:selectedURL restored:restored
-                     scopedURL:scopedURL scopedURLStarted:scoped bookmark:bookmark];
+                     scopedURL:scopedURL scopedURLStarted:scoped
+                  searchGrant:(scoped ? nil : coveringSessionSearchGrant)
+                     bookmark:bookmark];
     });
 }
 
@@ -382,6 +413,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
                  restored:(BOOL)restored
                 scopedURL:(NSURL *)scopedURL
          scopedURLStarted:(BOOL)scopedURLStarted
+              searchGrant:(SearchFolderGrant *)searchGrant
                  bookmark:(NSData *)bookmark {
     if (![self isCurrentOpenIntent:openIntentGeneration]) {
         if (scopedURLStarted) {
@@ -399,6 +431,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     if (_scopeActive && (_scopedURL != scopedURL || scopedURLStarted)) {
         [_scopedURL stopAccessingSecurityScopedResource];
     }
+    _searchGrant = searchGrant;
     _scopedURL = scopedURL;
     _scopeActive = (scopedURL != nil);
     _folderURL = folderURL;

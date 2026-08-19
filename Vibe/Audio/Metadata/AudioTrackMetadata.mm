@@ -30,6 +30,9 @@
 #include <wavfile.h>
 #include <tdebuglistener.h>
 
+NSNotificationName const AudioTrackMetadataThumbnailDidLoadNotification =
+        @"AudioTrackMetadataThumbnailDidLoadNotification";
+
 namespace {
 
 #if !defined(NDEBUG)
@@ -209,7 +212,33 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 }
 
 - (VibeImage *)cachedThumbnail {
-    return [self.artwork cachedThumbnail];
+    VibeImage *thumbnail = [self.artwork cachedThumbnail];
+    if (thumbnail) {
+        return thumbnail;
+    }
+
+    __weak AudioTrackMetadata *weakMetadata = self;
+    dispatch_block_t request = ^{
+        AudioTrackMetadata *metadata = weakMetadata;
+        if (!metadata) {
+            return;
+        }
+        [metadata.artwork requestEmbeddedThumbnailDecodeWithCompletion:^(VibeImage *image) {
+            AudioTrackMetadata *completedMetadata = weakMetadata;
+            if (image && completedMetadata) {
+                [NSNotificationCenter.defaultCenter
+                        postNotificationName:AudioTrackMetadataThumbnailDidLoadNotification
+                                      object:completedMetadata];
+            }
+        }];
+    };
+    if (NSThread.isMainThread) {
+        request();
+    }
+    else {
+        dispatch_async(dispatch_get_main_queue(), request);
+    }
+    return nil;
 }
 
 - (instancetype)initForCopy {
@@ -324,9 +353,13 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 }
 
 - (NSData *)encodedThumbnailData {
+    NSData *stored = [self.artwork encodedThumbnailDataForStorage];
+    if (stored) {
+        return stored;
+    }
     // The file's own art only. Folder art must never be archived; see
-    // AudioTrackArtwork.embeddedThumbnail.
-    VibeImage *thumbnail = [self.artwork embeddedThumbnail];
+    // AudioTrackArtwork.decodeThumbnailForArchiving.
+    VibeImage *thumbnail = [self.artwork decodeThumbnailForArchiving];
     if (!thumbnail) {
         return nil;
     }
@@ -362,7 +395,11 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     CGImageDestinationAddImage(destination, cgImage, (__bridge CFDictionaryRef)options);
     BOOL finalized = CGImageDestinationFinalize(destination);
     CFRelease(destination);
-    return finalized ? encoded : nil;
+    if (!finalized) {
+        return nil;
+    }
+    [self.artwork storeEncodedThumbnailData:encoded];
+    return encoded;
 }
 
 - (instancetype)initWithURL:(NSURL *)url {
@@ -376,7 +413,10 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 
 + (AudioTrackMetadata *)metadataWithURL:(NSURL *)url {
     AudioTrackMetadata *metadata = [[AudioTrackMetadata alloc] initWithURL:url];
-    [metadata.artwork prewarmEmbeddedThumbnail];
+    // One decode on this worker produces the compact bytes, off the display
+    // cache entirely, then the original art bytes are released. The first
+    // visible row decodes pixels on demand through the bounded request path.
+    (void)[metadata encodedThumbnailData];
     [metadata.artwork discardArtData];
     return metadata;
 }

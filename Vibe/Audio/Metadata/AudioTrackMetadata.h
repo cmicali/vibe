@@ -10,6 +10,10 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Posted on main after an evicted embedded thumbnail has been decoded again.
+// The object is the AudioTrackMetadata whose cachedThumbnail is now non-nil.
+FOUNDATION_EXPORT NSNotificationName const AudioTrackMetadataThumbnailDidLoadNotification;
+
 @interface AudioTrackMetadata : NSObject <NSSecureCoding, NSCopying>
 
 - (instancetype)init NS_UNAVAILABLE;
@@ -56,8 +60,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)artNeedsLoad;
 
 // Demotes a track no longer displayed at full resolution. It drops both the
-// decoded full-size image and the compressed bytes, keeps the thumbnail, and
-// re-arms the on-demand load so the art returns if the track becomes current
+// decoded full-size image and the source bytes, keeps compact thumbnail bytes,
+// and re-arms the on-demand load so the art returns if the track becomes current
 // again. Without it, every track played in a session pins about 4MB of decoded
 // art for the playlist's lifetime. It also cancels parked work and detaches an
 // active materialization waiter. Main thread only.
@@ -74,10 +78,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)loadArtIfNeededStillWanted:(BOOL (^)(void))stillWanted
                         completion:(void (^)(VibeImage *_Nullable art))completion;
 
-// A downscaled copy of the full art, suited to small table cells. Generated
-// lazily on first read, and **the file's own thumbnail — never a folder cover —
-// is what gets serialized to the on-disk cache**, so cache hits get it for
-// free. Safe to call while drawing: the fallback accessor is non-blocking.
+// A downscaled copy of the full art, suited to small table cells. This accessor
+// only reads already-decoded pixels and is safe while drawing. If compact
+// embedded bytes survived a shared-cache eviction, it admits one bounded
+// off-main decode and returns nil; AudioTrackMetadataThumbnailDidLoadNotification
+// asks visible callers to redraw when those pixels arrive. **The file's own
+// thumbnail — never a folder cover — is what gets serialized to the on-disk
+// cache**, so recovery never reopens the song.
 - (nullable VibeImage *)cachedThumbnail;
 
 // The codec line both screens render: file type, bitrate (lossy only), sample

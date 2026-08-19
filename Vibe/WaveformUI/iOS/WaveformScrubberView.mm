@@ -8,8 +8,6 @@
 #import "AudioWaveformRenderer.h"
 #import "DetailedAudioWaveformRenderer.h"
 #import "WaveformRendererRegistry.h"
-// The midline height and palette, shared with the mac view.
-#import "WaveformMidline.h"
 #import "WaveformLoadingIndicator.h"
 // The zoom range and the bake's ceilings, which are one set of numbers.
 #import "WaveformZoomMath.h"
@@ -67,8 +65,8 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     // (zoomed) width and its insets are half a view on each side, so the
     // content rests under the view's center at both ends of the track and
     // UIKit supplies the band, the spring and the deceleration. Everything
-    // that scrolls is a sublayer of ITS layer; the loading indicator and the
-    // empty placeholder stay in self.layer, which does not move.
+    // that scrolls is a sublayer of ITS layer; the loading indicator stays in
+    // self.layer, which does not move.
     UIScrollView            *_scroll;
     // The renderers' parent layer. geometryFlipped gives its sublayers the
     // bottom-left-origin space the shared renderer math was written for (the
@@ -87,7 +85,6 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     // determinate fill and the sweep's traps all live there. Nil when no load
     // is showing.
     WaveformLoadingIndicator *_loadingIndicator;
-    CALayer                 *_placeholderLayer;
     // The scrub-tick haptic and the last virtual-x bucket that fired it.
     UIImpactFeedbackGenerator *_scrubHaptics;
     NSInteger               _lastTickBucket;
@@ -206,6 +203,10 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 
 - (UIPinchGestureRecognizer *)zoomPinchRecognizer {
     return _pinch;
+}
+
+- (BOOL)isScrubbingEnabled {
+    return self.waveform != nil;
 }
 
 // How far the offset is outside its valid range: positive past the start,
@@ -454,11 +455,6 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 
 #pragma mark - Presentation states
 
-- (void)hideEmptyPlaceholder {
-    [_placeholderLayer removeFromSuperlayer];
-    _placeholderLayer = nil;
-}
-
 - (void)resetWaveformContentState {
     [self teardownBakedWaveform];
     // A new track's first chunk must not be held back by the previous track's
@@ -485,7 +481,6 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 
 - (void)prepareForWaveformLoad {
     [self hideLoadingIndicator];
-    [self hideEmptyPlaceholder];
     [self resetWaveformContentState];
     [self installRendererIfNeeded];
     [self drawWaveformSettled];
@@ -496,16 +491,15 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 }
 
 - (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated {
-    // Data arrival is what genuinely ends the shimmer and empty
-    // presentations — the audio open landing does not (its decode may still
-    // be streaming over the network), so owners no longer hide the line;
-    // this does. The download fill is NOT ended here: a disk-cached waveform
-    // arrives without materializing the audio file, so the provider can still
+    // Data arrival is what genuinely ends the shimmer — the audio open landing
+    // does not (its decode may still be streaming over the network), so the
+    // owner leaves it up until this delivery. The download fill is NOT ended
+    // here: a disk-cached waveform arrives without materializing the audio
+    // file, so the provider can still
     // be downloading it — the fill then rides over the waveform as the only
     // sign of that, and it comes down with its monitor (the open landing or
     // the error path clears it via setLoadingProgress:-1).
     [self hideLoadingShimmer];
-    [self hideEmptyPlaceholder];
     // A fresh view may receive data before anyone called
     // prepareForWaveformLoad (per-page cells hydrate directly); the renderer
     // must exist before the draw.
@@ -653,8 +647,10 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 }
 
 - (void)installEnvelopeImage:(CGImageRef)image size:(CGSize)size generation:(NSUInteger)generation {
+    CGSize currentSize = [self virtualBounds].size;
+    BOOL stretchForPinch = _isPinching && size.height == currentSize.height;
     if (!image || generation != _bakeGeneration ||
-        !CGSizeEqualToSize(size, [self virtualBounds].size)) {
+        (!CGSizeEqualToSize(size, currentSize) && !stretchForPinch)) {
         return;
     }
     VibeSignpostBegin(waveform_install);
@@ -671,10 +667,11 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     _bakedHost = [CALayer layer];
     _bakedHost.anchorPoint = CGPointZero;
     _bakedHost.position = CGPointZero;      // content origin; the scroll moves it
-    _bakedHost.bounds = (CGRect){CGPointZero, size};
+    CGSize installedSize = stretchForPinch ? currentSize : size;
+    _bakedHost.bounds = (CGRect){CGPointZero, installedSize};
     _bakedUnplayed = [CALayer layer];
     _bakedUnplayed.anchorPoint = CGPointZero;
-    _bakedUnplayed.frame = (CGRect){CGPointZero, size};
+    _bakedUnplayed.frame = (CGRect){CGPointZero, installedSize};
     _bakedUnplayed.contents = (__bridge id)image;
     _bakedUnplayed.opacity = (float)unplayedOpacity;
     [_bakedHost addSublayer:_bakedUnplayed];
@@ -694,7 +691,6 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     if (_loadingIndicator) {
         return;
     }
-    [self hideEmptyPlaceholder];
     [self resetWaveformContentState];
     if (_renderer) {
         // SETTLED, as prepareForWaveformLoad's collapse is, and measured as the
@@ -735,40 +731,6 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 // indeterminate revert; see WaveformLoadingIndicator.
 - (void)setLoadingProgress:(float)fraction {
     [_loadingIndicator setProgress:fraction inBounds:self.bounds];
-}
-
-- (void)showEmptyPlaceholder {
-    if (_placeholderLayer) {
-        return;
-    }
-    [self hideLoadingIndicator];
-    [self resetWaveformContentState];
-    if (_renderer) {
-        [self drawWaveform];
-    }
-    CALayer *line = [CALayer layer];
-    line.contentsScale = [self displayScale];
-    [self.layer addSublayer:line];
-    _placeholderLayer = line;
-    [self updatePlaceholderColor];
-    [self layoutPlaceholderLayer];
-}
-
-- (void)layoutPlaceholderLayer {
-    if (!_placeholderLayer) {
-        return;
-    }
-    CGFloat midY = self.bounds.size.height / 2;
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    _placeholderLayer.frame = CGRectMake(0, midY - kVibeMidlineHeight / 2,
-                                        self.bounds.size.width, kVibeMidlineHeight);
-    [CATransaction commit];
-}
-
-- (void)updatePlaceholderColor {
-    UIColor *base = self.isDark ? [UIColor whiteColor] : [UIColor blackColor];
-    _placeholderLayer.backgroundColor = [base colorWithAlphaComponent:kVibeInertMidlineAlpha].CGColor;
 }
 
 #pragma mark - Touch scrubbing
@@ -887,10 +849,16 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     }
     CGFloat p = [tap locationInView:_scroll].x / virtualWidth;
     // A tap mid-coast claims the transport: left running, the deceleration
-    // would settle later and commit a second seek over this one.
+    // would settle later and commit a second seek over this one. Stopping an
+    // animated offset does not reliably call scrollViewDidEndDecelerating:, so
+    // explicitly release the pager hold the coast took.
+    BOOL wasScrubbing = self.isScrubbing || _seekPending;
     [_scroll setContentOffset:_scroll.contentOffset animated:NO];
     _seekPending = NO;
     _scrubHaptics = nil;
+    if (wasScrubbing) {
+        [self.delegate waveformScrubberView:self didChangeScrubbing:NO];
+    }
     [self.delegate waveformScrubberView:self didSeek:(float)MAX(0.0, MIN(1.0, p))];
 }
 
@@ -1059,7 +1027,12 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     // outside the gesture changes behavior.
     BOOL stretchBake = _isPinching && _bakedHost
             && previous.height == virtualBounds.size.height;
-    if (sizeChanged && !stretchBake) {
+    // The first pinch frames can arrive before the bake requested by
+    // beginZoomGesture finishes. Keep that request current; its image can be
+    // installed and stretched to the then-current width, after which the
+    // ordinary stretch path carries the rest of the gesture.
+    BOOL awaitingPinchBake = _isPinching && !_bakedHost;
+    if (sizeChanged && !stretchBake && !awaitingPinchBake) {
         // The bitmap is baked for the old size; the live tree carries the
         // resize and the bake re-lands at the new one.
         [self teardownBakedWaveform];
@@ -1109,7 +1082,6 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     }
     if (sizeChanged) {
         [self layoutLoadingLayer];
-        [self layoutPlaceholderLayer];
         // Separated from the interval below so a trace can tell a layout pass
         // that merely reached here from one that actually moved the width — the
         // teardown, the redraw and the re-bake all hang off this branch.
@@ -1136,7 +1108,6 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     if (styleChanged) {
         [_renderer updateColors:self.isDark];
         [_loadingIndicator updateColorsForDark:self.isDark];
-        [self updatePlaceholderColor];
     }
     if (scaleChanged || styleChanged) {
         [self applyScrollAndProgress];

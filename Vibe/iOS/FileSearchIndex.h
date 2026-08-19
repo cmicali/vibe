@@ -4,22 +4,20 @@
 //
 //  The search screen's second section: the audio files reachable anywhere under
 //  the locations this app holds access to, walked once into memory and then
-//  filtered per keystroke.
+//  filtered away from the main thread per keystroke.
 //
 //  There is no public API that searches the Files app. An app can only search
-//  file trees it actually holds — so the roots are the open folder (a folder
-//  grant covers its WHOLE subtree, which the flat directory-as-playlist listing
-//  never reaches) and the app's own Documents directory, which is what Files
-//  shows as "On My iPhone -> Vibe". FolderSession.searchRoots is where they are
-//  named.
+//  file trees it actually holds. PlaybackController composes the transient
+//  FolderSession root with SearchFolderStore's persistent roots (the folders
+//  added in Settings plus the app's own Documents directory).
 //
 //  The walk STREAMS: batches land as they are found rather than at the end, so
 //  a query answers off a partial index and grows. It reads directory listings
 //  and nothing else — never a file's bytes, never its tags — so a provider tree
 //  costs IPC per directory and no downloads.
 //
-//  Main thread only, except where noted. The walk owns a private queue and hops
-//  its batches back here, so a query never takes a lock.
+//  Main thread only, except where noted. The walk and localized filtering own
+//  separate private queues; their deliveries return here.
 //
 
 #import <Foundation/Foundation.h>
@@ -31,6 +29,10 @@ NS_ASSUME_NONNULL_BEGIN
 // One found file. Named entirely from its path — nothing here was stat'd, read
 // or parsed.
 @interface FileSearchHit : NSObject
+
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+
 @property (nonatomic, readonly) NSURL *url;
 // The file as it is spelled on disk, extension included.
 @property (nonatomic, readonly) NSString *fileName;
@@ -65,13 +67,19 @@ NS_ASSUME_NONNULL_BEGIN
 // nothing walks a provider tree before then.
 - (void)beginBuildIfNeeded;
 
-// Every indexed file matching query, in discovery order — depth-first, so a
-// folder's tracks arrive together — capped at limit. excludedPaths drops what
-// the playlist section is already showing, keyed by NSURL.path. An empty query
-// matches nothing (see FileSearchRules.h).
-- (NSArray<FileSearchHit *> *)hitsMatchingQuery:(NSString *)query
-                                      excluding:(nullable NSSet<NSString *> *)excludedPaths
-                                          limit:(NSUInteger)limit;
+// Finds indexed files without doing localized matching on main. The walk
+// prepares each row's folded search text once; while the index grows, an
+// unchanged query examines only the appended suffix. Results keep discovery
+// order and are capped at limit; excludedPaths drops what the playlist already
+// shows, keyed by NSURL.path. An empty query matches nothing. Each request
+// supersedes the previous one. Only the latest request delivers on main.
+- (void)requestHitsMatchingQuery:(NSString *)query
+                       excluding:(nullable NSSet<NSString *> *)excludedPaths
+                           limit:(NSUInteger)limit
+                      completion:(void (^)(NSArray<FileSearchHit *> *hits))completion;
+
+// Supersedes pending localized filtering without discarding the index.
+- (void)cancelPendingHitRequests;
 
 @end
 

@@ -13,10 +13,58 @@
 #import "FileSearchIndexInternal.h"
 #import "FileSearchRules.h"
 
-@interface FileSearchRulesTests : XCTestCase
+@interface FileSearchRulesTests : XCTestCase <FileSearchIndexDelegate>
+@property (nonatomic) XCTestExpectation *buildFinished;
+@property (nonatomic) NSMutableArray<NSURL *> *temporaryRoots;
 @end
 
 @implementation FileSearchRulesTests
+
+- (void)setUp {
+    [super setUp];
+    self.temporaryRoots = [NSMutableArray array];
+}
+
+- (void)tearDown {
+    for (NSURL *root in self.temporaryRoots) {
+        [NSFileManager.defaultManager removeItemAtURL:root error:NULL];
+    }
+    [super tearDown];
+}
+
+- (FileSearchIndex *)indexWithRelativeFilePaths:(NSArray<NSString *> *)paths {
+    NSURL *root = [NSURL fileURLWithPath:[NSTemporaryDirectory()
+            stringByAppendingPathComponent:NSUUID.UUID.UUIDString] isDirectory:YES];
+    [self.temporaryRoots addObject:root];
+    XCTAssertTrue([NSFileManager.defaultManager createDirectoryAtURL:root
+                                         withIntermediateDirectories:YES
+                                                          attributes:nil
+                                                               error:NULL]);
+    for (NSString *path in paths) {
+        NSURL *file = [root URLByAppendingPathComponent:path];
+        XCTAssertTrue([NSFileManager.defaultManager
+                createDirectoryAtURL:file.URLByDeletingLastPathComponent
+          withIntermediateDirectories:YES attributes:nil error:NULL]);
+        XCTAssertTrue([[NSData data] writeToURL:file atomically:YES]);
+    }
+
+    FileSearchIndex *index = [[FileSearchIndex alloc] init];
+    index.delegate = self;
+    self.buildFinished = [self expectationWithDescription:@"index built"];
+    [index setRoots:@[root]];
+    [index beginBuildIfNeeded];
+    [self waitForExpectations:@[self.buildFinished] timeout:1.0];
+    index.delegate = nil;
+    self.buildFinished = nil;
+    return index;
+}
+
+- (void)fileSearchIndexDidGrow:(FileSearchIndex *)index {
+}
+
+- (void)fileSearchIndexDidFinishBuilding:(FileSearchIndex *)index {
+    [self.buildFinished fulfill];
+}
 
 #pragma mark - Text
 
@@ -35,6 +83,18 @@
     XCTAssertTrue(VibeSearchTextMatchesQuery(@"Björk", @"bjork"));
     XCTAssertTrue(VibeSearchTextMatchesQuery(@"Bjork", @"björk"));
     XCTAssertTrue(VibeSearchTextMatchesQuery(@"SIGUR RÓS", @"sigur ros"));
+}
+
+- (void)testPreparedFileSearchKeepsCaseDiacriticAndWidthSemantics {
+    NSString *text = VibeSearchFoldedText(@"Ｂjörk — Jóga.flac\nHomogenic");
+    XCTAssertTrue(VibeSearchFoldedTextContainsQuery(
+            text, VibeSearchFoldedText(@"bjork")));
+    XCTAssertTrue(VibeSearchFoldedTextContainsQuery(
+            text, VibeSearchFoldedText(@"joga")));
+    XCTAssertTrue(VibeSearchFoldedTextContainsQuery(
+            text, VibeSearchFoldedText(@"homogenic")));
+    XCTAssertFalse(VibeSearchFoldedTextContainsQuery(
+            text, VibeSearchFoldedText(@"vespertine")));
 }
 
 - (void)testEmptyTextMatchesOnlyAnEmptyQuery {
@@ -117,6 +177,51 @@
     XCTAssertFalse(VibeSearchRootCoversPath(@"/Data/Music", @""));
 }
 
+#pragma mark - Persistent-root merging
+
+- (void)testExistingAncestorAbsorbsARestoredOrLiveChild {
+    NSArray<NSString *> *roots = @[@"/Data/Music", @"/Provider/Dropbox"];
+    XCTAssertEqual(VibeSearchFolderCoveringRootIndex(
+            roots, @"/Data/Music/Albums/Kid A"), 0u);
+    XCTAssertEqual(VibeSearchFolderIndexesCoveredByRoot(
+            roots, @"/Data/Music/Albums/Kid A").count, 0u);
+}
+
+- (void)testRestoredOrLiveAncestorReplacesEveryExistingChild {
+    NSArray<NSString *> *roots = @[
+        @"/Data/Music/Albums/Kid A",
+        @"/Provider/Dropbox",
+        @"/Data/Music/Singles"
+    ];
+    XCTAssertEqual(VibeSearchFolderCoveringRootIndex(roots, @"/Data/Music"), NSNotFound);
+    NSMutableIndexSet *expected = [NSMutableIndexSet indexSetWithIndex:0];
+    [expected addIndex:2];
+    XCTAssertEqualObjects(VibeSearchFolderIndexesCoveredByRoot(roots, @"/Data/Music"),
+                          expected);
+}
+
+- (void)testExactDuplicateTakesTheAbsorbPathOnly {
+    NSArray<NSString *> *roots = @[@"/Data/Music"];
+    XCTAssertEqual(VibeSearchFolderCoveringRootIndex(roots, @"/Data/Music"), 0u);
+}
+
+- (void)testRemovedParentSuppressesOnlyItsPendingSubtree {
+    NSArray<NSString *> *removedRoots = @[@"/Data/Music"];
+    XCTAssertTrue(VibeSearchPendingRestoreShouldBeSuppressed(
+            removedRoots, @[], @"/Data/Music/Albums/Kid A"));
+    XCTAssertFalse(VibeSearchPendingRestoreShouldBeSuppressed(
+            removedRoots, @[], @"/Provider/Dropbox"));
+}
+
+- (void)testExplicitReAddSupersedesAnOlderParentRemoval {
+    XCTAssertFalse(VibeSearchPendingRestoreShouldBeSuppressed(
+            @[@"/Data/Music"], @[@"/Data/Music/Albums"],
+            @"/Data/Music/Albums/Kid A"));
+    XCTAssertTrue(VibeSearchPendingRestoreShouldBeSuppressed(
+            @[@"/Data/Music"], @[@"/Provider/Dropbox"],
+            @"/Data/Music/Albums/Kid A"));
+}
+
 #pragma mark - Root pruning
 
 static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
@@ -167,6 +272,107 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
 
 - (void)testNoRootsIsNoRoots {
     XCTAssertEqualObjects([FileSearchIndex pruneNestedRoots:@[]], @[]);
+}
+
+#pragma mark - Async file filtering
+
+- (void)testAsyncFilteringExcludesPlaylistAndDeliversOnMain {
+    FileSearchIndex *index = [self indexWithRelativeFilePaths:@[
+        @"Music/Kid A/01 Everything.mp3",
+        @"Music/Kid A/02 Kid A.flac",
+        @"Music/Amnesiac/01 Packt.wav"
+    ]];
+
+    XCTestExpectation *foundExcluded = [self expectationWithDescription:@"excluded path found"];
+    __block NSString *excludedPath;
+    [index requestHitsMatchingQuery:@"everything" excluding:nil limit:1
+                         completion:^(NSArray<FileSearchHit *> *hits) {
+        XCTAssertEqual(hits.count, 1u);
+        excludedPath = hits.firstObject.url.path;
+        [foundExcluded fulfill];
+    }];
+    [self waitForExpectations:@[foundExcluded] timeout:1.0];
+    if (!excludedPath) {
+        return;
+    }
+
+    XCTestExpectation *delivered = [self expectationWithDescription:@"hits delivered"];
+    __block BOOL requestReturned = NO;
+    [index requestHitsMatchingQuery:@"kid a"
+                          excluding:[NSSet setWithObject:excludedPath]
+                              limit:1
+                         completion:^(NSArray<FileSearchHit *> *hits) {
+        XCTAssertTrue(requestReturned);
+        XCTAssertTrue(NSThread.isMainThread);
+        XCTAssertEqual(hits.count, 1u);
+        XCTAssertEqualObjects(hits.firstObject.fileName, @"02 Kid A.flac");
+        [delivered fulfill];
+    }];
+    requestReturned = YES;
+    [self waitForExpectations:@[delivered] timeout:1.0];
+}
+
+- (void)testNewRequestDeterministicallySupersedesPendingFiltering {
+    FileSearchIndex *index = [self indexWithRelativeFilePaths:@[
+        @"Music/Kid A/01 Everything.mp3",
+        @"Music/Amnesiac/01 Packt.wav"
+    ]];
+
+    XCTestExpectation *old = [self expectationWithDescription:@"old request dropped"];
+    old.inverted = YES;
+    XCTestExpectation *latest = [self expectationWithDescription:@"latest request delivered"];
+    [index requestHitsMatchingQuery:@"kid" excluding:nil limit:10
+                         completion:^(NSArray<FileSearchHit *> *hits) {
+        [old fulfill];
+    }];
+    [index requestHitsMatchingQuery:@"amnesiac" excluding:nil limit:10
+                         completion:^(NSArray<FileSearchHit *> *hits) {
+        XCTAssertEqual(hits.count, 1u);
+        XCTAssertEqualObjects(hits.firstObject.folderName, @"Amnesiac");
+        [latest fulfill];
+    }];
+    [self waitForExpectations:@[latest, old] timeout:0.2];
+}
+
+- (void)testCancellationDropsAPendingDelivery {
+    FileSearchIndex *index = [self indexWithRelativeFilePaths:@[
+        @"Music/Kid A/01 Everything.mp3"
+    ]];
+    XCTestExpectation *delivery = [self expectationWithDescription:@"cancelled delivery"];
+    delivery.inverted = YES;
+    [index requestHitsMatchingQuery:@"kid" excluding:nil limit:10
+                         completion:^(NSArray<FileSearchHit *> *hits) {
+        [delivery fulfill];
+    }];
+    [index cancelPendingHitRequests];
+    [self waitForExpectations:@[delivery] timeout:0.1];
+}
+
+- (void)testRepeatedQueryFiltersOnlyTheNewlyAppendedSuffix {
+    FileSearchIndex *index = [self indexWithRelativeFilePaths:@[
+        @"Music/Kid A/01 Everything.mp3",
+        @"Music/Amnesiac/01 Packt.wav"
+    ]];
+
+    XCTestExpectation *initial = [self expectationWithDescription:@"initial query"];
+    [index requestHitsMatchingQuery:@"kid" excluding:nil limit:10
+                         completion:^(NSArray<FileSearchHit *> *hits) {
+        XCTAssertEqual(hits.count, 1u);
+        [initial fulfill];
+    }];
+    [self waitForExpectations:@[initial] timeout:1.0];
+    XCTAssertEqual(index.lastFilterEvaluationCountForTesting, 2u);
+
+    NSURL *newURL = [NSURL fileURLWithPath:@"/Music/Kid A/02 Kid A.flac"];
+    [index appendFileURLForTesting:newURL];
+    XCTestExpectation *incremental = [self expectationWithDescription:@"incremental query"];
+    [index requestHitsMatchingQuery:@"kid" excluding:nil limit:10
+                         completion:^(NSArray<FileSearchHit *> *hits) {
+        XCTAssertEqual(hits.count, 2u);
+        [incremental fulfill];
+    }];
+    [self waitForExpectations:@[incremental] timeout:1.0];
+    XCTAssertEqual(index.lastFilterEvaluationCountForTesting, 1u);
 }
 
 @end

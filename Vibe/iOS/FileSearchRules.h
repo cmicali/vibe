@@ -40,6 +40,24 @@ static inline BOOL VibeSearchTextMatchesQuery(NSString *_Nullable text, NSString
                         locale:NSLocale.currentLocale].location != NSNotFound;
 }
 
+// FileSearchIndex prepares these strings once as the directory walk discovers
+// them. Repeating locale-aware folding for every indexed row on every
+// keystroke is substantially more work than the substring search itself.
+static inline NSString *VibeSearchFoldedText(NSString *_Nullable text) {
+    if (text.length == 0) {
+        return @"";
+    }
+    NSStringCompareOptions options =
+            NSCaseInsensitiveSearch | NSDiacriticInsensitiveSearch | NSWidthInsensitiveSearch;
+    return [text stringByFoldingWithOptions:options locale:NSLocale.currentLocale];
+}
+
+static inline BOOL VibeSearchFoldedTextContainsQuery(NSString *foldedText,
+                                                      NSString *foldedQuery) {
+    return foldedQuery.length > 0
+            && [foldedText rangeOfString:foldedQuery].location != NSNotFound;
+}
+
 // A track whose tags are loaded is named by them, with the filename as the
 // fallback the rest of the app already uses for an untagged file.
 static inline BOOL VibeSearchTrackMatchesQuery(NSString *_Nullable title,
@@ -80,6 +98,41 @@ static inline BOOL VibeSearchRootCoversPath(NSString *rootPath, NSString *path) 
                                                      : [rootPath stringByAppendingString:@"/"];
     NSString *pathPrefix = [path hasSuffix:@"/"] ? path : [path stringByAppendingString:@"/"];
     return [pathPrefix hasPrefix:rootPrefix];
+}
+
+// The two halves of SearchFolderStore's one merge. Existing roots are kept
+// minimal: an ancestor absorbs a candidate, while a candidate ancestor removes
+// every descendant. Exact duplicates take the first path and are absorbed.
+static inline NSUInteger VibeSearchFolderCoveringRootIndex(
+        NSArray<NSString *> *rootPaths, NSString *candidatePath) {
+    for (NSUInteger index = 0; index < rootPaths.count; index++) {
+        if (VibeSearchRootCoversPath(rootPaths[index], candidatePath)) {
+            return index;
+        }
+    }
+    return NSNotFound;
+}
+
+static inline NSIndexSet *VibeSearchFolderIndexesCoveredByRoot(
+        NSArray<NSString *> *rootPaths, NSString *candidatePath) {
+    NSMutableIndexSet *covered = [NSMutableIndexSet indexSet];
+    for (NSUInteger index = 0; index < rootPaths.count; index++) {
+        if (VibeSearchRootCoversPath(candidatePath, rootPaths[index])) {
+            [covered addIndex:index];
+        }
+    }
+    return covered;
+}
+
+// A removed covering root suppresses only pending bookmarks inside it. A live
+// root that now covers the bookmark is an explicit re-add and wins over that
+// older removal.
+static inline BOOL VibeSearchPendingRestoreShouldBeSuppressed(
+        NSArray<NSString *> *suppressedRootPaths,
+        NSArray<NSString *> *liveRootPaths,
+        NSString *resolvedPath) {
+    return VibeSearchFolderCoveringRootIndex(suppressedRootPaths, resolvedPath) != NSNotFound
+            && VibeSearchFolderCoveringRootIndex(liveRootPaths, resolvedPath) == NSNotFound;
 }
 
 NS_ASSUME_NONNULL_END

@@ -36,6 +36,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface PlayerViewController : UIViewController
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
 - (instancetype)initWithNibName:(nullable NSString *)nibName
                          bundle:(nullable NSBundle *)bundle NS_UNAVAILABLE;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_UNAVAILABLE;
@@ -46,6 +48,12 @@ NS_ASSUME_NONNULL_BEGIN
 // change track under the user — and the playhead's display link, which would
 // otherwise animate a waveform nobody can see.
 @property (nonatomic, getter=isPresented) BOOL presented;
+
+// Foreground-active for this exact scene, supplied by RootViewController from
+// the scene delegate. Foreground-inactive is off: the display link must not run
+// under Control Center or the app switcher merely because the scene has not
+// entered the background.
+@property (nonatomic, getter=isSceneActive) BOOL sceneActive;
 
 @property (nonatomic, weak) id<PlayerViewControllerDelegate> delegate;
 

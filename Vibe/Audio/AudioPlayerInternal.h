@@ -81,6 +81,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AVAudioFile             *_file;
     AVAudioFramePosition    _segmentStartFrame;
     uint64_t                _segmentGeneration;
+    // Monotonic identity minted synchronously by every explicit play. It is
+    // guarded by _stateLock because queue-side settlements and iOS recovery
+    // completions compare against submissions made from main.
+    uint64_t                _nextSubmittedPlayIdentifier;
     // The explicit play submission which owns the currently sounding graph.
     // Gapless promotion preserves it; a newer explicit play, stop, or failure
     // clears it. Natural-end and promotion deliveries capture it so replaying

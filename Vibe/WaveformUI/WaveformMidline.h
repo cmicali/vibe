@@ -3,13 +3,10 @@
 //  Vibe
 //
 //  The metrics of every non-waveform midline: the loading indicator's track,
-//  filled head and shimmer band, and the empty state's static line.
+//  filled head and shimmer band, and macOS's empty-state line.
 //
-//  THEY ARE ONE ELEMENT IN DIFFERENT STATES, so they share a height and a
-//  palette and cannot drift apart. That claim used to be made by a Mac-only
-//  private header, which is exactly how the iOS scrubber came to draw its
-//  placeholder at 2pt while drawing its own baselines at 1pt, and its shimmer
-//  half again as bright as the mac's. Both views read these now.
+//  The loading control and macOS empty line share a height and palette so they
+//  cannot drift apart. The iOS empty state deliberately draws no line.
 //
 //  Nothing here draws beside a loaded waveform any more: the scrubber's
 //  off-track baselines are gone, so a track showing its waveform shows no
@@ -30,9 +27,8 @@ static const CGFloat kVibeMidlineHeight = 1;
 static const CGFloat kVibeUnplayedWaveformAlpha = 0.375;
 
 // The inert midline, shared by the loading indicator's unfilled track and the
-// empty state's static line. It lands on the unplayed waveform's own baseline,
-// the midline the short bars sit on, so the two read as one surface when the
-// waveform replaces it.
+// macOS empty-state line. It lands on the unplayed waveform's own baseline, so
+// the loading track and arriving waveform read as one surface.
 static const CGFloat kVibeInertMidlineAlpha = 0.275;
 
 // The loading indicator's filled head, which fades to zero over its last few

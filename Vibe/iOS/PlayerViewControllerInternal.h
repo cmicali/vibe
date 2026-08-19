@@ -31,7 +31,7 @@
 @class AudioWaveformCache;
 @class PageWaveformCoordinator;
 @class TrackPageCell;
-@class VibeTimeControl;
+@class TrackPageTimeControl;
 @class WaveformScrubberView;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -80,7 +80,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     TrackPageCell           *_boundPage;        // the current page the chrome bindings point into
     WaveformScrubberView    *_waveformView;
     UILabel                 *_elapsedLabel;
-    VibeTimeControl         *_remainingTimeControl;
+    TrackPageTimeControl    *_remainingTimeControl;
     UIView                  *_transportView;    // bound: the current page's transport row
     // Whichever scrubber currently holds the pager still, which is NOT always
     // the bound page's: playback runs on through a scrub, so a track ending
@@ -101,9 +101,9 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     // outlives the fetch window that asked for it. Owned by +Pager.
     NSMutableIndexSet       *_artHeldPages;
 
-    // Whether the scene is foregrounded. Core state, here because the debug
-    // channel's state dump reports it.
-    BOOL                    _foreground;
+    // Whether this exact scene is foreground-active. Core state, here because
+    // the debug channel's state dump reports it.
+    BOOL                    _sceneActive;
 
     // The whole second the time labels last rendered for a scrub. The scrub
     // position arrives per frame of scroll and the labels show seconds, so
@@ -129,7 +129,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 // The transport row is up whenever there is something to play: only the empty
 // state hides it.
 - (CGFloat)chromeAlpha;
-// The display link runs only while playing in the foreground.
+// The display link runs only while playing in the active scene.
 - (void)updateScrollLinkState;
 // The pager owns the header, art, and waveform; rendering the current track
 // means refreshing its page and rebinding the live chrome to it.
@@ -142,7 +142,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 // duration once metadata knows it.
 + (void)renderRestingTimesForTrack:(nullable AudioTrack *)track
                            elapsed:(UILabel *)elapsed
-                         remaining:(VibeTimeControl *)remaining;
+                         remaining:(TrackPageTimeControl *)remaining;
 - (void)renderRestingTimesForTrack:(nullable AudioTrack *)track;
 
 #pragma mark - Transport

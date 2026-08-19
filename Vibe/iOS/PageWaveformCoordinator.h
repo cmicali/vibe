@@ -46,7 +46,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Takes over the cache's delegate slot for its lifetime.
 - (instancetype)initWithCache:(AudioWaveformCache *)cache
-                     delegate:(id<PageWaveformCoordinatorDelegate>)delegate;
+                     delegate:(id<PageWaveformCoordinatorDelegate>)delegate NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
 
 // The page the one load is pointed at; NSNotFound after a reset. Deliveries
 // land on this index.

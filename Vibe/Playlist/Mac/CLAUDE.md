@@ -8,6 +8,8 @@ The `NSTableView` half of `Vibe/Playlist/`: `PlaylistController`, `PlaylistTable
 
 `PlaylistController` is the `NSTableViewDataSource` and delegate and decides only cell **content**, through `cellViewForColumn:` and the formatting helpers.
 
+An evicted embedded thumbnail returns the placeholder without decoding in the cell callback. Its bounded background recovery posts the exact metadata object; `PlaylistController` reloads only matching visible rows' artwork column when it arrives.
+
 **TRAP: cell content is set as an *attributed* string, and an attributed string's own paragraph style overrides the cell's `lineBreakMode`.** Its default wraps, so every column's attributes must carry a truncating paragraph style of their own, or a long title wraps to a clipped second line instead of truncating. `PlaylistTextCell` sets `usesSingleLineMode`, which is what actually centers a cell's text vertically.
 
 ## Row appearance

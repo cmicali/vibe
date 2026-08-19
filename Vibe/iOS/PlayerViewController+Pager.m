@@ -486,12 +486,15 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 // playhead's display link until the next swipe, so every take arms a
 // generation-tagged release that bounds it.
 - (void)holdForProgrammaticPagerScrolling:(BOOL)scrolling {
-    if (_pagerProgrammaticScrolling == scrolling) {
-        return;
-    }
+    BOOL changed = _pagerProgrammaticScrolling != scrolling;
     _pagerProgrammaticScrolling = scrolling;
+    // Every request owns a fresh deadline, including a retarget while an older
+    // animation is still running. Reusing the old deadline can release the
+    // frame-budget hold in the middle of the newer animation.
     uint64_t generation = ++_pagerProgrammaticScrollGeneration;
-    [self applyFrameBudgetHold];
+    if (changed) {
+        [self applyFrameBudgetHold];
+    }
     if (!scrolling) {
         return;
     }
@@ -502,14 +505,23 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
         PlayerViewController *strongSelf = weakSelf;
         if (strongSelf && generation == strongSelf->_pagerProgrammaticScrollGeneration) {
             [strongSelf holdForProgrammaticPagerScrolling:NO];
+            // Requests made after setContentOffset:animated: took the hold are
+            // deliberately dropped by the coordinator. The ordinary end
+            // callback reissues this request; its deadline backstop must do the
+            // same when that callback never arrives.
+            if (strongSelf.isPresented) {
+                [strongSelf requestWaveformForIndex:strongSelf->_playlist.currentIndex];
+            }
         }
     });
 }
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
-    _pagerProgrammaticScrolling = NO;
-    _pagerScrolling = YES;
-    [self applyFrameBudgetHold];
+    // Take the user hold before retiring the programmatic one, so its pending
+    // deliveries never flash through between the two. The setter also
+    // invalidates that animation's deadline.
+    [self holdForPagerScrolling:YES];
+    [self holdForProgrammaticPagerScrolling:NO];
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {

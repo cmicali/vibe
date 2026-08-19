@@ -17,8 +17,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)loadMetadata:(NSArray<AudioTrack *> *)tracks;
 
 // Cancels the playlist-wide scan and releases its loader, which strongly holds
-// every track it queued, thumbnails included. Call it on File > Close. Main
-// thread only.
+// every track it queued, including each thumbnail's compact bytes. Decoded
+// thumbnail pixels are held separately by a bounded shared cache. Call it on
+// File > Close. Main thread only.
 - (void)cancelScan;
 
 // A jump-the-queue load for the track the user has just started. The

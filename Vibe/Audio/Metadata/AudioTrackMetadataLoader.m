@@ -754,8 +754,8 @@
     if (!cachedMetaData) {
         return NO;
     }
-    // The unarchive has already decoded the archived thumbnail, so the main
-    // thread's first cachedThumbnail read after publication is a plain lookup.
+    // Unarchive keeps compact thumbnail bytes. The first visible row requests
+    // their bounded off-main decode; offscreen rows cost no decoded pixels.
     //
     // Another lane may have installed a successful parse result while this
     // disk read was in flight. Only the winner publishes: otherwise the cache

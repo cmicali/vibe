@@ -68,9 +68,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Expands to its OWN directory as the playlist with it selected, exactly as
 // picking it would — a search hit deep in the tree is not a one-track playlist.
 //
-// The grant and the bookmark are deliberately left as they are: the scope in
-// hand already covers the subtree, and re-pointing the bookmark at a subfolder
-// would shrink next launch's searchable root to it.
+// The covering persistent grant is retained independently for this playlist,
+// even if its Settings row is removed meanwhile. The session bookmark is left
+// as it is: re-pointing it at a subfolder would shrink next launch's searchable
+// root to it.
 - (void)openFileFromSearchRoots:(NSURL *)url;
 
 // Kicks off resolving the persisted bookmark; the folder re-delivers through

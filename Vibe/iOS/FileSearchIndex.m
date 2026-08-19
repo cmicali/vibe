@@ -23,6 +23,10 @@ static const NSUInteger kMaxIndexedFiles = 20000;
 static const NSUInteger kFlushBatchSize = 128;
 static const NSTimeInterval kFlushInterval = 0.2;
 
+@interface FileSearchHit ()
+- (instancetype)initWithURL:(NSURL *)url;
+@end
+
 @implementation FileSearchHit
 
 - (instancetype)initWithURL:(NSURL *)url {
@@ -39,12 +43,17 @@ static const NSTimeInterval kFlushInterval = 0.2;
 
 // The path, kept beside the hit so a keystroke's exclusion test is a set lookup
 // on a string already in hand rather than NSURL.path per row per keystroke.
-@interface VibeIndexedFile : NSObject
+@interface IndexedSearchFile : NSObject
 @property (nonatomic) FileSearchHit *hit;
 @property (nonatomic) NSString *path;
+@property (nonatomic) NSString *foldedSearchText;
 @end
 
-@implementation VibeIndexedFile
+@implementation IndexedSearchFile
+@end
+
+@interface FileSearchIndex ()
+- (IndexedSearchFile *)indexedFileForURL:(NSURL *)url;
 @end
 
 static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
@@ -99,13 +108,28 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
 
 @implementation FileSearchIndex {
     NSArray<NSURL *>           *_roots;
-    NSMutableArray<VibeIndexedFile *> *_files;
+    NSMutableArray<IndexedSearchFile *> *_files;
     BOOL                        _built;
     // Stamped on the walk; a mismatch on a batch's arrival means the roots
     // changed under it and the batch is dropped. Read from the walk queue and
     // written from main, so atomic.
     _Atomic(uint64_t)           _buildGeneration;
+    // Every request supersedes the preceding localized pass. Atomic because the
+    // filter queue reads it while main owns requests and root changes.
+    _Atomic(uint64_t)           _hitRequestGeneration;
     dispatch_queue_t            _walkQueue;
+    dispatch_queue_t            _filterQueue;
+    // Filter-queue only. A growing index only appends within one build
+    // generation, so an unchanged query can carry its prior answer forward and
+    // inspect the new suffix once instead of rescanning the whole prefix after
+    // every 128-file delivery.
+    uint64_t                    _cachedFilterBuildGeneration;
+    NSString                   *_cachedFoldedQuery;
+    NSSet<NSString *>          *_cachedExcludedPaths;
+    NSUInteger                  _cachedFilterLimit;
+    NSUInteger                  _cachedFilteredFileCount;
+    NSArray<FileSearchHit *>   *_cachedFileHits;
+    NSUInteger                  _lastFilterEvaluationCount;
 }
 
 - (instancetype)init {
@@ -114,12 +138,16 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
         _roots = @[];
         _files = [NSMutableArray array];
         atomic_init(&_buildGeneration, 1);
+        atomic_init(&_hitRequestGeneration, 1);
         // Utility, not user-initiated: the open the user is waiting on outranks
         // every background read (see the root CLAUDE.md), and a directory
         // listing on a file provider is the same IPC that open needs.
         dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
                 DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
         _walkQueue = dispatch_queue_create("FileSearchIndex", attributes);
+        dispatch_queue_attr_t filterAttributes = dispatch_queue_attr_make_with_qos_class(
+                DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
+        _filterQueue = dispatch_queue_create("FileSearchIndex.filter", filterAttributes);
     }
     return self;
 }
@@ -132,6 +160,7 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
         return;
     }
     atomic_fetch_add(&_buildGeneration, 1);   // abandons a walk in flight
+    [self cancelPendingHitRequests];
     _roots = pruned;
     _files = [NSMutableArray array];
     _built = NO;
@@ -155,7 +184,7 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
 // Walk queue only.
 - (void)walkRoots:(NSArray<NSURL *> *)roots generation:(uint64_t)generation {
     NSSet<NSString *> *supported = [NSURLUtil supportedExtensions];
-    NSMutableArray<VibeIndexedFile *> *batch = [NSMutableArray arrayWithCapacity:kFlushBatchSize];
+    NSMutableArray<IndexedSearchFile *> *batch = [NSMutableArray arrayWithCapacity:kFlushBatchSize];
     NSTimeInterval lastFlush = CFAbsoluteTimeGetCurrent();
     NSUInteger total = 0;
     BOOL full = NO;
@@ -191,10 +220,7 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
             if (isDir) {
                 continue;
             }
-            VibeIndexedFile *file = [[VibeIndexedFile alloc] init];
-            file.hit = [[FileSearchHit alloc] initWithURL:url];
-            file.path = url.path ?: @"";
-            [batch addObject:file];
+            [batch addObject:[self indexedFileForURL:url]];
             total++;
             if (total >= kMaxIndexedFiles) {
                 LogWarn(@"FileSearchIndex: stopped at the %lu-file cap; results are partial",
@@ -222,9 +248,21 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
     });
 }
 
+// Walk/filter-test construction. The expensive locale-aware folding happens
+// on the walk queue, never once per row per keystroke.
+- (IndexedSearchFile *)indexedFileForURL:(NSURL *)url {
+    IndexedSearchFile *file = [[IndexedSearchFile alloc] init];
+    file.hit = [[FileSearchHit alloc] initWithURL:url];
+    file.path = url.path ?: @"";
+    NSString *searchText = [NSString stringWithFormat:@"%@\n%@",
+            file.hit.fileName, file.hit.folderName ?: @""];
+    file.foldedSearchText = VibeSearchFoldedText(searchText);
+    return file;
+}
+
 // Walk queue only. Tolerates an empty batch, since the flush closing the walk
 // is unconditional.
-- (void)flushBatch:(NSArray<VibeIndexedFile *> *)batch generation:(uint64_t)generation {
+- (void)flushBatch:(NSArray<IndexedSearchFile *> *)batch generation:(uint64_t)generation {
     if (batch.count == 0) {
         return;
     }
@@ -239,27 +277,80 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
 
 #pragma mark - Querying
 
-- (NSArray<FileSearchHit *> *)hitsMatchingQuery:(NSString *)query
-                                      excluding:(NSSet<NSString *> *)excludedPaths
-                                          limit:(NSUInteger)limit {
-    if (query.length == 0 || limit == 0) {
-        return @[];
-    }
-    NSMutableArray<FileSearchHit *> *hits = [NSMutableArray arrayWithCapacity:MIN(limit, (NSUInteger)64)];
-    for (VibeIndexedFile *file in _files) {
-        if ([excludedPaths containsObject:file.path]) {
-            continue;   // the playlist section is already showing it
+- (void)requestHitsMatchingQuery:(NSString *)query
+                       excluding:(NSSet<NSString *> *)excludedPaths
+                           limit:(NSUInteger)limit
+                      completion:(void (^)(NSArray<FileSearchHit *> *))completion {
+    uint64_t generation = atomic_fetch_add(&_hitRequestGeneration, 1) + 1;
+    uint64_t buildGeneration = atomic_load(&_buildGeneration);
+    NSArray<IndexedSearchFile *> *files = [_files copy];
+    NSString *foldedQuery = VibeSearchFoldedText(query);
+    NSSet<NSString *> *excludedSnapshot = [excludedPaths copy] ?: [NSSet set];
+    dispatch_async(_filterQueue, ^{
+        if (atomic_load(&self->_hitRequestGeneration) != generation) {
+            return;
         }
-        FileSearchHit *hit = file.hit;
-        if (!VibeSearchFileMatchesQuery(hit.fileName, hit.folderName, query)) {
-            continue;
+        BOOL canContinue = self->_cachedFilterBuildGeneration == buildGeneration
+                && self->_cachedFilterLimit == limit
+                && self->_cachedFilteredFileCount <= files.count
+                && [self->_cachedFoldedQuery isEqualToString:foldedQuery]
+                && [self->_cachedExcludedPaths isEqualToSet:excludedSnapshot];
+        NSUInteger startIndex = canContinue ? self->_cachedFilteredFileCount : 0;
+        NSMutableArray<FileSearchHit *> *hits = canContinue
+                ? [self->_cachedFileHits mutableCopy]
+                : [NSMutableArray arrayWithCapacity:MIN(limit, (NSUInteger)64)];
+        NSUInteger evaluations = 0;
+        if (foldedQuery.length > 0 && limit > 0 && hits.count < limit) {
+            for (NSUInteger index = startIndex; index < files.count; index++) {
+                if (atomic_load(&self->_hitRequestGeneration) != generation) {
+                    return;
+                }
+                IndexedSearchFile *file = files[index];
+                evaluations++;
+                if ([excludedSnapshot containsObject:file.path]) {
+                    continue;
+                }
+                if (!VibeSearchFoldedTextContainsQuery(
+                        file.foldedSearchText, foldedQuery)) {
+                    continue;
+                }
+                [hits addObject:file.hit];
+                if (hits.count >= limit) {
+                    break;
+                }
+            }
         }
-        [hits addObject:hit];
-        if (hits.count >= limit) {
-            break;
-        }
-    }
-    return hits;
+        NSArray<FileSearchHit *> *result = [hits copy];
+        self->_cachedFilterBuildGeneration = buildGeneration;
+        self->_cachedFoldedQuery = foldedQuery;
+        self->_cachedExcludedPaths = excludedSnapshot;
+        self->_cachedFilterLimit = limit;
+        self->_cachedFilteredFileCount = files.count;
+        self->_cachedFileHits = result;
+        self->_lastFilterEvaluationCount = evaluations;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (atomic_load(&self->_hitRequestGeneration) == generation) {
+                completion(result);
+            }
+        });
+    });
+}
+
+- (void)cancelPendingHitRequests {
+    atomic_fetch_add(&_hitRequestGeneration, 1);
+}
+
+- (void)appendFileURLForTesting:(NSURL *)url {
+    NSParameterAssert(NSThread.isMainThread);
+    [_files addObject:[self indexedFileForURL:url]];
+}
+
+- (NSUInteger)lastFilterEvaluationCountForTesting {
+    __block NSUInteger count;
+    dispatch_sync(_filterQueue, ^{
+        count = self->_lastFilterEvaluationCount;
+    });
+    return count;
 }
 
 @end

@@ -38,9 +38,9 @@
 }
 
 // The pre-submit edge: synchronous on play:'s calling thread (main at every
-// call site), before the open is submitted to the player queue, so the scan's
-// scan materialization stands down before the foreground open contends with a download
-// it could have suspended. Deliberately NOT stale-guarded: this fires before
+// call site), before the open is submitted to the player queue, so background
+// scan materialization stands down before it can contend with the foreground
+// download. Deliberately NOT stale-guarded: this fires before
 // the playlist reflects the play, and the hold is idempotent. Cleared exactly
 // once by the matching settlement — didStartPlaying:'s prefetch
 // acknowledgement, or the error path. Same rule as the mac's
@@ -57,7 +57,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         return;
     }
     [self notifyDidBeginLoading];
-    // The cloud-lane hold is willSubmitPlayForTrack:'s now; this callback owns
+    // The background-materialization hold is willSubmitPlayForTrack:'s now; this callback owns
     // only the slow-open UI and the monitor below, which stays here so a fast
     // local play never constructs a monitor it would cancel moments later.
     // Best-effort determinate fill while the provider materializes the file.
@@ -111,7 +111,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // of its own to clear the flag.
     _seekInFlight = NO;
     // The open landed, so the file is materialized; the monitor's work is
-    // done whatever it last reported. The cloud-lane hold is NOT released
+    // done whatever it last reported. The background-materialization hold is NOT released
     // here: it rides until the successor prefetch below acknowledges its
     // claim, or the lane's next transfer and the prefetch would race to
     // download the same file.
@@ -129,7 +129,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [_metadataCache loadMetadataNow:track];
     // The open settled, so the playlist-wide sweep it was deferred behind runs.
     [self startPendingMetadataLoad];
-    // The cloud-lane hold releases in the acknowledgement, after the
+    // The background-materialization hold releases in the acknowledgement, after the
     // successor's open claim is registered. The stale guard is the hold
     // GENERATION, not track identity: an acknowledgement outrun by any newer
     // submission — including a replay of this same row, which reuses this
@@ -250,6 +250,12 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
+    if ([error.domain isEqualToString:kVibeAudioErrorDomain]
+            && error.code == VibeAudioErrorNotPlaying) {
+        // A transport toggle raced a track ending, or nothing is loaded. It is
+        // the benign no-op AudioErrorRules promises never reaches presentation.
+        return;
+    }
     NSURL *url = error.userInfo[kVibeAudioErrorTrackURLKey];
     AudioTrack *current = _playlist.currentTrack;
     if (url && current && ![url isEqual:current.url]) {

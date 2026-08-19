@@ -17,21 +17,24 @@
 //  playlist, so a folder in this list becomes playable through search without
 //  this list competing with the Files tab.
 //
-//  Main thread only. Bookmark resolution and minting are file-provider IPC and
-//  run on a private queue; every delivery lands back here.
+//  Main thread only. Bookmark resolution is bounded and concurrent, bookmark
+//  minting has its own queue, and every delivery lands back here. One slow
+//  provider therefore cannot hold every restored row or a newly added folder.
 //
 
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Posted on main whenever folderURLs changes — an add, a remove, or the launch
-// resolution landing. The search screen re-reads its roots on this: the resolve
-// is asynchronous, so roots can arrive AFTER that screen has appeared, and its
-// own viewWillAppear would then never hear about them.
+// Posted on main whenever folderURLs changes — an add, a remove, or one launch
+// restoration landing. The search screen re-reads its roots on this: restored
+// roots can arrive AFTER that screen has appeared.
 extern NSNotificationName const VibeSearchFoldersDidChangeNotification;
 
 @interface SearchFolderStore : NSObject
+
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
 
 // One list for the app. A singleton like FolderAccessManager, and for the same
 // reason: it holds process-wide grants, and a second one would hold a second set
@@ -39,7 +42,7 @@ extern NSNotificationName const VibeSearchFoldersDidChangeNotification;
 @property (class, nonatomic, readonly) SearchFolderStore *shared;
 
 // The folders the user added, in that order — exactly the rows Settings shows.
-// Empty until restorePersistedFolders has resolved them.
+// Starts empty and grows as independent launch restorations settle.
 @property (nonatomic, readonly) NSArray<NSURL *> *folderURLs;
 
 // Every root that is searchable no matter what is open: folderURLs plus the
@@ -52,9 +55,10 @@ extern NSNotificationName const VibeSearchFoldersDidChangeNotification;
 // redundant — has to be tested against the permanent roots and only those.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
-// Resolves every persisted bookmark and starts its scope. The scene delegate
-// calls it once at launch, beside its restore-or-adopt; unlike those two it is
-// not exclusive with either, since it opens nothing and plays nothing.
+// Independently resolves persisted bookmarks and starts their scopes. Rows
+// appear as each bookmark settles; the scene delegate calls this once at
+// launch, beside its restore-or-adopt. It is not exclusive with either, since
+// it opens nothing and plays nothing.
 - (void)restorePersistedFolders;
 
 // Adds a folder the document picker just granted. NO means nothing was added

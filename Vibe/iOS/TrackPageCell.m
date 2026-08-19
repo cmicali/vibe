@@ -76,10 +76,10 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 // the card without the cell's layoutSubviews running again, and the shadow
 // stays drawn at the previous, larger size. On screen that is a wide dark halo
 // around the art that vanishes the moment a swipe recycles the cell.
-@interface VibeArtCardView : UIView
+@interface TrackPageArtCardView : UIView
 @end
 
-@implementation VibeTimeControl {
+@implementation TrackPageTimeControl {
     UILabel *_label;
     NSString *_text;
     NSTextAlignment _textAlignment;
@@ -101,7 +101,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         self.accessibilityLabel = STR_SETTINGS_SECTION_TIME;
         self.accessibilityTraits = UIAccessibilityTraitButton;
         self.text = STR_LABEL_TIME_UNKNOWN;
-        __weak VibeTimeControl *weakSelf = self;
+        __weak TrackPageTimeControl *weakSelf = self;
         [self registerForTraitChanges:@[UITraitPreferredContentSizeCategory.class]
                           withHandler:^(id<UITraitEnvironment> environment,
                                         UITraitCollection *previous) {
@@ -142,10 +142,10 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 }
 @end
 
-@implementation VibeTransportRowView
+@implementation TrackPageTransportView
 @end
 
-@implementation VibeArtCardView
+@implementation TrackPageArtCardView
 - (void)layoutSubviews {
     [super layoutSubviews];
     self.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:self.bounds
@@ -209,7 +209,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         // The Apple Music now-playing card: rounded art on a large soft
         // shadow. The shadow lives on the container (masksToBounds off), the
         // corner clip on the image view inside.
-        _artCard = [[VibeArtCardView alloc] init];
+        _artCard = [[TrackPageArtCardView alloc] init];
         _artCard.layer.shadowColor = UIColor.blackColor.CGColor;
         _artCard.layer.shadowOpacity = 0.35;
         _artCard.layer.shadowRadius = 24;
@@ -284,7 +284,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 
         _elapsedLabel = [self makeTimeLabel];
         [content addSubview:_elapsedLabel];
-        _remainingTimeControl = [[VibeTimeControl alloc] initWithFrame:CGRectZero];
+        _remainingTimeControl = [[TrackPageTimeControl alloc] initWithFrame:CGRectZero];
         _remainingTimeControl.textAlignment = NSTextAlignmentRight;
         _remainingTimeControl.translatesAutoresizingMaskIntoConstraints = NO;
         [content addSubview:_remainingTimeControl];
@@ -293,7 +293,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         // fades as a unit. It is a plain container rather than a stack view so
         // the buttons keep their oversized tap targets while the glyphs inside
         // stay small — the mini player's rule, and Apple Music's.
-        _transportView = [[VibeTransportRowView alloc] init];
+        _transportView = [[TrackPageTransportView alloc] init];
         _transportView.translatesAutoresizingMaskIntoConstraints = NO;
         [content addSubview:_transportView];
 
@@ -488,7 +488,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 
     return @[
         [_artCard.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
-        [_artCard.topAnchor constraintEqualToAnchor:content.topAnchor constant:16],
+        [_artCard.topAnchor constraintEqualToAnchor:safe.topAnchor constant:16],
         [_artCard.heightAnchor constraintEqualToAnchor:content.heightAnchor
                                              multiplier:kCellArtHeightFractionLandscape],
 
@@ -633,7 +633,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 // therefore installed pre-tinted and AlwaysOriginal, which opts out of the
 // tinting the adjustment rides on, and carries the alpha itself.
 //
-// Swallowing the tap is VibeTransportRowView's job, not this one's: a
+// Swallowing the tap is TrackPageTransportView's job, not this one's: a
 // disabled button is not handed back by hit-testing at all, so the row has to
 // decline the touch on its behalf.
 - (void)setNextEnabled:(BOOL)enabled {

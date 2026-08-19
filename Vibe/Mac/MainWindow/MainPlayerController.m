@@ -190,6 +190,10 @@
                                            selector:@selector(folderArtDidResolve:)
                                                name:FolderArtDidResolveNotification
                                              object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(thumbnailDidLoad:)
+                                               name:AudioTrackMetadataThumbnailDidLoadNotification
+                                             object:nil];
 
     _artworkController = [[ArtworkDisplayController alloc] initWithContentView:self.playerContentView];
     __weak MainPlayerController *weakControllerForArt = self;
@@ -672,6 +676,13 @@
     [FolderArtResolver.sharedInstance invalidateDirectoriesSettledWithoutGrant];
     [self.playlistController reloadAllTracks];
     [self updateUI];
+}
+
+- (void)thumbnailDidLoad:(NSNotification *)notification {
+    AudioTrack *displayed = [self displayedTrack];
+    if (displayed.metadata == notification.object) {
+        [self updateUI];
+    }
 }
 
 // A folder's artwork question has been answered — with a cover, or with "it has

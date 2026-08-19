@@ -5,7 +5,7 @@
 //  The player's iOS engine-recovery half — what AudioPlayer+Devices'
 //  config-change and device-loss handling is on macOS. It lives in this
 //  directory so only the VibeiOS target compiles it: the mac app never sees
-//  these entry points, where reinitializeAfterMediaServicesReset in
+//  these entry points, where reinitializing after a media-services reset in
 //  particular would be harmful (its config-change observer would keep
 //  watching the discarded engine, and the output-device binding would go
 //  stale). AudioSessionController's delegate verdicts are the only callers.
@@ -14,6 +14,10 @@
 #import "AudioPlayer.h"
 
 NS_ASSUME_NONNULL_BEGIN
+
+typedef void (^VibeMediaServicesResetCompletion)(
+        AudioTrack * _Nullable resetTrack,
+        NSTimeInterval lastValidPosition);
 
 @interface AudioPlayer (Recovery)
 
@@ -28,11 +32,16 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Media services crashed and were relaunched: the engine, its nodes and every
 // open AVAudioFile are invalid and must be recreated, per AVAudioSession's
-// contract for AVAudioSessionMediaServicesWereResetNotification. Drops them
-// all, recreates the engine and reinstalls the FX graph, then reports Stopped
-// with no currentTrack. Like stop, it fires no delegate callback; the caller
-// owns re-parking or replaying the track.
-- (void)reinitializeAfterMediaServicesReset;
+// contract for AVAudioSessionMediaServicesWereResetNotification. Call this on
+// the notification's receiving thread. It establishes a player-queue barrier
+// at that edge, ordered with play submissions, then drops the invalid objects,
+// recreates the engine and reports Stopped with no currentTrack. completion
+// runs on main with the pre-reset track and lock-only position after that state
+// is authoritative. It is dropped when a play submitted after the reset edge
+// owns the rebuilt engine instead. Like stop, rebuilding fires no delegate
+// callback.
+- (void)beginMediaServicesResetWithCompletion:
+        (nullable VibeMediaServicesResetCompletion)completion;
 
 @end
 

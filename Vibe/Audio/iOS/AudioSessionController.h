@@ -8,8 +8,10 @@
 //  never touches the engine graph itself — the delegate maps the verdicts
 //  onto the player's public transport and recovery API.
 //
-//  Main thread only: the delegate verdicts, activate and deactivateWhenIdle
-//  all run there, and the notification handlers hop to it.
+//  Main thread only: activate, deactivateWhenIdle and every delegate verdict
+//  run there. The media-reset receipt edge is the sole exception, documented
+//  on that delegate method: it must establish the player's queue barrier
+//  before a later main-thread play can pass it.
 //
 
 #import <Foundation/Foundation.h>
@@ -29,31 +31,45 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)audioSessionShouldPause:(AudioSessionController *)controller;
 
 // An interruption ended and the system says resuming is appropriate. Sent
-// only when playback was playing when the matching interruption began.
+// only when playback was playing at the matching Began edge and the controller
+// has reactivated without clearing a newer route-loss or media-reset verdict.
 - (void)audioSessionShouldResume:(AudioSessionController *)controller;
 
 // The engine stopped itself because the output configuration changed — a new
 // route or sample rate, as when headphones or Bluetooth connect — not because
 // output was lost. Playback should continue on the new route: route the
 // verdict to the player's recoverFromEngineConfigurationChange, which
-// restarts in place while playing and no-ops otherwise.
+// restarts in place while playing and no-ops otherwise. The controller
+// classifies the previous and current output routes before sending it, so a
+// configuration notification that precedes headphone-loss notification is a
+// pause instead.
 - (void)audioSessionEngineConfigurationChanged:(AudioSessionController *)controller;
 
 // Media services crashed and were relaunched: every live audio object is
-// invalid. Rebuild through the player's reinitializeAfterMediaServicesReset
-// and re-park the current track.
-- (void)audioSessionMediaServicesWereReset:(AudioSessionController *)controller;
+// invalid. This is called synchronously on the notification's receiving
+// thread, not main. Its only permitted action is beginMediaServicesReset on
+// the player; that method's main completion owns UI state and re-parking.
+- (void)audioSessionDidReceiveMediaServicesReset:(AudioSessionController *)controller;
 
 @end
 
 @interface AudioSessionController : NSObject
 
-@property (nonatomic, weak) id<AudioSessionControllerDelegate> delegate;
+@property (nonatomic, weak, readonly) id<AudioSessionControllerDelegate> delegate;
+
+// Registration begins during initialization, so the delegate must already be
+// present when the first notification can arrive.
+- (instancetype)initWithDelegate:(id<AudioSessionControllerDelegate>)delegate
+        NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
 
 // Category Playback + setActive:YES, and cancels any pending idle
-// deactivation. Idempotent and cheap — call before every play/resume rather
-// than at launch, so Vibe never claims audio it is not using (the same rule
-// NowPlayingController applies to the Now Playing card).
+// deactivation. Idempotent and cheap — call before every user play/resume
+// rather than at launch, so Vibe never claims audio it is not using (the same
+// rule NowPlayingController applies to the Now Playing card). The controller
+// handles interruption-ended automatic activation separately because that
+// system suggestion may not clear route-loss or media-reset ownership.
 - (BOOL)activate;
 
 // Releases the session, with NotifyOthersOnDeactivation so the app Vibe

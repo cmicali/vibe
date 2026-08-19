@@ -38,6 +38,118 @@ static const NSTimeInterval kArtworkLoadPendingGrace = 30;
 static const NSUInteger kArtworkMaterializationMaximumFailures = 3;
 static const NSTimeInterval kArtworkAdmissionInitialRetryDelay = 0.1;
 static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
+static const NSUInteger kEmbeddedThumbnailCacheCount = 128;
+static const NSUInteger kEmbeddedThumbnailDecodeRunningCount = 2;
+// Parked decode requests are visible rows awaiting pixels; the bound is app
+// memory for parked blocks, unrelated to the pixel cache's own count.
+static const NSUInteger kEmbeddedThumbnailDecodePendingCount = 126;
+
+// NSCache treats its limits as eviction suggestions. The row-art guarantee is
+// an actual bound, so keep the tiny LRU explicit: every image is decoded at no
+// more than 128 x 128 pixels, and no more than 128 of them are retained here.
+// In-flight decodes hold pixels outside the cache, bounded separately by the
+// decode scheduler's running count plus the metadata worker pool.
+@interface EmbeddedThumbnailKey : NSObject <NSCopying>
+@end
+
+@implementation EmbeddedThumbnailKey
+- (id)copyWithZone:(NSZone *)zone {
+    (void)zone;
+    return self;
+}
+@end
+
+@interface EmbeddedThumbnailCache : NSObject
+- (nullable VibeImage *)imageForKey:(EmbeddedThumbnailKey *)key;
+- (void)setImage:(VibeImage *)image forKey:(EmbeddedThumbnailKey *)key;
+- (void)removeImageForKey:(EmbeddedThumbnailKey *)key;
+- (void)removeAllImages;
+@property (nonatomic, readonly) NSUInteger count;
+@end
+
+@implementation EmbeddedThumbnailCache {
+    NSMutableDictionary<EmbeddedThumbnailKey *, VibeImage *> *_images;
+    NSMutableArray<EmbeddedThumbnailKey *> *_leastRecentlyUsedKeys;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _images = [NSMutableDictionary dictionary];
+        _leastRecentlyUsedKeys = [NSMutableArray array];
+    }
+    return self;
+}
+
+- (VibeImage *)imageForKey:(EmbeddedThumbnailKey *)key {
+    @synchronized (self) {
+        VibeImage *image = _images[key];
+        if (image) {
+            [_leastRecentlyUsedKeys removeObjectIdenticalTo:key];
+            [_leastRecentlyUsedKeys addObject:key];
+        }
+        return image;
+    }
+}
+
+- (void)setImage:(VibeImage *)image forKey:(EmbeddedThumbnailKey *)key {
+    @synchronized (self) {
+        _images[key] = image;
+        [_leastRecentlyUsedKeys removeObjectIdenticalTo:key];
+        [_leastRecentlyUsedKeys addObject:key];
+        while (_images.count > kEmbeddedThumbnailCacheCount) {
+            EmbeddedThumbnailKey *evictedKey = _leastRecentlyUsedKeys.firstObject;
+            [_leastRecentlyUsedKeys removeObjectAtIndex:0];
+            [_images removeObjectForKey:evictedKey];
+        }
+    }
+}
+
+- (void)removeImageForKey:(EmbeddedThumbnailKey *)key {
+    @synchronized (self) {
+        [_images removeObjectForKey:key];
+        [_leastRecentlyUsedKeys removeObjectIdenticalTo:key];
+    }
+}
+
+- (void)removeAllImages {
+    @synchronized (self) {
+        [_images removeAllObjects];
+        [_leastRecentlyUsedKeys removeAllObjects];
+    }
+}
+
+- (NSUInteger)count {
+    @synchronized (self) {
+        return _images.count;
+    }
+}
+
+@end
+
+
+static EmbeddedThumbnailCache *VibeEmbeddedThumbnailCache(void) {
+    static EmbeddedThumbnailCache *cache;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        cache = [[EmbeddedThumbnailCache alloc] init];
+    });
+    return cache;
+}
+
+static AudioWorkScheduler *VibeEmbeddedThumbnailDecodeScheduler(void) {
+    static AudioWorkScheduler *scheduler;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        scheduler = [[AudioWorkScheduler alloc]
+                initWithLabel:@"com.vibe.embedded-thumbnail-decode"
+                qualityOfService:QOS_CLASS_USER_INITIATED
+                maximumRunningCount:kEmbeddedThumbnailDecodeRunningCount
+                maximumPendingCount:kEmbeddedThumbnailDecodePendingCount
+                pendingGrace:30];
+    });
+    return scheduler;
+}
 
 @interface ArtworkLoadRequest : NSObject
 @property (nonatomic, strong) AudioTrackArtwork *artwork;
@@ -69,6 +181,7 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
 - (void)clearLoadPendingForGeneration:(NSUInteger)generation;
 - (void)invalidateDecodedArtForGeneration:(NSUInteger)generation;
 - (void)discardDecodedArtStateLocked;
+- (nullable VibeImage *)cachedEmbeddedThumbnail;
 @end
 
 @interface ArtworkLoadRegistry : NSObject
@@ -441,7 +554,13 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
 }
 
 @implementation AudioTrackArtwork {
-    VibeImage *_embeddedThumbnail;
+    // The key is the one staleness fence for thumbnail pixels: every data
+    // transition replaces it (and clears the pending flag), so a decode is
+    // current exactly when its captured key is still installed.
+    EmbeddedThumbnailKey *_thumbnailCacheKey;
+    NSData *_encodedThumbnailData;
+    AudioTrackThumbnailDecoder _thumbnailDecoder;
+    BOOL _thumbnailDecodePending;
     VibeImage *_embeddedArt;
     NSData *_embeddedArtData;
     AudioTrackArtworkExtractor _extractor;
@@ -482,6 +601,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
                              extractor:(AudioTrackArtworkExtractor)extractor {
     self = [super init];
     if (self) {
+        _thumbnailCacheKey = [[EmbeddedThumbnailKey alloc] init];
         _sourceFilePath = [sourceFilePath copy];
         _extractor = [extractor copy];
 #if TARGET_OS_OSX
@@ -502,15 +622,22 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
             initWithSourceFilePath:self.sourceFilePath extractor:_extractor];
     copy.folderArt = self.folderArt;
     copy.clock = self.clock;
+    EmbeddedThumbnailKey *thumbnailCacheKey;
     @synchronized (self) {
-        // Pixel objects may be shared, but every transition field belongs to
-        // the new holder. A copied art-bearing row carries only its thumbnail,
-        // matching a disk-cache hit, and re-reads full-size bytes on demand.
-        copy->_embeddedThumbnail = _embeddedThumbnail;
+        // Every transition field belongs to the new holder. A copied
+        // art-bearing row carries only the thumbnail's compact bytes, matching
+        // a disk-cache hit, and re-reads full-size bytes on demand.
+        thumbnailCacheKey = _thumbnailCacheKey;
+        copy->_encodedThumbnailData = [_encodedThumbnailData copy];
+        copy->_thumbnailDecoder = [_thumbnailDecoder copy];
         copy->_embeddedArtKnown = _embeddedArtKnown;
         copy->_embeddedUndecodable = _embeddedUndecodable;
         copy->_embeddedExtractionSettled = _embeddedArtKnown
                 ? _embeddedUndecodable : _embeddedExtractionSettled;
+    }
+    VibeImage *thumbnail = [VibeEmbeddedThumbnailCache() imageForKey:thumbnailCacheKey];
+    if (thumbnail) {
+        [VibeEmbeddedThumbnailCache() setImage:thumbnail forKey:copy->_thumbnailCacheKey];
     }
     return copy;
 }
@@ -537,23 +664,30 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
 }
 
 - (void)adoptParsedArtData:(NSData *)artData {
+    EmbeddedThumbnailKey *departedCacheKey;
     @synchronized (self) {
+        departedCacheKey = _thumbnailCacheKey;
+        _thumbnailCacheKey = [[EmbeddedThumbnailKey alloc] init];
+        _thumbnailDecodePending = NO;
         _embeddedArtData = artData;
+        _encodedThumbnailData = nil;
         _embeddedArtKnown = (artData != nil);
         _embeddedExtractionSettled = YES;
         _embeddedExtractionInFlight = NO;
         _embeddedExtractionFailures = 0;
         _embeddedExtractionRetryNotBefore = 0;
     }
+    [VibeEmbeddedThumbnailCache() removeImageForKey:departedCacheKey];
 }
 
 - (void)adoptArchivedThumbnailData:(NSData *)encodedData
                     hasEmbeddedArt:(BOOL)hasEmbeddedArt {
-    // Decode outside the monitor, per the file's discipline, though in
-    // practice this runs during unarchiving, before the object is shared.
-    VibeImage *thumbnail = VibeDecodedImageWithData(encodedData, kVibeThumbnailArtDimension);
+    EmbeddedThumbnailKey *departedCacheKey;
     @synchronized (self) {
-        _embeddedThumbnail = thumbnail;
+        departedCacheKey = _thumbnailCacheKey;
+        _thumbnailCacheKey = [[EmbeddedThumbnailKey alloc] init];
+        _thumbnailDecodePending = NO;
+        _encodedThumbnailData = [encodedData copy];
         _embeddedArtKnown = hasEmbeddedArt;
         // An entry that knows of no art is artless: mark it settled rather
         // than re-reading the file for art that is not there. An art-bearing
@@ -563,6 +697,34 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         _embeddedExtractionFailures = 0;
         _embeddedExtractionRetryNotBefore = 0;
     }
+    [VibeEmbeddedThumbnailCache() removeImageForKey:departedCacheKey];
+}
+
+- (NSData *)encodedThumbnailDataForStorage {
+    @synchronized (self) {
+        return _encodedThumbnailData;
+    }
+}
+
+- (void)storeEncodedThumbnailData:(NSData *)encodedData {
+    if (!encodedData.length) {
+        return;
+    }
+    @synchronized (self) {
+        _encodedThumbnailData = [encodedData copy];
+    }
+}
+
+- (AudioTrackThumbnailDecoder)thumbnailDecoder {
+    @synchronized (self) {
+        return _thumbnailDecoder;
+    }
+}
+
+- (void)setThumbnailDecoder:(AudioTrackThumbnailDecoder)thumbnailDecoder {
+    @synchronized (self) {
+        _thumbnailDecoder = [thumbnailDecoder copy];
+    }
 }
 
 - (BOOL)hasEmbeddedArt {
@@ -571,8 +733,32 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     }
 }
 
-- (void)prewarmEmbeddedThumbnail {
-    (void)[self embeddedThumbnail];
+- (BOOL)decodedThumbnailIsCachedForTesting {
+    EmbeddedThumbnailKey *key;
+    @synchronized (self) {
+        key = _thumbnailCacheKey;
+    }
+    return [VibeEmbeddedThumbnailCache() imageForKey:key] != nil;
+}
+
+- (void)evictDecodedThumbnailForTesting {
+    EmbeddedThumbnailKey *key;
+    @synchronized (self) {
+        key = _thumbnailCacheKey;
+    }
+    [VibeEmbeddedThumbnailCache() removeImageForKey:key];
+}
+
++ (NSUInteger)decodedThumbnailCacheCountForTesting {
+    return VibeEmbeddedThumbnailCache().count;
+}
+
++ (NSUInteger)decodedThumbnailCacheLimitForTesting {
+    return kEmbeddedThumbnailCacheCount;
+}
+
++ (void)clearDecodedThumbnailCacheForTesting {
+    [VibeEmbeddedThumbnailCache() removeAllImages];
 }
 
 // The file's own art, or the folder's cover when it has none. Blocking on both
@@ -657,10 +843,9 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     VibeImage *decoded = dataToDecode
             ? VibeDecodedImageWithData(dataToDecode, kVibeDisplayArtDimension)
             : nil;
-    // Read before the monitor, like the one at entry. Timed from when the read
-    // RETURNED, not when it started: a read that blocked for a minute has
-    // already given the condition every chance to change, and one that failed
-    // instantly is the case the backoff exists for.
+    // The injected test clock is sampled after the read. Production starts its
+    // relative timer here for the same reason: a blocked read has already given
+    // the condition time to change; an immediate failure needs the full gate.
     NSTimeInterval completedAt = [self nowSeconds];
     @synchronized (self) {
         if (pathToExtract) {
@@ -728,7 +913,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     // whose bytes have been discarded, both of which have art without holding
     // any of it.
     BOOL hasArtOfItsOwn = _embeddedArtKnown || _embeddedArt != nil ||
-                          _embeddedArtData != nil || _embeddedThumbnail != nil;
+                          _embeddedArtData != nil || _encodedThumbnailData != nil;
     if (_embeddedUndecodable) {
         return YES;
     }
@@ -856,6 +1041,11 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
             // is no art.
             return;
         }
+        // If thumbnail encoding failed, keep the source bytes. Otherwise a
+        // shared-cache eviction would make this row's list art unrecoverable.
+        if (_embeddedArtKnown && !_encodedThumbnailData) {
+            return;
+        }
         _embeddedArtData = nil;
         if (!_embeddedArt) {
             // Art exists but is not yet decoded, so re-arm the on-demand
@@ -905,7 +1095,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
 }
 
 - (VibeImage *)cachedThumbnail {
-    VibeImage *embedded = [self embeddedThumbnail];
+    VibeImage *embedded = [self cachedEmbeddedThumbnail];
     if (embedded) {
         return embedded;
     }
@@ -921,29 +1111,150 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     return [self.folderArt cachedThumbnailForAudioFilePath:path resolveIfUnknown:YES];
 }
 
-- (VibeImage *)embeddedThumbnail {
-    NSData *dataToDecode = nil;
+- (VibeImage *)cachedEmbeddedThumbnail {
+    EmbeddedThumbnailKey *key;
     @synchronized (self) {
-        if (_embeddedThumbnail) return _embeddedThumbnail;
-        if (!_embeddedArtData) {
+        key = _thumbnailCacheKey;
+    }
+    VibeImage *cached = [VibeEmbeddedThumbnailCache() imageForKey:key];
+    if (!cached) {
+        return nil;
+    }
+    @synchronized (self) {
+        // adopt* may have rotated the key between the capture and the lookup;
+        // an identity mismatch means those pixels belong to departed data.
+        return key == _thumbnailCacheKey ? cached : nil;
+    }
+}
+
+// Metadata construction and archive encoding run on metadata workers and need
+// pixels once, to produce compact bytes. This never inserts into the shared
+// display cache, so a playlist-wide scan cannot evict visible rows' pixels.
+// UI paths use cachedThumbnail plus the bounded request below instead.
+- (VibeImage *)decodeThumbnailForArchiving {
+    VibeImage *cached = [self cachedEmbeddedThumbnail];
+    if (cached) {
+        return cached;
+    }
+    NSData *dataToDecode = nil;
+    BOOL decodingStoredThumbnail = NO;
+    EmbeddedThumbnailKey *cacheKey;
+    AudioTrackThumbnailDecoder decoder;
+    @synchronized (self) {
+        dataToDecode = _encodedThumbnailData ?: _embeddedArtData;
+        decodingStoredThumbnail = _encodedThumbnailData != nil;
+        if (!dataToDecode) {
             return nil;
         }
-        dataToDecode = _embeddedArtData;
+        cacheKey = _thumbnailCacheKey;
+        decoder = _thumbnailDecoder;
     }
-    // Decode outside the lock; see the file's discipline above.
-    VibeImage *thumbnail = VibeDecodedImageWithData(dataToDecode, kVibeThumbnailArtDimension);
+    VibeImage *thumbnail = decoder
+            ? decoder(dataToDecode)
+            : VibeDecodedImageWithData(dataToDecode, kVibeThumbnailArtDimension);
+    if (thumbnail) {
+        return thumbnail;
+    }
     @synchronized (self) {
-        if (!thumbnail) {
-            // The same undecodable marking as the full-resolution path.
-            // Otherwise every playlist cell redraw retries the doomed decode.
-            _embeddedUndecodable = YES;
-            _embeddedArtData = nil;
+        if (cacheKey != _thumbnailCacheKey) {
+            return nil;
         }
-        if (!_embeddedThumbnail && thumbnail) {
-            _embeddedThumbnail = thumbnail;
-        }
-        return _embeddedThumbnail;
+        [self markThumbnailDecodeFailureLockedForData:dataToDecode
+                                decodingStoredThumbnail:decodingStoredThumbnail];
     }
+    return nil;
+}
+
+// _thumbnailCacheKey's monitor held. The bytes conclusively failed to decode:
+// drop them so redraws stop retrying, and rotate the key so any concurrent
+// decode of the departed bytes reads as stale.
+- (void)markThumbnailDecodeFailureLockedForData:(NSData *)dataToDecode
+                        decodingStoredThumbnail:(BOOL)decodingStoredThumbnail {
+    if (decodingStoredThumbnail && [_encodedThumbnailData isEqual:dataToDecode]) {
+        // A corrupt archived thumbnail does not prove the source art is bad.
+        // Drop only the compact copy; full art can re-extract.
+        _encodedThumbnailData = nil;
+        _thumbnailCacheKey = [[EmbeddedThumbnailKey alloc] init];
+        _thumbnailDecodePending = NO;
+    }
+    else if (!decodingStoredThumbnail && [_embeddedArtData isEqual:dataToDecode]) {
+        // The same undecodable marking as the full-resolution path.
+        // Otherwise every playlist cell redraw retries doomed bytes.
+        _embeddedUndecodable = YES;
+        _embeddedArtData = nil;
+        _thumbnailCacheKey = [[EmbeddedThumbnailKey alloc] init];
+        _thumbnailDecodePending = NO;
+    }
+}
+
+- (BOOL)requestEmbeddedThumbnailDecodeWithCompletion:
+        (void (^)(VibeImage *_Nullable image))completion {
+    NSParameterAssert(NSThread.isMainThread);
+    NSParameterAssert(completion);
+    if ([self cachedEmbeddedThumbnail]) {
+        return NO;
+    }
+
+    __block NSData *dataToDecode;
+    __block BOOL decodingStoredThumbnail;
+    __block EmbeddedThumbnailKey *cacheKey;
+    __block AudioTrackThumbnailDecoder decoder;
+    @synchronized (self) {
+        if (_thumbnailDecodePending) {
+            return NO;
+        }
+        dataToDecode = _encodedThumbnailData ?: _embeddedArtData;
+        if (!dataToDecode) {
+            return NO;
+        }
+        decodingStoredThumbnail = _encodedThumbnailData != nil;
+        cacheKey = _thumbnailCacheKey;
+        decoder = _thumbnailDecoder;
+        _thumbnailDecodePending = YES;
+    }
+
+    [VibeEmbeddedThumbnailDecodeScheduler() submitWork:^{
+        VibeImage *thumbnail = decoder
+                ? decoder(dataToDecode)
+                : VibeDecodedImageWithData(dataToDecode, kVibeThumbnailArtDimension);
+        // Keep the scheduler slot until main has consumed the decoded result.
+        // Otherwise a busy main queue can accumulate a second, unbounded tail
+        // of pixel objects after the bounded worker says those jobs finished.
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            BOOL current = NO;
+            @synchronized (self) {
+                // Key identity is the whole staleness check. A match also
+                // proves the pending flag is this request's: rotation clears
+                // it, and only one request per key epoch can set it. The store
+                // stays under this monitor so a rotation cannot land between
+                // the check and the insert and strand pixels under a departed
+                // key.
+                current = cacheKey == self->_thumbnailCacheKey;
+                if (current) {
+                    self->_thumbnailDecodePending = NO;
+                    if (thumbnail) {
+                        [VibeEmbeddedThumbnailCache() setImage:thumbnail
+                                                        forKey:cacheKey];
+                    }
+                    else {
+                        [self markThumbnailDecodeFailureLockedForData:dataToDecode
+                                              decodingStoredThumbnail:decodingStoredThumbnail];
+                    }
+                }
+            }
+            completion(current ? thumbnail : nil);
+        });
+    } failureQueue:dispatch_get_main_queue()
+      admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
+        (void)failure;
+        @synchronized (self) {
+            if (cacheKey == self->_thumbnailCacheKey) {
+                self->_thumbnailDecodePending = NO;
+            }
+        }
+        completion(nil);
+    }];
+    return YES;
 }
 
 @end

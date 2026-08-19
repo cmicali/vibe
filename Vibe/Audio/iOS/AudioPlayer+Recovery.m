@@ -8,6 +8,11 @@
 
 #import "AudioPlayer+Recovery.h"
 #import "AudioPlayerInternal.h"
+#import "PlaybackDeliveryRules.h"
+
+@interface AudioPlayer (RecoveryPrivate)
+- (NSTimeInterval)lastValidPositionSnapshot;
+@end
 
 @implementation AudioPlayer (Recovery)
 
@@ -73,16 +78,61 @@
 // dropEngineBoundStateOnQueue's contract — and createEngineAndMasterBusOnQueue
 // rebuilds exactly what init built: fresh FX nodes with the recorded intent
 // re-applied (or the bare mixer -> output wire), and the debug argv modes.
-- (void)reinitializeAfterMediaServicesReset {
+- (NSTimeInterval)lastValidPositionSnapshot {
+    os_unfair_lock_lock(&_stateLock);
+    // Natural completion leaves the finished file and its last position in
+    // place for cheap auto-advance, but Stopped still means a later replay
+    // begins at zero. The public position getter made that distinction before
+    // media reset invalidated the file; preserve it without messaging the file.
+    NSTimeInterval position = _state == VibePlayerStateStopped
+            ? 0 : _lastValidPosition;
+    os_unfair_lock_unlock(&_stateLock);
+    return MAX(position, 0);
+}
+
+- (void)beginMediaServicesResetWithCompletion:
+        (VibeMediaServicesResetCompletion)completion {
+    // TRAP: playTrack: mints its identifier and enqueues its work under this
+    // same lock. Keeping the reset enqueue inside the critical section makes
+    // the queue order agree with notification-receipt order, including a play
+    // submitted from main before its reset handler gets there.
+    os_unfair_lock_lock(&_stateLock);
+    uint64_t capturedNewestSubmittedPlayIdentifier =
+            _nextSubmittedPlayIdentifier;
     dispatch_async(_queue, ^{
         LogWarn(@"AudioPlayer: rebuilding engine after media services reset");
+        AudioTrack *resetTrack = self.currentTrack;
+        NSTimeInterval lastValidPosition =
+                [self lastValidPositionSnapshot];
+        if (!resetTrack) {
+            os_unfair_lock_lock(&self->_stateLock);
+            resetTrack = self.loadingTrack ?: self.lastSubmittedPlayTrack;
+            os_unfair_lock_unlock(&self->_stateLock);
+        }
         self->_segmentGeneration++;
         [self preemptRampsOnQueue];
         [self dropEngineBoundStateOnQueue];
+        self->_activeSubmittedPlayIdentifier = 0;
         self.currentTrack = nil;
         [self publishPlaybackState:VibePlayerStateStopped node:nil file:nil segmentStart:0 position:0];
         [self createEngineAndMasterBusOnQueue];
+        if (!completion) {
+            return;
+        }
+        run_on_main_thread({
+            os_unfair_lock_lock(&self->_stateLock);
+            uint64_t newestSubmittedPlayIdentifier =
+                    self->_nextSubmittedPlayIdentifier;
+            os_unfair_lock_unlock(&self->_stateLock);
+            if (!VibePlaybackSubmissionStateIsUnchanged(
+                    capturedNewestSubmittedPlayIdentifier,
+                    newestSubmittedPlayIdentifier)) {
+                return;
+            }
+            completion(resetTrack, lastValidPosition);
+        });
     });
+    os_unfair_lock_unlock(&_stateLock);
 }
 
 @end

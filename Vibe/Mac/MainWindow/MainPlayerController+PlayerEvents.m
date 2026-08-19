@@ -268,7 +268,6 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         [self audioPlayer:audioPlayer didFinishPlaying:finishedTrack];
         return;
     }
-    [[AppStats sharedInstance] playbackStopped]; // fold the finished track's run
     [self.playlistController advanceToNextTrackWithoutPlaying];
     // The whole per-track refresh — metadata, waveform, duration cache,
     // recents, prefetch of the new next (which re-arms the splice), stats and

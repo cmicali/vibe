@@ -22,6 +22,7 @@
 }
 
 - (void)setUp {
+    [AudioTrackArtwork clearDecodedThumbnailCacheForTesting];
     _folderCover = [[NSImage alloc] initWithSize:NSMakeSize(4, 4)];
     _directory = @"/Library/Albums/Precedence";
     _trackPath = [_directory stringByAppendingPathComponent:@"track.mp3"];
@@ -67,6 +68,17 @@
     return artwork;
 }
 
+- (NSImage *)waitForThumbnailDecode:(AudioTrackArtwork *)artwork {
+    XCTestExpectation *completed = [self expectationWithDescription:@"thumbnail decoded"];
+    __block NSImage *decoded = nil;
+    XCTAssertTrue([artwork requestEmbeddedThumbnailDecodeWithCompletion:^(NSImage *image) {
+        decoded = image;
+        [completed fulfill];
+    }]);
+    [self waitForExpectations:@[completed] timeout:2.0];
+    return decoded;
+}
+
 #pragma mark - The file's own art wins
 
 - (void)testEmbeddedArtBeatsTheFoldersCover {
@@ -79,7 +91,8 @@
     NSImage *art = [artwork loadArtBlocking];
     XCTAssertNotNil(art);
     XCTAssertNotEqualObjects(art, _folderCover);
-    XCTAssertNotEqualObjects(artwork.cachedThumbnail, _folderCover);
+    XCTAssertNil(artwork.cachedThumbnail, @"the row accessor never decodes synchronously");
+    XCTAssertNotEqualObjects([artwork decodeThumbnailForArchiving], _folderCover);
 }
 
 // The window before a file's own art has been read is NOT the artless answer.
@@ -132,7 +145,7 @@
         return VibeEmbeddedArtExtractionNoArt;
     }];
     XCTAssertEqualObjects([artwork loadArtBlocking], _folderCover, @"precondition: the folder has one");
-    XCTAssertNil(artwork.embeddedThumbnail);
+    XCTAssertNil([artwork decodeThumbnailForArchiving]);
 }
 
 - (void)testTheArchivableThumbnailIsTheFilesOwnArtWhenItHasSome {
@@ -143,14 +156,14 @@
         return VibeEmbeddedArtExtractionFoundArt;
     }];
     (void)[artwork loadArtBlocking]; // decode it
-    XCTAssertNotNil(artwork.embeddedThumbnail);
-    XCTAssertNotEqualObjects(artwork.embeddedThumbnail, _folderCover);
+    XCTAssertNotNil([artwork decodeThumbnailForArchiving]);
+    XCTAssertNotEqualObjects([artwork decodeThumbnailForArchiving], _folderCover);
 }
 
-// The metadata scan calls this before publishing a row. It must warm the
-// file's own thumbnail WITHOUT resolving folder art, or a playlist scan turns
-// into a folder-art storm across every artless row.
-- (void)testThePrewarmNeverTouchesTheFolder {
+// The metadata scan encodes through this before publishing a row. It must
+// decode the file's own thumbnail WITHOUT resolving folder art, or a playlist
+// scan turns into a folder-art storm across every artless row.
+- (void)testTheArchiveDecodeNeverTouchesTheFolder {
     __block NSUInteger folderLookups = 0;
     FolderArtResolver *counting = [[FolderArtResolver alloc] initWithEnabledProvider:^BOOL{
         return YES;
@@ -176,7 +189,7 @@
     }];
     artwork.folderArt = counting;
 
-    [artwork prewarmEmbeddedThumbnail];
+    (void)[artwork decodeThumbnailForArchiving];
 
     XCTAssertEqual(folderLookups, 0u);
 }
@@ -465,9 +478,257 @@
         return VibeEmbeddedArtExtractionNoArt;
     }];
     [artwork adoptArchivedThumbnailData:[self embeddedArtData] hasEmbeddedArt:YES];
-    NSImage *thumbnail = artwork.cachedThumbnail;
+    XCTAssertNil(artwork.cachedThumbnail);
+    NSImage *thumbnail = [self waitForThumbnailDecode:artwork];
     XCTAssertNotNil(thumbnail);
     XCTAssertNotEqualObjects(thumbnail, _folderCover);
+}
+
+- (void)testArchivedThumbnailDecodesOffMainAndReturnsAfterEviction {
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:
+            ^VibeEmbeddedArtExtractionResult(NSString *path,
+                    NSData *__autoreleasing *artData) {
+        XCTFail(@"an archived thumbnail must not re-read its audio file");
+        return VibeEmbeddedArtExtractionReadFailed;
+    }];
+    [artwork adoptArchivedThumbnailData:[self embeddedArtData] hasEmbeddedArt:YES];
+
+    XCTAssertFalse(artwork.decodedThumbnailIsCachedForTesting,
+                   @"unarchiving thousands of rows must not decode thousands of bitmaps");
+    XCTAssertNil(artwork.cachedThumbnail, @"drawing must never pay an ImageIO decode");
+    XCTAssertNotNil([self waitForThumbnailDecode:artwork]);
+    XCTAssertTrue(artwork.decodedThumbnailIsCachedForTesting);
+
+    [artwork evictDecodedThumbnailForTesting];
+    XCTAssertFalse(artwork.decodedThumbnailIsCachedForTesting);
+    XCTAssertNil(artwork.cachedThumbnail, @"eviction does not move decode work onto drawing");
+    XCTAssertNotNil([self waitForThumbnailDecode:artwork],
+                    @"compact bytes restore pixels without reopening the song");
+}
+
+- (void)testConcurrentRequestsForOneRowDecodeExactlyOnce {
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:nil];
+    [artwork adoptArchivedThumbnailData:[self embeddedArtData] hasEmbeddedArt:YES];
+    NSImage *decodedImage = [[NSImage alloc] initWithSize:NSMakeSize(8, 8)];
+    dispatch_semaphore_t decoderStarted = dispatch_semaphore_create(0);
+    os_unfair_lock decoderGate = OS_UNFAIR_LOCK_INIT;
+    os_unfair_lock *decoderGatePointer = &decoderGate;
+    os_unfair_lock_lock(decoderGatePointer);
+    NSLock *countLock = [[NSLock alloc] init];
+    __block NSUInteger decodeCount = 0;
+    artwork.thumbnailDecoder = ^NSImage *(NSData *data) {
+        [countLock lock];
+        decodeCount++;
+        [countLock unlock];
+        dispatch_semaphore_signal(decoderStarted);
+        os_unfair_lock_lock(decoderGatePointer);
+        os_unfair_lock_unlock(decoderGatePointer);
+        return decodedImage;
+    };
+
+    XCTestExpectation *completed = [self expectationWithDescription:@"thumbnail decoded"];
+    XCTAssertTrue([artwork requestEmbeddedThumbnailDecodeWithCompletion:^(NSImage *image) {
+        XCTAssertEqualObjects(image, decodedImage);
+        [completed fulfill];
+    }]);
+    XCTAssertEqual(dispatch_semaphore_wait(decoderStarted,
+                                           dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+    XCTAssertFalse([artwork requestEmbeddedThumbnailDecodeWithCompletion:^(NSImage *image) {
+        XCTFail(@"a duplicate request owns no second completion");
+    }]);
+    os_unfair_lock_unlock(decoderGatePointer);
+    [self waitForExpectations:@[completed] timeout:2.0];
+    [countLock lock];
+    NSUInteger finalDecodeCount = decodeCount;
+    [countLock unlock];
+    XCTAssertEqual(finalDecodeCount, 1u);
+}
+
+- (void)testDecodedThumbnailCacheHasAnExactGlobal128ImageBound {
+    NSUInteger limit = AudioTrackArtwork.decodedThumbnailCacheLimitForTesting;
+    XCTAssertEqual(limit, 128u);
+    NSMutableArray<AudioTrackArtwork *> *artworks = [NSMutableArray array];
+    NSData *encoded = [self embeddedArtData];
+    for (NSUInteger index = 0; index <= limit; index++) {
+        AudioTrackArtwork *artwork = [self artworkWithExtractor:nil];
+        [artwork adoptArchivedThumbnailData:encoded hasEmbeddedArt:YES];
+        XCTAssertNotNil([self waitForThumbnailDecode:artwork]);
+        [artworks addObject:artwork];
+        XCTAssertLessThanOrEqual(AudioTrackArtwork.decodedThumbnailCacheCountForTesting, limit);
+    }
+    XCTAssertEqual(AudioTrackArtwork.decodedThumbnailCacheCountForTesting, limit);
+    XCTAssertFalse(artworks.firstObject.decodedThumbnailIsCachedForTesting);
+    XCTAssertTrue(artworks.lastObject.decodedThumbnailIsCachedForTesting);
+}
+
+// Decodes completing against a full cache evict the oldest entries rather
+// than growing past the bound, and the rows that just decoded stay readable.
+- (void)testCompletingDecodesEvictRatherThanExceedTheBound {
+    NSUInteger limit = [AudioTrackArtwork decodedThumbnailCacheLimitForTesting];
+    NSData *encoded = [self embeddedArtData];
+    NSMutableArray<AudioTrackArtwork *> *artworks = [NSMutableArray array];
+    for (NSUInteger index = 0; index < limit; index++) {
+        AudioTrackArtwork *artwork = [self artworkWithExtractor:nil];
+        [artwork adoptArchivedThumbnailData:encoded hasEmbeddedArt:YES];
+        XCTAssertNotNil([self waitForThumbnailDecode:artwork]);
+        [artworks addObject:artwork];
+    }
+    XCTAssertEqual([AudioTrackArtwork decodedThumbnailCacheCountForTesting], limit);
+
+    dispatch_semaphore_t decoderStarted = dispatch_semaphore_create(0);
+    os_unfair_lock decoderGate = OS_UNFAIR_LOCK_INIT;
+    os_unfair_lock *decoderGatePointer = &decoderGate;
+    os_unfair_lock_lock(decoderGatePointer);
+    XCTestExpectation *firstCompleted = [self expectationWithDescription:@"first decode"];
+    XCTestExpectation *secondCompleted = [self expectationWithDescription:@"second decode"];
+    AudioTrackThumbnailDecoder blockingDecoder = ^NSImage *(NSData *data) {
+        dispatch_semaphore_signal(decoderStarted);
+        os_unfair_lock_lock(decoderGatePointer);
+        os_unfair_lock_unlock(decoderGatePointer);
+        return [[NSImage alloc] initWithSize:NSMakeSize(8, 8)];
+    };
+    AudioTrackArtwork *first = [self artworkWithExtractor:nil];
+    AudioTrackArtwork *second = [self artworkWithExtractor:nil];
+    [first adoptArchivedThumbnailData:encoded hasEmbeddedArt:YES];
+    [second adoptArchivedThumbnailData:encoded hasEmbeddedArt:YES];
+    first.thumbnailDecoder = blockingDecoder;
+    second.thumbnailDecoder = blockingDecoder;
+    XCTAssertTrue([first requestEmbeddedThumbnailDecodeWithCompletion:^(NSImage *image) {
+        XCTAssertNotNil(image);
+        [firstCompleted fulfill];
+    }]);
+    XCTAssertTrue([second requestEmbeddedThumbnailDecodeWithCompletion:^(NSImage *image) {
+        XCTAssertNotNil(image);
+        [secondCompleted fulfill];
+    }]);
+    XCTAssertEqual(dispatch_semaphore_wait(decoderStarted,
+                                           dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+    XCTAssertEqual(dispatch_semaphore_wait(decoderStarted,
+                                           dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+    // In-flight pixels are not cache entries; the retained set stays full.
+    XCTAssertEqual([AudioTrackArtwork decodedThumbnailCacheCountForTesting], limit);
+
+    os_unfair_lock_unlock(decoderGatePointer);
+    [self waitForExpectations:@[firstCompleted, secondCompleted] timeout:2.0];
+    XCTAssertEqual([AudioTrackArtwork decodedThumbnailCacheCountForTesting], limit);
+    XCTAssertTrue(first.decodedThumbnailIsCachedForTesting);
+    XCTAssertTrue(second.decodedThumbnailIsCachedForTesting);
+    XCTAssertFalse(artworks.firstObject.decodedThumbnailIsCachedForTesting,
+                   @"the two stores must evict the least recently used rows");
+}
+
+- (void)testCompactThumbnailBytesRoundTripAndDecodeAfterRestore {
+    NSData *encoded = [self embeddedArtData];
+    AudioTrackArtwork *original = [self artworkWithExtractor:nil];
+    [original adoptArchivedThumbnailData:encoded hasEmbeddedArt:YES];
+    NSData *stored = original.encodedThumbnailDataForStorage;
+    XCTAssertEqualObjects(stored, encoded);
+
+    AudioTrackArtwork *restored = [self artworkWithExtractor:nil];
+    [restored adoptArchivedThumbnailData:stored hasEmbeddedArt:YES];
+    XCTAssertNil(restored.cachedThumbnail);
+    XCTAssertNotNil([self waitForThumbnailDecode:restored]);
+}
+
+- (void)testCopiedRowRecoversItsThumbnailAfterIndependentEviction {
+    AudioTrackArtwork *original = [self artworkWithExtractor:nil];
+    [original adoptArchivedThumbnailData:[self embeddedArtData] hasEmbeddedArt:YES];
+    XCTAssertNotNil([self waitForThumbnailDecode:original]);
+    AudioTrackArtwork *copy = [original copy];
+
+    [original evictDecodedThumbnailForTesting];
+    [copy evictDecodedThumbnailForTesting];
+    XCTAssertNotNil([self waitForThumbnailDecode:original]);
+    XCTAssertNotNil([self waitForThumbnailDecode:copy]);
+}
+
+// The identity key is the one staleness fence: adopting new data mid-decode
+// rotates it, so the stale result is dropped, the new data's request is
+// admitted while the old decode still runs, and only the new pixels land.
+- (void)testAdoptingNewDataMidDecodeDropsTheStaleResult {
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:nil];
+    [artwork adoptArchivedThumbnailData:[self embeddedArtData] hasEmbeddedArt:YES];
+    NSImage *staleImage = [[NSImage alloc] initWithSize:NSMakeSize(4, 4)];
+    NSImage *freshImage = [[NSImage alloc] initWithSize:NSMakeSize(8, 8)];
+    NSData *freshBytes = [@"fresh" dataUsingEncoding:NSUTF8StringEncoding];
+    dispatch_semaphore_t staleDecodeStarted = dispatch_semaphore_create(0);
+    os_unfair_lock staleGate = OS_UNFAIR_LOCK_INIT;
+    os_unfair_lock *staleGatePointer = &staleGate;
+    os_unfair_lock_lock(staleGatePointer);
+    artwork.thumbnailDecoder = ^NSImage *(NSData *data) {
+        if (![data isEqual:freshBytes]) {
+            dispatch_semaphore_signal(staleDecodeStarted);
+            os_unfair_lock_lock(staleGatePointer);
+            os_unfair_lock_unlock(staleGatePointer);
+            return staleImage;
+        }
+        return freshImage;
+    };
+
+    XCTestExpectation *staleCompleted = [self expectationWithDescription:@"stale decode"];
+    XCTAssertTrue([artwork requestEmbeddedThumbnailDecodeWithCompletion:^(NSImage *image) {
+        XCTAssertNil(image, @"a result for departed data must not be delivered");
+        [staleCompleted fulfill];
+    }]);
+    XCTAssertEqual(dispatch_semaphore_wait(staleDecodeStarted,
+                                           dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+
+    [artwork adoptParsedArtData:freshBytes];
+    XCTestExpectation *freshCompleted = [self expectationWithDescription:@"fresh decode"];
+    XCTAssertTrue([artwork requestEmbeddedThumbnailDecodeWithCompletion:^(NSImage *image) {
+        XCTAssertEqualObjects(image, freshImage);
+        [freshCompleted fulfill];
+    }], @"the rotation must hand single-flight to the new data's request");
+
+    os_unfair_lock_unlock(staleGatePointer);
+    [self waitForExpectations:@[staleCompleted, freshCompleted] timeout:2.0];
+    XCTAssertEqualObjects(artwork.cachedThumbnail, freshImage);
+}
+
+// A corrupt archived thumbnail is dropped without condemning the source art:
+// the compact copy goes, and freshly parsed bytes decode again.
+- (void)testCorruptArchivedBytesDropOnlyTheCompactCopy {
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:nil];
+    [artwork adoptArchivedThumbnailData:[@"corrupt" dataUsingEncoding:NSUTF8StringEncoding]
+                         hasEmbeddedArt:YES];
+    XCTestExpectation *failed = [self expectationWithDescription:@"decode failed"];
+    XCTAssertTrue([artwork requestEmbeddedThumbnailDecodeWithCompletion:^(NSImage *image) {
+        XCTAssertNil(image);
+        [failed fulfill];
+    }]);
+    [self waitForExpectations:@[failed] timeout:2.0];
+    XCTAssertNil(artwork.encodedThumbnailDataForStorage,
+                 @"the corrupt compact bytes must not be re-archived");
+    XCTAssertTrue(artwork.hasEmbeddedArt, @"the file still carries art; only the copy was bad");
+
+    [artwork adoptParsedArtData:[self embeddedArtData]];
+    XCTAssertNotNil([self waitForThumbnailDecode:artwork]);
+}
+
+// Undecodable source art settles: the doomed bytes are dropped and marked, so
+// redraws stop re-requesting a decode that can never succeed.
+- (void)testUndecodableSourceArtSettlesInsteadOfRetrying {
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:nil];
+    [artwork adoptParsedArtData:[@"not an image" dataUsingEncoding:NSUTF8StringEncoding]];
+    XCTestExpectation *failed = [self expectationWithDescription:@"decode failed"];
+    XCTAssertTrue([artwork requestEmbeddedThumbnailDecodeWithCompletion:^(NSImage *image) {
+        XCTAssertNil(image);
+        [failed fulfill];
+    }]);
+    [self waitForExpectations:@[failed] timeout:2.0];
+    XCTAssertFalse([artwork requestEmbeddedThumbnailDecodeWithCompletion:^(NSImage *image) {
+        XCTFail(@"no bytes remain to decode");
+    }]);
+}
+
+// The scan's encode path must never populate the display cache — that is what
+// keeps a playlist-wide scan from evicting visible rows' pixels.
+- (void)testArchiveDecodeDoesNotPopulateTheDisplayCache {
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:nil];
+    [artwork adoptParsedArtData:[self embeddedArtData]];
+    XCTAssertNotNil([artwork decodeThumbnailForArchiving]);
+    XCTAssertFalse(artwork.decodedThumbnailIsCachedForTesting);
+    XCTAssertEqual(AudioTrackArtwork.decodedThumbnailCacheCountForTesting, 0u);
 }
 
 #pragma mark - Duplicate-row copies

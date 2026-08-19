@@ -38,7 +38,7 @@
         // afford the depth the user asked for.
         @"waveformZoomRequested": @(_waveformZoom),
         @"waveformZoomEffective": @(_waveformView.effectiveVisibleFraction),
-        @"foreground": @(_foreground),
+        @"sceneActive": @(_sceneActive),
     };
 }
 

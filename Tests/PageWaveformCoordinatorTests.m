@@ -201,6 +201,18 @@
     XCTAssertEqualObjects(_delegate.failedIndexes, @[@3]);
 }
 
+- (void)testRequestDroppedDuringAHoldLoadsWhenTheSettlePathRetries {
+    _coordinator.held = YES;
+    [_coordinator requestIndex:3 track:_tracks[3]];
+    XCTAssertEqual(_cache.loadedURLs.count, 0u);
+    XCTAssertEqual(_coordinator.targetIndex, NSNotFound);
+
+    _coordinator.held = NO;
+    [_coordinator requestIndex:3 track:_tracks[3]];
+    XCTAssertEqualObjects(_cache.loadedURLs, @[_tracks[3].url]);
+    XCTAssertEqual(_coordinator.targetIndex, 3u);
+}
+
 // A completed page re-requested after a detour needs no second decode; its
 // snapshot is what hydration draws.
 - (void)testCompletedPageIsNotReloaded {

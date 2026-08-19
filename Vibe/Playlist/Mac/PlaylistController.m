@@ -4,6 +4,7 @@
 //
 
 #import "PlaylistController.h"
+#import "AudioTrackMetadata.h"
 #import "Playlist.h"
 #import "PlaylistTableView.h"
 #import "PlaylistRowView.h"
@@ -29,6 +30,9 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 }
 
 - (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self
+                                                  name:AudioTrackMetadataThumbnailDidLoadNotification
+                                                object:nil];
     if (_observedClipView) {
         [NSNotificationCenter.defaultCenter removeObserver:self
                                                       name:NSViewBoundsDidChangeNotification
@@ -112,8 +116,35 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
         _model = [Playlist new];
         _model.observer = self;
         self.audioPlayer = audioPlayer;
+        [NSNotificationCenter.defaultCenter addObserver:self
+                                               selector:@selector(thumbnailDidLoad:)
+                                                   name:AudioTrackMetadataThumbnailDidLoadNotification
+                                                 object:nil];
     }
     return self;
+}
+
+- (void)thumbnailDidLoad:(NSNotification *)notification {
+    PlaylistTableView *tableView = self.tableView;
+    NSInteger artColumn = [tableView columnWithIdentifier:kPlaylistColumnArt];
+    if (!tableView || artColumn < 0) {
+        return;
+    }
+    NSRange visibleRows = [tableView rowsInRect:tableView.visibleRect];
+    if (visibleRows.location == NSNotFound || visibleRows.length == 0) {
+        return;
+    }
+    NSMutableIndexSet *matchingRows = [NSMutableIndexSet indexSet];
+    for (NSUInteger row = visibleRows.location;
+         row < NSMaxRange(visibleRows) && row < _model.count; row++) {
+        if ([_model trackAtIndex:row].metadata == notification.object) {
+            [matchingRows addIndex:row];
+        }
+    }
+    if (matchingRows.count > 0) {
+        [tableView reloadDataForRowIndexes:matchingRows
+                             columnIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)artColumn]];
+    }
 }
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {

@@ -100,7 +100,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // is private to this file.
 @implementation AudioPlayer {
     float                   _maxPitch;
-    uint64_t                _nextSubmittedPlayIdentifier;
     // Forces the declick minimum on this play's crossfade — the convert
     // swap's same-audio replace. Rides with the pending request.
     BOOL                    _pendingDeclick;
@@ -379,6 +378,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // installs a fresh tap from installMasterBusOnQueue.
     [_levelTap abandon];
     _levelTap = nil;
+    // refreshOutputAudioActiveOnQueue begins by asking _engine.isRunning.
+    // Drop the invalid engine first so that refresh and the following Stopped
+    // publication message nil, never the media server's dead object.
+    _engine = nil;
     _retiredOutputGeneration++;
     _activeRetiredOutputCount = 0;
     [self refreshOutputAudioActiveOnQueue];
@@ -448,21 +451,25 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 - (void)playTrack:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused declick:(BOOL)declick {
     VibePendingPlaybackIntent intent = VibePendingPlaybackIntentMake(position, startPaused);
-    uint64_t submittedPlayIdentifier;
-    os_unfair_lock_lock(&_stateLock);
-    submittedPlayIdentifier = ++_nextSubmittedPlayIdentifier;
-    _lastSubmittedPlayIdentifier = submittedPlayIdentifier;
-    _lastSubmittedPlayTrack = track;
-    os_unfair_lock_unlock(&_stateLock);
     // The pre-submit edge: synchronous, outside the state lock, and ahead of
     // the queue dispatch, so the shell's background-download hold is asserted
     // before the open it protects can start. This is the only delegate send
     // not marshalled to main — it rides play:'s own calling thread.
     [self.delegate audioPlayer:self willSubmitPlayForTrack:track];
+    // TRAP: identifier minting and queue admission are one ordering edge.
+    // Media-reset receipt takes the same lock around its queue admission, so
+    // a play cannot be identified on one side of the reset and execute on the
+    // other. The queue block may briefly wait for this lock to be released;
+    // it never holds the queue while asking another thread to acquire it.
+    os_unfair_lock_lock(&_stateLock);
+    uint64_t submittedPlayIdentifier = ++_nextSubmittedPlayIdentifier;
+    _lastSubmittedPlayIdentifier = submittedPlayIdentifier;
+    _lastSubmittedPlayTrack = track;
     dispatch_async(_queue, ^{
         [self playOnQueue:track intent:intent declick:declick
    submittedPlayIdentifier:submittedPlayIdentifier];
     });
+    os_unfair_lock_unlock(&_stateLock);
 }
 
 - (void)playOnQueue:(AudioTrack *)track
@@ -1128,10 +1135,12 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
     AVAudioPlayerNode *node = _node;
+    uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
     NSError *startError = nil;
     if (![self startEngineAndPlayNode:node error:&startError]) {
         [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-                @"Could not resume playback", startError)];
+                @"Could not resume playback", startError)
+               forSubmittedPlay:owningSubmittedPlayIdentifier];
         return;
     }
     // Re-publish rather than changing _state alone, so iOS's player-owned

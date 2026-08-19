@@ -19,6 +19,24 @@
 
 @class AudioTrackMetadataCache;
 @class AudioWaveformCache;
+@class PlaybackController;
+@class PlayerViewController;
+
+// Declaration-only access to production methods used by the debug adapter.
+// Their implementation stays in RootViewController.m; keeping this separate
+// avoids putting debug-only surface in the shipping header.
+@interface RootViewController (DebugSurface)
+
+@property (nonatomic, readonly) PlaybackController *playback;
+@property (nonatomic, readonly) PlayerViewController *player;
+@property (nonatomic, readonly, getter=isPlayerExpanded) BOOL playerExpanded;
+@property (nonatomic, readonly, getter=isMiniPlayerShown) BOOL miniPlayerShown;
+@property (nonatomic, copy) NSString *selectedTabIdentifier;
+
+- (void)expandPlayerAnimated:(BOOL)animated;
+- (void)minimizePlayerAnimated:(BOOL)animated;
+
+@end
 
 @interface RootViewController (Debug) <VibeDebugPlayerSurface>
 

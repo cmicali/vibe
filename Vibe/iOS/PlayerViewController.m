@@ -18,7 +18,6 @@
 #import "Formatters.h"
 #import "VibeStrings.h"
 #import "VibeWeakProxy.h"
-#import "WaveformMidline.h"   // the empty line IS the scrubber's placeholder
 #import "WaveformScrubberView.h"
 
 // The pager must not take a horizontal drag that starts on a waveform: the
@@ -32,16 +31,23 @@
 // on a one-track playlist, did nothing. Declining by hit-test here is what
 // leaves the drag with the scrubber. It has to be an override rather than a
 // delegate, since a scroll view owns its own pan's delegate.
-@interface VibeTrackPagerView : UICollectionView
+@interface TrackPagerView : UICollectionView
 @end
 
-@implementation VibeTrackPagerView
+@implementation TrackPagerView
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)recognizer {
     if (recognizer == self.panGestureRecognizer) {
         UIView *hit = [self hitTest:[recognizer locationInView:self] withEvent:nil];
         for (UIView *view = hit; view && view != self; view = view.superview) {
             if ([view isKindOfClass:[WaveformScrubberView class]]) {
-                return NO;
+                // An unloaded scrubber disables its own pan so the failure
+                // requirement below can hand the gesture to the pager. Match
+                // that decision here; vetoing the pager unconditionally turns
+                // the empty waveform strip into a swipe dead zone.
+                if (((WaveformScrubberView *)view).isScrubbingEnabled) {
+                    return NO;
+                }
+                break;
             }
         }
     }
@@ -51,7 +57,7 @@
 
 @implementation PlayerViewController {
     // Drives the scrolling waveform at display rate while playing in the
-    // foreground; the model's 3 Hz tick is far too coarse for a moving
+    // active scene; the model's 3 Hz tick is far too coarse for a moving
     // waveform.
     CADisplayLink           *_scrollLink;
 
@@ -88,7 +94,6 @@
     _waveformCoordinator = [[PageWaveformCoordinator alloc] initWithCache:_waveformCache delegate:self];
     _artHeldPages = [NSMutableIndexSet indexSet];
 
-    _foreground = YES;
     _scrollLink = [CADisplayLink displayLinkWithTarget:[VibeWeakProxy proxyWithTarget:self]
                                               selector:@selector(scrollTick:)];
     // ~1pt/frame of motion gains nothing at 120 Hz; spare ProMotion the work.
@@ -98,13 +103,7 @@
 
     [_playback addObserver:self];
 
-    // The display link is the only thing here the background gates; the
-    // model's own tick is gated by PlaybackController.
     NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
-    [center addObserver:self selector:@selector(sceneDidEnterBackground)
-                   name:UISceneDidEnterBackgroundNotification object:nil];
-    [center addObserver:self selector:@selector(sceneWillEnterForeground)
-                   name:UISceneWillEnterForegroundNotification object:nil];
     // The settings screen lives on the Playlist tab, with this one minimized
     // behind it, so the change arrives from outside rather than from a control
     // of ours.
@@ -126,17 +125,6 @@
         [cell.waveformView syncWaveformStyle];
     }
     [self repaintTimesOnVisiblePages];
-}
-
-- (void)sceneDidEnterBackground {
-    _foreground = NO;
-    [self updateScrollLinkState];
-}
-
-- (void)sceneWillEnterForeground {
-    _foreground = YES;
-    [self updateScrollLinkState];
-    [self updatePlaybackUI];
 }
 
 // Reachable because the display link holds the weak proxy, not the
@@ -170,7 +158,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     if (root.bounds.size.width > 0 && root.bounds.size.height > 0) {
         _pagesLayout.itemSize = root.bounds.size;
     }
-    _pagesView = [[VibeTrackPagerView alloc] initWithFrame:CGRectZero
+    _pagesView = [[TrackPagerView alloc] initWithFrame:CGRectZero
                                     collectionViewLayout:_pagesLayout];
     _pagesView.pagingEnabled = YES;
     _pagesView.showsHorizontalScrollIndicator = NO;
@@ -263,7 +251,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // full duration once metadata knows it.
 + (void)renderRestingTimesForTrack:(AudioTrack *)track
                            elapsed:(UILabel *)elapsed
-                         remaining:(VibeTimeControl *)remaining {
+                         remaining:(TrackPageTimeControl *)remaining {
     BOOL known = track.duration > 0;
     elapsed.text = known
             ? [[Formatters sharedInstance] durationStringFromTimeInterval:0]
@@ -321,7 +309,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
             return gestureRecognizer == _minimizePan;
         }
         if ([view isKindOfClass:[UIControl class]]
-                || [view isKindOfClass:[VibeTransportRowView class]]
+                || [view isKindOfClass:[TrackPageTransportView class]]
                 || [view isKindOfClass:[WaveformScrubberView class]]) {
             return NO;
         }
@@ -344,6 +332,21 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         [self renderHeaderForTrack:_playlist.currentTrack];
         [self scrollToCurrentPageAnimated:NO];
     }
+}
+
+- (void)setSceneActive:(BOOL)sceneActive {
+    if (_sceneActive == sceneActive) {
+        return;
+    }
+    _sceneActive = sceneActive;
+    [self updateScrollLinkState];
+    if (sceneActive) {
+        [self updatePlaybackUI];
+    }
+}
+
+- (BOOL)isSceneActive {
+    return _sceneActive;
 }
 
 #pragma mark - Header rendering
@@ -404,7 +407,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // tree rather than a texture crop. Both are the frame-budget hold; see
 // applyFrameBudgetHold in +Pager.
 - (void)updateScrollLinkState {
-    _scrollLink.paused = !(_playback.isPlaying && _foreground && self.isPresented
+    _scrollLink.paused = !(_playback.isPlaying && _sceneActive && self.isPresented
                            && !_pagerScrolling && !_pagerProgrammaticScrolling
                            && !_windowResizeInFlight);
 }

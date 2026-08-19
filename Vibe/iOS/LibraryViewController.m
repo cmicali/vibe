@@ -9,6 +9,7 @@
 #import "LibraryViewController.h"
 
 #import "AudioTrack.h"
+#import "AudioTrackMetadata.h"
 #import "EqualizerIndicatorView.h"
 #import "PlaybackController.h"
 #import "Playlist.h"
@@ -64,6 +65,10 @@ static const CGFloat kArtTextGap = 14;
     // without causing an appearance transition.
     BOOL               _viewPresentationVisible;
     BOOL               _equalizerSurfaceVisible;
+    // A track change while another tab, Settings, or the full-screen card owns
+    // the pixels. Hidden tables do not animate toward it; the next reveal parks
+    // once at the newest index.
+    NSUInteger         _pendingScrollIndex;
 }
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback {
@@ -71,6 +76,7 @@ static const CGFloat kArtTextGap = 14;
     if (self) {
         _playback = playback;
         _playlist = playback.playlist;
+        _pendingScrollIndex = NSNotFound;
     }
     return self;
 }
@@ -94,7 +100,25 @@ static const CGFloat kArtTextGap = 14;
     [self.tableView registerClass:LibraryTrackCell.class forCellReuseIdentifier:kTrackCellIdentifier];
 
     [_playback addObserver:self];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(thumbnailDidLoad:)
+                                               name:AudioTrackMetadataThumbnailDidLoadNotification
+                                             object:nil];
     [self refreshChrome];
+}
+
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+
+- (void)thumbnailDidLoad:(NSNotification *)notification {
+    for (NSIndexPath *path in self.tableView.indexPathsForVisibleRows) {
+        NSUInteger index = (NSUInteger)path.row;
+        if (index < _playlist.count &&
+            [_playlist trackAtIndex:index].metadata == notification.object) {
+            [self refreshVisibleRowAtIndex:index];
+        }
+    }
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -105,6 +129,16 @@ static const CGFloat kArtTextGap = 14;
 
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
+    [self syncCurrentEqualizerActivity];
+    [self applyPendingTrackScrollIfVisible];
+}
+
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    // Stop hidden table work at the start of a tab/navigation transition. An
+    // interactive cancellation comes back through viewWillAppear: and applies
+    // the newest pending destination once the surface settles.
+    _viewPresentationVisible = NO;
     [self syncCurrentEqualizerActivity];
 }
 
@@ -125,10 +159,29 @@ static const CGFloat kArtTextGap = 14;
     }
     _equalizerSurfaceVisible = equalizerSurfaceVisible;
     [self syncCurrentEqualizerActivity];
+    [self applyPendingTrackScrollIfVisible];
 }
 
 - (BOOL)equalizerSurfaceVisible {
     return _equalizerSurfaceVisible;
+}
+
+- (BOOL)isSurfaceMateriallyVisible {
+    return _viewPresentationVisible && _equalizerSurfaceVisible;
+}
+
+- (void)applyPendingTrackScrollIfVisible {
+    if (![self isSurfaceMateriallyVisible] || _pendingScrollIndex == NSNotFound) {
+        return;
+    }
+    NSUInteger index = _pendingScrollIndex;
+    _pendingScrollIndex = NSNotFound;
+    if (index < _playlist.count) {
+        [self.tableView scrollToRowAtIndexPath:
+                [NSIndexPath indexPathForRow:(NSInteger)index inSection:0]
+                              atScrollPosition:UITableViewScrollPositionNone
+                                      animated:NO];
+    }
 }
 
 - (void)openTapped {
@@ -280,6 +333,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
 
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
     _lastPickWasEmpty = NO;
+    _pendingScrollIndex = NSNotFound;
     [self.tableView reloadData];
     [self refreshChrome];
 }
@@ -297,13 +351,20 @@ didEndDisplayingCell:(UITableViewCell *)cell
         didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex {
     [self refreshVisibleRowAtIndex:previousIndex];
     [self refreshVisibleRowAtIndex:playback.currentIndex];
-    // The mac scrolls the playing row into view on every track change and
-    // nowhere else; the same rule, and the same no-op when it is already up.
+    // The mac scrolls the playing row into view on every visible track change.
+    // Offscreen, retain only the newest destination: animated table work behind
+    // the player or another tab cannot be seen and competes with that surface.
     if (playback.currentIndex < _playlist.count) {
-        [self.tableView scrollToRowAtIndexPath:
-                [NSIndexPath indexPathForRow:(NSInteger)playback.currentIndex inSection:0]
-                              atScrollPosition:UITableViewScrollPositionNone
-                                      animated:YES];
+        if ([self isSurfaceMateriallyVisible]) {
+            _pendingScrollIndex = NSNotFound;
+            [self.tableView scrollToRowAtIndexPath:
+                    [NSIndexPath indexPathForRow:(NSInteger)playback.currentIndex inSection:0]
+                                  atScrollPosition:UITableViewScrollPositionNone
+                                          animated:YES];
+        }
+        else {
+            _pendingScrollIndex = playback.currentIndex;
+        }
     }
 }
 

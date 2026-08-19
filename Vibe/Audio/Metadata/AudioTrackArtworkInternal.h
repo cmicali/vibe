@@ -15,6 +15,7 @@
 @class FolderArtResolver;
 
 typedef NSTimeInterval (^AudioTrackArtworkClock)(void);
+typedef VibeImage *_Nullable (^AudioTrackThumbnailDecoder)(NSData *_Nonnull data);
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -39,9 +40,24 @@ typedef VibeEmbeddedArtExtractionResult (^AudioTrackArtworkExtractor)(
 - (void)adoptParsedArtData:(nullable NSData *)artData;
 - (void)adoptArchivedThumbnailData:(nullable NSData *)encodedData
                     hasEmbeddedArt:(BOOL)hasEmbeddedArt;
+- (nullable NSData *)encodedThumbnailDataForStorage;
+- (void)storeEncodedThumbnailData:(nullable NSData *)encodedData;
 
 @property (readonly) BOOL hasEmbeddedArt;
-- (nullable VibeImage *)embeddedThumbnail;
+
+// The archive-encode path's one decode: cached pixels if present, otherwise a
+// fresh decode that never inserts into the shared display cache, so a
+// playlist-wide scan cannot evict visible rows' thumbnails. Metadata workers
+// only; UI paths use cachedThumbnail plus the bounded request below.
+- (nullable VibeImage *)decodeThumbnailForArchiving;
+
+// cachedThumbnail never decodes. This is the bounded off-main counterpart for
+// an embedded thumbnail whose compact bytes survived a pixel-cache eviction.
+// YES means this call admitted the one request for the row; a duplicate while
+// that request is live returns NO. A request that starts completes once on
+// main, with nil when the bytes did not decode or admission failed.
+- (BOOL)requestEmbeddedThumbnailDecodeWithCompletion:
+        (void (^)(VibeImage *_Nullable image))completion;
 
 - (nullable VibeImage *)cachedArt;
 - (BOOL)artNeedsLoad;
@@ -64,10 +80,21 @@ typedef VibeEmbeddedArtExtractionResult (^AudioTrackArtworkExtractor)(
 @property (nonatomic, copy, nullable) AudioTrackArtworkClock clock;
 @property (nullable, readonly, copy) NSString *sourceFilePath;
 
-// Metadata construction/cache storage only. Parsed art is reduced to its row
-// thumbnail before publication, then its original compressed bytes are freed.
-- (void)prewarmEmbeddedThumbnail;
+// Metadata construction/cache storage only. Parsed art is reduced to compact
+// row-thumbnail bytes before publication, then its original bytes are freed.
 - (void)discardArtData;
+
+// Test-only decoder seam. Production leaves it nil and uses the bounded
+// PlatformImage ImageIO decode. Install it before requesting a decode.
+@property (nonatomic, copy, nullable) AudioTrackThumbnailDecoder thumbnailDecoder;
+
+// Focused proof that archived rows decode lazily and can recover after the
+// shared thumbnail cache evicts their pixels.
+- (BOOL)decodedThumbnailIsCachedForTesting;
+- (void)evictDecodedThumbnailForTesting;
++ (NSUInteger)decodedThumbnailCacheCountForTesting;
++ (NSUInteger)decodedThumbnailCacheLimitForTesting;
++ (void)clearDecodedThumbnailCacheForTesting;
 
 // Synchronous seam for the state-machine tests. UI callers use the bounded
 // asynchronous method above.

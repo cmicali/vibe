@@ -60,6 +60,21 @@ static NSString *const kActionCellIdentifier = @"action";
         return [[WaveformRendererRegistry displayNameForIdentifier:a]
                 localizedStandardCompare:[WaveformRendererRegistry displayNameForIdentifier:b]];
     }];
+    // Adds, removals and independently restored launch bookmarks all take this
+    // one path, so the table's dynamic row count cannot drift from the store.
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(searchFoldersDidChange:)
+                                               name:VibeSearchFoldersDidChangeNotification
+                                             object:SearchFolderStore.shared];
+}
+
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+
+- (void)searchFoldersDidChange:(NSNotification *)notification {
+    [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeSettingsSectionSearchFolders]
+                 withRowAnimation:UITableViewRowAnimationAutomatic];
 }
 
 // The style actually being drawn, not the raw stored value: an identifier from
@@ -217,7 +232,6 @@ static NSString *const kActionCellIdentifier = @"action";
         return;
     }
     [SearchFolderStore.shared removeFolderAtIndex:(NSUInteger)indexPath.row];
-    [tableView deleteRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
 }
 
 // Folders only — asCopy:NO, so the grant is to the real folder rather than to a
@@ -243,8 +257,6 @@ static NSString *const kActionCellIdentifier = @"action";
         [self showAlreadyCoveredAlert];
         return;
     }
-    [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeSettingsSectionSearchFolders]
-                 withRowAnimation:UITableViewRowAnimationAutomatic];
 }
 
 - (void)showAlreadyCoveredAlert {

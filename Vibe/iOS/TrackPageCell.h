@@ -28,13 +28,13 @@ NS_ASSUME_NONNULL_BEGIN
 // TRAP: a UIControl check is not enough. Hit-testing does NOT hand back a
 // disabled button — the touch falls through to the view behind it — so a tap
 // on next at the end of the playlist paused playback instead of doing nothing.
-@interface VibeTransportRowView : UIView
+@interface TrackPageTransportView : UIView
 @end
 
 // The right-hand time readout is a control because tapping it changes the
 // total-vs-remaining mode. Its intrinsic height is a 44pt hit target while its
 // internal label stays visually aligned with the elapsed time.
-@interface VibeTimeControl : UIControl
+@interface TrackPageTimeControl : UIControl
 @property (nonatomic, copy) NSString *text;
 @property (nonatomic) NSTextAlignment textAlignment;
 @end
@@ -52,12 +52,12 @@ NS_ASSUME_NONNULL_BEGIN
 // Shows the total duration, or the minus-prefixed remaining time once tapped.
 // The mode is one setting for the whole app, so the controller owns the target
 // and every page follows.
-@property (nonatomic, readonly) VibeTimeControl *remainingTimeControl;
+@property (nonatomic, readonly) TrackPageTimeControl *remainingTimeControl;
 
 // The transport row — previous, play/pause, next — and its buttons. The
 // controller wires the three actions, swaps the play/pause symbol, and fades
 // the row as a unit (the empty state shows none of it).
-@property (nonatomic, readonly) VibeTransportRowView *transportView;
+@property (nonatomic, readonly) TrackPageTransportView *transportView;
 @property (nonatomic, readonly) UIButton *previousButton;
 @property (nonatomic, readonly) UIButton *playPauseButton;
 @property (nonatomic, readonly) UIButton *nextButton;

@@ -18,6 +18,11 @@ NS_ASSUME_NONNULL_BEGIN
 // in either direction, ancestors kept. Nothing here touches the disk.
 + (NSArray<NSURL *> *)pruneNestedRoots:(NSArray<NSURL *> *)roots;
 
+// Deterministic seams for proving that a repeated query scans only newly
+// appended rows. Production rows arrive through the directory walk.
+- (void)appendFileURLForTesting:(NSURL *)url;
+@property (nonatomic, readonly) NSUInteger lastFilterEvaluationCountForTesting;
+
 @end
 
 NS_ASSUME_NONNULL_END

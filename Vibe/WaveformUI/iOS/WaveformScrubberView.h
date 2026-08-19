@@ -59,6 +59,11 @@ NS_ASSUME_NONNULL_BEGIN
 // progress writes so the playhead does not fight the finger.
 @property (nonatomic, readonly) BOOL isScrubbing;
 
+// Whether this view currently has waveform data to manipulate. The enclosing
+// pager yields touches only when the scrubber can actually take them; an
+// unloaded scrubber remains ordinary page-swipe surface.
+@property (nonatomic, readonly, getter=isScrubbingEnabled) BOOL scrubbingEnabled;
+
 // YES while the settled envelope bitmap is standing in for the live renderer
 // tree (the scroll/scrub fast path). Diagnostic; surfaced in dump_state.
 @property (nonatomic, readonly) BOOL isShowingBakedWaveform;
@@ -128,8 +133,7 @@ NS_ASSUME_NONNULL_BEGIN
 // and only delivery and is the case worth easing in.
 - (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated;
 
-// The shimmer for a slow file open (an undownloaded cloud placeholder), and
-// the static midline for the no-track empty state.
+// The shimmer for a slow file open (an undownloaded cloud placeholder).
 - (void)showLoadingIndicator;
 - (void)hideLoadingIndicator;
 // Determinate download progress: the midline fills to fraction, under the
@@ -137,7 +141,6 @@ NS_ASSUME_NONNULL_BEGIN
 // can arrive while the audio file is still materializing). Negative removes
 // the fill; the owner clears it when the open lands or fails.
 - (void)setLoadingProgress:(float)fraction;
-- (void)showEmptyPlaceholder;
 
 @end
 

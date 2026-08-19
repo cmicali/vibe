@@ -6,6 +6,7 @@
 #import "SearchViewController.h"
 
 #import "AudioTrack.h"
+#import "AudioTrackMetadata.h"
 #import "FileSearchIndex.h"
 #import "FileSearchRules.h"
 #import "PlaybackController.h"
@@ -50,6 +51,10 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     // a rebuild is already parked.
     BOOL                _matchesStale;
     BOOL                _refilterScheduled;
+    // The controller owns presentation visibility; RootViewController supplies
+    // whether its custom card leaves this tab's pixels materially exposed.
+    BOOL                _viewPresentationVisible;
+    BOOL                _materialSurfaceVisible;
 }
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback {
@@ -62,6 +67,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         _playlistPaths = [NSSet set];
         _fileIndex = [[FileSearchIndex alloc] init];
         _fileIndex.delegate = self;
+        _materialSurfaceVisible = YES;
     }
     return self;
 }
@@ -89,16 +95,47 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     // the persisted grants is asynchronous and can land while this screen is
     // already up, and then nothing else would ever tell it.
     [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(searchFoldersDidChange)
+                                           selector:@selector(searchFoldersDidChange:)
                                                name:VibeSearchFoldersDidChangeNotification
+                                             object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(thumbnailDidLoad:)
+                                               name:AudioTrackMetadataThumbnailDidLoadNotification
                                              object:nil];
     [self rebuildPlaylistPaths];
     [self filterWithQuery:@""];
 }
 
-- (void)searchFoldersDidChange {
+- (void)thumbnailDidLoad:(NSNotification *)notification {
+    if (![self isMateriallyVisible]) {
+        return;
+    }
+    NSMutableArray<NSIndexPath *> *matchingPaths = [NSMutableArray array];
+    for (NSIndexPath *path in self.tableView.indexPathsForVisibleRows) {
+        if (path.section != VibeSearchSectionPlaylist ||
+            (NSUInteger)path.row >= _matches.count) {
+            continue;
+        }
+        NSUInteger trackIndex = _matches[(NSUInteger)path.row].unsignedIntegerValue;
+        if (trackIndex < _playlist.count &&
+            [_playlist trackAtIndex:trackIndex].metadata == notification.object) {
+            [matchingPaths addObject:path];
+        }
+    }
+    if (matchingPaths.count > 0) {
+        [self.tableView reloadRowsAtIndexPaths:matchingPaths
+                              withRowAnimation:UITableViewRowAnimationNone];
+    }
+}
+
+- (void)searchFoldersDidChange:(NSNotification *)notification {
     [self applySearchRoots];
-    [self filterWithQuery:[self currentQuery]];
+    _fileHits = @[];
+    if ([self isMateriallyVisible]) {
+        [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeSearchSectionFiles]
+                     withRowAnimation:UITableViewRowAnimationNone];
+        [self requestFileHitsForQuery:[self currentQuery]];
+    }
 }
 
 // Different roots discard the index and re-walk; the same ones are a no-op, so
@@ -106,7 +143,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 // screen that is up: arriving here is the signal the work is wanted.
 - (void)applySearchRoots {
     [_fileIndex setRoots:_playback.searchRoots];
-    if (self.viewIfLoaded.window) {
+    if ([self isMateriallyVisible]) {
         [_fileIndex beginBuildIfNeeded];
     }
 }
@@ -121,16 +158,46 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 // second appearance costs nothing.
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
+    _viewPresentationVisible = YES;
     [_fileIndex setRoots:_playback.searchRoots];
-    [_fileIndex beginBuildIfNeeded];
+    if ([self isMateriallyVisible]) {
+        [_fileIndex beginBuildIfNeeded];
+    }
     // Unconditional, not gated on _matchesStale: the walk delivers while this
     // screen is off in the wings and its reloads are dropped there, so appearing
     // is the one place both sections are known to be drawn from what is current.
     [self filterWithQuery:[self currentQuery]];
 }
 
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    _viewPresentationVisible = NO;
+    [_fileIndex cancelPendingHitRequests];
+}
+
 - (void)dealloc {
     [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+
+- (BOOL)isMateriallyVisible {
+    return _viewPresentationVisible && _materialSurfaceVisible;
+}
+
+- (void)setMaterialSurfaceVisible:(BOOL)materialSurfaceVisible {
+    if (_materialSurfaceVisible == materialSurfaceVisible) {
+        return;
+    }
+    _materialSurfaceVisible = materialSurfaceVisible;
+    if (![self isMateriallyVisible]) {
+        [_fileIndex cancelPendingHitRequests];
+        return;
+    }
+    [_fileIndex beginBuildIfNeeded];
+    [self filterWithQuery:[self currentQuery]];
+}
+
+- (BOOL)isMaterialSurfaceVisible {
+    return _materialSurfaceVisible;
 }
 
 #pragma mark - Filtering
@@ -143,10 +210,10 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     [self filterWithQuery:[self currentQuery]];
 }
 
-// The playlist half is a synchronous pass and lands on this run loop turn; the
-// files half draws off whatever the walk has delivered so far and grows as the
-// rest arrives. Neither waits on the other, which is the whole point: the
-// playlist answer is instant and must not be held for a provider listing.
+// The playlist half is a synchronous pass and lands on this run loop turn. The
+// files half snapshots whatever the walk has delivered and does its localized
+// matching away from main; later batches supersede that work instead of stacking
+// passes. Neither waits on the other or on a provider listing.
 - (void)filterWithQuery:(NSString *)query {
     _matchesStale = NO;
     NSArray<AudioTrack *> *tracks = _playlist.tracks;
@@ -157,10 +224,34 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         }
     }
     _matches = matches;
-    _fileHits = [_fileIndex hitsMatchingQuery:query
-                                    excluding:_playlistPaths
-                                        limit:kMaxFileResults];
+    _fileHits = @[];
     [self.tableView reloadData];
+    [self requestFileHitsForQuery:query];
+}
+
+- (void)requestFileHitsForQuery:(NSString *)query {
+    if (![self isMateriallyVisible] || query.length == 0) {
+        [_fileIndex cancelPendingHitRequests];
+        return;
+    }
+    NSString *querySnapshot = [query copy];
+    NSSet<NSString *> *playlistPathsSnapshot = _playlistPaths;
+    __weak SearchViewController *weakSelf = self;
+    [_fileIndex requestHitsMatchingQuery:querySnapshot
+                               excluding:playlistPathsSnapshot
+                                   limit:kMaxFileResults
+                              completion:^(NSArray<FileSearchHit *> *hits) {
+        SearchViewController *strongSelf = weakSelf;
+        if (!strongSelf || ![strongSelf isMateriallyVisible]
+                || ![querySnapshot isEqualToString:[strongSelf currentQuery]]
+                || strongSelf->_playlistPaths != playlistPathsSnapshot) {
+            return;
+        }
+        strongSelf->_fileHits = hits;
+        [strongSelf.tableView reloadSections:
+                [NSIndexSet indexSetWithIndex:VibeSearchSectionFiles]
+                            withRowAnimation:UITableViewRowAnimationNone];
+    }];
 }
 
 - (BOOL)track:(AudioTrack *)track matchesQuery:(NSString *)query {
@@ -291,17 +382,14 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 }
 
 - (void)reloadFilesSection {
+    if (![self isMateriallyVisible]) {
+        return;
+    }
     NSString *query = [self currentQuery];
     if (query.length == 0 && _fileHits.count == 0) {
         return;   // browsing: the walk's batches have nothing to draw
     }
-    _fileHits = [_fileIndex hitsMatchingQuery:query
-                                    excluding:_playlistPaths
-                                        limit:kMaxFileResults];
-    if (self.viewIfLoaded.window) {
-        [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeSearchSectionFiles]
-                     withRowAnimation:UITableViewRowAnimationNone];
-    }
+    [self requestFileHitsForQuery:query];
 }
 
 #pragma mark - PlaybackObserver
@@ -313,12 +401,23 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
     [self rebuildPlaylistPaths];
     [self applySearchRoots];
-    [self filterWithQuery:[self currentQuery]];
+    [self refreshAfterPlaylistChange];
 }
 
 - (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes {
     [self rebuildPlaylistPaths];
-    [self filterWithQuery:[self currentQuery]];
+    [self refreshAfterPlaylistChange];
+}
+
+- (void)refreshAfterPlaylistChange {
+    if ([self isMateriallyVisible]) {
+        [self filterWithQuery:[self currentQuery]];
+    }
+    else {
+        _matchesStale = YES;
+        _fileHits = @[];
+        [_fileIndex cancelPendingHitRequests];
+    }
 }
 
 // Tags can change what a row says and what the query matches, but a folder
@@ -331,7 +430,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 }
 
 - (void)scheduleRefilter {
-    if (_refilterScheduled || !self.viewIfLoaded.window) {
+    if (_refilterScheduled || ![self isMateriallyVisible]) {
         return;
     }
     _refilterScheduled = YES;
@@ -342,7 +441,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 
 - (void)refilterIfStale {
     _refilterScheduled = NO;
-    if (_matchesStale) {
+    if (_matchesStale && [self isMateriallyVisible]) {
         [self filterWithQuery:[self currentQuery]];
     }
 }

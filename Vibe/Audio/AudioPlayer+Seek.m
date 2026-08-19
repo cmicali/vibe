@@ -61,6 +61,8 @@
             });
             return;
         }
+        uint64_t owningSubmittedPlayIdentifier =
+                self->_activeSubmittedPlayIdentifier;
         double sampleRate = file.processingFormat.sampleRate;
         BOOL wasPlaying = (self->_state == VibePlayerStatePlaying);
         AVAudioFramePosition startFrame = VibeClampedStartFrame(pos, sampleRate, file.length);
@@ -95,8 +97,13 @@
         uint64_t rampGen = [self preemptRampsOnQueue];
         __weak AudioPlayer *weakSelf = self;
         [self rampNodeAsync:node step:1 from:node.volume to:0 generation:rampGen completion:^{
-            [weakSelf finishSeekOnQueue:node file:file startFrame:startFrame
-                          framePosition:framePosition rampGeneration:rampGen track:track];
+            [weakSelf finishSeekOnQueue:node
+                                   file:file
+                             startFrame:startFrame
+                          framePosition:framePosition
+                         rampGeneration:rampGen
+                                  track:track
+                submittedPlayIdentifier:owningSubmittedPlayIdentifier];
         }];
     });
 }
@@ -109,7 +116,8 @@
                                     file:(AVAudioFile *)file
                               startFrame:(AVAudioFramePosition)startFrame
                            framePosition:(NSTimeInterval)framePosition
-                                   error:(NSError *)error {
+                                   error:(NSError *)error
+                 submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (_node != node || _file != file || _state != VibePlayerStatePlaying) {
         [self refreshOutputAudioActiveOnQueue];
         return;
@@ -119,7 +127,8 @@
                   segmentStart:startFrame position:framePosition];
     [self scheduleEngineIdleStopOnQueue];
     [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-            @"Could not resume playback after seek", error)];
+            @"Could not resume playback after seek", error)
+           forSubmittedPlay:submittedPlayIdentifier];
 }
 
 // The playing seek's fade-out completion; the parameters are what
@@ -132,7 +141,8 @@
                startFrame:(AVAudioFramePosition)startFrame
             framePosition:(NSTimeInterval)framePosition
            rampGeneration:(uint64_t)rampGen
-                    track:(AudioTrack *)track {
+                    track:(AudioTrack *)track
+  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (_node != node || _file != file) {
         // A new play, track change, stop or device switch replaced the
         // node while this faded. That operation owns playback and this
@@ -178,10 +188,12 @@
             // where completePauseOfNode: expects it.
             NSError *startError = nil;
             if (![self startEngineAndPlayNode:node error:&startError]) {
-                [self parkSeekAfterStartFailureForNode:node file:file
+                [self parkSeekAfterStartFailureForNode:node
+                                                  file:file
                                             startFrame:startFrame
                                          framePosition:framePosition
-                                                 error:startError];
+                                                 error:startError
+                               submittedPlayIdentifier:submittedPlayIdentifier];
             }
         }
         run_on_main_thread({
@@ -198,10 +210,12 @@
         // orphans it: resume plays to the end, no didFinishPlaying:, the
         // position pinned at the duration with the state stuck Playing.)
         // Keep the seeked frame, and report paused so the UI recovers.
-        [self parkSeekAfterStartFailureForNode:node file:file
+        [self parkSeekAfterStartFailureForNode:node
+                                          file:file
                                     startFrame:startFrame
                                  framePosition:framePosition
-                                         error:startError];
+                                         error:startError
+                       submittedPlayIdentifier:submittedPlayIdentifier];
         run_on_main_thread({
             [self.delegate audioPlayer:self didFinishSeeking:track];
         });

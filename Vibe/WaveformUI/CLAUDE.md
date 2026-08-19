@@ -19,11 +19,11 @@ Both families animate through a shared **`WaveformMorphEngine`**, which owns the
 
 ## WaveformLoadingIndicator and WaveformMidline
 
-`WaveformLoadingIndicator` is shared by both views — pure CALayer work with no view, window or trait collection, which is why it can be one object. `WaveformMidline.h` holds the metrics both views draw to: `kVibeMidlineHeight`, the shimmer's peak, the inert track's alpha (`kVibeInertMidlineAlpha`), the fill's.
+`WaveformLoadingIndicator` is shared by both views — pure CALayer work with no view, window or trait collection, which is why it can be one object. `WaveformMidline.h` holds its metrics: `kVibeMidlineHeight`, the shimmer's peak, the inert track's alpha (`kVibeInertMidlineAlpha`), and the fill's.
 
 **It is one control across both of its modes**, not a shimmer with a progress bar bolted on: a faint full-width midline track, a solid filled head over `[0, fraction]` whose last few points fade out, and the shimmer band sweeping **only the unfilled remainder**. Indeterminate is simply the case where nothing is filled, so the sweep spans the whole width. Every part of the control, fill included, is placed by `layoutInBounds:animatedOver:` and nowhere else, with `setProgress:inBounds:` supplying only the ease and a resize passing 0, so a negative fraction reverts cleanly.
 
-**The empty state's static line is that same control at rest**, so all four midline layers share one weight and the unfilled track shares the empty line's colour. `WaveformMidline.h` is the one place either moves.
+**The macOS empty state's static line reuses that control's resting track**, so it shares the loading line's weight and colour. The iOS empty state draws no line.
 
 `DownloadProgressMonitor` (`Vibe/System/`) feeds the fraction for a materializing cloud file — about once a second, which is the provider's ceiling — so `setProgress:inBounds:` **eases** the fill to each value over roughly the previous gap instead of snapping. Core Animation retargets from the presentation value, so an early sample redirects rather than jumps, and the fill never runs past what was reported, leaving a stall honest. Drive both modes without a real download via the debug channel's `set_loading`.
 

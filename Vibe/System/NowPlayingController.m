@@ -289,14 +289,13 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     // once the art resolves, so the card fills in a moment later rather than
     // stalling here.
     //
-    // The 128px thumbnail stands in for that gap. It is decoded on the metadata
-    // worker before the track publishes — a whole background round trip ahead
-    // of the full-resolution art, which re-reads the audio file — and reading
-    // it here never blocks either, since it decodes only from bytes already in
-    // memory. Without it the card shows the app icon while the window shows a
-    // cover, which reads as Now Playing lagging the app when both are in fact
-    // published in the same pass. The identity check below promotes the full
-    // art the moment it lands.
+    // The 128px thumbnail stands in for that gap. A fresh parse decodes it on
+    // its metadata worker; after shared-cache eviction this read returns nil
+    // and queues a bounded off-main decode instead. Without the thumbnail the
+    // card shows the app icon while the window shows a cover, which reads as
+    // Now Playing lagging the app when both are in fact published in the same
+    // pass. The identity check below promotes either recovered thumbnail or
+    // full art when the next publish sees it.
     VibeImage *artwork = track.cachedArt ?: track.cachedThumbnail;
 
     // The elapsed time is never republished at 3 Hz, because the system

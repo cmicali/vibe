@@ -300,7 +300,7 @@
                     NSURL *url, VibeAudioFileMaterializationRole role) {
         return [harness operationForURL:url role:role];
     } clock:^NSTimeInterval{
-        return NSProcessInfo.processInfo.systemUptime;
+        return [NSDate date].timeIntervalSinceReferenceDate;
     }];
 }
 

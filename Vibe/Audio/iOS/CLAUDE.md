@@ -14,12 +14,14 @@ Four events, four delegate verdicts, each mapped onto the player's public API:
 | --- | --- |
 | Interruption Began / Ended | pause, then resume |
 | Route loss (`OldDeviceUnavailable`) | pause |
-| Engine configuration change | `recoverFromEngineConfigurationChange` |
-| Media services reset | `reinitializeAfterMediaServicesReset` |
+| Engine configuration change | classify the output transition, then pause or `recoverFromEngineConfigurationChange` |
+| Media services reset | `beginMediaServicesResetWithCompletion:` at notification receipt |
 
 **Was-playing is captured at the interruption's Began edge *only*.** The configuration-change and route-loss pauses that pile up mid-interruption must not overwrite it, or the resume decides from the wrong state.
 
-The configuration-change verdict restarts the stopped engine **in place**, so connecting AirPods or CarPlay keeps playing rather than pausing.
+**Interruption-ended automatic activation is not user intent.** It preserves and checks the route-loss and media-reset blockers before and after the synchronous session activation, so unplugging headphones during a call cannot turn the system's `ShouldResume` hint into playback on the speaker. Only explicit user activation clears those persistent blockers.
+
+The configuration-change verdict restarts the stopped engine **in place**, so connecting AirPods or CarPlay keeps playing rather than pausing. It does not guess at notification timing: the controller records whether the last and current outputs are built-in, external or absent. An external-to-built-in transition is headphone loss and pauses even when the engine-configuration notification arrives first; an already recorded route loss, interruption or media reset blocks recovery until a successful explicit session activation. Ordinary configuration changes are generation-coalesced before main delivery.
 
 **A pause verdict during Loading parks the landing** rather than being dropped. The player's explicit `pause`/`resume` methods update the pending request to the requested state, so duplicate system verdicts are no-ops instead of toggles.
 
@@ -28,7 +30,7 @@ The configuration-change verdict restarts the stopped engine **in place**, so co
 The player's engine-recovery category, on `AudioPlayerInternal.h`'s shared private surface exactly as the mac's `AudioPlayer+Devices` is. It lives here so the mac target never compiles or even sees the API, and `AudioSessionController`'s verdicts are the only callers.
 
 - `recoverFromEngineConfigurationChange` — restarts a stopped engine in place at the cached position, preserving the play state across route and format changes. An iOS-only player-queue sampler refreshes that cache from valid render time while the backgrounded UI timer is dormant.
-- `reinitializeAfterMediaServicesReset` — **every audio object is dead per Apple's contract**, so this drops them without messaging them (`dropEngineBoundStateOnQueue`) and recreates the engine and master bus. `installMasterBusOnQueue` is shared with the ordinary init, so the FX and no-FX configurations rebuild identically — and since the iOS player is created with `enableFX:NO`, it takes the bare mixer-to-output wire. `PlayerViewController` re-parks the current track at the captured position.
+- `beginMediaServicesResetWithCompletion:` — **every audio object is dead per Apple's contract**, so this drops them without messaging them (`dropEngineBoundStateOnQueue`) and recreates the engine and master bus. It is called synchronously on the notification thread: reset receipt and play submission each enqueue under the same state lock, so a play received after reset runs on the new engine instead of being destroyed by a later main-thread rebuild. The recovery position is copied only from the lock-protected last-valid cache, never by messaging the invalid file, node or engine. `installMasterBusOnQueue` is shared with ordinary init, so the FX and no-FX configurations rebuild identically — and since the iOS player is created with `enableFX:NO`, it takes the bare mixer-to-output wire. Its main-thread completion runs only after Stopped is authoritative and only if no newer play submission superseded the reset; `PlaybackController` then publishes that state and re-parks the captured track.
 
 ## Verifying
 

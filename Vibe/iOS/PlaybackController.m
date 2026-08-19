@@ -16,6 +16,7 @@
 #import "AudioPlayer+Recovery.h"
 #import "AudioPlayer+Seek.h"
 #import "AudioTrack.h"
+#import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
 #import "SearchFolderStore.h"
 #import "UIUpdateTimer.h"
@@ -28,21 +29,20 @@ static const NSUInteger kUIUpdateHz = 3;
 
 @implementation PlaybackController {
     // Weakly held: an observer is a view or a view controller, and every one
-    // of them outlives its registration only by accident.
-    NSHashTable<id<PlaybackObserver>> *_observers;
+    // of them outlives its registration only by accident. NSPointerArray
+    // keeps the public registration-order guarantee that NSHashTable cannot.
+    NSPointerArray *_observers;
 }
 
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _observers = [NSHashTable weakObjectsHashTable];
+        _observers = [NSPointerArray weakObjectsPointerArray];
 
         _playlist = [[Playlist alloc] init];
         _playlist.observer = self;
         _metadataCache = [[AudioTrackMetadataCache alloc] init];
         _metadataCache.delegate = self;
-        _audioSession = [[AudioSessionController alloc] init];
-        _audioSession.delegate = self;
         _folderSession = [[FolderSession alloc] init];
         _folderSession.delegate = self;
         _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
@@ -59,24 +59,76 @@ static const NSUInteger kUIUpdateHz = 3;
         // Fail closed until VibeiOSSceneDelegate reports foreground-active.
         // A controller may be constructed while its scene is still inactive.
         _updateTimer.windowVisible = NO;
+        // The media-reset receipt is delivered on its notification thread, so
+        // session observation starts only after every collaborator it can
+        // reach is ready and with its delegate installed atomically at init.
+        _audioSession = [[AudioSessionController alloc] initWithDelegate:self];
+        [NSNotificationCenter.defaultCenter addObserver:self
+                                               selector:@selector(thumbnailDidLoad:)
+                                                   name:AudioTrackMetadataThumbnailDidLoadNotification
+                                                 object:nil];
     }
     return self;
+}
+
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+
+- (void)thumbnailDidLoad:(NSNotification *)notification {
+    AudioTrack *displayed = self.displayedTrack;
+    if (displayed.metadata == notification.object) {
+        [self publishNowPlaying];
+    }
 }
 
 #pragma mark - Observers
 
 - (void)addObserver:(id<PlaybackObserver>)observer {
-    [_observers addObject:observer];
+    BOOL hasDeadObserver = NO;
+    for (NSUInteger index = 0; index < _observers.count; index++) {
+        id<PlaybackObserver> existing = (__bridge id)[_observers pointerAtIndex:index];
+        if (existing == observer) {
+            return;
+        }
+        hasDeadObserver |= existing == nil;
+    }
+    if (hasDeadObserver) {
+        [_observers compact];
+    }
+    [_observers addPointer:(__bridge void *)observer];
 }
 
 - (void)removeObserver:(id<PlaybackObserver>)observer {
-    [_observers removeObject:observer];
+    for (NSUInteger index = _observers.count; index > 0; index--) {
+        id<PlaybackObserver> existing =
+                (__bridge id)[_observers pointerAtIndex:index - 1];
+        if (!existing || existing == observer) {
+            [_observers removePointerAtIndex:index - 1];
+        }
+    }
 }
 
-// Snapshotted: a handler may add or drop an observer, and NSHashTable does not
-// survive mutation under enumeration.
+// Snapshotted: a handler may add or drop an observer without changing the
+// recipients or registration order of the delivery already in progress.
 - (NSArray<id<PlaybackObserver>> *)observerSnapshot {
-    return _observers.allObjects;
+    NSMutableArray<id<PlaybackObserver>> *snapshot =
+            [NSMutableArray arrayWithCapacity:_observers.count];
+    BOOL hasDeadObserver = NO;
+    for (NSUInteger index = 0; index < _observers.count; index++) {
+        id<PlaybackObserver> observer =
+                (__bridge id)[_observers pointerAtIndex:index];
+        if (observer) {
+            [snapshot addObject:observer];
+        }
+        else {
+            hasDeadObserver = YES;
+        }
+    }
+    if (hasDeadObserver) {
+        [_observers compact];
+    }
+    return snapshot;
 }
 
 - (void)notifyDidMoveToCurrentTrackAnimated:(BOOL)animated {
@@ -627,7 +679,6 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 }
 
 - (void)audioSessionShouldResume:(AudioSessionController *)controller {
-    [_audioSession activate];
     [_player resume];
     // If Ended raced the short pause fade, resume dissolves the pending pause
     // while the state still reads Playing. Follow it with the idempotent health
@@ -639,25 +690,38 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     [_player recoverFromEngineConfigurationChange];
 }
 
-- (void)audioSessionMediaServicesWereReset:(AudioSessionController *)controller {
-    // Every live audio object died with the media server. Capture the
-    // playhead (the position getter serves its last-valid cache), rebuild the
-    // engine, and re-park the current track there — paused, never blasting
-    // back into playback after a server crash. The park's didStartPlaying:
-    // settles the header, waveform and Now Playing card.
-    AudioTrack *track = _playlist.currentTrack;
-    NSTimeInterval position = _player.position;
-    [_player reinitializeAfterMediaServicesReset];
-    _seekInFlight = NO;
-    _updateTimer.wanted = NO;
-    [self notifyDidChangePlayState];
-    if (track) {
-        _parked = YES;
-        [_player play:track atPosition:position startPaused:YES];
-    }
-    else {
-        [self notifyDidTick];
-    }
+- (void)audioSessionDidReceiveMediaServicesReset:(AudioSessionController *)controller {
+    // Notification-thread edge: do not touch main-confined shell state here.
+    // The player establishes the reset/play queue ordering now and hands the
+    // pre-reset track plus its lock-only position cache back on main.
+    __weak PlaybackController *weakSelf = self;
+    [_player beginMediaServicesResetWithCompletion:
+            ^(AudioTrack *resetTrack, NSTimeInterval position) {
+        PlaybackController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        strongSelf->_seekInFlight = NO;
+        strongSelf->_updateTimer.wanted = NO;
+        strongSelf->_trackStartPending = NO;
+        AudioTrack *track = strongSelf->_playlist.currentTrack;
+        // A model-only restore can replace the row without submitting a play.
+        // It owns its parked state; this older reset must not open its file.
+        if (resetTrack && track == resetTrack) {
+            strongSelf->_parked = YES;
+            strongSelf->_trackStartPending = YES;
+            [strongSelf->_player play:resetTrack
+                           atPosition:position
+                          startPaused:YES];
+        }
+        else if (!track) {
+            strongSelf->_parked = NO;
+        }
+        // The reset's Stopped state is now authoritative. Publish it (or the
+        // paused re-park's pending state) before its async open can settle.
+        [strongSelf notifyDidChangePlayState];
+        [strongSelf notifyDidTick];
+    }];
 }
 
 @end
