@@ -156,8 +156,10 @@
         }
         if (row == nextRow) {
             // The parked prefetch handle is path-keyed and still holds the
-            // source; re-arm it or the swapped-in FLAC pays a cold open.
-            [self.audioPlayer prefetchTrack:replacement];
+            // source; re-arm it or the swapped-in FLAC pays a cold open. The
+            // accessor names this same row, and reads nil under On track end =
+            // Pause, where there was nothing parked to re-arm.
+            [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
         }
     }];
     if (!converted) {

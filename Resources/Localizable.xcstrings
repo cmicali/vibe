@@ -25105,6 +25105,42 @@
       },
       "extractionState": "manual"
     },
+    "settings.playback.on_end.pause": {
+      "comment": "Settings, Playback pane, choice for what happens when a track finishes: playback stops on the finished track instead of continuing.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.playback.on_end.play_next": {
+      "comment": "Settings, Playback pane, choice for what happens when a track finishes: playback continues with the following track in the playlist. The default.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play next song in playlist"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.playback.on_end_label": {
+      "comment": "Settings, Playback pane: label beside the dropdown choosing what happens when a track finishes playing. Ends with a colon.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On track end:"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.playback.pitch_range_label": {
       "comment": "Settings, Playback pane: label beside the pitch fader range choice (8% or 16%). Ends with a colon.",
       "localizations": {

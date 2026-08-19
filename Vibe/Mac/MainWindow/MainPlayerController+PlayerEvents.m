@@ -225,7 +225,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // Whether this end advances at all. The end of the playlist must be read
     // from the playlist before next:, because the play it starts is async on
     // the player queue, so the player still reads Stopped right after an
-    // ordinary mid-playlist advance. Settings > Playback > On end = Pause
+    // ordinary mid-playlist advance. Settings > Playback > On track end = Pause
     // parks on the finished track exactly as the end of the playlist does;
     // nothing has spliced, because successorPrefetchTrack parked nothing to
     // arm.

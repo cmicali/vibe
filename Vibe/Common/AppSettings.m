@@ -26,6 +26,7 @@
 #define SETTING_DELETE_ORIGINAL_AFTER_CONVERT       @"Convert.deleteOriginal"
 #define SETTING_SKIP_BASE_BARS                      @"Transport.skipBaseBars"
 #define SETTING_CROSSFADE_MILLISECONDS              @"AudioPlayer.crossfadeMilliseconds"
+#define SETTING_PAUSE_AT_TRACK_END                  @"Transport.pauseAtTrackEnd"
 #define SETTING_UI_UPDATE_HZ_CAP                    @"UI.updateHzCap"
 #define SETTING_AUDIO_FX_ENABLED                    @"AudioPlayer.fxEnabled"
 #define SETTING_ANALYZE_BPM                         @"Audio.analyzeBPM"
@@ -195,6 +196,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
             SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
             SETTING_SKIP_BASE_BARS:                 @(8),
             SETTING_CROSSFADE_MILLISECONDS:         @(10),
+            SETTING_PAUSE_AT_TRACK_END:             @(NO),
             SETTING_UI_UPDATE_HZ_CAP:               @(30),
             SETTING_AUDIO_FX_ENABLED:               @(YES),
             SETTING_ANALYZE_BPM:                    @(YES),
@@ -366,6 +368,14 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds {
     [[NSUserDefaults standardUserDefaults] setInteger:milliseconds forKey:SETTING_CROSSFADE_MILLISECONDS];
+}
+
+- (BOOL)pauseAtTrackEnd {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_PAUSE_AT_TRACK_END];
+}
+
+- (void)setPauseAtTrackEnd:(BOOL)pause {
+    [[NSUserDefaults standardUserDefaults] setBool:pause forKey:SETTING_PAUSE_AT_TRACK_END];
 }
 
 - (NSInteger)storedUIUpdateHzCap {

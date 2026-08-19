@@ -9,8 +9,13 @@
 #import "MainPlayerController.h"
 #import "VibeStrings.h"
 
-static const CGFloat kPlaybackPaneHeight = 240;
+static const CGFloat kPlaybackPaneHeight = 270;
 static const CGFloat kPlaybackPopUpWidth = 200;
+
+// Stable identifiers on the On track end items, never their localized titles,
+// so the debug channel can pick one by name.
+static NSString *const kOnEndPlayNext = @"play_next";
+static NSString *const kOnEndPause = @"pause";
 
 // The preset values live in AppSettings.h (kVibeSkipBasePresets: the smallest
 // skip's bar count, the three sizes being the base, twice and four times it;
@@ -19,6 +24,7 @@ static const CGFloat kPlaybackPopUpWidth = 200;
 // values to them.
 
 @implementation SettingsPlaybackViewController {
+    NSPopUpButton *_onEndPopUp;
     NSButton *_pitchRange8;
     NSButton *_pitchRange16;
     NSPopUpButton *_skipStepsPopUp;
@@ -29,6 +35,12 @@ static const CGFloat kPlaybackPopUpWidth = 200;
 }
 
 - (void)loadView {
+    _onEndPopUp = [self popUpButtonWithWidth:kPlaybackPopUpWidth action:@selector(onEndChanged:)];
+    [_onEndPopUp addItemWithTitle:STR_SETTINGS_ON_END_PLAY_NEXT];
+    _onEndPopUp.lastItem.representedObject = kOnEndPlayNext;
+    [_onEndPopUp addItemWithTitle:STR_SETTINGS_ON_END_PAUSE];
+    _onEndPopUp.lastItem.representedObject = kOnEndPause;
+
     // Radio buttons group by shared action, which is exactly what these two
     // have.
     _pitchRange8 = [NSButton radioButtonWithTitle:STR_MENU_PITCH_RANGE_8
@@ -76,6 +88,7 @@ static const CGFloat kPlaybackPopUpWidth = 200;
     // How the key is written and colored is Appearance's business; this pane
     // only decides whether it is detected at all.
     NSGridView *grid = [self.class formGridWithRows:@[
+        @[[NSTextField labelWithString:STR_SETTINGS_ON_END_LABEL], _onEndPopUp],
         @[[NSTextField labelWithString:STR_SETTINGS_PITCH_RANGE_LABEL], pitchRadios],
         @[[NSTextField labelWithString:STR_SETTINGS_SKIP_STEPS_LABEL], _skipStepsPopUp],
         @[[NSTextField labelWithString:STR_SETTINGS_CROSSFADE_LABEL], _crossfadePopUp],
@@ -88,6 +101,8 @@ static const CGFloat kPlaybackPopUpWidth = 200;
 }
 
 - (void)refreshFromSettings {
+    NSString *onEnd = AppSettings.sharedInstance.pauseAtTrackEnd ? kOnEndPause : kOnEndPlayNext;
+    [_onEndPopUp selectItemAtIndex:[_onEndPopUp indexOfItemWithRepresentedObject:onEnd]];
     NSInteger range = AppSettings.sharedInstance.pitchRange;
     _pitchRange8.state = range != 16 ? NSControlStateValueOn : NSControlStateValueOff;
     _pitchRange16.state = range == 16 ? NSControlStateValueOn : NSControlStateValueOff;
@@ -97,6 +112,13 @@ static const CGFloat kPlaybackPopUpWidth = 200;
     _enableFXCheckbox.state = AppSettings.sharedInstance.audioFXEnabled ? NSControlStateValueOn : NSControlStateValueOff;
     _detectBPMCheckbox.state = AppSettings.sharedInstance.analyzeBPM ? NSControlStateValueOn : NSControlStateValueOff;
     _detectKeyCheckbox.state = AppSettings.sharedInstance.analyzeKey ? NSControlStateValueOn : NSControlStateValueOff;
+}
+
+- (void)onEndChanged:(id)sender {
+    AppSettings.sharedInstance.pauseAtTrackEnd = [_onEndPopUp.selectedItem.representedObject isEqual:kOnEndPause];
+    // The live half: a mid-track change must re-park or drop the successor
+    // handle, or an already-armed splice would advance past the end anyway.
+    [self.playerController applyEndOfTrackAction];
 }
 
 - (void)pitchRangeChanged:(NSButton *)sender {

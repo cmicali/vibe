@@ -541,7 +541,7 @@
     // The player queue owns the Loading decision. This call is FIFO behind a
     // play submitted in the same main turn, so it can suppress an unrelated
     // append prefetch after that play has published its pending request.
-    [self.audioPlayer prefetchTrack:[self.playlistController trackAtIndex:self.playlistController.currentIndex + 1]];
+    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
     [self updateUI];
 }
 
@@ -724,6 +724,21 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
         AppSettings.sharedInstance.pitchRange = [item.identifier isEqualToString:@"pitch_range_16"] ? 16 : 8;
         [self applyPitchRange];
     }
+}
+
+- (AudioTrack *)successorPrefetchTrack {
+    if (AppSettings.sharedInstance.pauseAtTrackEnd) {
+        return nil;
+    }
+    return [self.playlistController trackAtIndex:self.playlistController.currentIndex + 1];
+}
+
+- (void)applyEndOfTrackAction {
+    // Re-park the successor, or drop it: prefetchTrack: with nil unschedules
+    // an armed splice, which is what keeps a mid-track switch to Pause from
+    // advancing anyway. The claim acknowledgement is not wanted here — the
+    // cloud-lane hold belongs to a play's settlement, not to a settings write.
+    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
 }
 
 - (void)applyPitchRange {

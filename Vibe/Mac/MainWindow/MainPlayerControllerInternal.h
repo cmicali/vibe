@@ -147,6 +147,16 @@ NS_ASSUME_NONNULL_BEGIN
 // output and material window/row visibility.
 - (void)syncEqualizerActivity;
 
+#pragma mark - The successor prefetch
+
+// The track every prefetch site parks, so that auto-advance and Next skip the
+// file open: the playlist's next track, or nil past its end. It is also the
+// ONE place Settings > Playback > On track end is enforced, because the parked
+// handle is the player's gapless arm point — under Pause it reads nil, so
+// nothing can splice at the boundary and a track end can only reach
+// didFinishPlaying:, which then parks instead of advancing.
+- (nullable AudioTrack *)successorPrefetchTrack;
+
 #pragma mark - Deferred metadata load and the error mask
 
 - (void)scheduleDeferredMetadataLoad;

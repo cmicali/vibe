@@ -59,6 +59,8 @@ Skip actions seek **by bars when the tempo is known** — tagged BPM beats analy
 
 A forward skip past the end calls `AudioPlayer.finishCurrentTrack`, which fires `didFinishPlaying:`, so the usual auto-advance / end-of-playlist path handles it — no bespoke branch.
 
+**Whether a track end advances at all is Settings > Playback > On track end** (`AppSettings.pauseAtTrackEnd`), and `successorPrefetchTrack` is the single place it is enforced. Every prefetch site asks it for the playlist's next track, and under Pause it answers nil — so nothing is parked, the player cannot arm its gapless splice, and a track end can only reach `didFinishPlaying:`, which then takes the same park as the end of the playlist. A pane write must call `applyEndOfTrackAction`, or a mid-track switch to Pause leaves an armed splice that advances anyway.
+
 Skips need a player that is not Stopped, gated in both `skipByFileSeconds:` (bare keys bypass validation) and menu validation: **after the playlist ends the finished file stays open, so `duration` alone still looks seekable while no node exists.**
 
 File > Close (⌘W, `closeFile:`) is nil-targeted, so the key window's `closeFile:` target owns both the action and the shared menu item's title. The player retitles it "Close File" / "Close All Files" and enables it only for a nonempty playlist; Settings and About restore the singular title and close only themselves. The player's action calls `AudioPlayer.stop` (which fires no delegate event), then clears the playlist, cancels the deferred metadata load, and drops the scan loader with `cancelScan` — a cancelled loader still strongly holds every queued track, thumbnails included.
@@ -67,7 +69,7 @@ File > Close (⌘W, `closeFile:`) is nil-targeted, so the key window's `closeFil
 
 The conversion engine is `Audio/Mac/Convert/`; this is what happens when it finishes. **The FLAC takes the row its source occupied**, so the action reads as the file changing format in place.
 
-`didConvertTrack:toURL:error:` resolves the source's row **at completion time**, because a re-drop during the encode replaces the playlist — then there is nothing to swap and the FLAC stays on disk. Four outcomes: row gone → nothing; row current and loaded → replay; row current but stopped → `updateUI`; row elsewhere → re-arm the prefetch when it is `currentIndex + 1`, since the parked handle is path-keyed and still points at the source.
+`didConvertTrack:toURL:error:` resolves the source's row **at completion time**, because a re-drop during the encode replaces the playlist — then there is nothing to swap and the FLAC stays on disk. Four outcomes: row gone → nothing; row current and loaded → replay; row current but stopped → `updateUI`; row elsewhere → re-arm the prefetch when it is `currentIndex + 1`, since the parked handle is path-keyed and still points at the source (through `successorPrefetchTrack`, which names that same row and is nil under On track end = Pause).
 
 The replay uses `AudioPlayer.play:atPosition:startPaused:`. **The playlist entry is swapped first**, so `didStartPlaying:`'s identity guard passes and the whole per-track refresh — waveform, codec label, artwork, Now Playing, Open Recent, prefetch — comes free with the ordinary play path.
 

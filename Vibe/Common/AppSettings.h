@@ -126,6 +126,15 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (NSInteger)crossfadeMilliseconds;
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds;
 
+// Settings > Playback > On track end. NO, the default, plays the next track
+// in the playlist when one ends; YES parks on the finished track exactly as
+// the end of the playlist does. It is enforced in one place — the successor prefetch,
+// which is also the player's gapless arm point (MainPlayerController's
+// successorPrefetchTrack) — so a writer must call
+// MainPlayerController.applyEndOfTrackAction to re-park or drop the handle.
+- (BOOL)pauseAtTrackEnd;
+- (void)setPauseAtTrackEnd:(BOOL)pause;
+
 // The ceiling on the playback-UI tick rate, which scales itself to the
 // playhead's on-screen speed (Util/UIUpdateMath.h): 3, 30 (default) or
 // 60 Hz, "Playhead refresh" in Settings > Advanced. Only a short file can

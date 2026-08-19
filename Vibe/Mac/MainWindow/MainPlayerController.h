@@ -82,6 +82,12 @@ NS_ASSUME_NONNULL_BEGIN
 // too.
 - (void)applyPitchRange;
 
+// Re-parks or drops the player's successor handle after
+// AppSettings.sharedInstance.pauseAtTrackEnd changes, i.e. from the Settings
+// pane. That handle is the player's gapless arm point, so without this call a
+// mid-track change leaves an armed splice that advances past the end anyway.
+- (void)applyEndOfTrackAction;
+
 // Re-renders the time labels after AppSettings.sharedInstance.showRemainingTime changes
 // somewhere other than the label click, i.e. the Settings pane.
 - (void)refreshTimeDisplay;
