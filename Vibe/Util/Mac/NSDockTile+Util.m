@@ -12,13 +12,42 @@
 // the main thread.
 static NSUInteger VibeDockIconGeneration = 0;
 
+static const CGFloat kVibeDockIconCanvasSize = 512;
+
+// TRAP: clearing the tile's contentView back to nil and later installing a
+// view again leaks a 256KB dock-tile context per transition. AppKit maps a
+// fresh one in _createDockTileContext and never releases the one the nil
+// orphaned, so a library mixing art-bearing and artless tracks grows without
+// bound — measured at 788MB across 3,154 mapped regions over a 42-minute
+// soak. So the view is installed exactly once and only its image is swapped;
+// the tile never sees nil again. The Dock draws contentView instead of the
+// app icon whenever one is set, which is why the reset has to draw the icon
+// itself rather than stand the view down.
+static NSImageView *VibeDockIconView = nil;
+static NSImage *VibeDockAppIcon = nil;
+
+static NSImageView *VibeInstalledDockIconView(void) {
+    if (!VibeDockIconView) {
+        // Read before the first setContentView:, so it is the untouched icon.
+        VibeDockAppIcon = [NSApp applicationIconImage];
+        VibeDockIconView = [[NSImageView alloc] initWithFrame:
+                            NSMakeRect(0, 0, kVibeDockIconCanvasSize, kVibeDockIconCanvasSize)];
+        // TRAP: the default scaling is proportionally-DOWN, which will not
+        // enlarge. The app icon's largest representation is 512px but reports
+        // 256pt at 2x, so under the default it would draw at half the canvas
+        // and the reset would show a visibly small icon.
+        VibeDockIconView.imageScaling = NSImageScaleProportionallyUpOrDown;
+        [[NSApp dockTile] setContentView:VibeDockIconView];
+    }
+    return VibeDockIconView;
+}
+
 @implementation NSDockTile (Util)
 
 + (void) resetToAppIcon {
     VibeDockIconGeneration++; // invalidate any in-flight composition
-    NSDockTile *dockTile = [[NSApplication sharedApplication] dockTile];
-    dockTile.contentView = nil;
-    [dockTile display];
+    VibeInstalledDockIconView().image = VibeDockAppIcon;
+    [[NSApp dockTile] display];
 }
 
 // Composes the artwork into a dock-icon canvas that matches the system icon
@@ -110,7 +139,7 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
 }
 
 + (void)setDockIcon:(NSImage*)image {
-    CGFloat size = 512;
+    CGFloat size = kVibeDockIconCanvasSize;
     NSUInteger generation = ++VibeDockIconGeneration;
     // Copy before hopping queues: the caller's instance is also being drawn
     // by the artwork views on the main thread, and NSImageRep's first-draw
@@ -129,9 +158,7 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
             if (generation != VibeDockIconGeneration) {
                 return; // a newer icon (or a reset to the app icon) won
             }
-            NSImageView *iconView = [[NSImageView alloc] initWithFrame:NSMakeRect(0, 0, size, size)];
-            [iconView setImage:customIcon];
-            [[NSApp dockTile] setContentView:iconView];
+            VibeInstalledDockIconView().image = customIcon;
             [[NSApp dockTile] display];
         });
     });
