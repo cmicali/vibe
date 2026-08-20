@@ -22,7 +22,6 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "DownloadProgressMonitor.h"
-#import "ForegroundContentHoldRules.h"
 #import "UIUpdateTimer.h"
 
 @implementation PlaybackController (PlayerEvents)
@@ -37,19 +36,6 @@
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer {
 }
 
-// The pre-submit edge: synchronous on play:'s calling thread (main at every
-// call site), before the open is submitted to the player queue, so background
-// scan materialization stands down before it can contend with the foreground
-// download. Deliberately NOT stale-guarded: this fires before
-// the playlist reflects the play, and the hold is idempotent. Cleared exactly
-// once by the matching settlement — didStartPlaying:'s prefetch
-// acknowledgement, or the error path. Same rule as the mac's
-// MainPlayerController+PlayerEvents.
-- (void)audioPlayer:(AudioPlayer *)audioPlayer willSubmitPlayForTrack:(AudioTrack *)track {
-    _foregroundHoldGeneration++;
-    [_metadataCache setBackgroundMaterializationHeld:YES];
-}
-
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
      didBeginLoading:(AudioTrack *)track
 openRequestIdentifier:(uint64_t)openRequestIdentifier {
@@ -57,9 +43,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         return;
     }
     [self notifyDidBeginLoading];
-    // The background-materialization hold is willSubmitPlayForTrack:'s now; this callback owns
-    // only the slow-open UI and the monitor below, which stays here so a fast
-    // local play never constructs a monitor it would cancel moments later.
+    // This callback owns only the slow-open UI and the monitor below, which
+    // stays here so a fast local play never constructs a monitor it would
+    // cancel moments later.
     // Best-effort determinate fill while the provider materializes the file.
     // The monitor drops a sample whose track has since changed; see
     // monitorReplacing:forURL:currentURL:handler:.
@@ -111,10 +97,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // of its own to clear the flag.
     _seekInFlight = NO;
     // The open landed, so the file is materialized; the monitor's work is
-    // done whatever it last reported. The background-materialization hold is NOT released
-    // here: it rides until the successor prefetch below acknowledges its
-    // claim, or the lane's next transfer and the prefetch would race to
-    // download the same file.
+    // done whatever it last reported.
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
     _downloadMonitorOpenRequestIdentifier = 0;
@@ -129,24 +112,12 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [_metadataCache loadMetadataNow:track];
     // The open settled, so the playlist-wide sweep it was deferred behind runs.
     [self startPendingMetadataLoad];
-    // The background-materialization hold releases in the acknowledgement, after the
-    // successor's open claim is registered. The stale guard is the hold
-    // GENERATION, not track identity: an acknowledgement outrun by any newer
-    // submission — including a replay of this same row, which reuses this
-    // same AudioTrack — must not strip the hold that submission re-asserted.
-    // Same rule as the mac's MainPlayerController+PlayerEvents.
-    NSUInteger holdGeneration = _foregroundHoldGeneration;
+    // The foreground/background rule needs no release here: the coordinator
+    // derives it from its own claim table, and the prefetch's registration
+    // preempts any background transfer that beat it to the lane. Same rule as
+    // the mac's MainPlayerController+PlayerEvents.
     NSUInteger nextIndex = _playlist.currentIndex + 1;
-    __weak PlaybackController *weakSelf = self;
-    [_player prefetchTrack:_playlist.hasNextTrack ? [_playlist trackAtIndex:nextIndex] : nil
-               whenClaimed:^{
-        PlaybackController *strongSelf = weakSelf;
-        if (!strongSelf || !VibeForegroundContentHoldMayRelease(
-                holdGeneration, strongSelf->_foregroundHoldGeneration)) {
-            return;
-        }
-        [strongSelf->_metadataCache setBackgroundMaterializationHeld:NO];
-    }];
+    [_player prefetchTrack:_playlist.hasNextTrack ? [_playlist trackAtIndex:nextIndex] : nil];
     _folderSession.persistedTrackFileName = track.url.lastPathComponent;
     // The landing can be parked — a pause verdict during the load, or the
     // media-reset re-park — in which case playback is idle, so the session is
@@ -267,7 +238,6 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
     _downloadMonitorOpenRequestIdentifier = 0;
-    [_metadataCache setBackgroundMaterializationHeld:NO];
     // Nothing is going to start now, so the deferred sweep stops waiting.
     [self startPendingMetadataLoad];
     [self notifyDidFailCurrentTrack];

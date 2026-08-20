@@ -467,11 +467,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 - (void)playTrack:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused declick:(BOOL)declick {
     VibePendingPlaybackIntent intent = VibePendingPlaybackIntentMake(position, startPaused);
-    // The pre-submit edge: synchronous, outside the state lock, and ahead of
-    // the queue dispatch, so the shell's background-download hold is asserted
-    // before the open it protects can start. This is the only delegate send
-    // not marshalled to main — it rides play:'s own calling thread.
-    [self.delegate audioPlayer:self willSubmitPlayForTrack:track];
     // TRAP: identifier minting and queue admission are one ordering edge.
     // Media-reset receipt takes the same lock around its queue admission, so
     // a play cannot be identified on one side of the reset and execute on the

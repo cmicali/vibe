@@ -242,17 +242,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer;
 
-// A play has been accepted and is about to be submitted to the player queue.
-// SYNCHRONOUS, on play:'s calling thread — main at every call site — and
-// strictly before the open can start, which is what makes it the shell's
-// provider-bandwidth edge: acquire the background-download hold here, before
-// the foreground open contends with anything the hold suspends. Fired for
-// every play — fast local files, parked-prefetch fast paths, and same-file
-// rebinds included, where the hold is briefly held and promptly released by
-// the play's own settlement. The handler must not block and must not call
-// back into the player.
-- (void)audioPlayer:(AudioPlayer *)audioPlayer willSubmitPlayForTrack:(AudioTrack *)track;
-
 // Fires when a play request's file open is still pending after a short grace
 // period, as on a slow disk or a downloading cloud placeholder. Show a
 // loading state. It is followed by didStartPlaying:, by error:, or, when a

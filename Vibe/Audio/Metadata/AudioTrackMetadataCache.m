@@ -40,13 +40,12 @@
     dispatch_queue_t            _cacheQueue;
     // Bumped by invalidateWithCompletion:; see the class-extension comment.
     atomic_uint_fast64_t        _cacheGeneration;
-    // The foreground-download hold, scan ranking, and current-track priority,
-    // kept here rather than only on the loader because loadMetadata: mints a
-    // new one: neither a hold set during an open, nor the neighborhood the
-    // screen last named, nor the priority of the track the user is waiting on
-    // may be lost by the sweep that open is racing.
-    BOOL                        _backgroundMaterializationHeld;
-    AudioFileMaterializationHoldToken *_materializationHoldToken;
+    // The scan ranking and current-track priority, kept here rather than only
+    // on the loader because loadMetadata: mints a new one: neither the
+    // neighborhood the screen last named nor the priority of the track the
+    // user is waiting on may be lost by the sweep that open is racing. The
+    // foreground/background rule needs no state here at all — the
+    // materialization coordinator derives it from its own claim table.
     NSArray<NSURL *>            *_neighborhood;
     // Weak on purpose: re-prioritizing is best-effort continuity across a
     // loader replacement, never a reason to pin a departed playlist's track.
@@ -152,7 +151,6 @@
                                                                               delegate:self.delegate
                                                                    loadingConfiguration:_loadingConfiguration];
     _currentLoader = loader;
-    [loader setBackgroundMaterializationHeld:_backgroundMaterializationHeld];
     [loader setNeighborhoodURLs:_neighborhood];
     // Carry the current track's priority across the replacement: the shells'
     // loadMetadataNow: often lands on the loader this one replaces (the
@@ -165,26 +163,6 @@
         [loader prioritizeTrack:priorityTrack];
     }
     [loader load:tracks];
-}
-
-- (void)setBackgroundMaterializationHeld:(BOOL)held {
-    if (held == _backgroundMaterializationHeld) {
-        return;
-    }
-    if (held) {
-        _backgroundMaterializationHeld = YES;
-        [_currentLoader setBackgroundMaterializationHeld:YES];
-        _materializationHoldToken =
-                [AudioFileMaterializationCoordinator.sharedCoordinator acquireMetadataHold];
-    }
-    else {
-        _backgroundMaterializationHeld = NO;
-        AudioFileMaterializationHoldToken *token = _materializationHoldToken;
-        _materializationHoldToken = nil;
-        [token invalidate];
-        [_currentLoader setBackgroundMaterializationHeld:NO];
-    }
-    LogInfo(@"Metadata content lane %@", held ? @"held" : @"released");
 }
 
 - (void)setNeighborhoodURLs:(NSArray<NSURL *> *)urls {
@@ -221,7 +199,12 @@ static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
 }
 
 - (BOOL)debugBackgroundMaterializationHeld {
-    return _backgroundMaterializationHeld;
+    // The key survives for the harness; the fact now lives where it is
+    // derived. The consistency check "lane held with the player stopped"
+    // becomes a check on the derivation itself: stopped and settled means no
+    // foreground claims, so this must read NO.
+    return [AudioFileMaterializationCoordinator.sharedCoordinator
+            isForegroundTransferActive];
 }
 
 - (NSDictionary *)debugPriorityLaneState {
@@ -242,7 +225,6 @@ static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
         _currentLoader = [[AudioTrackMetadataLoader alloc] initWithOwner:self
                                                                  delegate:self.delegate
                                                      loadingConfiguration:_loadingConfiguration];
-        [_currentLoader setBackgroundMaterializationHeld:_backgroundMaterializationHeld];
         [_currentLoader setNeighborhoodURLs:_neighborhood];
     }
     // A loader snapshots the delegate at creation; refresh it here because

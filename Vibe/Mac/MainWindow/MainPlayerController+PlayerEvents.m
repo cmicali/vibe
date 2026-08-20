@@ -17,7 +17,6 @@
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "DownloadProgressMonitor.h"
-#import "ForegroundContentHoldRules.h"
 #import "AudioFileConverter.h"
 #import "PlaylistController.h"
 #import "TrackDisplayController.h"
@@ -28,20 +27,6 @@
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeOutputAudioActive:(BOOL)outputAudioActive {
     [self syncEqualizerActivity];
-}
-
-// The pre-submit edge: synchronous on play:'s calling thread (main at every
-// call site), before the open is submitted to the player queue. The scan's
-// materialization stands down here, so the foreground open never contends
-// with a background download it could have suspended — any later edge hands
-// the play that much contention, and a raced track change can skip it
-// entirely. Deliberately NOT stale-guarded:
-// this fires before the playlist reflects the play, and the hold is
-// idempotent. Cleared exactly once by the matching settlement —
-// didStartPlaying:'s prefetch acknowledgement, the error path, or Close.
-- (void)audioPlayer:(AudioPlayer *)audioPlayer willSubmitPlayForTrack:(AudioTrack *)track {
-    _foregroundHoldGeneration++;
-    [self.metadataCache setBackgroundMaterializationHeld:YES];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
@@ -62,8 +47,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // prefetched play never flashes the indicator.
     [self updateUI];
     [self.trackDisplay showWaveformLoadingIndicator];
-    // The cloud-lane hold is willSubmitPlayForTrack:'s now, not this timer's:
-    // this callback owns only the slow-open UI, and the monitor below — which
+    // This callback owns only the slow-open UI, and the monitor below — which
     // deliberately stays here, so a fast local or prefetched play never
     // constructs a metadata query and provider subscriber it would cancel
     // moments later.
@@ -112,9 +96,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 }
 
 // Everything a track start refreshes: artwork, recents, metadata, waveform,
-// the duration cache, the successor prefetch and its hold release, the row
-// mark, the Convert cache, stats and the UI timer. Callers own didStartPlaying:'s
-// identity guard — the playlist must already point at the started track.
+// the duration cache, the successor prefetch, the row mark, the Convert
+// cache, stats and the UI timer. Callers own didStartPlaying:'s identity
+// guard — the playlist must already point at the started track.
 - (void)performPerTrackRefreshForStartedTrack:(AudioTrack *)track {
     // The convert swap's Now Playing resume hint is spent: the live position
     // republishes from here.
@@ -122,9 +106,6 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [_artworkController trackDidStartPlaying:track];
     [self clearErrorMask];
     [self teardownDownloadMonitor];
-    // The cloud-lane hold is NOT released here: it rides until the successor
-    // prefetch below acknowledges its claim, or the lane's next transfer and
-    // the prefetch would race to download the same file.
     [self.trackDisplay hideWaveformLoadingIndicator];
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
     // The now-playing track jumps the scan queue: its header tags and art must
@@ -141,28 +122,11 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // Pre-open the likely-next file, so that auto-advance and Next skip the
     // file open, which dominates transition latency. It is recomputed on every
     // track start, since next, previous, a double-click and a re-drop all land
-    // here. Past the last track, nil drops the parked handle.
-    //
-    // The cloud-lane hold releases in the acknowledgement, after the
-    // successor's open claim is registered — prefetchTrack: alone is async
-    // onto the player queue, so releasing inline would let the resumed lane
-    // race the claim's registration and start a second transfer of the same
-    // file. The stale guard is the hold GENERATION, not track identity: an
-    // acknowledgement outrun by any newer submission — a rapid next, or a
-    // replay of this same row, which reuses this same AudioTrack — must not
-    // strip the hold that submission re-asserted; the newer play's own
-    // settlement releases it.
-    NSUInteger holdGeneration = _foregroundHoldGeneration;
-    __weak MainPlayerController *weakSelf = self;
-    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack
-                        whenClaimed:^{
-        MainPlayerController *strongSelf = weakSelf;
-        if (!strongSelf || !VibeForegroundContentHoldMayRelease(
-                holdGeneration, strongSelf->_foregroundHoldGeneration)) {
-            return;
-        }
-        [strongSelf.metadataCache setBackgroundMaterializationHeld:NO];
-    }];
+    // here. Past the last track, nil drops the parked handle. The
+    // foreground/background rule needs no release here: the coordinator
+    // derives it from its own claim table, and the prefetch's registration
+    // preempts any background transfer that beat it to the lane.
+    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
     // Whoever initiated this play has already fully rendered the row: play:'s
     // reloadData, next and previous's two-row window, or doubleClick's pair.
     // The mark makes resumeUIUpdateTimer, and so updateUI, refresh only the
@@ -331,7 +295,6 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // longer describes anything the player holds.
     _currentTrackDuration = 0;
     [self teardownDownloadMonitor];
-    [self.metadataCache setBackgroundMaterializationHeld:NO];
     [self.trackDisplay hideWaveformLoadingIndicator];
     // Errors present inline, with no modal and no auto-skip. A sheet on this
     // borderless window breaks key status and the bare transport keys. The

@@ -21,7 +21,7 @@
         @"backgroundRunning": @(snapshot.backgroundRunningCount),
         @"interactivePending": @(snapshot.interactivePendingCount),
         @"backgroundPending": @(snapshot.backgroundPendingCount),
-        @"metadataHolds": @(snapshot.metadataHoldCount),
+        @"foregroundTransferActive": @(snapshot.foregroundTransferActive),
     };
 }
 

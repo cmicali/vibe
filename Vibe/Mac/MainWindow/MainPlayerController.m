@@ -606,14 +606,6 @@
     // to start it later, and release the scan loader.
     [self cancelDeferredMetadataLoad];
     [self.metadataCache cancelScan];
-    // The hold's clearing edge is didStartPlaying: or the error path, neither
-    // of which a Close reaches — stop fires no callback and the caller owns
-    // the reset. Left set, it would suspend the NEXT folder's scan too, since
-    // the flag outlives the loader. Released only after cancelScan has dropped
-    // the pending scan records: stop's supersession of the open is an async
-    // queue hop, so an earlier release drains parked metadata claims into the
-    // playback transfer's still-open window.
-    [self.metadataCache setBackgroundMaterializationHeld:NO];
     [self clearErrorMask];
     _emptyStateSuppressed = NO; // Close explicitly asks for the empty state
     _currentTrackDuration = 0;

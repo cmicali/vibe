@@ -52,11 +52,6 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 - (void)runDelivery;
 @end
 
-@interface AudioFileMaterializationHoldToken ()
-- (instancetype)initWithCoordinator:(AudioFileMaterializationCoordinator *)coordinator;
-@property (nonatomic, weak) AudioFileMaterializationCoordinator *coordinator;
-@end
-
 @interface VibeAudioFileMaterializationWaiter : NSObject
 @property (nonatomic) uint64_t identifier;
 @property (nonatomic) VibeAudioFileMaterializationRole role;
@@ -130,7 +125,6 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 
 @interface AudioFileMaterializationCoordinator ()
 - (void)detachRequestToken:(AudioFileMaterializationRequestToken *)token;
-- (void)releaseMetadataHold;
 @end
 
 @implementation AudioFileMaterializationRequestToken {
@@ -299,39 +293,6 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 
 @end
 
-@implementation AudioFileMaterializationHoldToken {
-    os_unfair_lock _lock;
-    BOOL _invalidated;
-}
-
-- (instancetype)initWithCoordinator:(AudioFileMaterializationCoordinator *)coordinator {
-    self = [super init];
-    if (self) {
-        _lock = OS_UNFAIR_LOCK_INIT;
-        _coordinator = coordinator;
-    }
-    return self;
-}
-
-- (void)invalidate {
-    BOOL shouldRelease = NO;
-    os_unfair_lock_lock(&_lock);
-    if (!_invalidated) {
-        _invalidated = YES;
-        shouldRelease = YES;
-    }
-    os_unfair_lock_unlock(&_lock);
-    if (shouldRelease) {
-        [self.coordinator releaseMetadataHold];
-    }
-}
-
-- (void)dealloc {
-    [self invalidate];
-}
-
-@end
-
 static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKey;
 
 @implementation AudioFileMaterializationCoordinator {
@@ -344,7 +305,6 @@ static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKe
     NSMutableArray<VibeAudioFileMaterializationClaim *> *_backgroundPending;
     NSUInteger _interactiveRunningCount;
     NSUInteger _backgroundRunningCount;
-    NSUInteger _metadataHoldCount;
     uint64_t _nextRequestIdentifier;
     uint64_t _nextClaimOrdinal;
     AudioLoadingConfiguration *_configuration;
@@ -484,6 +444,51 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
     return NO;
 }
 
+// The C1 rule's single source, derived from the claim table rather than
+// counted: any live claim with a playback or prefetch waiter means the user
+// (or their successor) is waiting on a transfer, and background metadata
+// work must not compete for the provider. Claims leave the table exactly at
+// settlement, so there is no release edge to deliver — the same
+// drainPendingClaims every settlement path already runs is the reopening.
+// O(claims), and the table is small by construction (running + pending
+// bounds).
+- (BOOL)foregroundTransferActiveLocked {
+    for (VibeAudioFileMaterializationClaim *claim in _claims.objectEnumerator) {
+        if (claim.waiters.count && [self claimHasNonMetadataWaiter:claim]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (BOOL)isForegroundTransferActive {
+    __block BOOL active;
+    [self performStateSynchronously:^{
+        active = [self foregroundTransferActiveLocked];
+    }];
+    return active;
+}
+
+// The rising edge: the first foreground waiter preempts every metadata-only
+// dataless claim, running ones included — the sweep's in-flight download is
+// cancelled, not waited out (C6). The path the foreground request is about
+// to join is exempt: one transfer per path is the load-bearing rule (A2),
+// and yielding the claim it is joining would cancel the very download it
+// came for. Local claims pass because they hold no transfer the rule
+// protects.
+- (void)preemptMetadataClaimsForForegroundRiseExcludingPath:(NSString *)joinedPath {
+    NSArray<VibeAudioFileMaterializationClaim *> *claims = _claims.allValues;
+    for (VibeAudioFileMaterializationClaim *claim in claims) {
+        if ([claim.path isEqualToString:joinedPath]) {
+            continue;
+        }
+        if (claim.waiters.count && ![self claimHasNonMetadataWaiter:claim]
+                && _datalessProbe(claim.url)) {
+            [self yieldClaim:claim];
+        }
+    }
+}
+
 - (NSError *)admissionError:(NSString *)description {
     return [NSError errorWithDomain:VibeAudioFileMaterializationErrorDomain
                                code:VibeAudioFileMaterializationErrorAdmissionExhausted
@@ -514,17 +519,24 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
                 completionQueue:completionQueue registered:registered completion:completion];
         [self expirePendingClaimsAtTime:self->_clock() drain:NO];
         VibeAudioFileMaterializationClaim *claim = self->_claims[path];
-        BOOL heldMetadata = VibeMaterializationRoleIsMetadata(role)
-                && self->_metadataHoldCount > 0;
-        // The hold suspends provider transfers; a request for an already-local
+        // The rule suspends provider transfers; a request for an already-local
         // file starts none and passes through, which is what lets the playing
-        // track's tags parse the moment its open lands instead of waiting for
-        // the successor prefetch's acknowledgement to release the hold.
-        if (heldMetadata && (!claim || ![self claimHasNonMetadataWaiter:claim])
+        // track's tags parse the moment its open lands. Computed before this
+        // request joins the table, so a foreground registration sees the world
+        // it is preempting and a metadata one is judged against it.
+        BOOL foregroundWasActive = [self foregroundTransferActiveLocked];
+        BOOL suspendedMetadata = VibeMaterializationRoleIsMetadata(role)
+                && foregroundWasActive;
+        if (suspendedMetadata && (!claim || ![self claimHasNonMetadataWaiter:claim])
                 && self->_datalessProbe(url)) {
             [token settleWithResult:VibeAudioFileMaterializationResultYielded
                              error:nil elapsed:0];
             return;
+        }
+        BOOL foregroundRising = !VibeMaterializationRoleIsMetadata(role)
+                && !foregroundWasActive;
+        if (foregroundRising) {
+            [self preemptMetadataClaimsForForegroundRiseExcludingPath:path];
         }
 
         VibeAudioFileMaterializationWaiter *waiter =
@@ -601,35 +613,12 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
     NSUInteger maximumPending = lane == VibeMaterializationLaneInteractive
             ? _configuration.maximumInteractivePendingMaterializations
             : _configuration.maximumBackgroundPendingMaterializations;
-
-    if (lane == VibeMaterializationLaneBackground
-            && claim.effectiveRole == VibeAudioFileMaterializationRolePrefetch
-            && pending.count >= maximumPending) {
-        VibeAudioFileMaterializationClaim *evicted = nil;
-        while (pending.count >= maximumPending
-                && (evicted = [self worstPendingMetadataClaim])) {
-            [self yieldClaim:evicted];
-        }
-    }
-
-    BOOL mayPark = preserveExistingAdmission;
-    if (!mayPark && lane == VibeMaterializationLaneBackground
-            && VibeMaterializationRoleIsMetadata(claim.effectiveRole)) {
-        BOOL hasPendingPrefetch = NO;
-        for (VibeAudioFileMaterializationClaim *candidate in pending) {
-            if (candidate.effectiveRole == VibeAudioFileMaterializationRolePrefetch) {
-                hasPendingPrefetch = YES;
-                break;
-            }
-        }
-        NSUInteger reserved = hasPendingPrefetch ? 0 : 1;
-        NSUInteger metadataLimit = maximumPending > reserved ? maximumPending - reserved : 0;
-        mayPark = pending.count < metadataLimit;
-    }
-    else if (!mayPark) {
-        mayPark = pending.count < maximumPending;
-    }
-    if (!mayPark) {
+    // No prefetch reservation or metadata eviction here anymore: a dataless
+    // metadata request yields at entry whenever a foreground claim is live,
+    // and a local one starts immediately, so a metadata claim can never sit
+    // pending beside a prefetch — the parking contention those mechanisms
+    // arbitrated is unrepresentable under the derived rule.
+    if (!preserveExistingAdmission && pending.count >= maximumPending) {
         return NO;
     }
 
@@ -640,21 +629,6 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
     claim.deadline = _clock() + grace;
     [pending addObject:claim];
     return YES;
-}
-
-- (VibeAudioFileMaterializationClaim *)worstPendingMetadataClaim {
-    VibeAudioFileMaterializationClaim *worst = nil;
-    for (VibeAudioFileMaterializationClaim *claim in _backgroundPending) {
-        if (!VibeMaterializationRoleIsMetadata(claim.effectiveRole)) {
-            continue;
-        }
-        if (!worst || claim.effectiveRole > worst.effectiveRole
-                || (claim.effectiveRole == worst.effectiveRole
-                    && claim.ordinal > worst.ordinal)) {
-            worst = claim;
-        }
-    }
-    return worst;
 }
 
 - (void)removePendingClaim:(VibeAudioFileMaterializationClaim *)claim {
@@ -783,10 +757,14 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
 }
 
 - (NSUInteger)bestPendingIndexInArray:(NSArray<VibeAudioFileMaterializationClaim *> *)pending {
+    // Belt over the rising-edge preemption: a metadata claim can sit pending
+    // across a foreground registration only through a detach interleaving,
+    // and it must not start while the rule is in force.
+    BOOL foregroundActive = [self foregroundTransferActiveLocked];
     NSUInteger best = NSNotFound;
     for (NSUInteger index = 0; index < pending.count; index++) {
         VibeAudioFileMaterializationClaim *candidate = pending[index];
-        if (_metadataHoldCount > 0
+        if (foregroundActive
                 && VibeMaterializationRoleIsMetadata(candidate.effectiveRole)) {
             continue;
         }
@@ -831,6 +809,7 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
             return;
         }
         VibeAudioFileMaterializationRole oldRole = claim.effectiveRole;
+        BOOL detachedForeground = !VibeMaterializationRoleIsMetadata(waiter.role);
         [claim.waiters removeObjectForKey:@(token.identifier)];
         if (!claim.waiters.count) {
             if (claim.state == VibeMaterializationClaimStatePending) {
@@ -844,7 +823,14 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
         }
         else {
             claim.effectiveRole = [self effectiveRoleForClaim:claim];
-            if (self->_metadataHoldCount > 0 && ![self claimHasNonMetadataWaiter:claim]
+            // A metadata-only dataless remainder yields when the rule is in
+            // force — and also when the departing waiter WAS the foreground:
+            // its metadata waiters were passengers on the user's transfer
+            // (C3's join), and a timed-out or superseded open must not leave
+            // them keeping the dead transfer alive with no deadline of their
+            // own. The abandoned pick returns to the sweep at its rank (B4).
+            if ((detachedForeground || [self foregroundTransferActiveLocked])
+                    && ![self claimHasNonMetadataWaiter:claim]
                     && self->_datalessProbe(claim.url)) {
                 [self yieldClaim:claim];
             }
@@ -856,38 +842,6 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
         [self drainPendingClaims];
         [self reschedulePendingTimer];
     });
-}
-
-- (AudioFileMaterializationHoldToken *)acquireMetadataHold {
-    [self performStateSynchronously:^{
-        self->_metadataHoldCount++;
-        if (self->_metadataHoldCount == 1) {
-            NSArray<VibeAudioFileMaterializationClaim *> *claims =
-                    self->_claims.allValues;
-            for (VibeAudioFileMaterializationClaim *claim in claims) {
-                if (claim.waiters.count && ![self claimHasNonMetadataWaiter:claim]
-                        && self->_datalessProbe(claim.url)) {
-                    [self yieldClaim:claim];
-                }
-            }
-            [self drainPendingClaims];
-            [self reschedulePendingTimer];
-        }
-    }];
-    return [[AudioFileMaterializationHoldToken alloc] initWithCoordinator:self];
-}
-
-- (void)releaseMetadataHold {
-    [self performStateSynchronously:^{
-        if (self->_metadataHoldCount == 0) {
-            return;
-        }
-        self->_metadataHoldCount--;
-        if (self->_metadataHoldCount == 0) {
-            [self drainPendingClaims];
-            [self reschedulePendingTimer];
-        }
-    }];
 }
 
 - (void)expirePendingClaimsAtTime:(NSTimeInterval)now drain:(BOOL)drain {
@@ -939,7 +893,7 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
         snapshot.backgroundRunningCount = self->_backgroundRunningCount;
         snapshot.interactivePendingCount = self->_interactivePending.count;
         snapshot.backgroundPendingCount = self->_backgroundPending.count;
-        snapshot.metadataHoldCount = self->_metadataHoldCount;
+        snapshot.foregroundTransferActive = [self foregroundTransferActiveLocked];
     }];
     return snapshot;
 }

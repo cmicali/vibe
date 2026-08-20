@@ -33,7 +33,7 @@ typedef struct {
     NSUInteger backgroundRunningCount;
     NSUInteger interactivePendingCount;
     NSUInteger backgroundPendingCount;
-    NSUInteger metadataHoldCount;
+    BOOL foregroundTransferActive;
 } VibeAudioFileMaterializationCoordinatorSnapshot;
 
 @interface AudioFileMaterializationCoordinator (Internal)

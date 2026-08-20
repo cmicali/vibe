@@ -425,7 +425,10 @@
     XCTAssertEqual(_controller.totalCancellationCount, 0u);
 }
 
-- (void)testMetadataHoldYieldsAndCancelsMetadataOnlyWork {
+// The C1 rule, derived: a playback claim's registration preempts running
+// metadata-only dataless work, new metadata requests yield while it is live,
+// and its settlement is the release — no external edge exists to miss.
+- (void)testAForegroundClaimPreemptsAndSuspendsMetadataOnlyWork {
     [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
     XCTestExpectation *yielded = [self expectationWithDescription:@"running yielded"];
     __block NSUInteger deliveries = 0;
@@ -437,9 +440,16 @@
         [yielded fulfill];
     }];
     XCTAssertTrue([_controller waitForStartedCount:1]);
-    AudioFileMaterializationHoldToken *hold = [_coordinator acquireMetadataHold];
+    XCTestExpectation *playbackReady = [self expectationWithDescription:@"playback ready"];
+    __unused AudioFileMaterializationRequestToken *playback = [self requestName:@"user-pick.wav"
+            role:VibeAudioFileMaterializationRolePlayback
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
+        [playbackReady fulfill];
+    }];
     [self waitForExpectations:@[yielded] timeout:2];
     XCTAssertEqual(_controller.totalCancellationCount, 1u);
+    XCTAssertTrue([_coordinator stateSnapshotForTesting].foregroundTransferActive);
 
     XCTestExpectation *newYield = [self expectationWithDescription:@"new request yielded"];
     __unused AudioFileMaterializationRequestToken *blocked = [self requestName:@"other.wav"
@@ -449,10 +459,12 @@
         [newYield fulfill];
     }];
     [self waitForExpectations:@[newYield] timeout:2];
-    XCTAssertEqual(_controller.startedOperations.count, 1u);
-    [hold invalidate];
-    [hold invalidate];
-    XCTAssertEqual([_coordinator stateSnapshotForTesting].metadataHoldCount, 0u);
+    // The scan's cancelled run plus the playback transfer, and nothing for
+    // the yielded requests.
+    XCTAssertEqual(_controller.startedOperations.count, 2u);
+    [[_controller operationForLastPathComponent:@"user-pick.wav"] completeReady:YES];
+    [self waitForExpectations:@[playbackReady] timeout:2];
+    XCTAssertFalse([_coordinator stateSnapshotForTesting].foregroundTransferActive);
     dispatch_sync(_completionQueue, ^{});
     XCTAssertEqual(deliveries, 1u);
 }
@@ -485,10 +497,14 @@
     [self waitForExpectations:@[localReady] timeout:2];
 }
 
-- (void)testMetadataHoldPassesLocalFilesThrough {
+- (void)testForegroundActivityPassesLocalFilesThrough {
     [_localNames addObject:@"local.wav"];
     [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
-    AudioFileMaterializationHoldToken *hold = [_coordinator acquireMetadataHold];
+    __unused AudioFileMaterializationRequestToken *playback = [self requestName:@"user-pick.wav"
+            role:VibeAudioFileMaterializationRolePlayback
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
+    }];
+    XCTAssertTrue([_controller waitForStartedCount:1]);
 
     XCTestExpectation *localReady = [self expectationWithDescription:@"local ready"];
     __unused AudioFileMaterializationRequestToken *local = [self requestName:@"local.wav"
@@ -497,7 +513,7 @@
         XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
         [localReady fulfill];
     }];
-    XCTAssertTrue([_controller waitForStartedCount:1]);
+    XCTAssertTrue([_controller waitForStartedCount:2]);
 
     XCTestExpectation *datalessYield = [self expectationWithDescription:@"dataless yielded"];
     __unused AudioFileMaterializationRequestToken *dataless = [self requestName:@"cloud.wav"
@@ -507,14 +523,13 @@
         [datalessYield fulfill];
     }];
     [self waitForExpectations:@[datalessYield] timeout:2];
-    XCTAssertEqual(_controller.startedOperations.count, 1u);
+    XCTAssertEqual(_controller.startedOperations.count, 2u);
 
     [[_controller operationForLastPathComponent:@"local.wav"] completeReady:YES];
     [self waitForExpectations:@[localReady] timeout:2];
-    [hold invalidate];
 }
 
-- (void)testMetadataHoldDoesNotYieldARunningLocalClaim {
+- (void)testAForegroundRiseDoesNotYieldARunningLocalClaim {
     [_localNames addObject:@"local.wav"];
     [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
 
@@ -526,15 +541,24 @@
         [ready fulfill];
     }];
     XCTAssertTrue([_controller waitForStartedCount:1]);
-    AudioFileMaterializationHoldToken *hold = [_coordinator acquireMetadataHold];
+    __unused AudioFileMaterializationRequestToken *playback = [self requestName:@"user-pick.wav"
+            role:VibeAudioFileMaterializationRolePlayback
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
+    }];
+    XCTAssertTrue([_controller waitForStartedCount:2]);
     XCTAssertEqual(_controller.totalCancellationCount, 0u);
 
     [[_controller operationForLastPathComponent:@"local.wav"] completeReady:YES];
     [self waitForExpectations:@[ready] timeout:2];
-    [hold invalidate];
 }
 
-- (void)testPrefetchKeepsAReservedPendingSlotAndStartsBeforeMetadata {
+// The successor never queues behind the sweep: while any foreground transfer
+// is live, dataless metadata requests yield at entry — spending no admission
+// grace and no budget — so a second prefetch parks into an empty pending
+// lane and starts the moment the first settles. This replaces the old
+// reserved-slot/eviction arbitration, which the derived rule made
+// unrepresentable: metadata can no longer sit pending beside a prefetch.
+- (void)testMetadataYieldsWhileAPrefetchRunsAndThePrefetchStartsNext {
     VibeAudioLoadingConfigurationValues values =
             VibeAudioLoadingProductionConfigurationValues();
     values.maximumBackgroundPendingMaterializations = 2;
@@ -547,18 +571,12 @@
         [blockerDone fulfill];
     }];
     XCTAssertTrue([_controller waitForStartedCount:1]);
-    XCTestExpectation *metadataDone = [self expectationWithDescription:@"metadata done"];
+    XCTestExpectation *metadataYielded = [self expectationWithDescription:@"metadata yielded"];
     __unused AudioFileMaterializationRequestToken *metadata = [self requestName:@"metadata-a.wav"
             role:VibeAudioFileMaterializationRoleMetadataScan
             completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
-        [metadataDone fulfill];
-    }];
-    XCTestExpectation *rejected = [self expectationWithDescription:@"metadata rejected"];
-    __unused AudioFileMaterializationRequestToken *overflow = [self requestName:@"metadata-b.wav"
-            role:VibeAudioFileMaterializationRoleMetadataScan
-            completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
-        XCTAssertEqual(result, VibeAudioFileMaterializationResultAdmissionExhausted);
-        [rejected fulfill];
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultYielded);
+        [metadataYielded fulfill];
     }];
     XCTestExpectation *prefetchDone = [self expectationWithDescription:@"prefetch done"];
     __unused AudioFileMaterializationRequestToken *prefetch = [self requestName:@"next.wav"
@@ -566,8 +584,8 @@
             completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
         [prefetchDone fulfill];
     }];
-    [self waitForExpectations:@[rejected] timeout:2];
-    XCTAssertEqual([_coordinator stateSnapshotForTesting].backgroundPendingCount, 2u);
+    [self waitForExpectations:@[metadataYielded] timeout:2];
+    XCTAssertEqual([_coordinator stateSnapshotForTesting].backgroundPendingCount, 1u);
 
     [[_controller operationForLastPathComponent:@"blocker.wav"] completeReady:YES];
     [self waitForExpectations:@[blockerDone] timeout:2];
@@ -577,11 +595,7 @@
     XCTAssertEqual(second.role, VibeAudioFileMaterializationRolePrefetch);
     [second completeReady:YES];
     [self waitForExpectations:@[prefetchDone] timeout:2];
-    XCTAssertTrue([_controller waitForStartedCount:3]);
-    VibeTestMaterializationOperation *third = _controller.startedOperations[2];
-    XCTAssertEqualObjects(third.url.lastPathComponent, @"metadata-a.wav");
-    [third completeReady:YES];
-    [self waitForExpectations:@[metadataDone] timeout:2];
+    XCTAssertEqual(_controller.startedOperations.count, 2u);
 }
 
 - (void)testLiveConcurrencyRaiseAdmitsAndLoweringOnlyDrains {
@@ -685,8 +699,11 @@
     values.maximumBackgroundPendingMaterializations = 3;
     values.backgroundAdmissionGrace = 10;
     [self makeCoordinatorWithValues:values];
+    // A metadata blocker, not a prefetch: a foreground claim would make the
+    // dataless metadata request below yield at entry rather than park, and
+    // parking is the state under test.
     __unused AudioFileMaterializationRequestToken *blocker = [self requestName:@"running.wav"
-            role:VibeAudioFileMaterializationRolePrefetch
+            role:VibeAudioFileMaterializationRoleMetadataScan
             completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {}];
     XCTAssertTrue([_controller waitForStartedCount:1]);
     XCTestExpectation *expired = [self expectationWithDescription:@"expired waiter"];
@@ -698,9 +715,12 @@
     }];
 
     _now = 111;
+    // Metadata again, not a foreground role: a prefetch here would exercise
+    // the rising-edge preemption and cancel the blocker, which is its own
+    // test — this one is only about the expired claim not being revived.
     XCTestExpectation *freshReady = [self expectationWithDescription:@"fresh waiter ready"];
     __unused AudioFileMaterializationRequestToken *fresh = [self requestName:@"same.wav"
-            role:VibeAudioFileMaterializationRolePrefetch
+            role:VibeAudioFileMaterializationRoleMetadataScan
             completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
         XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
         [freshReady fulfill];
@@ -712,7 +732,7 @@
     XCTAssertTrue([_controller waitForStartedCount:2]);
     VibeTestMaterializationOperation *same =
             [_controller operationForLastPathComponent:@"same.wav"];
-    XCTAssertEqual(same.role, VibeAudioFileMaterializationRolePrefetch);
+    XCTAssertEqual(same.role, VibeAudioFileMaterializationRoleMetadataScan);
     [same completeReady:YES];
     [self waitForExpectations:@[freshReady] timeout:2];
 }

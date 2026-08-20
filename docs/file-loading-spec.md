@@ -106,8 +106,9 @@ H policy numbers · I platform differences · J open items · K non-goals.
   yielded transfer spends no retry budget.
 - **C7. The successor outranks the resumed sweep.** When the rule lifts after a
   successful play, the successor prefetch's transfer must be admitted ahead of the
-  resumed scan (the background lane reserves it a slot); the sweep must not steal
-  the lane the moment it reopens.
+  resumed scan (the prefetch, being foreground, preempts and suspends competing
+  metadata work by the same C1 mechanism); the sweep must not steal the lane the
+  moment it reopens.
 
 ## D. Metadata loading
 

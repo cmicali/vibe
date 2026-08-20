@@ -53,13 +53,6 @@ NS_ASSUME_NONNULL_BEGIN
     // The underlying playback open this monitor observes. A same-row replay
     // preserves it; a later open of the same URL does not. Main-confined.
     uint64_t                     _downloadMonitorOpenRequestIdentifier;
-    // Stamped on every play at the pre-submit edge (willSubmitPlayForTrack:),
-    // captured by didStartPlaying:'s prefetch acknowledgement, and compared at
-    // delivery: an acknowledgement outrun by a newer submission must not
-    // release the hold that submission re-asserted. Track identity cannot
-    // carry this — replaying the same row reuses the same AudioTrack, so a
-    // track-only guard has an ABA hole. Main-confined.
-    NSUInteger                  _foregroundHoldGeneration;
     // A duration snapshot from didStartPlaying:. The live player duration
     // reads 0 while a track is Loading, and updatePlaybackUI runs in that gap.
     // It is cleared when playback goes idle, on an error or at the end of the

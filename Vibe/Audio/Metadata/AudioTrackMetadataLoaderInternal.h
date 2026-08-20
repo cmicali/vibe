@@ -35,14 +35,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)load:(NSArray<AudioTrack *> *)tracks;
 // Marks (or creates) the track's record as priority: materialized through its
 // own slot ahead of the sweep's, exempt from the stage-1 barrier, submitted
-// even while the foreground hold is up (a same-path playback claim serves it
-// for free), and parsed at user-initiated QoS. Main thread. Idempotent — the
-// record owns its retries, so a repeat edge has nothing to add.
+// even while the foreground rule is in force (a same-path playback claim
+// serves it for free), and parsed at user-initiated QoS. Main thread.
+// Idempotent — the record owns its retries, so a repeat edge has nothing to
+// add. The foreground/background rule itself is the materialization
+// coordinator's: the sweep asks isForegroundTransferActive before submitting
+// dataless records and re-asks on a bounded 1s clock while gated.
 - (void)prioritizeTrack:(AudioTrack *)track;
-// Locally gates new scan materialization requests. The cache also owns the
-// central coordinator hold that yields an already-registered request. The
-// release edge re-judges every priority record the hold made wait.
-- (void)setBackgroundMaterializationHeld:(BOOL)held;
 
 // Re-ranks pending scan materializations so these URLs go first, in the order
 // given; everything else falls to the back of the sweep.

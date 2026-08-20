@@ -297,24 +297,26 @@ def s2_hold_is_armed_at_submission(ctx):
 
 
 def s3_successor_prefetch_runs_once(ctx):
-    """The successor is prefetched exactly once — the lane must not resume
-    before that claim is registered and race it to the same file."""
+    """The successor's bytes are pulled exactly once, whichever role pulls
+    them. The prefetch may JOIN a sweep transfer already in flight for the
+    same file — one transfer per standardized path — in which case no
+    prefetch-role event ever exists: the trace records the transfer under the
+    role that started it. So the assertion is on the successor's FILE, not on
+    a prefetch-role event (an earlier version waited for `completed
+    prefetch` and read the join as a missing prefetch)."""
     ctx.arm()
     open_and_play(ctx, ctx.folders[0], index=3)
-    events = ctx.wait_for("the successor prefetch to complete",
-                          lambda ev: events_of(ev, event="completed", role="prefetch"))
-    prefetched = [e["file"] for e in events_of(events, event="completed", role="prefetch")]
-    target = prefetched[-1]
-    # Whatever role asked, the successor's bytes must be pulled once. A
-    # cancelled-and-reissued prefetch of the same file is the recomputation at
-    # didStartPlaying and is not a second download of anything.
-    completed_for_target = [e for e in events_of(events, event="completed", file=target)]
+    successor = ctx.playlist()["files"][4]
+    events = ctx.wait_for(f"the successor's transfer to complete",
+                          lambda ev: events_of(ev, event="completed", file=successor))
+    completed_for_target = events_of(events, event="completed", file=successor)
     if len(completed_for_target) > 1:
-        raise Failed(f"{target} was downloaded to term {len(completed_for_target)} times "
+        raise Failed(f"{successor} was downloaded to term {len(completed_for_target)} times "
                      f"by {[e['role'] for e in completed_for_target]}")
     if ctx.stats().get("metadataOverlapTransfers"):
         raise Failed("the metadata lane downloaded a file another role was already downloading")
-    return f"successor {target} materialized exactly once"
+    roles = [e["role"] for e in completed_for_target]
+    return f"successor {successor} materialized exactly once (via {roles[0]})"
 
 
 def s4a_rapid_next_keeps_the_hold(ctx):

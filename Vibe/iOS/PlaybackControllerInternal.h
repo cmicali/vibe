@@ -65,14 +65,6 @@ NS_ASSUME_NONNULL_BEGIN
     DownloadProgressMonitor *_downloadMonitor;
     uint64_t                 _downloadMonitorOpenRequestIdentifier;
 
-    // Stamped on every play at the pre-submit edge (willSubmitPlayForTrack:),
-    // captured by didStartPlaying:'s prefetch acknowledgement, and compared at
-    // delivery: an acknowledgement outrun by a newer submission must not
-    // release the hold that submission re-asserted. Track identity cannot
-    // carry this — replaying the same row reuses the same AudioTrack, so a
-    // track-only guard has an ABA hole. Main-confined.
-    NSUInteger              _foregroundHoldGeneration;
-
     // The deferred playlist-wide metadata sweep; see scheduleDeferredMetadataLoad.
     // The generation pairs each open's fallback timer with its own playlist, so
     // a timer armed by playlist A and firing after a replacement cannot start

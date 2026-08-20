@@ -31,11 +31,6 @@ NS_ASSUME_NONNULL_BEGIN
 // thread only, like loadMetadata:.
 - (void)loadMetadataNow:(AudioTrack *)track;
 
-// Holds background file materialization while the foreground open is in
-// flight. Cache checks continue, so already-known rows still populate. Main
-// thread only; the state survives replacement of the scan loader.
-- (void)setBackgroundMaterializationHeld:(BOOL)held;
-
 // The same ranking, expressed as a playlist position — which is what a shell
 // actually has at hand. The offset table lives here rather than in each shell,
 // so there is one of it rather than one per platform: both shells call this

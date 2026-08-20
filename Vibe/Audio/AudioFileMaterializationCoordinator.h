@@ -51,17 +51,6 @@ typedef void (^VibeAudioFileMaterializationCompletion)(
 
 @end
 
-@interface AudioFileMaterializationHoldToken : NSObject
-
-- (instancetype)init NS_UNAVAILABLE;
-+ (instancetype)new NS_UNAVAILABLE;
-
-// Idempotent. The metadata gate reopens only after every live hold ends.
-- (void)invalidate;
-
-@end
-
-
 @interface AudioFileMaterializationCoordinator : NSObject
 
 // The coherent snapshot applied most recently. Materialization limits affect
@@ -87,12 +76,19 @@ typedef void (^VibeAudioFileMaterializationCompletion)(
                                               registered:(nullable dispatch_block_t)registered
                                               completion:(VibeAudioFileMaterializationCompletion)completion;
 
-// Closes metadata admission synchronously before returning, and yields every
-// metadata-only pending or running claim. A metadata waiter may still join a
-// same-path playback or prefetch claim because that starts no second transfer
-// — and a claim for an already-local file passes the hold entirely, for the
-// same reason: the hold suspends provider transfers, which it never starts.
-- (AudioFileMaterializationHoldToken *)acquireMetadataHold;
+// YES while any live claim carries a playback or prefetch waiter whose
+// materialization has not settled. This is the C1 rule's single source: the
+// coordinator itself yields metadata-only dataless work while it reads YES —
+// a foreground claim's registration preempts running metadata transfers, and
+// its settlement is what reopens admission, so no external release edge
+// exists to be missed or doubled. A metadata waiter may still join a
+// same-path foreground claim because that starts no second transfer, and a
+// claim for an already-local file passes entirely: the rule suspends provider
+// transfers, which it never starts. Background pickers (the metadata sweep)
+// read this before submitting dataless work; it is a snapshot the moment it
+// returns, which is fine — a submission that races a rising edge is yielded
+// at admission, spending nothing.
+- (BOOL)isForegroundTransferActive;
 
 @end
 
