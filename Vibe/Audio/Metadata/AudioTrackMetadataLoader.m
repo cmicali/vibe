@@ -428,24 +428,10 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     // transfer — D3's "ahead of the sweep" is a second slot, not a queue jump.
     MetadataScanEntry *priorityPick = nil;
     os_unfair_lock_lock(&_materializationLock);
-    if (!_priorityMaterializationInFlight && !self.isCancelled
-            && _priorityURLs.count > 0) {
-        for (MetadataScanEntry *entry in _pendingMaterializations) {
-            if (![_priorityURLs containsObject:entry.url]) {
-                continue;
-            }
-            // A record the rule already yielded waits for the gated re-pick
-            // to find the foreground idle again.
-            if (suspended && entry.yieldedUnderHold) {
-                continue;
-            }
-            if (!priorityPick
-                    || (priorityPick.deferred && !entry.deferred)
-                    || (priorityPick.deferred == entry.deferred
-                            && entry.playlistIndex < priorityPick.playlistIndex)) {
-                priorityPick = entry;
-            }
-        }
+    if (!_priorityMaterializationInFlight && !self.isCancelled) {
+        priorityPick = (MetadataScanEntry *)VibeBestPriorityScanCandidate(
+                (NSArray<id<MetadataScanOrderCandidate>> *)_pendingMaterializations,
+                _priorityURLs, suspended);
         if (priorityPick) {
             [_pendingMaterializations removeObjectIdenticalTo:priorityPick];
             _scanOrderGeneration++;

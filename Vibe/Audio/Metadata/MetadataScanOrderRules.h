@@ -17,6 +17,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL deferred;
 @property (nonatomic, readonly) NSUInteger playlistIndex;
 @property (nonatomic, readonly, copy) NSURL *url;
+// A priority submission of this record came back Yielded while the foreground
+// rule was in force; the record waits for an idle re-pick rather than
+// spinning against the coordinator's synchronous yield (MetadataRetryRules.h).
+@property (nonatomic, readonly) BOOL yieldedUnderHold;
 @end
 
 // local — the file's contents are already on disk — leads every other key: its
@@ -41,6 +45,40 @@ static inline BOOL VibeMetadataScanOrderedBefore(
         return aRank < bRank;
     }
     return aIndex < bIndex;
+}
+
+// The priority slot's own pick: among the records whose URL a shell
+// prioritized, an untried record beats a deferred retry, then the lowest
+// playlist row wins (NSNotFound — a record minted outside the sweep — sorts
+// last by being the largest NSUInteger). While the foreground rule is in
+// force, a record it already yielded is skipped: re-picking it would spin
+// against the coordinator's synchronous yield, so it waits for the first
+// idle re-pick. Neighborhood rank deliberately plays no part — priority
+// records are the current track and at most a convert target, and their own
+// slot is the whole of their precedence.
+static inline id<MetadataScanOrderCandidate> _Nullable VibeBestPriorityScanCandidate(
+        NSArray<id<MetadataScanOrderCandidate>> *candidates,
+        NSSet<NSURL *> *priorityURLs,
+        BOOL foregroundActive) {
+    if (priorityURLs.count == 0) {
+        return nil;
+    }
+    id<MetadataScanOrderCandidate> best = nil;
+    for (id<MetadataScanOrderCandidate> candidate in candidates) {
+        if (![priorityURLs containsObject:candidate.url]) {
+            continue;
+        }
+        if (foregroundActive && candidate.yieldedUnderHold) {
+            continue;
+        }
+        if (!best
+                || (best.deferred && !candidate.deferred)
+                || (best.deferred == candidate.deferred
+                        && candidate.playlistIndex < best.playlistIndex)) {
+            best = candidate;
+        }
+    }
+    return best;
 }
 
 // Exact one-pass selection from everything still pending.
