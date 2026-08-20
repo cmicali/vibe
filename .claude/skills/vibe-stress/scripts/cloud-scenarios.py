@@ -135,12 +135,21 @@ class Ctx:
 # -- trace helpers ---------------------------------------------------------
 
 
+def role_matches(recorded, wanted):
+    """Exact, or family prefix: the coordinator splits "metadata" into
+    "metadata-scan" and "metadata-priority", and the suite's assertions are
+    about the family unless they say otherwise. An exact-only match silently
+    emptied every metadata predicate after the split — the sweeps ran
+    perfectly while the suite reported them absent."""
+    return recorded == wanted or recorded.startswith(wanted + "-")
+
+
 def events_of(events, event=None, role=None, file=None):
     out = events
     if event is not None:
         out = [e for e in out if e["event"] == event]
     if role is not None:
-        out = [e for e in out if e["role"] == role]
+        out = [e for e in out if role_matches(e["role"], role)]
     if file is not None:
         out = [e for e in out if e["file"] == file]
     return out
