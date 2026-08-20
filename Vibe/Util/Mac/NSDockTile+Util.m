@@ -29,7 +29,14 @@ static NSImage *VibeDockAppIcon = nil;
 static NSImageView *VibeInstalledDockIconView(void) {
     if (!VibeDockIconView) {
         // Read before the first setContentView:, so it is the untouched icon.
-        VibeDockAppIcon = [NSApp applicationIconImage];
+        // TRAP: applicationIconImage is nil before the app finishes launching
+        // — the player controller is built in applicationWillFinishLaunching:
+        // — and a cached nil painted a transparent tile for the whole session.
+        // The install is reached only from setDockIcon: (a reset with no view
+        // installed leaves the Dock's own rendering alone), so this normally
+        // runs post-launch; imageNamed: covers any earlier call.
+        VibeDockAppIcon = [NSApp applicationIconImage]
+                ?: [NSImage imageNamed:NSImageNameApplicationIcon];
         VibeDockIconView = [[NSImageView alloc] initWithFrame:
                             NSMakeRect(0, 0, kVibeDockIconCanvasSize, kVibeDockIconCanvasSize)];
         // TRAP: the default scaling is proportionally-DOWN, which will not
@@ -46,7 +53,14 @@ static NSImageView *VibeInstalledDockIconView(void) {
 
 + (void) resetToAppIcon {
     VibeDockIconGeneration++; // invalidate any in-flight composition
-    VibeInstalledDockIconView().image = VibeDockAppIcon;
+    // No contentView installed means the Dock is still drawing the real app
+    // icon — the exact state a reset wants. Installing the view here would
+    // replace it with a copy, and at launch (before NSApp has an icon to
+    // copy) with nothing at all. The empty-state reset at startup lands here.
+    if (!VibeDockIconView) {
+        return;
+    }
+    VibeDockIconView.image = VibeDockAppIcon;
     [[NSApp dockTile] display];
 }
 
