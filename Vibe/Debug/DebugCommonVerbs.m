@@ -560,7 +560,8 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             // scripted progress source, unflagged stages placeholders whose
             // probe answers NO, sticky is the fault-injection mode.
             VibeDebugCmd(@"set_fake_cloud <seconds> [<percent>] [capacity=N] [uniform] "
-                         @"[progress=none|linear|sparse|stall] [unflagged] [sticky]", 0,
+                         @"[progress=none|linear|sparse|stall] [unflagged] [sticky] "
+                         @"[fail=<basename>]", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 double seconds = 0;
@@ -595,6 +596,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 BOOL sticky = NO, uniform = NO, unflagged = NO, hasCapacity = NO;
                 NSUInteger capacity = 0;
                 NSNumber *progressMode = nil;
+                NSString *failingBasename = nil;
                 for (NSUInteger i = firstOption; i < tokens.count; i++) {
                     NSString *option = tokens[i];
                     if ([option isEqualToString:@"sticky"]) {
@@ -612,6 +614,12 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                             return VibeErrorJSON(@"capacity must be a non-negative integer");
                         }
                         hasCapacity = YES;
+                    }
+                    else if ([option hasPrefix:@"fail="]) {
+                        failingBasename = [option substringFromIndex:5];
+                        if (failingBasename.length == 0) {
+                            return VibeErrorJSON(@"fail= needs a basename");
+                        }
                     }
                     else if ([option hasPrefix:@"progress="]) {
                         progressMode = progressModes[[option substringFromIndex:9]];
@@ -640,6 +648,9 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 if (progressMode) {
                     [VibeFakeCloud setProgressMode:
                             (VibeFakeCloudProgressMode)progressMode.integerValue];
+                }
+                if (failingBasename) {
+                    [VibeFakeCloud setFailingBasename:failingBasename];
                 }
                 return VibeJSONString([VibeFakeCloud statistics]);
             }),

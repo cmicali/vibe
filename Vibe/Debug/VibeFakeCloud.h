@@ -97,6 +97,10 @@ typedef NS_ENUM(NSInteger, VibeFakeCloudProgressMode) {
 // against files that still cost a download. Install resets to NO.
 + (void)setUnflaggedPlaceholders:(BOOL)unflagged;
 
+// Transfers of this exact basename run to term and then report failure — the
+// provider-error shape, which spends the metadata retry budget. nil clears.
++ (void)setFailingBasename:(NSString * _Nullable)basename;
+
 // Restores the real dataless test and the real coordinated read.
 + (void)uninstall;
 

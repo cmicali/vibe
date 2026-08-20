@@ -198,6 +198,11 @@ static NSError *VibeMaterializationCancelledError(void) {
     VibeFakeTransferHooks(&fakeSeconds, &acquireSlot, &releaseSlot, &didFinish);
     NSString *role = self.label ?: @"unlabeled";
     NSTimeInterval fake = fakeSeconds ? fakeSeconds(url, role) : 0;
+    // Negative is the provider's failure sentinel: the transfer runs for the
+    // magnitude, then reports failure — the shape a provider error takes,
+    // reachable by no other fake mode (stall never fails, sticky never ends).
+    BOOL fakeFails = fake < 0;
+    fake = fabs(fake);
     if (fake > 0) {
         // The shared provider slot first, cancellable while queued; then the
         // transfer itself. Cancelled leaves the file a placeholder, exactly as
@@ -217,10 +222,16 @@ static NSError *VibeMaterializationCancelledError(void) {
         if (!admitted && error) {
             *error = VibeMaterializationCancelledError();
         }
-        if (didFinish) {
-            didFinish(url, role, completed);
+        if (completed && fakeFails && error) {
+            *error = [NSError errorWithDomain:@"com.vibe.fake-cloud"
+                                         code:1
+                                     userInfo:@{NSLocalizedDescriptionKey:
+                                             @"Fake provider transfer failed"}];
         }
-        return completed;
+        if (didFinish) {
+            didFinish(url, role, completed && !fakeFails);
+        }
+        return completed && !fakeFails;
     }
 #endif
 

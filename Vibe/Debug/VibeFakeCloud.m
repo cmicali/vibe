@@ -68,6 +68,9 @@ static NSMutableArray<NSDictionary *> *sContentionEvents;
 static NSTimeInterval sBaseSeconds;
 // Fault injection; see setStickyDataless:.
 static BOOL sSticky;
+// Transfers of this basename run to term and then FAIL — the provider-error
+// shape, for budget-exhaustion scenarios. nil injects no failures.
+static NSString *sFailBasename;
 // The provider's scarce resource; 0 is unlimited. See setTransferCapacity:.
 static NSUInteger sCapacity;
 static NSUInteger sExecuting, sQueued, sMaxObservedConcurrency;
@@ -268,6 +271,7 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
     sForegroundContentionStarts = 0;
     sContentionEvents = [NSMutableArray array];
     sSticky = NO;
+    sFailBasename = nil;
     // Every determinism switch resets: an install describes a whole scenario,
     // and a leftover mode from the previous one would silently reshape it.
     sCapacity = 1;
@@ -315,8 +319,11 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
         if (seconds > 0) {
             VibeTraceLocked(@"requested", role, path, nil);
         }
+        BOOL fails = seconds > 0 && sFailBasename != nil
+                && [path.lastPathComponent isEqualToString:sFailBasename];
         os_unfair_lock_unlock(&sLock);
-        return seconds;
+        // Negative is the materializer's failure sentinel: run, then fail.
+        return fails ? -seconds : seconds;
     }                                   acquireSlot:^BOOL(NSURL *url, NSString *role,
                                                           BOOL (^cancelled)(void)) {
         NSString *path = url.path ?: @"";
@@ -533,6 +540,12 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
     os_unfair_lock_unlock(&sLock);
 }
 
++ (void)setFailingBasename:(NSString *)basename {
+    os_unfair_lock_lock(&sLock);
+    sFailBasename = [basename copy];
+    os_unfair_lock_unlock(&sLock);
+}
+
 + (void)uninstall {
     [NSURLUtil setDatalessProbe:nil];
     [CloudFileMaterializer setFakeTransferProvider:nil acquireSlot:nil
@@ -576,6 +589,7 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
         @"completed": @(sCompleted),
         @"cancelled": @(sCancelled),
         @"sticky": @(sSticky),
+        @"failingBasename": sFailBasename ?: @"",
         @"baseSeconds": @(sBaseSeconds),
         @"slowPercent": @(kSlowPercent),
         @"stuckPercent": @(kStuckPercent),

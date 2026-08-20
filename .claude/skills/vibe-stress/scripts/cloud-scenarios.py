@@ -83,7 +83,7 @@ class Ctx:
         return payload or {}
 
     def arm(self, seconds=TRANSFER, percent=100, capacity=1, uniform=True,
-            progress=None, unflagged=False, sticky=False):
+            progress=None, unflagged=False, sticky=False, fail=None):
         argv = ["set_fake_cloud", f"{seconds}", f"{percent}", f"capacity={capacity}"]
         if uniform:
             argv.append("uniform")
@@ -93,6 +93,8 @@ class Ctx:
             argv.append("unflagged")
         if sticky:
             argv.append("sticky")
+        if fail:
+            argv.append(f"fail={fail}")
         stats = self.cmd(*argv)
         if not stats.get("installed"):
             raise Failed(f"could not arm the fake provider: {stats}")
@@ -814,6 +816,124 @@ def s14_the_priority_records_drain(ctx):
     return f"lane drained after two storms and a replacement; request rate flat at rest"
 
 
+
+
+def s15_a_failing_file_spends_its_budget_and_stops(ctx):
+    """A file whose transfers always fail is retried exactly to the budget —
+    three attempts, spec D7 — then dropped for the session: the request rate
+    for it goes flat while every other row completes. The live analogue of
+    the ledger regression 925209b fixed, staged with the fake's fail= mode
+    (transfers run to term, then report a provider error)."""
+    folder = ctx.folders[0]
+    victims = sorted(f.name for f in folder.iterdir() if f.is_file())
+    # Not the auto-played row 0: its playback open must succeed so the sweep
+    # runs at all.
+    victim = victims[len(victims) // 2]
+    ctx.arm(seconds=0.4, fail=victim)
+    ctx.cmd("open", str(folder))
+    ctx.wait_for("the sweep to reach and retry the failing file",
+                 lambda ev: len(events_of(ev, event="requested", role="metadata",
+                                          file=victim)) >= 3,
+                 timeout=60)
+    ctx.settle(6)
+    events = ctx.trace()
+    attempts = len(events_of(events, event="requested", role="metadata", file=victim))
+    if attempts > 3:
+        raise Failed(f"{victim} was requested {attempts} times — the 3-attempt "
+                     "budget did not hold")
+    completed = events_of(events, event="completed", role="metadata", file=victim)
+    if completed:
+        raise Failed(f"{victim} completed a transfer the fake was told to fail")
+    before = attempts
+    ctx.settle(5)
+    after = len(events_of(ctx.trace(), event="requested", role="metadata", file=victim))
+    if after > before:
+        raise Failed(f"{victim} is still being retried at rest: {before} -> {after}")
+    progress = ctx.cmd("dump_metadata_progress")
+    return (f"{victim} spent exactly {attempts} attempts and stopped; "
+            f"{progress.get('attempted', '?')}/{progress.get('total', '?')} rows attempted")
+
+
+def s16_close_during_a_live_transfer_starts_nothing(ctx):
+    """File > Close while the playback transfer is still moving: no metadata
+    transfer may start inside that transfer's remaining window (spec C5), and
+    everything settles to zero. The regression test for the closeFile:
+    ordering bug — the hold was once released before stop's supersession
+    landed, draining parked metadata claims into the dying open's window."""
+    ctx.arm(seconds=20)
+    folder = ctx.folders[0]
+    ctx.cmd("open", str(folder))
+    ctx.wait_for("the playback transfer to start",
+                 lambda ev: events_of(ev, event="started", role="playback"))
+    # quiesce runs closeFile: first, then waits for the pending counters.
+    ctx.cmd("quiesce", timeout=60)
+    events = ctx.trace()
+    playback = windows(events, "playback")
+    for start_seq, end_seq, _file in playback:
+        for started in events_of(events, event="started", role="metadata"):
+            if started["seq"] > start_seq and (end_seq is None
+                                               or started["seq"] < end_seq):
+                raise Failed(f"a metadata transfer started inside the closing "
+                             f"playback window: {started}")
+    health = ctx.health()
+    if health.get("cloudLaneHeld") or health.get("cloudParsesPending"):
+        raise Failed(f"Close left cloud state behind: {health}")
+    return "Close cancelled the transfer and admitted nothing behind it"
+
+
+def s17_play_pause_during_loading_lands_parked(ctx):
+    """play_pause while the open is still materializing flips the landing:
+    the open completes and the track parks paused instead of playing
+    (spec B2). The transfer itself must complete — the toggle changes the
+    landing intent, never the open."""
+    ctx.arm(seconds=4)
+    folder = ctx.folders[0]
+    ctx.cmd("open", str(folder))
+    ctx.wait_for("the playback transfer to start",
+                 lambda ev: events_of(ev, event="started", role="playback"))
+    state = ctx.state()["player"]["state"]
+    if state != "playing":
+        raise Failed(f"expected the pending intent to read playing, got {state}")
+    ctx.cmd("play_pause")
+    ctx.wait_for("the playback transfer to complete",
+                 lambda ev: events_of(ev, event="completed", role="playback"),
+                 timeout=20)
+    ctx.settle(2)
+    state = ctx.state()["player"]["state"]
+    if state != "paused":
+        raise Failed(f"the open landed {state}, not paused")
+    return "the open landed parked; the transfer ran to term"
+
+
+def s18_a_wedged_open_still_starts_the_sweep(ctx):
+    """The deferral's 2s fallback (spec D4): an open that never settles must
+    not strand the playlist unpopulated. The sweep's stage 1 runs — pending
+    records pile up — while the open is still Loading; its dataless stage 2
+    correctly stays gated behind the foreground rule."""
+    ctx.arm(seconds=300, progress="stall")
+    folder = ctx.folders[0]
+    ctx.cmd("open", str(folder))
+    ctx.wait_for("the playback transfer to start",
+                 lambda ev: events_of(ev, event="started", role="playback"))
+    deadline = time.monotonic() + 8
+    pending = 0
+    while time.monotonic() < deadline:
+        pending = ctx.health().get("cloudParsesPending", 0)
+        if pending > 0:
+            break
+        time.sleep(0.5)
+    if pending == 0:
+        raise Failed("the deferred sweep never started behind the wedged open")
+    state = ctx.state()["player"]["state"]
+    if state not in ("playing", "loading"):
+        raise Failed(f"the open should still be pending, got {state}")
+    if events_of(ctx.trace(), event="started", role="metadata"):
+        raise Failed("a dataless metadata transfer started while the "
+                     "foreground open was live")
+    return (f"stage 1 filed {pending} pending rows behind the wedged open; "
+            "stage 2 stayed gated")
+
+
 SCENARIOS = [
     ("S1", s1_replacement_cancels_the_old_scan, False),
     ("S2", s2_hold_is_armed_at_submission, False),
@@ -833,6 +953,10 @@ SCENARIOS = [
     ("S12b", s12b_a_stalled_timeout_is_not_chased_either, False),
     ("S13", s13_stand_aside_is_advisory, True),
     ("S14", s14_the_priority_records_drain, False),
+    ("S15", s15_a_failing_file_spends_its_budget_and_stops, False),
+    ("S16", s16_close_during_a_live_transfer_starts_nothing, False),
+    ("S17", s17_play_pause_during_loading_lands_parked, False),
+    ("S18", s18_a_wedged_open_still_starts_the_sweep, False),
 ]
 
 
@@ -855,6 +979,9 @@ def check_unique_basenames(corpus: Path):
 
 
 def main():
+    # Line-buffer even when stdout is a file, so a driver tailing the log sees
+    # each scenario's outcome as it lands rather than everything at exit.
+    sys.stdout.reconfigure(line_buffering=True)
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus", required=True,
                         help="folder of folders, from make-cloud-corpus.py")
