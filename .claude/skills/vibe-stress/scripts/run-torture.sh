@@ -23,7 +23,10 @@ usage() {
 [ -d "$1" ] || { echo "no app bundle at $1" >&2; exit 64; }
 [ -d "$2" ] || { echo "no playlist folder at $2" >&2; exit 64; }
 
-APP="$(cd "$1" && pwd)"; PLAYLIST="$2"; shift 2
+# Both absolutized: the app resolves an open against ITS cwd (/ for a GUI
+# process), so a relative playlist path opened nothing and failed the run as
+# "playlist never populated".
+APP="$(cd "$1" && pwd)"; PLAYLIST="$(cd "$2" && pwd)"; shift 2
 V="$APP/Contents/MacOS/Vibe"
 [ -x "$V" ] || { echo "no executable at $V" >&2; exit 64; }
 
