@@ -81,7 +81,10 @@ typedef NSData *_Nullable (^AudioTrackArchivedDisplayArtProvider)(void);
 // an embedded thumbnail whose compact bytes survived a pixel-cache eviction.
 // YES means this call admitted the one request for the row; a duplicate while
 // that request is live returns NO. A request that starts completes once on
-// main, with nil when the bytes did not decode or admission failed.
+// main, with nil when the bytes did not decode or admission failed. A row
+// holding no thumbnail bytes at all — an archive whose 128px re-encode failed
+// at parse — decodes from the archived display rendition instead, so no
+// art-bearing entry is a dead end.
 - (BOOL)requestEmbeddedThumbnailDecodeWithCompletion:
         (void (^)(VibeImage *_Nullable image))completion;
 

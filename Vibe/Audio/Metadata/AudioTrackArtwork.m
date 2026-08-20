@@ -923,6 +923,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     }
 
     __block NSData *dataToDecode;
+    __block AudioTrackArchivedDisplayArtProvider archivedProvider;
     __block BOOL decodingStoredThumbnail;
     __block EmbeddedThumbnailKey *cacheKey;
     __block AudioTrackThumbnailDecoder decoder;
@@ -932,7 +933,16 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         }
         dataToDecode = _encodedThumbnailData ?: _embeddedArtData;
         if (!dataToDecode) {
-            return NO;
+            // An entry that knows of art but archived no thumbnail bytes — a
+            // failed 128px re-encode at parse — would otherwise be a dead end:
+            // no request could ever produce its row art until a full-art load
+            // happened to repopulate the bytes. Recover through the archived
+            // display rendition, whose within-bound originals were stored
+            // verbatim and so cannot have failed the same re-encode.
+            archivedProvider = _archivedDisplayArtProvider;
+            if (!archivedProvider) {
+                return NO;
+            }
         }
         decodingStoredThumbnail = _encodedThumbnailData != nil;
         cacheKey = _thumbnailCacheKey;
@@ -941,9 +951,11 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     }
 
     [VibeEmbeddedThumbnailDecodeScheduler() submitWork:^{
-        VibeImage *thumbnail = decoder
-                ? decoder(dataToDecode)
-                : VibeDecodedImageWithData(dataToDecode, kVibeThumbnailArtDimension);
+        // The provider read is a blocking disk-cache hit, worker-safe here.
+        NSData *bytes = dataToDecode ?: archivedProvider();
+        VibeImage *thumbnail = !bytes ? nil : (decoder
+                ? decoder(bytes)
+                : VibeDecodedImageWithData(bytes, kVibeThumbnailArtDimension));
         // Keep the scheduler slot until main has consumed the decoded result.
         // Otherwise a busy main queue can accumulate a second, unbounded tail
         // of pixel objects after the bounded worker says those jobs finished.
@@ -963,10 +975,14 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
                         [VibeEmbeddedThumbnailCache() setImage:thumbnail
                                                         forKey:cacheKey];
                     }
-                    else {
+                    else if (dataToDecode) {
                         [self markThumbnailDecodeFailureLockedForData:dataToDecode
                                               decodingStoredThumbnail:decodingStoredThumbnail];
                     }
+                    // A missing or undecodable archived rendition marks
+                    // nothing: the sidecar's loss says nothing about the
+                    // file's own art, and a later full-art load can still
+                    // repopulate the bytes this row lacks.
                 }
             }
             completion(current ? thumbnail : nil);

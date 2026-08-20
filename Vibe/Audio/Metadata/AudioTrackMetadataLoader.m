@@ -48,14 +48,14 @@ static NSString *VibeArchivedDisplayArtKey(NSString *cacheKey) {
 // Both platforms: the rendition is sized per platform to be quality-equivalent
 // to the display decode it stands in for (PlatformImage.m), so the mac header
 // and the iOS now-playing page both re-show art without re-reading — or, on a
-// dataless cloud file, re-downloading — the song. Stamped only on rows whose
-// thumbnail proves the art decodable — an undecodable file has no sidecar to
-// read.
+// dataless cloud file, re-downloading — the song. Stamped on every art-bearing
+// row, thumbnail bytes or not: an entry whose 128px re-encode failed at parse
+// has ONLY the rendition to recover its row thumbnail from, and a row with no
+// sidecar either merely pays one empty read before extraction.
 static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
                                                   PINCache *metadataCache,
                                                   NSString *cacheKey) {
-    if (!metadata.artwork.hasEmbeddedArt ||
-            ![metadata.artwork encodedThumbnailDataForStorage]) {
+    if (!metadata.artwork.hasEmbeddedArt) {
         return;
     }
     NSString *sidecarKey = VibeArchivedDisplayArtKey(cacheKey);

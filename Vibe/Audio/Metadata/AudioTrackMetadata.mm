@@ -462,7 +462,13 @@ static CGFloat VibeEncodedArtMaxDimension(NSData *data) {
     // One decode on this worker produces the compact bytes, off the display
     // cache entirely, then the original art bytes are released. The first
     // visible row decodes pixels on demand through the bounded request path.
-    (void)[metadata encodeThumbnailDataIfNeeded];
+    NSData *encodedThumbnail = [metadata encodeThumbnailDataIfNeeded];
+    if (!encodedThumbnail && metadata.artwork.hasEmbeddedArt) {
+        // The entry will archive art-with-no-thumbnail; its row art then
+        // depends on the display rendition's recovery path.
+        LogWarn(@"Thumbnail encode produced nothing for art-bearing %@",
+                url.path.lastPathComponent);
+    }
     // The display-art rendition must be cut while the originals still exist;
     // the loader's cache write consumes the stash.
     [metadata stashArchivedDisplayArtDataIfPossible];

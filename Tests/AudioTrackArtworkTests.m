@@ -842,6 +842,36 @@
     XCTAssertEqual(extractions, 1u);
 }
 
+// The dead-end state: an archive that knows of art but carries no thumbnail
+// bytes (a failed 128px re-encode at parse). The row thumbnail must recover
+// through the archived display rendition.
+- (void)testArtBearingEntryWithoutThumbnailBytesRecoversThroughTheRendition {
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        XCTFail(@"the rendition must recover the thumbnail without a file read");
+        return VibeEmbeddedArtExtractionReadFailed;
+    }];
+    [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:YES];
+    NSData *rendition = [self embeddedArtData];
+    artwork.archivedDisplayArtProvider = ^NSData *{
+        return rendition;
+    };
+    XCTAssertNotNil([self waitForThumbnailDecode:artwork]);
+    XCTAssertNotNil(artwork.cachedThumbnail);
+}
+
+- (void)testMissingRenditionLeavesTheThumbnailRequestRetryable {
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:nil];
+    [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:YES];
+    artwork.archivedDisplayArtProvider = ^NSData *{
+        return nil; // evicted sidecar
+    };
+    XCTAssertNil([self waitForThumbnailDecode:artwork]);
+    // The miss cleared the single-flight flag rather than stranding it: a
+    // later pass — after a full-art load repopulates bytes — can request anew.
+    XCTAssertNil([self waitForThumbnailDecode:artwork]);
+}
+
 - (void)testCopyCarriesTheProviderAndDataTransitionsClearIt {
     NSUInteger reads = 0;
     AudioTrackArtwork *artwork = [self archivedRowWithProviderData:[self embeddedArtData]
