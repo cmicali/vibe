@@ -520,10 +520,11 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 
 // The bounded clock that replaces the hold's release edge. While the rule
 // gates work — dataless scan records suspended, or a priority record a yield
-// made wait — one coalesced re-pick per second re-asks the coordinator; the
-// first idle tick re-judges the waiting priority records (retry a file the
-// open made local, demote a still-dataless one to the sweep) and resumes the
-// sweep. A millisecond gap between rapid nexts cannot flap the sweep: the
+// made wait — one coalesced re-pick per second re-asks the coordinator.
+// Every tick re-judges the waiting priority records: one the open made local
+// retries at once, gated or not (its parse starts no transfer), while a
+// still-dataless one waits and demotes to the sweep only at the first idle
+// tick. A millisecond gap between rapid nexts cannot flap the sweep: the
 // tick simply finds the foreground active again.
 - (void)scheduleGatedRepickIfNeededWhileSuspended:(BOOL)suspended {
     if (!suspended) {
@@ -552,20 +553,22 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         if (strongSelf.isCancelled) {
             return;
         }
-        if (![strongSelf->_materializationCoordinator isForegroundTransferActive]) {
-            [strongSelf judgeWaitingPriorityRecords];
-        }
+        [strongSelf judgeWaitingPriorityRecordsWhileHeld:
+                [strongSelf->_materializationCoordinator isForegroundTransferActive]];
         [strongSelf dispatchNextScanMaterialization];
     });
 }
 
-// The release-edge re-judgement, run at the first idle tick: the settled open
-// downloaded some waiting records' files (retry — the parse lands
-// immediately) and left the rest dataless (demote — re-downloading a dead
-// pick behind its error UI is the sweep's call to make, at its rank). Probing
-// is I/O, so it happens off the lock; the records are stable objects and
-// demotion is set removal, so nothing here races a requeue.
-- (void)judgeWaitingPriorityRecords {
+// The waiting records' re-judgement, run every gated tick: a record whose
+// file the open made local retries at once — its parse starts no transfer,
+// so it must not wait out an unrelated foreground download (the successor's
+// prefetch, measured holding the current track's art for its whole
+// transfer). A still-dataless record waits while the rule holds and demotes
+// at the first idle tick — re-downloading a dead pick behind its error UI is
+// the sweep's call to make, at its rank. Probing is I/O, so it happens off
+// the lock; the records are stable objects and demotion is set removal, so
+// nothing here races a requeue.
+- (void)judgeWaitingPriorityRecordsWhileHeld:(BOOL)held {
     NSMutableArray<MetadataScanEntry *> *waiting = [NSMutableArray array];
     os_unfair_lock_lock(&_materializationLock);
     for (MetadataScanEntry *entry in _pendingMaterializations) {
@@ -576,14 +579,20 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     os_unfair_lock_unlock(&_materializationLock);
     for (MetadataScanEntry *entry in waiting) {
         entry.local = ![NSURLUtil isDatalessFile:entry.url];
-        entry.yieldedUnderHold = NO;
-        if (VibeMetadataPriorityAfterYield(NO, entry.local)
-                == VibeMetadataPriorityYieldDemote) {
-            os_unfair_lock_lock(&_materializationLock);
-            [_priorityURLs removeObject:entry.url];
-            os_unfair_lock_unlock(&_materializationLock);
-            LogInfo(@"Priority record %@ still dataless once the foreground settled — left to the sweep",
-                    entry.url.lastPathComponent);
+        switch (VibeMetadataPriorityAfterYield(held, entry.local)) {
+            case VibeMetadataPriorityYieldWait:
+                break;
+            case VibeMetadataPriorityYieldRetry:
+                entry.yieldedUnderHold = NO;
+                break;
+            case VibeMetadataPriorityYieldDemote:
+                entry.yieldedUnderHold = NO;
+                os_unfair_lock_lock(&_materializationLock);
+                [_priorityURLs removeObject:entry.url];
+                os_unfair_lock_unlock(&_materializationLock);
+                LogInfo(@"Priority record %@ still dataless once the foreground settled — left to the sweep",
+                        entry.url.lastPathComponent);
+                break;
         }
     }
 }

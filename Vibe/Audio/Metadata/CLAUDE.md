@@ -38,7 +38,7 @@ Both shells defer the first scan until the selected track's open settles. The fo
 
 Materialization results, not error text, decide retries:
 
-- `Yielded` spends no attempt. A scan record requeues at its rank. A yielded **priority** record waits out the foreground activity (re-picking would spin against the coordinator's synchronous yield), and the first idle tick of the gated clock re-judges it: local by then — the settled open made it so — retries; still dataless means the open failed, and the record demotes to an ordinary sweep candidate at its rank rather than re-downloading a dead pick behind its error UI.
+- `Yielded` spends no attempt. A scan record requeues at its rank. A yielded **priority** record is re-judged on every tick of the gated clock: a file the open made local retries at once, hold or no hold — its parse starts no transfer (spec A1's exemption), and waiting was measured costing the now-playing tags the length of the successor's whole prefetch — while a still-dataless one waits out the foreground activity (re-picking would spin against the coordinator's synchronous yield) and demotes only at the first idle tick: still dataless once the foreground settled means the open failed, and it becomes an ordinary sweep candidate at its rank rather than re-downloading a dead pick behind its error UI.
 - `Failed` spends the bounded per-path budget and re-enters below untried rows.
 - `AdmissionExhausted` spends the same budget after a 0.25–2 second delay.
 

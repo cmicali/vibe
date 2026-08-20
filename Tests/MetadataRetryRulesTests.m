@@ -82,22 +82,22 @@
     XCTAssertEqualWithAccuracy(VibeMetadataAdmissionRetryDelay(NSUIntegerMax), 2.0, 0.001);
 }
 
-// The priority record's yield triage, judged at delivery and re-judged at the
-// release edge (the two orders of the same race — a Yielded delivery can
-// marshal on either side of the release). While the hold is up the record
-// waits: re-picking would spin against the coordinator's synchronous yield.
-// With the hold down, the probe decides: local means the settled open
-// downloaded the file (retry — the parse lands immediately); still dataless
-// means the open failed, and re-downloading a dead pick behind its error UI
-// is the sweep's call to make, at its rank (demote).
-- (void)testAYieldWhileHeldWaitsForTheReleaseEdge {
+// The priority record's yield triage, judged at delivery and re-judged on
+// every gated tick. A local file retries whether or not the rule holds: its
+// parse starts no transfer, and waiting it out was measured costing the
+// now-playing tags the length of the successor's whole prefetch. A dataless
+// record waits while the hold is up — re-picking would spin against the
+// coordinator's synchronous yield — and demotes only once the foreground
+// settles with the file still dataless: the open failed, and re-downloading
+// a dead pick behind its error UI is the sweep's call to make, at its rank.
+- (void)testADatalessYieldWhileHeldWaitsForTheReleaseEdge {
     XCTAssertEqual(VibeMetadataPriorityAfterYield(YES, NO),
-            VibeMetadataPriorityYieldWait);
-    XCTAssertEqual(VibeMetadataPriorityAfterYield(YES, YES),
             VibeMetadataPriorityYieldWait);
 }
 
-- (void)testAFileTheOpenMadeLocalRetriesAtRelease {
+- (void)testAFileTheOpenMadeLocalRetriesEvenWhileHeld {
+    XCTAssertEqual(VibeMetadataPriorityAfterYield(YES, YES),
+            VibeMetadataPriorityYieldRetry);
     XCTAssertEqual(VibeMetadataPriorityAfterYield(NO, YES),
             VibeMetadataPriorityYieldRetry);
 }

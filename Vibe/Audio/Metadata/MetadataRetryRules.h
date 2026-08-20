@@ -70,9 +70,15 @@ typedef NS_ENUM(NSUInteger, VibeMetadataPriorityYieldOutcome) {
 
 static inline VibeMetadataPriorityYieldOutcome VibeMetadataPriorityAfterYield(
         BOOL held, BOOL local) {
-    if (held) {
-        return VibeMetadataPriorityYieldWait;
+    // A local file retries even while the rule holds: its parse starts no
+    // transfer, and waiting it out costs the now-playing tags the length of
+    // whatever the foreground is still downloading — measured, a successor's
+    // prefetch held the current track's art hostage for its whole transfer.
+    // Only a still-dataless record waits, and only a settled foreground can
+    // demote it: mid-hold the open that would make it local is still running.
+    if (local) {
+        return VibeMetadataPriorityYieldRetry;
     }
-    return local ? VibeMetadataPriorityYieldRetry
-                 : VibeMetadataPriorityYieldDemote;
+    return held ? VibeMetadataPriorityYieldWait
+                : VibeMetadataPriorityYieldDemote;
 }
