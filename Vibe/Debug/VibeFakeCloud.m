@@ -372,6 +372,11 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
                     sForegroundContentionStarts++;
                     VibeTraceLocked(@"contention", role, path,
                                     @{@"playbackInFlight": @(playbackInFlight)});
+                    // Warn level, because the bounded trace rotates: churny
+                    // runs evicted the one event the oracle fails on, leaving
+                    // a cumulative counter and no culprit.
+                    LogWarn(@"Fake cloud contention: %@ transfer of %@ started with %lu playback transfer(s) in flight",
+                            whose, path.lastPathComponent, (unsigned long)playbackInFlight);
                 }
                 os_unfair_lock_unlock(&sLock);
                 return YES;
