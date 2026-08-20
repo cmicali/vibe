@@ -33,15 +33,21 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
 
 // The load-admission bounds live in ArtworkLoadRegistry.h, beside the
 // registry that enforces them.
-static const NSUInteger kEmbeddedThumbnailCacheCount = 128;
+// Sized so a session's worth of scrolled rows stays decoded (spec H). Each
+// entry is a <=128x128 RGBA decode, ~64 KiB, so the worst case is ~1 GiB —
+// reachable only by displaying 16k distinct rows' thumbnails in one session.
+// iOS flushes the cache on a memory warning instead of carrying a byte cap
+// that would silently redefine this count.
+static const NSUInteger kEmbeddedThumbnailCacheCount = 16384;
 static const NSUInteger kEmbeddedThumbnailDecodeRunningCount = 2;
 // Parked decode requests are visible rows awaiting pixels; the bound is app
 // memory for parked blocks, unrelated to the pixel cache's own count.
 static const NSUInteger kEmbeddedThumbnailDecodePendingCount = 126;
 
 // NSCache treats its limits as eviction suggestions. The row-art guarantee is
-// an actual bound, so keep the tiny LRU explicit: every image is decoded at no
-// more than 128 x 128 pixels, and no more than 128 of them are retained here.
+// an actual bound, so keep the LRU explicit: every image is decoded at no more
+// than 128 x 128 pixels, and no more than kEmbeddedThumbnailCacheCount of them
+// are retained here.
 // In-flight decodes hold pixels outside the cache, bounded separately by the
 // decode scheduler's running count plus the metadata worker pool.
 @interface EmbeddedThumbnailKey : NSObject <NSCopying>
@@ -128,6 +134,19 @@ static EmbeddedThumbnailCache *VibeEmbeddedThumbnailCache(void) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         cache = [[EmbeddedThumbnailCache alloc] init];
+#if !TARGET_OS_OSX
+        // At 16k entries the decoded pixels are jetsam-relevant, and this
+        // explicit LRU has no NSCache-style pressure eviction. Dropping the
+        // decodes is always safe: visible rows re-request on demand.
+        [[NSNotificationCenter defaultCenter]
+                addObserverForName:UIApplicationDidReceiveMemoryWarningNotification
+                            object:nil
+                             queue:nil
+                        usingBlock:^(NSNotification *note) {
+            (void)note;
+            [cache removeAllImages];
+        }];
+#endif
     });
     return cache;
 }

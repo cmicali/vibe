@@ -37,11 +37,13 @@ scenario suite + a stress pass before the next begins.
    records live in loaders. So a pre-sweep `loadMetadataNow:` builds a normal
    loader over `@[track]`; the real playlist sweep later replaces it wholesale
    (D10), and the row re-resolves from cache. No standing mini-lane state.
-5. **Thumbnail LRU (user spec edit, E3/H): 16k entries.** Implemented with a
-   byte backstop of 512 MiB (matching the disk budget) so the worst case —
-   16,384 decoded 128 px thumbnails ≈ 1 GiB — stays bounded. **Flagged:** if
-   the backstop is unwanted, or should be smaller, edit H; entries dominate in
-   all realistic playlists either way.
+5. **Thumbnail LRU (user spec edit, E3/H): 16k entries.** Entries are
+   fixed-size (~64 KiB decoded), so a byte cap would just silently redefine
+   the count (512 MiB ≡ 8k entries) — implemented as 16,384 entries verbatim
+   instead, plus an iOS memory-warning flush: the explicit LRU has no
+   NSCache-style pressure eviction, irrelevant at 8 MiB and not at the new
+   ~1 GiB worst case (reached only by displaying 16k distinct rows' thumbnails
+   in one session). **Flagged:** edit H if a smaller count is wanted.
 
 ## Phase 0 — quick wins (immediate)
 
