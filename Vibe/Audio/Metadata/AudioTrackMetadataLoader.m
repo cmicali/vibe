@@ -12,6 +12,7 @@
 #import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataInternal.h"
+#import "AudioTrackArtworkInternal.h"
 #import "MetadataScanOrderRules.h"
 #import "MetadataRetryRules.h"
 #import "MetadataParseCoordinator.h"
@@ -37,6 +38,41 @@
 
 @implementation MetadataScanEntry
 @end
+
+// The display-art rendition's entry beside its metadata entry, same store,
+// same LRU and age terms. NSURL+Hash cache keys never contain '#'.
+static NSString *VibeArchivedDisplayArtKey(NSString *cacheKey) {
+    return [cacheKey stringByAppendingString:@"#displayArt"];
+}
+
+// macOS only, matching the folder-art switch: iOS never installs the provider,
+// so its full-resolution now-playing page keeps extracting from the file, and
+// every archived-rendition branch in AudioTrackArtwork is inert. Stamped only
+// on rows whose thumbnail proves the art decodable — an undecodable file has
+// no sidecar to read.
+static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
+                                                  PINCache *metadataCache,
+                                                  NSString *cacheKey) {
+#if TARGET_OS_OSX
+    if (!metadata.artwork.hasEmbeddedArt ||
+            ![metadata.artwork encodedThumbnailDataForStorage]) {
+        return;
+    }
+    NSString *sidecarKey = VibeArchivedDisplayArtKey(cacheKey);
+    __weak PINCache *weakCache = metadataCache;
+    metadata.artwork.archivedDisplayArtProvider = ^NSData *{
+        // Blocking disk read on a registry worker; a departed cache reads as
+        // a missing sidecar and the load falls back to extraction.
+        PINCache *cache = weakCache;
+        NSData *data = (NSData *)[cache.diskCache objectForKey:sidecarKey];
+        // PINCache unarchives without secure coding; treat a wrong class as
+        // absent rather than handing it to ImageIO.
+        return [data isKindOfClass:[NSData class]] ? data : nil;
+    };
+#else
+    (void)metadata; (void)metadataCache; (void)cacheKey;
+#endif
+}
 
 @interface AudioTrackMetadataLoader ()
 - (AudioTrackMetadata *)parseAndCacheMetadataForTrack:(AudioTrack *)track;
@@ -774,11 +810,13 @@
     // an unrecognized selector, on every launch. Evict it instead.
     if (cachedMetaData && ![cachedMetaData isKindOfClass:[AudioTrackMetadata class]]) {
         [metadataCache.diskCache removeObjectForKey:cacheKey];
+        [metadataCache.diskCache removeObjectForKey:VibeArchivedDisplayArtKey(cacheKey)];
         cachedMetaData = nil;
     }
     if (!cachedMetaData) {
         return NO;
     }
+    VibeInstallArchivedDisplayArtProvider(cachedMetaData, metadataCache, cacheKey);
     // Unarchive keeps compact thumbnail bytes. The first visible row requests
     // their bounded off-main decode; offscreen rows cost no decoded pixels.
     //
@@ -913,9 +951,20 @@
         // in the middle of the write-then-recheck pair.
         if (generation == owner.cacheGeneration) {
             [owner.metadataCache.diskCache setObject:metadata forKey:cacheKey];
+            // The display-art rendition rides beside the entry, under the same
+            // write-then-recheck pair. The stash is consumed either way, so a
+            // skipped write costs the header one extraction, never a leak.
+            NSData *displayArt = [metadata.artwork takeArchivedDisplayArtDataForStorage];
+            if (displayArt) {
+                [owner.metadataCache.diskCache setObject:displayArt
+                                                  forKey:VibeArchivedDisplayArtKey(cacheKey)];
+            }
             if (generation != owner.cacheGeneration) {
                 [owner.metadataCache.diskCache removeObjectForKey:cacheKey];
+                [owner.metadataCache.diskCache
+                        removeObjectForKey:VibeArchivedDisplayArtKey(cacheKey)];
             }
+            VibeInstallArchivedDisplayArtProvider(metadata, owner.metadataCache, cacheKey);
         }
     }
     return metadata;

@@ -14,6 +14,7 @@
 
 const CGFloat kVibeThumbnailArtDimension = 128.0;
 const CGFloat kVibeDisplayArtDimension = 1024.0;
+const CGFloat kVibeArchivedDisplayArtDimension = 640.0;
 
 VibeImage *VibeDecodedImageWithData(NSData *data, CGFloat maxPixelSize) {
     if (!data) {

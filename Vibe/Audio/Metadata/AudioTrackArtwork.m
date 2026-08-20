@@ -198,6 +198,9 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     BOOL _thumbnailDecodePending;
     VibeImage *_embeddedArt;
     NSData *_embeddedArtData;
+    AudioTrackArchivedDisplayArtProvider _archivedDisplayArtProvider;
+    // Compaction's display-art rendition, parked for the one cache write.
+    NSData *_archivedDisplayArtDataForStorage;
     AudioTrackArtworkExtractor _extractor;
     // The file carries art, in hand or not. Set by a parse that found bytes and
     // by an archive that recorded the fact, and never cleared by a discard —
@@ -263,6 +266,10 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         // a disk-cache hit, and re-reads full-size bytes on demand.
         copy->_encodedThumbnailData = [_encodedThumbnailData copy];
         copy->_thumbnailDecoder = [_thumbnailDecoder copy];
+        // Same file, same disk entry: the archived-rendition read is as valid
+        // for the copy. The storage stash deliberately does not transfer — the
+        // original's one cache write consumes it.
+        copy->_archivedDisplayArtProvider = _archivedDisplayArtProvider;
         copy->_embeddedArtKnown = _embeddedArtKnown;
         copy->_embeddedUndecodable = _embeddedUndecodable;
         // Known-and-decodable re-arms extraction, since the copy carries no
@@ -307,6 +314,10 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         _thumbnailDecodePending = NO;
         _embeddedArtData = artData;
         _encodedThumbnailData = nil;
+        // A data transition orphans the archived rendition; the loader
+        // re-stamps the provider once the fresh entry is written.
+        _archivedDisplayArtProvider = nil;
+        _archivedDisplayArtDataForStorage = nil;
         _embeddedArtKnown = (artData != nil);
         _embeddedExtractionSettled = YES;
         _embeddedExtractionInFlight = NO;
@@ -324,6 +335,8 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         _thumbnailCacheKey = [[EmbeddedThumbnailKey alloc] init];
         _thumbnailDecodePending = NO;
         _encodedThumbnailData = [encodedData copy];
+        _archivedDisplayArtProvider = nil;
+        _archivedDisplayArtDataForStorage = nil;
         _embeddedArtKnown = hasEmbeddedArt;
         // An entry that knows of no art is artless: mark it settled rather
         // than re-reading the file for art that is not there. An art-bearing
@@ -339,6 +352,38 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
 - (NSData *)encodedThumbnailDataForStorage {
     @synchronized (self) {
         return _encodedThumbnailData;
+    }
+}
+
+- (AudioTrackArchivedDisplayArtProvider)archivedDisplayArtProvider {
+    @synchronized (self) {
+        return _archivedDisplayArtProvider;
+    }
+}
+
+- (void)setArchivedDisplayArtProvider:(AudioTrackArchivedDisplayArtProvider)provider {
+    @synchronized (self) {
+        _archivedDisplayArtProvider = [provider copy];
+    }
+}
+
+- (NSData *)artDataForArchivedDisplayArt {
+    @synchronized (self) {
+        return _embeddedArtData;
+    }
+}
+
+- (void)stashArchivedDisplayArtDataForStorage:(NSData *)data {
+    @synchronized (self) {
+        _archivedDisplayArtDataForStorage = [data copy];
+    }
+}
+
+- (NSData *)takeArchivedDisplayArtDataForStorage {
+    @synchronized (self) {
+        NSData *data = _archivedDisplayArtDataForStorage;
+        _archivedDisplayArtDataForStorage = nil;
+        return data;
     }
 }
 
@@ -435,6 +480,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     NSString *pathToExtract = nil;
     NSData *dataToDecode = nil;
     BOOL dataWasInMemory = NO;
+    AudioTrackArchivedDisplayArtProvider providerToRead = nil;
     VibeEmbeddedArtExtractionResult extractionResult = VibeEmbeddedArtExtractionReadFailed;
     NSUInteger generation;
     NSTimeInterval now = [self nowSeconds];
@@ -453,6 +499,13 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
             dataToDecode = _embeddedArtData;
             dataWasInMemory = YES;
         }
+        else if (_archivedDisplayArtProvider) {
+            // The archived rendition beats a source-file re-read: no
+            // materialization, no TagLib, and on a dataless cloud file no
+            // transfer. It takes no extraction claim — a concurrent read is
+            // at worst redundant, and the store below is generation-fenced.
+            providerToRead = _archivedDisplayArtProvider;
+        }
         else if ([self canStartEmbeddedExtractionLockedAt:now]) {
             if (!sourceFileReadAllowed) {
                 return nil;
@@ -468,6 +521,38 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         }
     }
     // File I/O and the decode run outside the lock; see the discipline above.
+    if (providerToRead) {
+        dataToDecode = providerToRead();
+        VibeImage *decodedProviderArt = dataToDecode
+                ? VibeDecodedImageWithData(dataToDecode, kVibeDisplayArtDimension)
+                : nil;
+        if (!decodedProviderArt) {
+            // The sidecar is gone or corrupt; the file's own art may still be
+            // fine, so this must not mark the track undecodable. Drop the
+            // provider and take the demotion fence: the registry's
+            // finishRequest re-requests a still-wanted current row, and the
+            // fresh pass reaches extraction with proper materialization.
+            @synchronized (self) {
+                if (_archivedDisplayArtProvider == providerToRead) {
+                    _archivedDisplayArtProvider = nil;
+                }
+                if (generation == _artGeneration) {
+                    _artGeneration++;
+                    _artLoadPending = NO;
+                }
+            }
+            return nil;
+        }
+        @synchronized (self) {
+            // Provider bytes are never re-pinned as _embeddedArtData; the
+            // decoded image alone is the win, and a discard re-reads the
+            // sidecar for pennies.
+            if (generation == _artGeneration && !_embeddedArt) {
+                _embeddedArt = decodedProviderArt;
+            }
+            return _embeddedArt ?: decodedProviderArt;
+        }
+    }
     if (!dataToDecode && pathToExtract) {
         extractionResult = _extractor(pathToExtract, &dataToDecode);
         if (extractionResult == VibeEmbeddedArtExtractionFoundArt && !dataToDecode) {
@@ -590,13 +675,15 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         if (_embeddedArt) {
             return NO;
         }
-        // Either there are in-memory bytes still to decode, or the file has
-        // not been read. Both are background work worth dispatching. The
-        // backoff is applied here as well as in embeddedArt, so a pass inside
-        // the window answers NO rather than dispatching a load that would take
-        // the pending marker and immediately no-op.
+        // Either there are in-memory bytes still to decode, an archived
+        // rendition to read, or the file has not been read. All are background
+        // work worth dispatching. The backoff is applied here as well as in
+        // embeddedArt, so a pass inside the window answers NO rather than
+        // dispatching a load that would take the pending marker and
+        // immediately no-op.
         BOOL canExtract = [self canStartEmbeddedExtractionLockedAt:now];
-        if (!_embeddedUndecodable && (_embeddedArtData != nil || canExtract)) {
+        if (!_embeddedUndecodable && (_embeddedArtData != nil ||
+                _archivedDisplayArtProvider != nil || canExtract)) {
             return YES;
         }
         path = [self folderFallbackPathLocked];
@@ -627,9 +714,13 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
             return NO;
         }
         BOOL canExtract = [self canStartEmbeddedExtractionLockedAt:now];
+        BOOL hasArchivedRendition = _archivedDisplayArtProvider != nil;
         BOOL needsEmbeddedWork = !_embeddedUndecodable &&
-                (_embeddedArtData != nil || canExtract);
-        *sourceURL = needsEmbeddedWork && canExtract && !_embeddedArtData
+                (_embeddedArtData != nil || hasArchivedRendition || canExtract);
+        // No source URL while an archived rendition stands in: its read is a
+        // small cache hit, so the request must not materialize the song.
+        *sourceURL = needsEmbeddedWork && canExtract && !_embeddedArtData &&
+                !hasArchivedRendition
                 ? [NSURL fileURLWithPath:_sourceFilePath] : nil;
         *generation = _artGeneration;
         _artLoadPending = YES;

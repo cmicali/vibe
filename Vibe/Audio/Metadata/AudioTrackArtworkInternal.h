@@ -32,6 +32,13 @@ typedef VibeEmbeddedArtExtractionResult (^AudioTrackArtworkExtractor)(
         NSString *path,
         NSData * _Nullable __autoreleasing * _Nullable artData);
 
+// The archived display-art rendition (≤ kVibeArchivedDisplayArtDimension,
+// written beside the metadata's disk entry): a blocking read of compressed
+// bytes, called on a registry worker, never with the artwork monitor held.
+// nil means the sidecar is gone — evicted or never written — and the load
+// falls back to source-file extraction.
+typedef NSData *_Nullable (^AudioTrackArchivedDisplayArtProvider)(void);
+
 @interface AudioTrackArtwork : NSObject <NSCopying>
 
 - (instancetype)initWithSourceFilePath:(nullable NSString *)sourceFilePath
@@ -42,6 +49,25 @@ typedef VibeEmbeddedArtExtractionResult (^AudioTrackArtworkExtractor)(
                     hasEmbeddedArt:(BOOL)hasEmbeddedArt;
 - (nullable NSData *)encodedThumbnailDataForStorage;
 - (void)storeEncodedThumbnailData:(nullable NSData *)encodedData;
+
+// Where the full-art load reads before falling back to file extraction; the
+// loader installs it on macOS only (matching folderArt: unset, every archived
+// display-art path is inert and iOS extracts at full resolution). A provider
+// whose read comes back empty or undecodable is dropped and the load re-enters
+// through the demotion-retry fence, so a lost sidecar costs one extra pass,
+// never a stall. Data transitions (adopt*) clear it; the loader re-stamps.
+@property (nonatomic, copy, nullable) AudioTrackArchivedDisplayArtProvider archivedDisplayArtProvider;
+
+// The parse-time original art bytes, for producing the archived display-art
+// rendition while they still exist — metadata workers only, nil after
+// discardArtData.
+- (nullable NSData *)artDataForArchivedDisplayArt;
+
+// The rendition produced at compaction rides here until the cache write
+// consumes it exactly once; it is never retained past that and never copied,
+// so rows carry only row-thumbnail bytes.
+- (void)stashArchivedDisplayArtDataForStorage:(nullable NSData *)data;
+- (nullable NSData *)takeArchivedDisplayArtDataForStorage;
 
 @property (readonly) BOOL hasEmbeddedArt;
 

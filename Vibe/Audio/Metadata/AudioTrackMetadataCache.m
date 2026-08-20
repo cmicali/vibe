@@ -75,7 +75,10 @@
     // changes, which can take up to the age limit.
     // v5: the tagged musical key joined the archive; older entries would
     // otherwise show no key until their cache key changed.
-    return @"Audio Track Metadata v5";
+    // v6: display-art sidecar entries (≤640px, "#displayArt"-suffixed keys)
+    // joined the store; without them the macOS header falls back to re-reading
+    // the audio file, so old stores re-parse rather than staying slow.
+    return @"Audio Track Metadata v6";
 }
 
 - (instancetype)init {

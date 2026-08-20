@@ -25,7 +25,7 @@ recompiles the world and hides a dependency from the file that has it.
 
 **`PlatformTypes.h`** — `VibeImage` and `VibeColor`, `NSImage`/`NSColor` on macOS and `UIImage`/`UIColor` elsewhere. They let a model header carry an image without importing AppKit or UIKit, so one model serves both targets. Do not add aliases for their own sake.
 
-**`PlatformImage.h`/`.m`** — `VibeDecodedImageWithData(data, maxPixelSize)`, the bounded ImageIO decode that *builds* a `VibeImage`, plus `kVibeThumbnailArtDimension` and `kVibeDisplayArtDimension`. Unlike `initWithData:` + resize it never materializes the full-size bitmap. The decode takes 10–100ms, so it belongs off the main thread. It is a free function rather than a category because the class it constructs differs per platform.
+**`PlatformImage.h`/`.m`** — `VibeDecodedImageWithData(data, maxPixelSize)`, the bounded ImageIO decode that *builds* a `VibeImage`, plus `kVibeThumbnailArtDimension`, `kVibeDisplayArtDimension`, and `kVibeArchivedDisplayArtDimension`. Unlike `initWithData:` + resize it never materializes the full-size bitmap. The decode takes 10–100ms, so it belongs off the main thread. It is a free function rather than a category because the class it constructs differs per platform.
 
 **`DocumentTypes`** — the `CFBundleDocumentTypes` declarations from `Info.plist`, read back as `UTType`s; stateless, all class methods. `declaredTypes` is everything including the folder declaration, `declaredFileTypes` the files alone. `Info.plist` is the single source of truth, so the `⌘O` panel's filter and what the app is registered for cannot drift. The Launch Services side is `DefaultAppRegistration` (`Mac/Settings/`), which keeps this class AppKit-free.
 

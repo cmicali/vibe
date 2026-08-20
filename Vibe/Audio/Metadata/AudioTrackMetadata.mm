@@ -6,6 +6,7 @@
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataInternal.h"
 #import "AudioTrackArtworkInternal.h"
+#import "PlatformImage.h"
 #import "NSString+CPPStrings.h"
 #import "MusicalKey.h"
 #import "Formatters.h"
@@ -352,33 +353,23 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     return self;
 }
 
-- (NSData *)encodeThumbnailDataIfNeeded {
-    NSData *stored = [self.artwork encodedThumbnailDataForStorage];
-    if (stored) {
-        return stored;
-    }
-    // The file's own art only. Folder art must never be archived; see
-    // AudioTrackArtwork.decodeThumbnailForArchiving.
-    VibeImage *thumbnail = [self.artwork decodeThumbnailForArchiving];
-    if (!thumbnail) {
-        return nil;
-    }
+// JPEG cannot store alpha, so transparent art such as a PNG cover would
+// render composited in the fresh-parse session but flattened in every
+// cache-hit session afterwards. Keep alpha-bearing images as PNG; everything
+// else stays JPEG, which is far smaller for photographic covers. ImageIO
+// sniffs the bytes on the decode side, so both forms read back through the
+// same keys.
+static NSData *VibeEncodedArtData(VibeImage *image) {
 #if TARGET_OS_OSX
     // CGImageForProposedRect returns the backing CGImage directly for
     // CGImage-backed images, and rasterizes anything else.
-    CGImageRef cgImage = [thumbnail CGImageForProposedRect:NULL context:nil hints:nil];
+    CGImageRef cgImage = [image CGImageForProposedRect:NULL context:nil hints:nil];
 #else
-    CGImageRef cgImage = thumbnail.CGImage;
+    CGImageRef cgImage = image.CGImage;
 #endif
     if (!cgImage) {
         return nil;
     }
-    // JPEG cannot store alpha, so transparent art such as a PNG cover would
-    // render composited in the fresh-parse session but flattened in every
-    // cache-hit session afterwards. Keep alpha-bearing thumbnails as PNG;
-    // everything else stays JPEG, which is far smaller for photographic
-    // covers. ImageIO sniffs the bytes on the decode side, so the
-    // "thumbnailJPEG" archive key keeps reading both.
     CGImageAlphaInfo alphaInfo = CGImageGetAlphaInfo(cgImage);
     BOOL hasAlpha = !(alphaInfo == kCGImageAlphaNone ||
                       alphaInfo == kCGImageAlphaNoneSkipFirst ||
@@ -395,11 +386,66 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     CGImageDestinationAddImage(destination, cgImage, (__bridge CFDictionaryRef)options);
     BOOL finalized = CGImageDestinationFinalize(destination);
     CFRelease(destination);
-    if (!finalized) {
+    return finalized ? encoded : nil;
+}
+
+// The longest side of encoded image bytes, from the container header alone —
+// no pixel decode.
+static CGFloat VibeEncodedArtMaxDimension(NSData *data) {
+    CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)data, NULL);
+    if (!source) {
+        return 0;
+    }
+    NSDictionary *properties = CFBridgingRelease(
+            CGImageSourceCopyPropertiesAtIndex(source, 0, NULL));
+    CFRelease(source);
+    NSNumber *width = properties[(id)kCGImagePropertyPixelWidth];
+    NSNumber *height = properties[(id)kCGImagePropertyPixelHeight];
+    return MAX(width.doubleValue, height.doubleValue);
+}
+
+- (NSData *)encodeThumbnailDataIfNeeded {
+    NSData *stored = [self.artwork encodedThumbnailDataForStorage];
+    if (stored) {
+        return stored;
+    }
+    // The file's own art only. Folder art must never be archived; see
+    // AudioTrackArtwork.decodeThumbnailForArchiving.
+    VibeImage *thumbnail = [self.artwork decodeThumbnailForArchiving];
+    if (!thumbnail) {
+        return nil;
+    }
+    NSData *encoded = VibeEncodedArtData(thumbnail);
+    if (!encoded) {
         return nil;
     }
     [self.artwork storeEncodedThumbnailData:encoded];
     return encoded;
+}
+
+// The display-art rendition archived beside the metadata entry: original bytes
+// verbatim when their longest side is already within
+// kVibeArchivedDisplayArtDimension — no decode, no recompression — otherwise a
+// downscale to that bound, aspect preserved (the square crop is display-time
+// policy). Runs at compaction, while the original bytes still exist.
+- (void)stashArchivedDisplayArtDataIfPossible {
+    NSData *original = [self.artwork artDataForArchivedDisplayArt];
+    if (!original) {
+        return;
+    }
+    CGFloat maxDimension = VibeEncodedArtMaxDimension(original);
+    if (maxDimension <= 0) {
+        return;
+    }
+    if (maxDimension <= kVibeArchivedDisplayArtDimension) {
+        [self.artwork stashArchivedDisplayArtDataForStorage:original];
+        return;
+    }
+    VibeImage *scaled = VibeDecodedImageWithData(original, kVibeArchivedDisplayArtDimension);
+    NSData *encoded = scaled ? VibeEncodedArtData(scaled) : nil;
+    if (encoded) {
+        [self.artwork stashArchivedDisplayArtDataForStorage:encoded];
+    }
 }
 
 - (instancetype)initWithURL:(NSURL *)url {
@@ -417,6 +463,13 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     // cache entirely, then the original art bytes are released. The first
     // visible row decodes pixels on demand through the bounded request path.
     (void)[metadata encodeThumbnailDataIfNeeded];
+#if TARGET_OS_OSX
+    // The display-art rendition must be cut while the originals still exist;
+    // the loader's cache write consumes the stash. macOS-only with the
+    // provider that reads it back — iOS would pay the disk for entries
+    // nothing opens.
+    [metadata stashArchivedDisplayArtDataIfPossible];
+#endif
     [metadata.artwork discardArtData];
     return metadata;
 }

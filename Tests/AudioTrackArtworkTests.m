@@ -755,4 +755,103 @@
     XCTAssertNotNil(duplicate.cachedArt, @"demoting one row must not demote its duplicate");
 }
 
+#pragma mark - The archived display-art rendition
+
+// A cache-hit-shaped row whose extractor fails the test if the file is ever
+// re-read: the provider must satisfy the load alone.
+- (AudioTrackArtwork *)archivedRowWithProviderData:(NSData *)providerData
+                                             reads:(NSUInteger *)reads {
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        XCTFail(@"the archived rendition must satisfy the load without a file read");
+        return VibeEmbeddedArtExtractionReadFailed;
+    }];
+    [artwork adoptArchivedThumbnailData:[self embeddedArtData] hasEmbeddedArt:YES];
+    NSUInteger *readCount = reads;
+    artwork.archivedDisplayArtProvider = ^NSData *{
+        if (readCount) {
+            (*readCount)++;
+        }
+        return providerData;
+    };
+    return artwork;
+}
+
+- (void)testArchivedRenditionBeatsSourceFileExtraction {
+    NSUInteger reads = 0;
+    AudioTrackArtwork *artwork = [self archivedRowWithProviderData:[self embeddedArtData]
+                                                             reads:&reads];
+    NSImage *art = [artwork loadArtBlocking];
+    XCTAssertNotNil(art);
+    XCTAssertNotEqualObjects(art, _folderCover);
+    XCTAssertEqual(reads, 1u);
+    XCTAssertEqualObjects(artwork.cachedArt, art, @"the decode installs like any full art");
+}
+
+- (void)testDiscardedRowReReadsTheRenditionNotTheFile {
+    NSUInteger reads = 0;
+    AudioTrackArtwork *artwork = [self archivedRowWithProviderData:[self embeddedArtData]
+                                                             reads:&reads];
+    XCTAssertNotNil([artwork loadArtBlocking]);
+    [artwork discardDecodedArt];
+    XCTAssertNil(artwork.cachedArt);
+    XCTAssertNotNil([artwork loadArtBlocking]);
+    XCTAssertEqual(reads, 2u);
+}
+
+- (void)testMissingRenditionFallsBackToExtractionOnTheNextPass {
+    NSData *embedded = [self embeddedArtData];
+    __block NSUInteger extractions = 0;
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        extractions++;
+        *artData = embedded;
+        return VibeEmbeddedArtExtractionFoundArt;
+    }];
+    [artwork adoptArchivedThumbnailData:embedded hasEmbeddedArt:YES];
+    artwork.archivedDisplayArtProvider = ^NSData *{
+        return nil; // evicted sidecar
+    };
+    // The miss pass drops the provider and takes the demotion fence, so it
+    // answers nil rather than blocking on the file inside a request that never
+    // registered materialization.
+    XCTAssertNil([artwork loadArtBlocking]);
+    XCTAssertNil(artwork.archivedDisplayArtProvider);
+    XCTAssertEqual(extractions, 0u);
+    // The re-request the fence provokes reaches extraction normally.
+    XCTAssertNotNil([artwork loadArtBlocking]);
+    XCTAssertEqual(extractions, 1u);
+}
+
+- (void)testCorruptRenditionDoesNotMarkTheTrackUndecodable {
+    NSData *embedded = [self embeddedArtData];
+    __block NSUInteger extractions = 0;
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        extractions++;
+        *artData = embedded;
+        return VibeEmbeddedArtExtractionFoundArt;
+    }];
+    [artwork adoptArchivedThumbnailData:embedded hasEmbeddedArt:YES];
+    artwork.archivedDisplayArtProvider = ^NSData *{
+        return [NSData dataWithBytes:"not an image" length:12];
+    };
+    XCTAssertNil([artwork loadArtBlocking]);
+    XCTAssertNotNil([artwork loadArtBlocking],
+            @"the file's own art must survive a corrupt sidecar");
+    XCTAssertEqual(extractions, 1u);
+}
+
+- (void)testCopyCarriesTheProviderAndDataTransitionsClearIt {
+    NSUInteger reads = 0;
+    AudioTrackArtwork *artwork = [self archivedRowWithProviderData:[self embeddedArtData]
+                                                             reads:&reads];
+    AudioTrackArtwork *duplicate = [artwork copy];
+    XCTAssertNotNil([duplicate loadArtBlocking], @"same file, same disk entry");
+    XCTAssertEqual(reads, 1u);
+    [artwork adoptParsedArtData:[self embeddedArtData]];
+    XCTAssertNil(artwork.archivedDisplayArtProvider,
+            @"a data transition orphans the archived rendition");
+}
+
 @end
