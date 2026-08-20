@@ -421,6 +421,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 return VibeJSONString(@{
                     @"cloudParsesPending": @([cache debugPendingBackgroundMaterializationCount]),
                     @"cloudLaneHeld": @([cache debugBackgroundMaterializationHeld] ? 1 : 0),
+                    @"priorityLane": [cache debugPriorityLaneState],
                     @"materialization":
                             [AudioFileMaterializationCoordinator.sharedCoordinator debugState],
                 });

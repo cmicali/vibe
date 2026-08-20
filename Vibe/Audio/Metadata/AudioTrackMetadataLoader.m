@@ -96,10 +96,6 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     // lane touches it only on main, since loadPriorityTrack: runs on the caller's
     // thread, always main, and the completion removal is dispatched to main.
     NSMutableSet<AudioTrack *>* _queuedTracks;
-    // A later lifecycle edge arrived while the priority request was still
-    // waiting for its yielded delivery. The delivery consumes this marker and
-    // retries only then, so a didStartPlaying: edge cannot be lost behind it.
-    NSMutableSet<AudioTrack *>* _priorityRetryRequestedTracks;
     // Yielded requests whose later lifecycle edge arrived before the cache's
     // hold release. Retired priority loaders keep this set until that release.
     NSMutableSet<AudioTrack *>* _priorityParkedTracks;
@@ -151,7 +147,6 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         _isCancelled = NO;
         _owner = owner;
         _queuedTracks = [NSMutableSet set];
-        _priorityRetryRequestedTracks = [NSMutableSet set];
         _priorityParkedTracks = [NSMutableSet set];
         _materializationLock = OS_UNFAIR_LOCK_INIT;
         _materializationCoordinator = [AudioFileMaterializationCoordinator sharedCoordinator];
@@ -612,6 +607,24 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     os_unfair_lock_unlock(&_materializationLock);
     return count;
 }
+
+- (NSDictionary *)debugPriorityLaneState {
+    NSUInteger tokens;
+    os_unfair_lock_lock(&_materializationLock);
+    tokens = _liveMaterializationTokens.count;
+    os_unfair_lock_unlock(&_materializationLock);
+    NSMutableArray *(^names)(NSSet<AudioTrack *> *) = ^(NSSet<AudioTrack *> *set) {
+        NSMutableArray *out = [NSMutableArray array];
+        for (AudioTrack *track in set) {
+            [out addObject:track.url.lastPathComponent ?: @"?"];
+        }
+        return out;
+    };
+    return @{@"queued": names(_queuedTracks),
+             @"parked": names(_priorityParkedTracks),
+             @"liveTokens": @(tokens),
+             @"held": @(_backgroundMaterializationHeld)};
+}
 #endif
 
 // The priority lane asks the same central coordinator with the priority
@@ -622,9 +635,11 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         return;
     }
     if ([_queuedTracks containsObject:track]) {
-        [_priorityRetryRequestedTracks addObject:track];
+        // Already in flight: the request retries itself through every yield,
+        // failure and hold release, so a repeat edge has nothing to add.
         return;
     }
+    LogDebug(@"Priority load %@: queued", track.url.lastPathComponent);
     [_queuedTracks addObject:track];
     __weak __typeof(self) weakSelf = self;
     [_queue addOperationWithBlock:^{
@@ -646,6 +661,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 }
 
 - (void)submitPriorityMaterializationForTrack:(AudioTrack *)track {
+    LogDebug(@"Priority submit %@", track.url.lastPathComponent);
     __weak __typeof(self) weakSelf = self;
     dispatch_async(_materializationCallbackQueue, ^{
         __typeof(self) strongSelf = weakSelf;
@@ -720,10 +736,8 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             if (!strongSelf) return;
             VibeMetadataPriorityYieldAction action =
                     VibeMetadataPriorityActionForYield(
-                            [strongSelf->_priorityRetryRequestedTracks containsObject:track],
                             strongSelf->_backgroundMaterializationHeld,
                             strongSelf.isCancelled);
-            [strongSelf->_priorityRetryRequestedTracks removeObject:track];
             switch (action) {
                 case VibeMetadataPriorityYieldActionRetry:
                     [strongSelf submitPriorityMaterializationForTrack:track];
@@ -760,11 +774,6 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             NSTimeInterval delay =
                     result == VibeAudioFileMaterializationResultAdmissionExhausted
                             ? VibeMetadataAdmissionRetryDelay(priorFailures) : 0;
-            run_on_main_thread({
-                __typeof(self) strongSelf = weakSelf;
-                if (!strongSelf) return;
-                [strongSelf->_priorityRetryRequestedTracks removeObject:track];
-            });
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
                                          (int64_t)(delay * NSEC_PER_SEC)),
                            dispatch_get_main_queue(), ^{
@@ -785,7 +794,6 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 
 - (void)clearInFlightTrack:(AudioTrack *)track {
     [_queuedTracks removeObject:track];
-    [_priorityRetryRequestedTracks removeObject:track];
     [_priorityParkedTracks removeObject:track];
     [self finishRetirementIfPossible];
 }
@@ -1042,10 +1050,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             [_priorityParkedTracks removeAllObjects];
             for (AudioTrack *track in parkedTracks) {
                 VibeMetadataPriorityYieldAction action =
-                        VibeMetadataPriorityActionForHoldRelease(
-                                [_priorityRetryRequestedTracks containsObject:track],
-                                self.isCancelled);
-                [_priorityRetryRequestedTracks removeObject:track];
+                        VibeMetadataPriorityActionForHoldRelease(self.isCancelled);
                 if (action == VibeMetadataPriorityYieldActionRetry) {
                     [self submitPriorityMaterializationForTrack:track];
                 }

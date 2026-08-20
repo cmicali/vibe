@@ -46,6 +46,10 @@ NS_ASSUME_NONNULL_BEGIN
 // hold.
 - (BOOL)debugBackgroundMaterializationHeld;
 
+// The priority lane's request bookkeeping by track name: queued, parked, the
+// later-load markers, and the live materialization token count. Main thread.
+- (NSDictionary *)debugPriorityLaneState;
+
 @end
 
 NS_ASSUME_NONNULL_END

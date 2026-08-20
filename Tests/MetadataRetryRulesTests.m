@@ -82,38 +82,28 @@
     XCTAssertEqualWithAccuracy(VibeMetadataAdmissionRetryDelay(NSUIntegerMax), 2.0, 0.001);
 }
 
-- (void)testDidStartRecordedBeforeDelayedYieldDeliveryRequestsRetry {
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(YES, NO, NO),
+// The two interleavings that dropped the storm winner's single request: a
+// Yielded delivery marshalling to main AFTER the hold released retries rather
+// than clearing, and a park (delivery landed while held) retries at release
+// with no later-edge precondition.
+- (void)testYieldDeliveredAfterHoldReleaseRetries {
+    XCTAssertEqual(VibeMetadataPriorityActionForYield(NO, NO),
             VibeMetadataPriorityYieldActionRetry);
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(NO, NO, NO),
+}
+
+- (void)testYieldDeliveredWhileHeldParksAndReleaseRetries {
+    XCTAssertEqual(VibeMetadataPriorityActionForYield(YES, NO),
+            VibeMetadataPriorityYieldActionPark);
+    XCTAssertEqual(VibeMetadataPriorityActionForHoldRelease(NO),
+            VibeMetadataPriorityYieldActionRetry);
+}
+
+- (void)testCancelledLoaderClearsYieldsAndParks {
+    XCTAssertEqual(VibeMetadataPriorityActionForYield(NO, YES),
             VibeMetadataPriorityYieldActionClear);
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(YES, NO, YES),
+    XCTAssertEqual(VibeMetadataPriorityActionForYield(YES, YES),
             VibeMetadataPriorityYieldActionClear);
-}
-
-- (void)testDidStartRecordedBeforeHoldReleaseParksUntilRelease {
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(YES, YES, NO),
-            VibeMetadataPriorityYieldActionPark);
-}
-
-- (void)testYieldThenDidStartThenReleaseRetries {
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(NO, YES, NO),
-            VibeMetadataPriorityYieldActionPark);
-    XCTAssertEqual(VibeMetadataPriorityActionForHoldRelease(YES, NO),
-            VibeMetadataPriorityYieldActionRetry);
-}
-
-- (void)testDidStartThenYieldThenReleaseRetries {
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(YES, YES, NO),
-            VibeMetadataPriorityYieldActionPark);
-    XCTAssertEqual(VibeMetadataPriorityActionForHoldRelease(YES, NO),
-            VibeMetadataPriorityYieldActionRetry);
-}
-
-- (void)testYieldThenErrorReleaseWithoutDidStartClears {
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(NO, YES, NO),
-            VibeMetadataPriorityYieldActionPark);
-    XCTAssertEqual(VibeMetadataPriorityActionForHoldRelease(NO, NO),
+    XCTAssertEqual(VibeMetadataPriorityActionForHoldRelease(YES),
             VibeMetadataPriorityYieldActionClear);
 }
 

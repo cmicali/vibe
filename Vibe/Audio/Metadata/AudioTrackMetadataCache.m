@@ -33,6 +33,7 @@
 #if DEBUG
 @interface AudioTrackMetadataLoader (CacheDebug)
 - (NSUInteger)debugPendingBackgroundMaterializationCount;
+- (NSDictionary *)debugPriorityLaneState;
 @end
 #endif
 
@@ -246,6 +247,10 @@ static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
 
 - (BOOL)debugBackgroundMaterializationHeld {
     return _backgroundMaterializationHeld;
+}
+
+- (NSDictionary *)debugPriorityLaneState {
+    return [_priorityLoader debugPriorityLaneState] ?: @{};
 }
 #endif
 

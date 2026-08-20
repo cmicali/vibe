@@ -63,9 +63,15 @@ static inline BOOL VibeMetadataPriorityRetryAfterFailure(
     return !cancelled && maximumAttempts > 0 && priorFailures < maximumAttempts - 1;
 }
 
-// didStartPlaying: can arrive on either side of an earlier Yielded callback.
-// Every held delivery parks; hold release retries only a park for which a later
-// priority load was requested.
+// A Yielded priority delivery only ever means "the foreground hold was up when
+// the coordinator judged this request" — so it parks while the hold still
+// reads up and retries the moment it does not, and hold release retries EVERY
+// park. Both halves are earned: the winning play of a rapid track-change storm
+// produces exactly ONE lifecycle edge, and its Yielded delivery can marshal to
+// main on either side of the release — a rule that required a later-load
+// marker dropped that one request in both interleavings, and the screen played
+// on with no tags. A stale park's retried parse is a cheap win (its row fills
+// in), bounded by the park set and the shared failure budget.
 typedef NS_ENUM(NSUInteger, VibeMetadataPriorityYieldAction) {
     VibeMetadataPriorityYieldActionClear = 0,
     VibeMetadataPriorityYieldActionRetry,
@@ -73,23 +79,17 @@ typedef NS_ENUM(NSUInteger, VibeMetadataPriorityYieldAction) {
 };
 
 static inline VibeMetadataPriorityYieldAction VibeMetadataPriorityActionForYield(
-        BOOL laterLoadRequested,
         BOOL held,
         BOOL cancelled) {
     if (cancelled) {
         return VibeMetadataPriorityYieldActionClear;
     }
-    if (held) {
-        return VibeMetadataPriorityYieldActionPark;
-    }
-    return laterLoadRequested ? VibeMetadataPriorityYieldActionRetry
-                              : VibeMetadataPriorityYieldActionClear;
+    return held ? VibeMetadataPriorityYieldActionPark
+                : VibeMetadataPriorityYieldActionRetry;
 }
 
 static inline VibeMetadataPriorityYieldAction
-VibeMetadataPriorityActionForHoldRelease(BOOL laterLoadRequested,
-                                         BOOL cancelled) {
-    return !cancelled && laterLoadRequested
-            ? VibeMetadataPriorityYieldActionRetry
-            : VibeMetadataPriorityYieldActionClear;
+VibeMetadataPriorityActionForHoldRelease(BOOL cancelled) {
+    return cancelled ? VibeMetadataPriorityYieldActionClear
+                     : VibeMetadataPriorityYieldActionRetry;
 }
