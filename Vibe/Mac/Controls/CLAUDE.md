@@ -12,7 +12,7 @@ Each button sets its own `symbolPointSize` and the icon is drawn centered in the
 
 ## Image views
 
-- **`CrossfadingImageView`** — the layer-backed `NSImageView` base for both artwork views, so `setImage:` cross-fades the incoming image over the outgoing one. It vends `kVibeArtCrossfadeDuration`, **shared with the header tint wash so art and tint fade on the same clock** (`MainWindow/APPEARANCE.md`). It is opted out of drag-and-drop, so file drops fall through to the window.
+- **`CrossfadingImageView`** — the layer-backed `NSImageView` base for both artwork views, so `setImage:` cross-fades the incoming image over the outgoing one. It vends `kVibeArtCrossfadeDuration`, **shared with the header tint wash so art and tint fade on the same clock** (`MainWindow/APPEARANCE.md`) — and it matches the tint's retargeting too: rapid successive images blend continuously, each outgoing image finishing its own fade beneath the newer ones, never snapping an in-flight fade back to opaque. It is opted out of drag-and-drop, so file drops fall through to the window.
 - **`ArtworkImageView`** — `CrossfadingImageView` plus `NSDraggingSource`: the foreground art card, draggable out by its `fileURL`.
 - **`ScaledImageView`** — an `NSImageView` with a `drawImageOverlayInRect:` hook for subclasses.
 

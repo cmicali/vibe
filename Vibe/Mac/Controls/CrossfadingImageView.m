@@ -54,12 +54,23 @@ static void BeginImageCrossfade(NSImageView *view) {
     if (!cg) {
         return;
     }
-    // A fade may already be in flight from a rapid previous change, so replace
-    // it.
-    for (CALayer *sublayer in [view.layer.sublayers copy]) {
+    // Fades already in flight from rapid previous changes keep running, so a
+    // burst blends continuously — the same retargeting discipline as the
+    // header tint, which animates from its presentation value rather than
+    // restarting. Each outgoing image finishes its own fade; this newer one
+    // slides in BENEATH the older overlays, since they left the screen first.
+    // The pile is self-limiting (fades outnumber arrivals only briefly), but
+    // cap it anyway: past two, the oldest — the most faded — goes at once.
+    NSMutableArray<CALayer *> *inFlight = [NSMutableArray array];
+    for (CALayer *sublayer in view.layer.sublayers) {
         if ([sublayer.name isEqualToString:kVibeCrossfadeOverlayName]) {
-            [sublayer removeFromSuperlayer];
+            [inFlight addObject:sublayer];
         }
+    }
+    while (inFlight.count >= 2) {
+        // Sublayer order is back-to-front, so the last is the oldest.
+        [inFlight.lastObject removeFromSuperlayer];
+        [inFlight removeLastObject];
     }
     CALayer *overlay = [CALayer layer];
     overlay.name = kVibeCrossfadeOverlayName;
@@ -71,7 +82,12 @@ static void BeginImageCrossfade(NSImageView *view) {
     // NSImageView renders its image through internal machinery that may add
     // sublayers of its own, so keep the overlay above everything in this view.
     overlay.zPosition = 10000;
-    [view.layer addSublayer:overlay];
+    if (inFlight.count > 0) {
+        [view.layer insertSublayer:overlay below:inFlight.firstObject];
+    }
+    else {
+        [view.layer addSublayer:overlay];
+    }
 
     [CATransaction begin];
     [CATransaction setCompletionBlock:^{
