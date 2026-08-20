@@ -61,6 +61,10 @@ static NSUInteger sMetadataOverlapTransfers;
 // still briefly in flight while that cancel travels.
 static NSMutableDictionary<NSString *, NSNumber *> *sInFlightByRole;
 static NSUInteger sForegroundContentionStarts;
+// The contention culprits, kept whole. The trace ring rotates, and a churny
+// run evicts the one event the oracle fails on, leaving a cumulative counter
+// and no culprit. Bounded; oldest dropped.
+static NSMutableArray<NSDictionary *> *sContentionEvents;
 static NSTimeInterval sBaseSeconds;
 // Fault injection; see setStickyDataless:.
 static BOOL sSticky;
@@ -77,6 +81,7 @@ static NSUInteger sTraceSeq;
 static CFAbsoluteTime sInstalledAt;
 
 static const NSUInteger kTraceCapacity = 512;
+static const NSUInteger kContentionEventCapacity = 32;
 static const useconds_t kSlotPollMicroseconds = 20000;   // 20ms
 static const NSTimeInterval kSparseProgressStepSeconds = 10.0;
 static const double kStallProgressCeiling = 0.4;
@@ -261,6 +266,7 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
     sMetadataOverlapTransfers = 0;
     sInFlightByRole = [NSMutableDictionary dictionary];
     sForegroundContentionStarts = 0;
+    sContentionEvents = [NSMutableArray array];
     sSticky = NO;
     // Every determinism switch resets: an install describes a whole scenario,
     // and a leftover mode from the previous one would silently reshape it.
@@ -339,8 +345,32 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
                 return NO;
             }
             if (sCapacity == 0 || sExecuting < sCapacity) {
+                // Reserve the slot, then re-ask the cancel question with no
+                // lock held before any of the bookkeeping below. The check at
+                // the top of the loop goes stale for the whole poll interval,
+                // and a cancel landing inside it let this take read as a
+                // metadata transfer starting against the hold — a contention
+                // verdict with no byte transferred. Production has no such
+                // window: its token check and its transfer start share one
+                // critical section. A cancel landing after this re-check is
+                // the transfer genuinely starting first, which a real
+                // provider produces too.
                 sQueued--;
                 sExecuting++;
+                os_unfair_lock_unlock(&sLock);
+                if (cancelled()) {
+                    os_unfair_lock_lock(&sLock);
+                    if (sInstalled && sExecuting > 0) {
+                        sExecuting--;
+                    }
+                    os_unfair_lock_unlock(&sLock);
+                    return NO;
+                }
+                os_unfair_lock_lock(&sLock);
+                if (!sInstalled) {
+                    os_unfair_lock_unlock(&sLock);
+                    return NO;
+                }
                 sMaxObservedConcurrency = MAX(sMaxObservedConcurrency, sExecuting);
                 // The transfer's clock starts when it takes the slot, never
                 // when it asked: a queued transfer has not begun, and the
@@ -370,6 +400,15 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
                 }
                 if (VibeFakeCloudRoleIsMetadata(whose) && playbackInFlight > 0) {
                     sForegroundContentionStarts++;
+                    if (sContentionEvents.count >= kContentionEventCapacity) {
+                        [sContentionEvents removeObjectAtIndex:0];
+                    }
+                    [sContentionEvents addObject:@{
+                        @"at": @(CFAbsoluteTimeGetCurrent() - sInstalledAt),
+                        @"role": whose,
+                        @"file": path.lastPathComponent ?: @"",
+                        @"playbackInFlight": @(playbackInFlight),
+                    }];
                     VibeTraceLocked(@"contention", role, path,
                                     @{@"playbackInFlight": @(playbackInFlight)});
                     // Warn level, because the bounded trace rotates: churny
@@ -505,6 +544,7 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
     sTransferStartedAt = nil;
     sInFlightRolesByPath = nil;
     sInFlightByRole = nil;
+    sContentionEvents = nil;
     sTrace = nil;
     // The live counters and the per-install config go too, or a transfer in
     // flight keeps mutating stats and later reads report a config the fake no
@@ -548,6 +588,7 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
         @"maxConcurrency": @(sMaxObservedConcurrency),
         @"metadataOverlapTransfers": @(sMetadataOverlapTransfers),
         @"foregroundContentionStarts": @(sForegroundContentionStarts),
+        @"contentionEvents": [sContentionEvents copy] ?: @[],
         @"traceCount": @(sTrace.count),
     };
     os_unfair_lock_unlock(&sLock);
