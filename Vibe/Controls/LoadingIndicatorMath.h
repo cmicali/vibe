@@ -26,6 +26,10 @@ typedef NS_ENUM(NSUInteger, VibeLoadingIndicatorStyle) {
 typedef struct {
     CGFloat height;
     CGFloat cornerRadius;
+    BOOL    hasShimmer;       // NO builds no band at all: the row style's
+                              // indeterminate is the plain faint pill — a
+                              // 16pt gutter has no room for a sweep to read
+                              // as motion rather than flicker
     CGFloat bandWidth;        // the sweeping shimmer's own width
     CGFloat frontFadePoints;  // the filled head's soft front
     CGFloat trackAlpha;
@@ -33,23 +37,19 @@ typedef struct {
     CGFloat fillAlpha;
 } VibeLoadingIndicatorMetrics;
 
-// TRAP: the waveform's 40pt minimum band width must not survive into the row
-// style. On a 16pt control the 40pt floor clamps the band to the full width,
-// so the sweep animates a full-width block with no visible motion. The row
-// floor is small enough that the band always has room to travel.
 static inline VibeLoadingIndicatorMetrics
 VibeLoadingIndicatorMetricsForStyle(VibeLoadingIndicatorStyle style, CGFloat width) {
     if (style == VibeLoadingIndicatorStyleRow) {
-        // height is one EQ bar's width: (16 - 4 * 1.5) / 5, from kBarGap and
-        // kBarCount in EqualizerIndicatorView.m. cornerRadius makes it a pill,
-        // exactly as layoutBars gives each EQ bar.
+        // Tall enough that the capsule ends read as round — at 2pt the
+        // max radius is a hairline semicircle nobody can see. cornerRadius is
+        // height / 2, full pill ends, as layoutBars gives each EQ bar.
         VibeLoadingIndicatorMetrics row = {
-            .height = 2,
-            .cornerRadius = 1,
-            .bandWidth = MAX(width * 0.35, 5),
+            .height = 3,
+            .cornerRadius = 1.5,
+            .hasShimmer = NO,
+            .bandWidth = 0,
             .frontFadePoints = 3,
             .trackAlpha = 0.30,
-            .shimmerAlpha = 1.0,
             .fillAlpha = 1.0,
         };
         return row;
@@ -60,6 +60,7 @@ VibeLoadingIndicatorMetricsForStyle(VibeLoadingIndicatorStyle style, CGFloat wid
     VibeLoadingIndicatorMetrics waveform = {
         .height = 1,
         .cornerRadius = 0,
+        .hasShimmer = YES,
         .bandWidth = MAX(width * 0.35, 40),
         .frontFadePoints = 14,
         .trackAlpha = 0.275,

@@ -54,17 +54,23 @@ static const CFTimeInterval kSweepDuration = 1.2;
         _track.backgroundColor = [self inertTrackColor];
         [hostLayer addSublayer:_track];
 
-        _shimmerClip = [CALayer layer];
-        _shimmerClip.contentsScale = contentsScale;
-        _shimmerClip.masksToBounds = YES;
-        [hostLayer addSublayer:_shimmerClip];
+        // The row style builds no shimmer at all — its indeterminate is the
+        // plain faint pill. Every later touch of these layers is a message to
+        // nil there, which is the same nil-tolerance endSweepKeepingFill
+        // already relies on.
+        if (VibeLoadingIndicatorMetricsForStyle(style, 0).hasShimmer) {
+            _shimmerClip = [CALayer layer];
+            _shimmerClip.contentsScale = contentsScale;
+            _shimmerClip.masksToBounds = YES;
+            [hostLayer addSublayer:_shimmerClip];
 
-        _shimmer = [CAGradientLayer layer];
-        _shimmer.contentsScale = contentsScale;
-        _shimmer.startPoint = CGPointMake(0, 0.5);
-        _shimmer.endPoint = CGPointMake(1, 0.5);
-        _shimmer.colors = [self shimmerColors];
-        [_shimmerClip addSublayer:_shimmer];
+            _shimmer = [CAGradientLayer layer];
+            _shimmer.contentsScale = contentsScale;
+            _shimmer.startPoint = CGPointMake(0, 0.5);
+            _shimmer.endPoint = CGPointMake(1, 0.5);
+            _shimmer.colors = [self shimmerColors];
+            [_shimmerClip addSublayer:_shimmer];
+        }
     }
     return self;
 }

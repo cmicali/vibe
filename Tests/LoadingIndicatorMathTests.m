@@ -30,13 +30,14 @@
     }
 }
 
-// The 40pt-floor trap: at the 16pt gutter the waveform's minimum band width
-// clamps to the full width and the sweep animates a full-width block with no
-// visible motion. The row band must always have room to travel.
-- (void)testRowBandIsNarrowerThanTheGutter {
-    VibeLoadingIndicatorMetrics m =
-            VibeLoadingIndicatorMetricsForStyle(VibeLoadingIndicatorStyleRow, 16);
-    XCTAssertLessThan(m.bandWidth, 16);
+// The row style has no shimmer at all: a 16pt gutter has no room for a sweep
+// to read as motion rather than flicker, so its indeterminate is the plain
+// faint pill. The waveform keeps its sweep.
+- (void)testOnlyTheWaveformStyleSweeps {
+    XCTAssertFalse(VibeLoadingIndicatorMetricsForStyle(
+            VibeLoadingIndicatorStyleRow, 16).hasShimmer);
+    XCTAssertTrue(VibeLoadingIndicatorMetricsForStyle(
+            VibeLoadingIndicatorStyleWaveform, 480).hasShimmer);
 }
 
 - (void)testRowFrontFadeFitsTheGutter {
@@ -45,12 +46,12 @@
     XCTAssertLessThan(m.frontFadePoints, 16);
 }
 
-// One EQ bar's weight with pill ends, exactly as layoutBars gives each bar:
-// (16 - 4 * 1.5) / 5 = 2 tall, cornerRadius half the height.
-- (void)testRowStyleIsAnEqualizerBarWeightPill {
+// A capsule tall enough that the round ends actually read: cornerRadius is
+// half the height, full pill ends, as layoutBars gives each EQ bar.
+- (void)testRowStyleIsARoundEndedPill {
     VibeLoadingIndicatorMetrics m =
             VibeLoadingIndicatorMetricsForStyle(VibeLoadingIndicatorStyleRow, 16);
-    XCTAssertEqual(m.height, 2);
+    XCTAssertEqual(m.height, 3);
     XCTAssertEqual(m.cornerRadius, m.height / 2);
 }
 

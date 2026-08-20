@@ -12,6 +12,7 @@
 #import "AudioTrackMetadata.h"
 #import "CloudTransferRegistry.h"
 #import "EqualizerIndicatorView.h"
+#import "LoadingIndicatorMath.h"
 #import "LoadingIndicatorView.h"
 #import "PlaybackController.h"
 #import "Playlist.h"
@@ -575,7 +576,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
         [_loadingView.centerXAnchor constraintEqualToAnchor:_numberLabel.centerXAnchor],
         [_loadingView.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
         [_loadingView.widthAnchor constraintEqualToConstant:16],
-        [_loadingView.heightAnchor constraintEqualToConstant:2],
+        [_loadingView.heightAnchor constraintEqualToConstant:
+                VibeLoadingIndicatorMetricsForStyle(VibeLoadingIndicatorStyleRow, 16).height],
 
         [_artView.leadingAnchor constraintEqualToAnchor:_numberLabel.trailingAnchor constant:8],
         [_artView.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],

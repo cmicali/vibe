@@ -198,9 +198,9 @@ static NSTextField *makeCellTextField(NSRect frame) {
         eqView.barColor = NSColor.whiteColor;
         eqView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
         [view addSubview:eqView];
-        // The loading bar shares the equalizer's slot: same width and X, one
-        // EQ-bar's weight, vertically centred. White for the same reason the
-        // bars are — this gutter never inherits artwork colour.
+        // The loading bar shares the equalizer's slot: same width and X, a
+        // small round-ended pill, vertically centred. White for the same
+        // reason the bars are — this gutter never inherits artwork colour.
         CGFloat loadingHeight = VibeLoadingIndicatorMetricsForStyle(
                 VibeLoadingIndicatorStyleRow, kEqualizerWidth).height;
         LoadingIndicatorView *loadingView = [[LoadingIndicatorView alloc]
