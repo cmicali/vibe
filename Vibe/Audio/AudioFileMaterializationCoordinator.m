@@ -105,6 +105,7 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 @property (nonatomic) uint64_t runGeneration;
 @property (nonatomic) NSTimeInterval deadline;
 @property (nonatomic) BOOL runWasCancelled;
+@property (nonatomic) NSUInteger inheritedCancelRestarts;
 @property (nonatomic, strong, nullable) id<AudioFileMaterializationOperation> operation;
 @end
 
@@ -558,6 +559,13 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
     }
 }
 
+// The materializer's one spelling of cancellation (System/CLAUDE.md), which is
+// also what NSFileCoordinator's own -cancel returns.
+static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
+    return [error.domain isEqualToString:NSCocoaErrorDomain]
+            && error.code == NSUserCancelledError;
+}
+
 - (NSError *)admissionError:(NSString *)description {
     return [NSError errorWithDomain:VibeAudioFileMaterializationErrorDomain
                                code:VibeAudioFileMaterializationErrorAdmissionExhausted
@@ -784,6 +792,23 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
         }
         else {
             [_claims removeObjectForKey:claim.path];
+        }
+    }
+    else if (!ready && claim.waiters.count
+            && VibeMaterializationErrorIsCancellation(error)
+            && claim.inheritedCancelRestarts < 2) {
+        // A cancellation this coordinator did not order (its own travel
+        // runWasCancelled) is the provider's dying fetch bleeding into a fresh
+        // coordinated read of the same file — a play landing milliseconds
+        // after a rising edge cancelled the sweep's transfer inherits it. Not
+        // a verdict on the file: restart, bounded so a provider that keeps
+        // answering cancelled still settles as Failed.
+        claim.inheritedCancelRestarts++;
+        if (![self admitClaim:claim preserveExistingAdmission:YES]) {
+            [self settleClaim:claim
+                       result:VibeAudioFileMaterializationResultAdmissionExhausted
+                        error:[self admissionError:
+                                @"Audio materialization could not be readmitted"]];
         }
     }
     else {

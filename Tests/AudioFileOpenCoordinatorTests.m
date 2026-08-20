@@ -37,6 +37,7 @@
     __weak VibeOpenTestMaterializationHarness *_harness;
     BOOL _finished;
     BOOL _ready;
+    BOOL _failed;
     BOOL _defersCancellationCompletion;
     NSUInteger _cancellationCount;
 }
@@ -59,10 +60,16 @@
         [_condition wait];
     }
     BOOL ready = _ready;
+    BOOL failed = _failed;
     [_condition unlock];
     if (!ready && error) {
-        *error = [NSError errorWithDomain:NSCocoaErrorDomain
-                                     code:NSUserCancelledError userInfo:nil];
+        // completeFailed is a provider verdict; only a real cancel reports the
+        // materializer's cancelled spelling, which the coordinator restarts.
+        *error = failed
+                ? [NSError errorWithDomain:@"com.vibe.test-materialization"
+                                      code:1 userInfo:nil]
+                : [NSError errorWithDomain:NSCocoaErrorDomain
+                                      code:NSUserCancelledError userInfo:nil];
     }
     return ready;
 }
@@ -99,6 +106,7 @@
     if (!_finished) {
         _finished = YES;
         _ready = NO;
+        _failed = YES;
         [_condition broadcast];
     }
     [_condition unlock];
@@ -659,6 +667,12 @@
     VibeOpenTestMaterializationOperation *first = harness.startedOperations.firstObject;
     [first deferCancellationCompletion];
     [old cancel];
+    // The detach crosses the state queue twice — the outer token, then its
+    // materialization waiter. Flush both hops so the rebind below joins a
+    // claim whose cancel has landed; joining between the hops rides the old
+    // run instead, which is legitimate but not the path under test.
+    (void)[coordinator stateSnapshotForTesting];
+    (void)[coordinator stateSnapshotForTesting];
 
     XCTestExpectation *newOpened = [self expectationWithDescription:@"replacement outer waiter opened"];
     __unused AudioFileOpenToken *replacement = [coordinator openURL:url

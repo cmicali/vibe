@@ -19,6 +19,7 @@
 @property (nonatomic, readonly) NSUInteger cancellationCount;
 - (void)deferCancellationCompletion;
 - (void)completeReady:(BOOL)ready;
+- (void)completeWithError:(NSError *)error;
 @end
 
 @interface VibeTestMaterializationController : NSObject
@@ -40,6 +41,7 @@
     BOOL _ready;
     BOOL _defersCancellationCompletion;
     NSUInteger _cancellationCount;
+    NSError *_finishError;
 }
 
 - (instancetype)initWithURL:(NSURL *)url
@@ -68,10 +70,12 @@
         [_condition wait];
     }
     BOOL ready = _ready;
+    NSError *finishError = _finishError;
     [_condition unlock];
     if (!ready && error) {
-        *error = [NSError errorWithDomain:NSCocoaErrorDomain
-                                     code:NSUserCancelledError userInfo:nil];
+        *error = finishError
+                ?: [NSError errorWithDomain:NSCocoaErrorDomain
+                                       code:NSUserCancelledError userInfo:nil];
     }
     return ready;
 }
@@ -98,6 +102,17 @@
     if (!_finished) {
         _finished = YES;
         _ready = ready;
+        [_condition broadcast];
+    }
+    [_condition unlock];
+}
+
+- (void)completeWithError:(NSError *)error {
+    [_condition lock];
+    if (!_finished) {
+        _finished = YES;
+        _ready = NO;
+        _finishError = error;
         [_condition broadcast];
     }
     [_condition unlock];
@@ -345,6 +360,75 @@
             [_coordinator stateSnapshotForTesting];
     XCTAssertEqual(settled.claimCount, 0u);
     XCTAssertEqual(settled.waiterCount, 0u);
+}
+
+// A run that finishes with a cancellation nobody ordered — the provider's
+// dying fetch bleeding into a fresh coordinated read, the shape a play takes
+// when it lands milliseconds after a rising edge cancelled the sweep's
+// transfer of the same file — restarts instead of settling Failed.
+- (void)testAnUnorderedCancellationRestartsTheRunInsteadOfFailingIt {
+    [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
+    XCTestExpectation *ready = [self expectationWithDescription:@"ready after restart"];
+    __unused AudioFileMaterializationRequestToken *token = [self requestName:@"inherited.wav"
+            role:VibeAudioFileMaterializationRolePlayback
+            completion:^(VibeAudioFileMaterializationResult result,
+                         NSError *error, NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
+        XCTAssertNil(error);
+        [ready fulfill];
+    }];
+    XCTAssertTrue([_controller waitForStartedCount:1]);
+    VibeTestMaterializationOperation *first = _controller.startedOperations.firstObject;
+    XCTAssertEqual(first.cancellationCount, 0u);
+    // The fake's not-ready run reports NSUserCancelledError — exactly the
+    // materializer's one spelling — with no cancel ever issued.
+    [first completeReady:NO];
+    XCTAssertTrue([_controller waitForStartedCount:2]);
+    [_controller.startedOperations.lastObject completeReady:YES];
+    [self waitForExpectations:@[ready] timeout:2];
+}
+
+// The restart is bounded: a provider that keeps answering cancelled still
+// settles as Failed rather than looping.
+- (void)testInheritedCancellationRestartsAreBounded {
+    [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
+    XCTestExpectation *failed = [self expectationWithDescription:@"failed after the bound"];
+    __unused AudioFileMaterializationRequestToken *token = [self requestName:@"stuck.wav"
+            role:VibeAudioFileMaterializationRolePlayback
+            completion:^(VibeAudioFileMaterializationResult result,
+                         NSError *error, NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultFailed);
+        XCTAssertEqualObjects(error.domain, NSCocoaErrorDomain);
+        XCTAssertEqual(error.code, NSUserCancelledError);
+        [failed fulfill];
+    }];
+    for (NSUInteger attempt = 1; attempt <= 3; attempt++) {
+        XCTAssertTrue([_controller waitForStartedCount:attempt]);
+        [_controller.startedOperations.lastObject completeReady:NO];
+    }
+    [self waitForExpectations:@[failed] timeout:2];
+    XCTAssertEqual(_controller.startedOperations.count, 3u);
+}
+
+// An ordinary provider failure is a verdict and settles first time — the
+// restart is for cancellations alone.
+- (void)testAnOrdinaryFailureDoesNotRestart {
+    [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
+    NSError *providerError = [NSError errorWithDomain:@"com.test.provider"
+                                                 code:7 userInfo:nil];
+    XCTestExpectation *failed = [self expectationWithDescription:@"failed once"];
+    __unused AudioFileMaterializationRequestToken *token = [self requestName:@"broken.wav"
+            role:VibeAudioFileMaterializationRolePlayback
+            completion:^(VibeAudioFileMaterializationResult result,
+                         NSError *error, NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultFailed);
+        XCTAssertEqualObjects(error.domain, @"com.test.provider");
+        [failed fulfill];
+    }];
+    XCTAssertTrue([_controller waitForStartedCount:1]);
+    [_controller.startedOperations.firstObject completeWithError:providerError];
+    [self waitForExpectations:@[failed] timeout:2];
+    XCTAssertEqual(_controller.startedOperations.count, 1u);
 }
 
 - (void)testCancellingOneWaiterLeavesThePathOwnerForTheOther {
