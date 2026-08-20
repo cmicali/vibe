@@ -112,6 +112,10 @@ static const CGFloat kArtTextGap = 14;
 }
 
 - (void)thumbnailDidLoad:(NSNotification *)notification {
+    // Visible rows only. A prepared (not-yet-visible) cell whose decode lands
+    // now is deliberately left stale: willDisplayCell re-renders it at the
+    // moment it scrolls in, which is the one edge covering every way a
+    // prepared cell can go stale.
     for (NSIndexPath *path in self.tableView.indexPathsForVisibleRows) {
         NSUInteger index = (NSUInteger)path.row;
         if (index < _playlist.count &&
@@ -246,6 +250,19 @@ static const CGFloat kArtTextGap = 14;
   willDisplayCell:(UITableViewCell *)cell
 forRowAtIndexPath:(NSIndexPath *)indexPath {
     if ([cell isKindOfClass:LibraryTrackCell.class]) {
+        // TRAP: a prepared cell rendered while still outside the viewport can
+        // be stale by the time it scrolls in — the thumbnail notification and
+        // the metadata refresh both repaint indexPathsForVisibleRows, which a
+        // prepared cell is not in, and UIKit displays it without re-running
+        // cellForRowAtIndexPath:. This edge is the one moment "about to be
+        // seen" is knowable, so re-render here; the art read is a non-blocking
+        // cache lookup.
+        NSUInteger index = (NSUInteger)indexPath.row;
+        if (index < _playlist.count) {
+            [(LibraryTrackCell *)cell renderTrack:[_playlist trackAtIndex:index]
+                                           number:index + 1
+                                          playing:index == _playlist.currentIndex];
+        }
         [self syncEqualizerActivityForCell:(LibraryTrackCell *)cell];
     }
 }

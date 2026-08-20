@@ -941,6 +941,8 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
             // verbatim and so cannot have failed the same re-encode.
             archivedProvider = _archivedDisplayArtProvider;
             if (!archivedProvider) {
+                LogDebug(@"Thumb request %@: no bytes and no rendition — dead end",
+                         _sourceFilePath.lastPathComponent);
                 return NO;
             }
         }
