@@ -475,6 +475,40 @@
                              @"and the folder's cover must not slip in front of it");
 }
 
+// The drawing path asks this before dispatching a decode request. An artless
+// row answering YES would re-request on every redraw — at the mini player's
+// poll cadence for the current track, a permanent request-per-frame loop that
+// can never produce pixels.
+- (void)testAnArtlessRowReportsNoThumbnailDecodeSource {
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        return VibeEmbeddedArtExtractionNoArt;
+    }];
+    [artwork adoptParsedArtData:nil];
+    XCTAssertFalse([artwork embeddedThumbnailDecodeHasSource]);
+    [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:NO];
+    XCTAssertFalse([artwork embeddedThumbnailDecodeHasSource]);
+    // The known-of-art-but-byteless archive entry has no source either until
+    // the loader stamps the rendition provider — a request would dead-end.
+    [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:YES];
+    XCTAssertFalse([artwork embeddedThumbnailDecodeHasSource]);
+}
+
+- (void)testRowsWithBytesOrARenditionReportADecodeSource {
+    AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
+            NSString *path, NSData *__autoreleasing *artData) {
+        return VibeEmbeddedArtExtractionNoArt;
+    }];
+    [artwork adoptParsedArtData:[self embeddedArtData]];
+    XCTAssertTrue([artwork embeddedThumbnailDecodeHasSource], @"raw parsed bytes decode");
+    [artwork adoptArchivedThumbnailData:[self embeddedArtData] hasEmbeddedArt:YES];
+    XCTAssertTrue([artwork embeddedThumbnailDecodeHasSource], @"compact bytes decode");
+    [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:YES];
+    NSData *rendition = [self embeddedArtData];
+    [artwork setArchivedDisplayArtProvider:^NSData * { return rendition; }];
+    XCTAssertTrue([artwork embeddedThumbnailDecodeHasSource], @"the rendition recovers");
+}
+
 - (void)testACacheHitWithAThumbnailKeepsItsOwn {
     AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
             NSString *path, NSData *__autoreleasing *artData) {

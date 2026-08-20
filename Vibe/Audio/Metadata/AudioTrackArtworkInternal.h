@@ -88,6 +88,14 @@ typedef NSData *_Nullable (^AudioTrackArchivedDisplayArtProvider)(void);
 - (BOOL)requestEmbeddedThumbnailDecodeWithCompletion:
         (void (^)(VibeImage *_Nullable image))completion;
 
+// Non-blocking: whether the request above has any source to decode from —
+// compact bytes, raw parsed bytes, or the archived display rendition. NO is
+// the request's own no-source dead end, queryable so a drawing path does not
+// dispatch a doomed request on every redraw: an artless row's redraw cadence
+// (the mini player polls the current track at display rate) otherwise turns
+// into a permanent request-per-frame loop that can never produce pixels.
+- (BOOL)embeddedThumbnailDecodeHasSource;
+
 - (nullable VibeImage *)cachedArt;
 - (BOOL)artNeedsLoad;
 - (void)discardDecodedArt;

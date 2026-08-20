@@ -884,6 +884,13 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     _embeddedArtFact = VibeEmbeddedArtFactHasArtNeedsRead;
 }
 
+- (BOOL)embeddedThumbnailDecodeHasSource {
+    @synchronized (self) {
+        return _encodedThumbnailData != nil || _embeddedArtData != nil
+                || _archivedDisplayArtProvider != nil;
+    }
+}
+
 - (VibeImage *)cachedThumbnail {
     VibeImage *embedded = [self cachedEmbeddedThumbnail];
     if (embedded) {

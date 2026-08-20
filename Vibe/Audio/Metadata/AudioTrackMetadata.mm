@@ -217,6 +217,13 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     if (thumbnail) {
         return thumbnail;
     }
+    if (![self.artwork embeddedThumbnailDecodeHasSource]) {
+        // Nothing a decode could produce pixels from — an artless row, or a
+        // fallback row that never parsed. The next data transition rotates the
+        // row's state and the redraw after it re-asks, so skipping here drops
+        // no recoverable art.
+        return nil;
+    }
 
     __weak AudioTrackMetadata *weakMetadata = self;
     dispatch_block_t request = ^{
