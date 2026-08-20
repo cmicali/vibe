@@ -481,10 +481,15 @@ def s7_stand_aside_and_no_stranding(ctx):
     return f"{total} rows drained with no overlap and no stranding"
 
 
-# The two budgets AudioFileOpenRules.h holds, restated so the scenarios below
-# can size themselves against the policy rather than against a guessed number.
+# The open-timeout policy, restated from AudioFileOpenTimeoutMath.h
+# (kVibeAudioOpenDefaultNoProgressSeconds / DefaultProgressSilenceSeconds) so
+# the scenarios size themselves against it rather than against a guessed
+# number. An earlier restatement said the silence budget was 20s against a
+# header that holds no budgets at all — the stall scenarios then sized their
+# transfers to complete at the very instant the real 60s deadline fired, and
+# the photo-finish read as "never abandoned".
 NO_PROGRESS_BUDGET = 60.0
-STALL_BUDGET = 20.0
+PROGRESS_SILENCE_BUDGET = 60.0
 
 
 def _deadline_scenario(ctx, progress_mode, expect_timeout, seconds=200, watch=95):
@@ -533,11 +538,14 @@ def s8b_sparse_progress_survives(ctx):
 def s8c_a_stall_after_progress_times_out(ctx):
     """Progress to 40% and then nothing: the stall budget must still fire.
 
-    Sized so the stall begins well inside the baseline — 40% of 100s is t=40,
-    so the deadline is 40 + the 20s stall budget = t=60 — rather than after it,
+    Sized so the deadline clearly beats the transfer's own completion: the
+    stall script stops moving at 40%, so a 130s transfer last moves at t=52,
+    its deadline is 52 + the 60s silence budget = t=112, and completion would
+    not arrive until t=130 — an 18s margin for the abandonment to land in,
     where the watch would expire first."""
     return _deadline_scenario(ctx, "stall", expect_timeout=True,
-                              seconds=100, watch=NO_PROGRESS_BUDGET + STALL_BUDGET + 30)
+                              seconds=130,
+                              watch=0.4 * 130 + PROGRESS_SILENCE_BUDGET + 15)
 
 
 def s9_unflagged_placeholders(ctx):
@@ -703,8 +711,8 @@ def s12b_a_moving_timeout_keeps_downloading(ctx):
     """A pick that was still moving when the deadline ran out IS ranked back in,
     so the file the user asked for keeps downloading behind its error UI and a
     retry lands fast."""
-    return _timeout_promotion_scenario(ctx, "stall", seconds=100,
-                                       watch=NO_PROGRESS_BUDGET + STALL_BUDGET + 35,
+    return _timeout_promotion_scenario(ctx, "stall", seconds=130,
+                                       watch=0.4 * 130 + PROGRESS_SILENCE_BUDGET + 20,
                                        expect_promoted=True)
 
 
