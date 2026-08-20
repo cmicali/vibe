@@ -3,8 +3,9 @@
 //  Vibe
 //
 //  The bounded-admission state machine behind AudioTrackArtwork's async art
-//  loads: across all rows, at most two reads or decodes run, five sit
-//  scheduler-pending, and a seven-artwork desired window waits beyond that.
+//  loads: across all rows, at most two reads or decodes run and five sit
+//  scheduler-pending; a request past that bound is dropped before it marks
+//  the row pending, and the next redraw re-requests it (spec J6).
 //  Private to AudioTrackArtwork — it is the registry's only client, reached
 //  through loadArtIfNeededWithLabel:stillWanted:completion:. A file boundary,
 //  not a second coordinator: the flow's owner is still AudioTrackArtwork.
@@ -25,7 +26,6 @@ static const NSUInteger kArtworkLoadMaximumRunningCount = 2;
 static const NSUInteger kArtworkLoadMaximumPendingCount = 5;
 static const NSUInteger kArtworkLoadMaximumActiveCount =
         kArtworkLoadMaximumRunningCount + kArtworkLoadMaximumPendingCount;
-static const NSUInteger kArtworkLoadMaximumWaitingCount = 7;
 static const NSTimeInterval kArtworkLoadPendingGrace = 30;
 
 // Main-thread only, like the display request path that drives it.

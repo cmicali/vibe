@@ -555,7 +555,7 @@
     XCTAssertFalse(artwork.artLoadPending);
 }
 
-- (void)testEighthWantedRequestWaitsForCapacityAndThenCompletes {
+- (void)testEighthWantedRequestIsDroppedAndTheRowRecoversByReRequesting {
     [self installServicesWithFactory:^id<AudioFileMaterializationOperation>(
             NSURL *url, VibeAudioFileMaterializationRole role) {
         return [[ArtworkLoadTestMaterializationOperation alloc]
@@ -586,22 +586,32 @@
                     NSString *path, NSData *__autoreleasing *artData) {
         return VibeEmbeddedArtExtractionNoArt;
     }];
-    XCTestExpectation *waitingCompleted =
-            [self expectationWithDescription:@"waiting request completed"];
-    [completed addObject:waitingCompleted];
+    // Past the bound the request is DROPPED, before it marks the row
+    // pending: no completion, no stranded artLoadPending, nothing to park.
     [waiting loadArtIfNeededWithLabel:@"waiting" stillWanted:^{ return YES; }
             completion:^(NSImage *image) {
         waitingCompletionCount++;
-        [waitingCompleted fulfill];
     }];
-    XCTAssertTrue(waiting.artLoadPending);
+    XCTAssertFalse(waiting.artLoadPending);
 
     [self waitForExpectations:completed timeout:2];
+    XCTAssertEqual(waitingCompletionCount, 0u);
+
+    // The row recovers by re-requesting — the redraw path's job — once
+    // capacity has returned.
+    XCTestExpectation *retried = [self expectationWithDescription:@"re-request completed"];
+    [waiting loadArtIfNeededWithLabel:@"waiting" stillWanted:^{ return YES; }
+            completion:^(NSImage *image) {
+        waitingCompletionCount++;
+        [retried fulfill];
+    }];
+    XCTAssertTrue(waiting.artLoadPending);
+    [self waitForExpectations:@[retried] timeout:2];
     XCTAssertEqual(waitingCompletionCount, 1u);
     XCTAssertFalse(waiting.artLoadPending);
 }
 
-- (void)testTwoNewWantedEdgesWakeAfterTwoStaleReadsReleaseSlots {
+- (void)testNewEdgesDroppedBehindStaleReadsRecoverByReRequesting {
     dispatch_semaphore_t releaseBaseMaterializations = dispatch_semaphore_create(0);
     [self installServicesWithFactory:^id<AudioFileMaterializationOperation>(
             NSURL *url, VibeAudioFileMaterializationRole role) {
@@ -678,12 +688,14 @@
             return VibeEmbeddedArtExtractionNoArt;
         }];
         [newEdges addObject:artwork];
-        XCTestExpectation *completed = [self expectationWithDescription:
-                [NSString stringWithFormat:@"new edge %lu", (unsigned long)index]];
-        [wantedCompletions addObject:completed];
+        // All seven slots are occupied, two of them by uncancellable stale
+        // reads: the new edge is DROPPED, unmarked, with no completion —
+        // the pager's next redraw is what re-requests it (spec J6).
         [artwork loadArtIfNeededWithLabel:@"new edge" stillWanted:^{ return YES; }
-                completion:^(NSImage *image) { [completed fulfill]; }];
-        XCTAssertTrue(artwork.artLoadPending);
+                completion:^(NSImage *image) {
+            XCTFail(@"a dropped request owns no completion");
+        }];
+        XCTAssertFalse(artwork.artLoadPending);
     }
 
     dispatch_semaphore_signal(releaseFirstRead);
@@ -692,8 +704,21 @@
         dispatch_semaphore_signal(releaseBaseMaterializations);
     }
     [self waitForExpectations:wantedCompletions timeout:2];
-
     XCTAssertEqual(staleCompletionCount, 0u);
+
+    // The redraw's re-request finds capacity and completes; the rows were
+    // never stranded behind the stale reads.
+    NSMutableArray<XCTestExpectation *> *retried = [NSMutableArray array];
+    for (NSUInteger index = 0; index < 2; index++) {
+        AudioTrackArtwork *artwork = newEdges[index];
+        XCTestExpectation *completed = [self expectationWithDescription:
+                [NSString stringWithFormat:@"re-requested edge %lu", (unsigned long)index]];
+        [retried addObject:completed];
+        [artwork loadArtIfNeededWithLabel:@"new edge" stillWanted:^{ return YES; }
+                completion:^(NSImage *image) { [completed fulfill]; }];
+        XCTAssertTrue(artwork.artLoadPending);
+    }
+    [self waitForExpectations:retried timeout:2];
     XCTAssertFalse(newEdges[0].artLoadPending);
     XCTAssertFalse(newEdges[1].artLoadPending);
 }

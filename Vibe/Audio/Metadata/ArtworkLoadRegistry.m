@@ -39,11 +39,9 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
 @property (nonatomic, strong) AudioFileMaterializationCoordinator *materializationCoordinator;
 @property (nonatomic, strong) AudioWorkScheduler *workScheduler;
 @property (nonatomic, strong) NSMutableArray<ArtworkLoadRequest *> *requests;
-@property (nonatomic, strong) NSMutableArray<ArtworkLoadRequest *> *waitingRequests;
 - (void)beginRequest:(ArtworkLoadRequest *)request;
 - (void)materializeSourceForRequest:(ArtworkLoadRequest *)request;
 - (void)scheduleAdmissionRetryForRequest:(ArtworkLoadRequest *)request;
-- (void)admitWaitingRequestIfPossible;
 - (BOOL)requestIsMoot:(ArtworkLoadRequest *)request;
 @end
 
@@ -59,14 +57,13 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
         _materializationCoordinator = materializationCoordinator;
         _workScheduler = workScheduler;
         _requests = [NSMutableArray array];
-        _waitingRequests = [NSMutableArray array];
     }
     return self;
 }
 
 - (NSUInteger)registeredRequestCount {
     NSParameterAssert(NSThread.isMainThread);
-    return _requests.count + _waitingRequests.count;
+    return _requests.count;
 }
 
 - (BOOL)containsRequest:(ArtworkLoadRequest *)request {
@@ -90,12 +87,10 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
     if (request.materializationToken) {
         [request.materializationToken cancel];
         [self detachRequest:request];
-        [self admitWaitingRequestIfPossible];
         return;
     }
     if (!request.workSubmitted || [request.workToken cancelIfPending]) {
         [self detachRequest:request];
-        [self admitWaitingRequestIfPossible];
     }
     // A running read remains registered until it returns. It keeps one of the
     // seven global entries and one scheduler slot, so repeated demotions cannot
@@ -114,13 +109,6 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
 // torn down, and a demoted-but-wanted one must reach finishRequest:'s retry
 // tail rather than be cancelled here.
 - (void)pruneUnwantedRequests {
-    for (ArtworkLoadRequest *waiting in [_waitingRequests copy]) {
-        if (waiting.stale || waiting.stillWanted()) {
-            continue;
-        }
-        [_waitingRequests removeObjectIdenticalTo:waiting];
-        [waiting.artwork invalidateDecodedArtForGeneration:waiting.artGeneration];
-    }
     for (ArtworkLoadRequest *request in [_requests copy]) {
         if (request.stale || request.stillWanted()) {
             continue;
@@ -139,13 +127,13 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
     if (!stillWanted()) {
         return;
     }
-    for (ArtworkLoadRequest *waiting in _waitingRequests) {
-        if (waiting.artwork == artwork) {
-            return;
-        }
-    }
-    if (_requests.count >= kArtworkLoadMaximumActiveCount &&
-            _waitingRequests.count >= kArtworkLoadMaximumWaitingCount) {
+    // At capacity the request is simply dropped — BEFORE prepare, so the row
+    // never carries a pending mark for work that was never registered and the
+    // next redraw or thumbnail notification re-requests it cleanly. The
+    // scheduler's own pending queue is the only park (spec J6): the third
+    // parking layer that used to wait here defended a seven-surface pileup
+    // the app cannot produce.
+    if (_requests.count >= kArtworkLoadMaximumActiveCount) {
         return;
     }
 
@@ -162,13 +150,6 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
     request.stillWanted = stillWanted;
     request.completion = completion;
     request.sourceURL = sourceURL;
-    if (_requests.count >= kArtworkLoadMaximumActiveCount) {
-        // Pager shifts can expose new edges while uncancellable stale reads
-        // still occupy slots. Keep at most one desired request per artwork and
-        // no more than a full seven-artwork window outside the active-work bound.
-        [_waitingRequests addObject:request];
-        return;
-    }
     [_requests addObject:request];
 
     [self beginRequest:request];
@@ -258,22 +239,6 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
     });
 }
 
-- (void)admitWaitingRequestIfPossible {
-    while (_requests.count < kArtworkLoadMaximumActiveCount &&
-            _waitingRequests.count > 0) {
-        ArtworkLoadRequest *request = _waitingRequests.firstObject;
-        [_waitingRequests removeObjectAtIndex:0];
-        if ([self requestIsMoot:request]) {
-            // Never activated, so there is no claim to release and no
-            // finishRequest: retry tail to run — drop it here.
-            [request.artwork invalidateDecodedArtForGeneration:request.artGeneration];
-            continue;
-        }
-        [_requests addObject:request];
-        [self beginRequest:request];
-    }
-}
-
 - (void)submitWorkForRequest:(ArtworkLoadRequest *)request {
     if (![self containsRequest:request]) {
         return;
@@ -340,27 +305,19 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
             [self loadArtwork:artwork label:label stillWanted:stillWanted
                    completion:completion];
         }
-        [self admitWaitingRequestIfPossible];
         return;
     }
 
     [artwork clearLoadPendingForGeneration:generation];
     if (!wanted || stale) {
         [artwork invalidateDecodedArtForGeneration:generation];
-        [self admitWaitingRequestIfPossible];
         return;
     }
-    [self admitWaitingRequestIfPossible];
     completion(image);
 }
 
 - (void)cancelLoadsForArtwork:(AudioTrackArtwork *)artwork {
     NSParameterAssert(NSThread.isMainThread);
-    for (ArtworkLoadRequest *waiting in [_waitingRequests copy]) {
-        if (waiting.artwork == artwork) {
-            [_waitingRequests removeObjectIdenticalTo:waiting];
-        }
-    }
     for (ArtworkLoadRequest *request in [_requests copy]) {
         if (request.artwork == artwork) {
             [self cancelRequest:request];
