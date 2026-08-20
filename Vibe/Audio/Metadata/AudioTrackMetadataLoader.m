@@ -156,6 +156,9 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
                         loadingConfiguration.metadataRetryCount);
         _parseCoordinator = owner.parseCoordinator;
         _delegate = delegate;
+        // Shared by both lanes: the priority failure path spends the same
+        // per-path budget the scan does.
+        _materializationAttemptsByPath = [NSMutableDictionary dictionary];
         _queue = [[NSOperationQueue alloc] init];
         if (lane == VibeMetadataLanePriority) {
             // The priority lane, loadPriorityTrack:. Only the newest
@@ -189,7 +192,6 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             _pendingMaterializations = [NSMutableArray array];
             _delayedScanRetryEntries = [NSMutableSet set];
             _neighborhood = @[];
-            _materializationAttemptsByPath = [NSMutableDictionary dictionary];
             dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
                     DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
             _materializationCallbackQueue = dispatch_queue_create(
@@ -711,9 +713,14 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
                                            error:(NSError *)error
                                          elapsed:(NSTimeInterval)elapsed {
     __weak __typeof(self) weakSelf = self;
+    NSString *attemptKey = track.url.path ?: track.url.absoluteString;
     os_unfair_lock_lock(&_materializationLock);
     [_liveMaterializationTokens removeObject:token];
     BOOL cancelled = self.isCancelled;
+    if (result == VibeAudioFileMaterializationResultReady && attemptKey) {
+        // Ready restores the full budget, as the scan lane's completion does.
+        [_materializationAttemptsByPath removeObjectForKey:attemptKey];
+    }
     os_unfair_lock_unlock(&_materializationLock);
 
     if (result == VibeAudioFileMaterializationResultReady && !cancelled) {
@@ -760,14 +767,15 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         // dozens of rows away. Spend the same bounded per-path budget the
         // scan does; the pending later-load marker rides into the fresh run
         // rather than dying with the failed one.
-        NSString *path = track.url.path;
         NSUInteger priorFailures;
         os_unfair_lock_lock(&_materializationLock);
-        priorFailures = _materializationAttemptsByPath[path].unsignedIntegerValue;
-        BOOL retry = VibeMetadataPriorityRetryAfterFailure(
-                priorFailures, _materializationMaximumAttempts, self.isCancelled);
+        priorFailures = attemptKey
+                ? _materializationAttemptsByPath[attemptKey].unsignedIntegerValue : 0;
+        BOOL retry = attemptKey != nil
+                && VibeMetadataPriorityRetryAfterFailure(
+                        priorFailures, _materializationMaximumAttempts, self.isCancelled);
         if (retry) {
-            _materializationAttemptsByPath[path] = @(priorFailures + 1);
+            _materializationAttemptsByPath[attemptKey] = @(priorFailures + 1);
         }
         os_unfair_lock_unlock(&_materializationLock);
         if (retry) {
