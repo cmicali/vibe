@@ -51,6 +51,35 @@ static const NSUInteger kEmbeddedThumbnailDecodeRunningCount = 2;
 // memory for parked blocks, unrelated to the pixel cache's own count.
 static const NSUInteger kEmbeddedThumbnailDecodePendingCount = 126;
 
+// What is conclusively known about the file's own embedded art, one fact
+// instead of the known/settled boolean cross-product it replaces. Unknown is
+// the zero value on purpose: a fresh row has determined nothing. The two
+// HasArt states split on whether the CURRENT display pass still needs a
+// source read for the full-size bytes — demotion moves Settled back to
+// NeedsRead without touching the fact that art exists. Two overlays stay
+// deliberately outside the enum: _embeddedExtractionInFlight is the
+// single-flight claim over a read already running (it survives demotion, a
+// documented trap), and _embeddedUndecodable is a permanent verdict about
+// bytes, not about whether art exists.
+typedef NS_ENUM(NSUInteger, VibeEmbeddedArtFact) {
+    VibeEmbeddedArtFactUnknown = 0,      // never conclusively determined
+    VibeEmbeddedArtFactArtless,          // conclusively carries none
+    VibeEmbeddedArtFactHasArtNeedsRead,  // carries art; full bytes need a read
+    VibeEmbeddedArtFactHasArtSettled,    // carries art; this pass needs no read
+};
+
+static inline BOOL VibeEmbeddedArtFactHasArt(VibeEmbeddedArtFact fact) {
+    return fact == VibeEmbeddedArtFactHasArtNeedsRead
+            || fact == VibeEmbeddedArtFactHasArtSettled;
+}
+
+// "No further source read wanted this pass": conclusively artless, or the
+// art-bearing pass already holds or freshly read its bytes.
+static inline BOOL VibeEmbeddedArtFactIsSettled(VibeEmbeddedArtFact fact) {
+    return fact == VibeEmbeddedArtFactArtless
+            || fact == VibeEmbeddedArtFactHasArtSettled;
+}
+
 // NSCache treats its limits as eviction suggestions. The row-art guarantee is
 // an actual bound, so keep the LRU explicit: every image is decoded at no more
 // than 128 x 128 pixels, and no more than kEmbeddedThumbnailCacheCount of them
@@ -228,14 +257,10 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     // Compaction's display-art rendition, parked for the one cache write.
     NSData *_archivedDisplayArtDataForStorage;
     AudioTrackArtworkExtractor _extractor;
-    // The file carries art, in hand or not. Set by a parse that found bytes and
-    // by an archive that recorded the fact, and never cleared by a discard —
-    // the bytes go, the fact does not.
-    BOOL _embeddedArtKnown;
-    // YES only after extraction conclusively found art or found none. A read
-    // failure leaves this NO, keeping the file unknown and the folder fallback
-    // closed.
-    BOOL _embeddedExtractionSettled;
+    // See VibeEmbeddedArtFact. A read failure leaves Unknown in place,
+    // keeping the folder fallback closed; a discard demotes Settled to
+    // NeedsRead — the bytes go, the fact that art exists does not.
+    VibeEmbeddedArtFact _embeddedArtFact;
     BOOL _embeddedExtractionInFlight;
     NSUInteger _embeddedExtractionFailures;
     // Monotonic seconds before which no further extraction may start, 0 for
@@ -296,13 +321,14 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         // for the copy. The storage stash deliberately does not transfer — the
         // original's one cache write consumes it.
         copy->_archivedDisplayArtProvider = _archivedDisplayArtProvider;
-        copy->_embeddedArtKnown = _embeddedArtKnown;
         copy->_embeddedUndecodable = _embeddedUndecodable;
         // Known-and-decodable re-arms extraction, since the copy carries no
         // full-size bytes; known-undecodable stays settled; unknown or artless
         // inherits.
-        copy->_embeddedExtractionSettled = _embeddedArtKnown
-                ? _embeddedUndecodable : _embeddedExtractionSettled;
+        copy->_embeddedArtFact = VibeEmbeddedArtFactHasArt(_embeddedArtFact)
+                ? (_embeddedUndecodable ? VibeEmbeddedArtFactHasArtSettled
+                                        : VibeEmbeddedArtFactHasArtNeedsRead)
+                : _embeddedArtFact;
     }
     // Deliberately no thumbnail transfer into the display LRU: only the
     // display request path populates it, and copies are made on parse workers
@@ -325,7 +351,8 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
 }
 
 - (BOOL)canStartEmbeddedExtractionLockedAt:(NSTimeInterval)now {
-    return !_embeddedExtractionSettled && !_embeddedExtractionInFlight &&
+    return !VibeEmbeddedArtFactIsSettled(_embeddedArtFact)
+            && !_embeddedExtractionInFlight &&
             !_embeddedUndecodable &&
             _embeddedExtractionFailures < kMaxEmbeddedArtExtractionFailures &&
             [self retryBackoffHasElapsedLocked:now] &&
@@ -344,8 +371,8 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         // re-stamps the provider once the fresh entry is written.
         _archivedDisplayArtProvider = nil;
         _archivedDisplayArtDataForStorage = nil;
-        _embeddedArtKnown = (artData != nil);
-        _embeddedExtractionSettled = YES;
+        _embeddedArtFact = artData != nil ? VibeEmbeddedArtFactHasArtSettled
+                                          : VibeEmbeddedArtFactArtless;
         _embeddedExtractionInFlight = NO;
         _embeddedExtractionFailures = 0;
         _embeddedExtractionRetryNotBefore = 0;
@@ -363,11 +390,11 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         _encodedThumbnailData = [encodedData copy];
         _archivedDisplayArtProvider = nil;
         _archivedDisplayArtDataForStorage = nil;
-        _embeddedArtKnown = hasEmbeddedArt;
-        // An entry that knows of no art is artless: mark it settled rather
-        // than re-reading the file for art that is not there. An art-bearing
-        // entry stays NO, so the full-resolution image is re-read on demand.
-        _embeddedExtractionSettled = !hasEmbeddedArt;
+        // An entry that knows of no art is artless: settled rather than
+        // re-reading the file for art that is not there. An art-bearing entry
+        // still needs a read, so the full-resolution image comes on demand.
+        _embeddedArtFact = hasEmbeddedArt ? VibeEmbeddedArtFactHasArtNeedsRead
+                                          : VibeEmbeddedArtFactArtless;
         _embeddedExtractionInFlight = NO;
         _embeddedExtractionFailures = 0;
         _embeddedExtractionRetryNotBefore = 0;
@@ -436,7 +463,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
 
 - (BOOL)hasEmbeddedArt {
     @synchronized (self) {
-        return _embeddedArtKnown;
+        return VibeEmbeddedArtFactHasArt(_embeddedArtFact);
     }
 }
 
@@ -619,12 +646,10 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
             _embeddedExtractionFailures = 0;
             _embeddedExtractionRetryNotBefore = 0;
             if (extractionResult == VibeEmbeddedArtExtractionNoArt) {
-                _embeddedArtKnown = NO;
-                _embeddedExtractionSettled = YES;
+                _embeddedArtFact = VibeEmbeddedArtFactArtless;
                 return _embeddedArt;
             }
-            _embeddedArtKnown = YES;
-            _embeddedExtractionSettled = YES;
+            _embeddedArtFact = VibeEmbeddedArtFactHasArtSettled;
         }
         if (dataToDecode && !decoded) {
             // The bytes exist but cannot be decoded, which is permanent for
@@ -653,7 +678,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
             // Nothing is stored, but the file demonstrably has art, so re-arm
             // the on-demand re-read. This load claimed the attempt flag on
             // entry, and the discard's early return left that claim in place.
-            _embeddedExtractionSettled = NO;
+            _embeddedArtFact = VibeEmbeddedArtFactHasArtNeedsRead;
         }
         return _embeddedArt ?: decoded;
     }
@@ -661,11 +686,11 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
 
 // The gate on every folder-art fallback below. Call with the monitor held.
 - (BOOL)knownToCarryNoArtLocked {
-    // _embeddedArtKnown covers what the other three cannot: a cache hit whose
-    // entry was written before the thumbnail was archived, and a parsed track
-    // whose bytes have been discarded, both of which have art without holding
-    // any of it.
-    BOOL hasArtOfItsOwn = _embeddedArtKnown || _embeddedArt != nil ||
+    // The fact covers what the held bytes cannot: a cache hit whose entry was
+    // written before the thumbnail was archived, and a parsed track whose
+    // bytes have been discarded, both of which have art without holding any.
+    BOOL hasArtOfItsOwn = VibeEmbeddedArtFactHasArt(_embeddedArtFact) ||
+                          _embeddedArt != nil ||
                           _embeddedArtData != nil || _encodedThumbnailData != nil;
     if (_embeddedUndecodable) {
         return YES;
@@ -673,7 +698,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     if (hasArtOfItsOwn) {
         return NO;
     }
-    return _embeddedExtractionSettled;
+    return _embeddedArtFact == VibeEmbeddedArtFactArtless;
 }
 
 // The file to ask the folder about, or nil when the folder must not be asked.
@@ -802,14 +827,17 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         }
         // If thumbnail encoding failed, keep the source bytes. Otherwise a
         // shared-cache eviction would make this row's list art unrecoverable.
-        if (_embeddedArtKnown && !_encodedThumbnailData) {
+        if (VibeEmbeddedArtFactHasArt(_embeddedArtFact) && !_encodedThumbnailData) {
             return;
         }
         _embeddedArtData = nil;
         if (!_embeddedArt) {
             // Art exists but is not yet decoded, so re-arm the on-demand
-            // re-read.
-            _embeddedExtractionSettled = NO;
+            // re-read. Only art-bearing rows reach here with bytes to drop,
+            // so the demotion is HasArtSettled -> HasArtNeedsRead.
+            if (VibeEmbeddedArtFactHasArt(_embeddedArtFact)) {
+                _embeddedArtFact = VibeEmbeddedArtFactHasArtNeedsRead;
+            }
             _embeddedExtractionFailures = 0;
             _embeddedExtractionRetryNotBefore = 0;
         }
@@ -839,7 +867,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     // identity presented under the extraction-claim lock.
     _artGeneration++;
     _artLoadPending = NO;
-    if (!_embeddedExtractionSettled && !_embeddedUndecodable) {
+    if (!VibeEmbeddedArtFactIsSettled(_embeddedArtFact) && !_embeddedUndecodable) {
         _embeddedExtractionFailures = 0;
         _embeddedExtractionRetryNotBefore = 0;
     }
@@ -850,7 +878,10 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     }
     _embeddedArt = nil;
     _embeddedArtData = nil;
-    _embeddedExtractionSettled = NO;
+    // Held art or bytes imply the fact is HasArt (every path that stores
+    // either sets it), so this demotion is HasArtSettled -> HasArtNeedsRead:
+    // the bytes go, the fact that art exists does not.
+    _embeddedArtFact = VibeEmbeddedArtFactHasArtNeedsRead;
 }
 
 - (VibeImage *)cachedThumbnail {
