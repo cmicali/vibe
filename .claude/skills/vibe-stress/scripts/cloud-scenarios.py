@@ -657,13 +657,20 @@ def s11_append_and_fast_path(ctx):
     return f"{len(done)} materialized; replay cost no transfer"
 
 
-def _timeout_promotion_scenario(ctx, progress_mode, seconds, watch, expect_promoted):
-    """Time an open out under a scripted progress source and report whether the
-    failed pick was ranked back into the neighborhood.
+def _timeout_abandonment_scenario(ctx, progress_mode, seconds, watch):
+    """Time an open out under a scripted progress source, then assert the
+    abandoned pick is NOT chased: the lane's next fetch is an ordinary sweep
+    choice and playback stays stopped.
 
-    Promotion is gated on the transfer having been MOVING when the deadline
-    ran out, so the two progress modes are the two halves of one rule and are
-    asserted against each other rather than in isolation."""
+    An earlier design ranked a pick that had shown progress back in first
+    (1b8e03e, "chase a timed-out pick only if it was still moving"); the
+    loading rewrite in 597f6fc removed it, and the retirement is deliberate:
+    under the extend-on-movement deadline (AudioFileOpenTimeoutMath.h) any
+    abandoned transfer has by definition been silent for its whole 60s
+    budget — there is no "still moving at the deadline" case left to chase,
+    only a stalled one, and re-fetching a stalled transfer spends the
+    provider's next slot behind a terminal error the user is looking at.
+    Both progress modes therefore assert the same verdict."""
     ctx.arm(seconds=seconds, capacity=1, uniform=True, progress=progress_mode)
     folder = ctx.folders[0]
     ctx.cmd("open", str(folder))
@@ -687,33 +694,28 @@ def _timeout_promotion_scenario(ctx, progress_mode, seconds, watch, expect_promo
                           lambda ev: events_of(ev, event="requested", role="metadata"),
                           timeout=40)
     first = events_of(events, event="requested", role="metadata")[0]["file"]
-    promoted = first == picked
-    if expect_promoted and not promoted:
-        raise Failed(f"a transfer that was still moving was NOT ranked back in: the "
-                     f"lane fetched {first}, not {picked}")
-    if not expect_promoted and promoted:
-        raise Failed(f"a transfer that never moved WAS ranked back in ({picked}) — "
-                     "bandwidth spent re-fetching a file that never arrived, behind "
-                     "a terminal error the user is looking at")
-    return (f"{picked} {'ranked back in first' if promoted else 'left as an ordinary sweep candidate'}, "
+    if first == picked:
+        raise Failed(f"the abandoned pick was chased: the lane re-fetched {picked} "
+                     "first — the provider's next slot spent re-fetching a stalled "
+                     "transfer, unasked, behind a terminal error the user is "
+                     "looking at")
+    return (f"{picked} left as an ordinary sweep candidate ({first} fetched first), "
             "playback stayed stopped")
 
 
 def s12a_a_dead_timeout_is_not_chased(ctx):
-    """A pick that timed out having shown NO progress is not promoted: it stays
-    an ordinary sweep candidate rather than taking the provider's next slot."""
-    return _timeout_promotion_scenario(ctx, "none", seconds=200,
-                                       watch=NO_PROGRESS_BUDGET + 35,
-                                       expect_promoted=False)
+    """A pick that timed out having shown NO progress stays an ordinary sweep
+    candidate rather than taking the provider's next slot."""
+    return _timeout_abandonment_scenario(ctx, "none", seconds=200,
+                                         watch=NO_PROGRESS_BUDGET + 35)
 
 
-def s12b_a_moving_timeout_keeps_downloading(ctx):
-    """A pick that was still moving when the deadline ran out IS ranked back in,
-    so the file the user asked for keeps downloading behind its error UI and a
-    retry lands fast."""
-    return _timeout_promotion_scenario(ctx, "stall", seconds=130,
-                                       watch=0.4 * 130 + PROGRESS_SILENCE_BUDGET + 20,
-                                       expect_promoted=True)
+def s12b_a_stalled_timeout_is_not_chased_either(ctx):
+    """Progress to 40% and then nothing: the abandoned pick is judged the same
+    as one that never moved. The old moving/dead distinction died with the
+    deadline redesign — see _timeout_abandonment_scenario."""
+    return _timeout_abandonment_scenario(ctx, "stall", seconds=130,
+                                         watch=0.4 * 130 + PROGRESS_SILENCE_BUDGET + 20)
 
 
 def s13_stand_aside_is_advisory(ctx):
@@ -785,7 +787,7 @@ SCENARIOS = [
     ("S10", s10_error_and_close_settle_clean, False),
     ("S11", s11_append_and_fast_path, False),
     ("S12a", s12a_a_dead_timeout_is_not_chased, False),
-    ("S12b", s12b_a_moving_timeout_keeps_downloading, False),
+    ("S12b", s12b_a_stalled_timeout_is_not_chased_either, False),
     ("S13", s13_stand_aside_is_advisory, True),
 ]
 
