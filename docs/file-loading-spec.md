@@ -132,6 +132,9 @@ H policy numbers · I platform differences · J open items · K non-goals.
 - **D6. One scan transfer at a time.** The sweep keeps at most one materialization
   in flight; everything else stays an app-owned, re-rankable record. (Pending
   records must never be pre-submitted to a bounded queue — see H for why.)
+  While C1 is in force the sweep submits no dataless record at all — even the
+  file playback is downloading, which C3 would let join for free; the
+  current-track request covers that file, and one rule beats two (J4, deliberate).
 - **D7. Retries are result-driven and bounded.** Per path, across lanes: a *yield*
   (suspended by C1) spends nothing; a *failure* spends one of **3 total attempts**
   and re-enters below untried rows; *admission exhaustion* spends one after a
@@ -145,8 +148,8 @@ H policy numbers · I platform differences · J open items · K non-goals.
   never permitted to overwrite a racing success. No row stays blank forever.
 - **D10. Fresh playlist, fresh sweep.** Opening/replacing a playlist drops the old
   sweep outright: its pending records, its in-flight transfer, and its strong track
-  references. Nothing from the old playlist keeps downloading or stays retained
-  (see J1 — today's priority lane violates the retention half in a corner).
+  references. Nothing from the old playlist keeps downloading or stays retained —
+  the current-track lane's pending work included (J1).
 - **D11. An entered TagLib read is uncancellable** and is allowed to finish; parses
   run at most **4** wide; a slow file stalls only its own worker.
 
@@ -159,7 +162,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
   and retries (at most **3 reads** per display pass, **2 s** per-row backoff).
 - **E3. The 128 px thumbnail is for list rows** (mac playlist, iOS library/mini).
   Rows retain compact encoded bytes only; decoded pixels live in one shared
-  **128-entry / 8 MiB** LRU that only the display path populates. A cache miss
+  **16k-entry ** LRU that only the display path populates. A cache miss
   never decodes on a drawing path.
 - **E4. The archived display rendition** (640 px mac / 1024 px iOS, beside the
   metadata entry, disk-resident, never retained per-row) is both big art surfaces'
@@ -202,7 +205,9 @@ H policy numbers · I platform differences · J open items · K non-goals.
 - **G5. Close** (macOS): no callbacks (B9); pending background work dropped before
   the rule lifts (C5); nothing left held — the next folder's sweep starts clean.
 - **G6. Playlist replacement**: D10, plus the same "old transfers must not compete
-  with the new pick" ordering as G5.
+  with the new pick" ordering as G5. On iOS, replacement is also the Close edge:
+  any in-force C1 suspension lifts here — a folder that lands parked submits no
+  play, so no settlement would ever lift it otherwise (J3).
 
 ## H. Policy numbers (current production values, all reviewable)
 
@@ -222,7 +227,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
 | Art requests (running / pending) | 2 / 5 | `ArtworkLoadRegistry` |
 | Art admission backoff | 0.1–1 s, 5 steps | same |
 | Extraction retries / backoff | 3 reads / 2 s | `AudioTrackArtwork.m` |
-| Thumbnail LRU | 128 entries / 8 MiB | `AudioTrackArtwork.m` |
+| Thumbnail LRU | 16k entries | `AudioTrackArtwork.m` |
 | Thumbnail size | 128 px | — |
 | Display rendition bound | 640 px mac / 1024 px iOS | `PlatformImage.h` |
 | Full-art decode bound | 1024 px | — |
@@ -241,47 +246,47 @@ H policy numbers · I platform differences · J open items · K non-goals.
 - **I5.** Analysis (BPM/key) rides the waveform decode pass and is macOS-only; on
   iOS the tagged value is the whole answer.
 
-## J. OPEN items — review these
+## J. Open items — all resolved 2026-08-20
 
-- **J1. Priority-lane retention (known).** Replayed/replaced playlists accumulate
-  per-track state in the current-track lane; entries from abandoned playlists keep
-  downloading until their budget runs out. **Proposed:** D10 applies to the
-  current-track lane too — replacement drops its pending work. (The simplification
-  makes this structural: the current track becomes a rank-0 record in the one
-  sweep, so replacement drops everything by construction.)
-- **J2. Unguarded error-path release (defect).** The timeout/error path lifts the
-  C1 rule without checking submission identity; a late generic error (device loss,
-  seek failure — errors that carry no URL) landing between a new play's submission
-  and its Loading state can lift the rule the new play just asserted. iOS has no
-  stopped-state guard at all on this path. **Proposed:** C4 binds *every* release
-  edge, not just the acknowledgement edge — which the simplification gives for
-  free by making release internal to settlement.
-- **J3. iOS hold leak on folder replacement (defect).** Opening a folder that lands
-  parked (the `restored` branch — no play submitted) never lifts a previously
-  asserted C1 rule, suspending the new folder's sweep indefinitely (the exact bug
-  mac Close fixed, with no Close path on iOS to fix it in). **Proposed:** G6
-  explicitly lifts the rule on iOS playlist replacement.
-- **J4. Sweep-vs-hold pre-check asymmetry.** The sweep refuses to submit any
-  dataless record while C1 is in force — even the very file playback is
-  downloading, which C3 would let join for free. The current-track lane submits
-  and joins. Harmless (the priority request covers the playing file), but the
-  asymmetry is undocumented. **Proposed:** keep the sweep's conservative behavior;
-  document it, or allow the same-path join if the simplified shape makes it free.
-- **J5. Abandoned-pick chasing (decided, recorded).** An earlier design re-ranked a
+- **J1. Priority-lane retention (defect → DECIDED).** Replayed/replaced playlists
+  accumulate per-track state in the current-track lane; entries from abandoned
+  playlists keep downloading until their budget runs out. **Resolution:** D10
+  applies to the current-track lane too — replacement drops its pending work.
+  (Structural in the simplification: the current track becomes a rank-0 record in
+  the one sweep, so replacement drops everything by construction.)
+- **J2. Unguarded error-path release (defect → DECIDED).** The timeout/error path
+  lifts the C1 rule without checking submission identity; a late generic error
+  (device loss, seek failure — errors that carry no URL) landing between a new
+  play's submission and its Loading state can lift the rule the new play just
+  asserted. iOS has no stopped-state guard at all on this path. **Resolution:**
+  C4 binds *every* release edge, not just the acknowledgement edge — free in the
+  simplified shape, where release is internal to settlement.
+- **J3. iOS hold leak on folder replacement (defect → DECIDED).** Opening a folder
+  that lands parked (the `restored` branch — no play submitted) never lifts a
+  previously asserted C1 rule, suspending the new folder's sweep indefinitely.
+  **Resolution:** G6 lifts the rule on iOS playlist replacement (now normative
+  in G6).
+- **J4. Sweep-vs-hold pre-check asymmetry (DECIDED).** The sweep refuses to submit
+  any dataless record while C1 is in force — even the very file playback is
+  downloading, which C3 would let join for free; the current-track lane submits
+  and joins. **Resolution:** keep the sweep conservative — one rule beats two,
+  and the current-track request covers the playing file. Now documented in D6.
+- **J5. Abandoned-pick chasing (DECIDED, recorded).** An earlier design re-ranked a
   still-moving abandoned pick to the front of the sweep. Retired: under
   extend-on-movement deadlines (B3) any abandoned transfer has been silent for its
-  full 60 s, so there is no "still moving" case; scenario S12b now pins
-  not-chased. Strike this item if that retirement should be revisited.
-- **J6. Artwork "desired queue".** A third parking layer (7-deep) above the art
-  scheduler's own pending queue, added for uncancellable stale reads crowding out
-  newly visible iOS pages. Only ~3 art surfaces are ever simultaneously wanted;
-  the layer is likely removable, but it has no host-less test and a real-device
-  failure mode. **Proposed:** keep for now; delete only with an on-device check.
-- **J7. Stacked open admission.** Handle opens are bounded by a second scheduler
-  whose limits duplicate the transfer lane's and are not tunable through the same
-  configuration surface. Callers cannot distinguish the two rejections. **Proposed:**
-  one bound per claim spanning transfer + open, sized so one wedged open does not
-  halve foreground capacity — or explicitly keep both and unify the tuning surface.
+  full 60 s, so there is no "still moving" case; scenario S12b pins not-chased.
+- **J6. Artwork "desired queue" (DECIDED).** A third parking layer (7-deep) above
+  the art scheduler's own pending queue, added for uncancellable stale reads
+  crowding out newly visible iOS pages — but only ~3 art surfaces are ever
+  simultaneously wanted. **Resolution:** delete during the simplification,
+  gated on an on-device iOS pager check against a stuck fake provider (the one
+  failure mode with no host-less test).
+- **J7. Stacked open admission (DECIDED).** Handle opens are bounded by a second
+  scheduler whose limits duplicate the transfer lane's and are not tunable through
+  the same configuration surface; callers cannot distinguish the two rejections.
+  **Resolution:** one bound per claim spanning transfer + handle open, with the
+  foreground lane resized 2 → 3 so one wedged open cannot halve foreground
+  capacity. H's table gains the new value when it lands.
 
 ## K. Non-goals — what this spec deliberately does not constrain
 
