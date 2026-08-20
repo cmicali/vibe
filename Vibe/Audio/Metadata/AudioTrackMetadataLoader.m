@@ -45,15 +45,15 @@ static NSString *VibeArchivedDisplayArtKey(NSString *cacheKey) {
     return [cacheKey stringByAppendingString:@"#displayArt"];
 }
 
-// macOS only, matching the folder-art switch: iOS never installs the provider,
-// so its full-resolution now-playing page keeps extracting from the file, and
-// every archived-rendition branch in AudioTrackArtwork is inert. Stamped only
-// on rows whose thumbnail proves the art decodable — an undecodable file has
-// no sidecar to read.
+// Both platforms: the rendition is sized per platform to be quality-equivalent
+// to the display decode it stands in for (PlatformImage.m), so the mac header
+// and the iOS now-playing page both re-show art without re-reading — or, on a
+// dataless cloud file, re-downloading — the song. Stamped only on rows whose
+// thumbnail proves the art decodable — an undecodable file has no sidecar to
+// read.
 static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
                                                   PINCache *metadataCache,
                                                   NSString *cacheKey) {
-#if TARGET_OS_OSX
     if (!metadata.artwork.hasEmbeddedArt ||
             ![metadata.artwork encodedThumbnailDataForStorage]) {
         return;
@@ -69,9 +69,6 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         // absent rather than handing it to ImageIO.
         return [data isKindOfClass:[NSData class]] ? data : nil;
     };
-#else
-    (void)metadata; (void)metadataCache; (void)cacheKey;
-#endif
 }
 
 @interface AudioTrackMetadataLoader ()

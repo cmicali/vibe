@@ -26,10 +26,12 @@ FOUNDATION_EXPORT const CGFloat kVibeThumbnailArtDimension;
 FOUNDATION_EXPORT const CGFloat kVibeDisplayArtDimension;
 
 // The longest side of the display-art rendition archived beside a track's
-// metadata (the macOS header's decode source). Doubles as the pass-through
-// threshold: original art at or under it is archived verbatim, with no decode
-// and no recompression; only larger art is downscaled to this and re-encoded.
-// Aspect is always preserved — the square crop is display-time policy.
+// metadata — the display decode source on both platforms, sized per platform
+// in the .m (640 for the mac header, 1024 for the iOS page, matching its live
+// decode bound). Doubles as the pass-through threshold: original art at or
+// under it is archived verbatim, with no decode and no recompression; only
+// larger art is downscaled to this and re-encoded. Aspect is always preserved
+// — the square crop is display-time policy.
 FOUNDATION_EXPORT const CGFloat kVibeArchivedDisplayArtDimension;
 
 // Decodes image data at a bounded pixel size through ImageIO. Unlike

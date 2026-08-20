@@ -51,8 +51,8 @@ typedef NSData *_Nullable (^AudioTrackArchivedDisplayArtProvider)(void);
 - (void)storeEncodedThumbnailData:(nullable NSData *)encodedData;
 
 // Where the full-art load reads before falling back to file extraction; the
-// loader installs it on macOS only (matching folderArt: unset, every archived
-// display-art path is inert and iOS extracts at full resolution). A provider
+// loader installs it on both platforms, with the rendition sized per platform
+// to match the display decode it stands in for (PlatformImage.m). A provider
 // whose read comes back empty or undecodable is dropped and the load re-enters
 // through the demotion-retry fence, so a lost sidecar costs one extra pass,
 // never a stall. Data transitions (adopt*) clear it; the loader re-stamps.

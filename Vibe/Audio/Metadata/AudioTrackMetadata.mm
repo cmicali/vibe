@@ -463,13 +463,9 @@ static CGFloat VibeEncodedArtMaxDimension(NSData *data) {
     // cache entirely, then the original art bytes are released. The first
     // visible row decodes pixels on demand through the bounded request path.
     (void)[metadata encodeThumbnailDataIfNeeded];
-#if TARGET_OS_OSX
     // The display-art rendition must be cut while the originals still exist;
-    // the loader's cache write consumes the stash. macOS-only with the
-    // provider that reads it back — iOS would pay the disk for entries
-    // nothing opens.
+    // the loader's cache write consumes the stash.
     [metadata stashArchivedDisplayArtDataIfPossible];
-#endif
     [metadata.artwork discardArtData];
     return metadata;
 }

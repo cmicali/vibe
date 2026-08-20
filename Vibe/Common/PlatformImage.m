@@ -14,7 +14,15 @@
 
 const CGFloat kVibeThumbnailArtDimension = 128.0;
 const CGFloat kVibeDisplayArtDimension = 1024.0;
+#if TARGET_OS_OSX
+// The mac header renders at most ~525px, so 640 leaves headroom for less disk.
 const CGFloat kVibeArchivedDisplayArtDimension = 640.0;
+#else
+// The iOS now-playing page is full-screen at 3x, and its live decode caps at
+// kVibeDisplayArtDimension — the rendition matches that bound exactly, so the
+// sidecar is pixel-equivalent to the decode it stands in for.
+const CGFloat kVibeArchivedDisplayArtDimension = 1024.0;
+#endif
 
 VibeImage *VibeDecodedImageWithData(NSData *data, CGFloat maxPixelSize) {
     if (!data) {
