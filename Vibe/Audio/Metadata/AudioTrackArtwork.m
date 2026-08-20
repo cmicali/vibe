@@ -39,6 +39,13 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
 // iOS flushes the cache on a memory warning instead of carrying a byte cap
 // that would silently redefine this count.
 static const NSUInteger kEmbeddedThumbnailCacheCount = 16384;
+// Test-only override: proving LRU eviction by decoding 16k real thumbnails
+// would cost the suite ~20s, so the eviction test shrinks the bound instead.
+static NSUInteger sEmbeddedThumbnailCacheLimitOverride = 0;
+static NSUInteger VibeEmbeddedThumbnailCacheLimit(void) {
+    return sEmbeddedThumbnailCacheLimitOverride
+            ?: kEmbeddedThumbnailCacheCount;
+}
 static const NSUInteger kEmbeddedThumbnailDecodeRunningCount = 2;
 // Parked decode requests are visible rows awaiting pixels; the bound is app
 // memory for parked blocks, unrelated to the pixel cache's own count.
@@ -98,7 +105,7 @@ static const NSUInteger kEmbeddedThumbnailDecodePendingCount = 126;
         _images[key] = image;
         [_leastRecentlyUsedKeys removeObjectIdenticalTo:key];
         [_leastRecentlyUsedKeys addObject:key];
-        while (_images.count > kEmbeddedThumbnailCacheCount) {
+        while (_images.count > VibeEmbeddedThumbnailCacheLimit()) {
             EmbeddedThumbnailKey *evictedKey = _leastRecentlyUsedKeys.firstObject;
             [_leastRecentlyUsedKeys removeObjectAtIndex:0];
             [_images removeObjectForKey:evictedKey];
@@ -454,7 +461,13 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
 }
 
 + (NSUInteger)decodedThumbnailCacheLimitForTesting {
-    return kEmbeddedThumbnailCacheCount;
+    return VibeEmbeddedThumbnailCacheLimit();
+}
+
+// 0 restores the production bound. The override only shrinks what the next
+// setImage: keeps; the caller clears the cache around it.
++ (void)setDecodedThumbnailCacheLimitForTesting:(NSUInteger)limit {
+    sEmbeddedThumbnailCacheLimitOverride = limit;
 }
 
 + (void)clearDecodedThumbnailCacheForTesting {

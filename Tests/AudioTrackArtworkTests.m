@@ -22,6 +22,9 @@
 }
 
 - (void)setUp {
+    // Defensive: an eviction test that failed mid-body must not leave its
+    // shrunken bound behind for the next test.
+    [AudioTrackArtwork setDecodedThumbnailCacheLimitForTesting:0];
     [AudioTrackArtwork clearDecodedThumbnailCacheForTesting];
     _folderCover = [[NSImage alloc] initWithSize:NSMakeSize(4, 4)];
     _directory = @"/Library/Albums/Precedence";
@@ -544,9 +547,12 @@
     XCTAssertEqual(finalDecodeCount, 1u);
 }
 
-- (void)testDecodedThumbnailCacheHasAnExactGlobal128ImageBound {
+- (void)testDecodedThumbnailCacheHasAnExactGlobalImageBound {
+    // The production bound (spec H); the eviction proof below runs shrunk,
+    // since proving it at 16k would cost the suite 16k real decodes.
+    XCTAssertEqual(AudioTrackArtwork.decodedThumbnailCacheLimitForTesting, 16384u);
+    [AudioTrackArtwork setDecodedThumbnailCacheLimitForTesting:8];
     NSUInteger limit = AudioTrackArtwork.decodedThumbnailCacheLimitForTesting;
-    XCTAssertEqual(limit, 128u);
     NSMutableArray<AudioTrackArtwork *> *artworks = [NSMutableArray array];
     NSData *encoded = [self embeddedArtData];
     for (NSUInteger index = 0; index <= limit; index++) {
@@ -559,11 +565,14 @@
     XCTAssertEqual(AudioTrackArtwork.decodedThumbnailCacheCountForTesting, limit);
     XCTAssertFalse(artworks.firstObject.decodedThumbnailIsCachedForTesting);
     XCTAssertTrue(artworks.lastObject.decodedThumbnailIsCachedForTesting);
+    [AudioTrackArtwork setDecodedThumbnailCacheLimitForTesting:0];
 }
 
 // Decodes completing against a full cache evict the oldest entries rather
 // than growing past the bound, and the rows that just decoded stay readable.
+// Runs against the shrunken bound; the production number is pinned above.
 - (void)testCompletingDecodesEvictRatherThanExceedTheBound {
+    [AudioTrackArtwork setDecodedThumbnailCacheLimitForTesting:8];
     NSUInteger limit = [AudioTrackArtwork decodedThumbnailCacheLimitForTesting];
     NSData *encoded = [self embeddedArtData];
     NSMutableArray<AudioTrackArtwork *> *artworks = [NSMutableArray array];
@@ -615,6 +624,7 @@
     XCTAssertTrue(second.decodedThumbnailIsCachedForTesting);
     XCTAssertFalse(artworks.firstObject.decodedThumbnailIsCachedForTesting,
                    @"the two stores must evict the least recently used rows");
+    [AudioTrackArtwork setDecodedThumbnailCacheLimitForTesting:0];
 }
 
 - (void)testCompactThumbnailBytesRoundTripAndDecodeAfterRestore {

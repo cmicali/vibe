@@ -123,6 +123,9 @@ typedef NSData *_Nullable (^AudioTrackArchivedDisplayArtProvider)(void);
 - (void)evictDecodedThumbnailForTesting;
 + (NSUInteger)decodedThumbnailCacheCountForTesting;
 + (NSUInteger)decodedThumbnailCacheLimitForTesting;
+// 0 restores the production bound; eviction tests shrink it rather than
+// paying 16k real decodes.
++ (void)setDecodedThumbnailCacheLimitForTesting:(NSUInteger)limit;
 + (void)clearDecodedThumbnailCacheForTesting;
 
 // Synchronous seam for the state-machine tests. UI callers use the bounded
