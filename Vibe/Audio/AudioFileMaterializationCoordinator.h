@@ -2,12 +2,15 @@
 //  AudioFileMaterializationCoordinator.h
 //  Vibe
 //
-//  Path-wide, role-aware ownership of the one operation that makes an audio
-//  file's contents local. AVAudioFile handle opens remain separately owned.
+//  Path-wide, role-aware ownership of an audio file's whole journey from
+//  dataless placeholder to usable handle: stage 1 is the one operation that
+//  makes the contents local, stage 2 the purpose-keyed AVAudioFile opens
+//  riding it. The open-side types live in AudioFileOpenCoordinator.h.
 //
 
 #import <Foundation/Foundation.h>
 
+#import "AudioFileOpenCoordinator.h"
 #import "AudioLoadingConfiguration.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -73,6 +76,22 @@ typedef void (^VibeAudioFileMaterializationCompletion)(
                                                     role:(VibeAudioFileMaterializationRole)role
                                          completionQueue:(dispatch_queue_t)completionQueue
                                               completion:(VibeAudioFileMaterializationCompletion)completion;
+
+// Stage 2 of the same claim: one current AVAudioFile waiter per purpose and
+// standardized path. A later request for that key replaces the delivery
+// binding without starting another handle open. Playback and prefetch first
+// ride the path-wide transfer (joining any claim already moving those bytes);
+// gapless opens a second local handle directly — the parked file already
+// proved the bytes local. The lane slot a transfer held is carried through
+// its purposes' handle opens and released when the last returns, so a wedged
+// AVAudioFile call is bounded by the same admission that bounded its
+// transfer. Completions run on completionQueue; an admission failure uses
+// VibeAudioFileOpenErrorAdmissionExhausted, distinct from a file open which
+// began and hit the player's ordinary per-file timeout.
+- (AudioFileOpenToken *)openURL:(NSURL *)url
+                         purpose:(VibeAudioFileOpenPurpose)purpose
+                 completionQueue:(dispatch_queue_t)completionQueue
+                      completion:(VibeAudioFileOpenCompletion)completion;
 
 // YES while any live claim carries a playback or prefetch waiter whose
 // materialization has not settled. This is the C1 rule's single source: the

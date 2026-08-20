@@ -8,9 +8,7 @@
 #import <AVFoundation/AVFoundation.h>
 
 #import "AudioFileOpenCoordinator.h"
-#import "AudioFileOpenCoordinatorInternal.h"
 #import "AudioFileMaterializationCoordinatorInternal.h"
-#import "AudioWorkScheduler.h"
 
 @class VibeOpenTestMaterializationHarness;
 
@@ -206,7 +204,7 @@
 
 @implementation AudioFileOpenCoordinatorTests {
     NSURL *_directory;
-    AudioFileOpenCoordinator *_coordinator;
+    AudioFileMaterializationCoordinator *_coordinator;
     dispatch_queue_t _completionQueue;
 }
 
@@ -214,7 +212,7 @@
     [super setUp];
     // Its own instance, never +sharedCoordinator: the claim table is process
     // state, and tests that shared it would see each other's paths.
-    _coordinator = [[AudioFileOpenCoordinator alloc] init];
+    _coordinator = [[AudioFileMaterializationCoordinator alloc] init];
     _completionQueue = dispatch_queue_create("com.vibe.tests.open", DISPATCH_QUEUE_SERIAL);
     _directory = [NSURL fileURLWithPath:[NSTemporaryDirectory()
             stringByAppendingPathComponent:[NSString stringWithFormat:@"vibe-open-%@",
@@ -258,31 +256,6 @@
     NSURL *url = [_directory URLByAppendingPathComponent:name];
     XCTAssertTrue([wav writeToURL:url atomically:YES]);
     return url;
-}
-
-- (AudioFileOpenCoordinator *)coordinatorWithStateQueue:(dispatch_queue_t)stateQueue
-                                    backgroundScheduler:(AudioWorkScheduler *)backgroundScheduler {
-    return [self coordinatorWithStateQueue:stateQueue
-                        backgroundScheduler:backgroundScheduler
-                 materializationCoordinator:
-                         [AudioFileMaterializationCoordinator sharedCoordinator]];
-}
-
-- (AudioFileOpenCoordinator *)coordinatorWithStateQueue:(dispatch_queue_t)stateQueue
-                                    backgroundScheduler:(AudioWorkScheduler *)backgroundScheduler
-                             materializationCoordinator:
-                                     (AudioFileMaterializationCoordinator *)materializationCoordinator {
-    AudioWorkScheduler *playbackScheduler = [[AudioWorkScheduler alloc]
-            initWithLabel:@"com.vibe.tests.open.playback"
-            qualityOfService:QOS_CLASS_USER_INITIATED
-            maximumRunningCount:1 maximumPendingCount:1 pendingGrace:5];
-    AudioWorkScheduler *background = backgroundScheduler ?: [[AudioWorkScheduler alloc]
-            initWithLabel:@"com.vibe.tests.open.background"
-            qualityOfService:QOS_CLASS_UTILITY
-            maximumRunningCount:1 maximumPendingCount:2 pendingGrace:5];
-    return [[AudioFileOpenCoordinator alloc] initWithStateQueue:stateQueue
-            playbackScheduler:playbackScheduler backgroundScheduler:background
-            materializationCoordinator:materializationCoordinator];
 }
 
 - (AudioFileMaterializationCoordinator *)materializationCoordinatorWithHarness:
@@ -410,22 +383,8 @@
         }
         return [[AVAudioFile alloc] initForReading:openURL error:error];
     };
-    AudioWorkScheduler *playbackScheduler = [[AudioWorkScheduler alloc]
-            initWithLabel:@"com.vibe.tests.open.controlled-playback"
-            qualityOfService:QOS_CLASS_USER_INITIATED
-            maximumRunningCount:1 maximumPendingCount:1 pendingGrace:5];
-    AudioWorkScheduler *backgroundScheduler = [[AudioWorkScheduler alloc]
-            initWithLabel:@"com.vibe.tests.open.controlled-background"
-            qualityOfService:QOS_CLASS_UTILITY
-            maximumRunningCount:1 maximumPendingCount:1 pendingGrace:5];
-    dispatch_queue_t stateQueue = dispatch_queue_create(
-            "com.vibe.tests.open.controlled-rebind", DISPATCH_QUEUE_SERIAL);
-    AudioFileOpenCoordinator *coordinator = [[AudioFileOpenCoordinator alloc]
-            initWithStateQueue:stateQueue
-            playbackScheduler:playbackScheduler
-            backgroundScheduler:backgroundScheduler
-            materializationCoordinator:[AudioFileMaterializationCoordinator sharedCoordinator]
-            fileOpener:opener];
+    AudioFileMaterializationCoordinator *coordinator =
+            [[AudioFileMaterializationCoordinator alloc] initWithFileOpener:opener];
 
     XCTestExpectation *oldSilent = [self expectationWithDescription:@"old handle waiter silent"];
     oldSilent.inverted = YES;
@@ -448,7 +407,7 @@
     }];
     // Flush the state queue so the fresh waiter has rebound before the first
     // open is released.
-    dispatch_sync(stateQueue, ^{});
+    (void)[coordinator stateSnapshotForTesting];
     dispatch_semaphore_signal(releaseFirstOpen);
     [self waitForExpectations:@[secondOpened] timeout:2];
     [self waitForExpectations:@[oldSilent] timeout:0.1];
@@ -472,21 +431,8 @@
         dispatch_semaphore_wait(releaseOpen, DISPATCH_TIME_FOREVER);
         return [[AVAudioFile alloc] initForReading:openURL error:error];
     };
-    AudioWorkScheduler *playbackScheduler = [[AudioWorkScheduler alloc]
-            initWithLabel:@"com.vibe.tests.open.rebind-playback"
-            qualityOfService:QOS_CLASS_USER_INITIATED
-            maximumRunningCount:1 maximumPendingCount:1 pendingGrace:5];
-    AudioWorkScheduler *backgroundScheduler = [[AudioWorkScheduler alloc]
-            initWithLabel:@"com.vibe.tests.open.rebind-background"
-            qualityOfService:QOS_CLASS_UTILITY
-            maximumRunningCount:1 maximumPendingCount:1 pendingGrace:5];
-    AudioFileOpenCoordinator *coordinator = [[AudioFileOpenCoordinator alloc]
-            initWithStateQueue:dispatch_queue_create(
-                    "com.vibe.tests.open.rebind", DISPATCH_QUEUE_SERIAL)
-            playbackScheduler:playbackScheduler
-            backgroundScheduler:backgroundScheduler
-            materializationCoordinator:[AudioFileMaterializationCoordinator sharedCoordinator]
-            fileOpener:opener];
+    AudioFileMaterializationCoordinator *coordinator =
+            [[AudioFileMaterializationCoordinator alloc] initWithFileOpener:opener];
 
     XCTestExpectation *supersededSilent = [self expectationWithDescription:@"superseded silent"];
     supersededSilent.inverted = YES;
@@ -562,9 +508,7 @@
             [[VibeOpenTestMaterializationHarness alloc] init];
     AudioFileMaterializationCoordinator *materialization =
             [self materializationCoordinatorWithHarness:harness];
-    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:
-            dispatch_queue_create("com.vibe.tests.open.roles", DISPATCH_QUEUE_SERIAL)
-            backgroundScheduler:nil materializationCoordinator:materialization];
+    AudioFileMaterializationCoordinator *coordinator = materialization;
     NSURL *playURL = [self writeToneNamed:@"role-playback.wav"];
     NSURL *prefetchURL = [self writeToneNamed:@"role-prefetch.wav"];
     NSURL *gaplessURL = [self writeToneNamed:@"role-gapless.wav"];
@@ -606,10 +550,7 @@
             [[VibeOpenTestMaterializationHarness alloc] init];
     AudioFileMaterializationCoordinator *materialization =
             [self materializationCoordinatorWithHarness:harness];
-    dispatch_queue_t stateQueue = dispatch_queue_create(
-            "com.vibe.tests.open.shared-materialization", DISPATCH_QUEUE_SERIAL);
-    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:stateQueue
-            backgroundScheduler:nil materializationCoordinator:materialization];
+    AudioFileMaterializationCoordinator *coordinator = materialization;
     NSURL *url = [self writeToneNamed:@"shared-materialization.wav"];
     XCTestExpectation *playOpened = [self expectationWithDescription:@"play handle"];
     XCTestExpectation *prefetchOpened = [self expectationWithDescription:@"prefetch handle"];
@@ -629,7 +570,7 @@
         [prefetchOpened fulfill];
     }];
     // Flush the state queue so both requests have joined before the snapshot.
-    dispatch_sync(stateQueue, ^{});
+    (void)[coordinator stateSnapshotForTesting];
     VibeAudioFileMaterializationCoordinatorSnapshot snapshot =
             [materialization stateSnapshotForTesting];
     XCTAssertEqual(snapshot.claimCount, 1u);
@@ -647,10 +588,7 @@
             [[VibeOpenTestMaterializationHarness alloc] init];
     AudioFileMaterializationCoordinator *materialization =
             [self materializationCoordinatorWithHarness:harness];
-    dispatch_queue_t stateQueue = dispatch_queue_create(
-            "com.vibe.tests.open.rebind-materialization", DISPATCH_QUEUE_SERIAL);
-    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:stateQueue
-            backgroundScheduler:nil materializationCoordinator:materialization];
+    AudioFileMaterializationCoordinator *coordinator = materialization;
     NSURL *url = [self writeToneNamed:@"rebind-materialization.wav"];
     XCTestExpectation *firstSilent = [self expectationWithDescription:@"old waiter silent"];
     firstSilent.inverted = YES;
@@ -668,7 +606,7 @@
         [secondOpened fulfill];
     }];
     // Flush the state queue so the new waiter has rebound before the cancel.
-    dispatch_sync(stateQueue, ^{});
+    (void)[coordinator stateSnapshotForTesting];
     [first cancel];
     XCTAssertEqual(harness.startedOperations.count, 1u);
     XCTAssertEqual(harness.startedOperations.firstObject.cancellationCount, 0u);
@@ -682,9 +620,7 @@
             [[VibeOpenTestMaterializationHarness alloc] init];
     AudioFileMaterializationCoordinator *materialization =
             [self materializationCoordinatorWithHarness:harness];
-    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:
-            dispatch_queue_create("com.vibe.tests.open.cancel-materialization", DISPATCH_QUEUE_SERIAL)
-            backgroundScheduler:nil materializationCoordinator:materialization];
+    AudioFileMaterializationCoordinator *coordinator = materialization;
     NSURL *url = [self writeToneNamed:@"cancel-materialization.wav"];
     XCTestExpectation *silent = [self expectationWithDescription:@"cancelled delivery"];
     silent.inverted = YES;
@@ -710,10 +646,7 @@
             [[VibeOpenTestMaterializationHarness alloc] init];
     AudioFileMaterializationCoordinator *materialization =
             [self materializationCoordinatorWithHarness:harness];
-    dispatch_queue_t stateQueue = dispatch_queue_create(
-            "com.vibe.tests.open.delayed-central-rebind", DISPATCH_QUEUE_SERIAL);
-    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:stateQueue
-            backgroundScheduler:nil materializationCoordinator:materialization];
+    AudioFileMaterializationCoordinator *coordinator = materialization;
     NSURL *url = [self writeToneNamed:@"delayed-central-rebind.wav"];
     XCTestExpectation *oldSilent = [self expectationWithDescription:@"cancelled outer waiter silent"];
     oldSilent.inverted = YES;
@@ -736,7 +669,7 @@
         [newOpened fulfill];
     }];
     // Flush the state queue so the replacement has rebound before the snapshot.
-    dispatch_sync(stateQueue, ^{});
+    (void)[coordinator stateSnapshotForTesting];
     VibeAudioFileMaterializationCoordinatorSnapshot rebound =
             [materialization stateSnapshotForTesting];
     XCTAssertEqual(rebound.claimCount, 1u);
@@ -762,9 +695,7 @@
             [[VibeOpenTestMaterializationHarness alloc] init];
     AudioFileMaterializationCoordinator *materialization =
             [self materializationCoordinatorWithHarness:harness];
-    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:
-            dispatch_queue_create("com.vibe.tests.open.materialization-failure", DISPATCH_QUEUE_SERIAL)
-            backgroundScheduler:nil materializationCoordinator:materialization];
+    AudioFileMaterializationCoordinator *coordinator = materialization;
     NSURL *url = [self writeToneNamed:@"materialization-failure.wav"];
     XCTestExpectation *failed = [self expectationWithDescription:@"terminal failure"];
     __unused AudioFileOpenToken *token = [coordinator openURL:url
@@ -794,9 +725,7 @@
     XCTAssertNil(configurationError);
     AudioFileMaterializationCoordinator *materialization =
             [self materializationCoordinatorWithHarness:harness configuration:configuration];
-    AudioFileOpenCoordinator *coordinator = [self coordinatorWithStateQueue:
-            dispatch_queue_create("com.vibe.tests.open.materialization-admission", DISPATCH_QUEUE_SERIAL)
-            backgroundScheduler:nil materializationCoordinator:materialization];
+    AudioFileMaterializationCoordinator *coordinator = materialization;
     NSURL *blockerURL = [self writeToneNamed:@"admission-blocker.wav"];
     NSURL *rejectedURL = [self writeToneNamed:@"admission-rejected.wav"];
     AudioFileOpenToken *blocker = [coordinator openURL:blockerURL

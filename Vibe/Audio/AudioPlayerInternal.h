@@ -14,7 +14,7 @@
 //
 
 #import "AudioPlayer.h"
-#import "AudioFileOpenCoordinator.h"
+#import "AudioFileMaterializationCoordinator.h"
 #import "AudioFileOpenTimeoutMath.h"
 #import "AudioLevelTap.h"
 #import "PlaybackRequestCoordinator.h"

@@ -62,22 +62,9 @@ typedef void (^VibeAudioFileOpenCompletion)(AVAudioFile * _Nullable file,
 
 @end
 
-@interface AudioFileOpenCoordinator : NSObject
-
-+ (instancetype)sharedCoordinator;
-
-// One current AVAudioFile waiter per purpose and standardized path. A later
-// request for that key replaces the delivery binding without starting another
-// handle open. Playback and prefetch first join one path-wide materialization
-// claim across purposes; gapless opens a second local handle directly.
-// Completions run on completionQueue. An admission failure uses
-// VibeAudioFileOpenErrorAdmissionExhausted, distinct from a file open which
-// began and hit the player's ordinary per-file timeout.
-- (AudioFileOpenToken *)openURL:(NSURL *)url
-                         purpose:(VibeAudioFileOpenPurpose)purpose
-                 completionQueue:(dispatch_queue_t)completionQueue
-                      completion:(VibeAudioFileOpenCompletion)completion;
-
-@end
+// The coordinator behind these types is AudioFileMaterializationCoordinator:
+// the handle open is stage 2 of the same path-keyed claim whose stage 1 is
+// the provider transfer, so one object owns the whole journey from dataless
+// placeholder to usable AVAudioFile. openURL:purpose:… is declared there.
 
 NS_ASSUME_NONNULL_END

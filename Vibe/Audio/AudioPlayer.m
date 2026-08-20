@@ -629,7 +629,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     _openSubmittedUptime = NSProcessInfo.processInfo.systemUptime;
     _openLastPositiveMovementUptime = 0;
     __weak AudioPlayer *weakSelf = self;
-    _playOpenToken = [[AudioFileOpenCoordinator sharedCoordinator]
+    _playOpenToken = [[AudioFileMaterializationCoordinator sharedCoordinator]
             openURL:openURL
             purpose:VibeAudioFileOpenPurposePlayback
             completionQueue:_queue

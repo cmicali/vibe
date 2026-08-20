@@ -217,7 +217,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
 | Slow-open indicator threshold | 0.5 s | `AudioPlayer.m:72` |
 | Open no-progress deadline | 60 s | `AudioFileOpenTimeoutMath.h:15` |
 | Open progress-silence deadline | 60 s past last movement | `AudioFileOpenTimeoutMath.h:16` |
-| Foreground transfers (running / pending / grace) | 2 / 1 / 5 s | `AudioLoadingConfiguration.m` |
+| Foreground transfers (running / pending / grace) | 3 / 1 / 5 s — the slot spans transfer + handle open (J7) | `AudioLoadingConfiguration.m` |
 | Background transfers (running / pending / grace) | 1 / 6 / 10 s | same |
 | Prefetch depth | 1 | same |
 | Metadata attempts per path (total) | 3 | same (`metadataRetryCount` 2) |

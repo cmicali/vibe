@@ -23,10 +23,11 @@ VibeAudioLoadingConfigurationValues VibeAudioLoadingProductionConfigurationValue
     values.maximumBackgroundMaterializations = 1;
     values.localMetadataParseConcurrency = 4;
     values.prefetchDepth = 1;
-    values.maximumInteractiveMaterializations = 2;
+    // Three, not two: the lane slot a transfer holds is carried through its
+    // AVAudioFile open (spec J7), so a wedged open occupies a slot until
+    // process exit — at two, one wedge would halve foreground capacity.
+    values.maximumInteractiveMaterializations = 3;
     values.maximumInteractivePendingMaterializations = 1;
-    // One scan, four priority requests and one successor prefetch stay bounded
-    // without letting the scan consume the prefetch's reserved admission.
     values.maximumBackgroundPendingMaterializations = 6;
     values.interactiveAdmissionGrace = 5.0;
     values.backgroundAdmissionGrace = 10.0;

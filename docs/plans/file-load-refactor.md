@@ -182,6 +182,6 @@ on-device pager check.
 
 - [x] Phase 0 — thumbnail LRU (cb4bc02)
 - [x] Phase 1 — one lane
-- [ ] Phase 2 — rule internalized
+- [x] Phase 2 — rule internalized (72a0fc0 preemption, 59ca5e3 acknowledgement deletion)
 - [ ] Phase 3 — one coordinator
 - [ ] Phase 4 — artwork

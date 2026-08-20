@@ -7,7 +7,10 @@
 
 #import "AudioFileOpenRules.h"
 #import "CloudFileMaterializer.h"
+#import "NSURL+AudioOpen.h"
 #import "NSURLUtil.h"
+
+#import <AVFoundation/AVFoundation.h>
 
 #import <os/lock.h>
 
@@ -15,6 +18,7 @@
 
 NSString * const VibeAudioFileMaterializationErrorDomain =
         @"com.vibe.audio-file-materialization";
+NSString * const VibeAudioFileOpenErrorDomain = @"com.vibe.audio-file-open";
 
 typedef NS_ENUM(NSUInteger, VibeMaterializationLane) {
     VibeMaterializationLaneInteractive = 0,
@@ -48,6 +52,36 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
                    error:(nullable NSError *)error
                  elapsed:(NSTimeInterval)elapsed;
 - (void)runDelivery;
+@end
+
+@interface AudioFileOpenToken ()
+- (instancetype)initWithCoordinator:(AudioFileMaterializationCoordinator *)coordinator
+                                  key:(NSString *)key
+                      completionQueue:(dispatch_queue_t)completionQueue
+                           completion:(VibeAudioFileOpenCompletion)completion;
+@property (nonatomic, weak) AudioFileMaterializationCoordinator *coordinator;
+@property (nonatomic, copy) NSString *key;
+@property (nonatomic, strong) dispatch_queue_t completionQueue;
+- (nullable VibeAudioFileOpenCompletion)takeCompletionForDelivery;
+- (BOOL)deliveryStillWaiting;
+@end
+
+// Stage 2: one purpose's AVAudioFile open for one standardized path, riding
+// the path's transfer claim. Lean on purpose: the run IS the old open
+// coordinator's claim, on the same state queue as the transfer it follows.
+@interface VibeAudioHandleRun : NSObject
+@property (nonatomic, copy) NSString *key;         // "purpose:path"
+@property (nonatomic, copy) NSString *path;
+@property (nonatomic, strong) NSURL *url;
+@property (nonatomic) VibeAudioFileOpenPurpose purpose;
+@property (nonatomic, strong, nullable) AudioFileOpenToken *waiter;
+@property (nonatomic, strong, nullable) AudioFileMaterializationRequestToken *materializationToken;
+@property (nonatomic) uint64_t runGeneration;
+@property (nonatomic) BOOL runWasCancelled;
+@property (nonatomic) CFAbsoluteTime submittedAt;
+@end
+
+@implementation VibeAudioHandleRun
 @end
 
 @interface VibeAudioFileMaterializationWaiter : NSObject
@@ -123,6 +157,7 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 
 @interface AudioFileMaterializationCoordinator ()
 - (void)detachRequestToken:(AudioFileMaterializationRequestToken *)token;
+- (void)detachOpenToken:(AudioFileOpenToken *)token;
 @end
 
 @implementation AudioFileMaterializationRequestToken {
@@ -231,6 +266,63 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 
 @end
 
+@implementation AudioFileOpenToken {
+    os_unfair_lock _deliveryLock;
+    VibeAudioFileOpenDeliveryState _deliveryState;
+    VibeAudioFileOpenCompletion _completion;
+}
+
+- (instancetype)initWithCoordinator:(AudioFileMaterializationCoordinator *)coordinator
+                                  key:(NSString *)key
+                      completionQueue:(dispatch_queue_t)completionQueue
+                           completion:(VibeAudioFileOpenCompletion)completion {
+    self = [super init];
+    if (self) {
+        _deliveryLock = OS_UNFAIR_LOCK_INIT;
+        _deliveryState = VibeAudioFileOpenDeliveryWaiting;
+        _coordinator = coordinator;
+        _key = [key copy];
+        _completionQueue = completionQueue;
+        _completion = [completion copy];
+    }
+    return self;
+}
+
+- (void)cancel {
+    VibeAudioFileOpenCompletion completionToRelease = nil;
+    os_unfair_lock_lock(&_deliveryLock);
+    if (VibeAudioFileOpenDetachDelivery(&_deliveryState)) {
+        completionToRelease = _completion;
+        _completion = nil;
+    }
+    os_unfair_lock_unlock(&_deliveryLock);
+    (void)completionToRelease;
+    [self.coordinator detachOpenToken:self];
+}
+
+// Whether a cancel has not yet detached this token. openURL's state-queue
+// block reads it so a token cancelled between creation and installation never
+// installs a run.
+- (BOOL)deliveryStillWaiting {
+    os_unfair_lock_lock(&_deliveryLock);
+    BOOL waiting = _deliveryState == VibeAudioFileOpenDeliveryWaiting;
+    os_unfair_lock_unlock(&_deliveryLock);
+    return waiting;
+}
+
+- (VibeAudioFileOpenCompletion)takeCompletionForDelivery {
+    VibeAudioFileOpenCompletion completion = nil;
+    os_unfair_lock_lock(&_deliveryLock);
+    if (VibeAudioFileOpenBeginDelivery(&_deliveryState)) {
+        completion = _completion;
+        _completion = nil;
+    }
+    os_unfair_lock_unlock(&_deliveryLock);
+    return completion;
+}
+
+@end
+
 static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKey;
 
 @implementation AudioFileMaterializationCoordinator {
@@ -239,6 +331,12 @@ static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKe
     dispatch_queue_t _backgroundWorkerQueue;
     dispatch_source_t _pendingTimer;
     NSMutableDictionary<NSString *, VibeAudioFileMaterializationClaim *> *_claims;
+    // Stage 2, keyed "purpose:path". A run outlives its transfer claim: the
+    // claim leaves _claims at settlement while the AVAudioFile open it fed is
+    // still returning, and the transfer's lane slot rides along in
+    // _carriedSlotLanes until the path's last run finishes.
+    NSMutableDictionary<NSString *, VibeAudioHandleRun *> *_handleRuns;
+    NSMutableDictionary<NSString *, NSNumber *> *_carriedSlotLanes;
     NSMutableArray<VibeAudioFileMaterializationClaim *> *_interactivePending;
     NSMutableArray<VibeAudioFileMaterializationClaim *> *_backgroundPending;
     NSUInteger _interactiveRunningCount;
@@ -249,6 +347,7 @@ static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKe
     VibeAudioFileMaterializationOperationFactory _operationFactory;
     VibeAudioFileMaterializationDatalessProbe _datalessProbe;
     VibeAudioFileMaterializationClock _clock;
+    VibeAudioFileOpener _fileOpener;
 }
 
 + (instancetype)sharedCoordinator {
@@ -273,11 +372,40 @@ static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKe
     }];
 }
 
+- (instancetype)initWithFileOpener:(VibeAudioFileOpener)fileOpener {
+    AudioLoadingConfiguration *configuration = [AudioLoadingConfiguration productionConfiguration];
+    return [self initWithConfiguration:configuration
+                      operationFactory:^id<AudioFileMaterializationOperation>(
+                              NSURL *url, VibeAudioFileMaterializationRole role) {
+        return [[VibeCloudFileMaterializationOperation alloc] initWithURL:url role:role];
+    } datalessProbe:^BOOL(NSURL *url) {
+        return [NSURLUtil isDatalessFile:url];
+    } clock:^NSTimeInterval{
+        return NSProcessInfo.processInfo.systemUptime;
+    } fileOpener:fileOpener];
+}
+
 - (instancetype)initWithConfiguration:(AudioLoadingConfiguration *)configuration
                       operationFactory:(VibeAudioFileMaterializationOperationFactory)operationFactory
                           datalessProbe:(VibeAudioFileMaterializationDatalessProbe)datalessProbe
                                   clock:(VibeAudioFileMaterializationClock)clock {
+    return [self initWithConfiguration:configuration
+                      operationFactory:operationFactory
+                          datalessProbe:datalessProbe
+                                  clock:clock
+                            fileOpener:^AVAudioFile *(NSURL *url, NSError **error) {
+        return url.isEmptyOrDirectory
+                ? nil : [[AVAudioFile alloc] initForReading:url error:error];
+    }];
+}
+
+- (instancetype)initWithConfiguration:(AudioLoadingConfiguration *)configuration
+                      operationFactory:(VibeAudioFileMaterializationOperationFactory)operationFactory
+                          datalessProbe:(VibeAudioFileMaterializationDatalessProbe)datalessProbe
+                                  clock:(VibeAudioFileMaterializationClock)clock
+                            fileOpener:(VibeAudioFileOpener)fileOpener {
     NSParameterAssert(configuration);
+    NSParameterAssert(fileOpener);
     NSParameterAssert(operationFactory);
     NSParameterAssert(datalessProbe);
     NSParameterAssert(clock);
@@ -287,7 +415,10 @@ static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKe
         _operationFactory = [operationFactory copy];
         _datalessProbe = [datalessProbe copy];
         _clock = [clock copy];
+        _fileOpener = [fileOpener copy];
         _claims = [NSMutableDictionary dictionary];
+        _handleRuns = [NSMutableDictionary dictionary];
+        _carriedSlotLanes = [NSMutableDictionary dictionary];
         _interactivePending = [NSMutableArray array];
         _backgroundPending = [NSMutableArray array];
         _stateQueue = dispatch_queue_create("com.vibe.materialization.state", DISPATCH_QUEUE_SERIAL);
@@ -623,7 +754,17 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
             || claim.state != VibeMaterializationClaimStateRunning) {
         return;
     }
-    if (claim.lane == VibeMaterializationLaneInteractive) {
+    // A Ready transfer with handle runs riding this path hands its lane slot
+    // to them rather than releasing it: the AVAudioFile opens it fed are
+    // still returning, and a wedged one must stay inside the same admission
+    // that bounded its transfer (spec J7). The path's last run releases it.
+    BOOL carrySlot = ready && !claim.runWasCancelled
+            && [self pathHasLiveHandleRuns:claim.path]
+            && _carriedSlotLanes[claim.path] == nil;
+    if (carrySlot) {
+        _carriedSlotLanes[claim.path] = @(claim.lane);
+    }
+    else if (claim.lane == VibeMaterializationLaneInteractive) {
         if (_interactiveRunningCount > 0) _interactiveRunningCount--;
     }
     else {
@@ -816,6 +957,249 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
             DISPATCH_TIME_FOREVER, NSEC_PER_MSEC);
 }
 
+#pragma mark - Stage 2: purpose-keyed AVAudioFile opens
+
+static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *path) {
+    return [NSString stringWithFormat:@"%ld:%@", (long)purpose, path];
+}
+
+- (BOOL)pathHasLiveHandleRuns:(NSString *)path {
+    for (long purpose = VibeAudioFileOpenPurposePlayback;
+            purpose <= VibeAudioFileOpenPurposeGapless; purpose++) {
+        if (_handleRuns[VibeHandleRunKey((VibeAudioFileOpenPurpose)purpose, path)]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (void)releaseCarriedSlotIfNoLiveRunsForPath:(NSString *)path {
+    if ([self pathHasLiveHandleRuns:path]) {
+        return;
+    }
+    NSNumber *lane = _carriedSlotLanes[path];
+    if (lane == nil) {
+        return;
+    }
+    [_carriedSlotLanes removeObjectForKey:path];
+    if ((VibeMaterializationLane)lane.unsignedIntegerValue
+            == VibeMaterializationLaneInteractive) {
+        if (_interactiveRunningCount > 0) _interactiveRunningCount--;
+    }
+    else {
+        if (_backgroundRunningCount > 0) _backgroundRunningCount--;
+    }
+    [self drainPendingClaims];
+    [self reschedulePendingTimer];
+}
+
+- (AudioFileOpenToken *)openURL:(NSURL *)url
+                         purpose:(VibeAudioFileOpenPurpose)purpose
+                 completionQueue:(dispatch_queue_t)completionQueue
+                      completion:(VibeAudioFileOpenCompletion)completion {
+    NSParameterAssert(url);
+    NSParameterAssert(completionQueue);
+    NSParameterAssert(completion);
+    NSString *path = VibeStandardizedAudioOpenPath(url);
+    NSString *key = VibeHandleRunKey(purpose, path);
+    AudioFileOpenToken *token = [[AudioFileOpenToken alloc] initWithCoordinator:self
+            key:key completionQueue:completionQueue completion:completion];
+    dispatch_async(_stateQueue, ^{
+        if (![token deliveryStillWaiting]) {
+            return;
+        }
+        VibeAudioHandleRun *run = self->_handleRuns[key];
+        if (run) {
+            // Same purpose, same path: the new request replaces the delivery
+            // binding without another handle open. The superseded token stays
+            // silent by never taking delivery.
+            run.waiter = token;
+            return;
+        }
+        run = [[VibeAudioHandleRun alloc] init];
+        run.key = key;
+        run.path = path;
+        run.url = url;
+        run.purpose = purpose;
+        run.waiter = token;
+        run.submittedAt = CFAbsoluteTimeGetCurrent();
+        self->_handleRuns[key] = run;
+        [self startHandleRunStages:run];
+    });
+    return token;
+}
+
+- (void)detachOpenToken:(AudioFileOpenToken *)token {
+    if (!token) {
+        return;
+    }
+    dispatch_async(_stateQueue, ^{
+        VibeAudioHandleRun *run = self->_handleRuns[token.key];
+        if (run.waiter != token) {
+            return; // already rebound, completed, or detached
+        }
+        run.waiter = nil;
+        // Marked abandoned in the same step that clears the waiter, and never
+        // separately: finishHandleRun: reads this to tell "the run produced
+        // nothing because nobody was waiting" from "the file genuinely would
+        // not open".
+        run.runWasCancelled = YES;
+        if (run.materializationToken) {
+            // Still stage 1: nothing uncancellable has begun, so the run can
+            // simply end. The transfer detach settles its own accounting.
+            [run.materializationToken cancel];
+            run.materializationToken = nil;
+            [self->_handleRuns removeObjectForKey:run.key];
+            [self releaseCarriedSlotIfNoLiveRunsForPath:run.path];
+        }
+        // Stage 2 already dispatched: the AVAudioFile call is uncancellable
+        // and keeps the run (and its carried slot) until it returns.
+    });
+}
+
+- (void)startHandleRunStages:(VibeAudioHandleRun *)run {
+    run.runGeneration++;
+    uint64_t runGeneration = run.runGeneration;
+    if (run.purpose == VibeAudioFileOpenPurposeGapless) {
+        // Stage 2 only: the parked file already proved the bytes local, and
+        // the private handle must never share the parked instance. The open
+        // borrows a background slot (over-subscribing briefly, like the
+        // local-file fast path) so a wedged call still counts somewhere.
+        if (self->_carriedSlotLanes[run.path] == nil) {
+            self->_backgroundRunningCount++;
+            self->_carriedSlotLanes[run.path] = @(VibeMaterializationLaneBackground);
+        }
+        [self dispatchHandleOpenForRun:run runGeneration:runGeneration];
+        return;
+    }
+    VibeAudioFileMaterializationRole role = run.purpose
+            == VibeAudioFileOpenPurposePlayback
+            ? VibeAudioFileMaterializationRolePlayback
+            : VibeAudioFileMaterializationRolePrefetch;
+    __weak AudioFileMaterializationCoordinator *weakSelf = self;
+    run.materializationToken = [self materializeURL:run.url
+                                               role:role
+                                    completionQueue:_stateQueue
+                                         completion:^(VibeAudioFileMaterializationResult result,
+                                                      NSError *error, NSTimeInterval elapsed) {
+        AudioFileMaterializationCoordinator *strongSelf = weakSelf;
+        if (strongSelf) {
+            [strongSelf handleRunTransferSettled:run runGeneration:runGeneration
+                                          result:result error:error];
+        }
+    }];
+}
+
+- (NSError *)openErrorForMaterializationResult:(VibeAudioFileMaterializationResult)result
+                                     underlying:(NSError *)underlying {
+    VibeAudioFileOpenErrorCode code;
+    NSString *description;
+    switch (result) {
+        case VibeAudioFileMaterializationResultAdmissionExhausted:
+            code = VibeAudioFileOpenErrorAdmissionExhausted;
+            description = @"Audio materialization capacity was exhausted";
+            break;
+        case VibeAudioFileMaterializationResultYielded:
+            code = VibeAudioFileOpenErrorMaterializationYielded;
+            description = @"Audio materialization yielded before opening the file";
+            break;
+        case VibeAudioFileMaterializationResultFailed:
+            code = VibeAudioFileOpenErrorMaterializationFailed;
+            description = @"Audio materialization failed before opening the file";
+            break;
+        case VibeAudioFileMaterializationResultReady:
+            return nil;
+    }
+    NSMutableDictionary *userInfo = [@{NSLocalizedDescriptionKey: description} mutableCopy];
+    if (underlying) {
+        userInfo[NSUnderlyingErrorKey] = underlying;
+    }
+    return [NSError errorWithDomain:VibeAudioFileOpenErrorDomain
+                               code:code userInfo:userInfo];
+}
+
+- (void)handleRunTransferSettled:(VibeAudioHandleRun *)run
+                    runGeneration:(uint64_t)runGeneration
+                           result:(VibeAudioFileMaterializationResult)result
+                            error:(NSError *)error {
+    VibeAudioHandleRun *current = _handleRuns[run.key];
+    if (current != run || run.runGeneration != runGeneration) {
+        return;
+    }
+    run.materializationToken = nil;
+    if (result == VibeAudioFileMaterializationResultReady) {
+        [self dispatchHandleOpenForRun:run runGeneration:runGeneration];
+        return;
+    }
+    NSError *reported = [self openErrorForMaterializationResult:result underlying:error];
+    [self finishHandleRun:run runGeneration:runGeneration file:nil error:reported];
+}
+
+- (void)dispatchHandleOpenForRun:(VibeAudioHandleRun *)run
+                    runGeneration:(uint64_t)runGeneration {
+    if (!run.waiter) {
+        // Abandoned before the uncancellable call began: nothing to open.
+        [self finishHandleRun:run runGeneration:runGeneration file:nil error:nil];
+        return;
+    }
+    dispatch_queue_t workerQueue = run.purpose == VibeAudioFileOpenPurposePlayback
+            ? _interactiveWorkerQueue : _backgroundWorkerQueue;
+    __weak AudioFileMaterializationCoordinator *weakSelf = self;
+    dispatch_async(workerQueue, ^{
+        AudioFileMaterializationCoordinator *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        NSError *error = nil;
+        AVAudioFile *file = strongSelf->_fileOpener(run.url, &error);
+        dispatch_async(strongSelf->_stateQueue, ^{
+            [strongSelf finishHandleRun:run runGeneration:runGeneration
+                                   file:file error:error];
+        });
+    });
+}
+
+- (void)finishHandleRun:(VibeAudioHandleRun *)run
+           runGeneration:(uint64_t)runGeneration
+                    file:(AVAudioFile *)file
+                   error:(NSError *)error {
+    VibeAudioHandleRun *current = _handleRuns[run.key];
+    if (current != run || run.runGeneration != runGeneration) {
+        return;
+    }
+    AudioFileOpenToken *waiter = run.waiter;
+    // A waiter may have rebound after cancellation but before the abandoned
+    // stage returned. Give it a fresh run; never turn the old waiter's
+    // cancellation into the new waiter's open failure.
+    if (!file && waiter && run.runWasCancelled) {
+        run.runWasCancelled = NO;
+        [self startHandleRunStages:run];
+        return;
+    }
+    [_handleRuns removeObjectForKey:run.key];
+    [self releaseCarriedSlotIfNoLiveRunsForPath:run.path];
+    if (!waiter) {
+        return;
+    }
+    // A completion is a result, so it always carries one: either a file or a
+    // reason there is none (VibeAudioFileOpenErrorAbandoned is the enforced
+    // backstop, reachable only if the abandoned-run path above were defeated).
+    NSError *reported = error;
+    if (!file && !reported) {
+        reported = [NSError errorWithDomain:VibeAudioFileOpenErrorDomain
+                code:VibeAudioFileOpenErrorAbandoned
+                userInfo:@{NSLocalizedDescriptionKey:
+                        @"The audio file open was abandoned before it produced a result"}];
+    }
+    NSTimeInterval elapsed = CFAbsoluteTimeGetCurrent() - run.submittedAt;
+    dispatch_async(waiter.completionQueue, ^{
+        VibeAudioFileOpenCompletion completion = [waiter takeCompletionForDelivery];
+        if (completion) {
+            completion(file, reported, elapsed);
+        }
+    });
+}
+
 - (VibeAudioFileMaterializationCoordinatorSnapshot)stateSnapshotForTesting {
     __block VibeAudioFileMaterializationCoordinatorSnapshot snapshot;
     [self performStateSynchronously:^{
@@ -828,6 +1212,7 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
         snapshot.backgroundRunningCount = self->_backgroundRunningCount;
         snapshot.interactivePendingCount = self->_interactivePending.count;
         snapshot.backgroundPendingCount = self->_backgroundPending.count;
+        snapshot.handleRunCount = self->_handleRuns.count;
         snapshot.foregroundTransferActive = [self foregroundTransferActiveLocked];
     }];
     return snapshot;

@@ -174,7 +174,7 @@
             @"prefetchDepth": @1,
         },
         @"diagnostic": @{
-            @"interactive": @2,
+            @"interactive": @3,
             @"interactivePending": @1,
             @"backgroundPending": @6,
             @"interactiveGrace": @5,

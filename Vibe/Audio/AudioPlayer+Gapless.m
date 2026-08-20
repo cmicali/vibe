@@ -58,7 +58,7 @@
     NSString *path = track.url.path;
     _gaplessOpenPath = path;
     __weak AudioPlayer *weakSelf = self;
-    _gaplessOpenToken = [[AudioFileOpenCoordinator sharedCoordinator]
+    _gaplessOpenToken = [[AudioFileMaterializationCoordinator sharedCoordinator]
             openURL:track.url
             purpose:VibeAudioFileOpenPurposeGapless
             completionQueue:_queue
@@ -337,7 +337,7 @@
     }
     uint64_t prefetchGeneration = _prefetchGeneration;
     __weak AudioPlayer *weakSelf = self;
-    _prefetchOpenToken = [[AudioFileOpenCoordinator sharedCoordinator]
+    _prefetchOpenToken = [[AudioFileMaterializationCoordinator sharedCoordinator]
             openURL:track.url
             purpose:VibeAudioFileOpenPurposePrefetch
             completionQueue:_queue
