@@ -39,13 +39,11 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
                                 path:(NSString *)path
                           identifier:(uint64_t)identifier
                      completionQueue:(dispatch_queue_t)completionQueue
-                          registered:(nullable dispatch_block_t)registered
                           completion:(VibeAudioFileMaterializationCompletion)completion;
 @property (nonatomic, weak) AudioFileMaterializationCoordinator *coordinator;
 @property (nonatomic, copy) NSString *path;
 @property (nonatomic) uint64_t identifier;
 - (BOOL)isDetached;
-- (void)deliverRegistration;
 - (void)settleWithResult:(VibeAudioFileMaterializationResult)result
                    error:(nullable NSError *)error
                  elapsed:(NSTimeInterval)elapsed;
@@ -131,11 +129,8 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
     os_unfair_lock _deliveryLock;
     VibeMaterializationDeliveryState _deliveryState;
     dispatch_queue_t _completionQueue;
-    dispatch_block_t _registered;
     VibeAudioFileMaterializationCompletion _completion;
     BOOL _deliveryRunnerScheduled;
-    BOOL _registrationRequired;
-    BOOL _registrationDeliveryBegan;
     BOOL _settled;
     VibeAudioFileMaterializationResult _settledResult;
     NSError *_settledError;
@@ -146,7 +141,6 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
                                 path:(NSString *)path
                           identifier:(uint64_t)identifier
                      completionQueue:(dispatch_queue_t)completionQueue
-                          registered:(dispatch_block_t)registered
                           completion:(VibeAudioFileMaterializationCompletion)completion {
     self = [super init];
     if (self) {
@@ -156,28 +150,23 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
         _path = [path copy];
         _identifier = identifier;
         _completionQueue = completionQueue;
-        _registered = [registered copy];
         _completion = [completion copy];
     }
     return self;
 }
 
 - (void)cancel {
-    dispatch_block_t registeredToRelease = nil;
     VibeAudioFileMaterializationCompletion completionToRelease = nil;
     NSError *errorToRelease = nil;
     os_unfair_lock_lock(&_deliveryLock);
     if (_deliveryState == VibeMaterializationDeliveryWaiting) {
         _deliveryState = VibeMaterializationDeliveryDetached;
-        registeredToRelease = _registered;
-        _registered = nil;
         completionToRelease = _completion;
         _completion = nil;
         errorToRelease = _settledError;
         _settledError = nil;
     }
     os_unfair_lock_unlock(&_deliveryLock);
-    (void)registeredToRelease;
     (void)completionToRelease;
     (void)errorToRelease;
     [self.coordinator detachRequestToken:self];
@@ -190,24 +179,6 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
     return detached;
 }
 
-- (void)deliverRegistration {
-    BOOL shouldSchedule = NO;
-    os_unfair_lock_lock(&_deliveryLock);
-    if (_deliveryState == VibeMaterializationDeliveryWaiting) {
-        _registrationRequired = YES;
-        if (!_deliveryRunnerScheduled) {
-            _deliveryRunnerScheduled = YES;
-            shouldSchedule = YES;
-        }
-    }
-    os_unfair_lock_unlock(&_deliveryLock);
-    if (shouldSchedule) {
-        dispatch_async(_completionQueue, ^{
-            [self runDelivery];
-        });
-    }
-}
-
 - (void)settleWithResult:(VibeAudioFileMaterializationResult)result
                    error:(NSError *)error
                  elapsed:(NSTimeInterval)elapsed {
@@ -218,10 +189,6 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
         _settledResult = result;
         _settledError = error;
         _settledElapsed = elapsed;
-        if (result == VibeAudioFileMaterializationResultReady
-                || result == VibeAudioFileMaterializationResultFailed) {
-            _registrationRequired = YES;
-        }
         if (!_deliveryRunnerScheduled) {
             _deliveryRunnerScheduled = YES;
             shouldSchedule = YES;
@@ -235,59 +202,30 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
     }
 }
 
+// Single-shot: a settle schedules exactly one delivery, and a cancel landing
+// before it runs suppresses the queued completion. The two-phase loop this
+// once was existed only to order the registered: callback ahead of the
+// completion; the registration concept left with the acknowledgement
+// machinery.
 - (void)runDelivery {
-    while (YES) {
-        dispatch_block_t registered = nil;
-        dispatch_block_t registeredToRelease = nil;
-        VibeAudioFileMaterializationCompletion completion = nil;
-        NSError *error = nil;
-        VibeAudioFileMaterializationResult result = VibeAudioFileMaterializationResultFailed;
-        NSTimeInterval elapsed = 0;
-        BOOL processedRegistration = NO;
-
-        os_unfair_lock_lock(&_deliveryLock);
-        if (_deliveryState == VibeMaterializationDeliveryDetached) {
-            _deliveryRunnerScheduled = NO;
-            os_unfair_lock_unlock(&_deliveryLock);
-            return;
-        }
-        if (_registrationRequired && !_registrationDeliveryBegan) {
-            _registrationDeliveryBegan = YES;
-            processedRegistration = YES;
-            registered = _registered;
-            _registered = nil;
-        }
-        else if (_settled
-                && (!_registrationRequired || _registrationDeliveryBegan)) {
-            _deliveryState = VibeMaterializationDeliveryBegan;
-            _deliveryRunnerScheduled = NO;
-            completion = _completion;
-            _completion = nil;
-            registeredToRelease = _registered;
-            _registered = nil;
-            result = _settledResult;
-            error = _settledError;
-            _settledError = nil;
-            elapsed = _settledElapsed;
-        }
-        else {
-            _deliveryRunnerScheduled = NO;
-            os_unfair_lock_unlock(&_deliveryLock);
-            return;
-        }
-        os_unfair_lock_unlock(&_deliveryLock);
-
-        if (processedRegistration) {
-            if (registered) {
-                registered();
-            }
-            continue;
-        }
-        (void)registeredToRelease;
-        if (completion) {
-            completion(result, error, elapsed);
-        }
-        return;
+    VibeAudioFileMaterializationCompletion completion = nil;
+    NSError *error = nil;
+    VibeAudioFileMaterializationResult result = VibeAudioFileMaterializationResultFailed;
+    NSTimeInterval elapsed = 0;
+    os_unfair_lock_lock(&_deliveryLock);
+    _deliveryRunnerScheduled = NO;
+    if (_deliveryState == VibeMaterializationDeliveryWaiting && _settled) {
+        _deliveryState = VibeMaterializationDeliveryBegan;
+        completion = _completion;
+        _completion = nil;
+        result = _settledResult;
+        error = _settledError;
+        _settledError = nil;
+        elapsed = _settledElapsed;
+    }
+    os_unfair_lock_unlock(&_deliveryLock);
+    if (completion) {
+        completion(result, error, elapsed);
     }
 }
 
@@ -505,7 +443,6 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
 - (AudioFileMaterializationRequestToken *)materializeURL:(NSURL *)url
                                                     role:(VibeAudioFileMaterializationRole)role
                                          completionQueue:(dispatch_queue_t)completionQueue
-                                              registered:(dispatch_block_t)registered
                                               completion:(VibeAudioFileMaterializationCompletion)completion {
     NSParameterAssert(url);
     NSParameterAssert(completionQueue);
@@ -516,7 +453,7 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
         uint64_t identifier = [self nextRequestIdentifier];
         token = [[AudioFileMaterializationRequestToken alloc]
                 initWithCoordinator:self path:path identifier:identifier
-                completionQueue:completionQueue registered:registered completion:completion];
+                completionQueue:completionQueue completion:completion];
         [self expirePendingClaimsAtTime:self->_clock() drain:NO];
         VibeAudioFileMaterializationClaim *claim = self->_claims[path];
         // The rule suspends provider transfers; a request for an already-local
@@ -554,7 +491,6 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
                     && claim.effectiveRole != oldRole) {
                 [self readmitPendingClaim:claim];
             }
-            [token deliverRegistration];
             [self drainPendingClaims];
             [self reschedulePendingTimer];
             return;
@@ -577,7 +513,6 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
             [self reschedulePendingTimer];
             return;
         }
-        [token deliverRegistration];
         [self reschedulePendingTimer];
     }];
     return token;

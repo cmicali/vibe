@@ -54,12 +54,9 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AudioPlayer (Gapless)
 
 // Runs on _queue. nil drops the park, which is what a play past the last track
-// does. claimed is prefetchTrack:whenClaimed:'s acknowledgement, already
-// wrapped to deliver on main; every branch that settles the request's claim
-// question — registered, already owned, or terminally retired — invokes it
-// once. A different-path request suppressed behind playback retains its track
+// does. A different-path request suppressed behind playback retains its track
 // and resumes only after that playback succeeds.
-- (void)prefetchOnQueue:(nullable AudioTrack *)track whenClaimed:(nullable void (^)(void))claimed;
+- (void)prefetchOnQueue:(nullable AudioTrack *)track;
 
 // Every site in AudioPlayer.m that stops and reschedules the current node must
 // disarm and re-arm through these.

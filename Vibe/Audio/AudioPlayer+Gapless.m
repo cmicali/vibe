@@ -9,10 +9,8 @@
 #import "GaplessSpliceMath.h"
 
 @interface AudioPlayer (GaplessPrivate)
-- (void)beginPrefetchRequestOnQueueForTrack:(nullable AudioTrack *)track
-                                    claimed:(nullable dispatch_block_t)claimed;
+- (void)beginPrefetchRequestOnQueueForTrack:(nullable AudioTrack *)track;
 - (void)settlePrefetchRequestOnQueueForIdentifier:(uint64_t)requestIdentifier;
-- (void)resolvePrefetchRequestOnQueue;
 - (void)processPrefetchRequestOnQueueForIdentifier:(uint64_t)requestIdentifier;
 @end
 
@@ -224,148 +222,51 @@
     }
 }
 
-- (void)applyPrefetchAcknowledgementTransitionOnQueue:
-        (VibeAudioPrefetchAcknowledgementTransition)transition {
-    dispatch_block_t waiter = _prefetchClaimWaiter;
-    _prefetchAcknowledgementState = transition.state;
-    if (transition.action & VibeAudioPrefetchAcknowledgementActionDeliver) {
-        _prefetchClaimWaiter = nil;
-        if (waiter) {
-            waiter();
-        }
-    }
-    if (!_prefetchAcknowledgementState.requestActive) {
+- (void)applyPrefetchRequestTransitionOnQueue:
+        (VibeAudioPrefetchRequestTransition)transition {
+    _prefetchRequestState = transition.state;
+    if (!_prefetchRequestState.requestActive) {
         _requestedPrefetchTrack = nil;
         _requestedPrefetchPath = nil;
-        _prefetchClaimWaiter = nil;
-        _prefetchClaimObservationToken = nil;
     }
 }
 
-- (void)beginPrefetchRequestOnQueueForTrack:(AudioTrack *)track
-                                    claimed:(dispatch_block_t)claimed {
-    dispatch_block_t retiredWaiter = _prefetchClaimWaiter;
-    VibeAudioPrefetchAcknowledgementTransition transition =
-            VibeAudioPrefetchAcknowledgementBegin(
-                    _prefetchAcknowledgementState, claimed != nil);
-    _prefetchAcknowledgementState = transition.state;
+- (void)beginPrefetchRequestOnQueueForTrack:(AudioTrack *)track {
+    _prefetchRequestState = VibeAudioPrefetchRequestBegin(_prefetchRequestState).state;
     _requestedPrefetchTrack = track;
     _requestedPrefetchPath = track.url.path;
-    _prefetchClaimWaiter = [claimed copy];
-    _prefetchClaimObservationToken = nil;
-    if ((transition.action & VibeAudioPrefetchAcknowledgementActionDeliver)
-            && retiredWaiter) {
-        retiredWaiter();
-    }
 }
 
 - (void)settlePrefetchRequestOnQueueForIdentifier:(uint64_t)requestIdentifier {
-    [self applyPrefetchAcknowledgementTransitionOnQueue:
-            VibeAudioPrefetchAcknowledgementClaimSettled(
-                    _prefetchAcknowledgementState, requestIdentifier)];
+    [self applyPrefetchRequestTransitionOnQueue:
+            VibeAudioPrefetchRequestFinish(_prefetchRequestState, requestIdentifier)];
 }
 
 - (void)terminallyRetirePrefetchRequestOnQueue {
-    uint64_t requestIdentifier = _prefetchAcknowledgementState.currentRequestIdentifier;
-    [self applyPrefetchAcknowledgementTransitionOnQueue:
-            VibeAudioPrefetchAcknowledgementTerminallyRetired(
-                    _prefetchAcknowledgementState, requestIdentifier)];
+    [self settlePrefetchRequestOnQueueForIdentifier:
+            _prefetchRequestState.currentRequestIdentifier];
 }
 
 - (void)playbackDidSucceedForPrefetchOnQueue {
-    uint64_t requestIdentifier = _prefetchAcknowledgementState.currentRequestIdentifier;
-    VibeAudioPrefetchAcknowledgementTransition transition =
-            VibeAudioPrefetchAcknowledgementPlaybackSucceeded(
-                    _prefetchAcknowledgementState, requestIdentifier);
-    [self applyPrefetchAcknowledgementTransitionOnQueue:transition];
-    if (transition.action & VibeAudioPrefetchAcknowledgementActionResume) {
+    uint64_t requestIdentifier = _prefetchRequestState.currentRequestIdentifier;
+    VibeAudioPrefetchRequestTransition transition =
+            VibeAudioPrefetchRequestPlaybackSucceeded(
+                    _prefetchRequestState, requestIdentifier);
+    [self applyPrefetchRequestTransitionOnQueue:transition];
+    if (transition.action & VibeAudioPrefetchRequestActionResume) {
         [self processPrefetchRequestOnQueueForIdentifier:requestIdentifier];
     }
 }
 
-- (void)observePrefetchClaimToken:(AudioFileOpenToken *)token
-                             path:(NSString *)path
-                requestIdentifier:(uint64_t)requestIdentifier {
-    if (!token || token == _prefetchClaimObservationToken) {
-        return;
-    }
-    _prefetchClaimObservationToken = token;
-    __weak AudioPlayer *weakSelf = self;
-    [token whenClaimedOnQueue:_queue completion:^(VibeAudioFileOpenClaimResult result) {
-        AudioPlayer *strongSelf = weakSelf;
-        if (!strongSelf) {
-            return;
-        }
-        if (strongSelf->_prefetchClaimObservationToken == token) {
-            strongSelf->_prefetchClaimObservationToken = nil;
-        }
-        if (!strongSelf->_prefetchAcknowledgementState.requestActive
-                || requestIdentifier
-                        != strongSelf->_prefetchAcknowledgementState.currentRequestIdentifier) {
-            return;
-        }
-        if ([path isEqualToString:strongSelf->_requestedPrefetchPath]) {
-            BOOL currentPrefetchClaim = token == strongSelf->_prefetchOpenToken
-                    && [path isEqualToString:strongSelf->_prefetchedPath];
-            VibePlaybackRequest *pending = strongSelf.pendingRequest.currentRequest;
-            BOOL currentPlaybackClaim = token == strongSelf->_playOpenToken
-                    && [path isEqualToString:pending.path];
-            if (currentPrefetchClaim || currentPlaybackClaim) {
-                // Claimed means the successor is atomically registered;
-                // Cancelled means central admission rejected it and no
-                // transfer can race the resumed metadata lane. Either verdict
-                // settles the shell's ordering wait. Re-observing a Cancelled
-                // current token would only enqueue the same verdict forever.
-                [strongSelf settlePrefetchRequestOnQueueForIdentifier:requestIdentifier];
-                return;
-            }
-        }
-        [strongSelf resolvePrefetchRequestOnQueue];
-    }];
-}
-
-- (void)resolvePrefetchRequestOnQueue {
-    if (!_prefetchAcknowledgementState.requestActive) {
-        return;
-    }
-    uint64_t requestIdentifier = _prefetchAcknowledgementState.currentRequestIdentifier;
-    NSString *path = _requestedPrefetchPath;
-    if (!path) {
-        [self settlePrefetchRequestOnQueueForIdentifier:requestIdentifier];
-        return;
-    }
-    if ([path isEqualToString:_prefetchedPath] && _prefetchedFile) {
-        [self settlePrefetchRequestOnQueueForIdentifier:requestIdentifier];
-        return;
-    }
-    if ([path isEqualToString:_prefetchedPath] && _prefetchOpenToken) {
-        [self observePrefetchClaimToken:_prefetchOpenToken
-                                   path:path
-                      requestIdentifier:requestIdentifier];
-        return;
-    }
-    VibePlaybackRequest *pending = self.pendingRequest.currentRequest;
-    if ([path isEqualToString:pending.path] && _playOpenToken) {
-        [self observePrefetchClaimToken:_playOpenToken
-                                   path:path
-                      requestIdentifier:requestIdentifier];
-        return;
-    }
-    [self settlePrefetchRequestOnQueueForIdentifier:requestIdentifier];
-}
-
-// Opens the file on the bounded background lane and parks the handle for
-// playOnQueue: to consume. A play arriving mid-open has its own interactive
-// lane, while same-path prefetch requests reuse this claim.
-- (void)prefetchOnQueue:(AudioTrack *)track whenClaimed:(void (^)(void))claimed {
-    [self beginPrefetchRequestOnQueueForTrack:track claimed:claimed];
+- (void)prefetchOnQueue:(AudioTrack *)track {
+    [self beginPrefetchRequestOnQueueForTrack:track];
     [self processPrefetchRequestOnQueueForIdentifier:
-            _prefetchAcknowledgementState.currentRequestIdentifier];
+            _prefetchRequestState.currentRequestIdentifier];
 }
 
 - (void)processPrefetchRequestOnQueueForIdentifier:(uint64_t)requestIdentifier {
-    if (!_prefetchAcknowledgementState.requestActive
-            || requestIdentifier != _prefetchAcknowledgementState.currentRequestIdentifier) {
+    if (!_prefetchRequestState.requestActive
+            || requestIdentifier != _prefetchRequestState.currentRequestIdentifier) {
         return;
     }
     AudioTrack *track = _requestedPrefetchTrack;
@@ -375,9 +276,10 @@
             path, _prefetchedPath, _prefetchedFile != nil, _prefetchOpenToken != nil,
             pending.path);
     if (disposition == VibeAudioPrefetchDispositionSuppressBehindPlayback) {
-        _prefetchAcknowledgementState =
-                VibeAudioPrefetchAcknowledgementSuppressBehindPlayback(
-                        _prefetchAcknowledgementState, requestIdentifier).state;
+        // The one path that keeps the request ACTIVE: the retained target is
+        // what playbackDidSucceedForPrefetchOnQueue resumes.
+        _prefetchRequestState = VibeAudioPrefetchRequestSuppressBehindPlayback(
+                _prefetchRequestState, requestIdentifier).state;
         return;
     }
     // The armed splice must track the prefetch target. When the playlist's
@@ -405,11 +307,11 @@
         else if (_prefetchedFile && !_gaplessQueued) {
             [self maybeOpenGaplessFileForTrack:track prefetchedFile:_prefetchedFile];
         }
-        [self resolvePrefetchRequestOnQueue];
+        [self settlePrefetchRequestOnQueueForIdentifier:requestIdentifier];
         return;
     }
     if (disposition == VibeAudioPrefetchDispositionJoinPlaybackClaim) {
-        [self resolvePrefetchRequestOnQueue];
+        [self settlePrefetchRequestOnQueueForIdentifier:requestIdentifier];
         return; // being opened for playback right now
     }
     [self clearPrefetchOnQueue];
@@ -446,10 +348,6 @@
         }
         if (prefetchGeneration == strongSelf->_prefetchGeneration) {
             strongSelf->_prefetchOpenToken = nil;
-            if ([path isEqualToString:strongSelf->_requestedPrefetchPath]) {
-                [strongSelf settlePrefetchRequestOnQueueForIdentifier:
-                        strongSelf->_prefetchAcknowledgementState.currentRequestIdentifier];
-            }
         }
         VibePlaybackRequest *request = strongSelf.pendingRequest.currentRequest;
         if (request && [path isEqualToString:request.path]) {
@@ -484,7 +382,11 @@
             [strongSelf clearPrefetchOnQueue];
         }
     }];
-    [self resolvePrefetchRequestOnQueue];
+    // Every non-suppressed disposition ends the request here: with no
+    // acknowledgement to time, the request's remaining job — carrying the
+    // target for a suppressed resume — is over the moment its disposition is
+    // applied. The open above completes into _prefetchedFile on its own.
+    [self settlePrefetchRequestOnQueueForIdentifier:requestIdentifier];
 }
 
 @end

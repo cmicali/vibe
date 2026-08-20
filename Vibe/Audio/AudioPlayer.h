@@ -154,20 +154,6 @@ NS_ASSUME_NONNULL_BEGIN
 // the playlist's own next-track object.
 - (void)prefetchTrack:(nullable AudioTrack *)track;
 
-// prefetchTrack: plus an acknowledgement, delivered once on the main thread,
-// that the prefetch's open claim is REGISTERED — or that no claim is needed:
-// a nil track, a path already parked, or a path the in-flight play already
-// owns. Registration, not admission or completion: the block says the claim
-// is visible to any later same-path query, not that the file has begun or
-// finished opening, so it cannot be delayed by a parked admission. It is how
-// the shell orders "release the background-download hold" after "the
-// successor's claim exists", closing the window where the metadata lane and
-// the prefetch would each start a transfer of the same file. The
-// acknowledgement can arrive after a newer play has re-asserted the hold, so
-// its handler must drop it when the track it was issued for is no longer the
-// playlist's current one.
-- (void)prefetchTrack:(nullable AudioTrack *)track whenClaimed:(nullable void (^)(void))claimed;
-
 // The provider reported the pending open's transfer MOVING. Extends that
 // open's abandon deadline, matched against the underlying open request's
 // unique identifier rather than its path. A same-row replay preserves that

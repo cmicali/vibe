@@ -656,7 +656,6 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
                                           ? VibeAudioFileMaterializationRoleMetadataPriority
                                           : VibeAudioFileMaterializationRoleMetadataScan
                        completionQueue:strongSelf->_materializationCallbackQueue
-                            registered:nil
                             completion:^(VibeAudioFileMaterializationResult result,
                                          NSError *error,
                                          NSTimeInterval elapsed) {

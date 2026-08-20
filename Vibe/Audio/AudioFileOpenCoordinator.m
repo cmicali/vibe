@@ -19,21 +19,6 @@ NSString * const VibeAudioFileOpenErrorDomain = @"com.vibe.audio-file-open";
 static const NSTimeInterval kInteractiveAdmissionGraceSeconds = 5.0;
 static const NSTimeInterval kBackgroundAdmissionGraceSeconds = 10.0;
 
-typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
-    VibeAudioFileOpenTokenClaimStatePending = 0,
-    VibeAudioFileOpenTokenClaimStateInstalled,
-    VibeAudioFileOpenTokenClaimStateClaimed,
-    VibeAudioFileOpenTokenClaimStateCancelled,
-};
-
-@interface VibeAudioFileOpenClaimObserver : NSObject
-@property (nonatomic, strong) dispatch_queue_t queue;
-@property (nonatomic, copy) void (^completion)(VibeAudioFileOpenClaimResult result);
-@end
-
-@implementation VibeAudioFileOpenClaimObserver
-@end
-
 @interface AudioFileOpenToken ()
 - (instancetype)initWithCoordinator:(AudioFileOpenCoordinator *)coordinator
                                   key:(NSString *)key
@@ -43,9 +28,7 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
 @property (nonatomic, copy) NSString *key;
 @property (nonatomic, strong) dispatch_queue_t completionQueue;
 - (nullable VibeAudioFileOpenCompletion)takeCompletionForDelivery;
-- (BOOL)beginClaimInstallation;
-- (void)markClaimed;
-- (void)cancelUnclaimedRegistration;
+- (BOOL)deliveryStillWaiting;
 @end
 
 @interface VibeAudioFileOpenClaim : NSObject
@@ -55,8 +38,6 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
 @property (nonatomic, strong, nullable) AudioFileOpenToken *waiter;
 @property (nonatomic, strong, nullable) AudioFileMaterializationRequestToken *materializationToken;
 @property (nonatomic, strong, nullable) AudioWorkToken *workToken;
-@property (nonatomic, strong) NSMutableArray<AudioFileOpenToken *> *unclaimedTokens;
-@property (nonatomic) BOOL materializationRegistered;
 @property (nonatomic) uint64_t runGeneration;
 @property (nonatomic) BOOL runWasCancelled;
 @property (nonatomic) CFAbsoluteTime submittedAt;
@@ -73,8 +54,6 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
     os_unfair_lock _deliveryLock;
     VibeAudioFileOpenDeliveryState _deliveryState;
     VibeAudioFileOpenCompletion _completion;
-    VibeAudioFileOpenTokenClaimState _claimState;
-    NSMutableArray<VibeAudioFileOpenClaimObserver *> *_claimObservers;
 }
 
 - (instancetype)initWithCoordinator:(AudioFileOpenCoordinator *)coordinator
@@ -85,8 +64,6 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
     if (self) {
         _deliveryLock = OS_UNFAIR_LOCK_INIT;
         _deliveryState = VibeAudioFileOpenDeliveryWaiting;
-        _claimState = VibeAudioFileOpenTokenClaimStatePending;
-        _claimObservers = [NSMutableArray array];
         _coordinator = coordinator;
         _key = [key copy];
         _completionQueue = completionQueue;
@@ -97,99 +74,24 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
 
 - (void)cancel {
     VibeAudioFileOpenCompletion completionToRelease = nil;
-    NSArray<VibeAudioFileOpenClaimObserver *> *observers = nil;
     os_unfair_lock_lock(&_deliveryLock);
     if (VibeAudioFileOpenDetachDelivery(&_deliveryState)) {
         completionToRelease = _completion;
         _completion = nil;
     }
-    if (_claimState == VibeAudioFileOpenTokenClaimStatePending
-            || _claimState == VibeAudioFileOpenTokenClaimStateInstalled) {
-        _claimState = VibeAudioFileOpenTokenClaimStateCancelled;
-        observers = [_claimObservers copy];
-        [_claimObservers removeAllObjects];
-    }
     os_unfair_lock_unlock(&_deliveryLock);
     (void)completionToRelease;
-    for (VibeAudioFileOpenClaimObserver *observer in observers) {
-        dispatch_async(observer.queue, ^{
-            observer.completion(VibeAudioFileOpenClaimResultCancelled);
-        });
-    }
     [self.coordinator detachToken:self];
 }
 
-- (void)whenClaimedOnQueue:(dispatch_queue_t)queue
-                completion:(void (^)(VibeAudioFileOpenClaimResult result))completion {
-    if (!queue || !completion) {
-        return;
-    }
-    VibeAudioFileOpenClaimObserver *observer = [[VibeAudioFileOpenClaimObserver alloc] init];
-    observer.queue = queue;
-    observer.completion = completion;
-    __block BOOL settled = NO;
-    __block VibeAudioFileOpenClaimResult result = VibeAudioFileOpenClaimResultClaimed;
+// Whether a cancel has not yet detached this token. openURL's state-queue
+// block reads it so a token cancelled between creation and installation never
+// installs a claim.
+- (BOOL)deliveryStillWaiting {
     os_unfair_lock_lock(&_deliveryLock);
-    if (_claimState == VibeAudioFileOpenTokenClaimStatePending
-            || _claimState == VibeAudioFileOpenTokenClaimStateInstalled) {
-        [_claimObservers addObject:observer];
-    }
-    else {
-        settled = YES;
-        result = _claimState == VibeAudioFileOpenTokenClaimStateClaimed
-                ? VibeAudioFileOpenClaimResultClaimed
-                : VibeAudioFileOpenClaimResultCancelled;
-    }
+    BOOL waiting = _deliveryState == VibeAudioFileOpenDeliveryWaiting;
     os_unfair_lock_unlock(&_deliveryLock);
-    if (settled) {
-        dispatch_async(queue, ^{
-            completion(result);
-        });
-    }
-}
-
-- (BOOL)beginClaimInstallation {
-    BOOL canInstall = NO;
-    os_unfair_lock_lock(&_deliveryLock);
-    if (_claimState == VibeAudioFileOpenTokenClaimStatePending) {
-        _claimState = VibeAudioFileOpenTokenClaimStateInstalled;
-        canInstall = YES;
-    }
-    os_unfair_lock_unlock(&_deliveryLock);
-    return canInstall;
-}
-
-- (void)markClaimed {
-    NSArray<VibeAudioFileOpenClaimObserver *> *observers = nil;
-    os_unfair_lock_lock(&_deliveryLock);
-    if (_claimState == VibeAudioFileOpenTokenClaimStateInstalled) {
-        _claimState = VibeAudioFileOpenTokenClaimStateClaimed;
-        observers = [_claimObservers copy];
-        [_claimObservers removeAllObjects];
-    }
-    os_unfair_lock_unlock(&_deliveryLock);
-    for (VibeAudioFileOpenClaimObserver *observer in observers) {
-        dispatch_async(observer.queue, ^{
-            observer.completion(VibeAudioFileOpenClaimResultClaimed);
-        });
-    }
-}
-
-- (void)cancelUnclaimedRegistration {
-    NSArray<VibeAudioFileOpenClaimObserver *> *observers = nil;
-    os_unfair_lock_lock(&_deliveryLock);
-    if (_claimState == VibeAudioFileOpenTokenClaimStatePending
-            || _claimState == VibeAudioFileOpenTokenClaimStateInstalled) {
-        _claimState = VibeAudioFileOpenTokenClaimStateCancelled;
-        observers = [_claimObservers copy];
-        [_claimObservers removeAllObjects];
-    }
-    os_unfair_lock_unlock(&_deliveryLock);
-    for (VibeAudioFileOpenClaimObserver *observer in observers) {
-        dispatch_async(observer.queue, ^{
-            observer.completion(VibeAudioFileOpenClaimResultCancelled);
-        });
-    }
+    return waiting;
 }
 
 - (VibeAudioFileOpenCompletion)takeCompletionForDelivery {
@@ -308,7 +210,7 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
     AudioFileOpenToken *token = [[AudioFileOpenToken alloc] initWithCoordinator:self
             key:key completionQueue:completionQueue completion:completion];
     dispatch_async(_stateQueue, ^{
-        if (![token beginClaimInstallation]) {
+        if (![token deliveryStillWaiting]) {
             return;
         }
         VibeAudioFileOpenClaim *claim = self->_claims[key];
@@ -318,19 +220,10 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
             claim.key = key;
             claim.url = url;
             claim.purpose = purpose;
-            claim.unclaimedTokens = [NSMutableArray array];
             self->_claims[key] = claim;
             created = YES;
         }
         claim.waiter = token;
-        if (purpose != VibeAudioFileOpenPurposeGapless
-                && !claim.materializationRegistered) {
-            [claim.unclaimedTokens addObject:token];
-        }
-        if (purpose == VibeAudioFileOpenPurposeGapless
-                || claim.materializationRegistered) {
-            [token markClaimed];
-        }
         if (created) {
             [self startClaim:claim];
         }
@@ -357,10 +250,6 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
         if (claim.materializationToken) {
             [claim.materializationToken cancel];
             claim.materializationToken = nil;
-            for (AudioFileOpenToken *unclaimed in claim.unclaimedTokens) {
-                [unclaimed cancelUnclaimedRegistration];
-            }
-            [claim.unclaimedTokens removeAllObjects];
             [self->_claims removeObjectForKey:claim.key];
             return;
         }
@@ -379,7 +268,6 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
     uint64_t runGeneration = claim.runGeneration;
     claim.runWasCancelled = NO;
     claim.submittedAt = CFAbsoluteTimeGetCurrent();
-    claim.materializationRegistered = claim.purpose == VibeAudioFileOpenPurposeGapless;
     if (claim.purpose == VibeAudioFileOpenPurposeGapless) {
         [self scheduleAudioFileOpenForClaim:claim runGeneration:runGeneration];
         return;
@@ -394,33 +282,14 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
             materializeURL:claim.url
                      role:role
           completionQueue:_stateQueue
-               registered:^{
-        AudioFileOpenCoordinator *strongSelf = weakSelf;
-        if (strongSelf) {
-            [strongSelf materializationRegisteredForClaim:claim runGeneration:runGeneration];
-        }
-    } completion:^(VibeAudioFileMaterializationResult result,
-                   NSError *error, NSTimeInterval elapsed) {
+               completion:^(VibeAudioFileMaterializationResult result,
+                            NSError *error, NSTimeInterval elapsed) {
         AudioFileOpenCoordinator *strongSelf = weakSelf;
         if (strongSelf) {
             [strongSelf materializationSettledForClaim:claim runGeneration:runGeneration
                                                 result:result error:error];
         }
     }];
-}
-
-- (void)materializationRegisteredForClaim:(VibeAudioFileOpenClaim *)claim
-                             runGeneration:(uint64_t)runGeneration {
-    VibeAudioFileOpenClaim *current = _claims[claim.key];
-    if (current != claim || current.runGeneration != runGeneration) {
-        return;
-    }
-    current.materializationRegistered = YES;
-    NSArray<AudioFileOpenToken *> *tokens = [current.unclaimedTokens copy];
-    [current.unclaimedTokens removeAllObjects];
-    for (AudioFileOpenToken *token in tokens) {
-        [token markClaimed];
-    }
 }
 
 - (NSError *)openErrorForMaterializationResult:(VibeAudioFileMaterializationResult)result
@@ -460,21 +329,10 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
         return;
     }
     current.materializationToken = nil;
-    if (result == VibeAudioFileMaterializationResultReady
-            || result == VibeAudioFileMaterializationResultFailed) {
-        // A completed operation necessarily passed central registration. Make
-        // this robust to a zero-duration fake whose completion delivery raced
-        // its asynchronous registration delivery.
-        [self materializationRegisteredForClaim:current runGeneration:runGeneration];
-    }
     if (result == VibeAudioFileMaterializationResultReady) {
         [self scheduleAudioFileOpenForClaim:current runGeneration:runGeneration];
         return;
     }
-    for (AudioFileOpenToken *token in current.unclaimedTokens) {
-        [token cancelUnclaimedRegistration];
-    }
-    [current.unclaimedTokens removeAllObjects];
     NSError *reported = [self openErrorForMaterializationResult:result underlying:error];
     NSTimeInterval elapsed = CFAbsoluteTimeGetCurrent() - current.submittedAt;
     [self finishClaim:current runGeneration:runGeneration file:nil error:reported elapsed:elapsed];
@@ -544,10 +402,6 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenTokenClaimState) {
         [self->_claims removeObjectForKey:claim.key];
         current.workToken = nil;
         current.materializationToken = nil;
-        for (AudioFileOpenToken *token in current.unclaimedTokens) {
-            [token cancelUnclaimedRegistration];
-        }
-        [current.unclaimedTokens removeAllObjects];
         if (!waiter) {
             return;
         }

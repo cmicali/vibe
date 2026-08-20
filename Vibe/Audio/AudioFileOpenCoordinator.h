@@ -43,11 +43,6 @@ typedef void (^VibeAudioFileOpenCompletion)(AVAudioFile * _Nullable file,
                                              NSError * _Nullable error,
                                              NSTimeInterval elapsed);
 
-typedef NS_ENUM(NSInteger, VibeAudioFileOpenClaimResult) {
-    VibeAudioFileOpenClaimResultClaimed = 0,
-    VibeAudioFileOpenClaimResultCancelled,
-};
-
 @interface AudioFileOpenToken : NSObject
 
 - (instancetype)init NS_UNAVAILABLE;
@@ -64,16 +59,6 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenClaimResult) {
 // back knows to give the new waiter a fresh run instead of handing it the
 // abandoned one's empty result.
 - (void)cancel;
-
-// Observes the token's own registration rather than a path-shaped intent in
-// AudioPlayer. An observer added before registration parks; one added after
-// settlement is delivered asynchronously exactly once. Claimed means the
-// request is atomically visible both here and, except for gapless, in the
-// path-wide materialization coordinator. It does not mean either worker has
-// admitted it. Cancellation or central rejection before that point settles
-// Cancelled.
-- (void)whenClaimedOnQueue:(dispatch_queue_t)queue
-                completion:(void (^)(VibeAudioFileOpenClaimResult result))completion;
 
 @end
 

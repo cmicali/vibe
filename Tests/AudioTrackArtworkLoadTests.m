@@ -67,16 +67,12 @@
 - (AudioFileMaterializationRequestToken *)materializeURL:(NSURL *)url
         role:(VibeAudioFileMaterializationRole)role
         completionQueue:(dispatch_queue_t)completionQueue
-        registered:(dispatch_block_t)registered
         completion:(VibeAudioFileMaterializationCompletion)completion {
     NSUInteger index = MIN(_attemptCount, _results.count - 1);
     VibeAudioFileMaterializationResult result =
             (VibeAudioFileMaterializationResult)_results[index].unsignedIntegerValue;
     _attemptCount++;
     dispatch_async(completionQueue, ^{
-        if (registered && result == VibeAudioFileMaterializationResultReady) {
-            registered();
-        }
         completion(result, nil, 0);
     });
     // This fake delivers asynchronously but has nothing to cancel.

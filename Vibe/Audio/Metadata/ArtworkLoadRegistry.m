@@ -194,7 +194,6 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
             materializeURL:sourceURL
             role:VibeAudioFileMaterializationRoleMetadataPriority
             completionQueue:dispatch_get_main_queue()
-            registered:nil
             completion:^(VibeAudioFileMaterializationResult result, NSError *error,
                          NSTimeInterval elapsed) {
         ArtworkLoadRegistry *strongSelf = weakSelf;

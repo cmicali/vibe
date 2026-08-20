@@ -113,9 +113,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     uint64_t                _prefetchGeneration;
     AudioTrack              *_requestedPrefetchTrack;
     NSString                *_requestedPrefetchPath;
-    VibeAudioPrefetchAcknowledgementState _prefetchAcknowledgementState;
-    dispatch_block_t        _prefetchClaimWaiter;
-    AudioFileOpenToken      *_prefetchClaimObservationToken;
+    VibeAudioPrefetchRequestState _prefetchRequestState;
 
     // ---- Delivery tokens for the bounded open coordinator. Cancelling one
     // detaches this player and aborts materialization, but an AVAudioFile open

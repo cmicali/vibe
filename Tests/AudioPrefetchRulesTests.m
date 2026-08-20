@@ -78,109 +78,71 @@
                    VibeAudioPrefetchDispositionStartClaim);
 }
 
-- (void)testSuppressedAcknowledgementResumesAfterPlaySuccessAndSettlesOnceOnClaim {
-    VibeAudioPrefetchAcknowledgementState state =
-            VibeAudioPrefetchAcknowledgementStateMake();
-    VibeAudioPrefetchAcknowledgementTransition transition =
-            VibeAudioPrefetchAcknowledgementBegin(state, YES);
-    state = transition.state;
+// The request lifecycle that outlived the acknowledgement machinery: identity
+// (a stale identifier changes nothing) and suppression-resume (a different-
+// path prefetch requested mid-open is retained; the play's success resumes
+// that exact target, its failure or supersession drops it).
+- (void)testSuppressedRequestResumesAfterPlaySuccess {
+    VibeAudioPrefetchRequestState state = VibeAudioPrefetchRequestStateMake();
+    state = VibeAudioPrefetchRequestBegin(state).state;
     uint64_t requestIdentifier = state.currentRequestIdentifier;
-    XCTAssertEqual(transition.action, VibeAudioPrefetchAcknowledgementActionNone);
 
-    transition = VibeAudioPrefetchAcknowledgementSuppressBehindPlayback(
-            state, requestIdentifier);
-    state = transition.state;
+    state = VibeAudioPrefetchRequestSuppressBehindPlayback(
+            state, requestIdentifier).state;
     XCTAssertTrue(state.suppressedBehindPlayback);
 
-    transition = VibeAudioPrefetchAcknowledgementPlaybackSucceeded(
-            state, requestIdentifier);
-    state = transition.state;
-    XCTAssertEqual(transition.action, VibeAudioPrefetchAcknowledgementActionResume);
-    XCTAssertTrue(state.requestActive);
-    XCTAssertTrue(state.acknowledgementPending);
-
-    transition = VibeAudioPrefetchAcknowledgementClaimSettled(
-            state, requestIdentifier);
-    state = transition.state;
-    XCTAssertEqual(transition.action, VibeAudioPrefetchAcknowledgementActionDeliver);
-    XCTAssertFalse(state.requestActive);
-
-    transition = VibeAudioPrefetchAcknowledgementClaimSettled(
-            state, requestIdentifier);
-    XCTAssertEqual(transition.action, VibeAudioPrefetchAcknowledgementActionNone);
+    VibeAudioPrefetchRequestTransition transition =
+            VibeAudioPrefetchRequestPlaybackSucceeded(state, requestIdentifier);
+    XCTAssertEqual(transition.action, VibeAudioPrefetchRequestActionResume);
+    XCTAssertTrue(transition.state.requestActive);
+    XCTAssertFalse(transition.state.suppressedBehindPlayback);
 }
 
-- (void)testSuppressedAcknowledgementSettlesOnceWhenPlaybackFails {
-    VibeAudioPrefetchAcknowledgementState state =
-            VibeAudioPrefetchAcknowledgementStateMake();
-    state = VibeAudioPrefetchAcknowledgementBegin(state, YES).state;
+- (void)testUnsuppressedRequestFinishesOnPlaySuccess {
+    VibeAudioPrefetchRequestState state = VibeAudioPrefetchRequestStateMake();
+    state = VibeAudioPrefetchRequestBegin(state).state;
     uint64_t requestIdentifier = state.currentRequestIdentifier;
-    state = VibeAudioPrefetchAcknowledgementSuppressBehindPlayback(
-            state, requestIdentifier).state;
 
-    VibeAudioPrefetchAcknowledgementTransition transition =
-            VibeAudioPrefetchAcknowledgementTerminallyRetired(
-                    state, requestIdentifier);
-    state = transition.state;
-    XCTAssertEqual(transition.action, VibeAudioPrefetchAcknowledgementActionDeliver);
-    transition = VibeAudioPrefetchAcknowledgementTerminallyRetired(
-            state, requestIdentifier);
-    XCTAssertEqual(transition.action, VibeAudioPrefetchAcknowledgementActionNone);
-}
-
-- (void)testSuppressedAcknowledgementSettlesOnceWhenPlayIsSuperseded {
-    VibeAudioPrefetchAcknowledgementState state =
-            VibeAudioPrefetchAcknowledgementStateMake();
-    state = VibeAudioPrefetchAcknowledgementBegin(state, YES).state;
-    uint64_t requestIdentifier = state.currentRequestIdentifier;
-    state = VibeAudioPrefetchAcknowledgementSuppressBehindPlayback(
-            state, requestIdentifier).state;
-
-    VibeAudioPrefetchAcknowledgementTransition transition =
-            VibeAudioPrefetchAcknowledgementTerminallyRetired(
-                    state, requestIdentifier);
-    XCTAssertEqual(transition.action, VibeAudioPrefetchAcknowledgementActionDeliver);
+    VibeAudioPrefetchRequestTransition transition =
+            VibeAudioPrefetchRequestPlaybackSucceeded(state, requestIdentifier);
+    XCTAssertEqual(transition.action, VibeAudioPrefetchRequestActionNone);
     XCTAssertFalse(transition.state.requestActive);
 }
 
-- (void)testSuppressedAcknowledgementSettlesOnceOnAbandonment {
-    VibeAudioPrefetchAcknowledgementState state =
-            VibeAudioPrefetchAcknowledgementStateMake();
-    state = VibeAudioPrefetchAcknowledgementBegin(state, YES).state;
+- (void)testSuppressedRequestDropsWhenTerminallyRetired {
+    VibeAudioPrefetchRequestState state = VibeAudioPrefetchRequestStateMake();
+    state = VibeAudioPrefetchRequestBegin(state).state;
     uint64_t requestIdentifier = state.currentRequestIdentifier;
-    state = VibeAudioPrefetchAcknowledgementSuppressBehindPlayback(
+    state = VibeAudioPrefetchRequestSuppressBehindPlayback(
             state, requestIdentifier).state;
 
-    VibeAudioPrefetchAcknowledgementTransition transition =
-            VibeAudioPrefetchAcknowledgementTerminallyRetired(
-                    state, requestIdentifier);
-    state = transition.state;
-    XCTAssertEqual(transition.action, VibeAudioPrefetchAcknowledgementActionDeliver);
-    transition = VibeAudioPrefetchAcknowledgementClaimSettled(state, requestIdentifier);
-    XCTAssertEqual(transition.action, VibeAudioPrefetchAcknowledgementActionNone);
+    VibeAudioPrefetchRequestTransition transition =
+            VibeAudioPrefetchRequestFinish(state, requestIdentifier);
+    XCTAssertFalse(transition.state.requestActive);
+    XCTAssertFalse(transition.state.suppressedBehindPlayback);
+    // Finished is terminal: a repeat of the same identifier changes nothing.
+    transition = VibeAudioPrefetchRequestFinish(transition.state, requestIdentifier);
+    XCTAssertEqual(transition.action, VibeAudioPrefetchRequestActionNone);
 }
 
-- (void)testLaterPrefetchRetiresOlderWaiterAndUsesFreshRequestIdentity {
-    VibeAudioPrefetchAcknowledgementState state =
-            VibeAudioPrefetchAcknowledgementStateMake();
-    state = VibeAudioPrefetchAcknowledgementBegin(state, YES).state;
+- (void)testLaterPrefetchUsesFreshRequestIdentity {
+    VibeAudioPrefetchRequestState state = VibeAudioPrefetchRequestStateMake();
+    state = VibeAudioPrefetchRequestBegin(state).state;
     uint64_t firstIdentifier = state.currentRequestIdentifier;
-    state = VibeAudioPrefetchAcknowledgementSuppressBehindPlayback(
+    state = VibeAudioPrefetchRequestSuppressBehindPlayback(
             state, firstIdentifier).state;
 
-    VibeAudioPrefetchAcknowledgementTransition replacement =
-            VibeAudioPrefetchAcknowledgementBegin(state, YES);
-    state = replacement.state;
-    XCTAssertEqual(replacement.action, VibeAudioPrefetchAcknowledgementActionDeliver);
+    state = VibeAudioPrefetchRequestBegin(state).state;
     XCTAssertNotEqual(state.currentRequestIdentifier, firstIdentifier);
+    XCTAssertFalse(state.suppressedBehindPlayback);
 
-    VibeAudioPrefetchAcknowledgementTransition stale =
-            VibeAudioPrefetchAcknowledgementClaimSettled(state, firstIdentifier);
-    XCTAssertEqual(stale.action, VibeAudioPrefetchAcknowledgementActionNone);
-    VibeAudioPrefetchAcknowledgementTransition current =
-            VibeAudioPrefetchAcknowledgementClaimSettled(
-                    state, state.currentRequestIdentifier);
-    XCTAssertEqual(current.action, VibeAudioPrefetchAcknowledgementActionDeliver);
+    // A stale identifier's edges change nothing for the fresh request.
+    VibeAudioPrefetchRequestTransition stale =
+            VibeAudioPrefetchRequestFinish(state, firstIdentifier);
+    XCTAssertTrue(stale.state.requestActive);
+    VibeAudioPrefetchRequestTransition current =
+            VibeAudioPrefetchRequestFinish(state, state.currentRequestIdentifier);
+    XCTAssertFalse(current.state.requestActive);
 }
 
 @end

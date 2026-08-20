@@ -273,7 +273,7 @@
                                                   role:(VibeAudioFileMaterializationRole)role
                                             completion:(VibeAudioFileMaterializationCompletion)completion {
     return [_coordinator materializeURL:[self URLNamed:name] role:role
-                         completionQueue:_completionQueue registered:nil completion:completion];
+                         completionQueue:_completionQueue completion:completion];
 }
 
 - (void)testSamePathRequestsAtomicallyJoinOneOperation {
@@ -301,60 +301,6 @@
 
     [[_controller operationForLastPathComponent:@"same.wav"] completeReady:YES];
     [self waitForExpectations:@[scan, prefetch] timeout:2];
-}
-
-- (void)testRegistrationReturnsBeforeCompletionBeginsOnAConcurrentQueue {
-    [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
-    dispatch_queue_t concurrentQueue = dispatch_queue_create(
-            "com.vibe.tests.materialization.concurrent-delivery", DISPATCH_QUEUE_CONCURRENT);
-    dispatch_semaphore_t allowRegistrationToReturn = dispatch_semaphore_create(0);
-    dispatch_semaphore_t completionBegan = dispatch_semaphore_create(0);
-    NSLock *eventsLock = [[NSLock alloc] init];
-    NSMutableArray<NSString *> *events = [NSMutableArray array];
-    XCTestExpectation *registrationBegan = [self expectationWithDescription:@"registration began"];
-    XCTestExpectation *registrationReturned = [self expectationWithDescription:@"registration returned"];
-    XCTestExpectation *completed = [self expectationWithDescription:@"completion"];
-    registrationBegan.assertForOverFulfill = YES;
-    completed.assertForOverFulfill = YES;
-
-    __unused AudioFileMaterializationRequestToken *token = [_coordinator
-            materializeURL:[self URLNamed:@"ordered.wav"]
-            role:VibeAudioFileMaterializationRolePlayback
-            completionQueue:concurrentQueue
-            registered:^{
-        [eventsLock lock];
-        [events addObject:@"registration-began"];
-        [eventsLock unlock];
-        [registrationBegan fulfill];
-        dispatch_semaphore_wait(allowRegistrationToReturn, DISPATCH_TIME_FOREVER);
-        [eventsLock lock];
-        [events addObject:@"registration-returned"];
-        [eventsLock unlock];
-        [registrationReturned fulfill];
-    } completion:^(VibeAudioFileMaterializationResult result,
-                   NSError *error, NSTimeInterval elapsed) {
-        [eventsLock lock];
-        [events addObject:@"completion"];
-        [eventsLock unlock];
-        dispatch_semaphore_signal(completionBegan);
-        [completed fulfill];
-    }];
-    XCTAssertTrue([_controller waitForStartedCount:1]);
-    [self waitForExpectations:@[registrationBegan] timeout:2];
-    [[_controller operationForLastPathComponent:@"ordered.wav"] completeReady:YES];
-
-    long earlyCompletion = dispatch_semaphore_wait(completionBegan,
-            dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC));
-    XCTAssertNotEqual(earlyCompletion, 0,
-            @"completion must not overlap a registration callback that has not returned");
-    dispatch_semaphore_signal(allowRegistrationToReturn);
-    [self waitForExpectations:@[registrationReturned, completed] timeout:2];
-
-    [eventsLock lock];
-    NSArray<NSString *> *delivered = [events copy];
-    [eventsLock unlock];
-    XCTAssertEqualObjects(delivered,
-            (@[@"registration-began", @"registration-returned", @"completion"]));
 }
 
 - (void)testCancelledRunRebindsOnePathClaimAndRestartsAtThePromotedRole {

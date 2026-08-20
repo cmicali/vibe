@@ -164,7 +164,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // and installMasterBusOnQueue wires the mixer straight to the output.
         _fx = enableFX ? [[AudioFX alloc] initWithQueue:_queue] : nil;
         _retiredFades = [NSMutableArray array];
-        _prefetchAcknowledgementState = VibeAudioPrefetchAcknowledgementStateMake();
+        _prefetchRequestState = VibeAudioPrefetchRequestStateMake();
         _levelNormalizationMode = kLevelDefaultNormalizationMode;
         _levelPublisher = [[AudioLevelPublisher alloc] init];
 #if TARGET_OS_OSX
@@ -825,21 +825,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 }
 
 - (void)prefetchTrack:(AudioTrack *)track {
-    [self prefetchTrack:track whenClaimed:nil];
-}
-
-- (void)prefetchTrack:(AudioTrack *)track whenClaimed:(void (^)(void))claimed {
-    // The acknowledgement always bounces to main, whichever prefetch branch
-    // acks it, so the shell's hold release runs where the hold lives.
-    void (^ackOnMain)(void) = claimed ? ^{
-        run_on_main_thread({
-            claimed();
-        });
-    } : nil;
     dispatch_async(_queue, ^{
         AudioTrack *target = VibeAudioPrefetchDepthAllowsSuccessor(
                 self->_loadingConfiguration.prefetchDepth) ? track : nil;
-        [self prefetchOnQueue:target whenClaimed:ackOnMain];
+        [self prefetchOnQueue:target];
     });
 }
 

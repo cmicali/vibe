@@ -20,114 +20,97 @@ typedef NS_ENUM(NSInteger, VibeAudioPrefetchDisposition) {
     VibeAudioPrefetchDispositionStartClaim,
 };
 
-typedef NS_OPTIONS(NSUInteger, VibeAudioPrefetchAcknowledgementAction) {
-    VibeAudioPrefetchAcknowledgementActionNone = 0,
-    VibeAudioPrefetchAcknowledgementActionDeliver = 1 << 0,
-    VibeAudioPrefetchAcknowledgementActionResume = 1 << 1,
+// The prefetch request's own lifecycle: identity (a late callback for a
+// superseded request must change nothing) and the one stateful behavior —
+// a different-path prefetch requested while playback is still opening is
+// retained but SUPPRESSED, and the play's success resumes that exact target.
+// The acknowledgement half this state machine once carried is gone: the
+// foreground/background rule derives from the materialization coordinator's
+// claim table, so nothing waits on "the successor's claim is registered".
+typedef NS_OPTIONS(NSUInteger, VibeAudioPrefetchRequestAction) {
+    VibeAudioPrefetchRequestActionNone = 0,
+    VibeAudioPrefetchRequestActionResume = 1 << 0,
 };
 
 typedef struct {
     uint64_t nextRequestIdentifier;
     uint64_t currentRequestIdentifier;
     BOOL requestActive;
-    BOOL acknowledgementPending;
     BOOL suppressedBehindPlayback;
-} VibeAudioPrefetchAcknowledgementState;
+} VibeAudioPrefetchRequestState;
 
 typedef struct {
-    VibeAudioPrefetchAcknowledgementState state;
-    VibeAudioPrefetchAcknowledgementAction action;
-} VibeAudioPrefetchAcknowledgementTransition;
+    VibeAudioPrefetchRequestState state;
+    VibeAudioPrefetchRequestAction action;
+} VibeAudioPrefetchRequestTransition;
 
-static inline VibeAudioPrefetchAcknowledgementState
-VibeAudioPrefetchAcknowledgementStateMake(void) {
-    VibeAudioPrefetchAcknowledgementState state = {0};
+static inline VibeAudioPrefetchRequestState
+VibeAudioPrefetchRequestStateMake(void) {
+    VibeAudioPrefetchRequestState state = {0};
     return state;
 }
 
-static inline VibeAudioPrefetchAcknowledgementTransition
-VibeAudioPrefetchAcknowledgementTransitionMake(
-        VibeAudioPrefetchAcknowledgementState state,
-        VibeAudioPrefetchAcknowledgementAction action) {
-    VibeAudioPrefetchAcknowledgementTransition transition = {state, action};
+static inline VibeAudioPrefetchRequestTransition
+VibeAudioPrefetchRequestTransitionMake(
+        VibeAudioPrefetchRequestState state,
+        VibeAudioPrefetchRequestAction action) {
+    VibeAudioPrefetchRequestTransition transition = {state, action};
     return transition;
 }
 
-static inline VibeAudioPrefetchAcknowledgementTransition
-VibeAudioPrefetchAcknowledgementBegin(
-        VibeAudioPrefetchAcknowledgementState state,
-        BOOL hasAcknowledgement) {
-    VibeAudioPrefetchAcknowledgementAction action = state.acknowledgementPending
-            ? VibeAudioPrefetchAcknowledgementActionDeliver
-            : VibeAudioPrefetchAcknowledgementActionNone;
+static inline VibeAudioPrefetchRequestTransition
+VibeAudioPrefetchRequestBegin(VibeAudioPrefetchRequestState state) {
     state.nextRequestIdentifier++;
     if (state.nextRequestIdentifier == 0) {
         state.nextRequestIdentifier++;
     }
     state.currentRequestIdentifier = state.nextRequestIdentifier;
     state.requestActive = YES;
-    state.acknowledgementPending = hasAcknowledgement;
     state.suppressedBehindPlayback = NO;
-    return VibeAudioPrefetchAcknowledgementTransitionMake(state, action);
+    return VibeAudioPrefetchRequestTransitionMake(
+            state, VibeAudioPrefetchRequestActionNone);
 }
 
-static inline VibeAudioPrefetchAcknowledgementTransition
-VibeAudioPrefetchAcknowledgementSuppressBehindPlayback(
-        VibeAudioPrefetchAcknowledgementState state,
+static inline VibeAudioPrefetchRequestTransition
+VibeAudioPrefetchRequestSuppressBehindPlayback(
+        VibeAudioPrefetchRequestState state,
         uint64_t requestIdentifier) {
     if (state.requestActive && state.currentRequestIdentifier == requestIdentifier) {
         state.suppressedBehindPlayback = YES;
     }
-    return VibeAudioPrefetchAcknowledgementTransitionMake(
-            state, VibeAudioPrefetchAcknowledgementActionNone);
+    return VibeAudioPrefetchRequestTransitionMake(
+            state, VibeAudioPrefetchRequestActionNone);
 }
 
-static inline VibeAudioPrefetchAcknowledgementTransition
-VibeAudioPrefetchAcknowledgementFinish(
-        VibeAudioPrefetchAcknowledgementState state,
+static inline VibeAudioPrefetchRequestTransition
+VibeAudioPrefetchRequestFinish(
+        VibeAudioPrefetchRequestState state,
         uint64_t requestIdentifier) {
     if (!state.requestActive || state.currentRequestIdentifier != requestIdentifier) {
-        return VibeAudioPrefetchAcknowledgementTransitionMake(
-                state, VibeAudioPrefetchAcknowledgementActionNone);
+        return VibeAudioPrefetchRequestTransitionMake(
+                state, VibeAudioPrefetchRequestActionNone);
     }
-    VibeAudioPrefetchAcknowledgementAction action = state.acknowledgementPending
-            ? VibeAudioPrefetchAcknowledgementActionDeliver
-            : VibeAudioPrefetchAcknowledgementActionNone;
     state.currentRequestIdentifier = 0;
     state.requestActive = NO;
-    state.acknowledgementPending = NO;
     state.suppressedBehindPlayback = NO;
-    return VibeAudioPrefetchAcknowledgementTransitionMake(state, action);
+    return VibeAudioPrefetchRequestTransitionMake(
+            state, VibeAudioPrefetchRequestActionNone);
 }
 
-static inline VibeAudioPrefetchAcknowledgementTransition
-VibeAudioPrefetchAcknowledgementClaimSettled(
-        VibeAudioPrefetchAcknowledgementState state,
-        uint64_t requestIdentifier) {
-    return VibeAudioPrefetchAcknowledgementFinish(state, requestIdentifier);
-}
-
-static inline VibeAudioPrefetchAcknowledgementTransition
-VibeAudioPrefetchAcknowledgementTerminallyRetired(
-        VibeAudioPrefetchAcknowledgementState state,
-        uint64_t requestIdentifier) {
-    return VibeAudioPrefetchAcknowledgementFinish(state, requestIdentifier);
-}
-
-static inline VibeAudioPrefetchAcknowledgementTransition
-VibeAudioPrefetchAcknowledgementPlaybackSucceeded(
-        VibeAudioPrefetchAcknowledgementState state,
+static inline VibeAudioPrefetchRequestTransition
+VibeAudioPrefetchRequestPlaybackSucceeded(
+        VibeAudioPrefetchRequestState state,
         uint64_t requestIdentifier) {
     if (!state.requestActive || state.currentRequestIdentifier != requestIdentifier) {
-        return VibeAudioPrefetchAcknowledgementTransitionMake(
-                state, VibeAudioPrefetchAcknowledgementActionNone);
+        return VibeAudioPrefetchRequestTransitionMake(
+                state, VibeAudioPrefetchRequestActionNone);
     }
     if (!state.suppressedBehindPlayback) {
-        return VibeAudioPrefetchAcknowledgementFinish(state, requestIdentifier);
+        return VibeAudioPrefetchRequestFinish(state, requestIdentifier);
     }
     state.suppressedBehindPlayback = NO;
-    return VibeAudioPrefetchAcknowledgementTransitionMake(
-            state, VibeAudioPrefetchAcknowledgementActionResume);
+    return VibeAudioPrefetchRequestTransitionMake(
+            state, VibeAudioPrefetchRequestActionResume);
 }
 
 static inline BOOL VibeAudioPrefetchDepthAllowsSuccessor(NSUInteger prefetchDepth) {

@@ -66,14 +66,12 @@ typedef void (^VibeAudioFileMaterializationCompletion)(
 // to claims admitted afterwards.
 - (void)applyConfiguration:(AudioLoadingConfiguration *)configuration;
 
-// registered is delivered after this request has atomically joined or created
-// its standardized-path claim. It is never delivered for rejected or yielded
-// requests, and it returns before this request's completion can begin even
-// when completionQueue is concurrent. All callbacks are asynchronous there.
+// The completion is asynchronous on completionQueue and always carries a
+// terminal result. Joining an existing same-path claim and creating a fresh
+// one are indistinguishable to the caller.
 - (AudioFileMaterializationRequestToken *)materializeURL:(NSURL *)url
                                                     role:(VibeAudioFileMaterializationRole)role
                                          completionQueue:(dispatch_queue_t)completionQueue
-                                              registered:(nullable dispatch_block_t)registered
                                               completion:(VibeAudioFileMaterializationCompletion)completion;
 
 // YES while any live claim carries a playback or prefetch waiter whose
