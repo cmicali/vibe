@@ -184,4 +184,11 @@ on-device pager check.
 - [x] Phase 1 — one lane
 - [x] Phase 2 — rule internalized (72a0fc0 preemption, 59ca5e3 acknowledgement deletion)
 - [x] Phase 3 — one coordinator (6e7da8d)
-- [ ] Phase 4 — artwork
+- [x] Phase 4 — artwork desired queue deleted (1bb62f0); simulator pager check
+      done, **on-device iPhone confirmation still open** (J6's gate)
+- [ ] Deferred: the extraction-state enum — `_embeddedExtractionInFlight`
+      deliberately survives demotion while its siblings reset, so the clean
+      4-booleans-to-one-enum mapping needs its own state-space pass; pure
+      readability, no behavior at stake
+- [ ] Deferred: retry-ladder unification (K4 permits leaving the artwork
+      ladder as is; the coordinator deliberately settles rather than retries)
