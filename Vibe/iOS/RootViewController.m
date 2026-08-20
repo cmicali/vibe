@@ -712,7 +712,16 @@ static NSString *const kTabSearch = @"search";
 // An open is a deliberate act with a result worth showing, so it presents the
 // card — the one place that happens by itself. A relaunch restore sends no
 // such event and stays minimized: nothing was asked for.
+//
+// It brings the Playlist tab forward too, so minimizing the card lands on what
+// was just opened rather than back in the Files browser. Search is the one
+// exception: UISearchTab owns the selection while its field is up — it restores
+// the previous tab on cancel — and its results are where the next pick comes
+// from anyway.
 - (void)playbackDidOpenNewFolder:(PlaybackController *)playback {
+    if (![_tabs.selectedTab isKindOfClass:UISearchTab.class]) {
+        [self setSelectedTabIdentifier:kTabPlaylist];
+    }
     [self expandPlayerAnimated:YES];
 }
 

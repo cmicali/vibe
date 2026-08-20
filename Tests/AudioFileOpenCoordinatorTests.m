@@ -299,6 +299,8 @@
             operationFactory:^id<AudioFileMaterializationOperation>(
                     NSURL *url, VibeAudioFileMaterializationRole role) {
         return [harness operationForURL:url role:role];
+    } datalessProbe:^BOOL(NSURL *url) {
+        return YES;   // fabricated paths would stat as local and skip the lanes
     } clock:^NSTimeInterval{
         return [NSDate date].timeIntervalSinceReferenceDate;
     }];

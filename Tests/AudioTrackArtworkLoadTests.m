@@ -52,7 +52,8 @@
                     NSURL *url, VibeAudioFileMaterializationRole role) {
         return [[ArtworkLoadTestMaterializationOperation alloc]
                 initWithRun:^BOOL(NSError **error) { return YES; }];
-    } clock:^NSTimeInterval{ return NSProcessInfo.processInfo.systemUptime; }];
+    } datalessProbe:^BOOL(NSURL *url) { return YES; }
+    clock:^NSTimeInterval{ return NSProcessInfo.processInfo.systemUptime; }];
     if (self) {
         _results = [results copy];
     }
@@ -125,6 +126,7 @@
     return [[AudioFileMaterializationCoordinator alloc]
             initWithConfiguration:[AudioLoadingConfiguration productionConfiguration]
             operationFactory:factory
+            datalessProbe:^BOOL(NSURL *url) { return YES; }
             clock:^NSTimeInterval{ return NSProcessInfo.processInfo.systemUptime; }];
 }
 

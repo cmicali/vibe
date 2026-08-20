@@ -216,6 +216,10 @@
     AudioFileMaterializationCoordinator *_coordinator;
     dispatch_queue_t _completionQueue;
     NSTimeInterval _now;
+    // Test URLs are fabricated paths, so the real stat would answer "local"
+    // for all of them and every claim would bypass capacity. The injected
+    // probe answers dataless unless the name is listed here.
+    NSMutableSet<NSString *> *_localNames;
 }
 
 - (void)setUp {
@@ -223,6 +227,7 @@
     _controller = [[VibeTestMaterializationController alloc] init];
     _completionQueue = dispatch_queue_create("com.vibe.tests.materialization", DISPATCH_QUEUE_SERIAL);
     _now = 100;
+    _localNames = [NSMutableSet set];
 }
 
 - (void)tearDown {
@@ -248,11 +253,16 @@
     AudioLoadingConfiguration *configuration = [self configurationWithValues:values];
     VibeTestMaterializationController *controller = _controller;
     __weak AudioFileMaterializationCoordinatorTests *weakSelf = self;
+    NSMutableSet<NSString *> *localNames = _localNames;
     _coordinator = [[AudioFileMaterializationCoordinator alloc]
             initWithConfiguration:configuration
             operationFactory:^id<AudioFileMaterializationOperation>(
                     NSURL *url, VibeAudioFileMaterializationRole role) {
         return [controller operationForURL:url role:role];
+    } datalessProbe:^BOOL(NSURL *url) {
+        @synchronized (localNames) {
+            return ![localNames containsObject:url.lastPathComponent];
+        }
     } clock:^NSTimeInterval{
         AudioFileMaterializationCoordinatorTests *strongSelf = weakSelf;
         return strongSelf ? strongSelf->_now : 0;
@@ -445,6 +455,83 @@
     XCTAssertEqual([_coordinator stateSnapshotForTesting].metadataHoldCount, 0u);
     dispatch_sync(_completionQueue, ^{});
     XCTAssertEqual(deliveries, 1u);
+}
+
+- (void)testLocalFileStartsPastBackgroundCapacity {
+    VibeAudioLoadingConfigurationValues values =
+            VibeAudioLoadingProductionConfigurationValues();
+    values.maximumBackgroundMaterializations = 1;
+    [_localNames addObject:@"local.wav"];
+    [self makeCoordinatorWithValues:values];
+
+    __unused AudioFileMaterializationRequestToken *download = [self requestName:@"download.wav"
+            role:VibeAudioFileMaterializationRoleMetadataScan
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
+    }];
+    XCTAssertTrue([_controller waitForStartedCount:1]);
+
+    // The lane is at capacity with a transfer, but the local file's run is a
+    // no-op and must start immediately rather than park out its grace.
+    XCTestExpectation *localReady = [self expectationWithDescription:@"local ready"];
+    __unused AudioFileMaterializationRequestToken *local = [self requestName:@"local.wav"
+            role:VibeAudioFileMaterializationRoleMetadataPriority
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
+        [localReady fulfill];
+    }];
+    XCTAssertTrue([_controller waitForStartedCount:2]);
+    XCTAssertEqual([_coordinator stateSnapshotForTesting].backgroundPendingCount, 0u);
+    [[_controller operationForLastPathComponent:@"local.wav"] completeReady:YES];
+    [self waitForExpectations:@[localReady] timeout:2];
+}
+
+- (void)testMetadataHoldPassesLocalFilesThrough {
+    [_localNames addObject:@"local.wav"];
+    [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
+    AudioFileMaterializationHoldToken *hold = [_coordinator acquireMetadataHold];
+
+    XCTestExpectation *localReady = [self expectationWithDescription:@"local ready"];
+    __unused AudioFileMaterializationRequestToken *local = [self requestName:@"local.wav"
+            role:VibeAudioFileMaterializationRoleMetadataPriority
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
+        [localReady fulfill];
+    }];
+    XCTAssertTrue([_controller waitForStartedCount:1]);
+
+    XCTestExpectation *datalessYield = [self expectationWithDescription:@"dataless yielded"];
+    __unused AudioFileMaterializationRequestToken *dataless = [self requestName:@"cloud.wav"
+            role:VibeAudioFileMaterializationRoleMetadataScan
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultYielded);
+        [datalessYield fulfill];
+    }];
+    [self waitForExpectations:@[datalessYield] timeout:2];
+    XCTAssertEqual(_controller.startedOperations.count, 1u);
+
+    [[_controller operationForLastPathComponent:@"local.wav"] completeReady:YES];
+    [self waitForExpectations:@[localReady] timeout:2];
+    [hold invalidate];
+}
+
+- (void)testMetadataHoldDoesNotYieldARunningLocalClaim {
+    [_localNames addObject:@"local.wav"];
+    [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
+
+    XCTestExpectation *ready = [self expectationWithDescription:@"local ready"];
+    __unused AudioFileMaterializationRequestToken *local = [self requestName:@"local.wav"
+            role:VibeAudioFileMaterializationRoleMetadataScan
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
+        [ready fulfill];
+    }];
+    XCTAssertTrue([_controller waitForStartedCount:1]);
+    AudioFileMaterializationHoldToken *hold = [_coordinator acquireMetadataHold];
+    XCTAssertEqual(_controller.totalCancellationCount, 0u);
+
+    [[_controller operationForLastPathComponent:@"local.wav"] completeReady:YES];
+    [self waitForExpectations:@[ready] timeout:2];
+    [hold invalidate];
 }
 
 - (void)testPrefetchKeepsAReservedPendingSlotAndStartsBeforeMetadata {

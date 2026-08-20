@@ -89,7 +89,9 @@ typedef void (^VibeAudioFileMaterializationCompletion)(
 
 // Closes metadata admission synchronously before returning, and yields every
 // metadata-only pending or running claim. A metadata waiter may still join a
-// same-path playback or prefetch claim because that starts no second transfer.
+// same-path playback or prefetch claim because that starts no second transfer
+// — and a claim for an already-local file passes the hold entirely, for the
+// same reason: the hold suspends provider transfers, which it never starts.
 - (AudioFileMaterializationHoldToken *)acquireMetadataHold;
 
 @end

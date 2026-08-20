@@ -13,20 +13,27 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol MetadataScanOrderCandidate <NSObject>
+@property (nonatomic, readonly) BOOL local;
 @property (nonatomic, readonly) BOOL deferred;
 @property (nonatomic, readonly) NSUInteger playlistIndex;
 @property (nonatomic, readonly, copy) NSURL *url;
 @end
 
-// rank is the URL's position in the neighborhood — next, second-next,
+// local — the file's contents are already on disk — leads every other key: its
+// materialization is a no-op, so on a partially downloaded folder every local
+// row's tags land before a single download is chosen, deferred retries
+// included. rank is the URL's position in the neighborhood — next, second-next,
 // previous — or NSNotFound past it, which sorts last by being the largest
 // NSUInteger. index is the entry's playlist row, stamped when the sweep was
-// built. A deferred retry sorts below everything: it has already failed once,
-// so every track that has not tried yet goes first, however the neighborhood
-// moves.
+// built. A deferred retry sorts below everything else: it has already failed
+// once, so every track that has not tried yet goes first, however the
+// neighborhood moves.
 static inline BOOL VibeMetadataScanOrderedBefore(
-        BOOL aDeferred, NSUInteger aRank, NSUInteger aIndex,
-        BOOL bDeferred, NSUInteger bRank, NSUInteger bIndex) {
+        BOOL aLocal, BOOL aDeferred, NSUInteger aRank, NSUInteger aIndex,
+        BOOL bLocal, BOOL bDeferred, NSUInteger bRank, NSUInteger bIndex) {
+    if (aLocal != bLocal) {
+        return aLocal;
+    }
     if (aDeferred != bDeferred) {
         return !aDeferred;
     }
@@ -54,8 +61,8 @@ static inline id<MetadataScanOrderCandidate> _Nullable VibeBestMetadataScanCandi
         NSNumber *found = rankByURL[candidate.url];
         NSUInteger rank = found != nil ? found.unsignedIntegerValue : NSNotFound;
         if (!best || VibeMetadataScanOrderedBefore(
-                candidate.deferred, rank, candidate.playlistIndex,
-                best.deferred, bestRank, best.playlistIndex)) {
+                candidate.local, candidate.deferred, rank, candidate.playlistIndex,
+                best.local, best.deferred, bestRank, best.playlistIndex)) {
             best = candidate;
             bestRank = rank;
         }

@@ -7,6 +7,7 @@
 
 #import "AudioFileOpenRules.h"
 #import "CloudFileMaterializer.h"
+#import "NSURLUtil.h"
 
 #import <os/lock.h>
 
@@ -348,6 +349,7 @@ static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKe
     uint64_t _nextClaimOrdinal;
     AudioLoadingConfiguration *_configuration;
     VibeAudioFileMaterializationOperationFactory _operationFactory;
+    VibeAudioFileMaterializationDatalessProbe _datalessProbe;
     VibeAudioFileMaterializationClock _clock;
 }
 
@@ -366,6 +368,8 @@ static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKe
                       operationFactory:^id<AudioFileMaterializationOperation>(
                               NSURL *url, VibeAudioFileMaterializationRole role) {
         return [[VibeCloudFileMaterializationOperation alloc] initWithURL:url role:role];
+    } datalessProbe:^BOOL(NSURL *url) {
+        return [NSURLUtil isDatalessFile:url];
     } clock:^NSTimeInterval{
         return NSProcessInfo.processInfo.systemUptime;
     }];
@@ -373,14 +377,17 @@ static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKe
 
 - (instancetype)initWithConfiguration:(AudioLoadingConfiguration *)configuration
                       operationFactory:(VibeAudioFileMaterializationOperationFactory)operationFactory
+                          datalessProbe:(VibeAudioFileMaterializationDatalessProbe)datalessProbe
                                   clock:(VibeAudioFileMaterializationClock)clock {
     NSParameterAssert(configuration);
     NSParameterAssert(operationFactory);
+    NSParameterAssert(datalessProbe);
     NSParameterAssert(clock);
     self = [super init];
     if (self) {
         _configuration = [configuration copy];
         _operationFactory = [operationFactory copy];
+        _datalessProbe = [datalessProbe copy];
         _clock = [clock copy];
         _claims = [NSMutableDictionary dictionary];
         _interactivePending = [NSMutableArray array];
@@ -509,7 +516,12 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
         VibeAudioFileMaterializationClaim *claim = self->_claims[path];
         BOOL heldMetadata = VibeMaterializationRoleIsMetadata(role)
                 && self->_metadataHoldCount > 0;
-        if (heldMetadata && (!claim || ![self claimHasNonMetadataWaiter:claim])) {
+        // The hold suspends provider transfers; a request for an already-local
+        // file starts none and passes through, which is what lets the playing
+        // track's tags parse the moment its open lands instead of waiting for
+        // the successor prefetch's acknowledgement to release the hold.
+        if (heldMetadata && (!claim || ![self claimHasNonMetadataWaiter:claim])
+                && self->_datalessProbe(url)) {
             [token settleWithResult:VibeAudioFileMaterializationResultYielded
                              error:nil elapsed:0];
             return;
@@ -569,6 +581,16 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
             ? _configuration.maximumInteractiveMaterializations
             : _configuration.maximumBackgroundMaterializations;
     if (running < maximumRunning) {
+        [self startClaim:claim];
+        return YES;
+    }
+    // Lane capacity bounds concurrent provider transfers. A file already local
+    // starts none — its run is a stat and a no-op coordinated read — so it must
+    // not park behind real downloads: the playing track's metadata would wait
+    // out its whole admission grace behind the scan's transfer. A file evicted
+    // between this probe and the run downloads outside the bound; that race is
+    // one transfer wide and self-corrects at the next admission.
+    if (!_datalessProbe(claim.url)) {
         [self startClaim:claim];
         return YES;
     }
@@ -822,7 +844,8 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
         }
         else {
             claim.effectiveRole = [self effectiveRoleForClaim:claim];
-            if (self->_metadataHoldCount > 0 && ![self claimHasNonMetadataWaiter:claim]) {
+            if (self->_metadataHoldCount > 0 && ![self claimHasNonMetadataWaiter:claim]
+                    && self->_datalessProbe(claim.url)) {
                 [self yieldClaim:claim];
             }
             else if (claim.state == VibeMaterializationClaimStatePending
@@ -842,7 +865,8 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
             NSArray<VibeAudioFileMaterializationClaim *> *claims =
                     self->_claims.allValues;
             for (VibeAudioFileMaterializationClaim *claim in claims) {
-                if (claim.waiters.count && ![self claimHasNonMetadataWaiter:claim]) {
+                if (claim.waiters.count && ![self claimHasNonMetadataWaiter:claim]
+                        && self->_datalessProbe(claim.url)) {
                     [self yieldClaim:claim];
                 }
             }

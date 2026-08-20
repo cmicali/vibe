@@ -72,6 +72,12 @@ static inline BOOL VibeMetadataPriorityRetryAfterFailure(
 // marker dropped that one request in both interleavings, and the screen played
 // on with no tags. A stale park's retried parse is a cheap win (its row fills
 // in), bounded by the park set and the shared failure budget.
+//
+// dataless is the file probed at the moment the action is judged, and it
+// decides retry against clear: the retry exists because the settled open made
+// the file local, so a file STILL dataless at that edge means the open failed
+// — chasing it would spend the provider's slot re-downloading a file behind a
+// terminal error the user is looking at. The sweep keeps its row.
 typedef NS_ENUM(NSUInteger, VibeMetadataPriorityYieldAction) {
     VibeMetadataPriorityYieldActionClear = 0,
     VibeMetadataPriorityYieldActionRetry,
@@ -80,16 +86,22 @@ typedef NS_ENUM(NSUInteger, VibeMetadataPriorityYieldAction) {
 
 static inline VibeMetadataPriorityYieldAction VibeMetadataPriorityActionForYield(
         BOOL held,
-        BOOL cancelled) {
+        BOOL cancelled,
+        BOOL dataless) {
     if (cancelled) {
         return VibeMetadataPriorityYieldActionClear;
     }
-    return held ? VibeMetadataPriorityYieldActionPark
-                : VibeMetadataPriorityYieldActionRetry;
+    if (held) {
+        return VibeMetadataPriorityYieldActionPark;
+    }
+    return dataless ? VibeMetadataPriorityYieldActionClear
+                    : VibeMetadataPriorityYieldActionRetry;
 }
 
 static inline VibeMetadataPriorityYieldAction
-VibeMetadataPriorityActionForHoldRelease(BOOL cancelled) {
-    return cancelled ? VibeMetadataPriorityYieldActionClear
-                     : VibeMetadataPriorityYieldActionRetry;
+VibeMetadataPriorityActionForHoldRelease(BOOL cancelled, BOOL dataless) {
+    if (cancelled || dataless) {
+        return VibeMetadataPriorityYieldActionClear;
+    }
+    return VibeMetadataPriorityYieldActionRetry;
 }

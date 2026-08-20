@@ -85,25 +85,39 @@
 // The two interleavings that dropped the storm winner's single request: a
 // Yielded delivery marshalling to main AFTER the hold released retries rather
 // than clearing, and a park (delivery landed while held) retries at release
-// with no later-edge precondition.
-- (void)testYieldDeliveredAfterHoldReleaseRetries {
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(NO, NO),
+// with no later-edge precondition. Both retries require the file to be LOCAL
+// by the time the action is judged — the settled open is what made it so.
+- (void)testYieldDeliveredAfterHoldReleaseRetriesALocalFile {
+    XCTAssertEqual(VibeMetadataPriorityActionForYield(NO, NO, NO),
             VibeMetadataPriorityYieldActionRetry);
 }
 
-- (void)testYieldDeliveredWhileHeldParksAndReleaseRetries {
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(YES, NO),
+- (void)testYieldDeliveredWhileHeldParksAndReleaseRetriesALocalFile {
+    XCTAssertEqual(VibeMetadataPriorityActionForYield(YES, NO, NO),
             VibeMetadataPriorityYieldActionPark);
-    XCTAssertEqual(VibeMetadataPriorityActionForHoldRelease(NO),
+    XCTAssertEqual(VibeMetadataPriorityActionForHoldRelease(NO, NO),
             VibeMetadataPriorityYieldActionRetry);
+}
+
+// A file still dataless when the hold is down means the open it stood aside
+// for failed: retrying would re-download a dead pick behind its error UI, so
+// the row is left to the sweep. A park judged while held stays a park — the
+// probe is re-run at release, where the answer is current.
+- (void)testAStillDatalessFileIsNotChasedAfterTheHoldReleases {
+    XCTAssertEqual(VibeMetadataPriorityActionForYield(NO, NO, YES),
+            VibeMetadataPriorityYieldActionClear);
+    XCTAssertEqual(VibeMetadataPriorityActionForYield(YES, NO, YES),
+            VibeMetadataPriorityYieldActionPark);
+    XCTAssertEqual(VibeMetadataPriorityActionForHoldRelease(NO, YES),
+            VibeMetadataPriorityYieldActionClear);
 }
 
 - (void)testCancelledLoaderClearsYieldsAndParks {
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(NO, YES),
+    XCTAssertEqual(VibeMetadataPriorityActionForYield(NO, YES, NO),
             VibeMetadataPriorityYieldActionClear);
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(YES, YES),
+    XCTAssertEqual(VibeMetadataPriorityActionForYield(YES, YES, NO),
             VibeMetadataPriorityYieldActionClear);
-    XCTAssertEqual(VibeMetadataPriorityActionForHoldRelease(YES),
+    XCTAssertEqual(VibeMetadataPriorityActionForHoldRelease(YES, NO),
             VibeMetadataPriorityYieldActionClear);
 }
 

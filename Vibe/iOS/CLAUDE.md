@@ -2,7 +2,7 @@
 
 The iPhone and iPad app: a single-folder player where **the current directory is the playlist**. The user picks a folder (or file) in the system document picker; the folder's audio files, filename-sorted, become the playlist. Dropbox and iCloud work through their Files file-providers in the picker — no provider SDKs.
 
-**The shape is Apple Music's.** Two tabs — Playlist and Files — in a capsule with search as a *circle* beside it rather than a third tab inside it, a mini player strip above them, and the now-playing screen as a full-screen card that presents up from the strip and swipes down to go back. Opening files or a folder replaces the playlist, starts playing and presents the card.
+**The shape is Apple Music's.** Two tabs — Playlist and Files — in a capsule with search as a *circle* beside it rather than a third tab inside it, a mini player strip above them, and the now-playing screen as a full-screen card that presents up from the strip and swipes down to go back. Opening files or a folder replaces the playlist, starts playing, brings the Playlist tab forward and presents the card — so putting the card away lands on what was just opened rather than back in the Files browser. Search is the exception, since `UISearchTab` owns the selection while its field is up.
 
 **This directory is the app shell and nothing else.** The iOS halves of shared subsystems are documented where they live: `Audio/iOS/`, `WaveformUI/iOS/`, `Util/iOS/` each have their own `CLAUDE.md`.
 
