@@ -31,7 +31,7 @@ Procedure, using the `vibe-debug` skill (debug build, `launch` + `drive`):
 1. Load a track, note the playhead, note the window frame (`dump_state`).
 2. Drag horizontally starting from the middle of the waveform (the `drag` verb), release, and read back window frame + playback position.
 3. Repeat with a stationary click for the control case.
-4. Also test by hand on macOS 14 (the deployment floor) if available — event delivery during server-side window drags has varied by release.
+4. Also test by hand on macOS 13 (the deployment floor) if available — event delivery during server-side window drags has varied by release.
 
 Record the answer **in this file** before starting Phase 2:
 

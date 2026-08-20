@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    # Deployment target is macOS 14, but the code compiles against the macOS 26
+    # Deployment target is macOS 13, but the code compiles against the macOS 26
     # SDK (Liquid Glass behind availability guards), so an older image's Xcode
     # cannot build this.
     runs-on: macos-26

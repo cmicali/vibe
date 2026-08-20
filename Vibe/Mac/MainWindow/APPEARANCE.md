@@ -14,7 +14,7 @@ All corner rounding shares `kMainWindowCornerRadius` (`MainWindowLayout.h`, 20pt
 
 ## Chrome: three layers
 
-macOS 26 `NSGlassEffectView`, three layers. **Before macOS 26 the two glass layers fall back to frosted behind-window `NSVisualEffectView`s** (`UnderWindowBackground`, `StateActive`, blur shaped by `frostCornerMaskWithRadius:` — an `NSVisualEffectView`'s blur region ignores a layer `cornerRadius`). Both creation sites branch on `@available(macOS 26.0, *)`; the deployment target is 14.0, and `-Wunguarded-availability` is aggressive, so any API newer than that floor needs its own guard.
+macOS 26 `NSGlassEffectView`, three layers. **Before macOS 26 the two glass layers fall back to frosted behind-window `NSVisualEffectView`s** (`UnderWindowBackground`, `StateActive`, blur shaped by `frostCornerMaskWithRadius:` — an `NSVisualEffectView`'s blur region ignores a layer `cornerRadius`). Both creation sites branch on `@available(macOS 26.0, *)`; the deployment target is 13.0, and `-Wunguarded-availability` is aggressive, so any API newer than that floor needs its own guard.
 
 **1. The backdrop.** A window-spanning glass backdrop behind everything, **Clear** style, installed in `buildContentInWindow:`.
 

@@ -64,7 +64,9 @@ static void VibeEqualizerDebugDisplayLinkStopped(void) {
     // as tall as it is wide. It is the floor the reactive path grows from, so
     // level 0 and "not playing" draw the identical row of dots.
     CGFloat             _collapsedScale;
-    CADisplayLink      *_levelLink;
+    // CADisplayLink on macOS 14+/iOS, NSTimer on macOS 13; both answer
+    // invalidate, and startLevelLink is the only minting site.
+    id                   _levelLink;
     float               _targetLevels[kBarCount];
     CGFloat             _lastAppliedScales[kBarCount];
     CFTimeInterval      _lastSnapshotTimestamp;
@@ -347,15 +349,33 @@ static void VibeEqualizerDebugDisplayLinkStopped(void) {
     // under a window, while +displayLinkWithTarget:selector: is UIKit-only.
     id proxy = [VibeWeakProxy proxyWithTarget:self];
 #if TARGET_OS_OSX
-    _levelLink = [self displayLinkWithTarget:proxy selector:@selector(levelTick:)];
+    if (@available(macOS 14.0, *)) {
+        CADisplayLink *link = [self displayLinkWithTarget:proxy selector:@selector(levelTick:)];
+        link.preferredFrameRateRange = CAFrameRateRangeMake(20, 30, 30);
+        [link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+        _levelLink = link;
+    } else {
+        // macOS 13 fallback: the poll needs no display sync — Core Animation
+        // owns the motion — so a tolerant timer at the same bounded rate is
+        // equivalent.
+        NSTimer *timer = [NSTimer timerWithTimeInterval:1.0 / 25.0
+                                                 target:proxy
+                                               selector:@selector(levelTick:)
+                                               userInfo:nil
+                                                repeats:YES];
+        timer.tolerance = 0.015;
+        [NSRunLoop.mainRunLoop addTimer:timer forMode:NSRunLoopCommonModes];
+        _levelLink = timer;
+    }
 #else
-    _levelLink = [CADisplayLink displayLinkWithTarget:proxy selector:@selector(levelTick:)];
+    CADisplayLink *link = [CADisplayLink displayLinkWithTarget:proxy selector:@selector(levelTick:)];
+    link.preferredFrameRateRange = CAFrameRateRangeMake(20, 30, 30);
+    [link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+    _levelLink = link;
 #endif
     if (!_levelLink) {
         return;
     }
-    _levelLink.preferredFrameRateRange = CAFrameRateRangeMake(20, 30, 30);
-    [_levelLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
     VibeEqualizerDebugIncrement(&sActiveDisplayLinks);
 }
 
@@ -456,9 +476,9 @@ static void VibeEqualizerDebugDisplayLinkStopped(void) {
     [CATransaction commit];
 }
 
-- (void)levelTick:(CADisplayLink *)link {
+- (void)levelTick:(id)poller {
     VibeEqualizerDebugIncrement(&sTotalDisplayTicks);
-    CFTimeInterval now = link.timestamp;
+    CFTimeInterval now = CACurrentMediaTime();
 
     id<EqualizerLevelSource> source = _levelSource;
     if (!source) {

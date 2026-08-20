@@ -26,7 +26,7 @@ The app lands at `build/DerivedData/Build/Products/<config>/Vibe.app`. `make cle
 
 ## Requirements
 
-- macOS 14 or later to run; **Xcode 26 or later** to build (the app builds against the macOS 26 SDK and back-deploys)
+- macOS 13 or later to run; **Xcode 26 or later** to build (the app builds against the macOS 26 SDK and back-deploys)
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen), from `make setup`
 
 ## Tests

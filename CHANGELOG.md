@@ -1,6 +1,7 @@
 # 1.10
 
 * Added album art load from song's folder if song has no tagged artwork  
+* Added support for macOS 13 Ventura and later (previously required macOS 14)
 
 # v1.9
 
