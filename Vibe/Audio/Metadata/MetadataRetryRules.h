@@ -51,6 +51,18 @@ static inline NSTimeInterval VibeMetadataAdmissionRetryDelay(
     return step * (priorFailures + 1);
 }
 
+// A failed or capacity-exhausted priority materialization retries within the
+// same bounded per-path budget the scan spends — the priority track is the one
+// the user is hearing, and under a churning provider a cancellation is
+// transient. Without this, one failed run left the playing track's tags
+// waiting on the background sweep reaching its row.
+static inline BOOL VibeMetadataPriorityRetryAfterFailure(
+        NSUInteger priorFailures,
+        NSUInteger maximumAttempts,
+        BOOL cancelled) {
+    return !cancelled && maximumAttempts > 0 && priorFailures < maximumAttempts - 1;
+}
+
 // didStartPlaying: can arrive on either side of an earlier Yielded callback.
 // Every held delivery parks; hold release retries only a park for which a later
 // priority load was requested.

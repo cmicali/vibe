@@ -117,4 +117,16 @@
             VibeMetadataPriorityYieldActionClear);
 }
 
+- (void)testPriorityFailureRetriesWithinTheSharedBudget {
+    // Three attempts: two prior failures still retry, the third does not.
+    XCTAssertTrue(VibeMetadataPriorityRetryAfterFailure(0, 3, NO));
+    XCTAssertTrue(VibeMetadataPriorityRetryAfterFailure(1, 3, NO));
+    XCTAssertFalse(VibeMetadataPriorityRetryAfterFailure(2, 3, NO));
+}
+
+- (void)testPriorityFailureNeverRetriesCancelledOrUnbudgeted {
+    XCTAssertFalse(VibeMetadataPriorityRetryAfterFailure(0, 3, YES));
+    XCTAssertFalse(VibeMetadataPriorityRetryAfterFailure(0, 0, NO));
+}
+
 @end

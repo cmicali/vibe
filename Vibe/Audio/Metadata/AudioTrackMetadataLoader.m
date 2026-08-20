@@ -741,6 +741,42 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     if (!cancelled && result != VibeAudioFileMaterializationResultYielded) {
         LogWarn(@"Priority metadata materialization failed for %@ (%@)",
                 track.url.lastPathComponent, error.localizedDescription);
+        // The playing track's parse must not die with one failed run — a
+        // churning provider cancels transfers routinely, and the sweep may be
+        // dozens of rows away. Spend the same bounded per-path budget the
+        // scan does; the pending later-load marker rides into the fresh run
+        // rather than dying with the failed one.
+        NSString *path = track.url.path;
+        NSUInteger priorFailures;
+        os_unfair_lock_lock(&_materializationLock);
+        priorFailures = _materializationAttemptsByPath[path].unsignedIntegerValue;
+        BOOL retry = VibeMetadataPriorityRetryAfterFailure(
+                priorFailures, _materializationMaximumAttempts, self.isCancelled);
+        if (retry) {
+            _materializationAttemptsByPath[path] = @(priorFailures + 1);
+        }
+        os_unfair_lock_unlock(&_materializationLock);
+        if (retry) {
+            NSTimeInterval delay =
+                    result == VibeAudioFileMaterializationResultAdmissionExhausted
+                            ? VibeMetadataAdmissionRetryDelay(priorFailures) : 0;
+            run_on_main_thread({
+                __typeof(self) strongSelf = weakSelf;
+                if (!strongSelf) return;
+                [strongSelf->_priorityRetryRequestedTracks removeObject:track];
+            });
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                                         (int64_t)(delay * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{
+                __typeof(self) strongSelf = weakSelf;
+                if (!strongSelf || strongSelf.isCancelled) {
+                    [strongSelf clearInFlightTrack:track];
+                    return;
+                }
+                [strongSelf submitPriorityMaterializationForTrack:track];
+            });
+            return;
+        }
     }
     run_on_main_thread({
         [weakSelf clearInFlightTrack:track];
