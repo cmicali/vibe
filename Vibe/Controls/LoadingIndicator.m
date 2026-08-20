@@ -1,15 +1,14 @@
 //
-//  WaveformLoadingIndicator.m
+//  LoadingIndicator.m
 //  Vibe
 //
 //  See the header for what the control is. This file is the geometry, the
 //  sweep and the palette — ported from the mac view's loading category, which
-//  is where both traps below were found.
+//  is where both traps below were found. The style-dependent numbers live in
+//  LoadingIndicatorMath.h; nothing here branches on style directly.
 //
 
-#import "WaveformLoadingIndicator.h"
-#import "PlatformTypes.h"
-#import "WaveformMidline.h"
+#import "LoadingIndicator.h"
 
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
@@ -19,16 +18,14 @@
 
 // The band's own travel, independent of how much of the width it may cross.
 static const CFTimeInterval kSweepDuration = 1.2;
-// The filled head fades out over its last few points, so it meets the shimmer
-// as a soft front rather than a hard cut.
-static const CGFloat kFrontFadePoints = 14;
 
-@implementation WaveformLoadingIndicator {
-    CALayer         *_track;          // the full-width inert midline
+@implementation LoadingIndicator {
+    CALayer         *_track;          // the full-width inert track
     CALayer         *_shimmerClip;    // exactly the span the band may occupy
     CAGradientLayer *_shimmer;        // the sweeping band
     CAGradientLayer *_fill;           // the determinate head; nil while indeterminate
     __weak CALayer  *_host;
+    VibeLoadingIndicatorStyle _style;
     CGFloat         _contentsScale;
     BOOL            _isDark;
     float           _progress;        // <0 while indeterminate
@@ -36,23 +33,25 @@ static const CGFloat kFrontFadePoints = 14;
 }
 
 - (instancetype)initInLayer:(CALayer *)hostLayer
+                      style:(VibeLoadingIndicatorStyle)style
                      isDark:(BOOL)isDark
               contentsScale:(CGFloat)contentsScale {
     self = [super init];
     if (self) {
         _host = hostLayer;
+        _style = style;
         _isDark = isDark;
         _contentsScale = contentsScale;
         _progress = -1;
         _lastProgressAt = 0;
 
-        // The control's body: one midline track, spanning the whole width. The
-        // filled head and the shimmer are both read against it, which is what
-        // makes the determinate and indeterminate modes one control rather
-        // than two — indeterminate is simply nothing filled yet.
+        // The control's body: one track, spanning the whole width. The filled
+        // head and the shimmer are both read against it, which is what makes
+        // the determinate and indeterminate modes one control rather than
+        // two — indeterminate is simply nothing filled yet.
         _track = [CALayer layer];
         _track.contentsScale = contentsScale;
-        _track.backgroundColor = [self inertMidlineColor];
+        _track.backgroundColor = [self inertTrackColor];
         [hostLayer addSublayer:_track];
 
         _shimmerClip = [CALayer layer];
@@ -95,7 +94,15 @@ static const CGFloat kFrontFadePoints = 14;
 
 #pragma mark - Palette
 
+- (VibeLoadingIndicatorMetrics)paletteMetrics {
+    // Alphas do not depend on width; 0 is fine for a palette read.
+    return VibeLoadingIndicatorMetricsForStyle(_style, 0);
+}
+
 - (VibeColor *)baseColor {
+    if (_colorOverride) {
+        return _colorOverride;
+    }
     // Follows the appearance, as the renderer palettes do, because a fixed
     // white band is near-invisible on a light background.
 #if TARGET_OS_OSX
@@ -107,31 +114,42 @@ static const CGFloat kFrontFadePoints = 14;
 
 - (NSArray *)shimmerColors {
     VibeColor *base = [self baseColor];
+    CGFloat peak = [self paletteMetrics].shimmerAlpha;
     return @[
             (id)[base colorWithAlphaComponent:0].CGColor,
-            (id)[base colorWithAlphaComponent:kVibeUnplayedWaveformAlpha].CGColor,
+            (id)[base colorWithAlphaComponent:peak].CGColor,
             (id)[base colorWithAlphaComponent:0].CGColor,
     ];
 }
 
 - (NSArray *)fillColors {
     VibeColor *base = [self baseColor];
+    CGFloat alpha = [self paletteMetrics].fillAlpha;
     return @[
-            (id)[base colorWithAlphaComponent:kVibeLoadingFillAlpha].CGColor,
-            (id)[base colorWithAlphaComponent:kVibeLoadingFillAlpha].CGColor,
+            (id)[base colorWithAlphaComponent:alpha].CGColor,
+            (id)[base colorWithAlphaComponent:alpha].CGColor,
             (id)[base colorWithAlphaComponent:0].CGColor,
     ];
 }
 
-- (CGColorRef)inertMidlineColor {
-    return [[self baseColor] colorWithAlphaComponent:kVibeInertMidlineAlpha].CGColor;
+- (CGColorRef)inertTrackColor {
+    return [[self baseColor] colorWithAlphaComponent:[self paletteMetrics].trackAlpha].CGColor;
+}
+
+- (void)applyPalette {
+    _shimmer.colors = [self shimmerColors];
+    _track.backgroundColor = [self inertTrackColor];
+    _fill.colors = [self fillColors];
+}
+
+- (void)setColorOverride:(VibeColor *)colorOverride {
+    _colorOverride = colorOverride;
+    [self applyPalette];
 }
 
 - (void)updateColorsForDark:(BOOL)isDark {
     _isDark = isDark;
-    _shimmer.colors = [self shimmerColors];
-    _track.backgroundColor = [self inertMidlineColor];
-    _fill.colors = [self fillColors];
+    [self applyPalette];
 }
 
 - (void)updateContentsScale:(CGFloat)contentsScale {
@@ -156,13 +174,14 @@ static const CGFloat kFrontFadePoints = 14;
 - (void)layoutInBounds:(CGRect)bounds animatedOver:(CFTimeInterval)duration {
     CGFloat width = bounds.size.width;
     CGFloat midY = bounds.size.height / 2;
+    VibeLoadingIndicatorMetrics metrics = VibeLoadingIndicatorMetricsForStyle(_style, width);
     // The shimmer sweeps the *unfilled* remainder only: it is the "still
     // working on this part" half of one control, and the fill is the "this
     // part is done" half. Indeterminate fills nothing, so the sweep spans the
     // whole width exactly as it always has.
     CGFloat fillEnd = _progress > 0 ? width * MIN(1.0f, _progress) : 0;
     CGFloat remainder = MAX(width - fillEnd, 0);
-    CGFloat bandWidth = MIN(MAX(width * 0.35, 40), MAX(remainder, 1));
+    CGFloat bandWidth = MIN(metrics.bandWidth, MAX(remainder, 1));
 
     // The clip is exactly the span the shimmer may occupy, so the band can
     // still slide in and out at the ends without escaping the line. Its left
@@ -181,12 +200,14 @@ static const CGFloat kFrontFadePoints = 14;
         // A soft front, but only as long as there is remainder to fade into:
         // at completion a fixed fade would read as the bar stopping short of
         // the edge rather than as a soft edge.
-        CGFloat fade = MIN(kFrontFadePoints, remainder);
+        CGFloat fade = MIN(metrics.frontFadePoints, remainder);
         _fill.locations = @[ @0, @(MAX(0.0, (fillEnd - fade) / fillEnd)), @1 ];
-        _fill.frame = CGRectMake(0, midY - kVibeMidlineHeight / 2, fillEnd, kVibeMidlineHeight);
+        _fill.frame = CGRectMake(0, midY - metrics.height / 2, fillEnd, metrics.height);
+        _fill.cornerRadius = metrics.cornerRadius;
     }
-    _shimmerClip.frame = CGRectMake(fillEnd, midY - kVibeMidlineHeight / 2,
-                                    remainder, kVibeMidlineHeight);
+    _shimmerClip.frame = CGRectMake(fillEnd, midY - metrics.height / 2,
+                                    remainder, metrics.height);
+    _shimmerClip.cornerRadius = metrics.cornerRadius;
     [CATransaction commit];
 
     // The band's own position is driven by the sweep animation, so its
@@ -194,11 +215,12 @@ static const CGFloat kFrontFadePoints = 14;
     // fight that and stall the sweep.
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    _shimmer.frame = CGRectMake(0, 0, bandWidth, kVibeMidlineHeight);
+    _shimmer.frame = CGRectMake(0, 0, bandWidth, metrics.height);
     // Near completion there is no room left to sweep, so the band fades out
     // rather than jittering in a sliver.
     _shimmer.opacity = (float)MIN(1.0, remainder / MAX(width * 0.08, 1));
-    _track.frame = CGRectMake(0, midY - kVibeMidlineHeight / 2, width, kVibeMidlineHeight);
+    _track.frame = CGRectMake(0, midY - metrics.height / 2, width, metrics.height);
+    _track.cornerRadius = metrics.cornerRadius;
     [CATransaction commit];
 
     [self installSweepAcrossRemainder:remainder bandWidth:bandWidth];

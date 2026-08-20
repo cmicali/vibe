@@ -17,13 +17,13 @@ Both families animate through a shared **`WaveformMorphEngine`**, which owns the
 
 `DetailedAudioWaveformRenderer` also exposes an envelope-bitmap API — `envelopeSamplesForWaveform:` (main thread), `newEnvelopeImageForSize:scale:samples:` (any queue), and `unplayedOverPlayedOpacity` — that renders the settled bar geometry and played gradient into one image. It exists for the iOS scrubber's settled fast path; the mac view does not use it. The bitmap bakes *this* family's band-pinned gradient, so `Basic`'s re-aimed fade would need its own bake. **Keep it pixel-identical to the live layers**: it duplicates `rebuildMaskPaths`' settled rounding and `configureGradient:`'s band on purpose, and a change to either must land in both.
 
-## WaveformLoadingIndicator and WaveformMidline
+## The loading indicator
 
-`WaveformLoadingIndicator` is shared by both views — pure CALayer work with no view, window or trait collection, which is why it can be one object. `WaveformMidline.h` holds its metrics: `kVibeMidlineHeight`, the shimmer's peak, the inert track's alpha (`kVibeInertMidlineAlpha`), and the fill's.
+The control itself moved to `Vibe/Controls/LoadingIndicator` when the row gutters became its second consumer — one control, two styles (`LoadingIndicatorMath.h`), and the waveform style is pixel-identical to what lived here. What stays in this directory is *when* each view shows it, and the traps below, which are still the waveform's to know.
 
 **It is one control across both of its modes**, not a shimmer with a progress bar bolted on: a faint full-width midline track, a solid filled head over `[0, fraction]` whose last few points fade out, and the shimmer band sweeping **only the unfilled remainder**. Indeterminate is simply the case where nothing is filled, so the sweep spans the whole width. Every part of the control, fill included, is placed by `layoutInBounds:animatedOver:` and nowhere else, with `setProgress:inBounds:` supplying only the ease and a resize passing 0, so a negative fraction reverts cleanly.
 
-**The macOS empty state's static line reuses that control's resting track**, so it shares the loading line's weight and colour. The iOS empty state draws no line.
+**The macOS empty state's static line reuses that control's resting track**, reading the waveform style's height and alpha from `LoadingIndicatorMath.h`, so it shares the loading line's weight and colour by construction. The iOS empty state draws no line.
 
 `DownloadProgressMonitor` (`Vibe/System/`) feeds the fraction for a materializing cloud file — about once a second, which is the provider's ceiling — so `setProgress:inBounds:` **eases** the fill to each value over roughly the previous gap instead of snapping. Core Animation retargets from the presentation value, so an early sample redirects rather than jumps, and the fill never runs past what was reported, leaving a stall honest. Drive both modes without a real download via the debug channel's `set_loading`.
 

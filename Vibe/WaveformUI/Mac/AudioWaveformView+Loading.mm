@@ -3,10 +3,10 @@
 //  Vibe
 //
 //  The view's two non-waveform presentations. The loading control itself is
-//  WaveformLoadingIndicator, shared with the iOS scrubber; what is left here
-//  is when to show it, and the empty state's static line — which is that same
-//  control at rest, so it takes its height and colour from WaveformMidline.h
-//  rather than restating them.
+//  LoadingIndicator (Vibe/Controls/), shared with the iOS scrubber and the row
+//  gutters; what is left here is when to show it, and the empty state's static
+//  line — which is that same control at rest, so it takes its height and
+//  colour from LoadingIndicatorMath.h rather than restating them.
 //
 
 #import "AudioWaveformView+Loading.h"
@@ -25,8 +25,9 @@
     if (_currentWaveformRenderer) {
         [self drawWaveform];
     }
-    _loadingIndicator = [[WaveformLoadingIndicator alloc]
+    _loadingIndicator = [[LoadingIndicator alloc]
             initInLayer:self.layer
+                  style:VibeLoadingIndicatorStyleWaveform
                  isDark:self.isDark
           contentsScale:VibeBackingScaleForWindow(self.window)];
     [self layoutLoadingLayer];
@@ -44,7 +45,7 @@
 }
 
 // Fed by DownloadProgressMonitor for a materializing cloud file; the control
-// owns the easing and the indeterminate revert. See WaveformLoadingIndicator.
+// owns the easing and the indeterminate revert. See LoadingIndicator.
 - (void)setLoadingProgress:(float)fraction {
     [_loadingIndicator setProgress:fraction inBounds:self.bounds];
 }
@@ -77,17 +78,21 @@
         return;
     }
     CGFloat midY = self.bounds.size.height / 2;
+    CGFloat height = VibeLoadingIndicatorMetricsForStyle(
+            VibeLoadingIndicatorStyleWaveform, self.bounds.size.width).height;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    _placeholderLayer.frame = CGRectMake(0, midY - kVibeMidlineHeight / 2,
-                                         self.bounds.size.width, kVibeMidlineHeight);
+    _placeholderLayer.frame = CGRectMake(0, midY - height / 2,
+                                         self.bounds.size.width, height);
     [CATransaction commit];
 }
 
 - (void)updatePlaceholderColor {
     NSColor *base = self.isDark ? [NSColor whiteColor] : [NSColor blackColor];
+    CGFloat alpha = VibeLoadingIndicatorMetricsForStyle(
+            VibeLoadingIndicatorStyleWaveform, self.bounds.size.width).trackAlpha;
     _placeholderLayer.backgroundColor =
-            [base colorWithAlphaComponent:kVibeInertMidlineAlpha].CGColor;
+            [base colorWithAlphaComponent:alpha].CGColor;
 }
 
 - (void)hideEmptyPlaceholder {

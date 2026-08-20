@@ -5,16 +5,16 @@
 //  The private surface shared between AudioWaveformView.mm and its loading
 //  category: the waveform handle and the layers
 //  the loading and empty presentations own (the midline metrics they share
-//  with iOS are in WaveformMidline.h). Do not use it outside the view's
-//  implementation files; everything else goes through AudioWaveformView.h.
+//  with iOS are LoadingIndicatorMath.h's waveform style). Do not use it
+//  outside the view's implementation files; everything else goes through
+//  AudioWaveformView.h.
 //
 
 #import "AudioWaveformView.h"
 #import "AudioWaveform.h"
 #import "AudioWaveformRenderer.h"
-// kVibeMidlineHeight and the midline palette, shared with the iOS scrubber.
-#import "WaveformMidline.h"
-#import "WaveformLoadingIndicator.h"
+// The shared control and its metrics, Vibe/Controls/.
+#import "LoadingIndicator.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -26,8 +26,8 @@ NS_ASSUME_NONNULL_BEGIN
     //
     // The loading control is the object shared with the iOS scrubber; nil when
     // no load is showing. It owns its own layers, its determinate fill and the
-    // sweep's traps — see WaveformLoadingIndicator.
-    WaveformLoadingIndicator*   _loadingIndicator;
+    // sweep's traps — see LoadingIndicator.
+    LoadingIndicator*           _loadingIndicator;
     CALayer*                    _placeholderLayer;
 
     // The live renderer, which the loading presentation reads only to know

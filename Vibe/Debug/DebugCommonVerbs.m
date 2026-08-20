@@ -31,6 +31,7 @@
 #import "AudioPlayer+Debug.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "CloudTransferRegistryInternal.h"
 #import "EqualizerIndicatorView+Debug.h"
 #import "NSURLUtil.h"
 #import "NSURLUtil+Debug.h"
@@ -424,6 +425,41 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"priorityLane": [cache debugPriorityLaneState],
                     @"materialization":
                             [AudioFileMaterializationCoordinator.sharedCoordinator debugState],
+                });
+            }),
+            VibeDebugCmd(@"dump_row_loading", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                // Both halves of the row-loading guarantee, so a mismatch is
+                // visible: the registry's live transfers, and every playlist
+                // row the registry would mark. Lane capacity bounds both.
+                CloudTransferRegistry *registry = CloudTransferRegistry.sharedRegistry;
+                NSDictionary<NSString *, NSNumber *> *snapshot = [registry transferSnapshot];
+                NSMutableArray *transfers = [NSMutableArray arrayWithCapacity:snapshot.count];
+                [snapshot enumerateKeysAndObjectsUsingBlock:^(NSString *path,
+                        NSNumber *progress, BOOL *stop) {
+                    [transfers addObject:@{
+                        @"file": path.lastPathComponent,
+                        @"progress": progress,
+                    }];
+                }];
+                NSMutableArray *rows = [NSMutableArray array];
+                NSUInteger count = surface.debugPlaylistCount;
+                for (NSUInteger index = 0; index < count; index++) {
+                    AudioTrack *track = [surface debugPlaylistTrackAtIndex:index];
+                    if (!track.url || ![registry isTransferringURL:track.url]) {
+                        continue;
+                    }
+                    [rows addObject:@{
+                        @"index": @(index),
+                        @"file": track.url.lastPathComponent ?: @"",
+                        @"progress": @([registry progressForURL:track.url]),
+                    }];
+                }
+                return VibeJSONString(@{
+                    @"transfers": transfers,
+                    @"loadingRows": rows,
+                    @"playlistCount": @(count),
                 });
             }),
             VibeDebugCmd(@"dump_audio_loading", 0,

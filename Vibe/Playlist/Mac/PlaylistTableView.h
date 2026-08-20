@@ -7,6 +7,7 @@
 
 @class AudioTrack;
 @class EqualizerIndicatorView;
+@class LoadingIndicatorView;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -52,6 +53,7 @@ extern NSString *const kPlaylistColumnLength;
 // NSTableCellView.imageView is typed as NSImageView, so the equalizer view
 // cannot ride the built-in outlet. Fetch it by class instead.
 + (nullable EqualizerIndicatorView *)equalizerViewInCell:(NSTableCellView *)view;
++ (nullable LoadingIndicatorView *)loadingViewInCell:(NSTableCellView *)view;
 
 @end
 

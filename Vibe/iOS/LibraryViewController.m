@@ -10,7 +10,9 @@
 
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "CloudTransferRegistry.h"
 #import "EqualizerIndicatorView.h"
+#import "LoadingIndicatorView.h"
 #import "PlaybackController.h"
 #import "Playlist.h"
 #import "SettingsViewController.h"
@@ -40,6 +42,12 @@ static const CGFloat kArtTextGap = 14;
 @property (nonatomic, weak, nullable) id<EqualizerLevelSource> levelSource;
 @property (nonatomic) BOOL equalizerAudioOutputActive;
 @property (nonatomic) BOOL equalizerPresentationVisible;
+// The number gutter's loading bar: YES while a provider transfer is really
+// running for this row's file. Loading outranks playing in the gutter —
+// while the open is in flight there is no output audio, so the equalizer
+// would be a row of collapsed dots; the loading bar says more.
+@property (nonatomic, getter=isLoading) BOOL loading;
+@property (nonatomic) float loadingProgress;
 // Answers whether the row's height can have moved — the artist line appearing
 // or leaving is the only thing here that changes it. A caller rendering in
 // place owes the table a height recompute when it does; see
@@ -51,7 +59,7 @@ static const CGFloat kArtTextGap = 14;
 
 #pragma mark - The screen
 
-@interface LibraryViewController () <PlaybackObserver>
+@interface LibraryViewController () <PlaybackObserver, CloudTransferRegistryObserver>
 @end
 
 @implementation LibraryViewController {
@@ -100,6 +108,7 @@ static const CGFloat kArtTextGap = 14;
     [self.tableView registerClass:LibraryTrackCell.class forCellReuseIdentifier:kTrackCellIdentifier];
 
     [_playback addObserver:self];
+    CloudTransferRegistry.sharedRegistry.observer = self;
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(thumbnailDidLoad:)
                                                name:AudioTrackMetadataThumbnailDidLoadNotification
@@ -242,6 +251,7 @@ static const CGFloat kArtTextGap = 14;
     [cell renderTrack:[_playlist trackAtIndex:index]
                number:index + 1
               playing:playing];
+    [self syncLoadingForCell:cell trackIndex:index];
     [self syncEqualizerActivityForCell:cell];
     return cell;
 }
@@ -262,6 +272,7 @@ forRowAtIndexPath:(NSIndexPath *)indexPath {
             [(LibraryTrackCell *)cell renderTrack:[_playlist trackAtIndex:index]
                                            number:index + 1
                                           playing:index == _playlist.currentIndex];
+            [self syncLoadingForCell:(LibraryTrackCell *)cell trackIndex:index];
         }
         [self syncEqualizerActivityForCell:(LibraryTrackCell *)cell];
     }
@@ -274,6 +285,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
         LibraryTrackCell *trackCell = (LibraryTrackCell *)cell;
         trackCell.equalizerPresentationVisible = NO;
         trackCell.equalizerAudioOutputActive = NO;
+        // An off-screen row must not hold a live sweep animation.
+        trackCell.loading = NO;
     }
 }
 
@@ -302,8 +315,36 @@ didEndDisplayingCell:(UITableViewCell *)cell
     NSIndexPath *path = [self.tableView indexPathForCell:cell];
     BOOL current = path && _playlist.count > 0
             && (NSUInteger)path.row == _playlist.currentIndex;
-    cell.equalizerAudioOutputActive = current && _playback.audioOutputActive;
-    cell.equalizerPresentationVisible = current && [self isCellMateriallyVisible:cell];
+    // A loading row's gutter belongs to the loading bar; the hidden equalizer
+    // must not keep a demand-declaring poller behind it.
+    BOOL eligible = current && !cell.isLoading;
+    cell.equalizerAudioOutputActive = eligible && _playback.audioOutputActive;
+    cell.equalizerPresentationVisible = eligible && [self isCellMateriallyVisible:cell];
+}
+
+- (void)syncLoadingForCell:(LibraryTrackCell *)cell trackIndex:(NSUInteger)index {
+    AudioTrack *track = index < _playlist.count ? [_playlist trackAtIndex:index] : nil;
+    CloudTransferRegistry *registry = CloudTransferRegistry.sharedRegistry;
+    BOOL loading = track.url != nil && [registry isTransferringURL:track.url];
+    cell.loading = loading;
+    cell.loadingProgress = loading ? [registry progressForURL:track.url] : -1;
+}
+
+// Reconfigure the visible rows in place — never reload, which would rebuild
+// the playing row's EqualizerIndicatorView and disturb its demand balancing.
+- (void)cloudTransferRegistryDidChange:(CloudTransferRegistry *)registry {
+    for (UITableViewCell *cell in self.tableView.visibleCells) {
+        if (![cell isKindOfClass:LibraryTrackCell.class]) {
+            continue;
+        }
+        NSIndexPath *path = [self.tableView indexPathForCell:cell];
+        if (!path) {
+            continue;
+        }
+        [self syncLoadingForCell:(LibraryTrackCell *)cell
+                      trackIndex:(NSUInteger)path.row];
+        [self syncEqualizerActivityForCell:(LibraryTrackCell *)cell];
+    }
 }
 
 - (void)syncCurrentEqualizerActivity {
@@ -413,6 +454,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
 @implementation LibraryTrackCell {
     UILabel                 *_numberLabel;
     EqualizerIndicatorView  *_indicatorView;
+    LoadingIndicatorView    *_loadingView;
     // No ivar for levelSource: it forwards straight to the indicator, so the
     // cell keeps no second copy to fall out of step with it.
     UIImageView *_artView;
@@ -420,6 +462,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     UILabel     *_artistLabel;
     UILabel     *_durationLabel;
     UIStackView *_textStack;
+    BOOL         _playing;
 }
 
 - (instancetype)initWithStyle:(UITableViewCellStyle)style
@@ -435,6 +478,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     [super prepareForReuse];
     _indicatorView.presentationVisible = NO;
     _indicatorView.audioOutputActive = NO;
+    self.loading = NO;
 }
 
 - (void)build {
@@ -464,6 +508,13 @@ didEndDisplayingCell:(UITableViewCell *)cell
     _indicatorView.hidden = YES;
     _indicatorView.translatesAutoresizingMaskIntoConstraints = NO;
     [content addSubview:_indicatorView];
+
+    // The loading bar shares the gutter: one EQ-bar's weight, appearance-
+    // derived colour (iOS keeps the shared control's default, unlike the mac's
+    // forced white).
+    _loadingView = [[LoadingIndicatorView alloc] initWithFrame:CGRectZero];
+    _loadingView.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:_loadingView];
 
     _artView = [[UIImageView alloc] init];
     _artView.contentMode = UIViewContentModeScaleAspectFill;
@@ -521,6 +572,11 @@ didEndDisplayingCell:(UITableViewCell *)cell
         [_indicatorView.widthAnchor constraintEqualToConstant:16],
         [_indicatorView.heightAnchor constraintEqualToConstant:14],
 
+        [_loadingView.centerXAnchor constraintEqualToAnchor:_numberLabel.centerXAnchor],
+        [_loadingView.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
+        [_loadingView.widthAnchor constraintEqualToConstant:16],
+        [_loadingView.heightAnchor constraintEqualToConstant:2],
+
         [_artView.leadingAnchor constraintEqualToAnchor:_numberLabel.trailingAnchor constant:8],
         [_artView.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
         [_artView.widthAnchor constraintEqualToConstant:kArtSide],
@@ -567,12 +623,32 @@ didEndDisplayingCell:(UITableViewCell *)cell
     return _indicatorView.presentationVisible;
 }
 
+- (void)setLoading:(BOOL)loading {
+    if (_loading == loading && _loadingView.isActive == loading) {
+        return;
+    }
+    _loading = loading;
+    [self resolveGutter];
+}
+
+- (void)setLoadingProgress:(float)loadingProgress {
+    _loadingProgress = loadingProgress;
+    _loadingView.progress = loadingProgress;
+}
+
+// The gutter's three states in precedence: loading bar, equalizer, number.
+- (void)resolveGutter {
+    _loadingView.active = _loading;
+    _numberLabel.hidden = _loading || _playing;
+    _indicatorView.hidden = _loading || !_playing;
+}
+
 - (BOOL)renderTrack:(AudioTrack *)track
              number:(NSUInteger)number
             playing:(BOOL)playing {
     _numberLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)number];
-    _numberLabel.hidden = playing;
-    _indicatorView.hidden = !playing;
+    _playing = playing;
+    [self resolveGutter];
     _artView.image = track.cachedThumbnail ?: [UIImage imageNamed:@"record-bg"];
     _durationLabel.text = track.durationString;
     _titleLabel.text = track.displayTitle ?: @"";

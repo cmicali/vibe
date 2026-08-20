@@ -9,6 +9,8 @@
 #import "PlaylistCoverImageView.h"
 #import "PlaylistTextCell.h"
 #import "EqualizerIndicatorView.h"
+#import "LoadingIndicatorMath.h"
+#import "LoadingIndicatorView.h"
 
 // This is also the scroll view's line scroll and the cell prototypes' height.
 static const CGFloat kPlaylistRowHeight = 28;
@@ -196,6 +198,19 @@ static NSTextField *makeCellTextField(NSRect frame) {
         eqView.barColor = NSColor.whiteColor;
         eqView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
         [view addSubview:eqView];
+        // The loading bar shares the equalizer's slot: same width and X, one
+        // EQ-bar's weight, vertically centred. White for the same reason the
+        // bars are — this gutter never inherits artwork colour.
+        CGFloat loadingHeight = VibeLoadingIndicatorMetricsForStyle(
+                VibeLoadingIndicatorStyleRow, kEqualizerWidth).height;
+        LoadingIndicatorView *loadingView = [[LoadingIndicatorView alloc]
+                initWithFrame:NSMakeRect(equalizerX,
+                                         (rowHeight - loadingHeight) / 2,
+                                         kEqualizerWidth,
+                                         loadingHeight)];
+        loadingView.barColor = NSColor.whiteColor;
+        loadingView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
+        [view addSubview:loadingView];
         NSTextField *field = makeCellTextField(NSMakeRect(-2, 0, 24, rowHeight));
         field.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
         [view addSubview:field];
@@ -237,6 +252,15 @@ static NSTextField *makeCellTextField(NSRect frame) {
     for (NSView *subview in view.subviews) {
         if ([subview isKindOfClass:[EqualizerIndicatorView class]]) {
             return (EqualizerIndicatorView *)subview;
+        }
+    }
+    return nil;
+}
+
++ (LoadingIndicatorView *)loadingViewInCell:(NSTableCellView *)view {
+    for (NSView *subview in view.subviews) {
+        if ([subview isKindOfClass:[LoadingIndicatorView class]]) {
+            return (LoadingIndicatorView *)subview;
         }
     }
     return nil;

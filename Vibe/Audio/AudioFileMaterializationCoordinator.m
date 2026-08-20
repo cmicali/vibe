@@ -7,6 +7,7 @@
 
 #import "AudioFileOpenRules.h"
 #import "CloudFileMaterializer.h"
+#import "CloudTransferRegistryInternal.h"
 #import "NSURL+AudioOpen.h"
 #import "NSURLUtil.h"
 
@@ -106,6 +107,10 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 @property (nonatomic) NSTimeInterval deadline;
 @property (nonatomic) BOOL runWasCancelled;
 @property (nonatomic) NSUInteger inheritedCancelRestarts;
+// Whether this run's start was published to CloudTransferRegistry — the probe
+// computed once at startClaim:, stashed so a run that starts and finishes
+// cannot disagree about whether it was a transfer.
+@property (nonatomic) BOOL publishedTransfer;
 @property (nonatomic, strong, nullable) id<AudioFileMaterializationOperation> operation;
 @end
 
@@ -721,6 +726,18 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     claim.runGeneration++;
     claim.runWasCancelled = NO;
     uint64_t runGeneration = claim.runGeneration;
+    // Publish only real provider transfers: a local claim's run is a stat and
+    // a no-op coordinated read, and a local playlist must not flash
+    // indicators on every row. Same rule that exempts local claims from lane
+    // capacity, and computed once so the finish cannot disagree.
+    claim.publishedTransfer = _datalessProbe(claim.url);
+    if (claim.publishedTransfer) {
+        NSString *path = claim.path;
+        NSURL *url = claim.url;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [CloudTransferRegistry.sharedRegistry beganTransferForPath:path url:url];
+        });
+    }
     if (claim.lane == VibeMaterializationLaneInteractive) {
         _interactiveRunningCount++;
     }
@@ -761,6 +778,16 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     if (current != claim || claim.runGeneration != runGeneration
             || claim.state != VibeMaterializationClaimStateRunning) {
         return;
+    }
+    // Every settled run un-publishes, on every exit — the runWasCancelled
+    // readmission and inherited-cancel restart paths below re-begin through
+    // startClaim:, and FIFO delivery to main keeps end-then-begin in order.
+    if (claim.publishedTransfer) {
+        claim.publishedTransfer = NO;
+        NSString *transferPath = claim.path;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [CloudTransferRegistry.sharedRegistry endedTransferForPath:transferPath];
+        });
     }
     // A Ready transfer with handle runs riding this path hands its lane slot
     // to them rather than releasing it: the AVAudioFile opens it fed are

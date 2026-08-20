@@ -8,7 +8,7 @@
 #import "AudioWaveformRenderer.h"
 #import "DetailedAudioWaveformRenderer.h"
 #import "WaveformRendererRegistry.h"
-#import "WaveformLoadingIndicator.h"
+#import "LoadingIndicator.h"
 // The zoom range and the bake's ceilings, which are one set of numbers.
 #import "WaveformZoomMath.h"
 #import "UIView+DarkMode.h"
@@ -84,7 +84,7 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     // The loading control, shared with the mac view: its own layers, its
     // determinate fill and the sweep's traps all live there. Nil when no load
     // is showing.
-    WaveformLoadingIndicator *_loadingIndicator;
+    LoadingIndicator *_loadingIndicator;
     // The scrub-tick haptic and the last virtual-x bucket that fired it.
     UIImpactFeedbackGenerator *_scrubHaptics;
     NSInteger               _lastTickBucket;
@@ -700,8 +700,9 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
         // whole streaming load that follows it costs.
         [self drawWaveformSettled];
     }
-    _loadingIndicator = [[WaveformLoadingIndicator alloc]
+    _loadingIndicator = [[LoadingIndicator alloc]
             initInLayer:self.layer
+                  style:VibeLoadingIndicatorStyleWaveform
                  isDark:self.isDark
           contentsScale:[self displayScale]];
     [self layoutLoadingLayer];
@@ -728,7 +729,7 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 
 // Determinate download progress, fed by whatever source knows a fraction —
 // today the allocated-size monitor. The control owns the easing and the
-// indeterminate revert; see WaveformLoadingIndicator.
+// indeterminate revert; see LoadingIndicator.
 - (void)setLoadingProgress:(float)fraction {
     [_loadingIndicator setProgress:fraction inBounds:self.bounds];
 }

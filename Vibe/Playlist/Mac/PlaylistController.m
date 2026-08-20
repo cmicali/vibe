@@ -8,7 +8,9 @@
 #import "Playlist.h"
 #import "PlaylistTableView.h"
 #import "PlaylistRowView.h"
+#import "CloudTransferRegistry.h"
 #import "EqualizerIndicatorView.h"
+#import "LoadingIndicatorView.h"
 #import "MainMenuBuilder.h" // vends the row context menu's symbol items
 #import "TrackCommands.h"
 #import "VibeStrings.h"
@@ -18,7 +20,8 @@
 static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 
 // Validation for the row context menu installed in setTableView:.
-@interface PlaylistController () <NSMenuItemValidation, PlaylistObserver>
+@interface PlaylistController () <NSMenuItemValidation, PlaylistObserver,
+        CloudTransferRegistryObserver>
 @end
 
 @implementation PlaylistController {
@@ -108,6 +111,7 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
                                            selector:@selector(playlistClipBoundsDidChange:)
                                                name:NSViewBoundsDidChangeNotification
                                              object:clipView];
+    CloudTransferRegistry.sharedRegistry.observer = self;
 }
 
 - (instancetype)initWithAudioPlayer:(AudioPlayer *)audioPlayer {
@@ -300,24 +304,7 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     BOOL isCurrentRow = (row == (NSInteger)self.currentIndex);
     NSTableCellView *view = [_tableView cellViewForColumn:tableColumn];
     if ([tableColumn.identifier isEqualToString:kPlaylistColumnNumber]) {
-        EqualizerIndicatorView *eqView = [PlaylistTableView equalizerViewInCell:view];
-        // Unconditional, as the iOS list does it: a reused view releases the
-        // old source before it can declare demand against the new row's state.
-        eqView.levelSource = self.levelSource;
-        if (isCurrentRow) {
-            view.textField.hidden = YES;
-            eqView.hidden = NO;
-            eqView.audioOutputActive = self.equalizerAudioOutputActive;
-            eqView.presentationVisible = self.equalizerSurfaceVisible
-                    && [self isCurrentEqualizerRowVisible];
-        }
-        else {
-            view.textField.hidden = NO;
-            eqView.hidden = YES;
-            eqView.audioOutputActive = NO;
-            eqView.presentationVisible = NO;
-            view.textField.attributedStringValue = [PlaylistTableView numberCellString:(NSUInteger)row + 1];
-        }
+        [self configureNumberCell:view row:row track:track isCurrentRow:isCurrentRow];
     }
     else if ([tableColumn.identifier isEqualToString:kPlaylistColumnArt]) {
         view.imageView.image = [PlaylistTableView artworkCellImage:track.cachedThumbnail];
@@ -330,6 +317,71 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
     }
 
     return view;
+}
+
+// The number gutter's three states, in precedence: loading, playing, number.
+// Loading outranks playing deliberately — while the current track's open is
+// in flight there is no output audio, so the equalizer is a row of collapsed
+// dots; the loading bar says more. Every state is set unconditionally on
+// every configure, so a reused cell cannot carry a previous row's.
+- (void)configureNumberCell:(NSTableCellView *)view
+                        row:(NSInteger)row
+                      track:(AudioTrack *)track
+               isCurrentRow:(BOOL)isCurrentRow {
+    EqualizerIndicatorView *eqView = [PlaylistTableView equalizerViewInCell:view];
+    LoadingIndicatorView *loadingView = [PlaylistTableView loadingViewInCell:view];
+    // Unconditional, as the iOS list does it: a reused view releases the
+    // old source before it can declare demand against the new row's state.
+    eqView.levelSource = self.levelSource;
+    CloudTransferRegistry *registry = CloudTransferRegistry.sharedRegistry;
+    BOOL loading = track.url != nil && [registry isTransferringURL:track.url];
+    loadingView.active = loading;
+    loadingView.progress = loading ? [registry progressForURL:track.url] : -1;
+    if (loading) {
+        view.textField.hidden = YES;
+        eqView.hidden = YES;
+        eqView.audioOutputActive = NO;
+        eqView.presentationVisible = NO;
+    }
+    else if (isCurrentRow) {
+        view.textField.hidden = YES;
+        eqView.hidden = NO;
+        eqView.audioOutputActive = self.equalizerAudioOutputActive;
+        eqView.presentationVisible = self.equalizerSurfaceVisible
+                && [self isCurrentEqualizerRowVisible];
+    }
+    else {
+        view.textField.hidden = NO;
+        eqView.hidden = YES;
+        eqView.audioOutputActive = NO;
+        eqView.presentationVisible = NO;
+        view.textField.attributedStringValue = [PlaylistTableView numberCellString:(NSUInteger)row + 1];
+    }
+}
+
+// Reconfigure the visible number cells in place. Never reloadData and never
+// reload rows — that would rebuild the playing row's EqualizerIndicatorView
+// and disturb its demand balancing and selection.
+- (void)cloudTransferRegistryDidChange:(CloudTransferRegistry *)registry {
+    PlaylistTableView *tableView = self.tableView;
+    NSInteger column = [tableView columnWithIdentifier:kPlaylistColumnNumber];
+    if (column < 0) {
+        return;
+    }
+    NSRange rows = [tableView rowsInRect:tableView.visibleRect];
+    for (NSUInteger row = rows.location;
+            row < NSMaxRange(rows) && row < _model.count; row++) {
+        NSTableCellView *cell = [tableView viewAtColumn:column
+                                                    row:(NSInteger)row
+                                        makeIfNecessary:NO];
+        if (!cell) {
+            continue;
+        }
+        [self configureNumberCell:cell
+                              row:(NSInteger)row
+                            track:[_model trackAtIndex:row]
+                     isCurrentRow:row == self.currentIndex];
+    }
 }
 
 #pragma mark - Public API

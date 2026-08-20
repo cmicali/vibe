@@ -16,6 +16,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
+#import "CloudTransferRegistry.h"
 #import "DownloadProgressMonitor.h"
 #import "AudioFileConverter.h"
 #import "PlaylistController.h"
@@ -66,6 +67,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
                     noteOpenProgressForOpenRequestIdentifier:openRequestIdentifier];
         }                handler:^(float fraction) {
             [weakSelf.trackDisplay setWaveformLoadingProgress:fraction];
+            [CloudTransferRegistry.sharedRegistry noteProgress:fraction
+                                                        forURL:track.url];
         }];
         _downloadMonitorOpenRequestIdentifier = openRequestIdentifier;
     }

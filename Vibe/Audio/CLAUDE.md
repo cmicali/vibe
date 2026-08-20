@@ -99,6 +99,8 @@ Admission fails once, at stage 1: the coordinator applies the immutable configur
 
 `stop` (File > Close) unloads outright: it supersedes any in-flight open so a Loading track never starts, fades a playing node to silence before teardown, and **fires no delegate callback** — the caller owns the UI reset, and nothing may drive auto-advance from it.
 
+**`CloudTransferRegistry` is the coordinator's publication surface** for "which files are on the wire": `startClaim:` publishes a begin and `finishClaim:` an end, both gated on the dataless probe computed once at start — a local claim's run is a stat and a no-op coordinated read and publishes nothing, and a claim merely queued behind lane capacity publishes nothing either, so lane capacity bounds the row indicators exactly as it bounds the transfers. Main-thread, one weak observer per shell, one `DownloadProgressMonitor` per transferring path unless the shell's own monitor already feeds that path through `noteProgress:forURL:`. The row wiring is `Playlist/Mac/` and `iOS/`; the guarantee is the root `CLAUDE.md`'s.
+
 ### Error text
 
 `VibeAudioError*` descriptions are for logs and are never localized. The one line a screen shows is `VibeStatusForPlayError` (`AudioErrorRules.h`, header-only and tested), which maps `VibeAudioErrorCode` to a `STR_ERROR_*` string. It lives here, beside the enum, because both screens render the same wording.

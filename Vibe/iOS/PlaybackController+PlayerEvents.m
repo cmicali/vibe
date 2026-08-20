@@ -21,6 +21,7 @@
 #import "AudioErrorRules.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
+#import "CloudTransferRegistry.h"
 #import "DownloadProgressMonitor.h"
 #import "UIUpdateTimer.h"
 
@@ -66,6 +67,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
             }
         }                handler:^(float fraction) {
             [weakSelf notifyDidUpdateLoadingProgress:fraction];
+            [CloudTransferRegistry.sharedRegistry noteProgress:fraction
+                                                        forURL:track.url];
         }];
         _downloadMonitorOpenRequestIdentifier = openRequestIdentifier;
     }
