@@ -136,7 +136,12 @@
     AVAudioTime *playerTime = nil;
     @try {
         AVAudioTime *nodeTime = node.lastRenderTime;
-        playerTime = nodeTime ? [node playerTimeForNodeTime:nodeTime] : nil;
+        // A stopped engine's node hands back a non-nil time with BOTH validity
+        // flags false, and playerTimeForNodeTime: error-logs on every such
+        // call — at the UI tick rate, for as long as the engine stays down.
+        // The invalid reading means the same thing nil does: no reading.
+        playerTime = nodeTime && (nodeTime.sampleTimeValid || nodeTime.hostTimeValid)
+                ? [node playerTimeForNodeTime:nodeTime] : nil;
     }
     @catch (NSException *exception) {
         playerTime = nil;

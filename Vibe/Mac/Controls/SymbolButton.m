@@ -189,9 +189,16 @@ static const CGFloat kDefaultSymbolPointSize = 15;
 #pragma mark - Mouse handling (momentary push)
 
 // Disabled buttons are click-through, so a click over one still drags the
-// window.
+// window. So are invisible ones: the window's chrome sits at alpha 0 until
+// hover fades it in, and an invisible close button that still takes a press
+// quit the app on a click the user never saw a control under. The animator
+// writes the model alpha up front, so a button mid-fade-in is already
+// hittable.
 - (NSView *)hitTest:(NSPoint)point {
-    return self.isEnabled ? [super hitTest:point] : nil;
+    if (!self.isEnabled || self.alphaValue < 0.01) {
+        return nil;
+    }
+    return [super hitTest:point];
 }
 
 - (void)mouseDown:(NSEvent *)event {

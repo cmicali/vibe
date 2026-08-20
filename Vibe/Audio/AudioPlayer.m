@@ -1192,7 +1192,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     NSTimeInterval rawPosition = position;
     @try {
         AVAudioTime *nodeTime = node.lastRenderTime;
-        AVAudioTime *playerTime = nodeTime ? [node playerTimeForNodeTime:nodeTime] : nil;
+        // Guarded on validity like the position getter: an invalid reading
+        // means no reading, and asking anyway error-logs per call.
+        AVAudioTime *playerTime = nodeTime && (nodeTime.sampleTimeValid || nodeTime.hostTimeValid)
+                ? [node playerTimeForNodeTime:nodeTime] : nil;
         double sampleRate = _file.processingFormat.sampleRate;
         if (playerTime && playerTime.sampleTimeValid && sampleRate > 0) {
             rawPosition = (NSTimeInterval)(_segmentStartFrame + playerTime.sampleTime) / sampleRate;
