@@ -6,7 +6,7 @@ Tags, their disk cache, embedded artwork, and the macOS folder-cover fallback.
 
 | Type | Owns |
 | --- | --- |
-| `AudioTrackMetadataCache` | The public facade, disk-cache lifetime, scan replacement, the persistent priority loader, and the foreground materialization hold. |
+| `AudioTrackMetadataCache` | The public facade, disk-cache lifetime, scan replacement, the current track's priority continuity across replacements, and the foreground materialization hold. |
 | `AudioTrackMetadataLoader` | Cache checks, the playlist scan, materialization requests, TagLib scheduling, duplicate-row installation, and delivery. It is internal to the cache. |
 | `MetadataParseCoordinator` | Only the per-URL owner/waiter table. It does no I/O, parsing, installation, or delivery. |
 | `AudioTrackMetadata` | One immutable set of tags plus the display-facing artwork facade. TagLib and cache coding live here because this is the only ObjC++ object in the flow. |
@@ -32,17 +32,17 @@ A metadata *request* may start before a file is materialized; an actual TagLib p
 
 The playlist scan has two stages. Stage 1 checks every row against the disk cache. An operation-queue barrier waits for both enumeration and all discovered checks before stage 2 admits misses. This preserves fast cache hits across a playlist of placeholders; only stage 2 can download audio.
 
-The scan registers exactly one `MetadataScan` materialization at a time. Ready files parse on the configured utility worker queue. The priority lane is persistent, user-initiated, and separate so the current track never waits behind the sweep. File > Close calls `cancelScan`; it drops pending scan entries and detaches their central tokens without cancelling a same-path foreground owner.
+The scan registers exactly one `MetadataScan` materialization at a time. Ready files parse on the configured utility worker queue. **The current track is not a second lane: it is the same record with its URL in the loader's priority set** — materialized through its own single slot beside the scan's (so it never waits behind the sweep's transfer), exempt from the stage-1 barrier, submitted even while the hold is up (a same-path playback claim serves it for free), and parsed at user-initiated per-operation QoS. Demotion is removal from the set, so no stale mark can survive a requeue. A `loadMetadataNow:` before any sweep exists builds a loader over just that track; the real playlist sweep replaces it wholesale and the cache re-prioritizes the (weakly held) current track on the replacement. File > Close calls `cancelScan`; it drops pending records — the priority record included, which is what makes playlist replacement drop the old playlist's downloads by construction — and detaches their central tokens without cancelling a same-path foreground owner.
 
 Both shells defer the first scan until the selected track's open settles. From play submission until that settlement they also call `setBackgroundMaterializationHeld:YES`. Cache checks continue while held, but no unrelated scan miss may start a provider transfer. The cache owns this state because replacing a scan loader must not lose the hold. **The hold and the central transfer lanes bound provider downloads, which an already-local file never starts** — so a miss whose bytes are on disk keeps materializing and parsing straight through the hold and past a full lane, on a partially downloaded cloud folder above all. The probe is `NSURLUtil.isDatalessFile:`, at the loader's enqueue/submit/requeue edges and injected into the coordinator's admission.
 
 Materialization results, not error text, decide retries:
 
-- `Yielded` spends no attempt and waits for the hold to release. A yielded **priority** request then retries only if its file is local by that edge — the settled open is what made it so; a file still dataless means the open failed, and re-downloading a dead pick behind its error UI is the sweep's call to make, at its rank.
+- `Yielded` spends no attempt. A scan record requeues at its rank. A yielded **priority** record waits out the hold (re-picking would spin against the coordinator's synchronous yield), and the release edge re-judges it: local by then — the settled open made it so — retries; still dataless means the open failed, and the record demotes to an ordinary sweep candidate at its rank rather than re-downloading a dead pick behind its error UI.
 - `Failed` spends the bounded per-path budget and re-enters below untried rows.
 - `AdmissionExhausted` spends the same budget after a 0.25–2 second delay.
 
-`MetadataRetryRules.h` contains those tested decisions. A loader snapshots `AudioLoadingConfiguration`; changing settings retires the priority loader after its submitted work and affects only newly created loaders.
+Both slots spend the one per-path ledger; there is no separate priority budget. `MetadataRetryRules.h` contains those tested decisions. A loader snapshots `AudioLoadingConfiguration`; changing settings affects only newly created loaders.
 
 Pending scan misses are app-owned records, not pre-submitted operations. `MetadataScanOrderRules.h` selects the best record by already-local first, then deferred state, live neighborhood rank, then playlist index. Locality is re-probed at every submit and requeue because the playback open routinely downloads the very file a yielded entry is parked on. The callback queue performs one linear selection instead of sorting: a real playlist can contain more than 100,000 misses, and track changes must only replace the small locked neighborhood snapshot and enqueue a coalesced kick.
 

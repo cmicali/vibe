@@ -705,8 +705,14 @@ def check_consistency(channel, settle=0.35):
 
 
 PENDING_KEYS = ("metadataHolders", "metadataWaiters", "openResultsBuffered",
-                "openBurstQueued", "retiredFades")
+                "openBurstQueued", "retiredFades", "priorityRecordsPending")
 
+# priorityRecordsPending IS a growth metric at quiescence, unlike the two
+# below: at most one or two priority records legitimately exist (the current
+# track, a convert target), and one outliving its play is a strand. The
+# 37-entry strand the soak missed was invisible precisely because no scored
+# counter carried it.
+#
 # dump_health's pending section also carries cloudParsesPending and
 # cloudLaneHeld, and they are deliberately NOT scored here. Neither is a growth
 # metric: a sweep of a cloud folder legitimately holds dozens of pending parses,

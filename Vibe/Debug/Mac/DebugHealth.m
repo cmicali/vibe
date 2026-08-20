@@ -179,6 +179,12 @@ static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerControl
     // clearing edge shows up here and nowhere else.
     out[@"cloudParsesPending"] = @([controller.metadataCache debugPendingBackgroundMaterializationCount]);
     out[@"cloudLaneHeld"] = @([controller.metadataCache debugBackgroundMaterializationHeld] ? 1 : 0);
+    // Unlike the two above, this one IS a growth metric at quiescence: a
+    // priority record outliving its play is a strand, and the 37-entry one
+    // the stress soak missed was invisible precisely because no health
+    // counter carried it.
+    out[@"priorityRecordsPending"] =
+            @([(NSArray *)[controller.metadataCache debugPriorityLaneState][@"pending"] count]);
     return out;
 }
 

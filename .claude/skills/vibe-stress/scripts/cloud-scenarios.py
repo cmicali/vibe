@@ -771,6 +771,47 @@ def s13_stand_aside_is_advisory(ctx):
             "duplicate download")
 
 
+def s14_the_priority_records_drain(ctx):
+    """Play storms and a playlist replacement strand no priority records: once
+    playback settles, dump_cloud_health.priorityLane is empty and the priority
+    request rate stops growing.
+
+    The regression test for the 37-queued/7-token strand: a retry budget that
+    could never be spent kept every failed priority request resubmitting at
+    0.25s forever, invisible to every oracle because the retries lived in
+    dispatch_after blocks no counter saw. Queue depth is the symptom; the
+    unbounded request rate is the disease — both are asserted."""
+    ctx.arm(seconds=1.0)
+    open_and_play(ctx, ctx.folders[0], index=None, wait=True)
+    rows = ctx.playlist()["files"]
+    for i in range(min(10, len(rows))):
+        ctx.cmd("play_index", i)
+    # Replace the playlist mid-storm — the old loader's records, the priority
+    # one included, must die with it — then storm the replacement too.
+    playback_before = len(events_of(ctx.trace(), event="requested", role="playback"))
+    ctx.cmd("open", str(ctx.folders[1]))
+    ctx.wait_for("the replacement's playback transfer",
+                 lambda ev: len(events_of(ev, event="requested", role="playback"))
+                         > playback_before)
+    rows = ctx.playlist()["files"]
+    for i in range(min(6, len(rows))):
+        ctx.cmd("play_index", i)
+    # 1s uniform transfers on capacity 1: the last play and its priority join
+    # settle well inside this.
+    ctx.settle(8)
+    lane = ctx.health().get("priorityLane", {})
+    if lane.get("pending") or lane.get("inFlight"):
+        raise Failed(f"priority records stranded after settle: "
+                     f"pending={lane.get('pending')} inFlight={lane.get('inFlight')}")
+    before = len(events_of(ctx.trace(), event="requested", role="metadata-priority"))
+    ctx.settle(4)
+    after = len(events_of(ctx.trace(), event="requested", role="metadata-priority"))
+    if after > before:
+        raise Failed(f"the priority request rate is still growing at rest: "
+                     f"{before} -> {after} over a 4s quiet window")
+    return f"lane drained after two storms and a replacement; request rate flat at rest"
+
+
 SCENARIOS = [
     ("S1", s1_replacement_cancels_the_old_scan, False),
     ("S2", s2_hold_is_armed_at_submission, False),
@@ -789,6 +830,7 @@ SCENARIOS = [
     ("S12a", s12a_a_dead_timeout_is_not_chased, False),
     ("S12b", s12b_a_stalled_timeout_is_not_chased_either, False),
     ("S13", s13_stand_aside_is_advisory, True),
+    ("S14", s14_the_priority_records_drain, False),
 ]
 
 

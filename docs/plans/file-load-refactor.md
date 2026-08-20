@@ -180,8 +180,8 @@ on-device pager check.
 
 ## Progress
 
-- [ ] Phase 0 — thumbnail LRU
-- [ ] Phase 1 — one lane
+- [x] Phase 0 — thumbnail LRU (cb4bc02)
+- [x] Phase 1 — one lane
 - [ ] Phase 2 — rule internalized
 - [ ] Phase 3 — one coordinator
 - [ ] Phase 4 — artwork

@@ -51,57 +51,28 @@ static inline NSTimeInterval VibeMetadataAdmissionRetryDelay(
     return step * (priorFailures + 1);
 }
 
-// A failed or capacity-exhausted priority materialization retries within the
-// same bounded per-path budget the scan spends — the priority track is the one
-// the user is hearing, and under a churning provider a cancellation is
-// transient. Without this, one failed run left the playing track's tags
-// waiting on the background sweep reaching its row.
-static inline BOOL VibeMetadataPriorityRetryAfterFailure(
-        NSUInteger priorFailures,
-        NSUInteger maximumAttempts,
-        BOOL cancelled) {
-    return !cancelled && maximumAttempts > 0 && priorFailures < maximumAttempts - 1;
-}
-
-// A Yielded priority delivery only ever means "the foreground hold was up when
-// the coordinator judged this request" — so it parks while the hold still
-// reads up and retries the moment it does not, and hold release retries EVERY
-// park. Both halves are earned: the winning play of a rapid track-change storm
-// produces exactly ONE lifecycle edge, and its Yielded delivery can marshal to
-// main on either side of the release — a rule that required a later-load
-// marker dropped that one request in both interleavings, and the screen played
-// on with no tags. A stale park's retried parse is a cheap win (its row fills
-// in), bounded by the park set and the shared failure budget.
-//
-// dataless is the file probed at the moment the action is judged, and it
-// decides retry against clear: the retry exists because the settled open made
-// the file local, so a file STILL dataless at that edge means the open failed
-// — chasing it would spend the provider's slot re-downloading a file behind a
-// terminal error the user is looking at. The sweep keeps its row.
-typedef NS_ENUM(NSUInteger, VibeMetadataPriorityYieldAction) {
-    VibeMetadataPriorityYieldActionClear = 0,
-    VibeMetadataPriorityYieldActionRetry,
-    VibeMetadataPriorityYieldActionPark,
+// What happens to a priority record whose materialization came back Yielded.
+// A yield only ever means "the foreground hold was up when the coordinator
+// judged this request", so while the hold still reads up the record WAITS —
+// requeued, marked, not re-picked until the release edge, or the pick/submit/
+// yield cycle spins against the synchronous yield. At the release edge (or a
+// yield delivered after it — the two orders of the same race), the file is
+// probed: local means the settled open downloaded it, so the record retries
+// and its parse lands immediately; still dataless means the open failed, and
+// chasing it would spend the provider's next slot re-downloading a file
+// behind a terminal error the user is looking at — the record DEMOTES to an
+// ordinary sweep candidate at its rank. Yielding never spends the budget.
+typedef NS_ENUM(NSUInteger, VibeMetadataPriorityYieldOutcome) {
+    VibeMetadataPriorityYieldWait = 0,
+    VibeMetadataPriorityYieldRetry,
+    VibeMetadataPriorityYieldDemote,
 };
 
-static inline VibeMetadataPriorityYieldAction VibeMetadataPriorityActionForYield(
-        BOOL held,
-        BOOL cancelled,
-        BOOL dataless) {
-    if (cancelled) {
-        return VibeMetadataPriorityYieldActionClear;
-    }
+static inline VibeMetadataPriorityYieldOutcome VibeMetadataPriorityAfterYield(
+        BOOL held, BOOL local) {
     if (held) {
-        return VibeMetadataPriorityYieldActionPark;
+        return VibeMetadataPriorityYieldWait;
     }
-    return dataless ? VibeMetadataPriorityYieldActionClear
-                    : VibeMetadataPriorityYieldActionRetry;
-}
-
-static inline VibeMetadataPriorityYieldAction
-VibeMetadataPriorityActionForHoldRelease(BOOL cancelled, BOOL dataless) {
-    if (cancelled || dataless) {
-        return VibeMetadataPriorityYieldActionClear;
-    }
-    return VibeMetadataPriorityYieldActionRetry;
+    return local ? VibeMetadataPriorityYieldRetry
+                 : VibeMetadataPriorityYieldDemote;
 }

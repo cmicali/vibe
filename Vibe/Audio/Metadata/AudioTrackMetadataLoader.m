@@ -20,16 +20,20 @@
 
 #include <os/lock.h>
 
-// One scan row's record, from its stage-1 cache check through stage-2
+// One row's record, from its stage-1 cache check through stage-2
 // materialization: a plain record, never a pre-built operation. The lane
-// submits at most one materialization request at a time, so everything
-// still pending remains re-rankable.
+// submits at most one scan materialization at a time, so everything still
+// pending remains re-rankable. The current track is the same record with its
+// URL in the loader's priority set — a second in-flight slot, not a second
+// lane — so playlist replacement drops it exactly as it drops every other row.
 @interface MetadataScanEntry : NSObject <MetadataScanOrderCandidate>
 @property (nonatomic, strong) AudioTrack *track;
 @property (nonatomic, copy) NSURL *url;
 // The playlist row this sweep queued the track from, the comparator's
 // equal-rank tie-break: without it the tail of the lane downloads in
-// stage-1 completion order, which reads as random.
+// stage-1 completion order, which reads as random. NSNotFound for a record
+// created by prioritizeTrack: outside the sweep — if it ever demotes, an
+// unknown row sorting last is right.
 @property (nonatomic) NSUInteger playlistIndex;
 // A retry after a failed materialization. It stays at the bottom of the lane
 // however the neighborhood moves, so re-ranking cannot promote a known-bad
@@ -40,6 +44,10 @@
 // Stamped at enqueue and refreshed at every submit and requeue — the playback
 // open downloading this very file is the common way it flips to YES.
 @property (nonatomic) BOOL local;
+// A priority submission came back Yielded while the hold was up. The record
+// waits — re-picking it would spin against the coordinator's synchronous
+// yield — until the release edge re-judges it (MetadataRetryRules.h).
+@property (nonatomic) BOOL yieldedUnderHold;
 @end
 
 @implementation MetadataScanEntry
@@ -97,15 +105,9 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     // its own per-loader marker rather than an inference from non-nil
     // track.metadata, because a failed parse, with parsedOK == NO, must stay
     // eligible for a re-parse by a later loader: the file may have downloaded
-    // since. Either way it lives in a single context and needs no locking.
-    // Scan loaders touch it only inside load:'s one setup op, and the priority
-    // lane touches it only on main, since loadPriorityTrack: runs on the caller's
-    // thread, always main, and the completion removal is dispatched to main.
+    // since. Guarded by _materializationLock: load:'s setup op and
+    // prioritizeTrack: (main) both touch it.
     NSMutableSet<AudioTrack *>* _queuedTracks;
-    // Yielded requests whose later lifecycle edge arrived before the cache's
-    // hold release. Retired priority loaders keep this set until that release.
-    NSMutableSet<AudioTrack *>* _priorityParkedTracks;
-    BOOL _isScanLane;
     // Every scan cache miss takes this provider-independent path. Entries stay
     // app-owned until one exact pick is atomically registered with the shared
     // materialization coordinator.
@@ -114,13 +116,22 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     // A set makes cancellation observable to the delayed block and keeps the
     // debug pending count honest while no coordinator request exists.
     NSMutableSet<MetadataScanEntry *>* _delayedScanRetryEntries;
+    // The URLs whose records are priority: picked through their own slot,
+    // exempt from the stage-1 barrier, submitted while the hold is up, parsed
+    // user-initiated. The single source of that fact — demotion is removal —
+    // so the picker reads it live and a stale mark cannot survive. Guarded by
+    // _materializationLock; bounded by the tracks a shell prioritizes (~1-2).
+    NSMutableSet<NSURL *>* _priorityURLs;
     BOOL _scanMaterializationInFlight;
+    BOOL _priorityMaterializationInFlight;
     BOOL _scanDispatchKickPending;
     // Bumped by every pending-list or neighborhood mutation. The picker works
     // outside the lock, then verifies this snapshot before removing its choice.
     NSUInteger _scanOrderGeneration;
     // The setup barrier flips this only after every cache check ahead of it
     // has settled, so no audio-file work can steal a worker from stage 1.
+    // Priority picks are deliberately exempt: a loader created by a pre-sweep
+    // prioritizeTrack: never runs load: at all.
     BOOL _stageOneFinished;
     NSArray<NSURL *>* _neighborhood;   // rank order; empty until a screen names one
     // This local gate prevents a yielded scan request from resubmitting until
@@ -138,14 +149,12 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     dispatch_queue_t _materializationCallbackQueue;
     NSMutableSet<AudioFileMaterializationRequestToken *> *_liveMaterializationTokens;
     AudioFileMaterializationRequestToken *_scanMaterializationToken;
-    BOOL _retiring;
-    dispatch_block_t _retireCompletion;
+    AudioFileMaterializationRequestToken *_priorityMaterializationToken;
     MetadataParseCoordinator *_parseCoordinator;
 }
 
 - (instancetype)initWithOwner:(AudioTrackMetadataCache *)owner
                      delegate:(id <AudioTrackMetadataCacheDelegate>)delegate
-                         lane:(VibeMetadataLane)lane
          loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration {
     self = [super init];
     if (self) {
@@ -153,7 +162,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         _isCancelled = NO;
         _owner = owner;
         _queuedTracks = [NSMutableSet set];
-        _priorityParkedTracks = [NSMutableSet set];
+        _priorityURLs = [NSMutableSet set];
         _materializationLock = OS_UNFAIR_LOCK_INIT;
         _materializationCoordinator = [AudioFileMaterializationCoordinator sharedCoordinator];
         _liveMaterializationTokens = [NSMutableSet set];
@@ -162,47 +171,24 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
                         loadingConfiguration.metadataRetryCount);
         _parseCoordinator = owner.parseCoordinator;
         _delegate = delegate;
-        // Shared by both lanes: the priority failure path spends the same
-        // per-path budget the scan does.
         _materializationAttemptsByPath = [NSMutableDictionary dictionary];
+        // Configurable concurrency lets a single slow file, on a network
+        // mount or a sleeping disk, stall only its own worker rather than
+        // the whole playlist. Utility is the queue's band — the work drives
+        // the playlist UI but is not user-initiated; the current track's
+        // parse rides the same queue at user-initiated per-operation QoS.
         _queue = [[NSOperationQueue alloc] init];
-        if (lane == VibeMetadataLanePriority) {
-            // The priority lane, loadPriorityTrack:. Only the newest
-            // request is user-visible, so the width exists purely to absorb
-            // blocked predecessors. A slow materialized file, on a network
-            // mount or a sleeping disk, can block a worker for minutes. The configured
-            // width controls how many consecutive wedged opens it takes before
-            // the header's load queues behind one, at one stranded thread each.
-            // The QoS is user-initiated because the user is looking at a
-            // header waiting on this exact load.
-            _queue.name = @"AudioTrackMetadataLoader.priority";
-            _queue.maxConcurrentOperationCount =
-                    (NSInteger)loadingConfiguration.localMetadataParseConcurrency;
-            _queue.qualityOfService = NSQualityOfServiceUserInitiated;
-            dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
-                    DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
-            _materializationCallbackQueue = dispatch_queue_create(
-                    "com.vibe.metadata-priority-materialization", attributes);
-        }
-        else {
-            _isScanLane = YES;
-            // Configurable concurrency lets a single slow file, on a network
-            // mount or a sleeping disk, stall only its own worker rather than
-            // the whole playlist. Utility is the right QoS band: the work is
-            // user-visible, since it drives the playlist UI, but not
-            // user-initiated.
-            _queue.name = @"AudioTrackMetadataLoader";
-            _queue.maxConcurrentOperationCount =
-                    (NSInteger)loadingConfiguration.localMetadataParseConcurrency;
-            _queue.qualityOfService = NSQualityOfServiceUtility;
-            _pendingMaterializations = [NSMutableArray array];
-            _delayedScanRetryEntries = [NSMutableSet set];
-            _neighborhood = @[];
-            dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
-                    DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
-            _materializationCallbackQueue = dispatch_queue_create(
-                    "com.vibe.metadata-scan-materialization", attributes);
-        }
+        _queue.name = @"AudioTrackMetadataLoader";
+        _queue.maxConcurrentOperationCount =
+                (NSInteger)loadingConfiguration.localMetadataParseConcurrency;
+        _queue.qualityOfService = NSQualityOfServiceUtility;
+        _pendingMaterializations = [NSMutableArray array];
+        _delayedScanRetryEntries = [NSMutableSet set];
+        _neighborhood = @[];
+        dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
+                DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
+        _materializationCallbackQueue = dispatch_queue_create(
+                "com.vibe.metadata-scan-materialization", attributes);
     }
     return self;
 }
@@ -228,9 +214,16 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             // fallback would otherwise stick until the app restarts. Messaging
             // nil metadata returns NO, so never-parsed tracks pass through too.
             if (track.metadata.parsedOK) continue;
-            // A track appearing twice in the array must not parse twice.
-            if ([setupSelf->_queuedTracks containsObject:track]) continue;
-            [setupSelf->_queuedTracks addObject:track];
+            // A track appearing twice in the array must not parse twice, and a
+            // track prioritizeTrack: already queued must not requeue.
+            BOOL alreadyQueued;
+            os_unfair_lock_lock(&setupSelf->_materializationLock);
+            alreadyQueued = [setupSelf->_queuedTracks containsObject:track];
+            if (!alreadyQueued) {
+                [setupSelf->_queuedTracks addObject:track];
+            }
+            os_unfair_lock_unlock(&setupSelf->_materializationLock);
+            if (alreadyQueued) continue;
             MetadataScanEntry *entry = [[MetadataScanEntry alloc] init];
             entry.track = track;
             entry.url = track.url;
@@ -325,23 +318,82 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     if (self.isCancelled) {
         return;
     }
-    if (_isScanLane) {
-        [self enqueueScanMaterialization:entry];
-        return;
-    }
-    [self submitPriorityMaterializationForTrack:track];
+    [self enqueueScanMaterialization:entry];
 }
 
-#pragma mark - The scan materialization lane
+#pragma mark - The materialization lane
 
 - (void)enqueueScanMaterialization:(MetadataScanEntry *)entry {
     entry.local = ![NSURLUtil isDatalessFile:entry.url];
+    BOOL kick = NO;
     os_unfair_lock_lock(&_materializationLock);
     if (!self.isCancelled) {
         [_pendingMaterializations addObject:entry];
         _scanOrderGeneration++;
+        // A priority record must not wait for the stage-1 barrier the way the
+        // sweep's picks do.
+        kick = [_priorityURLs containsObject:entry.url];
     }
     os_unfair_lock_unlock(&_materializationLock);
+    if (kick) {
+        [self dispatchNextScanMaterialization];
+    }
+}
+
+// Marks the track's URL priority and makes sure a record exists to carry it.
+// The mark lives in _priorityURLs, never on the entry, so demotion is removal
+// and no stale mark can survive a requeue. Three cases: the record is already
+// pending or delayed (the picker sees the set live — just kick); the track is
+// queued but its record is mid-flight or mid-stage-1 (the mark catches it at
+// its next pick or enqueue); the track is unknown to this loader (its own
+// high-priority cache check, then a record).
+- (void)prioritizeTrack:(AudioTrack *)track {
+    if (track.metadata.parsedOK) {
+        return;
+    }
+    NSURL *url = track.url;
+    if (!url) {
+        return;
+    }
+    BOOL alreadyQueued;
+    os_unfair_lock_lock(&_materializationLock);
+    [_priorityURLs addObject:url];
+    alreadyQueued = [_queuedTracks containsObject:track];
+    if (!alreadyQueued) {
+        [_queuedTracks addObject:track];
+    }
+    os_unfair_lock_unlock(&_materializationLock);
+    LogDebug(@"Priority load %@%@", url.lastPathComponent,
+             alreadyQueued ? @": already queued" : @"");
+    if (alreadyQueued) {
+        // If its record is pending, the kick's pick reads the set and takes
+        // it through the priority slot; if it is in flight or mid-stage-1,
+        // the mark applies at its next requeue or enqueue.
+        [self dispatchNextScanMaterialization];
+        return;
+    }
+    __weak __typeof(self) weakSelf = self;
+    NSOperation *op = [NSBlockOperation blockOperationWithBlock:^{
+        __typeof(self) strongSelf = weakSelf;
+        if (!strongSelf || strongSelf.isCancelled || track.metadata.parsedOK) {
+            return;
+        }
+        if ([strongSelf loadTrackFromDiskCache:track]) {
+            os_unfair_lock_lock(&strongSelf->_materializationLock);
+            [strongSelf->_priorityURLs removeObject:url];
+            os_unfair_lock_unlock(&strongSelf->_materializationLock);
+            return;
+        }
+        MetadataScanEntry *entry = [[MetadataScanEntry alloc] init];
+        entry.track = track;
+        entry.url = url;
+        entry.playlistIndex = NSNotFound;
+        [strongSelf enqueueScanMaterialization:entry];
+        [strongSelf dispatchNextScanMaterialization];
+    }];
+    op.queuePriority = NSOperationQueuePriorityHigh;
+    op.qualityOfService = NSQualityOfServiceUserInitiated;
+    [_queue addOperation:op];
 }
 
 - (void)dispatchNextScanMaterialization {
@@ -367,8 +419,43 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 }
 
 - (void)dispatchNextScanMaterializationOnCallbackQueue {
+    // The priority slot first: at most one priority materialization runs
+    // beside the scan's one, so the current track never waits for the sweep's
+    // transfer — D3's "ahead of the sweep" is a second slot, not a queue jump.
+    MetadataScanEntry *priorityPick = nil;
+    os_unfair_lock_lock(&_materializationLock);
+    if (!_priorityMaterializationInFlight && !self.isCancelled
+            && _priorityURLs.count > 0) {
+        BOOL held = _backgroundMaterializationHeld;
+        for (MetadataScanEntry *entry in _pendingMaterializations) {
+            if (![_priorityURLs containsObject:entry.url]) {
+                continue;
+            }
+            // A record the hold already yielded waits for the release edge.
+            if (held && entry.yieldedUnderHold) {
+                continue;
+            }
+            if (!priorityPick
+                    || (priorityPick.deferred && !entry.deferred)
+                    || (priorityPick.deferred == entry.deferred
+                            && entry.playlistIndex < priorityPick.playlistIndex)) {
+                priorityPick = entry;
+            }
+        }
+        if (priorityPick) {
+            [_pendingMaterializations removeObjectIdenticalTo:priorityPick];
+            _scanOrderGeneration++;
+            _priorityMaterializationInFlight = YES;
+        }
+    }
+    os_unfair_lock_unlock(&_materializationLock);
+    if (priorityPick) {
+        [self submitMaterializationForEntry:priorityPick priority:YES];
+    }
+
     NSArray<MetadataScanEntry *> *pending = nil;
     NSArray<NSURL *> *neighborhood = nil;
+    NSSet<NSURL *> *priorityURLs = nil;
     NSUInteger orderGeneration = 0;
     BOOL held = NO;
     os_unfair_lock_lock(&_materializationLock);
@@ -377,9 +464,19 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         held = _backgroundMaterializationHeld;
         pending = [_pendingMaterializations copy];
         neighborhood = _neighborhood;
+        priorityURLs = [_priorityURLs copy];
         orderGeneration = _scanOrderGeneration;
     }
     os_unfair_lock_unlock(&_materializationLock);
+    if (priorityURLs.count) {
+        // Priority records belong to the priority slot alone; the sweep's
+        // pick must not consume one and bill its transfer to the scan slot.
+        pending = [pending filteredArrayUsingPredicate:
+                [NSPredicate predicateWithBlock:^BOOL(MetadataScanEntry *entry,
+                                                      NSDictionary *bindings) {
+            return ![priorityURLs containsObject:entry.url];
+        }]];
+    }
     if (held) {
         // The hold suspends provider transfers, which a local entry never
         // starts — so already-downloaded rows keep parsing while the open the
@@ -427,10 +524,11 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     if (!chosen) {
         return;
     }
-    [self submitScanMaterializationForEntry:chosen];
+    [self submitMaterializationForEntry:chosen priority:NO];
 }
 
-- (void)submitScanMaterializationForEntry:(MetadataScanEntry *)entry {
+- (void)submitMaterializationForEntry:(MetadataScanEntry *)entry
+                             priority:(BOOL)priority {
     __weak __typeof(self) weakSelf = self;
     dispatch_async(_materializationCallbackQueue, ^{
         __typeof(self) strongSelf = weakSelf;
@@ -443,9 +541,18 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         BOOL requeueBehindHold = NO;
         os_unfair_lock_lock(&strongSelf->_materializationLock);
         if (strongSelf.isCancelled) {
-            strongSelf->_scanMaterializationInFlight = NO;
+            if (priority) {
+                strongSelf->_priorityMaterializationInFlight = NO;
+            }
+            else {
+                strongSelf->_scanMaterializationInFlight = NO;
+            }
         }
-        else if (strongSelf->_backgroundMaterializationHeld && !entry.local) {
+        else if (!priority && strongSelf->_backgroundMaterializationHeld
+                && !entry.local) {
+            // Scan picks only: a priority submission goes through even while
+            // held — a same-path playback claim serves it with no second
+            // transfer, and the coordinator yields it otherwise (D6/J4).
             [strongSelf->_pendingMaterializations addObject:entry];
             strongSelf->_scanOrderGeneration++;
             strongSelf->_scanMaterializationInFlight = NO;
@@ -457,34 +564,45 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         if (!shouldSubmit) {
             return;
         }
-        LogInfo(@"Metadata scan materializing %@ (%lu pending behind it)",
+        LogInfo(@"Metadata %@ materializing %@ (%lu pending behind it)",
+                priority ? @"priority" : @"scan",
                 entry.url.lastPathComponent, (unsigned long)stillPending);
 
         __block __weak AudioFileMaterializationRequestToken *weakToken = nil;
         AudioFileMaterializationRequestToken *token =
                 [strongSelf->_materializationCoordinator
                         materializeURL:entry.url
-                                  role:VibeAudioFileMaterializationRoleMetadataScan
+                                  role:priority
+                                          ? VibeAudioFileMaterializationRoleMetadataPriority
+                                          : VibeAudioFileMaterializationRoleMetadataScan
                        completionQueue:strongSelf->_materializationCallbackQueue
                             registered:nil
                             completion:^(VibeAudioFileMaterializationResult result,
                                          NSError *error,
                                          NSTimeInterval elapsed) {
-            [weakSelf completeScanMaterializationForEntry:entry
-                                                     token:weakToken
-                                                    result:result
-                                                     error:error
-                                                   elapsed:elapsed];
+            [weakSelf completeMaterializationForEntry:entry
+                                             priority:priority
+                                                token:weakToken
+                                               result:result
+                                                error:error
+                                              elapsed:elapsed];
         }];
         weakToken = token;
 
         BOOL cancelToken = NO;
         os_unfair_lock_lock(&strongSelf->_materializationLock);
-        if (strongSelf.isCancelled || !strongSelf->_scanMaterializationInFlight) {
+        BOOL slotStillOurs = priority ? strongSelf->_priorityMaterializationInFlight
+                                      : strongSelf->_scanMaterializationInFlight;
+        if (strongSelf.isCancelled || !slotStillOurs) {
             cancelToken = YES;
         }
         else {
-            strongSelf->_scanMaterializationToken = token;
+            if (priority) {
+                strongSelf->_priorityMaterializationToken = token;
+            }
+            else {
+                strongSelf->_scanMaterializationToken = token;
+            }
             [strongSelf->_liveMaterializationTokens addObject:token];
         }
         os_unfair_lock_unlock(&strongSelf->_materializationLock);
@@ -494,14 +612,16 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     });
 }
 
-- (void)completeScanMaterializationForEntry:(MetadataScanEntry *)entry
-                                      token:(AudioFileMaterializationRequestToken *)token
-                                     result:(VibeAudioFileMaterializationResult)result
-                                      error:(NSError *)error
-                                    elapsed:(NSTimeInterval)elapsed {
+- (void)completeMaterializationForEntry:(MetadataScanEntry *)entry
+                               priority:(BOOL)priority
+                                  token:(AudioFileMaterializationRequestToken *)token
+                                 result:(VibeAudioFileMaterializationResult)result
+                                  error:(NSError *)error
+                                elapsed:(NSTimeInterval)elapsed {
     BOOL shouldParse = NO;
     BOOL didRequeue = NO;
     BOOL didScheduleDelayedRetry = NO;
+    BOOL demoted = NO;
     NSTimeInterval retryDelay = 0;
     NSUInteger attempt = 0;
     NSString *attemptKey = entry.url.path ?: entry.url.absoluteString;
@@ -511,20 +631,53 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     // lock — the stat is cheap but is still I/O.
     entry.local = ![NSURLUtil isDatalessFile:entry.url];
     os_unfair_lock_lock(&_materializationLock);
-    if (_scanMaterializationToken != token) {
+    AudioFileMaterializationRequestToken *slotToken =
+            priority ? _priorityMaterializationToken : _scanMaterializationToken;
+    if (slotToken != token) {
         [_liveMaterializationTokens removeObject:token];
         os_unfair_lock_unlock(&_materializationLock);
         return;
     }
     [_liveMaterializationTokens removeObject:token];
-    _scanMaterializationToken = nil;
-    _scanMaterializationInFlight = NO;
+    if (priority) {
+        _priorityMaterializationToken = nil;
+        _priorityMaterializationInFlight = NO;
+    }
+    else {
+        _scanMaterializationToken = nil;
+        _scanMaterializationInFlight = NO;
+    }
     if (!self.isCancelled) {
         if (result == VibeAudioFileMaterializationResultReady) {
             shouldParse = YES;
+            entry.yieldedUnderHold = NO;
+            [_priorityURLs removeObject:entry.url];
             if (attemptKey) {
                 [_materializationAttemptsByPath removeObjectForKey:attemptKey];
             }
+        }
+        else if (priority && result == VibeAudioFileMaterializationResultYielded) {
+            // The priority record's own yield triage (MetadataRetryRules.h):
+            // wait out the hold, retry a file the open made local, or demote
+            // a still-dataless one to an ordinary sweep candidate. Yields
+            // spend no budget either way.
+            switch (VibeMetadataPriorityAfterYield(_backgroundMaterializationHeld,
+                                                   entry.local)) {
+                case VibeMetadataPriorityYieldWait:
+                    entry.yieldedUnderHold = YES;
+                    break;
+                case VibeMetadataPriorityYieldRetry:
+                    entry.yieldedUnderHold = NO;
+                    break;
+                case VibeMetadataPriorityYieldDemote:
+                    entry.yieldedUnderHold = NO;
+                    [_priorityURLs removeObject:entry.url];
+                    demoted = YES;
+                    break;
+            }
+            [_pendingMaterializations addObject:entry];
+            _scanOrderGeneration++;
+            didRequeue = YES;
         }
         else {
             NSUInteger priorAttempts = attemptKey
@@ -559,6 +712,9 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
                 if (attemptKey) {
                     _materializationAttemptsByPath[attemptKey] = @(attempt);
                 }
+                // Out of attempts: the record is dropped for this loader's
+                // lifetime, priority mark included (D7).
+                [_priorityURLs removeObject:entry.url];
             }
         }
     }
@@ -566,30 +722,39 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 
     if (shouldParse) {
         __weak __typeof(self) weakSelf = self;
-        [_queue addOperationWithBlock:^{
+        NSOperation *parse = [NSBlockOperation blockOperationWithBlock:^{
             __typeof(self) strongSelf = weakSelf;
             if (strongSelf && !strongSelf.isCancelled) {
                 [strongSelf parseOneTrack:entry.track];
             }
         }];
-        LogInfo(@"Metadata scan materialized %@ in %.1fs",
+        if (priority) {
+            // The user is looking at a header waiting on this exact parse.
+            parse.qualityOfService = NSQualityOfServiceUserInitiated;
+            parse.queuePriority = NSOperationQueuePriorityHigh;
+        }
+        [_queue addOperation:parse];
+        LogInfo(@"Metadata %@ materialized %@ in %.1fs",
+                priority ? @"priority" : @"scan",
                 entry.url.lastPathComponent, elapsed);
     }
     else if (result == VibeAudioFileMaterializationResultYielded) {
-        LogInfo(@"Metadata scan yielded %@ after %.1fs",
-                entry.url.lastPathComponent, elapsed);
+        LogInfo(@"Metadata %@ yielded %@ after %.1fs%@",
+                priority ? @"priority" : @"scan",
+                entry.url.lastPathComponent, elapsed,
+                demoted ? @" — still dataless, left to the sweep" : @"");
     }
     else if (result == VibeAudioFileMaterializationResultFailed
             || result == VibeAudioFileMaterializationResultAdmissionExhausted) {
         if (didRequeue) {
-            LogWarn(@"Metadata scan materialization failed for %@ "
+            LogWarn(@"Metadata materialization failed for %@ "
                     @"(attempt %lu of %lu); re-queued last (%@)",
                     entry.url.lastPathComponent, (unsigned long)attempt,
                     (unsigned long)_materializationMaximumAttempts,
                     error.localizedDescription);
         }
         else {
-            LogWarn(@"Metadata scan materialization failed for %@ and is out of attempts (%@)",
+            LogWarn(@"Metadata materialization failed for %@ and is out of attempts (%@)",
                     entry.url.lastPathComponent, error.localizedDescription);
         }
     }
@@ -624,9 +789,6 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 }
 
 - (void)setNeighborhoodURLs:(NSArray<NSURL *> *)urls {
-    if (!_isScanLane) {
-        return;
-    }
     os_unfair_lock_lock(&_materializationLock);
     _neighborhood = [urls copy] ?: @[];
     _scanOrderGeneration++;
@@ -637,236 +799,44 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 #if DEBUG
 // Used by AudioTrackMetadataCache's debug surface; the list lives here.
 - (NSUInteger)debugPendingBackgroundMaterializationCount {
-    if (!_isScanLane) {
-        return 0;
-    }
     os_unfair_lock_lock(&_materializationLock);
     NSUInteger count = _pendingMaterializations.count + _delayedScanRetryEntries.count
-            + (_scanMaterializationInFlight ? 1 : 0);
+            + (_scanMaterializationInFlight ? 1 : 0)
+            + (_priorityMaterializationInFlight ? 1 : 0);
     os_unfair_lock_unlock(&_materializationLock);
     return count;
 }
 
 - (NSDictionary *)debugPriorityLaneState {
+    NSMutableArray *pendingNames = [NSMutableArray array];
+    NSUInteger yielded = 0;
     NSUInteger tokens;
+    BOOL inFlight;
+    BOOL held;
     os_unfair_lock_lock(&_materializationLock);
-    tokens = _liveMaterializationTokens.count;
-    os_unfair_lock_unlock(&_materializationLock);
-    NSMutableArray *(^names)(NSSet<AudioTrack *> *) = ^(NSSet<AudioTrack *> *set) {
-        NSMutableArray *out = [NSMutableArray array];
-        for (AudioTrack *track in set) {
-            [out addObject:track.url.lastPathComponent ?: @"?"];
+    for (MetadataScanEntry *entry in _pendingMaterializations) {
+        if ([_priorityURLs containsObject:entry.url]) {
+            [pendingNames addObject:entry.url.lastPathComponent ?: @"?"];
+            if (entry.yieldedUnderHold) {
+                yielded++;
+            }
         }
-        return out;
-    };
-    return @{@"queued": names(_queuedTracks),
-             @"parked": names(_priorityParkedTracks),
+    }
+    tokens = _liveMaterializationTokens.count;
+    inFlight = _priorityMaterializationInFlight;
+    held = _backgroundMaterializationHeld;
+    os_unfair_lock_unlock(&_materializationLock);
+    return @{@"pending": pendingNames,
+             @"yieldedUnderHold": @(yielded),
+             @"inFlight": @(inFlight),
              @"liveTokens": @(tokens),
-             @"held": @(_backgroundMaterializationHeld)};
+             @"held": @(held)};
 }
 #endif
 
-// The priority lane asks the same central coordinator with the priority
-// role. A same-path playback request is joined atomically; a didStart edge
-// racing a Yielded callback either retries after release or parks until it.
-- (void)loadPriorityTrack:(AudioTrack *)track {
-    if (track.metadata.parsedOK) {
-        return;
-    }
-    if ([_queuedTracks containsObject:track]) {
-        // Already in flight: the request retries itself through every yield,
-        // failure and hold release, so a repeat edge has nothing to add.
-        return;
-    }
-    LogDebug(@"Priority load %@: queued", track.url.lastPathComponent);
-    [_queuedTracks addObject:track];
-    __weak __typeof(self) weakSelf = self;
-    [_queue addOperationWithBlock:^{
-        __typeof(self) strongSelf = weakSelf;
-        if (!strongSelf || strongSelf.isCancelled) {
-            run_on_main_thread({
-                [weakSelf clearInFlightTrack:track];
-            });
-            return;
-        }
-        if ([strongSelf loadTrackFromDiskCache:track]) {
-            run_on_main_thread({
-                [weakSelf clearInFlightTrack:track];
-            });
-            return;
-        }
-        [strongSelf submitPriorityMaterializationForTrack:track];
-    }];
-}
-
-- (void)submitPriorityMaterializationForTrack:(AudioTrack *)track {
-    LogDebug(@"Priority submit %@", track.url.lastPathComponent);
-    __weak __typeof(self) weakSelf = self;
-    dispatch_async(_materializationCallbackQueue, ^{
-        __typeof(self) strongSelf = weakSelf;
-        if (!strongSelf || strongSelf.isCancelled) {
-            run_on_main_thread({
-                [weakSelf clearInFlightTrack:track];
-            });
-            return;
-        }
-
-        __block __weak AudioFileMaterializationRequestToken *weakToken = nil;
-        AudioFileMaterializationRequestToken *token =
-                [strongSelf->_materializationCoordinator
-                        materializeURL:track.url
-                                  role:VibeAudioFileMaterializationRoleMetadataPriority
-                       completionQueue:strongSelf->_materializationCallbackQueue
-                            registered:nil
-                            completion:^(VibeAudioFileMaterializationResult result,
-                                         NSError *error,
-                                         NSTimeInterval elapsed) {
-            [weakSelf completePriorityMaterializationForTrack:track
-                                                        token:weakToken
-                                                       result:result
-                                                        error:error
-                                                      elapsed:elapsed];
-        }];
-        weakToken = token;
-
-        BOOL cancelToken = NO;
-        os_unfair_lock_lock(&strongSelf->_materializationLock);
-        if (strongSelf.isCancelled) {
-            cancelToken = YES;
-        }
-        else {
-            [strongSelf->_liveMaterializationTokens addObject:token];
-        }
-        os_unfair_lock_unlock(&strongSelf->_materializationLock);
-        if (cancelToken) {
-            [token cancel];
-        }
-    });
-}
-
-- (void)completePriorityMaterializationForTrack:(AudioTrack *)track
-                                           token:(AudioFileMaterializationRequestToken *)token
-                                          result:(VibeAudioFileMaterializationResult)result
-                                           error:(NSError *)error
-                                         elapsed:(NSTimeInterval)elapsed {
-    __weak __typeof(self) weakSelf = self;
-    NSString *attemptKey = track.url.path ?: track.url.absoluteString;
-    os_unfair_lock_lock(&_materializationLock);
-    [_liveMaterializationTokens removeObject:token];
-    BOOL cancelled = self.isCancelled;
-    if (result == VibeAudioFileMaterializationResultReady && attemptKey) {
-        // Ready restores the full budget, as the scan lane's completion does.
-        [_materializationAttemptsByPath removeObjectForKey:attemptKey];
-    }
-    os_unfair_lock_unlock(&_materializationLock);
-
-    if (result == VibeAudioFileMaterializationResultReady && !cancelled) {
-        [_queue addOperationWithBlock:^{
-            __typeof(self) strongSelf = weakSelf;
-            if (strongSelf && !strongSelf.isCancelled) {
-                [strongSelf parseOneTrack:track];
-            }
-            run_on_main_thread({
-                [weakSelf clearInFlightTrack:track];
-            });
-        }];
-        LogInfo(@"Priority metadata materialized %@ in %.1fs",
-                track.url.lastPathComponent, elapsed);
-        return;
-    }
-    if (result == VibeAudioFileMaterializationResultYielded && !cancelled) {
-        run_on_main_thread({
-            __typeof(self) strongSelf = weakSelf;
-            if (!strongSelf) return;
-            VibeMetadataPriorityYieldAction action =
-                    VibeMetadataPriorityActionForYield(
-                            strongSelf->_backgroundMaterializationHeld,
-                            strongSelf.isCancelled,
-                            [NSURLUtil isDatalessFile:track.url]);
-            switch (action) {
-                case VibeMetadataPriorityYieldActionRetry:
-                    [strongSelf submitPriorityMaterializationForTrack:track];
-                    break;
-                case VibeMetadataPriorityYieldActionPark:
-                    [strongSelf->_priorityParkedTracks addObject:track];
-                    break;
-                case VibeMetadataPriorityYieldActionClear:
-                    [strongSelf clearInFlightTrack:track];
-                    break;
-            }
-        });
-        return;
-    }
-    if (!cancelled && result != VibeAudioFileMaterializationResultYielded) {
-        LogWarn(@"Priority metadata materialization failed for %@ (%@)",
-                track.url.lastPathComponent, error.localizedDescription);
-        // The playing track's parse must not die with one failed run — a
-        // churning provider cancels transfers routinely, and the sweep may be
-        // dozens of rows away. Spend the same bounded per-path budget the
-        // scan does; the pending later-load marker rides into the fresh run
-        // rather than dying with the failed one.
-        NSUInteger priorFailures;
-        os_unfair_lock_lock(&_materializationLock);
-        priorFailures = attemptKey
-                ? _materializationAttemptsByPath[attemptKey].unsignedIntegerValue : 0;
-        BOOL retry = attemptKey != nil
-                && VibeMetadataPriorityRetryAfterFailure(
-                        priorFailures, _materializationMaximumAttempts, self.isCancelled);
-        if (retry) {
-            _materializationAttemptsByPath[attemptKey] = @(priorFailures + 1);
-        }
-        os_unfair_lock_unlock(&_materializationLock);
-        if (retry) {
-            NSTimeInterval delay =
-                    result == VibeAudioFileMaterializationResultAdmissionExhausted
-                            ? VibeMetadataAdmissionRetryDelay(priorFailures) : 0;
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
-                                         (int64_t)(delay * NSEC_PER_SEC)),
-                           dispatch_get_main_queue(), ^{
-                __typeof(self) strongSelf = weakSelf;
-                if (!strongSelf || strongSelf.isCancelled) {
-                    [strongSelf clearInFlightTrack:track];
-                    return;
-                }
-                [strongSelf submitPriorityMaterializationForTrack:track];
-            });
-            return;
-        }
-    }
-    run_on_main_thread({
-        [weakSelf clearInFlightTrack:track];
-    });
-}
-
-- (void)clearInFlightTrack:(AudioTrack *)track {
-    [_queuedTracks removeObject:track];
-    [_priorityParkedTracks removeObject:track];
-    [self finishRetirementIfPossible];
-}
-
-- (void)retireWithCompletion:(dispatch_block_t)completion {
-    _retiring = YES;
-    _retireCompletion = [completion copy];
-    [self finishRetirementIfPossible];
-}
-
-- (void)finishRetirementIfPossible {
-    if (!_retiring || _queuedTracks.count) {
-        return;
-    }
-    dispatch_block_t completion = _retireCompletion;
-    _retireCompletion = nil;
-    _retiring = NO;
-    [_queue addBarrierBlock:^{
-        run_on_main_thread({
-            completion();
-        });
-    }];
-}
-
 // A disk-cache attempt. It returns YES on a hit, with the metadata set on the
 // track and published. It deliberately touches only file attributes and the
-// cache store, never the audio data, because both lanes rely on it staying
+// cache store, never the audio data, because the sweep relies on it staying
 // fast for dataless cloud files.
 - (BOOL)loadTrackFromDiskCache:(AudioTrack *)track {
     // nil when the file cannot be statted; see NSURL+Hash. Without a stable
@@ -1087,32 +1057,40 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     os_unfair_lock_lock(&_materializationLock);
     _backgroundMaterializationHeld = held;
     os_unfair_lock_unlock(&_materializationLock);
-    if (!held) {
-        if (_isScanLane) {
-            [self dispatchNextScanMaterialization];
-        }
-        else {
-            NSArray<AudioTrack *> *parkedTracks = _priorityParkedTracks.allObjects;
-            [_priorityParkedTracks removeAllObjects];
-            for (AudioTrack *track in parkedTracks) {
-                VibeMetadataPriorityYieldAction action =
-                        VibeMetadataPriorityActionForHoldRelease(self.isCancelled,
-                                [NSURLUtil isDatalessFile:track.url]);
-                if (action == VibeMetadataPriorityYieldActionRetry) {
-                    [self submitPriorityMaterializationForTrack:track];
-                }
-                else {
-                    [self clearInFlightTrack:track];
-                }
-            }
+    if (held) {
+        return;
+    }
+    // The release edge re-judges every priority record the hold made wait:
+    // the settled open downloaded some of them (retry — the parse lands
+    // immediately), and left the rest dataless (demote — re-downloading a
+    // dead pick behind its error UI is the sweep's call to make, at its
+    // rank). Probing is I/O, so it happens off the lock; the records are
+    // stable objects and demotion is set removal, so nothing here races a
+    // requeue.
+    NSMutableArray<MetadataScanEntry *> *waiting = [NSMutableArray array];
+    os_unfair_lock_lock(&_materializationLock);
+    for (MetadataScanEntry *entry in _pendingMaterializations) {
+        if (entry.yieldedUnderHold && [_priorityURLs containsObject:entry.url]) {
+            [waiting addObject:entry];
         }
     }
+    os_unfair_lock_unlock(&_materializationLock);
+    for (MetadataScanEntry *entry in waiting) {
+        entry.local = ![NSURLUtil isDatalessFile:entry.url];
+        entry.yieldedUnderHold = NO;
+        if (VibeMetadataPriorityAfterYield(NO, entry.local)
+                == VibeMetadataPriorityYieldDemote) {
+            os_unfair_lock_lock(&_materializationLock);
+            [_priorityURLs removeObject:entry.url];
+            os_unfair_lock_unlock(&_materializationLock);
+            LogInfo(@"Priority record %@ still dataless at release — left to the sweep",
+                    entry.url.lastPathComponent);
+        }
+    }
+    [self dispatchNextScanMaterialization];
 }
 
 - (void)cancel {
-    // Scan lane only: the cache cancels _currentLoader and nothing else — the
-    // priority lane always retires through retireWithCompletion:.
-    NSAssert(_isScanLane, @"Only the scan lane is ever cancelled");
     self.isCancelled = YES;
     [_queue cancelAllOperations];
     NSArray<AudioFileMaterializationRequestToken *> *tokens = nil;
@@ -1120,16 +1098,17 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     tokens = _liveMaterializationTokens.allObjects;
     [_liveMaterializationTokens removeAllObjects];
     _scanMaterializationToken = nil;
+    _priorityMaterializationToken = nil;
     _scanMaterializationInFlight = NO;
+    _priorityMaterializationInFlight = NO;
     _scanDispatchKickPending = NO;
-    if (_isScanLane) {
-        _backgroundMaterializationHeld = YES;
-        _stageOneFinished = NO;
-        [_pendingMaterializations removeAllObjects];
-        [_delayedScanRetryEntries removeAllObjects];
-        _scanOrderGeneration++;
-        [_materializationAttemptsByPath removeAllObjects];
-    }
+    _backgroundMaterializationHeld = YES;
+    _stageOneFinished = NO;
+    [_pendingMaterializations removeAllObjects];
+    [_delayedScanRetryEntries removeAllObjects];
+    [_priorityURLs removeAllObjects];
+    _scanOrderGeneration++;
+    [_materializationAttemptsByPath removeAllObjects];
     os_unfair_lock_unlock(&_materializationLock);
     for (AudioFileMaterializationRequestToken *token in tokens) {
         [token cancel];

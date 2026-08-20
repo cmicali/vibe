@@ -82,55 +82,39 @@
     XCTAssertEqualWithAccuracy(VibeMetadataAdmissionRetryDelay(NSUIntegerMax), 2.0, 0.001);
 }
 
-// The two interleavings that dropped the storm winner's single request: a
-// Yielded delivery marshalling to main AFTER the hold released retries rather
-// than clearing, and a park (delivery landed while held) retries at release
-// with no later-edge precondition. Both retries require the file to be LOCAL
-// by the time the action is judged — the settled open is what made it so.
-- (void)testYieldDeliveredAfterHoldReleaseRetriesALocalFile {
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(NO, NO, NO),
-            VibeMetadataPriorityYieldActionRetry);
+// The priority record's yield triage, judged at delivery and re-judged at the
+// release edge (the two orders of the same race — a Yielded delivery can
+// marshal on either side of the release). While the hold is up the record
+// waits: re-picking would spin against the coordinator's synchronous yield.
+// With the hold down, the probe decides: local means the settled open
+// downloaded the file (retry — the parse lands immediately); still dataless
+// means the open failed, and re-downloading a dead pick behind its error UI
+// is the sweep's call to make, at its rank (demote).
+- (void)testAYieldWhileHeldWaitsForTheReleaseEdge {
+    XCTAssertEqual(VibeMetadataPriorityAfterYield(YES, NO),
+            VibeMetadataPriorityYieldWait);
+    XCTAssertEqual(VibeMetadataPriorityAfterYield(YES, YES),
+            VibeMetadataPriorityYieldWait);
 }
 
-- (void)testYieldDeliveredWhileHeldParksAndReleaseRetriesALocalFile {
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(YES, NO, NO),
-            VibeMetadataPriorityYieldActionPark);
-    XCTAssertEqual(VibeMetadataPriorityActionForHoldRelease(NO, NO),
-            VibeMetadataPriorityYieldActionRetry);
+- (void)testAFileTheOpenMadeLocalRetriesAtRelease {
+    XCTAssertEqual(VibeMetadataPriorityAfterYield(NO, YES),
+            VibeMetadataPriorityYieldRetry);
 }
 
-// A file still dataless when the hold is down means the open it stood aside
-// for failed: retrying would re-download a dead pick behind its error UI, so
-// the row is left to the sweep. A park judged while held stays a park — the
-// probe is re-run at release, where the answer is current.
-- (void)testAStillDatalessFileIsNotChasedAfterTheHoldReleases {
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(NO, NO, YES),
-            VibeMetadataPriorityYieldActionClear);
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(YES, NO, YES),
-            VibeMetadataPriorityYieldActionPark);
-    XCTAssertEqual(VibeMetadataPriorityActionForHoldRelease(NO, YES),
-            VibeMetadataPriorityYieldActionClear);
+- (void)testAStillDatalessFileDemotesToTheSweep {
+    XCTAssertEqual(VibeMetadataPriorityAfterYield(NO, NO),
+            VibeMetadataPriorityYieldDemote);
 }
 
-- (void)testCancelledLoaderClearsYieldsAndParks {
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(NO, YES, NO),
-            VibeMetadataPriorityYieldActionClear);
-    XCTAssertEqual(VibeMetadataPriorityActionForYield(YES, YES, NO),
-            VibeMetadataPriorityYieldActionClear);
-    XCTAssertEqual(VibeMetadataPriorityActionForHoldRelease(YES, NO),
-            VibeMetadataPriorityYieldActionClear);
-}
-
-- (void)testPriorityFailureRetriesWithinTheSharedBudget {
-    // Three attempts: two prior failures still retry, the third does not.
-    XCTAssertTrue(VibeMetadataPriorityRetryAfterFailure(0, 3, NO));
-    XCTAssertTrue(VibeMetadataPriorityRetryAfterFailure(1, 3, NO));
-    XCTAssertFalse(VibeMetadataPriorityRetryAfterFailure(2, 3, NO));
-}
-
-- (void)testPriorityFailureNeverRetriesCancelledOrUnbudgeted {
-    XCTAssertFalse(VibeMetadataPriorityRetryAfterFailure(0, 3, YES));
-    XCTAssertFalse(VibeMetadataPriorityRetryAfterFailure(0, 0, NO));
+// Priority failures spend the SAME shared budget the scan does — there is no
+// separate priority predicate. This pins the regression 925209b fixed: the
+// budget rule was correct and tested while the priority lane fed it no state,
+// so the tested decision was unreachable. One rule, one ledger, both slots.
+- (void)testPriorityFailuresShareTheScanBudgetRule {
+    XCTAssertEqual(VibeMetadataMaterializationRetryForResult(
+            VibeAudioFileMaterializationResultFailed, 2, 3),
+            VibeMetadataMaterializationRetryNone);
 }
 
 @end

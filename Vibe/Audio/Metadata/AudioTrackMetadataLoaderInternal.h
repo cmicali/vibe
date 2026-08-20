@@ -2,10 +2,12 @@
 //  AudioTrackMetadataLoaderInternal.h
 //  Vibe
 //
-//  The worker behind AudioTrackMetadataCache. Which lane it is decides four
-//  coupled things at once — queue width, QoS, whether work is cancellable, and
-//  how long a queued track is remembered — so the lane is an enum rather than a
-//  BOOL nobody can read at the call site.
+//  The worker behind AudioTrackMetadataCache: one sweep over one playlist,
+//  with the current track carried as a priority-flagged record in the same
+//  pending list rather than a second lane. A loader lives until the next
+//  loadMetadata: replaces it, and everything it holds — records, tracks,
+//  in-flight priority work — dies with it, which is what makes playlist
+//  replacement drop the old playlist's downloads by construction.
 //
 
 #import <Foundation/Foundation.h>
@@ -16,18 +18,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-typedef NS_ENUM(NSUInteger, VibeMetadataLane) {
-    // The playlist-wide sweep. Utility QoS, cancelled and released wholesale on
-    // File > Close, and it remembers every track it queued so one drop cannot
-    // queue a repeated row twice; across drops, track.metadata.parsedOK is what
-    // skips already-scanned rows.
-    VibeMetadataLaneScan,
-    // The jump-the-queue lane for the track the user just started. Lives for
-    // the cache's lifetime, never cancelled, user-initiated QoS, and remembers
-    // only in-flight tracks so a later re-click can retry a failed parse.
-    VibeMetadataLanePriority,
-};
-
 @interface AudioTrackMetadataLoader : NSObject
 
 @property (atomic) BOOL isCancelled;
@@ -35,7 +25,6 @@ typedef NS_ENUM(NSUInteger, VibeMetadataLane) {
 
 - (instancetype)initWithOwner:(AudioTrackMetadataCache *)owner
                      delegate:(id <AudioTrackMetadataCacheDelegate>)delegate
-                         lane:(VibeMetadataLane)lane
          loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration
         NS_DESIGNATED_INITIALIZER;
 
@@ -44,12 +33,15 @@ typedef NS_ENUM(NSUInteger, VibeMetadataLane) {
 
 // Stage 1 of the playlist sweep; see the directory's CLAUDE.md for the map.
 - (void)load:(NSArray<AudioTrack *> *)tracks;
-// The priority lane's single-track entry point.
-- (void)loadPriorityTrack:(AudioTrack *)track;
+// Marks (or creates) the track's record as priority: materialized through its
+// own slot ahead of the sweep's, exempt from the stage-1 barrier, submitted
+// even while the foreground hold is up (a same-path playback claim serves it
+// for free), and parsed at user-initiated QoS. Main thread. Idempotent — the
+// record owns its retries, so a repeat edge has nothing to add.
+- (void)prioritizeTrack:(AudioTrack *)track;
 // Locally gates new scan materialization requests. The cache also owns the
 // central coordinator hold that yields an already-registered request. The
-// priority lane uses the same edge to park a delayed yielded retry until
-// the foreground hold releases.
+// release edge re-judges every priority record the hold made wait.
 - (void)setBackgroundMaterializationHeld:(BOOL)held;
 
 // Re-ranks pending scan materializations so these URLs go first, in the order
