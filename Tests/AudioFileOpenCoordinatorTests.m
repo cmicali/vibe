@@ -595,23 +595,52 @@
 }
 
 // Same purpose, same path, no cancel: the second request replaces the first as
-// the claim's waiter rather than starting a second open of the same file.
+// the claim's waiter rather than starting a second open of the same file. The
+// opener is gated until the second request has rebound — ungated, a fast SSD
+// let the first open DELIVER before the second call landed, and the inverted
+// expectation fired on timing rather than on the rebind rule.
 - (void)testASamePathRequestRebindsDeliveryToTheLatestWaiter {
     NSURL *url = [self writeToneNamed:@"single-flight.wav"];
+    dispatch_semaphore_t firstOpenBegan = dispatch_semaphore_create(0);
+    dispatch_semaphore_t releaseOpen = dispatch_semaphore_create(0);
+    VibeAudioFileOpener opener = ^AVAudioFile *(NSURL *openURL, NSError **error) {
+        dispatch_semaphore_signal(firstOpenBegan);
+        dispatch_semaphore_wait(releaseOpen, DISPATCH_TIME_FOREVER);
+        return [[AVAudioFile alloc] initForReading:openURL error:error];
+    };
+    AudioWorkScheduler *playbackScheduler = [[AudioWorkScheduler alloc]
+            initWithLabel:@"com.vibe.tests.open.rebind-playback"
+            qualityOfService:QOS_CLASS_USER_INITIATED
+            maximumRunningCount:1 maximumPendingCount:1 pendingGrace:5];
+    AudioWorkScheduler *backgroundScheduler = [[AudioWorkScheduler alloc]
+            initWithLabel:@"com.vibe.tests.open.rebind-background"
+            qualityOfService:QOS_CLASS_UTILITY
+            maximumRunningCount:1 maximumPendingCount:1 pendingGrace:5];
+    AudioFileOpenCoordinator *coordinator = [[AudioFileOpenCoordinator alloc]
+            initWithStateQueue:dispatch_queue_create(
+                    "com.vibe.tests.open.rebind", DISPATCH_QUEUE_SERIAL)
+            playbackScheduler:playbackScheduler
+            backgroundScheduler:backgroundScheduler
+            materializationCoordinator:[AudioFileMaterializationCoordinator sharedCoordinator]
+            fileOpener:opener];
+
     XCTestExpectation *supersededSilent = [self expectationWithDescription:@"superseded silent"];
     supersededSilent.inverted = YES;
     XCTestExpectation *latestDelivered = [self expectationWithDescription:@"latest delivered"];
-    [_coordinator openURL:url purpose:VibeAudioFileOpenPurposePlayback
+    [coordinator openURL:url purpose:VibeAudioFileOpenPurposePlayback
           completionQueue:_completionQueue
                completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
         [supersededSilent fulfill];
     }];
-    [_coordinator openURL:url purpose:VibeAudioFileOpenPurposePlayback
+    XCTAssertEqual(dispatch_semaphore_wait(firstOpenBegan,
+            dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0);
+    [coordinator openURL:url purpose:VibeAudioFileOpenPurposePlayback
           completionQueue:_completionQueue
                completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
         XCTAssertNotNil(file);
         [latestDelivered fulfill];
     }];
+    dispatch_semaphore_signal(releaseOpen);
     [self waitForExpectations:@[latestDelivered] timeout:5];
     [self waitForExpectations:@[supersededSilent] timeout:0.5];
 }
