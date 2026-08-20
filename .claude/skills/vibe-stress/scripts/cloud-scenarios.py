@@ -22,11 +22,12 @@ Three rules the whole file is built on:
   is unlimited capacity and a 0.5x-2x per-file spread; neither can express
   "background work starved foreground work", which is the thing under test.
 
-A scenario may be marked expected-fail. Those are the two guarantees the
-implementation knowingly does not provide (see fable-post-implementation-review
-items 4 and 5); they are run and reported rather than skipped, so the day one
-starts passing is visible. An expected-fail that PASSES is reported as XPASS and
-is a finding in its own right.
+A scenario may be marked expected-fail (the third SCENARIOS field): it is run
+and reported rather than skipped, so the day it starts passing is visible. An
+expected-fail that PASSES is reported as XPASS and is a finding in its own
+right. None are currently marked — the two that documented review items 4 and
+5 (S9, S13) flipped to must-pass when the materialization coordinator merge
+closed both gaps by construction.
 
     cloud-scenarios.py --corpus build/cloud-scenarios-corpus
     cloud-scenarios.py --corpus <dir> --only S4b,S7 --verbose
@@ -553,25 +554,23 @@ def s8c_a_stall_after_progress_times_out(ctx):
 
 
 def s9_unflagged_placeholders(ctx):
-    """EXPECTED FAIL — review item 4.
+    """A placeholder that denies being dataless still waits its turn.
 
-    A provider-backed placeholder whose dataless probe answers NO is routed to
-    the ordinary four-wide TagLib lane, which the cloud-lane hold does not
-    suspend. So during a foreground open, background reads of files that still
-    cost a whole download proceed anyway.
+    Some providers answer NO to the dataless probe for files whose read still
+    costs a whole download. Pre-refactor that answer routed the read around
+    the cloud lane entirely — background downloads ran inside the foreground
+    open (review item 4, an expected-fail until the coordinator merge). Now
+    every metadata materialization funnels through the one coordinator, whose
+    foreground rule is derived from its claim table rather than keyed off the
+    probe's answer, so the lie buys nothing.
 
     The property has to be measured DURING the picked track's open, not after
     it. "Rows were parsed" is true either way once the open settles — that is
-    the sweep doing its job. What only happens under the unflagged routing is
-    rows filling while the user is still waiting, so the open is made long
-    enough to sample inside, and the assertion is that the count does not climb
-    across that window.
-
-    Under the flagged routing the same shape produces no movement at all: the
-    lane holds, and every miss waits. Note also that the reads never reach the
-    metadata role's materializer here — they go straight through TagLib — so
-    the trace shows no metadata transfers even as rows fill, which is why the
-    row count rather than the trace is the evidence."""
+    the sweep doing its job. What only the bypass produces is rows filling
+    while the user is still waiting, so the open is made long enough to sample
+    inside, and the assertion is that the count does not climb across that
+    window. Only cloud-backed rows must hold: an already-local file is exempt
+    from the rule by design, but this corpus is all placeholders."""
     # A long transfer for the picked file, so there is a window to sample in.
     ctx.arm(seconds=10, capacity=1, uniform=True, unflagged=True)
     folder = ctx.folders[0]
@@ -722,21 +721,18 @@ def s12b_a_stalled_timeout_is_not_chased_either(ctx):
                                          watch=0.4 * 130 + PROGRESS_SILENCE_BUDGET + 20)
 
 
-def s13_stand_aside_is_advisory(ctx):
-    """EXPECTED FAIL — review item 5.
+def s13_one_download_per_claimed_file(ctx):
+    """One file is never downloaded by two roles at once.
 
-    isMaterializingURL: is a query followed later by an act, so a claim
-    registered between the two should let both paths download the same bytes.
-
-    Measured, it does not — and the trace says why, which is worth more than
-    the verdict. Aiming a play straight at the lane's own current pick produces
-    `cancelled metadata` immediately followed by `started playback` for that
-    file, every time: the play's pre-submit hold suspends the lane and cancels
-    its transfer BEFORE the playback claim is registered, so the interval a
-    check-then-act query could be wrong in never contains a second claim. The
-    prefetch role is the only one that registers without a hold, and the
-    successor handshake keeps the lane closed until that claim exists. The gap
-    is real in the type system and closed by the ordering."""
+    Pre-refactor this was a check-then-act seam — isMaterializingURL: was a
+    query followed later by an act, so a claim registered between the two
+    could in principle let playback and the sweep download the same bytes
+    (review item 5, an expected-fail until the coordinator merge; the timing
+    never actually produced it). Now the property holds by construction:
+    materialization is one path-keyed claim table, so a play aimed at the
+    sweep's own current pick JOINS that claim rather than racing it, and the
+    fake's metadataOverlapTransfers counter is the ground truth that no
+    duplicate transfer ever ran."""
     # Unlimited capacity: with one slot the second transfer would merely queue,
     # and a queued duplicate is not the duplicate DOWNLOAD under test. Short
     # transfers so the lane churns through many picks per second of wall clock,
@@ -946,12 +942,12 @@ SCENARIOS = [
     ("S8a", s8a_no_progress_times_out, False),
     ("S8b", s8b_sparse_progress_survives, False),
     ("S8c", s8c_a_stall_after_progress_times_out, False),
-    ("S9", s9_unflagged_placeholders, True),
+    ("S9", s9_unflagged_placeholders, False),
     ("S10", s10_error_and_close_settle_clean, False),
     ("S11", s11_append_and_fast_path, False),
     ("S12a", s12a_a_dead_timeout_is_not_chased, False),
     ("S12b", s12b_a_stalled_timeout_is_not_chased_either, False),
-    ("S13", s13_stand_aside_is_advisory, True),
+    ("S13", s13_one_download_per_claimed_file, False),
     ("S14", s14_the_priority_records_drain, False),
     ("S15", s15_a_failing_file_spends_its_budget_and_stops, False),
     ("S16", s16_close_during_a_live_transfer_starts_nothing, False),
