@@ -4,11 +4,13 @@
 #
 #   scripts/github-release.sh [--draft]
 #
-# Takes the artifact `make release` produced (build/release/Vibe.dmg), verifies
-# the image and the app inside it really are the stapled copies, tags HEAD as
-# v<version> and creates the release with the image attached as
-# vibe-macos-<arch>-<version>.dmg (arch read from the binary itself: a single
-# slice names it, several read as "universal").
+# Takes both artifacts `make release` produced (build/release/Vibe.dmg and
+# Vibe.zip), verifies every staple in them, tags HEAD as v<version> and creates
+# the release with both attached as vibe-macos-<arch>-<version>.{dmg,zip} (arch
+# read from the binary itself: a single slice names it, several read as
+# "universal"). The image is listed first: it is the download that lands the
+# app in /Applications, and the zip is there for anyone who wants the bundle
+# without mounting anything.
 #
 # Deliberately a separate step from release.sh: building+notarizing is
 # repeatable, publishing is not — a deleted release leaves the tag and any
@@ -28,6 +30,7 @@ cd "$(dirname "$0")/.."
 BUILD_DIR="build/release"
 APP="$BUILD_DIR/export/Vibe.app"
 DMG="$BUILD_DIR/Vibe.dmg"
+ZIP="$BUILD_DIR/Vibe.zip"
 NOTES="Assets/app-store/copy/en/whats-new.txt"
 
 DRAFT=""
@@ -48,8 +51,8 @@ gh auth status >/dev/null 2>&1 || {
     echo "error: gh is not authenticated — run: gh auth login" >&2
     exit 1
 }
-[[ -f "$DMG" && -d "$APP" ]] || {
-    echo "error: no release artifact at $DMG — run 'make release' first" >&2
+[[ -f "$DMG" && -f "$ZIP" && -d "$APP" ]] || {
+    echo "error: no release artifacts at $DMG and $ZIP — run 'make release' first" >&2
     exit 1
 }
 [[ -s "$NOTES" ]] || {
@@ -87,6 +90,17 @@ xcrun stapler validate "$MOUNTED_APP" >/dev/null || {
     exit 1
 }
 
+# The zip ships too, and it holds its own copy of the app — release.sh zips
+# twice, once to submit for notarization and once after stapling, so this is
+# the check that the SECOND one is what is about to be uploaded.
+ZIP_TMP="$(mktemp -d)"
+trap 'hdiutil detach "$MOUNT" -quiet -force 2>/dev/null || true; rm -rf "$MOUNT" "$ZIP_TMP"' EXIT
+ditto -x -k "$ZIP" "$ZIP_TMP"
+xcrun stapler validate "$ZIP_TMP/Vibe.app" >/dev/null || {
+    echo "error: the app inside $ZIP is not stapled — re-run 'make release'" >&2
+    exit 1
+}
+
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$MOUNTED_APP/Contents/Info.plist")"
 BUILD="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$MOUNTED_APP/Contents/Info.plist")"
 TAG="v$VERSION"
@@ -121,12 +135,15 @@ if [[ "$ARCHS" == *" "* ]]; then ARCH="universal"; else ARCH="$ARCHS"; fi
 # Everything read out of the image has been read; give it back before the
 # upload, so a failure there cannot leave a volume mounted.
 hdiutil detach "$MOUNT" -quiet
-ASSET="$BUILD_DIR/vibe-macos-$ARCH-$VERSION.dmg"
-cp "$DMG" "$ASSET"
+ASSET_DMG="$BUILD_DIR/vibe-macos-$ARCH-$VERSION.dmg"
+ASSET_ZIP="$BUILD_DIR/vibe-macos-$ARCH-$VERSION.zip"
+cp "$DMG" "$ASSET_DMG"
+cp "$ZIP" "$ASSET_ZIP"
 
 echo "🔊 releasing $TAG (build $BUILD) at $(git rev-parse --short HEAD)"
 gh release create "$TAG" \
-    "$ASSET#Vibe $VERSION (macOS, notarized)" \
+    "$ASSET_DMG#Vibe $VERSION (macOS, notarized disk image)" \
+    "$ASSET_ZIP#Vibe $VERSION (macOS, notarized zip)" \
     --title "Vibe $VERSION" \
     --notes-file "$NOTES" \
     --target "$(git rev-parse HEAD)" \
