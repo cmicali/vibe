@@ -1,7 +1,11 @@
-* Now runs on macOS 14 Sonoma and later
-* Gapless playback — with crossfade off, tracks flow seamlessly into the next
-* Playlist files — .cue and .m3u open as ordered track lists
-* Cloud files (iCloud Drive, Dropbox) now show download progress
-* New Permissions settings pane — folder access now persists across launches
-* New Always on Top window option
-* Bug fixes and improvements
+* Now runs on macOS 13 Ventura and later
+* Color themes for the window and the waveform — or pick colors of your own
+* Album art now comes from the track's folder when the file carries none
+* More reliable cloud file loading, with a progress bar (iCloud Drive, Dropbox)
+* A new Settings window, with far more to configure
+* Keyboard control in the playlist — arrow keys select, Return plays
+* The playing track's EQ bars now move with the audio
+* Faster loading of large folders, tags, and artwork
+* Smoother waveform resizing, and smoother playback animation on short tracks
+* More consistent translations across all 30 languages
+* Fixed memory and file descriptor leaks

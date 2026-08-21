@@ -1,7 +1,11 @@
-* Mostantól macOS 14 Sonoma és újabb rendszereken fut
-* Szünetmentes lejátszás — áttűnés nélkül a számok folyamatosan követik egymást
-* Playlistfájlok — a .cue és .m3u rendezett számlistaként nyílik meg
-* A felhőfájlok (iCloud Drive, Dropbox) mostantól mutatják a letöltés folyamatát
-* Új Engedélyek panel a Beállításokban — a mappahozzáférés megmarad az újraindítások között
-* Új „Mindig felül” beállítás
-* Hibajavítások és fejlesztések
+* Mostantól macOS 13 Ventura és újabb rendszereken fut
+* Színtémák az ablakhoz és a hullámformához — vagy válassz saját színeket
+* Az albumborító mostantól a szám mappájából érkezik, ha a fájlban nincs
+* Megbízhatóbb felhőfájl-betöltés, folyamatjelzővel (iCloud Drive, Dropbox)
+* Új Beállítások ablak, sokkal több beállítási lehetőséggel
+* Billentyűzetes vezérlés a lejátszási listában — a nyilak választanak, az Enter lejátszik
+* Az éppen szóló szám EQ-sávjai mostantól a hanggal együtt mozognak
+* Gyorsabb betöltés nagy mappák, címkék és borítók esetén
+* Simább hullámforma-átméretezés és simább lejátszási animáció rövid számoknál
+* Egységesebb fordítások mind a 30 nyelven
+* Javítva memória- és fájlleíró-szivárgások

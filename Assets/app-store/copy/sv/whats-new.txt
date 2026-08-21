@@ -1,7 +1,11 @@
-* Kör nu på macOS 14 Sonoma och senare
-* Uppspelning utan mellanrum — utan crossfade övergår spåren sömlöst i varandra
-* Spellistefiler — .cue och .m3u öppnas som ordnade spårlistor
-* Molnfiler (iCloud Drive, Dropbox) visar nu hämtningsförlopp
-* Ny panel för behörigheter i Inställningar — mappåtkomst sparas mellan starter
-* Nytt alternativ: Alltid överst
-* Buggfixar och förbättringar
+* Kör nu på macOS 13 Ventura och senare
+* Färgteman för fönstret och vågformen — eller välj egna färger
+* Albumbilden hämtas nu från spårets mapp när filen saknar en egen
+* Mer tillförlitlig inläsning av molnfiler, med förloppsindikator (iCloud Drive, Dropbox)
+* Nytt inställningsfönster med betydligt mer att ställa in
+* Tangentbordsstyrning i spellistan — piltangenterna väljer, Retur spelar upp
+* EQ-staplarna för spåret som spelas rör sig nu med ljudet
+* Snabbare inläsning av stora mappar, taggar och albumbilder
+* Jämnare storleksändring av vågformen och jämnare uppspelningsanimation för korta spår
+* Mer enhetliga översättningar på alla 30 språk
+* Åtgärdade minnesläckor och läckor av filbeskrivare

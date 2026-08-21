@@ -1,7 +1,11 @@
-* Nyní běží na macOS 14 Sonoma a novějších verzích
-* Přehrávání bez mezer — bez prolínání na sebe skladby plynule navazují
-* Soubory playlistů — .cue a .m3u se otevírají jako seřazené seznamy skladeb
-* Soubory v cloudu (iCloud Drive, Dropbox) nyní zobrazují průběh stahování
-* Nový panel Oprávnění v Nastavení — přístup ke složkám zůstává zachován i po restartu
-* Nová volba „Vždy navrchu“
-* Opravy chyb a vylepšení
+* Nyní běží na macOS 13 Ventura a novějších verzích
+* Barevné motivy pro okno a tvar vlny — nebo si zvolte vlastní barvy
+* Obal alba se nyní načte ze složky skladby, když jej soubor sám neobsahuje
+* Spolehlivější načítání souborů v cloudu s ukazatelem průběhu (iCloud Drive, Dropbox)
+* Nové okno Nastavení s mnohem větším počtem voleb
+* Ovládání playlistu klávesnicí — šipky vybírají, Enter přehrává
+* Pruhy EQ u přehrávané skladby se nyní hýbou se zvukem
+* Rychlejší načítání velkých složek, tagů a obalů
+* Plynulejší změna velikosti tvaru vlny a plynulejší animace přehrávání u krátkých skladeb
+* Konzistentnější překlady ve všech 30 jazycích
+* Opraveny úniky paměti a souborových deskriptorů

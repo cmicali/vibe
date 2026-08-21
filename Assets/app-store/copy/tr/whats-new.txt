@@ -1,7 +1,11 @@
-* Artık macOS 14 Sonoma ve sonraki sürümlerde çalışır
-* Boşluksuz çalma — crossfade kapalıyken parçalar kesintisiz birbirine bağlanır
-* Çalma listesi dosyaları — .cue ve .m3u sıralı parça listesi olarak açılır
-* Bulut dosyaları (iCloud Drive, Dropbox) artık indirme ilerlemesini gösterir
-* Ayarlar'da yeni İzinler bölümü — klasör erişimi yeniden başlatmalar arasında korunur
-* Yeni "Her Zaman Üstte" seçeneği
-* Hata düzeltmeleri ve iyileştirmeler
+* Artık macOS 13 Ventura ve sonraki sürümlerde çalışır
+* Pencere ve dalga biçimi için renk temaları — ya da kendi renklerinizi seçin
+* Dosyada kapak yoksa albüm kapağı artık parçanın klasöründen gelir
+* Bulut dosyalarının yüklenmesi daha güvenilir, ilerleme çubuğuyla (iCloud Drive, Dropbox)
+* Çok daha fazla seçenek sunan yeni Ayarlar penceresi
+* Çalma listesinde klavye denetimi — ok tuşları seçer, Return çalar
+* Çalan parçanın EQ çubukları artık sesle birlikte hareket eder
+* Büyük klasörlerin, etiketlerin ve kapakların yüklenmesi hızlandı
+* Dalga biçiminin yeniden boyutlandırılması ve kısa parçalarda çalma animasyonu daha akıcı
+* 30 dilin tamamında daha tutarlı çeviriler
+* Bellek ve dosya tanımlayıcı sızıntıları giderildi

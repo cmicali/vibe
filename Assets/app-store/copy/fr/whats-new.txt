@@ -1,7 +1,11 @@
-* Fonctionne désormais sous macOS 14 Sonoma et versions ultérieures
-* Lecture sans interruption — sans fondu enchaîné, les morceaux s'enchaînent parfaitement
-* Fichiers de playlist — .cue et .m3u s'ouvrent comme listes de morceaux ordonnées
-* Les fichiers cloud (iCloud Drive, Dropbox) affichent désormais la progression du téléchargement
-* Nouvelle section Autorisations dans les Réglages — l'accès aux dossiers persiste entre les lancements
-* Nouvelle option « Toujours au premier plan »
-* Corrections de bugs et améliorations
+* Fonctionne désormais sous macOS 13 Ventura et versions ultérieures
+* Thèmes de couleurs pour la fenêtre et la forme d’onde — ou choisissez vos propres couleurs
+* L’illustration d’album provient désormais du dossier du morceau lorsque le fichier n’en contient pas
+* Chargement des fichiers cloud plus fiable, avec barre de progression (iCloud Drive, Dropbox)
+* Nouvelle fenêtre de Réglages, avec bien plus d’options
+* Contrôle de la liste de lecture au clavier — les flèches sélectionnent, Retour lit
+* Les barres d’EQ du morceau en cours suivent désormais le son
+* Chargement plus rapide des grands dossiers, des tags et des illustrations
+* Redimensionnement de la forme d’onde plus fluide et animation de lecture plus fluide sur les morceaux courts
+* Traductions plus cohérentes dans les 30 langues
+* Correction de fuites de mémoire et de descripteurs de fichiers

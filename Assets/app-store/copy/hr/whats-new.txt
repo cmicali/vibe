@@ -1,7 +1,11 @@
-* Sada radi na sustavu macOS 14 Sonoma i novijim verzijama
-* Reprodukcija bez pauza — bez crossfadea pjesme se neprimjetno nastavljaju jedna na drugu
-* Datoteke playlista — .cue i .m3u otvaraju se kao poredani popisi pjesama
-* Datoteke u oblaku (iCloud Drive, Dropbox) sada prikazuju napredak preuzimanja
-* Nova ploča Dozvole u Postavkama — pristup mapama ostaje sačuvan između pokretanja
-* Nova opcija „Uvijek na vrhu”
-* Ispravci grešaka i poboljšanja
+* Sada radi na sustavu macOS 13 Ventura i novijim verzijama
+* Teme boja za prozor i valni oblik — ili odaberite vlastite boje
+* Omot albuma sada se uzima iz mape pjesme kada ga datoteka nema
+* Pouzdanije učitavanje datoteka u oblaku, s trakom napretka (iCloud Drive, Dropbox)
+* Novi prozor Postavke, s mnogo više mogućnosti
+* Upravljanje popisom pjesama tipkovnicom — strelice biraju, Enter reproducira
+* EQ trake pjesme koja svira sada se kreću zajedno sa zvukom
+* Brže učitavanje velikih mapa, oznaka i omota
+* Glatkija promjena veličine valnog oblika i glatkija animacija reprodukcije kod kratkih pjesama
+* Dosljedniji prijevodi na svih 30 jezika
+* Ispravljena curenja memorije i opisnika datoteka

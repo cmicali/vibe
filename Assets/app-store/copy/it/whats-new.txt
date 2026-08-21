@@ -1,7 +1,11 @@
-* Ora funziona su macOS 14 Sonoma e versioni successive
-* Riproduzione senza interruzioni — senza dissolvenza incrociata, i brani si susseguono senza pause
-* File playlist — .cue e .m3u si aprono come elenchi di brani ordinati
-* I file nel cloud (iCloud Drive, Dropbox) ora mostrano l'avanzamento del download
-* Nuovo pannello Permessi nelle Impostazioni — l'accesso alle cartelle persiste tra gli avvii
-* Nuova opzione "Sempre in primo piano"
-* Correzioni di bug e miglioramenti
+* Ora funziona su macOS 13 Ventura e versioni successive
+* Temi colore per la finestra e la forma d’onda — oppure scegli i tuoi colori
+* La copertina dell’album ora arriva dalla cartella del brano quando il file non ne ha una
+* Caricamento più affidabile dei file nel cloud, con barra di avanzamento (iCloud Drive, Dropbox)
+* Nuova finestra Impostazioni, con molte più opzioni
+* Controllo della playlist da tastiera — le frecce selezionano, Invio riproduce
+* Le barre EQ del brano in riproduzione ora si muovono con l’audio
+* Caricamento più rapido di cartelle grandi, tag e copertine
+* Ridimensionamento della forma d’onda più fluido e animazione di riproduzione più fluida sui brani brevi
+* Traduzioni più coerenti in tutte le 30 lingue
+* Corrette perdite di memoria e di descrittori di file

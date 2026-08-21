@@ -1,4 +1,4 @@
-# 1.10
+# v1.10
 
 * Added color themes and customizable colors for window and waveform
 * Added album art load from song's folder if song has no tagged artwork

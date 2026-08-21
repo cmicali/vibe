@@ -1,7 +1,11 @@
-* Läuft jetzt unter macOS 14 Sonoma und neuer
-* Lückenlose Wiedergabe — ohne Überblendung gehen Titel nahtlos ineinander über
-* Playlist-Dateien — .cue und .m3u öffnen als geordnete Titelliste
-* Cloud-Dateien (iCloud Drive, Dropbox) zeigen jetzt den Downloadfortschritt an
-* Neuer Einstellungsbereich „Berechtigungen“ — Ordnerzugriff bleibt über Neustarts erhalten
-* Neue Option „Immer im Vordergrund“
-* Fehlerbehebungen und Verbesserungen
+* Läuft jetzt unter macOS 13 Ventura und neuer
+* Farbthemen für Fenster und Wellenform — oder wähle eigene Farben
+* Das Albumcover kommt jetzt aus dem Ordner des Titels, wenn die Datei selbst keines hat
+* Zuverlässigeres Laden von Cloud-Dateien, mit Fortschrittsbalken (iCloud Drive, Dropbox)
+* Neues Einstellungsfenster mit deutlich mehr Optionen
+* Tastatursteuerung in der Wiedergabeliste — die Pfeiltasten wählen aus, Enter spielt ab
+* Die EQ-Balken des laufenden Titels bewegen sich jetzt mit dem Ton
+* Schnelleres Laden großer Ordner, Tags und Cover
+* Flüssigeres Skalieren der Wellenform und flüssigere Wiedergabeanimation bei kurzen Titeln
+* Einheitlichere Übersetzungen in allen 30 Sprachen
+* Speicher- und Dateideskriptor-Lecks behoben

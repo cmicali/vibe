@@ -1,7 +1,11 @@
-* Rulează acum pe macOS 14 Sonoma și versiuni ulterioare
-* Redare fără pauze — fără crossfade, piesele se succed perfect
-* Fișiere playlist — .cue și .m3u se deschid ca liste ordonate de piese
-* Fișierele din cloud (iCloud Drive, Dropbox) afișează acum progresul descărcării
-* Panou nou de Permisiuni în Setări — accesul la dosare persistă între lansări
-* Opțiune nouă „Mereu deasupra”
-* Remedieri de erori și îmbunătățiri
+* Rulează acum pe macOS 13 Ventura și versiuni ulterioare
+* Teme de culori pentru fereastră și forma de undă — sau alegeți culorile dumneavoastră
+* Coperta albumului este acum preluată din dosarul piesei când fișierul nu are una
+* Încărcare mai fiabilă a fișierelor din cloud, cu bară de progres (iCloud Drive, Dropbox)
+* Fereastră nouă de Configurări, cu mult mai multe opțiuni
+* Control de la tastatură în playlist — săgețile selectează, Enter redă
+* Barele EQ ale piesei redate se mișcă acum odată cu sunetul
+* Încărcare mai rapidă a dosarelor mari, a etichetelor și a coperților
+* Redimensionare mai fluidă a formei de undă și animație de redare mai fluidă la piesele scurte
+* Traduceri mai consecvente în toate cele 30 de limbi
+* Remediate scurgeri de memorie și de descriptori de fișiere

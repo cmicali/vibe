@@ -1,7 +1,11 @@
-* Werkt nu op macOS 14 Sonoma en nieuwer
-* Naadloze weergave — zonder crossfade lopen nummers naadloos in elkaar over
-* Playlistbestanden — .cue en .m3u openen als geordende tracklijsten
-* Cloudbestanden (iCloud Drive, Dropbox) tonen nu de downloadvoortgang
-* Nieuw paneel Bevoegdheden in Instellingen — maptoegang blijft behouden tussen starts
-* Nieuwe optie 'Altijd op voorgrond'
-* Bugfixes en verbeteringen
+* Werkt nu op macOS 13 Ventura en nieuwer
+* Kleurthema’s voor het venster en de golfvorm — of kies je eigen kleuren
+* De albumillustratie komt nu uit de map van het nummer als het bestand er zelf geen heeft
+* Betrouwbaarder laden van cloudbestanden, met voortgangsbalk (iCloud Drive, Dropbox)
+* Nieuw instellingenvenster met veel meer om in te stellen
+* Toetsenbordbediening in de afspeellijst — de pijltoetsen selecteren, Enter speelt af
+* De EQ-balkjes van het spelende nummer bewegen nu mee met het geluid
+* Sneller laden van grote mappen, tags en illustraties
+* Vloeiender formaat wijzigen van de golfvorm en vloeiender afspeelanimatie bij korte nummers
+* Consistentere vertalingen in alle 30 talen
+* Geheugenlekken en lekken van bestandsdescriptors opgelost

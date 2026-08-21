@@ -1,7 +1,11 @@
-* Kjører nå på macOS 14 Sonoma og nyere
-* Avspilling uten pauser — uten crossfade glir sporene sømløst over i hverandre
-* Spillelistefiler — .cue og .m3u åpnes som ordnede sporlister
-* Skyfiler (iCloud Drive, Dropbox) viser nå fremdrift for nedlasting
-* Nytt panel for tillatelser i Innstillinger — mappetilgang beholdes mellom omstarter
-* Nytt valg: Alltid øverst
-* Feilrettinger og forbedringer
+* Kjører nå på macOS 13 Ventura og nyere
+* Fargetemaer for vinduet og bølgeformen — eller velg dine egne farger
+* Albumbildet hentes nå fra sporets mappe når filen ikke har et selv
+* Mer pålitelig innlasting av skyfiler, med fremdriftslinje (iCloud Drive, Dropbox)
+* Nytt innstillingsvindu med langt flere valg
+* Tastaturstyring i spillelisten — piltastene velger, Retur spiller av
+* EQ-stolpene til sporet som spilles, beveger seg nå med lyden
+* Raskere innlasting av store mapper, tagger og albumbilder
+* Jevnere endring av bølgeformens størrelse og jevnere avspillingsanimasjon på korte spor
+* Mer enhetlige oversettelser på alle 30 språk
+* Rettet minnelekkasjer og lekkasjer av filbeskrivere

@@ -1,7 +1,11 @@
-* Kini berjalan di macOS 14 Sonoma dan yang lebih baru
-* Pemutaran tanpa jeda — dengan crossfade mati, lagu mengalir mulus ke lagu berikutnya
-* File playlist — .cue dan .m3u terbuka sebagai daftar lagu berurutan
-* File cloud (iCloud Drive, Dropbox) kini menampilkan progres unduhan
-* Panel Izin baru di Pengaturan — akses folder tersimpan antar peluncuran
-* Opsi baru "Selalu di Atas"
-* Perbaikan bug dan penyempurnaan
+* Kini berjalan di macOS 13 Ventura dan yang lebih baru
+* Tema warna untuk jendela dan bentuk gelombang — atau pilih warna Anda sendiri
+* Sampul album kini diambil dari folder lagu jika file tidak memilikinya
+* Pemuatan file cloud lebih andal, dengan bilah progres (iCloud Drive, Dropbox)
+* Jendela Pengaturan baru, dengan jauh lebih banyak opsi
+* Kontrol playlist dengan papan ketik — tombol panah memilih, Enter memutar
+* Bilah EQ lagu yang sedang diputar kini bergerak mengikuti audio
+* Pemuatan folder besar, tag, dan sampul album lebih cepat
+* Perubahan ukuran bentuk gelombang lebih mulus dan animasi pemutaran lebih mulus pada lagu pendek
+* Terjemahan lebih konsisten di seluruh 30 bahasa
+* Perbaikan kebocoran memori dan deskriptor file

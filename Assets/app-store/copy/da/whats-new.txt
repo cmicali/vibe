@@ -1,7 +1,11 @@
-* Kører nu på macOS 14 Sonoma og nyere
-* Afspilning uden pauser — uden crossfade glider numrene sømløst over i hinanden
-* Playlistefiler — .cue og .m3u åbnes som ordnede nummerlister
-* Cloud-filer (iCloud Drive, Dropbox) viser nu status for download
-* Nyt panel med tilladelser i Indstillinger — mappeadgang bevares mellem genstarter
-* Ny mulighed: Altid forrest
-* Fejlrettelser og forbedringer
+* Kører nu på macOS 13 Ventura og nyere
+* Farvetemaer til vinduet og bølgeformen — eller vælg dine egne farver
+* Albumbilledet hentes nu fra nummerets mappe, når filen ikke selv har et
+* Mere pålidelig indlæsning af cloud-filer, med statuslinje (iCloud Drive, Dropbox)
+* Nyt indstillingsvindue med langt flere valgmuligheder
+* Tastaturbetjening i spillelisten — piletasterne vælger, Retur afspiller
+* EQ-bjælkerne for det nummer, der spiller, bevæger sig nu med lyden
+* Hurtigere indlæsning af store mapper, tags og albumbilleder
+* Jævnere ændring af bølgeformens størrelse og jævnere afspilningsanimation på korte numre
+* Mere ensartede oversættelser på alle 30 sprog
+* Rettet hukommelseslæk og læk af filbeskrivere

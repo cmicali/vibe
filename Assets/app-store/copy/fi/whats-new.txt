@@ -1,7 +1,11 @@
-* Toimii nyt macOS 14 Sonoma -versiossa ja sitä uudemmissa
-* Saumaton toisto — ilman ristihäivytystä kappaleet soivat saumattomasti peräkkäin
-* Soittolistatiedostot — .cue ja .m3u avautuvat järjestettyinä kappalelistoina
-* Pilvitiedostot (iCloud Drive, Dropbox) näyttävät nyt latauksen edistymisen
-* Uusi Käyttöoikeudet-osio asetuksissa — kansioiden käyttöoikeudet säilyvät käynnistysten välillä
-* Uusi Aina päällimmäisenä -valinta
-* Virheenkorjauksia ja parannuksia
+* Toimii nyt macOS 13 Ventura -versiossa ja sitä uudemmissa
+* Väriteemat ikkunalle ja aaltomuodolle — tai valitse omat värisi
+* Albumin kansikuva haetaan nyt kappaleen kansiosta, kun tiedostossa ei ole omaa
+* Luotettavampi pilvitiedostojen lataus, edistymispalkin kera (iCloud Drive, Dropbox)
+* Uusi asetusikkuna, jossa on paljon enemmän säädettävää
+* Näppäimistöohjaus soittolistassa — nuolinäppäimet valitsevat, Enter toistaa
+* Soivan kappaleen EQ-palkit liikkuvat nyt äänen mukana
+* Nopeampi suurten kansioiden, tunnisteiden ja kansikuvien lataus
+* Sulavampi aaltomuodon koon muutos ja sulavampi toistoanimaatio lyhyissä kappaleissa
+* Yhtenäisemmät käännökset kaikilla 30 kielellä
+* Korjattu muistivuotoja ja tiedostokahvojen vuotoja

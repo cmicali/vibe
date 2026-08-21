@@ -1,7 +1,11 @@
-* Agora funciona no macOS 14 Sonoma ou posterior
-* Reprodução sem pausas — sem crossfade, as faixas emendam perfeitamente
-* Arquivos de playlist — .cue e .m3u abrem como listas de faixas ordenadas
-* Arquivos na nuvem (iCloud Drive, Dropbox) agora mostram o progresso do download
-* Novo painel de Permissões nos Ajustes — o acesso às pastas persiste entre aberturas
-* Nova opção "Sempre visível"
-* Correções de bugs e melhorias
+* Agora funciona no macOS 13 Ventura ou posterior
+* Temas de cores para a janela e a forma de onda — ou escolha suas próprias cores
+* A capa do álbum agora vem da pasta da faixa quando o arquivo não tem uma
+* Carregamento mais confiável de arquivos na nuvem, com barra de progresso (iCloud Drive, Dropbox)
+* Nova janela de Ajustes, com muito mais opções
+* Controle da playlist pelo teclado — as setas selecionam, Enter reproduz
+* As barras de EQ da faixa em reprodução agora se movem com o áudio
+* Carregamento mais rápido de pastas grandes, tags e capas
+* Redimensionamento da forma de onda mais suave e animação de reprodução mais suave em faixas curtas
+* Traduções mais consistentes nos 30 idiomas
+* Corrigidos vazamentos de memória e de descritores de arquivo
