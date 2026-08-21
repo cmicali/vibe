@@ -40,6 +40,17 @@ NS_ASSUME_NONNULL_BEGIN
 // updateForTrack: with the art now decodable.
 @property (nonatomic, copy) void (^artDidResolveHandler)(void);
 
+// The settled art's raw dominant color, nil while the default art shows. Set
+// only when a render result installs, which is generation- and target-matched
+// against the current track — so a stale delivery can never surface a
+// previous track's color here.
+@property (nonatomic, readonly, nullable) NSColor *dominantArtColor;
+
+// Called on the main thread whenever dominantArtColor settles — art
+// installed, or the default art cleared it. The owner forwards it into the
+// waveform's album-art theme.
+@property (nonatomic, copy) void (^dominantColorDidChangeHandler)(void);
+
 // Reflects the track's art; a nil track shows the default. New art replaces
 // old art directly, and while a track's art is still unresolved the previous
 // track's art stays on screen, so the default never flashes between tracks. It

@@ -7,6 +7,7 @@
 //
 
 #import "MainPlayerControllerInternal.h"
+#import "MainPlayerController+Menus.h"
 #import "AppSettings.h"
 #import "ArtworkDisplayController.h"
 #import "TrackDisplayController.h"
@@ -225,6 +226,17 @@
     };
     _artworkController.artDidResolveHandler = ^{
         [weakControllerForArt updateUI];
+    };
+    // The album_art waveform theme follows the settled art color. The
+    // controller only fires this for a target-matched install, so the
+    // async-delivery race is already closed on its side.
+    _artworkController.dominantColorDidChangeHandler = ^{
+        MainPlayerController *strongSelf = weakControllerForArt;
+        if (!strongSelf) {
+            return;
+        }
+        strongSelf.waveformView.artworkThemeColor = strongSelf->_artworkController.dominantArtColor;
+        [strongSelf refreshWaveformTheme];
     };
     // The header art tint depends on the appearance — a dark wash against a
     // light pastel — so re-derive it whenever the window's appearance flips.

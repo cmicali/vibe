@@ -198,6 +198,10 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
                                                             NSAppearanceNameDarkAqua ]]];
 }
 
+- (NSColor *)dominantArtColor {
+    return _dominantArtColor;
+}
+
 - (void)refreshHeaderTint {
     NSColor *color = nil;
     BOOL dark = [self isDarkAppearance];
@@ -301,6 +305,9 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
         _pendingArt = nil;
         _artworkView.image = result.squareImage;
         _dominantArtColor = result.dominantColor;
+        if (self.dominantColorDidChangeHandler) {
+            self.dominantColorDidChangeHandler();
+        }
         [self refreshHeaderTint];
         [NSDockTile setDockIcon:result.squareImage];
         _displayedArt = request.sourceArt;
@@ -454,6 +461,9 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     }
     _artworkView.image = [NSImage imageNamed:@"record-bg"];
     _dominantArtColor = nil;
+    if (self.dominantColorDidChangeHandler) {
+        self.dominantColorDidChangeHandler();
+    }
     [self refreshHeaderTint];
     [NSDockTile resetToAppIcon];
     _displayedArt = nil;
