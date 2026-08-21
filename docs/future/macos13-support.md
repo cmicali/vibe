@@ -6,7 +6,9 @@ Read the root `CLAUDE.md` (the equalizer guarantees especially), `Vibe/Controls/
 
 ## The finding: one API blocks macOS 13
 
-Audited by running the compiler as ground truth, not by grep: `clang -fsyntax-only -mmacosx-version-min=13.0 -Wunguarded-availability -Wunguarded-availability-new` (macOS 26 SDK, the prefix header preincluded) over all 143 non-iOS, non-ThirdParty `.m`/`.mm` sources and all 66 test sources, once plain and once with `-DDEBUG=1`. Do not re-audit; re-run that sweep instead if the tree has moved far from the anchor commit.
+Audited by running the compiler as ground truth, not by grep: `clang -fsyntax-only -mmacosx-version-min=13.0 -Wunguarded-availability -Wunguarded-availability-new` (macOS 26 SDK, the prefix header preincluded) over all 143 non-iOS, non-ThirdParty `.m`/`.mm` sources and all 66 test sources, once plain and once with `-DDEBUG=1`.
+
+**That harness missed one: `[NSApp activate]` (macOS 14-only) in `MainPlayerController.m`'s `windowDidLoad`, present at the anchor, which crashed the first real Ventura launch** (fixed in b767e2b with the `@available` guard). The re-audit method that actually catches everything is a **clean full build at the 13.0 floor** — delete `Intermediates.noindex`, build both architectures, and grep the log for `only available on`; the project's `CLANG_WARN_UNGUARDED_AVAILABILITY: YES_AGGRESSIVE` makes every compile a sweep. Beware the incremental trap: the warning fires only when its file recompiles, so an unchanged file's warning appears once in whichever build did the full rebuild and never again.
 
 The complete list of macOS 14-only usage is **`CADisplayLink` in `Vibe/Controls/EqualizerIndicatorView.m`** — the class itself (`API_AVAILABLE(macos(14.0))`) and `-[NSView displayLinkWithTarget:selector:]` that mints it. Sites: the ivar (`:67`), creation (`:350`), `preferredFrameRateRange` (`:357`), the `levelTick:` signature (`:459`).
 
