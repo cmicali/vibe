@@ -5,6 +5,7 @@
 
 #import "MainMenuBuilder.h"
 #import "AppDelegate.h"
+#import "AppSettings.h"
 #import "AudioPlayer.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Window.h"
@@ -310,14 +311,36 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 }
 
 + (void)buildConvertMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
-    // Convert
-    NSMenu *convertMenu = Submenu(mainMenu, STR_MENU_CONVERT).submenu;
+    // Convert. Unlike the FX menu, which is omitted at build because the
+    // engine reads its setting once at launch, this menu is always built and
+    // hidden in place: Settings > Convert > Enabled applies live through
+    // applyConvertMenuVisibility.
+    NSMenuItem *convertItem = Submenu(mainMenu, STR_MENU_CONVERT);
+    convertItem.identifier = @"menu_convert";
+    NSMenu *convertMenu = convertItem.submenu;
     // Enabled only for an uncompressed current track with no FLAC beside it
     // yet; validation retitles it with the reason otherwise.
     [convertMenu addItem:[self convertToFLACItemWithTarget:player]];
     AddSeparator(convertMenu);
     // A checkmarked preference rather than an action, so it is always enabled.
     AddSymbolItem(convertMenu, STR_MENU_CONVERT_DELETE_ORIGINAL, @"trash", @selector(toggleDeleteOriginalAfterConvert:), player, @"", 0, @"menu_convert_delete_original");
+    [self applyConvertMenuVisibility:convertItem];
+}
+
+// The live-apply hook for AppSettings.convertEnabled: the Settings pane calls
+// it after writing, and the build above seeds the initial state through the
+// one-item variant. The context menus' shared Convert to FLAC item hides
+// through validation instead (MainPlayerController+Menus).
++ (void)applyConvertMenuVisibility {
+    for (NSMenuItem *item in NSApp.mainMenu.itemArray) {
+        if ([item.identifier isEqualToString:@"menu_convert"]) {
+            [self applyConvertMenuVisibility:item];
+        }
+    }
+}
+
++ (void)applyConvertMenuVisibility:(NSMenuItem *)convertItem {
+    convertItem.hidden = !AppSettings.sharedInstance.convertEnabled;
 }
 
 + (void)buildOutputMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {

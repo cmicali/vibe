@@ -69,6 +69,8 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"waveformDragBehavior": AppSettings.sharedInstance.waveformDragBehavior,
             @"outputDeviceName": AppSettings.sharedInstance.audioOutputDeviceName ?: @"",
             @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
+            @"convertEnabled": @(AppSettings.sharedInstance.convertEnabled),
+            @"showKey": @(AppSettings.sharedInstance.showKey),
             @"deleteOriginalAfterConvert": @(AppSettings.sharedInstance.deleteOriginalAfterConvert),
             @"analyzeBPM": @(AppSettings.sharedInstance.analyzeBPM),
             @"analyzeKey": @(AppSettings.sharedInstance.analyzeKey),
@@ -157,6 +159,11 @@ NSArray *VibeMenuArray(NSMenu *menu) {
             node[@"action"] = NSStringFromSelector(item.action);
         }
         node[@"enabled"] = @(item.isEnabled);
+        // A hidden item is still in itemArray but not on screen — the Convert
+        // menu with Settings > Convert > Enabled off.
+        if (item.isHidden) {
+            node[@"hidden"] = @YES;
+        }
         if (item.state != NSControlStateValueOff) {
             node[@"state"] = @(item.state);
         }

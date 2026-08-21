@@ -34,6 +34,8 @@ Transport first — Play, Previous Track, Next Track, then **Play Selected Track
 
 Between View and Output: Convert to FLAC, a separator, then Delete Original.
 
+**Settings > Convert > Enabled off hides the whole feature, live.** Unlike the FX menu, which is omitted at build because the engine reads its setting once at launch, the Convert menu is always built (identifier `menu_convert`) and hidden in place: `MainMenuBuilder.applyConvertMenuVisibility` is the live-apply hook the Settings pane calls, and the build seeds the initial state. The context menus' shared Convert to FLAC item follows through its validation branch instead, which hides it and returns NO while the setting is off. A hidden item stays in `itemArray` — `dump_menu` reports it with `hidden: true`.
+
 **Convert to FLAC** re-encodes an uncompressed current track as FLAC beside it. The rule is `AudioFileConverter.validateConvertMenuItem:forTrack:`, shared with the window-body menu's item, which reuses this one's `menu_convert_to_flac` identifier: enabled only for WAV and AIFF with no FLAC already there, retitled with the reason otherwise — "Converting…" or "FLAC Already Exists". **Only the current track is convertible, so there is deliberately no playlist row item.**
 
 **Delete Original**, off by default, sends a converted source to the Trash once its FLAC is in place. A checkmarked *preference* rather than an action, so it is never disabled — one setting (`AppSettings.deleteOriginalAfterConvert`), one place that acts on it (`AudioFileConverter.trashSourceIfEnabled:convertedTo:`), which snapshots it as a conversion is accepted, so a mid-encode flip applies to the next conversion only. Undoing the deletion is Edit > Undo, which reverses the whole conversion.

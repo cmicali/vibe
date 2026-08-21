@@ -35,10 +35,10 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     // section stack closes the gap, separators included.
     SettingsRowView *_customDarkRow;
     SettingsRowView *_customLightRow;
-    NSPopUpButton *_waveformDragPopUp;
     NSSwitch *_fileInfoSwitch;
     NSButton *_timeTotalRadio;
     NSButton *_timeRemainingRadio;
+    NSSwitch *_showKeySwitch;
     NSPopUpButton *_keyNotationPopUp;
     NSSwitch *_keyColorsSwitch;
 }
@@ -79,14 +79,6 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_CUSTOM];
     _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
 
-    // Identifiers in representedObject as above. No live-apply hook: the
-    // waveform view reads the setting per mouse-down.
-    _waveformDragPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformDragChanged:)];
-    [_waveformDragPopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_DRAG_WINDOW];
-    _waveformDragPopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW;
-    [_waveformDragPopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_DRAG_SEEK];
-    _waveformDragPopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_DRAG_SEEK;
-
     _customDarkPlayedWell = [self customColorWell];
     _customDarkUnplayedWell = [self customColorWell];
     _customLightPlayedWell = [self customColorWell];
@@ -104,6 +96,8 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
                                                   target:self action:@selector(timeDisplayChanged:)];
     NSStackView *timeRadios = [NSStackView stackViewWithViews:@[_timeTotalRadio, _timeRemainingRadio]];
     timeRadios.spacing = 12;
+
+    _showKeySwitch = [self switchWithAction:@selector(toggleShowKey:)];
 
     // Identifiers in representedObject, localized names in the titles — the
     // same split as the waveform styles above.
@@ -129,11 +123,11 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_THEME_LABEL control:_waveformThemePopUp],
             _customDarkRow,
             _customLightRow,
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_DRAG_LABEL control:_waveformDragPopUp],
         ]],
         [SettingsSectionView sectionWithRows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_FILE_INFO control:_fileInfoSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_TIME_LABEL control:timeRadios],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_KEY control:_showKeySwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_NOTATION_LABEL control:_keyNotationPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
         ]],
@@ -227,21 +221,18 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     _customLightUnplayedWell.color = [settings waveformCustomUnplayedColorForDark:NO]
             ?: DefaultCustomUnplayedColor(NO);
 
-    // The getter is normalized, so a match always exists.
-    NSString *dragBehavior = AppSettings.sharedInstance.waveformDragBehavior;
-    for (NSMenuItem *item in _waveformDragPopUp.itemArray) {
-        if ([item.representedObject isEqualToString:dragBehavior]) {
-            [_waveformDragPopUp selectItem:item];
-            break;
-        }
-    }
-
     _fileInfoSwitch.state = AppSettings.sharedInstance.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
 
     BOOL remaining = AppSettings.sharedInstance.showRemainingTime;
     _timeTotalRadio.state = remaining ? NSControlStateValueOff : NSControlStateValueOn;
     _timeRemainingRadio.state = remaining ? NSControlStateValueOn : NSControlStateValueOff;
 
+    // With Show key off the two rows below it have nothing to govern, so they
+    // dim rather than pretending a write would change anything on screen.
+    BOOL showKey = AppSettings.sharedInstance.showKey;
+    _showKeySwitch.state = showKey ? NSControlStateValueOn : NSControlStateValueOff;
+    _keyNotationPopUp.enabled = showKey;
+    _keyColorsSwitch.enabled = showKey;
     NSString *notation = AppSettings.sharedInstance.keyNotation;
     for (NSMenuItem *item in _keyNotationPopUp.itemArray) {
         if ([item.representedObject isEqualToString:notation]) {
@@ -250,6 +241,12 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
         }
     }
     _keyColorsSwitch.state = AppSettings.sharedInstance.keyColorsEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+}
+
+- (void)toggleShowKey:(id)sender {
+    AppSettings.sharedInstance.showKey = (_showKeySwitch.state == NSControlStateValueOn);
+    [self.playerController refreshKeyDisplay];
+    [self refreshFromSettings];
 }
 
 - (void)appearanceChanged:(id)sender {
@@ -319,10 +316,6 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
         [settings setWaveformCustomUnplayedColor:sender.color forDark:NO];
     }
     [self.playerController refreshWaveformTheme];
-}
-
-- (void)waveformDragChanged:(id)sender {
-    AppSettings.sharedInstance.waveformDragBehavior = _waveformDragPopUp.selectedItem.representedObject;
 }
 
 - (void)toggleFileInfo:(id)sender {

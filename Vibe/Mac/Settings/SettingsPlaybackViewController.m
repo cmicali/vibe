@@ -81,9 +81,9 @@ static NSString *const kOnEndPause = @"pause";
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithRows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_ON_END_LABEL control:_onEndPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL control:_crossfadePopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_PITCH_RANGE_LABEL control:pitchRadios],
             [SettingsRowView rowWithTitle:STR_SETTINGS_SKIP_STEPS_LABEL control:_skipStepsPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL control:_crossfadePopUp],
         ]],
         [SettingsSectionView sectionWithRows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_ENABLE_FX

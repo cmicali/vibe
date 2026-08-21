@@ -40,7 +40,9 @@
 #define SETTING_ANALYZE_KEY                         @"Audio.analyzeKey"
 #define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
 #define SETTING_KEY_COLORS                          @"Appearance.keyColors"
+#define SETTING_SHOW_KEY                            @"Appearance.showKey"
 #define SETTING_CONVERT_ASKS_WHERE_TO_SAVE          @"Convert.asksWhereToSave"
+#define SETTING_CONVERT_ENABLED                     @"Convert.enabled"
 // TRAP: the stored key is not the macro's name and must never follow a rename —
 // it is a persisted NSUserDefaults key, so changing the string silently resets
 // every existing user's setting to the default. It predates the folder-artwork
@@ -106,6 +108,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
     BOOL        _hotCacheValid;
     BOOL        _hotShowRemainingTime;
     BOOL        _hotShowFileInfo;
+    BOOL        _hotShowKey;
     BOOL        _hotKeyColorsEnabled;
     NSInteger   _hotUIUpdateHzCap;
     NSString   *_hotKeyNotation;
@@ -262,6 +265,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
             SETTING_SHOW_FILE_INFO:                 @(YES),
             SETTING_WAVEFORM_DRAG_BEHAVIOR:         SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW,
             SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
+            SETTING_CONVERT_ENABLED:                @(YES),
             SETTING_SKIP_BASE_BARS:                 @(8),
             SETTING_CROSSFADE_MILLISECONDS:         @(10),
             SETTING_PAUSE_AT_TRACK_END:             @(NO),
@@ -271,6 +275,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
             SETTING_ANALYZE_KEY:                    @(NO),
             SETTING_KEY_NOTATION:                   SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
             SETTING_KEY_COLORS:                     @(NO),
+            SETTING_SHOW_KEY:                       @(YES),
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
             SETTING_FOLDER_ART:                     @(YES),
     }];
@@ -286,6 +291,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     _hotShowRemainingTime = [defaults boolForKey:SETTING_SHOW_REMAINING_TIME];
     _hotShowFileInfo = [defaults boolForKey:SETTING_SHOW_FILE_INFO];
+    _hotShowKey = [defaults boolForKey:SETTING_SHOW_KEY];
     _hotKeyColorsEnabled = [defaults boolForKey:SETTING_KEY_COLORS];
     _hotUIUpdateHzCap = [self storedUIUpdateHzCap];
     _hotKeyNotation = [self storedKeyNotation];
@@ -520,6 +526,17 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 }
 
 // Cached; read alongside keyNotation on the same pass.
+- (BOOL)showKey {
+    [self primeHotCache];
+    return _hotShowKey;
+}
+
+- (void)setShowKey:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_KEY];
+    [self invalidateHotCache];
+}
+
+// Cached; read alongside keyNotation on the same pass.
 - (BOOL)keyColorsEnabled {
     [self primeHotCache];
     return _hotKeyColorsEnabled;
@@ -531,6 +548,14 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 }
 
 #pragma mark Files and conversion
+
+- (BOOL)convertEnabled {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_CONVERT_ENABLED];
+}
+
+- (void)setConvertEnabled:(BOOL)enabled {
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_CONVERT_ENABLED];
+}
 
 - (BOOL)deleteOriginalAfterConvert {
     return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_DELETE_ORIGINAL_AFTER_CONVERT];

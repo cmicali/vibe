@@ -145,6 +145,11 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (NSInteger)pitchRange;
 - (void)setPitchRange:(NSInteger)range;
 
+// Settings > Convert > Enabled: NO hides the whole Convert feature — the menu
+// bar's Convert menu and the context menus' Convert to FLAC item. Default YES.
+- (BOOL)convertEnabled;
+- (void)setConvertEnabled:(BOOL)enabled;
+
 // Convert > Delete Original: YES sends a converted source file to the Trash
 // once its FLAC is in place. Governs every conversion path.
 - (BOOL)deleteOriginalAfterConvert;
@@ -204,6 +209,12 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // unasked, while a key the file already carries always shows.
 - (BOOL)analyzeKey;
 - (void)setAnalyzeKey:(BOOL)analyze;
+
+// Whether the header shows the musical key at all. Default on; off, the
+// notation and color settings below have nothing to govern. Detection is
+// Playback's analyzeKey — this only hides the readout.
+- (BOOL)showKey;
+- (void)setShowKey:(BOOL)show;
 
 // YES draws the key label in the CDJ-style color of its Camelot number, in
 // bold. Default off — the plain dimmed label matches the rest of the corner.

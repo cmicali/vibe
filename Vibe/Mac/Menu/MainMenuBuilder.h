@@ -44,6 +44,11 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSMenuItem *)copyFileItemWithTarget:(nullable id)target;
 + (NSMenuItem *)convertToFLACItemWithTarget:(nullable id)target;
 
+// The live-apply hook for AppSettings.convertEnabled: shows or hides the menu
+// bar's Convert menu in place. The build seeds the initial state; the
+// Settings > Convert pane calls this after writing the setting.
++ (void)applyConvertMenuVisibility;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -499,7 +499,9 @@
     // The notation governs every key the app shows, a tagged one included: the
     // tag was parsed to a VibeMusicalKey when it was read, so a file tagged
     // "Bbm" renders as "3A" under Camelot rather than as written.
-    NSInteger key = track ? track.key : -1;
+    // Show key off blanks the readout entirely; detection and tags are
+    // untouched, so flipping it back on redraws whatever the track carries.
+    NSInteger key = track && AppSettings.sharedInstance.showKey ? track.key : -1;
     NSString *keyText = @"";
     if (key >= 0) {
         keyText = [AppSettings.sharedInstance.keyNotation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]

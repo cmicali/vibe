@@ -21217,6 +21217,18 @@
       },
       "extractionState": "manual"
     },
+    "settings.appearance.show_key": {
+      "comment": "Settings, Appearance pane: switch showing or hiding the header's musical-key readout. Off dims the key notation and key color rows below it, which then have nothing to govern.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show key"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.appearance.time_label": {
       "comment": "Settings, Appearance pane: label beside the choice between showing the track's total duration or the remaining time. Ends with a colon.",
       "localizations": {
@@ -23636,7 +23648,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_drag_label": {
-      "comment": "Settings, Appearance pane, Waveform group: row beside the dropdown choosing what dragging the mouse on the waveform does.",
+      "comment": "Settings, General pane, Window group: row beside the dropdown choosing what dragging the mouse on the waveform does. The key keeps its historical settings.appearance prefix.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -25693,6 +25705,18 @@
       },
       "extractionState": "manual"
     },
+    "settings.convert.enabled": {
+      "comment": "Settings, Convert pane: switch showing or hiding the whole Convert feature — off removes the Convert menu from the menu bar and the Convert to FLAC item from the context menus.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enabled"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.files": {
       "comment": "Settings window: the Files pane's toolbar item, and the window's title while that pane is selected. The pane covers where the app looks for album art and which folders it keeps access to.",
       "localizations": {
@@ -26809,8 +26833,20 @@
       },
       "extractionState": "manual"
     },
+    "settings.general.audio_section": {
+      "comment": "Settings, General pane: heading above the audio rows — the output-device choice.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.general.output_label": {
-      "comment": "Settings, General pane: label beside the dropdown selecting the audio output device. Ends with a colon.",
+      "comment": "Settings, General pane, Audio group: row beside the dropdown selecting the audio output device. Ends with a colon, stripped at display.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -26990,6 +27026,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "輸出："
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.window_section": {
+      "comment": "Settings, General pane: heading above the window-behavior rows — always on top, and what dragging the waveform does.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Window"
           }
         }
       },

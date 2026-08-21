@@ -121,6 +121,14 @@
     else if ([menuItem.identifier isEqualToString:@"menu_convert_to_flac"]) {
         // The Convert menu's item and the window-body context menu's share
         // this identifier; the converter owns the enable-and-retitle rule.
+        // With Convert switched off (Settings > Convert > Enabled) the whole
+        // feature is hidden — the menu bar's Convert menu through
+        // applyConvertMenuVisibility, and this shared item here, which is how
+        // the context menus follow the setting live.
+        menuItem.hidden = !AppSettings.sharedInstance.convertEnabled;
+        if (menuItem.hidden) {
+            return NO;
+        }
         return [self.fileConverter validateConvertMenuItem:menuItem
                                                   forTrack:self.playlistController.currentTrack];
     }

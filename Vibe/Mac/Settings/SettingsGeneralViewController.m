@@ -27,6 +27,7 @@ static const CGFloat kOutputPopUpWidth = 280;
     NSPopUpButton *_outputPopUp;
     NSButton *_defaultPlayerButton;
     NSSwitch *_alwaysOnTopSwitch;
+    NSPopUpButton *_waveformDragPopUp;
     // The last answer from the async default-app check, shown immediately on
     // refresh while the fresh one is fetched; the generation drops a stale
     // reply that lands after a newer refresh.
@@ -62,10 +63,24 @@ static const CGFloat kOutputPopUpWidth = 280;
 
     _alwaysOnTopSwitch = [self switchWithAction:@selector(toggleAlwaysOnTop:)];
 
+    // Identifiers in representedObject, localized names in the titles — a
+    // display name must never reach NSUserDefaults. No live-apply hook: the
+    // waveform view reads the setting per mouse-down.
+    _waveformDragPopUp = [self popUpButtonWithWidth:kOutputPopUpWidth action:@selector(waveformDragChanged:)];
+    [_waveformDragPopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_DRAG_WINDOW];
+    _waveformDragPopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW;
+    [_waveformDragPopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_DRAG_SEEK];
+    _waveformDragPopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_DRAG_SEEK;
+
     [self loadPaneWithSections:@[
-        [SettingsSectionView sectionWithRows:@[
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_AUDIO_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_OUTPUT_LABEL control:_outputPopUp],
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_ALWAYS_ON_TOP control:_alwaysOnTopSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_DRAG_LABEL control:_waveformDragPopUp],
+        ]],
+        [SettingsSectionView sectionWithRows:@[
             [SettingsRowView rowWithTitle:nil control:_defaultPlayerButton],
         ]],
     ]];
@@ -75,11 +90,23 @@ static const CGFloat kOutputPopUpWidth = 280;
     [self refreshOutputPopUp];
     [self refreshDefaultPlayerButton];
     _alwaysOnTopSwitch.state = AppSettings.sharedInstance.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
+    // The getter is normalized, so a match always exists.
+    NSString *dragBehavior = AppSettings.sharedInstance.waveformDragBehavior;
+    for (NSMenuItem *item in _waveformDragPopUp.itemArray) {
+        if ([item.representedObject isEqualToString:dragBehavior]) {
+            [_waveformDragPopUp selectItem:item];
+            break;
+        }
+    }
 }
 
 - (void)toggleAlwaysOnTop:(id)sender {
     AppSettings.sharedInstance.alwaysOnTop = (_alwaysOnTopSwitch.state == NSControlStateValueOn);
     [self.playerController applyAlwaysOnTop];
+}
+
+- (void)waveformDragChanged:(id)sender {
+    AppSettings.sharedInstance.waveformDragBehavior = _waveformDragPopUp.selectedItem.representedObject;
 }
 
 #pragma mark - Output device

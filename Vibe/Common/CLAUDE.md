@@ -37,7 +37,7 @@ Not a guard per property. Almost everything here configures something only macOS
 
 ## The hot-path cache lives for one turn of the main run loop
 
-Five settings are read far more often than the rest and are cached in the class: `showRemainingTime`, `showFileInfo`, `keyNotation`, `keyColorsEnabled`, `uiUpdateHzCap`. All five are macOS settings, which is why the whole cache is inside the `#if`. Main thread only.
+Six settings are read far more often than the rest and are cached in the class: `showRemainingTime`, `showFileInfo`, `showKey`, `keyNotation`, `keyColorsEnabled`, `uiUpdateHzCap`. All six are macOS settings, which is why the whole cache is inside the `#if`. Main thread only.
 
 **TRAP: `NSUserDefaultsDidChangeNotification` does not fire for a write from another process**, and the debug channel's prefs verbs (`set_key_display`, `set_analysis`, `set_folder_art`) are exactly that — the CLI client writing while the app runs, as is a plain `defaults write`. Invalidating on that notification left the app reporting the old value for good. So the cache's lifetime is a run-loop turn instead: a `CFRunLoopObserver` drops it before the loop sleeps, and the setters drop it immediately (`invalidateHotCache`). A value is therefore never more than one turn stale, and no writer has to remember anything.
 
