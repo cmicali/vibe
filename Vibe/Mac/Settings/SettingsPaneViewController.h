@@ -49,6 +49,12 @@ static const CGFloat kSettingsPaneMinHeight = 480;
 // implementation does nothing.
 - (void)refreshFromSettings;
 
+// Remeasures the pane against the rows it is actually showing, which is what
+// the settings window sizes itself to. The base runs it after every
+// refreshFromSettings; a pane that hides or shows a row at any other moment
+// must call it, or the window keeps the height it was last measured at.
+- (void)paneContentDidChange;
+
 @end
 
 NS_ASSUME_NONNULL_END

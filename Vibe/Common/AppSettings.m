@@ -41,6 +41,9 @@
 #define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
 #define SETTING_KEY_COLORS                          @"Appearance.keyColors"
 #define SETTING_SHOW_KEY                            @"Appearance.showKey"
+#define SETTING_WINDOW_TINT                         @"Appearance.windowTint"
+#define SETTING_WINDOW_TINT_CUSTOM_DARK             @"Appearance.windowTintCustomColorDark"
+#define SETTING_WINDOW_TINT_CUSTOM_LIGHT            @"Appearance.windowTintCustomColorLight"
 #define SETTING_CONVERT_ASKS_WHERE_TO_SAVE          @"Convert.asksWhereToSave"
 #define SETTING_CONVERT_ENABLED                     @"Convert.enabled"
 // TRAP: the stored key is not the macro's name and must never follow a rename —
@@ -276,6 +279,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
             SETTING_KEY_NOTATION:                   SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
             SETTING_KEY_COLORS:                     @(NO),
             SETTING_SHOW_KEY:                       @(YES),
+            SETTING_WINDOW_TINT:                    SETTINGS_VALUE_WINDOW_TINT_ARTWORK,
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
             SETTING_FOLDER_ART:                     @(YES),
     }];
@@ -412,6 +416,25 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 - (void)setShowFileInfo:(BOOL)show {
     [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_FILE_INFO];
     [self invalidateHotCache];
+}
+
+// Not cached: read once per art install and per appearance flip, not per frame.
+- (NSString *)windowTint {
+    return VibeNormalizedWindowTint([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WINDOW_TINT]);
+}
+
+- (void)setWindowTint:(NSString *)identifier {
+    [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WINDOW_TINT];
+}
+
+- (VibeColor *)windowTintCustomColorForDark:(BOOL)isDark {
+    return VibeColorFromHexString([[NSUserDefaults standardUserDefaults] stringForKey:
+            isDark ? SETTING_WINDOW_TINT_CUSTOM_DARK : SETTING_WINDOW_TINT_CUSTOM_LIGHT]);
+}
+
+- (void)setWindowTintCustomColor:(VibeColor *)color forDark:(BOOL)isDark {
+    [self setHexColor:color forKey:
+            isDark ? SETTING_WINDOW_TINT_CUSTOM_DARK : SETTING_WINDOW_TINT_CUSTOM_LIGHT];
 }
 
 // Not cached: read once per mouse-down on the waveform, not per frame.

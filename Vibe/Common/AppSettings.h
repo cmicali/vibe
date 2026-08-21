@@ -38,6 +38,16 @@
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT       @"light"
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK        @"dark"
 
+// The window header's color wash. Stable identifiers, never display names:
+// mono leaves the glass unwashed, artwork — the default — washes it with the
+// playing track's dominant art color clamped into the appearance's band, and
+// custom uses the picked color pair as picked. Only the wash follows this;
+// the art color still settles, so the dock icon and the album_art waveform
+// theme are the same under every choice.
+#define SETTINGS_VALUE_WINDOW_TINT_MONO                     @"mono"
+#define SETTINGS_VALUE_WINDOW_TINT_ARTWORK                  @"artwork"
+#define SETTINGS_VALUE_WINDOW_TINT_CUSTOM                   @"custom"
+
 // Key-label notation identifiers, never display names.
 #define SETTINGS_VALUE_KEY_NOTATION_CAMELOT                 @"camelot"
 #define SETTINGS_VALUE_KEY_NOTATION_MUSICAL                 @"musical"
@@ -107,6 +117,21 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (void)setWindowAppearanceStyle:(NSString *)name;
 
 - (NSAppearance *)windowAppearance;
+
+// The window header's color wash — see the SETTINGS_VALUE_WINDOW_TINT_*
+// identifiers above. Normalized on read: an unknown stored value reads as
+// artwork. ArtworkDisplayController's refreshHeaderTint is the one place that
+// resolves it, and a writer must call MainPlayerController.refreshWindowTint
+// to fade the wash across.
+- (NSString *)windowTint;
+- (void)setWindowTint:(NSString *)identifier;
+
+// The custom tint's color, one per appearance — a wash that reads over dark
+// glass silhouettes the labels over light — persisted as #RRGGBB[AA], the
+// alpha being the wash's strength. nil when unset or unparsable, which
+// resolves as mono, so the pane seeds it when Custom is chosen.
+- (nullable VibeColor *)windowTintCustomColorForDark:(BOOL)isDark;
+- (void)setWindowTintCustomColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 
 - (BOOL)isPitchPanelShown;
 - (void)setPitchPanelShown:(BOOL)shown;

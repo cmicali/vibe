@@ -8,6 +8,8 @@
 static const CGFloat kPanePadding = 20;
 
 @implementation SettingsPaneViewController {
+    NSStackView *_sectionStack;
+    NSLayoutConstraint *_paneHeight;
     id _windowKeyObserver;
     id _menuTrackingObserver;
 }
@@ -50,11 +52,17 @@ static const CGFloat kPanePadding = 20;
     // The height rides the safe-area guide, not the view: the titlebar
     // overlays the pane (full-size content view), and anchoring the guide
     // makes the engine add that overlay to the window on its own.
+    //
+    // TRAP: the height is a CONSTANT, remeasured by paneContentDidChange, and
+    // must stay one. Expressing it as an inequality against the stack instead
+    // — height >= stack.height + padding — leaves the stack's own height
+    // under-determined, and the solver spends the slack by stretching the
+    // first section card down the pane.
     NSLayoutConstraint *width = [view.widthAnchor constraintEqualToConstant:paneSize.width];
-    NSLayoutConstraint *height = [view.safeAreaLayoutGuide.heightAnchor constraintEqualToConstant:paneSize.height];
+    _paneHeight = [view.safeAreaLayoutGuide.heightAnchor constraintEqualToConstant:paneSize.height];
     width.priority = NSLayoutPriorityRequired - 1;
-    height.priority = NSLayoutPriorityRequired - 1;
-    [NSLayoutConstraint activateConstraints:@[width, height]];
+    _paneHeight.priority = NSLayoutPriorityRequired - 1;
+    [NSLayoutConstraint activateConstraints:@[width, _paneHeight]];
     self.preferredContentSize = paneSize;
 
     [view addSubview:stack];
@@ -67,7 +75,27 @@ static const CGFloat kPanePadding = 20;
         [stack.trailingAnchor constraintEqualToAnchor:view.trailingAnchor constant:-kPanePadding],
     ]];
 
+    _sectionStack = stack;
     self.view = view;
+}
+
+// TRAP: loadView runs before refreshFromSettings, so the height measured there
+// counts every row that hides itself on the pane's first appearance —
+// Appearance's two custom-color pairs and its custom tint wells. Left at that,
+// the pane reserves four unseen rows and the window grows on every switch to
+// it. So the height is remeasured whenever the visible rows change: here, from
+// the base after each refreshFromSettings, and from a pane that toggles a row
+// outside one.
+- (void)paneContentDidChange {
+    if (!_sectionStack || !_paneHeight) {
+        return;
+    }
+    CGFloat height = MAX(kSettingsPaneMinHeight, _sectionStack.fittingSize.height + 2 * kPanePadding);
+    if (fabs(_paneHeight.constant - height) < 0.5) {
+        return;
+    }
+    _paneHeight.constant = height;
+    self.preferredContentSize = NSMakeSize(self.preferredContentSize.width, height);
 }
 
 - (NSPopUpButton *)popUpButtonWithWidth:(CGFloat)width action:(SEL)action {
@@ -93,7 +121,12 @@ static const CGFloat kPanePadding = 20;
 
 - (void)viewWillAppear {
     [super viewWillAppear];
+    [self refreshSettingsAndPaneHeight];
+}
+
+- (void)refreshSettingsAndPaneHeight {
     [self refreshFromSettings];
+    [self paneContentDidChange];
 }
 
 // Settings can change while the pane stays visible: through the menu bar —
@@ -108,7 +141,7 @@ static const CGFloat kPanePadding = 20;
                         object:self.view.window
                          queue:NSOperationQueue.mainQueue
                     usingBlock:^(NSNotification *note) {
-                        [weakSelf refreshFromSettings];
+                        [weakSelf refreshSettingsAndPaneHeight];
                     }];
     _menuTrackingObserver = [NSNotificationCenter.defaultCenter
             addObserverForName:NSMenuDidEndTrackingNotification
@@ -118,7 +151,7 @@ static const CGFloat kPanePadding = 20;
                         // After the menu item's action has run, not between
                         // tracking end and dispatch.
                         dispatch_async(dispatch_get_main_queue(), ^{
-                            [weakSelf refreshFromSettings];
+                            [weakSelf refreshSettingsAndPaneHeight];
                         });
                     }];
 }

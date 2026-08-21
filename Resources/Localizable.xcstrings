@@ -24961,6 +24961,78 @@
       },
       "extractionState": "manual"
     },
+    "settings.appearance.window_tint.artwork": {
+      "comment": "Settings, window tint choice: the header is washed with the dominant color of the playing track's cover artwork. The default.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artwork color"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.window_tint.custom": {
+      "comment": "Settings, window tint choice: the user picks the wash color with a color well.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.window_tint.mono": {
+      "comment": "Settings, window tint choice: no color wash — the window's plain glass, the same under every track. 'Mono' as in monochrome, not monaural audio.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mono"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.window_tint_custom_dark_label": {
+      "comment": "Settings, Appearance pane: label beside the custom window tint color well used while the app is in dark mode. Ends with a colon.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dark color:"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.window_tint_custom_light_label": {
+      "comment": "Settings, Appearance pane: label beside the custom window tint color well used while the app is in light mode. Ends with a colon.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light color:"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.window_tint_label": {
+      "comment": "Settings, Appearance pane, Window group: row beside the dropdown choosing the color wash laid over the player window's header.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Window"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.convert.delete_original": {
       "comment": "Settings, Convert pane: checkbox — when on, a successful conversion moves the original file to the Trash. The same setting as the Convert menu's 'Delete Original After Convert' item, in sentence case per checkbox convention.",
       "localizations": {
@@ -27032,7 +27104,7 @@
       "extractionState": "manual"
     },
     "settings.general.window_section": {
-      "comment": "Settings, General pane: heading above the window-behavior rows — always on top, and what dragging the waveform does.",
+      "comment": "Settings: heading above the window rows — always on top and waveform drag in the General pane, appearance and tint in the Appearance pane. One key for both, the word being the same; the key keeps its historical settings.general prefix.",
       "localizations": {
         "en": {
           "stringUnit": {

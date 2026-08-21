@@ -72,6 +72,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
             @"convertEnabled": @(AppSettings.sharedInstance.convertEnabled),
             @"showKey": @(AppSettings.sharedInstance.showKey),
+            @"windowTint": AppSettings.sharedInstance.windowTint,
             @"deleteOriginalAfterConvert": @(AppSettings.sharedInstance.deleteOriginalAfterConvert),
             @"analyzeBPM": @(AppSettings.sharedInstance.analyzeBPM),
             @"analyzeKey": @(AppSettings.sharedInstance.analyzeKey),

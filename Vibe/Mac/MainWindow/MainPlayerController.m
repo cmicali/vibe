@@ -725,6 +725,10 @@
     [self updateUI];
 }
 
+- (void)refreshWindowTint {
+    [_artworkController refreshHeaderTint];
+}
+
 // A grant arrived or went. No-grant discovery answers are forgotten; a known
 // cover path stays recorded but every future read rechecks active access. A
 // full invalidate is self-defeating: opening a folder auto-adds its grant a

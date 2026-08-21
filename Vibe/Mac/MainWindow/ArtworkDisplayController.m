@@ -5,6 +5,8 @@
 
 #import "ArtworkDisplayController.h"
 #import "ArtworkDisplayRules.h"
+#import "AppSettings.h"
+#import "SettingsRules.h"
 #import "MainPlayerContentView.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
@@ -202,20 +204,33 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     return _dominantArtColor;
 }
 
-- (void)refreshHeaderTint {
-    NSColor *color = nil;
-    BOOL dark = [self isDarkAppearance];
-    if (_dominantArtColor) {
-        color = dark
-                ? [_dominantArtColor vibe_colorByClampingOKLCHLightnessMin:kTintMinLightnessDark
-                                                              lightnessMax:kTintMaxLightnessDark
-                                                                 chromaMax:kTintMaxChromaDark
-                                                                     alpha:kTintAlphaDark]
-                : [_dominantArtColor vibe_colorByClampingOKLCHLightnessMin:kTintMinLightnessLight
-                                                              lightnessMax:kTintMaxLightnessLight
-                                                                 chromaMax:kTintMaxChromaLight
-                                                                     alpha:kTintAlphaLight];
+// The one home of the wash's resolution rules: Settings > Appearance > Window
+// tint over the settled art color. Only the wash follows the setting — the
+// color itself still settles, so the dock icon and the album_art waveform
+// theme look the same under every choice. A custom color is used exactly as
+// picked, alpha and all; the clamps exist to tame a color nobody chose. Mono,
+// and an unset custom color, are no wash.
+- (NSColor *)resolvedHeaderTintIsDark:(BOOL)dark {
+    NSString *tint = AppSettings.sharedInstance.windowTint;
+    if ([tint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
+        return [AppSettings.sharedInstance windowTintCustomColorForDark:dark];
     }
+    if (![tint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_ARTWORK] || !_dominantArtColor) {
+        return nil;
+    }
+    return dark
+            ? [_dominantArtColor vibe_colorByClampingOKLCHLightnessMin:kTintMinLightnessDark
+                                                          lightnessMax:kTintMaxLightnessDark
+                                                             chromaMax:kTintMaxChromaDark
+                                                                 alpha:kTintAlphaDark]
+            : [_dominantArtColor vibe_colorByClampingOKLCHLightnessMin:kTintMinLightnessLight
+                                                          lightnessMax:kTintMaxLightnessLight
+                                                             chromaMax:kTintMaxChromaLight
+                                                                 alpha:kTintAlphaLight];
+}
+
+- (void)refreshHeaderTint {
+    NSColor *color = [self resolvedHeaderTintIsDark:[self isDarkAppearance]];
     // AppKit disables implicit actions on a view's backing layer, so the fade
     // is explicit: set the model value action-free, then animate from the
     // presentationLayer's current color, which retargets a fade already in

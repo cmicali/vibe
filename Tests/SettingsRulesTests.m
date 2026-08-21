@@ -33,6 +33,16 @@
     XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"sonic_cirrus"), @"mono");
 }
 
+- (void)testWindowTintNormalizesUnknownsToArtwork {
+    XCTAssertEqualObjects(VibeNormalizedWindowTint(@"mono"), @"mono");
+    XCTAssertEqualObjects(VibeNormalizedWindowTint(@"artwork"), @"artwork");
+    XCTAssertEqualObjects(VibeNormalizedWindowTint(@"custom"), @"custom");
+    XCTAssertEqualObjects(VibeNormalizedWindowTint(nil), @"artwork");
+    XCTAssertEqualObjects(VibeNormalizedWindowTint(@""), @"artwork");
+    XCTAssertEqualObjects(VibeNormalizedWindowTint(@"Mono"), @"artwork");
+    XCTAssertEqualObjects(VibeNormalizedWindowTint(@"album_art"), @"artwork");
+}
+
 - (void)testWaveformDragBehaviorNormalizesUnknownsToDragWindow {
     XCTAssertEqualObjects(VibeNormalizedWaveformDragBehavior(@"drag_window"), @"drag_window");
     XCTAssertEqualObjects(VibeNormalizedWaveformDragBehavior(@"seek"), @"seek");

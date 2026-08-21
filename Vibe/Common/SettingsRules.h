@@ -22,6 +22,16 @@ static inline NSString *VibeNormalizedWaveformTheme(NSString *_Nullable identifi
 }
 
 #if TARGET_OS_OSX
+// An unknown stored window-tint identifier snaps to artwork, the default:
+// the header wash follows the playing track's art color.
+static inline NSString *VibeNormalizedWindowTint(NSString *_Nullable identifier) {
+    if ([identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_MONO] ||
+        [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
+        return identifier;
+    }
+    return SETTINGS_VALUE_WINDOW_TINT_ARTWORK;
+}
+
 // An unknown stored waveform-drag identifier snaps to drag_window, the
 // default: a drag moves the window and only a stationary click seeks.
 static inline NSString *VibeNormalizedWaveformDragBehavior(NSString *_Nullable identifier) {

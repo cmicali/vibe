@@ -120,6 +120,12 @@ NS_ASSUME_NONNULL_BEGIN
 // no file re-parsed and no cache touched.
 - (void)refreshFolderArt;
 
+// Fades the header's wash across after AppSettings.sharedInstance.windowTint,
+// or a custom tint color, changes — i.e. from the Settings pane. Nothing is
+// re-rendered: the art color has already settled, so this only re-resolves the
+// wash from it.
+- (void)refreshWindowTint;
+
 - (IBAction)showInFinder:(id)sender;
 - (IBAction)copyFile:(id)sender;
 - (IBAction)copyName:(id)sender;

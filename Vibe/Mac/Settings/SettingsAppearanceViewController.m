@@ -22,6 +22,13 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
 
 @implementation SettingsAppearanceViewController {
     NSPopUpButton *_appearancePopUp;
+    NSPopUpButton *_windowTintPopUp;
+    NSColorWell *_windowTintDarkWell;
+    NSColorWell *_windowTintLightWell;
+    // The tint wells' rows, hidden unless the tint is custom — the same
+    // build-always-and-toggle shape as the waveform's custom rows below.
+    SettingsRowView *_windowTintDarkRow;
+    SettingsRowView *_windowTintLightRow;
     NSPopUpButton *_waveformPopUp;
     NSPopUpButton *_waveformThemePopUp;
     // A played/unplayed pair per appearance — one pair cannot read on both
@@ -52,6 +59,17 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     [_appearancePopUp addItemWithTitle:STR_MENU_APPEARANCE_DARK];
     _appearancePopUp.lastItem.tag = VibeAppearanceTagDark;
 
+    _windowTintPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(windowTintChanged:)];
+    [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_MONO];
+    _windowTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_MONO;
+    [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_ARTWORK];
+    _windowTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_ARTWORK;
+    [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM];
+    _windowTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_CUSTOM;
+
+    _windowTintDarkWell = [self customColorWellWithAction:@selector(windowTintColorChanged:)];
+    _windowTintLightWell = [self customColorWellWithAction:@selector(windowTintColorChanged:)];
+
     // Identifiers travel in representedObject, localized names in the titles
     // — the same split as the View > Waveform menu, and for the same reason:
     // a display name must never reach NSUserDefaults.
@@ -79,10 +97,10 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_CUSTOM];
     _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
 
-    _customDarkPlayedWell = [self customColorWell];
-    _customDarkUnplayedWell = [self customColorWell];
-    _customLightPlayedWell = [self customColorWell];
-    _customLightUnplayedWell = [self customColorWell];
+    _customDarkPlayedWell = [self customColorWellWithAction:@selector(customColorChanged:)];
+    _customDarkUnplayedWell = [self customColorWellWithAction:@selector(customColorChanged:)];
+    _customLightPlayedWell = [self customColorWellWithAction:@selector(customColorChanged:)];
+    _customLightUnplayedWell = [self customColorWellWithAction:@selector(customColorChanged:)];
     NSStackView *customDarkColors = [self customColorPairWithPlayed:_customDarkPlayedWell
                                                            unplayed:_customDarkUnplayedWell];
     NSStackView *customLightColors = [self customColorPairWithPlayed:_customLightPlayedWell
@@ -109,14 +127,22 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
 
     _keyColorsSwitch = [self switchWithAction:@selector(toggleKeyColors:)];
 
+    _windowTintDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
+                                               control:_windowTintDarkWell];
+    _windowTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
+                                                control:_windowTintLightWell];
+
     _customDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL
                                            control:customDarkColors];
     _customLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL
                                             control:customLightColors];
 
     [self loadPaneWithSections:@[
-        [SettingsSectionView sectionWithRows:@[
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_APPEARANCE_LABEL control:_appearancePopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_LABEL control:_windowTintPopUp],
+            _windowTintDarkRow,
+            _windowTintLightRow,
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_waveformPopUp],
@@ -145,10 +171,10 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     return pair;
 }
 
-- (NSColorWell *)customColorWell {
+- (NSColorWell *)customColorWellWithAction:(SEL)action {
     NSColorWell *well = [[NSColorWell alloc] init];
     well.target = self;
-    well.action = @selector(customColorChanged:);
+    well.action = action;
     // The alpha is part of the choice: a color's alpha is its side's resting
     // level (WaveformTheme.h).
     if (@available(macOS 14.0, *)) {
@@ -220,6 +246,23 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
             ?: DefaultCustomPlayedColor(NO);
     _customLightUnplayedWell.color = [settings waveformCustomUnplayedColorForDark:NO]
             ?: DefaultCustomUnplayedColor(NO);
+
+    // The getter is normalized, so an unknown persisted identifier selects
+    // Artwork color — matching the wash actually on the window.
+    NSString *tint = AppSettings.sharedInstance.windowTint;
+    for (NSMenuItem *item in _windowTintPopUp.itemArray) {
+        if ([item.representedObject isEqualToString:tint]) {
+            [_windowTintPopUp selectItem:item];
+            break;
+        }
+    }
+    BOOL tintCustom = [tint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
+    _windowTintDarkRow.hidden = !tintCustom;
+    _windowTintLightRow.hidden = !tintCustom;
+    _windowTintDarkWell.color = [AppSettings.sharedInstance windowTintCustomColorForDark:YES]
+            ?: DefaultWindowTintColor(YES);
+    _windowTintLightWell.color = [AppSettings.sharedInstance windowTintCustomColorForDark:NO]
+            ?: DefaultWindowTintColor(NO);
 
     _fileInfoSwitch.state = AppSettings.sharedInstance.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
 
@@ -301,6 +344,7 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     }
     _customDarkRow.hidden = !custom;
     _customLightRow.hidden = !custom;
+    [self paneContentDidChange];
     [self.playerController applyWaveformTheme:identifier];
 }
 
@@ -316,6 +360,42 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
         [settings setWaveformCustomUnplayedColor:sender.color forDark:NO];
     }
     [self.playerController refreshWaveformTheme];
+}
+
+// The custom wash's fallbacks, shared by the wells' display and the seed on
+// choosing Custom, so the window always matches what the wells show. Neutral
+// grays in the middle of each appearance's clamp band, at the same alpha the
+// artwork wash uses there — a starting point to pick a hue from.
+static NSColor *DefaultWindowTintColor(BOOL isDark) {
+    return isDark ? [NSColor colorWithWhite:0.14 alpha:0.40]
+                  : [NSColor colorWithWhite:0.88 alpha:0.55];
+}
+
+- (void)windowTintChanged:(id)sender {
+    NSString *identifier = _windowTintPopUp.selectedItem.representedObject;
+    BOOL custom = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
+    AppSettings *settings = AppSettings.sharedInstance;
+    if (custom) {
+        // As with the waveform's custom theme: seed any unset color from the
+        // wells' displayed fallbacks, so the wash immediately matches them.
+        for (int darkPass = 0; darkPass <= 1; darkPass++) {
+            BOOL isDark = darkPass == 1;
+            if (![settings windowTintCustomColorForDark:isDark]) {
+                [settings setWindowTintCustomColor:DefaultWindowTintColor(isDark) forDark:isDark];
+            }
+        }
+    }
+    _windowTintDarkRow.hidden = !custom;
+    _windowTintLightRow.hidden = !custom;
+    [self paneContentDidChange];
+    settings.windowTint = identifier;
+    [self.playerController refreshWindowTint];
+}
+
+- (void)windowTintColorChanged:(NSColorWell *)sender {
+    [AppSettings.sharedInstance setWindowTintCustomColor:sender.color
+                                                 forDark:(sender == _windowTintDarkWell)];
+    [self.playerController refreshWindowTint];
 }
 
 - (void)toggleFileInfo:(id)sender {
