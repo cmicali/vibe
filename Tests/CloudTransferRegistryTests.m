@@ -92,6 +92,23 @@
     XCTAssertEqualWithAccuracy([_registry progressForURL:url], 0.4f, 0.0001);
 }
 
+// A provider's zero sample is status, not progress: the row stays
+// indeterminate until real movement arrives, and a stray zero afterwards
+// never downgrades a fraction already shown.
+- (void)testAZeroSampleNeverLeavesOrReentersIndeterminate {
+    NSURL *url = [self urlForName:@"status-zero.wav"];
+    [self beginForURL:url];
+    _monitors.firstObject.handler(0);
+    XCTAssertEqual([_registry progressForURL:url], -1, @"zero is not progress");
+    [_registry noteProgress:0 forURL:url];
+    XCTAssertEqual([_registry progressForURL:url], -1);
+    [_registry noteProgress:0.3f forURL:url];
+    XCTAssertEqualWithAccuracy([_registry progressForURL:url], 0.3f, 0.0001);
+    [_registry noteProgress:0 forURL:url];
+    XCTAssertEqualWithAccuracy([_registry progressForURL:url], 0.3f, 0.0001,
+            @"a late zero must not blank a fill already shown");
+}
+
 - (void)testNoteProgressSuppressesTheRegistrysMonitor {
     NSURL *url = [self urlForName:@"shell-fed.wav"];
     [self beginForURL:url];

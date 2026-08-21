@@ -43,7 +43,9 @@ NS_ASSUME_NONNULL_BEGIN
 // <0 when the transfer is running but no fraction is known yet — which is the
 // indeterminate case, and on iOS against a third-party provider is the whole
 // story. See DownloadProgressMonitor.h for why. Also <0 when nothing is
-// transferring at all; isTransferringURL: is the gate.
+// transferring at all; isTransferringURL: is the gate. A provider's zero
+// sample is status rather than progress and never leaves indeterminate: the
+// row shows a determinate fill only once real, non-zero movement arrives.
 - (float)progressForURL:(NSURL *)url;
 
 // The foreground open reports through the shell's OWN monitor, which is tied

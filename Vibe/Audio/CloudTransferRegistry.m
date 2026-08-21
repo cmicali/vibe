@@ -121,6 +121,14 @@
     [self scheduleObserverNotification];
 }
 
+// A zero (or negative) sample is the provider's initial-status shape, not
+// progress: the row stays indeterminate until the provider demonstrates real
+// movement, and a stray non-positive sample after that never downgrades a
+// fraction already shown.
+- (float)displayFraction:(float)fraction over:(float)current {
+    return fraction > 0 ? fraction : current;
+}
+
 - (void)monitorReportedProgress:(float)fraction forPath:(NSString *)path {
     VibeCloudTransferEntry *entry = _entries[path];
     // A cancelled monitor delivers nothing, but the entry check also drops a
@@ -128,7 +136,7 @@
     if (!entry || entry.externallyFed) {
         return;
     }
-    entry.progress = fraction;
+    entry.progress = [self displayFraction:fraction over:entry.progress];
     [self scheduleObserverNotification];
 }
 
@@ -147,7 +155,7 @@
         [entry.monitor cancel];
         entry.monitor = nil;
     }
-    entry.progress = fraction;
+    entry.progress = [self displayFraction:fraction over:entry.progress];
     [self scheduleObserverNotification];
 }
 
