@@ -6,11 +6,10 @@
 #
 # Takes both artifacts `make release` produced (build/release/Vibe.dmg and
 # Vibe.zip), verifies every staple in them, tags HEAD as v<version> and creates
-# the release with both attached as vibe-macos-<arch>-<version>.{dmg,zip} (arch
-# read from the binary itself: a single slice names it, several read as
-# "universal"). The image is listed first: it is the download that lands the
-# app in /Applications, and the zip is there for anyone who wants the bundle
-# without mounting anything.
+# the release with both attached, as Vibe-macOS-<version>.dmg and
+# Vibe-macOS-<arch>-<version>.zip. The image is listed first: it is the
+# download that lands the app in /Applications, and the zip is there for
+# anyone who wants the bundle without mounting anything.
 #
 # Deliberately a separate step from release.sh: building+notarizing is
 # repeatable, publishing is not — a deleted release leaves the tag and any
@@ -127,16 +126,18 @@ fi
 # ---------------------------------------------------------------------------
 # Publish.
 # ---------------------------------------------------------------------------
-# Name the asset by what the binary actually contains, not by assumption:
-# one slice names its arch, more collapse to "universal".
+# The zip carries the bare bundle, so its name says which machines that bundle
+# runs on — read from the binary itself, never assumed: one slice names its
+# arch, more collapse to "universal". The image is the download for a human
+# with a Mac in front of them and says only the version.
 ARCHS="$(lipo -archs "$MOUNTED_APP/Contents/MacOS/Vibe")"
 if [[ "$ARCHS" == *" "* ]]; then ARCH="universal"; else ARCH="$ARCHS"; fi
 
 # Everything read out of the image has been read; give it back before the
 # upload, so a failure there cannot leave a volume mounted.
 hdiutil detach "$MOUNT" -quiet
-ASSET_DMG="$BUILD_DIR/vibe-macos-$ARCH-$VERSION.dmg"
-ASSET_ZIP="$BUILD_DIR/vibe-macos-$ARCH-$VERSION.zip"
+ASSET_DMG="$BUILD_DIR/Vibe-macOS-$VERSION.dmg"
+ASSET_ZIP="$BUILD_DIR/Vibe-macOS-$ARCH-$VERSION.zip"
 cp "$DMG" "$ASSET_DMG"
 cp "$ZIP" "$ASSET_ZIP"
 

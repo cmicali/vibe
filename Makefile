@@ -104,9 +104,10 @@ install: build
 release:
 	scripts/release.sh
 
-# Publish the notarized image from `make release` as a GitHub release: tags HEAD
-# as v<MARKETING_VERSION>, attaches vibe-macos-<arch>-<version>.dmg, notes from
-# the App Store whats-new.txt. See scripts/github-release.sh.
+# Publish what `make release` produced as a GitHub release: tags HEAD as
+# v<MARKETING_VERSION>, attaches Vibe-macOS-<version>.dmg and
+# Vibe-macOS-<arch>-<version>.zip, notes from the App Store whats-new.txt.
+# See scripts/github-release.sh.
 github-release:
 	scripts/github-release.sh
 
