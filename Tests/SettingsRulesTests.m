@@ -33,6 +33,15 @@
     XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"sonic_cirrus"), @"mono");
 }
 
+- (void)testWaveformDragBehaviorNormalizesUnknownsToDragWindow {
+    XCTAssertEqualObjects(VibeNormalizedWaveformDragBehavior(@"drag_window"), @"drag_window");
+    XCTAssertEqualObjects(VibeNormalizedWaveformDragBehavior(@"seek"), @"seek");
+    XCTAssertEqualObjects(VibeNormalizedWaveformDragBehavior(nil), @"drag_window");
+    XCTAssertEqualObjects(VibeNormalizedWaveformDragBehavior(@""), @"drag_window");
+    XCTAssertEqualObjects(VibeNormalizedWaveformDragBehavior(@"Seek"), @"drag_window");
+    XCTAssertEqualObjects(VibeNormalizedWaveformDragBehavior(@"classic"), @"drag_window");
+}
+
 // The one-time migration: only a themeless Sonic Cirrus user gets orange
 // written; any stored theme key, right or wrong, means the decision is made.
 - (void)testWaveformThemeMigrationDecision {

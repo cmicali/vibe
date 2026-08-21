@@ -29,6 +29,7 @@
 #define SETTING_PITCH_RANGE                         @"AudioPlayer.pitchRange"
 #define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"
 #define SETTING_SHOW_FILE_INFO                      @"MainWindow.showFileInfo"
+#define SETTING_WAVEFORM_DRAG_BEHAVIOR              @"Settings.waveformDragBehavior"
 #define SETTING_DELETE_ORIGINAL_AFTER_CONVERT       @"Convert.deleteOriginal"
 #define SETTING_SKIP_BASE_BARS                      @"Transport.skipBaseBars"
 #define SETTING_CROSSFADE_MILLISECONDS              @"AudioPlayer.crossfadeMilliseconds"
@@ -259,6 +260,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
             SETTING_PITCH_RANGE:                    @(8),
             SETTING_SHOW_REMAINING_TIME:            @(NO),
             SETTING_SHOW_FILE_INFO:                 @(YES),
+            SETTING_WAVEFORM_DRAG_BEHAVIOR:         SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW,
             SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
             SETTING_SKIP_BASE_BARS:                 @(8),
             SETTING_CROSSFADE_MILLISECONDS:         @(10),
@@ -404,6 +406,16 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 - (void)setShowFileInfo:(BOOL)show {
     [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_FILE_INFO];
     [self invalidateHotCache];
+}
+
+// Not cached: read once per mouse-down on the waveform, not per frame.
+- (NSString *)waveformDragBehavior {
+    return VibeNormalizedWaveformDragBehavior(
+            [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_DRAG_BEHAVIOR]);
+}
+
+- (void)setWaveformDragBehavior:(NSString *)behavior {
+    [[NSUserDefaults standardUserDefaults] setObject:behavior forKey:SETTING_WAVEFORM_DRAG_BEHAVIOR];
 }
 
 #pragma mark Playback

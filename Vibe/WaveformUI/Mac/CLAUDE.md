@@ -32,6 +32,32 @@ is how the empty, loading and parked states opt out. Every presentation reset
 also clears a press in flight, so a mouse-up cannot seek after the track
 changed underneath it.
 
+## Drag behavior
+
+`AppSettings.waveformDragBehavior` decides what a drag starting on the
+waveform does; the view reads it once per mouse-down into the gesture's state,
+so a settings write cannot change a drag's meaning mid-flight.
+
+- **`drag_window`** (the default): the window moves —
+  `mouseDownCanMoveWindow` answers YES — and only a stationary click seeks.
+  `mouseUp:` bails when either the window's origin or the view-local point
+  moved past a ~4pt hysteresis since mouse-down: the origin check catches the
+  server-side background drag, where the local point barely moves because the
+  window traveled with the cursor, and the local check covers delivery where
+  it doesn't. (Pre-setting behavior seeked on that release — dropped, not
+  preserved.)
+- **`seek`**: the window stays put and the drag scrubs. Past the hysteresis
+  the tracked column renders through the hover machinery
+  (`setHoverHighlightX:`, clamped to the bounds), real progress keeps painting
+  underneath, and the audio is seeked once on release to the clamped
+  fraction — bypassing the stationary path's containment test, since the drag
+  may legitimately end outside the view.
+
+With no waveform `mouseDownCanMoveWindow` answers YES in every mode, so the
+empty and loading states always drag the window. A drag in flight is
+presentation state: `resetWaveformContentState` clears it with the press, so
+a track change mid-drag makes the release a no-op.
+
 ## The convert sweep
 
 `convertSweepFraction` keeps the front and dips only the span since the last set, so bars behind the front are never re-zeroed mid-recovery. It gates on having a waveform, like hover, and resets in `prepareForWaveformLoad` and the empty and loading states. A value at or below the front just moves the front — that is the post-conversion reset. The mechanism is shared; see `WaveformUI/CLAUDE.md`.

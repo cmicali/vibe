@@ -1,16 +1,17 @@
-# Future: Waveform drag behavior setting
+# Waveform drag behavior setting
 
-Written 2026-08-20, planned but not implemented. Nothing in the repo has changed for it yet. The file:line anchors below are against branch `ios-app` at `a19c5c5` **with its uncommitted working tree**. Re-check every anchor before acting.
+Written 2026-08-20, implemented the same day. The file:line anchors below are against branch `ios-app` at `a19c5c5` **with its uncommitted working tree**, before the implementation landed.
 
 This plan is written to be executed phase by phase by an implementation agent. Each phase compiles, passes `make test`, and is verifiable on its own before the next begins. Read the root `CLAUDE.md`, `Vibe/WaveformUI/Mac/CLAUDE.md`, `Vibe/Mac/Settings/CLAUDE.md` and `Vibe/Common/CLAUDE.md` first; Phase 3 also needs the `vibe-strings` skill and Phase 0/4 the `vibe-debug` skill.
 
+**Phase 0 finding (2026-08-20, answered by the user):** today a drag starting on the waveform moves the window **and** seeks on release — the release point is roughly the armed point in view coordinates because the window traveled with the cursor, so the containment test passes and the seek fires. That behavior is not worth keeping: **the setting offers two options only**, Drag window (the default) and Seek on drag. There is no `classic` identifier anywhere.
+
 ## The feature
 
-A macOS setting choosing what a drag that starts on the waveform does. Three options:
+A macOS setting choosing what a drag that starts on the waveform does. Two options:
 
-1. **Current behavior** — whatever the app does today, kept selectable for anyone used to it.
-2. **Drag window** (the new default) — a drag moves the window; only a stationary click seeks.
-3. **Seek on drag** — the waveform becomes a scrubber: the drag follows the cursor, seeks on release, and the window does not move.
+1. **Drag window** (the default) — a drag moves the window; only a stationary click seeks. A drag past the hysteresis never seeks on release.
+2. **Seek on drag** — the waveform becomes a scrubber: the drag follows the cursor, seeks on release, and the window does not move.
 
 macOS-only. iOS has no window to drag and `WaveformScrubberView` already seeks on drag.
 
@@ -22,21 +23,9 @@ macOS-only. iOS has no window to drag and `WaveformScrubberView` already seeks o
 - Every presentation reset funnels through `resetWaveformContentState` (`AudioWaveformView.mm:219-225`), which clears `_didClickInside` so a mouse-up cannot seek after the track changed underneath it (`WaveformUI/Mac/CLAUDE.md`). Any new in-flight drag state joins that reset.
 - The hover machinery (`setHoverHighlightX:`, `AudioWaveformRenderer.h:108`) already lights the waveform column under the cursor in both renderer families, with each family's own mechanism (`WaveformUI/Mac/CLAUDE.md`).
 
-## Phase 0 — Characterize "current behavior" (do this first, it shapes Phase 2)
+## Phase 0 — Characterize "current behavior"
 
-The open question: after a background window drag that started on the waveform, does the view still receive `mouseUp:` — and since the window moved with the cursor, the view-local release point is roughly the armed point, so does the release *also seek*? That quirk is presumably what motivated the setting.
-
-Procedure, using the `vibe-debug` skill (debug build, `launch` + `drive`):
-
-1. Load a track, note the playhead, note the window frame (`dump_state`).
-2. Drag horizontally starting from the middle of the waveform (the `drag` verb), release, and read back window frame + playback position.
-3. Repeat with a stationary click for the control case.
-4. Also test by hand on macOS 13 (the deployment floor) if available — event delivery during server-side window drags has varied by release.
-
-Record the answer **in this file** before starting Phase 2:
-
-- If a drag today moves the window *and* seeks on release → three distinct options, plan unchanged.
-- If a drag today moves the window and does *not* seek → "Current behavior" and "Drag window" are the same thing; collapse to a two-option popup (Drag window default, Seek on drag) and skip the `classic` identifier everywhere below.
+Answered — see the finding at the top. A drag today moves the window *and* seeks on release; the setting drops that behavior rather than preserving it, so the popup has two options and no `classic` identifier exists.
 
 ## Phase 1 — The setting
 
@@ -44,10 +33,8 @@ Record the answer **in this file** before starting Phase 2:
 
 ```objc
 // What a drag starting on the waveform does. Stable identifiers, never
-// display names. classic = the pre-setting behavior (window drag + seek on
-// release); drag_window (default) = window drag only, a moved mouse never
-// seeks; seek = the waveform scrubs and the window stays put.
-#define SETTINGS_VALUE_WAVEFORM_DRAG_CLASSIC   @"classic"
+// display names. drag_window (default) = window drag only, a moved mouse
+// never seeks; seek = the waveform scrubs and the window stays put.
 #define SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW    @"drag_window"
 #define SETTINGS_VALUE_WAVEFORM_DRAG_SEEK      @"seek"
 - (NSString *)waveformDragBehavior;
@@ -66,7 +53,7 @@ Record the answer **in this file** before starting Phase 2:
 static inline NSString *VibeNormalizedWaveformDragBehavior(NSString * _Nullable stored);
 ```
 
-returning `stored` when it matches one of the three identifiers, else `drag_window`. The getter calls it.
+returning `stored` when it matches one of the two identifiers, else `drag_window`. The getter calls it.
 
 **Tests**: extend `SettingsRulesTests` (`Tests/`; read `Tests/CLAUDE.md` first): each valid identifier passes through, nil/garbage snaps to `drag_window`.
 
@@ -90,12 +77,7 @@ Note AppKit consults this from the *hit-tested view* on mouse-down; no caching n
 
 ### 2b. Drag-window mode: disarm the release seek
 
-Mechanism depends on Phase 0's finding:
-
-- If `mouseDragged:` events arrive during a background window drag: add `mouseDragged:` that clears `_didClickInside` once the cursor has moved more than a small hysteresis (~4pt, `hypot` of the delta from the mouse-down point — store the down point in an ivar) in mode `drag_window` or `seek` (in `seek` it *converts* to a drag rather than disarming; see 2c).
-- If they do not arrive: record the window's `frame.origin` at mouse-down; in `mouseUp:` under `drag_window`, bail before the delegate call when the origin moved more than the hysteresis.
-
-`classic` mode changes nothing: no disarm, exactly today's code path.
+Snapshot the window's `frame.origin` and the view-local down point at mouse-down. In `mouseUp:` under `drag_window`, bail before the delegate call when either has moved more than a small hysteresis (~4pt, `hypot` of the delta). The window-origin check catches the server-side background drag, where the view-local point barely moves because the window traveled with the cursor; the local-point check covers any delivery mode where it doesn't.
 
 ### 2c. Seek-on-drag mode
 
@@ -117,9 +99,9 @@ Decision, made here so the agent doesn't have to: **track visually during the dr
 - Action writes `AppSettings.sharedInstance.waveformDragBehavior = selectedItem.representedObject`. **No live-apply hook is needed** — the view reads the setting per mouse-down.
 - `refreshFromSettings` selects by matching `representedObject` against the (normalized) getter, falling back to the default item like the style popup does (lines 106-124).
 
-**Strings** — read the `vibe-strings` skill first, then declare in `Vibe/Common/VibeStrings.h`: a row label (suggest key family `settings.waveform_drag.*`: label "Waveform drag", options "Classic", "Move window", "Seek") and run `make strings`. `make check-strings` and `make check-translations` must pass; translations for all catalog languages are part of this phase, per the skill.
+**Strings** — read the `vibe-strings` skill first, then declare in `Vibe/Common/VibeStrings.h`: a row label (suggest key family `settings.waveform_drag.*`: label "Waveform drag", options "Move window", "Seek") and run `make strings`. `make check-strings` and `make check-translations` must pass; translations for all catalog languages are part of this phase, per the skill.
 
-**Acceptance**: `make check-strings`, `make check-translations`; `dump_settings_ui` on the appearance pane shows the popup with the three identifiers under `items[].represented`; `settings_click "Waveform drag" seek` flips it and `dump_state | jq .settings` reflects it (extend `dump_state`'s settings block if it doesn't already include new keys automatically — check `Vibe/Debug/`'s mac command table).
+**Acceptance**: `make check-strings`, `make check-translations`; `dump_settings_ui` on the appearance pane shows the popup with the two identifiers under `items[].represented`; `settings_click "Waveform drag" seek` flips it and `dump_state | jq .settings` reflects it (extend `dump_state`'s settings block if it doesn't already include new keys automatically — check `Vibe/Debug/`'s mac command table).
 
 ## Phase 4 — End-to-end verification
 

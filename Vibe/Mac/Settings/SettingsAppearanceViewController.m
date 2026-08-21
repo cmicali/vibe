@@ -10,7 +10,7 @@
 #import "MainPlayerController+Menus.h"
 #import "VibeStrings.h"
 
-static const CGFloat kAppearancePaneHeight = 290;
+static const CGFloat kAppearancePaneHeight = 318;
 static const CGFloat kAppearancePopUpWidth = 220;
 
 // Popup tags for the appearance choices; the persisted value is the
@@ -35,6 +35,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     // Built always and toggled, so the walker and the layout stay stable.
     NSGridRow *_customDarkRow;
     NSGridRow *_customLightRow;
+    NSPopUpButton *_waveformDragPopUp;
     NSButton *_fileInfoCheckbox;
     NSButton *_timeTotalRadio;
     NSButton *_timeRemainingRadio;
@@ -78,6 +79,14 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_CUSTOM];
     _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
 
+    // Identifiers in representedObject as above. No live-apply hook: the
+    // waveform view reads the setting per mouse-down.
+    _waveformDragPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformDragChanged:)];
+    [_waveformDragPopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_DRAG_WINDOW];
+    _waveformDragPopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW;
+    [_waveformDragPopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_DRAG_SEEK];
+    _waveformDragPopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_DRAG_SEEK;
+
     _customDarkPlayedWell = [self customColorWell];
     _customDarkUnplayedWell = [self customColorWell];
     _customLightPlayedWell = [self customColorWell];
@@ -114,6 +123,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
         @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_THEME_LABEL], _waveformThemePopUp],
         @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL], customDarkColors],
         @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL], customLightColors],
+        @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_DRAG_LABEL], _waveformDragPopUp],
         @[NSGridCell.emptyContentView, _fileInfoCheckbox],
         @[[NSTextField labelWithString:STR_SETTINGS_TIME_LABEL], timeRadios],
         @[[NSTextField labelWithString:STR_SETTINGS_KEY_NOTATION_LABEL], _keyNotationPopUp],
@@ -211,6 +221,15 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     _customLightUnplayedWell.color = [settings waveformCustomUnplayedColorForDark:NO]
             ?: DefaultCustomUnplayedColor(NO);
 
+    // The getter is normalized, so a match always exists.
+    NSString *dragBehavior = AppSettings.sharedInstance.waveformDragBehavior;
+    for (NSMenuItem *item in _waveformDragPopUp.itemArray) {
+        if ([item.representedObject isEqualToString:dragBehavior]) {
+            [_waveformDragPopUp selectItem:item];
+            break;
+        }
+    }
+
     _fileInfoCheckbox.state = AppSettings.sharedInstance.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
 
     BOOL remaining = AppSettings.sharedInstance.showRemainingTime;
@@ -294,6 +313,10 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
         [settings setWaveformCustomUnplayedColor:sender.color forDark:NO];
     }
     [self.playerController refreshWaveformTheme];
+}
+
+- (void)waveformDragChanged:(id)sender {
+    AppSettings.sharedInstance.waveformDragBehavior = _waveformDragPopUp.selectedItem.representedObject;
 }
 
 - (void)toggleFileInfo:(id)sender {

@@ -9,6 +9,9 @@
 #import "NSView+DarkMode.h"
 #import "AppSettings.h"
 
+// A press that travels further than this is a drag, not a click.
+static const CGFloat kWaveformDragHysteresis = 4;
+
 @implementation AudioWaveformView {
     CGFloat                     _progress;
     NSUInteger                  _progressTracker;
@@ -16,6 +19,12 @@
     double                      _convertSweepFraction;
     BOOL                        _didClickInside;
     NSTrackingArea*             _hoverTrackingArea;
+    // The gesture's state, valid while _didClickInside: the mode is stashed at
+    // mouse-down so a settings write cannot change it mid-drag.
+    NSString*                   _dragBehavior;
+    NSPoint                     _mouseDownPoint;
+    NSPoint                     _windowOriginAtMouseDown;
+    BOOL                        _isDragSeeking;
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -113,6 +122,7 @@
 
 - (void)mouseDown:(NSEvent *)event {
     _didClickInside = NO;
+    _isDragSeeking = NO;
     if (!_waveform || !_currentWaveformRenderer || self.bounds.size.width <= 0) {
         return;
     }
@@ -122,11 +132,35 @@
         NSRect band = [_currentWaveformRenderer seekHitBandForBounds:self.bounds];
         if (mouseLoc.y >= NSMinY(band) && mouseLoc.y <= NSMaxY(band)) {
             _didClickInside = YES;
+            _dragBehavior = AppSettings.sharedInstance.waveformDragBehavior;
+            _mouseDownPoint = mouseLoc;
+            _windowOriginAtMouseDown = self.window.frame.origin;
         }
     }
 }
 
+// Seek-on-drag tracks the cursor with the hover highlight; the audio is
+// seeked once, on release. In drag_window mode the window itself is moving
+// and mouseUp: does the disarming.
+- (void)mouseDragged:(NSEvent *)event {
+    if (!_didClickInside ||
+        ![_dragBehavior isEqualToString:SETTINGS_VALUE_WAVEFORM_DRAG_SEEK]) {
+        return;
+    }
+    NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
+    if (!_isDragSeeking &&
+        hypot(p.x - _mouseDownPoint.x, p.y - _mouseDownPoint.y) <= kWaveformDragHysteresis) {
+        return;
+    }
+    // Once past the hysteresis the drag tracks even outside the band or the
+    // view; the clamp decides the column, like every system slider.
+    _isDragSeeking = YES;
+    [_currentWaveformRenderer setHoverHighlightX:[self clampedSeekX:p.x]];
+}
+
 - (void)mouseUp:(NSEvent *)event {
+    BOOL wasDragSeeking = _isDragSeeking;
+    _isDragSeeking = NO;
     if (!_didClickInside) {
         return;
     }
@@ -136,6 +170,29 @@
     }
     NSPoint e = [event locationInWindow];
     NSPoint mouseLoc = [self convertPoint:e fromView:nil];
+    if (wasDragSeeking) {
+        // The drag may legitimately end outside the view, so the containment
+        // test below does not apply; the clamped column is the target.
+        [self.delegate audioWaveformView:self
+                                 didSeek:(float) ([self clampedSeekX:mouseLoc.x] / self.bounds.size.width)];
+        if (!NSPointInRect(mouseLoc, self.bounds)) {
+            [self hideHoverIndicator];
+        }
+        return;
+    }
+    if ([_dragBehavior isEqualToString:SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW]) {
+        // A moved mouse must never seek. The window-origin check catches the
+        // server-side background drag, where the view-local point barely moves
+        // because the window traveled with the cursor; the local-point check
+        // covers delivery where it doesn't.
+        NSPoint origin = self.window.frame.origin;
+        if (hypot(origin.x - _windowOriginAtMouseDown.x,
+                  origin.y - _windowOriginAtMouseDown.y) > kWaveformDragHysteresis ||
+            hypot(mouseLoc.x - _mouseDownPoint.x,
+                  mouseLoc.y - _mouseDownPoint.y) > kWaveformDragHysteresis) {
+            return;
+        }
+    }
     if ([self mouse:mouseLoc inRect:[self bounds]]) {
         CGFloat x = mouseLoc.x - self.bounds.origin.x;
         float p = (float) (x / self.bounds.size.width);
@@ -143,8 +200,23 @@
     }
 }
 
+- (CGFloat)clampedSeekX:(CGFloat)x {
+    return MAX((CGFloat) 0, MIN(x, self.bounds.size.width));
+}
+
 - (BOOL)isOpaque {
     return NO;
+}
+
+// AppKit consults this from the hit-tested view at mouse-down. Seek-on-drag
+// owns the drag over a loaded waveform; drag_window leaves it to the window,
+// and with nothing to scrub — empty, loading, parked — the window always moves.
+- (BOOL)mouseDownCanMoveWindow {
+    if (!_waveform) {
+        return YES;
+    }
+    return ![AppSettings.sharedInstance.waveformDragBehavior
+            isEqualToString:SETTINGS_VALUE_WAVEFORM_DRAG_SEEK];
 }
 
 #pragma mark - Hover scrubbing affordance
@@ -245,6 +317,8 @@
 - (void)resetWaveformContentState {
     [self hideHoverIndicator];
     _didClickInside = NO;
+    // A track change mid-drag makes the release a no-op.
+    _isDragSeeking = NO;
     _convertSweepFraction = 0;
     _waveform = nil;
     self.progress = 0;

@@ -42,6 +42,13 @@
 #define SETTINGS_VALUE_KEY_NOTATION_CAMELOT                 @"camelot"
 #define SETTINGS_VALUE_KEY_NOTATION_MUSICAL                 @"musical"
 
+// What a drag starting on the waveform does. Stable identifiers, never
+// display names. drag_window (default) = the drag moves the window and only
+// a stationary click seeks; seek = the waveform scrubs and the window stays
+// put.
+#define SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW                 @"drag_window"
+#define SETTINGS_VALUE_WAVEFORM_DRAG_SEEK                   @"seek"
+
 // The preset ladders Settings > Playback offers, shared with the pane that
 // builds its popups from them. The getters snap a persisted value that
 // matches no preset — an external defaults write — to the nearest one,
@@ -126,6 +133,12 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // time, and MainPlayerController's refreshFileInfoDisplay repaints a toggle.
 - (BOOL)showFileInfo;
 - (void)setShowFileInfo:(BOOL)show;
+
+// What a drag starting on the waveform does — see the SETTINGS_VALUE_WAVEFORM_DRAG_*
+// identifiers above. Normalized on read: an unknown stored value reads as
+// drag_window. AudioWaveformView reads it once per mouse-down.
+- (NSString *)waveformDragBehavior;
+- (void)setWaveformDragBehavior:(NSString *)behavior;
 
 // The pitch fader's range in percent: 8 or 16, like the SL-1200MK5G's range
 // button.

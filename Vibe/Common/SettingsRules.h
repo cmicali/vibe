@@ -21,6 +21,17 @@ static inline NSString *VibeNormalizedWaveformTheme(NSString *_Nullable identifi
     return SETTINGS_VALUE_WAVEFORM_THEME_MONO;
 }
 
+#if TARGET_OS_OSX
+// An unknown stored waveform-drag identifier snaps to drag_window, the
+// default: a drag moves the window and only a stationary click seeks.
+static inline NSString *VibeNormalizedWaveformDragBehavior(NSString *_Nullable identifier) {
+    if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_DRAG_SEEK]) {
+        return identifier;
+    }
+    return SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW;
+}
+#endif  // TARGET_OS_OSX
+
 // The one-time theme migration: the value to write, or nil to write nothing.
 // Sonic Cirrus owned the orange before the style/theme split, so a stored
 // sonic_cirrus style with no theme key yet keeps its orange; any stored theme
