@@ -27,19 +27,21 @@ JSON="$(xcrun simctl list devices available -j)"
 UDID="$(printf '%s' "$JSON" | jq -r --arg n "$NAME" \
         '[.devices[][] | select(.name == $n)][0].udid // empty')"
 
-if [ -z "$UDID" ] && [ "${1:-}" = "--create" ]; then
-    # Session-scoped names mean ended sessions leave devices behind: delete
-    # Vibe-* devices that are Shutdown and untouched for a day. Age-gating on
-    # the data dir keeps a concurrent session's freshly created (not yet
-    # booted) device safe.
-    printf '%s' "$JSON" | jq -r '.devices[][]
-            | select((.name | startswith("Vibe-")) and .state == "Shutdown")
-            | [.udid, .dataPath] | @tsv' \
-    | while IFS=$'\t' read -r OLD DATAPATH; do
-        [ -n "$(find "$DATAPATH" -maxdepth 0 -mtime +1 2>/dev/null)" ] || continue
-        xcrun simctl delete "$OLD" >/dev/null 2>&1 || true
-    done
+# Session-scoped names mean ended sessions leave devices behind, each carrying
+# a multi-GB data dir: delete Vibe-* devices that are Shutdown, not this
+# session's, and untouched for 12h. Age-gating on the data dir keeps a
+# concurrent session's freshly created (not yet booted) device safe.
+# TRAP: -mmin, not -mtime +1 — that truncates to whole days, so it spares
+# anything under 48h and lets a week of sessions pile up.
+printf '%s' "$JSON" | jq -r --arg n "$NAME" '.devices[][]
+        | select((.name | startswith("Vibe-")) and .state == "Shutdown" and .name != $n)
+        | [.udid, .dataPath] | @tsv' \
+| while IFS=$'\t' read -r OLD DATAPATH; do
+    [ -n "$(find "$DATAPATH" -maxdepth 0 -mmin +720 2>/dev/null)" ] || continue
+    xcrun simctl delete "$OLD" >/dev/null 2>&1 || true
+done
 
+if [ -z "$UDID" ] && [ "${1:-}" = "--create" ]; then
     MODEL="$(printf '%s' "$JSON" | jq -r 'first(.devices | to_entries[]
             | .key as $rt | .value[] | select(.name | startswith("iPhone"))
             | "\(.deviceTypeIdentifier)\t\($rt)") // empty')"
