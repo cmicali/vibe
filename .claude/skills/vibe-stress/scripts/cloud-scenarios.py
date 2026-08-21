@@ -612,10 +612,21 @@ def s10_error_and_close_settle_clean(ctx):
         ctx.wait_for("the folder to start playing",
                      lambda ev: events_of(ev, event="requested", role="playback"))
         ctx.cmd("open", str(bad))
-        ctx.settle(2)
+        # Poll for the hold to CLEAR inside a bounded window, never sample it
+        # at a fixed instant: the folder open's prefetch claim legitimately
+        # holds the lane behind capacity=1 for a decode's length, and a decode
+        # is not a constant — the analyzers roughly double it, and the harness
+        # forces them on. Measured: clear at t=2 with them off, t=3 on, and a
+        # fixed t=2 sample read that one-second difference as a stranded hold.
+        # What this scenario actually asserts is that the errored open cannot
+        # strand the hold FOREVER, which only a poll can state.
+        deadline = time.monotonic() + 20
         health = ctx.health()
+        while time.monotonic() < deadline and health.get("cloudLaneHeld"):
+            time.sleep(0.5)
+            health = ctx.health()
         if health.get("cloudLaneHeld"):
-            raise Failed("the error path left the cloud lane held")
+            raise Failed("the error path left the cloud lane held (20s poll)")
         ctx.cmd("quiesce", timeout=60)
         health = ctx.health()
         if health.get("cloudLaneHeld") or health.get("cloudParsesPending"):

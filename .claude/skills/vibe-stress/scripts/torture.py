@@ -116,12 +116,93 @@ def phase_boundary(rng, st, n):
     return ops[:n]
 
 
+def phase_jump(rng, st, n):
+    """Land anywhere in the playlist, over and over.
+
+    next/previous only ever walk to the adjacent track, and the adjacent track
+    is the one case the successor prefetch has already parked and the metadata
+    sweep's neighborhood ranking has already reached. A jump lands where
+    nothing has prefetched — and against a cloud playlist that means a
+    foreground transfer with no head start, raised while the sweep still holds
+    the lane.
+    """
+    count = max(2, st.get("playlistCount") or 2)
+    ops = []
+    for _ in range(n):
+        r = rng.random()
+        if r < 0.08:
+            # Out of range is a documented no-op; escaping it is the finding.
+            ops.append(f"play_index {rng.randrange(count, count * 4 + 16)}")
+        elif r < 0.14:
+            ops.append(f"play_index -{rng.randrange(1, 50)}")
+        elif r < 0.24:
+            # Two jumps to the SAME row: replaying one produces the same track
+            # and the same URL, so a settlement belonging to the first passes
+            # every content-based guard. Only submission identity can drop it.
+            index = rng.randrange(count)
+            ops += [f"play_index {index}", f"play_index {index}"]
+        else:
+            ops.append(f"play_index {rng.randrange(count)}")
+    return ops[:n]
+
+
+def phase_blocked(rng, st, n):
+    """Every op a held main thread with a verb chained onto the same turn.
+
+    The channel's own intake is on the main queue, so an async callback the app
+    dispatched to main always wins the race against a command sent afterwards.
+    Holding main first is the only way to park a queue of worker callbacks —
+    waveform, metadata, BPM and key deliveries from tracks already replaced —
+    behind a user action that is already underway.
+    """
+    count = max(2, st.get("playlistCount") or 2)
+    dur = max(1.0, st.get("duration") or 30.0)
+    ops = []
+    for _ in range(n):
+        hold = f"{rng.uniform(0.05, 0.9):.2f}"
+        then = rng.choice([
+            f"play_index {rng.randrange(count)}",
+            f"play_index {rng.randrange(count)}",
+            f"seek {rng.uniform(-5, dur * 1.2):.3f}",
+            f"burst {rng.choice([30, 80, 200])} {rng.randrange(1, 1 << 30)}",
+            "clear_caches",
+        ])
+        ops.append(f"block_main {hold} {then}")
+    return ops
+
+
 PHASES = {
     "skip": phase_skip_storm,
     "seek": phase_seek_storm,
     "mixed": phase_mixed,
     "boundary": phase_boundary,
+    "jump": phase_jump,
+    "blocked": phase_blocked,
 }
+
+
+def surviving_violations(app, settle=0.4):
+    """Violations that are still there after a settle and a second sample.
+
+    Several of check_consistency's rules compare a RENDERED label against the
+    state that should have produced it, and renderState runs from the updateUI
+    funnel — so a state that flipped this runloop turn may legitimately not be
+    drawn yet. A burst here ends 40 transport ops deep with opens still in
+    flight, which is precisely when the render is a turn behind, so a single
+    sample turns a lag into a failure and ends the phase seconds in.
+
+    Only violations present in BOTH samples count, matched by id: a settle that
+    swaps one transient violation for another is still a settling app.
+    """
+    first = app.json("check_consistency")
+    if not first or not first.get("violations"):
+        return None
+    time.sleep(settle)
+    second = app.json("check_consistency")
+    if not second or not second.get("violations"):
+        return None
+    ids = {v["id"] for v in first["violations"]}
+    return [v for v in second["violations"] if v["id"] in ids] or None
 
 
 def health_of(app):
@@ -149,7 +230,18 @@ def main():
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--burst", type=int, default=40, help="ops per script invocation")
     ap.add_argument("--rounds", type=int, default=40, help="bursts per phase")
-    ap.add_argument("--phases", default="skip,seek,mixed,boundary")
+    ap.add_argument("--phases", default="skip,seek,mixed,jump,blocked,boundary")
+    ap.add_argument("--cloud", metavar="SECONDS", type=float, default=None,
+                    help="arm the fake file provider before opening the playlist, so "
+                         "every track change is a real transfer. This is the shape the "
+                         "fuzz profiles cannot reach: they settle between opens to let a "
+                         "sweep run, while this issues the next track change before the "
+                         "last one's download has even started.")
+    ap.add_argument("--cloud-percent", type=int, default=70)
+    ap.add_argument("--cloud-capacity", type=int, default=1,
+                    help="provider transfer slots (default 1). With the provider's "
+                         "unlimited default nothing ever waits on anything, so the "
+                         "ordering the foreground hold exists for is unobservable.")
     args = ap.parse_args()
 
     seed = args.seed if args.seed is not None else random.randrange(1 << 30)
@@ -164,6 +256,15 @@ def main():
     if not pid:
         print("FAIL: app is not running")
         return 2
+
+    if args.cloud is not None:
+        armed = app.json("set_fake_cloud", f"{args.cloud:g}", str(args.cloud_percent),
+                         f"capacity={args.cloud_capacity}")
+        if not (armed or {}).get("installed"):
+            print(f"FAIL: could not arm the fake provider: {armed}")
+            return 2
+        print(f"cloud:    {armed['percent']}% placeholders, {args.cloud:g}s base, "
+              f"{armed['capacity']} transfer slot(s)")
 
     app.cmd("open", args.playlist, timeout=300)
     # Wait for the playlist to actually populate before hammering it.
@@ -196,13 +297,15 @@ def main():
     for phase in args.phases.split(","):
         gen = PHASES[phase]
         print(f"\n--- phase {phase}: {args.rounds} bursts x {args.burst} ops")
-        st = {"duration": 30.0}
+        st = {"duration": 30.0, "playlistCount": count}
         for r in range(args.rounds):
             # dump_state is heavy on a large playlist (it lists every file), so
             # refresh the seek scale periodically rather than every burst.
             if r % 5 == 0:
                 st_raw = app.json("dump_state") or {}
-                st = {"duration": (st_raw.get("player") or {}).get("duration") or 30.0}
+                st = {"duration": (st_raw.get("player") or {}).get("duration") or 30.0,
+                      "playlistCount": ((st_raw.get("playlist") or {}).get("count")
+                                        or st.get("playlistCount") or count)}
             ops = gen(rng, st, args.burst)
             rc, out, err = app.script(ops)
             total_ops += len(ops)
@@ -213,10 +316,10 @@ def main():
                 print("last ops:", " | ".join(ops[-12:]))
                 return 1
 
-            inv = app.json("check_consistency")
-            if inv and inv.get("violations"):
+            surviving = surviving_violations(app)
+            if surviving:
                 print(f"\nFAILED: consistency violation in phase {phase}, burst {r}")
-                print(json.dumps(inv["violations"], indent=2))
+                print(json.dumps(surviving, indent=2))
                 print("last ops:", " | ".join(ops[-12:]))
                 return 1
 
@@ -254,6 +357,24 @@ def main():
     if stuck:
         print(f"FAILED: pending counters did not unwind at rest: {stuck}")
         return 1
+
+    if args.cloud is not None:
+        # dump_health's pending section deliberately does not score the two
+        # cloud counters for growth — a sweep legitimately holds dozens of
+        # parses. At rest, after a quiesce, every count and every hold belongs
+        # at zero, and a stranded claim is a few hundred bytes that no memory
+        # oracle would ever notice.
+        cloud = app.json("dump_cloud_health") or {}
+        mat = cloud.get("materialization") or {}
+        left = {k: v for k, v in
+                {"cloudParsesPending": cloud.get("cloudParsesPending"),
+                 "cloudLaneHeld": cloud.get("cloudLaneHeld"),
+                 **{k: mat.get(k) for k in sorted(mat)}}.items() if v}
+        print(f"at rest: cloud {cloud.get('cloudParsesPending')} parses, "
+              f"lane held {cloud.get('cloudLaneHeld')}, materialization {mat}")
+        if left:
+            print(f"FAILED: cloud work did not unwind at rest: {left}")
+            return 1
 
     elapsed = time.time() - t0
     print(f"\nPASSED {total_ops} ops in {elapsed:.0f}s "

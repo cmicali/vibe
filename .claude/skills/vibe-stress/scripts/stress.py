@@ -75,7 +75,11 @@ VERB_TIMEOUTS = {"file_cache": 90, "convert_to_flac": 150, "quiesce": 40}
 STALL_PROBE_MS = 2000
 
 AUDIO_SUFFIXES = {".mp3", ".mp2", ".m4a", ".mp4", ".aac", ".flac", ".wav", ".aif", ".aiff"}
-PLAYLIST_SUFFIXES = {".m3u", ".m3u8", ".pls"}
+# .cue is a playlist file to Vibe (PlaylistFile.m reads it), and a real ripped
+# library carries them beside the audio. Leaving it out meant the whole sheet
+# path — the entry rescues for Windows-absolute paths and transcoded
+# extensions — was never opened by any profile.
+PLAYLIST_SUFFIXES = {".m3u", ".m3u8", ".pls", ".cue"}
 
 # Menu items that would wedge or kill the run: anything opening a modal panel
 # (the channel cannot be served while one is up), quitting, hiding, or closing
@@ -250,16 +254,56 @@ def app_is_running():
 # clean pass over code it never entered. Forced on at launch, and printed,
 # because a silently disabled feature and a genuinely clean run look identical
 # in the summary.
-FEATURE_SETTINGS = {"folderArt": ("set_folder_art", "on")}
+#
+# The BPM and key analyzers are here for the same reason: they are the async
+# deliveries the loading profiles exist to race against track changes, and both
+# are ordinary settings a user can switch off. A run inheriting them off skips
+# the analyzer half of every decode and reports the same clean pass.
+FEATURE_SETTINGS = {
+    "folderArt": ["set_folder_art", "on"],
+    "analyzeBPM": ["set_analysis", "bpm", "on"],
+    "analyzeKey": ["set_analysis", "key", "on"],
+}
 
 
 def describe_feature_settings(channel) -> str:
     parts = []
-    for key, (verb, wanted) in FEATURE_SETTINGS.items():
-        code, payload, _ = channel.run([verb, wanted])
+    for key, argv in FEATURE_SETTINGS.items():
+        code, payload, _ = channel.run(argv)
         ok = code == 0 and isinstance(payload, dict) and payload.get("ok")
-        parts.append(f"{key}={wanted}" if ok else f"{key}=UNKNOWN (could not set)")
+        parts.append(f"{key}={argv[-1]}" if ok else f"{key}=UNKNOWN (could not set)")
     return ", ".join(parts)
+
+
+def user_settings_snapshot(channel) -> dict:
+    """The user's own persisted settings that ops flip, so they can be put back.
+
+    Unlike FEATURE_SETTINGS these are preferences rather than subsystem gates:
+    the run has no stake in their value, only in the invalidation edge each
+    change produces. Leaving one where a random flip landed is a side effect on
+    the user's app, not a finding.
+    """
+    code, state, _ = channel.run(["dump_state"], timeout=20)
+    if code != 0 or not isinstance(state, dict):
+        return {}
+    settings = state.get("settings") or {}
+    # `in`, not truthiness: the system-default appearance IS the empty string
+    # (SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT), so a truthiness test
+    # would silently decline to restore exactly the users who never chose one.
+    return {key: settings[key] for key in ("windowAppearance", "waveformStyle")
+            if key in settings}
+
+
+def user_settings_restore(channel, snapshot: dict):
+    appearance = snapshot.get("windowAppearance")
+    if appearance is not None:
+        # The live menu path, not the CLI prefs write, so the running app ends
+        # the run drawn the way it started rather than only on its next launch.
+        suffix = appearance or "system_default"
+        channel.run(["click_menu", f"view_appearance_{suffix}"])
+    style = snapshot.get("waveformStyle")
+    if style:
+        channel.run(["click_menu", f"waveform_style_{style}"])
 
 
 def launch(corpus: Path, app: Path):
@@ -278,6 +322,34 @@ def launch(corpus: Path, app: Path):
         sys.exit(f"launch failed: {result.stderr.strip()}")
     if "warning:" in result.stderr:
         print(f"  {result.stderr.strip()}", file=sys.stderr)
+    assert_running_binary(app)
+
+
+def assert_running_binary(app: Path):
+    """Which build actually came up — never assume the one that was asked for.
+
+    `open -a <path>` resolves by BUNDLE ID, not path. Every build of Vibe is
+    com.commonwealthrecordings.Vibe, so LaunchServices launches whichever copy
+    it has registered and silently ignores the path, and VIBE_APP does not save
+    you because launch.sh hands that path to `open -a` too. A sanitizer run
+    that lands on the plain build reports a clean pass over an uninstrumented
+    binary — the failure mode this check exists for, since nothing else in the
+    run would mention it.
+    """
+    wanted = (app / "Contents/MacOS/Vibe").resolve()
+    pid = app_pid()
+    if pid is None:
+        sys.exit("launch reported success but no GUI instance is running")
+    listing = subprocess.run(["ps", "-o", "comm=", "-p", str(pid)],
+                             capture_output=True, text=True)
+    running = Path(listing.stdout.strip())
+    if running != wanted:
+        sys.exit(f"WRONG BINARY: asked for {wanted}, LaunchServices launched {running}.\n"
+                 f"  Re-register the one you want and try again:\n"
+                 f"  /System/Library/Frameworks/CoreServices.framework/Versions/Current"
+                 f"/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister"
+                 f" -f {app}")
+    print(f"binary: {running}")
 
 
 # --------------------------------------------------------------------------
@@ -309,11 +381,49 @@ def scan_corpus(root: Path):
 # the app is right to return for a randomly chosen argument — an empty undo
 # stack, say — and is not a finding.
 
+# Errors the app is RIGHT to return for a path a hostile corpus legitimately
+# holds: a symlink loop, a zero-length file, a name that no longer resolves.
+# The refusal is the correct answer and the run must continue past it —
+# otherwise the driver ends on the app behaving exactly as it should, and the
+# corpus built to exercise those branches cannot be used at all. They stay
+# journaled with their exit codes, so a refusal of a file that IS there is
+# still recoverable from the journal afterwards.
+PATH_REFUSALS = [
+    "no file or directory", "expects an existing file", "no such file",
+    "could not", "failed",
+]
+
 FX_ON_OFF = [
     "low_kill_boost", "reverb_send", "delay_send", "short_delay_send",
 ]
 TRANSPORT_KEYS = ["space", "p", "left", "right", "up", "down"]
 HELD_FX_KEYS = ["w", "e", "r", "t"]
+
+# Built by the submenu's delegate, so they are fixed here rather than read out
+# of dump_menu: a run whose first dump_menu happened before something populated
+# that submenu would silently never pick one.
+WAVEFORM_STYLE_MENU_IDS = [
+    "waveform_style_basic", "waveform_style_detailed", "waveform_style_sonic_cirrus",
+    "waveform_style_oversampling_detailed_x2", "waveform_style_oversampling_detailed_x4",
+    "waveform_style_oversampling_detailed_x8",
+]
+APPEARANCE_MENU_IDS = [
+    "view_appearance_light", "view_appearance_dark", "view_appearance_system_default",
+]
+EQUALIZER_MODES = ["balanced", "activity", "spectrum"]
+# The only three set_audio_loading keys that are not diagnostic-only, so the
+# only ones whose churn changes what the app actually does.
+# Ranges are AudioLoadingConfiguration.m's own validation bounds, not guesses:
+# background 1-kMaximumSafeBackgroundMaterializations (4), local-parses
+# 1-kMaximumSafeLocalMetadataParseConcurrency (16), prefetch-depth
+# 0-kMaximumTunablePrefetchDepth (1). An out-of-range value is rejected with an
+# error, which the driver correctly scores as a `command` failure and which
+# would end the run on the harness's own bad argument rather than on a finding.
+AUDIO_LOADING_KEYS = {
+    "background": lambda rng: rng.choice([1, 1, 2, 3, 4]),
+    "local-parses": lambda rng: rng.choice([1, 2, 4, 8, 16]),
+    "prefetch-depth": lambda rng: rng.choice([0, 1]),
+}
 
 
 class OpGenerator:
@@ -347,19 +457,19 @@ class OpGenerator:
     def op_open_file(self):
         if not self.files:
             return self.op_transport()
-        return [("open_file", ["open", str(self.rng.choice(self.files))], [])]
+        return [("open_file", ["open", str(self.rng.choice(self.files))], PATH_REFUSALS)]
 
     def op_open_dir(self):
         if not self.dirs:
             return self.op_open_file()
-        return [("open_dir", ["open", str(self.rng.choice(self.dirs))], [])]
+        return [("open_dir", ["open", str(self.rng.choice(self.dirs))], PATH_REFUSALS)]
 
     def op_open_playlist(self):
         if not self.playlists:
             return self.op_open_file()
         # A .m3u grants only itself, so its entries may be unreadable; that is
         # the app's business, not a driver failure.
-        return [("open_playlist", ["open", str(self.rng.choice(self.playlists))], [])]
+        return [("open_playlist", ["open", str(self.rng.choice(self.playlists))], PATH_REFUSALS)]
 
     def op_open_burst(self):
         """Opens landing on top of each other, with no settle between them.
@@ -373,7 +483,7 @@ class OpGenerator:
             return self.op_transport()
         n = self.rng.randint(2, 4)
         return [
-            ("open_burst", ["open", str(self.rng.choice(self.files))], [])
+            ("open_burst", ["open", str(self.rng.choice(self.files))], PATH_REFUSALS)
             for _ in range(n)
         ]
 
@@ -382,8 +492,8 @@ class OpGenerator:
             return self.op_transport()
         path = str(self.rng.choice(self.files))
         return [
-            ("file_clear_cache", ["file_clear_cache", path], []),
-            ("file_cache", ["file_cache", path], ["could not", "failed"]),
+            ("file_clear_cache", ["file_clear_cache", path], PATH_REFUSALS),
+            ("file_cache", ["file_cache", path], PATH_REFUSALS),
         ]
 
     def op_clear_caches(self):
@@ -547,7 +657,7 @@ class OpGenerator:
         ops = [("drag_hover", ["drag_hover", str(x), str(y)], [])]
         if self.rng.random() < 0.6:
             ops.append(("drag_drop",
-                        ["drag_drop", str(x), str(y), str(self.rng.choice(self.files))], []))
+                        ["drag_drop", str(x), str(y), str(self.rng.choice(self.files))], PATH_REFUSALS))
         else:
             ops.append(("drag_end", ["drag_end"], []))
         return ops
@@ -587,6 +697,109 @@ class OpGenerator:
     def op_settle(self):
         return [("settle", ["sleep", f"{self.rng.uniform(0.05, 0.8):.2f}"], [])]
 
+    # -- main-thread ordering -----------------------------------------------
+
+    def op_block_main(self):
+        """Hold main, then run a verb on the SAME turn, without yielding.
+
+        Nothing else the driver can send reaches this shape. The channel's own
+        intake is on the main queue, so a callback the app dispatched to main
+        from a worker always wins the race against a command sent afterwards —
+        two ordinary ops can never stage "the callback landed while a click
+        handler was already underway". Blocking first is what parks a queue of
+        worker callbacks behind the chained verb.
+
+        The hold is what makes the queue deep: a longer block during an open
+        means more waveform, metadata, BPM and key deliveries pile up behind it,
+        so the chained verb runs with a full turn's worth of stale deliveries
+        queued right behind it. Bounded to 5s in the app; 1.2 keeps a batch
+        moving while still outlasting a decode's delivery cadence.
+        """
+        seconds = f"{self.rng.uniform(0.05, 1.2):.2f}"
+        then = self.rng.choice([
+            ["play_index", str(self.rng.randrange(0, 400))],
+            ["play_index", str(self.rng.randrange(0, 400))],
+            ["seek", f"{self.rng.uniform(-60, 600):.2f}"],
+            ["burst", str(self.rng.choice([40, 120, 300])),
+             str(self.rng.randrange(1, 1 << 30))],
+            ["clear_caches"],
+            ["set_equalizer_mode", self.rng.choice(EQUALIZER_MODES)],
+            ["dump_state"],
+        ])
+        return [("block_main", ["block_main", seconds, *then], [])]
+
+    # -- configuration churn under load -------------------------------------
+
+    def op_audio_loading(self):
+        """Move the loading knobs while loaders and prefetches are in flight.
+
+        The contract is that a change applies to new admissions, loaders and
+        prefetch decisions and NEVER by cancelling live work, so churning it
+        mid-decode is the only way to find a knob that reaches back into work
+        already running. `defaults` is in the mix so the run does not drift to
+        one corner of the space and stay there.
+        """
+        if self.rng.random() < 0.2:
+            return [("audio_loading", ["set_audio_loading", "defaults"], [])]
+        keys = self.rng.sample(sorted(AUDIO_LOADING_KEYS),
+                               self.rng.randint(1, len(AUDIO_LOADING_KEYS)))
+        argv = ["set_audio_loading"] + [f"{k}={AUDIO_LOADING_KEYS[k](self.rng)}" for k in keys]
+        return [("audio_loading", argv, [])]
+
+    def op_equalizer_mode(self):
+        """Replace the live FFT tap, synchronously, whenever.
+
+        A mode change tears the tap off the node feeding the output and
+        installs another, invalidating the current publication and the
+        analyzer's partial window — and which node that is depends on whether
+        the FX segment is present, which the fx ops are flipping underneath.
+        Landing one on a track change or an engine reconfigure is the point.
+        """
+        return [("equalizer_mode",
+                 ["set_equalizer_mode", self.rng.choice(EQUALIZER_MODES)], [])]
+
+    def op_waveform_style(self):
+        """Swap the renderer strategy under a picture that is still morphing.
+
+        Each style owns its own bar count, mask paths and layer geometry, and
+        the morph engine carries displayed samples across the swap. Doing it
+        mid-hydration, mid-decode, or between a resize and its rebuild is where
+        a stale count or a dropped layer set would show.
+        """
+        return [("waveform_style",
+                 ["click_menu", self.rng.choice(WAVEFORM_STYLE_MENU_IDS)],
+                 ["disabled", "no menu item"])]
+
+    def op_appearance(self):
+        """Flip light/dark live, which re-resolves every waveform theme rule.
+
+        Every theme rule branches on dark, so a flip re-resolves the whole
+        palette — and on macOS one of its inputs is the settled artwork color,
+        which rides the generation-matched artwork install path. A flip landing
+        between an artwork delivery and its install is the case the
+        colour-ownership guarantee is written for.
+        """
+        return [("appearance",
+                 ["click_menu", self.rng.choice(APPEARANCE_MENU_IDS)],
+                 ["disabled", "no menu item"])]
+
+    def op_resize_storm(self):
+        """Several width changes with nothing between them.
+
+        A resize now changes the waveform's BAR COUNT — the count follows the
+        drawn width at each style's designed pitch — and a count change mid
+        picture reaches the morph engine, which resamples the displayed bars
+        rather than collapsing them. One resize per 25-op batch never lands
+        two of those inside one morph; a storm does, and the extremes reach
+        both clamps (2 bars at the bottom, the per-style cap at the top).
+        """
+        widths = [self.rng.choice([
+            self.rng.randint(300, 2400),
+            self.rng.randint(1, 300),
+            self.rng.randint(2400, 6000),
+        ]) for _ in range(self.rng.randint(2, 6))]
+        return [("resize", ["set_window_width", str(w)], []) for w in widths]
+
 
 PROFILES = {
     "base": {
@@ -597,6 +810,8 @@ PROFILES = {
         "window": 3, "resize": 3, "click": 4, "drag": 2, "drag_drop": 3,
         "menu": 3, "undo": 1, "settle": 6, "folder_art": 1,
         "playlist_jump": 4, "burst": 0,
+        "block_main": 2, "audio_loading": 2, "equalizer_mode": 2,
+        "waveform_style": 2, "appearance": 2, "resize_storm": 2,
     },
     # Everything pointed at the open path and the async deliveries that race it.
     "loading": {
@@ -606,6 +821,27 @@ PROFILES = {
         "fx": 1, "held_fx": 1, "key": 1,
         "window": 1, "resize": 1, "click": 1, "drag": 0, "drag_drop": 2,
         "menu": 1, "undo": 0, "settle": 8, "folder_art": 2,
+        "block_main": 6, "audio_loading": 4, "equalizer_mode": 1,
+        "waveform_style": 2, "appearance": 2, "resize_storm": 2,
+    },
+    # Everything `loading` does, with the throttles off. `burst` moves the
+    # track-change loop inside the app, where a jump lands every main-queue
+    # turn — the channel cannot reach that rate from outside — and settle drops
+    # to a token weight so an open almost never gets to finish before the next
+    # one lands on top of it. Aimed at a big local library rather than the
+    # fake provider: every open here is a real decode, a real tag parse and a
+    # real art extraction racing the track change that follows it.
+    "hammer": {
+        "open_file": 26, "open_dir": 8, "open_burst": 24, "open_playlist": 5,
+        "cache_churn": 6, "clear_caches": 3,
+        "transport": 16, "playlist_jump": 14, "burst": 10,
+        "seek": 8, "pitch": 2,
+        "fx": 2, "held_fx": 3, "key": 2,
+        "window": 2, "resize": 2, "resize_storm": 8,
+        "click": 2, "drag": 1, "drag_drop": 3,
+        "menu": 1, "undo": 0, "settle": 2, "folder_art": 4,
+        "block_main": 10, "audio_loading": 5, "equalizer_mode": 3,
+        "waveform_style": 5, "appearance": 3,
     },
     # The folder-artwork fallback: opens through all three resolve strategies
     # (a folder, a burst of files, a lone file), the playlist visible far more
@@ -619,6 +855,8 @@ PROFILES = {
         "fx": 0, "held_fx": 0, "key": 2,
         "window": 10, "resize": 4, "click": 3, "drag": 0, "drag_drop": 4,
         "menu": 1, "undo": 0, "settle": 6, "folder_art": 10,
+        "block_main": 4, "audio_loading": 2, "equalizer_mode": 0,
+        "waveform_style": 3, "appearance": 6, "resize_storm": 3,
     },
     # The cloud path: files that are placeholders and take real time to arrive,
     # so the scan's serial cloud lane, the foreground-download hold, the
@@ -648,6 +886,13 @@ PROFILES = {
         "fx": 0, "held_fx": 0, "key": 1,
         "window": 1, "resize": 1, "click": 2, "drag": 0, "drag_drop": 1,
         "menu": 1, "undo": 0, "settle": 30, "folder_art": 1,
+        # Kept deliberately thin. This profile's weights are a measured balance
+        # between opens and settles — every op kind added here is a settle not
+        # taken, and the sweep needs those seconds. block_main earns its place
+        # anyway: holding main across a transfer's completion callback is
+        # exactly the ordering the foreground hold is written for.
+        "block_main": 6, "audio_loading": 3, "equalizer_mode": 0,
+        "waveform_style": 0, "appearance": 0, "resize_storm": 0,
     },
     # No file loading at all: pure UI monkey against whatever is loaded.
     "ui": {
@@ -657,6 +902,8 @@ PROFILES = {
         "fx": 10, "held_fx": 8, "key": 8,
         "window": 8, "resize": 8, "click": 12, "drag": 6, "drag_drop": 0,
         "menu": 6, "undo": 1, "settle": 4,
+        "block_main": 4, "audio_loading": 0, "equalizer_mode": 6,
+        "waveform_style": 8, "appearance": 6, "resize_storm": 10,
     },
 }
 
@@ -743,7 +990,17 @@ GROWTH_LIMITS = {
     ("process", "machPorts"): (2000, "mach ports"),
     ("ui", "windows"): (3, "windows"),
     ("ui", "views"): (400, "views"),
-    ("ui", "layers"): (800, "layers"),
+    # Sized for the widest window the fuzzer picks, because the layer count is
+    # no longer a constant: Sonic Cirrus derives its bar count from the drawn
+    # width at a 4pt pitch and draws TWO CALayers per bar, capped at 1,024 bars
+    # — so 2,048 layers is a legitimate resting state for a wide window, on top
+    # of AppKit's own bistable ~101/~350 glass machinery. Measured: a 2,844pt
+    # window read 1,432 layers, which is 711 bars x 2 plus chrome, and held it
+    # for three consecutive samples because the window stayed wide. The old
+    # +800 was right when every style had a fixed 128 or 1,024 bars in ONE
+    # shared mask path. Views stay the sensitive UI metric; a real layer leak
+    # is unbounded and clears this too.
+    ("ui", "layers"): (2400, "layers"),
     ("app", "engineNodes"): (16, "engine nodes"),
     **{("pending", key): (8, f"pending {key}") for key in PENDING_KEYS},
 }
@@ -792,7 +1049,12 @@ RESTING_GROWTH_LIMITS = {
     # tight limit against a min-of-first-three baseline fires whenever a run
     # starts at the low plateau. Sized to clear that step; a real layer leak is
     # unbounded and clears it too.
-    ("ui", "layers"): (320, "resting layers"),
+    # Same reason as the in-flight limit above, and worse here: quiesce empties
+    # the playlist but does not resize the window or change the style, so the
+    # resting layer count carries whatever width and style the last ops left —
+    # ~101 with any Detailed style at any width, ~2,048 with Sonic Cirrus at a
+    # wide one. Until the resting sample pins both, this cannot be tight.
+    ("ui", "layers"): (2400, "resting layers"),
     ("app", "engineNodes"): (4, "resting engine nodes"),
     **{("pending", key): (1, f"resting pending {key}") for key in PENDING_KEYS},
 }
@@ -829,6 +1091,16 @@ GROWTH_CONFIRMATIONS = 3
 RESTING_CONFIRMATIONS = 2
 
 
+# Metrics the run has been told to stop scoring, by --ignore-metric. The only
+# honest use is standing down a metric whose finding is ALREADY diagnosed, so a
+# known bug stops masking everything behind it: an fd leak that fails every run
+# at op 600 hides whatever op 5,000 would have found. It is a global rather
+# than a parameter because health_growth is called from four places; the header
+# prints it on every run, because a relaxed run that looks like a strict one in
+# the summary is worse than no run.
+IGNORED_METRICS = set()
+
+
 def health_growth(baseline, current, streaks, limits=GROWTH_LIMITS,
                   confirmations=GROWTH_CONFIRMATIONS):
     """Returns the messages for metrics that have now been over-limit long enough.
@@ -858,6 +1130,8 @@ def health_growth(baseline, current, streaks, limits=GROWTH_LIMITS,
 
     for metric, (headroom, label) in limits.items():
         section, key = metric
+        if key in IGNORED_METRICS:
+            continue
         was = baseline.get(section, {}).get(key)
         now = current.get(section, {}).get(key)
         if was is None or now is None:
@@ -1183,6 +1457,14 @@ def run(args):
     print(f"menu:   {len(menu_ids)} clickable items after the modal/quit denylist")
     print(f"clicks: avoiding {len(exclusions)} window-chrome rects (close/minimize)")
     print(f"settings: {describe_feature_settings(channel)}")
+    if IGNORED_METRICS:
+        print(f"RELAXED: not scoring {', '.join(sorted(IGNORED_METRICS))} "
+              f"— this run cannot report those")
+    # Appearance and waveform style are the user's own settings, not features
+    # the run needs forced on, and both persist in NSUserDefaults — so a run
+    # whose last flip happened to be `dark` leaves the app dark forever after.
+    # Snapshot them and put them back at the end, whether the run passed or not.
+    restore = user_settings_snapshot(channel)
 
     if args.profile == "cloud":
         # Armed before the first op rather than as one: the profile's premise is
@@ -1294,6 +1576,8 @@ def run(args):
             failure = caught
         except KeyboardInterrupt:
             print("\ninterrupted", file=sys.stderr)
+
+    user_settings_restore(channel, restore)
 
     if health_samples or resting_samples:
         samples_path = journal_path.with_suffix(".health.ndjson")
@@ -1456,8 +1740,17 @@ def main():
                         help="with --shrink, also treat an at-rest footprint above this "
                              "many MB as a reproduction, so a resource failure can be "
                              "minimized like a crash")
+    parser.add_argument("--ignore-metric", action="append", default=[],
+                        metavar="NAME",
+                        help="stop scoring one dump_health metric (fileDescriptors, "
+                             "mallocLiveBytes, layers, ...). For standing down a finding "
+                             "that is ALREADY diagnosed, so it stops masking what lies "
+                             "behind it — a leak that fails every run at op 600 hides "
+                             "whatever op 5,000 would have found. Repeatable, and printed "
+                             "in the run header.")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
+    IGNORED_METRICS.update(args.ignore_metric)
 
     signal.signal(signal.SIGINT, signal.default_int_handler)
 

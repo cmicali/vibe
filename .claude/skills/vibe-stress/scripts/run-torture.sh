@@ -58,7 +58,23 @@ for _ in 1 2 3; do
 done
 [ -z "$(mac_instances)" ] || { echo "ABORT: could not clear existing Vibe processes: $(mac_instances | tr '\n' ' ')" >&2; exit 2; }
 
-"$V" --no-audio-hw --silent &
+# Off the hardware by default, and honouring VIBE_AUDIBLE the same way
+# vibe-debug's launch.sh does — this script cannot use launch.sh (it must
+# direct-exec to be sure WHICH build came up), so the flag rules have to be
+# repeated here rather than inherited. Unset: manual rendering, no output
+# device ever opened. `silent`: the real device with the mixer zeroed, which is
+# the only way to reach the HAL device layer, engine config-change
+# notifications and the Now Playing publish. `1`: audible.
+case "${VIBE_AUDIBLE:-}" in
+    "")     AUDIO_FLAGS=(--no-audio-hw --silent) ;;
+    silent) AUDIO_FLAGS=(--silent) ;;
+    *)      AUDIO_FLAGS=() ;;
+esac
+echo "  audio: ${AUDIO_FLAGS[*]:-real hardware, audible}"
+# macOS ships bash 3.2, where `set -u` treats an EMPTY array expansion as an
+# unbound variable — so the audible case (no flags at all) aborts the script
+# unless the expansion is guarded.
+"$V" ${AUDIO_FLAGS[@]+"${AUDIO_FLAGS[@]}"} &
 ready=""
 for _ in $(seq 1 25); do
     sleep 1

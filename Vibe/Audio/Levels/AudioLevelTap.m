@@ -8,6 +8,8 @@
 #import "AudioLevelAnalyzer.h"
 #import "AudioLevelPublisherInternal.h"
 
+#include <stdatomic.h>
+
 // The installed block owns this object, and the object owns every raw pointer
 // it uses. That ownership is the reset guarantee: abandon may drop AudioPlayer's
 // reference without freeing state underneath a late defunct-engine callback.
@@ -17,6 +19,16 @@
     AudioLevelPublisher *_publisher;
     VibeLevelPublisherState *_publisherState;
     uint64_t _session;
+    // The happens-before edge between this queue's setup writes — the analyzer
+    // allocation, every session field, and the block copy installTapOnBus:
+    // performs — and the tap thread's reads of the same memory. AVFAudio hands
+    // the block to its tap thread through machinery that publishes no ordering
+    // a checker can see (TSan reported the whole family as races), so the
+    // callback acquire-loads this and stays out of the session until the
+    // installer's release-store after installTapOnBus: returns. The armed=1
+    // store is the LAST setup write, which is what makes the acquire cover all
+    // of the earlier ones.
+    _Atomic uint32_t _armed;
 }
 @end
 
@@ -65,6 +77,13 @@
                    bufferSize:(AVAudioFrameCount)VibeLevelTapBufferFrameCount(format.sampleRate)
                        format:nil
                         block:^(AVAudioPCMBuffer *buffer, AVAudioTime *when) {
+            // Before anything in the session: see _armed. A callback delivered
+            // before the installer's release-store simply drops its buffer —
+            // at ~24 decisions a second that is at most a few silent
+            // milliseconds, against reading the analyzer mid-construction.
+            if (atomic_load_explicit(&tapSession->_armed, memory_order_acquire) == 0) {
+                return;
+            }
 #if DEBUG
             VibeLevelPublisherRecordCallback(tapSession->_publisherState,
                                               buffer.frameLength,
@@ -103,6 +122,9 @@
         LogWarn(@"AudioLevelTap: install failed (%@)", exception.reason);
         return nil;
     }
+
+    // Publishes every setup write above to the tap thread; see _armed.
+    atomic_store_explicit(&tapSession->_armed, 1, memory_order_release);
 
     _tapSession = tapSession;
     _node = node;

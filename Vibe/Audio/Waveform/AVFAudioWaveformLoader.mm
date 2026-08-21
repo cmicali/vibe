@@ -118,9 +118,11 @@
 - (AVAudioFile *)openFileAtPath:(NSString *)filename pass:(struct VibeWaveformDecodePass *)pass {
     NSError *error = nil;
     NSURL *url = [NSURL fileURLWithPath:filename];
-    if (url.isEmptyOrDirectory) {
-        // Opening it would leak a descriptor; see NSURL+AudioOpen.
-        LogError(@"AVAudioFile open skipped for empty path %@", filename);
+    if (url.failsAudioOpenPreflight) {
+        // A failed AVAudioFile open leaks its descriptor, and the decode path
+        // retries a failing file forever — a partial download used to cost one
+        // fd per attempt, unbounded; see NSURL+AudioOpen.
+        LogError(@"AVAudioFile open skipped, preflight refused %@", filename);
         return nil;
     }
     // Interleaved float32, because AudioWaveformMonoMix expects the sample

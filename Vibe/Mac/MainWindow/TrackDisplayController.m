@@ -63,7 +63,12 @@
     return self;
 }
 
+// TRAP: NSTextField.stringValue raises on nil, and a nil here has crashed:
+// a message to a nil track returns a nil string that no isEqualToString:
+// early-out can catch, because a message to nil answers NO and falls through
+// to the assignment. Empty is what every nil string means on this header.
 static void setStringValueIfChanged(NSTextField *field, NSString *value) {
+    value = value ?: @"";
     if (![field.stringValue isEqualToString:value]) {
         field.stringValue = value;
     }
@@ -169,6 +174,9 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 // delivery, once per track during the sweep, so re-fit only when the text has
 // changed.
 - (void)setTitleLabelText:(NSString *)text {
+    // Same nil trap as setStringValueIfChanged: a nil text falls through the
+    // early-out (message to nil answers NO) into a raising assignment.
+    text = text ?: @"";
     if ([text isEqualToString:self.titleTextField.stringValue]) {
         return;
     }

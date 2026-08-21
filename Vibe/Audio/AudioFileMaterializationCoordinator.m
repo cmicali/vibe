@@ -400,7 +400,7 @@ static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKe
                           datalessProbe:datalessProbe
                                   clock:clock
                             fileOpener:^AVAudioFile *(NSURL *url, NSError **error) {
-        return url.isEmptyOrDirectory
+        return url.failsAudioOpenPreflight
                 ? nil : [[AVAudioFile alloc] initForReading:url error:error];
     }];
 }

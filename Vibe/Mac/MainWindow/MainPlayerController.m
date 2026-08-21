@@ -167,6 +167,13 @@
     __weak MainPlayerController *weakSelf = self;
     _uiTimer = [[UIUpdateTimer alloc] initWithHz:kVibeUIUpdateHzMin handler:^{
         [weakSelf updatePlaybackUI];
+        // Reconciliation, not an edge: a play settlement dropped as stale
+        // (AudioPlayer.submittedPlayIsCurrent:) reaches no updateUI, and the
+        // system card then holds the wrong playbackState for as long as the
+        // track plays — Control Center and the media keys read that card. The
+        // publisher's unchanged check makes this a comparison per tick, not a
+        // republish; natural position advance is deliberately not dirty.
+        [weakSelf updateNowPlaying];
     }];
 }
 
@@ -369,7 +376,11 @@
 // inputs, sampling the player once so the whole state resolves against one
 // consistent view of it.
 - (TrackDisplayState)displayState {
-    return VibeResolveTrackDisplayState(self.playlistController.currentTrack,
+    return [self displayStateForTrack:self.playlistController.currentTrack];
+}
+
+- (TrackDisplayState)displayStateForTrack:(AudioTrack *)track {
+    return VibeResolveTrackDisplayState(track,
                                         self.audioPlayer.currentTrack,
                                         _erroredTrack,
                                         _emptyStateSuppressed,
@@ -379,11 +390,22 @@
 
 // The track the header should describe: the playlist's current track, or nil
 // while the empty or error state is up.
+//
+// TRAP: a state and a track that will be rendered TOGETHER must derive from
+// ONE currentTrack read — the ForTrack: pair, off one snapshot. Deriving them
+// separately let a state that renders the track pair with a track read that
+// answered nil, and renderState then messaged nil into a raising
+// NSTextField setStringValue:. updateUI is the pattern to copy.
 - (AudioTrack *)displayedTrack {
-    switch ([self displayState]) {
+    AudioTrack *track = self.playlistController.currentTrack;
+    return [self displayedTrackForState:[self displayStateForTrack:track] track:track];
+}
+
+- (AudioTrack *)displayedTrackForState:(TrackDisplayState)state track:(AudioTrack *)track {
+    switch (state) {
         case TrackDisplayStateTrack:
         case TrackDisplayStateLoading:
-            return self.playlistController.currentTrack;
+            return track;
         case TrackDisplayStateEmpty:
         case TrackDisplayStateLaunchGrace:
         case TrackDisplayStateError:
@@ -409,12 +431,16 @@
 
 - (void)updateUI {
 
-    TrackDisplayState state = [self displayState];
+    // One currentTrack read for the whole pass: state, track and displayTrack
+    // are rendered together, so they must describe the same instant — the
+    // trap is spelled out on displayedTrack.
     AudioTrack *track = self.playlistController.currentTrack;
-    // The masking rule lives in displayedTrack; do not re-derive it here.
-    // track is still used deliberately below, because the error rendering
-    // titles the masked track and the play-button icon follows the playlist.
-    AudioTrack *displayTrack = [self displayedTrack];
+    TrackDisplayState state = [self displayStateForTrack:track];
+    // The masking rule lives in displayedTrackForState:track:; do not
+    // re-derive it here. track is still used deliberately below, because the
+    // error rendering titles the masked track and the play-button icon follows
+    // the playlist.
+    AudioTrack *displayTrack = [self displayedTrackForState:state track:track];
 
     // The track check covers Close. The player's stop is async on its queue,
     // so it can still read isPlaying for an instant after closeFile:, and no

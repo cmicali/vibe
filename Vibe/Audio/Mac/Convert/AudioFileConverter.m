@@ -414,8 +414,8 @@ static NSString *VibeFileStat(NSURL *url) {
 #pragma mark - Encode
 
 // The one refusal for a source with no frames. The pre-open
-// isEmptyOrDirectory guard is the load-bearing check (descriptor leak, see
-// NSURL+AudioOpen); the per-open length checks back it up with this same
+// failsAudioOpenPreflight guard is the load-bearing check (descriptor leak,
+// see NSURL+AudioOpen); the per-open length checks back it up with this same
 // answer.
 - (NSError *)emptySourceError {
     return [self errorWithCode:VibeConvertErrorNotConvertible
@@ -435,7 +435,7 @@ static NSString *VibeFileStat(NSURL *url) {
     // Ahead of the open, because the length check below only runs once the open
     // has already leaked its descriptor; see NSURL+AudioOpen. Both opens below
     // take this same URL, so one guard covers them.
-    if (sourceURL.isEmptyOrDirectory) {
+    if (sourceURL.failsAudioOpenPreflight) {
         if (error) {
             *error = [self emptySourceError];
         }

@@ -22,7 +22,12 @@
     // displayedTrack, not currentTrack. The system sees the header's masked
     // view, so a play-error state clears the Now Playing slot rather than
     // advertising a track that never produced audio.
-    AudioTrack *track = [self displayedTrack];
+    // One currentTrack snapshot for the whole publish: displayState below and
+    // the displayed track must describe the same instant — the trap is spelled
+    // out on displayedTrack — so both derive from this read.
+    AudioTrack *currentTrack = self.playlistController.currentTrack;
+    TrackDisplayState displayState = [self displayStateForTrack:currentTrack];
+    AudioTrack *track = [self displayedTrackForState:displayState track:currentTrack];
     NowPlayingPlaybackState state = VibeNowPlayingStateForPlayer(self.audioPlayer.isPlaying,
                                                                  self.audioPlayer.isPaused);
     // Report pitch-adjusted, wall-clock time, so that Control Center matches

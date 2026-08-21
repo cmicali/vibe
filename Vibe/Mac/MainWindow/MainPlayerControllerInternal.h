@@ -127,9 +127,15 @@ NS_ASSUME_NONNULL_BEGIN
 // Every effective-tempo and key change funnels through here.
 - (void)effectiveTempoDidChange;
 // The display state the header should render, resolved in one place, and the
-// track it should describe — nil while the empty or error state is up.
+// track it should describe — nil while the empty or error state is up. A
+// caller rendering state and track TOGETHER must take one currentTrack
+// snapshot and use the ForTrack:/ForState: pair, so the two cannot describe
+// different instants; the no-argument forms are for lone reads.
 - (TrackDisplayState)displayState;
+- (TrackDisplayState)displayStateForTrack:(nullable AudioTrack *)track;
 - (nullable AudioTrack *)displayedTrack;
+- (nullable AudioTrack *)displayedTrackForState:(TrackDisplayState)state
+                                          track:(nullable AudioTrack *)track;
 
 #pragma mark - The update timer
 
