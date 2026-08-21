@@ -2,16 +2,21 @@
 #
 # Launch Vibe, building it first (via scripts/build.sh) only if it isn't built yet.
 #
-# Usage: scripts/run.sh [Debug|Release]   (default: Release)
+# Usage: scripts/run.sh [Debug|Release] [args...]   (default: Release)
+#
+# Everything after the configuration is handed to Vibe as its process arguments.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-CONFIGURATION="${1:-Release}"
-case "$CONFIGURATION" in
-    Debug|Release) ;;
-    *) echo "error: configuration must be Debug or Release (got '$CONFIGURATION')" >&2; exit 1 ;;
-esac
+CONFIGURATION="Release"
+if [[ $# -gt 0 ]]; then
+    case "$1" in
+        Debug|Release) CONFIGURATION="$1"; shift ;;
+        debug|release|DEBUG|RELEASE)
+            echo "error: configuration must be Debug or Release (got '$1')" >&2; exit 1 ;;
+    esac
+fi
 
 APP="build/DerivedData/Build/Products/$CONFIGURATION/Vibe.app"
 
@@ -32,5 +37,9 @@ if pgrep -x Vibe >/dev/null; then
     fi
 fi
 
-echo "🔊 running $APP"
-open "$APP"
+echo "🔊 running $APP${*+ $*}"
+if [[ $# -gt 0 ]]; then
+    open "$APP" --args "$@"
+else
+    open "$APP"
+fi
