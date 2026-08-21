@@ -39,7 +39,7 @@ Everything below runs in CI (`.github/workflows/build.yml`) and can be run local
 | `make check-layout` | The layout rule below. |
 | `make check-vocabulary` | The mechanical vocabulary rules below. |
 | `make check-strings` | Fails when `Resources/Localizable.xcstrings` is stale against the source. |
-| `make check-translations` | Fails when any key is missing a catalog language. Both release paths run it. |
+| `make check-translations` | Fails when any key in **either** catalog — `Localizable.xcstrings` or `InfoPlist.xcstrings` — is missing a catalog language. Both release paths run it. |
 | `make appstore-validate-copy` | App Store copy completeness and caption fit. |
 
 Anything that must be verified against the *running* app belongs in the debug command channel, not in a unit test.

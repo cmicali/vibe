@@ -32,7 +32,8 @@
         panel.canChooseDirectories = YES;
         panel.allowsMultipleSelection = NO;
         panel.directoryURL = playlistURL.URLByDeletingLastPathComponent;
-        panel.message = [NSString stringWithFormat:STR_PLAYLIST_GRANT_MESSAGE, playlistURL.lastPathComponent];
+        panel.message = [NSString stringWithFormat:STR_PLAYLIST_GRANT_MESSAGE,
+                                                   VibeAppName(), playlistURL.lastPathComponent];
         panel.prompt = STR_PLAYLIST_GRANT_BUTTON;
         // Reading panel.URL is what attaches the powerbox's sandbox extension
         // to the process, not just running the panel.

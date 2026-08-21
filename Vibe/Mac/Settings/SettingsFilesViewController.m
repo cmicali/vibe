@@ -79,7 +79,8 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     _albumArtPopUp.lastItem.representedObject = kAlbumArtFileOnly;
     [_albumArtPopUp addItemWithTitle:STR_SETTINGS_ALBUM_ART_FOLDER];
     _albumArtPopUp.lastItem.representedObject = kAlbumArtFolder;
-    NSTextField *explain = [self explainLabel:STR_SETTINGS_PERMISSIONS_EXPLAIN];
+    NSTextField *explain = [self explainLabel:[NSString stringWithFormat:STR_SETTINGS_PERMISSIONS_EXPLAIN,
+                                                                        VibeAppName()]];
 
     _tableView = [[NSTableView alloc] initWithFrame:NSZeroRect];
     _tableView.headerView = nil;
@@ -325,7 +326,8 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     panel.allowsMultipleSelection = NO;
     panel.canCreateDirectories = NO;
     panel.directoryURL = [NSURL fileURLWithPath:path isDirectory:YES];
-    panel.message = [NSString stringWithFormat:STR_SETTINGS_FOLDER_GRANT_MESSAGE, sender.title];
+    panel.message = [NSString stringWithFormat:STR_SETTINGS_FOLDER_GRANT_MESSAGE,
+                                               VibeAppName(), sender.title];
     panel.prompt = STR_SETTINGS_FOLDER_GRANT_BUTTON;
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
         if (result == NSModalResponseOK) {
@@ -394,7 +396,9 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     // The label truncates in the middle, so the tooltip carries the whole path
     // either way, and for a dead row says why it is still listed.
     cell.textField.toolTip = unavailable
-            ? [NSString stringWithFormat:@"%@\n%@", folder.path, STR_SETTINGS_FOLDER_UNAVAILABLE_TIP]
+            ? [NSString stringWithFormat:@"%@\n%@", folder.path,
+                                         [NSString stringWithFormat:STR_SETTINGS_FOLDER_UNAVAILABLE_TIP,
+                                                                    VibeAppName()]]
             : folder.path;
     return cell;
 }

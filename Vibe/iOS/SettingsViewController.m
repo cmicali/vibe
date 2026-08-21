@@ -185,7 +185,8 @@ static NSString *const kActionCellIdentifier = @"action";
 // given a folder.
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     return (VibeSettingsSection)section == VibeSettingsSectionSearchFolders
-            ? STR_SETTINGS_SEARCH_FOLDERS_FOOTER : nil;
+            ? [NSString stringWithFormat:STR_SETTINGS_SEARCH_FOLDERS_FOOTER, VibeAppName()]
+            : nil;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView

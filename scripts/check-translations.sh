@@ -1,7 +1,14 @@
 #!/bin/bash
 #
-# Fail if any catalog key is missing a translation. Required before either
+# Fail if any catalog key is missing a translation. Covers BOTH catalogs —
+# Localizable.xcstrings and InfoPlist.xcstrings. Required before either
 # release path — see release.sh / release-appstore.sh.
+#
+# InfoPlist.xcstrings fails the same silent way and is easier to forget: its
+# keys are the bundle name, the copyright and the CFBundleTypeName values, so
+# a missing one means Launch Services shows an English document-type name in
+# that locale — visible in the Finder's Get Info and Open With, and nowhere in
+# the app to notice while testing.
 #
 # Nothing else catches this. `make check-strings` is a round-trip diff: it
 # re-runs sync+normalize on a copy and diffs, so it answers "does the catalog
@@ -33,7 +40,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CATALOG="$ROOT/Resources/Localizable.xcstrings"
+CATALOGS=("$ROOT/Resources/Localizable.xcstrings" "$ROOT/Resources/InfoPlist.xcstrings")
 
 GITHUB_MODE=0
 case "${1:-}" in
@@ -45,16 +52,21 @@ esac
 LANGS=$("$ROOT/scripts/catalog-languages.sh" | jq -Rn '[inputs]')
 LANG_COUNT=$(jq -r 'length' <<<"$LANGS")
 
-# One pass, rendered two ways below. Both the human list and the CI annotations
-# come off this JSON rather than off each other's text — a report mode that
-# re-parsed the human output would break silently the next time it is reworded.
-REPORT=$(jq -c --argjson all "$LANGS" '
-    [.strings | to_entries[]
-     | {key: .key, missing: ($all - ((.value.localizations // {}) | keys))}
+# One pass over both catalogs, rendered two ways below. Both the human list and
+# the CI annotations come off this JSON rather than off each other's text — a
+# report mode that re-parsed the human output would break silently the next
+# time it is reworded. Each entry carries its catalog, because "which file" is
+# the first thing you need in order to fix one.
+REPORT=$(jq -sc --argjson all "$LANGS" '
+    [.[] | .file as $file | .doc.strings | to_entries[]
+     | {catalog: $file, key: .key,
+        missing: ($all - ((.value.localizations // {}) | keys))}
      | select(.missing | length > 0)]
-' "$CATALOG")
+' <(for c in "${CATALOGS[@]}"; do
+        jq -c --arg f "${c##*/}" '{file: $f, doc: .}' "$c"
+    done))
 
-LIST=$(jq -r '.[] | "  \(.key)  missing: \(.missing | join(", "))"' <<<"$REPORT")
+LIST=$(jq -r '.[] | "  \(.catalog)  \(.key)  missing: \(.missing | join(", "))"' <<<"$REPORT")
 
 if [[ -n "$LIST" ]]; then
     if (( GITHUB_MODE )); then
@@ -65,7 +77,7 @@ if [[ -n "$LIST" ]]; then
         # only keeps the worklist visible.
         echo "untranslated keys (pending the release-cut translation batch):"
         echo "$LIST"
-        jq -r '.[] | "::warning title=Untranslated key::\(.key) is missing \(.missing | join(", "))"' \
+        jq -r '.[] | "::warning title=Untranslated key::\(.catalog) \(.key) is missing \(.missing | join(", "))"' \
             <<<"$REPORT"
         if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
             {
@@ -80,7 +92,7 @@ if [[ -n "$LIST" ]]; then
         exit 0
     fi
 
-    echo "error: untranslated keys in Resources/Localizable.xcstrings" >&2
+    echo "error: untranslated catalog keys" >&2
     echo "$LIST" >&2
     cat >&2 <<'MSG'
 
@@ -95,13 +107,14 @@ fi
 # needs_review is not a failure: a reworded English default flips every other
 # language to needs_review by design, and those units still compile and ship
 # the old translation. Worth surfacing, never worth blocking a release on.
-REVIEW=$(jq -r '
-    [.strings | to_entries[]
+REVIEW=$(jq -s -r '
+    [.[] | .strings | to_entries[]
      | select((.value.localizations // {}) | to_entries[]
               | select(.key != "en" and .value.stringUnit.state == "needs_review"))
      | .key] | unique | length
-' "$CATALOG")
+' "${CATALOGS[@]}")
 
-echo "🔊 $(jq '.strings | length' "$CATALOG") keys translated into all $LANG_COUNT languages"
+TOTAL=$(jq -s '[.[].strings | length] | add' "${CATALOGS[@]}")
+echo "🔊 $TOTAL keys across ${#CATALOGS[@]} catalogs translated into all $LANG_COUNT languages"
 [[ "$REVIEW" -gt 0 ]] && echo "🔊 $REVIEW key(s) marked needs_review (reworded English; still shipping)"
 exit 0

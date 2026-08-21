@@ -391,7 +391,7 @@
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Åbn sange eller mapper"
+            "value": "Åbn numre eller mapper"
           }
         },
         "de": {
@@ -403,19 +403,19 @@
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Άνοιγμα τραγουδιών ή φακέλων"
+            "value": "Άνοιγμα κομματιών ή φακέλων"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open songs or folders"
+            "value": "Open tracks or folders"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abrir canciones o carpetas"
+            "value": "Abrir pistas o carpetas"
           }
         },
         "fi": {
@@ -439,13 +439,13 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dalok vagy mappák megnyitása"
+            "value": "Számok vagy mappák megnyitása"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buka lagu atau folder"
+            "value": "Buka trek atau folder"
           }
         },
         "it": {
@@ -457,19 +457,19 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "曲またはフォルダを開く"
+            "value": "トラックまたはフォルダを開く"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "노래 또는 폴더 열기"
+            "value": "트랙 또는 폴더 열기"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Åpne sanger eller mapper"
+            "value": "Åpne spor eller mapper"
           }
         },
         "nl": {
@@ -487,25 +487,25 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abrir músicas ou pastas"
+            "value": "Abrir faixas ou pastas"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abrir músicas ou pastas"
+            "value": "Abrir faixas ou pastas"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Deschideți melodii sau dosare"
+            "value": "Deschideți piese sau dosare"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Открыть песни или папки"
+            "value": "Открыть треки или папки"
           }
         },
         "sk": {
@@ -517,43 +517,43 @@
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Öppna låtar eller mappar"
+            "value": "Öppna spår eller mappar"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เปิดเพลงหรือโฟลเดอร์"
+            "value": "เปิดแทร็กหรือโฟลเดอร์"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Şarkıları veya klasörleri aç"
+            "value": "Parçaları veya klasörleri aç"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Відкрити пісні чи папки"
+            "value": "Відкрити треки чи папки"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mở bài hát hoặc thư mục"
+            "value": "Mở bản nhạc hoặc thư mục"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "打开歌曲或文件夹"
+            "value": "打开曲目或文件夹"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "打開歌曲或檔案夾"
+            "value": "打開曲目或檔案夾"
           }
         }
       },
@@ -625,7 +625,7 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlist megjelenítése/elrejtése"
+            "value": "Lejátszási lista megjelenítése/elrejtése"
           }
         },
         "id": {
@@ -4297,7 +4297,7 @@
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Træk sange eller mapper hertil"
+            "value": "Træk numre eller mapper hertil"
           }
         },
         "de": {
@@ -4309,19 +4309,19 @@
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Σύρετε τραγούδια ή φακέλους εδώ"
+            "value": "Σύρετε κομμάτια ή φακέλους εδώ"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Drag songs or folders here"
+            "value": "Drag tracks or folders here"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Arrastra canciones o carpetas aquí"
+            "value": "Arrastra pistas o carpetas aquí"
           }
         },
         "fi": {
@@ -4345,13 +4345,13 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Húzz ide dalokat vagy mappákat"
+            "value": "Húzz ide számokat vagy mappákat"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Seret lagu atau folder ke sini"
+            "value": "Seret trek atau folder ke sini"
           }
         },
         "it": {
@@ -4363,19 +4363,19 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "曲またはフォルダをここにドラッグ"
+            "value": "トラックまたはフォルダをここにドラッグ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "노래 또는 폴더를 여기로 드래그"
+            "value": "트랙 또는 폴더를 여기로 드래그"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dra sanger eller mapper hit"
+            "value": "Dra spor eller mapper hit"
           }
         },
         "nl": {
@@ -4393,25 +4393,25 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Arraste músicas ou pastas para cá"
+            "value": "Arraste faixas ou pastas para cá"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Arraste músicas ou pastas para aqui"
+            "value": "Arraste faixas ou pastas para aqui"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Trageți aici melodii sau dosare"
+            "value": "Trageți aici piese sau dosare"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перетащите сюда песни или папки"
+            "value": "Перетащите сюда треки или папки"
           }
         },
         "sk": {
@@ -4423,43 +4423,43 @@
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dra låtar eller mappar hit"
+            "value": "Dra spår eller mappar hit"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ลากเพลงหรือโฟลเดอร์มาวางที่นี่"
+            "value": "ลากแทร็กหรือโฟลเดอร์มาวางที่นี่"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Şarkıları veya klasörleri buraya sürükleyin"
+            "value": "Parçaları veya klasörleri buraya sürükleyin"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перетягніть сюди пісні чи папки"
+            "value": "Перетягніть сюди треки чи папки"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kéo bài hát hoặc thư mục vào đây"
+            "value": "Kéo bản nhạc hoặc thư mục vào đây"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "将歌曲或文件夹拖到此处"
+            "value": "将曲目或文件夹拖到此处"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "將歌曲或檔案夾拖到這裡"
+            "value": "將曲目或檔案夾拖到這裡"
           }
         }
       },
@@ -4531,7 +4531,7 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Engedd el a playlisthez adáshoz"
+            "value": "Engedd el a lejátszási listához adáshoz"
           }
         },
         "id": {
@@ -4717,7 +4717,7 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Engedd el a playlist lecseréléséhez"
+            "value": "Engedd el a lejátszási lista lecseréléséhez"
           }
         },
         "id": {
@@ -6385,7 +6385,7 @@
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Isključi %@"
+            "value": "Izađi iz %@"
           }
         },
         "hu": {
@@ -15068,186 +15068,186 @@
       "extractionState": "manual"
     },
     "menu.view.appearance.system": {
-      "comment": "Appearance menu item: follow the system's light/dark setting.",
+      "comment": "Appearance menu item: follow the system's light/dark setting. macOS System Settings names this choice Auto, beside Light and Dark — use the same word.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Системен"
+            "value": "Автоматично"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Podle systému"
+            "value": "Automaticky"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Systemstandard"
+            "value": "Automatisk"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Systemeinstellung"
+            "value": "Automatisch"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Προεπιλογή συστήματος"
+            "value": "Αυτόματα"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "System default"
+            "value": "Auto"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajuste del sistema"
+            "value": "Automático"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Järjestelmän oletus"
+            "value": "Automaattinen"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Réglage système"
+            "value": "Auto"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zadano sustavom"
+            "value": "Automatski"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rendszerbeállítás"
+            "value": "Automatikus"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Default Sistem"
+            "value": "Otomatis"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Impostazione di sistema"
+            "value": "Automatico"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "システムデフォルト"
+            "value": "自動"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "시스템 기본값"
+            "value": "자동"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Systemstandard"
+            "value": "Automatisk"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Systeemstandaard"
+            "value": "Automatisch"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Systemowy"
+            "value": "Automatycznie"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Padrão do Sistema"
+            "value": "Automático"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Predefinição do sistema"
+            "value": "Automático"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conform sistemului"
+            "value": "Automat"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Системное"
+            "value": "Авто"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Systémový"
+            "value": "Automaticky"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Systemförval"
+            "value": "Automatiskt"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ค่าเริ่มต้นของระบบ"
+            "value": "อัตโนมัติ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sistem Ayarı"
+            "value": "Otomatik"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Системне"
+            "value": "Авто"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mặc định hệ thống"
+            "value": "Tự động"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "系统默认"
+            "value": "自动"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "系統預設"
+            "value": "自動"
           }
         }
       },
@@ -15691,7 +15691,7 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlist megjelenítése"
+            "value": "Lejátszási lista megjelenítése"
           }
         },
         "id": {
@@ -16039,7 +16039,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Predeterminado"
+            "value": "Por omisión"
           }
         },
         "fi": {
@@ -16153,7 +16153,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Standart"
+            "value": "Varsayılan"
           }
         },
         "uk": {
@@ -16928,186 +16928,186 @@
       "extractionState": "manual"
     },
     "playlist.grant.message": {
-      "comment": "Message atop the folder-picker panel shown when a playlist file's (CUE, M3U) audio files are not readable under the sandbox. %@ is the playlist file's name.",
+      "comment": "Message atop the folder-picker panel shown when a playlist file's (CUE, M3U) audio files are not readable under the sandbox. %1$@ is the app name, %2$@ the playlist file's name.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe се нуждае от разрешение, за да чете аудиофайловете, изброени в „%@“. Изберете папката, която ги съдържа."
+            "value": "%1$@ се нуждае от разрешение, за да чете аудиофайловете, изброени в „%2$@“. Изберете папката, която ги съдържа."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe potřebuje oprávnění ke čtení zvukových souborů uvedených v „%@“. Vyberte složku, která je obsahuje."
+            "value": "%1$@ potřebuje oprávnění ke čtení zvukových souborů uvedených v „%2$@“. Vyberte složku, která je obsahuje."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe skal have tilladelse til at læse lydfilerne i “%@”. Vælg den mappe, der indeholder dem."
+            "value": "%1$@ skal have tilladelse til at læse lydfilerne i “%2$@”. Vælg den mappe, der indeholder dem."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe benötigt die Berechtigung, die in „%@“ aufgeführten Audiodateien zu lesen. Wähle den Ordner aus, der sie enthält."
+            "value": "%1$@ benötigt die Berechtigung, die in „%2$@“ aufgeführten Audiodateien zu lesen. Wähle den Ordner aus, der sie enthält."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Το Vibe χρειάζεται άδεια για να διαβάσει τα αρχεία ήχου που αναφέρονται στο «%@». Επιλέξτε τον φάκελο που τα περιέχει."
+            "value": "Το %1$@ χρειάζεται άδεια για να διαβάσει τα αρχεία ήχου που αναφέρονται στο «%2$@». Επιλέξτε τον φάκελο που τα περιέχει."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe needs permission to read the audio files listed in “%@”. Select the folder that contains them."
+            "value": "%1$@ needs permission to read the audio files listed in “%2$@”. Select the folder that contains them."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe necesita permiso para leer los archivos de audio listados en “%@”. Selecciona la carpeta que los contiene."
+            "value": "%1$@ necesita permiso para leer los archivos de audio listados en “%2$@”. Selecciona la carpeta que los contiene."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe tarvitsee luvan lukea tiedostossa ”%@” lueteltuja äänitiedostoja. Valitse kansio, joka sisältää ne."
+            "value": "%1$@ tarvitsee luvan lukea tiedostossa ”%2$@” lueteltuja äänitiedostoja. Valitse kansio, joka sisältää ne."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe a besoin de l’autorisation de lire les fichiers audio listés dans « %@ ». Sélectionnez le dossier qui les contient."
+            "value": "%1$@ a besoin de l’autorisation de lire les fichiers audio listés dans « %2$@ ». Sélectionnez le dossier qui les contient."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe treba dozvolu za čitanje audiodatoteka navedenih u „%@”. Odaberite mapu koja ih sadrži."
+            "value": "%1$@ treba dozvolu za čitanje audiodatoteka navedenih u „%2$@”. Odaberite mapu koja ih sadrži."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "A Vibe-nak engedélyre van szüksége a(z) „%@” fájlban felsorolt hangfájlok olvasásához. Válaszd ki a mappát, amely tartalmazza őket."
+            "value": "A %1$@-nak engedélyre van szüksége a(z) „%2$@” fájlban felsorolt hangfájlok olvasásához. Válaszd ki a mappát, amely tartalmazza őket."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe memerlukan izin untuk membaca file audio yang tercantum di “%@”. Pilih folder yang berisi file tersebut."
+            "value": "%1$@ memerlukan izin untuk membaca file audio yang tercantum di “%2$@”. Pilih folder yang berisi file tersebut."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe ha bisogno del permesso di leggere i file audio elencati in “%@”. Seleziona la cartella che li contiene."
+            "value": "%1$@ ha bisogno del permesso di leggere i file audio elencati in “%2$@”. Seleziona la cartella che li contiene."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe が「%@」に記載されているオーディオファイルを読み込むには許可が必要です。それらを含むフォルダを選択してください。"
+            "value": "%1$@が「%2$@」に記載されているオーディオファイルを読み込むには許可が必要です。それらを含むフォルダを選択してください。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe가 ‘%@’에 나열된 오디오 파일을 읽으려면 권한이 필요합니다. 해당 파일이 들어 있는 폴더를 선택하십시오."
+            "value": "%1$@가 ‘%2$@’에 나열된 오디오 파일을 읽으려면 권한이 필요합니다. 해당 파일이 들어 있는 폴더를 선택하십시오."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe trenger tillatelse til å lese lydfilene i «%@». Velg mappen som inneholder dem."
+            "value": "%1$@ trenger tillatelse til å lese lydfilene i «%2$@». Velg mappen som inneholder dem."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe heeft toestemming nodig om de audiobestanden in ‘%@’ te lezen. Selecteer de map waarin ze staan."
+            "value": "%1$@ heeft toestemming nodig om de audiobestanden in ‘%2$@’ te lezen. Selecteer de map waarin ze staan."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe potrzebuje uprawnienia do odczytu plików audio wymienionych w „%@”. Wybierz folder, który je zawiera."
+            "value": "%1$@ potrzebuje uprawnienia do odczytu plików audio wymienionych w „%2$@”. Wybierz folder, który je zawiera."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Vibe precisa de permissão para ler os arquivos de áudio listados em “%@”. Selecione a pasta que os contém."
+            "value": "O %1$@ precisa de permissão para ler os arquivos de áudio listados em “%2$@”. Selecione a pasta que os contém."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Vibe precisa de permissão para ler os ficheiros de áudio listados em “%@”. Selecione a pasta que os contém."
+            "value": "O %1$@ precisa de permissão para ler os ficheiros de áudio listados em “%2$@”. Selecione a pasta que os contém."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe are nevoie de permisiune pentru a citi fișierele audio listate în „%@”. Selectați dosarul care le conține."
+            "value": "%1$@ are nevoie de permisiune pentru a citi fișierele audio listate în „%2$@”. Selectați dosarul care le conține."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe требуется разрешение на чтение аудиофайлов, перечисленных в «%@». Выберите папку, в которой они находятся."
+            "value": "%1$@ требуется разрешение на чтение аудиофайлов, перечисленных в «%2$@». Выберите папку, в которой они находятся."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe potrebuje povolenie na čítanie zvukových súborov uvedených v „%@“. Vyberte priečinok, ktorý ich obsahuje."
+            "value": "%1$@ potrebuje povolenie na čítanie zvukových súborov uvedených v „%2$@“. Vyberte priečinok, ktorý ich obsahuje."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe behöver behörighet att läsa ljudfilerna i ”%@”. Välj mappen som innehåller dem."
+            "value": "%1$@ behöver behörighet att läsa ljudfilerna i ”%2$@”. Välj mappen som innehåller dem."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe ต้องการสิทธิ์ในการอ่านไฟล์เสียงที่ระบุไว้ใน “%@” โปรดเลือกโฟลเดอร์ที่มีไฟล์เหล่านั้น"
+            "value": "%1$@ ต้องการสิทธิ์ในการอ่านไฟล์เสียงที่ระบุไว้ใน “%2$@” โปรดเลือกโฟลเดอร์ที่มีไฟล์เหล่านั้น"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe’ın “%@” içinde listelenen ses dosyalarını okumak için izne ihtiyacı var. Onları içeren klasörü seçin."
+            "value": "%1$@’ın “%2$@” içinde listelenen ses dosyalarını okumak için izne ihtiyacı var. Onları içeren klasörü seçin."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe потребує дозволу на читання аудіофайлів, перелічених у «%@». Виберіть папку, яка їх містить."
+            "value": "%1$@ потребує дозволу на читання аудіофайлів, перелічених у «%2$@». Виберіть папку, яка їх містить."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe cần quyền để đọc các tệp âm thanh được liệt kê trong “%@”. Hãy chọn thư mục chứa chúng."
+            "value": "%1$@ cần quyền để đọc các tệp âm thanh được liệt kê trong “%2$@”. Hãy chọn thư mục chứa chúng."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe 需要权限来读取“%@”中列出的音频文件。请选择包含这些文件的文件夹。"
+            "value": "%1$@ 需要权限来读取“%2$@”中列出的音频文件。请选择包含这些文件的文件夹。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe 需要權限才能讀取「%@」中列出的音訊檔案。請選擇包含這些檔案的檔案夾。"
+            "value": "%1$@ 需要權限才能讀取「%2$@」中列出的音訊檔案。請選擇包含這些檔案的檔案夾。"
           }
         }
       },
@@ -17551,7 +17551,7 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlist"
+            "value": "Lejátszási lista"
           }
         },
         "id": {
@@ -19154,6 +19154,192 @@
           "stringUnit": {
             "state": "translated",
             "value": "清除快取"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.advanced.factory_reset_label": {
+      "comment": "Settings, Advanced pane: label beside the Reset to Defaults button, which restores every setting and the window shape to their shipping state. The term a consumer device uses for restoring factory settings. Ends with a colon.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фабрични настройки:"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tovární nastavení:"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fabriksindstillinger:"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Werkseinstellungen:"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Εργοστασιακές ρυθμίσεις:"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Factory reset:"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes de fábrica:"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tehdasasetukset:"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglages d’usine :"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tvorničke postavke:"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gyári beállítások:"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pengaturan pabrik:"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impostazioni di fabbrica:"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工場出荷時の設定:"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "공장 초기 설정:"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fabrikkinnstillinger:"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fabrieksinstellingen:"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ustawienia fabryczne:"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes de fábrica:"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Definições de fábrica:"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configurări din fabrică:"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заводские настройки:"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Továrenské nastavenia:"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fabriksinställningar:"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การตั้งค่าจากโรงงาน:"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fabrika ayarları:"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заводські параметри:"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cài đặt gốc:"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出厂设置："
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出廠設定："
           }
         }
       },
@@ -21014,192 +21200,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "重設為預設值"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.advanced.settings_label": {
-      "comment": "Settings, Advanced pane: label beside the Reset to Defaults button. Use the word Apple uses for the Settings app in this language. Ends with a colon.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Настройки:"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nastavení:"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Indstillinger:"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Einstellungen:"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ρυθμίσεις:"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Settings:"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajustes:"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Asetukset:"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Réglages :"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Postavke:"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beállítások:"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pengaturan:"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Impostazioni:"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "設定:"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "설정:"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Innstillinger:"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Instellingen:"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ustawienia:"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajustes:"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Definições:"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Configurări:"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Настройки:"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nastavenia:"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Inställningar:"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "การตั้งค่า:"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ayarlar:"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Параметри:"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cài đặt:"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "设置："
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "設定："
           }
         }
       },
@@ -23066,7 +23066,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.time_label": {
-      "comment": "Settings, Appearance pane: label beside the choice between showing the track's total duration or the remaining time. Ends with a colon.",
+      "comment": "Settings, Appearance pane: label beside the choice between showing the track's total time or the remaining time. Ends with a colon.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23252,7 +23252,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.time_remaining": {
-      "comment": "Settings, Appearance pane, and the iOS settings screen, time display choice: the right time label counts down the time left, e.g. '-1:50'.",
+      "comment": "Settings, Appearance pane, and the iOS settings screen, time display choice: the right time label counts down the time left, e.g. '-1:50'. Pairs with 'Total time' — use the same noun in both.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23438,84 +23438,84 @@
       "extractionState": "manual"
     },
     "settings.appearance.time_total": {
-      "comment": "Settings, Appearance pane, and the iOS settings screen, time display choice: the right time label shows the track's full length.",
+      "comment": "Settings, Appearance pane, and the iOS settings screen, time display choice: the right time label shows the track's full length. Pairs with 'Remaining time' — use the same noun in both.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обща продължителност"
+            "value": "Общо време"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Celková délka"
+            "value": "Celkový čas"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Samlet varighed"
+            "value": "Samlet tid"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gesamtdauer"
+            "value": "Gesamtzeit"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Συνολική διάρκεια"
+            "value": "Συνολικός χρόνος"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Total duration"
+            "value": "Total time"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duración total"
+            "value": "Tiempo total"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kokonaiskesto"
+            "value": "Kokonaisaika"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Durée totale"
+            "value": "Temps total"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ukupno trajanje"
+            "value": "Ukupno vrijeme"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Teljes időtartam"
+            "value": "Teljes idő"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Durasi total"
+            "value": "Waktu total"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Durata totale"
+            "value": "Tempo totale"
           }
         },
         "ja": {
@@ -23527,67 +23527,67 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "전체 길이"
+            "value": "전체 시간"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Total varighet"
+            "value": "Total tid"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Totale duur"
+            "value": "Totale tijd"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Całkowity czas trwania"
+            "value": "Całkowity czas"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duração total"
+            "value": "Tempo total"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duração total"
+            "value": "Tempo total"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Durată totală"
+            "value": "Timp total"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Общая длительность"
+            "value": "Общее время"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Celková dĺžka"
+            "value": "Celkový čas"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Total längd"
+            "value": "Total tid"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ความยาวทั้งหมด"
+            "value": "เวลาทั้งหมด"
           }
         },
         "tr": {
@@ -23599,25 +23599,25 @@
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Загальна тривалість"
+            "value": "Загальний час"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tổng thời lượng"
+            "value": "Tổng thời gian"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "总时长"
+            "value": "总时间"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "總長度"
+            "value": "總時間"
           }
         }
       },
@@ -29390,7 +29390,7 @@
       "extractionState": "manual"
     },
     "settings.files.album_art.folder": {
-      "comment": "Settings, Files pane, album art choice: prefer the artwork stored inside the song file, and for a song carrying none use a cover image file sitting beside it in the same folder. The default.",
+      "comment": "Settings, Files pane, album art choice: prefer the artwork stored inside the track's own file, and for a track carrying none use a cover image file sitting beside it in the same folder. The default.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -30134,7 +30134,7 @@
       "extractionState": "manual"
     },
     "settings.general.artwork_drag.copy_artist_title": {
-      "comment": "Settings, General pane, artwork drag choice: the drop receives the song's name as text — 'Artist - Title' when both are tagged. Use the words for the performer and the song's name, separated by a slash.",
+      "comment": "Settings, General pane, artwork drag choice: the drop receives the track's name as text — 'Artist - Title' when both are tagged. Use the words for the performer and the track's name, separated by a slash.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -32366,186 +32366,186 @@
       "extractionState": "manual"
     },
     "settings.permissions.explain": {
-      "comment": "Settings, Files pane: explanatory text above the list of granted folders.",
+      "comment": "Settings, Files pane: explanatory text above the list of granted folders. %@ is the app name.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe може да чете музика в тези папки. Добавете често използваните, за да избегнете повтарящи се заявки за разрешение."
+            "value": "%@ може да чете музика в тези папки. Добавете често използваните, за да избегнете повтарящи се заявки за разрешение."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe umí číst hudbu v těchto složkách. Přidejte ty, které používáte často, abyste se vyhnuli opakovaným žádostem o oprávnění."
+            "value": "%@ umí číst hudbu v těchto složkách. Přidejte ty, které používáte často, abyste se vyhnuli opakovaným žádostem o oprávnění."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe kan læse musik i disse mapper. Tilføj dem, du bruger ofte, så du undgår gentagne anmodninger om tilladelse."
+            "value": "%@ kan læse musik i disse mapper. Tilføj dem, du bruger ofte, så du undgår gentagne anmodninger om tilladelse."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe kann Musik in diesen Ordnern lesen. Füge die Ordner hinzu, die du oft verwendest, um wiederholte Berechtigungsanfragen zu vermeiden."
+            "value": "%@ kann Musik in diesen Ordnern lesen. Füge die Ordner hinzu, die du oft verwendest, um wiederholte Berechtigungsanfragen zu vermeiden."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Το Vibe μπορεί να διαβάζει μουσική σε αυτούς τους φακέλους. Προσθέστε όσους χρησιμοποιείτε συχνά, για να αποφύγετε τα επαναλαμβανόμενα αιτήματα άδειας."
+            "value": "Το %@ μπορεί να διαβάζει μουσική σε αυτούς τους φακέλους. Προσθέστε όσους χρησιμοποιείτε συχνά, για να αποφύγετε τα επαναλαμβανόμενα αιτήματα άδειας."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe can read music in these folders. Add the ones you use often to avoid repeated permission prompts."
+            "value": "%@ can read music in these folders. Add the ones you use often to avoid repeated permission prompts."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe puede leer música en estas carpetas. Añade las que uses a menudo para evitar solicitudes de permiso repetidas."
+            "value": "%@ puede leer música en estas carpetas. Añade las que uses a menudo para evitar solicitudes de permiso repetidas."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe voi lukea musiikkia näistä kansioista. Lisää usein käyttämäsi kansiot, niin vältät toistuvat käyttöoikeuspyynnöt."
+            "value": "%@ voi lukea musiikkia näistä kansioista. Lisää usein käyttämäsi kansiot, niin vältät toistuvat käyttöoikeuspyynnöt."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe peut lire la musique dans ces dossiers. Ajoutez ceux que vous utilisez souvent pour éviter les demandes d’autorisation répétées."
+            "value": "%@ peut lire la musique dans ces dossiers. Ajoutez ceux que vous utilisez souvent pour éviter les demandes d’autorisation répétées."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe može čitati glazbu u ovim mapama. Dodajte one koje često koristite kako biste izbjegli ponavljajuće zahtjeve za dozvolu."
+            "value": "%@ može čitati glazbu u ovim mapama. Dodajte one koje često koristite kako biste izbjegli ponavljajuće zahtjeve za dozvolu."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "A Vibe olvasni tudja a zenét ezekben a mappákban. Add hozzá azokat, amelyeket gyakran használsz, így elkerülöd az ismétlődő engedélykéréseket."
+            "value": "A %@ olvasni tudja a zenét ezekben a mappákban. Add hozzá azokat, amelyeket gyakran használsz, így elkerülöd az ismétlődő engedélykéréseket."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe dapat membaca musik di folder-folder ini. Tambahkan folder yang sering Anda gunakan untuk menghindari permintaan izin berulang."
+            "value": "%@ dapat membaca musik di folder-folder ini. Tambahkan folder yang sering Anda gunakan untuk menghindari permintaan izin berulang."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe può leggere la musica in queste cartelle. Aggiungi quelle che usi spesso per evitare richieste di autorizzazione ripetute."
+            "value": "%@ può leggere la musica in queste cartelle. Aggiungi quelle che usi spesso per evitare richieste di autorizzazione ripetute."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe はこれらのフォルダ内の音楽を読み込めます。よく使うフォルダを追加すると、繰り返しアクセス許可を求められずに済みます。"
+            "value": "%@はこれらのフォルダ内の音楽を読み込めます。よく使うフォルダを追加すると、繰り返しアクセス許可を求められずに済みます。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe는 이 폴더에 있는 음악을 읽을 수 있습니다. 자주 사용하는 폴더를 추가하면 권한 요청이 반복되지 않습니다."
+            "value": "%@는 이 폴더에 있는 음악을 읽을 수 있습니다. 자주 사용하는 폴더를 추가하면 권한 요청이 반복되지 않습니다."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe kan lese musikk i disse mappene. Legg til dem du bruker ofte, så slipper du gjentatte tillatelsesforespørsler."
+            "value": "%@ kan lese musikk i disse mappene. Legg til dem du bruker ofte, så slipper du gjentatte tillatelsesforespørsler."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe kan muziek in deze mappen lezen. Voeg de mappen toe die je vaak gebruikt, zo voorkom je herhaalde toestemmingsvragen."
+            "value": "%@ kan muziek in deze mappen lezen. Voeg de mappen toe die je vaak gebruikt, zo voorkom je herhaalde toestemmingsvragen."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe może odczytywać muzykę w tych folderach. Dodaj te, z których korzystasz często, aby uniknąć powtarzających się próśb o uprawnienia."
+            "value": "%@ może odczytywać muzykę w tych folderach. Dodaj te, z których korzystasz często, aby uniknąć powtarzających się próśb o uprawnienia."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Vibe pode ler músicas nestas pastas. Adicione as que você usa com frequência para evitar pedidos de permissão repetidos."
+            "value": "O %@ pode ler músicas nestas pastas. Adicione as que você usa com frequência para evitar pedidos de permissão repetidos."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Vibe pode ler música nestas pastas. Adicione as que utiliza com frequência para evitar pedidos de permissão repetidos."
+            "value": "O %@ pode ler música nestas pastas. Adicione as que utiliza com frequência para evitar pedidos de permissão repetidos."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe poate citi muzica din aceste dosare. Adăugați-le pe cele pe care le folosiți des, pentru a evita solicitările repetate de permisiune."
+            "value": "%@ poate citi muzica din aceste dosare. Adăugați-le pe cele pe care le folosiți des, pentru a evita solicitările repetate de permisiune."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe может читать музыку в этих папках. Добавьте те, которыми вы часто пользуетесь, чтобы не отвечать на повторяющиеся запросы разрешений."
+            "value": "%@ может читать музыку в этих папках. Добавьте те, которыми вы часто пользуетесь, чтобы не отвечать на повторяющиеся запросы разрешений."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe dokáže čítať hudbu v týchto priečinkoch. Pridajte tie, ktoré používate často, aby ste sa vyhli opakovaným žiadostiam o povolenie."
+            "value": "%@ dokáže čítať hudbu v týchto priečinkoch. Pridajte tie, ktoré používate často, aby ste sa vyhli opakovaným žiadostiam o povolenie."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe kan läsa musik i dessa mappar. Lägg till de mappar du använder ofta så slipper du upprepade behörighetsfrågor."
+            "value": "%@ kan läsa musik i dessa mappar. Lägg till de mappar du använder ofta så slipper du upprepade behörighetsfrågor."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe อ่านเพลงในโฟลเดอร์เหล่านี้ได้ เพิ่มโฟลเดอร์ที่คุณใช้บ่อยเพื่อไม่ให้ระบบขอสิทธิ์ซ้ำ ๆ"
+            "value": "%@ อ่านเพลงในโฟลเดอร์เหล่านี้ได้ เพิ่มโฟลเดอร์ที่คุณใช้บ่อยเพื่อไม่ให้ระบบขอสิทธิ์ซ้ำ ๆ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe bu klasörlerdeki müzikleri okuyabilir. Sık kullandıklarınızı ekleyerek tekrarlanan izin isteklerinden kurtulun."
+            "value": "%@ bu klasörlerdeki müzikleri okuyabilir. Sık kullandıklarınızı ekleyerek tekrarlanan izin isteklerinden kurtulun."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe може читати музику в цих папках. Додайте ті, якими ви часто користуєтеся, щоб уникнути повторних запитів на дозвіл."
+            "value": "%@ може читати музику в цих папках. Додайте ті, якими ви часто користуєтеся, щоб уникнути повторних запитів на дозвіл."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe có thể đọc nhạc trong các thư mục này. Hãy thêm những thư mục bạn hay dùng để tránh phải cấp quyền nhiều lần."
+            "value": "%@ có thể đọc nhạc trong các thư mục này. Hãy thêm những thư mục bạn hay dùng để tránh phải cấp quyền nhiều lần."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe 可以读取这些文件夹中的音乐。添加常用的文件夹，即可避免反复出现权限请求。"
+            "value": "%@ 可以读取这些文件夹中的音乐。添加常用的文件夹，即可避免反复出现权限请求。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe 可以讀取這些檔案夾中的音樂。加入常用的檔案夾，即可避免重複出現權限請求。"
+            "value": "%@ 可以讀取這些檔案夾中的音樂。加入常用的檔案夾，即可避免重複出現權限請求。"
           }
         }
       },
@@ -33482,186 +33482,186 @@
       "extractionState": "manual"
     },
     "settings.permissions.folder.unavailable.tip": {
-      "comment": "Settings, Files pane, granted-folder list: tooltip on a dimmed row, explaining why an unreachable folder is still listed. Uses a curly apostrophe (’).",
+      "comment": "Settings, Files pane, granted-folder list: tooltip on a dimmed row, explaining why an unreachable folder is still listed. %@ is the app name. Uses a curly apostrophe (’).",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Тази папка липсва или е на диск, който не е свързан. Vibe запазва разрешението и ще я използва отново, ако се появи."
+            "value": "Тази папка липсва или е на диск, който не е свързан. %@ запазва разрешението и ще я използва отново, ако се появи."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tato složka chybí nebo je na disku, který není připojen. Vibe si oprávnění ponechá a použije ji znovu, až bude dostupná."
+            "value": "Tato složka chybí nebo je na disku, který není připojen. %@ si oprávnění ponechá a použije ji znovu, až bude dostupná."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Denne mappe mangler eller ligger på en disk, der ikke er tilsluttet. Vibe beholder tilladelsen og bruger den igen, hvis den kommer tilbage."
+            "value": "Denne mappe mangler eller ligger på en disk, der ikke er tilsluttet. %@ beholder tilladelsen og bruger den igen, hvis den kommer tilbage."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dieser Ordner fehlt oder liegt auf einem nicht verbundenen Volume. Vibe behält die Berechtigung und verwendet ihn wieder, sobald er verfügbar ist."
+            "value": "Dieser Ordner fehlt oder liegt auf einem nicht verbundenen Volume. %@ behält die Berechtigung und verwendet ihn wieder, sobald er verfügbar ist."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Αυτός ο φάκελος λείπει ή βρίσκεται σε δίσκο που δεν είναι συνδεδεμένος. Το Vibe διατηρεί την άδεια και θα τον χρησιμοποιήσει ξανά αν επανέλθει."
+            "value": "Αυτός ο φάκελος λείπει ή βρίσκεται σε δίσκο που δεν είναι συνδεδεμένος. Το %@ διατηρεί την άδεια και θα τον χρησιμοποιήσει ξανά αν επανέλθει."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This folder is missing, or on a disk that isn’t connected. Vibe keeps its permission and will use it again if it comes back."
+            "value": "This folder is missing, or on a disk that isn’t connected. %@ keeps its permission and will use it again if it comes back."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esta carpeta no existe o está en un disco que no está conectado. Vibe conserva su permiso y volverá a usarla si reaparece."
+            "value": "Esta carpeta no existe o está en un disco que no está conectado. %@ conserva su permiso y volverá a usarla si reaparece."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tämä kansio puuttuu tai on levyllä, joka ei ole yhdistettynä. Vibe säilyttää käyttöoikeuden ja käyttää kansiota taas, jos se palaa."
+            "value": "Tämä kansio puuttuu tai on levyllä, joka ei ole yhdistettynä. %@ säilyttää käyttöoikeuden ja käyttää kansiota taas, jos se palaa."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ce dossier est introuvable ou se trouve sur un disque non connecté. Vibe conserve son autorisation et l’utilisera de nouveau s’il redevient disponible."
+            "value": "Ce dossier est introuvable ou se trouve sur un disque non connecté. %@ conserve son autorisation et l’utilisera de nouveau s’il redevient disponible."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ova mapa nedostaje ili se nalazi na disku koji nije spojen. Vibe zadržava dozvolu i ponovno će je koristiti ako se mapa vrati."
+            "value": "Ova mapa nedostaje ili se nalazi na disku koji nije spojen. %@ zadržava dozvolu i ponovno će je koristiti ako se mapa vrati."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ez a mappa hiányzik, vagy egy nem csatlakoztatott lemezen van. A Vibe megtartja az engedélyt, és újra használni fogja, ha a mappa visszatér."
+            "value": "Ez a mappa hiányzik, vagy egy nem csatlakoztatott lemezen van. A %@ megtartja az engedélyt, és újra használni fogja, ha a mappa visszatér."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Folder ini hilang atau berada di disk yang tidak terhubung. Vibe menyimpan izinnya dan akan menggunakannya lagi jika folder kembali."
+            "value": "Folder ini hilang atau berada di disk yang tidak terhubung. %@ menyimpan izinnya dan akan menggunakannya lagi jika folder kembali."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Questa cartella non esiste o si trova su un disco non collegato. Vibe ne conserva l’autorizzazione e la userà di nuovo quando tornerà disponibile."
+            "value": "Questa cartella non esiste o si trova su un disco non collegato. %@ ne conserva l’autorizzazione e la userà di nuovo quando tornerà disponibile."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "このフォルダは見つからないか、接続されていないディスク上にあります。Vibeはアクセス権を保持し、フォルダが戻れば再び使用します。"
+            "value": "このフォルダは見つからないか、接続されていないディスク上にあります。%@はアクセス権を保持し、フォルダが戻れば再び使用します。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "이 폴더가 없거나 연결되지 않은 디스크에 있습니다. Vibe는 권한을 유지하며 폴더가 다시 나타나면 다시 사용합니다."
+            "value": "이 폴더가 없거나 연결되지 않은 디스크에 있습니다. %@는 권한을 유지하며 폴더가 다시 나타나면 다시 사용합니다."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Denne mappen mangler eller ligger på en disk som ikke er tilkoblet. Vibe beholder tillatelsen og bruker den igjen hvis den kommer tilbake."
+            "value": "Denne mappen mangler eller ligger på en disk som ikke er tilkoblet. %@ beholder tillatelsen og bruker den igjen hvis den kommer tilbake."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Deze map ontbreekt of staat op een schijf die niet is verbonden. Vibe behoudt de toestemming en gebruikt de map weer zodra die terug is."
+            "value": "Deze map ontbreekt of staat op een schijf die niet is verbonden. %@ behoudt de toestemming en gebruikt de map weer zodra die terug is."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ten folder nie istnieje lub znajduje się na niepodłączonym dysku. Vibe zachowuje uprawnienie i użyje go ponownie, gdy folder wróci."
+            "value": "Ten folder nie istnieje lub znajduje się na niepodłączonym dysku. %@ zachowuje uprawnienie i użyje go ponownie, gdy folder wróci."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esta pasta está ausente ou em um disco que não está conectado. O Vibe mantém a permissão e voltará a usá-la se ela reaparecer."
+            "value": "Esta pasta está ausente ou em um disco que não está conectado. O %@ mantém a permissão e voltará a usá-la se ela reaparecer."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esta pasta não existe ou está num disco que não está ligado. O Vibe mantém a permissão e voltará a usá-la se ela reaparecer."
+            "value": "Esta pasta não existe ou está num disco que não está ligado. O %@ mantém a permissão e voltará a usá-la se ela reaparecer."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Acest dosar lipsește sau se află pe un disc neconectat. Vibe își păstrează permisiunea și îl va folosi din nou dacă revine."
+            "value": "Acest dosar lipsește sau se află pe un disc neconectat. %@ își păstrează permisiunea și îl va folosi din nou dacă revine."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Эта папка отсутствует или находится на неподключенном диске. Vibe сохраняет разрешение и снова использует ее, когда она появится."
+            "value": "Эта папка отсутствует или находится на неподключенном диске. %@ сохраняет разрешение и снова использует ее, когда она появится."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tento priečinok chýba alebo je na disku, ktorý nie je pripojený. Vibe si oprávnenie ponechá a použije ho znova, keď bude dostupný."
+            "value": "Tento priečinok chýba alebo je na disku, ktorý nie je pripojený. %@ si oprávnenie ponechá a použije ho znova, keď bude dostupný."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Den här mappen saknas eller finns på en disk som inte är ansluten. Vibe behåller behörigheten och använder den igen om den kommer tillbaka."
+            "value": "Den här mappen saknas eller finns på en disk som inte är ansluten. %@ behåller behörigheten och använder den igen om den kommer tillbaka."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "โฟลเดอร์นี้หายไปหรืออยู่ในดิสก์ที่ไม่ได้เชื่อมต่อ Vibe จะเก็บสิทธิ์ไว้และจะใช้อีกครั้งเมื่อโฟลเดอร์กลับมา"
+            "value": "โฟลเดอร์นี้หายไปหรืออยู่ในดิสก์ที่ไม่ได้เชื่อมต่อ %@ จะเก็บสิทธิ์ไว้และจะใช้อีกครั้งเมื่อโฟลเดอร์กลับมา"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bu klasör eksik veya bağlı olmayan bir diskte. Vibe iznini korur ve klasör geri gelirse yeniden kullanır."
+            "value": "Bu klasör eksik veya bağlı olmayan bir diskte. %@ iznini korur ve klasör geri gelirse yeniden kullanır."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ця папка відсутня або розташована на непідключеному диску. Vibe зберігає дозвіл і знову використає її, коли вона з’явиться."
+            "value": "Ця папка відсутня або розташована на непідключеному диску. %@ зберігає дозвіл і знову використає її, коли вона з’явиться."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thư mục này bị thiếu hoặc nằm trên ổ đĩa chưa được kết nối. Vibe giữ lại quyền truy cập và sẽ dùng lại khi thư mục xuất hiện trở lại."
+            "value": "Thư mục này bị thiếu hoặc nằm trên ổ đĩa chưa được kết nối. %@ giữ lại quyền truy cập và sẽ dùng lại khi thư mục xuất hiện trở lại."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此文件夹缺失，或位于未连接的磁盘上。Vibe 会保留其权限，文件夹恢复后将继续使用。"
+            "value": "此文件夹缺失，或位于未连接的磁盘上。%@ 会保留其权限，文件夹恢复后将继续使用。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "此檔案夾遺失，或位於未連接的磁碟上。Vibe 會保留其權限，檔案夾恢復後將繼續使用。"
+            "value": "此檔案夾遺失，或位於未連接的磁碟上。%@ 會保留其權限，檔案夾恢復後將繼續使用。"
           }
         }
       },
@@ -33854,186 +33854,186 @@
       "extractionState": "manual"
     },
     "settings.permissions.folder_grant.message": {
-      "comment": "Message atop the folder-picker panel opened from the Add Common Folder menu, which starts in the chosen folder. %@ is that folder's name, e.g. 'Documents'.",
+      "comment": "Message atop the folder-picker panel opened from the Add Common Folder menu, which starts in the chosen folder. %1$@ is the app name, %2$@ that folder's name, e.g. 'Documents'.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Разрешете на Vibe достъп до „%@“, за да може да чете музика навсякъде в нея."
+            "value": "Разрешете на %1$@ достъп до „%2$@“, за да може да чете музика навсякъде в нея."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Povolte Vibe přístup ke složce „%@“, aby mohl číst hudbu kdekoli v ní."
+            "value": "Povolte %1$@ přístup ke složce „%2$@“, aby mohl číst hudbu kdekoli v ní."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Giv Vibe adgang til “%@”, så appen kan læse musik overalt i den."
+            "value": "Giv %1$@ adgang til “%2$@”, så appen kan læse musik overalt i den."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Erlaube Vibe den Zugriff auf „%@“, damit die App überall darin Musik lesen kann."
+            "value": "Erlaube %1$@ den Zugriff auf „%2$@“, damit die App überall darin Musik lesen kann."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Παραχωρήστε στο Vibe πρόσβαση στον φάκελο «%@», ώστε να μπορεί να διαβάζει μουσική οπουδήποτε μέσα σε αυτόν."
+            "value": "Παραχωρήστε στο %1$@ πρόσβαση στον φάκελο «%2$@», ώστε να μπορεί να διαβάζει μουσική οπουδήποτε μέσα σε αυτόν."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grant Vibe access to “%@”, so it can read music anywhere inside it."
+            "value": "Grant %1$@ access to “%2$@”, so it can read music anywhere inside it."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permite que Vibe acceda a “%@” para que pueda leer música en cualquier lugar dentro de esa carpeta."
+            "value": "Permite que %1$@ acceda a “%2$@” para que pueda leer música en cualquier lugar dentro de esa carpeta."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Salli Viben pääsy kansioon ”%@”, jotta se voi lukea musiikkia kaikkialta sen sisältä."
+            "value": "Salli %1$@n pääsy kansioon ”%2$@”, jotta se voi lukea musiikkia kaikkialta sen sisältä."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Autorisez Vibe à accéder à « %@ » afin qu’il puisse y lire la musique où qu’elle se trouve."
+            "value": "Autorisez %1$@ à accéder à « %2$@ » afin qu’il puisse y lire la musique où qu’elle se trouve."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dopustite Vibeu pristup mapi „%@”, kako bi mogao čitati glazbu bilo gdje u njoj."
+            "value": "Dopustite %1$@u pristup mapi „%2$@”, kako bi mogao čitati glazbu bilo gdje u njoj."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Engedélyezd a Vibe hozzáférését a(z) „%@” mappához, hogy bárhol olvashassa benne a zenét."
+            "value": "Engedélyezd a %1$@ hozzáférését a(z) „%2$@” mappához, hogy bárhol olvashassa benne a zenét."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Beri Vibe akses ke “%@” agar dapat membaca musik di mana pun di dalamnya."
+            "value": "Beri %1$@ akses ke “%2$@” agar dapat membaca musik di mana pun di dalamnya."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Consenti a Vibe di accedere a “%@”, così può leggere la musica ovunque al suo interno."
+            "value": "Consenti a %1$@ di accedere a “%2$@”, così può leggere la musica ovunque al suo interno."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "「%@」内のどこにある音楽でも読み込めるよう、Vibe にアクセスを許可してください。"
+            "value": "「%2$@」内のどこにある音楽でも読み込めるよう、%1$@にアクセスを許可してください。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "‘%@’ 폴더 어디에 있는 음악이든 읽을 수 있도록 Vibe에 접근을 허용하십시오."
+            "value": "‘%2$@’ 폴더 어디에 있는 음악이든 읽을 수 있도록 %1$@에 접근을 허용하십시오."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gi Vibe tilgang til «%@», slik at appen kan lese musikk hvor som helst i den."
+            "value": "Gi %1$@ tilgang til «%2$@», slik at appen kan lese musikk hvor som helst i den."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verleen Vibe toegang tot ‘%@’, zodat de app overal daarin muziek kan lezen."
+            "value": "Verleen %1$@ toegang tot ‘%2$@’, zodat de app overal daarin muziek kan lezen."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Udziel Vibe dostępu do folderu „%@”, aby mógł odczytywać muzykę w dowolnym miejscu w nim."
+            "value": "Udziel %1$@ dostępu do folderu „%2$@”, aby mógł odczytywać muzykę w dowolnym miejscu w nim."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conceda ao Vibe acesso a “%@” para que ele possa ler músicas em qualquer lugar dentro dessa pasta."
+            "value": "Conceda ao %1$@ acesso a “%2$@” para que ele possa ler músicas em qualquer lugar dentro dessa pasta."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conceda ao Vibe acesso a “%@” para que possa ler música em qualquer local dentro dessa pasta."
+            "value": "Conceda ao %1$@ acesso a “%2$@” para que possa ler música em qualquer local dentro dessa pasta."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permiteți-i lui Vibe accesul la dosarul „%@”, ca să poată citi muzica de oriunde din interiorul lui."
+            "value": "Permiteți-i lui %1$@ accesul la dosarul „%2$@”, ca să poată citi muzica de oriunde din interiorul lui."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Разрешите Vibe доступ к папке «%@», чтобы приложение могло читать музыку в любом ее месте."
+            "value": "Разрешите %1$@ доступ к папке «%2$@», чтобы приложение могло читать музыку в любом ее месте."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Povoľte Vibe prístup k priečinku „%@“, aby mohol čítať hudbu kdekoľvek v ňom."
+            "value": "Povoľte %1$@ prístup k priečinku „%2$@“, aby mohol čítať hudbu kdekoľvek v ňom."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ge Vibe åtkomst till ”%@” så att appen kan läsa musik var som helst i den."
+            "value": "Ge %1$@ åtkomst till ”%2$@” så att appen kan läsa musik var som helst i den."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "อนุญาตให้ Vibe เข้าถึง “%@” เพื่อให้อ่านเพลงได้จากทุกที่ภายในโฟลเดอร์นั้น"
+            "value": "อนุญาตให้ %1$@ เข้าถึง “%2$@” เพื่อให้อ่านเพลงได้จากทุกที่ภายในโฟลเดอร์นั้น"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "İçindeki her yerde müzik okuyabilmesi için Vibe’a “%@” klasörüne erişim izni verin."
+            "value": "İçindeki her yerde müzik okuyabilmesi için %1$@’a “%2$@” klasörüne erişim izni verin."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Надайте Vibe доступ до папки «%@», щоб застосунок міг читати музику будь-де в ній."
+            "value": "Надайте %1$@ доступ до папки «%2$@», щоб застосунок міг читати музику будь-де в ній."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hãy cấp cho Vibe quyền truy cập “%@” để ứng dụng có thể đọc nhạc ở bất kỳ đâu bên trong."
+            "value": "Hãy cấp cho %1$@ quyền truy cập “%2$@” để ứng dụng có thể đọc nhạc ở bất kỳ đâu bên trong."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "允许 Vibe 访问“%@”，以便读取其中任意位置的音乐。"
+            "value": "允许 %1$@ 访问“%2$@”，以便读取其中任意位置的音乐。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "允許 Vibe 取用「%@」，以便讀取其中任何位置的音樂。"
+            "value": "允許 %1$@ 取用「%2$@」，以便讀取其中任何位置的音樂。"
           }
         }
       },
@@ -36301,19 +36301,19 @@
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Αναπαραγωγή επόμενου τραγουδιού της λίστας αναπαραγωγής"
+            "value": "Αναπαραγωγή επόμενου κομματιού της λίστας αναπαραγωγής"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Play next song in playlist"
+            "value": "Play next track in playlist"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reproducir la siguiente canción de la lista de reproducción"
+            "value": "Reproducir la siguiente pista de la lista de reproducción"
           }
         },
         "fi": {
@@ -36337,13 +36337,13 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "A playlist következő számának lejátszása"
+            "value": "A lejátszási lista következő számának lejátszása"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Putar lagu berikutnya di playlist"
+            "value": "Putar trek berikutnya di playlist"
           }
         },
         "it": {
@@ -36355,19 +36355,19 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "プレイリストの次の曲を再生"
+            "value": "プレイリストの次のトラックを再生"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "재생목록의 다음 곡 재생"
+            "value": "재생목록의 다음 트랙 재생"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spill neste sang i spillelisten"
+            "value": "Spill neste spor i spillelisten"
           }
         },
         "nl": {
@@ -36385,25 +36385,25 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reproduzir a próxima música da playlist"
+            "value": "Reproduzir a próxima faixa da playlist"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reproduzir a música seguinte da lista de reprodução"
+            "value": "Reproduzir a faixa seguinte da lista de reprodução"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Redați următoarea melodie din playlist"
+            "value": "Redați următoarea piesă din playlist"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Воспроизвести следующую песню плейлиста"
+            "value": "Воспроизвести следующий трек плейлиста"
           }
         },
         "sk": {
@@ -36415,43 +36415,43 @@
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spela nästa låt i spellistan"
+            "value": "Spela nästa spår i spellistan"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เล่นเพลงถัดไปในเพลย์ลิสต์"
+            "value": "เล่นแทร็กถัดไปในเพลย์ลิสต์"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çalma listesindeki sonraki şarkıyı çal"
+            "value": "Çalma listesindeki sonraki parçayı çal"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Відтворити наступну пісню плейлиста"
+            "value": "Відтворити наступний трек плейлиста"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Phát bài tiếp theo trong danh sách phát"
+            "value": "Phát bản nhạc tiếp theo trong danh sách phát"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "播放播放列表中的下一首歌曲"
+            "value": "播放播放列表中的下一首曲目"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "播放播放列表中的下一首歌曲"
+            "value": "播放播放列表中的下一首曲目"
           }
         }
       },
@@ -37574,186 +37574,186 @@
       "extractionState": "manual"
     },
     "settings.search_folders.footer": {
-      "comment": "iOS settings screen: explanation under the list of searchable folders. Says what search already covers, that subfolders are included, and why adding a folder is necessary — iOS gives an app no access to files the user has not handed it.",
+      "comment": "iOS settings screen: explanation under the list of searchable folders. %@ is the app name. Says what search already covers, that subfolders are included, and why adding a folder is necessary — iOS gives an app no access to files the user has not handed it.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Търсенето обхваща отворената папка и всичко, което добавите тук, включително подпапките. Без папка Vibe не може да търси във вашите файлове."
+            "value": "Търсенето обхваща отворената папка и всичко, което добавите тук, включително подпапките. Без папка %@ не може да търси във вашите файлове."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hledání prochází otevřenou složku a vše, co sem přidáte, včetně podsložek. Bez složky nemůže Vibe vaše soubory prohledávat."
+            "value": "Hledání prochází otevřenou složku a vše, co sem přidáte, včetně podsložek. Bez složky nemůže %@ vaše soubory prohledávat."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Søgningen gennemgår den åbne mappe og alt, du tilføjer her, inklusive undermapper. Vibe kan ikke søge i dine filer uden først at få en mappe."
+            "value": "Søgningen gennemgår den åbne mappe og alt, du tilføjer her, inklusive undermapper. %@ kan ikke søge i dine filer uden først at få en mappe."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Suche durchsucht den geöffneten Ordner und alles, was du hier hinzufügst, einschließlich Unterordnern. Ohne einen Ordner kann Vibe deine Dateien nicht durchsuchen."
+            "value": "Die Suche durchsucht den geöffneten Ordner und alles, was du hier hinzufügst, einschließlich Unterordnern. Ohne einen Ordner kann %@ deine Dateien nicht durchsuchen."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Η αναζήτηση εξετάζει τον ανοιχτό φάκελο και ό,τι προσθέσετε εδώ, μαζί με τους υποφακέλους. Χωρίς φάκελο, το Vibe δεν μπορεί να αναζητήσει στα αρχεία σας."
+            "value": "Η αναζήτηση εξετάζει τον ανοιχτό φάκελο και ό,τι προσθέσετε εδώ, μαζί με τους υποφακέλους. Χωρίς φάκελο, το %@ δεν μπορεί να αναζητήσει στα αρχεία σας."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Search looks through the folder you have open and anything you add here, including subfolders. Vibe cannot search your files without being given a folder first."
+            "value": "Search looks through the folder you have open and anything you add here, including subfolders. %@ cannot search your files without being given a folder first."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La búsqueda recorre la carpeta que tienes abierta y todo lo que añadas aquí, incluidas las subcarpetas. Vibe no puede buscar en tus archivos sin que antes le des una carpeta."
+            "value": "La búsqueda recorre la carpeta que tienes abierta y todo lo que añadas aquí, incluidas las subcarpetas. %@ no puede buscar en tus archivos sin que antes le des una carpeta."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Haku käy läpi avoinna olevan kansion ja kaiken tähän lisäämäsi, alikansiot mukaan lukien. Vibe ei voi etsiä tiedostoistasi ilman kansiota."
+            "value": "Haku käy läpi avoinna olevan kansion ja kaiken tähän lisäämäsi, alikansiot mukaan lukien. %@ ei voi etsiä tiedostoistasi ilman kansiota."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La recherche parcourt le dossier ouvert et tout ce que vous ajoutez ici, sous-dossiers compris. Sans dossier, Vibe ne peut pas rechercher dans vos fichiers."
+            "value": "La recherche parcourt le dossier ouvert et tout ce que vous ajoutez ici, sous-dossiers compris. Sans dossier, %@ ne peut pas rechercher dans vos fichiers."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pretraživanje obuhvaća otvorenu mapu i sve što ovdje dodate, uključujući podmape. Bez mape Vibe ne može pretraživati vaše datoteke."
+            "value": "Pretraživanje obuhvaća otvorenu mapu i sve što ovdje dodate, uključujući podmape. Bez mape %@ ne može pretraživati vaše datoteke."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "A keresés az éppen megnyitott mappát és mindent átnéz, amit itt hozzáadsz, az almappákkal együtt. Mappa nélkül a Vibe nem tud a fájljaid között keresni."
+            "value": "A keresés az éppen megnyitott mappát és mindent átnéz, amit itt hozzáadsz, az almappákkal együtt. Mappa nélkül a %@ nem tud a fájljaid között keresni."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pencarian menelusuri folder yang sedang dibuka dan semua yang Anda tambahkan di sini, termasuk subfolder. Vibe tidak dapat mencari file Anda tanpa diberi folder terlebih dahulu."
+            "value": "Pencarian menelusuri folder yang sedang dibuka dan semua yang Anda tambahkan di sini, termasuk subfolder. %@ tidak dapat mencari file Anda tanpa diberi folder terlebih dahulu."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "La ricerca esamina la cartella aperta e tutto ciò che aggiungi qui, sottocartelle comprese. Senza una cartella, Vibe non può cercare nei tuoi file."
+            "value": "La ricerca esamina la cartella aperta e tutto ciò che aggiungi qui, sottocartelle comprese. Senza una cartella, %@ non può cercare nei tuoi file."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "検索は、開いているフォルダとここに追加したもの（サブフォルダを含む）を対象にします。フォルダが与えられていないと、Vibeはファイルを検索できません。"
+            "value": "検索は、開いているフォルダとここに追加したもの（サブフォルダを含む）を対象にします。フォルダが与えられていないと、%@はファイルを検索できません。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "검색은 열려 있는 폴더와 여기에 추가한 모든 항목(하위 폴더 포함)을 살펴봅니다. 폴더를 먼저 지정하지 않으면 Vibe는 파일을 검색할 수 없습니다."
+            "value": "검색은 열려 있는 폴더와 여기에 추가한 모든 항목(하위 폴더 포함)을 살펴봅니다. 폴더를 먼저 지정하지 않으면 %@는 파일을 검색할 수 없습니다."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Søket går gjennom den åpne mappen og alt du legger til her, inkludert undermapper. Vibe kan ikke søke i filene dine uten først å få en mappe."
+            "value": "Søket går gjennom den åpne mappen og alt du legger til her, inkludert undermapper. %@ kan ikke søke i filene dine uten først å få en mappe."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zoeken doorzoekt de geopende map en alles wat je hier toevoegt, inclusief submappen. Zonder een map kan Vibe niet in je bestanden zoeken."
+            "value": "Zoeken doorzoekt de geopende map en alles wat je hier toevoegt, inclusief submappen. Zonder een map kan %@ niet in je bestanden zoeken."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wyszukiwanie obejmuje otwarty folder i wszystko, co tu dodasz, łącznie z podfolderami. Bez wskazanego folderu Vibe nie może przeszukiwać plików."
+            "value": "Wyszukiwanie obejmuje otwarty folder i wszystko, co tu dodasz, łącznie z podfolderami. Bez wskazanego folderu %@ nie może przeszukiwać plików."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "A busca percorre a pasta aberta e tudo o que você adicionar aqui, incluindo subpastas. O Vibe não pode buscar nos seus arquivos sem antes receber uma pasta."
+            "value": "A busca percorre a pasta aberta e tudo o que você adicionar aqui, incluindo subpastas. O %@ não pode buscar nos seus arquivos sem antes receber uma pasta."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "A pesquisa percorre a pasta aberta e tudo o que adicionar aqui, incluindo subpastas. O Vibe não pode pesquisar nos seus ficheiros sem primeiro receber uma pasta."
+            "value": "A pesquisa percorre a pasta aberta e tudo o que adicionar aqui, incluindo subpastas. O %@ não pode pesquisar nos seus ficheiros sem primeiro receber uma pasta."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Căutarea parcurge dosarul deschis și tot ce adăugați aici, inclusiv subdosarele. Fără un dosar, Vibe nu poate căuta în fișierele dvs."
+            "value": "Căutarea parcurge dosarul deschis și tot ce adăugați aici, inclusiv subdosarele. Fără un dosar, %@ nu poate căuta în fișierele dvs."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Поиск охватывает открытую папку и все, что вы добавите здесь, включая вложенные папки. Без папки Vibe не может искать в ваших файлах."
+            "value": "Поиск охватывает открытую папку и все, что вы добавите здесь, включая вложенные папки. Без папки %@ не может искать в ваших файлах."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vyhľadávanie prechádza otvorený priečinok a všetko, čo sem pridáte, vrátane podpriečinkov. Bez priečinka nemôže Vibe vaše súbory prehľadávať."
+            "value": "Vyhľadávanie prechádza otvorený priečinok a všetko, čo sem pridáte, vrátane podpriečinkov. Bez priečinka nemôže %@ vaše súbory prehľadávať."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sökningen går igenom den öppna mappen och allt du lägger till här, inklusive undermappar. Vibe kan inte söka i dina filer utan att först få en mapp."
+            "value": "Sökningen går igenom den öppna mappen och allt du lägger till här, inklusive undermappar. %@ kan inte söka i dina filer utan att först få en mapp."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "การค้นหาจะครอบคลุมโฟลเดอร์ที่เปิดอยู่และทุกสิ่งที่คุณเพิ่มที่นี่ รวมถึงโฟลเดอร์ย่อย Vibe ไม่สามารถค้นหาไฟล์ของคุณได้หากยังไม่ได้รับโฟลเดอร์"
+            "value": "การค้นหาจะครอบคลุมโฟลเดอร์ที่เปิดอยู่และทุกสิ่งที่คุณเพิ่มที่นี่ รวมถึงโฟลเดอร์ย่อย %@ ไม่สามารถค้นหาไฟล์ของคุณได้หากยังไม่ได้รับโฟลเดอร์"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Arama, açık olan klasörü ve buraya eklediğiniz her şeyi, alt klasörler dahil, tarar. Önce bir klasör verilmeden Vibe dosyalarınızda arama yapamaz."
+            "value": "Arama, açık olan klasörü ve buraya eklediğiniz her şeyi, alt klasörler dahil, tarar. Önce bir klasör verilmeden %@ dosyalarınızda arama yapamaz."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Пошук охоплює відкриту папку та все, що ви додасте тут, включно з вкладеними папками. Без папки Vibe не може шукати у ваших файлах."
+            "value": "Пошук охоплює відкриту папку та все, що ви додасте тут, включно з вкладеними папками. Без папки %@ не може шукати у ваших файлах."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tìm kiếm sẽ quét thư mục bạn đang mở và mọi thứ bạn thêm ở đây, bao gồm cả thư mục con. Vibe không thể tìm trong tệp của bạn nếu chưa được cấp một thư mục."
+            "value": "Tìm kiếm sẽ quét thư mục bạn đang mở và mọi thứ bạn thêm ở đây, bao gồm cả thư mục con. %@ không thể tìm trong tệp của bạn nếu chưa được cấp một thư mục."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "搜索会查找你打开的文件夹以及在此添加的所有内容，包括子文件夹。未提供文件夹时，Vibe 无法搜索你的文件。"
+            "value": "搜索会查找你打开的文件夹以及在此添加的所有内容，包括子文件夹。未提供文件夹时，%@ 无法搜索你的文件。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "搜尋會查找你開啟的檔案夾以及在此加入的所有內容，包括子檔案夾。未提供檔案夾時，Vibe 無法搜尋你的檔案。"
+            "value": "搜尋會查找你開啟的檔案夾以及在此加入的所有內容，包括子檔案夾。未提供檔案夾時，%@ 無法搜尋你的檔案。"
           }
         }
       },
@@ -38941,7 +38941,7 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlist"
+            "value": "Lejátszási lista"
           }
         },
         "id": {
