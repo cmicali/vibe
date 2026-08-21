@@ -64,47 +64,6 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
     return paths;
 }
 
-@implementation FileSearchIndex (Internal)
-
-// TRAP: this prunes in BOTH directions, and testing only one is the bug it was
-// written for. searchRoots names the open folder FIRST and the app's Documents
-// directory second, and a folder picked inside Documents is the folder that has
-// to go — dropping only later roots covered by earlier ones keeps them both and
-// walks that tree twice, which puts every file in it on screen twice.
-//
-// Ancestors first, then a root is kept only when nothing already kept covers it.
-+ (NSArray<NSURL *> *)pruneNestedRoots:(NSArray<NSURL *> *)roots {
-    NSArray<NSURL *> *shortestFirst = [roots sortedArrayUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
-        NSUInteger lengthA = a.URLByStandardizingPath.path.length;
-        NSUInteger lengthB = b.URLByStandardizingPath.path.length;
-        if (lengthA != lengthB) {
-            return lengthA < lengthB ? NSOrderedAscending : NSOrderedDescending;
-        }
-        return NSOrderedSame;   // stable, so equal-length roots keep their order
-    }];
-    NSMutableArray<NSURL *> *kept = [NSMutableArray arrayWithCapacity:roots.count];
-    NSMutableArray<NSString *> *keptPaths = [NSMutableArray arrayWithCapacity:roots.count];
-    for (NSURL *root in shortestFirst) {
-        NSString *path = root.URLByStandardizingPath.path;
-        if (path.length == 0) {
-            continue;
-        }
-        BOOL covered = NO;
-        for (NSString *keptPath in keptPaths) {
-            if (VibeSearchRootCoversPath(keptPath, path)) {
-                covered = YES;
-                break;
-            }
-        }
-        if (!covered) {
-            [kept addObject:root];
-            [keptPaths addObject:path];
-        }
-    }
-    return kept;
-}
-
-@end
 
 @implementation FileSearchIndex {
     NSArray<NSURL *>           *_roots;
@@ -338,6 +297,50 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
 
 - (void)cancelPendingHitRequests {
     atomic_fetch_add(&_hitRequestGeneration, 1);
+}
+
+@end
+
+// Below the main implementation deliberately: the testing seams touch its
+// ivars, which a category compiled above the declaring block cannot see.
+@implementation FileSearchIndex (Internal)
+
+// TRAP: this prunes in BOTH directions, and testing only one is the bug it was
+// written for. searchRoots names the open folder FIRST and the app's Documents
+// directory second, and a folder picked inside Documents is the folder that has
+// to go — dropping only later roots covered by earlier ones keeps them both and
+// walks that tree twice, which puts every file in it on screen twice.
+//
+// Ancestors first, then a root is kept only when nothing already kept covers it.
++ (NSArray<NSURL *> *)pruneNestedRoots:(NSArray<NSURL *> *)roots {
+    NSArray<NSURL *> *shortestFirst = [roots sortedArrayUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
+        NSUInteger lengthA = a.URLByStandardizingPath.path.length;
+        NSUInteger lengthB = b.URLByStandardizingPath.path.length;
+        if (lengthA != lengthB) {
+            return lengthA < lengthB ? NSOrderedAscending : NSOrderedDescending;
+        }
+        return NSOrderedSame;   // stable, so equal-length roots keep their order
+    }];
+    NSMutableArray<NSURL *> *kept = [NSMutableArray arrayWithCapacity:roots.count];
+    NSMutableArray<NSString *> *keptPaths = [NSMutableArray arrayWithCapacity:roots.count];
+    for (NSURL *root in shortestFirst) {
+        NSString *path = root.URLByStandardizingPath.path;
+        if (path.length == 0) {
+            continue;
+        }
+        BOOL covered = NO;
+        for (NSString *keptPath in keptPaths) {
+            if (VibeSearchRootCoversPath(keptPath, path)) {
+                covered = YES;
+                break;
+            }
+        }
+        if (!covered) {
+            [kept addObject:root];
+            [keptPaths addObject:path];
+        }
+    }
+    return kept;
 }
 
 - (void)appendFileURLForTesting:(NSURL *)url {

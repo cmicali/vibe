@@ -6,6 +6,11 @@
 #import <Foundation/Foundation.h>
 #import "AppSettings.h"
 
+// Nonnull by default: the normalizers accept a nullable stored value —
+// stringForKey: answers nil before defaults registration or after an external
+// delete — and always return an identifier.
+NS_ASSUME_NONNULL_BEGIN
+
 static inline NSInteger VibeNormalizedPitchRange(NSInteger range) {
     return range == 16 ? 16 : 8;
 }
@@ -53,3 +58,5 @@ static inline NSString *_Nullable VibeMigratedWaveformTheme(NSString *_Nullable 
     }
     return [storedStyle isEqualToString:@"sonic_cirrus"] ? SETTINGS_VALUE_WAVEFORM_THEME_ORANGE : nil;
 }
+
+NS_ASSUME_NONNULL_END

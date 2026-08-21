@@ -158,10 +158,27 @@ targets:
           - "**/*.xcprivacy"                  # PIN privacy manifests: keep UNbundled
           - "**/*.txt"                        # vendored LICENSE.txt: keep UNbundled
           - "**/LICENSE.MPL"                  # TagLib's MPL 1.1 text: same, but not a .txt
-          - "**/PINDiskCache.m"               # re-added below with its per-file flag
+          - "**/PINDiskCache.m"               # re-added below with its per-file flags
+          - "**/PINMemoryCache.m"             # same
+      # The NumberObjectConversion checker fires 8 times across the two PIN
+      # caches (NSNumber truthiness, PIN's own style). ThirdParty is excluded
+      # from the analyze gate, but the findings still printed in every CI log;
+      # vendored code is not restyled, so the checker is switched off for
+      # exactly these files instead. The -Xclang pair is inert in a normal
+      # compile and only takes effect under the analyzer.
       - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
         compilerFlags:
           - "-fobjc-arc-exceptions"
+          - "-Xclang"
+          - "-analyzer-disable-checker"
+          - "-Xclang"
+          - "osx.NumberObjectConversion"
+      - path: Vibe/ThirdParty/PINCache/PINMemoryCache.m
+        compilerFlags:
+          - "-Xclang"
+          - "-analyzer-disable-checker"
+          - "-Xclang"
+          - "osx.NumberObjectConversion"
       - path: Vibe/Mac/App
         excludes:
           - "**/.DS_Store"
@@ -364,9 +381,21 @@ targets:
           - "**/*.txt"
           - "**/LICENSE.MPL"
           - "**/PINDiskCache.m"
+          - "**/PINMemoryCache.m"
+      # Same per-file flags as the macOS target above; see the comment there.
       - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
         compilerFlags:
           - "-fobjc-arc-exceptions"
+          - "-Xclang"
+          - "-analyzer-disable-checker"
+          - "-Xclang"
+          - "osx.NumberObjectConversion"
+      - path: Vibe/ThirdParty/PINCache/PINMemoryCache.m
+        compilerFlags:
+          - "-Xclang"
+          - "-analyzer-disable-checker"
+          - "-Xclang"
+          - "osx.NumberObjectConversion"
       - path: Resources/AppIcon.icon
       - path: Resources/Assets.xcassets       # record-bg, the no-art vinyl placeholder
       - path: Resources/PrivacyInfo.xcprivacy

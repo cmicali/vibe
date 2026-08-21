@@ -71,7 +71,11 @@ targets="Vibe VibeiOS"
 # Every exclude a source entry may carry. Anything else — a feature-named
 # exclude — means the tree stopped being the membership rule.
 allowed_always='**/.DS_Store **/*.md Mac/** iOS/**'
-allowed_thirdparty='**/*.xcprivacy **/*.txt **/LICENSE.MPL **/PINDiskCache.m'
+# The two PIN caches are exclude-and-readd entries, not membership decisions:
+# each is re-added immediately below its exclusion with per-file compilerFlags
+# (ARC exceptions, and the NumberObjectConversion analyzer checker off for
+# vendored style the repo does not restyle).
+allowed_thirdparty='**/*.xcprivacy **/*.txt **/LICENSE.MPL **/PINDiskCache.m **/PINMemoryCache.m'
 
 info_dir_for() {
     local t="$1" p

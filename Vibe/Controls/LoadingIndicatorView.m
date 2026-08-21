@@ -44,8 +44,17 @@
 #if TARGET_OS_OSX
     return self.window ? self.window.backingScaleFactor : 2;
 #else
+    // displayScale is 0 until the view joins a hierarchy; the window scene's
+    // screen is the next-best context. 2 matches the mac fallback above —
+    // every current device is at least 2x, and a wrong guess here only lasts
+    // until didMoveToWindow redraws. UIScreen.mainScreen is deprecated on
+    // iOS 26 and wrong on iPad multi-window anyway.
     CGFloat scale = self.traitCollection.displayScale;
-    return scale > 0 ? scale : UIScreen.mainScreen.scale;
+    if (scale > 0) {
+        return scale;
+    }
+    scale = self.window.windowScene.screen.scale;
+    return scale > 0 ? scale : 2;
 #endif
 }
 

@@ -17,6 +17,13 @@
 #import <Foundation/Foundation.h>
 #import "PlatformTypes.h"
 
+// Nonnull by default: every string getter is backed by a registered default
+// (registerDefaults covers each key, the device name and UID as @""), and the
+// normalized getters snap unknown values to one. The nullable exceptions are
+// marked — the per-appearance color pairs, whose nil means "unset, use the
+// fallback", and windowAppearance, whose nil means "track the OS setting".
+NS_ASSUME_NONNULL_BEGIN
+
 // A renderer's stable styleIdentifier, never its localized display name — see
 // AudioWaveformRenderer.h. Both platforms render waveforms and both offer the
 // picker, so this one is shared.
@@ -116,7 +123,9 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (NSString *)windowAppearanceStyle;
 - (void)setWindowAppearanceStyle:(NSString *)name;
 
-- (NSAppearance *)windowAppearance;
+// nil is the system default: a nil window appearance tracks the OS
+// light/dark setting rather than pinning one.
+- (nullable NSAppearance *)windowAppearance;
 
 // The window header's color wash — see the SETTINGS_VALUE_WINDOW_TINT_*
 // identifiers above. Normalized on read: an unknown stored value reads as
@@ -274,3 +283,5 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 #endif  // TARGET_OS_OSX
 
 @end
+
+NS_ASSUME_NONNULL_END
