@@ -111,7 +111,13 @@
     [self updateUI];
     [self syncEqualizerActivity];
 
-    [NSApp activate];
+    if (@available(macOS 14.0, *)) {
+        [NSApp activate];
+    } else {
+        // macOS 13: -activate does not exist and crashes at launch —
+        // Ventura's first real run found it. Same cooperative intent.
+        [NSApp activateIgnoringOtherApps:NO];
+    }
 }
 
 // Construction only: every collaborator exists after this, so the handler
