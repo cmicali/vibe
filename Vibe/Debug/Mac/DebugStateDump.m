@@ -65,6 +65,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"playlistShown": @(AppSettings.sharedInstance.isPlaylistShown),
             @"pitchPanelShown": @(AppSettings.sharedInstance.isPitchPanelShown),
             @"waveformStyle": AppSettings.sharedInstance.waveformStyle ?: @"",
+            @"waveformTheme": AppSettings.sharedInstance.waveformTheme,
             @"outputDeviceName": AppSettings.sharedInstance.audioOutputDeviceName ?: @"",
             @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
             @"deleteOriginalAfterConvert": @(AppSettings.sharedInstance.deleteOriginalAfterConvert),

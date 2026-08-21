@@ -10,6 +10,7 @@
 #import <AppKit/AppKit.h>
 #import "AppDelegate.h"
 #import "DebugWireFormat.h"
+#import "PlatformColor.h"
 #import "SettingsWindowController.h"
 
 #pragma mark - Reaching the window
@@ -144,6 +145,9 @@ static NSString *VibeElementKind(NSView *view) {
     }
     if ([view isKindOfClass:NSSlider.class]) {
         return @"slider";
+    }
+    if ([view isKindOfClass:NSColorWell.class]) {
+        return @"colorwell";
     }
     if ([view isKindOfClass:NSControl.class]) {
         return @"control";
@@ -350,6 +354,9 @@ static NSDictionary *VibeElementStateJSON(VibeSettingsElement *element) {
         node[@"value"] = @(slider.doubleValue);
         node[@"min"] = @(slider.minValue);
         node[@"max"] = @(slider.maxValue);
+    }
+    else if ([element.kind isEqualToString:@"colorwell"]) {
+        node[@"value"] = VibeHexStringFromColor(((NSColorWell *)view).color) ?: @"";
     }
     else if ([view isKindOfClass:NSTextField.class]) {
         node[@"value"] = ((NSTextField *)view).stringValue ?: @"";
@@ -729,6 +736,20 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
         slider.doubleValue = number;
         if (slider.action && ![NSApp sendAction:slider.action to:slider.target from:slider]) {
             return VibeErrorJSON(@"no responder handled %@", NSStringFromSelector(slider.action));
+        }
+        return VibeClickReply(element, @"set");
+    }
+    if ([element.kind isEqualToString:@"colorwell"]) {
+        // The value is the same #RRGGBB the dump reports, so the pane's
+        // action-side hex persistence round-trips through this verb.
+        NSColor *color = value ? VibeColorFromHexString(value) : nil;
+        if (!color) {
+            return VibeErrorJSON(@"'%@' is a color well and needs #RRGGBB", element.name);
+        }
+        NSColorWell *well = (NSColorWell *)element.view;
+        well.color = color;
+        if (well.action && ![NSApp sendAction:well.action to:well.target from:well]) {
+            return VibeErrorJSON(@"no responder handled %@", NSStringFromSelector(well.action));
         }
         return VibeClickReply(element, @"set");
     }

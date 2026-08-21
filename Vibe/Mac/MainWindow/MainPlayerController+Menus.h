@@ -26,6 +26,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)displayNameForWaveformStyle:(NSString *)identifier;
 - (void)applyWaveformStyle:(NSString *)identifier;
 
+// The waveform theme's live-apply pair, applyWaveformStyle:'s shape:
+// applyWaveformTheme: persists the identifier and repaints;
+// refreshWaveformTheme re-resolves without rewriting — a custom color was
+// edited, or an artwork color landed.
+- (void)applyWaveformTheme:(NSString *)identifier;
+- (void)refreshWaveformTheme;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -51,6 +51,7 @@
     // settings do not exist here. A track's bpm/key still report its tags.
     state[@"settings"] = @{
         @"waveformStyle": AppSettings.sharedInstance.waveformStyle ?: @"",
+        @"waveformTheme": AppSettings.sharedInstance.waveformTheme,
     };
     return state;
 }

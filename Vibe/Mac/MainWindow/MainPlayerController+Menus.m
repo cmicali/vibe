@@ -217,4 +217,16 @@
     AppSettings.sharedInstance.waveformStyle = identifier;
 }
 
+- (void)applyWaveformTheme:(NSString *)identifier {
+    if (!identifier) {
+        return;
+    }
+    AppSettings.sharedInstance.waveformTheme = identifier;
+    [self refreshWaveformTheme];
+}
+
+- (void)refreshWaveformTheme {
+    [self.waveformView refreshThemeColors];
+}
+
 @end
