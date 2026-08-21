@@ -27,6 +27,17 @@ NS_ASSUME_NONNULL_BEGIN
 // at cannot drift apart.
 @property (readonly) CGFloat devicePixelWidth;
 
+// The current track's dominant art color for the album_art theme, nil when
+// none has settled. MainPlayerController writes it (matched against the
+// current track — a stale delivery must never land here) and follows with
+// refreshThemeColors.
+@property (nullable, strong) NSColor *artworkThemeColor;
+
+// Re-resolves the waveform theme — settings, appearance, artworkThemeColor —
+// and repaints the renderer with it. The live-apply path for a theme or
+// custom-color change and for an artwork color settling.
+- (void)refreshThemeColors;
+
 // Styles are identified by the renderer's stable styleIdentifier, never its
 // localized display name; displayNameForStyle: turns one into UI text.
 - (NSString *)currentWaveformStyle;

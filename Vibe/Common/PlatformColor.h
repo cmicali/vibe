@@ -13,10 +13,25 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// C linkage: unlike PlatformImage.h, this header is included from the .mm
+// renderer files.
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // nil for anything but a parseable #RRGGBB (a leading # optional).
 VibeColor *_Nullable VibeColorFromHexString(NSString *_Nullable hex);
 
 // #RRGGBB, alpha dropped; nil when the color has no RGB reading.
 NSString *_Nullable VibeHexStringFromColor(VibeColor *_Nullable color);
+
+// A linear sRGB blend, `fraction` of the way toward `toward`, at full alpha —
+// the cross-platform counterpart of NSColor's blendedColorWithFraction:.
+// Falls back to `color` itself when either has no RGB reading.
+VibeColor *VibeColorBlended(VibeColor *color, VibeColor *toward, CGFloat fraction);
+
+#ifdef __cplusplus
+}
+#endif
 
 NS_ASSUME_NONNULL_END

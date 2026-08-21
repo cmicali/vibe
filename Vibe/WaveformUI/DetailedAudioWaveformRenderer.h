@@ -24,7 +24,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (CGFloat)barXForIndex:(NSUInteger)index width:(CGFloat)width barCount:(NSUInteger)count barWidth:(CGFloat)barWidth;
 
 // The gradient styling: its direction and extent, and the played and unplayed
-// color stops. baseColor is white in dark mode and black in light.
+// color stops. baseColor is the theme's played or unplayed hue — the
+// monochrome base under the White theme — and the hooks own only the alphas.
 - (void)configureGradient:(CAGradientLayer *)gradient;
 - (NSArray<VibeColor *> *)playedGradientColors:(VibeColor *)baseColor isDark:(BOOL)isDark;
 - (NSArray<VibeColor *> *)unplayedGradientColors:(VibeColor *)baseColor isDark:(BOOL)isDark;

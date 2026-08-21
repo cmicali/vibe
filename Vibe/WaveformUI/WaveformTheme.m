@@ -56,6 +56,11 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
     return self;
 }
 
++ (WaveformTheme *)monochromeThemeIsDark:(BOOL)isDark {
+    return [self themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_WHITE isDark:isDark
+                       artworkColor:nil customPlayed:nil customUnplayed:nil];
+}
+
 + (WaveformTheme *)themeForIdentifier:(NSString *)identifier
                                isDark:(BOOL)isDark
                          artworkColor:(VibeColor *)artworkColor

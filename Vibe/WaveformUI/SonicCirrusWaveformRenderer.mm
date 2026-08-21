@@ -6,6 +6,7 @@
 #import "SonicCirrusWaveformRenderer.h"
 #import "WaveformMorphEngine.h"
 #import "VibeStrings.h"
+#import "PlatformColor.h"
 
 #include <vector>
 #include <cmath>
@@ -88,21 +89,28 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
     }
 }
 
+// The fraction of the way toward white the bottom mirror bars sit from the
+// played hue: the blend that reproduces this style's historical hardcoded
+// pair — bottom (1, 0.75, 0.585) from top (1, 0.45, 0) — to within rounding.
+static const CGFloat kPlayedBottomBlendTowardWhite = 0.576;
+
 - (void)updateColors:(BOOL)isDark {
     // super sets lastProgressBoundary to -1, so that the next updateProgress:
     // repaints every bar with the new colors.
     [super updateColors:isDark];
-    // The unplayed bars follow the appearance, because a fixed white is
-    // near-invisible on a light background. The played orange reads fine on
-    // both.
-    VibeColor *base = isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
-    _playedColorTop = [VibeColor colorWithRed:1 green:0.45 blue:0 alpha:1];
-    _unPlayedColorTop = [base colorWithAlphaComponent:0.89];
-    _playedColorBottom = [VibeColor colorWithRed:1 green:0.75 blue:0.585 alpha:0.8];
-    _unPlayedColorBottom = [base colorWithAlphaComponent:0.55];
-    // Hover uses the base color at full alpha, which is brighter than both the
-    // played orange and the unplayed bars, in either appearance.
-    _hoverColor = [base colorWithAlphaComponent:1.0];
+    // The played pair derives from the theme's played hue: the top is the hue
+    // itself, the bottom its paler blend toward white at the pair's original
+    // alpha. The unplayed bars take the theme's unplayed hue at the original
+    // alphas — under the White theme that hue follows the appearance, because
+    // a fixed white is near-invisible on a light background.
+    VibeColor *played = self.theme.playedColor;
+    VibeColor *unplayed = self.theme.unplayedColor;
+    _playedColorTop = played;
+    _playedColorBottom = [VibeColorBlended(played, [VibeColor whiteColor], kPlayedBottomBlendTowardWhite)
+            colorWithAlphaComponent:0.8];
+    _unPlayedColorTop = [unplayed colorWithAlphaComponent:0.89];
+    _unPlayedColorBottom = [unplayed colorWithAlphaComponent:0.55];
+    _hoverColor = self.theme.hoverColor;
 }
 
 // The played and unplayed pair a bar index should show right now, ignoring any

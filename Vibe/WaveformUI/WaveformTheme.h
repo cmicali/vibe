@@ -41,6 +41,10 @@ NS_ASSUME_NONNULL_BEGIN
                          customPlayed:(nullable VibeColor *)played
                        customUnplayed:(nullable VibeColor *)unplayed;
 
+// White's answer: the pre-theme monochrome palette for the appearance. The
+// renderers' default before a view resolves anything.
++ (WaveformTheme *)monochromeThemeIsDark:(BOOL)isDark;
+
 @end
 
 NS_ASSUME_NONNULL_END

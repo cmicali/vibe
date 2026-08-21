@@ -37,8 +37,6 @@ static const CGFloat kHoverHighlightWidth = 1.5;
 static const float kWaveformOpacity = 0.75f;
 
 @implementation DetailedAudioWaveformRenderer {
-    VibeColor *_gradientColor;
-
     // One bar-shaped mask clips the whole gradient stack. Masking the two
     // gradients separately would rasterize the identical bar path twice per
     // morph frame, a full-view alpha pass each, and ship the 4,096-element
@@ -192,12 +190,11 @@ static const float kWaveformOpacity = 0.75f;
 
 - (void)updateColors:(BOOL)isDark {
     [super updateColors:isDark];
-    _gradientColor = isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
-    [self setGradientLayerColors:_playedGradient colors:[self playedGradientColors:_gradientColor isDark:isDark]];
-    [self setGradientLayerColors:_unplayedGradient colors:[self unplayedGradientColors:_gradientColor isDark:isDark]];
+    [self setGradientLayerColors:_playedGradient colors:[self playedGradientColors:self.theme.playedColor isDark:isDark]];
+    [self setGradientLayerColors:_unplayedGradient colors:[self unplayedGradientColors:self.theme.unplayedColor isDark:isDark]];
     // Full alpha and no vertical fade. The played gradient's own top is the
     // ceiling everywhere else, so this reads as lit at every bar height.
-    _hoverColumn.backgroundColor = _gradientColor.CGColor;
+    _hoverColumn.backgroundColor = self.theme.hoverColor.CGColor;
 }
 
 // A slight vertical fade: full color at the top, kBottomAlpha of it at the
@@ -410,9 +407,9 @@ static const float kWaveformOpacity = 0.75f;
 
     // configureGradient:'s band-pinned fade with kWaveformOpacity baked into
     // the alpha. This family's fade only — Basic re-aims its gradient, so its
-    // styles would need their own bake.
-    VibeColor *base = self.isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
-    NSArray<VibeColor *> *stops = [self playedGradientColors:base isDark:self.isDark];
+    // styles would need their own bake. Theme-derived, like the live layers:
+    // the two must stay pixel-identical.
+    NSArray<VibeColor *> *stops = [self playedGradientColors:self.theme.playedColor isDark:self.isDark];
     NSMutableArray *cgColors = [[NSMutableArray alloc] initWithCapacity:stops.count];
     for (VibeColor *color in stops) {
         CGColorRef cg = color.CGColor;
@@ -433,9 +430,8 @@ static const float kWaveformOpacity = 0.75f;
 }
 
 - (CGFloat)unplayedOverPlayedOpacity {
-    VibeColor *base = self.isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
-    NSArray<VibeColor *> *played = [self playedGradientColors:base isDark:self.isDark];
-    NSArray<VibeColor *> *unplayed = [self unplayedGradientColors:base isDark:self.isDark];
+    NSArray<VibeColor *> *played = [self playedGradientColors:self.theme.playedColor isDark:self.isDark];
+    NSArray<VibeColor *> *unplayed = [self unplayedGradientColors:self.theme.unplayedColor isDark:self.isDark];
     CGFloat playedTop = CGColorGetAlpha(played.firstObject.CGColor);
     return playedTop > 0 ? CGColorGetAlpha(unplayed.firstObject.CGColor) / playedTop : 1;
 }

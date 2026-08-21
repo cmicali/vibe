@@ -62,7 +62,33 @@
         }
     }
     _currentWaveformRenderer = [[renderer alloc] initWithLayer:self.layer bounds:self.bounds isDark:self.isDark];
+    [self applyResolvedTheme];
     [self drawWaveform];
+    [self updateRendererProgress];
+}
+
+// The one resolution site on this view: settings + appearance +
+// artworkThemeColor into the renderer's palette.
+- (void)applyResolvedTheme {
+    if (!_currentWaveformRenderer) {
+        return;
+    }
+    AppSettings *settings = AppSettings.sharedInstance;
+    BOOL isDark = self.isDark;
+    _currentWaveformRenderer.theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
+                                                                isDark:isDark
+                                                          artworkColor:self.artworkThemeColor
+                                                          customPlayed:settings.waveformCustomPlayedColor
+                                                        customUnplayed:settings.waveformCustomUnplayedColor];
+    [_currentWaveformRenderer updateColors:isDark];
+}
+
+- (void)refreshThemeColors {
+    if (!_currentWaveformRenderer) {
+        return;
+    }
+    [self applyResolvedTheme];
+    // updateColors: left the -1 boundary sentinel; this repaints everything.
     [self updateRendererProgress];
 }
 
@@ -286,7 +312,10 @@
     if (_currentWaveformRenderer) {
         BOOL isDark = self.isDark;
         if (_currentWaveformRenderer.isDark != isDark) {
-            [_currentWaveformRenderer updateColors:isDark];
+            // The theme is resolved per appearance, so a flip re-resolves it
+            // rather than merely recoloring: white's base and the album-art
+            // legibility clamp both depend on isDark.
+            [self applyResolvedTheme];
             [self updateRendererProgress];
         }
     }

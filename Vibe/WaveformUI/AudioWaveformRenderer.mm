@@ -14,6 +14,7 @@
     if (self) {
         self.parentLayer = parentLayer;
         self.isDark = isDark;
+        self.theme = [WaveformTheme monochromeThemeIsDark:isDark];
         // A sentinel, forcing the first updateProgress: to paint every layer's
         // played or unplayed color rather than only the boundary delta.
         self.lastProgressBoundary = -1;

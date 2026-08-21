@@ -9,6 +9,7 @@
 // AudioWaveform.h brings C++ types in, so import this header from .mm files
 // only.
 #import "AudioWaveform.h"
+#import "WaveformTheme.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -52,6 +53,14 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 @interface AudioWaveformRenderer : NSObject
 
 @property (assign) BOOL isDark;
+
+// The palette the family derives its gradient alphas from. The view resolves
+// it (settings + appearance + artwork color) and must call updateColors:
+// after setting it; init defaults it to the monochrome White answer for
+// isDark, so a view that never resolves — the pre-theme call sites — draws
+// exactly what it always drew. isDark stays separate because renderers still
+// branch on it for non-palette decisions.
+@property (strong) WaveformTheme *theme;
 
 // The last played bar index that updateProgress: painted. Layer-array
 // renderers — SonicCirrusWaveformRenderer, which owns the bar-layer machinery
