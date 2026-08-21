@@ -23648,7 +23648,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_drag_label": {
-      "comment": "Settings, General pane, Window group: row beside the dropdown choosing what dragging the mouse on the waveform does. The key keeps its historical settings.appearance prefix.",
+      "comment": "Settings, General pane, Window group: row beside the dropdown choosing what dragging the mouse on the waveform does. Ends with a colon, stripped at display. The key keeps its historical settings.appearance prefix.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23683,7 +23683,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Drag behavior"
+            "value": "Waveform drag:"
           }
         },
         "es": {
