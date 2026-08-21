@@ -27,26 +27,36 @@ static const CGFloat kPanePadding = 20;
     // to overflow the original fixed width).
     NSSize fitting = grid.fittingSize;
     NSSize paneSize = NSMakeSize(MAX(size.width, fitting.width + 2 * kPanePadding),
-                                 MAX(size.height, fitting.height + 2 * kPanePadding));
+                                 MAX(MAX(size.height, fitting.height + 2 * kPanePadding),
+                                     kSettingsPaneMinHeight));
 
     NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, paneSize.width, paneSize.height)];
-    // The size constraints define the pane's fitting size — without them the
-    // settings window opens at an arbitrary size — but at 999, not required:
-    // a required size forces the window to the incoming pane's size in a
-    // single layout pass on tab switch, which is exactly the snap the
-    // animated resize in SettingsWindowController exists to replace. At 999
-    // the window edge wins while the frame is animating and the pane
-    // stretches with it.
+    // The size constraints define the pane's fitting size, which IS the
+    // settings window's settled size: the constraint engine re-sizes a
+    // contentViewController window to its content's fitting size after every
+    // layout pass (_changeWindowFrameFromConstraintsIfNecessary), so a frame
+    // held anywhere else snaps back. At 999, not required: a required size
+    // forces the window there in a single layout pass on pane switch, which
+    // is exactly the snap the animated resize in SettingsWindowController
+    // exists to replace — at 999 the window edge wins while the frame is
+    // animating and the pane stretches with it.
+    //
+    // The height rides the safe-area guide, not the view: the titlebar
+    // overlays the pane (full-size content view), and anchoring the guide
+    // makes the engine add that overlay to the window on its own.
     NSLayoutConstraint *width = [view.widthAnchor constraintEqualToConstant:paneSize.width];
-    NSLayoutConstraint *height = [view.heightAnchor constraintEqualToConstant:paneSize.height];
+    NSLayoutConstraint *height = [view.safeAreaLayoutGuide.heightAnchor constraintEqualToConstant:paneSize.height];
     width.priority = NSLayoutPriorityRequired - 1;
     height.priority = NSLayoutPriorityRequired - 1;
     [NSLayoutConstraint activateConstraints:@[width, height]];
     self.preferredContentSize = paneSize;
 
     [view addSubview:grid];
+    // The safe-area top, not the view's: the settings window's titlebar
+    // overlays the content (full-size content view), and the pane's design
+    // height budgets the area below it.
     [NSLayoutConstraint activateConstraints:@[
-        [grid.topAnchor constraintEqualToAnchor:view.topAnchor constant:kPanePadding],
+        [grid.topAnchor constraintEqualToAnchor:view.safeAreaLayoutGuide.topAnchor constant:kPanePadding],
         [grid.centerXAnchor constraintEqualToAnchor:view.centerXAnchor],
         [grid.leadingAnchor constraintGreaterThanOrEqualToAnchor:view.leadingAnchor constant:kPanePadding],
     ]];

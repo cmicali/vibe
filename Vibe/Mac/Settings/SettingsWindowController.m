@@ -13,15 +13,118 @@
 #import "SettingsPlaybackViewController.h"
 #import "VibeStrings.h"
 
-@interface SettingsWindowController () <NSMenuItemValidation>
+static const CGFloat kSettingsSidebarWidth = 200;
+
+@interface SettingsWindowController () <NSMenuItemValidation, NSToolbarDelegate>
 @end
 
-// Owns the tab-switch window resize. The panes' size constraints sit just
+// The same swallow as the tab controller's: AppKit resizes the window the
+// moment its contentViewController's preferredContentSize changes, and the
+// split controller adopts one from its children's fitting sizes on layout —
+// which would snap the window to the raw pane height, past both the height
+// floor and the animated resize.
+@interface SettingsSplitViewController : NSSplitViewController
+@end
+
+@implementation SettingsSplitViewController
+
+- (void)setPreferredContentSize:(NSSize)preferredContentSize {
+}
+
+@end
+
+#pragma mark - Sidebar
+
+// The pane list, drawn from the tab controller's own items so the two cannot
+// drift: same order, same localized labels, same symbols.
+@interface SettingsSidebarController : NSViewController <NSTableViewDataSource, NSTableViewDelegate>
+@property (weak, nonatomic) NSTabViewController *tabs;
+@property (readonly, nonatomic) NSTableView *tableView;
+@end
+
+@implementation SettingsSidebarController {
+    NSTableView *_tableView;
+}
+
+- (NSTableView *)tableView {
+    (void)self.view;
+    return _tableView;
+}
+
+- (void)loadView {
+    NSTableView *table = [[NSTableView alloc] initWithFrame:NSZeroRect];
+    table.style = NSTableViewStyleSourceList;
+    table.headerView = nil;
+    table.rowHeight = 28;
+    table.allowsEmptySelection = NO;
+    table.allowsMultipleSelection = NO;
+    table.focusRingType = NSFocusRingTypeNone;
+    [table addTableColumn:[[NSTableColumn alloc] initWithIdentifier:@"pane"]];
+    table.dataSource = self;
+    table.delegate = self;
+    _tableView = table;
+
+    NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect];
+    scroll.documentView = table;
+    scroll.hasVerticalScroller = YES;
+    scroll.drawsBackground = NO;
+    self.view = scroll;
+}
+
+- (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
+    return (NSInteger)self.tabs.tabViewItems.count;
+}
+
+- (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
+    NSTableCellView *cell = [tableView makeViewWithIdentifier:@"pane" owner:nil];
+    if (!cell) {
+        cell = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
+        cell.identifier = @"pane";
+        NSImageView *icon = [[NSImageView alloc] initWithFrame:NSZeroRect];
+        icon.translatesAutoresizingMaskIntoConstraints = NO;
+        NSTextField *label = [NSTextField labelWithString:@""];
+        label.translatesAutoresizingMaskIntoConstraints = NO;
+        label.font = [NSFont systemFontOfSize:13];
+        label.lineBreakMode = NSLineBreakByTruncatingTail;
+        [cell addSubview:icon];
+        [cell addSubview:label];
+        cell.imageView = icon;
+        cell.textField = label;
+        [NSLayoutConstraint activateConstraints:@[
+            [icon.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:2],
+            [icon.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
+            [icon.widthAnchor constraintEqualToConstant:20],
+            [label.leadingAnchor constraintEqualToAnchor:icon.trailingAnchor constant:6],
+            [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor constant:-4],
+            [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
+        ]];
+    }
+    NSTabViewItem *item = self.tabs.tabViewItems[(NSUInteger)row];
+    cell.imageView.image = item.image;
+    cell.textField.stringValue = item.label ?: @"";
+    return cell;
+}
+
+- (void)tableViewSelectionDidChange:(NSNotification *)notification {
+    NSInteger row = _tableView.selectedRow;
+    if (row >= 0 && self.tabs.selectedTabViewItemIndex != row) {
+        self.tabs.selectedTabViewItemIndex = row;
+    }
+}
+
+@end
+
+#pragma mark - Tab controller
+
+// Owns the pane-switch window resize. The panes' size constraints sit just
 // below required (see SettingsPaneViewController), so the tab controller's
 // own layout pass no longer snaps the window; this animates it to the
-// incoming pane's preferredContentSize instead, top-left anchored, at the
-// app's one fixed window-resize duration.
+// incoming pane's target frame instead, top-left anchored, at the app's one
+// fixed window-resize duration. Also the sync point back to the sidebar, so
+// a programmatic selection (the debug channel's settings_open) moves the
+// highlighted row too.
 @interface SettingsTabViewController : NSTabViewController
+@property (weak, nonatomic) NSTableView *sidebarTable;
 @end
 
 @implementation SettingsTabViewController
@@ -35,13 +138,34 @@
 
 - (void)tabView:(NSTabView *)tabView didSelectTabViewItem:(NSTabViewItem *)tabViewItem {
     [super tabView:tabView didSelectTabViewItem:tabViewItem];
-    NSWindow *window = self.view.window;
     NSViewController *pane = tabViewItem.viewController;
-    if (!window || !pane) {
+    if (!pane) {
         return;
     }
-    NSSize target = pane.preferredContentSize;
+    NSUInteger index = [self.tabViewItems indexOfObject:tabViewItem];
+    NSTableView *sidebar = self.sidebarTable;
+    if (index != NSNotFound && sidebar && sidebar.selectedRow != (NSInteger)index) {
+        [sidebar selectRowIndexes:[NSIndexSet indexSetWithIndex:index] byExtendingSelection:NO];
+    }
+    // The window binds its title to the split controller's; the pane's title
+    // reaches it through here, never set on the window directly.
+    self.parentViewController.title = pane.title;
+    NSWindow *window = self.view.window;
+    if (!window) {
+        return;
+    }
+    // The target is the frame the constraint engine will settle the window at
+    // anyway (the pane's fitting size is the window's size — see
+    // SettingsPaneViewController), computed from the engine's own numbers:
+    // this view's leading edge in the window is the sidebar plus divider, and
+    // the content rect past contentLayoutRect is the titlebar overlaying the
+    // content. Animating to the same answer keeps the post-animation snap a
+    // no-op.
+    NSSize paneSize = pane.preferredContentSize;
+    CGFloat leading = NSMinX([self.view convertRect:self.view.bounds toView:nil]);
     NSRect content = [window contentRectForFrameRect:window.frame];
+    CGFloat titlebar = NSHeight(content) - NSHeight(window.contentLayoutRect);
+    NSSize target = NSMakeSize(leading + paneSize.width, paneSize.height + titlebar);
     content.origin.y += content.size.height - target.height;
     content.size = target;
     NSRect targetFrame = [window frameRectForContentRect:content];
@@ -56,14 +180,10 @@
 
 @end
 
+#pragma mark - Window controller
+
 @implementation SettingsWindowController
 
-// The pane's title is what names the tab AND the window: the tab controller
-// propagates the selected child's title to itself, the window binds its own
-// title to its contentViewController's, and setting the window title by hand
-// instead loses to that chain — the propagation clears it to nil on every
-// tab switch.
-//
 // The identifier is the pane's stable name, the one the debug channel's
 // settings_open selects by, so a script never depends on the running
 // language the way the label would make it.
@@ -78,11 +198,12 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
 
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController {
     SettingsTabViewController *tabs = [[SettingsTabViewController alloc] init];
-    tabs.tabStyle = NSTabViewControllerTabStyleToolbar;
+    tabs.tabStyle = NSTabViewControllerTabStyleUnspecified;
+    tabs.tabView.tabViewType = NSNoTabsNoBorder;
 
     [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController],
                                   @"general", STR_SETTINGS_GENERAL, @"gearshape")];
-    // The tab titles reuse the Playback and Appearance menu strings: same
+    // The sidebar labels reuse the Playback and Appearance menu strings: same
     // word, same translations.
     [tabs addTabViewItem:PaneItem([[SettingsPlaybackViewController alloc] initWithPlayerController:playerController],
                                   @"playback", STR_MENU_PLAYBACK, @"play.circle")];
@@ -90,38 +211,71 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
                                   @"appearance", STR_MENU_VIEW_APPEARANCE, @"paintbrush")];
     [tabs addTabViewItem:PaneItem([[SettingsFilesViewController alloc] initWithPlayerController:playerController],
                                   @"files", STR_SETTINGS_FILES, @"folder")];
-    // The Convert tab reuses the Convert menu's string too.
+    // The Convert label reuses the Convert menu's string too.
     [tabs addTabViewItem:PaneItem([[SettingsConvertViewController alloc] initWithPlayerController:playerController],
                                   @"convert", STR_MENU_CONVERT, @"arrow.triangle.2.circlepath")];
     [tabs addTabViewItem:PaneItem([[SettingsAdvancedViewController alloc] initWithPlayerController:playerController],
                                   @"advanced", STR_SETTINGS_ADVANCED, @"gearshape.2")];
 
-    // The window title comes from the title-propagation chain above, never
-    // set directly here.
-    NSWindow *window = [NSWindow windowWithContentViewController:tabs];
-    // Not resizable: each pane owns its size.
-    window.styleMask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable;
-    window.toolbarStyle = NSWindowToolbarStylePreference;
+    SettingsSidebarController *sidebar = [[SettingsSidebarController alloc] init];
+    sidebar.tabs = tabs;
+    tabs.sidebarTable = sidebar.tableView;
+
+    NSSplitViewController *split = [[SettingsSplitViewController alloc] init];
+    NSSplitViewItem *sidebarItem = [NSSplitViewItem sidebarWithViewController:sidebar];
+    sidebarItem.minimumThickness = kSettingsSidebarWidth;
+    sidebarItem.maximumThickness = kSettingsSidebarWidth;
+    sidebarItem.canCollapse = NO;
+    sidebarItem.allowsFullHeightLayout = YES;
+    [split addSplitViewItem:sidebarItem];
+    [split addSplitViewItem:[NSSplitViewItem splitViewItemWithViewController:tabs]];
+    // The window title comes from the pane-title chain (didSelectTabViewItem
+    // above), never set directly; the initial selection ran before the split
+    // controller existed, so seed it here once.
+    split.title = tabs.tabViewItems.firstObject.viewController.title;
+
+    NSWindow *window = [NSWindow windowWithContentViewController:split];
+    // Not resizable: each pane owns its size. Full-size content view is what
+    // lets the sidebar run the window's full height.
+    window.styleMask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
+            | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskFullSizeContentView;
     window.releasedWhenClosed = NO;
     [window center];
 
     self = [super initWithWindow:window];
     if (self) {
-        // After center, so a saved position wins over the default one.
+        // An item-less toolbar except for the sidebar tracking separator,
+        // which AppKit vends for a split-view content controller: it gives the
+        // titlebar its unified height and carries the sidebar divider through
+        // it, which is the whole System Settings look.
+        NSToolbar *toolbar = [[NSToolbar alloc] initWithIdentifier:@"SettingsToolbar"];
+        toolbar.delegate = self;
+        toolbar.allowsUserCustomization = NO;
+        window.toolbar = toolbar;
+        window.toolbarStyle = NSWindowToolbarStyleUnified;
+
+        // After center, so a saved position wins over the default one. The
+        // SIZE the autosave restores — possibly a different pane's — needs no
+        // correction here: the constraint engine re-sizes the window to the
+        // selected pane's fitting size on the first layout pass.
         self.windowFrameAutosaveName = @"SettingsWindow";
-        // The autosaved frame restores a SIZE too — possibly a different
-        // pane's, and the sub-required pane constraints no longer correct it.
-        // Re-assert the selected pane's size, top-left anchored like the
-        // tab-switch resize, so the restored top edge stays put.
-        NSSize paneSize = tabs.tabViewItems.firstObject.viewController.preferredContentSize;
-        if (paneSize.width > 0) {
-            NSRect content = [window contentRectForFrameRect:window.frame];
-            content.origin.y += content.size.height - paneSize.height;
-            content.size = paneSize;
-            [window setFrame:[window frameRectForContentRect:content] display:NO];
-        }
+        [sidebar.tableView selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
     }
     return self;
+}
+
+- (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar {
+    return @[NSToolbarSidebarTrackingSeparatorItemIdentifier];
+}
+
+- (NSArray<NSToolbarItemIdentifier> *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar {
+    return @[NSToolbarSidebarTrackingSeparatorItemIdentifier];
+}
+
+// The tracking separator is AppKit's own; there are no custom items to build.
+- (NSToolbarItem *)toolbar:(NSToolbar *)toolbar itemForItemIdentifier:(NSToolbarItemIdentifier)itemIdentifier
+ willBeInsertedIntoToolbar:(BOOL)flag {
+    return nil;
 }
 
 // File > Close (⌘W) is nil-targeted closeFile:; catching it while this window

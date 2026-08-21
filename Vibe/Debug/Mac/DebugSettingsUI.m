@@ -34,12 +34,20 @@ static NSTabViewController *VibeSettingsTabs(NSString **errorJSON) {
         *errorJSON = VibeErrorJSON(@"settings window is not open (run settings_open)");
         return nil;
     }
+    // The window's content is the split controller (sidebar + panes); the tab
+    // controller that owns pane selection is its content child. Driving IT is
+    // what keeps this channel honest — didSelectTabViewItem syncs the sidebar
+    // row back, so a programmatic selection looks exactly like a click.
     NSViewController *root = window.contentViewController;
-    if (![root isKindOfClass:NSTabViewController.class]) {
-        *errorJSON = VibeErrorJSON(@"settings window has no tab controller");
-        return nil;
+    if ([root isKindOfClass:NSSplitViewController.class]) {
+        for (NSViewController *child in root.childViewControllers) {
+            if ([child isKindOfClass:NSTabViewController.class]) {
+                return (NSTabViewController *)child;
+            }
+        }
     }
-    return (NSTabViewController *)root;
+    *errorJSON = VibeErrorJSON(@"settings window has no tab controller");
+    return nil;
 }
 
 static NSString *VibePaneIdentifier(NSTabViewItem *item) {

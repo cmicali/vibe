@@ -1,6 +1,6 @@
 # Settings window (macOS)
 
-Vibe > Settings… (⌘,): `SettingsWindowController`, a toolbar-style `NSTabViewController` in the standard macOS settings-window shape, created lazily by `AppDelegate` and kept alive across closes. ⌘W closes it — File > Close is nil-targeted, and this window controller's own `closeFile:` catches it ahead of the player's. The window is deliberately not resizable.
+Vibe > Settings… (⌘,): `SettingsWindowController`, in the System Settings shape — an `NSSplitViewController` holding a full-height source-list sidebar (`SettingsSidebarController`) that drives a tab-less `NSTabViewController` of panes, under a full-size content view and a unified toolbar whose only item is the sidebar tracking separator (AppKit vends it for a split-view content controller; it is what carries the sidebar divider through the titlebar). The sidebar rows are built from the tab items themselves — same order, labels and symbols — and selection syncs both ways through `didSelectTabViewItem:`, so the debug channel's programmatic pane switch moves the highlighted row too. Created lazily by `AppDelegate` and kept alive across closes. ⌘W closes it — File > Close is nil-targeted, and this window controller's own `closeFile:` catches it ahead of the player's. The window is deliberately not resizable.
 
 The *store* is `AppSettings` (`Vibe/Common/`); this directory is only the window. `DefaultAppRegistration` also lives here, because it is the AppKit/Launch Services half of `Common/DocumentTypes`.
 
@@ -8,24 +8,24 @@ The *store* is `AppSettings` (`Vibe/Common/`); this directory is only the window
 
 One pane per `SettingsPaneViewController` subclass, one file each, on shared scaffolding in the base class: the pane size and the top-centered two-column form grid.
 
-**The design size is a minimum**, grown to the form grid's fitting size, so a long localization widens the pane instead of clipping.
+**The design size is a minimum**, grown to the form grid's fitting size, so a long localization widens the pane instead of clipping — and the height is additionally floored at `kSettingsPaneMinHeight`, so every pane presents the same roomy window rather than hugging its content. The titlebar overlays the pane (full-size content view), which is why the grid pins to the safe-area top and the height constraint rides the safe-area guide: the pane's design height is a content-layout budget, below the toolbar.
 
 Panes reload control state in `refreshFromSettings`, which the base runs on every appearance, whenever the window regains key (a system panel returned), and after any menu-bar tracking ends (a menu changed a mirrored setting while the pane stayed visible).
 
-**The window title is the title-propagation chain, never set directly.** Each pane's `NSViewController.title` names its tab **and**, through the tab controller's selected-child propagation and the window's `contentViewController` title binding, the window. A manually set window title loses to that chain — the propagation clears it to nil on every tab switch.
+**The window title is the title-propagation chain, never set directly.** Each pane's `NSViewController.title` names its sidebar row **and** the window: `didSelectTabViewItem:` pushes it onto the split controller, whose title the window binds to (the split controller does not propagate a selected child's title on its own, which is also why the first pane's title is seeded at init — the initial selection ran before the split controller existed).
 
-Tab titles reuse menu strings where the word is the same (Playback, Appearance, Convert); settings-only strings live in the `settings.*` key family. Each tab item also carries a **stable, unlocalized identifier** (`general`, `playback`, …), which is what the debug channel's `settings_open` selects by.
+Sidebar labels reuse menu strings where the word is the same (Playback, Appearance, Convert); settings-only strings live in the `settings.*` key family. Each tab item also carries a **stable, unlocalized identifier** (`general`, `playback`, …), which is what the debug channel's `settings_open` selects by.
 
-## TRAP: the tab-switch resize is animated by exactly one path, and two AppKit mechanisms fight it
+## TRAP: the pane's fitting size IS the window's settled size, and the pane-switch resize is animated by exactly one path
 
-`SettingsTabViewController.didSelectTabViewItem:` animates at `kWindowResizeAnimationDuration` through `[window animator] setFrame:` in an explicit `NSAnimationContext` — **not** `setFrame:display:animate:`, whose legacy blocking stepper consumes its duration here without rendering a single intermediate frame.
+The constraint engine re-sizes a `contentViewController` window to its content's fitting size after every layout pass (`_changeWindowFrameFromConstraintsIfNecessary`), so a frame held anywhere else snaps back on the next flush. There is no fighting it; the design leans on it instead: the pane's 999 constraints define the fitting size the window settles at (safe-area height + width, so the titlebar overlay is the engine's to add), the frame autosave's restored size needs no correction because the first layout pass corrects it, and the sidebar's fixed thickness plus divider joins the width on its own.
 
-Two mechanisms each snap the window to the incoming pane's size before the animation can run, turning it into a no-op, and both are disarmed:
+`SettingsTabViewController.didSelectTabViewItem:` animates the switch at `kWindowResizeAnimationDuration` through `[window animator] setFrame:` in an explicit `NSAnimationContext` — **not** `setFrame:display:animate:`, whose legacy blocking stepper consumes its duration here without rendering a single intermediate frame. Its target is computed from the engine's own numbers (the tab view's leading edge in the window, `contentLayoutRect` for the titlebar overlay), because a target that differs from the fitting answer gets visibly re-snapped at animation end.
 
-- **The panes' size constraints sit at 999**, just below required. A required size forces the window there in one layout pass; at 999 they still define the fitting size and the window edge wins while the frame animates, so the pane stretches with it.
-- **The tab controller swallows `setPreferredContentSize:`**, because AppKit resizes a window immediately when its `contentViewController`'s `preferredContentSize` changes.
+Two mechanisms would still snap the window to the incoming pane's size before the animation can run, turning it into a no-op, and both are disarmed:
 
-Because nothing else corrects the size any more, the window controller **re-asserts the selected pane's size after the frame autosave restores** — the autosaved frame carries a possibly different pane's size.
+- **The pane constraints sit at 999**, just below required. A required size forces the window there in one layout pass; at 999 the window edge wins while the frame animates, so the pane stretches with it.
+- **Both the tab controller and the split controller swallow `setPreferredContentSize:`**, because AppKit resizes a window immediately when its `contentViewController`'s `preferredContentSize` changes — and the split controller adopts one from its children on layout.
 
 ## Panes
 

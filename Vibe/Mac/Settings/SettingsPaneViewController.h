@@ -21,6 +21,11 @@ NS_ASSUME_NONNULL_BEGIN
 // fitting width when a localization needs more.
 static const CGFloat kSettingsPaneWidth = 480;
 
+// Every pane is at least this tall (content-layout height, below the
+// titlebar), so the settings window holds one roomy System Settings-like
+// size instead of hugging each pane's content.
+static const CGFloat kSettingsPaneMinHeight = 480;
+
 @interface SettingsPaneViewController : NSViewController
 
 @property (weak, readonly, nullable) MainPlayerController *playerController;
