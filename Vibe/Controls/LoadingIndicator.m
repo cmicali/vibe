@@ -19,6 +19,10 @@
 // The band's own travel, independent of how much of the width it may cross.
 static const CFTimeInterval kSweepDuration = 1.2;
 
+// One leg of the indeterminate pulse — faint to peak; autoreverse brings it
+// back, so the full breath is twice this.
+static const CFTimeInterval kPulseHalfPeriod = 0.9;
+
 @implementation LoadingIndicator {
     CALayer         *_track;          // the full-width inert track
     CALayer         *_shimmerClip;    // exactly the span the band may occupy
@@ -54,10 +58,10 @@ static const CFTimeInterval kSweepDuration = 1.2;
         _track.backgroundColor = [self inertTrackColor];
         [hostLayer addSublayer:_track];
 
-        // The row style builds no shimmer at all — its indeterminate is the
-        // plain faint pill. Every later touch of these layers is a message to
-        // nil there, which is the same nil-tolerance endSweepKeepingFill
-        // already relies on.
+        // The row style builds no shimmer at all — its indeterminate motion
+        // is the whole-pill pulse instead. Every later touch of these layers
+        // is a message to nil there, which is the same nil-tolerance
+        // endSweepKeepingFill already relies on.
         if (VibeLoadingIndicatorMetricsForStyle(style, 0).hasShimmer) {
             _shimmerClip = [CALayer layer];
             _shimmerClip.contentsScale = contentsScale;
@@ -146,6 +150,9 @@ static const CFTimeInterval kSweepDuration = 1.2;
     _shimmer.colors = [self shimmerColors];
     _track.backgroundColor = [self inertTrackColor];
     _fill.colors = [self fillColors];
+    // The pulse bakes its endpoint colors in; rebuild it from the new palette.
+    [_track removeAnimationForKey:@"pulse"];
+    [self reconcilePulse];
 }
 
 - (void)setColorOverride:(VibeColor *)colorOverride {
@@ -230,6 +237,32 @@ static const CFTimeInterval kSweepDuration = 1.2;
     [CATransaction commit];
 
     [self installSweepAcrossRemainder:remainder bandWidth:bandWidth];
+    [self reconcilePulse];
+}
+
+// The pulseAlpha style's indeterminate motion: the whole track breathes
+// between its resting alpha and the peak. It is what tells "still waiting on
+// the provider" apart from a determinate fill parked at zero, and — like the
+// sweep — it runs entirely on the compositor: no timer, no app-side frames.
+// The first fill sample retires it; a revert to indeterminate brings it back.
+- (void)reconcilePulse {
+    if ([self paletteMetrics].pulseAlpha <= 0 || !_track || _fill) {
+        [_track removeAnimationForKey:@"pulse"];
+        return;
+    }
+    if ([_track animationForKey:@"pulse"]) {
+        return; // layout lands here on every live-resize frame; reinstalling
+                // would restart the breath each time and freeze it faint
+    }
+    CABasicAnimation *pulse = [CABasicAnimation animationWithKeyPath:@"backgroundColor"];
+    pulse.fromValue = (id)_track.backgroundColor;
+    pulse.toValue = (id)[[self baseColor]
+            colorWithAlphaComponent:[self paletteMetrics].pulseAlpha].CGColor;
+    pulse.duration = kPulseHalfPeriod;
+    pulse.autoreverses = YES;
+    pulse.repeatCount = HUGE_VALF;
+    pulse.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+    [_track addAnimation:pulse forKey:@"pulse"];
 }
 
 // TRAP: reinstall the sweep only when its endpoints actually change. Live

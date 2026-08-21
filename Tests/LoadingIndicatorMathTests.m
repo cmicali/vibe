@@ -31,13 +31,25 @@
 }
 
 // The row style has no shimmer at all: a 16pt gutter has no room for a sweep
-// to read as motion rather than flicker, so its indeterminate is the plain
-// faint pill. The waveform keeps its sweep.
+// to read as motion rather than flicker. The waveform keeps its sweep.
 - (void)testOnlyTheWaveformStyleSweeps {
     XCTAssertFalse(VibeLoadingIndicatorMetricsForStyle(
             VibeLoadingIndicatorStyleRow, 16).hasShimmer);
     XCTAssertTrue(VibeLoadingIndicatorMetricsForStyle(
             VibeLoadingIndicatorStyleWaveform, 480).hasShimmer);
+}
+
+// Each style has exactly one indeterminate motion: the waveform's is its
+// sweep, the row's the whole-pill pulse — without one, indeterminate is
+// pixel-identical to a determinate fill parked at zero, which reads as stuck.
+// The pulse must peak above the resting track or it does not read at all.
+- (void)testOnlyTheRowStylePulses {
+    VibeLoadingIndicatorMetrics row =
+            VibeLoadingIndicatorMetricsForStyle(VibeLoadingIndicatorStyleRow, 16);
+    XCTAssertGreaterThan(row.pulseAlpha, row.trackAlpha);
+    XCTAssertLessThanOrEqual(row.pulseAlpha, 1);
+    XCTAssertEqual(VibeLoadingIndicatorMetricsForStyle(
+            VibeLoadingIndicatorStyleWaveform, 480).pulseAlpha, 0);
 }
 
 - (void)testRowFrontFadeFitsTheGutter {

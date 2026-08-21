@@ -26,11 +26,14 @@ typedef NS_ENUM(NSUInteger, VibeLoadingIndicatorStyle) {
 typedef struct {
     CGFloat height;
     CGFloat cornerRadius;
-    BOOL    hasShimmer;       // NO builds no band at all: the row style's
-                              // indeterminate is the plain faint pill — a
-                              // 16pt gutter has no room for a sweep to read
-                              // as motion rather than flicker
+    BOOL    hasShimmer;       // NO builds no band at all: a 16pt gutter has
+                              // no room for a sweep to read as motion rather
+                              // than flicker — the row's indeterminate motion
+                              // is the whole-pill pulse instead
     CGFloat bandWidth;        // the sweeping shimmer's own width
+    CGFloat pulseAlpha;       // indeterminate pulse's peak alpha; 0 pulses
+                              // not at all (the waveform style — its
+                              // indeterminate motion is the sweep)
     CGFloat frontFadePoints;  // the filled head's soft front
     CGFloat trackAlpha;
     CGFloat shimmerAlpha;
@@ -48,6 +51,7 @@ VibeLoadingIndicatorMetricsForStyle(VibeLoadingIndicatorStyle style, CGFloat wid
             .cornerRadius = 1.5,
             .hasShimmer = NO,
             .bandWidth = 0,
+            .pulseAlpha = 0.85,
             .frontFadePoints = 3,
             .trackAlpha = 0.30,
             .fillAlpha = 1.0,
