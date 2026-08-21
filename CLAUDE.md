@@ -19,6 +19,7 @@ xcodegen generate        # or: make project
 | `make install-ios [CONFIG=Debug]` | iOS app for a paired physical device — signed, then installed over the CoreDevice tunnel. Needs a development certificate; `DEVICE=<name or identifier>` when more than one device is paired. |
 | `make run` / `make install` | Launch; copy into `/Applications`. |
 | `make clean` | Removes `build/` and the generated project. |
+| `make reset-state [ARGS=-n]` | Wipes Vibe's persisted state — the macOS sandbox container, and with `ARGS=--both` the simulator app. Prompts first; `-n` previews. |
 
 Debug builds are what the debug command channel needs — it compiles out of Release entirely.
 

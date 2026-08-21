@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: setup project build build-ios install-ios test test-summary analyze stress release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout
+.PHONY: setup project build build-ios install-ios test test-summary analyze stress release github-release appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -124,6 +124,12 @@ appstore-upload-signed-build:
 # Remove build/ and the generated Vibe.xcodeproj.
 clean:
 	scripts/clean.sh
+
+# Wipe Vibe's persisted state (settings, folder grants, caches, saved window
+# state) so the next launch is a first launch. Prompts before deleting.
+# Options pass through: make reset-state ARGS="--both -y", or ARGS=-n to preview.
+reset-state:
+	scripts/reset-state.sh $(ARGS)
 
 # Launch the app, building it first only if it isn't built yet.
 run:
