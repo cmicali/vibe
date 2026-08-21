@@ -557,7 +557,9 @@ targets:
       - path: Vibe/iOS/PageWaveformCoordinator.m
       - path: Vibe/iOS/FileSearchIndex.m
       - path: Vibe/Common/PlatformImage.m
+      - path: Vibe/Common/PlatformColor.m
       - path: Vibe/Util/Mac/NSImage+Util.m
+      - path: Vibe/WaveformUI/WaveformTheme.m
     settings:
       base:
         PRODUCT_NAME: "$(TARGET_NAME)"

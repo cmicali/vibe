@@ -15,11 +15,20 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "PlatformTypes.h"
 
 // A renderer's stable styleIdentifier, never its localized display name — see
 // AudioWaveformRenderer.h. Both platforms render waveforms and both offer the
 // picker, so this one is shared.
 #define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"oversampling_detailed_x4"
+
+// The waveform color theme, the palette laid over whichever style draws the
+// geometry. Stable identifiers, resolved to colors in one place —
+// WaveformTheme (Vibe/WaveformUI/).
+#define SETTINGS_VALUE_WAVEFORM_THEME_WHITE                 @"white"
+#define SETTINGS_VALUE_WAVEFORM_THEME_ORANGE                @"orange"
+#define SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART             @"album_art"
+#define SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM                @"custom"
 
 #if TARGET_OS_OSX
 
@@ -59,6 +68,18 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 
 - (NSString *)waveformStyle;
 - (void)setWaveformStyle:(NSString *)identifier;
+
+// The waveform color theme, normalized on read: an identifier no picker can
+// produce snaps to white. WaveformTheme resolves it to colors.
+- (NSString *)waveformTheme;
+- (void)setWaveformTheme:(NSString *)identifier;
+
+// The custom theme's pair, persisted as #RRGGBB. nil when unset or
+// unparsable; WaveformTheme supplies the fallback.
+- (nullable VibeColor *)waveformCustomPlayedColor;
+- (void)setWaveformCustomPlayedColor:(nullable VibeColor *)color;
+- (nullable VibeColor *)waveformCustomUnplayedColor;
+- (void)setWaveformCustomUnplayedColor:(nullable VibeColor *)color;
 
 #if TARGET_OS_OSX
 

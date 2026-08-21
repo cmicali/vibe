@@ -9,8 +9,12 @@
 
 #import "AppSettings.h"
 #import "SettingsRules.h"
+#import "PlatformColor.h"
 
 #define SETTING_WAVEFORM_STYLE                      @"Settings.waveformStyle"
+#define SETTING_WAVEFORM_THEME                      @"Settings.waveformTheme"
+#define SETTING_WAVEFORM_CUSTOM_PLAYED_COLOR        @"Settings.waveformCustomPlayedColor"
+#define SETTING_WAVEFORM_CUSTOM_UNPLAYED_COLOR      @"Settings.waveformCustomUnplayedColor"
 
 #if TARGET_OS_OSX
 
@@ -119,8 +123,12 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 - (instancetype)init {
     self = [super init];
     if (self) {
-        [self registerDefaults];
+        // Migrations run before registerDefaults: the theme migration keys on
+        // "no stored value", and objectForKey: consults the registration
+        // domain, so a registered default would read as stored.
         [self migrateLegacyWaveformStyle];
+        [self migrateWaveformTheme];
+        [self registerDefaults];
 #if TARGET_OS_OSX
         [self installHotCacheInvalidator];
 #endif
@@ -131,6 +139,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 - (void)registerDefaults {
     NSMutableDictionary *appDefaults = [@{
             SETTING_WAVEFORM_STYLE: SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
+            SETTING_WAVEFORM_THEME: SETTINGS_VALUE_WAVEFORM_THEME_WHITE,
     } mutableCopy];
 #if TARGET_OS_OSX
     [self registerMacDefaultsInto:appDefaults];
@@ -180,6 +189,52 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 
 - (void)setWaveformStyle:(NSString *)identifier {
     [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_STYLE];
+}
+
+// The style/theme split left existing Sonic Cirrus users' orange to this
+// one-time write; after it a theme key always exists. Runs before
+// registerDefaults — see init.
+- (void)migrateWaveformTheme {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSString *migrated = VibeMigratedWaveformTheme([defaults stringForKey:SETTING_WAVEFORM_THEME],
+                                                   [defaults stringForKey:SETTING_WAVEFORM_STYLE]);
+    if (migrated) {
+        [defaults setObject:migrated forKey:SETTING_WAVEFORM_THEME];
+    }
+}
+
+- (NSString *)waveformTheme {
+    return VibeNormalizedWaveformTheme([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_THEME]);
+}
+
+- (void)setWaveformTheme:(NSString *)identifier {
+    [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_THEME];
+}
+
+- (VibeColor *)waveformCustomPlayedColor {
+    return VibeColorFromHexString([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_CUSTOM_PLAYED_COLOR]);
+}
+
+- (void)setWaveformCustomPlayedColor:(VibeColor *)color {
+    [self setHexColor:color forKey:SETTING_WAVEFORM_CUSTOM_PLAYED_COLOR];
+}
+
+- (VibeColor *)waveformCustomUnplayedColor {
+    return VibeColorFromHexString([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_CUSTOM_UNPLAYED_COLOR]);
+}
+
+- (void)setWaveformCustomUnplayedColor:(VibeColor *)color {
+    [self setHexColor:color forKey:SETTING_WAVEFORM_CUSTOM_UNPLAYED_COLOR];
+}
+
+- (void)setHexColor:(VibeColor *)color forKey:(NSString *)key {
+    NSString *hex = VibeHexStringFromColor(color);
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if (hex) {
+        [defaults setObject:hex forKey:key];
+    } else {
+        [defaults removeObjectForKey:key];
+    }
 }
 
 #if TARGET_OS_OSX
