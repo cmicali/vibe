@@ -21,6 +21,8 @@
 #import "AudioPlayer+Debug.h"
 #import "OpenBurstCoalescer+Debug.h"
 #import "OpenRequestCoordinator+Debug.h"
+#import "AudioFileMaterializationCoordinator+Debug.h"
+#import "AudioFileMaterializationCoordinatorInternal.h"
 #import "AudioTrackMetadataCache+Debug.h"
 #import "AudioTrackMetadataCacheInternal.h"
 #import "AppDelegate.h"
@@ -185,6 +187,17 @@ static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerControl
     // counter carried it.
     out[@"priorityRecordsPending"] =
             @([(NSArray *)[controller.metadataCache debugPriorityLaneState][@"pending"] count]);
+    // An AVAudioFile call the OS still owes an answer for. Unlike everything
+    // above it is not a container the app can drain — a never-returning open
+    // cannot be cancelled — so nonzero here at rest is not "work still in
+    // flight" but "work that will never finish", which is the only reading
+    // quiesce can give it. That is also why it belongs in this dictionary
+    // rather than beside the diagnostic numbers: VibeIsSettled scores every
+    // entry, so a stranded open holds the settle open and names itself.
+    // The lock-free reader, not debugState: quiesce polls this every 100ms and
+    // must not take the coordinator's state queue to do it.
+    out[@"handleOpensInFlight"] =
+            @([AudioFileMaterializationCoordinator.sharedCoordinator handleOpensInFlight]);
     return out;
 }
 
@@ -253,6 +266,11 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
             @"canRedo": @(window.undoManager.canRedo),
         },
         @"pending": VibePendingCounts(controller, engine),
+        // Diagnosis, not scoring: the lane gauges and the cumulative outcome
+        // counters that say whether work is still being *attempted*. The one
+        // number here that belongs at zero at rest is already in `pending`.
+        @"materialization":
+                [AudioFileMaterializationCoordinator.sharedCoordinator debugState],
     });
 }
 

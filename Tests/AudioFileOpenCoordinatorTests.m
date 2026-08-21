@@ -214,6 +214,9 @@
     NSURL *_directory;
     AudioFileMaterializationCoordinator *_coordinator;
     dispatch_queue_t _completionQueue;
+    // Every coordinator a test builds, so the teardown invariant covers the
+    // ad-hoc ones too rather than only the setUp instance.
+    NSMutableArray<AudioFileMaterializationCoordinator *> *_coordinators;
 }
 
 - (void)setUp {
@@ -221,6 +224,7 @@
     // Its own instance, never +sharedCoordinator: the claim table is process
     // state, and tests that shared it would see each other's paths.
     _coordinator = [[AudioFileMaterializationCoordinator alloc] init];
+    _coordinators = [NSMutableArray arrayWithObject:_coordinator];
     _completionQueue = dispatch_queue_create("com.vibe.tests.open", DISPATCH_QUEUE_SERIAL);
     _directory = [NSURL fileURLWithPath:[NSTemporaryDirectory()
             stringByAppendingPathComponent:[NSString stringWithFormat:@"vibe-open-%@",
@@ -230,8 +234,33 @@
 }
 
 - (void)tearDown {
+    [self assertAccountingSettles];
     [NSFileManager.defaultManager removeItemAtURL:_directory error:nil];
     [super tearDown];
+}
+
+// B1 of docs/testing/materialization-coverage-plan.md. Every dispatched
+// AVAudioFile call must return and every lane slot must be given back before a
+// test is over; a stranded one is invisible to every delivery assertion in this
+// file, which is the shape of the bug this invariant exists for. A test that
+// means to leave an open wedged releases its gate before it ends.
+- (void)assertAccountingSettles {
+    for (AudioFileMaterializationCoordinator *coordinator in _coordinators) {
+        NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:2];
+        VibeAudioFileMaterializationCoordinatorSnapshot snapshot;
+        do {
+            snapshot = [coordinator stateSnapshotForTesting];
+            if (snapshot.interactiveRunningCount == 0 && snapshot.backgroundRunningCount == 0
+                    && snapshot.handleOpensStarted == snapshot.handleOpensCompleted) {
+                break;
+            }
+            [NSThread sleepForTimeInterval:0.01];
+        } while (deadline.timeIntervalSinceNow > 0);
+        XCTAssertEqual(snapshot.interactiveRunningCount, 0u, @"interactive slot stranded");
+        XCTAssertEqual(snapshot.backgroundRunningCount, 0u, @"background slot stranded");
+        XCTAssertEqual(snapshot.handleOpensStarted, snapshot.handleOpensCompleted,
+                       @"an AVAudioFile call never returned");
+    }
 }
 
 // A minimal but genuinely openable 16-bit PCM WAV. Written by hand rather than
@@ -275,7 +304,7 @@
 - (AudioFileMaterializationCoordinator *)materializationCoordinatorWithHarness:
         (VibeOpenTestMaterializationHarness *)harness
         configuration:(AudioLoadingConfiguration *)configuration {
-    return [[AudioFileMaterializationCoordinator alloc]
+    AudioFileMaterializationCoordinator *coordinator = [[AudioFileMaterializationCoordinator alloc]
             initWithConfiguration:configuration
             operationFactory:^id<AudioFileMaterializationOperation>(
                     NSURL *url, VibeAudioFileMaterializationRole role) {
@@ -285,6 +314,148 @@
     } clock:^NSTimeInterval{
         return [NSDate date].timeIntervalSinceReferenceDate;
     }];
+    [_coordinators addObject:coordinator];
+    return coordinator;
+}
+
+// Stage 1 through the harness, stage 2 through a caller-supplied opener: the
+// only seam that can hold an AVAudioFile call open the way a wedged provider
+// read does, which is what every test in the next section needs.
+- (AudioFileMaterializationCoordinator *)coordinatorWithHarness:
+        (VibeOpenTestMaterializationHarness *)harness
+        fileOpener:(VibeAudioFileOpener)fileOpener {
+    AudioFileMaterializationCoordinator *coordinator = [[AudioFileMaterializationCoordinator alloc]
+            initWithConfiguration:[AudioLoadingConfiguration productionConfiguration]
+            operationFactory:^id<AudioFileMaterializationOperation>(
+                    NSURL *url, VibeAudioFileMaterializationRole role) {
+        return [harness operationForURL:url role:role];
+    } datalessProbe:^BOOL(NSURL *url) {
+        return YES;   // fabricated paths would stat as local and skip the lanes
+    } clock:^NSTimeInterval{
+        return [NSDate date].timeIntervalSinceReferenceDate;
+    } fileOpener:fileOpener];
+    [_coordinators addObject:coordinator];
+    return coordinator;
+}
+
+#pragma mark - Wedged handle opens against stage-1 admission
+
+// A1/B3 of docs/testing/materialization-coverage-plan.md, and the shape both
+// share: drive one purpose's handle open into the uncancellable call, hold it
+// there, and ask what stage 1 will still admit for an unrelated path.
+//
+// The gate is released before the test returns so the teardown invariant can
+// settle; leaving it held would strand a worker for the rest of the suite.
+- (void)runWedgedOpenOnPurpose:(VibeAudioFileOpenPurpose)wedgedPurpose
+                    secondRole:(VibeAudioFileMaterializationRole)secondRole {
+    // TRAP: gapless enters at stage 2 alone — the parked file already proved the
+    // bytes local — so it mints no operation and the harness never sees a start
+    // for it. Counting starts as though it did would make this test pass or fail
+    // on the wrong step, which is exactly the defect S18 has.
+    BOOL wedgedRidesATransfer = wedgedPurpose != VibeAudioFileOpenPurposeGapless;
+    VibeOpenTestMaterializationHarness *harness =
+            [[VibeOpenTestMaterializationHarness alloc] init];
+    // An expectation rather than a semaphore for the arrival: the open runs on a
+    // Utility queue, and blocking this thread on it trips the priority-inversion
+    // checker, whose report would land as a test failure of its own.
+    XCTestExpectation *openBegan = [self expectationWithDescription:@"handle open began"];
+    dispatch_semaphore_t releaseOpen = dispatch_semaphore_create(0);
+    AudioFileMaterializationCoordinator *coordinator =
+            [self coordinatorWithHarness:harness fileOpener:^AVAudioFile *(NSURL *url, NSError **error) {
+        [openBegan fulfill];
+        dispatch_semaphore_wait(releaseOpen, DISPATCH_TIME_FOREVER);
+        return nil;
+    }];
+
+    NSURL *wedged = [_directory URLByAppendingPathComponent:@"wedged.wav"];
+    AudioFileOpenToken *token = [coordinator openURL:wedged purpose:wedgedPurpose
+                                     completionQueue:_completionQueue
+                                          completion:^(AVAudioFile *file, NSError *error,
+                                                       NSTimeInterval elapsed) {}];
+    NSUInteger startsBeforeSecond = 0;
+    if (wedgedRidesATransfer) {
+        XCTAssertTrue([harness waitForStartedCount:1], @"the wedged path's transfer never started");
+        [harness completeAllReady];
+        startsBeforeSecond = 1;
+    }
+    [self waitForExpectations:@[openBegan] timeout:2];
+
+    // Any transfer claim has settled and left the table, so nothing here is gated
+    // by the foreground rule. Whatever refuses this request refuses it on capacity.
+    NSURL *other = [_directory URLByAppendingPathComponent:@"other.wav"];
+    AudioFileMaterializationRequestToken *second = [coordinator materializeURL:other
+            role:secondRole completionQueue:_completionQueue
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error,
+                         NSTimeInterval elapsed) {}];
+    XCTAssertTrue([harness waitForStartedCount:startsBeforeSecond + 1],
+                  @"a wedged handle open starved an unrelated path's transfer");
+
+    [second cancel];
+    [token cancel];
+    dispatch_semaphore_signal(releaseOpen);
+}
+
+// A1. The regression itself: one wedged background-lane open, and every later
+// dataless background claim is refused for the life of the process. Expected to
+// fail until the fix in docs/bugs/background-lane-wedged-open-starvation.md
+// lands — unmarking this is how that fix proves it fixed something.
+- (void)testAWedgedPrefetchOpenDoesNotStarveBackgroundTransfers {
+    XCTExpectFailure(@"B1: a prefetch open carries the sole background lane slot "
+                     @"and never gives it back; see "
+                     @"docs/bugs/background-lane-wedged-open-starvation.md");
+    [self runWedgedOpenOnPurpose:VibeAudioFileOpenPurposePrefetch
+                      secondRole:VibeAudioFileMaterializationRoleMetadataScan];
+}
+
+// A1, the other way in. Gapless takes its background slot at a different place
+// and with no capacity check at all, so it would keep starving the lane even if
+// only the carried-slot half were fixed.
+- (void)testAWedgedGaplessOpenDoesNotStarveBackgroundTransfers {
+    XCTExpectFailure(@"B1: gapless takes the sole background lane slot outright; "
+                     @"see docs/bugs/background-lane-wedged-open-starvation.md");
+    [self runWedgedOpenOnPurpose:VibeAudioFileOpenPurposeGapless
+                      secondRole:VibeAudioFileMaterializationRoleMetadataScan];
+}
+
+// B3. The same question in the lane that was sized for it. This passes today,
+// and its job is to keep passing: it is what "three, not two" bought, and the
+// pair with the two above is what makes the asymmetry visible as a test result
+// rather than as a comment.
+- (void)testAWedgedPlaybackOpenDoesNotStarveForegroundTransfers {
+    [self runWedgedOpenOnPurpose:VibeAudioFileOpenPurposePlayback
+                      secondRole:VibeAudioFileMaterializationRolePlayback];
+}
+
+// B2. The foreground rule reads the claim table, never the lane counters, so a
+// wedged open holding capacity is not a foreground transfer. If this ever fails,
+// changing lane accounting has silently changed which background work is allowed
+// to run — the two must stay independent.
+- (void)testAWedgedOpenIsNotAForegroundTransfer {
+    VibeOpenTestMaterializationHarness *harness =
+            [[VibeOpenTestMaterializationHarness alloc] init];
+    dispatch_semaphore_t openBegan = dispatch_semaphore_create(0);
+    dispatch_semaphore_t releaseOpen = dispatch_semaphore_create(0);
+    AudioFileMaterializationCoordinator *coordinator =
+            [self coordinatorWithHarness:harness fileOpener:^AVAudioFile *(NSURL *url, NSError **error) {
+        dispatch_semaphore_signal(openBegan);
+        dispatch_semaphore_wait(releaseOpen, DISPATCH_TIME_FOREVER);
+        return nil;
+    }];
+    NSURL *url = [_directory URLByAppendingPathComponent:@"foreground.wav"];
+    AudioFileOpenToken *token = [coordinator openURL:url
+            purpose:VibeAudioFileOpenPurposePlayback completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {}];
+    XCTAssertTrue([harness waitForStartedCount:1]);
+    XCTAssertTrue([coordinator isForegroundTransferActive],
+                  @"a live playback claim is a foreground transfer");
+    [harness completeAllReady];
+    XCTAssertEqual(dispatch_semaphore_wait(openBegan,
+            dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC))), 0);
+    XCTAssertFalse([coordinator isForegroundTransferActive],
+                   @"the claim settled, so the wedged open must not read as a transfer");
+
+    [token cancel];
+    dispatch_semaphore_signal(releaseOpen);
 }
 
 #pragma mark - The completion contract
@@ -393,6 +564,7 @@
     };
     AudioFileMaterializationCoordinator *coordinator =
             [[AudioFileMaterializationCoordinator alloc] initWithFileOpener:opener];
+    [_coordinators addObject:coordinator];
 
     XCTestExpectation *oldSilent = [self expectationWithDescription:@"old handle waiter silent"];
     oldSilent.inverted = YES;
@@ -441,6 +613,7 @@
     };
     AudioFileMaterializationCoordinator *coordinator =
             [[AudioFileMaterializationCoordinator alloc] initWithFileOpener:opener];
+    [_coordinators addObject:coordinator];
 
     XCTestExpectation *supersededSilent = [self expectationWithDescription:@"superseded silent"];
     supersededSilent.inverted = YES;

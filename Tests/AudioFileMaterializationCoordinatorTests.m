@@ -247,8 +247,40 @@
 
 - (void)tearDown {
     [_controller completeAll];
+    [self assertAccountingSettles];
     _coordinator = nil;
     [super tearDown];
+}
+
+// B1 of docs/testing/materialization-coverage-plan.md, and the reason it runs
+// in teardown rather than as its own case: every lane slot taken has to be
+// given back, and a slot that is not is silent in every other assertion here —
+// it only shows up much later, as capacity that never returns. Running this
+// after each test retro-covers the whole file, including tests written before
+// there was an accounting to break.
+//
+// Drained pending claims mint fresh operations, so completeAll is inside the
+// loop rather than before it.
+- (void)assertAccountingSettles {
+    if (!_coordinator) {
+        return;
+    }
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:2];
+    VibeAudioFileMaterializationCoordinatorSnapshot snapshot;
+    do {
+        [_controller completeAll];
+        snapshot = [_coordinator stateSnapshotForTesting];
+        if (snapshot.interactiveRunningCount == 0 && snapshot.backgroundRunningCount == 0
+                && snapshot.handleOpensStarted == snapshot.handleOpensCompleted) {
+            return;
+        }
+        [NSThread sleepForTimeInterval:0.01];
+    } while (deadline.timeIntervalSinceNow > 0);
+    XCTFail(@"lane accounting did not settle: interactive %lu, background %lu, "
+            @"opens %llu started / %llu completed",
+            (unsigned long)snapshot.interactiveRunningCount,
+            (unsigned long)snapshot.backgroundRunningCount,
+            snapshot.handleOpensStarted, snapshot.handleOpensCompleted);
 }
 
 - (NSURL *)URLNamed:(NSString *)name {
@@ -289,6 +321,66 @@
                                             completion:(VibeAudioFileMaterializationCompletion)completion {
     return [_coordinator materializeURL:[self URLNamed:name] role:role
                          completionQueue:_completionQueue completion:completion];
+}
+
+// F2 of docs/testing/materialization-coverage-plan.md. Every counter the
+// oracles read needs a test that it MOVES: one that silently always read zero
+// would look exactly like a clean run, which is the failure mode that let the
+// stall this whole plan came from stay invisible. Asserting the deltas rather
+// than absolute values keeps it independent of what the rest of the file does.
+- (void)testOutcomeCountersMoveWithRealWork {
+    [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
+    VibeAudioFileMaterializationCoordinatorSnapshot before =
+            [_coordinator stateSnapshotForTesting];
+    XCTAssertEqual(before.requestsReady, 0u);
+
+    XCTestExpectation *ready = [self expectationWithDescription:@"ready"];
+    __unused AudioFileMaterializationRequestToken *token = [self requestName:@"counted.wav"
+            role:VibeAudioFileMaterializationRolePlayback
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error,
+                         NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
+        [ready fulfill];
+    }];
+    XCTAssertTrue([_controller waitForStartedCount:1]);
+    [_controller completeAll];
+    [self waitForExpectations:@[ready] timeout:2];
+
+    VibeAudioFileMaterializationCoordinatorSnapshot after =
+            [_coordinator stateSnapshotForTesting];
+    XCTAssertEqual(after.requestsReady, 1u, @"requestsReady never moved");
+    XCTAssertEqual(after.requestsFailed, 0u);
+    XCTAssertEqual(after.requestsAdmissionExhausted, 0u);
+    // No stage-2 open on this path: materializeURL: is stage 1 alone, and a
+    // counter that moved here would mean the two stages had been conflated.
+    XCTAssertEqual(after.handleOpensStarted, 0u);
+    XCTAssertEqual([_coordinator handleOpensInFlight], 0u);
+}
+
+// The other half of F2 for the counter the quiesce oracle actually polls: it
+// must reach a nonzero value under a real open, or the oracle is decorative.
+- (void)testAdmissionExhaustionIsCounted {
+    VibeAudioLoadingConfigurationValues values = VibeAudioLoadingProductionConfigurationValues();
+    values.maximumBackgroundMaterializations = 1;
+    values.maximumBackgroundPendingMaterializations = 1;
+    [self makeCoordinatorWithValues:values];
+    XCTestExpectation *exhausted = [self expectationWithDescription:@"exhausted"];
+    // More than one request is refused, and each fulfils: over-fulfilment is an
+    // API violation, not a finding.
+    exhausted.assertForOverFulfill = NO;
+    for (NSUInteger i = 0; i < 4; i++) {
+        [self requestName:[NSString stringWithFormat:@"crowd-%lu.wav", (unsigned long)i]
+                     role:VibeAudioFileMaterializationRoleMetadataScan
+               completion:^(VibeAudioFileMaterializationResult result, NSError *error,
+                            NSTimeInterval elapsed) {
+            if (result == VibeAudioFileMaterializationResultAdmissionExhausted) {
+                [exhausted fulfill];
+            }
+        }];
+    }
+    [self waitForExpectations:@[exhausted] timeout:2];
+    XCTAssertGreaterThan([_coordinator stateSnapshotForTesting].requestsAdmissionExhausted, 0u,
+                         @"requestsAdmissionExhausted never moved");
 }
 
 - (void)testSamePathRequestsAtomicallyJoinOneOperation {

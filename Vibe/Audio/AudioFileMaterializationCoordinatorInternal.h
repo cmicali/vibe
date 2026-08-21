@@ -38,6 +38,17 @@ typedef struct {
     NSUInteger backgroundPendingCount;
     NSUInteger handleRunCount;
     BOOL foregroundTransferActive;
+    // Cumulative for the life of the coordinator. The gauges above cannot tell
+    // "nothing is happening" from "a great deal is happening quickly", which is
+    // exactly what a silent stall looks like; these can. handleOpensStarted
+    // minus handleOpensCompleted is the number of uncancellable AVAudioFile
+    // calls outstanding, and must be zero at rest.
+    uint64_t handleOpensStarted;
+    uint64_t handleOpensCompleted;
+    uint64_t requestsReady;
+    uint64_t requestsFailed;
+    uint64_t requestsYielded;
+    uint64_t requestsAdmissionExhausted;
 } VibeAudioFileMaterializationCoordinatorSnapshot;
 
 @interface AudioFileMaterializationCoordinator (Internal)
@@ -56,6 +67,15 @@ typedef struct {
 // Production stage-1 (real materializer, real probe, real clock) with an
 // injected stage-2 opener: the gated-opener tests' seam.
 - (instancetype)initWithFileOpener:(VibeAudioFileOpener)fileOpener;
+
+// Stage 2's opener, swappable on a live coordinator so the debug channel can
+// wrap it. Reading it back is how a wrapper chains to the real one rather than
+// restating what a production open is.
+@property (nonatomic, copy) VibeAudioFileOpener fileOpener;
+
+// Stranded AVAudioFile calls, readable from any thread without taking the
+// state queue. The health probe polls this; nothing else should need it.
+- (uint64_t)handleOpensInFlight;
 
 - (VibeAudioFileMaterializationCoordinatorSnapshot)stateSnapshotForTesting;
 - (void)expirePendingClaimsForTesting;

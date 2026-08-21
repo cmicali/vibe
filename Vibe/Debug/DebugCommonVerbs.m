@@ -109,6 +109,18 @@ NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> s
     AudioTrack *track = surface.debugPlaylistCurrentTrack;
     NSUInteger count = surface.debugPlaylistCount;
 
+    // Convergence, stated the way a user would: how many rows have had their
+    // metadata land. `files` is capped, so this counts the whole playlist
+    // separately rather than being derived from it. A nil metadata is the
+    // scan not having reached the row — not the file lacking tags, which is a
+    // parsed result like any other.
+    NSUInteger resolvedRows = 0;
+    for (NSUInteger i = 0; i < count; i++) {
+        if ([surface debugPlaylistTrackAtIndex:i].metadata) {
+            resolvedRows++;
+        }
+    }
+
     NSMutableArray<NSString *> *files = [NSMutableArray array];
     for (NSUInteger i = 0; i < count; i++) {
         if (files.count == kMaxListedFiles) {
@@ -143,6 +155,7 @@ NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> s
         @"playlist": [@{
             @"count": @(count),
             @"currentIndex": @(surface.debugPlaylistCurrentIndex),
+            @"resolvedRows": @(resolvedRows),
             @"files": files,
         } mutableCopy],
     } mutableCopy];
@@ -595,6 +608,29 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             // uniform flattens the per-path speed spread, progress= picks a
             // scripted progress source, unflagged stages placeholders whose
             // probe answers NO, sticky is the fault-injection mode.
+            // The open side of the fake provider. set_fake_cloud shapes stage 1
+            // (which download runs, how fast, whether it fails); this holds
+            // stage 2 — the uncancellable AVAudioFile call — which is the one
+            // provider failure a locally-backed fake cannot stage on its own.
+            VibeDebugCmd(@"hang_open <basename>|release", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: hang_open <basename>|release");
+                }
+                if ([tokens[1] isEqualToString:@"release"]) {
+                    [AudioFileMaterializationCoordinator debugReleaseHungOpens];
+                }
+                else {
+                    [AudioFileMaterializationCoordinator debugHangOpensForBasename:tokens[1]];
+                }
+                BOOL releasing = [tokens[1] isEqualToString:@"release"];
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"hangingBasename": releasing ? (id)NSNull.null : tokens[1],
+                    @"hungOpens": @([AudioFileMaterializationCoordinator debugHungOpenCount]),
+                });
+            }),
             VibeDebugCmd(@"set_fake_cloud <seconds> [<percent>] [capacity=N] [uniform] "
                          @"[progress=none|linear|sparse|stall] [unflagged] [sticky] "
                          @"[fail=<basename>]", 0,

@@ -952,13 +952,22 @@ def check_consistency(channel, settle=0.35):
 
 
 PENDING_KEYS = ("metadataHolders", "metadataWaiters", "openResultsBuffered",
-                "openBurstQueued", "retiredFades", "priorityRecordsPending")
+                "openBurstQueued", "retiredFades", "priorityRecordsPending",
+                "handleOpensInFlight")
 
 # priorityRecordsPending IS a growth metric at quiescence, unlike the two
 # below: at most one or two priority records legitimately exist (the current
 # track, a convert target), and one outliving its play is a strand. The
 # 37-entry strand the soak missed was invisible precisely because no scored
 # counter carried it.
+#
+# handleOpensInFlight is the stranded-open signal, and it is a growth metric in
+# the strictest sense: an AVAudioFile call that never returns cannot be
+# cancelled, so the count only ever goes up. At rest it must be zero, and a
+# single stuck open is a permanent loss of admission capacity that no other
+# counter here carries — the bug in
+# docs/bugs/background-lane-wedged-open-starvation.md was invisible to this
+# whole table until it was added.
 #
 # dump_health's pending section also carries cloudParsesPending and
 # cloudLaneHeld, and they are deliberately NOT scored here. Neither is a growth
@@ -1587,6 +1596,7 @@ def run(args):
               f"{len(resting_samples)} at rest)")
 
     print(f"journal: {journal_path}")
+    print(f"exercised: {describe_materialization_coverage(channel)}")
     if stalls["count"]:
         print(f"stalls:  {stalls['count']} recoverable main-thread stalls over 5s, "
               f"sampled in {stalls['dir']}")
@@ -1694,6 +1704,38 @@ def shrink(args):
     print("replay it with:")
     print(f"  .claude/skills/vibe-debug/scripts/run-script.sh /tmp/shots < {out}")
     return 0
+
+
+def describe_materialization_coverage(channel) -> str:
+    """What the run actually put through the loading path, printed whether it
+    passed or failed.
+
+    F1 of docs/testing/materialization-coverage-plan.md. A run that performed
+    no handle opens has tested none of this, and until this line existed
+    nothing said so — the summary read the same either way, so a no-op was
+    indistinguishable from a pass. The `NONE` markers are the point: they are
+    not failures, they are the run telling you what it did not cover.
+    """
+    code, payload, _ = channel.run(["dump_health"], timeout=30)
+    if code != 0 or not payload:
+        return "unavailable (dump_health did not answer)"
+    m = (payload or {}).get("materialization") or {}
+    opens = m.get("handleOpensStarted", 0)
+    ready = m.get("requestsReady", 0)
+    refused = m.get("requestsAdmissionExhausted", 0)
+    yielded = m.get("requestsYielded", 0)
+    failed = m.get("requestsFailed", 0)
+    parts = [f"{opens} handle opens" + (" [NONE — this run covered no stage 2]" if not opens else ""),
+             f"{ready} requests ready",
+             f"{failed} failed",
+             f"{yielded} yielded",
+             f"{refused} admission-refused"]
+    # Not scored: refusal is capacity pressure and a busy run has some. Reported
+    # because a run where it dominates is a run whose work mostly never ran, and
+    # no other number here would say so.
+    if refused and ready and refused > ready:
+        parts.append("WARN: more requests were refused than served")
+    return ", ".join(parts)
 
 
 def main():

@@ -16,6 +16,7 @@
 #import <os/lock.h>
 
 #include <float.h>
+#include <stdatomic.h>
 
 NSString * const VibeAudioFileMaterializationErrorDomain =
         @"com.vibe.audio-file-materialization";
@@ -354,6 +355,17 @@ static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKe
     VibeAudioFileMaterializationDatalessProbe _datalessProbe;
     VibeAudioFileMaterializationClock _clock;
     VibeAudioFileOpener _fileOpener;
+    // Atomic because the health probe reads them off the state queue. It must
+    // never take that queue: admission runs the dataless probe inside it, which
+    // is a stat that can block for a long time on a dead mount — the very
+    // condition the probe exists to report. Written only on the state queue, so
+    // relaxed ordering on the write side would do; the default is not hot.
+    _Atomic uint64_t _handleOpensStarted;
+    _Atomic uint64_t _handleOpensCompleted;
+    uint64_t _requestsReady;
+    uint64_t _requestsFailed;
+    uint64_t _requestsYielded;
+    uint64_t _requestsAdmissionExhausted;
 }
 
 + (instancetype)sharedCoordinator {
@@ -536,6 +548,32 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
     return NO;
 }
 
+// Lock-free by contract: see the ivar comment. The two counters are read
+// separately, so a concurrent open that starts between them reads as not yet
+// started — which understates, never overstates, the number of stranded calls.
+// The stage-2 injection seam. Tests get theirs at init; the debug channel
+// needs to wrap the live shared coordinator's, which is what this is for.
+- (VibeAudioFileOpener)fileOpener {
+    __block VibeAudioFileOpener opener;
+    [self performStateSynchronously:^{
+        opener = self->_fileOpener;
+    }];
+    return opener;
+}
+
+- (void)setFileOpener:(VibeAudioFileOpener)fileOpener {
+    NSParameterAssert(fileOpener);
+    [self performStateSynchronously:^{
+        self->_fileOpener = [fileOpener copy];
+    }];
+}
+
+- (uint64_t)handleOpensInFlight {
+    uint64_t completed = atomic_load(&_handleOpensCompleted);
+    uint64_t started = atomic_load(&_handleOpensStarted);
+    return started > completed ? started - completed : 0;
+}
+
 - (BOOL)isForegroundTransferActive {
     __block BOOL active;
     [self performStateSynchronously:^{
@@ -577,6 +615,21 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
                            userInfo:@{NSLocalizedDescriptionKey: description}];
 }
 
+// Every terminal outcome a caller can observe, counted in one place. Callers
+// see requests, not claims, so the denominator is the waiter: a claim four
+// waiters joined settles four requests. State-queue only, like everything else
+// here.
+- (void)countSettledRequest:(VibeAudioFileMaterializationResult)result {
+    switch (result) {
+        case VibeAudioFileMaterializationResultReady: _requestsReady++; break;
+        case VibeAudioFileMaterializationResultFailed: _requestsFailed++; break;
+        case VibeAudioFileMaterializationResultYielded: _requestsYielded++; break;
+        case VibeAudioFileMaterializationResultAdmissionExhausted:
+            _requestsAdmissionExhausted++;
+            break;
+    }
+}
+
 - (NSError *)missingFailureError {
     return [NSError errorWithDomain:VibeAudioFileMaterializationErrorDomain
                                code:VibeAudioFileMaterializationErrorFailed
@@ -610,6 +663,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
                 && foregroundWasActive;
         if (suspendedMetadata && (!claim || ![self claimHasNonMetadataWaiter:claim])
                 && self->_datalessProbe(url)) {
+            [self countSettledRequest:VibeAudioFileMaterializationResultYielded];
             [token settleWithResult:VibeAudioFileMaterializationResultYielded
                              error:nil elapsed:0];
             return;
@@ -652,6 +706,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
             [self->_claims removeObjectForKey:path];
             NSError *error = [self admissionError:
                     @"Audio materialization capacity has no pending slot"];
+            [self countSettledRequest:VibeAudioFileMaterializationResultAdmissionExhausted];
             [token settleWithResult:VibeAudioFileMaterializationResultAdmissionExhausted
                              error:error elapsed:0];
             [self reschedulePendingTimer];
@@ -859,6 +914,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     [claim.waiters removeAllObjects];
     NSTimeInterval now = _clock();
     for (VibeAudioFileMaterializationWaiter *waiter in waiters) {
+        [self countSettledRequest:result];
         [waiter.token settleWithResult:result error:error
                                elapsed:MAX(0, now - waiter.submittedAt)];
     }
@@ -869,6 +925,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     [claim.waiters removeAllObjects];
     NSTimeInterval now = _clock();
     for (VibeAudioFileMaterializationWaiter *waiter in waiters) {
+        [self countSettledRequest:VibeAudioFileMaterializationResultYielded];
         [waiter.token settleWithResult:VibeAudioFileMaterializationResultYielded
                                  error:nil elapsed:MAX(0, now - waiter.submittedAt)];
     }
@@ -1196,6 +1253,15 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
     }
     dispatch_queue_t workerQueue = run.purpose == VibeAudioFileOpenPurposePlayback
             ? _interactiveWorkerQueue : _backgroundWorkerQueue;
+    // Paired with the increment below rather than with finishHandleRun:, which
+    // also runs for runs that never dispatched an open. The difference is the
+    // count of AVAudioFile calls the OS still owes an answer for.
+    atomic_fetch_add(&_handleOpensStarted, 1);
+    // Snapshotted here rather than read from the ivar on the worker: the opener
+    // is swappable (the debug channel's wedge injection), and a block read from
+    // another thread while it is being replaced is not safe. Same discipline as
+    // the open-timeout snapshot in AudioPlayer.
+    VibeAudioFileOpener opener = _fileOpener;
     __weak AudioFileMaterializationCoordinator *weakSelf = self;
     dispatch_async(workerQueue, ^{
         AudioFileMaterializationCoordinator *strongSelf = weakSelf;
@@ -1203,8 +1269,9 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
             return;
         }
         NSError *error = nil;
-        AVAudioFile *file = strongSelf->_fileOpener(run.url, &error);
+        AVAudioFile *file = opener(run.url, &error);
         dispatch_async(strongSelf->_stateQueue, ^{
+            atomic_fetch_add(&strongSelf->_handleOpensCompleted, 1);
             [strongSelf finishHandleRun:run runGeneration:runGeneration
                                    file:file error:error];
         });
@@ -1266,6 +1333,12 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
         snapshot.backgroundPendingCount = self->_backgroundPending.count;
         snapshot.handleRunCount = self->_handleRuns.count;
         snapshot.foregroundTransferActive = [self foregroundTransferActiveLocked];
+        snapshot.handleOpensStarted = self->_handleOpensStarted;
+        snapshot.handleOpensCompleted = self->_handleOpensCompleted;
+        snapshot.requestsReady = self->_requestsReady;
+        snapshot.requestsFailed = self->_requestsFailed;
+        snapshot.requestsYielded = self->_requestsYielded;
+        snapshot.requestsAdmissionExhausted = self->_requestsAdmissionExhausted;
     }];
     return snapshot;
 }

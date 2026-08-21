@@ -6,6 +6,7 @@
 //
 
 #import "DebugConsistency.h"
+#import "AudioFileMaterializationCoordinatorInternal.h"
 
 #if DEBUG
 
@@ -246,6 +247,26 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
             && player.isStopped && !isLoading) {
         VibeDebugViolation(v, @"cloud.hold_outlives_playback",
                 @"cloud lane held with the player stopped and no open in flight");
+    }
+
+    // The generalisation of the check above, and the reason it is here rather
+    // than in the one scenario that stages it: the comment above says a lost
+    // release is invisible "until the sweep visibly never runs", and a stranded
+    // handle open is a second, unrelated cause of exactly that. It holds
+    // admission capacity that is never given back — an AVAudioFile call cannot
+    // be cancelled — so with the player stopped and nothing loading, a nonzero
+    // count is not work in flight but work that will never finish.
+    //
+    // Same settle-and-re-check caveat: an open that was superseded moments ago
+    // is still returning, and that is not a strand.
+    checked++;
+    uint64_t strandedOpens =
+            [AudioFileMaterializationCoordinator.sharedCoordinator handleOpensInFlight];
+    if (strandedOpens > 0 && player.isStopped && !isLoading) {
+        VibeDebugViolation(v, @"cloud.handle_open_stranded",
+                @"%llu AVAudioFile open(s) still outstanding with the player "
+                @"stopped — that much admission capacity is gone for good",
+                strandedOpens);
     }
 
     // What the fake provider can see and nothing else can, checked only while

@@ -110,6 +110,30 @@ class Ctx:
     def health(self):
         return self.cmd("dump_cloud_health")
 
+    def materialization(self):
+        """The coordinator's own gauges and cumulative counters.
+
+        This has been in dump_cloud_health's reply since the coordinator landed
+        and no scenario read it, which is most of why a wedged handle open could
+        starve every background transfer with the whole suite green. The two
+        that matter here: handleOpensInFlight is an AVAudioFile call the OS
+        still owes an answer for, and foregroundTransferActive is the gate — it
+        is what tells "the foreground rule is holding metadata back" (correct)
+        apart from "nothing can start at all" (the bug).
+        """
+        return self.health().get("materialization", {})
+
+    def wait_for_wedged_open(self, describe, timeout=WAIT_TIMEOUT):
+        """Block until a hang_open-ed handle open has reached the uncancellable
+        call. Polls the counter rather than sleeping: the open is behind a
+        transfer whose length the scenario does not control."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self.materialization().get("handleOpensInFlight", 0) >= 1:
+                return
+            time.sleep(POLL)
+        raise Failed(f"timed out after {timeout:.0f}s waiting for {describe}")
+
     def state(self):
         return self.cmd("dump_state")
 
@@ -937,8 +961,102 @@ def s18_a_wedged_open_still_starts_the_sweep(ctx):
     if events_of(ctx.trace(), event="started", role="metadata"):
         raise Failed("a dataless metadata transfer started while the "
                      "foreground open was live")
+    # Why no metadata transfer started, which this scenario could not say until
+    # it read the gate. "Correctly held by the foreground rule" and "unable to
+    # start at all" produce the identical trace, and asserting only the trace
+    # is what let S19's bug hide behind a green S18.
+    if not ctx.materialization().get("foregroundTransferActive"):
+        raise Failed("no metadata transfer started, but the foreground rule was "
+                     "NOT in force — this is starvation, not the hold")
     return (f"stage 1 filed {pending} pending rows behind the wedged open; "
-            "stage 2 stayed gated")
+            "stage 2 stayed gated by a live foreground transfer")
+
+
+def s19_a_wedged_prefetch_open_does_not_starve_the_sweep(ctx):
+    """A successor's handle open that never returns must not stop every other
+    background transfer for the rest of the process.
+
+    S18 wedges stage ONE — the download — which never reaches the carried-slot
+    path at all. This wedges stage TWO: the transfer completes, and the
+    uncancellable AVAudioFile call it fed is what never comes back. That is the
+    only shape that reaches the bug, and the fake provider could not stage it
+    until hang_open existed.
+
+    Written as an instance of the progress oracle rather than as a trace
+    assertion, because "no metadata transfer started" is ambiguous on its own:
+    demand outstanding, plus no foreground gate in force, plus no progress, is
+    the three-part statement that means starvation and nothing else.
+    """
+    ctx.arm(seconds=TRANSFER, capacity=1)
+    folder = ctx.folders[0]
+    ctx.cmd("open", str(folder))
+    ctx.wait_for("the folder's first playback transfer",
+                 lambda ev: events_of(ev, event="requested", role="playback"))
+    rows = ctx.playlist()["files"]
+    if len(rows) < 4:
+        raise Failed(f"{folder} has too few rows to observe a sweep")
+    ctx.cmd("hang_open", rows[1])          # the successor prefetch will open this
+    ctx.wait_for_wedged_open("the successor's handle open to wedge")
+
+    # Everything from here is after the wedge, so a start proves the lane is
+    # still admitting rather than merely that it once did.
+    ctx.cmd("clear_cloud_trace")
+    ctx.settle(8)
+
+    materialization = ctx.materialization()
+    demand = ctx.health().get("cloudParsesPending", 0)
+    gated = materialization.get("foregroundTransferActive")
+    progress = events_of(ctx.trace(), event="started", role="metadata")
+    try:
+        if gated:
+            raise Failed("the foreground rule was still in force 8s after the "
+                         "transfer settled — this scenario proves nothing")
+        if demand == 0 and not progress:
+            raise Failed("no rows left to scan — the sweep finished before the "
+                         "wedge landed, so this scenario proves nothing")
+        if not progress:
+            raise Failed(f"{demand} rows still want scanning, no foreground "
+                         f"transfer holds the lane, and not one metadata "
+                         f"transfer started in 8s: the wedged open "
+                         f"({materialization.get('handleOpensInFlight')} in "
+                         f"flight) is holding admission")
+    finally:
+        ctx.cmd("hang_open", "release")
+    return f"{len(progress)} metadata transfers started behind the wedged open"
+
+
+def s21_the_library_converges(ctx):
+    """Every row ends up with metadata. Stated in user terms and in no terms
+    at all about lanes, claims or slots, so it outlives any refactor of the
+    mechanism and catches the whole silent-stall class rather than one bug.
+    """
+    ctx.arm(seconds=0.2, capacity=1)
+    folder = ctx.folders[0]
+    ctx.cmd("open", str(folder))
+    ctx.wait_for("the folder's first playback transfer",
+                 lambda ev: events_of(ev, event="requested", role="playback"))
+    # Paused, so advancing playback does not keep minting foreground work that
+    # legitimately holds the sweep back for the whole run.
+    ctx.cmd("play_pause")
+
+    deadline = time.monotonic() + 60
+    playlist = ctx.playlist()
+    resolved = playlist.get("resolvedRows", 0)
+    stalled_since = time.monotonic()
+    while time.monotonic() < deadline:
+        playlist = ctx.playlist()
+        now_resolved = playlist.get("resolvedRows", 0)
+        if now_resolved >= playlist.get("count", 0):
+            return f"all {now_resolved} rows resolved"
+        if now_resolved != resolved:
+            resolved, stalled_since = now_resolved, time.monotonic()
+        elif time.monotonic() - stalled_since > 20:
+            break
+        time.sleep(0.5)
+    materialization = ctx.materialization()
+    raise Failed(f"the sweep stopped at {resolved}/{playlist.get('count')} rows "
+                 f"(admission refusals {materialization.get('requestsAdmissionExhausted')}, "
+                 f"opens in flight {materialization.get('handleOpensInFlight')})")
 
 
 SCENARIOS = [
@@ -964,6 +1082,11 @@ SCENARIOS = [
     ("S16", s16_close_during_a_live_transfer_starts_nothing, False),
     ("S17", s17_play_pause_during_loading_lands_parked, False),
     ("S18", s18_a_wedged_open_still_starts_the_sweep, False),
+    # Expected-fail until docs/bugs/background-lane-wedged-open-starvation.md
+    # is fixed. Run and reported, never skipped: the day it XPASSes is the day
+    # the fix landed, or the day the scenario stopped reaching the bug.
+    ("S19", s19_a_wedged_prefetch_open_does_not_starve_the_sweep, True),
+    ("S21", s21_the_library_converges, False),
 ]
 
 
