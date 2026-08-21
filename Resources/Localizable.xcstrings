@@ -55,7 +55,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "À l'écoute"
+            "value": "À l’écoute"
           }
         },
         "hr": {
@@ -205,7 +205,7 @@
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Minimér"
+            "value": "Minimer"
           }
         },
         "de": {
@@ -427,7 +427,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ouvrir des fichiers ou des dossiers"
+            "value": "Ouvrir des morceaux ou des dossiers"
           }
         },
         "hr": {
@@ -481,7 +481,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Otwórz utwory lub teczki"
+            "value": "Otwórz utwory lub foldery"
           }
         },
         "pt-BR": {
@@ -553,7 +553,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "打開歌曲或資料夾"
+            "value": "打開歌曲或檔案夾"
           }
         }
       },
@@ -583,7 +583,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Titelliste ein-/ausblenden"
+            "value": "Wiedergabeliste ein-/ausblenden"
           }
         },
         "el": {
@@ -937,7 +937,7 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Минимизирай"
+            "value": "Минимизиране"
           }
         },
         "cs": {
@@ -1495,7 +1495,7 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Отваряне"
+            "value": "Отвори"
           }
         },
         "cs": {
@@ -1669,7 +1669,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "開啟"
+            "value": "打開"
           }
         }
       },
@@ -2227,7 +2227,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "此資料夾中沒有音訊檔案"
+            "value": "此檔案夾中沒有音訊檔案"
           }
         }
       },
@@ -2857,7 +2857,7 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verzió: %@"
+            "value": "Verzió %@"
           }
         },
         "id": {
@@ -3415,7 +3415,7 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Válassza ki, hová mentse a konvertált FLAC-fájlt."
+            "value": "Válaszd ki, hová mentsük a konvertált FLAC-fájlt."
           }
         },
         "id": {
@@ -3601,7 +3601,7 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Húzzon ide egy fájlt, vagy nyomja meg: %@"
+            "value": "Húzz ide egy fájlt, vagy nyomd meg: %@"
           }
         },
         "id": {
@@ -3901,7 +3901,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "選擇資料夾或檔案即可開始。"
+            "value": "選擇檔案夾或檔案即可開始。"
           }
         }
       },
@@ -4345,7 +4345,7 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Húzzon ide dalokat vagy mappákat"
+            "value": "Húzz ide dalokat vagy mappákat"
           }
         },
         "id": {
@@ -4387,7 +4387,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przeciągnij tu utwory lub teczki"
+            "value": "Przeciągnij tu utwory lub foldery"
           }
         },
         "pt-BR": {
@@ -4459,7 +4459,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "將歌曲或資料夾拖到這裡"
+            "value": "將歌曲或檔案夾拖到這裡"
           }
         }
       },
@@ -4489,7 +4489,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ablegen, um zur Titelliste hinzuzufügen"
+            "value": "Ablegen, um zur Wiedergabeliste hinzuzufügen"
           }
         },
         "el": {
@@ -4531,7 +4531,7 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Engedje el a playlisthez adáshoz"
+            "value": "Engedd el a playlisthez adáshoz"
           }
         },
         "id": {
@@ -4675,7 +4675,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ablegen, um die Titelliste zu ersetzen"
+            "value": "Ablegen, um die Wiedergabeliste zu ersetzen"
           }
         },
         "el": {
@@ -4717,7 +4717,7 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Engedje el a playlist lecseréléséhez"
+            "value": "Engedd el a playlist lecseréléséhez"
           }
         },
         "id": {
@@ -4903,7 +4903,7 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "vagy nyomja meg"
+            "value": "vagy nyomd meg"
           }
         },
         "id": {
@@ -4993,7 +4993,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "ya da basın:"
+            "value": "ya da basın"
           }
         },
         "uk": {
@@ -7597,7 +7597,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Finder'da Göster"
+            "value": "Finder’da Göster"
           }
         },
         "uk": {
@@ -8053,7 +8053,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Supprimer l'original après la conversion"
+            "value": "Supprimer l’original après la conversion"
           }
         },
         "hr": {
@@ -8077,7 +8077,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Elimina l'originale dopo la conversione"
+            "value": "Elimina l’originale dopo la conversione"
           }
         },
         "ja": {
@@ -11371,7 +11371,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bass aus"
+            "value": "Low Kill"
           }
         },
         "el": {
@@ -11389,7 +11389,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Corte de graves"
+            "value": "Low Kill"
           }
         },
         "fi": {
@@ -11401,7 +11401,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Coupe-basses"
+            "value": "Low Kill"
           }
         },
         "hr": {
@@ -11425,7 +11425,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Taglio bassi"
+            "value": "Low Kill"
           }
         },
         "ja": {
@@ -11515,7 +11515,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cắt bass"
+            "value": "Low Kill"
           }
         },
         "zh-Hans": {
@@ -11557,7 +11557,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bass aus – verstärkt"
+            "value": "Low Kill Boost"
           }
         },
         "el": {
@@ -11575,7 +11575,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Corte de graves reforzado"
+            "value": "Low Kill Boost"
           }
         },
         "fi": {
@@ -11587,7 +11587,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Coupe-basses renforcé"
+            "value": "Low Kill Boost"
           }
         },
         "hr": {
@@ -11611,7 +11611,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Taglio bassi potenziato"
+            "value": "Low Kill Boost"
           }
         },
         "ja": {
@@ -11701,7 +11701,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cắt bass tăng cường"
+            "value": "Low Kill Boost"
           }
         },
         "zh-Hans": {
@@ -11743,7 +11743,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hall"
+            "value": "Reverb"
           }
         },
         "el": {
@@ -11761,7 +11761,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reverberación"
+            "value": "Reverb"
           }
         },
         "fi": {
@@ -11773,7 +11773,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Réverbération"
+            "value": "Reverb"
           }
         },
         "hr": {
@@ -11797,7 +11797,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Riverbero"
+            "value": "Reverb"
           }
         },
         "ja": {
@@ -12097,7 +12097,7 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Системен изход"
+            "value": "Системен аудиоизход"
           }
         },
         "cs": {
@@ -12283,7 +12283,7 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Системен изход (%@)"
+            "value": "Системен аудиоизход (%@)"
           }
         },
         "cs": {
@@ -12529,7 +12529,7 @@
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vezérlés"
+            "value": "Lejátszás"
           }
         },
         "id": {
@@ -12673,7 +12673,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tempo-Bereich"
+            "value": "Tempobereich"
           }
         },
         "el": {
@@ -12733,7 +12733,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ピッチレンジ"
+            "value": "ピッチ範囲"
           }
         },
         "ko": {
@@ -12841,31 +12841,31 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "en": {
@@ -12883,25 +12883,25 @@
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "id": {
@@ -12931,7 +12931,7 @@
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "nl": {
@@ -12943,7 +12943,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "pt-BR": {
@@ -12961,25 +12961,25 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "th": {
@@ -12991,13 +12991,13 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "16 %"
           }
         },
         "vi": {
@@ -13027,31 +13027,31 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "en": {
@@ -13069,25 +13069,25 @@
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "id": {
@@ -13117,7 +13117,7 @@
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "nl": {
@@ -13129,7 +13129,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "pt-BR": {
@@ -13147,25 +13147,25 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "th": {
@@ -13177,13 +13177,13 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "8 %"
           }
         },
         "vi": {
@@ -14809,7 +14809,7 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sempre visível"
+            "value": "Sempre Visível"
           }
         },
         "pt-PT": {
@@ -15511,7 +15511,7 @@
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Default sistem"
+            "value": "Default Sistem"
           }
         },
         "it": {
@@ -15553,7 +15553,7 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Padrão do sistema"
+            "value": "Padrão do Sistema"
           }
         },
         "pt-PT": {
@@ -15595,7 +15595,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sistem ayarı"
+            "value": "Sistem Ayarı"
           }
         },
         "uk": {
@@ -15631,7 +15631,7 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Показване на информация за файла"
+            "value": "Покажи информацията за файла"
           }
         },
         "cs": {
@@ -15751,13 +15751,13 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Afișează informațiile fișierului"
+            "value": "Afișați informațiile fișierului"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Показывать информацию о файле"
+            "value": "Показать информацию о файле"
           }
         },
         "sk": {
@@ -15787,7 +15787,7 @@
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Показувати інформацію про файл"
+            "value": "Показати інформацію про файл"
           }
         },
         "vi": {
@@ -15835,7 +15835,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tempo-Regler einblenden"
+            "value": "Temporegler einblenden"
           }
         },
         "el": {
@@ -16021,7 +16021,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Titelliste einblenden"
+            "value": "Wiedergabeliste einblenden"
           }
         },
         "el": {
@@ -17239,7 +17239,7 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permite accesul"
+            "value": "Permiteți accesul"
           }
         },
         "ru": {
@@ -17353,7 +17353,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe a besoin de l’autorisation de lire les fichiers audio listés dans « %@ ». Sélectionnez le dossier qui les contient."
+            "value": "Vibe a besoin de l’autorisation de lire les fichiers audio listés dans « %@ ». Sélectionnez le dossier qui les contient."
           }
         },
         "hr": {
@@ -17425,7 +17425,7 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe are nevoie de permisiune pentru a citi fișierele audio listate în „%@”. Selectează dosarul care le conține."
+            "value": "Vibe are nevoie de permisiune pentru a citi fișierele audio listate în „%@”. Selectați dosarul care le conține."
           }
         },
         "ru": {
@@ -17455,7 +17455,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe'ın “%@” içinde listelenen ses dosyalarını okumak için izne ihtiyacı var. Onları içeren klasörü seçin."
+            "value": "Vibe’ın “%@” içinde listelenen ses dosyalarını okumak için izne ihtiyacı var. Onları içeren klasörü seçin."
           }
         },
         "uk": {
@@ -17881,7 +17881,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Titelliste"
+            "value": "Wiedergabeliste"
           }
         },
         "el": {
@@ -19429,7 +19429,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "高(60 Hz)"
+            "value": "高（60 Hz）"
           }
         },
         "ko": {
@@ -19615,7 +19615,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "低(3 Hz)"
+            "value": "低（3 Hz）"
           }
         },
         "ko": {
@@ -19801,7 +19801,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "標準(30 Hz)"
+            "value": "標準（30 Hz）"
           }
         },
         "ko": {
@@ -19957,7 +19957,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Actualisation de la tête de lecture :"
+            "value": "Actualisation de la tête de lecture :"
           }
         },
         "hr": {
@@ -20092,10 +20092,184 @@
     "settings.advanced.stats_section": {
       "comment": "Settings, Advanced pane: heading above the group of lifetime playback-statistics rows.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Статистика"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistiky"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistik"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistik"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Στατιστικά"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Statistics"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estadísticas"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilastot"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistiques"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistika"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statisztika"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistik"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistiche"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "統計"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "통계"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistikk"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistieken"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statystyki"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estatísticas"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estatísticas"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistici"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Статистика"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Štatistiky"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistik"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "สถิติ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İstatistikler"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Статистика"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thống kê"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "统计"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "統計"
           }
         }
       },
@@ -20413,7 +20587,7 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Afișează informațiile fișierului"
+            "value": "Afișați informațiile fișierului"
           }
         },
         "ru": {
@@ -20599,7 +20773,7 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Colorează tonalitățile cu culorile Camelot"
+            "value": "Colorați tonalitățile cu culorile Camelot"
           }
         },
         "ru": {
@@ -21085,7 +21259,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Notation des tonalités :"
+            "value": "Notation des tonalités :"
           }
         },
         "hr": {
@@ -21220,10 +21394,184 @@
     "settings.appearance.show_key": {
       "comment": "Settings, Appearance pane: switch showing or hiding the header's musical-key readout. Off dims the key notation and key color rows below it, which then have nothing to govern.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показване на тоналността"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zobrazit tóninu"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vis toneart"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tonart einblenden"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Εμφάνιση τονικότητας"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Show key"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar la tonalidad"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Näytä sävellaji"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher la tonalité"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prikaži tonalitet"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hangnem megjelenítése"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tampilkan nada dasar"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra la tonalità"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キーを表示"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키 보기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vis toneart"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toon toonsoort"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pokaż tonację"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar o tom"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar a tonalidade"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afișați tonalitatea"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывать тональность"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zobraziť tóninu"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visa tonart"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "แสดงคีย์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tonu göster"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показувати тональність"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiện tông"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示调性"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示調性"
           }
         }
       },
@@ -22957,7 +23305,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couleurs sombres :"
+            "value": "Couleurs sombres :"
           }
         },
         "hr": {
@@ -23143,7 +23491,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couleurs claires :"
+            "value": "Couleurs claires :"
           }
         },
         "hr": {
@@ -23281,31 +23629,31 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Превъртане на песента"
+            "value": "Превъртане"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Převíjení skladby"
+            "value": "Převíjení"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Søg i nummeret"
+            "value": "Søg"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Im Titel spulen"
+            "value": "Spulen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Αναζήτηση στο κομμάτι"
+            "value": "Αναζήτηση"
           }
         },
         "en": {
@@ -23317,43 +23665,43 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Desplazarse por la canción"
+            "value": "Desplazarse"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kelaa raitaa"
+            "value": "Kelaus"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Naviguer dans le morceau"
+            "value": "Naviguer"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Premotavanje pjesme"
+            "value": "Premotavanje"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ugrás a számon belül"
+            "value": "Tekerés"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Telusuri trek"
+            "value": "Telusuri"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Scorri il brano"
+            "value": "Scorrere"
           }
         },
         "ja": {
@@ -23371,79 +23719,79 @@
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Søk i sangen"
+            "value": "Søk"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Door het nummer navigeren"
+            "value": "Navigeren"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przewijanie utworu"
+            "value": "Przewijanie"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Percorrer a faixa"
+            "value": "Percorrer"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Percorrer a faixa"
+            "value": "Percorrer"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Derulează piesa"
+            "value": "Derulare"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотка трека"
+            "value": "Перемотка"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pretáčanie skladby"
+            "value": "Pretáčanie"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sök i spåret"
+            "value": "Sök"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เลื่อนตำแหน่งเพลง"
+            "value": "เลื่อนตำแหน่ง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Parçada Gezin"
+            "value": "Gezin"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотування треку"
+            "value": "Перемотування"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tua trong bản nhạc"
+            "value": "Tua"
           }
         },
         "zh-Hans": {
@@ -23509,7 +23857,7 @@
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siirrä ikkunaa"
+            "value": "Ikkunan siirto"
           }
         },
         "fr": {
@@ -23539,7 +23887,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sposta la finestra"
+            "value": "Spostare la finestra"
           }
         },
         "ja": {
@@ -23587,7 +23935,7 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mută fereastra"
+            "value": "Mutarea ferestrei"
           }
         },
         "ru": {
@@ -23652,31 +24000,31 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Влачене върху вълновата форма:"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Tažení po tvaru vlny:"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Træk i bølgeformen:"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Ziehen auf der Wellenform:"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Σύρσιμο στην κυματομορφή:"
           }
         },
@@ -23688,145 +24036,145 @@
         },
         "es": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Arrastre en la forma de onda:"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Aaltomuodon vetäminen:"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Glisser sur la forme d’onde :"
+            "state": "translated",
+            "value": "Glisser sur la forme d’onde :"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Povlačenje valnog oblika:"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Húzás a hullámformán:"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Seret pada bentuk gelombang:"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Trascinamento sulla forma d’onda:"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "波形のドラッグ:"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "파형 드래그:"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Dra i bølgeformen:"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Slepen op de golfvorm:"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Przeciąganie kształtu fali:"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Arrastar na forma de onda:"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Arrastar na forma de onda:"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Tragere pe forma de undă:"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Перетаскивание волновой формы:"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Ťahanie po vlnovom priebehu:"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Dra i vågformen:"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "การลากบนรูปคลื่น:"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Dalga biçiminde sürükleme:"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Перетягування хвильової форми:"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Kéo trên dạng sóng:"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "波形拖移："
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "波形拖移："
           }
         }
@@ -23838,32 +24186,32 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Стил на вълновата форма:"
+            "state": "translated",
+            "value": "Стил"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Styl tvaru vlny:"
+            "state": "translated",
+            "value": "Styl"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Bølgeformsstil:"
+            "state": "translated",
+            "value": "Stil"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Wellenform-Stil:"
+            "state": "translated",
+            "value": "Stil"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Στιλ κυματομορφής:"
+            "state": "translated",
+            "value": "Στιλ"
           }
         },
         "en": {
@@ -23874,146 +24222,146 @@
         },
         "es": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Estilo de forma de onda:"
+            "state": "translated",
+            "value": "Estilo"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Aaltomuodon tyyli:"
+            "state": "translated",
+            "value": "Tyyli"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Style de forme d’onde :"
+            "state": "translated",
+            "value": "Style"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Stil valnog oblika:"
+            "state": "translated",
+            "value": "Stil"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Hullámforma stílusa:"
+            "state": "translated",
+            "value": "Stílus"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Gaya bentuk gelombang:"
+            "state": "translated",
+            "value": "Gaya"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Stile della forma d’onda:"
+            "state": "translated",
+            "value": "Stile"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "波形スタイル:"
+            "state": "translated",
+            "value": "スタイル"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "파형 스타일:"
+            "state": "translated",
+            "value": "스타일"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Bølgeformstil:"
+            "state": "translated",
+            "value": "Stil"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Golfvormstijl:"
+            "state": "translated",
+            "value": "Stijl"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Styl kształtu fali:"
+            "state": "translated",
+            "value": "Styl"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Estilo da forma de onda:"
+            "state": "translated",
+            "value": "Estilo"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Estilo da forma de onda:"
+            "state": "translated",
+            "value": "Estilo"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Stilul formei de undă:"
+            "state": "translated",
+            "value": "Stil"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Стиль волновой формы:"
+            "state": "translated",
+            "value": "Стиль"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Štýl vlnového priebehu:"
+            "state": "translated",
+            "value": "Štýl"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Vågformsstil:"
+            "state": "translated",
+            "value": "Stil"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "สไตล์รูปคลื่น:"
+            "state": "translated",
+            "value": "สไตล์"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Dalga biçimi stili:"
+            "state": "translated",
+            "value": "Stil"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Стиль хвильової форми:"
+            "state": "translated",
+            "value": "Стиль"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Kiểu dạng sóng:"
+            "state": "translated",
+            "value": "Kiểu"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "波形样式："
+            "state": "translated",
+            "value": "样式"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "波形樣式："
+            "state": "translated",
+            "value": "樣式"
           }
         }
       },
@@ -24022,10 +24370,184 @@
     "settings.appearance.waveform_section": {
       "comment": "Settings, Appearance pane: heading above the group of waveform rows — style, color theme, custom colors and drag behavior.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вълнова форма"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tvar vlny"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bølgeform"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wellenform"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Κυματομορφή"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Waveform"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forma de onda"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aaltomuoto"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forme d’onde"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valni oblik"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hullámforma"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bentuk gelombang"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forma d’onda"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "波形"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파형"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bølgeform"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Golfvorm"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kształt fali"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forma de onda"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forma de onda"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Formă de undă"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Волновая форма"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vlnový priebeh"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vågform"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "รูปคลื่น"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalga biçimi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Хвильова форма"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dạng sóng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "波形"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "波形"
           }
         }
       },
@@ -24049,7 +24571,7 @@
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Albumcover"
+            "value": "Albumbillede"
           }
         },
         "de": {
@@ -24085,7 +24607,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pochette d’album"
+            "value": "Illustration d’album"
           }
         },
         "hr": {
@@ -24121,13 +24643,13 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "앨범 아트"
+            "value": "앨범 아트워크"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Albumomslag"
+            "value": "Albumbilde"
           }
         },
         "nl": {
@@ -24175,13 +24697,13 @@
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Albumomslag"
+            "value": "Albumbild"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ปกอัลบั้ม"
+            "value": "ภาพปกอัลบั้ม"
           }
         },
         "tr": {
@@ -24409,31 +24931,31 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Моно"
+            "value": "Монохромно"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monochromatický"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monokrom"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monochrom"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μονό"
+            "value": "Μονόχρωμο"
           }
         },
         "en": {
@@ -24445,43 +24967,43 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monocromo"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Yksivärinen"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monochrome"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monokromatski"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monokróm"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monokrom"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monocromatico"
           }
         },
         "ja": {
@@ -24493,85 +25015,85 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "모노"
+            "value": "모노크롬"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monokrom"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monochroom"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monochromatyczny"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monocromático"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monocromático"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monocrom"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Моно"
+            "value": "Монохромный"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monochromatický"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monokrom"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "โมโน"
+            "value": "โมโนโครม"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Monokrom"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Моно"
+            "value": "Монохромний"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "Đơn sắc"
           }
         },
         "zh-Hans": {
@@ -24780,32 +25302,32 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Тема на вълновата форма:"
+            "state": "translated",
+            "value": "Цветова тема"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Motiv tvaru vlny:"
+            "state": "translated",
+            "value": "Barevný motiv"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Bølgeformstema:"
+            "state": "translated",
+            "value": "Farvetema"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Wellenform-Thema:"
+            "state": "translated",
+            "value": "Farbthema"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Θέμα κυματομορφής:"
+            "state": "translated",
+            "value": "Χρωματικό θέμα"
           }
         },
         "en": {
@@ -24816,146 +25338,146 @@
         },
         "es": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Tema de forma de onda:"
+            "state": "translated",
+            "value": "Tema de color"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Aaltomuodon teema:"
+            "state": "translated",
+            "value": "Väriteema"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Thème de forme d’onde :"
+            "state": "translated",
+            "value": "Thème de couleurs"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Tema valnog oblika:"
+            "state": "translated",
+            "value": "Tema boja"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Hullámforma témája:"
+            "state": "translated",
+            "value": "Színtéma"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Tema bentuk gelombang:"
+            "state": "translated",
+            "value": "Tema warna"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Tema della forma d’onda:"
+            "state": "translated",
+            "value": "Tema colore"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "波形テーマ:"
+            "state": "translated",
+            "value": "カラーテーマ"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "파형 테마:"
+            "state": "translated",
+            "value": "색상 테마"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Bølgeformtema:"
+            "state": "translated",
+            "value": "Fargetema"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Golfvormthema:"
+            "state": "translated",
+            "value": "Kleurthema"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Motyw kształtu fali:"
+            "state": "translated",
+            "value": "Motyw kolorów"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Tema da forma de onda:"
+            "state": "translated",
+            "value": "Tema de cores"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Tema da forma de onda:"
+            "state": "translated",
+            "value": "Tema de cores"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Tema formei de undă:"
+            "state": "translated",
+            "value": "Temă de culori"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Тема волновой формы:"
+            "state": "translated",
+            "value": "Цветовая тема"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Motív vlnového priebehu:"
+            "state": "translated",
+            "value": "Farebný motív"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Vågformstema:"
+            "state": "translated",
+            "value": "Färgtema"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "ธีมรูปคลื่น:"
+            "state": "translated",
+            "value": "ธีมสี"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Dalga biçimi teması:"
+            "state": "translated",
+            "value": "Renk teması"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Тема хвильової форми:"
+            "state": "translated",
+            "value": "Кольорова тема"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Chủ đề dạng sóng:"
+            "state": "translated",
+            "value": "Chủ đề màu"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "波形主题："
+            "state": "translated",
+            "value": "配色主题"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "波形主題："
+            "state": "translated",
+            "value": "配色主題"
           }
         }
       },
@@ -24964,10 +25486,184 @@
     "settings.appearance.window_tint.artwork": {
       "comment": "Settings, window tint choice: the header is washed with the dominant color of the playing track's cover artwork. The default.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цвят на обложката"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Barva obalu"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albumbilledets farve"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coverfarbe"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Χρώμα εξωφύλλου"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Artwork color"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color de la portada"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kansikuvan väri"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couleur de l’illustration"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Boja omota"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A borító színe"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warna sampul"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colore della copertina"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アートワークの色"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아트워크 색상"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albumbildets farge"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Illustratiekleur"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kolor okładki"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cor da capa"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cor da capa"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Culoarea coperții"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цвет обложки"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Farba obalu"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albumbildens färg"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "สีจากภาพปกอัลบั้ม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albüm kapağı rengi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Колір обкладинки"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Màu ảnh bìa"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插图颜色"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插圖顏色"
           }
         }
       },
@@ -24976,10 +25672,184 @@
     "settings.appearance.window_tint.custom": {
       "comment": "Settings, window tint choice: the user picks the wash color with a color well.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Персонализирано"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vlastní"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilpasset"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigene"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Προσαρμοσμένο"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Custom"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personalizado"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mukautettu"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personnalisé"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prilagođeno"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Egyéni"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kustom"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personalizzato"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カスタム"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사용자 설정"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilpasset"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aangepast"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niestandardowy"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personalizado"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personalizado"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personalizat"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пользовательский"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vlastné"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anpassat"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "กำหนดเอง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Özel"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Власний"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tùy chỉnh"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定义"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自訂"
           }
         }
       },
@@ -24988,10 +25858,184 @@
     "settings.appearance.window_tint.mono": {
       "comment": "Settings, window tint choice: no color wash — the window's plain glass, the same under every track. 'Mono' as in monochrome, not monaural audio.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Монохромно"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monochromatický"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monokrom"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monochrom"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Μονόχρωμο"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Mono"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monocromo"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yksivärinen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monochrome"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monokromatski"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monokróm"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monokrom"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monocromatico"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "モノクロ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모노크롬"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monokrom"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monochroom"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monochromatyczny"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monocromático"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monocromático"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monocrom"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Монохромный"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monochromatický"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monokrom"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "โมโนโครม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monokrom"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Монохромний"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đơn sắc"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "单色"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "單色"
           }
         }
       },
@@ -25000,10 +26044,184 @@
     "settings.appearance.window_tint_custom_dark_label": {
       "comment": "Settings, Appearance pane: label beside the custom window tint color well used while the app is in dark mode. Ends with a colon.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тъмен цвят:"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tmavá barva:"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mørk farve:"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dunkle Farbe:"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Σκούρο χρώμα:"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Dark color:"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color oscuro:"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tumma väri:"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couleur sombre :"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamna boja:"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sötét szín:"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warna gelap:"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colore scuro:"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダークカラー:"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다크 색상:"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mørk farge:"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Donkere kleur:"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ciemny kolor:"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cor escura:"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cor escura:"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Culoare întunecată:"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Темный цвет:"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tmavá farba:"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mörk färg:"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "สีโหมดมืด:"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koyu renk:"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Темний колір:"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Màu tối:"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深色模式颜色："
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深色模式顏色："
           }
         }
       },
@@ -25012,10 +26230,184 @@
     "settings.appearance.window_tint_custom_light_label": {
       "comment": "Settings, Appearance pane: label beside the custom window tint color well used while the app is in light mode. Ends with a colon.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Светъл цвят:"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Světlá barva:"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lys farve:"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Helle Farbe:"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ανοιχτό χρώμα:"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Light color:"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color claro:"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vaalea väri:"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couleur claire :"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Svijetla boja:"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Világos szín:"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warna terang:"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colore chiaro:"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライトカラー:"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "라이트 색상:"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lys farge:"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lichte kleur:"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jasny kolor:"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cor clara:"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cor clara:"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Culoare luminoasă:"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Светлый цвет:"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Svetlá farba:"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ljus färg:"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "สีโหมดสว่าง:"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Açık renk:"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Світлий колір:"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Màu sáng:"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浅色模式颜色："
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "淺色模式顏色："
           }
         }
       },
@@ -25024,10 +26416,184 @@
     "settings.appearance.window_tint_label": {
       "comment": "Settings, Appearance pane, Window group: row beside the dropdown choosing the color wash laid over the player window's header.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прозорец"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okno"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vindue"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenster"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Παράθυρο"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Window"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ventana"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ikkuna"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenêtre"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prozor"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ablak"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jendela"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finestra"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ウインドウ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "윈도우"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vindu"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Venster"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okno"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Janela"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Janela"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fereastră"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Окно"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okno"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fönster"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "หน้าต่าง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pencere"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вікно"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cửa sổ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "視窗"
           }
         }
       },
@@ -25345,7 +26911,7 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Întreabă unde se salvează"
+            "value": "Întrebați unde se salvează"
           }
         },
         "ru": {
@@ -25780,10 +27346,184 @@
     "settings.convert.enabled": {
       "comment": "Settings, Convert pane: switch showing or hiding the whole Convert feature — off removes the Convert menu from the menu bar and the Convert to FLAC item from the context menus.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включено"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zapnuto"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktiveret"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktiviert"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ενεργό"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Enabled"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activado"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Käytössä"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activé"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uključeno"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bekapcsolva"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktif"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attivo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有効"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사용"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktivert"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ingeschakeld"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Włączone"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ativado"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ativado"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activat"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включено"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zapnuté"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktiverad"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เปิดใช้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etkin"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Увімкнено"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã bật"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "啟用"
           }
         }
       },
@@ -26101,7 +27841,7 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Încarcă doar din fișier"
+            "value": "Încărcați doar din fișier"
           }
         },
         "ru": {
@@ -26341,7 +28081,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "優先檔案，其次搜尋資料夾"
+            "value": "優先檔案，其次搜尋檔案夾"
           }
         }
       },
@@ -26401,7 +28141,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Illustration d’album :"
+            "value": "Illustration d’album :"
           }
         },
         "hr": {
@@ -26908,10 +28648,184 @@
     "settings.general.audio_section": {
       "comment": "Settings, General pane: heading above the audio rows — the output-device choice.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аудио"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zvuk"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lyd"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ήχος"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Audio"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ääni"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hang"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オーディオ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오디오"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lyd"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Áudio"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Áudio"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аудио"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zvuk"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ljud"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เสียง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аудіо"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Âm thanh"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音訊"
           }
         }
       },
@@ -27106,10 +29020,184 @@
     "settings.general.window_section": {
       "comment": "Settings: heading above the window rows — always on top and waveform drag in the General pane, appearance and tint in the Appearance pane. One key for both, the word being the same; the key keeps its historical settings.general prefix.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прозорец"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okno"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vindue"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenster"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Παράθυρο"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Window"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ventana"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ikkuna"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenêtre"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prozor"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ablak"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jendela"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finestra"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ウインドウ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "윈도우"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vindu"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Venster"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okno"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Janela"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Janela"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fereastră"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Окно"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okno"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fönster"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "หน้าต่าง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pencere"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вікно"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cửa sổ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "視窗"
           }
         }
       },
@@ -27241,7 +29329,7 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Adaugă dosar uzual"
+            "value": "Adăugați un dosar uzual"
           }
         },
         "ru": {
@@ -27427,7 +29515,7 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Adaugă dosar…"
+            "value": "Adăugați un dosar…"
           }
         },
         "ru": {
@@ -27613,7 +29701,7 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe poate citi muzica din aceste dosare. Adaugă-le pe cele pe care le folosești des, pentru a evita solicitările repetate de permisiune."
+            "value": "Vibe poate citi muzica din aceste dosare. Adăugați-le pe cele pe care le folosiți des, pentru a evita solicitările repetate de permisiune."
           }
         },
         "ru": {
@@ -28393,7 +30481,7 @@
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ (не знайдено)"
+            "value": "%@ (не знайдена)"
           }
         },
         "vi": {
@@ -28477,7 +30565,7 @@
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ (nedostupno)"
+            "value": "%@ (nedostupna)"
           }
         },
         "hu": {
@@ -28489,7 +30577,7 @@
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ (Tidak Tersedia)"
+            "value": "%@ (tidak tersedia)"
           }
         },
         "it": {
@@ -28549,7 +30637,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ (недоступно)"
+            "value": "%@ (недоступна)"
           }
         },
         "sk": {
@@ -28573,13 +30661,13 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ (Kullanılamıyor)"
+            "value": "%@ (kullanılamıyor)"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ (недоступно)"
+            "value": "%@ (недоступна)"
           }
         },
         "vi": {
@@ -28657,7 +30745,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ce dossier est introuvable ou se trouve sur un disque non connecté. Vibe conserve son autorisation et l'utilisera de nouveau s'il redevient disponible."
+            "value": "Ce dossier est introuvable ou se trouve sur un disque non connecté. Vibe conserve son autorisation et l’utilisera de nouveau s’il redevient disponible."
           }
         },
         "hr": {
@@ -28681,7 +30769,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Questa cartella non esiste o si trova su un disco non collegato. Vibe ne conserva l'autorizzazione e la userà di nuovo quando tornerà disponibile."
+            "value": "Questa cartella non esiste o si trova su un disco non collegato. Vibe ne conserva l’autorizzazione e la userà di nuovo quando tornerà disponibile."
           }
         },
         "ja": {
@@ -28735,7 +30823,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Эта папка отсутствует или находится на неподключённом диске. Vibe сохраняет разрешение и снова использует её, когда она появится."
+            "value": "Эта папка отсутствует или находится на неподключенном диске. Vibe сохраняет разрешение и снова использует ее, когда она появится."
           }
         },
         "sk": {
@@ -28765,7 +30853,7 @@
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ця папка відсутня або розташована на непідключеному диску. Vibe зберігає дозвіл і знову використає її, коли вона з'явиться."
+            "value": "Ця папка відсутня або розташована на непідключеному диску. Vibe зберігає дозвіл і знову використає її, коли вона з’явиться."
           }
         },
         "vi": {
@@ -28783,7 +30871,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "此資料夾遺失，或位於未連接的磁碟上。Vibe 會保留其權限，資料夾恢復後將繼續使用。"
+            "value": "此檔案夾遺失，或位於未連接的磁碟上。Vibe 會保留其權限，檔案夾恢復後將繼續使用。"
           }
         }
       },
@@ -28915,7 +31003,7 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permite accesul"
+            "value": "Permiteți accesul"
           }
         },
         "ru": {
@@ -29029,7 +31117,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Autorisez Vibe à accéder à « %@ » afin qu’il puisse y lire la musique où qu’elle se trouve."
+            "value": "Autorisez Vibe à accéder à « %@ » afin qu’il puisse y lire la musique où qu’elle se trouve."
           }
         },
         "hr": {
@@ -29101,13 +31189,13 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permite-i lui Vibe accesul la dosarul „%@”, ca să poată citi muzica de oriunde din interiorul lui."
+            "value": "Permiteți-i lui Vibe accesul la dosarul „%@”, ca să poată citi muzica de oriunde din interiorul lui."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Разрешите Vibe доступ к папке «%@», чтобы приложение могло читать музыку в любом её месте."
+            "value": "Разрешите Vibe доступ к папке «%@», чтобы приложение могло читать музыку в любом ее месте."
           }
         },
         "sk": {
@@ -29131,7 +31219,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "İçindeki her yerde müzik okuyabilmesi için Vibe'a “%@” klasörüne erişim izni verin."
+            "value": "İçindeki her yerde müzik okuyabilmesi için Vibe’a “%@” klasörüne erişim izni verin."
           }
         },
         "uk": {
@@ -29215,7 +31303,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Autorisations :"
+            "value": "Autorisations :"
           }
         },
         "hr": {
@@ -29536,10 +31624,184 @@
     "settings.playback.analysis_section": {
       "comment": "Settings, Playback pane: heading above the group of rows enabling automatic tempo and key analysis.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Анализ"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analýza"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyse"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyse"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ανάλυση"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Analysis"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Análisis"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyysi"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyse"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analiza"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elemzés"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analisis"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analisi"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解析"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "분석"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyse"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyse"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analiza"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Análise"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Análise"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analiză"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Анализ"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analýza"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analys"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การวิเคราะห์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analiz"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аналіз"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phân tích"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分析"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分析"
           }
         }
       },
@@ -29815,7 +32077,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "長い(2秒)"
+            "value": "長い（2秒）"
           }
         },
         "ko": {
@@ -30001,7 +32263,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "短い(0.5秒)"
+            "value": "短い（0.5秒）"
           }
         },
         "ko": {
@@ -30109,13 +32371,13 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Кросфейд:"
+            "value": "Crossfade:"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prolínání:"
+            "value": "Crossfade:"
           }
         },
         "da": {
@@ -30151,25 +32413,25 @@
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ristihäivytys:"
+            "value": "Crossfade:"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fondu enchaîné :"
+            "value": "Crossfade :"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pretapanje:"
+            "value": "Crossfade:"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Áttűnés:"
+            "value": "Crossfade:"
           }
         },
         "id": {
@@ -30181,7 +32443,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dissolvenza incrociata:"
+            "value": "Crossfade:"
           }
         },
         "ja": {
@@ -30211,7 +32473,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przenikanie:"
+            "value": "Crossfade:"
           }
         },
         "pt-BR": {
@@ -30235,13 +32497,13 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Кроссфейд:"
+            "value": "Crossfade:"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prelínanie:"
+            "value": "Crossfade:"
           }
         },
         "sv": {
@@ -30265,7 +32527,7 @@
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Кросфейд:"
+            "value": "Crossfade:"
           }
         },
         "vi": {
@@ -30415,7 +32677,7 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Detectează BPM automat"
+            "value": "Detectați BPM automat"
           }
         },
         "ru": {
@@ -30445,7 +32707,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "BPM'yi otomatik olarak algıla"
+            "value": "BPM’yi otomatik olarak algıla"
           }
         },
         "uk": {
@@ -30601,7 +32863,7 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Detectează tonalitatea automat"
+            "value": "Detectați tonalitatea automat"
           }
         },
         "ru": {
@@ -30817,7 +33079,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ses FX'i etkinleştir"
+            "value": "Ses FX’i etkinleştir"
           }
         },
         "uk": {
@@ -31243,7 +33505,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nächsten Titel der Titelliste wiedergeben"
+            "value": "Nächsten Titel der Wiedergabeliste wiedergeben"
           }
         },
         "el": {
@@ -31459,7 +33721,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "À la fin du morceau :"
+            "value": "À la fin du morceau :"
           }
         },
         "hr": {
@@ -31609,7 +33871,7 @@
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pitch-interval:"
+            "value": "Pitchområde:"
           }
         },
         "de": {
@@ -31669,7 +33931,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Intervallo del pitch:"
+            "value": "Intervallo di pitch:"
           }
         },
         "ja": {
@@ -31687,7 +33949,7 @@
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pitch-område:"
+            "value": "Pitchområde:"
           }
         },
         "nl": {
@@ -31705,7 +33967,7 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Faixa de pitch:"
+            "value": "Intervalo de pitch:"
           }
         },
         "pt-PT": {
@@ -31741,7 +34003,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ช่วงพิตช์:"
+            "value": "ช่วง Pitch:"
           }
         },
         "tr": {
@@ -32329,7 +34591,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "加入資料夾…"
+            "value": "加入檔案夾…"
           }
         }
       },
@@ -32515,7 +34777,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "該資料夾已位於你加入的資料夾中，因此已在搜尋範圍內。"
+            "value": "該檔案夾已位於你加入的檔案夾中，因此已在搜尋範圍內。"
           }
         }
       },
@@ -32653,7 +34915,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Поиск охватывает открытую папку и всё, что вы добавите здесь, включая вложенные папки. Без папки Vibe не может искать в ваших файлах."
+            "value": "Поиск охватывает открытую папку и все, что вы добавите здесь, включая вложенные папки. Без папки Vibe не может искать в ваших файлах."
           }
         },
         "sk": {
@@ -32701,7 +34963,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "搜尋會查找你開啟的資料夾以及在此加入的所有內容，包括子資料夾。未提供資料夾時，Vibe 無法搜尋你的檔案。"
+            "value": "搜尋會查找你開啟的檔案夾以及在此加入的所有內容，包括子檔案夾。未提供檔案夾時，Vibe 無法搜尋你的檔案。"
           }
         }
       },
@@ -32887,7 +35149,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "要搜尋的資料夾"
+            "value": "要搜尋的檔案夾"
           }
         }
       },
@@ -33847,7 +36109,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Titelliste"
+            "value": "Wiedergabeliste"
           }
         },
         "el": {
@@ -34063,7 +36325,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Piste suivante"
+            "value": "Morceau suivant"
           }
         },
         "hr": {
@@ -34087,7 +36349,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Traccia successiva"
+            "value": "Brano successivo"
           }
         },
         "ja": {
@@ -34135,13 +36397,13 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Melodia următoare"
+            "value": "Piesa următoare"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Следующая дорожка"
+            "value": "Следующий трек"
           }
         },
         "sk": {
@@ -34177,7 +36439,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bài tiếp theo"
+            "value": "Bản nhạc tiếp theo"
           }
         },
         "zh-Hans": {
@@ -34621,7 +36883,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Piste précédente"
+            "value": "Morceau précédent"
           }
         },
         "hr": {
@@ -34645,7 +36907,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Traccia precedente"
+            "value": "Brano precedente"
           }
         },
         "ja": {
@@ -34693,13 +36955,13 @@
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Melodia precedentă"
+            "value": "Piesa precedentă"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Предыдущая дорожка"
+            "value": "Предыдущий трек"
           }
         },
         "sk": {
@@ -34735,7 +36997,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bài trước"
+            "value": "Bản nhạc trước"
           }
         },
         "zh-Hans": {
@@ -35689,7 +37951,7 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Соник Цирус"
+            "value": "Sonic Cirrus"
           }
         },
         "cs": {
@@ -35713,7 +37975,7 @@
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Σόνικ Σίρους"
+            "value": "Sonic Cirrus"
           }
         },
         "en": {
@@ -35767,13 +38029,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ソニック・シーラス"
+            "value": "Sonic Cirrus"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "소닉 시러스"
+            "value": "Sonic Cirrus"
           }
         },
         "nb": {
@@ -35815,7 +38077,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Соник Циррус"
+            "value": "Sonic Cirrus"
           }
         },
         "sk": {
@@ -35833,7 +38095,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "โซนิคเซอร์รัส"
+            "value": "Sonic Cirrus"
           }
         },
         "tr": {
@@ -35845,7 +38107,7 @@
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сонік Циррус"
+            "value": "Sonic Cirrus"
           }
         },
         "vi": {

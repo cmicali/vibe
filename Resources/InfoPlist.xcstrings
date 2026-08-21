@@ -62,7 +62,7 @@
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Audio datoteke"
+            "value": "Audiodatoteke"
           }
         },
         "hu": {
@@ -140,7 +140,7 @@
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Audio súbory"
+            "value": "Zvukové súbory"
           }
         },
         "sv": {
@@ -854,7 +854,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Teczka"
+            "value": "Folder"
           }
         },
         "pt-BR": {
@@ -926,7 +926,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "資料夾"
+            "value": "檔案夾"
           }
         }
       }
@@ -956,7 +956,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "M3U-Titelliste"
+            "value": "M3U-Wiedergabeliste"
           }
         },
         "el": {
@@ -1286,7 +1286,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bản quyền © 2026 Christopher Micali. Bảo lưu mọi quyền."
+            "value": "Copyright © 2026 Christopher Micali. Bảo lưu mọi quyền."
           }
         },
         "zh-Hans": {
