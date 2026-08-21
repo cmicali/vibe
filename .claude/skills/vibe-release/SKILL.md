@@ -5,7 +5,9 @@ description: Build, sign, notarize, and ship Vibe — the Developer ID (make rel
 
 # Releasing Vibe
 
-`make release`, or `scripts/release.sh`, builds Release, then signs it with Developer ID, notarizes it and staples a distributable app. `make github-release` (`scripts/github-release.sh`, `--draft` for a review pass) then publishes that artifact as a GitHub release: it re-verifies the staple on the zip's contents, tags HEAD as `v<MARKETING_VERSION>` (read from the built app, never from git), attaches `vibe-macos-<arch>-<version>.zip` (arch read from the binary via `lipo`), and takes the release notes from the same `Assets/app-store/copy/en/whats-new.txt` the App Store upload requires — publishing needs `gh` authenticated (`gh auth login`; `brew bundle` installs it) and a pushed HEAD, and it refuses an existing release for the same version.
+`make release`, or `scripts/release.sh`, builds Release, signs it with Developer ID, notarizes and staples the app, then packages it as `build/release/Vibe.dmg` — a plain drag-to-`Applications` window, signed, notarized and stapled in its own right. `make github-release` (`scripts/github-release.sh`, `--draft` for a review pass) then publishes that image as a GitHub release: it mounts it and re-verifies **both** staples, tags HEAD as `v<MARKETING_VERSION>` (read from the app inside the image, never from git), attaches `vibe-macos-<arch>-<version>.dmg` (arch read from the binary via `lipo`), and takes the release notes from the same `Assets/app-store/copy/en/whats-new.txt` the App Store upload requires — publishing needs `gh` authenticated (`gh auth login`; `brew bundle` installs it) and a pushed HEAD, and it refuses an existing release for the same version.
+
+**Why a disk image and not the zip.** The zip still exists — notarytool needs an archive to submit — but it is not what anyone downloads. A zip expands wherever the browser drops it, and a quarantined app launched from `~/Downloads` runs *translocated*, from a read-only random mount point that vanishes on quit. For this app that is not cosmetic: Settings > Set Vibe as Default Music Player registers with Launch Services from the path it is running at, so a click from a translocated copy registers a path that ceases to exist — and `DefaultAppRegistration` already has to reason about several copies of the app. Dragging out of a disk image is what clears translocation, and the `/Applications` alias is what makes that the obvious gesture. **The window is deliberately plain**: no background image, no icon placement. Those need Finder driven over AppleScript to write a `.DS_Store`, which wants Automation permission and is the flakiest step in any DMG script, and two icons side by side carry the whole point. Two notarization round trips is the price — the app before packaging, the image after — and both staples are checked at publish because either one missing means a download Gatekeeper re-checks online.
 
 There are two release paths and they are not interchangeable. Each uses a different certificate, a different container and a different verification:
 
@@ -13,8 +15,8 @@ There are two release paths and they are not interchangeable. Each uses a differ
 |---|---|---|
 | script | `scripts/release.sh` | `scripts/release-appstore.sh` |
 | certificate | Developer ID Application | Apple Distribution (+ Mac Installer) |
-| output | stapled `.zip` you host yourself | `.pkg` uploaded to App Store Connect |
-| verification | notarize + staple + `spctl` | App Store Connect validation |
+| output | stapled `.dmg` you host yourself | `.pkg` uploaded to App Store Connect |
+| verification | notarize + staple + `spctl`, app and image both | App Store Connect validation |
 
 Both preflight `asc_require_translations` before the archive: a key missing any catalog language fails the release outright, because nothing else catches it — `make check-strings` compares the catalog to the source and the build compiles a partial key without complaint, so it would ship English in that locale alone. Fix by translating, not by skipping; the **vibe-strings** skill has the conventions. This is separate from the product-page copy below — that's ASC metadata, this is the in-app catalog.
 

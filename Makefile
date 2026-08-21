@@ -98,13 +98,14 @@ install: build
 	rm -rf /Applications/Vibe.app
 	cp -R build/DerivedData/Build/Products/$(CONFIG)/Vibe.app /Applications/Vibe.app
 
-# Build Release, then sign (Developer ID), notarize, and staple a distributable
-# app for direct download. See scripts/release.sh for the required credentials.
+# Build Release, then sign (Developer ID), notarize and staple a distributable
+# app, and package it as a drag-to-Applications disk image — itself signed,
+# notarized and stapled. See scripts/release.sh for the required credentials.
 release:
 	scripts/release.sh
 
-# Publish the notarized zip from `make release` as a GitHub release: tags HEAD
-# as v<MARKETING_VERSION>, attaches vibe-macos-<arch>-<version>.zip, notes from
+# Publish the notarized image from `make release` as a GitHub release: tags HEAD
+# as v<MARKETING_VERSION>, attaches vibe-macos-<arch>-<version>.dmg, notes from
 # the App Store whats-new.txt. See scripts/github-release.sh.
 github-release:
 	scripts/github-release.sh

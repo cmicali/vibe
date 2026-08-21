@@ -4,18 +4,18 @@
 #
 #   scripts/github-release.sh [--draft]
 #
-# Takes the artifact `make release` produced (build/release/Vibe.zip), verifies
-# the app inside really is the stapled copy, tags HEAD as v<version> and
-# creates the release with the zip attached as vibe-macos-<arch>-<version>.zip
-# (arch read from the binary itself: a single slice names it, several read as
-# "universal").
+# Takes the artifact `make release` produced (build/release/Vibe.dmg), verifies
+# the image and the app inside it really are the stapled copies, tags HEAD as
+# v<version> and creates the release with the image attached as
+# vibe-macos-<arch>-<version>.dmg (arch read from the binary itself: a single
+# slice names it, several read as "universal").
 #
 # Deliberately a separate step from release.sh: building+notarizing is
 # repeatable, publishing is not — a deleted release leaves the tag and any
 # download links behind — so the irreversible half only runs when asked.
 #
 # The version comes from the built app's Info.plist (MARKETING_VERSION via
-# project.yml), never from git, so the tag always names what the zip actually
+# project.yml), never from git, so the tag always names what the image actually
 # contains. Release notes are Assets/app-store/copy/en/whats-new.txt — the
 # same file the App Store upload requires per release — so the two channels
 # cannot drift.
@@ -27,7 +27,7 @@ cd "$(dirname "$0")/.."
 
 BUILD_DIR="build/release"
 APP="$BUILD_DIR/export/Vibe.app"
-ZIP="$BUILD_DIR/Vibe.zip"
+DMG="$BUILD_DIR/Vibe.dmg"
 NOTES="Assets/app-store/copy/en/whats-new.txt"
 
 DRAFT=""
@@ -48,8 +48,8 @@ gh auth status >/dev/null 2>&1 || {
     echo "error: gh is not authenticated — run: gh auth login" >&2
     exit 1
 }
-[[ -f "$ZIP" && -d "$APP" ]] || {
-    echo "error: no release artifact at $ZIP — run 'make release' first" >&2
+[[ -f "$DMG" && -d "$APP" ]] || {
+    echo "error: no release artifact at $DMG — run 'make release' first" >&2
     exit 1
 }
 [[ -s "$NOTES" ]] || {
@@ -57,19 +57,38 @@ gh auth status >/dev/null 2>&1 || {
     exit 1
 }
 
-# Verify the zip holds the stapled app, not the pre-notarization packaging —
-# release.sh zips twice (once to submit, once after stapling), and uploading
-# the first would ship a build Gatekeeper re-checks online.
-STAPLE_TMP="$(mktemp -d)"
-trap 'rm -rf "$STAPLE_TMP"' EXIT
-ditto -x -k "$ZIP" "$STAPLE_TMP"
-xcrun stapler validate "$STAPLE_TMP/Vibe.app" >/dev/null || {
-    echo "error: the app inside $ZIP is not stapled — re-run 'make release'" >&2
+# Verify BOTH staples on the artifact itself, by mounting it exactly as a
+# recipient would. The image and the app inside it are notarized separately —
+# release.sh staples the app before packaging and the image after — and either
+# one missing means a download Gatekeeper re-checks online, which is precisely
+# what stapling exists to avoid. Read the version out of the mounted app too,
+# so the tag names what is really inside the image rather than what is sitting
+# in the export directory beside it.
+xcrun stapler validate "$DMG" >/dev/null || {
+    echo "error: $DMG is not stapled — re-run 'make release'" >&2
+    exit 1
+}
+MOUNT="$(mktemp -d)"
+# The image must be detached before the mount point is removed, and both must
+# happen however this script exits.
+trap 'hdiutil detach "$MOUNT" -quiet -force 2>/dev/null || true; rm -rf "$MOUNT"' EXIT
+hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -quiet -readonly
+MOUNTED_APP="$MOUNT/Vibe.app"
+[[ -d "$MOUNTED_APP" ]] || {
+    echo "error: $DMG holds no Vibe.app — re-run 'make release'" >&2
+    exit 1
+}
+[[ -L "$MOUNT/Applications" ]] || {
+    echo "error: $DMG holds no /Applications alias — re-run 'make release'" >&2
+    exit 1
+}
+xcrun stapler validate "$MOUNTED_APP" >/dev/null || {
+    echo "error: the app inside $DMG is not stapled — re-run 'make release'" >&2
     exit 1
 }
 
-VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$STAPLE_TMP/Vibe.app/Contents/Info.plist")"
-BUILD="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$STAPLE_TMP/Vibe.app/Contents/Info.plist")"
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$MOUNTED_APP/Contents/Info.plist")"
+BUILD="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$MOUNTED_APP/Contents/Info.plist")"
 TAG="v$VERSION"
 
 # The tag is created on HEAD, so HEAD must be what the remote will see.
@@ -96,11 +115,14 @@ fi
 # ---------------------------------------------------------------------------
 # Name the asset by what the binary actually contains, not by assumption:
 # one slice names its arch, more collapse to "universal".
-ARCHS="$(lipo -archs "$STAPLE_TMP/Vibe.app/Contents/MacOS/Vibe")"
+ARCHS="$(lipo -archs "$MOUNTED_APP/Contents/MacOS/Vibe")"
 if [[ "$ARCHS" == *" "* ]]; then ARCH="universal"; else ARCH="$ARCHS"; fi
 
-ASSET="$BUILD_DIR/vibe-macos-$ARCH-$VERSION.zip"
-cp "$ZIP" "$ASSET"
+# Everything read out of the image has been read; give it back before the
+# upload, so a failure there cannot leave a volume mounted.
+hdiutil detach "$MOUNT" -quiet
+ASSET="$BUILD_DIR/vibe-macos-$ARCH-$VERSION.dmg"
+cp "$DMG" "$ASSET"
 
 echo "🔊 releasing $TAG (build $BUILD) at $(git rev-parse --short HEAD)"
 gh release create "$TAG" \
