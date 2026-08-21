@@ -20089,6 +20089,18 @@
       },
       "extractionState": "manual"
     },
+    "settings.advanced.stats_section": {
+      "comment": "Settings, Advanced pane: heading above the group of lifetime playback-statistics rows.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistics"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.appearance.appearance_label": {
       "comment": "Settings, Appearance pane: label beside the light/dark appearance choice. Ends with a colon.",
       "localizations": {
@@ -23254,12 +23266,6 @@
     "settings.appearance.waveform_drag.seek": {
       "comment": "Settings, Appearance pane, waveform drag choice: dragging on the waveform scrubs through the track like a slider — playback jumps to where the mouse is released — and the window stays put.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Seek"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -23288,6 +23294,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Αναζήτηση στο κομμάτι"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seek"
           }
         },
         "es": {
@@ -23440,12 +23452,6 @@
     "settings.appearance.waveform_drag.window": {
       "comment": "Settings, Appearance pane, waveform drag choice: dragging on the waveform moves the whole window, and only a click without movement jumps playback. The default.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Move window"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -23474,6 +23480,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Μετακίνηση παραθύρου"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move window"
           }
         },
         "es": {
@@ -23624,185 +23636,185 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_drag_label": {
-      "comment": "Settings, Appearance pane: label beside the dropdown choosing what dragging the mouse on the waveform does. Ends with a colon.",
+      "comment": "Settings, Appearance pane, Waveform group: row beside the dropdown choosing what dragging the mouse on the waveform does.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waveform drag:"
-          }
-        },
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Влачене върху вълновата форма:"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tažení po tvaru vlny:"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Træk i bølgeformen:"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Ziehen auf der Wellenform:"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Σύρσιμο στην κυματομορφή:"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag behavior"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Arrastre en la forma de onda:"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Aaltomuodon vetäminen:"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Glisser sur la forme d’onde :"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Povlačenje valnog oblika:"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Húzás a hullámformán:"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Seret pada bentuk gelombang:"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Trascinamento sulla forma d’onda:"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "波形のドラッグ:"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "파형 드래그:"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Dra i bølgeformen:"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Slepen op de golfvorm:"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Przeciąganie kształtu fali:"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Arrastar na forma de onda:"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Arrastar na forma de onda:"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tragere pe forma de undă:"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Перетаскивание волновой формы:"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Ťahanie po vlnovom priebehu:"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Dra i vågformen:"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "การลากบนรูปคลื่น:"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Dalga biçiminde sürükleme:"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Перетягування хвильової форми:"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Kéo trên dạng sóng:"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "波形拖移："
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "波形拖移："
           }
         }
@@ -23810,186 +23822,198 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_label": {
-      "comment": "Settings, Appearance pane: label beside the dropdown choosing the waveform drawing style. Ends with a colon.",
+      "comment": "Settings, Appearance pane, Waveform group: row beside the dropdown choosing the waveform drawing style.",
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Стил на вълновата форма:"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Styl tvaru vlny:"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Bølgeformsstil:"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Wellenform-Stil:"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Στιλ κυματομορφής:"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Waveform style:"
+            "value": "Style"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Estilo de forma de onda:"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Aaltomuodon tyyli:"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Style de forme d’onde :"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Stil valnog oblika:"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Hullámforma stílusa:"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Gaya bentuk gelombang:"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Stile della forma d’onda:"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "波形スタイル:"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "파형 스타일:"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Bølgeformstil:"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Golfvormstijl:"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Styl kształtu fali:"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Estilo da forma de onda:"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Estilo da forma de onda:"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Stilul formei de undă:"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Стиль волновой формы:"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Štýl vlnového priebehu:"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Vågformsstil:"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "สไตล์รูปคลื่น:"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Dalga biçimi stili:"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Стиль хвильової форми:"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Kiểu dạng sóng:"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "波形样式："
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "波形樣式："
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.waveform_section": {
+      "comment": "Settings, Appearance pane: heading above the group of waveform rows — style, color theme, custom colors and drag behavior.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waveform"
           }
         }
       },
@@ -24740,185 +24764,185 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_theme_label": {
-      "comment": "Settings, Appearance pane, and the iOS settings screen: label beside the dropdown choosing the waveform's color palette (as opposed to its drawing style). Ends with a colon.",
+      "comment": "Settings, Appearance pane, Waveform group: row beside the dropdown choosing the waveform's color palette (as opposed to its drawing style).",
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Тема на вълновата форма:"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Motiv tvaru vlny:"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Bølgeformstema:"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Wellenform-Thema:"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Θέμα κυματομορφής:"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Waveform theme:"
+            "value": "Color theme"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tema de forma de onda:"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Aaltomuodon teema:"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Thème de forme d’onde :"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tema valnog oblika:"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Hullámforma témája:"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tema bentuk gelombang:"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tema della forma d’onda:"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "波形テーマ:"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "파형 테마:"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Bølgeformtema:"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Golfvormthema:"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Motyw kształtu fali:"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tema da forma de onda:"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tema da forma de onda:"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tema formei de undă:"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Тема волновой формы:"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Motív vlnového priebehu:"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Vågformstema:"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "ธีมรูปคลื่น:"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Dalga biçimi teması:"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Тема хвильової форми:"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Chủ đề dạng sóng:"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "波形主题："
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "波形主題："
           }
         }
@@ -29384,6 +29408,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "移除"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.playback.analysis_section": {
+      "comment": "Settings, Playback pane: heading above the group of rows enabling automatic tempo and key analysis.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analysis"
           }
         }
       },

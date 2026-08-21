@@ -10,7 +10,6 @@
 #import "MainPlayerController+Menus.h"
 #import "VibeStrings.h"
 
-static const CGFloat kAppearancePaneHeight = 318;
 static const CGFloat kAppearancePopUpWidth = 220;
 
 // Popup tags for the appearance choices; the persisted value is the
@@ -31,16 +30,17 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     NSColorWell *_customDarkUnplayedWell;
     NSColorWell *_customLightPlayedWell;
     NSColorWell *_customLightUnplayedWell;
-    // The custom-color wells' grid rows, hidden unless the theme is custom.
-    // Built always and toggled, so the walker and the layout stay stable.
-    NSGridRow *_customDarkRow;
-    NSGridRow *_customLightRow;
+    // The custom-color wells' rows, hidden unless the theme is custom. Built
+    // always and toggled, so the walker and the layout stay stable; the
+    // section stack closes the gap, separators included.
+    SettingsRowView *_customDarkRow;
+    SettingsRowView *_customLightRow;
     NSPopUpButton *_waveformDragPopUp;
-    NSButton *_fileInfoCheckbox;
+    NSSwitch *_fileInfoSwitch;
     NSButton *_timeTotalRadio;
     NSButton *_timeRemainingRadio;
     NSPopUpButton *_keyNotationPopUp;
-    NSButton *_keyColorsCheckbox;
+    NSSwitch *_keyColorsSwitch;
 }
 
 - (void)loadView {
@@ -96,8 +96,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     NSStackView *customLightColors = [self customColorPairWithPlayed:_customLightPlayedWell
                                                             unplayed:_customLightUnplayedWell];
 
-    _fileInfoCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_FILE_INFO
-                                             target:self action:@selector(toggleFileInfo:)];
+    _fileInfoSwitch = [self switchWithAction:@selector(toggleFileInfo:)];
 
     _timeTotalRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_TOTAL
                                               target:self action:@selector(timeDisplayChanged:)];
@@ -114,24 +113,31 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     [_keyNotationPopUp addItemWithTitle:STR_SETTINGS_KEY_NOTATION_MUSICAL];
     _keyNotationPopUp.lastItem.representedObject = SETTINGS_VALUE_KEY_NOTATION_MUSICAL;
 
-    _keyColorsCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_KEY_COLORS
-                                              target:self action:@selector(toggleKeyColors:)];
+    _keyColorsSwitch = [self switchWithAction:@selector(toggleKeyColors:)];
 
-    NSGridView *grid = [self.class formGridWithRows:@[
-        @[[NSTextField labelWithString:STR_SETTINGS_APPEARANCE_LABEL], _appearancePopUp],
-        @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_LABEL], _waveformPopUp],
-        @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_THEME_LABEL], _waveformThemePopUp],
-        @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL], customDarkColors],
-        @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL], customLightColors],
-        @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_DRAG_LABEL], _waveformDragPopUp],
-        @[NSGridCell.emptyContentView, _fileInfoCheckbox],
-        @[[NSTextField labelWithString:STR_SETTINGS_TIME_LABEL], timeRadios],
-        @[[NSTextField labelWithString:STR_SETTINGS_KEY_NOTATION_LABEL], _keyNotationPopUp],
-        @[NSGridCell.emptyContentView, _keyColorsCheckbox],
+    _customDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL
+                                           control:customDarkColors];
+    _customLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL
+                                            control:customLightColors];
+
+    [self loadPaneWithSections:@[
+        [SettingsSectionView sectionWithRows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_APPEARANCE_LABEL control:_appearancePopUp],
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_waveformPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_THEME_LABEL control:_waveformThemePopUp],
+            _customDarkRow,
+            _customLightRow,
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_DRAG_LABEL control:_waveformDragPopUp],
+        ]],
+        [SettingsSectionView sectionWithRows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_FILE_INFO control:_fileInfoSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_TIME_LABEL control:timeRadios],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_NOTATION_LABEL control:_keyNotationPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
+        ]],
     ]];
-    _customDarkRow = [grid cellForView:customDarkColors].row;
-    _customLightRow = [grid cellForView:customLightColors].row;
-    [self loadPaneWithSize:NSMakeSize(kSettingsPaneWidth, kAppearancePaneHeight) grid:grid];
 }
 
 - (NSStackView *)customColorPairWithPlayed:(NSColorWell *)played unplayed:(NSColorWell *)unplayed {
@@ -230,7 +236,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
         }
     }
 
-    _fileInfoCheckbox.state = AppSettings.sharedInstance.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
+    _fileInfoSwitch.state = AppSettings.sharedInstance.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
 
     BOOL remaining = AppSettings.sharedInstance.showRemainingTime;
     _timeTotalRadio.state = remaining ? NSControlStateValueOff : NSControlStateValueOn;
@@ -243,7 +249,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
             break;
         }
     }
-    _keyColorsCheckbox.state = AppSettings.sharedInstance.keyColorsEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+    _keyColorsSwitch.state = AppSettings.sharedInstance.keyColorsEnabled ? NSControlStateValueOn : NSControlStateValueOff;
 }
 
 - (void)appearanceChanged:(id)sender {
@@ -320,7 +326,7 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
 }
 
 - (void)toggleFileInfo:(id)sender {
-    AppSettings.sharedInstance.showFileInfo = (_fileInfoCheckbox.state == NSControlStateValueOn);
+    AppSettings.sharedInstance.showFileInfo = (_fileInfoSwitch.state == NSControlStateValueOn);
     [self.playerController refreshFileInfoDisplay];
 }
 
@@ -335,7 +341,7 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
 }
 
 - (void)toggleKeyColors:(id)sender {
-    AppSettings.sharedInstance.keyColorsEnabled = (_keyColorsCheckbox.state == NSControlStateValueOn);
+    AppSettings.sharedInstance.keyColorsEnabled = (_keyColorsSwitch.state == NSControlStateValueOn);
     [self.playerController refreshKeyDisplay];
 }
 

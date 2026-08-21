@@ -13,7 +13,6 @@
 #import "OutputDevicesMenuController.h"
 #import "VibeStrings.h"
 
-static const CGFloat kGeneralPaneHeight = 180;
 static const CGFloat kOutputPopUpWidth = 280;
 
 @interface SettingsGeneralViewController () <AudioDeviceManagerObserver>
@@ -27,7 +26,7 @@ static const CGFloat kOutputPopUpWidth = 280;
     OutputDevicesMenuController *_outputMenuController;
     NSPopUpButton *_outputPopUp;
     NSButton *_defaultPlayerButton;
-    NSButton *_alwaysOnTopCheckbox;
+    NSSwitch *_alwaysOnTopSwitch;
     // The last answer from the async default-app check, shown immediately on
     // refresh while the fresh one is fetched; the generation drops a stale
     // reply that lands after a newer refresh.
@@ -49,7 +48,7 @@ static const CGFloat kOutputPopUpWidth = 280;
     _outputPopUp = [self popUpButtonWithWidth:kOutputPopUpWidth action:NULL];
     _outputPopUp.menu.delegate = _outputMenuController;
 
-    // The grid is measured once, here, while the async default-app check is
+    // The pane is measured once, here, while the async default-app check is
     // still out and the real title has not arrived. Floor the button at the
     // wider of the two titles it can carry, or the pane's width freezes
     // against an empty one and a locale whose title outgrows the design width
@@ -61,25 +60,25 @@ static const CGFloat kOutputPopUpWidth = 280;
     widestTitle = MAX(widestTitle, _defaultPlayerButton.fittingSize.width);
     [_defaultPlayerButton.widthAnchor constraintGreaterThanOrEqualToConstant:widestTitle].active = YES;
 
-    _alwaysOnTopCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_ALWAYS_ON_TOP
-                                                target:self action:@selector(toggleAlwaysOnTop:)];
+    _alwaysOnTopSwitch = [self switchWithAction:@selector(toggleAlwaysOnTop:)];
 
-    NSGridView *grid = [self.class formGridWithRows:@[
-        @[[NSTextField labelWithString:STR_SETTINGS_OUTPUT_LABEL], _outputPopUp],
-        @[NSGridCell.emptyContentView, _alwaysOnTopCheckbox],
-        @[NSGridCell.emptyContentView, _defaultPlayerButton],
+    [self loadPaneWithSections:@[
+        [SettingsSectionView sectionWithRows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_OUTPUT_LABEL control:_outputPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_ALWAYS_ON_TOP control:_alwaysOnTopSwitch],
+            [SettingsRowView rowWithTitle:nil control:_defaultPlayerButton],
+        ]],
     ]];
-    [self loadPaneWithSize:NSMakeSize(kSettingsPaneWidth, kGeneralPaneHeight) grid:grid];
 }
 
 - (void)refreshFromSettings {
     [self refreshOutputPopUp];
     [self refreshDefaultPlayerButton];
-    _alwaysOnTopCheckbox.state = AppSettings.sharedInstance.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
+    _alwaysOnTopSwitch.state = AppSettings.sharedInstance.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
 }
 
 - (void)toggleAlwaysOnTop:(id)sender {
-    AppSettings.sharedInstance.alwaysOnTop = (_alwaysOnTopCheckbox.state == NSControlStateValueOn);
+    AppSettings.sharedInstance.alwaysOnTop = (_alwaysOnTopSwitch.state == NSControlStateValueOn);
     [self.playerController applyAlwaysOnTop];
 }
 

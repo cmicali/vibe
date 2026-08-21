@@ -20,15 +20,21 @@ static const CGFloat kPanePadding = 20;
     return self;
 }
 
-- (void)loadPaneWithSize:(NSSize)size grid:(NSGridView *)grid {
-    grid.translatesAutoresizingMaskIntoConstraints = NO;
+- (void)loadPaneWithSections:(NSArray<SettingsSectionView *> *)sections {
+    NSStackView *stack = [NSStackView stackViewWithViews:sections];
+    stack.orientation = NSUserInterfaceLayoutOrientationVertical;
+    stack.alignment = NSLayoutAttributeLeading;
+    stack.spacing = 20;
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    for (SettingsSectionView *section in sections) {
+        [section.widthAnchor constraintEqualToAnchor:stack.widthAnchor].active = YES;
+    }
     // The design size is a minimum: a localization whose labels outgrow it
     // widens the pane instead of clipping at the edges (Greek was the first
     // to overflow the original fixed width).
-    NSSize fitting = grid.fittingSize;
-    NSSize paneSize = NSMakeSize(MAX(size.width, fitting.width + 2 * kPanePadding),
-                                 MAX(MAX(size.height, fitting.height + 2 * kPanePadding),
-                                     kSettingsPaneMinHeight));
+    NSSize fitting = stack.fittingSize;
+    NSSize paneSize = NSMakeSize(MAX(kSettingsPaneWidth, fitting.width + 2 * kPanePadding),
+                                 MAX(kSettingsPaneMinHeight, fitting.height + 2 * kPanePadding));
 
     NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, paneSize.width, paneSize.height)];
     // The size constraints define the pane's fitting size, which IS the
@@ -51,26 +57,17 @@ static const CGFloat kPanePadding = 20;
     [NSLayoutConstraint activateConstraints:@[width, height]];
     self.preferredContentSize = paneSize;
 
-    [view addSubview:grid];
+    [view addSubview:stack];
     // The safe-area top, not the view's: the settings window's titlebar
     // overlays the content (full-size content view), and the pane's design
     // height budgets the area below it.
     [NSLayoutConstraint activateConstraints:@[
-        [grid.topAnchor constraintEqualToAnchor:view.safeAreaLayoutGuide.topAnchor constant:kPanePadding],
-        [grid.centerXAnchor constraintEqualToAnchor:view.centerXAnchor],
-        [grid.leadingAnchor constraintGreaterThanOrEqualToAnchor:view.leadingAnchor constant:kPanePadding],
+        [stack.topAnchor constraintEqualToAnchor:view.safeAreaLayoutGuide.topAnchor constant:kPanePadding],
+        [stack.leadingAnchor constraintEqualToAnchor:view.leadingAnchor constant:kPanePadding],
+        [stack.trailingAnchor constraintEqualToAnchor:view.trailingAnchor constant:-kPanePadding],
     ]];
 
     self.view = view;
-}
-
-+ (NSGridView *)formGridWithRows:(NSArray<NSArray<NSView *> *> *)rows {
-    NSGridView *grid = [NSGridView gridViewWithViews:rows];
-    grid.rowSpacing = 14;
-    grid.columnSpacing = 8;
-    grid.rowAlignment = NSGridRowAlignmentFirstBaseline;
-    [grid columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing;
-    return grid;
 }
 
 - (NSPopUpButton *)popUpButtonWithWidth:(CGFloat)width action:(SEL)action {
@@ -81,6 +78,14 @@ static const CGFloat kPanePadding = 20;
     }
     [popUp.widthAnchor constraintEqualToConstant:width].active = YES;
     return popUp;
+}
+
+- (NSSwitch *)switchWithAction:(SEL)action {
+    NSSwitch *toggle = [[NSSwitch alloc] init];
+    toggle.target = self;
+    toggle.action = action;
+    toggle.controlSize = NSControlSizeSmall;
+    return toggle;
 }
 
 - (void)refreshFromSettings {

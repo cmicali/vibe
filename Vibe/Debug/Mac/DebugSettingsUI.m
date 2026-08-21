@@ -11,6 +11,7 @@
 #import "AppDelegate.h"
 #import "DebugWireFormat.h"
 #import "PlatformColor.h"
+#import "SettingsFormViews.h"
 #import "SettingsWindowController.h"
 
 #pragma mark - Reaching the window
@@ -154,6 +155,9 @@ static NSString *VibeElementKind(NSView *view) {
     if ([view isKindOfClass:NSSlider.class]) {
         return @"slider";
     }
+    if ([view isKindOfClass:NSSwitch.class]) {
+        return @"switch";
+    }
     if ([view isKindOfClass:NSColorWell.class]) {
         return @"colorwell";
     }
@@ -236,6 +240,34 @@ static void VibeCollectElements(NSView *view, NSString *rowLabel,
     }
     if ([view isKindOfClass:NSGridView.class]) {
         VibeCollectGridElements((NSGridView *)view, rowLabel, out);
+        return;
+    }
+    // A grouped-form row: its title is the addressing label for the controls
+    // beside it, and the title and caption are structure, not elements. A
+    // section passes its header down the same way, which is how the Files
+    // pane's folder list answers to "Permissions".
+    if ([view isKindOfClass:SettingsRowView.class]) {
+        SettingsRowView *row = (SettingsRowView *)view;
+        NSString *title = row.titleLabel.stringValue;
+        NSString *label = title.length ? title : rowLabel;
+        for (NSView *subview in view.subviews) {
+            if (subview == row.titleLabel || subview == row.captionLabel) {
+                continue;
+            }
+            VibeCollectElements(subview, label, out);
+        }
+        return;
+    }
+    if ([view isKindOfClass:SettingsSectionView.class]) {
+        SettingsSectionView *section = (SettingsSectionView *)view;
+        NSString *header = section.headerLabel.stringValue;
+        NSString *label = header.length ? header : rowLabel;
+        for (NSView *subview in view.subviews) {
+            if (subview == section.headerLabel) {
+                continue;
+            }
+            VibeCollectElements(subview, label, out);
+        }
         return;
     }
     NSString *kind = VibeElementKind(view);
@@ -356,6 +388,9 @@ static NSDictionary *VibeElementStateJSON(VibeSettingsElement *element) {
             [selected addObject:@(row)];
         }];
         node[@"selectedRows"] = selected;
+    }
+    else if ([element.kind isEqualToString:@"switch"]) {
+        node[@"state"] = VibeStateName(((NSSwitch *)view).state);
     }
     else if ([element.kind isEqualToString:@"slider"]) {
         NSSlider *slider = (NSSlider *)view;
@@ -518,6 +553,28 @@ static NSString *VibeClickButton(VibeSettingsElement *element, NSString *value) 
     if ((button.state == NSControlStateValueOn) != wantOn) {
         return VibeErrorJSON(@"'%@' is still %@ after the click", element.name,
                 VibeStateName(button.state));
+    }
+    return VibeClickReply(element, @"clicked");
+}
+
+// A switch has no cell, so performClick: is not its click path; a real toggle
+// is a state flip plus one action send, and that is what this does. on|off is
+// idempotent like the checkbox's.
+static NSString *VibeToggleSwitch(VibeSettingsElement *element, NSString *value) {
+    NSSwitch *toggle = (NSSwitch *)element.view;
+    NSString *wanted = value.lowercaseString ?: @"toggle";
+    if (![wanted isEqualToString:@"toggle"] &&
+            ![wanted isEqualToString:@"on"] && ![wanted isEqualToString:@"off"]) {
+        return VibeErrorJSON(@"'%@' takes on, off or toggle, not '%@'", element.name, value);
+    }
+    BOOL isOn = toggle.state == NSControlStateValueOn;
+    BOOL wantOn = [wanted isEqualToString:@"toggle"] ? !isOn : [wanted isEqualToString:@"on"];
+    if (isOn == wantOn) {
+        return VibeClickReply(element, @"unchanged");
+    }
+    toggle.state = wantOn ? NSControlStateValueOn : NSControlStateValueOff;
+    if (toggle.action && ![NSApp sendAction:toggle.action to:toggle.target from:toggle]) {
+        return VibeErrorJSON(@"no responder handled %@", NSStringFromSelector(toggle.action));
     }
     return VibeClickReply(element, @"clicked");
 }
@@ -731,6 +788,9 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
     }
     if ([element.view isKindOfClass:NSButton.class]) {
         return VibeClickButton(element, value);
+    }
+    if ([element.kind isEqualToString:@"switch"]) {
+        return VibeToggleSwitch(element, value);
     }
     if ([element.kind isEqualToString:@"table"]) {
         return VibeSelectTableRows(element, value);

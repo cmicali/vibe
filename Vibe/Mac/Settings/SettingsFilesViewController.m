@@ -10,8 +10,9 @@
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
-static const CGFloat kFilesPaneHeight = 345;
-static const CGFloat kFolderListWidth = 440;
+// Sized so the list's card matches the other panes' width: the row insets it
+// 16 on each side of the pane's 440-point content column.
+static const CGFloat kFolderListWidth = 408;
 static const CGFloat kFolderListHeight = 170;
 static NSString *const kFolderCellIdentifier = @"FolderCell";
 // Stable identifiers for the album-art choices, so the debug channel can pick
@@ -112,20 +113,16 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     NSStackView *buttons = [NSStackView stackViewWithViews:@[addButton, _addCommonButton, _removeButton]];
     buttons.spacing = 8;
 
-    NSStackView *permissions = [NSStackView stackViewWithViews:@[explain, scrollView, buttons]];
-    permissions.orientation = NSUserInterfaceLayoutOrientationVertical;
-    permissions.alignment = NSLayoutAttributeLeading;
-    permissions.spacing = 12;
-
-    // The window's standard form: label left, control right. The list keeps its
-    // width, so this pane grows wider than the others rather than squeezing it.
-    NSGridView *grid = [self.class formGridWithRows:@[
-        @[[NSTextField labelWithString:STR_SETTINGS_ALBUM_ART_LABEL], _albumArtPopUp],
-        @[[NSTextField labelWithString:STR_SETTINGS_PERMISSIONS_LABEL], permissions],
+    [self loadPaneWithSections:@[
+        [SettingsSectionView sectionWithRows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_ALBUM_ART_LABEL control:_albumArtPopUp],
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_PERMISSIONS_LABEL rows:@[
+            [SettingsRowView rowWithContentView:explain],
+            [SettingsRowView rowWithContentView:scrollView],
+            [SettingsRowView rowWithContentView:buttons],
+        ]],
     ]];
-    [grid columnAtIndex:1].xPlacement = NSGridCellPlacementLeading;
-    [grid rowAtIndex:0].bottomPadding = 8;
-    [self loadPaneWithSize:NSMakeSize(kSettingsPaneWidth, kFilesPaneHeight) grid:grid];
 }
 
 // Observed only while visible, like the base class's own observers: the window

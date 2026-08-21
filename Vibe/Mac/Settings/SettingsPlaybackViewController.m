@@ -9,7 +9,6 @@
 #import "MainPlayerController.h"
 #import "VibeStrings.h"
 
-static const CGFloat kPlaybackPaneHeight = 270;
 static const CGFloat kPlaybackPopUpWidth = 200;
 
 // Stable identifiers on the On track end items, never their localized titles,
@@ -29,9 +28,9 @@ static NSString *const kOnEndPause = @"pause";
     NSButton *_pitchRange16;
     NSPopUpButton *_skipStepsPopUp;
     NSPopUpButton *_crossfadePopUp;
-    NSButton *_enableFXCheckbox;
-    NSButton *_detectBPMCheckbox;
-    NSButton *_detectKeyCheckbox;
+    NSSwitch *_enableFXSwitch;
+    NSSwitch *_detectBPMSwitch;
+    NSSwitch *_detectKeySwitch;
 }
 
 - (void)loadView {
@@ -72,32 +71,30 @@ static NSString *const kOnEndPause = @"pause";
     }
 
     // The player reads this once at init, so the toggle lands on the next
-    // launch; the caption below says so.
-    _enableFXCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_ENABLE_FX
-                                             target:self action:@selector(toggleEnableFX:)];
-    NSTextField *fxRestartCaption = [NSTextField labelWithString:
-            [NSString stringWithFormat:STR_SETTINGS_ENABLE_FX_RESTART, VibeAppName()]];
-    fxRestartCaption.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
-    fxRestartCaption.textColor = [NSColor secondaryLabelColor];
-
-    _detectBPMCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_DETECT_BPM
-                                              target:self action:@selector(toggleDetectBPM:)];
-    _detectKeyCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_DETECT_KEY
-                                              target:self action:@selector(toggleDetectKey:)];
+    // launch; the row's caption says so.
+    _enableFXSwitch = [self switchWithAction:@selector(toggleEnableFX:)];
+    _detectBPMSwitch = [self switchWithAction:@selector(toggleDetectBPM:)];
+    _detectKeySwitch = [self switchWithAction:@selector(toggleDetectKey:)];
 
     // How the key is written and colored is Appearance's business; this pane
     // only decides whether it is detected at all.
-    NSGridView *grid = [self.class formGridWithRows:@[
-        @[[NSTextField labelWithString:STR_SETTINGS_ON_END_LABEL], _onEndPopUp],
-        @[[NSTextField labelWithString:STR_SETTINGS_PITCH_RANGE_LABEL], pitchRadios],
-        @[[NSTextField labelWithString:STR_SETTINGS_SKIP_STEPS_LABEL], _skipStepsPopUp],
-        @[[NSTextField labelWithString:STR_SETTINGS_CROSSFADE_LABEL], _crossfadePopUp],
-        @[NSGridCell.emptyContentView, _enableFXCheckbox],
-        @[NSGridCell.emptyContentView, fxRestartCaption],
-        @[NSGridCell.emptyContentView, _detectBPMCheckbox],
-        @[NSGridCell.emptyContentView, _detectKeyCheckbox],
+    [self loadPaneWithSections:@[
+        [SettingsSectionView sectionWithRows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_ON_END_LABEL control:_onEndPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_PITCH_RANGE_LABEL control:pitchRadios],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_SKIP_STEPS_LABEL control:_skipStepsPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL control:_crossfadePopUp],
+        ]],
+        [SettingsSectionView sectionWithRows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_ENABLE_FX
+                                  caption:[NSString stringWithFormat:STR_SETTINGS_ENABLE_FX_RESTART, VibeAppName()]
+                                  control:_enableFXSwitch],
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_ANALYSIS_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_DETECT_BPM control:_detectBPMSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_DETECT_KEY control:_detectKeySwitch],
+        ]],
     ]];
-    [self loadPaneWithSize:NSMakeSize(kSettingsPaneWidth, kPlaybackPaneHeight) grid:grid];
 }
 
 - (void)refreshFromSettings {
@@ -109,9 +106,9 @@ static NSString *const kOnEndPause = @"pause";
     // The getters snap to a preset, so these always match an item.
     [_skipStepsPopUp selectItemWithTag:AppSettings.sharedInstance.skipBaseBars];
     [_crossfadePopUp selectItemWithTag:AppSettings.sharedInstance.crossfadeMilliseconds];
-    _enableFXCheckbox.state = AppSettings.sharedInstance.audioFXEnabled ? NSControlStateValueOn : NSControlStateValueOff;
-    _detectBPMCheckbox.state = AppSettings.sharedInstance.analyzeBPM ? NSControlStateValueOn : NSControlStateValueOff;
-    _detectKeyCheckbox.state = AppSettings.sharedInstance.analyzeKey ? NSControlStateValueOn : NSControlStateValueOff;
+    _enableFXSwitch.state = AppSettings.sharedInstance.audioFXEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+    _detectBPMSwitch.state = AppSettings.sharedInstance.analyzeBPM ? NSControlStateValueOn : NSControlStateValueOff;
+    _detectKeySwitch.state = AppSettings.sharedInstance.analyzeKey ? NSControlStateValueOn : NSControlStateValueOff;
 }
 
 - (void)onEndChanged:(id)sender {
@@ -138,15 +135,15 @@ static NSString *const kOnEndPause = @"pause";
 }
 
 - (void)toggleEnableFX:(id)sender {
-    AppSettings.sharedInstance.audioFXEnabled = (_enableFXCheckbox.state == NSControlStateValueOn);
+    AppSettings.sharedInstance.audioFXEnabled = (_enableFXSwitch.state == NSControlStateValueOn);
 }
 
 - (void)toggleDetectBPM:(id)sender {
-    AppSettings.sharedInstance.analyzeBPM = (_detectBPMCheckbox.state == NSControlStateValueOn);
+    AppSettings.sharedInstance.analyzeBPM = (_detectBPMSwitch.state == NSControlStateValueOn);
 }
 
 - (void)toggleDetectKey:(id)sender {
-    AppSettings.sharedInstance.analyzeKey = (_detectKeyCheckbox.state == NSControlStateValueOn);
+    AppSettings.sharedInstance.analyzeKey = (_detectKeySwitch.state == NSControlStateValueOn);
 }
 
 @end

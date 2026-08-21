@@ -12,7 +12,6 @@
 #import "MainPlayerController.h"
 #import "VibeStrings.h"
 
-static const CGFloat kAdvancedPaneHeight = 290;
 static const CGFloat kAdvancedPopUpWidth = 200;
 
 // The rate ladder lives in AppSettings.h (kVibeUIUpdateHzCapPresets), like the
@@ -44,22 +43,35 @@ static const CGFloat kAdvancedPopUpWidth = 200;
         _refreshRatePopUp.lastItem.tag = kVibeUIUpdateHzCapPresets[i];
     }
 
-    _cacheSizeValue = [NSTextField labelWithString:@""];
+    _cacheSizeValue = [self valueLabel];
     _clearCacheButton = [NSButton buttonWithTitle:STR_SETTINGS_CLEAR_CACHE
                                            target:self action:@selector(clearCache:)];
-    _filesOpenedValue = [NSTextField labelWithString:@""];
-    _foldersOpenedValue = [NSTextField labelWithString:@""];
-    _audioPlayedValue = [NSTextField labelWithString:@""];
+    _filesOpenedValue = [self valueLabel];
+    _foldersOpenedValue = [self valueLabel];
+    _audioPlayedValue = [self valueLabel];
 
-    NSGridView *grid = [self.class formGridWithRows:@[
-        @[[NSTextField labelWithString:STR_SETTINGS_REFRESH_RATE_LABEL], _refreshRatePopUp],
-        @[[NSTextField labelWithString:STR_SETTINGS_CACHE_LABEL], _cacheSizeValue],
-        @[NSGridCell.emptyContentView, _clearCacheButton],
-        @[[NSTextField labelWithString:STR_SETTINGS_FILES_OPENED_LABEL], _filesOpenedValue],
-        @[[NSTextField labelWithString:STR_SETTINGS_FOLDERS_OPENED_LABEL], _foldersOpenedValue],
-        @[[NSTextField labelWithString:STR_SETTINGS_AUDIO_PLAYED_LABEL], _audioPlayedValue],
+    [self loadPaneWithSections:@[
+        [SettingsSectionView sectionWithRows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_REFRESH_RATE_LABEL control:_refreshRatePopUp],
+        ]],
+        [SettingsSectionView sectionWithRows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_CACHE_LABEL
+                                 controls:@[_cacheSizeValue, _clearCacheButton]],
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_STATS_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_FILES_OPENED_LABEL control:_filesOpenedValue],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_FOLDERS_OPENED_LABEL control:_foldersOpenedValue],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_AUDIO_PLAYED_LABEL control:_audioPlayedValue],
+        ]],
     ]];
-    [self loadPaneWithSize:NSMakeSize(kSettingsPaneWidth, kAdvancedPaneHeight) grid:grid];
+}
+
+// The readouts are informational, so they take the secondary color a System
+// Settings value column uses.
+- (NSTextField *)valueLabel {
+    NSTextField *label = [NSTextField labelWithString:@""];
+    label.textColor = NSColor.secondaryLabelColor;
+    return label;
 }
 
 - (void)refreshFromSettings {
