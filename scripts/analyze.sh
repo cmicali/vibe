@@ -8,9 +8,11 @@
 # — a few thousand lines — were never analyzed at all, and CI's build-ios job
 # compiles them without analyzing.
 #
-# Usage: scripts/analyze.sh [Debug|Release]
+# Usage: scripts/analyze.sh [Debug|Release] [macos|ios|all]
 #   configuration defaults to Debug, which is what the Vibe scheme's analyze
-#   action uses and what CI runs.
+#   action uses; the leg defaults to all. CI runs Release with one leg per
+#   matrix job — each leg is a full analyzing build of its target, so running
+#   them serially in one job doubles that job's wall time for nothing.
 #
 # The analyzer's checks are turned on in project.yml (CLANG_ANALYZER_NONNULL,
 # CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION: YES_AGGRESSIVE). Without this script
@@ -25,6 +27,12 @@ CONFIGURATION="${1:-Debug}"
 case "$CONFIGURATION" in
     Debug|Release) ;;
     *) echo "error: configuration must be Debug or Release (got '$CONFIGURATION')" >&2; exit 1 ;;
+esac
+
+LEG="${2:-all}"
+case "$LEG" in
+    macos|ios|all) ;;
+    *) echo "error: leg must be macos, ios or all (got '$LEG')" >&2; exit 1 ;;
 esac
 
 cd "$(dirname "$0")/.."
@@ -85,9 +93,17 @@ analyze_scheme() {   # analyze_scheme <scheme> <log-suffix> [extra xcodebuild ar
     fi
 }
 
-analyze_scheme Vibe macos
-analyze_scheme VibeiOS ios \
-    -destination 'generic/platform=iOS Simulator' \
-    CODE_SIGNING_ALLOWED=NO
+if [[ "$LEG" == "macos" || "$LEG" == "all" ]]; then
+    analyze_scheme Vibe macos
+fi
+if [[ "$LEG" == "ios" || "$LEG" == "all" ]]; then
+    analyze_scheme VibeiOS ios \
+        -destination 'generic/platform=iOS Simulator' \
+        CODE_SIGNING_ALLOWED=NO
+fi
 
-echo "✅ static analyzer: clean (Vibe, VibeiOS)"
+case "$LEG" in
+    all)   echo "✅ static analyzer: clean (Vibe, VibeiOS)" ;;
+    macos) echo "✅ static analyzer: clean (Vibe)" ;;
+    ios)   echo "✅ static analyzer: clean (VibeiOS)" ;;
+esac

@@ -100,18 +100,25 @@ jobs:
   # off the build matrix would double that matrix's cost, and the findings are
   # not config-independent — the one this job was written against showed up in
   # Release and not in Debug. Release is the configuration that ships.
+  # One matrix leg per target rather than both in one job: each leg is a full
+  # analyzing build, so serially they made this the workflow's longest job
+  # (~8 min) while in parallel each leg lands at or under the build matrix's
+  # own time. The iOS leg runs against a generic simulator destination, so
+  # nothing has to be booted.
   analyze:
     runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [macos, ios]
 
     steps:
       - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-xcodegen
 
-      # Both schemes; scripts/analyze.sh runs the iOS leg against a generic
-      # simulator destination, so nothing has to be booted.
-      - name: Static analyzer (Vibe and VibeiOS)
-        run: make analyze CONFIG=Release
+      - name: Static analyzer (${{ matrix.leg }})
+        run: scripts/analyze.sh Release ${{ matrix.leg }}
 
   # Compile coverage for the shared subset against the iOS SDK. One
   # configuration and no signing (CODE_SIGNING_ALLOWED=NO): the point is that
