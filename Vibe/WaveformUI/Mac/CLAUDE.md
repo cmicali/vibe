@@ -38,14 +38,19 @@ changed underneath it.
 waveform does; the view reads it once per mouse-down into the gesture's state,
 so a settings write cannot change a drag's meaning mid-flight.
 
-- **`drag_window`** (the default): the window moves —
-  `mouseDownCanMoveWindow` answers YES — and only a stationary click seeks.
-  `mouseUp:` bails when either the window's origin or the view-local point
-  moved past a ~4pt hysteresis since mouse-down: the origin check catches the
-  server-side background drag, where the local point barely moves because the
-  window traveled with the cursor, and the local check covers delivery where
-  it doesn't. (Pre-setting behavior seeked on that release — dropped, not
-  preserved.)
+**TRAP: `mouseDownCanMoveWindow` is a constant NO.** AppKit caches the answer
+in the window's movable-background region when the view joins the window, so
+an answer derived from the setting or the loaded state goes stale the moment
+either changes — seek mode then scrubbed while the server-side background
+drag moved the window with it. Every mode that moves the window instead hands
+its gesture to `performWindowDragWithEvent:`, a per-gesture decision nothing
+caches.
+
+- **`drag_window`** (the default): a stationary click seeks; a drag past the
+  ~4pt hysteresis disarms the press and hands the rest of the gesture to
+  `performWindowDragWithEvent:`, so the window moves from there. `mouseUp:`
+  keeps the origin-and-local-motion bail as a backstop for a release that
+  still arrives after the handoff.
 - **`seek`**: the window stays put and the drag scrubs. Past the hysteresis
   the tracked column renders through the hover machinery
   (`setHoverHighlightX:`, clamped to the bounds), real progress keeps painting
@@ -53,10 +58,11 @@ so a settings write cannot change a drag's meaning mid-flight.
   fraction — bypassing the stationary path's containment test, since the drag
   may legitimately end outside the view.
 
-With no waveform `mouseDownCanMoveWindow` answers YES in every mode, so the
-empty and loading states always drag the window. A drag in flight is
-presentation state: `resetWaveformContentState` clears it with the press, so
-a track change mid-drag makes the release a no-op.
+With no waveform, and below or above the renderer's seek hit band, `mouseDown:`
+hands the event to `performWindowDragWithEvent:` immediately in every mode, so
+the empty and loading states and the view's margins always drag the window. A
+drag in flight is presentation state: `resetWaveformContentState` clears it
+with the press, so a track change mid-drag makes the release a no-op.
 
 ## The convert sweep
 

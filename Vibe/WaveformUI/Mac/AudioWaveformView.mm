@@ -124,6 +124,9 @@ static const CGFloat kWaveformDragHysteresis = 4;
     _didClickInside = NO;
     _isDragSeeking = NO;
     if (!_waveform || !_currentWaveformRenderer || self.bounds.size.width <= 0) {
+        // Nothing to scrub — empty, loading, parked — so the whole surface
+        // drags the window, as it always did.
+        [self.window performWindowDragWithEvent:event];
         return;
     }
     NSPoint e = [event locationInWindow];
@@ -135,21 +138,31 @@ static const CGFloat kWaveformDragHysteresis = 4;
             _dragBehavior = AppSettings.sharedInstance.waveformDragBehavior;
             _mouseDownPoint = mouseLoc;
             _windowOriginAtMouseDown = self.window.frame.origin;
+            return;
         }
     }
+    // Outside the seek band the drag is the window's in every mode.
+    [self.window performWindowDragWithEvent:event];
 }
 
 // Seek-on-drag tracks the cursor with the hover highlight; the audio is
-// seeked once, on release. In drag_window mode the window itself is moving
-// and mouseUp: does the disarming.
+// seeked once, on release. In drag_window mode the hysteresis decides:
+// past it the rest of the gesture is handed to the window's own drag, and
+// only a click that never crossed it seeks from mouseUp:.
 - (void)mouseDragged:(NSEvent *)event {
-    if (!_didClickInside ||
-        ![_dragBehavior isEqualToString:SETTINGS_VALUE_WAVEFORM_DRAG_SEEK]) {
+    if (!_didClickInside) {
         return;
     }
     NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
     if (!_isDragSeeking &&
         hypot(p.x - _mouseDownPoint.x, p.y - _mouseDownPoint.y) <= kWaveformDragHysteresis) {
+        return;
+    }
+    if (![_dragBehavior isEqualToString:SETTINGS_VALUE_WAVEFORM_DRAG_SEEK]) {
+        // Disarm before the handoff: after it the remaining events belong to
+        // the window's drag, and a mouseUp that does arrive must not seek.
+        _didClickInside = NO;
+        [self.window performWindowDragWithEvent:event];
         return;
     }
     // Once past the hysteresis the drag tracks even outside the band or the
@@ -208,15 +221,15 @@ static const CGFloat kWaveformDragHysteresis = 4;
     return NO;
 }
 
-// AppKit consults this from the hit-tested view at mouse-down. Seek-on-drag
-// owns the drag over a loaded waveform; drag_window leaves it to the window,
-// and with nothing to scrub — empty, loading, parked — the window always moves.
+// TRAP: a constant NO on purpose. AppKit caches this answer in the window's
+// movable-background region when the view joins the window, so a value
+// derived from the drag setting or the loaded state goes stale the moment
+// either changes — the seek mode then scrubbed while the server-side drag
+// moved the window with it. The view owns every drag that starts on it, and
+// the modes that move the window hand their gesture to
+// performWindowDragWithEvent:, a per-gesture decision nothing caches.
 - (BOOL)mouseDownCanMoveWindow {
-    if (!_waveform) {
-        return YES;
-    }
-    return ![AppSettings.sharedInstance.waveformDragBehavior
-            isEqualToString:SETTINGS_VALUE_WAVEFORM_DRAG_SEEK];
+    return NO;
 }
 
 #pragma mark - Hover scrubbing affordance
