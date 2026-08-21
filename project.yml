@@ -81,6 +81,14 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     GCC_C_LANGUAGE_STANDARD: c17
     GCC_NO_COMMON_BLOCKS: YES
+    # Warnings are errors everywhere: the warning set was audited to zero
+    # (2026-08-21) and neither xcodebuild nor the analyze gate would otherwise
+    # fail on a compiler warning — the analyze script's filter deliberately
+    # matches only checker findings. ThirdParty compiles warning-free today; if
+    # a future toolchain warns on vendored code the repo does not restyle, give
+    # that file a per-file -Wno-* flag beside the PIN caches' entries rather
+    # than turning this off.
+    GCC_TREAT_WARNINGS_AS_ERRORS: YES
     GCC_WARN_64_TO_32_BIT_CONVERSION: YES
     GCC_WARN_ABOUT_RETURN_TYPE: YES_ERROR
     GCC_WARN_UNDECLARED_SELECTOR: YES

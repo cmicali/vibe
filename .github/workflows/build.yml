@@ -9,6 +9,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Every job only reads the repo — upload-artifact needs no repo permission —
+# so the token carries nothing a compromised dependency could write with.
+permissions:
+  contents: read
+
 # A newer push to the same branch supersedes an in-flight run.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,6 +25,9 @@ jobs:
     # SDK (Liquid Glass behind availability guards), so an older image's Xcode
     # cannot build this.
     runs-on: macos-26
+    # A hung xcodebuild otherwise runs to the 360-minute default, at the
+    # macOS runner's 10x billing rate.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -56,6 +64,7 @@ jobs:
   # them.
   test:
     runs-on: macos-26
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v7
@@ -100,6 +109,7 @@ jobs:
   # off the build matrix would double that matrix's cost, and the findings are
   # not config-independent — the one this job was written against showed up in
   # Release and not in Debug. Release is the configuration that ships.
+  #
   # One matrix leg per target rather than both in one job: each leg is a full
   # analyzing build, so serially they made this the workflow's longest job
   # (~8 min) while in parallel each leg lands at or under the build matrix's
@@ -107,6 +117,7 @@ jobs:
   # nothing has to be booted.
   analyze:
     runs-on: macos-26
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -127,6 +138,7 @@ jobs:
   # destination builds without booting a simulator.
   build-ios:
     runs-on: macos-26
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v7
@@ -142,6 +154,7 @@ jobs:
   # check rather than paying a runner startup each for work that takes seconds.
   static-checks:
     runs-on: macos-26
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v7
