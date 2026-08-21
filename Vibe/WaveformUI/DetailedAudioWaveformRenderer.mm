@@ -30,11 +30,17 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
 // column never actually reaches full brightness.
 static const CGFloat kHoverHighlightWidth = 1.5;
 
-// An overall opacity multiplier applied to both gradient layers. It tones the
-// whole waveform down, so that it sits comfortably over the album-art
-// backdrop. The envelope bitmap bakes it into its alpha, so the two must move
-// together.
+// An overall opacity multiplier applied to a gradient layer whose theme hue
+// is monochrome. It tones the waveform down, so that it sits comfortably over
+// the album-art backdrop; a chromatic hue skips it (layerOpacityForChromatic:)
+// — dimmed, a colored theme reads muddy next to Sonic Cirrus's full-alpha
+// orange. The envelope bitmap bakes the same choice into its alpha, so the
+// two must move together.
 static const float kWaveformOpacity = 0.75f;
+
+static inline float VibeLayerOpacityForChromatic(BOOL chromatic) {
+    return chromatic ? 1.0f : kWaveformOpacity;
+}
 
 @implementation DetailedAudioWaveformRenderer {
     // One bar-shaped mask clips the whole gradient stack. Masking the two
@@ -190,6 +196,8 @@ static const float kWaveformOpacity = 0.75f;
 
 - (void)updateColors:(BOOL)isDark {
     [super updateColors:isDark];
+    _playedGradient.opacity = VibeLayerOpacityForChromatic(self.theme.playedColorIsChromatic);
+    _unplayedGradient.opacity = VibeLayerOpacityForChromatic(self.theme.unplayedColorIsChromatic);
     [self setGradientLayerColors:_playedGradient colors:[self playedGradientColors:self.theme.playedColor isDark:isDark]];
     [self setGradientLayerColors:_unplayedGradient colors:[self unplayedGradientColors:self.theme.unplayedColor isDark:isDark]];
     // Full alpha and no vertical fade. The played gradient's own top is the
@@ -372,6 +380,19 @@ static const float kWaveformOpacity = 0.75f;
 }
 
 - (CGImageRef)newEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples {
+    return [self newEnvelopeImageForSize:size scale:scale samples:samples
+                                   stops:[self playedGradientColors:self.theme.playedColor isDark:self.isDark]
+                            layerOpacity:VibeLayerOpacityForChromatic(self.theme.playedColorIsChromatic)];
+}
+
+- (CGImageRef)newUnplayedEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples {
+    return [self newEnvelopeImageForSize:size scale:scale samples:samples
+                                   stops:[self unplayedGradientColors:self.theme.unplayedColor isDark:self.isDark]
+                            layerOpacity:VibeLayerOpacityForChromatic(self.theme.unplayedColorIsChromatic)];
+}
+
+- (CGImageRef)newEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples
+                                stops:(NSArray<VibeColor *> *)stops layerOpacity:(float)layerOpacity {
     NSUInteger count = samples.length / (2 * sizeof(float));
     size_t pixelWidth = (size_t)llround(size.width * scale);
     size_t pixelHeight = (size_t)llround(size.height * scale);
@@ -407,13 +428,13 @@ static const float kWaveformOpacity = 0.75f;
 
     // configureGradient:'s band-pinned fade with kWaveformOpacity baked into
     // the alpha. This family's fade only — Basic re-aims its gradient, so its
-    // styles would need their own bake. Theme-derived, like the live layers:
-    // the two must stay pixel-identical.
-    NSArray<VibeColor *> *stops = [self playedGradientColors:self.theme.playedColor isDark:self.isDark];
+    // styles would need their own bake. The stops are the caller's
+    // theme-derived pair, same as the live layers': the two must stay
+    // pixel-identical.
     NSMutableArray *cgColors = [[NSMutableArray alloc] initWithCapacity:stops.count];
     for (VibeColor *color in stops) {
         CGColorRef cg = color.CGColor;
-        CGColorRef faded = CGColorCreateCopyWithAlpha(cg, CGColorGetAlpha(cg) * kWaveformOpacity);
+        CGColorRef faded = CGColorCreateCopyWithAlpha(cg, CGColorGetAlpha(cg) * layerOpacity);
         [cgColors addObject:(__bridge_transfer id)faded];
     }
     CGGradientRef gradient = CGGradientCreateWithColors(space, (__bridge CFArrayRef)cgColors, NULL);

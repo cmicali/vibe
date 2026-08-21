@@ -41,6 +41,20 @@ NS_ASSUME_NONNULL_BEGIN
                          customPlayed:(nullable VibeColor *)played
                        customUnplayed:(nullable VibeColor *)unplayed;
 
+// YES when the side's color carries a hue rather than being (near-)grayscale.
+// The Detailed family draws a chromatic side at full layer opacity: its
+// overall kWaveformOpacity dimming is designed for the monochrome look, and
+// applied to a colored hue it reads muddy next to Sonic Cirrus's full-alpha
+// orange.
+@property (readonly) BOOL playedColorIsChromatic;
+@property (readonly) BOOL unplayedColorIsChromatic;
+
+// YES when unplayedColor is the same hue as playedColor — the White theme,
+// and a custom pair set to one color. The iOS scrubber's settled fast path
+// asks: with one hue the unplayed bitmap is the played bitmap at reduced
+// opacity, with two it needs its own bake.
+@property (readonly) BOOL unplayedSharesPlayedHue;
+
 // White's answer: the pre-theme monochrome palette for the appearance. The
 // renderers' default before a view resolves anything.
 + (WaveformTheme *)monochromeThemeIsDark:(BOOL)isDark;

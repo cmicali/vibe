@@ -35,15 +35,20 @@ NS_ASSUME_NONNULL_BEGIN
 // The iOS scrubber's settled fast path (see WaveformScrubberView): the whole
 // envelope rendered once into a bitmap — the settled bar geometry filled with
 // the played gradient, overall opacity included — so scrolling can translate
-// a texture instead of re-compositing the masked live tree every frame. The
-// unplayed presentation is the same bitmap at unplayedOverPlayedOpacity,
-// which holds because this family's unplayed stops are the played stops
-// scaled by one constant. Extract samples on the main thread; the bake itself
-// touches no layer state and may run on any queue.
+// a texture instead of re-compositing the masked live tree every frame. While
+// the theme's unplayed hue is the played hue (unplayedSharesPlayedHue), the
+// unplayed presentation is that same bitmap at unplayedOverPlayedOpacity,
+// because this family's unplayed stops are then the played stops scaled by
+// one constant; a two-hue theme bakes the unplayed variant separately with
+// its own stops and shows it at full opacity. Extract samples on the main
+// thread; the bakes touch no layer state and may run on any queue.
 - (NSData *)envelopeSamplesForWaveform:(AudioWaveform *)waveform;
 - (nullable CGImageRef)newEnvelopeImageForSize:(CGSize)size
                                          scale:(CGFloat)scale
                                        samples:(NSData *)samples CF_RETURNS_RETAINED;
+- (nullable CGImageRef)newUnplayedEnvelopeImageForSize:(CGSize)size
+                                                 scale:(CGFloat)scale
+                                               samples:(NSData *)samples CF_RETURNS_RETAINED;
 - (CGFloat)unplayedOverPlayedOpacity;
 
 @end

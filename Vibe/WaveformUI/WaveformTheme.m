@@ -52,8 +52,25 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
         _playedColor = played;
         _unplayedColor = unplayed;
         _hoverColor = [WaveformTheme hoverColorForPlayed:played isDark:isDark];
+        CGFloat pr, pg, pb, ur, ug, ub;
+        _unplayedSharesPlayedHue = played == unplayed ||
+                (VibeGetRGB(played, &pr, &pg, &pb) && VibeGetRGB(unplayed, &ur, &ug, &ub) &&
+                 fabs(pr - ur) < 0.001 && fabs(pg - ug) < 0.001 && fabs(pb - ub) < 0.001);
+        _playedColorIsChromatic = [WaveformTheme colorIsChromatic:played];
+        _unplayedColorIsChromatic = [WaveformTheme colorIsChromatic:unplayed];
     }
     return self;
+}
+
++ (BOOL)colorIsChromatic:(VibeColor *)color {
+    CGFloat r, g, b;
+    if (!VibeGetRGB(color, &r, &g, &b)) {
+        return NO;
+    }
+    CGFloat maxc = MAX(r, MAX(g, b));
+    CGFloat minc = MIN(r, MIN(g, b));
+    CGFloat saturation = maxc > 0 ? (maxc - minc) / maxc : 0;
+    return saturation >= 0.05;
 }
 
 + (WaveformTheme *)monochromeThemeIsDark:(BOOL)isDark {
