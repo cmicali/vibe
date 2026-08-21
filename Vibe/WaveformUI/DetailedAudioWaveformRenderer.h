@@ -10,14 +10,19 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface DetailedAudioWaveformRenderer : AudioWaveformRenderer
 
-// The subclass hooks. The Oversampling x2, x4 and x8 variants override
-// numBars, and Basic overrides the geometry and gradient hooks below.
+// The subclass hooks. The Oversampling x2, x4 and x8 variants override the
+// count, and Basic overrides the count, geometry and gradient hooks below.
 // Everything else — the layer setup, hydration animation, progress clipping
 // and mask caching — is shared.
 //
-// numBars is the rect count in the single CAShapeLayer mask path, not a CALayer
-// count: 8,192 rects in one path is cheap, whereas 8,192 layers would not be.
-- (NSUInteger)numBars;
+// Here and in Basic the bar count follows the drawn width at the pitch the
+// style was designed at, so a resize adds or removes bars rather than
+// stretching them; the oversampling variants deliberately keep their fixed
+// counts, because their look is the sub-pixel overlap of more rects than
+// pixels, which a resize already preserves. The count is the rect count in
+// the single CAShapeLayer mask path, not a CALayer count: thousands of rects
+// in one path are cheap, whereas as many layers would not be.
+- (NSUInteger)numBarsForWidth:(CGFloat)width;
 
 // The bar geometry: the width of every bar, and the x origin of bar `index`.
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count;

@@ -69,8 +69,18 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     return STR_WAVEFORM_STYLE_DETAILED;
 }
 
-- (NSUInteger)numBars {
-    return 1024;
+// 1,024 bars across the 512pt design-width waveform: a designed pitch of half
+// a point, and the count follows the width at that pitch, so a resize adds or
+// removes bars rather than stretching them. The cap bounds the mask path
+// against pathological widths — the iOS scrubber's zoomed virtual width
+// included — and sits at data resolution: the cached waveform holds 8,192
+// chunks, so bars beyond that only repeat values.
+static const CGFloat kDetailedBarPitch = 0.5;
+static const NSUInteger kDetailedMaxBars = 8192;
+
+- (NSUInteger)numBarsForWidth:(CGFloat)width {
+    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / kDetailedBarPitch);
+    return MIN(MAX(count, (NSUInteger)2), kDetailedMaxBars);
 }
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
@@ -267,8 +277,8 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     // The x2, x4 and x8 styles intentionally draw more rects than there are
     // device pixels. The sub-pixel overlap accumulates differently at each
     // density, and that is what visually distinguishes the oversampling
-    // variants. Do not clamp.
-    NSUInteger count = self.numBars;
+    // variants. Do not clamp to the pixel count.
+    NSUInteger count = [self numBarsForWidth:bounds.size.width];
 
     // The target the bars ease toward: the waveform's per-bar min and max, or
     // all-zero, collapsed to the midline, when there is no waveform. A track
@@ -348,7 +358,10 @@ static const CGFloat kHoverHighlightWidth = 1.5;
 #pragma mark - Envelope bitmap
 
 - (NSData *)envelopeSamplesForWaveform:(AudioWaveform *)waveform {
-    NSUInteger count = self.numBars;
+    // The live tree's count for the host's current width — parentLayer is the
+    // scrubber's virtual-size host — so the bake stays pixel-identical to the
+    // layers it replaces.
+    NSUInteger count = [self numBarsForWidth:self.parentLayer.bounds.size.width];
     NSMutableData *data = [NSMutableData dataWithLength:count * 2 * sizeof(float)];
     float *out = (float *)data.mutableBytes;
     for (NSUInteger i = 0; i < count; i++) {

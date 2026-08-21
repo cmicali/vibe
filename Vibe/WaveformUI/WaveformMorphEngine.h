@@ -40,11 +40,12 @@ NS_ASSUME_NONNULL_BEGIN
 // dereferenced, and a dangling value cannot false-match, because a new waveform
 // is allocated while the current one is still retained by the view.
 //
-// When identity and count both match the last build — a live-resize frame,
-// since targets are normalized and geometry-independent — the fill pass is
-// skipped, and only a geometry change triggers a rebuild. Otherwise fill() runs
-// synchronously on the reusable target buffer, resized to count, and reused
-// because this runs on every loader tick.
+// When identity and count both match the last build — a live-resize frame
+// that kept the bar count, since targets are normalized and
+// geometry-independent — the fill pass is skipped, and only a geometry change
+// triggers a rebuild. Otherwise fill() runs synchronously on the reusable
+// target buffer, resized to count, and reused because this runs on every
+// loader tick.
 //
 // The retarget decision tree then follows. Skip a no-op redraw. Rebuild
 // instantly on a geometry change, because a live resize must track the window
@@ -52,7 +53,10 @@ NS_ASSUME_NONNULL_BEGIN
 // non-nil, because a silent track's all-zero waveform is sample-identical to
 // the collapsed target but draws hairlines rather than nothing. Start the morph
 // timer when the target has moved. The first build starts collapsed, so the
-// waveform grows out of the midline.
+// waveform grows out of the midline; a later bar-count change — a resize,
+// since the renderers derive their count from the width — resamples the
+// displayed bars to the new count instead, so a live resize never collapses
+// the picture.
 - (void)updateTargetForSize:(CGSize)size
                    identity:(const void * _Nullable)identity
                       count:(NSUInteger)count

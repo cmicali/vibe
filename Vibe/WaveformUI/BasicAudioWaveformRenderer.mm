@@ -6,7 +6,14 @@
 #import "BasicAudioWaveformRenderer.h"
 #import "VibeStrings.h"
 
-#define kBasicBarCount 128
+#include <cmath>
+
+// 128 bars across the 512pt design-width waveform: a designed pitch of 4pt —
+// the 3pt bar plus its gap — and the count follows the width at that pitch,
+// so a resize adds or removes bars rather than spreading them apart.
+static const CGFloat kBasicBarPitch = 4;
+static const NSUInteger kBasicMaxBars = 1024;
+
 #define kBasicBarWidth 3
 
 @implementation BasicAudioWaveformRenderer
@@ -19,8 +26,9 @@
     return STR_WAVEFORM_STYLE_BASIC;
 }
 
-- (NSUInteger)numBars {
-    return kBasicBarCount;
+- (NSUInteger)numBarsForWidth:(CGFloat)width {
+    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / kBasicBarPitch);
+    return MIN(MAX(count, (NSUInteger)2), kBasicMaxBars);
 }
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {

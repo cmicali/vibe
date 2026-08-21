@@ -11,9 +11,16 @@
 #include <vector>
 #include <cmath>
 
-// 128 bars, each drawn with two layers: layers[i*2] is the top bar, and
+// Each bar is drawn with two layers: layers[i*2] is the top bar, and
 // layers[i*2 + 1] the mirrored bottom bar.
-#define kVibeBarCount 128
+//
+// 128 bars across the 512pt design-width waveform: a designed pitch of 4pt,
+// and the count follows the width at that pitch, so a resize adds or removes
+// bars at their designed size rather than stretching the pitch. The cap
+// bounds the layer count — two CALayers per bar is the expensive layout here,
+// unlike the Detailed family's one shared mask path.
+static const CGFloat kBarPitch = 4;
+static const NSUInteger kMaxBarCount = 1024;
 
 // The geometry constants shared by the morph engine's frame-skip heuristic,
 // through the vscale block handed to it in init, by rebuildLayerFrames, and by
@@ -71,12 +78,8 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
         // for the palette.
         [self updateColors:isDark];
 
-        [self addLayers:kVibeBarCount * 2 backgroundColor:_unPlayedColorTop.CGColor];
-        // The mirrored bottom bars are always dimmer than the top bars.
-        for (NSUInteger i = 0; i < kVibeBarCount; i++) {
-            _layers[i * 2 + 1].backgroundColor = _unPlayedColorBottom.CGColor;
-        }
-
+        // updateWaveform: builds the bar layers for this width through
+        // reconcileBarCount:.
         [self updateWaveform:bounds progress:0 waveform:nil];
         [self updateProgress:0 waveform:nil];
     }
@@ -134,10 +137,11 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 - (void)setHoverHighlightX:(CGFloat)x {
     [super setHoverHighlightX:x];
     CGFloat width = self.parentLayer.bounds.size.width;
+    NSInteger barCount = (NSInteger)(_layers.count / 2);
     NSInteger index = -1;
-    if (x >= 0 && width > 0) {
-        index = (NSInteger)(x / width * (CGFloat)kVibeBarCount);
-        index = MIN(MAX(index, 0), (NSInteger)kVibeBarCount - 1);
+    if (x >= 0 && width > 0 && barCount > 0) {
+        index = (NSInteger)(x / width * (CGFloat)barCount);
+        index = MIN(MAX(index, 0), barCount - 1);
     }
     if (index == _hoverBarIndex) {
         return;
@@ -157,17 +161,48 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     [CATransaction commit];
 }
 
-- (void)addLayers:(NSUInteger)numLayers backgroundColor:(CGColorRef)color {
+- (NSUInteger)barCountForWidth:(CGFloat)width {
+    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / kBarPitch);
+    return MIN(MAX(count, (NSUInteger)2), kMaxBarCount);
+}
+
+// Matches the layer array to the bar count, two layers per bar, appending or
+// removing at the tail. A count change moves every bar's index, so the
+// progress boundary is rescaled to keep the played fraction — updateProgress:
+// lands the exact one on its next call — and every bar is repainted.
+- (void)reconcileBarCount:(NSUInteger)count {
+    NSUInteger have = _layers.count / 2;
+    if (have == count) {
+        return;
+    }
+    if (self.lastProgressBoundary > 0 && have > 0) {
+        NSInteger boundary = (NSInteger)llround(
+                (double)self.lastProgressBoundary * (double)count / (double)have);
+        self.lastProgressBoundary = MIN(MAX(boundary, 0), (NSInteger)count);
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    NSMutableArray<CALayer *> *layers = [_layers mutableCopy] ?: [NSMutableArray new];
+    while (layers.count > count * 2) {
+        [layers.lastObject removeFromSuperlayer];
+        [layers removeLastObject];
+    }
     CGFloat scale = self.parentLayer.contentsScale;
-    NSMutableArray *layers = [NSMutableArray new];
-    for (NSUInteger i = 0; i < numLayers; ++i) {
+    while (layers.count < count * 2) {
         CALayer *layer = [[CALayer alloc] init];
-        layer.backgroundColor = color;
         layer.contentsScale = scale;
         [layers addObject:layer];
         [self.parentLayer addSublayer:layer];
     }
     _layers = layers;
+    // The hover index is against the old count; updateWaveform: re-snaps it
+    // from the kept x right after this.
+    _hoverBarIndex = -1;
+    for (NSUInteger i = 0; i < count; i++) {
+        [self setLayerColor:[self restingColorForBar:(NSInteger)i top:YES] atIndex:i * 2];
+        [self setLayerColor:[self restingColorForBar:(NSInteger)i top:NO] atIndex:i * 2 + 1];
+    }
+    [CATransaction commit];
 }
 
 - (void)setLayerColor:(VibeColor *)color atIndex:(NSUInteger)index {
@@ -192,7 +227,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 }
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
-    NSInteger count = kVibeBarCount;
+    NSInteger count = (NSInteger)(_layers.count / 2);
     NSInteger newBoundary = (NSInteger)round((CGFloat)count * progress);
     if (newBoundary < 0) newBoundary = 0;
     if (newBoundary > count) newBoundary = count;
@@ -226,7 +261,8 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
 
-    NSUInteger count = kVibeBarCount;
+    NSUInteger count = [self barCountForWidth:bounds.size.width];
+    [self reconcileBarCount:count];
 
     // A resize changes which bar index sits under the kept x, so re-snap the
     // highlight. setHoverHighlightX: recomputes the index against the new
@@ -269,7 +305,9 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 // animation frame, so there is no end-of-morph shift.
 - (void)rebuildLayerFrames {
     const std::vector<float> &samples = [_morph displayedSamples];
-    NSUInteger count = samples.size();
+    // Always equal after updateWaveform:'s reconcile; the MIN only guards a
+    // morph tick landing between a future reorder of the two.
+    NSUInteger count = MIN(samples.size(), _layers.count / 2);
     if (count == 0) {
         return;
     }
