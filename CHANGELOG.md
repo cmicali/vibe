@@ -1,13 +1,15 @@
 # 1.10
 
+* New settings window with more configurability
+* More reliable cloud file loading w/ progress bar (iCloud Drive, Dropbox)
 * Customizable colors for window and waveform
 * Playing EQ animation is now real instead of canned
-* New settings window with more configurability
 * Better resizing of waveforms
 * Better keyboard support in playlist w/ enter to play
 * Smoother playhead animation for short files
 * Added album art load from song's folder if song has no tagged artwork  
 * Added support for macOS 13 Ventura and later (previously required macOS 14)
+* Bug fixes (2 memory leaks), performance improvements
 
 # v1.9
 
