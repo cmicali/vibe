@@ -25,13 +25,15 @@ recompiles the world and hides a dependency from the file that has it.
 
 **`PlatformTypes.h`** — `VibeImage` and `VibeColor`, `NSImage`/`NSColor` on macOS and `UIImage`/`UIColor` elsewhere. They let a model header carry an image without importing AppKit or UIKit, so one model serves both targets. Do not add aliases for their own sake.
 
+**`PlatformColor.h`/`.m`** — `VibeColorFromHexString` / `VibeHexStringFromColor`, the `#RRGGBB` persisted form of a stored color setting, and `VibeColorBlended`, the cross-platform linear blend. Free functions for the same reason as `PlatformImage.h`: the constructed class differs per platform. The header carries `extern "C"` guards because the `.mm` renderers include it.
+
 **`PlatformImage.h`/`.m`** — `VibeDecodedImageWithData(data, maxPixelSize)`, the bounded ImageIO decode that *builds* a `VibeImage`, plus `kVibeThumbnailArtDimension`, `kVibeDisplayArtDimension`, and `kVibeArchivedDisplayArtDimension`. Unlike `initWithData:` + resize it never materializes the full-size bitmap. The decode takes 10–100ms, so it belongs off the main thread. It is a free function rather than a category because the class it constructs differs per platform.
 
 **`DocumentTypes`** — the `CFBundleDocumentTypes` declarations from `Info.plist`, read back as `UTType`s; stateless, all class methods. `declaredTypes` is everything including the folder declaration, `declaredFileTypes` the files alone. `Info.plist` is the single source of truth, so the `⌘O` panel's filter and what the app is registered for cannot drift. The Launch Services side is `DefaultAppRegistration` (`Mac/Settings/`), which keeps this class AppKit-free.
 
 ## The platform split is one `#if TARGET_OS_OSX` block
 
-Not a guard per property. Almost everything here configures something only macOS has — the window, the pitch fader, the FX graph, Convert to FLAC, the playlist table, folder art, BPM and key analysis — so what iOS compiles is the short list above the block: `waveformStyle` and `applicationDidFinishLaunching`. "Does the iOS app honor this?" is answered by which side of the `#if` a property sits on. **Adding a property means choosing a side.**
+Not a guard per property. Almost everything here configures something only macOS has — the window, the pitch fader, the FX graph, Convert to FLAC, the playlist table, folder art, BPM and key analysis — so what iOS compiles is the short list above the block: `waveformStyle`, `waveformTheme` and its custom color pair, and `applicationDidFinishLaunching`. "Does the iOS app honor this?" is answered by which side of the `#if` a property sits on. **Adding a property means choosing a side.**
 
 ## The hot-path cache lives for one turn of the main run loop
 
