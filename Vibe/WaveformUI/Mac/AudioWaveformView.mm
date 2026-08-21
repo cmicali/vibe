@@ -78,8 +78,8 @@
     _currentWaveformRenderer.theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
                                                                 isDark:isDark
                                                           artworkColor:self.artworkThemeColor
-                                                          customPlayed:settings.waveformCustomPlayedColor
-                                                        customUnplayed:settings.waveformCustomUnplayedColor];
+                                                          customPlayed:[settings waveformCustomPlayedColorForDark:isDark]
+                                                        customUnplayed:[settings waveformCustomUnplayedColorForDark:isDark]];
     [_currentWaveformRenderer updateColors:isDark];
 }
 

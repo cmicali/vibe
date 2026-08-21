@@ -19,10 +19,12 @@ NS_ASSUME_NONNULL_BEGIN
 extern "C" {
 #endif
 
-// nil for anything but a parseable #RRGGBB (a leading # optional).
+// nil for anything but a parseable #RRGGBB or #RRGGBBAA (a leading #
+// optional); six digits read as opaque.
 VibeColor *_Nullable VibeColorFromHexString(NSString *_Nullable hex);
 
-// #RRGGBB, alpha dropped; nil when the color has no RGB reading.
+// #RRGGBB when opaque, #RRGGBBAA otherwise; nil when the color has no RGB
+// reading.
 NSString *_Nullable VibeHexStringFromColor(VibeColor *_Nullable color);
 
 // A linear sRGB blend, `fraction` of the way toward `toward`, at full alpha —

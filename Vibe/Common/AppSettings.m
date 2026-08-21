@@ -13,8 +13,10 @@
 
 #define SETTING_WAVEFORM_STYLE                      @"Settings.waveformStyle"
 #define SETTING_WAVEFORM_THEME                      @"Settings.waveformTheme"
-#define SETTING_WAVEFORM_CUSTOM_PLAYED_COLOR        @"Settings.waveformCustomPlayedColor"
-#define SETTING_WAVEFORM_CUSTOM_UNPLAYED_COLOR      @"Settings.waveformCustomUnplayedColor"
+#define SETTING_WAVEFORM_CUSTOM_PLAYED_DARK         @"Settings.waveformCustomPlayedColorDark"
+#define SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK       @"Settings.waveformCustomUnplayedColorDark"
+#define SETTING_WAVEFORM_CUSTOM_PLAYED_LIGHT        @"Settings.waveformCustomPlayedColorLight"
+#define SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT      @"Settings.waveformCustomUnplayedColorLight"
 
 #if TARGET_OS_OSX
 
@@ -139,7 +141,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 - (void)registerDefaults {
     NSMutableDictionary *appDefaults = [@{
             SETTING_WAVEFORM_STYLE: SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
-            SETTING_WAVEFORM_THEME: SETTINGS_VALUE_WAVEFORM_THEME_WHITE,
+            SETTING_WAVEFORM_THEME: SETTINGS_VALUE_WAVEFORM_THEME_MONO,
     } mutableCopy];
 #if TARGET_OS_OSX
     [self registerMacDefaultsInto:appDefaults];
@@ -211,21 +213,26 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_THEME];
 }
 
-- (VibeColor *)waveformCustomPlayedColor {
-    return VibeColorFromHexString([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_CUSTOM_PLAYED_COLOR]);
+- (VibeColor *)waveformCustomPlayedColorForDark:(BOOL)isDark {
+    return VibeColorFromHexString([[NSUserDefaults standardUserDefaults] stringForKey:
+            isDark ? SETTING_WAVEFORM_CUSTOM_PLAYED_DARK : SETTING_WAVEFORM_CUSTOM_PLAYED_LIGHT]);
 }
 
-- (void)setWaveformCustomPlayedColor:(VibeColor *)color {
-    [self setHexColor:color forKey:SETTING_WAVEFORM_CUSTOM_PLAYED_COLOR];
+- (void)setWaveformCustomPlayedColor:(VibeColor *)color forDark:(BOOL)isDark {
+    [self setHexColor:color forKey:
+            isDark ? SETTING_WAVEFORM_CUSTOM_PLAYED_DARK : SETTING_WAVEFORM_CUSTOM_PLAYED_LIGHT];
 }
 
-- (VibeColor *)waveformCustomUnplayedColor {
-    return VibeColorFromHexString([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_CUSTOM_UNPLAYED_COLOR]);
+- (VibeColor *)waveformCustomUnplayedColorForDark:(BOOL)isDark {
+    return VibeColorFromHexString([[NSUserDefaults standardUserDefaults] stringForKey:
+            isDark ? SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK : SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT]);
 }
 
-- (void)setWaveformCustomUnplayedColor:(VibeColor *)color {
-    [self setHexColor:color forKey:SETTING_WAVEFORM_CUSTOM_UNPLAYED_COLOR];
+- (void)setWaveformCustomUnplayedColor:(VibeColor *)color forDark:(BOOL)isDark {
+    [self setHexColor:color forKey:
+            isDark ? SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK : SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT];
 }
+
 
 - (void)setHexColor:(VibeColor *)color forKey:(NSString *)key {
     NSString *hex = VibeHexStringFromColor(color);

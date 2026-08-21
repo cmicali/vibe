@@ -10,7 +10,7 @@
 #import "MainPlayerController+Menus.h"
 #import "VibeStrings.h"
 
-static const CGFloat kAppearancePaneHeight = 260;
+static const CGFloat kAppearancePaneHeight = 290;
 static const CGFloat kAppearancePopUpWidth = 220;
 
 // Popup tags for the appearance choices; the persisted value is the
@@ -25,11 +25,16 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     NSPopUpButton *_appearancePopUp;
     NSPopUpButton *_waveformPopUp;
     NSPopUpButton *_waveformThemePopUp;
-    NSColorWell *_customPlayedWell;
-    NSColorWell *_customUnplayedWell;
-    // The custom-color wells' grid row, hidden unless the theme is custom.
+    // A played/unplayed pair per appearance — one pair cannot read on both
+    // backdrops.
+    NSColorWell *_customDarkPlayedWell;
+    NSColorWell *_customDarkUnplayedWell;
+    NSColorWell *_customLightPlayedWell;
+    NSColorWell *_customLightUnplayedWell;
+    // The custom-color wells' grid rows, hidden unless the theme is custom.
     // Built always and toggled, so the walker and the layout stay stable.
-    NSGridRow *_customColorsRow;
+    NSGridRow *_customDarkRow;
+    NSGridRow *_customLightRow;
     NSButton *_fileInfoCheckbox;
     NSButton *_timeTotalRadio;
     NSButton *_timeRemainingRadio;
@@ -64,8 +69,8 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     // The theme is the palette laid over the style's geometry; identifiers in
     // representedObject as above.
     _waveformThemePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformThemeChanged:)];
-    [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_WHITE];
-    _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_WHITE;
+    [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_MONO];
+    _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
     [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_ORANGE];
     _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_ORANGE;
     [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_ALBUM_ART];
@@ -73,16 +78,14 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_CUSTOM];
     _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
 
-    _customPlayedWell = [self customColorWell];
-    _customUnplayedWell = [self customColorWell];
-    NSTextField *playedCaption = [NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED];
-    NSTextField *unplayedCaption = [NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED];
-    playedCaption.textColor = NSColor.secondaryLabelColor;
-    unplayedCaption.textColor = NSColor.secondaryLabelColor;
-    NSStackView *customColors = [NSStackView stackViewWithViews:@[
-            _customPlayedWell, playedCaption, _customUnplayedWell, unplayedCaption]];
-    customColors.spacing = 6;
-    [customColors setCustomSpacing:16 afterView:playedCaption];
+    _customDarkPlayedWell = [self customColorWell];
+    _customDarkUnplayedWell = [self customColorWell];
+    _customLightPlayedWell = [self customColorWell];
+    _customLightUnplayedWell = [self customColorWell];
+    NSStackView *customDarkColors = [self customColorPairWithPlayed:_customDarkPlayedWell
+                                                           unplayed:_customDarkUnplayedWell];
+    NSStackView *customLightColors = [self customColorPairWithPlayed:_customLightPlayedWell
+                                                            unplayed:_customLightUnplayedWell];
 
     _fileInfoCheckbox = [NSButton checkboxWithTitle:STR_SETTINGS_FILE_INFO
                                              target:self action:@selector(toggleFileInfo:)];
@@ -109,23 +112,41 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
         @[[NSTextField labelWithString:STR_SETTINGS_APPEARANCE_LABEL], _appearancePopUp],
         @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_LABEL], _waveformPopUp],
         @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_THEME_LABEL], _waveformThemePopUp],
-        @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_LABEL], customColors],
+        @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL], customDarkColors],
+        @[[NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL], customLightColors],
         @[NSGridCell.emptyContentView, _fileInfoCheckbox],
         @[[NSTextField labelWithString:STR_SETTINGS_TIME_LABEL], timeRadios],
         @[[NSTextField labelWithString:STR_SETTINGS_KEY_NOTATION_LABEL], _keyNotationPopUp],
         @[NSGridCell.emptyContentView, _keyColorsCheckbox],
     ]];
-    _customColorsRow = [grid cellForView:customColors].row;
+    _customDarkRow = [grid cellForView:customDarkColors].row;
+    _customLightRow = [grid cellForView:customLightColors].row;
     [self loadPaneWithSize:NSMakeSize(kSettingsPaneWidth, kAppearancePaneHeight) grid:grid];
+}
+
+- (NSStackView *)customColorPairWithPlayed:(NSColorWell *)played unplayed:(NSColorWell *)unplayed {
+    NSTextField *playedCaption = [NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED];
+    NSTextField *unplayedCaption = [NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED];
+    playedCaption.textColor = NSColor.secondaryLabelColor;
+    unplayedCaption.textColor = NSColor.secondaryLabelColor;
+    NSStackView *pair = [NSStackView stackViewWithViews:@[played, playedCaption, unplayed, unplayedCaption]];
+    pair.spacing = 6;
+    [pair setCustomSpacing:16 afterView:playedCaption];
+    return pair;
 }
 
 - (NSColorWell *)customColorWell {
     NSColorWell *well = [[NSColorWell alloc] init];
     well.target = self;
     well.action = @selector(customColorChanged:);
-    // Alpha is the renderers' business — the ramps derive their own.
+    // The alpha is part of the choice: a color's alpha is its side's resting
+    // level (WaveformTheme.h).
     if (@available(macOS 14.0, *)) {
-        well.supportsAlpha = NO;
+        well.supportsAlpha = YES;
+    } else {
+        // Pre-14 a well follows the shared panel, and nothing else in the app
+        // opens it, so the global flag is safe.
+        NSColorPanel.sharedColorPanel.showsAlpha = YES;
     }
     [well.widthAnchor constraintEqualToConstant:44].active = YES;
     [well.heightAnchor constraintEqualToConstant:24].active = YES;
@@ -177,11 +198,18 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
             break;
         }
     }
-    _customColorsRow.hidden = ![theme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
-    _customPlayedWell.color = AppSettings.sharedInstance.waveformCustomPlayedColor
-            ?: NSColor.whiteColor;
-    _customUnplayedWell.color = AppSettings.sharedInstance.waveformCustomUnplayedColor
-            ?: [NSColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:1];
+    BOOL customHidden = ![theme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
+    _customDarkRow.hidden = customHidden;
+    _customLightRow.hidden = customHidden;
+    AppSettings *settings = AppSettings.sharedInstance;
+    _customDarkPlayedWell.color = [settings waveformCustomPlayedColorForDark:YES]
+            ?: DefaultCustomPlayedColor(YES);
+    _customDarkUnplayedWell.color = [settings waveformCustomUnplayedColorForDark:YES]
+            ?: DefaultCustomUnplayedColor(YES);
+    _customLightPlayedWell.color = [settings waveformCustomPlayedColorForDark:NO]
+            ?: DefaultCustomPlayedColor(NO);
+    _customLightUnplayedWell.color = [settings waveformCustomUnplayedColorForDark:NO]
+            ?: DefaultCustomUnplayedColor(NO);
 
     _fileInfoCheckbox.state = AppSettings.sharedInstance.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
 
@@ -219,6 +247,19 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     [self.playerController applyWaveformStyle:_waveformPopUp.selectedItem.representedObject];
 }
 
+// The custom pairs' fallbacks, shared by the wells' display and the seed on
+// choosing Custom, so the waveform always matches what the wells show. Their
+// alphas are the Mono theme's resting levels; the played hue is the
+// appearance's own base.
+static NSColor *DefaultCustomPlayedColor(BOOL isDark) {
+    return isDark ? [NSColor colorWithRed:1 green:1 blue:1 alpha:0.75]
+                  : [NSColor colorWithRed:0 green:0 blue:0 alpha:0.75];
+}
+
+static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
+    return [NSColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
+}
+
 - (void)waveformThemeChanged:(id)sender {
     NSString *identifier = _waveformThemePopUp.selectedItem.representedObject;
     BOOL custom = [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
@@ -226,22 +267,31 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
         // Choosing Custom seeds any unset color from the wells' displayed
         // fallbacks, so the waveform immediately matches what the wells show.
         AppSettings *settings = AppSettings.sharedInstance;
-        if (!settings.waveformCustomPlayedColor) {
-            settings.waveformCustomPlayedColor = _customPlayedWell.color;
-        }
-        if (!settings.waveformCustomUnplayedColor) {
-            settings.waveformCustomUnplayedColor = _customUnplayedWell.color;
+        for (int darkPass = 0; darkPass <= 1; darkPass++) {
+            BOOL isDark = darkPass == 1;
+            if (![settings waveformCustomPlayedColorForDark:isDark]) {
+                [settings setWaveformCustomPlayedColor:DefaultCustomPlayedColor(isDark) forDark:isDark];
+            }
+            if (![settings waveformCustomUnplayedColorForDark:isDark]) {
+                [settings setWaveformCustomUnplayedColor:DefaultCustomUnplayedColor(isDark) forDark:isDark];
+            }
         }
     }
-    _customColorsRow.hidden = !custom;
+    _customDarkRow.hidden = !custom;
+    _customLightRow.hidden = !custom;
     [self.playerController applyWaveformTheme:identifier];
 }
 
 - (void)customColorChanged:(NSColorWell *)sender {
-    if (sender == _customPlayedWell) {
-        AppSettings.sharedInstance.waveformCustomPlayedColor = sender.color;
+    AppSettings *settings = AppSettings.sharedInstance;
+    if (sender == _customDarkPlayedWell) {
+        [settings setWaveformCustomPlayedColor:sender.color forDark:YES];
+    } else if (sender == _customDarkUnplayedWell) {
+        [settings setWaveformCustomUnplayedColor:sender.color forDark:YES];
+    } else if (sender == _customLightPlayedWell) {
+        [settings setWaveformCustomPlayedColor:sender.color forDark:NO];
     } else {
-        AppSettings.sharedInstance.waveformCustomUnplayedColor = sender.color;
+        [settings setWaveformCustomUnplayedColor:sender.color forDark:NO];
     }
     [self.playerController refreshWaveformTheme];
 }

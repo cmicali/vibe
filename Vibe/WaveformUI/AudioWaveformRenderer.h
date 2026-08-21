@@ -36,6 +36,14 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
     return VibeBackingScaleOrDefault(layer.contentsScale);
 }
 
+// A ramp stop: the color at `fraction` of its own alpha. The theme colors
+// carry each side's resting level in their alpha (WaveformTheme.h), so
+// renderers own only their ramp shapes and scale every stop relative to that
+// level through this.
+static inline VibeColor *VibeColorAtRampFraction(VibeColor *color, CGFloat fraction) {
+    return [color colorWithAlphaComponent:CGColorGetAlpha(color.CGColor) * fraction];
+}
+
 // Re-stamps a manually built layer tree at a new backing scale, masks and all.
 // Both views own their trees rather than letting the framework manage them, so
 // both need this on a display change; it lives here rather than twice.

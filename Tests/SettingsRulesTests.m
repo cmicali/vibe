@@ -22,15 +22,15 @@
     XCTAssertEqual(VibeNormalizedPitchRange(32), 8);
 }
 
-- (void)testWaveformThemeNormalizesUnknownsToWhite {
-    XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"white"), @"white");
+- (void)testWaveformThemeNormalizesUnknownsToMono {
+    XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"mono"), @"mono");
     XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"orange"), @"orange");
     XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"album_art"), @"album_art");
     XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"custom"), @"custom");
-    XCTAssertEqualObjects(VibeNormalizedWaveformTheme(nil), @"white");
-    XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@""), @"white");
-    XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"Orange"), @"white");
-    XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"sonic_cirrus"), @"white");
+    XCTAssertEqualObjects(VibeNormalizedWaveformTheme(nil), @"mono");
+    XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@""), @"mono");
+    XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"Orange"), @"mono");
+    XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"sonic_cirrus"), @"mono");
 }
 
 // The one-time migration: only a themeless Sonic Cirrus user gets orange
@@ -39,7 +39,7 @@
     XCTAssertEqualObjects(VibeMigratedWaveformTheme(nil, @"sonic_cirrus"), @"orange");
     XCTAssertNil(VibeMigratedWaveformTheme(nil, @"detailed"));
     XCTAssertNil(VibeMigratedWaveformTheme(nil, nil));
-    XCTAssertNil(VibeMigratedWaveformTheme(@"white", @"sonic_cirrus"));
+    XCTAssertNil(VibeMigratedWaveformTheme(@"mono", @"sonic_cirrus"));
     XCTAssertNil(VibeMigratedWaveformTheme(@"orange", @"sonic_cirrus"));
 }
 

@@ -36,16 +36,27 @@ typedef NS_ENUM(NSInteger, VibeSettingsTimeRow) {
 
 // The theme section: three choices — Album art is macOS-only until an iOS
 // dominant-color extraction exists — then, only while Custom is active, the
-// two color-well rows.
+// four color-well rows: a played/unplayed pair per appearance, because one
+// pair cannot read on both backdrops.
 typedef NS_ENUM(NSInteger, VibeSettingsThemeRow) {
-    VibeSettingsThemeRowWhite = 0,
+    VibeSettingsThemeRowMono = 0,
     VibeSettingsThemeRowOrange,
     VibeSettingsThemeRowCustom,
     VibeSettingsThemeRowChoiceCount,
-    VibeSettingsThemeRowPlayedColor = VibeSettingsThemeRowChoiceCount,
-    VibeSettingsThemeRowUnplayedColor,
+    VibeSettingsThemeRowPlayedDark = VibeSettingsThemeRowChoiceCount,
+    VibeSettingsThemeRowUnplayedDark,
+    VibeSettingsThemeRowPlayedLight,
+    VibeSettingsThemeRowUnplayedLight,
     VibeSettingsThemeRowCountWithColors,
 };
+
+static BOOL ThemeColorRowIsPlayed(NSInteger row) {
+    return row == VibeSettingsThemeRowPlayedDark || row == VibeSettingsThemeRowPlayedLight;
+}
+
+static BOOL ThemeColorRowIsDark(NSInteger row) {
+    return row == VibeSettingsThemeRowPlayedDark || row == VibeSettingsThemeRowUnplayedDark;
+}
 
 static NSString *const kChoiceCellIdentifier = @"choice";
 static NSString *const kSwitchCellIdentifier = @"switch";
@@ -98,13 +109,13 @@ static NSString *const kActionCellIdentifier = @"action";
     return [WaveformRendererRegistry resolveStyleIdentifier:AppSettings.sharedInstance.waveformStyle];
 }
 
-// Same idea for the theme: a stored album_art resolves to White's answer on
-// this platform (no artwork color exists to feed it), so White carries the
+// Same idea for the theme: a stored album_art resolves to Mono's answer on
+// this platform (no artwork color exists to feed it), so Mono carries the
 // checkmark rather than no row at all.
 - (NSString *)currentWaveformTheme {
     NSString *theme = AppSettings.sharedInstance.waveformTheme;
     return [theme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART]
-            ? SETTINGS_VALUE_WAVEFORM_THEME_WHITE : theme;
+            ? SETTINGS_VALUE_WAVEFORM_THEME_MONO : theme;
 }
 
 - (BOOL)customThemeActive {
@@ -237,7 +248,7 @@ static NSString *ThemeIdentifierForRow(NSInteger row) {
     switch ((VibeSettingsThemeRow)row) {
         case VibeSettingsThemeRowOrange: return SETTINGS_VALUE_WAVEFORM_THEME_ORANGE;
         case VibeSettingsThemeRowCustom: return SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
-        default:                         return SETTINGS_VALUE_WAVEFORM_THEME_WHITE;
+        default:                         return SETTINGS_VALUE_WAVEFORM_THEME_MONO;
     }
 }
 
@@ -245,40 +256,55 @@ static NSString *ThemeDisplayNameForRow(NSInteger row) {
     switch ((VibeSettingsThemeRow)row) {
         case VibeSettingsThemeRowOrange: return STR_SETTINGS_WAVEFORM_THEME_ORANGE;
         case VibeSettingsThemeRowCustom: return STR_SETTINGS_WAVEFORM_THEME_CUSTOM;
-        default:                         return STR_SETTINGS_WAVEFORM_THEME_WHITE;
+        default:                         return STR_SETTINGS_WAVEFORM_THEME_MONO;
     }
 }
 
-// The custom pair's fallbacks, shared by the wells' display and the seed on
-// choosing Custom, so the waveform always matches what the wells show.
-static UIColor *DefaultCustomPlayedColor(void) {
-    return UIColor.whiteColor;
+// The custom pairs' fallbacks, shared by the wells' display and the seed on
+// choosing Custom, so the waveform always matches what the wells show. Their
+// alphas are the Mono theme's resting levels, so a fresh Custom starts at a
+// sane intensity — a color's alpha is its side's level (WaveformTheme.h) —
+// and the played hue is the appearance's own base.
+static UIColor *DefaultCustomPlayedColor(BOOL isDark) {
+    return isDark ? [UIColor colorWithRed:1 green:1 blue:1 alpha:0.75]
+                  : [UIColor colorWithRed:0 green:0 blue:0 alpha:0.75];
 }
 
-static UIColor *DefaultCustomUnplayedColor(void) {
-    return [UIColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:1];
+static UIColor *DefaultCustomUnplayedColor(BOOL isDark) {
+    return [UIColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
+}
+
+static NSString *ThemeColorRowName(NSInteger row) {
+    switch ((VibeSettingsThemeRow)row) {
+        case VibeSettingsThemeRowPlayedDark:    return STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED_DARK;
+        case VibeSettingsThemeRowUnplayedDark:  return STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED_DARK;
+        case VibeSettingsThemeRowPlayedLight:   return STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED_LIGHT;
+        default:                                return STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED_LIGHT;
+    }
 }
 
 // Built fresh rather than dequeued: each row's color well carries that row's
 // own state and target wiring, which reuse would drag to the other row.
 - (UITableViewCell *)themeColorCellForTableView:(UITableView *)tableView
                                       indexPath:(NSIndexPath *)indexPath {
-    BOOL played = indexPath.row == VibeSettingsThemeRowPlayedColor;
+    BOOL played = ThemeColorRowIsPlayed(indexPath.row);
+    BOOL isDark = ThemeColorRowIsDark(indexPath.row);
     UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
                                                    reuseIdentifier:nil];
     cell.selectionStyle = UITableViewCellSelectionStyleNone;
     UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
-    content.text = played ? STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED
-                          : STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED;
+    content.text = ThemeColorRowName(indexPath.row);
     cell.contentConfiguration = content;
     // accessoryView is placed by frame, not intrinsic size, and a UIColorWell
     // starts at zero — left unset it lands at the cell's origin.
     UIColorWell *well = [[UIColorWell alloc] initWithFrame:CGRectMake(0, 0, 34, 34)];
-    // Alpha is the renderers' business — the ramps derive their own.
-    well.supportsAlpha = NO;
+    // The alpha is part of the choice: a color's alpha is its side's resting
+    // level (WaveformTheme.h).
+    well.supportsAlpha = YES;
+    AppSettings *settings = AppSettings.sharedInstance;
     well.selectedColor = played
-            ? (AppSettings.sharedInstance.waveformCustomPlayedColor ?: DefaultCustomPlayedColor())
-            : (AppSettings.sharedInstance.waveformCustomUnplayedColor ?: DefaultCustomUnplayedColor());
+            ? ([settings waveformCustomPlayedColorForDark:isDark] ?: DefaultCustomPlayedColor(isDark))
+            : ([settings waveformCustomUnplayedColorForDark:isDark] ?: DefaultCustomUnplayedColor(isDark));
     well.tag = indexPath.row;
     [well addTarget:self action:@selector(themeColorChanged:)
    forControlEvents:UIControlEventValueChanged];
@@ -290,11 +316,12 @@ static UIColor *DefaultCustomUnplayedColor(void) {
     if (!well.selectedColor) {
         return;
     }
-    if (well.tag == VibeSettingsThemeRowPlayedColor) {
-        AppSettings.sharedInstance.waveformCustomPlayedColor = well.selectedColor;
+    BOOL isDark = ThemeColorRowIsDark(well.tag);
+    if (ThemeColorRowIsPlayed(well.tag)) {
+        [AppSettings.sharedInstance setWaveformCustomPlayedColor:well.selectedColor forDark:isDark];
     }
     else {
-        AppSettings.sharedInstance.waveformCustomUnplayedColor = well.selectedColor;
+        [AppSettings.sharedInstance setWaveformCustomUnplayedColor:well.selectedColor forDark:isDark];
     }
     [self notifyDisplaySettingsChanged];
 }
@@ -395,11 +422,14 @@ static UIColor *DefaultCustomUnplayedColor(void) {
                 // Choosing Custom seeds any unset color from the wells'
                 // fallbacks — the mac pane's behavior.
                 AppSettings *settings = AppSettings.sharedInstance;
-                if (!settings.waveformCustomPlayedColor) {
-                    settings.waveformCustomPlayedColor = DefaultCustomPlayedColor();
-                }
-                if (!settings.waveformCustomUnplayedColor) {
-                    settings.waveformCustomUnplayedColor = DefaultCustomUnplayedColor();
+                for (int darkPass = 0; darkPass <= 1; darkPass++) {
+                    BOOL isDark = darkPass == 1;
+                    if (![settings waveformCustomPlayedColorForDark:isDark]) {
+                        [settings setWaveformCustomPlayedColor:DefaultCustomPlayedColor(isDark) forDark:isDark];
+                    }
+                    if (![settings waveformCustomUnplayedColorForDark:isDark]) {
+                        [settings setWaveformCustomUnplayedColor:DefaultCustomUnplayedColor(isDark) forDark:isDark];
+                    }
                 }
             }
             AppSettings.sharedInstance.waveformTheme = identifier;

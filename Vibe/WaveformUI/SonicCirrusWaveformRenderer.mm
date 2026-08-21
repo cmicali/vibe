@@ -94,22 +94,30 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
 // pair — bottom (1, 0.75, 0.585) from top (1, 0.45, 0) — to within rounding.
 static const CGFloat kPlayedBottomBlendTowardWhite = 0.576;
 
+// The mirror bars' share of each side's resting level — the ratios of the
+// historical pairs (played 0.8/1.0, unplayed 0.55/0.89). The levels
+// themselves are the theme colors' alphas: the colored themes' unplayed
+// carries this style's historical 0.89, so the Orange theme on these bars is
+// the pre-theme Sonic Cirrus exactly.
+static const CGFloat kPlayedBottomAlphaRatio = 0.8;
+static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
+
 - (void)updateColors:(BOOL)isDark {
     // super sets lastProgressBoundary to -1, so that the next updateProgress:
     // repaints every bar with the new colors.
     [super updateColors:isDark];
-    // The played pair derives from the theme's played hue: the top is the hue
-    // itself, the bottom its paler blend toward white at the pair's original
-    // alpha. The unplayed bars take the theme's unplayed hue at the original
-    // alphas — under the White theme that hue follows the appearance, because
-    // a fixed white is near-invisible on a light background.
+    // Tops are the theme colors as-is; each bottom is its paler mirror — the
+    // played one blended toward white, both at their ratio of the side's
+    // level.
     VibeColor *played = self.theme.playedColor;
     VibeColor *unplayed = self.theme.unplayedColor;
     _playedColorTop = played;
-    _playedColorBottom = [VibeColorBlended(played, [VibeColor whiteColor], kPlayedBottomBlendTowardWhite)
-            colorWithAlphaComponent:0.8];
-    _unPlayedColorTop = [unplayed colorWithAlphaComponent:0.89];
-    _unPlayedColorBottom = [unplayed colorWithAlphaComponent:0.55];
+    _playedColorBottom = VibeColorAtRampFraction(
+            [VibeColorBlended(played, [VibeColor whiteColor], kPlayedBottomBlendTowardWhite)
+                    colorWithAlphaComponent:CGColorGetAlpha(played.CGColor)],
+            kPlayedBottomAlphaRatio);
+    _unPlayedColorTop = unplayed;
+    _unPlayedColorBottom = VibeColorAtRampFraction(unplayed, kUnplayedBottomAlphaRatio);
     _hoverColor = self.theme.hoverColor;
 }
 

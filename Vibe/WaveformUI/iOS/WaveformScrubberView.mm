@@ -327,20 +327,22 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     _renderer.theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
                                                  isDark:self.isDark
                                            artworkColor:nil
-                                           customPlayed:settings.waveformCustomPlayedColor
-                                         customUnplayed:settings.waveformCustomUnplayedColor];
+                                           customPlayed:[settings waveformCustomPlayedColorForDark:self.isDark]
+                                         customUnplayed:[settings waveformCustomUnplayedColorForDark:self.isDark]];
     [_renderer updateColors:self.isDark];
     _themeSignature = [self.class themeSignature];
 }
 
 // What syncWaveformTheme compares to decide "the palette moved": the
-// identifier and both custom hexes, everything the resolution above reads
-// from settings.
+// identifier and all four custom hexes, everything the resolution above can
+// read from settings in either appearance.
 + (NSString *)themeSignature {
     AppSettings *settings = AppSettings.sharedInstance;
-    return [NSString stringWithFormat:@"%@|%@|%@", settings.waveformTheme,
-            VibeHexStringFromColor(settings.waveformCustomPlayedColor) ?: @"",
-            VibeHexStringFromColor(settings.waveformCustomUnplayedColor) ?: @""];
+    return [NSString stringWithFormat:@"%@|%@|%@|%@|%@", settings.waveformTheme,
+            VibeHexStringFromColor([settings waveformCustomPlayedColorForDark:YES]) ?: @"",
+            VibeHexStringFromColor([settings waveformCustomUnplayedColorForDark:YES]) ?: @"",
+            VibeHexStringFromColor([settings waveformCustomPlayedColorForDark:NO]) ?: @"",
+            VibeHexStringFromColor([settings waveformCustomUnplayedColorForDark:NO]) ?: @""];
 }
 
 - (void)syncWaveformTheme {

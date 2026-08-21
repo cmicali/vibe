@@ -16,18 +16,23 @@ VibeColor *VibeColorFromHexString(NSString *hex) {
         return nil;
     }
     NSString *digits = [hex hasPrefix:@"#"] ? [hex substringFromIndex:1] : hex;
-    if (digits.length != 6) {
+    BOOL hasAlpha = digits.length == 8;
+    if (digits.length != 6 && !hasAlpha) {
         return nil;
     }
-    unsigned int value = 0;
+    unsigned long long value = 0;
     NSScanner *scanner = [NSScanner scannerWithString:digits];
-    if (![scanner scanHexInt:&value] || !scanner.isAtEnd) {
+    if (![scanner scanHexLongLong:&value] || !scanner.isAtEnd) {
         return nil;
+    }
+    CGFloat a = hasAlpha ? (value & 0xFF) / 255.0 : 1;
+    if (hasAlpha) {
+        value >>= 8;
     }
     CGFloat r = ((value >> 16) & 0xFF) / 255.0;
     CGFloat g = ((value >> 8) & 0xFF) / 255.0;
     CGFloat b = (value & 0xFF) / 255.0;
-    return [VibeColor colorWithRed:r green:g blue:b alpha:1];
+    return [VibeColor colorWithRed:r green:g blue:b alpha:a];
 }
 
 static BOOL GetRGB(VibeColor *color, CGFloat *r, CGFloat *g, CGFloat *b) {
@@ -74,5 +79,11 @@ NSString *VibeHexStringFromColor(VibeColor *color) {
     unsigned int ri = (unsigned int)lround(MIN(MAX(r, 0), 1) * 255);
     unsigned int gi = (unsigned int)lround(MIN(MAX(g, 0), 1) * 255);
     unsigned int bi = (unsigned int)lround(MIN(MAX(b, 0), 1) * 255);
-    return [NSString stringWithFormat:@"#%02X%02X%02X", ri, gi, bi];
+    unsigned int ai = (unsigned int)lround(MIN(MAX(a, 0), 1) * 255);
+    // Opaque stays the short form, so pre-alpha stored values and their reads
+    // round-trip unchanged.
+    if (ai >= 255) {
+        return [NSString stringWithFormat:@"#%02X%02X%02X", ri, gi, bi];
+    }
+    return [NSString stringWithFormat:@"#%02X%02X%02X%02X", ri, gi, bi, ai];
 }

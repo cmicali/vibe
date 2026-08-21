@@ -10,7 +10,7 @@ static inline NSInteger VibeNormalizedPitchRange(NSInteger range) {
     return range == 16 ? 16 : 8;
 }
 
-// An unknown stored waveform-theme identifier snaps to white, like
+// An unknown stored waveform-theme identifier snaps to mono, like
 // keyNotation's snap to Camelot.
 static inline NSString *VibeNormalizedWaveformTheme(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE] ||
@@ -18,7 +18,7 @@ static inline NSString *VibeNormalizedWaveformTheme(NSString *_Nullable identifi
         [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM]) {
         return identifier;
     }
-    return SETTINGS_VALUE_WAVEFORM_THEME_WHITE;
+    return SETTINGS_VALUE_WAVEFORM_THEME_MONO;
 }
 
 // The one-time theme migration: the value to write, or nil to write nothing.

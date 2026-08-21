@@ -30,17 +30,11 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
 // column never actually reaches full brightness.
 static const CGFloat kHoverHighlightWidth = 1.5;
 
-// An overall opacity multiplier applied to a gradient layer whose theme hue
-// is monochrome. It tones the waveform down, so that it sits comfortably over
-// the album-art backdrop; a chromatic hue skips it (layerOpacityForChromatic:)
-// — dimmed, a colored theme reads muddy next to Sonic Cirrus's full-alpha
-// orange. The envelope bitmap bakes the same choice into its alpha, so the
-// two must move together.
-static const float kWaveformOpacity = 0.75f;
-
-static inline float VibeLayerOpacityForChromatic(BOOL chromatic) {
-    return chromatic ? 1.0f : kWaveformOpacity;
-}
+// This family's resting levels live in the theme colors' own alpha
+// (WaveformTheme.h) — the White pair carries what used to be this file's
+// kWaveformOpacity — so the renderer owns only the ramp SHAPE below, scaled
+// relative to each color's level through VibeColorAtRampFraction. The
+// envelope bitmap bakes the same stops, so the two cannot drift.
 
 @implementation DetailedAudioWaveformRenderer {
     // One bar-shaped mask clips the whole gradient stack. Masking the two
@@ -133,7 +127,6 @@ static inline float VibeLayerOpacityForChromatic(BOOL chromatic) {
 
     // Unplayed: a dim gradient over the full waveform.
     _unplayedGradient = [CAGradientLayer layer];
-    _unplayedGradient.opacity = kWaveformOpacity;
     _unplayedGradient.contentsScale = scale;
     [self configureGradient:_unplayedGradient];
     [_waveformContainer addSublayer:_unplayedGradient];
@@ -149,15 +142,14 @@ static inline float VibeLayerOpacityForChromatic(BOOL chromatic) {
     _playedClip.contentsScale = scale;
 
     _playedGradient = [CAGradientLayer layer];
-    _playedGradient.opacity = kWaveformOpacity;
     _playedGradient.contentsScale = scale;
     [self configureGradient:_playedGradient];
     [_playedClip addSublayer:_playedGradient];
     [_waveformContainer addSublayer:_playedClip];
 
     // Added last, so that it composites over both gradients, and at full
-    // opacity. Unlike the gradients it does not take kWaveformOpacity, because
-    // this column is meant to be the brightest thing in the waveform.
+    // opacity — this column is meant to be the brightest thing in the
+    // waveform, which the theme's hover derivation guarantees.
     _hoverColumn = [CALayer layer];
     _hoverColumn.anchorPoint = CGPointZero;
     _hoverColumn.actions = @{@"bounds": [NSNull null], @"position": [NSNull null],
@@ -196,36 +188,24 @@ static inline float VibeLayerOpacityForChromatic(BOOL chromatic) {
 
 - (void)updateColors:(BOOL)isDark {
     [super updateColors:isDark];
-    _playedGradient.opacity = VibeLayerOpacityForChromatic(self.theme.playedColorIsChromatic);
-    _unplayedGradient.opacity = VibeLayerOpacityForChromatic(self.theme.unplayedColorIsChromatic);
-    [self setGradientLayerColors:_playedGradient colors:[self playedGradientColors:self.theme.playedColor isDark:isDark]];
-    [self setGradientLayerColors:_unplayedGradient colors:[self unplayedGradientColors:self.theme.unplayedColor isDark:isDark]];
+    [self setGradientLayerColors:_playedGradient colors:[self gradientColorsForColor:self.theme.playedColor isDark:isDark]];
+    [self setGradientLayerColors:_unplayedGradient colors:[self gradientColorsForColor:self.theme.unplayedColor isDark:isDark]];
     // Full alpha and no vertical fade. The played gradient's own top is the
     // ceiling everywhere else, so this reads as lit at every bar height.
     _hoverColumn.backgroundColor = self.theme.hoverColor.CGColor;
 }
 
-// A slight vertical fade: full color at the top, kBottomAlpha of it at the
-// bottom. The colors and the start and end points are the same in light and
-// dark, because the gradient's startPoint and endPoint fix the direction, not
-// the array order. Played is fully opaque at the top and unplayed is half as
-// opaque, so the played region reads clearly brighter where the two meet at
-// the boundary.
-- (NSArray<VibeColor *> *)playedGradientColors:(VibeColor *)baseColor isDark:(BOOL)isDark {
+// A slight vertical fade: the color at its own resting alpha at the top,
+// kBottomAlpha of it at the bottom. One shape serves both sides — the
+// played/unplayed difference is entirely the theme colors' levels, which is
+// why the played region reads brighter where the two meet at the boundary.
+// The stops are the same in light and dark, because the gradient's startPoint
+// and endPoint fix the direction, not the array order.
+- (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark {
     const CGFloat kBottomAlpha = 0.45;
-    const CGFloat kPlayedTop = 1.0;
     return @[
-            [baseColor colorWithAlphaComponent:kPlayedTop],
-            [baseColor colorWithAlphaComponent:kPlayedTop * kBottomAlpha],
-    ];
-}
-
-- (NSArray<VibeColor *> *)unplayedGradientColors:(VibeColor *)baseColor isDark:(BOOL)isDark {
-    const CGFloat kBottomAlpha = 0.45;
-    const CGFloat kUnplayedTop = 0.5;
-    return @[
-            [baseColor colorWithAlphaComponent:kUnplayedTop],
-            [baseColor colorWithAlphaComponent:kUnplayedTop * kBottomAlpha],
+            color,
+            VibeColorAtRampFraction(color, kBottomAlpha),
     ];
 }
 
@@ -381,18 +361,16 @@ static inline float VibeLayerOpacityForChromatic(BOOL chromatic) {
 
 - (CGImageRef)newEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples {
     return [self newEnvelopeImageForSize:size scale:scale samples:samples
-                                   stops:[self playedGradientColors:self.theme.playedColor isDark:self.isDark]
-                            layerOpacity:VibeLayerOpacityForChromatic(self.theme.playedColorIsChromatic)];
+                                   stops:[self gradientColorsForColor:self.theme.playedColor isDark:self.isDark]];
 }
 
 - (CGImageRef)newUnplayedEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples {
     return [self newEnvelopeImageForSize:size scale:scale samples:samples
-                                   stops:[self unplayedGradientColors:self.theme.unplayedColor isDark:self.isDark]
-                            layerOpacity:VibeLayerOpacityForChromatic(self.theme.unplayedColorIsChromatic)];
+                                   stops:[self gradientColorsForColor:self.theme.unplayedColor isDark:self.isDark]];
 }
 
 - (CGImageRef)newEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples
-                                stops:(NSArray<VibeColor *> *)stops layerOpacity:(float)layerOpacity {
+                                stops:(NSArray<VibeColor *> *)stops {
     NSUInteger count = samples.length / (2 * sizeof(float));
     size_t pixelWidth = (size_t)llround(size.width * scale);
     size_t pixelHeight = (size_t)llround(size.height * scale);
@@ -426,16 +404,14 @@ static inline float VibeLayerOpacityForChromatic(BOOL chromatic) {
     CGContextClip(ctx);
     CGPathRelease(path);
 
-    // configureGradient:'s band-pinned fade with kWaveformOpacity baked into
-    // the alpha. This family's fade only — Basic re-aims its gradient, so its
-    // styles would need their own bake. The stops are the caller's
-    // theme-derived pair, same as the live layers': the two must stay
+    // configureGradient:'s band-pinned fade. This family's fade only — Basic
+    // re-aims its gradient, so its styles would need their own bake. The
+    // stops are the caller's theme-derived ramp, resting levels already in
+    // their alphas, same as the live layers': the two must stay
     // pixel-identical.
     NSMutableArray *cgColors = [[NSMutableArray alloc] initWithCapacity:stops.count];
     for (VibeColor *color in stops) {
-        CGColorRef cg = color.CGColor;
-        CGColorRef faded = CGColorCreateCopyWithAlpha(cg, CGColorGetAlpha(cg) * layerOpacity);
-        [cgColors addObject:(__bridge_transfer id)faded];
+        [cgColors addObject:(__bridge id)color.CGColor];
     }
     CGGradientRef gradient = CGGradientCreateWithColors(space, (__bridge CFArrayRef)cgColors, NULL);
     CGFloat topY = size.height * (1 + kBarAmplitudeOfHalfHeight) / 2;
@@ -450,11 +426,11 @@ static inline float VibeLayerOpacityForChromatic(BOOL chromatic) {
     return image;
 }
 
+// Valid because both sides share the ramp shape, so the whole difference is
+// the theme colors' resting alphas.
 - (CGFloat)unplayedOverPlayedOpacity {
-    NSArray<VibeColor *> *played = [self playedGradientColors:self.theme.playedColor isDark:self.isDark];
-    NSArray<VibeColor *> *unplayed = [self unplayedGradientColors:self.theme.unplayedColor isDark:self.isDark];
-    CGFloat playedTop = CGColorGetAlpha(played.firstObject.CGColor);
-    return playedTop > 0 ? CGColorGetAlpha(unplayed.firstObject.CGColor) / playedTop : 1;
+    CGFloat playedTop = CGColorGetAlpha(self.theme.playedColor.CGColor);
+    return playedTop > 0 ? CGColorGetAlpha(self.theme.unplayedColor.CGColor) / playedTop : 1;
 }
 
 @end

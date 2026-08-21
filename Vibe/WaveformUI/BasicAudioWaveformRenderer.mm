@@ -39,22 +39,15 @@
     // band-pinned fade.
 }
 
-- (NSArray<VibeColor *> *)playedGradientColors:(VibeColor *)baseColor isDark:(BOOL)isDark {
+// One four-stop shape for both sides — historically the unplayed stops were
+// the played stops halved, which is now the theme colors' levels doing the
+// halving.
+- (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark {
     NSArray *colors = @[
-            [baseColor colorWithAlphaComponent:0.1],
-            [baseColor colorWithAlphaComponent:0.65],
-            [baseColor colorWithAlphaComponent:1.0],
-            [baseColor colorWithAlphaComponent:1.0],
-    ];
-    return isDark ? colors : [[colors reverseObjectEnumerator] allObjects];
-}
-
-- (NSArray<VibeColor *> *)unplayedGradientColors:(VibeColor *)baseColor isDark:(BOOL)isDark {
-    NSArray *colors = @[
-            [baseColor colorWithAlphaComponent:0.05],
-            [baseColor colorWithAlphaComponent:0.325],
-            [baseColor colorWithAlphaComponent:0.5],
-            [baseColor colorWithAlphaComponent:0.5],
+            VibeColorAtRampFraction(color, 0.1),
+            VibeColorAtRampFraction(color, 0.65),
+            color,
+            color,
     ];
     return isDark ? colors : [[colors reverseObjectEnumerator] allObjects];
 }

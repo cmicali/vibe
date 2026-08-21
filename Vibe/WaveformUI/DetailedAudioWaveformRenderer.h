@@ -23,12 +23,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count;
 - (CGFloat)barXForIndex:(NSUInteger)index width:(CGFloat)width barCount:(NSUInteger)count barWidth:(CGFloat)barWidth;
 
-// The gradient styling: its direction and extent, and the played and unplayed
-// color stops. baseColor is the theme's played or unplayed hue — the
-// monochrome base under the White theme — and the hooks own only the alphas.
+// The gradient styling: its direction and extent, and the ramp's color stops.
+// color is the theme's played or unplayed color, carrying its side's resting
+// level in its alpha; the hook owns only the ramp shape, every stop scaled
+// relative to that level (VibeColorAtRampFraction). One hook serves both
+// sides — the played/unplayed difference is entirely the colors' levels.
 - (void)configureGradient:(CAGradientLayer *)gradient;
-- (NSArray<VibeColor *> *)playedGradientColors:(VibeColor *)baseColor isDark:(BOOL)isDark;
-- (NSArray<VibeColor *> *)unplayedGradientColors:(VibeColor *)baseColor isDark:(BOOL)isDark;
+- (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark;
 
 - (void)setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<VibeColor*>*)colors;
 
@@ -37,9 +38,9 @@ NS_ASSUME_NONNULL_BEGIN
 // the played gradient, overall opacity included — so scrolling can translate
 // a texture instead of re-compositing the masked live tree every frame. While
 // the theme's unplayed hue is the played hue (unplayedSharesPlayedHue), the
-// unplayed presentation is that same bitmap at unplayedOverPlayedOpacity,
-// because this family's unplayed stops are then the played stops scaled by
-// one constant; a two-hue theme bakes the unplayed variant separately with
+// unplayed presentation is that same bitmap at unplayedOverPlayedOpacity —
+// the ratio of the two colors' resting alphas, valid because both sides share
+// the ramp shape; a two-hue theme bakes the unplayed variant separately with
 // its own stops and shows it at full opacity. Extract samples on the main
 // thread; the bakes touch no layer state and may run on any queue.
 - (NSData *)envelopeSamplesForWaveform:(AudioWaveform *)waveform;
