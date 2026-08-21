@@ -37,7 +37,7 @@
     double rate = self.playbackRate;
     NSTimeInterval duration;
     NSTimeInterval position;
-    BOOL loadingGap = [self displayState] == TrackDisplayStateLoading;
+    BOOL loadingGap = (displayState == TrackDisplayStateLoading);
     if (loadingGap) {
         // The same gate the header renders --:-- under: during a track change
         // the player's live position and duration still describe the previous

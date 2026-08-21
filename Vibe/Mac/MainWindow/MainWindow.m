@@ -327,6 +327,25 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     [self setFrame:[self frameKeptOnScreen:frame] display:YES animate:animate];
 }
 
+// Anchored at the top-left like every other resize here, rather than
+// re-centered: Factory reset restores the shipping SHAPE, and where the user
+// put the window is not part of it. Writes both settings rather than trusting
+// the cleared store, so the window and the store agree however this is
+// reached, and saves the frame so a relaunch restores what is on screen.
+- (void)resetToDefaultShape {
+    _playlistShown = NO;
+    AppSettings.sharedInstance.playlistShown = NO;
+    _pitchPanelShown = NO;
+    AppSettings.sharedInstance.pitchPanelShown = NO;
+
+    NSRect frame = self.frame;
+    frame.origin.y += frame.size.height - kMainWindowSmallHeight;
+    frame.size = NSMakeSize(MAX(kMainWindowContentWidth, [self applyMinWidthForPitchPanelShown:NO]),
+                            kMainWindowSmallHeight);
+    [self setFrame:[self frameKeptOnScreen:frame] display:YES animate:NO];
+    [self saveFrameUsingName:kFrameAutosaveName];
+}
+
 // Both shown states are persisted as explicit settings rather than inferred
 // from the autosaved frame: a first launch has no saved frame at all (the
 // registered defaults — both hidden — supply the first-launch size), and with

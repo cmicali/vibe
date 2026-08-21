@@ -38,6 +38,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)isPitchPanelShown;
 - (void)setPitchPanelShown:(BOOL)shown animate:(BOOL)animate;
 
+// The shape a first launch would have: both panes hidden, the design width,
+// the collapsed height. The frame half of Factory reset — call
+// MainPlayerController.resetWindowToDefaultShape instead, which follows it
+// with the sibling frames; this alone leaves the pitch panel on screen at the
+// new width, since its right-anchored mask rides the shrinking edge.
+- (void)resetToDefaultShape;
+
 @end
 
 @protocol FileDropDelegate <NSObject>

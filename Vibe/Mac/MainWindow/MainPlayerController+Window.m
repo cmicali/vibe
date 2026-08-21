@@ -208,6 +208,19 @@
                     animate:YES];
 }
 
+// TRAP: shrinking the window does NOT hide the pitch panel. The panel is a
+// contentView sibling anchored to the right edge (NSViewMinXMargin), so a
+// resize slides it inward with the edge and it stays on screen at the new
+// width — which is why togglePitchPanel: below pins both siblings for its
+// animation and then re-asserts their frames. Nothing animates here, so the
+// landing frames are the whole job: take them from the window's post-reset
+// shown flags, which resetToDefaultShape has already cleared.
+- (void)resetWindowToDefaultShape {
+    [(MainWindow *)self.window resetToDefaultShape];
+    self.playerContentView.frame = [self playerBodyFrame];
+    _pitchPanel.frame = [self pitchPanelFrame];
+}
+
 - (IBAction) togglePitchPanel:(id)sender {
     MainWindow *window = (MainWindow *)self.window;
     BOOL show = !window.isPitchPanelShown;

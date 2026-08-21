@@ -3,8 +3,8 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 // Laid out like the header: what both targets compile, then one macOS-only
-// block holding everything else — the hot-path cache included, since all five
-// cached settings are macOS ones.
+// block holding everything else — the hot-path cache included, since every
+// cached setting is a macOS one.
 //
 
 #import "AppSettings.h"
@@ -78,13 +78,13 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 
 // ---- The hot-path cache, which lives for ONE turn of the main run loop.
 //
-// Five settings are read far more often than the rest: the right time
-// label's mode on every playback tick, the file-info, key-notation and
-// key-color flags several times per updateUI pass, and the refresh cap on
-// every live-resize frame. Every other accessor here is a CFPreferences
-// lookup apiece, which is what FolderArtResolver caches its own setting to
-// avoid. All five are macOS settings, which is why the whole cache is inside
-// this block.
+// The cached settings are the ones read far more often than the rest: the
+// right time label's mode on every playback tick, the file-info, BPM, key,
+// key-notation and key-color flags several times per updateUI pass, and the
+// refresh cap on every live-resize frame. Every other accessor here is a
+// CFPreferences lookup apiece, which is what FolderArtResolver caches its own
+// setting to avoid. All of them are macOS settings, which is why the whole
+// cache is inside this block; the ivar block below is the list.
 //
 // TRAP: the obvious invalidation, NSUserDefaultsDidChangeNotification,
 // does NOT fire for a write from another process — and the debug channel's
@@ -101,8 +101,8 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 // uncached read gave. No writer has to remember anything, which is the
 // difference from the resolver's cache and its one call to forget.
 //
-// Main thread only, which every reader of these five is: the header
-// labels, the updateUI funnel, the Settings panes and the debug channel.
+// Main thread only, which every reader of them is: the header labels, the
+// updateUI funnel, the Settings panes and the debug channel.
 // The analysis flags are deliberately NOT cached — the waveform loader is
 // handed their values once per decode, which is not a hot path.
 //

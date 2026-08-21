@@ -1,13 +1,11 @@
 # 1.10
 
-* Added new settings window with a lot more configurability
-* Added About settings pane with version, copyright, GitHub links, and playback statistics
-* Added build info (version, git hash, and languages) and reset-to-defaults to Advanced settings
 * Added color themes and customizable colors for window and waveform
-* Added more reliable cloud file loading w/ progress bar (iCloud Drive, Dropbox)
-* Added live EQ animation based on audio
 * Added album art load from song's folder if song has no tagged artwork
+* Added more reliable cloud file loading w/ progress bar (iCloud Drive, Dropbox)
+* Added new settings window with many more configuration options
 * Added keyboard support in playlist w/ enter to play
+* Added live EQ animation based on audio
 * Added initial version of iOS app/UI that uses macOS codebase
 * Added support for macOS 13 Ventura and later (previously required macOS 14)
 * Improved resizing of waveforms, especially for non-detailed ones

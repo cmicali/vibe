@@ -208,7 +208,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // ordinary mid-playlist advance. Settings > Playback > On track end = Pause
     // parks on the finished track exactly as the end of the playlist does;
     // nothing has spliced, because successorPrefetchTrack parked nothing to
-    // arm.
+    // arm. Both reads of the setting are load-bearing: this one decides from
+    // the playlist alone, so an unparked successor never reaches it.
     BOOL advances = self.playlistController.hasNextTrack &&
             !AppSettings.sharedInstance.pauseAtTrackEnd;
     if (advances) {

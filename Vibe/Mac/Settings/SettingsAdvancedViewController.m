@@ -56,9 +56,9 @@ static const CGFloat kAdvancedPopUpWidth = 200;
             [SettingsRowView rowWithTitle:STR_SETTINGS_REFRESH_RATE_LABEL control:_refreshRatePopUp],
         ]],
         [SettingsSectionView sectionWithRows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_SETTINGS_LABEL control:_resetButton],
             [SettingsRowView rowWithTitle:STR_SETTINGS_CACHE_LABEL
                                  controls:@[_cacheSizeValue, _clearCacheButton]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_FACTORY_RESET_LABEL control:_resetButton],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_BUILD_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_VERSION_LABEL
@@ -156,7 +156,10 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 // panes' own write paths use; the two relaunch-applied settings (audio FX,
 // output device) land at the next launch exactly as their captions say. Every
 // pane then reloads, which also settles the rows the reset hid (the custom
-// color wells) before the shared size is retaken.
+// color wells) before the shared size is retaken. The window's own two
+// settings are cleared by the same pass and no pane shows them, so the window
+// is put back to its shipping shape here — without it the live window would
+// disagree with the store until the next launch, and then snap.
 - (void)resetSettings:(id)sender {
     [AppSettings.sharedInstance resetToDefaults];
     MainPlayerController *player = self.playerController;
@@ -175,6 +178,7 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     [player refreshKeyDisplay];
     [player refreshFolderArt];
     [MainMenuBuilder applyConvertMenuVisibility];
+    [player resetWindowToDefaultShape];
     for (__kindof NSViewController *pane in self.parentViewController.childViewControllers) {
         if ([pane isKindOfClass:SettingsPaneViewController.class]) {
             [pane refreshFromSettings];

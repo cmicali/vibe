@@ -35,6 +35,12 @@ NS_ASSUME_NONNULL_BEGIN
 // beside.
 - (void)buildPitchPanel;
 
+// Factory reset's window half (Settings > Advanced): the shipping shape, both
+// panes closed. The window owns the frame, but the two siblings are this
+// controller's to place, so the reset cannot be driven from the window alone —
+// see the implementation.
+- (void)resetWindowToDefaultShape;
+
 // The playlist reveal: ⇥ and View > Show Playlist. It is a window height
 // change, hence a window action.
 - (IBAction)toggleSize:(nullable id)sender;

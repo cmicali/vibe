@@ -98,10 +98,11 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // Both app delegates call this; its body is macOS-only today.
 - (void)applicationDidFinishLaunching;
 
-// The Reset to Defaults button (Settings > Advanced). Covers every AppSettings
-// key and nothing else — granted-folder bookmarks, stats and window frames are
+// Settings > Advanced > Factory reset. Covers every AppSettings key
+// and nothing else — granted-folder bookmarks, stats and window frames are
 // other objects' stores. Resetting only clears the store; the caller owns the
-// live-apply, exactly as a pane writing one setting does.
+// live-apply, exactly as a pane writing one setting does, and window shape is
+// part of that apply (MainWindow.resetToDefaultShape).
 - (BOOL)allSettingsAtDefaults;
 - (void)resetToDefaults;
 

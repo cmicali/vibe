@@ -172,7 +172,7 @@ API_AVAILABLE(macos(26.0))
 
 @implementation MainPlayerContentView {
     VibePassthroughView *_albumArtGradientView; // decorative darkening over the art; internal-only (no controller outlet)
-    NSView *_backgroundGlassView;               // header glass (frost on macOS 15); its tint rides in headerTintView
+    NSView *_backgroundGlassView;               // header glass (frost before macOS 26); its tint rides in headerTintView
     NSVisualEffectView *_playlistFrostView;
     NSView *_playlistDimView;
     // Self-contained buttons, with their actions wired at build and their

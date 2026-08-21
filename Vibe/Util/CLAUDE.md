@@ -10,7 +10,7 @@ Code with **no feature**. That is the whole admission test, and it is stricter t
 - `UIUpdateTimer` — the occlusion-gated playback ticker: two gates and a rate, with no knowledge of the window or the player that set them, which is why both platforms' screens drive it. Tested.
 - `UIUpdateMath.h` — `VibeUIUpdateHzForPlayhead`, the seam that scales the tick rate to the playhead's on-screen speed. Tested.
 - `HelperMacros.h` — control-state and main-thread shorthands, `clampMin`. It reaches every translation unit through the `.pch`, so anything added there is paid for everywhere.
-- `VibeWeakProxy` — a Foundation-only forwarding proxy that breaks the retain cycle a `CADisplayLink` or `NSTimer` target creates. Shared because the class is platform-free; only the iOS `PlayerViewController`'s scroll display link aims one at anything today.
+- `VibeWeakProxy` — a Foundation-only forwarding proxy that breaks the retain cycle a `CADisplayLink` or `NSTimer` target creates. Shared because the class is platform-free, and used from shared code: `EqualizerIndicatorView` aims its level poller through one on both platforms, whichever of the two pollers it holds, as does the iOS `PlayerViewController`'s scroll display link.
 
 **`Categories/` (portable):** `NSURL+Hash` (the cache key — see the root `CLAUDE.md`), `NSURL+AudioOpen`, `NSBundle+BuildInfo`, `NSString+CPPStrings`.
 
@@ -35,9 +35,9 @@ The playable extension set is in `NSURLUtil.m`: `mp2 mp3 aac aif aiff wav wave b
 
 ## Traps
 
-**TRAP: ask `NSURL.isEmptyOrDirectory` before every `AVAudioFile` open.** `AVAudioFile` — and `ExtAudioFileOpenURL` and `AudioFileOpenURL` under it — leaks a file descriptor on every attempt against a path the kernel opens but a decoder finds nothing in: a zero-length file, or a directory. The open fails, the descriptor stays, and nothing reclaims it; 300 attempts cost 300 descriptors against a 256 soft limit. Merely unparseable *content* closes cleanly and needs no guard, so emptiness is the whole test.
+**TRAP: ask `NSURL.failsAudioOpenPreflight` before every `AVAudioFile` open.** `AVAudioFile` — and `ExtAudioFileOpenURL` and `AudioFileOpenURL` under it — leaks a file descriptor on every *failed* open. The open fails, the descriptor stays, and nothing reclaims it, and enough attempts exhaust the process's soft limit. Emptiness is **not** the whole test: the leak triggers on any file the kernel opens but the parser then refuses, a truncated download or a tag table promising more bytes than the file holds included, and a partial download is the common case in a real library. All three URL-based open APIs leak identically, so no URL-based preflight can help — `failsAudioOpenPreflight` is the only fd-safe probe, because it opens a descriptor this process owns and closes and hands that to `AudioFileOpenWithCallbacks`. `isEmptyOrDirectory` is the cheap stat-only half, for list filtering rather than for guarding an open.
 
-**TRAP: that test is `st_size`, never `st_blocks` or `NSURLFileAllocatedSizeKey`.** An evicted iCloud or Dropbox file is dataless — true logical size, zero allocated blocks — so an allocation-based test would reject every cloud-hosted track. `stat()` reads that metadata locally and never materializes the file.
+**TRAP: the emptiness test under both is `st_size`, never `st_blocks` or `NSURLFileAllocatedSizeKey`.** An evicted iCloud or Dropbox file is dataless — true logical size, zero allocated blocks — so an allocation-based test would reject every cloud-hosted track. `stat()` reads that metadata locally and never materializes the file.
 
 ## Categories
 

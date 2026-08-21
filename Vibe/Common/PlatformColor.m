@@ -20,6 +20,19 @@ VibeColor *VibeColorFromHexString(NSString *hex) {
     if (digits.length != 6 && !hasAlpha) {
         return nil;
     }
+    // scanHexLongLong: skips leading whitespace and accepts an 0x prefix, so
+    // the digit-count test above is not by itself a shape test: "0x123456"
+    // would scan clean and read as RRGGBBAA. Refuse anything but hex digits
+    // first.
+    static NSCharacterSet *nonHexDigits;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        nonHexDigits = [[NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdefABCDEF"]
+                invertedSet];
+    });
+    if ([digits rangeOfCharacterFromSet:nonHexDigits].location != NSNotFound) {
+        return nil;
+    }
     unsigned long long value = 0;
     NSScanner *scanner = [NSScanner scannerWithString:digits];
     if (![scanner scanHexLongLong:&value] || !scanner.isAtEnd) {

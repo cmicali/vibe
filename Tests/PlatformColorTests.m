@@ -47,6 +47,18 @@
     XCTAssertNil(VibeColorFromHexString(@"-1234567"));
 }
 
+// NSScanner's leniency, which the digit count alone does not catch: it skips
+// leading whitespace and accepts an 0x prefix, so an eight-character "0x123456"
+// once scanned clean and read as RRGGBBAA.
+- (void)testScannerLeniencyIsRefused {
+    XCTAssertNil(VibeColorFromHexString(@"0x123456"));
+    XCTAssertNil(VibeColorFromHexString(@"0X123456"));
+    XCTAssertNil(VibeColorFromHexString(@" 23456"));
+    XCTAssertNil(VibeColorFromHexString(@"#  7300"));
+    XCTAssertNil(VibeColorFromHexString(@"\tFF7300"));
+    XCTAssertNil(VibeColorFromHexString(@"+F7300"));
+}
+
 - (void)testHexFromNilColorIsNil {
     XCTAssertNil(VibeHexStringFromColor(nil));
 }
