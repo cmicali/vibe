@@ -13,6 +13,7 @@
 #import "WaveformZoomMath.h"
 #import "UIView+DarkMode.h"
 #import "AppSettings.h"
+#import "PlatformColor.h"
 
 // The XCUITest driver's pinch needs an ELEMENT to center on — XCUITest has no
 // coordinate-based multi-touch, only pinchWithScale:velocity: on an element.
@@ -79,6 +80,9 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     // The style _renderer was built from, so a settings change is a comparison
     // rather than a rebuild on every page that comes on screen.
     NSString                *_styleIdentifier;
+    // The theme inputs the current renderer's palette was resolved from;
+    // syncWaveformTheme rebuilds only on a difference.
+    NSString                *_themeSignature;
     CGFloat                 _progress;
     NSUInteger              _progressTracker;
     // The loading control, shared with the mac view: its own layers, its
@@ -308,6 +312,48 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     _renderer = [[rendererClass alloc] initWithLayer:_rendererHost
                                               bounds:[self virtualBounds]
                                               isDark:self.isDark];
+    [self applyResolvedTheme];
+}
+
+// The one resolution site on this view: settings + appearance into the
+// renderer's palette. No artwork color — the album_art theme is macOS-only
+// until an iOS dominant-color extraction exists, and WaveformTheme resolves
+// its identifier to White's answer here.
+- (void)applyResolvedTheme {
+    if (!_renderer) {
+        return;
+    }
+    AppSettings *settings = AppSettings.sharedInstance;
+    _renderer.theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
+                                                 isDark:self.isDark
+                                           artworkColor:nil
+                                           customPlayed:settings.waveformCustomPlayedColor
+                                         customUnplayed:settings.waveformCustomUnplayedColor];
+    [_renderer updateColors:self.isDark];
+    _themeSignature = [self.class themeSignature];
+}
+
+// What syncWaveformTheme compares to decide "the palette moved": the
+// identifier and both custom hexes, everything the resolution above reads
+// from settings.
++ (NSString *)themeSignature {
+    AppSettings *settings = AppSettings.sharedInstance;
+    return [NSString stringWithFormat:@"%@|%@|%@", settings.waveformTheme,
+            VibeHexStringFromColor(settings.waveformCustomPlayedColor) ?: @"",
+            VibeHexStringFromColor(settings.waveformCustomUnplayedColor) ?: @""];
+}
+
+- (void)syncWaveformTheme {
+    if (!_renderer || [[self.class themeSignature] isEqualToString:_themeSignature]) {
+        return;
+    }
+    // The appearance-change shape: recolor the live tree, drop the bake —
+    // it carries the old palette — and re-bake. No morph to wait out, so no
+    // delay, like syncWaveformStyle.
+    [self teardownBakedWaveform];
+    [self applyResolvedTheme];
+    [self applyScrollAndProgress];
+    [self scheduleEnvelopeBakeAfter:0];
 }
 
 - (void)syncWaveformStyle {
@@ -630,14 +676,24 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     VibeSignpostBegin(waveform_samples);
     NSData *samples = [renderer envelopeSamplesForWaveform:self.waveform.waveform];
     VibeSignpostEnd(waveform_samples);
+    // A two-hue theme costs a second full-size bake for the unplayed side —
+    // the opacity trick below only holds when the hues match. That doubles a
+    // colored theme's per-cell bitmap bytes past WaveformZoomMath's per-bake
+    // budget; a deliberate trade, still bounded by the GPU texture ceiling
+    // per image.
+    BOOL separateUnplayed = !renderer.theme.unplayedSharesPlayedHue;
     __weak WaveformScrubberView *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         VibeSignpostBegin(waveform_bake);
         CGImageRef image = [renderer newEnvelopeImageForSize:size scale:scale samples:samples];
+        CGImageRef unplayedImage = separateUnplayed
+                ? [renderer newUnplayedEnvelopeImageForSize:size scale:scale samples:samples] : NULL;
         VibeSignpostEnd(waveform_bake);
         dispatch_async(dispatch_get_main_queue(), ^{
-            [weakSelf installEnvelopeImage:image size:size generation:generation];
+            [weakSelf installEnvelopeImage:image unplayedImage:unplayedImage
+                                      size:size generation:generation];
             CGImageRelease(image);
+            CGImageRelease(unplayedImage);
             // Deliberately captured: if the view died during the bake, the
             // background block above must not do the renderer's final
             // release — its dealloc tears down layers, main-thread work.
@@ -646,7 +702,8 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     });
 }
 
-- (void)installEnvelopeImage:(CGImageRef)image size:(CGSize)size generation:(NSUInteger)generation {
+- (void)installEnvelopeImage:(CGImageRef)image unplayedImage:(nullable CGImageRef)unplayedImage
+                        size:(CGSize)size generation:(NSUInteger)generation {
     CGSize currentSize = [self virtualBounds].size;
     BOOL stretchForPinch = _isPinching && size.height == currentSize.height;
     if (!image || generation != _bakeGeneration ||
@@ -654,7 +711,10 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
         return;
     }
     VibeSignpostBegin(waveform_install);
-    CGFloat unplayedOpacity = [(DetailedAudioWaveformRenderer *)_renderer unplayedOverPlayedOpacity];
+    // One hue: the played bitmap dimmed. Two hues: the unplayed side's own
+    // bake, already at its resting alphas.
+    CGFloat unplayedOpacity = unplayedImage ? 1
+            : [(DetailedAudioWaveformRenderer *)_renderer unplayedOverPlayedOpacity];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     // TRAP: this cannot assume there is no bake standing. Every bake used to be
@@ -672,7 +732,7 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     _bakedUnplayed = [CALayer layer];
     _bakedUnplayed.anchorPoint = CGPointZero;
     _bakedUnplayed.frame = (CGRect){CGPointZero, installedSize};
-    _bakedUnplayed.contents = (__bridge id)image;
+    _bakedUnplayed.contents = (__bridge id)(unplayedImage ?: image);
     _bakedUnplayed.opacity = (float)unplayedOpacity;
     [_bakedHost addSublayer:_bakedUnplayed];
     _bakedPlayed = [CALayer layer];
@@ -1107,7 +1167,9 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
         [self applyVirtualGeometry];
     }
     if (styleChanged) {
-        [_renderer updateColors:self.isDark];
+        // Re-resolve rather than merely recolor: the theme is per-appearance
+        // — White's base and every fallback flip with isDark.
+        [self applyResolvedTheme];
         [_loadingIndicator updateColorsForDark:self.isDark];
     }
     if (scaleChanged || styleChanged) {

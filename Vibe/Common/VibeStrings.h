@@ -323,6 +323,7 @@ static inline NSString *VibeAppName(void) {
 
 #define STR_SETTINGS_TITLE            NSLS(@"settings.title",            @"Settings",       @"iOS: title of the settings screen, and the label of the gear button on the playlist screen that opens it. Use the name Apple gives the Settings app in this language.")
 #define STR_SETTINGS_SECTION_WAVEFORM NSLS(@"settings.section.waveform", @"Waveform style", @"iOS settings screen: heading above the list of waveform drawing styles.")
+#define STR_SETTINGS_SECTION_WAVEFORM_THEME NSLS(@"settings.section.waveform_theme", @"Waveform theme", @"iOS settings screen: heading above the list of waveform color themes.")
 #define STR_SETTINGS_SECTION_TIME     NSLS(@"settings.section.time",     @"Time display",   @"iOS settings screen: heading above the choice between showing the track's total duration and the time remaining.")
 
 #define STR_SETTINGS_SECTION_SEARCH_FOLDERS NSLS(@"settings.section.search_folders", @"Folders to search", @"iOS settings screen: heading above the list of folders the user has given the app permission to search.")

@@ -123,6 +123,7 @@
             [self configurePage:cell atIndex:(NSUInteger)path.item];
         }
         [cell.waveformView syncWaveformStyle];
+        [cell.waveformView syncWaveformTheme];
     }
     [self repaintTimesOnVisiblePages];
 }

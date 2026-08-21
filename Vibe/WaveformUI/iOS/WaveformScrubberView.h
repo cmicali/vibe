@@ -108,6 +108,12 @@ NS_ASSUME_NONNULL_BEGIN
 // of the reuse pool still carries whatever renderer it was last built with.
 - (void)syncWaveformStyle;
 
+// The theme counterpart: re-resolves the persisted waveform theme and custom
+// colors when they no longer match the palette on screen — recoloring the
+// live tree and replacing the settled bitmap, which baked the old palette —
+// and does nothing when they already match. Fanned out like the style.
+- (void)syncWaveformTheme;
+
 // Same contract as the mac view: reset ahead of a load (installing the
 // persisted style on first use), then hand snapshots to showWaveform:.
 - (void)prepareForWaveformLoad;
