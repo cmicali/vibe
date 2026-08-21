@@ -121,12 +121,19 @@ static CGFloat Alpha(VibeColor *color) {
     XCTAssertEqualWithAccuracy(0.299 * r + 0.587 * g + 0.114 * b, 0.45, 0.005);
     XCTAssertGreaterThan(r, b);                           // still reads yellow
 
-    // Already legible: the hue untouched, only the level applied.
+    // Already legible: no level correction, only the mute — the hue pulled
+    // halfway to its own luminance gray, which leaves that luminance alone.
     NSColor *midGreen = [NSColor colorWithRed:0.2 green:0.8 blue:0.3 alpha:1];
     WaveformTheme *asIs = [WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART
                                                      isDark:YES artworkColor:midGreen
                                                customPlayed:nil customUnplayed:nil];
-    XCTAssertTrue(SameRGB(asIs.unplayedColor, midGreen));
+    CGFloat gray = 0.299 * 0.2 + 0.587 * 0.8 + 0.114 * 0.3;
+    GetRGB(asIs.unplayedColor, &r, &g, &b);
+    XCTAssertEqualWithAccuracy(r, (0.2 + gray) / 2, 0.001);
+    XCTAssertEqualWithAccuracy(g, (0.8 + gray) / 2, 0.001);
+    XCTAssertEqualWithAccuracy(b, (0.3 + gray) / 2, 0.001);
+    XCTAssertEqualWithAccuracy(0.299 * r + 0.587 * g + 0.114 * b, gray, 0.001);
+    XCTAssertGreaterThan(g, r);                           // still reads green
 }
 
 // The custom pair passes through as stored, alpha included — a well's alpha

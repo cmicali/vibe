@@ -36,6 +36,11 @@ static const CGFloat kArtworkSaturationFloor = 0.15;
 static const CGFloat kArtworkDarkMinLuminance = 0.55;
 static const CGFloat kArtworkLightMaxLuminance = 0.45;
 
+// How far the album-art hue is pulled toward its own luminance gray before it
+// colors the unplayed side. Blending toward that gray leaves luminance
+// untouched, so the legibility clamp above still holds after it.
+static const CGFloat kArtworkUnplayedDesaturation = 0.5;
+
 static BOOL VibeGetRGB(VibeColor *color, CGFloat *r, CGFloat *g, CGFloat *b) {
     CGFloat a = 0;
 #if TARGET_OS_OSX
@@ -99,8 +104,9 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
         if (clamped) {
             // Orange's pairing reversed: the base carries the played side at
             // full strength and the art's hue colors what is still to come.
+            VibeColor *muted = [self color:clamped desaturatedBy:kArtworkUnplayedDesaturation];
             return [[self alloc] initWithPlayed:base
-                                       unplayed:[clamped colorWithAlphaComponent:kColoredUnplayedAlpha]
+                                       unplayed:[muted colorWithAlphaComponent:kColoredUnplayedAlpha]
                                          isDark:isDark];
         }
         // No art, or art too gray to yield a hue: mono's answer.
@@ -146,6 +152,20 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
         b += (pole - b) * t;
     }
     return [VibeColor colorWithRed:r green:g blue:b alpha:1];
+}
+
+// The color blended toward its own perceptual gray by amount, which holds its
+// luminance fixed.
++ (VibeColor *)color:(VibeColor *)color desaturatedBy:(CGFloat)amount {
+    CGFloat r, g, b;
+    if (!VibeGetRGB(color, &r, &g, &b)) {
+        return color;
+    }
+    CGFloat gray = VibeLuminance(r, g, b);
+    return [VibeColor colorWithRed:r + (gray - r) * amount
+                             green:g + (gray - g) * amount
+                              blue:b + (gray - b) * amount
+                             alpha:1];
 }
 
 + (VibeColor *)hoverColorForPlayed:(VibeColor *)played isDark:(BOOL)isDark {
