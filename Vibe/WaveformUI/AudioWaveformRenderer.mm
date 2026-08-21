@@ -14,6 +14,7 @@
     if (self) {
         self.parentLayer = parentLayer;
         self.isDark = isDark;
+        self.theme = [WaveformTheme monochromeThemeIsDark:isDark];
         // A sentinel, forcing the first updateProgress: to paint every layer's
         // played or unplayed color rather than only the boundary delta.
         self.lastProgressBoundary = -1;
@@ -54,13 +55,12 @@
     self.lastProgressBoundary = -1;
 }
 
-- (NSRect)seekHitBandForBounds:(NSRect)bounds {
-    CGFloat bottomY = bounds.size.height/2 - (bounds.size.height/2 * .5);
-    CGFloat topY = bounds.size.height/2 + (bounds.size.height/2 * .5);
-    return NSMakeRect(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
+- (CGRect)seekHitBandForBounds:(CGRect)bounds {
+    NSAssert(NO, @"%@ must override seekHitBandForBounds:", NSStringFromClass(self.class));
+    return bounds;
 }
 
-- (void)updateWaveform:(NSRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
+- (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
 
 }
 
@@ -69,6 +69,10 @@
 }
 
 - (void)dipBarsFromFraction:(double)from toFraction:(double)to {
+
+}
+
+- (void)settleMorphImmediately {
 
 }
 

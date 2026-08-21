@@ -112,26 +112,26 @@ check into the selector), `vibe_pid`, `vibe_impostor_pids`, `vibe_other_pids`, `
   today's wipe-everything behaviour (it currently destroys every agent's build).
 - `xcodegen generate` mutex — `mkdir`-based lock (macOS has no `flock(1)`) around the generate
   step in `scripts/build.sh:31` and `scripts/asc-build-lib.sh:34`; it writes both
-  `Vibe.xcodeproj` and the generated `Vibe/App/Info.plist`, so a torn read is possible on a
+  `Vibe.xcodeproj` and the generated `Vibe/Mac/App/Info.plist`, so a torn read is possible on a
   shared checkout. 60s timeout, clear message.
 - `scripts/generate-git-info.sh:49-52` — write to `"$OUTPUT.$$"` then `mv` (atomic rename). The
   header is shared across slots; benign until the dirty flag flips mid-compile.
 
 ### 3. Channel isolation (source)
 
-- `Vibe/Debug/DebugShared.h:19` / `DebugShared.m:10` — replace the
+- `Vibe/Debug/DebugWireFormat.h:19` / `DebugWireFormat.m:10` — replace the
   `kVibeDebugCommandNotification` constant with `VibeDebugCommandNotificationName()` and
   `VibeDebugScreenshotNotificationName()`, each `dispatch_once`-cached, formatting
   `%@.debug.%@` against `NSBundle.mainBundle.bundleIdentifier` (fallback: the stock id).
   App and CLI client are the same binary in the same bundle, so both derive the same name.
-- `Vibe/Debug/DebugClient.m:223` and `Vibe/Debug/DebugUtil.m:1481-1482` — use the function.
-- `Vibe/Debug/DebugUtil.m:165` — the inline `"com.vibe.debug.screenshot"` literal likewise.
-- `Vibe/Debug/DebugUtil.m` `VibeStateDictionary` — add an `app` dict (`bundleId`, `bundlePath`,
+- `Vibe/Debug/Mac/DebugClient.m:223` and `Vibe/Debug/Mac/DebugUtil.m:1481-1482` — use the function.
+- `Vibe/Debug/Mac/DebugUtil.m:165` — the inline `"com.vibe.debug.screenshot"` literal likewise.
+- `Vibe/Debug/Mac/DebugUtil.m` `VibeStateDictionary` — add an `app` dict (`bundleId`, `bundlePath`,
   `executable`, `pid`, channel name) so an agent can *prove* which instance answered, and so the
   screenshot notification name stays discoverable.
-- `Vibe/App/AppDelegate.m:132-135` (`logBuildInfo`) — log the bundle id, making every log
+- `Vibe/Mac/App/AppDelegate.m:132-135` (`logBuildInfo`) — log the bundle id, making every log
   excerpt self-identifying.
-- Doc strings naming the old constants: `Vibe/Debug/DebugUtil.h:21,26,61`.
+- Doc strings naming the old constants: `Vibe/Debug/Mac/DebugUtil.h:21,26,61`.
 
 ### 4. Tooling (pattern: replace the `DIR`/`ROOT`/`APP`/`V` preamble with the resolver)
 

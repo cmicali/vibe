@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 #
-# Build a distributable, notarized Vibe.app: generate -> archive (Release) ->
-# export signed with Developer ID -> notarize -> staple -> zip.
+# Build a distributable, notarized Vibe.dmg: generate -> archive (Release) ->
+# export signed with Developer ID -> notarize -> staple -> disk image ->
+# notarize -> staple.
 #
 # This is NOT scripts/release-appstore.sh. The two release paths are different
 # products:
 #
-#   release.sh           Developer ID + notarize + staple  -> a .zip you host
+#   release.sh           Developer ID + notarize + staple  -> a .dmg you host
 #                        yourself. Anyone can download and run it.
 #   release-appstore.sh  Apple Distribution + App Store profile -> a .pkg
 #                        uploaded to App Store Connect. An App Store-signed app
@@ -58,7 +59,10 @@ BUILD_DIR="build/release"
 ARCHIVE="$BUILD_DIR/$PRODUCT.xcarchive"
 EXPORT_DIR="$BUILD_DIR/export"
 APP="$EXPORT_DIR/$PRODUCT.app"
-ZIP="$BUILD_DIR/$PRODUCT.zip"
+ZIP="$BUILD_DIR/$PRODUCT.zip"          # notarization input, and the stapled app's carrier
+DMG="$BUILD_DIR/$PRODUCT.dmg"          # what a human downloads
+DMG_STAGE="$BUILD_DIR/dmg"
+VOLNAME="$PRODUCT"
 
 # ---------------------------------------------------------------------------
 # Preflight — fail early with actionable messages.
@@ -140,6 +144,58 @@ spctl -a -vvv --type exec "$APP"
 rm -f "$ZIP"
 ditto -c -k --keepParent "$APP" "$ZIP"
 
+# ---------------------------------------------------------------------------
+# The disk image a human downloads.
+#
+# The zip above exists because notarytool needs an archive to submit; it is not
+# what anyone should download. A zip expands wherever the browser drops it,
+# which for Safari is ~/Downloads, and a quarantined app launched from there
+# runs TRANSLOCATED — a read-only random mount point that vanishes on quit.
+# That is not cosmetic for this app: Settings > Set Vibe as Default Music
+# Player registers with Launch Services from the path it is running at, so a
+# click from a translocated copy registers a path that ceases to exist
+# (DefaultAppRegistration already has to reason about several copies). A drag
+# out of a disk image onto the /Applications alias below is what clears
+# translocation, and the alias is what makes that the obvious gesture.
+#
+# Deliberately a plain window — no background image, no icon placement. Setting
+# those means driving Finder over AppleScript to write a .DS_Store, which needs
+# Automation permission and is the flakiest step in every DMG script; two icons
+# side by side carry the whole point.
+#
+# The app inside is already stapled, so it verifies offline once dragged out.
+# The image is then signed, notarized and stapled in its own right, which is
+# what lets Gatekeeper clear the download before it is ever mounted.
+# ---------------------------------------------------------------------------
+echo "🔊 disk image"
+rm -rf "$DMG_STAGE" "$DMG"
+mkdir -p "$DMG_STAGE"
+# ditto, as everywhere else a signed bundle is copied here: it reproduces the
+# bundle exactly, symlinks, permissions and metadata included, and a signature
+# is only as good as the copy under it. The staple rides along as a file in the
+# bundle (Contents/CodeResources), so the app dragged out of the image verifies
+# with no network.
+ditto "$APP" "$DMG_STAGE/$PRODUCT.app"
+ln -s /Applications "$DMG_STAGE/Applications"
+hdiutil create -quiet -volname "$VOLNAME" -srcfolder "$DMG_STAGE" \
+    -fs HFS+ -format UDZO -ov "$DMG"
+rm -rf "$DMG_STAGE"
+
+echo "🔊 sign the image"
+codesign --force --timestamp --sign "$DEVELOPER_ID" "$DMG"
+
+echo "🔊 notarize the image (waits for Apple's verdict)"
+xcrun notarytool submit "$DMG" \
+    --key "$ASC_KEY_PATH" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --wait
+
+echo "🔊 staple + validate the image"
+xcrun stapler staple "$DMG"
+xcrun stapler validate "$DMG"
+# What Gatekeeper says about the file a recipient double-clicks. The app inside
+# was checked with --type exec above; a disk image is judged as something to
+# open, against its own signature.
+spctl -a -vvv -t open --context context:primary-signature "$DMG"
+
 echo "🔊 done"
 echo "    app: $APP"
-echo "    zip: $ZIP  (notarized + stapled)"
+echo "    dmg: $DMG  (notarized + stapled, drag-to-Applications)"

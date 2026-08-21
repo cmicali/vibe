@@ -1,0 +1,38 @@
+//
+//  MainPlayerController+Menus.h
+//  Vibe
+//
+//  The menu-bar state for the View and Controls menus, and the delegate-built
+//  waveform-style submenu. AppKit reaches everything here without extra
+//  wiring: item validation arrives through the items' target, the controller,
+//  and menuNeedsUpdate: through the NSMenuDelegate wiring MainMenuBuilder
+//  installs.
+//
+
+#import "MainPlayerController.h"
+
+NS_ASSUME_NONNULL_BEGIN
+
+@interface MainPlayerController (Menus) <NSMenuItemValidation>
+
+// The action of the items menuNeedsUpdate: builds for the waveform-style
+// submenu.
+- (IBAction)setWaveformStyle:(id)sender;
+
+// The waveform-style registry, re-exposed for the Settings pane's popup:
+// stable identifiers in, localized names for display only. applyWaveformStyle:
+// is the one write path the menu action funnels through too.
+- (NSArray<NSString *> *)availableWaveformStyleIdentifiers;
+- (NSString *)displayNameForWaveformStyle:(NSString *)identifier;
+- (void)applyWaveformStyle:(NSString *)identifier;
+
+// The waveform theme's live-apply pair, applyWaveformStyle:'s shape:
+// applyWaveformTheme: persists the identifier and repaints;
+// refreshWaveformTheme re-resolves without rewriting — a custom color was
+// edited, or an artwork color landed.
+- (void)applyWaveformTheme:(NSString *)identifier;
+- (void)refreshWaveformTheme;
+
+@end
+
+NS_ASSUME_NONNULL_END

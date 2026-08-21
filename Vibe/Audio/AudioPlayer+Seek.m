@@ -12,6 +12,11 @@
 @implementation AudioPlayer (Seek)
 
 - (void)seekToPosition:(NSTimeInterval)pos {
+    [self seekToPosition:pos restoringPreemptedPause:NO];
+}
+
+- (void)seekToPosition:(NSTimeInterval)pos
+        restoringPreemptedPause:(BOOL)restoringPreemptedPause {
     // The caller computed pos against the track that is current NOW — a
     // scrubber fraction of its duration, a bar skip from its tempo. A gapless
     // boundary can promote the next track before the block below runs, and
@@ -21,17 +26,20 @@
     AudioTrack *intendedTrack = self.currentTrack;
     uint64_t intendedSubmittedPlayIdentifier = 0;
     os_unfair_lock_lock(&_stateLock);
-    if (_state == VibePlayerStateLoading) {
-        intendedTrack = self.loadingTrack;
-        intendedSubmittedPlayIdentifier = self.loadingSubmittedPlayIdentifier;
-    }
-    else if (self.lastSubmittedPlayTrack) {
+    if (self.lastSubmittedPlayTrack) {
         // A play is queued but has not reached the player queue yet, so
-        // currentTrack still names the outgoing track. Aim at the play the
-        // user just started — the row they are looking at — rather than at the
-        // one it is replacing.
+        // currentTrack still names the outgoing track. The handoff is cleared
+        // the moment its play reaches Loading, so when it is set it is
+        // strictly newer than any Loading mirror — it wins even while an
+        // older play's open is still in flight. Aim at the play the user just
+        // started — the row they are looking at — rather than at the one it
+        // is replacing.
         intendedTrack = self.lastSubmittedPlayTrack;
         intendedSubmittedPlayIdentifier = self.lastSubmittedPlayIdentifier;
+    }
+    else if (_state == VibePlayerStateLoading) {
+        intendedTrack = self.loadingTrack;
+        intendedSubmittedPlayIdentifier = self.loadingSubmittedPlayIdentifier;
     }
     os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{
@@ -61,6 +69,8 @@
             });
             return;
         }
+        uint64_t owningSubmittedPlayIdentifier =
+                self->_activeSubmittedPlayIdentifier;
         double sampleRate = file.processingFormat.sampleRate;
         BOOL wasPlaying = (self->_state == VibePlayerStatePlaying);
         AVAudioFramePosition startFrame = VibeClampedStartFrame(pos, sampleRate, file.length);
@@ -92,13 +102,49 @@
         // deferred into the fade-out completion, because the node must stay
         // audible through the ramp, and the position state is rewritten there
         // so that the getter follows the node.
+        //
+        // A user seek deliberately cancels a pending pause; the internal
+        // splice-unschedule seek must not — the user pressed pause during a
+        // playlist retarget they never see, so the preempt below would
+        // silently drop their pause and fade back up. Capture the intent
+        // before the preempt clears it; finishSeekOnQueue lands parked.
+        BOOL reissuePause = restoringPreemptedPause && self->_pausePending;
         uint64_t rampGen = [self preemptRampsOnQueue];
         __weak AudioPlayer *weakSelf = self;
         [self rampNodeAsync:node step:1 from:node.volume to:0 generation:rampGen completion:^{
-            [weakSelf finishSeekOnQueue:node file:file startFrame:startFrame
-                          framePosition:framePosition rampGeneration:rampGen track:track];
+            [weakSelf finishSeekOnQueue:node
+                                   file:file
+                             startFrame:startFrame
+                          framePosition:framePosition
+                         rampGeneration:rampGen
+                                  track:track
+                submittedPlayIdentifier:owningSubmittedPlayIdentifier
+                           reissuePause:reissuePause];
         }];
     });
+}
+
+// A restart failure outranks whichever ramp preempted this seek. Cancel that
+// ramp, keep the newly scheduled frame parked, and expose Paused rather than a
+// Playing state backed by a stopped node. A newer seek's cancelled completion
+// still runs and can park its newer frame before it settles.
+- (void)parkSeekAfterStartFailureForNode:(AVAudioPlayerNode *)node
+                                    file:(AVAudioFile *)file
+                              startFrame:(AVAudioFramePosition)startFrame
+                           framePosition:(NSTimeInterval)framePosition
+                                   error:(NSError *)error
+                 submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
+    if (_node != node || _file != file || _state != VibePlayerStatePlaying) {
+        [self refreshOutputAudioActiveOnQueue];
+        return;
+    }
+    [self preemptRampsOnQueue];
+    [self publishPlaybackState:VibePlayerStatePaused node:node file:file
+                  segmentStart:startFrame position:framePosition];
+    [self scheduleEngineIdleStopOnQueue];
+    [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
+            @"Could not resume playback after seek", error)
+           forSubmittedPlay:submittedPlayIdentifier];
 }
 
 // The playing seek's fade-out completion; the parameters are what
@@ -111,7 +157,9 @@
                startFrame:(AVAudioFramePosition)startFrame
             framePosition:(NSTimeInterval)framePosition
            rampGeneration:(uint64_t)rampGen
-                    track:(AudioTrack *)track {
+                    track:(AudioTrack *)track
+  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier
+             reissuePause:(BOOL)reissuePause {
     if (_node != node || _file != file) {
         // A new play, track change, stop or device switch replaced the
         // node while this faded. That operation owns playback and this
@@ -155,9 +203,33 @@
             // volume stays wherever the preemptor's ramp has it: that
             // ramp keeps stepping, and a completing pause finds the node
             // where completePauseOfNode: expects it.
-            [self startEngineAndPlayNode:node error:NULL];
+            NSError *startError = nil;
+            if (![self startEngineAndPlayNode:node error:&startError]) {
+                [self parkSeekAfterStartFailureForNode:node
+                                                  file:file
+                                            startFrame:startFrame
+                                         framePosition:framePosition
+                                                 error:startError
+                               submittedPlayIdentifier:submittedPlayIdentifier];
+            }
         }
         run_on_main_thread({
+            [self.delegate audioPlayer:self didFinishSeeking:track];
+        });
+        return;
+    }
+    if (reissuePause) {
+        // The pause this internal seek preempted still owns the outcome: land
+        // the reschedule parked, as the completed pause fade would have. The
+        // stopped node holds the new segment, so resume plays it from here —
+        // the paused-seek shape, plus the pause's own delegate settlement.
+        node.volume = 0; // resume ramps up from silence, as after a real pause
+        [self publishPlaybackState:VibePlayerStatePaused node:node file:file
+                      segmentStart:startFrame position:framePosition];
+        [self scheduleEngineIdleStopOnQueue];
+        AudioTrack *pausedTrack = self.currentTrack;
+        run_on_main_thread({
+            [self.delegate audioPlayer:self didPausePlaying:pausedTrack];
             [self.delegate audioPlayer:self didFinishSeeking:track];
         });
         return;
@@ -171,9 +243,12 @@
         // orphans it: resume plays to the end, no didFinishPlaying:, the
         // position pinned at the duration with the state stuck Playing.)
         // Keep the seeked frame, and report paused so the UI recovers.
-        [self publishPlaybackState:VibePlayerStatePaused node:node file:file segmentStart:startFrame position:framePosition];
-        [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-                @"Could not resume playback after seek", startError)];
+        [self parkSeekAfterStartFailureForNode:node
+                                          file:file
+                                    startFrame:startFrame
+                                 framePosition:framePosition
+                                         error:startError
+                       submittedPlayIdentifier:submittedPlayIdentifier];
         run_on_main_thread({
             [self.delegate audioPlayer:self didFinishSeeking:track];
         });

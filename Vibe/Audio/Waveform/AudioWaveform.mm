@@ -56,10 +56,8 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
     if (numChunksToCombine == 1) {
         return chunks[startIndex];
     }
-    // Clamp so we never read past the buffer.
-    if (startIndex + numChunksToCombine > numChunks) {
-        numChunksToCombine = numChunks - startIndex;
-    }
+    // In bounds by construction: endIndex = numChunks*(index+1)/size and
+    // index < size, so startIndex + numChunksToCombine = endIndex <= numChunks.
     if (numChunksToCombine < 16) {
         // vDSP setup overhead dominates for tiny strided ranges, so use a
         // plain loop.
@@ -130,10 +128,18 @@ const int kCodableAudioWaveformVersion = 4;
         // decode non-finite floats, which poison the renderers' geometry on
         // every play until the entry ages out. Reject it like any other
         // malformed payload.
-        const float *values = (const float *)data;
+        // TRAP: decodeBytesForKey: returns a pointer into the unarchiver's own
+        // buffer at whatever offset the payload sits — no alignment guarantee,
+        // so reading it through a typed float pointer is UB (UBSan: "load of
+        // misaligned address"). memcpy into an aligned local instead; it
+        // compiles to the same scalar load, without licensing the vectorizer
+        // to emit alignment-faulting paired loads over this loop.
+        const char *bytes = (const char *)data;
         NSUInteger numValues = length / sizeof(float);
         for (NSUInteger i = 0; i < numValues; i++) {
-            if (!std::isfinite(values[i])) {
+            float value;
+            memcpy(&value, bytes + i * sizeof(float), sizeof(value));
+            if (!std::isfinite(value)) {
                 return nil;
             }
         }

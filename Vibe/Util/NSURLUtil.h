@@ -50,10 +50,15 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 + (void)setBulkOpenDirectoriesHandler:(nullable VibeBulkOpenDirectoriesHandler)handler;
 
 // YES for a cloud placeholder whose data is not local — iCloud, Dropbox, any
-// File Provider. APFS marks these SF_DATALESS, and reading one blocks until
-// the provider materializes it. stat() itself never triggers the download, so
-// this check is always fast. It returns NO when the stat fails, since unknown
-// is not the same as dataless.
+// File Provider. Reading one blocks until the provider materializes it, which
+// is why every background reader asks first, and why the scan routes on it.
+//
+// One stat: SF_DATALESS, the kernel's mark on a materialize-on-read
+// placeholder, measured present for the providers that matter. It materializes
+// nothing, so the check is always fast — about 2us, which it needs to be,
+// since the scan asks once per track. The implementation records what a second
+// signal cost when it was tried. It returns NO when the stat fails, since
+// unknown is not the same as dataless.
 + (BOOL)isDatalessFile:(NSURL *)url;
 
 // Expands folders and top-level playlist files (the files a .cue/.m3u/.m3u8
@@ -67,6 +72,16 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // caller. Completion runs on main.
 + (void)expandAndFilterList:(NSArray<NSURL *> *)list
                  completion:(void (^)(NSArray<NSURL *> *files, NSUInteger folderCount))completion;
+
+// Every playable extension, lowercase. Must cover every spelling the
+// CFBundleDocumentTypes claim admits; see the implementation's comment.
++ (NSSet<NSString *> *)supportedExtensions;
+
+// The directory-as-playlist listing rule, in its single home: the folder's
+// non-empty audio files, non-recursive, hidden files and directories skipped,
+// sorted by filename with Finder's comparator. Synchronous — callers own the
+// threading.
++ (NSArray<NSURL *> *)audioFilesInDirectory:(NSURL *)dir;
 @end
 
 NS_ASSUME_NONNULL_END

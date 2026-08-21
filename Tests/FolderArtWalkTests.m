@@ -8,7 +8,7 @@
 #import <XCTest/XCTest.h>
 
 #import "AppSettings.h"
-#import "FolderArtResolver.h"
+#import "FolderArtResolverInternal.h"
 #import "NSURLUtilInternal.h"
 
 @interface FolderArtWalkTests : XCTestCase
@@ -169,11 +169,11 @@
 // recorded whether or not the fallback is switched on: switching it on later
 // then gets this answer rather than the lone file's guesswork.
 - (void)testTheHarvestIsRecordedEvenWithTheSettingOff {
-    BOOL previous = Settings.useFolderArt;
+    BOOL previous = AppSettings.sharedInstance.useFolderArt;
     [self addTeardownBlock:^{
-        Settings.useFolderArt = previous;
+        AppSettings.sharedInstance.useFolderArt = previous;
     }];
-    Settings.useFolderArt = NO;
+    AppSettings.sharedInstance.useFolderArt = NO;
 
     NSString *directory = [self makeDirectory:@"OffAlbum"];
     [self makeFile:@"OffAlbum/track.mp3"];

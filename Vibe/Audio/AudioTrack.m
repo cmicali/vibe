@@ -3,13 +3,15 @@
 // Copyright (c) 2019 Christopher Micali. All rights reserved.
 //
 
-#import "AudioTrack.h"
+#import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
 #import "NSURL+Hash.h"
 #import "VibeStrings.h"
 
 @interface AudioTrack ()
+@property(copy, readwrite) NSURL *url;
+@property(atomic, strong, nullable, readwrite) AudioTrackMetadata *metadata;
 // cacheKey's memo. It is atomic so that the lock-free fast-path read below is
 // race-free against the first store. A plain ivar read racing the
 // @synchronized writer is formally a torn read, even though an aligned pointer
@@ -23,7 +25,7 @@
     NSTimeInterval _durationStringDuration;
 }
 
-- (instancetype)initWithUrl:(NSURL *)url {
+- (instancetype)initWithURL:(NSURL *)url {
     self = [super init];
     if (self) {
         self.url = url;
@@ -34,7 +36,29 @@
 }
 
 + (AudioTrack *)withURL:(NSURL *)url {
-    return [[AudioTrack alloc] initWithUrl:url];
+    return [[AudioTrack alloc] initWithURL:url];
+}
+
+- (BOOL)installMetadataIfUnresolved:(AudioTrackMetadata *)metadata {
+    @synchronized (self) {
+        if (self.metadata.parsedOK) {
+            return NO;
+        }
+        self.metadata = metadata;
+        return YES;
+    }
+}
+
+- (BOOL)deliverIfMetadataStillInstalled:(AudioTrackMetadata *)metadata
+                              usingBlock:(NS_NOESCAPE dispatch_block_t)delivery {
+    NSParameterAssert(delivery);
+    @synchronized (self) {
+        if (self.metadata != metadata) {
+            return NO;
+        }
+        delivery();
+        return YES;
+    }
 }
 
 - (nullable NSString *)cacheKey {
@@ -89,14 +113,14 @@
     }
 }
 
-- (NSImage *)cachedArt {
+- (VibeImage *)cachedArt {
     // Non-blocking on purpose, because the main thread reads it in updateUI
     // and for the dock icon. Extraction that needs a file read happens in the
     // background load MainPlayerController starts when artNeedsLoad.
     return self.metadata.cachedArt;
 }
 
-- (NSImage *)cachedThumbnail {
+- (VibeImage *)cachedThumbnail {
     return self.metadata.cachedThumbnail;
 }
 
@@ -154,6 +178,14 @@
 
 - (BOOL)hasArtistAndTitle {
     return self.artist.length > 0 && self.metadata.title.length > 0;
+}
+
+- (NSString *)displayTitle {
+    return self.hasArtistAndTitle ? self.title : self.singleLineTitle;
+}
+
+- (NSString *)displayArtist {
+    return self.hasArtistAndTitle ? self.artist : nil;
 }
 
 - (NSString *)singleLineTitle {

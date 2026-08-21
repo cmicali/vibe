@@ -87,7 +87,7 @@ mkdir -p "$OUT"
 #   PLAYER_GLYPHS="dial.min,dial.max.fill,water.waves,repeat,repeat.circle"
 #
 # Any names used here must stay identical to the ones the FX menu passes to
-# NSImage(systemSymbolName:) in Vibe/Menu/MainMenuBuilder.m, so the shot shows
+# NSImage(systemSymbolName:) in Vibe/Mac/Menu/MainMenuBuilder.m, so the shot shows
 # the app's own artwork rather than a lookalike. The compositor renders them
 # through that same API.
 PLAYER_GLYPHS=""

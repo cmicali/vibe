@@ -6,25 +6,51 @@
 #import <stdatomic.h>
 
 #import "AudioTrackMetadataCacheInternal.h"
-#import "AudioTrackMetadataLoader.h"
+#import "AudioTrackMetadataLoaderInternal.h"
+#import "AudioFileMaterializationCoordinator.h"
+#import "AudioLoadingConfiguration.h"
 #import "PINCache.h"
 #import "PINCache+VibeAudioCache.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "MetadataParseCoordinator.h"
+#if DEBUG
+#import "AudioTrackMetadataCache+Debug.h"
+#endif
+
+@interface AudioTrackMetadataCache ()
+@property (nonatomic, readonly) AudioLoadingConfiguration *loadingConfiguration;
+- (instancetype)initWithLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration;
+- (void)applyLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration;
++ (NSString *)cacheName;
+- (void)setNeighborhoodURLs:(nullable NSArray<NSURL *> *)urls;
+@end
+
+#if DEBUG
+@interface AudioTrackMetadataLoader (CacheDebug)
+- (NSUInteger)debugPendingBackgroundMaterializationCount;
+- (NSDictionary *)debugPriorityLaneState;
+@end
+#endif
 
 @implementation AudioTrackMetadataCache {
     AudioTrackMetadataLoader*   _currentLoader;
-    // The current-track lane, loadMetadataNow:. It lives for the cache's
-    // lifetime and is never cancelled. Unlike the scan loaders, its work is
-    // per-track and a stale publish is harmless, because the delegate's
-    // reloadTrack: and currentTrack checks drop deliveries for departed tracks.
-    AudioTrackMetadataLoader*   _priorityLoader;
     // Exists only to construct the cache off the main thread at utility QoS;
     // see init.
     dispatch_queue_t            _cacheQueue;
     // Bumped by invalidateWithCompletion:; see the class-extension comment.
     atomic_uint_fast64_t        _cacheGeneration;
+    // The scan ranking and current-track priority, kept here rather than only
+    // on the loader because loadMetadata: mints a new one: neither the
+    // neighborhood the screen last named nor the priority of the track the
+    // user is waiting on may be lost by the sweep that open is racing. The
+    // foreground/background rule needs no state here at all — the
+    // materialization coordinator derives it from its own claim table.
+    NSArray<NSURL *>            *_neighborhood;
+    // Weak on purpose: re-prioritizing is best-effort continuity across a
+    // loader replacement, never a reason to pin a departed playlist's track.
+    __weak AudioTrack           *_lastPrioritizedTrack;
+    AudioLoadingConfiguration   *_loadingConfiguration;
 }
 
 - (uint64_t)cacheGeneration {
@@ -38,12 +64,24 @@
     // changes, which can take up to the age limit.
     // v5: the tagged musical key joined the archive; older entries would
     // otherwise show no key until their cache key changed.
-    return @"Audio Track Metadata v5";
+    // v6: display-art sidecar entries ("#displayArt"-suffixed keys) joined the
+    // store; without them the display surfaces fall back to re-reading the
+    // audio file, so old stores re-parse rather than staying slow.
+    // v7: the sidecar became per-platform-sized (640 mac, 1024 iOS) and iOS
+    // started reading it; v6 stores carry none on iOS and 640s on mac.
+    return @"Audio Track Metadata v7";
 }
 
 - (instancetype)init {
+    return [self initWithLoadingConfiguration:
+            [AudioLoadingConfiguration productionConfiguration]];
+}
+
+- (instancetype)initWithLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration {
     self = [super init];
     if (self) {
+        NSParameterAssert(loadingConfiguration);
+        _loadingConfiguration = [loadingConfiguration copy];
         _currentLoader = nil;
         _parseCoordinator = [[MetadataParseCoordinator alloc] init];
         _cacheQueue = dispatch_queue_create("com.vibe.metadatacache",
@@ -61,6 +99,17 @@
         });
     }
     return self;
+}
+
+- (void)applyLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration {
+    NSParameterAssert(loadingConfiguration);
+    if (_loadingConfiguration == loadingConfiguration) {
+        return;
+    }
+    // A loader snapshots its configuration; the next loadMetadata: (or the
+    // next pre-sweep loadMetadataNow:) builds under the new one. Nothing to
+    // retire: priority work lives in the current loader and dies with it.
+    _loadingConfiguration = [loadingConfiguration copy];
 }
 
 - (void)invalidateWithCompletion:(dispatch_block_t)completion {
@@ -83,40 +132,105 @@
     });
 }
 
-- (void)cancelAll {
+- (void)cancelScan {
     // Release it, rather than merely cancelling. _queuedTracks strongly holds
     // every queued track, pinning the old playlist until a next loadMetadata:
-    // that may never come. Duplicate parse waiters are weak, and the priority
-    // lane holds only in-flight tracks, so leave both alone.
+    // that may never come. The current track's priority record dies with the
+    // loader too — replacement drops everything, the guarantee's J1 half —
+    // and duplicate parse waiters are weak, so leave those alone.
     [_currentLoader cancel];
     _currentLoader = nil;
 }
 
 -(void)loadMetadata:(NSArray<AudioTrack*>*)tracks {
-    [self cancelAll];
+    [self cancelScan];
     if (!tracks.count) {
         return;
     }
     AudioTrackMetadataLoader* loader = [[AudioTrackMetadataLoader alloc] initWithOwner:self
                                                                               delegate:self.delegate
-                                                                                  lane:VibeMetadataLaneScan];
+                                                                   loadingConfiguration:_loadingConfiguration];
     _currentLoader = loader;
+    [loader setNeighborhoodURLs:_neighborhood];
+    // Carry the current track's priority across the replacement: the shells'
+    // loadMetadataNow: often lands on the loader this one replaces (the
+    // single-track loader a pre-sweep prioritization built), and the track
+    // the user is waiting on must not restart as an ordinary row. Weak and
+    // re-checked, so a departed track re-prioritizes nothing. Before load:,
+    // so the sweep's stage 1 dedupes against it rather than racing it.
+    AudioTrack *priorityTrack = _lastPrioritizedTrack;
+    if (priorityTrack && !priorityTrack.metadata.parsedOK) {
+        [loader prioritizeTrack:priorityTrack];
+    }
     [loader load:tracks];
 }
+
+- (void)setNeighborhoodURLs:(NSArray<NSURL *> *)urls {
+    _neighborhood = [urls copy];
+    [_currentLoader setNeighborhoodURLs:_neighborhood];
+}
+
+// The tracks the listener reaches soonest, in the order they reach them: the
+// next one, the one after it, then the one behind — a back-skip is the fourth
+// thing a hand does, not the first.
+static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
+
+- (void)setNeighborhoodAroundIndex:(NSUInteger)index inTracks:(NSArray<AudioTrack *> *)tracks {
+    NSInteger current = (NSInteger)index;
+    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+    for (NSUInteger i = 0; i < sizeof(kNeighborhoodOffsets) / sizeof(*kNeighborhoodOffsets); i++) {
+        NSInteger neighbor = current + kNeighborhoodOffsets[i];
+        if (neighbor < 0 || (NSUInteger)neighbor >= tracks.count) {
+            continue;
+        }
+        NSURL *url = tracks[(NSUInteger)neighbor].url;
+        if (url) {
+            [urls addObject:url];
+        }
+    }
+    [self setNeighborhoodURLs:urls];
+}
+
+#if DEBUG
+// Declared in Debug/AudioTrackMetadataCache+Debug.h; implemented here because
+// the loader and the hold flag are this file's.
+- (NSUInteger)debugPendingBackgroundMaterializationCount {
+    return [_currentLoader debugPendingBackgroundMaterializationCount];
+}
+
+- (BOOL)debugBackgroundMaterializationHeld {
+    // The key survives for the harness; the fact now lives where it is
+    // derived. The consistency check "lane held with the player stopped"
+    // becomes a check on the derivation itself: stopped and settled means no
+    // foreground claims, so this must read NO.
+    return [AudioFileMaterializationCoordinator.sharedCoordinator
+            isForegroundTransferActive];
+}
+
+- (NSDictionary *)debugPriorityLaneState {
+    return [_currentLoader debugPriorityLaneState] ?: @{};
+}
+#endif
 
 - (void)loadMetadataNow:(AudioTrack *)track {
     if (!track || track.metadata.parsedOK) {
         return;
     }
-    if (!_priorityLoader) {
-        _priorityLoader = [[AudioTrackMetadataLoader alloc] initWithOwner:self
+    _lastPrioritizedTrack = track;
+    if (!_currentLoader) {
+        // No sweep yet — the deferred load has not fired, or none is coming.
+        // A loader with just this track carries the record whose retries D3
+        // depends on; the real playlist sweep replaces it wholesale (D10) and
+        // loadMetadata: re-prioritizes the track on the replacement.
+        _currentLoader = [[AudioTrackMetadataLoader alloc] initWithOwner:self
                                                                  delegate:self.delegate
-                                                                     lane:VibeMetadataLaneCurrentTrack];
+                                                     loadingConfiguration:_loadingConfiguration];
+        [_currentLoader setNeighborhoodURLs:_neighborhood];
     }
-    // The scan loaders snapshot the delegate once per loadMetadata:, whereas
-    // the long-lived priority loader refreshes it on every call.
-    _priorityLoader.delegate = self.delegate;
-    [_priorityLoader loadSingleTrack:track];
+    // A loader snapshots the delegate at creation; refresh it here because
+    // prioritization can outlive the delegate wiring that existed then.
+    _currentLoader.delegate = self.delegate;
+    [_currentLoader prioritizeTrack:track];
 }
 
 @end

@@ -4,6 +4,8 @@
 //
 
 #import <Foundation/Foundation.h>
+// VibeWaveformAnalysisProvider, stamped onto every loader this cache creates.
+#import "AudioWaveformLoader.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -20,27 +22,42 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nullable, weak) id <AudioWaveformCacheDelegate> delegate;
 
+// Whether a decode should also run the tempo and key analyzers. Stamped onto
+// every loader this cache creates, and asked once per load, so a settings
+// change lands on the next decode. The owner installs it: macOS reads the two
+// analysis settings, iOS installs nothing because it never analyzes.
+@property (nullable, copy) VibeWaveformAnalysisProvider analysisProvider;
+
 // The PINCache store name, derived from the entry format version; see the
 // implementation. It is the single source for init and for anything that
 // reports the name, such as the debug clear_caches reply.
 + (NSString *)cacheName;
 
 // The completion fires on the cache's serial loader queue once the disk cache
-// has been emptied. Decodes already in flight run on a global queue rather
-// than the loader queue, and they cannot repopulate it: a cache-generation
-// check drops their disk writes, though their UI delivery still happens.
+// has been emptied. Decodes already in flight run through the cache's
+// fixed-slot utility scheduler rather than the loader queue, and they cannot
+// repopulate it: a cache-generation check drops their disk writes, though
+// their UI delivery still happens.
 - (void)invalidateWithCompletion:(nullable dispatch_block_t)completion;
 
 // The backing store's entry count and total bytes on disk, enumerated off the
 // calling thread; the completion runs on the main thread.
 - (void)diskUsageWithCompletion:(void (^)(NSUInteger fileCount, unsigned long long totalBytes))completion;
 
+// Both main thread only, like the delegate deliveries they gate.
 - (void)loadWaveformForTrack:(AudioTrack *)track;
-// Cancels the in-flight load, if there is one, so there are no further
-// waveform deliveries until the next loadWaveformForTrack:. A decode that has
-// already completed may still persist to disk, and its BPM is still delivered,
-// tagged with its URL for the receiver to match against its playlist. Only the
-// waveform UI delivery is dropped.
+// Supersedes the in-flight load, if there is one, so there are no further
+// waveform deliveries until the next loadWaveformForTrack:. The decode is NOT
+// aborted: it detaches, runs to completion in the background, and persists,
+// so the next request for that file is a disk hit — a skip-ahead or a pager
+// peek no longer throws the decode away. Up to two detached decodes run at
+// once; beyond that the oldest loader is genuinely cancelled. Its
+// uncancellable stat/open worker remains the standardized-path claim until it
+// returns, so a same-file request waits and restarts once rather than adding a
+// stranded worker. Pending work is app-owned and bounded, never pre-dispatched
+// behind those workers. A live detached decode is reattached in place. BPM and
+// key from a detached decode are still delivered, tagged with their URL for
+// the receiver to match against its playlist.
 - (void)cancelLoad;
 
 @end
@@ -58,6 +75,12 @@ NS_ASSUME_NONNULL_BEGIN
                forURL:(NSURL *)url;
 
 @optional
+
+// A load that cannot produce a complete waveform has ended. It fires on the
+// main thread only while that load is still current; url lets a receiver drop
+// a failure that raced a track change just like a data delivery. A later
+// loadWaveformForTrack: starts a fresh attempt for the same file.
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForURL:(NSURL *)url;
 
 // Fires once per completed waveform load, whether a fresh analysis or a cache
 // hit, when the decode pass detected a tempo. It never fires with 0. It

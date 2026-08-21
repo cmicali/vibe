@@ -14,26 +14,35 @@
 #pragma mark - Eligibility by sniffed type
 
 - (void)testUncompressedTypesAreConvertible {
-    XCTAssertTrue(VibeTrackIsConvertibleToFLAC(FILETYPE_WAV, @"wav"));
-    XCTAssertTrue(VibeTrackIsConvertibleToFLAC(FILETYPE_AIFF, @"aiff"));
+    XCTAssertTrue(VibeTrackIsConvertibleToFLAC(VibeAudioFileFormatWAV, @"wav"));
+    XCTAssertTrue(VibeTrackIsConvertibleToFLAC(VibeAudioFileFormatAIFF, @"aiff"));
 }
 
 - (void)testAlreadyLosslessTypesAreNotConvertible {
-    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(FILETYPE_FLAC, @"flac"));
-    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(FILETYPE_ALAC, @"m4a"));
+    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(VibeAudioFileFormatFLAC, @"flac"));
+    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(VibeAudioFileFormatALAC, @"m4a"));
 }
 
 - (void)testLossyTypesAreNotConvertible {
-    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(FILETYPE_MP3, @"mp3"));
-    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(FILETYPE_MP2, @"mp2"));
-    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(FILETYPE_AAC, @"aac"));
-    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(FILETYPE_MP4, @"m4a"));
+    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(VibeAudioFileFormatMP3, @"mp3"));
+    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(VibeAudioFileFormatMP2, @"mp2"));
+    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(VibeAudioFileFormatAAC, @"aac"));
+    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(VibeAudioFileFormatMP4, @"m4a"));
 }
 
 - (void)testSniffedTypeBeatsTheExtension {
     // TagLib read the bytes; the extension is only ever a guess.
-    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(FILETYPE_MP3, @"wav"));
-    XCTAssertTrue(VibeTrackIsConvertibleToFLAC(FILETYPE_WAV, @"mp3"));
+    XCTAssertFalse(VibeTrackIsConvertibleToFLAC(VibeAudioFileFormatMP3, @"wav"));
+    XCTAssertTrue(VibeTrackIsConvertibleToFLAC(VibeAudioFileFormatWAV, @"mp3"));
+}
+
+- (void)testPreliminaryContainerUsesTheMetadataTypeRatherThanTheExtension {
+    XCTAssertEqual(VibeUncompressedContainerForFile(VibeAudioFileFormatWAV, @"mp3"),
+            VibeUncompressedContainerWAV);
+    XCTAssertEqual(VibeUncompressedContainerForFile(VibeAudioFileFormatAIFF, @"wav"),
+            VibeUncompressedContainerAIFF);
+    XCTAssertEqual(VibeUncompressedContainerForFile(VibeAudioFileFormatMP3, @"wav"),
+            VibeUncompressedContainerUnknown);
 }
 
 #pragma mark - Eligibility before metadata arrives
@@ -58,11 +67,18 @@
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"AIFF"));
 }
 
+- (void)testPreliminaryContainerFallsBackToAnUnparsedFilesExtension {
+    XCTAssertEqual(VibeUncompressedContainerForFile(nil, @"BWF"),
+            VibeUncompressedContainerWAV);
+    XCTAssertEqual(VibeUncompressedContainerForFile(@"", @"AIFF"),
+            VibeUncompressedContainerAIFF);
+}
+
 - (void)testAifcIsNotEligibleOnExtensionAlone {
     // AIFF-C carries a compression type and may hold anything, so it waits for
     // TagLib to call it AIFF.
     XCTAssertFalse(VibeTrackIsConvertibleToFLAC(nil, @"aifc"));
-    XCTAssertTrue(VibeTrackIsConvertibleToFLAC(FILETYPE_AIFF, @"aifc"));
+    XCTAssertTrue(VibeTrackIsConvertibleToFLAC(VibeAudioFileFormatAIFF, @"aifc"));
 }
 
 - (void)testMissingTypeAndExtensionIsNotConvertible {

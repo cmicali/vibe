@@ -1,6 +1,6 @@
 ---
 name: vibe-debug
-description: Launch, drive, inspect, and visually verify the Vibe app. Use whenever a change needs end-to-end verification, a screenshot of the running app, playback/UI state inspection, or appearance (light/dark) testing.
+description: Launch, drive, inspect, and visually verify the Vibe app — macOS, and the iOS simulator loop (launch-ios.sh, the debug-ios.sh command channel, the drive-ios.sh touch driver for taps and drags, silent flags, screenshots, host-side log streaming). Use whenever a change needs end-to-end verification, a screenshot of the running app, playback/UI state inspection, or appearance (light/dark) testing.
 ---
 
 # Debugging and verifying Vibe
@@ -26,6 +26,12 @@ V="$APP/Contents/MacOS/Vibe"
 
 **It launches with audio off the hardware.** Two independent debug-only argv flags, and `launch.sh` passes both by default: `--no-audio-hw` runs the engine in manual rendering mode with a real-time-paced render pump — no CoreAudio output device is ever opened, so a test run cannot trigger macOS's automatic AirPods switching, while playback, position, waveform and FX state all behave normally — and `--silent` zeroes the main mixer, which mutes playback but still opens and drives the real output device. Use both (the default) unless a test genuinely needs hardware: `--silent` alone for real-HAL behavior without noise (device switching against real devices, engine config-change notifications, output-latency-dependent timing), neither for audible playback. `dump_state` reports them as `player.silent` and `player.noAudioHw` — plus `player.manualRendering`, which is what actually happened rather than what argv asked for: `enableManualRenderingMode` can fail, and the engine then opens the output device as usual, so **trust `manualRendering`, not `noAudioHw`**. Set `VIBE_AUDIBLE=1` to use real hardware and hear playback.
 
+**The default launch cannot validate the live equalizer.** `--silent` zeroes `mainMixerNode.outputVolume`, and the FFT is intentionally downstream, so a healthy run publishes flat zero bands and draws dots. `--no-audio-hw` **by itself** preserves the manually rendered signal and the reactive tap; use a manual launch with only that flag when functional EQ verification must stay off hardware. Do not use that run for audible-start-latency claims — the manual pump timing warning below still applies. `dump_equalizer` reports the launch flags and is the first check before treating flat bars as a defect.
+
+**Do NOT measure START LATENCY under `--no-audio-hw` either.** The render pump paces the engine itself, and a file whose sample rate differs from the manual render format takes far longer to start advancing `position` than it does on real hardware. Measured on the same 20MB WAV, resampled: 44.1kHz first moved at 27ms, 48kHz at 515ms — and a 13MB 48kHz MP3 sat at position 0.000 for **2.7 seconds** before advancing. On a real device (`VIBE_AUDIBLE=silent`) all of them start in ~40ms. Nothing is wrong with the app; the pump is not a clock. Anything about click-to-first-sound needs `VIBE_AUDIBLE=silent`, which opens the real device with the mixer zeroed.
+
+**Time to first audio is recoverable exactly, without instrumentation.** `position` is the audio actually rendered, so at poll time `T` with position `P`, playback began at `T - P` — the answer does not depend on how coarsely you polled. Measured that way on a real device, a single open settles in ~25ms and audio flows ~40ms after the command, independent of file size (2.4MB to 202MB), container, and entry point (`open`, `play_index`, `drag_drop`). Note `dump_state`'s `player.state` reports the pending *intent*, so it reads `playing` during a cloud open that has not landed; use position movement, not the state string, to time a cloud open.
+
 **Do NOT use `--no-audio-hw` to test or verify the Now Playing integration — it suppresses it outright.** The flag's promise is that a test run leaves the system's audio state alone, and publishing to `MPNowPlayingInfoCenter` breaks that by itself: registering as the active media app is enough for macOS to pull auto-switching AirPods over from another device, with no output device ever opened. So under the flag nothing is published and no remote commands are registered, and `dump_now_playing` reports `hasInfo: 0` with `playbackState: unknown` — correct behavior, not a bug. Anything touching Now Playing, Control Center, the media keys or Bluetooth transport must launch with `VIBE_AUDIBLE=1` (or without the flag), and will then take the AirPods with it.
 
 To launch by hand instead:
@@ -41,7 +47,119 @@ To launch by hand instead:
 
 ## Test audio files
 
-Use the generated files in `Assets/test_audio_files/` (gitignored) rather than synthesizing your own; `.claude/skills/vibe-debug/scripts/generate-test-audio.sh` creates them (idempotent, `--force` regenerates). Tones for transport and playlist tests, a FLAC, three MP3s (CBR, VBR, ID3v2-tagged with art — these need `lame` or `ffmpeg`, since `afconvert` cannot encode MP3), two tagged files with art, five exact-tempo loops and four in known keys. Which file for which test, plus how to simulate a slow cloud open (`slow-open.sh`) and the one-shot BPM/key scans: **`references/test-audio.md`**.
+Use the generated files in `Assets/test_audio_files/` (gitignored) rather than synthesizing your own; `.claude/skills/vibe-debug/scripts/generate-test-audio.sh` creates them (idempotent, `--force` regenerates). Tones for transport and playlist tests, a FLAC, three MP3s (CBR, VBR, ID3v2-tagged with art — these need `lame` or `ffmpeg`, since `afconvert` cannot encode MP3), two tagged files with art, five exact-tempo loops and four in known keys. Which file for which test, plus how to simulate a slow cloud open (`set_fake_cloud`) and the one-shot BPM/key scans: **`references/test-audio.md`**.
+
+## Equalizer counters
+
+`dump_equalizer` has the same schema on both apps: `{levelsEnabled, outputAudioActive, published, sequence, bands, audio: {requested, tapObject, installed, callbacks, analyzedWindows, publications, sequence, lastFrameLength, sampleRate, retiredOutputCount, outputAudioActive, normalizationMode}, renderer: {activeDisplayLinks, displayTicks, geometryLayouts, transformWrites}, silent, noAudioHw, manualRendering}`. `audio.normalizationMode` is the canonical `balanced`, `activity` or `spectrum` string.
+
+`displayTicks` counts snapshot polls, not animation frames, and must remain at or below 30 per second. With stable bounds, `geometryLayouts` stays flat. `transformWrites` counts model-target and immediate-reconciliation writes: at most one per changed bar for each newly observed publication, plus changed-bar passes for geometry, source, activity and one stale-to-zero settle. A visible pause or stop may add one synchronous changed-bar pass to put the model at dots; Core Animation then displays the 0.55-second release without any further transform writes, display ticks, FFT callbacks, timer or completion callback. Pixel loss cancels that release immediately. After an inactive transition and queue/handoff settlement, audio counters and `displayTicks` stay flat and `activeDisplayLinks` is zero. Geometry and transform-write counters additionally require no resizing, scrolling or cell population during the sample.
+
+`set_equalizer_mode balanced|activity|spectrum` is the same session-only comparison command on both apps. `balanced` is the launch default: it starts from the coherent shared energy-per-octave callback average, reserves 9% display headroom, and adds a shared-support-gated 35% of only the positive difference to the existing per-window private-reference activity summary; unsupported bands remain dark. It reuses one FFT and callback cadence. `spectrum` exposes the unmodified coherent common-reference endpoint, while `activity` exposes the unmodified five-private-reference endpoint. Success returns `ok:true`, the selected canonical `normalizationMode`, and `requested`, `tapObject` and `installed`; the last three make a failed active-tap replacement visible. Any other grammar returns the usage error. Changing an active mode synchronously replaces the tap, invalidates the old publication and resets the analyzer's partial window and reference history. Wait for `published:true` and an advancing `sequence` in `dump_equalizer` before judging the new mode; counters are cumulative and do not reset. The selected mode survives later demand and engine-graph tap reinstalls in that process, while each replacement starts fresh analyzer history; relaunch restores `balanced`. These are comparisons between Vibe's own three modes, not claims that any reproduces Apple's unpublished visualizer internals.
+
+## iOS: the simulator loop
+
+iOS has its **own debug command channel** (below); the `--debug-cmd` verbs in the mac section are still mac-only. The build is the `VibeiOS` scheme (`xcodebuild -scheme VibeiOS -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build`); products land in `Debug-iphonesimulator/`.
+
+**Simulator only — never a connected phone.** All iOS building, installing, launching, and testing targets the simulator, even when an iPhone or iPad is plugged in. Never pass a device destination (`platform=iOS`, a physical device's UDID or name), never use `devicectl`/`ios-deploy`, and never let `xcodebuild` auto-resolve a destination — always give it an explicit simulator one, as above. A connected phone is the user's personal device: installing on it consumes provisioning, can interrupt whatever they are doing, and leaves the app behind. The bundled scripts are already simulator-only (`simctl` cannot reach a physical device), so this rule binds ad-hoc commands. If the user **explicitly asks** for an on-device run, that authorization covers **that one run only** — it is not standing permission; the very next task returns to the simulator, and on-device use must never be recorded as a default in scripts, docs, or memory.
+
+**Each session gets its own simulator device.** The scripts never target `booted` — `scripts/sim-udid.sh` prints the UDID of a device named `Vibe-<dir>-<hash>`, keyed to the checkout path plus `CLAUDE_CODE_SESSION_ID` (one stable device per checkout when run outside Claude Code); `launch-ios.sh` and `drive-ios.sh start` create and boot it on first use, everything else requires it to exist. Concurrent agent sessions therefore never collide on the simulator, even in the same checkout: each has its own device, app container, debug channel, and touch driver (the driver's command dir is `build/ios-driver/<UDID>` and its session kills are scoped to that device). What same-checkout sessions still share is `build/DerivedData` and the built `.app` — one session rebuilding while another installs is a race only separate worktrees remove. Stale devices from ended sessions are GC'd on the next create (Shutdown + untouched for a day). `VIBE_SIM_UDID` pins a specific device (the value `booted` is the escape hatch for a manually managed one); `VIBE_SIM_NAME` renames. Raw `simctl` commands must target `"$(sim-udid.sh)"`, never `booted`, which is ambiguous once several devices are booted.
+
+**iPad.** The target is device family `1,2`, and the app is a resizable iPadOS 26 window (min 320×480, set in `VibeiOSSceneDelegate`): wider-than-tall shows the landscape layout, taller-than-wide the portrait one. `sim-udid.sh` models iPhones only, so iPad testing means `xcrun simctl create` an iPad device and exporting `VIBE_SIM_UDID` — `launch-ios.sh`, `debug-ios.sh`, and `drive-ios.sh` all honor it. `drive-ios.sh rotate left|right|portrait` flips orientation (there is no simctl rotation); assert the result from `dump_screenshot`'s `pointWidth`/`pointHeight` and check the current track index survived the transition. iPadOS windowed mode (floating windows, corner-drag resize) must be enabled per device in Settings → Multitasking & Gestures — not scriptable via `simctl`, so window-resize testing is manual.
+
+**Which tool for which job** — three tiers, cheapest first; most verification never needs the third:
+
+1. **Looking and reading**: `launch-ios.sh` + `simctl io "$(sim-udid.sh)" screenshot` + `debug-ios.sh dump_state`/`dump_view_tree`. Layout, rendering, state after a code change — start and end here when nothing needs to *happen* mid-run.
+2. **Making things happen without touches**: the channel's action verbs (`play_pause`, `seek`, `next`, `open`). They exercise the same controller paths as the UI at ~instant speed. A seek test does NOT need a real drag — `seek` routes through the scrubber's own didSeek path.
+3. **Real gestures**: `drive-ios.sh` (below), ONLY when the gesture itself is the thing under test — the waveform drag's 1:1 tracking, the pager pull, tap targets, gesture arbitration. A driver session costs a 1–2 minute spin-up and an app reinstall, so don't start one speculatively; once started, keep it for the whole work session rather than cycling it per test — but rerun `launch-ios.sh` after any rebuild, and check `appStale` (below) before trusting a gesture result.
+
+```bash
+.claude/skills/vibe-debug/scripts/launch-ios.sh [audio-file ...]   # boot if needed, install, relaunch
+```
+
+`launch-ios.sh` is `launch.sh`'s iOS counterpart: it creates and boots this checkout's dedicated simulator as needed (`sim-udid.sh` + `bootstatus -b`, no guessed sleeps), installs the app from `build/DerivedData` (`$VIBE_IOS_APP` overrides), and relaunches it. **Audio is silent by default**: the shared engine honors the same debug argv flags as macOS, and the script passes `--no-audio-hw --silent` unless `VIBE_AUDIBLE=1` — so a simulator test never plays through the mac's speakers. That default cannot validate live EQ motion because `--silent` zeros the signal under its tap; use `VIBE_AUDIBLE=1` for reactive simulator validation. `VIBE_LANGUAGE=de` works as on macOS. The flags apply only at `simctl launch`; a later `openurl` reuses the running process, so relaunch to change them.
+
+**Feeding it audio.** Files passed to the script are copied into the app container's `Documents/Music` — with `UIFileSharingEnabled` that is the folder the in-app picker reaches via Browse > On My iPhone > Vibe > Music — and the first is then opened via `openurl` (the open-in-place path). That makes a **one-track playlist**: a single-file open grants no siblings on iOS. To test the directory-as-playlist behavior, seed the files and pick the Music *folder* in-app.
+
+```bash
+UDID=$(.claude/skills/vibe-debug/scripts/sim-udid.sh)     # this checkout's device
+DATA=$(xcrun simctl get_app_container "$UDID" com.commonwealthrecordings.Vibe data)
+xcrun simctl openurl "$UDID" "file://$DATA/Documents/Music/tone-long.wav"   # open-in-place a seeded file
+xcrun simctl io "$UDID" screenshot shot.png   # device pixels (3x), top-left origin
+```
+
+**The iOS debug command channel.** Same file protocol and one-JSON-object contract as the mac's, but with **no CLI client**: the simulator app's container tmp is a plain host directory, so the wrapper writes the command file and reads the reply directly, and the app's own tmp-directory watcher (no notification needed) answers. Debug builds only. All the mac channel's jq guidance applies verbatim.
+
+```bash
+S=.claude/skills/vibe-debug/scripts/debug-ios.sh
+"$S" dump_state          # {player, currentTrack, playlist, ui, settings} — ui includes waveformProgress, waveformOverscroll (points past an end, + past the start, - past the end; the only way to assert the scrubber's rubber band from outside), waveformScrollGeom ([offset, min, max, contentWidth] — tells "resting at an end" apart from "pinned against one and refusing to give"), waveformBaked, isScrubbing, parked, foreground, plus the shell: playerPresentation ("minimized"|"full"), miniPlayerShown, selectedTab, libraryEmpty
+"$S" dump_equalizer      # live producer/renderer snapshot; schema and counter interpretation are in Equalizer counters above
+"$S" set_equalizer_mode activity # compare relative activity; use balanced to restore the launch default
+"$S" dump_now_playing    # {hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — the mac verb minus playbackState (macOS-only)
+"$S" dump_view_tree      # {windows: [{class, frame, keyWindow, rootViewController, contentView: {…, subviews}}]} — UILabel text and button labels included
+"$S" dump_art            # {currentIndex, window, held, pages: [{index, title, metadata, art, needsLoad, loading, inWindow, cellUp}]} — the pager's art window: which pages are fetched ahead, which hold decoded art, and what each has. The ONLY way to tell "not decoded yet" from "this track has no art" — on screen both are the vinyl placeholder. `held` past the budget, or a page landing with art:false, is the prefetch failing to keep up
+"$S" dump_screenshot     # {ok, path, pointWidth, pointHeight, scale} — in-process render written into the container; the HOST can read the path directly (no TCC)
+"$S" play_pause          # compact {ok, state, index, count, position, parked} summary; also: next, previous
+"$S" seek 90             # seconds; routes through the scrubber's didSeek path, so the seek-in-flight guard behaves as a real drag release
+"$S" open <path>         # file INSIDE the container (seed via launch-ios.sh); the FolderSession open-in-place path. Replaces the playlist, plays, AND expands the card
+"$S" expand_player       # the card, without a gesture; also: minimize_player. The shell presents it only on an open, so this is how to get to it otherwise
+"$S" set_waveform_zoom 0.12 # the DJ zoom, 0-1 = fraction of the track visible; through the same delegate callback a released pinch takes, so it fans out across pages and persists. Replies {waveformZoomRequested, waveformZoomEffective} — they DIFFER when the layout cannot draw the depth asked for, which is the only way to check the clamp
+"$S" select_tab playlist # or files, or search (the UISearchTab circle)
+"$S" dump_search         # {roots, folders} — the search screen's whole scope. roots is what its walk covers: the open folder, then the folders the user added in Settings, then the app's own Documents. folders is just the added ones, i.e. the rows Settings shows
+"$S" add_search_folder <dir>  # {ok, added, roots, folders} — widens the scope as picking a folder in Settings would; also: remove_search_folder <index into dump_search.folders>. The channel cannot drive the system document picker (another process's UI, out of the touch driver's reach either), so these are the only way to set a scope up for a test. added:false is the "a persistent root already covers it" answer, not a failure
+VIBE_DEBUG_TIMEOUT=20 "$S" clear_caches   # blocks until both PINCaches are empty, like the mac verb
+```
+
+**TRAP: a folder added with `add_search_folder` is NOT security-scoped, so it survives only the session.** The real Settings path mints a bookmark from a picker grant; this one hands over a bare path, which works in the simulator because those paths are readable anyway. A test that relaunches has to add it again — and it is not exercising the bookmark round-trip at all.
+
+**The search screen's own state is not on the channel.** Its index lives in the view controller, so what a query matched is read from `dump_view_tree` — the playlist section's rows draw `displayTitle` (no extension), the files section's draw the filename over the containing folder, which is how the two are told apart.
+
+Exit codes match the mac client: 0 ok, 1 no response (no debug build running), 2 command error. The unknown-command reply is the authoritative verb list. Replies to action verbs are read synchronously and can lag async engine work — the same caveat as the mac: a `seek` or `play_pause` reply may show the pre-action state, so follow with `dump_state`. The app side is `Vibe/Debug/iOS/DebugCommands.m` over the shared transport in `Vibe/Debug/DebugChannel.m`. Most verbs are not there at all: the cross-platform ones live once in `Vibe/Debug/DebugCommonVerbs.m`, so a verb both platforms can answer is added there and appears on each; only a UIKit-specific one goes in the iOS table.
+
+**Check `ui.waveformBaked` after an expand.** The card animates by transform precisely so the per-page waveform scrubbers do not re-bake their envelope bitmaps; `waveformBaked:false` shortly after `expand_player` means something started animating the card's bounds again (`Vibe/iOS/CLAUDE.md` carries the trap).
+
+**Rebuilt mid-session? Relaunch, and check `appStale`.** `install-ios.sh` is the single home of "the installed app matches the built one", and both `launch-ios.sh` and `drive-ios.sh start` call it — installing only when the built binary is genuinely newer, so it is safe to run with a driver session live. It exists because **`xcodebuild test` re-signs the app-under-test without installing it**, which used to leave `drive-ios.sh start` reporting ready against the *previous* binary; `start` therefore installs after the build finishes, never before. `drive-ios.sh status` reports `appStale` as the backstop, since a driver session outlives any number of rebuilds:
+
+```bash
+.claude/skills/vibe-debug/scripts/drive-ios.sh status     # {"ready": true, "appStale": false}
+```
+
+**`appStale: true` invalidates every gesture result taken since the rebuild** — a stale app launches, answers the debug channel and accepts touches exactly like a fresh one, so nothing else will tell you. Rerun `launch-ios.sh` (or `install-ios.sh "$(sim-udid.sh)"`) and repeat the run.
+
+**What the iOS channel cannot do**: input injection — no public API synthesizes `UITouch`es in-process; real gestures go through the touch driver below — and the mac's menu, window, FX, pitch, convert, and file_cache verbs have no iOS counterparts yet. `dump_screenshot` renders in-process (UIVisualEffectView blurs only approximate); `simctl io "$(sim-udid.sh)" screenshot` remains the ground truth for real pixels.
+
+**Logs stream from the HOST.** Simulator processes write into the mac's unified log, and `log stream` *inside* the simulator (`simctl spawn`) is refused as non-admin. Info and debug are not persisted (same as macOS), so stream, don't `log show`:
+
+```bash
+/usr/bin/log stream --level debug --predicate 'subsystem == "com.commonwealthrecordings.Vibe"'
+```
+
+**Driving the UI: the touch driver.** For state changes, prefer the channel's verbs (`play_pause`, `seek`, `open`, …) — instant, no focus needed, reply with state. For genuine *gestures* (the waveform drag, the track pager pull, tapping buttons), use the touch driver: a resident XCUITest (`VibeiOSDriver`, sources in `Tests/iOSDriver/`) that executes gesture commands over the same file protocol — the only sanctioned touch-synthesis path on iOS. The Simulator window does NOT need to be frontmost, and coordinates are app-window POINTS (top-left origin; `simctl` screenshot pixels ÷ the scale `dump_screenshot` reports).
+
+```bash
+D=.claude/skills/vibe-debug/scripts/drive-ios.sh
+"$D" start                    # builds, installs, spins up the runner (~1-2 min).
+                              #   Run it before launch-ios.sh so the app it launches is
+                              #   the one the driver attached to; either order installs
+                              #   correctly, but this one skips a relaunch
+"$D" tap 201 250              # also: double_tap x y, press x y seconds, home
+"$D" drag 300 560 100 560 1.0 # x1 y1 x2 y2 [seconds] — give seconds for a 1:1 scrub
+                              #   (the waveform drag), omit for a flick
+"$D" pinch 2.0 1.0            # scale velocity — the waveform zoom. The ONLY
+                              #   element-targeted verb: XCUITest has no
+                              #   coordinate multi-touch, so it finds the
+                              #   scrubber by accessibilityIdentifier and needs
+                              #   the card expanded. scale > 1 zooms in;
+                              #   velocity must be negative to zoom out
+"$D" status                   # {"ready": true|false, "appStale": true|false}
+"$D" stop                     # end the session
+```
+
+Latency: ~1s per gesture at steady state; the FIRST gesture after a start or an app relaunch pays the accessibility attach (can run tens of seconds — send a throwaway `tap` on dead space as a warm-up). If the app is dead, the next gesture relaunches it with the audio-silencing flags. The reply means the gesture was *performed*, not that it landed where intended — verify with `debug-ios.sh dump_state` or a screenshot. One session at a time; `start` kills a previous one. **Stale-build trap**: while a driver session is live, `launch-ios.sh` skips its own install (see above), so a rebuilt app does NOT reach the simulator until you rerun `drive-ios.sh start` (which installs the fresh build) — after any app rebuild mid-session, restart the driver first; `launch-ios.sh` warns when it detects the built binary is newer than the installed one. The runner disables XCTest's per-event quiescence waits (Vibe's display link means a playing app never idles; without this every gesture costs ~2 minutes) — that reaches XCTest internals, harness-only, never shipped, and degrades to slow-but-working if an Xcode update renames them (see `Tests/iOSDriver/VibeiOSDriverTests.m`).
+
+`input.swift` clicks on the Simulator *window* are obsolete for this — no calibration, no frontmost dance.
+
+**Simulator blind spots.** Interruptions (calls/Siri), route changes (headphone unplug), background audio past lock, and the lock-screen card need a real device. The `AVAudioSession` code runs but the simulator does not exercise it faithfully. Per the simulator-only rule above, do not drive a connected phone to close these gaps — report them as unverified and let the user test on their own device, unless they explicitly ask for a one-time on-device run.
 
 ## Driving and inspecting the running app: `--debug-cmd`
 
@@ -67,11 +185,13 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 
 ```bash
 "$V" --debug-cmd dump_state          # {player, currentTrack, playlist, ui (label text), window, settings}
+"$V" --debug-cmd dump_equalizer      # live producer/renderer snapshot; schema and counter interpretation are in Equalizer counters above
+"$V" --debug-cmd set_equalizer_mode activity # compare relative activity; use balanced to restore the launch default
 "$V" --debug-cmd dump_now_playing    # {playbackState, hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — what we publish to the system Now Playing UI (Control Center / media keys). REQUIRES a launch WITHOUT --no-audio-hw (VIBE_AUDIBLE=1), which suppresses the publish entirely; under the flag this always reports hasInfo: 0
 "$V" --debug-cmd dump_stats          # {filesOpened, foldersOpened, secondsPlayed} — AppStats lifetime counters, live (secondsPlayed includes the in-progress run)
 "$V" --debug-cmd dump_health         # {process: {footprintBytes, residentBytes, mallocLiveBytes, mallocReservedBytes, threads, fileDescriptors, machPorts, uptimeSeconds}, ui: {windows, views, layers, trackingAreas}, app: {playlistCount, tableRows, engineNodes, …}, pending: {metadataHolders, metadataWaiters, openResultsBuffered, openBurstQueued, retiredFades}} — resource counters for soak runs. Every field is meant to be DIFFED across a run, not read in isolation; see Stress and fuzz testing. **mallocLiveBytes, not footprintBytes, is the leak signal**: bytes live across every malloc zone. Two big-file decodes take the footprint to 203 MB against a 52 MB live heap, and a quiesce then reads 365 MB against 37 MB — the footprint carries the allocator's and the VM's high-water mark, the live heap does not
 "$V" --debug-cmd quiesce             # {ok, settled, waitedSeconds, pending, pressureRelief: {releasedBytes, mallocLiveBytes, mallocReservedBytes, reservedFreedBytes}} — closes the file, then polls until every pending-work counter unwinds (15s deadline), and asks every zone to hand its free pages back. Sample dump_health straight after it for a reading taken at rest instead of mid-decode. settled:false names the counter that held out. **Check releasedBytes before trusting a resting footprint**: measured on a fresh launch it returns ~42 KB and after a heavy run 0, so the pages stay dirty and the footprint keeps the high-water mark — vmmap shows them as MALLOC_LARGE (empty)
-"$V" --debug-cmd check_invariants    # {ok, checked, state, violations: [{id, detail}]} — the app's consistency rules asserted against live state: playlist index and table rows, position/pitch clamps, fader-vs-player agreement, the UI tick rate against its inputs, an engine node bound, the tag-over-analysis BPM/key precedence, and the header labels against the track. Re-check after a settle before believing a violation: a few compare rendered labels against the state that should have produced them, and a render can lag by a runloop turn
+"$V" --debug-cmd check_consistency    # {ok, checked, state, violations: [{id, detail}]} — the app's consistency rules asserted against live state: playlist index and table rows, position/pitch clamps, fader-vs-player agreement, the UI tick rate against its inputs, an engine node bound, the tag-over-analysis BPM/key precedence, and the header labels and settled artwork ownership against the track. Re-check after a settle before believing a violation: a few compare rendered state against what should have produced it, and a render can lag by a runloop turn
 "$V" --debug-cmd dump_view_tree      # {windows: [{class, frame, visible, key, contentView: {…, subviews}}]}
 "$V" --debug-cmd dump_menu           # {menu: [{title, id, key, action, enabled, state, items}]} — LIVE enabled/checkmark
 "$V" --debug-cmd click_menu menu_show_pitch   # {ok, clicked, action} — by identifier (preferred) or exact title
@@ -81,7 +201,15 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 "$V" --debug-cmd settings_close               # {ok, open, endedSheet} — ends an attached sheet first, then closes
 "$V" --debug-cmd dump_screenshot -   # PNG bytes on stdout (redirect to a file), JSON reply on stderr — in-process snapshot
 "$V" --debug-cmd play_pause          # also: next, previous, skip_forward[_more|_most], skip_back[_more|_most], toggle_size, toggle_pitch_panel
-"$V" --debug-cmd set_loading 0.42   # {ok, fraction} — drives the waveform loading indicator directly: `off`, `indeterminate`, or a 0..1 fraction for the determinate fill. The only way to capture either mode without a real slow cloud open
+"$V" --debug-cmd set_loading 0.42   # {ok, fraction} — drives the waveform loading indicator directly: `off`, `indeterminate`, or a 0..1 fraction for the determinate fill. Draws the control with no play behind it; for a REAL Loading state use set_fake_cloud
+"$V" --debug-cmd set_fake_cloud 4 100  # {installed, percent, baseSeconds, capacity, uniform, progressMode, materialized, completed, cancelled, maxConcurrency, metadataOverlapTransfers, foregroundContentionStarts, …} — makes the corpus answer as cloud placeholders and each open wait for a hashed transfer time; provider capacity defaults to 1 (`capacity=0` means unlimited), and `set_fake_cloud 0` uninstalls. The only way to reach the Loading state, the shimmer and the open timeout. Full grammar: set_fake_cloud <seconds> [<percent>] [capacity=N] [uniform] [progress=none|linear|sparse|stall] [unflagged] [sticky]. See references/test-audio.md
+"$V" --debug-cmd dump_cloud_trace      # {stats, events} — the fake provider's admission trace: one entry per transfer event (requested / started with queuedMs / completed / cancelled), each with a sequence number, ms since install, the caller's role (playback, prefetch, metadata) and the file. Ordering assertions read this rather than inferring order from elapsed time; `clear_cloud_trace` empties it
+"$V" --debug-cmd dump_cloud_health     # {cloudParsesPending, cloudLaneHeld, materialization:{claims, waiters, interactiveRunning, backgroundRunning, interactivePending, backgroundPending, metadataHolds}} — the metadata and path-wide lanes at rest, on BOTH platforms. Every count and hold belongs at zero once a sweep has settled
+"$V" --debug-cmd dump_row_loading      # {transfers: [{file, progress}], loadingRows: [{index, file, progress}], playlistCount} — both halves of the row loading bar's guarantee: the CloudTransferRegistry's live provider transfers, and every playlist row it would mark. loadingRows is bounded by lane capacity (at most ~3), every row in it must appear in transfers, progress is -1 while indeterminate, and both lists are empty with everything local or settled
+"$V" --debug-cmd dump_audio_loading    # {aligned, materialization, player, metadata} — immutable safe/diagnostic loading snapshots at each consumer; aligned should be true after the command below
+"$V" --debug-cmd set_audio_loading defaults  # reset every loading knob. Partial key=value updates: background, local-parses, prefetch-depth; diagnostic-only interactive, interactive-pending, background-pending, interactive-grace, background-grace, retries, timeout-baseline, timeout-silence. Changes apply to new admissions/loaders/prefetch decisions/opens, never by cancelling live work
+"$V" --debug-cmd block_main 0.5 play_index 3  # {ok, blockedSeconds, then, thenReply} — hold the main thread, then run another shared verb WITHOUT yielding it. Stages a callback the app dispatched to main from a worker arriving while a user action is already underway; two separate commands cannot, since the channel's own intake is on the main queue. Bounded to 5s
+"$V" --debug-cmd set_dataless_diag on  # {ok} — record st_flags and lane routing per directory against a REAL provider; dump_dataless_diag reports it. Records nothing while the fake probe is installed, which replaces the stat it measures
 "$V" --debug-cmd set_window_width 900  # {ok, frame, bodyWidth} — body width in points (pitch panel excluded); the window is user-resizable and restores the autosaved width, so a reproducible capture has to set one
 "$V" --debug-cmd toggle_low_kill     # FX, also: low_kill_boost_on/_off, reverb_send_on/_off, delay_send_on/_off, short_delay_send_on/_off (the *_on/_off pairs mirror the hold-down W/E/R/T keys)
 "$V" --debug-cmd set_pitch -4.5      # drives fader (clamps), player, and time labels together
@@ -179,7 +307,7 @@ When feeding `"$V" --debug-cmd script` directly, **always use stdin** — `scrip
 
 ### The settings window
 
-The Settings window has four verbs of its own — `settings_open`, `settings_close`, `dump_settings_ui`, `settings_click` — and **must never be driven with `click`, `drag` or the `key*` verbs**, which post into the main player window's event stream. They live with the code they exercise, in **`Vibe/Settings/CLAUDE.md`**, along with the sheet, pane-animation and open-panel traps.
+The Settings window has four verbs of its own — `settings_open`, `settings_close`, `dump_settings_ui`, `settings_click` — and **must never be driven with `click`, `drag` or the `key*` verbs**, which post into the main player window's event stream. They live with the code they exercise, in **`Vibe/Mac/Settings/CLAUDE.md`**, along with the sheet, pane-animation and open-panel traps.
 
 ### In-process input injection
 
@@ -196,7 +324,7 @@ The Settings window has four verbs of its own — `settings_open`, `settings_clo
 
 Driving the app *randomly, for hours, with oracles that notice when something breaks* — soak runs, leak and resource-growth hunting, race hunting under TSan, fuzzing the file-loading path, and minimizing a failing run to a repro — lives in the **`vibe-stress` skill** (`.claude/skills/vibe-stress/`), built on this channel. `make stress CORPUS=<folder>` is its entry point.
 
-The three verbs it leans on (`dump_health`, `check_invariants`, `quiesce`) stay in the command list above, because they are ordinary channel commands and are useful without it.
+The three verbs it leans on (`dump_health`, `check_consistency`, `quiesce`) stay in the command list above, because they are ordinary channel commands and are useful without it.
 
 ## Screenshots: two paths, each showing what the other cannot
 
@@ -254,7 +382,24 @@ The `LogError`, `LogWarn`, `LogInfo` and `LogDebug` macros in `Vibe-Prefix.pch` 
 /usr/bin/log stream --level debug --predicate 'subsystem == "com.commonwealthrecordings.Vibe"'
 ```
 
+### On a real device, os_log is out of reach — use `--log-stderr`
+
+**None of the log-streaming above works against an iPhone.** `log stream` has no device mode any more on current macOS (no `--device`/`--device-name`), and `idevicesyslog` — which does connect, over USB, once `brew install libimobiledevice` and a cable are in place — carries plenty *about* the app from SpringBoard and runningboardd but **nothing the app itself logs**: a third-party subsystem's `os_log` output never reaches `syslog_relay`. Measured: 62,833 syslog lines in eight seconds, not one of them from Vibe.
+
+So debug builds take `--log-stderr` (`Vibe-Prefix.pch`), which mirrors every `Log*` message to stderr, timestamped, alongside `os_log`. `devicectl` relays stderr straight back:
+
+```bash
+xcrun devicectl device install app --device <udid> build/DerivedData/Build/Products/Debug-iphoneos/Vibe.app
+xcrun devicectl device process launch --device <udid> --console --terminate-existing \
+    com.commonwealthrecordings.Vibe --log-stderr
+```
+
+Off by default, so the simulator and mac loops keep reading the unified log exactly as before. Build for a device with `-destination 'generic/platform=iOS' -allowProvisioningUpdates`; the app signs with the team already in `project.yml`.
+
+TRAP: the `--console` session owns the process. When its tunnel drops — which it does — the app goes down with it, and the error names RemoteXPC rather than anything about Vibe. Relaunch without `--console` if you only need the app up.
+
+The debug command channel does **not** reach a device yet: it is command and response files in the app container, and the host cannot write there directly. `xcrun devicectl device copy to/from --domain-type appDataContainer --domain-identifier com.commonwealthrecordings.Vibe` can, so the same protocol would work over it — unbuilt, and the reason the device loop is log-only today.
+
 ### Build provenance: which build produced this log?
 
 `applicationDidFinishLaunching` logs a provenance block through `AppDelegate.logBuildInfo`, so a log excerpt identifies the exact build it came from — version, config, git commit and dirty flag, compiler, SDK and host OS. How it is recovered at runtime, and why the git fields need a build-time script phase: **`references/build-provenance.md`**.
-

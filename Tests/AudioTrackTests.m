@@ -10,6 +10,7 @@
 #import <XCTest/XCTest.h>
 
 #import "AudioTrack.h"
+#import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
 
 @interface FakeTrackMetadata : NSObject
@@ -20,6 +21,7 @@
 @property (nonatomic) NSTimeInterval duration;
 @property (nonatomic, strong) NSImage *cachedArt;
 @property (nonatomic, strong) NSImage *cachedThumbnail;
+@property (nonatomic) BOOL parsedOK;
 @end
 
 @implementation FakeTrackMetadata
@@ -43,13 +45,13 @@ static AudioTrack *TrackNamed(NSString *filename) {
 }
 
 static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
-    track.metadata = (AudioTrackMetadata *)fake;
+    [track installMetadataIfUnresolved:(AudioTrackMetadata *)fake];
 }
 
 #pragma mark - BPM precedence
 
 - (void)testTaggedTempoBeatsAnalyzedTempo {
-    // The cross-directory invariant: a file's own tag always wins. The BPM
+    // The cross-directory guarantee: a file's own tag always wins. The BPM
     // label and the bar-aligned skips both read through here.
     AudioTrack *track = TrackNamed(@"song.mp3");
     FakeTrackMetadata *tagged = [FakeTrackMetadata new];
@@ -83,7 +85,7 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
 #pragma mark - Key precedence
 
 - (void)testTaggedKeyBeatsAnalyzedKey {
-    // Same cross-directory invariant as tempo: the file's own tag wins.
+    // Same cross-directory guarantee as tempo: the file's own tag wins.
     AudioTrack *track = TrackNamed(@"song.mp3");
     FakeTrackMetadata *tagged = [FakeTrackMetadata new];
     tagged.key = 21; // Am
@@ -268,6 +270,123 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
 
     [track setDuration:125];
     XCTAssertEqual(track.duration, 125);
+}
+
+#pragma mark - Metadata installation
+
+- (void)testConcurrentMetadataInstallationPublishesOnlyTheWinner {
+    AudioTrack *track = TrackNamed(@"song.flac");
+    FakeTrackMetadata *cached = [FakeTrackMetadata new];
+    cached.parsedOK = YES;
+    FakeTrackMetadata *adopted = [FakeTrackMetadata new];
+    adopted.parsedOK = YES;
+
+    dispatch_semaphore_t cacheRead = dispatch_semaphore_create(0);
+    dispatch_semaphore_t allowCacheInstall = dispatch_semaphore_create(0);
+    XCTestExpectation *cacheAttemptFinished =
+            [self expectationWithDescription:@"cache install attempted"];
+    __block BOOL cacheInstalled = YES;
+    __block NSUInteger publications = 0;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        dispatch_semaphore_signal(cacheRead);
+        dispatch_semaphore_wait(allowCacheInstall, DISPATCH_TIME_FOREVER);
+        cacheInstalled = [track installMetadataIfUnresolved:
+                (AudioTrackMetadata *)cached];
+        if (cacheInstalled) {
+            @synchronized (track) {
+                publications++;
+            }
+        }
+        [cacheAttemptFinished fulfill];
+    });
+
+    XCTAssertEqual(dispatch_semaphore_wait(
+            cacheRead, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+    XCTAssertTrue([track installMetadataIfUnresolved:(AudioTrackMetadata *)adopted]);
+    @synchronized (track) {
+        publications++;
+    }
+    dispatch_semaphore_signal(allowCacheInstall);
+    [self waitForExpectations:@[cacheAttemptFinished] timeout:1];
+
+    XCTAssertFalse(cacheInstalled);
+    XCTAssertEqual(track.metadata, (AudioTrackMetadata *)adopted);
+    XCTAssertEqual(publications, 1u);
+}
+
+- (void)testQueuedDeliveryDropsAfterMetadataReplacementBeforeMainRuns {
+    XCTAssertTrue(NSThread.isMainThread);
+    AudioTrack *track = TrackNamed(@"song.flac");
+    FakeTrackMetadata *fallback = [FakeTrackMetadata new];
+    FakeTrackMetadata *cached = [FakeTrackMetadata new];
+    cached.parsedOK = YES;
+    Attach(track, fallback);
+
+    dispatch_semaphore_t fallbackEnqueued = dispatch_semaphore_create(0);
+    XCTestExpectation *fallbackAttempted =
+            [self expectationWithDescription:@"queued fallback checked on main"];
+    XCTestExpectation *cacheDelivered =
+            [self expectationWithDescription:@"cache winner delivered on main"];
+    __block BOOL fallbackWasDelivered = YES;
+    __block NSUInteger publications = 0;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        dispatch_async(dispatch_get_main_queue(), ^{
+            fallbackWasDelivered = [track
+                    deliverIfMetadataStillInstalled:(AudioTrackMetadata *)fallback
+                                          usingBlock:^{ publications++; }];
+            [fallbackAttempted fulfill];
+        });
+        dispatch_semaphore_signal(fallbackEnqueued);
+    });
+
+    XCTAssertEqual(dispatch_semaphore_wait(
+            fallbackEnqueued, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+    XCTAssertTrue([track installMetadataIfUnresolved:(AudioTrackMetadata *)cached]);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        BOOL delivered = [track
+                deliverIfMetadataStillInstalled:(AudioTrackMetadata *)cached
+                                      usingBlock:^{ publications++; }];
+        XCTAssertTrue(delivered);
+        [cacheDelivered fulfill];
+    });
+
+    [self waitForExpectations:@[fallbackAttempted, cacheDelivered] timeout:1];
+    XCTAssertFalse(fallbackWasDelivered);
+    XCTAssertEqual(track.metadata, (AudioTrackMetadata *)cached);
+    XCTAssertEqual(publications, 1u);
+}
+
+- (void)testDeliveryKeepsReplacementOutUntilObserverReturns {
+    AudioTrack *track = TrackNamed(@"song.flac");
+    FakeTrackMetadata *fallback = [FakeTrackMetadata new];
+    FakeTrackMetadata *cached = [FakeTrackMetadata new];
+    cached.parsedOK = YES;
+    Attach(track, fallback);
+
+    dispatch_semaphore_t installerStarted = dispatch_semaphore_create(0);
+    dispatch_semaphore_t installerFinished = dispatch_semaphore_create(0);
+    __block BOOL cacheInstalled = NO;
+    BOOL fallbackDelivered = [track
+            deliverIfMetadataStillInstalled:(AudioTrackMetadata *)fallback
+                                  usingBlock:^{
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            dispatch_semaphore_signal(installerStarted);
+            cacheInstalled = [track
+                    installMetadataIfUnresolved:(AudioTrackMetadata *)cached];
+            dispatch_semaphore_signal(installerFinished);
+        });
+        XCTAssertEqual(dispatch_semaphore_wait(
+                installerStarted, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+        XCTAssertNotEqual(dispatch_semaphore_wait(installerFinished,
+                dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC)), 0);
+        XCTAssertEqual(track.metadata, (AudioTrackMetadata *)fallback);
+    }];
+
+    XCTAssertTrue(fallbackDelivered);
+    XCTAssertEqual(dispatch_semaphore_wait(
+            installerFinished, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+    XCTAssertTrue(cacheInstalled);
+    XCTAssertEqual(track.metadata, (AudioTrackMetadata *)cached);
 }
 
 @end

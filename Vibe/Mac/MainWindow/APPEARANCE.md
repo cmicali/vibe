@@ -1,0 +1,55 @@
+# Main window: layout and chrome
+
+Read this before changing layout numbers, the glass chrome, the art-tint/accent pipeline, or the codec line's rendering. Behavior — the controller, transport, the convert swap and undo, display states, window resize rules — is in `CLAUDE.md`.
+
+## Layout
+
+Programmatic layout: no nibs, absolute frames and autoresizing masks. **Every number lives in one named layout block at the top of `MainPlayerContentView.m`.** Frames are authored at the design size, `kMainWindowContentWidth` × `kMainWindowDesignHeight`; each subview's mask says how it stretches to the user's window size.
+
+**One frame clears content rather than geometry.** The artist line ends where the codec line's *text* begins — right-aligned in a column sized for its worst case (a long codec string behind three FX symbols), which fully reserved would cost the artist line a third of its width at design size and nearly all of it narrow. `layoutArtistLineClearOfCodecLine` re-caps it against what actually renders, and is hooked from **both** moving inputs: geometry via `resizeSubviewsWithOldSize:` (which covers live drags) and text via `TrackDisplayController`'s compose. The layout block's static frame is the worst-case reservation and the fallback. The title line only has to clear the shorter BPM line, which its shrink-to-fit width already does.
+
+**The header glass panel deliberately bleeds `kHeaderPanelRightBleed` past the window's right edge** so the window shape clips its right-side corner arcs off-screen; without it the uniformly rounded glass shows visible curves instead of running square to the edge.
+
+All corner rounding shares `kMainWindowCornerRadius` (`MainWindowLayout.h`, 20pt): the contentView layer mask, both glass views, the header tint layer and the pitch panel's right-edge path.
+
+## Chrome: three layers
+
+macOS 26 `NSGlassEffectView`, three layers. **Before macOS 26 the two glass layers fall back to frosted behind-window `NSVisualEffectView`s** (`UnderWindowBackground`, `StateActive`, blur shaped by `frostCornerMaskWithRadius:` — an `NSVisualEffectView`'s blur region ignores a layer `cornerRadius`). Both creation sites branch on `@available(macOS 26.0, *)`; the deployment target is 13.0, and `-Wunguarded-availability` is aggressive, so any API newer than that floor needs its own guard.
+
+**1. The backdrop.** A window-spanning glass backdrop behind everything, **Clear** style, installed in `buildContentInWindow:`.
+
+**2. The header panel and its tint.** The header/waveform area gets a **Regular**-style glass panel in `MainPlayerContentView` (Regular is the default — there is no explicit `.style` to grep for). Over it, `headerTintView` is a passthrough layer view washed with the current track's dominant art color: `NSImage+Util`'s `dominantColor` uses a hue histogram weighted by saturation × brightness, falling back to average gray for monochrome art. `ArtworkDisplayController` owns the art view, tint, dock icon and deferred art loads. It square-crops and samples one private image copy together on a serial utility lane, with at most one executing render plus one replaceable latest request; a generation- and exact track/metadata/source-target-checked main-thread delivery installs the matching image and color together. Changing any target identity invalidates pending renders without removing the installed art kept through an unresolved transition.
+
+**The wash's clamps are perceptual, not HSB** (`NSColor+OKLCH`): HSB brightness is hue-blind, and an HSB cap let bright-hued art wash out the unplayed waveform. Lightness is capped at OKLCH L ≤ 0.30 in dark mode (over a light waveform) and ≥ 0.87 in light (over a dark one), chroma moderately in both; **an out-of-gamut result gives up chroma, never lightness or hue.**
+
+Tint changes fade over `kVibeArtCrossfadeDuration`, shared with `CrossfadingImageView`'s art crossfade so both move on one clock.
+
+**Settings > Appearance > Window > Window** (`AppSettings.windowTint`, stable identifiers `mono`, `artwork` — the default — and `custom`) chooses the wash, and `resolvedHeaderTintIsDark:` is the one place that resolves it: mono is no wash, artwork is the clamped art color above, and custom is the stored color for the appearance **used exactly as picked, alpha and all** — the clamps exist to tame a color nobody chose. An unset custom color resolves as mono, so the pane seeds one when Custom is chosen, as the waveform's custom theme does. Only the wash follows the setting: the art color still settles, so the dock icon and the `album_art` waveform theme look the same under every choice. A writer calls `MainPlayerController.refreshWindowTint` to fade the wash across.
+
+**The wash is deliberately not the glass's own `tintColor`**: AppKit silently discards a glass view's tint whenever the window is not key, with no public override — only the private `resignKeyAppearance` affects it, and private API is off-limits (root `CLAUDE.md`). So the window stays as key-state-independent as public API allows: the tint wash and the playlist frost (`NSVisualEffectStateActive`) never dim, and the glass views' own subtle inactive dimming is accepted.
+
+**3. The playlist frost.** A behind-window `NSVisualEffectView`, `UnderWindowBackground` in both appearances (the light `WindowBackground` material is effectively opaque paint), plus a brightening white wash in light mode only. Row text is not readable over Clear glass. It sits **under** the scroll view, since an `NSClipView` background does not composite semi-transparent colors over a backdrop, so it also covers the empty area below the last row.
+
+**TRAP: an `NSGlassEffectView` inside `MainPlayerContentView` must not stretch from design height to window height.** As a height-sizable `NSGlassEffectView`, the frost band's SwiftUI hosting internals fought the autoresizing stretch and **the window silently refused to expand past the design height** — hence `NSVisualEffectView` here. The trap is the design-size-to-window-size stretch, not height-flexibility itself: the backdrop is created full-bleed at live bounds, `NSViewHeightSizable`, and resizes cleanly. Width-flexibility is fine for both glass views.
+
+**TRAP: `refreshHeaderTint` must resolve light/dark from the *window*, not from `headerTintView`.** Its caller is the *content view's* `viewDidChangeEffectiveAppearance`, and AppKit updates the tree top-down, so a subview there still reports the outgoing appearance — reading it left the wash a full appearance behind on every live toggle.
+
+## The codec line and FX indicators
+
+The codec line doubles as the FX indicator: the SF Symbols of latched effects draw inline at the head of the same right-aligned run, glued to the codec text. Low kill shows the filled dial while its boost is on (the boost modifies that filter rather than being an effect of its own); reverb one symbol; each active delay one, matching the FX menu's.
+
+`AppSettings.showFileInfo` off empties the codec text and the BPM/key line at render time (`TrackDisplayController` reads it in `renderState:` and `renderBPM:`), but **the FX symbols are deck state, not file info, and keep composing.**
+
+The line has **two independent inputs** — codec text and FX state — and `TrackDisplayController` composes it from the last of each, because FX are deck state that outlives any track: they persist across track changes and into the empty state.
+
+Two adjustments are optical, not derivable from any metric: symbols draw at **bold** weight (the default stroke is a hairline at this size), and the two dial glyphs get their own size multiplier — they spend much of their bounding box on tick marks and read visibly smaller at the row's shared box height.
+
+Symbols render a step brighter than the codec text, at full `secondaryLabelColor`, matching the time labels — **which is why both corner labels carry their dimming in the text color** (`tertiaryLabelColor` in `cornerTextAttributes`) at full field alpha, rather than a field-wide 0.5: a field alpha would dim the symbols too, and the codec/BPM lines are one visual pair. Template images, so the tint follows the label through appearance changes.
+
+## The key label
+
+The BPM line below carries the key after a `|` separator, the same one the codec line uses between its fields. With `AppSettings.keyColorsEnabled` on, that key run alone is redrawn bold and in its Camelot color — one hue per wheel number, anchored so 1 is green as on the printed wheel, so harmonically compatible keys sit in neighboring hues and a relative major/minor pair shares one.
+
+The palette is a `dynamicProvider` color per number (`camelotColor` in `TrackDisplayController.m`), less saturated on dark chrome and darker on light, since a single fixed hue cannot read on both — and neither at full brightness, which reads as garish beside the dimmed corner text. It approximates the published wheel rather than sampling it.
+
+**TRAP: the BPM line's change guard cannot be the string alone**, because toggling the color setting leaves the text identical while the attributes must change — hence the companion `_lastKeyColorKey`, which starts at -1 and is compared alongside the string.

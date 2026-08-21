@@ -19,10 +19,11 @@
 #                                (scan-key.sh prints the detected key; the
 #                                bpm-*.wav loops double as the atonal
 #                                negative case, expecting no key)
-#   tone-art-red.m4a             8s AAC tagged with title/artist and a solid
+#   tone-art-red.m4a             180s AAC tagged with title/artist and a solid
 #   tone-art-blue.m4a            red/blue cover — art, header-tint, and
 #                                dock-icon tests; play one after the other to
-#                                exercise the art crossfade and tint animation
+#                                exercise the art crossfade and tint animation.
+#                                Minutes long so scrubbing is testable (iOS)
 #   tone-cbr.mp3                 8s 192kbps CBR — the plain MP3 case
 #   tone-vbr.mp3                 120s VBR (Xing/LAME header) — duration and
 #                                seek accuracy, where a CBR file proves nothing
@@ -228,8 +229,18 @@ SWIFT
     rm -f "$OUT/.art.png" "$OUT/.plain.m4a"
 }
 
-have tone-art-red.m4a  || gen_art_m4a tone-art-red.m4a  "$OUT/tone-short-1.wav" 200 40 60  "Red Art Test"  "Art Tester"
-have tone-art-blue.m4a || gen_art_m4a tone-art-blue.m4a "$OUT/tone-short-2.wav" 40 90 220  "Blue Art Test" "Art Tester"
+# Minutes-long sources so the art files can exercise scrubbing; the temp
+# tones are distinct pitches like the shorts.
+if ! have tone-art-red.m4a; then
+    gen_wav "$OUT/.art-src-1.wav" 220 180
+    gen_art_m4a tone-art-red.m4a  "$OUT/.art-src-1.wav" 200 40 60  "Red Art Test"  "Art Tester"
+    rm -f "$OUT/.art-src-1.wav"
+fi
+if ! have tone-art-blue.m4a; then
+    gen_wav "$OUT/.art-src-2.wav" 330 180
+    gen_art_m4a tone-art-blue.m4a "$OUT/.art-src-2.wav" 40 90 220  "Blue Art Test" "Art Tester"
+    rm -f "$OUT/.art-src-2.wav"
+fi
 
 # ---------------------------------------------------------------------------
 # MP3 — the one part of the corpus needing a non-stock tool.

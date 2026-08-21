@@ -37,14 +37,10 @@
 
     MetadataParseClaim *claim = [coordinator claimParseForKey:key participant:holder];
     XCTAssertTrue(claim.isOwner);
-    XCTAssertEqual([coordinator claimParseForKey:key participant:firstDuplicate].role,
-                   MetadataParseClaimRoleWaiter);
-    XCTAssertEqual([coordinator claimParseForKey:key participant:secondDuplicate].role,
-                   MetadataParseClaimRoleWaiter);
-    XCTAssertEqual([coordinator claimParseForKey:key participant:firstDuplicate].role,
-                   MetadataParseClaimRoleWaiter);
-    XCTAssertEqual([coordinator claimParseForKey:key participant:holder].role,
-                   MetadataParseClaimRoleAlreadyOwner);
+    XCTAssertFalse([coordinator claimParseForKey:key participant:firstDuplicate].isOwner);
+    XCTAssertFalse([coordinator claimParseForKey:key participant:secondDuplicate].isOwner);
+    XCTAssertFalse([coordinator claimParseForKey:key participant:firstDuplicate].isOwner);
+    XCTAssertFalse([coordinator claimParseForKey:key participant:holder].isOwner);
 
     NSArray *waiters = [coordinator completeClaim:claim];
     XCTAssertEqual(waiters.count, 2u);
@@ -60,9 +56,8 @@
     XCTAssertEqual([coordinator completeClaim:next].count, 0u);
 }
 
-// AlreadyOwner takes the same !isOwner branch as Waiter, and it is the more
-// dangerous of the two: completing it would free the true holder's claim and
-// drain its waiters mid-parse.
+// A repeated holder also receives a non-owning claim. Completing it must not
+// free the true holder or drain its waiters mid-parse.
 - (void)testARepeatedOwnerClaimCannotCompleteTheRealOne {
     MetadataParseCoordinator *coordinator = [MetadataParseCoordinator new];
     NSURL *key = [NSURL fileURLWithPath:@"/private/tmp/shared.flac"];
@@ -72,13 +67,11 @@
     MetadataParseClaim *claim = [coordinator claimParseForKey:key participant:holder];
     [coordinator claimParseForKey:key participant:duplicate];
     MetadataParseClaim *repeat = [coordinator claimParseForKey:key participant:holder];
-    XCTAssertEqual(repeat.role, MetadataParseClaimRoleAlreadyOwner);
     XCTAssertFalse(repeat.isOwner);
 
     XCTAssertEqual([coordinator completeClaim:repeat].count, 0u);
     // Still held, and still holding its waiter.
-    XCTAssertEqual([coordinator claimParseForKey:key participant:duplicate].role,
-                   MetadataParseClaimRoleWaiter);
+    XCTAssertFalse([coordinator claimParseForKey:key participant:duplicate].isOwner);
     XCTAssertEqualObjects([coordinator completeClaim:claim], (@[duplicate]));
 }
 
@@ -109,10 +102,9 @@
     MetadataParseClaim *claim = [coordinator claimParseForKey:key participant:holder];
     MetadataParseClaim *duplicateClaim = [coordinator claimParseForKey:key participant:duplicate];
     XCTAssertTrue(claim.isOwner);
-    XCTAssertEqual(duplicateClaim.role, MetadataParseClaimRoleWaiter);
+    XCTAssertFalse(duplicateClaim.isOwner);
     XCTAssertEqual([coordinator completeClaim:duplicateClaim].count, 0u);
-    XCTAssertEqual([coordinator claimParseForKey:key participant:duplicate].role,
-                   MetadataParseClaimRoleWaiter);
+    XCTAssertFalse([coordinator claimParseForKey:key participant:duplicate].isOwner);
     NSArray *waiters = [coordinator completeClaim:claim];
     XCTAssertEqual(waiters.count, 1u);
     XCTAssertTrue([waiters containsObject:duplicate]);
@@ -126,10 +118,8 @@
     EqualMetadataParticipant *second = [EqualMetadataParticipant new];
     MetadataParseClaim *claim = [coordinator claimParseForKey:@"same" participant:holder];
 
-    XCTAssertEqual([coordinator claimParseForKey:@"same" participant:first].role,
-                   MetadataParseClaimRoleWaiter);
-    XCTAssertEqual([coordinator claimParseForKey:@"same" participant:second].role,
-                   MetadataParseClaimRoleWaiter);
+    XCTAssertFalse([coordinator claimParseForKey:@"same" participant:first].isOwner);
+    XCTAssertFalse([coordinator claimParseForKey:@"same" participant:second].isOwner);
     NSArray *waiters = [coordinator completeClaim:claim];
     XCTAssertEqual(waiters.count, 2u);
     XCTAssertTrue([waiters containsObject:first]);
@@ -144,8 +134,7 @@
     @autoreleasepool {
         NSObject *waiter = [NSObject new];
         weakWaiter = waiter;
-        XCTAssertEqual([coordinator claimParseForKey:@"same" participant:waiter].role,
-                       MetadataParseClaimRoleWaiter);
+        XCTAssertFalse([coordinator claimParseForKey:@"same" participant:waiter].isOwner);
     }
 
     XCTAssertNil(weakWaiter);
@@ -171,6 +160,35 @@
     XCTAssertEqual(results.count, 2u);
     XCTAssertEqual(results[0].count + results[1].count, 1u);
     XCTAssertTrue([results[0] containsObject:waiter] || [results[1] containsObject:waiter]);
+}
+
+- (void)testSuccessfulDrainKeepsLateWaitersBehindTheHolderUntilAdopted {
+    MetadataParseCoordinator *coordinator = [MetadataParseCoordinator new];
+    NSObject *holder = [NSObject new];
+    NSObject *first = [NSObject new];
+    NSObject *late = [NSObject new];
+    MetadataParseClaim *claim = [coordinator claimParseForKey:@"same"
+                                                   participant:holder];
+    [coordinator claimParseForKey:@"same" participant:first];
+
+    BOOL completed = YES;
+    XCTAssertEqualObjects([coordinator drainWaitersForSuccessfulClaim:claim
+                                                             completed:&completed],
+                          (@[first]));
+    XCTAssertFalse(completed);
+    XCTAssertFalse([coordinator claimParseForKey:@"same" participant:late].isOwner,
+                   @"a late row must join the handoff, not become a new owner");
+    XCTAssertEqualObjects([coordinator drainWaitersForSuccessfulClaim:claim
+                                                             completed:&completed],
+                          (@[late]));
+    XCTAssertFalse(completed);
+    XCTAssertEqual([coordinator drainWaitersForSuccessfulClaim:claim
+                                                      completed:&completed].count,
+                   0u);
+    XCTAssertTrue(completed);
+
+    XCTAssertTrue([coordinator claimParseForKey:@"same"
+                                     participant:[NSObject new]].isOwner);
 }
 
 - (void)testIndependentKeysDoNotContend {
@@ -202,8 +220,7 @@
     NSObject *holder = [NSObject new];
     NSObject *duplicate = [NSObject new];
     MetadataParseClaim *claim = [coordinator claimParseForKey:key participant:holder];
-    XCTAssertEqual([coordinator claimParseForKey:@"original" participant:duplicate].role,
-                   MetadataParseClaimRoleWaiter);
+    XCTAssertFalse([coordinator claimParseForKey:@"original" participant:duplicate].isOwner);
     [key setString:@"changed"];
 
     XCTAssertEqualObjects([coordinator completeClaim:claim], (@[duplicate]));
@@ -226,8 +243,8 @@
 // The dangerous window: rows still claiming while the holder completes. A
 // waiter that registers just after the holder snapshots its list, but before
 // the holder entry is removed, would be dropped — its row left bare with no
-// parse of its own coming. The invariant is that every participant is
-// accounted for exactly once, as an owner or as some owner's delivered waiter.
+// parse of its own coming. Every participant must be accounted for exactly
+// once, as an owner or as some owner's delivered waiter.
 - (void)testAWaiterRacingCompletionIsNeverLost {
     static const NSUInteger kRounds = 60;
     static const NSUInteger kContenders = 32;

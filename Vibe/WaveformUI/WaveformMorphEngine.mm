@@ -142,8 +142,17 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     BOOL hasWaveformChanged = (_hasWaveform != hasWaveform);
     _hasWaveform = hasWaveform;
     if (_displayedSamples.size() != _scratchSamples.size()) {
-        // A first draw, or a bar-count change, so start collapsed.
-        _displayedSamples.assign(_scratchSamples.size(), 0.0f);
+        if (_displayedSamples.empty()) {
+            // The first build starts collapsed, so the waveform grows out of
+            // the midline.
+            _displayedSamples.assign(_scratchSamples.size(), 0.0f);
+        } else {
+            // A bar-count change mid-picture is a resize — the renderers
+            // derive their count from the width — so carry the on-screen
+            // shape over rather than collapsing it to the midline every few
+            // points of drag.
+            [self resampleDisplayedToCount:_scratchSamples.size()];
+        }
         geometryChanged = YES;
     }
     BOOL targetChanged = (_scratchSamples != _targetSamples);
@@ -163,7 +172,35 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     }
 }
 
+// Nearest-bar carry-over of the displayed samples to a new bar count, in
+// samplesPerBar strides so a Detailed [min, max] pair travels together. The
+// result approximates the old picture, and the morph then eases the small
+// remainder toward the freshly filled target.
+- (void)resampleDisplayedToCount:(NSUInteger)count {
+    size_t stride = MAX(_samplesPerBar, (NSUInteger)1);
+    size_t oldBars = _displayedSamples.size() / stride;
+    size_t newBars = count / stride;
+    std::vector<float> resampled(count, 0.0f);
+    for (size_t bar = 0; oldBars > 0 && bar < newBars; bar++) {
+        size_t src = bar * oldBars / newBars;
+        for (size_t s = 0; s < stride; s++) {
+            resampled[bar * stride + s] = _displayedSamples[src * stride + s];
+        }
+    }
+    _displayedSamples = std::move(resampled);
+}
+
 - (void)rebuildNow {
+    [self runRebuild];
+}
+
+- (void)settleImmediately {
+    if (!_morphTimer && _displayedSamples == _targetSamples) {
+        return;
+    }
+    [_morphTimer invalidate];
+    _morphTimer = nil; // settled BEFORE the rebuild — see isSettled
+    _displayedSamples = _targetSamples;
     [self runRebuild];
 }
 
@@ -181,6 +218,10 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     if (_morphTimer) {
         return; // already easing — the updated target just bends the motion
     }
+    // Which rebuilds are the 60 Hz ease and which are one-shot settles is not
+    // answerable from the renderer's own count, and getting it wrong sends an
+    // optimization at the wrong path.
+    VibeSignpostCount(morph_started);
     _lastMorphTick = CACurrentMediaTime();
     __weak __typeof__(self) weakSelf = self;
     _morphTimer = [NSTimer timerWithTimeInterval:kMorphFrameInterval repeats:YES block:^(NSTimer *timer) {
@@ -215,6 +256,7 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     CGFloat vscale = _vscale ? _vscale(_size.height) : _size.height;
     _pendingRebuildPx += (float)(maxDistance * k * vscale);
     if (_pendingRebuildPx >= 0.25f) {
+        VibeTallyCount(morph_eased_rebuild);
         [self runRebuild];
     }
 }

@@ -20,6 +20,18 @@
 #import "AVFAudioWaveformLoaderInternal.h"
 #import "AudioWaveform.h"
 
+@interface RecordingWaveformLoaderDelegate : NSObject <AudioWaveformLoaderDelegate>
+@property (nonatomic, strong) XCTestExpectation *progressExpectation;
+@end
+
+@implementation RecordingWaveformLoaderDelegate
+- (void)audioWaveformLoader:(AudioWaveformLoader *)loader
+                   waveform:(CodableAudioWaveform *)waveform
+                didLoadData:(float)percentLoaded {
+    [_progressExpectation fulfill];
+}
+@end
+
 @interface AVFAudioWaveformLoaderTests : XCTestCase
 @end
 
@@ -291,6 +303,21 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     _loader.isCancelled = YES;
     XCTAssertNil([_loader load:path]);
     XCTAssertFalse(_loader.isComplete);
+}
+
+- (void)testDetachedLoadFinishesWithoutProgressDeliveries {
+    NSString *path = [self writeWAVNamed:@"detached.wav" seconds:1.0];
+    XCTestExpectation *progress = [self expectationWithDescription:@"no detached progress"];
+    progress.inverted = YES;
+    RecordingWaveformLoaderDelegate *delegate = [RecordingWaveformLoaderDelegate new];
+    delegate.progressExpectation = progress;
+    AVFAudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:delegate];
+    [loader detach];
+
+    XCTAssertNotNil([loader load:path]);
+    XCTAssertTrue(loader.isComplete);
+    [self waitForExpectations:@[progress] timeout:0.2];
+    XCTAssertEqual(delegate.progressExpectation, progress);
 }
 
 // The whole pass end to end: every chunk filled, marked complete, and the

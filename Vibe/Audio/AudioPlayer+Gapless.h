@@ -19,8 +19,10 @@
 //    and play plays the bytes as prefetched. That matches what a file rewritten
 //    mid-playback already does.
 //  - **An open still in flight at play: time is not adopted.** Its utility-QoS
-//    worker cannot be boosted, so the play races it with its own open rather
-//    than waiting on it.
+//    worker cannot be boosted, so a same-path play races it with its own open
+//    rather than waiting. An unrelated park is cancelled before the foreground
+//    open; a winner clears the loser's whole park before a late delivery can
+//    make the now-current track its own successor.
 //
 //  THE SPLICE. With crossfade off and a format-matching next track, the next
 //  file is scheduled as a SECOND SEGMENT on the current player node, which
@@ -35,13 +37,14 @@
 //  when the playlist's next changes underneath (unschedule…), CLEAR it when the
 //  material is dead (clear…). All on the player queue except prefetchTrack:.
 //
-//  INVARIANT, and the one that breaks first: every `[node stop]` of the
+//  ALWAYS, and the one that breaks first: every `[node stop]` of the
 //  current node drops its queued segment too. Every such site must clear the
 //  armed flag first and, when it keeps playing the same file, re-arm after
 //  its reschedule.
 //
 
 #import "AudioPlayer.h"
+#import "AudioPrefetchRules.h"
 #import <AVFoundation/AVFoundation.h>
 
 @class AudioTrack;
@@ -51,12 +54,18 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AudioPlayer (Gapless)
 
 // Runs on _queue. nil drops the park, which is what a play past the last track
-// does.
+// does. A different-path request suppressed behind playback retains its track
+// and resumes only after that playback succeeds.
 - (void)prefetchOnQueue:(nullable AudioTrack *)track;
 
 // Every site in AudioPlayer.m that stops and reschedules the current node must
 // disarm and re-arm through these.
 - (void)setGaplessQueuedOnQueue:(BOOL)queued;
+- (void)clearPrefetchOnQueue;
+- (void)terminallyRetirePrefetchRequestOnQueue;
+- (void)playbackDidSucceedForPrefetchOnQueue;
+- (void)retirePrefetchOnQueueAtPoint:(VibeAudioPrefetchRetirementPoint)point
+                            playPath:(nullable NSString *)playPath;
 - (void)maybeArmGaplessOnQueue;
 - (void)clearGaplessOnQueue;
 - (void)promoteGaplessOnQueue;

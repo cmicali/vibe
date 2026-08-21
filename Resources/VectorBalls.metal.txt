@@ -1,0 +1,104 @@
+// Runtime-compiled off the main thread by VectorBallsView.
+#include <metal_stdlib>
+using namespace metal;
+
+struct Inst {
+    float4 home;
+    float4 scatter;
+    float4 attr;
+};
+
+struct Uniforms {
+    float4x4 model;
+    float4x4 view;
+    float4x4 projection;
+    float4 params;
+    float4 lightView;
+};
+
+struct VOut {
+    float4 position [[position]];
+    float2 uv;
+    float3 centerView;
+};
+
+vertex VOut vb_vertex(uint vid [[vertex_id]],
+                      uint iid [[instance_id]],
+                      constant Inst *instances [[buffer(0)]],
+                      constant Uniforms &u [[buffer(1)]]) {
+    float2 corner = float2((vid & 1u) ? 1.0 : -1.0,
+                           (vid & 2u) ? 1.0 : -1.0);
+    constant Inst &inst = instances[iid];
+    float t = u.params.x;
+    float3 p = mix(inst.scatter.xyz, inst.home.xyz, t);
+    p.y += sin(u.params.z * 1.7 + inst.home.x * 0.55) * 0.28 * t;
+
+    float4 centerView = u.view * (u.model * float4(p, 1.0));
+    float4 viewPos = centerView;
+    viewPos.xy += corner * inst.attr.x;
+
+    VOut out;
+    out.position = u.projection * viewPos;
+    out.uv = corner;
+    out.centerView = centerView.xyz;
+    return out;
+}
+
+// Procedural studio environment standing in for a chrome cubemap.
+static float3 vb_env(float3 d) {
+    d = normalize(d);
+    float up = d.y * 0.5 + 0.5;
+    float3 col = mix(float3(0.10, 0.11, 0.14),
+                     float3(0.80, 0.86, 1.00),
+                     up);
+    col += smoothstep(0.30, 1.0, d.y) * float3(1.0, 1.05, 1.2);
+    float key = smoothstep(0.88, 0.999,
+            dot(d, normalize(float3(0.55, 0.65, 0.52))));
+    col += key * float3(3.2, 3.0, 2.7);
+    float fill = smoothstep(0.84, 1.0,
+            dot(d, normalize(float3(-0.7, 0.15, 0.35))));
+    col += fill * float3(0.7, 0.85, 1.1);
+    col += clamp(-d.y, 0.0, 1.0) * float3(0.14, 0.10, 0.08);
+    return col;
+}
+
+fragment float4 vb_fragment(VOut in [[stage_in]],
+                            constant Uniforms &u [[buffer(1)]]) {
+    float r2 = dot(in.uv, in.uv);
+    if (r2 > 1.0) {
+        discard_fragment();
+    }
+    float r = sqrt(r2);
+    float slope = smoothstep(0.74, 1.0, r);
+    float2 dir = r > 1e-4 ? in.uv / r : float2(0.0);
+    float3 n = normalize(float3(dir * slope * 2.1, 1.0));
+
+    float3 vdir = float3(0.0, 0.0, 1.0);
+    float3 reflection = reflect(-vdir, n);
+    float3x3 rotation =
+            float3x3(u.model[0].xyz, u.model[1].xyz, u.model[2].xyz);
+    float3 worldReflection =
+            rotation * reflection + float3(in.centerView.xy * 0.02, 0.0);
+    float3 environment = vb_env(worldReflection);
+
+    float3 f0 = float3(0.95, 0.96, 0.98);
+    float cosine = clamp(dot(n, vdir), 0.0, 1.0);
+    float3 fresnel = f0 + (1.0 - f0) * pow(1.0 - cosine, 5.0);
+    float3 color = environment * fresnel;
+
+    float3 lightVector = u.lightView.xyz - in.centerView;
+    float lightDistance = length(lightVector);
+    float3 lightDirection = lightVector / max(lightDistance, 1e-3);
+    float attenuation =
+            1.0 / (1.0 + 0.05 * lightDistance * lightDistance);
+    float3 halfVector = normalize(lightDirection + vdir);
+    float redSpecular = pow(max(dot(n, halfVector), 0.0), 28.0);
+    float redDiffuse = max(dot(n, lightDirection), 0.0);
+    color += float3(1.0, 0.06, 0.05) *
+            (redSpecular * 5.0 + redDiffuse * 0.7) * attenuation;
+
+    float depth = -in.centerView.z;
+    float fade = clamp((depth - 16.0) / 20.0, 0.0, 1.0);
+    color = mix(color, float3(0.03, 0.03, 0.04), fade);
+    return float4(color, 1.0);
+}

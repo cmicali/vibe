@@ -20,6 +20,7 @@
           preemptable:(BOOL)preemptable
            generation:(uint64_t)generation
            completion:(nullable dispatch_block_t)completion;
+- (void)completeRetiredFadePair:(VibeRetiredFade *)fade;
 @end
 
 @implementation VibeRetiredFade
@@ -104,7 +105,7 @@
     fade.node.volume = VibeCrossfadeVolumeOverSteps(start, 0, step, totalSteps);
     if (step >= totalSteps) {
         [_retiredFades removeObject:fade];
-        [self detachRetiredFadePair:fade];
+        [self completeRetiredFadePair:fade];
         return;
     }
     __weak AudioPlayer *weakSelf = self;
@@ -113,16 +114,34 @@
     });
 }
 
+- (void)completeRetiredFadePair:(VibeRetiredFade *)fade {
+    [self detachRetiredFadePair:fade];
+    if (!fade.countedAsOutput
+            || fade.outputGeneration != _retiredOutputGeneration) {
+        return;
+    }
+    fade.countedAsOutput = NO;
+    if (_activeRetiredOutputCount > 0) {
+        _activeRetiredOutputCount--;
+    }
+    [self refreshOutputAudioActiveOnQueue];
+}
+
 // Stops and detaches a retired pair, exactly once per pair: the caller owns it
 // through the natural ramp completion, by having removed the entry to cancel
 // the ramp, or by retiring an already-silent pair outright. Either half may be
 // nil.
 - (void)detachRetiredFadePair:(VibeRetiredFade *)fade {
-    if (fade.node) {
+    // TRAP: engine identity, not just nil-ness. An unregistered declick retire
+    // is unstoppable by design, so its completion can land after the iOS
+    // media-services rebuild swapped _engine — detachNode: there raises,
+    // because the pair was never attached to the new engine. The dead pair
+    // needs no teardown; it died with its engine.
+    if (fade.node && fade.node.engine == _engine) {
         [fade.node stop];
         [_engine detachNode:fade.node];
     }
-    if (fade.varispeed) {
+    if (fade.varispeed && fade.varispeed.engine == _engine) {
         [_engine detachNode:fade.varispeed];
     }
 }
@@ -139,7 +158,7 @@
     [_retiredFades removeAllObjects];
     for (VibeRetiredFade *fade in fades) {
         [self rampRetiredNodeAsync:fade.node step:1 from:fade.node.volume milliseconds:kFadeDurationMilliseconds completion:^{
-            [self detachRetiredFadePair:fade];
+            [self completeRetiredFadePair:fade];
         }];
     }
 }
@@ -155,9 +174,13 @@
     fade.node = node;
     fade.varispeed = varispeed;
     if (node && _engine.isRunning && _state == VibePlayerStatePlaying) {
+        fade.countedAsOutput = YES;
+        fade.outputGeneration = _retiredOutputGeneration;
+        _activeRetiredOutputCount++;
+        [self refreshOutputAudioActiveOnQueue];
         if (milliseconds <= kFadeDurationMilliseconds) {
             [self rampRetiredNodeAsync:node step:1 from:node.volume milliseconds:milliseconds completion:^{
-                [self detachRetiredFadePair:fade];
+                [self completeRetiredFadePair:fade];
             }];
             return;
         }

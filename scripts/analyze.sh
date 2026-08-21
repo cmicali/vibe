@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 #
-# Run clang's static analyzer over the app target and fail on any finding in
+# Run clang's static analyzer over BOTH app targets and fail on any finding in
 # our own sources.
 #
-# Usage: scripts/analyze.sh [Debug|Release]
+# Both, because "the analyzer is a gate" was macOS-only for as long as there
+# has been an iOS target: Vibe/iOS and the iOS halves of the shared subsystems
+# — a few thousand lines — were never analyzed at all, and CI's build-ios job
+# compiles them without analyzing.
+#
+# Usage: scripts/analyze.sh [Debug|Release] [macos|ios|all]
 #   configuration defaults to Debug, which is what the Vibe scheme's analyze
-#   action uses and what CI runs.
+#   action uses; the leg defaults to all. CI runs Release with one leg per
+#   matrix job — each leg is a full analyzing build of its target, so running
+#   them serially in one job doubles that job's wall time for nothing.
 #
 # The analyzer's checks are turned on in project.yml (CLANG_ANALYZER_NONNULL,
 # CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION: YES_AGGRESSIVE). Without this script
@@ -22,6 +29,12 @@ case "$CONFIGURATION" in
     *) echo "error: configuration must be Debug or Release (got '$CONFIGURATION')" >&2; exit 1 ;;
 esac
 
+LEG="${2:-all}"
+case "$LEG" in
+    macos|ios|all) ;;
+    *) echo "error: leg must be macos, ios or all (got '$LEG')" >&2; exit 1 ;;
+esac
+
 cd "$(dirname "$0")/.."
 
 if ! command -v xcodegen >/dev/null 2>&1; then
@@ -36,38 +49,61 @@ else
     xcodegen generate
 fi
 
-LOG="build/analyze-$CONFIGURATION.log"
 mkdir -p build
 
-echo "🔊 xcodebuild analyze ($CONFIGURATION)"
 # The analyzer's own findings go to stdout as warnings; CLANG_ANALYZER_OUTPUT
 # text keeps them there rather than writing .plist files nothing reads. The
 # build must still be allowed to fail on its own terms, hence the tee and the
 # PIPESTATUS check rather than `set -o pipefail` swallowing the status.
-set +e
-xcodebuild analyze \
-    -project Vibe.xcodeproj \
-    -scheme Vibe \
-    -configuration "$CONFIGURATION" \
-    -derivedDataPath build/AnalyzeDD \
-    CLANG_ANALYZER_OUTPUT=text 2>&1 | tee "$LOG"
-BUILD_STATUS="${PIPESTATUS[0]}"
-set -e
+#
+# The iOS leg needs a destination (there is no default device) and no signing;
+# a generic simulator destination analyzes without booting anything.
+analyze_scheme() {   # analyze_scheme <scheme> <log-suffix> [extra xcodebuild args...]
+    local scheme="$1" suffix="$2"
+    shift 2
+    local log="build/analyze-$suffix-$CONFIGURATION.log"
 
-if [[ "$BUILD_STATUS" -ne 0 ]]; then
-    echo "❌ analyze failed to build (see $LOG)" >&2
-    exit "$BUILD_STATUS"
+    echo "🔊 xcodebuild analyze ($scheme, $CONFIGURATION)"
+    set +e
+    xcodebuild analyze \
+        -project Vibe.xcodeproj \
+        -scheme "$scheme" \
+        -configuration "$CONFIGURATION" \
+        -derivedDataPath build/AnalyzeDD \
+        "$@" \
+        CLANG_ANALYZER_OUTPUT=text 2>&1 | tee "$log"
+    local build_status="${PIPESTATUS[0]}"
+    set -e
+
+    if [[ "$build_status" -ne 0 ]]; then
+        echo "❌ analyze failed to build $scheme (see $log)" >&2
+        exit "$build_status"
+    fi
+
+    # grep returns 1 on no match under set -e, so it is guarded either way.
+    local findings
+    findings="$(grep -E '^/.*: (warning|error): .*\[[a-zA-Z]' "$log" | grep -v '/ThirdParty/' || true)"
+    if [[ -n "$findings" ]]; then
+        local count
+        count="$(printf '%s\n' "$findings" | wc -l | tr -d ' ')"
+        echo >&2
+        echo "❌ static analyzer ($scheme): $count finding(s)" >&2
+        printf '%s\n' "$findings" >&2
+        exit 1
+    fi
+}
+
+if [[ "$LEG" == "macos" || "$LEG" == "all" ]]; then
+    analyze_scheme Vibe macos
+fi
+if [[ "$LEG" == "ios" || "$LEG" == "all" ]]; then
+    analyze_scheme VibeiOS ios \
+        -destination 'generic/platform=iOS Simulator' \
+        CODE_SIGNING_ALLOWED=NO
 fi
 
-# grep -c returns 1 on no match under set -e, so it is guarded either way.
-FINDINGS="$(grep -E '^/.*: (warning|error): .*\[[a-zA-Z]' "$LOG" | grep -v '/ThirdParty/' || true)"
-
-if [[ -n "$FINDINGS" ]]; then
-    COUNT="$(printf '%s\n' "$FINDINGS" | wc -l | tr -d ' ')"
-    echo >&2
-    echo "❌ static analyzer: $COUNT finding(s)" >&2
-    printf '%s\n' "$FINDINGS" >&2
-    exit 1
-fi
-
-echo "✅ static analyzer: clean"
+case "$LEG" in
+    all)   echo "✅ static analyzer: clean (Vibe, VibeiOS)" ;;
+    macos) echo "✅ static analyzer: clean (Vibe)" ;;
+    ios)   echo "✅ static analyzer: clean (VibeiOS)" ;;
+esac

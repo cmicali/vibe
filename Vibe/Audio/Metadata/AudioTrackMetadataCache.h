@@ -14,28 +14,30 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nullable, weak) id <AudioTrackMetadataCacheDelegate> delegate;
 
-// The PINCache store name, which embeds the archive-format version; see the
-// implementation. It is the single source for init and for anything that
-// reports the name, such as the debug clear_caches reply.
-+ (NSString *)cacheName;
-
 - (void)loadMetadata:(NSArray<AudioTrack *> *)tracks;
 
 // Cancels the playlist-wide scan and releases its loader, which strongly holds
-// every track it queued, thumbnails included. Call it on File > Close. Main
-// thread only.
-- (void)cancelAll;
+// every track it queued, including each thumbnail's compact bytes. Decoded
+// thumbnail pixels are held separately by a bounded shared cache. Call it on
+// File > Close. Main thread only.
+- (void)cancelScan;
 
 // A jump-the-queue load for the track the user has just started. The
-// playlist-wide loadMetadata: scan is FIFO across a handful of workers that a
-// cloud-heavy folder can keep blocked for minutes, and the current track's
-// header tags and art must never wait behind it. A cache hit publishes
-// immediately at user-initiated QoS. A cache miss parses the file inline
-// unless it is a dataless cloud placeholder, in which case the player's own
-// open is already downloading it: call again once playback starts and the
-// parse runs then. It is a no-op for already-parsed tracks, so it is cheap to
-// call on every track start. Main thread only, like loadMetadata:.
+// playlist-wide scan must not delay the current track's header tags and art. A
+// cache hit publishes immediately at user-initiated QoS. A miss takes a
+// MetadataPriority materialization claim, atomically joining a same-path
+// foreground open, then queues its parse on the priority workers. It is a no-op
+// for already-parsed tracks, so it is cheap to call on every track start. Main
+// thread only, like loadMetadata:.
 - (void)loadMetadataNow:(AudioTrack *)track;
+
+// The same ranking, expressed as a playlist position — which is what a shell
+// actually has at hand. The offset table lives here rather than in each shell,
+// so there is one of it rather than one per platform: both shells call this
+// from their single current-index funnel, and the shell left to compute its
+// own ended up not calling at all. Main thread only.
+- (void)setNeighborhoodAroundIndex:(NSUInteger)index
+                          inTracks:(NSArray<AudioTrack *> *)tracks;
 
 // Empties the disk cache. The completion fires on the cache's internal queue
 // once the entries are gone. A parse already in flight cannot repopulate it:

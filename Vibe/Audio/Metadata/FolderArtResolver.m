@@ -15,14 +15,17 @@
 // even that is O(1) — the trim belongs to its job.
 //
 
-#import "FolderArtResolver.h"
+#import "FolderArtResolverInternal.h"
 #import "FolderArtEntry.h"
 #import "FolderArtFileIO.h"
 #import "AppSettings.h"
 #import "FolderArtRules.h"
-#import "FolderAccessManager.h"
-#import "NSImage+Util.h"
+#if TARGET_OS_OSX
+#import "FolderAccessManager.h"    // the macOS grant list; see -init
+#endif
+#import "PlatformImage.h"
 
+#import <os/lock.h>
 #import <stdatomic.h>
 
 NSNotificationName const FolderArtDidResolveNotification = @"FolderArtDidResolveNotification";
@@ -55,9 +58,13 @@ static NSString *const kNoArtMarker = @"";
 
 @implementation FolderArtResolver {
     os_unfair_lock _lock;
-    NSMutableDictionary<NSString *, VibeFolderArtEntry *> *_directories;
+    NSMutableDictionary<NSString *, FolderArtEntry *> *_directories;
     uint64_t _nextRevision;
     uint64_t _accessClock;
+    // Fences a denied read against a concurrent grant-restoration notification:
+    // a denial that predates the change must not park the path after that change
+    // already re-armed it. Guarded by _lock.
+    uint64_t _accessGeneration;
     NSCache<NSString *, VibeImage *> *_thumbnails;
     NSCache<NSString *, VibeImage *> *_displayImages;
     dispatch_queue_t _queue;
@@ -85,9 +92,24 @@ static NSString *const kNoArtMarker = @"";
 
 - (instancetype)init {
     return [self initWithEnabledProvider:^BOOL{
-        return Settings.useFolderArt;
+#if TARGET_OS_OSX
+        return AppSettings.sharedInstance.useFolderArt;
+#else
+        // Folder art is a macOS feature: AudioTrackArtwork leaves its resolver
+        // handle nil on iOS, so nothing here is reachable — and if that ever
+        // changes, it stays off rather than silently switching on.
+        return NO;
+#endif
     } accessProvider:^BOOL(NSString *directory) {
+#if TARGET_OS_OSX
         return [FolderAccessManager.sharedInstance canReadInsideDirectory:directory];
+#else
+        // iOS has no unsanctioned-read consent panel to avoid, and no
+        // app-scoped grant list: FolderSession holds the security scope of the
+        // one picked folder for the session, and everything the app can name
+        // is inside it. So the probe that macOS must earn is free here.
+        return YES;
+#endif
     }];
 }
 
@@ -101,8 +123,8 @@ static NSString *const kNoArtMarker = @"";
         return VibeFolderArtFileInfo(path, size);
     } dataReader:^NSData *(NSString *path) {
         return VibeReadFolderArt(path);
-    } decoder:^NSImage *(NSData *data, CGFloat maxPixelSize) {
-        return [NSImage decodedImageWithData:data maxPixelSize:maxPixelSize];
+    } decoder:^VibeImage *(NSData *data, CGFloat maxPixelSize) {
+        return VibeDecodedImageWithData(data, maxPixelSize);
     }];
 }
 
@@ -143,7 +165,7 @@ static NSString *const kNoArtMarker = @"";
     if (!directory) {
         return nil;
     }
-    NSImage *thumbnail = [_thumbnails objectForKey:directory];
+    VibeImage *thumbnail = [_thumbnails objectForKey:directory];
     if (thumbnail) {
         return thumbnail;
     }
@@ -163,7 +185,7 @@ static NSString *const kNoArtMarker = @"";
     if (!directory) {
         return nil;
     }
-    NSImage *cached = [_displayImages objectForKey:directory];
+    VibeImage *cached = [_displayImages objectForKey:directory];
     if (cached) {
         return cached;
     }
@@ -172,10 +194,11 @@ static NSString *const kNoArtMarker = @"";
     // send the current track's header away empty. Pin it for the decode
     // instead, which is all eviction needs to leave it alone.
     os_unfair_lock_lock(&_lock);
-    VibeFolderArtEntry *entry = _directories[directory];
+    FolderArtEntry *entry = _directories[directory];
     NSString *settled = entry.artPath;
     uint64_t settledRevision = entry.revision;
-    BOOL decodeSettled = settled.length > 0 && settledRevision != 0;
+    BOOL decodeSettled = settled.length > 0 && settledRevision != 0 &&
+            !entry.readBlockedWithoutGrant;
     if (entry) {
         [self touchLocked:entry];
     }
@@ -187,26 +210,60 @@ static NSString *const kNoArtMarker = @"";
         if (!decodeSettled) {
             return nil; // settled: this folder has none
         }
-        NSImage *display = [self loadDisplayArtAtPath:settled directory:directory
+        // Read before the decode, because the decode is what fills it.
+        BOOL thumbnailWasMissing = [_thumbnails objectForKey:directory] == nil;
+        VibeImage *display = [self loadDisplayArtAtPath:settled directory:directory
                                              revision:settledRevision];
         os_unfair_lock_lock(&_lock);
         // The same entry object unless an invalidate dropped it, which the
         // guard covers: an entry it recreated was never pinned by this decode.
-        VibeFolderArtEntry *pinned = _directories[directory];
+        FolderArtEntry *pinned = _directories[directory];
         if (pinned.decoding > 0) {
             pinned.decoding -= 1;
         }
         os_unfair_lock_unlock(&_lock);
+        // The display decode also fills the row-thumbnail cache from the same
+        // bytes, so the first one for a directory is a real redraw edge for
+        // rows that had nothing. Later decodes of the same settled cover are
+        // not: the thumbnail is already cached, and posting again would cost a
+        // reloadVisibleTracks plus an updateUI on every track change through
+        // this folder once the four-entry display cache has evicted it. A
+        // failed decode is never an edge — nothing new became drawable.
+        if (display && thumbnailWasMissing) {
+            [self postResolutionNotificationForDirectory:directory
+                                                 revision:settledRevision
+                                                  artPath:settled];
+        }
         return display;
     }
     uint64_t revision = [self claimDirectory:directory];
     if (revision == 0) {
         return nil;
     }
-    NSString *artPath = [self resolveDirectory:directory revision:revision didSettle:NULL];
-    NSImage *display = artPath ? [self loadDisplayArtAtPath:artPath directory:directory
+    BOOL settledAnswer = NO;
+    NSString *artPath = [self resolveDirectory:directory revision:revision
+                                      didSettle:&settledAnswer];
+    VibeImage *display = artPath ? [self loadDisplayArtAtPath:artPath directory:directory
                                                    revision:revision] : nil;
     [self releaseDirectory:directory revision:revision];
+    // A row that asked while this claim was held skipped its own resolver job,
+    // so the blocking owner supplies its redraw edge. Two answers are one:
+    // pixels this decode produced, and a settled "this folder has none", which
+    // still has to arrive because the header deliberately holds the previous
+    // track's art until the answer does. A settled cover this decode could NOT
+    // read is neither — nothing became drawable and the answer has not moved —
+    // so it gets no edge, and the retry (readArtAtPath: keeps the answer and
+    // counts the failure) supplies one if it succeeds.
+    //
+    // The artPath is the post's fence against a cover replaced while the decode
+    // ran, so it must name what this decode actually drew. nil is "whatever the
+    // entry holds now", correct only for the no-cover case, which has no path.
+    BOOL settledWithNoCover = settledAnswer && artPath == nil;
+    if (display || settledWithNoCover) {
+        [self postResolutionNotificationForDirectory:directory
+                                             revision:revision
+                                              artPath:display ? artPath : nil];
+    }
     return display;
 }
 
@@ -221,7 +278,8 @@ static NSString *const kNoArtMarker = @"";
     // Read-only: this runs on the main thread's updateUI pass, and the resolve
     // it answers for touches the entry itself the moment it starts.
     os_unfair_lock_lock(&_lock);
-    BOOL needed = !_directories[directory].settledEmpty;
+    FolderArtEntry *entry = _directories[directory];
+    BOOL needed = !entry.settledEmpty && !entry.readBlockedWithoutGrant;
     os_unfair_lock_unlock(&_lock);
     return needed;
 }
@@ -261,7 +319,7 @@ static NSString *const kNoArtMarker = @"";
                 VibeFolderArtCandidateRank(artFilename) != NSNotFound;
         NSString *artPath = validFilename
                 ? [directory stringByAppendingPathComponent:artFilename] : kNoArtMarker;
-        VibeFolderArtEntry *entry = [self entryLocked:directory create:YES];
+        FolderArtEntry *entry = [self entryLocked:directory create:YES];
         entry.preferListing = NO;
         // Re-listing the same answer keeps the revision, so cached images and
         // in-flight decodes of that same cover stay valid.
@@ -272,6 +330,7 @@ static NSString *const kNoArtMarker = @"";
         entry.artPath = artPath;
         entry.resolving = 0;
         entry.readFailures = 0;
+        entry.readBlockedWithoutGrant = NO;
         // A listing saw the whole folder, so this answer stands on its own
         // merits rather than on a missing grant.
         entry.settledWithoutGrant = NO;
@@ -312,7 +371,7 @@ static NSString *const kNoArtMarker = @"";
     os_unfair_lock_lock(&_lock);
     NSMutableArray<NSString *> *forgotten = [NSMutableArray array];
     for (NSString *directory in _directories) {
-        VibeFolderArtEntry *entry = _directories[directory];
+        FolderArtEntry *entry = _directories[directory];
         [entry forgetSettledAnswer];
         entry.preferListing = NO;
         // Busy entries stay: work in flight decrements a pin on them, and
@@ -330,12 +389,17 @@ static NSString *const kNoArtMarker = @"";
 
 - (void)invalidateDirectoriesSettledWithoutGrant {
     os_unfair_lock_lock(&_lock);
+    _accessGeneration++;
     for (NSString *directory in _directories) {
-        VibeFolderArtEntry *entry = _directories[directory];
+        FolderArtEntry *entry = _directories[directory];
         if (entry.settledWithoutGrant) {
             // No image can exist for these: nothing was ever read for them.
             [entry forgetSettledAnswer];
         }
+        // A known cover whose read was blocked keeps its donated path. Any grant
+        // change may have restored the scope; the next request rechecks access at
+        // the read boundary before touching the file.
+        entry.readBlockedWithoutGrant = NO;
     }
     os_unfair_lock_unlock(&_lock);
 }
@@ -360,10 +424,10 @@ static NSString *const kNoArtMarker = @"";
     return directory.length > 0 ? directory : nil;
 }
 
-- (VibeFolderArtEntry *)entryLocked:(NSString *)directory create:(BOOL)create {
-    VibeFolderArtEntry *entry = _directories[directory];
+- (FolderArtEntry *)entryLocked:(NSString *)directory create:(BOOL)create {
+    FolderArtEntry *entry = _directories[directory];
     if (!entry && create) {
-        entry = [VibeFolderArtEntry new];
+        entry = [FolderArtEntry new];
         _directories[directory] = entry;
     }
     if (entry) {
@@ -376,10 +440,10 @@ static NSString *const kNoArtMarker = @"";
 // to: same revision, and — when the caller names one — the same cover path. nil
 // means an invalidate or a re-listing overtook the work, so drop what it
 // produced rather than storing it.
-- (VibeFolderArtEntry *)currentEntryLocked:(NSString *)directory
+- (FolderArtEntry *)currentEntryLocked:(NSString *)directory
                                   revision:(uint64_t)revision
                                    artPath:(NSString *)artPath {
-    VibeFolderArtEntry *entry = _directories[directory];
+    FolderArtEntry *entry = _directories[directory];
     if (revision == 0 || !entry || entry.revision != revision) {
         return nil;
     }
@@ -393,7 +457,7 @@ static NSString *const kNoArtMarker = @"";
     return ++_nextRevision;
 }
 
-- (void)touchLocked:(VibeFolderArtEntry *)entry {
+- (void)touchLocked:(FolderArtEntry *)entry {
     entry.lastAccess = ++_accessClock;
 }
 
@@ -443,7 +507,7 @@ static NSString *const kNoArtMarker = @"";
 
 - (uint64_t)claimDirectory:(NSString *)directory {
     os_unfair_lock_lock(&_lock);
-    VibeFolderArtEntry *entry = [self entryLocked:directory create:YES];
+    FolderArtEntry *entry = [self entryLocked:directory create:YES];
     uint64_t revision = 0;
     if (entry.resolving == 0) {
         revision = entry.revision != 0 ? entry.revision : [self newRevisionLocked];
@@ -457,7 +521,7 @@ static NSString *const kNoArtMarker = @"";
 
 - (void)releaseDirectory:(NSString *)directory revision:(uint64_t)revision {
     os_unfair_lock_lock(&_lock);
-    VibeFolderArtEntry *entry = _directories[directory];
+    FolderArtEntry *entry = _directories[directory];
     if (entry.resolving == revision) {
         entry.resolving = 0;
     }
@@ -466,16 +530,17 @@ static NSString *const kNoArtMarker = @"";
 }
 
 // artPath nil settles the folder as having no cover.
-- (void)settleEntryLocked:(VibeFolderArtEntry *)entry artPath:(NSString *)artPath {
+- (void)settleEntryLocked:(FolderArtEntry *)entry artPath:(NSString *)artPath {
     entry.artPath = artPath ?: kNoArtMarker;
     entry.readFailures = 0;
+    entry.readBlockedWithoutGrant = NO;
     [self touchLocked:entry];
 }
 
 - (BOOL)settleDirectory:(NSString *)directory artPath:(NSString *)artPath
                revision:(uint64_t)revision withoutGrant:(BOOL)withoutGrant {
     os_unfair_lock_lock(&_lock);
-    VibeFolderArtEntry *entry = [self currentEntryLocked:directory revision:revision artPath:nil];
+    FolderArtEntry *entry = [self currentEntryLocked:directory revision:revision artPath:nil];
     if (entry) {
         [self settleEntryLocked:entry artPath:artPath];
         entry.settledWithoutGrant = withoutGrant;
@@ -485,13 +550,13 @@ static NSString *const kNoArtMarker = @"";
     return entry != nil;
 }
 
-- (BOOL)storeImage:(NSImage *)image
-           inCache:(NSCache<NSString *, NSImage *> *)cache
+- (BOOL)storeImage:(VibeImage *)image
+           inCache:(NSCache<NSString *, VibeImage *> *)cache
          directory:(NSString *)directory
            artPath:(NSString *)artPath
           revision:(uint64_t)revision {
     os_unfair_lock_lock(&_lock);
-    VibeFolderArtEntry *entry = [self currentEntryLocked:directory revision:revision artPath:artPath];
+    FolderArtEntry *entry = [self currentEntryLocked:directory revision:revision artPath:artPath];
     if (entry) {
         [cache setObject:image forKey:directory];
         [self touchLocked:entry];
@@ -509,6 +574,20 @@ static NSString *const kNoArtMarker = @"";
     return current;
 }
 
+- (void)postResolutionNotificationForDirectory:(NSString *)directory
+                                       revision:(uint64_t)revision
+                                        artPath:(NSString *)artPath {
+    __weak FolderArtResolver *weakSelf = self;
+    run_on_main_thread({
+        FolderArtResolver *strongSelf = weakSelf;
+        if (![strongSelf isRevisionCurrent:revision forDirectory:directory artPath:artPath]) {
+            return;
+        }
+        [NSNotificationCenter.defaultCenter postNotificationName:FolderArtDidResolveNotification
+                                                          object:strongSelf];
+    });
+}
+
 #pragma mark - Resolving
 
 // A cell draw asks on every pass, and a playlist of a thousand tracks in one
@@ -522,8 +601,9 @@ static NSString *const kNoArtMarker = @"";
 // first acts, on the resolver queue, where they cost nobody a frame.
 - (void)scheduleResolveOfDirectory:(NSString *)directory {
     os_unfair_lock_lock(&_lock);
-    VibeFolderArtEntry *entry = _directories[directory];
-    BOOL skip = entry != nil && (entry.settledEmpty || entry.resolving != 0 || entry.scheduled);
+    FolderArtEntry *entry = _directories[directory];
+    BOOL skip = entry != nil && (entry.settledEmpty || entry.readBlockedWithoutGrant ||
+            entry.resolving != 0 || entry.scheduled);
     if (!skip) {
         [self entryLocked:directory create:YES].scheduled = YES;
     }
@@ -552,7 +632,7 @@ static NSString *const kNoArtMarker = @"";
     NSString *artPath = [self resolveDirectory:directory revision:revision didSettle:&settled];
     BOOL stored = NO;
     if (artPath) {
-        NSImage *thumbnail = [self loadThumbnailArtAtPath:artPath directory:directory
+        VibeImage *thumbnail = [self loadThumbnailArtAtPath:artPath directory:directory
                                                  revision:revision];
         stored = thumbnail != nil && [self storeImage:thumbnail inCache:_thumbnails
                                             directory:directory artPath:artPath revision:revision];
@@ -565,16 +645,9 @@ static NSString *const kNoArtMarker = @"";
     if (!settled && !stored) {
         return;
     }
-    __weak FolderArtResolver *weakSelf = self;
-    run_on_main_thread({
-        FolderArtResolver *strongSelf = weakSelf;
-        if (![strongSelf isRevisionCurrent:revision forDirectory:directory
-                                   artPath:stored ? artPath : nil]) {
-            return;
-        }
-        [NSNotificationCenter.defaultCenter postNotificationName:FolderArtDidResolveNotification
-                                                          object:strongSelf];
-    });
+    [self postResolutionNotificationForDirectory:directory
+                                         revision:revision
+                                          artPath:stored ? artPath : nil];
 }
 
 // Finds the folder's cover and settles the answer either way. Blocking: a
@@ -588,7 +661,7 @@ static NSString *const kNoArtMarker = @"";
         *didSettle = NO;
     }
     os_unfair_lock_lock(&_lock);
-    VibeFolderArtEntry *entry = [self currentEntryLocked:directory revision:revision artPath:nil];
+    FolderArtEntry *entry = [self currentEntryLocked:directory revision:revision artPath:nil];
     NSString *settled = entry.artPath;
     BOOL byListing = entry.preferListing;
     if (entry) {
@@ -669,10 +742,32 @@ static NSString *const kNoArtMarker = @"";
 - (NSData *)readArtAtPath:(NSString *)artPath
                 directory:(NSString *)directory
                  revision:(uint64_t)revision {
+    // Discovery and reading are separate permission edges. A donated listing
+    // can outlive the security scope that made it, and decoded images can be
+    // evicted after the user removes a grant. Recheck immediately before the
+    // only cover-file read so background artwork never opens a protected path
+    // without an active scope.
+    os_unfair_lock_lock(&_lock);
+    uint64_t accessGeneration = _accessGeneration;
+    os_unfair_lock_unlock(&_lock);
+    if (!_accessProvider(directory)) {
+        os_unfair_lock_lock(&_lock);
+        FolderArtEntry *entry = [self currentEntryLocked:directory
+                                                revision:revision
+                                                 artPath:artPath];
+        if (entry && _accessGeneration == accessGeneration) {
+            entry.readBlockedWithoutGrant = YES;
+            [self touchLocked:entry];
+        }
+        os_unfair_lock_unlock(&_lock);
+        LogDebug(@"No folder grant for %@ — skipping folder art read", directory);
+        return nil;
+    }
     LogDebug(@"Loading folder art %@", artPath);
     NSData *data = _dataReader(artPath);
+    BOOL settledArtless = NO;
     os_unfair_lock_lock(&_lock);
-    VibeFolderArtEntry *entry = [self currentEntryLocked:directory revision:revision artPath:artPath];
+    FolderArtEntry *entry = [self currentEntryLocked:directory revision:revision artPath:artPath];
     if (data) {
         entry.readFailures = 0;
     }
@@ -684,39 +779,52 @@ static NSString *const kNoArtMarker = @"";
             [self settleEntryLocked:entry artPath:nil];
             [_thumbnails removeObjectForKey:directory];
             [_displayImages removeObjectForKey:directory];
+            settledArtless = YES;
         }
         else {
             LogWarn(@"Folder art at %@ could not be read; keeping it for another try", artPath);
         }
     }
     os_unfair_lock_unlock(&_lock);
+    // "It has none" is an answer and is posted too (header contract): the
+    // entry held a cover path until this settle, so this is always a
+    // transition, never a re-confirmation.
+    if (settledArtless) {
+        [self postResolutionNotificationForDirectory:directory revision:revision artPath:nil];
+    }
     return data;
 }
 
 // Unlike a read failure this is permanent for these bytes, so the folder counts
 // as having no cover rather than costing every track in it a fresh decode.
-- (NSImage *)decodeArtData:(NSData *)data
+- (VibeImage *)decodeArtData:(NSData *)data
                     atPath:(NSString *)artPath
                  directory:(NSString *)directory
                   revision:(uint64_t)revision
               maxPixelSize:(CGFloat)maxPixelSize {
-    NSImage *image = _decoder(data, maxPixelSize);
+    VibeImage *image = _decoder(data, maxPixelSize);
     if (image) {
         return image;
     }
     LogWarn(@"Folder art at %@ could not be decoded", artPath);
     os_unfair_lock_lock(&_lock);
-    VibeFolderArtEntry *entry = [self currentEntryLocked:directory revision:revision artPath:artPath];
+    FolderArtEntry *entry = [self currentEntryLocked:directory revision:revision artPath:artPath];
     if (entry) {
         [self settleEntryLocked:entry artPath:nil];
         [_thumbnails removeObjectForKey:directory];
         [_displayImages removeObjectForKey:directory];
     }
     os_unfair_lock_unlock(&_lock);
+    // "It has none" is an answer and is posted too (header contract): the
+    // entry held a cover path until this settle, so this is always a
+    // transition, never a re-confirmation.
+    if (entry) {
+        [self postResolutionNotificationForDirectory:directory revision:revision artPath:nil];
+    }
     return nil;
 }
 
-- (NSImage *)loadThumbnailArtAtPath:(NSString *)artPath
+- (VibeImage *)loadThumbnailArtAtPath:(NSString *)artPath
                           directory:(NSString *)directory
                            revision:(uint64_t)revision {
     NSData *data = [self readArtAtPath:artPath directory:directory revision:revision];
@@ -728,14 +836,14 @@ static NSString *const kNoArtMarker = @"";
 // decode twice, rather than reading again the moment a row for the same folder
 // draws. Only this direction is free — 128px cannot be enlarged back to 1024 —
 // so a folder whose rows draw before its header still pays two reads.
-- (NSImage *)loadDisplayArtAtPath:(NSString *)artPath
+- (VibeImage *)loadDisplayArtAtPath:(NSString *)artPath
                         directory:(NSString *)directory
                          revision:(uint64_t)revision {
     NSData *data = [self readArtAtPath:artPath directory:directory revision:revision];
     if (!data) {
         return nil;
     }
-    NSImage *display = [self decodeArtData:data atPath:artPath directory:directory
+    VibeImage *display = [self decodeArtData:data atPath:artPath directory:directory
                                   revision:revision maxPixelSize:kVibeDisplayArtDimension];
     if (!display) {
         return nil;
@@ -744,7 +852,7 @@ static NSString *const kNoArtMarker = @"";
         // Straight to the decoder: the display decode just proved these bytes
         // are an image, so a failure here is about the size alone and must not
         // settle the folder.
-        NSImage *thumbnail = _decoder(data, kVibeThumbnailArtDimension);
+        VibeImage *thumbnail = _decoder(data, kVibeThumbnailArtDimension);
         if (thumbnail) {
             [self storeImage:thumbnail inCache:_thumbnails
                    directory:directory artPath:artPath revision:revision];

@@ -8,34 +8,20 @@
 
 #import <Foundation/Foundation.h>
 
+#import "AudioError.h"     // domain, userInfo key and codes; re-exported here
+
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioPlayerDelegate;
 @class AudioTrack;
 @class AudioDevice;
 @class AudioFX;
-
-extern NSString *const kVibeAudioErrorDomain;
-// userInfo key carrying the failing track's URL on play-path errors. Error
-// deliveries can race a track change, so receivers must match it against the
-// current track before treating the error as the current track's.
-extern NSString *const kVibeAudioErrorTrackURLKey;
-
-typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
-    VibeAudioErrorFileOpenFailed = 1,
-    VibeAudioErrorEngineStartFailed,
-    VibeAudioErrorDeviceUnavailable,
-    VibeAudioErrorNotPlaying,
-    VibeAudioErrorFileOpenTimedOut,
-};
+@class AudioLoadingConfiguration;
 
 @interface AudioPlayer : NSObject
 
 @property (nullable, weak) id <AudioPlayerDelegate> delegate;
 
-// Playhead in file seconds. Lock-free, and reads 0 while Stopped or Loading.
-// Seek with seekToPosition:; the move is asynchronous.
-@property (readonly)            NSTimeInterval position;
 // Readonly because the player is the single writer of both. currentTrack
 // flips on its own queue, and the requested device id changes only through
 // the init and device-switch paths. An external write would desync playback
@@ -61,20 +47,73 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // lowering it back re-arms parked material.
 @property (atomic) NSInteger crossfadeMilliseconds;
 
-// The DJ performance effects: low kill and its boost, the reverb and delay
-// sends, and the delay's tempo feed. See AudioFX.h. Non-nil from init, so a
-// caller can set intent immediately; the graph work lands once the async
-// engine init runs.
-@property (nonatomic, readonly) AudioFX *fx;
+// Whether a tap publishes band levels for active equalizer indicators. Off by
+// default and demand-driven rather than fixed at init like enableFX below. The
+// shells enable it only for counted indicator demand, modeled output audio and
+// material presentation visibility. Setting it installs or removes the tap on
+// the player queue, and a media-services rebuild re-installs to match.
+//
+// Main thread only, like every other transport-facing setter here.
+@property (nonatomic) BOOL levelsEnabled;
 
-// deviceUID and deviceName name the persisted output device. Empty or
-// unmatched means follow the system default. The async init resolves them on
-// the player's own queue, because resolution enumerates CoreAudio devices and
-// that must stay off the launch path's main thread.
-- (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName delegate:(id <AudioPlayerDelegate>)delegate;
+// The equalizer indicator's newest coherent band-level snapshot, 0..1. Fills
+// `out` with `count` values and returns NO — leaving `out` untouched — when no
+// tap is running, which a caller should read as "nothing to show", not as
+// silence. `sequence` is monotonic for this player's lifetime and advances for
+// every publication, even when the numeric levels did not change. Lock-free
+// for the main-thread snapshot poller.
+- (BOOL)copyBandLevels:(float *)out count:(NSUInteger)count sequence:(uint64_t *)sequence;
+
+// The DJ performance effects: low kill and its boost, the reverb and delay
+// sends, and the delay's tempo feed. See AudioFX.h. With enableFX it is
+// non-nil from init, so a caller can set intent immediately; the graph work
+// lands once the async engine init runs. Without enableFX it is nil for the
+// player's lifetime — no FX node is ever created or attached, the main mixer
+// wires straight to the output, and every fx message is a safe no-op —
+// which is how the macOS FX-off setting and the FX-less iOS app run.
+@property (nonatomic, readonly, nullable) AudioFX *fx;
+
+// deviceUID and deviceName name the persisted output device. Empty means follow
+// the system default; an unmatched saved device remains pending. Discovery is
+// asynchronous and never blocks the player's queue. A match is applied only
+// while Stopped and only committed after the HAL bind succeeds; later Stopped
+// transitions retry a pending match. enableFX decides for the player's lifetime
+// whether the FX graph segment exists at all; see fx.
+- (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName
+                         enableFX:(BOOL)enableFX delegate:(id <AudioPlayerDelegate>)delegate;
+
+// No settings surface uses this initializer. It is the diagnostic/test seam
+// for loading budgets. The player starts with this immutable snapshot, and
+// each new underlying file open snapshots its timeout values. A same-row
+// replay keeps the open and therefore keeps its snapshot.
+- (instancetype)initWithDeviceUID:(NSString *)deviceUID
+                              name:(NSString *)deviceName
+                          enableFX:(BOOL)enableFX
+                          delegate:(id <AudioPlayerDelegate>)delegate
+              loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration
+        NS_DESIGNATED_INITIALIZER;
+
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+
+@property (nonatomic, copy, readonly) AudioLoadingConfiguration *loadingConfiguration;
+
+// Replaces the immutable snapshot used by future opens and prefetch
+// decisions. An open already in flight keeps its timeout snapshot and active
+// work is never cancelled. Main-thread callers may use this as a synchronous
+// no-UI configuration seam.
+- (void)applyLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration;
 
 - (void)play:(AudioTrack *)track;
+// The user's transport action: toggles the state which exists when it reaches
+// the player queue, including an in-flight open's landing intent.
 - (void)playPause;
+// Explicit system verdicts (audio-session and remote-command play/pause).
+// Idempotent on the player queue: duplicate notifications cannot accidentally
+// toggle playback back to the state the system just asked it to leave. Resume
+// also cancels a pause whose short fade-out has not completed yet.
+- (void)pause;
+- (void)resume;
 
 // Starts a track at position (file seconds, clamped), optionally parked:
 // with startPaused the track loads but nothing renders until playPause.
@@ -115,9 +154,41 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // the playlist's own next-track object.
 - (void)prefetchTrack:(nullable AudioTrack *)track;
 
+// The provider reported the pending open's transfer MOVING. Extends that
+// open's abandon deadline, matched against the underlying open request's
+// unique identifier rather than its path. A same-row replay preserves that
+// identifier; a later open of the same URL gets a new one, so an old monitor
+// cannot extend it. Call only from the monitor's uncoalesced positive-movement
+// feed, never its whole-percent UI handler.
+- (void)noteOpenProgressForOpenRequestIdentifier:(uint64_t)openRequestIdentifier;
+
+@end
+
+// Everything a caller off the player queue may ask the player about itself,
+// implemented in AudioPlayer+State.m. It is a category only so the file split
+// compiles cleanly; to callers it is simply part of AudioPlayer, exactly as
+// (Devices) below is.
+//
+// None of these blocks. Each takes the state lock, copies what it needs, and
+// computes off the lock — which is what lets the update timer call position
+// several times a second and the refresh funnels call the rest on every pass.
+// They read and never drive: nothing here touches the engine, the graph or the
+// player queue.
+@interface AudioPlayer (State)
+
+// Playhead in file seconds. Lock-free, and reads 0 while Stopped or Loading.
+// Seek with seekToPosition:; the move is asynchronous.
+@property (readonly) NSTimeInterval position;
+
 // Whether the next track is pre-scheduled on the current node for a gapless
 // splice at the boundary. Observability (the debug channel); lock-free.
 @property (readonly, getter=isGaplessArmed) BOOL gaplessArmed;
+
+// Actual modeled output liveness, unlike isPlaying's transport intent:
+// Loading is false unless an outgoing crossfade is still audible, while a
+// playing node and every tracked retired fade are true. FX wet-tail liveness
+// is not exposed by AVAudioEngine and is therefore not guessed here.
+@property (readonly) BOOL outputAudioActive;
 
 - (BOOL)isPlaying;
 - (BOOL)isPaused;
@@ -132,9 +203,12 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 
 @end
 
-// The output-device half of the player, implemented in AudioPlayer+Devices.m.
-// It is a category only so the file split compiles cleanly; to callers it is
-// simply part of AudioPlayer.
+// The output-device half of the player, implemented in AudioPlayer+Devices.m —
+// the macOS-only CoreAudio HAL layer, so the declaration is guarded too: an
+// unguarded shared caller would compile on iOS and crash at runtime. It is a
+// category only so the file split compiles cleanly; to callers it is simply
+// part of AudioPlayer.
+#if TARGET_OS_OSX
 @interface AudioPlayer (Devices)
 
 - (NSInteger)currentlyActiveAudioDeviceId;
@@ -146,6 +220,7 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 - (void)setOutputDevice:(NSInteger)outputDeviceID;
 
 @end
+#endif
 
 // Every method is required: the player invokes them all unconditionally,
 // with no respondsToSelector: guards at the send sites.
@@ -158,7 +233,9 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 // loading state. It is followed by didStartPlaying:, by error:, or, when a
 // newer play supersedes the load, by the newer track's events. A superseded
 // load gets no terminal callback of its own.
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didBeginLoading:(AudioTrack *)track;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+     didBeginLoading:(AudioTrack *)track
+openRequestIdentifier:(uint64_t)openRequestIdentifier;
 
 // Fires when play/pause changes what an in-flight open will do when it lands,
 // and when a same-file rebind replaces its playlist row. No audio has started
@@ -187,6 +264,12 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceID;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error;
+
+@optional
+// Main-thread delivery, only when actual modeled output crosses between active
+// and inactive. Read outputAudioActive for the current value when refreshing.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didChangeOutputAudioActive:(BOOL)outputAudioActive;
 
 @end
 

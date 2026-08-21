@@ -10,46 +10,52 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface DetailedAudioWaveformRenderer : AudioWaveformRenderer
 
-// The subclass hooks. The Oversampling x2, x4 and x8 variants override
-// numBars, and Basic overrides the geometry and gradient hooks below.
+// The subclass hooks. The Oversampling x2, x4 and x8 variants override the
+// count, and Basic overrides the count, geometry and gradient hooks below.
 // Everything else — the layer setup, hydration animation, progress clipping
 // and mask caching — is shared.
 //
-// numBars is the rect count in the single CAShapeLayer mask path, not a CALayer
-// count: 8,192 rects in one path is cheap, whereas 8,192 layers would not be.
-- (NSUInteger)numBars;
+// Here and in Basic the bar count follows the drawn width at the pitch the
+// style was designed at, so a resize adds or removes bars rather than
+// stretching them; the oversampling variants deliberately keep their fixed
+// counts, because their look is the sub-pixel overlap of more rects than
+// pixels, which a resize already preserves. The count is the rect count in
+// the single CAShapeLayer mask path, not a CALayer count: thousands of rects
+// in one path are cheap, whereas as many layers would not be.
+- (NSUInteger)numBarsForWidth:(CGFloat)width;
 
 // The bar geometry: the width of every bar, and the x origin of bar `index`.
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count;
 - (CGFloat)barXForIndex:(NSUInteger)index width:(CGFloat)width barCount:(NSUInteger)count barWidth:(CGFloat)barWidth;
 
-// The gradient styling: its direction and extent, and the played and unplayed
-// color stops. baseColor is white in dark mode and black in light.
+// The gradient styling: its direction and extent, and the ramp's color stops.
+// color is the theme's played or unplayed color, carrying its side's resting
+// level in its alpha; the hook owns only the ramp shape, every stop scaled
+// relative to that level (VibeColorAtRampFraction). One hook serves both
+// sides — the played/unplayed difference is entirely the colors' levels.
 - (void)configureGradient:(CAGradientLayer *)gradient;
-- (NSArray<NSColor *> *)playedGradientColors:(NSColor *)baseColor isDark:(BOOL)isDark;
-- (NSArray<NSColor *> *)unplayedGradientColors:(NSColor *)baseColor isDark:(BOOL)isDark;
+- (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark;
 
-- (void)setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<NSColor*>*)colors;
+- (void)setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<VibeColor*>*)colors;
 
 // The iOS scrubber's settled fast path (see WaveformScrubberView): the whole
 // envelope rendered once into a bitmap — the settled bar geometry filled with
 // the played gradient, overall opacity included — so scrolling can translate
-// a texture instead of re-compositing the masked live tree every frame. The
-// unplayed presentation is the same bitmap at unplayedOverPlayedOpacity,
-// which holds because this family's unplayed stops are the played stops
-// scaled by one constant. Extract samples on the main thread; the bake itself
-// touches no layer state and may run on any queue.
+// a texture instead of re-compositing the masked live tree every frame. While
+// the theme's unplayed hue is the played hue (unplayedSharesPlayedHue), the
+// unplayed presentation is that same bitmap at unplayedOverPlayedOpacity —
+// the ratio of the two colors' resting alphas, valid because both sides share
+// the ramp shape; a two-hue theme bakes the unplayed variant separately with
+// its own stops and shows it at full opacity. Extract samples on the main
+// thread; the bakes touch no layer state and may run on any queue.
 - (NSData *)envelopeSamplesForWaveform:(AudioWaveform *)waveform;
 - (nullable CGImageRef)newEnvelopeImageForSize:(CGSize)size
                                          scale:(CGFloat)scale
                                        samples:(NSData *)samples CF_RETURNS_RETAINED;
+- (nullable CGImageRef)newUnplayedEnvelopeImageForSize:(CGSize)size
+                                                 scale:(CGFloat)scale
+                                               samples:(NSData *)samples CF_RETURNS_RETAINED;
 - (CGFloat)unplayedOverPlayedOpacity;
-
-// The effective alpha of the hairline baseline at the vertical midline — the
-// gradient's midpoint stop times the overall waveform opacity. The iOS
-// scrubber colors its off-track baseline segments with it, so they read as
-// the waveform's own centerline continuing past the track's ends.
-- (CGFloat)baselineAlphaForPlayed:(BOOL)played;
 
 @end
 

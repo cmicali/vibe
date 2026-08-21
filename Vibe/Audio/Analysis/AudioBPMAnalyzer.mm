@@ -4,6 +4,7 @@
 //
 
 #import "AudioBPMAnalyzer.h"
+#import "AnalysisFramerMath.h"
 #import <Accelerate/Accelerate.h>
 #include <vector>
 #include <cmath>
@@ -190,30 +191,8 @@ struct VibeBPMComb {
     }
     // Already mono: the loader downmixes each decode buffer once, through
     // AudioWaveformMonoMix, and shares it with the waveform chunker.
-    //
-    // Only the frames straddling the buffer boundary are spliced into
-    // _pending; every later frame is read in place out of the caller's buffer,
-    // so a decode buffer is never copied whole.
-    const size_t carried = _pending.size();
-    size_t offset = 0;
-    if (carried > 0) {
-        _pending.insert(_pending.end(), samples,
-                        samples + std::min((size_t)frameCount, (size_t)kFrameSize));
-        while (offset < carried && offset + kFrameSize <= _pending.size()) {
-            [self processFrame:_pending.data() + offset];
-            offset += kHopSize;
-        }
-        if (offset < carried) { // not even the first straddling frame is whole yet
-            _pending.erase(_pending.begin(), _pending.begin() + (long)offset);
-            return;
-        }
-    }
-    size_t base = offset - carried;
-    while (base + kFrameSize <= frameCount) {
-        [self processFrame:samples + base];
-        base += kHopSize;
-    }
-    _pending.assign(samples + base, samples + frameCount);
+    VibeAnalysisFrameStream(_pending, samples, frameCount, kFrameSize, kHopSize,
+                            [self](const float *frame) { [self processFrame:frame]; });
 }
 
 - (void)processFrame:(const float *)frame {

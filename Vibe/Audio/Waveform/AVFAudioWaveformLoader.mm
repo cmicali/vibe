@@ -51,14 +51,20 @@
     // Tempo and key detection ride the same decode pass: each analyzer
     // consumes the buffer right after the waveform chunk does, so neither
     // costs a second full-file read, which matters for cloud-backed files.
-    // With a setting off there is no analyzer, and the waveform caches with
-    // no BPM or key — a file scanned while off is not re-analyzed on
-    // re-enable until its cache entry goes. The explicit scan_bpm and
-    // scan_key debug paths run the analyzers directly and ignore this.
-    AudioBPMAnalyzer *bpmAnalyzer = Settings.analyzeBPM
+    // With one off there is no analyzer, and the waveform caches with no BPM
+    // or key — a file scanned while off is not re-analyzed on re-enable until
+    // its cache entry goes. The explicit scan_bpm and scan_key debug paths run
+    // the analyzers directly and ignore this.
+    //
+    // The answer is asked of the provider rather than read from the settings,
+    // so this layer stays testable and iOS — which never analyzes — installs
+    // nothing. No provider means neither runs.
+    VibeWaveformAnalysis analysis = self.analysisProvider ? self.analysisProvider()
+                                                          : (VibeWaveformAnalysis){NO, NO};
+    AudioBPMAnalyzer *bpmAnalyzer = analysis.bpm
             ? [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate]
             : nil;
-    AudioKeyAnalyzer *keyAnalyzer = Settings.analyzeKey
+    AudioKeyAnalyzer *keyAnalyzer = analysis.key
             ? [[AudioKeyAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate]
             : nil;
 
@@ -112,9 +118,11 @@
 - (AVAudioFile *)openFileAtPath:(NSString *)filename pass:(struct VibeWaveformDecodePass *)pass {
     NSError *error = nil;
     NSURL *url = [NSURL fileURLWithPath:filename];
-    if (url.isEmptyOrDirectory) {
-        // Opening it would leak a descriptor; see NSURL+AudioOpen.
-        LogError(@"AVAudioFile open skipped for empty path %@", filename);
+    if (url.failsAudioOpenPreflight) {
+        // A failed AVAudioFile open leaks its descriptor, and the decode path
+        // retries a failing file forever — a partial download used to cost one
+        // fd per attempt, unbounded; see NSURL+AudioOpen.
+        LogError(@"AVAudioFile open skipped, preflight refused %@", filename);
         return nil;
     }
     // Interleaved float32, because AudioWaveformMonoMix expects the sample
@@ -184,8 +192,10 @@
 // mono block to the chunker and both analyzers on a serial queue one block
 // behind the decode. NO when the pass has nothing worth keeping — a cancel
 // that landed while chunks were still missing, or buffers that would not
-// allocate. A read failure answers YES and is reported through
-// pass->readError instead, because a partial waveform is still worth showing.
+// allocate. A read failure answers YES with the error in pass->readError;
+// isDecodeComplete: still fails the pass, so the partial result is never
+// delivered or persisted — only the progressive snapshots already shown
+// survive, and they survive a NO the same way.
 - (BOOL)runDecodePass:(struct VibeWaveformDecodePass *)pass
                  file:(AVAudioFile *)file
              filename:(NSString *)filename
@@ -330,8 +340,9 @@
             // Throttle delegate notifications to about 10 Hz, because each one
             // triggers a full path rebuild on the main thread.
             // AudioWaveformCache delivers the final completion callback
-            // separately.
-            if (!self.isCancelled) {
+            // separately. A detached decode still persists its final result,
+            // but its UI-only snapshot copies and main-queue blocks are waste.
+            if (!self.isCancelled && !self.isDetached) {
                 CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
                 if (now - lastProgressTime >= 0.1) {
                     lastProgressTime = now;
@@ -342,11 +353,13 @@
                     // calling setChunkAtIndex and the stretch pass below
                     // remaps it in place.
                     CodableAudioWaveform *snapshot = [result snapshot];
-                    dispatch_async(dispatch_get_main_queue(), ^(void) {
-                        if (!self.isCancelled) {
-                            [self.delegate audioWaveformLoader:self waveform:snapshot didLoadData:percentComplete];
-                        }
-                    });
+                    if (!self.isCancelled && !self.isDetached) {
+                        dispatch_async(dispatch_get_main_queue(), ^(void) {
+                            if (!self.isCancelled && !self.isDetached) {
+                                [self.delegate audioWaveformLoader:self waveform:snapshot didLoadData:percentComplete];
+                            }
+                        });
+                    }
                 }
             }
             dispatch_semaphore_signal(slotDone);

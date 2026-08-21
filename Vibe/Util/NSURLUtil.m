@@ -4,12 +4,18 @@
 //
 
 #import "NSURLUtilInternal.h"
+#if DEBUG
+#import "NSURLUtil+Debug.h"   // the dataless probe, declared out of the shipping header
+#endif
 #import "FolderArtRules.h"
 #import "NSURL+AudioOpen.h"
 #import "PlaylistFile.h"
 
 #include <sys/stat.h>
 #include <unistd.h>
+#if DEBUG
+#include <stdatomic.h>
+#endif
 
 // Installed once at launch, read from the expansion workers, so each handoff
 // takes a lock rather than assuming the install lands first.
@@ -17,11 +23,43 @@ static VibePlaylistFolderGrantHandler sPlaylistFolderGrantHandler;
 static VibeWalkedDirectoriesHandler sWalkedDirectoriesHandler;
 static VibeBulkOpenDirectoriesHandler sBulkOpenDirectoriesHandler;
 
-static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
+#if DEBUG
+static VibeDatalessProbe sDatalessProbe;
+
+static VibeDatalessProbe DatalessProbe(void) {
     @synchronized (NSURLUtil.class) {
-        return sPlaylistFolderGrantHandler;
+        return sDatalessProbe;
     }
 }
+
+// The lane-routing measurement; see NSURLUtil+Debug.h. Guarded by the class
+// @synchronized like the probe, and consulted only after an atomic flag says
+// it is on, so the 2.3us stat path pays one relaxed load when it is not.
+static _Atomic(BOOL) sDatalessDiagEnabled;
+static NSMutableDictionary<NSString *, NSMutableDictionary *> *sDatalessDiag;
+static NSUInteger sDatalessDiagOverflow;
+static const NSUInteger kDatalessDiagDirectoryCap = 128;
+
+static void VibeRecordDatalessStat(NSURL *url, BOOL dataless, uint32_t flags, BOOL statFailed) {
+    NSString *directory = url.URLByDeletingLastPathComponent.path ?: @"?";
+    @synchronized (NSURLUtil.class) {
+        NSMutableDictionary *entry = sDatalessDiag[directory];
+        if (!entry) {
+            if (sDatalessDiag.count >= kDatalessDiagDirectoryCap) {
+                sDatalessDiagOverflow++;
+                return;
+            }
+            entry = [@{@"dataless": @0, @"local": @0, @"statFailed": @0} mutableCopy];
+            sDatalessDiag[directory] = entry;
+        }
+        NSString *bucket = statFailed ? @"statFailed" : (dataless ? @"dataless" : @"local");
+        entry[bucket] = @([entry[bucket] unsignedIntegerValue] + 1);
+        if (!statFailed) {
+            entry[@"lastFlags"] = [NSString stringWithFormat:@"0x%x", flags];
+        }
+    }
+}
+#endif
 
 static VibeWalkedDirectoriesHandler WalkedDirectoriesHandler(void) {
     @synchronized (NSURLUtil.class) {
@@ -56,13 +94,87 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
     }
 }
 
+#if DEBUG
++ (void)setDatalessProbe:(VibeDatalessProbe)probe {
+    @synchronized (self) {
+        sDatalessProbe = [probe copy];
+    }
+}
+#endif
+
+// One stat, and SF_DATALESS is the whole answer.
+//
+// It briefly also consulted NSURLUbiquitousItemDownloadingStatus, to cover a
+// provider whose placeholders the kernel might not flag. Both halves of that
+// turned out badly and it is recorded here so nobody adds it back:
+//
+//   It was not needed. MEASURED on a device against Dropbox — the case it was
+//   written for — the flag IS set: `dataless=1 flags=0x40000060`, with the
+//   ubiquitous status agreeing.
+//
+//   It cost 10x. This test runs once per track in the scan's lane routing, and
+//   the resource-value read is a getattrlist round trip: 25us per call against
+//   2.3us for the stat alone (20,000 iterations, debug build). Over a 50,000
+//   file library that is a second of syscall per scan, all of it on local
+//   files, to answer a question the stat had already answered.
+//
+//   And it was wrong in a way that took hours to find. NSURL memoizes resource
+//   values on the INSTANCE, and these URLs live as long as their AudioTrack, so
+//   the first answer froze for the file's whole life: a placeholder read once
+//   while downloading still said "not downloaded" after it materialized, and
+//   the current-track lane — which skips a dataless file and retries when the
+//   open lands — skipped forever, leaving the playing track's tags and art to
+//   whenever the background sweep happened to reach them.
+//
+// If a provider ever does appear whose placeholders carry no flag, the symptom
+// is specific: its files route to the wide scan lane instead of the serial
+// cloud one, so opening a folder starts four downloads at once and starves the
+// track the user picked. Fix it there, and pay the round trip once per
+// directory rather than once per file.
 + (BOOL)isDatalessFile:(NSURL *)url {
+#if DEBUG
+    VibeDatalessProbe probe = DatalessProbe();
+    if (probe) {
+        return probe(url);
+    }
+#endif
     struct stat st;
     if (stat(url.fileSystemRepresentation, &st) != 0) {
+#if DEBUG
+        if (atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)) {
+            VibeRecordDatalessStat(url, NO, 0, YES);
+        }
+#endif
         return NO;
     }
-    return (st.st_flags & SF_DATALESS) != 0;
+    BOOL dataless = (st.st_flags & SF_DATALESS) != 0;
+#if DEBUG
+    if (atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)) {
+        VibeRecordDatalessStat(url, dataless, st.st_flags, NO);
+    }
+#endif
+    return dataless;
 }
+
+#if DEBUG
++ (void)setDatalessDiagnosticsEnabled:(BOOL)enabled {
+    @synchronized (self) {
+        sDatalessDiag = enabled ? [NSMutableDictionary dictionary] : nil;
+        sDatalessDiagOverflow = 0;
+    }
+    atomic_store_explicit(&sDatalessDiagEnabled, enabled, memory_order_relaxed);
+}
+
++ (NSDictionary *)datalessDiagnostics {
+    @synchronized (self) {
+        return @{
+            @"enabled": @(atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)),
+            @"directories": [sDatalessDiag copy] ?: @{},
+            @"overflowed": @(sDatalessDiagOverflow),
+        };
+    }
+}
+#endif
 
 // Whether path names a file sitting directly in directory — a string test, so a
 // walk can tell it is still in the same folder without rebuilding that folder's
@@ -148,14 +260,14 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
         // stay out of results but still reach the folder-art bookkeeping
         // below: a cover is exactly a non-audio entry.
         NSString *path = url.path;
-        if ([supported containsObject:path.pathExtension.lowercaseString]) {
+        BOOL isAudio = [supported containsObject:path.pathExtension.lowercaseString];
+        if (isAudio) {
             [results addObject:url];
         }
         if (!VibePathIsDirectlyInside(path, lastDirectory)) {
             lastDirectory = path.stringByDeletingLastPathComponent;
         }
-        if (lastDirectory.length > 0 &&
-                [supported containsObject:path.pathExtension.lowercaseString]) {
+        if (lastDirectory.length > 0 && isAudio) {
             [directoriesWalked addObject:lastDirectory];
         }
         VibeFolderArtNoteCandidate(lastDirectory, path.lastPathComponent,
@@ -175,6 +287,35 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
         return [a.path localizedStandardCompare:b.path];
     }];
 
+    return results;
+}
+
++ (NSArray<NSURL*>*) audioFilesInDirectory:(NSURL*)dir {
+    // Non-recursive, unlike expandDirectory:. Skipping hidden files also
+    // drops the AppleDouble "._Song.mp3" sidecars; see expandDirectory:.
+    NSError *error = nil;
+    NSArray<NSURL*> *contents = [[NSFileManager defaultManager]
+            contentsOfDirectoryAtURL:dir
+          includingPropertiesForKeys:nil
+                             options:NSDirectoryEnumerationSkipsHiddenFiles
+                               error:&error];
+    if (!contents) {
+        LogWarn(@"Error listing %@: %@", dir, error);
+        return @[];
+    }
+    NSSet<NSString*> *supported = [self supportedExtensions];
+    NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
+    for (NSURL *url in contents) {
+        if (![supported containsObject:[url.pathExtension lowercaseString]]) {
+            continue;
+        }
+        if (!url.isEmptyOrDirectory) {
+            [results addObject:url];
+        }
+    }
+    [results sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
+        return [a.lastPathComponent localizedStandardCompare:b.lastPathComponent];
+    }];
     return results;
 }
 
@@ -317,15 +458,35 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
 // installed handler; granting is what extends the sandbox, and the re-resolve
 // then also gets a working basename fallback. Entries unreadable after all
 // that are skipped.
+#if TARGET_OS_OSX
+// Only the macOS grant-panel path below reads the handler; the setter stays
+// unconditional so the app can install one on either platform.
+static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
+    @synchronized (NSURLUtil.class) {
+        return sPlaylistFolderGrantHandler;
+    }
+}
+#endif
+
 + (NSArray<NSURL *> *)expandPlaylistFile:(NSURL *)playlistURL {
     NSArray<NSURL *> *resolved = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlistURL];
 #if TARGET_OS_OSX
+    // Each probe is a blocking syscall that can hang on a dead mount, so the
+    // scan's verdicts are kept for the readable filter below (partial when the
+    // scan exits early) and dropped only when a grant re-resolve replaces the
+    // URLs — a grant changes readability.
+    NSMutableDictionary<NSString *, NSNumber *> *scannedAccessByPath =
+            [NSMutableDictionary dictionaryWithCapacity:resolved.count];
     BOOL anyUnreadable = NO;
     BOOL anyDenied = NO;
     for (NSURL *url in resolved) {
         VibeReadAccess access = ReadAccessForURL(url);
+        scannedAccessByPath[url.path] = @(access);
         anyUnreadable |= (access != VibeReadAccessReadable);
         anyDenied |= (access == VibeReadAccessDenied);
+        if (anyUnreadable && anyDenied) {
+            break;  // both facts settled; stop paying probes
+        }
     }
     // A missing-looking entry still warrants the grant prompt while the
     // playlist's own folder is denied: unresolved entries fall back to their
@@ -339,11 +500,19 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
     if (anyUnreadable && (anyDenied || folderDenied)
             && grantHandler && grantHandler(playlistURL)) {
         resolved = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlistURL];
+        [scannedAccessByPath removeAllObjects];
     }
 #endif
     NSMutableArray<NSURL *> *readable = [NSMutableArray arrayWithCapacity:resolved.count];
     for (NSURL *url in resolved) {
-        if (ReadAccessForURL(url) == VibeReadAccessReadable) {
+#if TARGET_OS_OSX
+        NSNumber *scanned = scannedAccessByPath[url.path];
+        VibeReadAccess access = scanned != nil
+                ? (VibeReadAccess)scanned.integerValue : ReadAccessForURL(url);
+#else
+        VibeReadAccess access = ReadAccessForURL(url);
+#endif
+        if (access == VibeReadAccessReadable) {
             [readable addObject:url];
         }
         else {

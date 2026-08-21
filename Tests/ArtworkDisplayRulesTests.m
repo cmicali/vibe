@@ -67,6 +67,48 @@
                    VibeArtworkDisplayActionShowDefault);
 }
 
+#pragma mark - Asynchronous render acceptance
+
+- (void)testRenderResultRequiresCurrentGenerationAndDisplayTarget {
+    NSObject *track = [[NSObject alloc] init];
+    NSObject *otherTrack = [[NSObject alloc] init];
+    NSObject *metadata = [[NSObject alloc] init];
+    NSObject *art = [[NSObject alloc] init];
+    XCTAssertTrue(VibeArtworkRenderResultMayInstall(7, 7,
+                                                     track, metadata, art,
+                                                     track, metadata, art));
+    // An unresolved replacement has not started its own render, so generation
+    // alone cannot identify the track the header now describes.
+    XCTAssertFalse(VibeArtworkRenderResultMayInstall(7, 7,
+                                                      track, metadata, art,
+                                                      otherTrack, metadata, art));
+    XCTAssertFalse(VibeArtworkRenderResultMayInstall(6, 7,
+                                                      track, metadata, art,
+                                                      track, metadata, art));
+}
+
+- (void)testRenderFromReplacedMetadataOnTheSameTrackIsRejected {
+    NSObject *track = [[NSObject alloc] init];
+    NSObject *fallbackMetadata = [[NSObject alloc] init];
+    NSObject *successfulMetadata = [[NSObject alloc] init];
+    NSObject *art = [[NSObject alloc] init];
+
+    XCTAssertFalse(VibeArtworkRenderResultMayInstall(7, 7,
+                                                      track, fallbackMetadata, art,
+                                                      track, successfulMetadata, art));
+}
+
+- (void)testRenderFromReplacedArtOnTheSameTrackAndMetadataIsRejected {
+    NSObject *track = [[NSObject alloc] init];
+    NSObject *metadata = [[NSObject alloc] init];
+    NSObject *oldArt = [[NSObject alloc] init];
+    NSObject *newArt = [[NSObject alloc] init];
+
+    XCTAssertFalse(VibeArtworkRenderResultMayInstall(7, 7,
+                                                      track, metadata, oldArt,
+                                                      track, metadata, newArt));
+}
+
 // The whole policy in one place, so a future edit has to break a named case
 // rather than a boolean expression by accident.
 - (void)testTheCompleteTruthTable {

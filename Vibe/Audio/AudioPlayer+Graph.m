@@ -5,7 +5,7 @@
 
 #import "AudioPlayer+Graph.h"
 #import "AudioPlayerInternal.h"
-#import "AudioTrack.h"
+#import "AudioScheduleMath.h"
 
 @implementation AudioPlayer (Graph)
 
@@ -49,31 +49,22 @@
     }
 }
 
-- (AVAudioPlayerNode *)attachConnectedNodeForFormat:(AVAudioFormat *)format
-                                 failureDescription:(NSString *)description
-                                                url:(NSURL *)url {
+- (AVAudioPlayerNode *)attachConnectedNodeForFormat:(AVAudioFormat *)format {
     AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
     [_engine attachNode:node];
     if (![self connectNode:node throughVarispeedWithFormat:format]) {
         [self detachNodeAfterFailedConnect:node];
         [self resetToStoppedStateOnQueue];
-        [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
-                description, nil, url)];
         return nil;
     }
     return node;
 }
 
-- (void)abandonNodeAfterFailedStart:(AVAudioPlayerNode *)node
-                 failureDescription:(NSString *)description
-                              error:(NSError *)error
-                                url:(NSURL *)url {
+- (void)abandonNodeAfterFailedStart:(AVAudioPlayerNode *)node {
     _segmentGeneration++; // drop the scheduled segment's stop-fired completion
     [node stop];
     [_engine detachNode:node];
     [self resetToStoppedStateOnQueue];
-    [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
-            description, error, url)];
 }
 
 // Schedules the remainder of the file from startFrame, with a completion
@@ -83,7 +74,7 @@
 // those completions are dropped.
 - (void)scheduleFile:(AVAudioFile *)file onNode:(AVAudioPlayerNode *)node fromFrame:(AVAudioFramePosition)startFrame {
     uint64_t gen = _segmentGeneration;
-    AVAudioFrameCount frames = (AVAudioFrameCount)MAX(file.length - startFrame, 1);
+    uint64_t remainingFrames = VibeAudioFramesToSchedule(file.length, startFrame);
     AVAudioPlayerNodeCompletionCallbackType completionType = AVAudioPlayerNodeCompletionDataPlayedBack;
 #if DEBUG
     // DataPlayedBack never fires under --no-audio-hw's manual rendering:
@@ -96,19 +87,32 @@
     }
 #endif
     __weak AudioPlayer *weakSelf = self;
-    [node scheduleSegment:file
-            startingFrame:startFrame
-               frameCount:frames
-                   atTime:nil
-   completionCallbackType:completionType
-        completionHandler:^(AVAudioPlayerNodeCompletionCallbackType callbackType) {
-            AudioPlayer *strongSelf = weakSelf;
-            if (strongSelf) {
-                dispatch_async(strongSelf->_queue, ^{
-                    [strongSelf segmentDidCompleteWithGeneration:gen];
-                });
-            }
-        }];
+    AVAudioPlayerNodeCompletionHandler finalCompletion =
+            ^(AVAudioPlayerNodeCompletionCallbackType callbackType) {
+        AudioPlayer *strongSelf = weakSelf;
+        if (strongSelf) {
+            dispatch_async(strongSelf->_queue, ^{
+                [strongSelf segmentDidCompleteWithGeneration:gen];
+            });
+        }
+    };
+    AVAudioFramePosition chunkStart = startFrame;
+    while (remainingFrames > 0) {
+        AVAudioFrameCount chunkFrames = VibeAudioScheduleChunkFrames(remainingFrames);
+        remainingFrames -= chunkFrames;
+        // Segments with nil times run consecutively in scheduling order. Only
+        // the last chunk owns track completion; an intermediate callback would
+        // look exactly like a natural end to the player and advance early.
+        AVAudioPlayerNodeCompletionHandler completion = remainingFrames == 0
+                ? finalCompletion : nil;
+        [node scheduleSegment:file
+                startingFrame:chunkStart
+                   frameCount:chunkFrames
+                       atTime:nil
+       completionCallbackType:completionType
+            completionHandler:completion];
+        chunkStart += chunkFrames;
+    }
 }
 
 @end

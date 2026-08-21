@@ -12,15 +12,10 @@
 @interface MetadataParseClaim ()
 @property (nonatomic, copy, nullable) id<NSCopying> key;
 @property (nonatomic, strong) id participant;
-@property (nonatomic) MetadataParseClaimRole role;
+@property (nonatomic, getter=isOwner) BOOL owner;
 @end
 
 @implementation MetadataParseClaim
-
-- (BOOL)isOwner {
-    return _role == MetadataParseClaimRoleOwner;
-}
-
 @end
 
 @implementation MetadataParseCoordinator {
@@ -28,7 +23,7 @@
     // has to survive to complete its own parse.
     NSMutableDictionary<id<NSCopying>, MetadataParseClaim *> *_holders;
     // Duplicate participants per key, held WEAKLY — a row discarded while a
-    // cloud parse blocks for minutes has nothing left to publish to, and
+    // provider-backed parse blocks for minutes has nothing left to publish to, and
     // pinning it would keep the whole discarded playlist alive.
     NSMutableDictionary<id<NSCopying>, NSHashTable *> *_waiters;
 }
@@ -48,17 +43,16 @@
         claim.key = [(id)key copy];
         claim.participant = participant;
         if (!claim.key) {
-            claim.role = MetadataParseClaimRoleOwner;
+            claim.owner = YES;
             return claim;
         }
         MetadataParseClaim *currentHolder = _holders[claim.key];
         if (!currentHolder) {
-            claim.role = MetadataParseClaimRoleOwner;
+            claim.owner = YES;
             _holders[claim.key] = claim;
             return claim;
         }
         if (currentHolder.participant == participant) {
-            claim.role = MetadataParseClaimRoleAlreadyOwner;
             return claim;
         }
         NSHashTable *waiters = _waiters[claim.key];
@@ -70,7 +64,6 @@
             _waiters[claim.key] = waiters;
         }
         [waiters addObject:participant]; // a set: a repeat waiter is absorbed
-        claim.role = MetadataParseClaimRoleWaiter;
         return claim;
     }
 }
@@ -84,7 +77,7 @@
     @synchronized (self) {
         // Identity, not key presence: a claim whose key has since been claimed
         // again by someone else must not complete that newer generation, and a
-        // Waiter or AlreadyOwner claim must never free the true holder.
+        // non-owner claim must never free the true holder.
         if (_holders[claim.key] != claim) {
             return @[];
         }
@@ -93,6 +86,34 @@
         // generation of this key starts with no inherited waiters.
         NSArray *waiters = _waiters[claim.key].allObjects ?: @[];
         [_waiters removeObjectForKey:claim.key];
+        return waiters;
+    }
+}
+
+- (NSArray *)drainWaitersForSuccessfulClaim:(MetadataParseClaim *)claim
+                                   completed:(BOOL *)completed {
+    NSParameterAssert(completed);
+    // Uncoordinated and stale claims have no waiter table to drain.
+    if (!claim.isOwner || !claim.key) {
+        *completed = YES;
+        return @[];
+    }
+    @synchronized (self) {
+        if (_holders[claim.key] != claim) {
+            *completed = YES;
+            return @[];
+        }
+        NSArray *waiters = _waiters[claim.key].allObjects ?: @[];
+        [_waiters removeObjectForKey:claim.key];
+        if (waiters.count == 0) {
+            [_holders removeObjectForKey:claim.key];
+            *completed = YES;
+        }
+        else {
+            // Keep the holder while the caller adopts this batch. Any waiter
+            // arriving in that interval joins a fresh table for the next drain.
+            *completed = NO;
+        }
         return waiters;
     }
 }

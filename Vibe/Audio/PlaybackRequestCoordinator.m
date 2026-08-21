@@ -8,7 +8,7 @@
 // Writable only in here. Everything handed out is a copy, so the readonly
 // declaration in the header is the whole caller-facing contract.
 @interface VibePlaybackRequest ()
-@property (nonatomic, strong) id track;
+@property (nonatomic, strong) AudioTrack *track;
 @property (nonatomic, copy) NSString *path;
 @property (nonatomic) VibePendingPlaybackIntent intent;
 @property (nonatomic) uint64_t identifier;
@@ -30,7 +30,7 @@
     return [self copyOfRequest:_currentRequest];
 }
 
-- (uint64_t)beginWithTrack:(id)track
+- (uint64_t)beginWithTrack:(AudioTrack *)track
                       path:(NSString *)path
                     intent:(VibePendingPlaybackIntent)intent
    submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
@@ -44,11 +44,7 @@
     return request.identifier;
 }
 
-- (BOOL)isLoadingPath:(NSString *)path {
-    return path && _currentRequest && [_currentRequest.path isEqualToString:path];
-}
-
-- (VibePlaybackRequestRebind)rebindTrack:(id)track
+- (VibePlaybackRequestRebind)rebindTrack:(AudioTrack *)track
                                     path:(NSString *)path
                                   intent:(VibePendingPlaybackIntent)intent
                  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
@@ -60,7 +56,9 @@
     result.matched = YES;
     result.trackChanged = request.track != track;
     result.pausedChanged = request.intent.paused != intent.paused;
-    result.shouldNotifySlowLoad = result.trackChanged && request.isSlow;
+    BOOL submissionChanged = request.submittedPlayIdentifier != submittedPlayIdentifier;
+    result.shouldNotifySlowLoad = request.isSlow
+            && (result.trackChanged || submissionChanged);
     result.shouldNotifyLoadingPaused = result.trackChanged || result.pausedChanged;
     request.track = track;
     request.intent = intent;
@@ -86,8 +84,19 @@
     return [self copyOfRequest:request];
 }
 
+- (VibePlaybackRequest *)setPausedIfChanged:(BOOL)paused {
+    VibePlaybackRequest *request = _currentRequest;
+    if (!request || request.intent.paused == paused) {
+        return nil;
+    }
+    VibePendingPlaybackIntent intent = request.intent;
+    intent.paused = paused;
+    request.intent = intent;
+    return [self copyOfRequest:request];
+}
+
 - (BOOL)seekToPosition:(NSTimeInterval)position
-      ifCurrentTrackIs:(id)track
+      ifCurrentTrackIs:(AudioTrack *)track
  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     VibePlaybackRequest *request = _currentRequest;
     if (!request) {

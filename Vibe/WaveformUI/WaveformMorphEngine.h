@@ -40,11 +40,12 @@ NS_ASSUME_NONNULL_BEGIN
 // dereferenced, and a dangling value cannot false-match, because a new waveform
 // is allocated while the current one is still retained by the view.
 //
-// When identity and count both match the last build — a live-resize frame,
-// since targets are normalized and geometry-independent — the fill pass is
-// skipped, and only a geometry change triggers a rebuild. Otherwise fill() runs
-// synchronously on the reusable target buffer, resized to count, and reused
-// because this runs on every loader tick.
+// When identity and count both match the last build — a live-resize frame
+// that kept the bar count, since targets are normalized and
+// geometry-independent — the fill pass is skipped, and only a geometry change
+// triggers a rebuild. Otherwise fill() runs synchronously on the reusable
+// target buffer, resized to count, and reused because this runs on every
+// loader tick.
 //
 // The retarget decision tree then follows. Skip a no-op redraw. Rebuild
 // instantly on a geometry change, because a live resize must track the window
@@ -52,7 +53,10 @@ NS_ASSUME_NONNULL_BEGIN
 // non-nil, because a silent track's all-zero waveform is sample-identical to
 // the collapsed target but draws hairlines rather than nothing. Start the morph
 // timer when the target has moved. The first build starts collapsed, so the
-// waveform grows out of the midline.
+// waveform grows out of the midline; a later bar-count change — a resize,
+// since the renderers derive their count from the width — resamples the
+// displayed bars to the new count instead, so a live resize never collapses
+// the picture.
 - (void)updateTargetForSize:(CGSize)size
                    identity:(const void * _Nullable)identity
                       count:(NSUInteger)count
@@ -74,6 +78,15 @@ NS_ASSUME_NONNULL_BEGIN
 // the updateTargetForSize: fast path cannot see: a backing-scale flip leaves
 // size, identity and count untouched but re-snaps settled pixel rounding.
 - (void)rebuildNow;
+
+// Lands the in-flight morph on its target NOW, in one rebuild, instead of
+// easing there over ~0.2s. For content whose ease nobody can see but whose
+// per-frame rebuilds everybody pays for — a pager cell recycled or scrolled
+// into view. Every morph frame is a full-view repaint (for the Detailed family
+// a 4,096-rect path rebuilt and re-rasterized as a mask), so a couple of cells
+// easing at once is enough to blow a scroll's frame budget. A no-op when
+// already settled on the target.
+- (void)settleImmediately;
 
 // For the rebuild callback. settled is YES when no morph is running, and the
 // Detailed family pixel-rounds only then: mid-morph it would quantize the

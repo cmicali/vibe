@@ -6,7 +6,14 @@
 #import "BasicAudioWaveformRenderer.h"
 #import "VibeStrings.h"
 
-#define kBasicBarCount 128
+#include <cmath>
+
+// 128 bars across the 512pt design-width waveform: a designed pitch of 4pt —
+// the 3pt bar plus its gap — and the count follows the width at that pitch,
+// so a resize adds or removes bars rather than spreading them apart.
+static const CGFloat kBasicBarPitch = 4;
+static const NSUInteger kBasicMaxBars = 1024;
+
 #define kBasicBarWidth 3
 
 @implementation BasicAudioWaveformRenderer
@@ -19,8 +26,9 @@
     return STR_WAVEFORM_STYLE_BASIC;
 }
 
-- (NSUInteger)numBars {
-    return kBasicBarCount;
+- (NSUInteger)numBarsForWidth:(CGFloat)width {
+    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / kBasicBarPitch);
+    return MIN(MAX(count, (NSUInteger)2), kBasicMaxBars);
 }
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
@@ -39,22 +47,15 @@
     // band-pinned fade.
 }
 
-- (NSArray<NSColor *> *)playedGradientColors:(NSColor *)baseColor isDark:(BOOL)isDark {
+// One four-stop shape for both sides — historically the unplayed stops were
+// the played stops halved, which is now the theme colors' levels doing the
+// halving.
+- (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark {
     NSArray *colors = @[
-            [baseColor colorWithAlphaComponent:0.1],
-            [baseColor colorWithAlphaComponent:0.65],
-            [baseColor colorWithAlphaComponent:1.0],
-            [baseColor colorWithAlphaComponent:1.0],
-    ];
-    return isDark ? colors : [[colors reverseObjectEnumerator] allObjects];
-}
-
-- (NSArray<NSColor *> *)unplayedGradientColors:(NSColor *)baseColor isDark:(BOOL)isDark {
-    NSArray *colors = @[
-            [baseColor colorWithAlphaComponent:0.05],
-            [baseColor colorWithAlphaComponent:0.325],
-            [baseColor colorWithAlphaComponent:0.5],
-            [baseColor colorWithAlphaComponent:0.5],
+            VibeColorAtRampFraction(color, 0.1),
+            VibeColorAtRampFraction(color, 0.65),
+            color,
+            color,
     ];
     return isDark ? colors : [[colors reverseObjectEnumerator] allObjects];
 }

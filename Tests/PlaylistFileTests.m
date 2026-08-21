@@ -160,8 +160,13 @@
 // KNOWN LIMIT, pinned rather than endorsed: the keyword test is "FILE" plus a
 // literal space, so a tab-delimited FILE line is not recognized at all. No CUE
 // writer in the wild emits one; if one turns up, this is the test to change.
-- (void)testCueTabAfterTheKeywordIsNotRecognized {
-    XCTAssertEqualObjects([PlaylistFile cueFileEntriesInText:@"FILE\t\"a.flac\"\tWAVE\n"], @[]);
+// A tab-delimiting writer's sheet must not parse to zero entries — the
+// keyword accepts any whitespace separator.
+- (void)testCueTabAfterTheKeywordIsAccepted {
+    XCTAssertEqualObjects([PlaylistFile cueFileEntriesInText:@"FILE\t\"a.flac\"\tWAVE\n"],
+                          @[@"a.flac"]);
+    XCTAssertEqualObjects([PlaylistFile cueFileEntriesInText:@"FILE\ttrack.mp3\tMP3\n"],
+                          @[@"track.mp3"]);
 }
 
 - (void)testCueExtraSpacesAroundTheNameAreAbsorbed {

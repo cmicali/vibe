@@ -20,7 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Atomic, because it is created asynchronously at utility QoS and read from
 // the loader's worker threads, and re-read per track; see
 // loadTrackFromDiskCache: and parseOneTrack:.
-@property (atomic, strong) PINCache *metadataCache;
+@property (atomic, strong, nullable) PINCache *metadataCache;
 // The invalidation generation; see the waveform cache's _cacheGeneration for
 // the full contract. A parse captures it when it starts, skips its disk write
 // if it has moved, and re-checks after the write lands — otherwise a parse in
@@ -32,7 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 // parsedOK entry checks before either finishes, as on a folder drop with
 // auto-play, paying for the full TagLib parse, thumbnail decode and disk write
 // twice for the same file. One holder and its weak duplicate-row waiters per
-// URL; every loader shares this one, through its own MetadataParseFlow.
+// URL; every loader shares this one directly.
 @property (nonatomic, readonly) MetadataParseCoordinator<AudioTrack *> *parseCoordinator;
 @end
 

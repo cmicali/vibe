@@ -13,13 +13,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioTrack : NSObject
 
-@property (copy) NSURL *url;
+@property (copy, readonly) NSURL *url;
 
 // Atomic, so that the loader workers — utility QoS, up to four in flight —
 // can publish new metadata while the main thread reads it for cell rendering
 // and the currently-playing track header. It is nil until a loader delivers,
 // and every consumer below nil-checks it.
-@property(atomic, strong, nullable) AudioTrackMetadata *metadata;
+@property(atomic, strong, nullable, readonly) AudioTrackMetadata *metadata;
 
 // The tempo from the waveform decode pass; 0 means not yet analyzed or
 // undetectable. It is transient, because persistence lives in the waveform
@@ -47,8 +47,11 @@ NS_ASSUME_NONNULL_BEGIN
 // mirroring bpm.
 - (VibeMusicalKey)key;
 
-- (instancetype)initWithUrl:(NSURL *)url;
+- (instancetype)initWithURL:(NSURL *)url NS_DESIGNATED_INITIALIZER;
 + (AudioTrack *)withURL:(NSURL *)url;
+
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
 
 // The memoized file-identity key for the metadata and waveform caches; see
 // NSURL+Hash. It is nil when the file cannot be statted, which is treated as
@@ -71,6 +74,17 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)hasArtistAndTitle;
 
 - (NSString *)singleLineTitle;
+
+// How a track is NAMED on screen, in one place so every surface — the mac
+// playlist row and header, the iOS page, track sheet and search sheet — spells
+// it the same way. displayTitle is the tagged title when there is a real
+// artist/title pair and the filename-derived single line otherwise;
+// displayArtist is the artist, or nil in that second case, where displayTitle
+// already carries everything known. A caller with one line shows the title; a
+// caller with two shows both, and a nil artist means it has no second line to
+// draw rather than an empty one.
+- (NSString *)displayTitle;
+- (nullable NSString *)displayArtist;
 
 @end
 

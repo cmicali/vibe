@@ -6,6 +6,11 @@
 #import "OversamplingDetailedAudioWaveformRenderer.h"
 #import "VibeStrings.h"
 
+// The oversampling styles keep fixed counts at every width — their look is
+// the sub-pixel overlap of more rects than there are device pixels, which a
+// resize already preserves — so only the plain Detailed style follows the
+// width. 1,024 is Detailed's design count (see kDetailedBarPitch).
+static const NSUInteger kOversamplingBaseBars = 1024;
 
 @implementation x2OversamplingDetailedAudioWaveformRenderer
 
@@ -18,8 +23,8 @@
     return STR_WAVEFORM_STYLE_OVERSAMPLING_X2;
 }
 
-- (NSUInteger)numBars {
-    return [super numBars] * 2;
+- (NSUInteger)numBarsForWidth:(CGFloat)width {
+    return kOversamplingBaseBars * 2;
 }
 
 @end
@@ -34,8 +39,8 @@
     return STR_WAVEFORM_STYLE_OVERSAMPLING_X4;
 }
 
-- (NSUInteger)numBars {
-    return [super numBars] * 4;
+- (NSUInteger)numBarsForWidth:(CGFloat)width {
+    return kOversamplingBaseBars * 4;
 }
 
 @end
@@ -50,8 +55,8 @@
     return STR_WAVEFORM_STYLE_OVERSAMPLING_X8;
 }
 
-- (NSUInteger)numBars {
-    return [super numBars] * 8;
+- (NSUInteger)numBarsForWidth:(CGFloat)width {
+    return kOversamplingBaseBars * 8;
 }
 
 @end

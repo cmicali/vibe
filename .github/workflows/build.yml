@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    # Deployment target is macOS 14, but the code compiles against the macOS 26
+    # Deployment target is macOS 13, but the code compiles against the macOS 26
     # SDK (Liquid Glass behind availability guards), so an older image's Xcode
     # cannot build this.
     runs-on: macos-26
@@ -91,11 +91,41 @@ jobs:
   # (CLANG_ANALYZER_NONNULL, CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION); this job
   # is what makes them a gate rather than a setting nobody ran.
   #
+  # It covers BOTH app targets. It used to be the macOS one alone, which left
+  # Vibe/iOS and the iOS halves of the shared subsystems — a few thousand lines
+  # — analyzed by nothing; the iOS leg found two real findings the first time
+  # it ran.
+  #
   # A job of its own, and Release: it is a full analyzing build, so hanging it
   # off the build matrix would double that matrix's cost, and the findings are
   # not config-independent — the one this job was written against showed up in
   # Release and not in Debug. Release is the configuration that ships.
+  # One matrix leg per target rather than both in one job: each leg is a full
+  # analyzing build, so serially they made this the workflow's longest job
+  # (~8 min) while in parallel each leg lands at or under the build matrix's
+  # own time. The iOS leg runs against a generic simulator destination, so
+  # nothing has to be booted.
   analyze:
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [macos, ios]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-xcodegen
+
+      - name: Static analyzer (${{ matrix.leg }})
+        run: scripts/analyze.sh Release ${{ matrix.leg }}
+
+  # Compile coverage for the shared subset against the iOS SDK. One
+  # configuration and no signing (CODE_SIGNING_ALLOWED=NO): the point is that
+  # a TARGET_OS_OSX guard or an AppKit leak into a shared directory fails
+  # here, not when someone next opens the iOS target. The generic simulator
+  # destination builds without booting a simulator.
+  build-ios:
     runs-on: macos-26
 
     steps:
@@ -103,15 +133,14 @@ jobs:
 
       - uses: ./.github/actions/setup-xcodegen
 
-      - name: Static analyzer
-        run: make analyze CONFIG=Release
+      - name: Build VibeiOS (Debug, simulator)
+        run: make build-ios CONFIG=Debug
 
-  # Fails when Resources/Localizable.xcstrings is stale against the STR_*
-  # registry — a reworded string whose `make strings` run was forgotten. Its
-  # own job: it needs no XcodeGen, no generated project and no build, only
-  # clang + xcstringstool (Xcode) and jq (ships with macOS 15+), and it
-  # reports as its own check.
-  check-strings:
+  # Everything that needs no XcodeGen, no generated project and no build —
+  # only clang + xcstringstool (Xcode), jq (ships with macOS 15+), swiftc and
+  # grep. They are one job because they share that, and so they report as one
+  # check rather than paying a runner startup each for work that takes seconds.
+  static-checks:
     runs-on: macos-26
 
     steps:
@@ -138,3 +167,10 @@ jobs:
       # mechanical half of CLAUDE.md's Vocabulary section.
       - name: Check naming vocabulary
         run: make check-vocabulary
+
+      # Same: the layout rule (shared subsystems in both targets, Mac/ and iOS/
+      # the only platform markers) read off project.yml, plus the imports — a
+      # shared file may not NAME a Mac-only header, which the headermap would
+      # otherwise resolve and build.
+      - name: Check layout
+        run: make check-layout

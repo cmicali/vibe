@@ -4,7 +4,7 @@
 //
 //  The gapless auto-advance's arithmetic and gates, as static inlines so the
 //  unit tests reach them without compiling AudioPlayer. The mechanism they
-//  serve lives in AudioPlayer.m (maybeArmGaplessOnQueue and
+//  serve lives in AudioPlayer+Gapless.m (maybeArmGaplessOnQueue and
 //  promoteGaplessOnQueue).
 //
 
