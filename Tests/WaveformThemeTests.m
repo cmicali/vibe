@@ -99,29 +99,34 @@ static CGFloat Alpha(VibeColor *color) {
 - (void)testAlbumArtClampsLuminanceTowardThePole {
     CGFloat r, g, b;
 
+    // The art hue is the UNPLAYED side — Orange's pairing reversed — under a
+    // full-strength base played side.
     NSColor *pureBlue = [NSColor colorWithRed:0 green:0 blue:1 alpha:1];
     WaveformTheme *dark = [WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART
                                                      isDark:YES artworkColor:pureBlue
                                                customPlayed:nil customUnplayed:nil];
-    GetRGB(dark.playedColor, &r, &g, &b);
+    XCTAssertTrue(SameRGB(dark.playedColor, NSColor.whiteColor));
+    XCTAssertEqualWithAccuracy(Alpha(dark.playedColor), 1.0, 0.001);
+    GetRGB(dark.unplayedColor, &r, &g, &b);
     XCTAssertEqualWithAccuracy(0.299 * r + 0.587 * g + 0.114 * b, 0.55, 0.005);
     XCTAssertGreaterThan(b, r);                           // still reads blue
-    XCTAssertEqualWithAccuracy(Alpha(dark.playedColor), 1.0, 0.001);
+    XCTAssertEqualWithAccuracy(Alpha(dark.unplayedColor), 0.89, 0.001);
 
     NSColor *brightYellow = [NSColor colorWithRed:1 green:0.95 blue:0.1 alpha:1];
     WaveformTheme *light = [WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART
                                                       isDark:NO artworkColor:brightYellow
                                                 customPlayed:nil customUnplayed:nil];
-    GetRGB(light.playedColor, &r, &g, &b);
+    XCTAssertTrue(SameRGB(light.playedColor, NSColor.blackColor));
+    GetRGB(light.unplayedColor, &r, &g, &b);
     XCTAssertEqualWithAccuracy(0.299 * r + 0.587 * g + 0.114 * b, 0.45, 0.005);
     XCTAssertGreaterThan(r, b);                           // still reads yellow
 
-    // Already legible: untouched.
+    // Already legible: the hue untouched, only the level applied.
     NSColor *midGreen = [NSColor colorWithRed:0.2 green:0.8 blue:0.3 alpha:1];
     WaveformTheme *asIs = [WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART
                                                      isDark:YES artworkColor:midGreen
                                                customPlayed:nil customUnplayed:nil];
-    XCTAssertTrue(SameRGB(asIs.playedColor, midGreen));
+    XCTAssertTrue(SameRGB(asIs.unplayedColor, midGreen));
 }
 
 // The custom pair passes through as stored, alpha included — a well's alpha

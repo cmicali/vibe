@@ -97,7 +97,11 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
     if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART]) {
         VibeColor *clamped = [self legibleArtworkColor:artworkColor isDark:isDark];
         if (clamped) {
-            return [[self alloc] initWithPlayed:clamped unplayed:coloredUnplayed isDark:isDark];
+            // Orange's pairing reversed: the base carries the played side at
+            // full strength and the art's hue colors what is still to come.
+            return [[self alloc] initWithPlayed:base
+                                       unplayed:[clamped colorWithAlphaComponent:kColoredUnplayedAlpha]
+                                         isDark:isDark];
         }
         // No art, or art too gray to yield a hue: mono's answer.
     }

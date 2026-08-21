@@ -23438,7 +23438,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_theme.album_art": {
-      "comment": "Settings, waveform color theme choice (macOS only): the played color is derived from the current track's cover artwork.",
+      "comment": "Settings, waveform color theme choice (macOS only): the not-yet-played part of the waveform draws in a color derived from the current track's cover artwork, under a white (dark mode) or black (light mode) played part.",
       "localizations": {
         "bg": {
           "stringUnit": {
