@@ -66,6 +66,14 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW                 @"drag_window"
 #define SETTINGS_VALUE_WAVEFORM_DRAG_SEEK                   @"seek"
 
+// What dragging the album art out of the window delivers. Stable identifiers,
+// never display names. copy_file (default) = the audio file itself;
+// copy_path = the POSIX path as text; copy_artist_title = the track's
+// single-line name as text.
+#define SETTINGS_VALUE_ARTWORK_DRAG_COPY_FILE               @"copy_file"
+#define SETTINGS_VALUE_ARTWORK_DRAG_COPY_PATH               @"copy_path"
+#define SETTINGS_VALUE_ARTWORK_DRAG_COPY_ARTIST_TITLE       @"copy_artist_title"
+
 // The preset ladders Settings > Playback offers, shared with the pane that
 // builds its popups from them. The getters snap a persisted value that
 // matches no preset — an external defaults write — to the nearest one,
@@ -89,6 +97,13 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 
 // Both app delegates call this; its body is macOS-only today.
 - (void)applicationDidFinishLaunching;
+
+// The Reset to Defaults button (Settings > Advanced). Covers every AppSettings
+// key and nothing else — granted-folder bookmarks, stats and window frames are
+// other objects' stores. Resetting only clears the store; the caller owns the
+// live-apply, exactly as a pane writing one setting does.
+- (BOOL)allSettingsAtDefaults;
+- (void)resetToDefaults;
 
 - (NSString *)waveformStyle;
 - (void)setWaveformStyle:(NSString *)identifier;
@@ -174,6 +189,13 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (NSString *)waveformDragBehavior;
 - (void)setWaveformDragBehavior:(NSString *)behavior;
 
+// What dragging the album art out of the window delivers — see the
+// SETTINGS_VALUE_ARTWORK_DRAG_* identifiers above. Normalized on read: an
+// unknown stored value reads as copy_file. ArtworkImageView reads it once per
+// drag start.
+- (NSString *)artworkDragAction;
+- (void)setArtworkDragAction:(NSString *)action;
+
 // The pitch fader's range in percent: 8 or 16, like the SL-1200MK5G's range
 // button.
 - (NSInteger)pitchRange;
@@ -243,6 +265,13 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // unasked, while a key the file already carries always shows.
 - (BOOL)analyzeKey;
 - (void)setAnalyzeKey:(BOOL)analyze;
+
+// Whether the header shows the tempo at all. Default on; off, the BPM half of
+// the header's readout is blank. Detection is Playback's analyzeBPM — this
+// only hides the readout, and the delay's BPM-synced taps still follow the
+// track's tempo.
+- (BOOL)showBPM;
+- (void)setShowBPM:(BOOL)show;
 
 // Whether the header shows the musical key at all. Default on; off, the
 // notation and color settings below have nothing to govern. Detection is

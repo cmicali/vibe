@@ -1,6 +1,8 @@
-# Future: "On artwork drag" setting
+# "Artwork drag" setting
 
-Written 2026-08-20, planned but not implemented. Nothing in the repo has changed for it yet. The file:line anchors below are against branch `ios-app` at `a19c5c5` **with its uncommitted working tree**. Re-check every anchor before acting.
+Written 2026-08-20, implemented 2026-08-21. The file:line anchors below are against branch `ios-app` at `a19c5c5` **with its uncommitted working tree**, before the implementation landed.
+
+**Landed differently in two places.** The three option labels are sentence case per the Settings panes' own convention, so option 1 is a new `settings.general.artwork_drag.copy_file` ("Copy file") rather than a reuse of the title-cased menu string `STR_MENU_EDIT_COPY_FILE`; and all four keys take the `settings.general.*` prefix of the pane the row lives in. The row sits directly under Waveform drag in General > Window, labeled "Artwork drag".
 
 This plan is written to be executed phase by phase by an implementation agent. Each phase compiles, passes `make test`, and is verifiable on its own. Read the root `CLAUDE.md`, `Vibe/Mac/Controls/CLAUDE.md`, `Vibe/Mac/Settings/CLAUDE.md`, `Vibe/Util/Mac/CLAUDE.md` and `Vibe/Common/CLAUDE.md` first; Phase 3 also needs the `vibe-strings` skill.
 

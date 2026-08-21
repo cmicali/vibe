@@ -30,6 +30,7 @@
 #define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"
 #define SETTING_SHOW_FILE_INFO                      @"MainWindow.showFileInfo"
 #define SETTING_WAVEFORM_DRAG_BEHAVIOR              @"Settings.waveformDragBehavior"
+#define SETTING_ARTWORK_DRAG_ACTION                 @"Settings.artworkDragAction"
 #define SETTING_DELETE_ORIGINAL_AFTER_CONVERT       @"Convert.deleteOriginal"
 #define SETTING_SKIP_BASE_BARS                      @"Transport.skipBaseBars"
 #define SETTING_CROSSFADE_MILLISECONDS              @"AudioPlayer.crossfadeMilliseconds"
@@ -40,6 +41,7 @@
 #define SETTING_ANALYZE_KEY                         @"Audio.analyzeKey"
 #define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
 #define SETTING_KEY_COLORS                          @"Appearance.keyColors"
+#define SETTING_SHOW_BPM                            @"Appearance.showBPM"
 #define SETTING_SHOW_KEY                            @"Appearance.showKey"
 #define SETTING_WINDOW_TINT                         @"Appearance.windowTint"
 #define SETTING_WINDOW_TINT_CUSTOM_DARK             @"Appearance.windowTintCustomColorDark"
@@ -111,6 +113,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
     BOOL        _hotCacheValid;
     BOOL        _hotShowRemainingTime;
     BOOL        _hotShowFileInfo;
+    BOOL        _hotShowBPM;
     BOOL        _hotShowKey;
     BOOL        _hotKeyColorsEnabled;
     NSInteger   _hotUIUpdateHzCap;
@@ -145,7 +148,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
     return self;
 }
 
-- (void)registerDefaults {
+- (NSDictionary<NSString *, id> *)registeredSettingDefaults {
     NSMutableDictionary *appDefaults = [@{
             SETTING_WAVEFORM_STYLE: SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
             SETTING_WAVEFORM_THEME: SETTINGS_VALUE_WAVEFORM_THEME_MONO,
@@ -153,7 +156,48 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 #if TARGET_OS_OSX
     [self registerMacDefaultsInto:appDefaults];
 #endif
-    [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
+    return appDefaults;
+}
+
+- (void)registerDefaults {
+    [[NSUserDefaults standardUserDefaults] registerDefaults:[self registeredSettingDefaults]];
+}
+
+// Keys with no registered default, where absent IS the default: the nullable
+// custom colors.
+- (NSArray<NSString *> *)nullableSettingKeys {
+    NSMutableArray<NSString *> *keys = [@[
+            SETTING_WAVEFORM_CUSTOM_PLAYED_DARK,
+            SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK,
+            SETTING_WAVEFORM_CUSTOM_PLAYED_LIGHT,
+            SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT,
+    ] mutableCopy];
+#if TARGET_OS_OSX
+    [keys addObjectsFromArray:@[SETTING_WINDOW_TINT_CUSTOM_DARK, SETTING_WINDOW_TINT_CUSTOM_LIGHT]];
+#endif
+    return keys;
+}
+
+// The persistent domain, not dictionaryRepresentation, which folds the
+// registration domain back in and would make every default read as stored.
+- (BOOL)allSettingsAtDefaults {
+    NSDictionary *stored = [[NSUserDefaults standardUserDefaults]
+            persistentDomainForName:NSBundle.mainBundle.bundleIdentifier];
+    return VibeSettingsAreAtDefaults(stored, [self registeredSettingDefaults],
+                                     [self nullableSettingKeys]);
+}
+
+- (void)resetToDefaults {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    for (NSString *key in [self registeredSettingDefaults]) {
+        [defaults removeObjectForKey:key];
+    }
+    for (NSString *key in [self nullableSettingKeys]) {
+        [defaults removeObjectForKey:key];
+    }
+#if TARGET_OS_OSX
+    [self invalidateHotCache];
+#endif
 }
 
 - (void)applicationDidFinishLaunching {
@@ -267,6 +311,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
             SETTING_SHOW_REMAINING_TIME:            @(NO),
             SETTING_SHOW_FILE_INFO:                 @(YES),
             SETTING_WAVEFORM_DRAG_BEHAVIOR:         SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW,
+            SETTING_ARTWORK_DRAG_ACTION:            SETTINGS_VALUE_ARTWORK_DRAG_COPY_FILE,
             SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
             SETTING_CONVERT_ENABLED:                @(YES),
             SETTING_SKIP_BASE_BARS:                 @(8),
@@ -278,6 +323,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
             SETTING_ANALYZE_KEY:                    @(NO),
             SETTING_KEY_NOTATION:                   SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
             SETTING_KEY_COLORS:                     @(NO),
+            SETTING_SHOW_BPM:                       @(YES),
             SETTING_SHOW_KEY:                       @(YES),
             SETTING_WINDOW_TINT:                    SETTINGS_VALUE_WINDOW_TINT_ARTWORK,
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
@@ -295,6 +341,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     _hotShowRemainingTime = [defaults boolForKey:SETTING_SHOW_REMAINING_TIME];
     _hotShowFileInfo = [defaults boolForKey:SETTING_SHOW_FILE_INFO];
+    _hotShowBPM = [defaults boolForKey:SETTING_SHOW_BPM];
     _hotShowKey = [defaults boolForKey:SETTING_SHOW_KEY];
     _hotKeyColorsEnabled = [defaults boolForKey:SETTING_KEY_COLORS];
     _hotUIUpdateHzCap = [self storedUIUpdateHzCap];
@@ -447,6 +494,16 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     [[NSUserDefaults standardUserDefaults] setObject:behavior forKey:SETTING_WAVEFORM_DRAG_BEHAVIOR];
 }
 
+// Not cached: read once per drag start on the artwork, not per frame.
+- (NSString *)artworkDragAction {
+    return VibeNormalizedArtworkDragAction(
+            [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_ARTWORK_DRAG_ACTION]);
+}
+
+- (void)setArtworkDragAction:(NSString *)action {
+    [[NSUserDefaults standardUserDefaults] setObject:action forKey:SETTING_ARTWORK_DRAG_ACTION];
+}
+
 #pragma mark Playback
 
 - (NSInteger)pitchRange {
@@ -545,6 +602,17 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 
 - (void)setKeyNotation:(NSString *)notation {
     [[NSUserDefaults standardUserDefaults] setObject:notation forKey:SETTING_KEY_NOTATION];
+    [self invalidateHotCache];
+}
+
+// Cached; read alongside keyNotation on the same pass.
+- (BOOL)showBPM {
+    [self primeHotCache];
+    return _hotShowBPM;
+}
+
+- (void)setShowBPM:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_BPM];
     [self invalidateHotCache];
 }
 

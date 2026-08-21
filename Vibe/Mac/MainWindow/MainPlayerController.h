@@ -101,6 +101,10 @@ NS_ASSUME_NONNULL_BEGIN
 // i.e. from the Settings pane.
 - (void)refreshKeyDisplay;
 
+// Re-renders the BPM half of that line after AppSettings.sharedInstance.showBPM changes,
+// i.e. from the Settings pane.
+- (void)refreshBPMDisplay;
+
 // Re-scales the playback-UI tick rate to the playhead's on-screen speed. It
 // runs from the internal paths whose inputs it reads — a track start, a fader
 // tick, a resize — and is public for the one input that lives elsewhere,

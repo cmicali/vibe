@@ -45,6 +45,16 @@ static inline NSString *VibeNormalizedWaveformDragBehavior(NSString *_Nullable i
     }
     return SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW;
 }
+
+// An unknown stored artwork-drag identifier snaps to copy_file, the default:
+// dragging the art out delivers the audio file itself.
+static inline NSString *VibeNormalizedArtworkDragAction(NSString *_Nullable identifier) {
+    if ([identifier isEqualToString:SETTINGS_VALUE_ARTWORK_DRAG_COPY_PATH] ||
+        [identifier isEqualToString:SETTINGS_VALUE_ARTWORK_DRAG_COPY_ARTIST_TITLE]) {
+        return identifier;
+    }
+    return SETTINGS_VALUE_ARTWORK_DRAG_COPY_FILE;
+}
 #endif  // TARGET_OS_OSX
 
 // The one-time theme migration: the value to write, or nil to write nothing.
@@ -57,6 +67,29 @@ static inline NSString *_Nullable VibeMigratedWaveformTheme(NSString *_Nullable 
         return nil;
     }
     return [storedStyle isEqualToString:@"sonic_cirrus"] ? SETTINGS_VALUE_WAVEFORM_THEME_ORANGE : nil;
+}
+
+// Whether every stored setting still holds its default — the Reset to
+// Defaults button's enabled decision. A registered key is non-default only
+// when a value is stored AND differs from the registered default, so a
+// migration that wrote the default back does not count; a nullable key (the
+// custom colors, which register no default) is non-default whenever it is
+// stored at all.
+static inline BOOL VibeSettingsAreAtDefaults(NSDictionary<NSString *, id> *_Nullable stored,
+                                             NSDictionary<NSString *, id> *registeredDefaults,
+                                             NSArray<NSString *> *nullableKeys) {
+    for (NSString *key in registeredDefaults) {
+        id value = stored[key];
+        if (value && ![value isEqual:registeredDefaults[key]]) {
+            return NO;
+        }
+    }
+    for (NSString *key in nullableKeys) {
+        if (stored[key]) {
+            return NO;
+        }
+    }
+    return YES;
 }
 
 NS_ASSUME_NONNULL_END

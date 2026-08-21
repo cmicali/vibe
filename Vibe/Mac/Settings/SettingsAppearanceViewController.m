@@ -45,6 +45,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     NSSwitch *_fileInfoSwitch;
     NSButton *_timeTotalRadio;
     NSButton *_timeRemainingRadio;
+    NSSwitch *_showBPMSwitch;
     NSSwitch *_showKeySwitch;
     NSPopUpButton *_keyNotationPopUp;
     NSSwitch *_keyColorsSwitch;
@@ -115,6 +116,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     NSStackView *timeRadios = [NSStackView stackViewWithViews:@[_timeTotalRadio, _timeRemainingRadio]];
     timeRadios.spacing = 12;
 
+    _showBPMSwitch = [self switchWithAction:@selector(toggleShowBPM:)];
     _showKeySwitch = [self switchWithAction:@selector(toggleShowKey:)];
 
     // Identifiers in representedObject, localized names in the titles — the
@@ -153,6 +155,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
         [SettingsSectionView sectionWithRows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_FILE_INFO control:_fileInfoSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_TIME_LABEL control:timeRadios],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_BPM control:_showBPMSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_KEY control:_showKeySwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_NOTATION_LABEL control:_keyNotationPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
@@ -270,6 +273,8 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     _timeTotalRadio.state = remaining ? NSControlStateValueOff : NSControlStateValueOn;
     _timeRemainingRadio.state = remaining ? NSControlStateValueOn : NSControlStateValueOff;
 
+    _showBPMSwitch.state = AppSettings.sharedInstance.showBPM ? NSControlStateValueOn : NSControlStateValueOff;
+
     // With Show key off the two rows below it have nothing to govern, so they
     // dim rather than pretending a write would change anything on screen.
     BOOL showKey = AppSettings.sharedInstance.showKey;
@@ -284,6 +289,11 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
         }
     }
     _keyColorsSwitch.state = AppSettings.sharedInstance.keyColorsEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+}
+
+- (void)toggleShowBPM:(id)sender {
+    AppSettings.sharedInstance.showBPM = (_showBPMSwitch.state == NSControlStateValueOn);
+    [self.playerController refreshBPMDisplay];
 }
 
 - (void)toggleShowKey:(id)sender {

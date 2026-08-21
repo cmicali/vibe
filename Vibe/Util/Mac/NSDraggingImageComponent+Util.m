@@ -9,10 +9,6 @@
 
 @implementation NSDraggingImageComponent (Util)
 
-+ (NSDraggingImageComponent *)labelWithFile:(NSURL *)file imageRect:(CGRect)imageRect {
-    return [self labelWithString:[file.path lastPathComponent] imageRect:imageRect];
-}
-
 + (NSDraggingImageComponent *)labelWithString:(NSString *)string imageRect:(CGRect)imageRect {
 
     NSMutableParagraphStyle *centered = [[NSParagraphStyle defaultParagraphStyle] mutableCopy];

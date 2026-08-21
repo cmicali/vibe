@@ -40,6 +40,8 @@ The codec line doubles as the FX indicator: the SF Symbols of latched effects dr
 
 `AppSettings.showFileInfo` off empties the codec text and the BPM/key line at render time (`TrackDisplayController` reads it in `renderState:` and `renderBPM:`), but **the FX symbols are deck state, not file info, and keep composing.**
 
+`AppSettings.showBPM` and `.showKey` each blank their own half of that line, upstream of the render: `effectiveTempoDidChange` passes 0 for a hidden tempo and -1 for a hidden key, so the separator disappears with either half and the line empties when both are off. Neither touches detection, tags, or the delay's BPM-synced taps — the fx write is unconditional, since a hidden readout must not change the audio.
+
 The line has **two independent inputs** — codec text and FX state — and `TrackDisplayController` composes it from the last of each, because FX are deck state that outlives any track: they persist across track changes and into the empty state.
 
 Two adjustments are optical, not derivable from any metric: symbols draw at **bold** weight (the default stroke is a hairline at this size), and the two dial glyphs get their own size multiplier — they spend much of their bounding box on tick marks and read visibly smaller at the row's shared box height.

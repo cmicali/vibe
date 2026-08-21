@@ -7,7 +7,6 @@
 
 @interface NSDraggingImageComponent (Util)
 
-+ (NSDraggingImageComponent *)labelWithFile:(NSURL *)file imageRect:(CGRect)imageRect;
 + (NSDraggingImageComponent *)labelWithString:(NSString *)string imageRect:(CGRect)imageRect;
 
 @end

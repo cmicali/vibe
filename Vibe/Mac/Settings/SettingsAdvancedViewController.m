@@ -5,11 +5,15 @@
 
 #import "SettingsAdvancedViewController.h"
 #import "AppSettings.h"
-#import "AppStats.h"
+#import "AudioPlayer.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "Formatters.h"
+#import "MainMenuBuilder.h"
 #import "MainPlayerController.h"
+#import "MainPlayerController+Menus.h"
+#import "MainPlayerController+Window.h"
+#import "NSBundle+BuildInfo.h"
 #import "VibeStrings.h"
 
 static const CGFloat kAdvancedPopUpWidth = 200;
@@ -19,11 +23,9 @@ static const CGFloat kAdvancedPopUpWidth = 200;
 
 @implementation SettingsAdvancedViewController {
     NSPopUpButton *_refreshRatePopUp;
+    NSButton *_resetButton;
     NSTextField *_cacheSizeValue;
     NSButton *_clearCacheButton;
-    NSTextField *_filesOpenedValue;
-    NSTextField *_foldersOpenedValue;
-    NSTextField *_audioPlayedValue;
     // Drops a stale usage reply: each refresh bumps it, and only the newest
     // request may write the label — a clear right after a refresh would
     // otherwise race the older, larger answer over the fresh zero.
@@ -43,27 +45,94 @@ static const CGFloat kAdvancedPopUpWidth = 200;
         _refreshRatePopUp.lastItem.tag = kVibeUIUpdateHzCapPresets[i];
     }
 
+    _resetButton = [NSButton buttonWithTitle:STR_SETTINGS_RESET_DEFAULTS
+                                      target:self action:@selector(resetSettings:)];
     _cacheSizeValue = [self valueLabel];
     _clearCacheButton = [NSButton buttonWithTitle:STR_SETTINGS_CLEAR_CACHE
                                            target:self action:@selector(clearCache:)];
-    _filesOpenedValue = [self valueLabel];
-    _foldersOpenedValue = [self valueLabel];
-    _audioPlayedValue = [self valueLabel];
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithRows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_REFRESH_RATE_LABEL control:_refreshRatePopUp],
         ]],
         [SettingsSectionView sectionWithRows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_SETTINGS_LABEL control:_resetButton],
             [SettingsRowView rowWithTitle:STR_SETTINGS_CACHE_LABEL
                                  controls:@[_cacheSizeValue, _clearCacheButton]],
         ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_STATS_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_FILES_OPENED_LABEL control:_filesOpenedValue],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_FOLDERS_OPENED_LABEL control:_foldersOpenedValue],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_AUDIO_PLAYED_LABEL control:_audioPlayedValue],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_BUILD_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_VERSION_LABEL
+                                  control:[self valueLabelWithString:NSBundle.mainBundle.vibeVersionString]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_GIT_LABEL
+                                  control:[self valueLabelWithString:NSBundle.mainBundle.vibeGitString]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_LANGUAGE_LABEL
+                                  control:[self valueLabelWithString:[self currentLanguageText]]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_LANGUAGES_LABEL
+                                  control:[self availableLanguagesLabel]],
         ]],
     ]];
+}
+
+#pragma mark - Build
+
+// The flag for a language: the region its identifier carries (pt-BR), else
+// the one the language is most identified with. nil when neither names one.
+static NSString *VibeFlagForLanguage(NSString *language) {
+    static NSDictionary<NSString *, NSString *> *regions;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        regions = @{
+            @"bg": @"BG", @"cs": @"CZ", @"da": @"DK", @"de": @"DE",
+            @"el": @"GR", @"en": @"US", @"es": @"ES", @"fi": @"FI",
+            @"fr": @"FR", @"hr": @"HR", @"hu": @"HU", @"id": @"ID",
+            @"it": @"IT", @"ja": @"JP", @"ko": @"KR", @"nb": @"NO",
+            @"nl": @"NL", @"pl": @"PL", @"ro": @"RO", @"ru": @"RU",
+            @"sk": @"SK", @"sv": @"SE", @"th": @"TH", @"tr": @"TR",
+            @"uk": @"UA", @"vi": @"VN", @"zh-Hans": @"CN", @"zh-Hant": @"TW",
+        };
+    });
+    NSString *region = [NSLocale componentsFromLocaleIdentifier:language][NSLocaleCountryCode]
+            ?: regions[language];
+    if (region.length != 2) {
+        return nil;
+    }
+    UTF32Char indicators[2] = {0x1F1E6 + ([region characterAtIndex:0] - 'A'),
+                               0x1F1E6 + ([region characterAtIndex:1] - 'A')};
+    return [[NSString alloc] initWithBytes:indicators length:sizeof(indicators)
+                                  encoding:NSUTF32LittleEndianStringEncoding];
+}
+
+- (NSString *)currentLanguageText {
+    NSString *language = NSBundle.mainBundle.preferredLocalizations.firstObject ?: @"en";
+    NSString *name = [NSLocale.currentLocale localizedStringForLocaleIdentifier:language] ?: language;
+    NSString *flag = VibeFlagForLanguage(language);
+    return flag ? [NSString stringWithFormat:@"%@ %@", flag, name] : name;
+}
+
+// One flag per shipped .lproj, read from the bundle so the row can never
+// drift from what the build actually contains.
+- (NSTextField *)availableLanguagesLabel {
+    NSMutableArray<NSString *> *flags = [NSMutableArray array];
+    for (NSString *language in [NSBundle.mainBundle.localizations
+            sortedArrayUsingSelector:@selector(localizedStandardCompare:)]) {
+        if ([language isEqualToString:@"Base"]) {
+            continue;
+        }
+        NSString *flag = VibeFlagForLanguage(language);
+        [flags addObject:flag ?: language];
+    }
+    NSTextField *label = [NSTextField wrappingLabelWithString:[flags componentsJoinedByString:@" "]];
+    label.selectable = NO;
+    label.alignment = NSTextAlignmentRight;
+    label.preferredMaxLayoutWidth = 240;
+    [label.widthAnchor constraintLessThanOrEqualToConstant:240].active = YES;
+    return label;
+}
+
+- (NSTextField *)valueLabelWithString:(NSString *)string {
+    NSTextField *label = [self valueLabel];
+    label.stringValue = string;
+    return label;
 }
 
 // The readouts are informational, so they take the secondary color a System
@@ -77,8 +146,41 @@ static const CGFloat kAdvancedPopUpWidth = 200;
 - (void)refreshFromSettings {
     // The getter snaps to a preset, so this always matches an item.
     [_refreshRatePopUp selectItemWithTag:AppSettings.sharedInstance.uiUpdateHzCap];
+    _resetButton.enabled = !AppSettings.sharedInstance.allSettingsAtDefaults;
     [self refreshCacheSize];
-    [self refreshPlaybackStats];
+}
+
+#pragma mark - Reset to defaults
+
+// The reset only clears the store, so this runs the same live-apply hooks the
+// panes' own write paths use; the two relaunch-applied settings (audio FX,
+// output device) land at the next launch exactly as their captions say. Every
+// pane then reloads, which also settles the rows the reset hid (the custom
+// color wells) before the shared size is retaken.
+- (void)resetSettings:(id)sender {
+    [AppSettings.sharedInstance resetToDefaults];
+    MainPlayerController *player = self.playerController;
+    [player applyAlwaysOnTop];
+    [player applyPitchRange];
+    [player applyEndOfTrackAction];
+    player.audioPlayer.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
+    [player syncUITimerRate];
+    [player setAppearance:nil];
+    [player applyWaveformStyle:AppSettings.sharedInstance.waveformStyle];
+    [player refreshWaveformTheme];
+    [player refreshWindowTint];
+    [player refreshFileInfoDisplay];
+    [player refreshTimeDisplay];
+    [player refreshBPMDisplay];
+    [player refreshKeyDisplay];
+    [player refreshFolderArt];
+    [MainMenuBuilder applyConvertMenuVisibility];
+    for (__kindof NSViewController *pane in self.parentViewController.childViewControllers) {
+        if ([pane isKindOfClass:SettingsPaneViewController.class]) {
+            [pane refreshFromSettings];
+        }
+    }
+    [self paneContentDidChange];
 }
 
 #pragma mark - Playhead refresh
@@ -142,16 +244,6 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     };
     [player.metadataCache invalidateWithCompletion:done];
     [player.waveformCache invalidateWithCompletion:done];
-}
-
-#pragma mark - Playback statistics
-
-- (void)refreshPlaybackStats {
-    AppStats *stats = AppStats.sharedInstance;
-    Formatters *formatters = Formatters.sharedInstance;
-    _filesOpenedValue.stringValue = [formatters countString:stats.totalFilesOpened];
-    _foldersOpenedValue.stringValue = [formatters countString:stats.totalFoldersOpened];
-    _audioPlayedValue.stringValue = [formatters spelledDurationString:stats.totalSecondsPlayed];
 }
 
 @end

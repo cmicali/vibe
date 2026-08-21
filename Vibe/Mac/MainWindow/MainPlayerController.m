@@ -534,7 +534,10 @@
                 ? VibeMusicalKeyMusicalName(key)
                 : VibeMusicalKeyCamelotName(key);
     }
-    [self.trackDisplay renderBPM:(track ? scaledBPM : 0)
+    // Show BPM off blanks the label's tempo half; the fx write above is
+    // unconditional, since a hidden readout must not change the audio.
+    float labelBPM = track && AppSettings.sharedInstance.showBPM ? scaledBPM : 0;
+    [self.trackDisplay renderBPM:labelBPM
                          keyText:keyText
                         colorKey:(AppSettings.sharedInstance.keyColorsEnabled ? key : -1)];
 }
@@ -854,6 +857,10 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 }
 
 - (void)refreshKeyDisplay {
+    [self effectiveTempoDidChange];
+}
+
+- (void)refreshBPMDisplay {
     [self effectiveTempoDidChange];
 }
 

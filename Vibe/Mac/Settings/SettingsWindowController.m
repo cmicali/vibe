@@ -5,11 +5,13 @@
 
 #import "SettingsWindowController.h"
 #import "WindowAnimation.h"
+#import "SettingsAboutViewController.h"
 #import "SettingsAdvancedViewController.h"
 #import "SettingsAppearanceViewController.h"
 #import "SettingsConvertViewController.h"
 #import "SettingsFilesViewController.h"
 #import "SettingsGeneralViewController.h"
+#import "SettingsPaneViewController.h"
 #import "SettingsPlaybackViewController.h"
 #import "VibeStrings.h"
 
@@ -123,7 +125,7 @@ static const CGFloat kSettingsSidebarWidth = 200;
 // fixed window-resize duration. Also the sync point back to the sidebar, so
 // a programmatic selection (the debug channel's settings_open) moves the
 // highlighted row too.
-@interface SettingsTabViewController : NSTabViewController
+@interface SettingsTabViewController : NSTabViewController <SettingsPaneSizeHost>
 @property (weak, nonatomic) NSTableView *sidebarTable;
 @end
 
@@ -150,8 +152,22 @@ static const CGFloat kSettingsSidebarWidth = 200;
     // The window binds its title to the split controller's; the pane's title
     // reaches it through here, never set on the window directly.
     self.parentViewController.title = pane.title;
+    [self animateWindowToPaneSize:pane];
+}
+
+// A pane revealed or hid a row, so every pane's shared size moved under the
+// open window; the frame follows down the same path a pane switch takes.
+- (void)settingsPaneSizeDidChange {
+    NSInteger index = self.selectedTabViewItemIndex;
+    if (index < 0 || index >= (NSInteger)self.tabViewItems.count) {
+        return;
+    }
+    [self animateWindowToPaneSize:self.tabViewItems[(NSUInteger)index].viewController];
+}
+
+- (void)animateWindowToPaneSize:(NSViewController *)pane {
     NSWindow *window = self.view.window;
-    if (!window) {
+    if (!pane || !window) {
         return;
     }
     // The target is the frame the constraint engine will settle the window at
@@ -216,6 +232,12 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
                                   @"convert", STR_MENU_CONVERT, @"arrow.triangle.2.circlepath")];
     [tabs addTabViewItem:PaneItem([[SettingsAdvancedViewController alloc] initWithPlayerController:playerController],
                                   @"advanced", STR_SETTINGS_ADVANCED, @"gearshape.2")];
+    [tabs addTabViewItem:PaneItem([[SettingsAboutViewController alloc] initWithPlayerController:playerController],
+                                  @"about", STR_SETTINGS_ABOUT, @"info.circle")];
+
+    // Every pane at the largest pane's size, before the window is built, so
+    // the window has one size and a pane switch resizes nothing.
+    [SettingsPaneViewController settleSharedSizeForPanes:tabs.childViewControllers];
 
     SettingsSidebarController *sidebar = [[SettingsSidebarController alloc] init];
     sidebar.tabs = tabs;

@@ -359,11 +359,12 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
         _pendingArt = nil;
         _queuedRenderRequest = nil;
     }
-    // The art view doubles as the track's drag-out source, and the URL follows
-    // the displayed track directly rather than the keep-previous art policy
-    // below: a drag during the unresolved gap must export the track the header
-    // names.
+    // The art view doubles as the track's drag-out source, and its payload —
+    // the URL, and the name the copy_artist_title action drags — follows the
+    // displayed track directly rather than the keep-previous art policy below:
+    // a drag during the unresolved gap must export the track the header names.
     _artworkView.fileURL = track.url;
+    _artworkView.trackDisplayName = track.singleLineTitle;
     // artLoadPending is cleared before a load completes, so here it means
     // exactly that a load is in flight.
     BOOL artResolved = metadata != nil && !metadata.artNeedsLoad &&

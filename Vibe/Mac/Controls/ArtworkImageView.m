@@ -4,6 +4,7 @@
 //
 
 #import "ArtworkImageView.h"
+#import "AppSettings.h"
 #import "NSDraggingImageComponent+Util.h"
 #import "MainWindowLayout.h"
 
@@ -76,18 +77,42 @@ static const CGFloat kDragHysteresis = 3;
     CGPoint dragPosition = [self convertPoint:[event locationInWindow] fromView:nil];
 
     NSURL *fileURL = self.fileURL;
+    // Read once here: the mode must not change under an in-flight drag.
+    NSString *action = AppSettings.sharedInstance.artworkDragAction;
+
+    // What the drop receives, and the ghost's label under the art icon. Only
+    // the file payload is read by the receiver after the drop, so only it
+    // needs the security scope held open past this method. The path mode keeps
+    // the filename label: the full path would draw a ghost the width of the
+    // screen.
+    id<NSPasteboardWriting> writer = fileURL;
+    NSString *labelText = fileURL.path.lastPathComponent;
+    BOOL wantsSecurityScope = YES;
+    if ([action isEqualToString:SETTINGS_VALUE_ARTWORK_DRAG_COPY_PATH]) {
+        writer = fileURL.path;
+        wantsSecurityScope = NO;
+    }
+    else if ([action isEqualToString:SETTINGS_VALUE_ARTWORK_DRAG_COPY_ARTIST_TITLE]) {
+        if (self.trackDisplayName.length == 0) {
+            return;
+        }
+        writer = self.trackDisplayName;
+        labelText = self.trackDisplayName;
+        wantsSecurityScope = NO;
+    }
+
     // Record for the drag-end stop only when the start took. The stop must
     // balance a successful start, since an unbalanced stop over-releases the
     // sandbox extension. A NO here, meaning the URL is not security-scoped,
     // still drags fine.
-    if ([fileURL startAccessingSecurityScopedResource]) {
+    if (wantsSecurityScope && [fileURL startAccessingSecurityScopedResource]) {
         _securityScopedURL = fileURL;
     }
 
     CGFloat imageSize = 48;
     CGRect imageRect = CGRectMake(0, 0, imageSize, imageSize);
 
-    NSDraggingItem *draggingItem = [[NSDraggingItem alloc] initWithPasteboardWriter:fileURL];
+    NSDraggingItem *draggingItem = [[NSDraggingItem alloc] initWithPasteboardWriter:writer];
 
     [draggingItem setImageComponentsProvider:^NSArray<NSDraggingImageComponent *> * {
 
@@ -95,8 +120,9 @@ static const CGFloat kDragHysteresis = 3;
         image.frame = imageRect;
         image.contents = self.image;
 
-        // Filename label; positions itself below the icon in the item's space.
-        NSDraggingImageComponent *label = [NSDraggingImageComponent labelWithFile:self.fileURL imageRect:imageRect];
+        // Names what the drop will produce; positions itself below the icon in
+        // the item's space.
+        NSDraggingImageComponent *label = [NSDraggingImageComponent labelWithString:labelText imageRect:imageRect];
 
         return @[image, label];
     }];

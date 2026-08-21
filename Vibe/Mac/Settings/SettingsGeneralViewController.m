@@ -28,6 +28,7 @@ static const CGFloat kOutputPopUpWidth = 280;
     NSButton *_defaultPlayerButton;
     NSSwitch *_alwaysOnTopSwitch;
     NSPopUpButton *_waveformDragPopUp;
+    NSPopUpButton *_artworkDragPopUp;
     // The last answer from the async default-app check, shown immediately on
     // refresh while the fresh one is fetched; the generation drops a stale
     // reply that lands after a newer refresh.
@@ -64,13 +65,22 @@ static const CGFloat kOutputPopUpWidth = 280;
     _alwaysOnTopSwitch = [self switchWithAction:@selector(toggleAlwaysOnTop:)];
 
     // Identifiers in representedObject, localized names in the titles — a
-    // display name must never reach NSUserDefaults. No live-apply hook: the
-    // waveform view reads the setting per mouse-down.
+    // display name must never reach NSUserDefaults. No live-apply hook on
+    // either popup: the waveform view reads its setting per mouse-down, the
+    // art view reads its own per drag start.
     _waveformDragPopUp = [self popUpButtonWithWidth:kOutputPopUpWidth action:@selector(waveformDragChanged:)];
     [_waveformDragPopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_DRAG_WINDOW];
     _waveformDragPopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW;
     [_waveformDragPopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_DRAG_SEEK];
     _waveformDragPopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_DRAG_SEEK;
+
+    _artworkDragPopUp = [self popUpButtonWithWidth:kOutputPopUpWidth action:@selector(artworkDragChanged:)];
+    [_artworkDragPopUp addItemWithTitle:STR_SETTINGS_ARTWORK_DRAG_FILE];
+    _artworkDragPopUp.lastItem.representedObject = SETTINGS_VALUE_ARTWORK_DRAG_COPY_FILE;
+    [_artworkDragPopUp addItemWithTitle:STR_SETTINGS_ARTWORK_DRAG_PATH];
+    _artworkDragPopUp.lastItem.representedObject = SETTINGS_VALUE_ARTWORK_DRAG_COPY_PATH;
+    [_artworkDragPopUp addItemWithTitle:STR_SETTINGS_ARTWORK_DRAG_NAME];
+    _artworkDragPopUp.lastItem.representedObject = SETTINGS_VALUE_ARTWORK_DRAG_COPY_ARTIST_TITLE;
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_AUDIO_SECTION rows:@[
@@ -79,9 +89,10 @@ static const CGFloat kOutputPopUpWidth = 280;
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_ALWAYS_ON_TOP control:_alwaysOnTopSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_DRAG_LABEL control:_waveformDragPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_ARTWORK_DRAG_LABEL control:_artworkDragPopUp],
         ]],
         [SettingsSectionView sectionWithRows:@[
-            [SettingsRowView rowWithTitle:nil control:_defaultPlayerButton],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_DEFAULT_PLAYER_LABEL control:_defaultPlayerButton],
         ]],
     ]];
 }
@@ -90,11 +101,15 @@ static const CGFloat kOutputPopUpWidth = 280;
     [self refreshOutputPopUp];
     [self refreshDefaultPlayerButton];
     _alwaysOnTopSwitch.state = AppSettings.sharedInstance.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
-    // The getter is normalized, so a match always exists.
-    NSString *dragBehavior = AppSettings.sharedInstance.waveformDragBehavior;
-    for (NSMenuItem *item in _waveformDragPopUp.itemArray) {
-        if ([item.representedObject isEqualToString:dragBehavior]) {
-            [_waveformDragPopUp selectItem:item];
+    // The getters are normalized, so a match always exists.
+    [self selectIdentifier:AppSettings.sharedInstance.waveformDragBehavior inPopUp:_waveformDragPopUp];
+    [self selectIdentifier:AppSettings.sharedInstance.artworkDragAction inPopUp:_artworkDragPopUp];
+}
+
+- (void)selectIdentifier:(NSString *)identifier inPopUp:(NSPopUpButton *)popUp {
+    for (NSMenuItem *item in popUp.itemArray) {
+        if ([item.representedObject isEqualToString:identifier]) {
+            [popUp selectItem:item];
             break;
         }
     }
@@ -107,6 +122,10 @@ static const CGFloat kOutputPopUpWidth = 280;
 
 - (void)waveformDragChanged:(id)sender {
     AppSettings.sharedInstance.waveformDragBehavior = _waveformDragPopUp.selectedItem.representedObject;
+}
+
+- (void)artworkDragChanged:(id)sender {
+    AppSettings.sharedInstance.artworkDragAction = _artworkDragPopUp.selectedItem.representedObject;
 }
 
 #pragma mark - Output device

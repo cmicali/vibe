@@ -1,15 +1,21 @@
 # 1.10
 
-* New settings window with more configurability
-* More reliable cloud file loading w/ progress bar (iCloud Drive, Dropbox)
-* Customizable colors for window and waveform
-* Playing EQ animation is now real instead of canned
-* Better resizing of waveforms
-* Better keyboard support in playlist w/ enter to play
-* Smoother playhead animation for short files
-* Added album art load from song's folder if song has no tagged artwork  
+* Added new settings window with a lot more configurability
+* Added About settings pane with version, copyright, GitHub links, and playback statistics
+* Added build info (version, git hash, and languages) and reset-to-defaults to Advanced settings
+* Added color themes and customizable colors for window and waveform
+* Added more reliable cloud file loading w/ progress bar (iCloud Drive, Dropbox)
+* Added live EQ animation based on audio
+* Added album art load from song's folder if song has no tagged artwork
+* Added keyboard support in playlist w/ enter to play
+* Added initial version of iOS app/UI that uses macOS codebase
 * Added support for macOS 13 Ventura and later (previously required macOS 14)
-* Bug fixes (2 memory leaks), performance improvements
+* Improved resizing of waveforms, especially for non-detailed ones
+* Improved performance of large library loads, metadata loading, and artwork loading
+* Improved playhead animation smoothness for short files
+* Improved consistency of translations/localization 
+* Fixed memory leaks (dock icon artwork, player teardown, engine idle stop)
+* Fixed file descriptor leak (AVAudioFile issue on unreadable or partially-downloaded audio files)
 
 # v1.9
 
