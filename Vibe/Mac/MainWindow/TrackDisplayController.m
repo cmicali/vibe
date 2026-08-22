@@ -424,7 +424,8 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 // codec text. Inlining the symbols, rather than placing a separate view left
 // of the label, is what keeps them glued to the text, because the label is
 // right-aligned in a fixed frame and so its text's left edge moves with the
-// track's codec string. It also gets the label's color and 50% alpha for free.
+// track's codec string. Each run carries its own color; see symbolRun and
+// cornerTextAttributes.
 - (void)composeFileMetadataLabel {
     NSArray<NSString *> *symbols = fxSymbolNames(_fxState);
     if (symbols.count == 0) {
@@ -440,9 +441,9 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     for (NSString *name in symbols) {
         [line appendAttributedString:symbolRun(name, font)];
         // Wider than the gap the glyphs carry between themselves, so that a
-        // run of three still reads as three marks. It is dimmed like the codec
-        // text: the spacer is only ever whitespace, but a stray full-strength
-        // run would widen differently under kerning.
+        // run of three still reads as three marks. It carries the font and
+        // nothing else — whitespace has no color to set — but it must carry
+        // that, since a run left on the default font would widen differently.
         [line appendAttributedString:[[NSAttributedString alloc] initWithString:@"  "
                                                                      attributes:@{NSFontAttributeName: font}]];
     }

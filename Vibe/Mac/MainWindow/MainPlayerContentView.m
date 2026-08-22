@@ -646,11 +646,11 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _fileMetadataTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:NO];
     _fileMetadataTextField.alignment = NSTextAlignmentRight;
     _fileMetadataTextField.textColor = dimmedTextColor;
-    // Full alpha, unlike the BPM label below, because this field also carries
-    // the inline FX symbols, which read at the time labels' full strength
-    // while the codec text stays half-strength. A field-wide 0.5 would dim
-    // both, so the text's own dimming rides in its foreground color instead;
-    // see TrackDisplayController's codecTextAttributes.
+    // Full alpha, because this field also carries the inline FX symbols, which
+    // read at the time labels' full-strength secondaryLabelColor while the
+    // codec text is a step dimmer. A field-wide 0.5 would dim both, so the
+    // text's own dimming rides in its foreground color instead; see
+    // TrackDisplayController's cornerTextAttributes.
     _fileMetadataTextField.alphaValue = 1.0;
     _fileMetadataTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
     configureLabelShadow(_fileMetadataTextField, YES);
