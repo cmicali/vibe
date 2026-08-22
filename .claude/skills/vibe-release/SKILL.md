@@ -22,7 +22,7 @@ Both preflight `asc_require_translations` before the archive: a key missing any 
 
 ## The marketing page
 
-`Assets/Web/` is a static site with no build step, served from two hosts: Cloudflare Pages at **vibe.commonwealthrecordings.com** (canonical) and GitHub Pages at cmicali.github.io/vibe. Its own `README.md` has the detail.
+`Assets/Web/` is a static site with no build step, served from two hosts: Cloudflare Pages at **vibeplayer.app** (canonical) and GitHub Pages at cmicali.github.io/vibe. Its own `README.md` has the detail.
 
 The page's Download button links a **direct** `.dmg` URL and shows the version beside it, so the two must agree. GitHub's `latest/download` shortcut cannot supply that — it only redirects for an asset name that never changes, and the assets are `Vibe-macOS-<version>.dmg`. So `scripts/web-set-version.sh <version>` rewrites both, keyed on the `dmg-link` and `dmg-version` element ids rather than the markup around them; a pattern that stops matching is an error, never a silent no-op.
 

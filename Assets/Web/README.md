@@ -46,7 +46,7 @@ Both hosts serve this directory verbatim; there is no build step on either.
 
 | URL | Host | Trigger |
 | --- | --- | --- |
-| <https://vibe.commonwealthrecordings.com> | Cloudflare Pages | `make deploy-web`, run at release time. Canonical. |
+| <https://vibeplayer.app> | Cloudflare Pages | `make deploy-web`, run at release time. Canonical. |
 | <https://cmicali.github.io/vibe/> | GitHub Pages | `.github/workflows/pages.yml`, on any push to `main` touching `Assets/Web/**`. |
 
 The page names the Cloudflare URL as `rel=canonical`, so the GitHub Pages copy
@@ -112,7 +112,7 @@ The Pages project has to exist once before the first deploy:
 npx wrangler pages project create vibe --production-branch main
 ```
 
-Then attach `vibe.commonwealthrecordings.com` under the project's Custom
+Then attach `vibeplayer.app` under the project's Custom
 domains. With the zone in the same account, Cloudflare writes the CNAME and
 issues the certificate itself.
 
@@ -123,9 +123,9 @@ The three URL files under `Assets/app-store/copy/` upload to every locale with
 
 | File | Value |
 | --- | --- |
-| `marketing-url.txt` | `https://vibe.commonwealthrecordings.com` |
+| `marketing-url.txt` | `https://vibeplayer.app` |
 | `support-url.txt` | `https://github.com/cmicali/vibe/issues` |
-| `privacy-url.txt` | `https://vibe.commonwealthrecordings.com/privacy/` |
+| `privacy-url.txt` | `https://vibeplayer.app/privacy/` |
 
 The privacy URL is not a version field — it lives on ASC's `appInfoLocalizations`,
 per locale — but the uploader patches it there too, so it is not 29 identical

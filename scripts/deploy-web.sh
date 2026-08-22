@@ -172,11 +172,11 @@ error: wrangler failed (exit $STATUS).
       npx wrangler pages project create $PROJECT --production-branch main
 
   Then attach the custom domain in the dashboard:
-  Workers & Pages -> $PROJECT -> Custom domains -> vibe.commonwealthrecordings.com
+  Workers & Pages -> $PROJECT -> Custom domains -> vibeplayer.app
 
   If it reported an auth error, the token needs Account | Cloudflare Pages | Edit.
 MSG
     exit $STATUS
 fi
 
-echo "🔊 done — https://vibe.commonwealthrecordings.com"
+echo "🔊 done — https://vibeplayer.app"

@@ -1,7 +1,7 @@
 name: Pages
 
 # Publishes Assets/Web to GitHub Pages. The same directory is the build output
-# of the Cloudflare Pages project serving vibe.commonwealthrecordings.com, so
+# of the Cloudflare Pages project serving vibeplayer.app, so
 # the two hosts always ship the identical tree; the page names the Cloudflare
 # URL as canonical.
 on:

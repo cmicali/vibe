@@ -112,7 +112,7 @@ github-release:
 	scripts/github-release.sh
 
 # Publish Assets/Web to Cloudflare Pages, which serves the canonical
-# vibe.commonwealthrecordings.com. Local-only on purpose: the API token stays
+# vibeplayer.app. Local-only on purpose: the API token stays
 # out of CI secrets, and the script refuses to run there. GitHub Pages is the
 # copy CI publishes, from a workflow that needs no credential. Refuses to
 # upload a page whose Download button does not resolve; ARGS="--dry-run" lists
