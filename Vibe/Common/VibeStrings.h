@@ -340,6 +340,8 @@ static inline NSString *VibeAppName(void) {
 #define STR_A11Y_PLAYLIST_OPEN   NSLS(@"a11y.playlist.open",   @"Open tracks or folders", @"Accessibility label for the empty playlist pane's drop well, which opens the file picker when pressed.")
 #define STR_A11Y_WINDOW_CLOSE    NSLS(@"a11y.window.close",    @"Close",           @"Accessibility label for the window's close button.")
 #define STR_A11Y_WINDOW_MINIMIZE NSLS(@"a11y.window.minimize", @"Minimize",        @"Accessibility label for the window's minimize button.")
+#define STR_A11Y_WAVEFORM        NSLS(@"a11y.waveform",        @"Playback Position", @"Accessibility label for the waveform, which is a slider: it shows where playback has reached in the track and seeks when adjusted. Read aloud by a screen reader, never drawn on screen. Both platforms.")
+#define STR_A11Y_PITCH_FADER     NSLS(@"a11y.pitch_fader",     @"Pitch",           @"Accessibility label for the pitch fader, the slider that speeds the track up or slows it down like a turntable's. Read aloud by a screen reader, never drawn on screen; the drawn legend is the separate upper-case 'PITCH'.")
 
 #pragma mark - Playback errors
 

@@ -13,13 +13,17 @@
 #import "WaveformZoomMath.h"
 #import "UIView+DarkMode.h"
 #import "AppSettings.h"
+#import "Formatters.h"
 #import "PlatformColor.h"
+#import "VibeStrings.h"
 
 // The XCUITest driver's pinch needs an ELEMENT to center on — XCUITest has no
 // coordinate-based multi-touch, only pinchWithScale:velocity: on an element.
-// An accessibilityIdentifier alone puts the view in the element tree;
-// isAccessibilityElement stays off, so VoiceOver behavior is unchanged. Spelled
-// the same in Tests/iOSDriver/VibeiOSDriverTests.m.
+// The identifier is what names it there; spelled the same in
+// Tests/iOSDriver/VibeiOSDriverTests.m. The view is separately an
+// accessibility element in its own right — an adjustable slider over the
+// track, see the Accessibility section below — which the driver does not
+// depend on either way.
 static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 
 // One haptic tick per this many points of scrub travel, and how hard each one
@@ -499,6 +503,59 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 
 - (CGFloat)progress {
     return _progress;
+}
+
+#pragma mark - Accessibility
+
+// Same contract as the mac view's, for the same reason: the scrubber is the
+// only way to seek by touch, so to VoiceOver it is an adjustable control over
+// the track. The element is the scrubber ITSELF rather than the scroll view it
+// hosts — a VoiceOver user has no use for the scroll, and the seek it stands
+// for is what the swipe-up/down gesture should reach.
+//
+// A fraction of the track per adjustment, not a number of seconds: this view
+// is handed a 0-1 progress and reports a 0-1 seek and knows no duration. Five
+// percent matches the mac, so the two platforms step alike.
+static const CGFloat kWaveformAccessibilityStep = 0.05;
+
+- (BOOL)isAccessibilityElement {
+    return YES;
+}
+
+- (UIAccessibilityTraits)accessibilityTraits {
+    // Not .adjustable while there is nothing loaded: the swipe gesture would
+    // be offered for a control that cannot move.
+    return self.isScrubbingEnabled ? UIAccessibilityTraitAdjustable
+                                   : UIAccessibilityTraitNone;
+}
+
+- (NSString *)accessibilityLabel {
+    return STR_A11Y_WAVEFORM;
+}
+
+- (NSString *)accessibilityValue {
+    return [Formatters.sharedInstance percentString:_progress];
+}
+
+- (void)accessibilityIncrement {
+    [self seekAccessibilityByDelta:kWaveformAccessibilityStep];
+}
+
+- (void)accessibilityDecrement {
+    [self seekAccessibilityByDelta:-kWaveformAccessibilityStep];
+}
+
+// Reports the seek and waits for the owner's progress write to come back, the
+// way a released scrub does. Moving the content here would race the settle.
+- (void)seekAccessibilityByDelta:(CGFloat)delta {
+    if (!self.isScrubbingEnabled) {
+        return;
+    }
+    CGFloat target = MAX(0.0, MIN(1.0, _progress + delta));
+    if (target == _progress) {
+        return;
+    }
+    [self.delegate waveformScrubberView:self didSeek:(float)target];
 }
 
 #pragma mark - Presentation states

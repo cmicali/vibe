@@ -486,7 +486,7 @@ static const NSUInteger kUIUpdateHz = 3;
 // current-index change, which is the one funnel every play, skip and
 // auto-advance passes through.
 - (void)updateMetadataNeighborhood {
-    [_metadataCache setNeighborhoodAroundIndex:_playlist.currentIndex inTracks:_playlist.tracks];
+    [_metadataCache setNeighborhoodAroundIndex:_playlist.currentIndex inTracks:_playlist];
 }
 
 #pragma mark - The deferred metadata sweep

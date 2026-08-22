@@ -88,4 +88,16 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+// An ordered collection of tracks addressable by row, which is what both
+// shells' playlists already are: `Playlist` on iOS and `PlaylistController` on
+// macOS adopt it without adding a method. It exists so that a caller wanting a
+// FEW rows around an index can ask for them, instead of being handed the whole
+// list — the mac getter makes a defensive copy, which is O(playlist) in atomic
+// retains, and the one caller that wanted three neighbours was paying it on
+// every play, skip and auto-advance.
+@protocol AudioTrackIndexedSource <NSObject>
+- (nullable AudioTrack *)trackAtIndex:(NSUInteger)index;
+- (NSUInteger)count;
+@end
+
 NS_ASSUME_NONNULL_END

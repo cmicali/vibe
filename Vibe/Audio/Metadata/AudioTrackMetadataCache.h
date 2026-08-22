@@ -8,6 +8,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioTrackMetadataCacheDelegate;
+@protocol AudioTrackIndexedSource;   // AudioTrack.h
 @class AudioTrack;
 
 @interface AudioTrackMetadataCache : NSObject
@@ -36,8 +37,13 @@ NS_ASSUME_NONNULL_BEGIN
 // so there is one of it rather than one per platform: both shells call this
 // from their single current-index funnel, and the shell left to compute its
 // own ended up not calling at all. Main thread only.
+//
+// It takes the playlist itself rather than an array of tracks because it reads
+// exactly three rows: handing it `playlist.tracks` cost a defensive copy of
+// the whole list — one atomic retain per track — on every play, skip and
+// auto-advance, which is the funnel this is called from.
 - (void)setNeighborhoodAroundIndex:(NSUInteger)index
-                          inTracks:(NSArray<AudioTrack *> *)tracks;
+                          inTracks:(id<AudioTrackIndexedSource>)tracks;
 
 // Empties the disk cache. The completion fires on the cache's internal queue
 // once the entries are gone. A parse already in flight cannot repopulate it:

@@ -445,7 +445,10 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 // delay-line state into the signal, an audible click (see kLowKillParkedHz).
 // "Off" is purely the cutoff parked below the audible band.
 - (void)applyLowKillTargetOnQueue {
-    if (!_engine) {
+    // TRAP: the guard is the NODE, never _engine. installInEngine: publishes
+    // _engine as its first statement and mints the nodes further down, so an
+    // _engine guard is already open over the window it claims to close.
+    if (!_lowKillEQ) {
         return; // Not installed yet. installInEngine: re-applies it.
     }
     os_unfair_lock_lock(&_stateLock);
@@ -513,7 +516,9 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 // mid-ramp preempts through the counter and continues from the current gate
 // level.
 - (void)applySendGateOnQueue:(AVAudioMixerNode *)gate enabled:(BOOL)enabled level:(float)level swellRatio:(float)swellRatio counter:(uint64_t *)counter {
-    if (!_engine) {
+    // The gate, not _engine: see the trap at applyDelayTapOnQueue. The gate is
+    // what this ramps, and it is the thing that may not exist yet.
+    if (!gate) {
         return; // Not installed yet. installInEngine: re-applies it.
     }
     uint64_t generation = ++(*counter);
@@ -638,7 +643,11 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 // AVAudioUnitDelay caps delayTime at two seconds, so the 1/8-note send's lanes
 // pin there below an effective 30 BPM, well beyond any real tempo.
 - (void)applyDelayTapOnQueue {
-    if (!_engine) {
+    // TRAP: the guard is the SENDS, never _engine — and here it is load-bearing
+    // rather than merely tidy. installInEngine: publishes _engine as its first
+    // statement and mints the sends further down, so an _engine guard leaves
+    // that window open, and the array literal below raises on a nil element.
+    if (!_delayEighth || !_delaySixteenth) {
         return; // Not installed yet. installInEngine: re-applies it.
     }
     os_unfair_lock_lock(&_stateLock);

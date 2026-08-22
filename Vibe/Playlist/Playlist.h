@@ -40,7 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-@interface Playlist : NSObject
+@interface Playlist : NSObject <AudioTrackIndexedSource>
 
 @property (nonatomic, weak, nullable) id<PlaylistObserver> observer;
 

@@ -221,7 +221,7 @@
     self.playlistController.currentIndexDidChangeHandler = ^{
         MainPlayerController *strongSelf = weakControllerForPlaylist;
         [strongSelf.metadataCache setNeighborhoodAroundIndex:strongSelf.playlistController.currentIndex
-                                                    inTracks:strongSelf.playlistController.playlist];
+                                                    inTracks:strongSelf.playlistController];
     };
 
     __weak MainPlayerController *weakControllerForArt = self;

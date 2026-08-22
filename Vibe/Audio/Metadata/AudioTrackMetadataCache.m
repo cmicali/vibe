@@ -175,15 +175,16 @@
 // thing a hand does, not the first.
 static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
 
-- (void)setNeighborhoodAroundIndex:(NSUInteger)index inTracks:(NSArray<AudioTrack *> *)tracks {
+- (void)setNeighborhoodAroundIndex:(NSUInteger)index inTracks:(id<AudioTrackIndexedSource>)tracks {
     NSInteger current = (NSInteger)index;
+    NSUInteger count = tracks.count;
     NSMutableArray<NSURL *> *urls = [NSMutableArray array];
     for (NSUInteger i = 0; i < sizeof(kNeighborhoodOffsets) / sizeof(*kNeighborhoodOffsets); i++) {
         NSInteger neighbor = current + kNeighborhoodOffsets[i];
-        if (neighbor < 0 || (NSUInteger)neighbor >= tracks.count) {
+        if (neighbor < 0 || (NSUInteger)neighbor >= count) {
             continue;
         }
-        NSURL *url = tracks[(NSUInteger)neighbor].url;
+        NSURL *url = [tracks trackAtIndex:(NSUInteger)neighbor].url;
         if (url) {
             [urls addObject:url];
         }

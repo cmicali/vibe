@@ -8,6 +8,8 @@
 #import "WaveformRendererRegistry.h"
 #import "NSView+DarkMode.h"
 #import "AppSettings.h"
+#import "Formatters.h"
+#import "VibeStrings.h"
 
 // A press that travels further than this is a drag, not a click.
 static const CGFloat kWaveformDragHysteresis = 4;
@@ -390,6 +392,62 @@ static const CGFloat kWaveformDragHysteresis = 4;
 // Fires when the system switches between light and dark; under the "System
 // default" appearance the window follows the OS. Without this, the cached
 // renderer colors go stale until a manual View > Appearance toggle.
+#pragma mark - Accessibility
+
+// The waveform is the only way to seek with the pointer, so to VoiceOver it is
+// a slider over the track: the label names it, the value is how far in
+// playback has reached, and increment/decrement seek through the same delegate
+// method a click does. Without this the whole strip was an unlabelled group
+// and the app had no reachable seek at all.
+//
+// The step is a fraction of the track rather than a number of seconds because
+// this view has no duration — it is handed a 0-1 progress and reports a 0-1
+// seek, and nothing else. Five percent crosses a song in twenty presses and an
+// hour-long mix in the same twenty, which is the right shape for a control
+// whose whole width is the track.
+static const CGFloat kWaveformAccessibilityStep = 0.05;
+
+- (BOOL)isAccessibilityElement {
+    return YES;
+}
+
+- (NSAccessibilityRole)accessibilityRole {
+    return NSAccessibilitySliderRole;
+}
+
+- (NSString *)accessibilityLabel {
+    return STR_A11Y_WAVEFORM;
+}
+
+// A spoken percentage, not the raw fraction: VoiceOver reads an NSNumber
+// verbatim, so 0.5 would be announced as "zero point five".
+- (id)accessibilityValue {
+    return [Formatters.sharedInstance percentString:_progress];
+}
+
+- (BOOL)accessibilityPerformIncrement {
+    return [self seekAccessibilityByDelta:kWaveformAccessibilityStep];
+}
+
+- (BOOL)accessibilityPerformDecrement {
+    return [self seekAccessibilityByDelta:-kWaveformAccessibilityStep];
+}
+
+// Reports the seek and lets the delegate's playback position come back around
+// through setProgress:, exactly as a click does. Writing _progress here would
+// show a playhead that had not moved yet, and fight the next UI tick.
+- (BOOL)seekAccessibilityByDelta:(CGFloat)delta {
+    if (!_waveform || !_currentWaveformRenderer) {
+        return NO; // nothing loaded: there is no position to move
+    }
+    CGFloat target = MAX(0.0, MIN(1.0, _progress + delta));
+    if (target == _progress) {
+        return NO;
+    }
+    [self.delegate audioWaveformView:self didSeek:(float)target];
+    return YES;
+}
+
 - (void)viewDidChangeEffectiveAppearance {
     [super viewDidChangeEffectiveAppearance];
     [self updateAppearance];

@@ -14,7 +14,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface PlaylistController : NSObject <NSTableViewDataSource, NSTableViewDelegate>
+@interface PlaylistController : NSObject <NSTableViewDataSource, NSTableViewDelegate,
+                                          AudioTrackIndexedSource>
 
 @property NSUInteger currentIndex;
 

@@ -88,18 +88,8 @@ asc_require_translations
 
 asc_resolve_credentials
 
-VERSION=$(sed -n 's/^ *MARKETING_VERSION: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' project.yml | head -1)
-BUILD_NUM=$(sed -n 's/^ *CURRENT_PROJECT_VERSION: *\(.*\)$/\1/p' project.yml | head -1)
-# The scrape is format-sensitive; a project.yml reformat must fail here, not
-# echo blanks through the rest of the run.
-[[ -n "$VERSION" && -n "$BUILD_NUM" ]] || {
-    echo "error: could not read MARKETING_VERSION / CURRENT_PROJECT_VERSION from project.yml" >&2
-    echo "       (formatting changed? adjust the sed patterns above)" >&2
-    exit 1; }
-
 echo "🔊 team id     : $TEAM_ID"
 echo "🔊 api key     : $ASC_KEY_ID (issuer $ASC_ISSUER_ID)"
-echo "🔊 version     : $VERSION ($BUILD_NUM)"
 echo "🔊 upload      : $([[ $UPLOAD == 1 ]] && echo yes || echo 'no (validate only)')"
 
 # ---------------------------------------------------------------------------
@@ -107,6 +97,30 @@ echo "🔊 upload      : $([[ $UPLOAD == 1 ]] && echo yes || echo 'no (validate 
 # documents why the archive carries no signing overrides.
 # ---------------------------------------------------------------------------
 asc_generate_and_archive
+
+# The version comes from the archived app's Info.plist, the same way
+# github-release.sh takes it from the built app, so the number this run reports
+# is the number it actually uploads.
+#
+# It used to be scraped out of project.yml with `sed … | head -1`, and
+# project.yml declares MARKETING_VERSION twice — once per app target. That
+# worked only because the macOS block happens to sit above the iOS one: moving
+# the targets, or adding a third, would have silently reported (and logged) the
+# wrong release, since the guard only checked the scrape was non-empty. The
+# built bundle cannot be ambiguous about which target it came from.
+ARCHIVED_APP="$ARCHIVE/Products/Applications/$PRODUCT.app"
+[[ -f "$ARCHIVED_APP/Contents/Info.plist" ]] || {
+    echo "error: no Info.plist at $ARCHIVED_APP — did the archive lay out somewhere else?" >&2
+    exit 1; }
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' \
+    "$ARCHIVED_APP/Contents/Info.plist")"
+BUILD_NUM="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' \
+    "$ARCHIVED_APP/Contents/Info.plist")"
+[[ -n "$VERSION" && -n "$BUILD_NUM" ]] || {
+    echo "error: the archived app carries no version" >&2
+    exit 1; }
+
+echo "🔊 version     : $VERSION ($BUILD_NUM)"
 
 cat > "$BUILD_DIR/ExportOptions.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
