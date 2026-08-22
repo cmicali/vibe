@@ -20,6 +20,18 @@ There are two release paths and they are not interchangeable. Each uses a differ
 
 Both preflight `asc_require_translations` before the archive: a key missing any catalog language fails the release outright, because nothing else catches it — `make check-strings` compares the catalog to the source and the build compiles a partial key without complaint, so it would ship English in that locale alone. Fix by translating, not by skipping; the **vibe-strings** skill has the conventions. This is separate from the product-page copy below — that's ASC metadata, this is the in-app catalog.
 
+## The marketing page
+
+`Assets/Web/` is a static site with no build step, served from two hosts: Cloudflare Pages at **vibe.commonwealthrecordings.com** (canonical, deployed on purpose with `make deploy-web`) and GitHub Pages at cmicali.github.io/vibe (deployed by `.github/workflows/pages.yml` on any push touching `Assets/Web/**`). Its own `README.md` has the detail.
+
+The page's Download button links a **direct** `.dmg` URL and shows the version beside it, so the two must agree. GitHub's `latest/download` shortcut cannot supply that — it only redirects for an asset name that never changes, and the assets are `Vibe-macOS-<version>.dmg`. So `github-release.sh` rewrites it: after a successful publish it runs `scripts/web-set-version.sh <version>`, which edits the two version-bearing spots in `index.html` keyed on the `dmg-link` and `dmg-version` element ids, then commits **that one file by explicit pathspec** and pushes. A dirty tree cannot ride along, and because the release is already published by then, a failed commit or push is a warning with the manual command rather than a failure.
+
+`--draft` skips all of it: a draft's download is not public, so pointing the live page at it would ship a 404. Repoint by hand once it goes out (`scripts/web-set-version.sh <version> && make deploy-web`).
+
+`make deploy-web` then carries the same page to Cloudflare. It refuses to upload a page whose Download button does not return 200 — the check that the rewrite and the release happened in that order — and `ARGS="--dry-run"` runs that check and lists the files without credentials. Its `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` come from the same gitignored `.release-env` as the ASC keys; the token needs exactly **Account | Cloudflare Pages | Edit**.
+
+So the full sequence is `make release`, `make github-release`, `make deploy-web`.
+
 ## Product-page metadata
 
 The build upload carries no product-page content. Localized copy and screenshots live in `Assets/app-store/` (per-locale format: its README) and upload separately with `make appstore-upload-metadata` — `scripts/appstore-upload-metadata.sh` driving the Swift/Bagbutik tool in `scripts/asc-upload/`, authenticated by the same shared key (metadata itself needs only App Manager, so the Admin key more than covers it).

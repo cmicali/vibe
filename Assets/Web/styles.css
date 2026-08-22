@@ -118,18 +118,28 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
   margin-top: 30px;
 }
 
+/* Glyph, then a two-line stack: the label over a smaller detail line. The
+   version under Download is rewritten by the release script, so the link and
+   the number it advertises can never disagree. */
 .btn {
-  display: inline-block;
-  padding: 12px 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 20px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 13px;
   background: var(--panel);
   color: var(--ink);
-  font-size: 16px;
-  font-weight: 500;
+  text-align: left;
   text-decoration: none;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
+
+.btn-glyph { width: 23px; height: 23px; flex: none; }
+
+.btn-text { display: flex; flex-direction: column; }
+.btn-label { font-size: 16px; font-weight: 600; line-height: 1.2; }
+.btn-sub { font-size: 12px; line-height: 1.2; margin-top: 2px; opacity: 0.66; }
 .btn:hover { background: #1f1f26; border-color: #3a3a44; color: var(--ink); }
 
 .btn-primary {

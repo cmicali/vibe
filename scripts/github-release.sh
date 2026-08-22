@@ -150,5 +150,28 @@ gh release create "$TAG" \
     --target "$(git rev-parse HEAD)" \
     ${DRAFT:+"$DRAFT"}
 
+# The marketing page advertises a direct .dmg URL, which only stays correct
+# because this runs. Commit just that file by explicit path, so a dirty tree
+# cannot ride along. The release is already published by here, so a failure to
+# commit or push is a warning with the manual command, never a hard failure.
+# A draft has no public download yet, so pointing the live page at it would
+# ship a 404 — leave the page on the previous release until the draft goes out.
+if [[ -n "$DRAFT" ]]; then
+    echo "🔊 draft — leaving the web page pointing at the previous release"
+    echo "   once published: scripts/web-set-version.sh $VERSION && make deploy-web"
+else
+    scripts/web-set-version.sh "$VERSION"
+    if [[ -n "$(git status --porcelain -- Assets/Web/index.html)" ]]; then
+        if git commit -q -m "web: point the download at v$VERSION" -- Assets/Web/index.html \
+                && git push -q origin HEAD; then
+            echo "🔊 pushed the web page update — GitHub Pages redeploys itself"
+        else
+            echo "warning: could not commit or push the web page update. Run:" >&2
+            echo "         git commit -m 'web: point the download at v$VERSION' -- Assets/Web/index.html && git push" >&2
+        fi
+    fi
+fi
+
 echo "🔊 done"
 gh release view "$TAG" --json url -q .url
+[[ -n "$DRAFT" ]] || echo "🔊 next: make deploy-web    (publishes the page to Cloudflare)"
