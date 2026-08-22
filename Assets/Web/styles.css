@@ -71,7 +71,7 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
    page and were setting its apparent width. Text keeps the 1080 container. */
 .shot {
   margin: 0 auto;
-  max-width: 900px;
+  max-width: 800px;
 }
 
 /* ---------- hero ---------- */
