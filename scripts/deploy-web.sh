@@ -2,7 +2,8 @@
 #
 # Publish Assets/Web to Cloudflare Pages.
 #
-#   scripts/deploy-web.sh [--dry-run] [--skip-link-check] [--wrangler-login]
+#   scripts/deploy-web.sh [--dry-run] [--skip-link-check] [--skip-branch-check]
+#                         [--wrangler-login]
 #
 # The site is static — no build step on either host — so this uploads the
 # directory as it stands. GitHub Pages is not deployed from here: its workflow
@@ -23,7 +24,11 @@
 # no secret — .github/workflows/pages.yml deploys with the workflow's own OIDC
 # token and nothing else.
 #
-# Before uploading it checks that the .dmg the page advertises actually
+# Before uploading it checks two things. That Assets/Web matches origin/main,
+# because this uploads the working tree rather than a commit — being on the
+# wrong branch, or holding an uncommitted edit, would otherwise put something
+# on the canonical domain that is in no branch at all, and leave the two hosts
+# serving different sites. And that the .dmg the page advertises actually
 # resolves. A page whose Download button 404s is worse than a stale one, and
 # the link is only correct because web-set-version.sh rewrote it — this is the
 # check that the rewrite and the release actually happened in that order.
@@ -35,14 +40,16 @@ DIR="Assets/Web"
 PAGE="$DIR/index.html"
 DRY_RUN=""
 CHECK_LINK=1
+CHECK_BRANCH=1
 USE_LOGIN=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry-run)         DRY_RUN=1 ;;
-        --skip-link-check) CHECK_LINK=0 ;;
-        --wrangler-login)  USE_LOGIN=1 ;;
-        *) echo "usage: scripts/deploy-web.sh [--dry-run] [--skip-link-check] [--wrangler-login]" >&2; exit 64 ;;
+        --skip-link-check)   CHECK_LINK=0 ;;
+        --skip-branch-check) CHECK_BRANCH=0 ;;
+        --wrangler-login)    USE_LOGIN=1 ;;
+        *) echo "usage: scripts/deploy-web.sh [--dry-run] [--skip-link-check] [--skip-branch-check] [--wrangler-login]" >&2; exit 64 ;;
     esac
     shift
 done
@@ -75,6 +82,33 @@ command -v npx >/dev/null || {
 [[ -f .release-env ]] && source .release-env
 PROJECT="${CLOUDFLARE_PAGES_PROJECT:-vibe}"
 
+
+# What gets uploaded is the working tree, so "it is committed" is not enough —
+# it has to be committed to the branch GitHub Pages publishes, or the two hosts
+# diverge. Checked in two parts because they fail for different reasons and
+# want different fixes.
+if [[ "$CHECK_BRANCH" == 1 ]]; then
+    git fetch -q origin main 2>/dev/null || \
+        echo "warning: could not reach origin — comparing against a possibly stale origin/main" >&2
+
+    if [[ -n "$(git status --porcelain -- "$DIR")" ]]; then
+        echo "error: $DIR has uncommitted or untracked changes:" >&2
+        git status --short -- "$DIR" >&2
+        echo >&2
+        echo "  Commit and push them, or pass --skip-branch-check to deploy anyway." >&2
+        exit 1
+    fi
+
+    if ! git diff --quiet origin/main -- "$DIR"; then
+        echo "error: $DIR differs from origin/main:" >&2
+        git diff --stat origin/main -- "$DIR" >&2
+        echo >&2
+        echo "  You are on '$(git branch --show-current || echo 'a detached HEAD')'. Cloudflare would get" >&2
+        echo "  content GitHub Pages will not, and the two copies would disagree." >&2
+        echo "  Push to main first, or pass --skip-branch-check to deploy anyway." >&2
+        exit 1
+    fi
+fi
 
 # The button's href is the one thing on the page that can be wrong in a way a
 # visitor notices immediately.
