@@ -116,6 +116,24 @@ Then attach `vibeplayer.app` under the project's Custom
 domains. With the zone in the same account, Cloudflare writes the CNAME and
 issues the certificate itself.
 
+### The stylesheet's cache TTL
+
+Pages serves HTML as `max-age=0` but everything else at four hours. That skew
+is worse than plain staleness: a browser pairs fresh markup with a four-hour-old
+stylesheet, so a layout change renders under the old rules and looks broken.
+
+`_headers` cannot fix it — Pages manages caching for its own assets and ignores
+`Cache-Control` from that file, though it honours everything else in it. So the
+TTL is set by a response-header Transform Rule on the `vibeplayer.app` zone:
+
+    when   http.request.uri.path eq "/styles.css"
+    then   set Cache-Control: public, max-age=0, must-revalidate
+
+Images keep the four-hour default on purpose: they are large, they change
+rarely, and a stale one is only ever a stale picture. The better long-term
+answer is a content-hashed stylesheet URL, which would allow a *longer* TTL
+rather than none; that needs a build step this site does not otherwise have.
+
 ### The old domain
 
 `vibe.commonwealthrecordings.com` served this site before `vibeplayer.app` was

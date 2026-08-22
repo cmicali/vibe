@@ -1,18 +1,11 @@
 # Cloudflare Pages response headers. Config, not content.
 #
-# Pages already serves HTML as max-age=0, must-revalidate, but everything else
-# defaults to four hours. That skew is worse than plain staleness: the browser
-# fetches fresh markup and pairs it with a stylesheet from four hours ago, so a
-# layout change renders with the old rules and the page looks broken rather
-# than merely out of date. HTML and CSS are deployed together and have to
-# expire together.
+# Cache-Control is deliberately NOT set here: Pages manages caching for its own
+# assets and ignores the directive from this file. Verified — the two headers
+# below take effect on the same responses where a Cache-Control line did not.
+# The stylesheet's TTL is fixed by a response-header Transform Rule on the
+# zone instead; Assets/Web/README.md records it and why it has to live there.
 #
-# The cost is a conditional GET on a 2.7 KB gzipped file, which almost always
-# answers 304. Images keep the default: they are large, they change rarely, and
-# a stale one is only ever a stale picture.
-/styles.css
-  Cache-Control: public, max-age=0, must-revalidate
-
 # Applied to everything. Cheap, and they are worth having regardless.
 /*
   X-Content-Type-Options: nosniff
