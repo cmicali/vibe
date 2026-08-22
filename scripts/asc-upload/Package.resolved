@@ -5,7 +5,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/MortenGregersen/Bagbutik.git",
       "state" : {
-        "revision" : "f30ca46559384b7c152cc548575799f2683455c5",
+        "revision" : "555d513f6ca24187862cf20354466b8c72e93b17",
         "version" : "24.0.0"
       }
     },
