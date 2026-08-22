@@ -1,9 +1,10 @@
 # Vibe
 
-> A fast, minimal music player for Mac. Plays local audio files with a
-> seekable full-track waveform, a turntable-style pitch fader and DJ
-> performance FX. No library to import, no account, no subscription, and no
-> network access at all.
+> A fast, minimal player for your music files on Mac. Plays audio files you
+> own — on disk, or in a file provider such as iCloud Drive or Dropbox — with
+> a seekable full-track waveform, a turntable-style pitch fader and DJ
+> performance FX. It is not a streaming client: there is no catalogue, no
+> library to import, no account and no subscription.
 
 Vibe is a native macOS app written in Objective-C on CoreAudio and
 AVAudioEngine, with no third-party audio engine. It is free, open source under
@@ -14,12 +15,18 @@ Apache 2.0, and available on the Mac App Store or as a direct download.
   itself, lossless at full resolution.
 - No library or database: drop a file or folder on the window and it plays.
   Tags, artwork and BPM are read in the background and cached to disk.
+- Files may live anywhere the Files system can reach — a local disk, an
+  external drive, iCloud Drive, Dropbox or another file provider. Vibe asks
+  the operating system to fetch a cloud file and shows its download progress;
+  it never talks to the provider itself.
 - For DJs: a turntable-style pitch fader, skips measured in bars rather than
   seconds when the tempo is known, and performance FX on the keyboard — a
   low-kill filter, a reverb wash, and delays locked to the track's BPM.
 - Localized into 30 languages.
-- Collects nothing. The macOS sandbox carries no network-client entitlement,
-  so the operating system will not permit an outbound connection.
+- Collects nothing, and has no network access of its own: the macOS sandbox
+  carries no network-client entitlement, so the operating system will not
+  permit an outbound connection. Cloud files are fetched by the provider's
+  own system extension, not by Vibe.
 
 ## Links
 
