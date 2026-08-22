@@ -20,6 +20,13 @@
 // per locale; the minus is U+2212, matching the fader's printed scale.
 - (NSString *)signedPercentString:(double)percent;
 
+// A 0-1 fraction as a whole-number percentage, placed per locale: "42%" in en,
+// "42 %" in fr. For the accessibility value of the position and pitch sliders,
+// which is spoken rather than drawn, so it is rounded and unsigned — unlike
+// signedPercentString:, whose sign and tenth are the pitch readout's whole
+// point. Out-of-range input clamps rather than reading "-3%" or "104%".
+- (NSString *)percentString:(double)fraction;
+
 // Grouped whole number for counts: "1,234" in en, "1.234" in de.
 - (NSString *)countString:(unsigned long long)count;
 

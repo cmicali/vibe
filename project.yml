@@ -19,6 +19,19 @@ configs:
 # Shared between the app targets so a second platform cannot drift from the
 # first on where TagLib, PINCache and the generated git-info header live.
 settingGroups:
+  # THE version, for both apps. The two targets ship the same product under one
+  # bundle identifier, so they release together and must carry the same number;
+  # declared once here rather than once per target, which is how the iOS target
+  # sat at 1.0 (1) against the mac's 1.10 (110) with nothing to catch it.
+  #
+  # Bumping a release means editing these two lines and nothing else.
+  # release-appstore.sh and github-release.sh both read the number back out of
+  # the BUILT app rather than out of this file, so a scrape cannot pick the
+  # wrong target's copy.
+  vibe-version:
+    MARKETING_VERSION: "1.10"
+    CURRENT_PROJECT_VERSION: 110
+
   vibe-header-paths:
     HEADER_SEARCH_PATHS:
       - "$(inherited)"
@@ -306,11 +319,9 @@ targets:
                 - "cue"
 
     settings:
-      groups: [vibe-header-paths]
+      groups: [vibe-version, vibe-header-paths]
       base:
         PRODUCT_NAME: "$(TARGET_NAME)"
-        MARKETING_VERSION: "1.10"
-        CURRENT_PROJECT_VERSION: 110
         PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.Vibe
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
@@ -482,12 +493,10 @@ targets:
           HardenedRuntime: "$(ENABLE_HARDENED_RUNTIME)"
           AppSandbox: "$(ENABLE_APP_SANDBOX)"
     settings:
-      groups: [vibe-header-paths]
+      groups: [vibe-version, vibe-header-paths]
       base:
         PRODUCT_NAME: Vibe
         PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.Vibe
-        MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: 1
         SDKROOT: iphoneos
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"  # settingPresets: none injects neither
         IPHONEOS_DEPLOYMENT_TARGET: "26.0"

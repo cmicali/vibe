@@ -73,7 +73,9 @@ Neither dataset is vendored — point `--dataset` at a local clone with audio do
 
 Last measured: **tempo Accuracy1 85.1%, Accuracy2 92.6%** over 652 files (2026-08-11); **key 61.3% weighted, 54.7% exact** over 602 files.
 
-`Tests/AudioBPMAnalyzerTests.mm` and `Tests/AudioKeyAnalyzerTests.mm` pin the framing guarantee both analyzers rely on — the buffer sizes the decoder happens to hand an analyzer never reach its result. The guarantee lives in one function, `AnalysisFramerMath.h`: it frames a mono stream into fixed windows at a fixed hop, splicing only the frames that straddle a buffer boundary and reading every later one in place, so a decode buffer is never copied whole. C++ only, included from the two `.mm` analyzers and nowhere else.
+`Tests/AudioBPMAnalyzerTests.mm` and `Tests/AudioKeyAnalyzerTests.mm` pin the framing guarantee both analyzers rely on — the buffer sizes the decoder happens to hand an analyzer never reach its result — end to end, through a real decode. The guarantee lives in one function, `AnalysisFramerMath.h`: it frames a mono stream into fixed windows at a fixed hop, splicing only the frames that straddle a buffer boundary and reading every later one in place, so a decode buffer is never copied whole. C++ only, included from the two `.mm` analyzers and nowhere else. `Tests/AnalysisFramerMathTests.mm` pins the arithmetic directly, at the buffer sizes a decoder is unlikely to produce but a caller may.
+
+**TRAP: `0 < hopSize <= frameSize` is a precondition of that arithmetic, not a style.** The in-place base is bounded by the hop, and the final `pending.assign` needs it bounded by the buffer; only `hop <= frame` makes the second follow from the first. Past it, a short buffer produces a *reversed* iterator range — an overread, not an empty one — and a zero hop never advances. Both analyzers satisfy it (the key's hop is half its frame, the tempo's 256 against 1024), so the guard costs one comparison per decode buffer and has never fired; it is there so a future caller gets nothing rather than undefined behavior.
 
 ## Measured worse — do not retry blind
 

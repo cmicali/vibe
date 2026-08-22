@@ -287,9 +287,14 @@ static NSTextField *makeCellTextField(NSRect frame) {
                                                                   attributes:artistAttributes]];
         return s;
     }
-    // No pair: displayTitle already carries everything known about the name.
+    // No pair: displayTitle already carries everything known about the name,
+    // so it is still the TITLE and draws in the title's colour. It used to
+    // draw in artistAttributes, which is the same font a step dimmer: a file
+    // tagged with a title but no artist then read as an untagged filename row,
+    // and the mac disagreed with iOS, which draws this same value in
+    // labelColor.
     return [[NSAttributedString alloc] initWithString:track.displayTitle
-                                           attributes:artistAttributes];
+                                           attributes:titleAttributes];
 }
 
 + (NSAttributedString *)durationCellString:(NSString *)duration {

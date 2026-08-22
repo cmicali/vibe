@@ -51,6 +51,8 @@ Both slots spend the one per-path ledger; there is no separate priority budget. 
 
 Pending scan misses are app-owned records, not pre-submitted operations. `MetadataScanOrderRules.h` selects the best record by already-local first, then deferred state, live neighborhood rank, then playlist index. Locality is re-probed at every submit and requeue because the playback open routinely downloads the very file a yielded entry is parked on. The callback queue performs one linear selection instead of sorting: a real playlist can contain more than 100,000 misses, and track changes must only replace the small locked neighborhood snapshot and enqueue a coalesced kick.
 
+Each shell sends that snapshot from its one current-index funnel through `setNeighborhoodAroundIndex:inTracks:`, which reads **three** rows and takes the playlist itself — `id<AudioTrackIndexedSource>`, which `Playlist` and `PlaylistController` already satisfy without adding a method. Not an array: the mac getter makes a defensive shallow copy, so handing it the list cost one atomic retain per track on every play, skip and auto-advance, to read three of them.
+
 ## Duplicate rows and delivery
 
 `MetadataParseCoordinator` gives one row the parse claim for a URL and holds duplicate rows weakly as waiters. The owner rechecks the disk cache after claiming because another lane may already have won. A successful result is copied into every unresolved waiter while the holder still gates new owners; the last empty drain releases the claim before publication. Each copy has independent mutable artwork state.

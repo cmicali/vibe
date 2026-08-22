@@ -9,6 +9,13 @@
 # otherwise to stdout. Under Actions each failure is also emitted as an
 # ::error:: annotation, which is why the table never goes to stdout there.
 #
+# The Expected column is XCTExpectFailure tests — a known-failing test pinning
+# an open bug. It is its own column because it is neither passed nor failed and
+# xcresulttool counts it in neither: leaving it out made the four numbers not
+# add up (946 + 0 + 0 against a total of 948) with nothing on the page saying
+# why, so a run carrying known failures read as unqualified green. The sum check
+# below is what keeps that from happening again for some later state.
+#
 # Exit status reflects only whether the summary could be produced — the test
 # run's own pass/fail is `make test`'s to report.
 set -euo pipefail
@@ -46,9 +53,12 @@ $(jq -r '
   + " — " + plural(.totalTestCount; "test")
   + " in " + ((.finishTime - .startTime) | . * 10 | round / 10 | tostring) + "s"
   + "\n\n"
-  + "| ✅ Passed | ❌ Failed | ⏭️ Skipped | Total |\n"
-  + "| --------: | --------: | ---------: | ----: |\n"
-  + "| \(.passedTests) | \(.failedTests) | \(.skippedTests) | \(.totalTestCount) |\n"
+  + "| ✅ Passed | ❌ Failed | ⏭️ Skipped | 🔶 Expected | Total |\n"
+  + "| --------: | --------: | ---------: | ----------: | ----: |\n"
+  + "| \(.passedTests) | \(.failedTests) | \(.skippedTests) | \(.expectedFailures // 0) | \(.totalTestCount) |\n"
+  + (if ((.passedTests + .failedTests + .skippedTests + (.expectedFailures // 0)) != .totalTestCount) then
+      "\n> ⚠️ The counts above do not sum to the total — xcresulttool reported a state this table does not name.\n"
+    else "" end)
   + (if (.testFailures | length) > 0 then
       "\n#### Failures\n\n"
       + "| Test | Message |\n| --- | --- |\n"

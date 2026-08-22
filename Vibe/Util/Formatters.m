@@ -12,6 +12,7 @@
     NSDateComponentsFormatter *_spelledDurationFormatter;
     NSNumberFormatter         *_decimalFormatter;
     NSNumberFormatter         *_signedPercentFormatter;
+    NSNumberFormatter         *_percentFormatter;
     NSNumberFormatter         *_countFormatter;
 }
 
@@ -65,6 +66,12 @@
     _signedPercentFormatter.positivePrefix = [@"+" stringByAppendingString:_signedPercentFormatter.positivePrefix ?: @""];
     _signedPercentFormatter.minusSign = @"−";
 
+    // Default multiplier (100), unlike the signed one: this takes a 0-1
+    // fraction, which is what both sliders' progress already is.
+    _percentFormatter = [[NSNumberFormatter alloc] init];
+    _percentFormatter.numberStyle = NSNumberFormatterPercentStyle;
+    _percentFormatter.maximumFractionDigits = 0;
+
     // Grouped whole numbers for counts, unlike _decimalFormatter, whose
     // grouping is deliberately off for the kHz/BPM readouts.
     _countFormatter = [[NSNumberFormatter alloc] init];
@@ -113,6 +120,14 @@
         return zero ?: @"";
     }
     return [_signedPercentFormatter stringFromNumber:@(percent)] ?: @"";
+}
+
+- (NSString *)percentString:(double)fraction {
+    if (!isfinite(fraction)) {
+        fraction = 0;
+    }
+    fraction = MAX(0.0, MIN(1.0, fraction));
+    return [_percentFormatter stringFromNumber:@(fraction)] ?: @"";
 }
 
 - (NSString *)countString:(unsigned long long)count {

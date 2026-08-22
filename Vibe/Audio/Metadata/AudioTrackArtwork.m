@@ -96,6 +96,23 @@ static inline BOOL VibeEmbeddedArtFactIsSettled(VibeEmbeddedArtFact fact) {
 }
 @end
 
+// One entry, doubly linked into the recency list below.
+//
+// TRAP: _images is the sole owner of every node; the four link fields are
+// unowned on purpose, because a strong `older`/`newer` pair is a retain cycle
+// along the whole chain. That is safe only because unlinkNode: runs in the
+// same critical section as, and immediately before, the dictionary removal
+// that can free the node — never after it.
+@interface EmbeddedThumbnailNode : NSObject
+@property (nonatomic, strong) VibeImage *image;
+@property (nonatomic, strong) EmbeddedThumbnailKey *key;
+@property (nonatomic, unsafe_unretained, nullable) EmbeddedThumbnailNode *newer;
+@property (nonatomic, unsafe_unretained, nullable) EmbeddedThumbnailNode *older;
+@end
+
+@implementation EmbeddedThumbnailNode
+@end
+
 @interface EmbeddedThumbnailCache : NSObject
 - (nullable VibeImage *)imageForKey:(EmbeddedThumbnailKey *)key;
 - (void)setImage:(VibeImage *)image forKey:(EmbeddedThumbnailKey *)key;
@@ -104,55 +121,128 @@ static inline BOOL VibeEmbeddedArtFactIsSettled(VibeEmbeddedArtFact fact) {
 @property (nonatomic, readonly) NSUInteger count;
 @end
 
+// A dictionary plus an intrusive recency list, so every operation is O(1).
+// It used to be a dictionary plus an NSMutableArray of keys, where each hit
+// paid removeObjectIdenticalTo: — a linear scan of up to
+// kEmbeddedThumbnailCacheCount entries whose worst case was the common one,
+// since a recently used key sits at the end and the scan starts at the front.
+// The callers are row draws (PlaylistController's art cell, the iOS library
+// and mini-player rows), so that scan ran per visible row per scroll step.
 @implementation EmbeddedThumbnailCache {
-    NSMutableDictionary<EmbeddedThumbnailKey *, VibeImage *> *_images;
-    NSMutableArray<EmbeddedThumbnailKey *> *_leastRecentlyUsedKeys;
+    NSMutableDictionary<EmbeddedThumbnailKey *, EmbeddedThumbnailNode *> *_images;
+    // Head is the most recently used, tail the first to be evicted.
+    __unsafe_unretained EmbeddedThumbnailNode *_mostRecent;
+    __unsafe_unretained EmbeddedThumbnailNode *_leastRecent;
 }
 
 - (instancetype)init {
     self = [super init];
     if (self) {
         _images = [NSMutableDictionary dictionary];
-        _leastRecentlyUsedKeys = [NSMutableArray array];
     }
     return self;
 }
 
+#pragma mark - Recency list. All four run with the monitor held.
+
+- (void)unlinkNode:(EmbeddedThumbnailNode *)node {
+    if (node.newer) {
+        node.newer.older = node.older;
+    }
+    else if (_mostRecent == node) {
+        _mostRecent = node.older;
+    }
+    if (node.older) {
+        node.older.newer = node.newer;
+    }
+    else if (_leastRecent == node) {
+        _leastRecent = node.newer;
+    }
+    node.newer = nil;
+    node.older = nil;
+}
+
+- (void)linkNodeAtHead:(EmbeddedThumbnailNode *)node {
+    node.older = _mostRecent;
+    node.newer = nil;
+    _mostRecent.newer = node;
+    _mostRecent = node;
+    if (!_leastRecent) {
+        _leastRecent = node;
+    }
+}
+
+- (void)touchNode:(EmbeddedThumbnailNode *)node {
+    if (_mostRecent == node) {
+        return;
+    }
+    [self unlinkNode:node];
+    [self linkNodeAtHead:node];
+}
+
+// Unlink first, then drop the owning reference: that order is what makes the
+// unowned links above safe, and it is why the caller may pass _leastRecent
+// (itself unowned) — every dereference happens before the removal that frees.
+//
+// TRAP: the strong local for the key is load-bearing, not a style. The node
+// holds the only other reference to it (the dictionary's copyWithZone: returns
+// self), so without a local the removal would be hashing a key its own value
+// had just freed.
+- (void)evictNode:(EmbeddedThumbnailNode *)node {
+    EmbeddedThumbnailKey *key = node.key;
+    [self unlinkNode:node];
+    [_images removeObjectForKey:key];
+}
+
+#pragma mark -
+
 - (VibeImage *)imageForKey:(EmbeddedThumbnailKey *)key {
     @synchronized (self) {
-        VibeImage *image = _images[key];
-        if (image) {
-            [_leastRecentlyUsedKeys removeObjectIdenticalTo:key];
-            [_leastRecentlyUsedKeys addObject:key];
+        EmbeddedThumbnailNode *node = _images[key];
+        if (!node) {
+            return nil;
         }
-        return image;
+        [self touchNode:node];
+        return node.image;
     }
 }
 
 - (void)setImage:(VibeImage *)image forKey:(EmbeddedThumbnailKey *)key {
     @synchronized (self) {
-        _images[key] = image;
-        [_leastRecentlyUsedKeys removeObjectIdenticalTo:key];
-        [_leastRecentlyUsedKeys addObject:key];
-        while (_images.count > VibeEmbeddedThumbnailCacheLimit()) {
-            EmbeddedThumbnailKey *evictedKey = _leastRecentlyUsedKeys.firstObject;
-            [_leastRecentlyUsedKeys removeObjectAtIndex:0];
-            [_images removeObjectForKey:evictedKey];
+        EmbeddedThumbnailNode *node = _images[key];
+        if (node) {
+            node.image = image;
+            [self touchNode:node];
+        }
+        else {
+            node = [[EmbeddedThumbnailNode alloc] init];
+            node.image = image;
+            node.key = key;
+            _images[key] = node;
+            [self linkNodeAtHead:node];
+        }
+        while (_images.count > VibeEmbeddedThumbnailCacheLimit() && _leastRecent) {
+            [self evictNode:_leastRecent];
         }
     }
 }
 
 - (void)removeImageForKey:(EmbeddedThumbnailKey *)key {
     @synchronized (self) {
-        [_images removeObjectForKey:key];
-        [_leastRecentlyUsedKeys removeObjectIdenticalTo:key];
+        EmbeddedThumbnailNode *node = _images[key];
+        if (node) {
+            [self evictNode:node];
+        }
     }
 }
 
 - (void)removeAllImages {
     @synchronized (self) {
+        // The links die with the nodes; clearing the ends is what keeps the
+        // unowned head and tail from outliving them.
+        _mostRecent = nil;
+        _leastRecent = nil;
         [_images removeAllObjects];
-        [_leastRecentlyUsedKeys removeAllObjects];
     }
 }
 

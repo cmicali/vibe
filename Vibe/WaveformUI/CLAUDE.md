@@ -51,6 +51,16 @@ Convert to FLAC's progress is drawn *with the waveform itself*: the bars the swe
 
 It rides the morph engine's displayed-vs-target split. `dipDisplayedSamplesFromFraction:toFraction:` zeroes the displayed samples in the newly crossed span, rebuilds once so the notch is seen at zero, and starts the standard ease back toward the unchanged target — so bars dipped earlier have recovered more and the graded trail behind the front falls out for free. Both families forward `dipBarsFromFraction:toFraction:` to their engine; an x fraction maps to the raw sample array linearly in both layouts, because samples run left to right.
 
+## Accessibility
+
+**The waveform is a slider, on both platforms**, because it is the only way to seek by pointer or touch and there is no other seek control to fall back to: `AudioWaveformView` answers `NSAccessibilitySliderRole`, `WaveformScrubberView` carries `UIAccessibilityTraitAdjustable`, both label themselves `STR_A11Y_WAVEFORM` and report the playhead as a spoken percentage. Before that the whole strip was an unlabelled group and the app had no reachable seek at all.
+
+Two things are deliberate and shared. **The step is a fraction of the track — 5% — not a number of seconds**, because neither view knows the duration: each is handed a 0–1 progress and reports a 0–1 seek, and nothing else. And **an adjustment reports the seek and waits for the position to come back** through the owner's normal progress write, exactly as a click or a released scrub does; writing the local progress would show a playhead that had not moved and then fight the next tick.
+
+The value is a percentage *string* (`Formatters.percentString:`) rather than the raw fraction, because VoiceOver reads a bare number verbatim — 0.5 is announced as "zero point five".
+
+The iOS view is adjustable only while `scrubbingEnabled`, so the swipe gesture is not offered for a scrubber with nothing loaded; the mac view's increment returns NO in the same state. The iOS `accessibilityIdentifier` is a separate thing with a separate purpose — it names the element for the XCUITest touch driver's pinch — and neither depends on the other.
+
 ## Language
 
 These files are `.mm` because they hold the C++ sample vectors. Keep the C++ types out of any header that plain ObjC (`.m`) files import.

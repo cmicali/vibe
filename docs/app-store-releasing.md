@@ -61,14 +61,21 @@ are not interchangeable.
 
 `project.yml` is the source of truth — the export sets
 `manageAppVersionAndBuildNumber: false` precisely so Xcode cannot silently
-bump the build number at upload:
+bump the build number at upload. Both numbers live in the **`vibe-version`
+setting group**, which each app target pulls in, so there is one of each for
+both platforms:
 
 - `MARKETING_VERSION` — the store-visible version (e.g. `1.8`).
 - `CURRENT_PROJECT_VERSION` — the build number; every upload for a given
   version needs a higher one.
 
-`scripts/release-appstore.sh` scrapes both and fails loudly if the format
-drifts. Commit the bump before releasing so `VIBE_GIT_DIRTY` stays clean.
+Editing those two lines is the whole bump. They were per-target once, which is
+how the iOS target sat at `1.0 (1)` while the mac shipped `1.10 (110)`.
+
+`scripts/release-appstore.sh` reports the version it is uploading, read from
+the **archived app's `Info.plist`** rather than from this file, so what it
+prints is what it ships. Commit the bump before releasing so `VIBE_GIT_DIRTY`
+stays clean.
 
 ## 3. Localize the assets
 

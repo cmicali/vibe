@@ -5,6 +5,8 @@
 
 #import "PitchFaderView.h"
 #import "Fonts.h"
+#import "Formatters.h"
+#import "VibeStrings.h"
 
 // The slot and knob geometry, in points.
 static const CGFloat kSlotWidth       = 6;
@@ -328,6 +330,56 @@ static const float   kDefaultMaxPitch = 8;
     }
     self.pitch = pitch;
     [self.delegate pitchFaderView:self didChangePitch:self.pitch];
+}
+
+#pragma mark - Accessibility
+
+// The fader is a slider and nothing else, so it says so: without this it was
+// an unlabelled group and pitch was unreachable with VoiceOver.
+//
+// A step of 0.5%, not the 0.1% a drag quantizes to: a drag crosses the range
+// in one movement, while stepping it at 0.1% would take 160 presses to reach
+// either end. Half a percent divides both ranges (8 and 16) evenly, so
+// stepping always lands back on exactly 0 rather than skipping the detent.
+static const float kPitchAccessibilityStep = 0.5f;
+
+- (BOOL)isAccessibilityElement {
+    return YES;
+}
+
+- (NSAccessibilityRole)accessibilityRole {
+    return NSAccessibilitySliderRole;
+}
+
+- (NSString *)accessibilityLabel {
+    return STR_A11Y_PITCH_FADER;
+}
+
+// The same signed reading the panel draws, so what VoiceOver speaks and what
+// the readout shows are one string.
+- (id)accessibilityValue {
+    return [Formatters.sharedInstance signedPercentString:_pitch];
+}
+
+- (BOOL)accessibilityPerformIncrement {
+    return [self adjustPitchForAccessibilityByDelta:kPitchAccessibilityStep];
+}
+
+- (BOOL)accessibilityPerformDecrement {
+    return [self adjustPitchForAccessibilityByDelta:-kPitchAccessibilityStep];
+}
+
+// Through userSetPitch:, so a stepped change carries the detent, the rounding
+// and the delegate call a dragged one does — and then the end-of-gesture
+// callback, since one press IS the whole gesture.
+- (BOOL)adjustPitchForAccessibilityByDelta:(float)delta {
+    float before = _pitch;
+    [self userSetPitch:_pitch + delta];
+    if (_pitch == before) {
+        return NO; // already at the end of the travel
+    }
+    [self.delegate pitchFaderViewDidEndAdjusting:self];
+    return YES;
 }
 
 @end
