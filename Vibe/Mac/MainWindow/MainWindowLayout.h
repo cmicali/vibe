@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 7/15/26.
-// Copyright (c) 2026 Christopher Micali. All rights reserved.
+//  MainWindowLayout.h
+//  Vibe
 //
 // The main window's layout constants, shared by MainWindow, for frame and
 // minimum and maximum sizing, and MainPlayerContentView, for the design-time

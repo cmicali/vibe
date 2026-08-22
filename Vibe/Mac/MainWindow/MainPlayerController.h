@@ -2,9 +2,6 @@
 //  MainPlayerController.h
 //  Vibe
 //
-//  Created by Christopher Micali on 12/15/19.
-//  Copyright © 2019 Christopher Micali. All rights reserved.
-//
 
 #import <Cocoa/Cocoa.h>
 

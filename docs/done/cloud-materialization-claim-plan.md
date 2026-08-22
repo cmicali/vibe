@@ -1,5 +1,11 @@
 # Plan: atomic path-wide materialization admission
 
+**Done, and kept for the reasoning only.** `AudioFileMaterializationCoordinator` is the
+path-keyed claim table this argued for, and the `isMaterializingURL:` query the defect turned
+on no longer exists anywhere in `Vibe/`. `Vibe/Audio/CLAUDE.md` and the root `CLAUDE.md`'s
+Cross-directory guarantees describe what shipped; read those, not this, for current behavior.
+The `fable-post-implementation-review.md` this cites was never checked in.
+
 The remaining open defect from `fable-post-implementation-review.md` (item 5), written up rather
 than fixed because the remedy is a design change the fable plan considered and rejected, and the
 grounds it rejected it on do not survive reading ChatGPT's Phase 6 closely.

@@ -1,6 +1,6 @@
 # iOS app shell (VibeiOS target)
 
-The iPhone and iPad app: a single-folder player where **the current directory is the playlist**. The user picks a folder (or file) in the system document picker; the folder's audio files, filename-sorted, become the playlist. Dropbox and iCloud work through their Files file-providers in the picker — no provider SDKs.
+The iPhone and iPad app: a single-folder player where **the current directory is the playlist**. The user picks a folder (or file) in the system document picker; the folder's audio files become the playlist, in the order `AppSettings.folderOpenSort` names (below). Dropbox and iCloud work through their Files file-providers in the picker — no provider SDKs.
 
 **The shape is Apple Music's.** Two tabs — Playlist and Files — in a capsule with search as a *circle* beside it rather than a third tab inside it, a mini player strip above them, and the now-playing screen as a full-screen card that presents up from the strip and swipes down to go back. Opening files or a folder replaces the playlist, starts playing, brings the Playlist tab forward and presents the card — so putting the card away lands on what was just opened rather than back in the Files browser. Search is the exception, since `UISearchTab` owns the selection while its field is up.
 
@@ -11,6 +11,10 @@ The target compiles this plus every shared subsystem minus that subsystem's `Mac
 On iPad the app is a resizable iPadOS 26 window (all four orientations, no `UIRequiresFullScreen`; minimum 320×480 via `sizeRestrictions` in `VibeiOSSceneDelegate`, the portrait layout's floor). **The portrait/landscape layout switch keys off view aspect**, so window shape — not device orientation — picks the layout.
 
 **Multi-scene is off, deliberately**: there is one `AudioPlayer` per `PlaybackController` and one `PlaybackController` per scene, so a second scene would spawn a second engine. A size transition sets `_windowResizeInFlight`, which holds `commitVisiblePage` — a mid-resize offset rounds to a neighbor page and would otherwise switch tracks.
+
+## What is where
+
+The longest file in the tree, so: **[The model](#the-model)** is `PlaybackController`, everything the app plays and nothing that draws it, plus **[FolderSession](#foldersession)**, the picked location's owner. **[The shell](#the-shell)** is everything that draws, one heading per screen — `RootViewController` (the app's shape), `MiniPlayerView`, `FilesViewController`, `LibraryViewController`, `SettingsViewController`, `SearchViewController` with `FileSearchIndex` and `SearchFolderStore` behind it, and `PlayerViewController` — the card — with `TrackPageCell` and `PageWaveformCoordinator`. **[Building and verifying](#building-and-verifying)** is the simulator loop and the debug channel's iOS half.
 
 ## The model
 
@@ -222,7 +226,13 @@ Two traps sit under that one dimmed button, and both are load-bearing:
 
 **Portrait is four bands, and only one of them moves.** A fixed strip under the safe top holds the grabber pill the card's chrome draws; the **art band** takes everything left over, which makes it the band the screen's height lands in, with the card centered in it at 80% — the remaining 20% is its padding; the **label band** is fixed; and the waveform and transport hang off the *safe bottom*, the time row off the waveform.
 
-**So the waveform sits at the same y on every page, and that is a layout guarantee, not a coincidence.** The label band's height is the worst case its labels can need — a two-line title, one line each for artist and codec — **except that the codec line can leave the band entirely**, when the setting is off or a track has no readout yet: it gives up its line *and* the gap above it, so the band tightens by the whole row instead of holding its height as slack. That is one setting across every page, so the guarantee holds; what moves is the art above it. Within the band, a two-line title, a missing artist or a shrunk-to-fit one cannot move its edges, and nothing above the waveform can reach it anyway. All three labels shrink to fit their width rather than truncate. **The labels ride centered in the band**, one gap for both seams, rather than each sitting in a reserved box: a one-line title in a two-line box put its slack on screen as a gap under the title. The two single-line labels do keep their line reserved, so a track with no artist lays out like one that has it. The art card is what gives at accessibility text sizes.
+**So the waveform sits at the same y on every page, and that is a layout guarantee, not a coincidence.** The label band's height is the worst case its labels can need: a two-line title, one line each for artist and codec.
+
+**The one exception is that the codec line can leave the band entirely** — when the setting is off, or a track has no readout yet. It gives up its line *and* the gap above it, so the band tightens by the whole row instead of holding the height as slack. That is one setting across every page, so the guarantee still holds; what moves is the art above it.
+
+Nothing else in the band can move its edges — not a two-line title, not a missing artist, not a shrunk-to-fit one — and nothing above the waveform can reach it anyway. All three labels shrink to fit their width rather than truncate.
+
+**The labels ride centered in the band**, one gap for both seams, rather than each sitting in a reserved box: a one-line title in a two-line box put its slack on screen as a gap under the title. The two single-line labels do keep their line reserved, so a track with no artist lays out like one that has it. The art card is what gives at accessibility text sizes.
 
 **TRAP: the art card's shadow path is restated from the card's OWN layout pass** (`TrackPageArtCardView`), not the cell's. The constraints that size it belong to the contentView, so the header metrics landing — or Dynamic Type, or anything else that moves the label band — resizes the card without the cell's `layoutSubviews` running again. Set from there, the shadow keeps the card's previous, larger size: a wide dark halo around the art that vanishes the moment a swipe recycles the cell, which is exactly what makes it look like a rendering glitch rather than a layout one. Landscape anchors this header to the top safe area as well as its safe leading edge; full-screen landscape has unsafe top insets on notched devices.
 
@@ -240,7 +250,14 @@ The pager's waveform bookkeeping between `AudioWaveformCache` and the cells: the
 
 **Waveform deliveries carry the URL they were loaded for**, so a decode that outlives its retarget is dropped on the value rather than on the cancel having been observed in time — the app-wide staleness guarantee, and the reason `requestIndex:track:` records `_targetURL` beside `_targetIndex`. A page the pipeline already targets is left alone, since re-requesting on every cell reload would keep killing the decode. A matching terminal failure clears the target, settles the page's loading line, and lets the next request retry the same file; a stale failure is dropped on the URL too. The snapshot window prunes to a radius around the current page. BPM/key deliveries are not forwarded because analysis is macOS-only.
 
-**The scroll hold (`held`) is the pager's frame budget.** A swipe is the one moment the main thread has nothing to spare, and both halves of this object were spending it: a delivery repaints a scrubber, which tears its baked envelope down and restarts a 60 Hz full-view path rebuild — and a decode delivers about ten times a second, so the bake never re-landed — while a request cancels the ONE load the cache runs, so a swipe across N pages cancelled N decodes and finished none. Held, deliveries are recorded but not forwarded and requests are dropped; `+Pager` holds a user swipe, a visible programmatic page animation, and a size transition, while a minimized page move snaps without one. It clears the swipe hold **before** `commitVisiblePage`, so the settled page's request gets through. Every programmatic retarget renews its generation-stamped deadline; if UIKit never delivers its end callback, the deadline both releases the hold and reissues the current page's dropped waveform request. The same hold pauses the playhead's display link (`updateScrollLinkState`).
+**The scroll hold (`held`) is the pager's frame budget.** A swipe is the one moment the main thread has nothing to spare, and both halves of this object were spending it:
+
+- a **delivery** repaints a scrubber, which tears its baked envelope down and restarts a 60 Hz full-view path rebuild — and a decode delivers about ten times a second, so the bake never re-landed;
+- a **request** cancels the one load the cache runs, so a swipe across N pages cancelled N decodes and finished none.
+
+Held, deliveries are recorded but not forwarded, and requests are dropped. `+Pager` takes the hold for a user swipe, a visible programmatic page animation and a size transition, while a minimized page move snaps without one. It clears the swipe hold **before** `commitVisiblePage`, so the settled page's request gets through.
+
+Every programmatic retarget renews a generation-stamped deadline, which covers UIKit never delivering its end callback: the deadline releases the hold *and* reissues the current page's dropped waveform request. The same hold pauses the playhead's display link (`updateScrollLinkState`).
 
 ## Building and verifying
 

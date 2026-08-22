@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 8/12/26.
-// Copyright (c) 2026 Christopher Micali. All rights reserved.
+//  DebugChannel.m
+//  Vibe
 //
 
 #import "DebugChannel.h"

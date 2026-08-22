@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 12/30/19.
-// Copyright (c) 2019 Christopher Micali. All rights reserved.
+//  AppSettings.m
+//  Vibe
 //
 // Laid out like the header: what both targets compile, then one macOS-only
 // block holding everything else — the hot-path cache included, since every

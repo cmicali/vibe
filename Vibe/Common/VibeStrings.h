@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 7/25/26.
-// Copyright (c) 2026 Christopher Micali. All rights reserved.
+//  VibeStrings.h
+//  Vibe
 //
 // Every user-facing string in the app, in one place. Call sites use the STR_*
 // macro and nothing else — no key, English text, or translator comment inline.
@@ -43,7 +43,7 @@
 #import <Foundation/Foundation.h>
 #endif
 
-// Lifts out the invariant scaffolding so entries read as key/English/comment.
+// Lifts out the fixed scaffolding so entries read as key/English/comment.
 // xcstringstool cannot extract a three-argument macro (it matches macros by
 // name AND arity, even with -s), so extract-strings.sh preprocesses this file
 // and parses the expansion.

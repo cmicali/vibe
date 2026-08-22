@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 7/25/26.
-// Copyright (c) 2026 Christopher Micali. All rights reserved.
+//  PlaylistTableView.m
+//  Vibe
 //
 
 #import "PlaylistTableView.h"

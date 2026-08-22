@@ -73,7 +73,7 @@ Neither dataset is vendored — point `--dataset` at a local clone with audio do
 
 Last measured: **tempo Accuracy1 85.1%, Accuracy2 92.6%** over 652 files (2026-08-11); **key 61.3% weighted, 54.7% exact** over 602 files.
 
-`Tests/AudioBPMAnalyzerTests.mm` and `Tests/AudioKeyAnalyzerTests.mm` pin the framing guarantee both analyzers rely on — the buffer sizes the decoder happens to hand an analyzer never reach its result — because both frame in place out of the caller's buffer and copy only what straddles a boundary.
+`Tests/AudioBPMAnalyzerTests.mm` and `Tests/AudioKeyAnalyzerTests.mm` pin the framing guarantee both analyzers rely on — the buffer sizes the decoder happens to hand an analyzer never reach its result. The guarantee lives in one function, `AnalysisFramerMath.h`: it frames a mono stream into fixed windows at a fixed hop, splicing only the frames that straddle a buffer boundary and reading every later one in place, so a decode buffer is never copied whole. C++ only, included from the two `.mm` analyzers and nowhere else.
 
 ## Measured worse — do not retry blind
 
