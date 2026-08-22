@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Vibe website
+    url: https://vibeplayer.app
+    about: Screenshots, downloads, and the privacy policy.
   - name: Report a security vulnerability
     url: https://github.com/cmicali/vibe/security/advisories/new
     about: Report privately through a GitHub security advisory
