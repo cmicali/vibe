@@ -2,7 +2,7 @@
 //  NSURLUtilInternal.h
 //  Vibe
 //
-//  The expansion steps behind expandAndFilterList:completion:, exposed so the
+//  The expansion steps behind expandAndFilterList:sortedBy:completion:, exposed so the
 //  unit tests can drive one walk synchronously — through the async form alone
 //  the four-wide queue and the main-thread hop stand between every assertion
 //  and what the walk actually yielded. Do not import it outside NSURLUtil.m
@@ -18,8 +18,9 @@ NS_ASSUME_NONNULL_BEGIN
 // The playable extensions, lowercased.
 + (NSSet<NSString *> *)supportedExtensions;
 
-// One folder walk: the audio files anywhere under dir, sorted by full path.
-+ (NSArray<NSURL *> *)expandDirectory:(NSURL *)dir;
+// One folder walk: the audio files anywhere under dir, in sort's order — by
+// full path for Name, so subfolders group.
++ (NSArray<NSURL *> *)expandDirectory:(NSURL *)dir sortedBy:(VibeFolderOpenSort)sort;
 
 // Folders and top-level playlist files expanded in place, every other URL
 // passed through in the order given and unfiltered. folderCount, when not
@@ -27,11 +28,13 @@ NS_ASSUME_NONNULL_BEGIN
 // collects the folders of files that did NOT come from walking a folder — a
 // multi-file open, or a playlist file's tracks.
 + (NSArray<NSURL *> *)expandFileList:(NSArray<NSURL *> *)list
+                            sortedBy:(VibeFolderOpenSort)sort
                          folderCount:(nullable NSUInteger *)folderCount
                 looseFileDirectories:(nullable NSMutableSet<NSString *> *)looseFileDirectories;
 
 // The body of the async form: expandFileList: plus the extension filter.
 + (NSArray<NSURL *> *)expandAndFilterList:(NSArray<NSURL *> *)list
+                                 sortedBy:(VibeFolderOpenSort)sort
                               folderCount:(nullable NSUInteger *)folderCount;
 
 @end

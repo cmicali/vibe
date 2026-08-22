@@ -16,6 +16,8 @@ so a rule about a setting is testable without a defaults store.
 
 **`SettingsRules.h`** — the header-only seam above, tested by `SettingsRulesTests`.
 
+**`FolderOpenSort.h`** — `VibeFolderOpenSort` (name, newest-first, as-received) and its stored identifiers: the order a folder's tracks land in the playlist. It is a header of its own rather than a block in `AppSettings.h` because `Util/NSURLUtil` takes the enum as a walk parameter and may not import a setting to get it (`Util/CLAUDE.md`). The identifier-to-enum rules are in `SettingsRules.h` with the rest.
+
 **`VibeStrings.h`** — the localized-string registry. Every user-facing string is declared here and nowhere else; call sites use a `STR_*` macro. See the root `CLAUDE.md` and the `vibe-strings` skill, and run `make strings` after.
 
 **`Vibe-Prefix.pch`** — the prefix header, the one place an import reaches
@@ -33,7 +35,7 @@ recompiles the world and hides a dependency from the file that has it.
 
 ## The platform split is one `#if TARGET_OS_OSX` block
 
-Not a guard per property. Almost everything here configures something only macOS has — the window, the pitch fader, the FX graph, Convert to FLAC, the playlist table, folder art, BPM and key analysis — so what iOS compiles is the short list above the block: `waveformStyle`, `waveformTheme` and its custom color pair, and `applicationDidFinishLaunching`. "Does the iOS app honor this?" is answered by which side of the `#if` a property sits on. **Adding a property means choosing a side.**
+Not a guard per property. Almost everything here configures something only macOS has — the window, the pitch fader, the FX graph, Convert to FLAC, the playlist table, folder art, BPM and key analysis — so what iOS compiles is the short list above the block: `waveformStyle`, `waveformTheme` and its custom color pair, `folderOpenSort`, and `applicationDidFinishLaunching`. "Does the iOS app honor this?" is answered by which side of the `#if` a property sits on. **Adding a property means choosing a side.**
 
 ## The hot-path cache lives for one turn of the main run loop
 

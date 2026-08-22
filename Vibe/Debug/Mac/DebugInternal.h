@@ -51,6 +51,7 @@
 #import "PlaylistDropZoneView.h"
 #import "PitchControlPanel.h"
 #import "SymbolButton.h"
+#import "AppSettings.h"
 #import "NSURLUtil.h"
 #import "AppStats.h"
 

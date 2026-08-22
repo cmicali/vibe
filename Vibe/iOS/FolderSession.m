@@ -4,6 +4,7 @@
 //
 
 #import "FolderSession.h"
+#import "AppSettings.h"
 #import "DocumentTypes.h"
 #import "FileSearchRules.h"
 #import "NSURLUtil.h"
@@ -122,6 +123,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
             url.URLByStandardizingPath.path);
     NSURL *sessionScopedURL = sessionScopeCoversResult ? _scopedURL : nil;
     BOOL scopeHoldStarted = [sessionScopedURL startAccessingSecurityScopedResource];
+    VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
     dispatch_async(_workQueue, ^{
         if (![self isCurrentOpenIntent:openIntentGeneration]) {
             if (scopeHoldStarted) {
@@ -131,7 +133,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
         }
         // The listing is provider IPC, like every other adoption's, so it runs
         // here. No scope is started: the caller vouched that a root covers it.
-        NSArray<NSURL *> *siblings = [NSURLUtil audioFilesInDirectory:parent];
+        NSArray<NSURL *> *siblings = [NSURLUtil audioFilesInDirectory:parent sortedBy:sort];
         BOOL expanded = siblings.count > 0;
         if (scopeHoldStarted) {
             [sessionScopedURL stopAccessingSecurityScopedResource];
@@ -158,6 +160,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
         return NO;
     }
     uint64_t openIntentGeneration = [self beginOpenIntent];
+    VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
     dispatch_async(_workQueue, ^{
         if (![self isCurrentOpenIntent:openIntentGeneration]) {
             return;
@@ -182,7 +185,8 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
         // No pre-adopt refresh of a stale bookmark: minting bookmark data
         // needs the security scope OPEN, and adoption re-persists after the
         // scope starts anyway — the refresh before it always failed.
-        [self adoptOnWorkQueue:url restored:YES sessionFolder:nil sessionScopedURL:nil
+        [self adoptOnWorkQueue:url restored:YES sortedBy:sort
+                 sessionFolder:nil sessionScopedURL:nil
             sessionSearchGrant:nil scopeHoldStarted:NO
           openIntentGeneration:openIntentGeneration];
     });
@@ -229,8 +233,11 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     NSURL *sessionScopedURL = _scopeActive ? _scopedURL : nil;
     SearchFolderGrant *sessionSearchGrant = _searchGrant;
     BOOL scopeHoldStarted = [sessionScopedURL startAccessingSecurityScopedResource];
+    // The listing order rides the snapshot for the same reason the rest of it
+    // does: an open must not straddle a Settings change.
+    VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
     dispatch_async(_workQueue, ^{
-        [self adoptOnWorkQueue:url restored:restored
+        [self adoptOnWorkQueue:url restored:restored sortedBy:sort
                  sessionFolder:sessionFolder sessionScopedURL:sessionScopedURL
             sessionSearchGrant:sessionSearchGrant
               scopeHoldStarted:scopeHoldStarted
@@ -240,6 +247,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
 
 - (void)adoptOnWorkQueue:(NSURL *)url
                 restored:(BOOL)restored
+                sortedBy:(VibeFolderOpenSort)sort
            sessionFolder:(NSURL *)sessionFolder
          sessionScopedURL:(NSURL *)sessionScopedURL
       sessionSearchGrant:(SearchFolderGrant *)sessionSearchGrant
@@ -274,7 +282,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     NSURL *folderURL = nil;
     NSURL *selectedURL = nil;
     if (isDir) {
-        tracks = [NSURLUtil audioFilesInDirectory:url];
+        tracks = [NSURLUtil audioFilesInDirectory:url sortedBy:sort];
         folderURL = url;
         if (tracks.count == 0) {
             if (scoped) {
@@ -308,7 +316,7 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
                                               sessionFolder:sessionFolder
                                                startedScope:&grantScopeStarted];
         if (granted) {
-            NSArray<NSURL *> *siblings = [NSURLUtil audioFilesInDirectory:granted];
+            NSArray<NSURL *> *siblings = [NSURLUtil audioFilesInDirectory:granted sortedBy:sort];
             if (siblings.count > 0) {
                 if (scoped) {
                     [url stopAccessingSecurityScopedResource]; // the folder grant covers it

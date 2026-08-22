@@ -256,7 +256,11 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // Folders arrive here holding a live sandbox grant; bookmark them now so
     // the grant survives relaunch (see FolderAccessManager).
     [[FolderAccessManager sharedInstance] noteOpenedURLs:urls];
-    [NSURLUtil expandAndFilterList:urls completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
+    // The listing order is read here, on main, so one open cannot straddle a
+    // Settings change; the walk is a path utility and reads no setting itself.
+    [NSURLUtil expandAndFilterList:urls
+                          sortedBy:AppSettings.sharedInstance.folderOpenSort
+                        completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
         [OpenRequestCoordinator.sharedCoordinator finishRequest:token
                                                           files:expanded
                                                     folderCount:folderCount];

@@ -81,7 +81,7 @@
     [self makeFile:@"Album/track.mp3"];
     [self makeFile:@"Album/cover.png"];
 
-    [NSURLUtil expandDirectory:_root];
+    [NSURLUtil expandDirectory:_root sortedBy:VibeFolderOpenSortName];
 
     XCTAssertEqualObjects([self settledFor:directory],
                           [directory stringByAppendingPathComponent:@"cover.png"]);
@@ -94,7 +94,7 @@
     [self makeFile:@"Shouty/track.mp3"];
     [self makeFile:@"Shouty/FRONT.PNG"];
 
-    [NSURLUtil expandDirectory:_root];
+    [NSURLUtil expandDirectory:_root sortedBy:VibeFolderOpenSortName];
 
     XCTAssertEqualObjects([self settledFor:directory],
                           [directory stringByAppendingPathComponent:@"FRONT.PNG"]);
@@ -107,7 +107,7 @@
     [self makeFile:@"Several/cover.jpg"];
     [self makeFile:@"Several/front.png"];
 
-    [NSURLUtil expandDirectory:_root];
+    [NSURLUtil expandDirectory:_root sortedBy:VibeFolderOpenSortName];
 
     XCTAssertEqualObjects([self settledFor:directory],
                           [directory stringByAppendingPathComponent:@"cover.jpg"]);
@@ -120,7 +120,7 @@
     NSString *directory = [self makeDirectory:@"Bare"];
     [self makeFile:@"Bare/track.mp3"];
 
-    [NSURLUtil expandDirectory:_root];
+    [NSURLUtil expandDirectory:_root sortedBy:VibeFolderOpenSortName];
 
     XCTAssertEqualObjects([self settledFor:directory], @"");
 }
@@ -134,7 +134,7 @@
     [self makeFile:@"Multi/CD1/cover.jpg"];
     [self makeFile:@"Multi/CD2/track.mp3"];
 
-    [NSURLUtil expandDirectory:_root];
+    [NSURLUtil expandDirectory:_root sortedBy:VibeFolderOpenSortName];
 
     XCTAssertEqualObjects([self settledFor:one], [one stringByAppendingPathComponent:@"cover.jpg"]);
     XCTAssertEqualObjects([self settledFor:two], @"", @"no cover of its own, and none inherited");
@@ -148,7 +148,7 @@
     [self makeFile:@"Scans/cover.jpg"];
     [self makeFile:@"track.mp3"];
 
-    [NSURLUtil expandDirectory:_root];
+    [NSURLUtil expandDirectory:_root sortedBy:VibeFolderOpenSortName];
 
     XCTAssertNil([self settledFor:artOnly]);
 }
@@ -160,7 +160,7 @@
     [self makeFile:@"Sleeve/scan-cover.jpg"];
     [self makeFile:@"Sleeve/folder art.jpg"];
 
-    [NSURLUtil expandDirectory:_root];
+    [NSURLUtil expandDirectory:_root sortedBy:VibeFolderOpenSortName];
 
     XCTAssertEqualObjects([self settledFor:directory], @"");
 }
@@ -179,7 +179,7 @@
     [self makeFile:@"OffAlbum/track.mp3"];
     [self makeFile:@"OffAlbum/cover.jpg"];
 
-    [NSURLUtil expandDirectory:_root];
+    [NSURLUtil expandDirectory:_root sortedBy:VibeFolderOpenSortName];
 
     XCTAssertEqualObjects([self settledFor:directory],
                           [directory stringByAppendingPathComponent:@"cover.jpg"]);

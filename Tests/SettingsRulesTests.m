@@ -33,6 +33,27 @@
     XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"sonic_cirrus"), @"mono");
 }
 
+- (void)testFolderOpenSortNormalizesUnknownsToName {
+    XCTAssertEqual(VibeNormalizedFolderOpenSort(@"name"), VibeFolderOpenSortName);
+    XCTAssertEqual(VibeNormalizedFolderOpenSort(@"newest_first"), VibeFolderOpenSortNewestFirst);
+    XCTAssertEqual(VibeNormalizedFolderOpenSort(@"as_received"), VibeFolderOpenSortAsReceived);
+    XCTAssertEqual(VibeNormalizedFolderOpenSort(nil), VibeFolderOpenSortName);
+    XCTAssertEqual(VibeNormalizedFolderOpenSort(@""), VibeFolderOpenSortName);
+    XCTAssertEqual(VibeNormalizedFolderOpenSort(@"Newest_First"), VibeFolderOpenSortName);
+    XCTAssertEqual(VibeNormalizedFolderOpenSort(@"date"), VibeFolderOpenSortName);
+}
+
+// The identifier is what is persisted, so the pair has to round-trip: a getter
+// that could not read back its own setter would reset the choice on relaunch.
+- (void)testFolderOpenSortIdentifierRoundTrips {
+    for (VibeFolderOpenSort sort = VibeFolderOpenSortName;
+         sort <= VibeFolderOpenSortAsReceived; sort++) {
+        XCTAssertEqual(VibeNormalizedFolderOpenSort(VibeFolderOpenSortIdentifier(sort)), sort);
+    }
+    XCTAssertEqualObjects(VibeFolderOpenSortIdentifier(VibeFolderOpenSortNewestFirst),
+                          @"newest_first");
+}
+
 - (void)testWindowTintNormalizesUnknownsToArtwork {
     XCTAssertEqualObjects(VibeNormalizedWindowTint(@"mono"), @"mono");
     XCTAssertEqualObjects(VibeNormalizedWindowTint(@"artwork"), @"artwork");

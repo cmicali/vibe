@@ -15,6 +15,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "FolderOpenSort.h"
 #import "PlatformTypes.h"
 
 // Nonnull by default: every string getter is backed by a registered default
@@ -36,6 +37,10 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTINGS_VALUE_WAVEFORM_THEME_ORANGE                @"orange"
 #define SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART             @"album_art"
 #define SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM                @"custom"
+
+// The folder-open order's identifiers are in FolderOpenSort.h instead, beside
+// the enum the app passes around — Util/NSURLUtil needs the enum and must not
+// reach a setting to get it.
 
 #if TARGET_OS_OSX
 
@@ -122,6 +127,14 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (void)setWaveformCustomPlayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 - (nullable VibeColor *)waveformCustomUnplayedColorForDark:(BOOL)isDark;
 - (void)setWaveformCustomUnplayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
+
+// The order a folder's tracks land in the playlist — see FolderOpenSort.h.
+// Normalized on read: an identifier no picker can produce reads as Name.
+// Read by each shell at open time and handed to the walk, which is a path
+// utility and may not read a setting itself (Util/CLAUDE.md). It governs the
+// next open only; a change never reorders the playlist already on screen.
+- (VibeFolderOpenSort)folderOpenSort;
+- (void)setFolderOpenSort:(VibeFolderOpenSort)sort;
 
 #if TARGET_OS_OSX
 

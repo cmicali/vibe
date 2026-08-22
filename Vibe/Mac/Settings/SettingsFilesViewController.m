@@ -7,6 +7,7 @@
 #import "AppSettings.h"
 #import "FolderAccessManager.h"
 #import "MainPlayerController.h"
+#import "SettingsRules.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
@@ -47,6 +48,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     NSPopUpButton *_addCommonButton;
     NSButton *_removeButton;
     NSPopUpButton *_albumArtPopUp;
+    NSPopUpButton *_folderSortPopUp;
     NSArray<VibeGrantedFolder *> *_folders;
     // Which of the Add Common Folder candidates are on disk, probed off the
     // main thread; nil, or a path with no entry, means not yet probed. Two of
@@ -71,6 +73,18 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 
 - (void)loadView {
     _folders = FolderAccessManager.sharedInstance.grantedFolders;
+
+    // The choices carry the VibeFolderOpenSort itself: the stored identifiers
+    // are AppSettings' business, and a menu item has no reason to know them.
+    _folderSortPopUp = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    _folderSortPopUp.target = self;
+    _folderSortPopUp.action = @selector(folderOpenSortChanged:);
+    [_folderSortPopUp addItemWithTitle:STR_SETTINGS_FOLDER_SORT_NAME];
+    _folderSortPopUp.lastItem.representedObject = @(VibeFolderOpenSortName);
+    [_folderSortPopUp addItemWithTitle:STR_SETTINGS_FOLDER_SORT_NEWEST_FIRST];
+    _folderSortPopUp.lastItem.representedObject = @(VibeFolderOpenSortNewestFirst);
+    [_folderSortPopUp addItemWithTitle:STR_SETTINGS_FOLDER_SORT_AS_RECEIVED];
+    _folderSortPopUp.lastItem.representedObject = @(VibeFolderOpenSortAsReceived);
 
     _albumArtPopUp = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
     _albumArtPopUp.target = self;
@@ -116,6 +130,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithRows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_FOLDER_SORT_LABEL control:_folderSortPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_ALBUM_ART_LABEL control:_albumArtPopUp],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PERMISSIONS_LABEL rows:@[
@@ -160,6 +175,8 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     [self refreshCommonFolderMenu];
     NSString *albumArtSource = AppSettings.sharedInstance.useFolderArt ? kAlbumArtFolder : kAlbumArtFileOnly;
     [_albumArtPopUp selectItemAtIndex:[_albumArtPopUp indexOfItemWithRepresentedObject:albumArtSource]];
+    [_folderSortPopUp selectItemAtIndex:[_folderSortPopUp indexOfItemWithRepresentedObject:
+            @(AppSettings.sharedInstance.folderOpenSort)]];
 }
 
 // Draws the menu from what is known now, then re-probes the candidate paths
@@ -297,6 +314,13 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 }
 
 #pragma mark - Actions
+
+// No live-apply: the order governs the next open, and re-sorting the playlist
+// already on screen would throw away an order the user may have built by hand.
+- (void)folderOpenSortChanged:(id)sender {
+    AppSettings.sharedInstance.folderOpenSort =
+            (VibeFolderOpenSort)[_folderSortPopUp.selectedItem.representedObject integerValue];
+}
 
 - (void)albumArtSourceChanged:(id)sender {
     AppSettings.sharedInstance.useFolderArt = [_albumArtPopUp.selectedItem.representedObject isEqual:kAlbumArtFolder];

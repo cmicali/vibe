@@ -26,6 +26,27 @@ static inline NSString *VibeNormalizedWaveformTheme(NSString *_Nullable identifi
     return SETTINGS_VALUE_WAVEFORM_THEME_MONO;
 }
 
+// The folder-open order, both ways: an unknown stored identifier snaps to
+// Name, the default and the order every folder open used before the setting.
+static inline VibeFolderOpenSort VibeNormalizedFolderOpenSort(NSString *_Nullable identifier) {
+    if ([identifier isEqualToString:SETTINGS_VALUE_FOLDER_OPEN_SORT_NEWEST_FIRST]) {
+        return VibeFolderOpenSortNewestFirst;
+    }
+    if ([identifier isEqualToString:SETTINGS_VALUE_FOLDER_OPEN_SORT_AS_RECEIVED]) {
+        return VibeFolderOpenSortAsReceived;
+    }
+    return VibeFolderOpenSortName;
+}
+
+static inline NSString *VibeFolderOpenSortIdentifier(VibeFolderOpenSort sort) {
+    switch (sort) {
+        case VibeFolderOpenSortNewestFirst: return SETTINGS_VALUE_FOLDER_OPEN_SORT_NEWEST_FIRST;
+        case VibeFolderOpenSortAsReceived:  return SETTINGS_VALUE_FOLDER_OPEN_SORT_AS_RECEIVED;
+        case VibeFolderOpenSortName:        break;
+    }
+    return SETTINGS_VALUE_FOLDER_OPEN_SORT_NAME;
+}
+
 #if TARGET_OS_OSX
 // An unknown stored window-tint identifier snaps to artwork, the default:
 // the header wash follows the playing track's art color.

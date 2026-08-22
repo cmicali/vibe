@@ -17,6 +17,7 @@
 #define SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK       @"Settings.waveformCustomUnplayedColorDark"
 #define SETTING_WAVEFORM_CUSTOM_PLAYED_LIGHT        @"Settings.waveformCustomPlayedColorLight"
 #define SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT      @"Settings.waveformCustomUnplayedColorLight"
+#define SETTING_FOLDER_OPEN_SORT                    @"Files.folderOpenSort"
 
 #if TARGET_OS_OSX
 
@@ -152,6 +153,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
     NSMutableDictionary *appDefaults = [@{
             SETTING_WAVEFORM_STYLE: SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
             SETTING_WAVEFORM_THEME: SETTINGS_VALUE_WAVEFORM_THEME_MONO,
+            SETTING_FOLDER_OPEN_SORT: SETTINGS_VALUE_FOLDER_OPEN_SORT_NAME,
     } mutableCopy];
 #if TARGET_OS_OSX
     [self registerMacDefaultsInto:appDefaults];
@@ -284,6 +286,16 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
             isDark ? SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK : SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT];
 }
 
+
+- (VibeFolderOpenSort)folderOpenSort {
+    return VibeNormalizedFolderOpenSort(
+            [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_FOLDER_OPEN_SORT]);
+}
+
+- (void)setFolderOpenSort:(VibeFolderOpenSort)sort {
+    [[NSUserDefaults standardUserDefaults] setObject:VibeFolderOpenSortIdentifier(sort)
+                                              forKey:SETTING_FOLDER_OPEN_SORT];
+}
 
 - (void)setHexColor:(VibeColor *)color forKey:(NSString *)key {
     NSString *hex = VibeHexStringFromColor(color);

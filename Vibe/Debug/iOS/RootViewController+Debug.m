@@ -18,6 +18,7 @@
 #import "PlayerViewController+Debug.h"
 
 #import "AppSettings.h"
+#import "SettingsRules.h"
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
@@ -52,6 +53,7 @@
     state[@"settings"] = @{
         @"waveformStyle": AppSettings.sharedInstance.waveformStyle ?: @"",
         @"waveformTheme": AppSettings.sharedInstance.waveformTheme,
+        @"folderOpenSort": VibeFolderOpenSortIdentifier(AppSettings.sharedInstance.folderOpenSort),
     };
     return state;
 }

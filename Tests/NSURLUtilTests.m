@@ -126,7 +126,8 @@
 }
 
 - (NSArray<NSString *> *)expandAndFilter:(NSArray<NSURL *> *)list folderCount:(NSUInteger *)folderCount {
-    return [self relativePaths:[NSURLUtil expandAndFilterList:list folderCount:folderCount]];
+    return [self relativePaths:[NSURLUtil expandAndFilterList:list sortedBy:VibeFolderOpenSortName
+                                                 folderCount:folderCount]];
 }
 
 #pragma mark - The extension filter
@@ -160,7 +161,8 @@
     [self makeFile:@"folder/stream.ogg"];
 
     NSArray<NSString *> *files = [self relativePaths:
-            [NSURLUtil expandDirectory:[self makeDirectory:@"folder"]]];
+            [NSURLUtil expandDirectory:[self makeDirectory:@"folder"]
+                              sortedBy:VibeFolderOpenSortName]];
 
     XCTAssertEqualObjects(files, (@[@"folder/Loud.MP3", @"folder/Quiet.FlAc"]));
 }
@@ -177,7 +179,8 @@
     [self makeFile:@"folder/.hidden/buried.mp3"];
 
     NSArray<NSString *> *files = [self relativePaths:
-            [NSURLUtil expandDirectory:[self makeDirectory:@"folder"]]];
+            [NSURLUtil expandDirectory:[self makeDirectory:@"folder"]
+                              sortedBy:VibeFolderOpenSortName]];
 
     XCTAssertEqualObjects(files, (@[@"folder/Song.mp3"]));
 }
@@ -187,7 +190,8 @@
     [self makeFile:@"folder/Sampler.bundle/Contents/Resources/buried.mp3"];
 
     NSArray<NSString *> *files = [self relativePaths:
-            [NSURLUtil expandDirectory:[self makeDirectory:@"folder"]]];
+            [NSURLUtil expandDirectory:[self makeDirectory:@"folder"]
+                              sortedBy:VibeFolderOpenSortName]];
 
     XCTAssertEqualObjects(files, (@[@"folder/Song.mp3"]));
 }
@@ -204,7 +208,8 @@
     [self makeFile:@"folder/a-disc/track1.mp3"];
 
     NSArray<NSString *> *files = [self relativePaths:
-            [NSURLUtil expandDirectory:[self makeDirectory:@"folder"]]];
+            [NSURLUtil expandDirectory:[self makeDirectory:@"folder"]
+                              sortedBy:VibeFolderOpenSortName]];
 
     XCTAssertEqualObjects(files, (@[@"folder/a-disc/track1.mp3",
                                     @"folder/b-disc/track1.mp3",
@@ -472,7 +477,7 @@
         NSURL *folder = folders[i];
         XCTestExpectation *expectation = [self expectationWithDescription:folder.lastPathComponent];
         [expectations addObject:expectation];
-        [NSURLUtil expandAndFilterList:@[folder] completion:^(NSArray<NSURL *> *files, NSUInteger folderCount) {
+        [NSURLUtil expandAndFilterList:@[folder] sortedBy:VibeFolderOpenSortName completion:^(NSArray<NSURL *> *files, NSUInteger folderCount) {
             XCTAssertTrue(NSThread.isMainThread);
             XCTAssertEqual(folderCount, 1u);
             XCTAssertEqual(files.count, 5u);
@@ -516,7 +521,7 @@
     for (NSURL *playlist in playlists) {
         XCTestExpectation *expectation = [self expectationWithDescription:playlist.path];
         [expectations addObject:expectation];
-        [NSURLUtil expandAndFilterList:@[playlist] completion:^(NSArray<NSURL *> *files, NSUInteger folderCount) {
+        [NSURLUtil expandAndFilterList:@[playlist] sortedBy:VibeFolderOpenSortName completion:^(NSArray<NSURL *> *files, NSUInteger folderCount) {
             XCTAssertEqual(files.count, 0u);
             [expectation fulfill];
         }];

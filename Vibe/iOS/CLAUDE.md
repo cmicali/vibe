@@ -35,7 +35,9 @@ Two categories, both the mac's split brought over with contracts intact:
 
 ## FolderSession
 
-The picked location's owner: picker presentation, the security scope, the bookmark that restores the folder on relaunch (default `bookmarkData`; iOS has no `WithSecurityScope` option and does not need it), and the listing via `NSURLUtil audioFilesInDirectory:`.
+The picked location's owner: picker presentation, the security scope, the bookmark that restores the folder on relaunch (default `bookmarkData`; iOS has no `WithSecurityScope` option and does not need it), and the listing via `NSURLUtil audioFilesInDirectory:sortedBy:`.
+
+**The listing order rides the open snapshot, like everything else here.** `AppSettings.folderOpenSort` — Settings > When opening a folder, shared with the mac's Files pane — is read on main at each of the three entry points (`adoptURL:`, `openFileFromSearchRoots:`, `restorePersistedFolder`) and passed down to the worker, so an open cannot straddle a Settings change and the walk never reaches a setting itself (`Util/CLAUDE.md`). Newest-first is the same modification date the Files browser sorts by, which the provider answers as metadata without downloading anything.
 
 **The security scope is held for the whole session** — the player, TagLib and the waveform loader read under it at arbitrary times — and released only after a successor is in hand.
 
@@ -109,11 +111,13 @@ The bar carries **the gear and nothing else**. There is deliberately no Open but
 
 ### SettingsViewController
 
-Behind the gear, **pushed onto this tab's navigation stack rather than presented** — everything on it is something the mini strip or the card behind it draws, and both stay up. A grouped list of three: the waveform style (one row per registered renderer, sorted by localized display name, checkmark on the resolved style — never the raw stored one, or an identifier nothing draws would still be ticked), the time display, and the file-info switch.
+Behind the gear, **pushed onto this tab's navigation stack rather than presented** — everything on it is something the mini strip or the card behind it draws, and both stay up. A grouped list: the waveform style (one row per registered renderer, sorted by localized display name, checkmark on the resolved style — never the raw stored one, or an identifier nothing draws would still be ticked), the waveform theme, the time display, the file-info switch, the folder-open order, and the searchable folders.
+
+**"When opening a folder" is the one section that notifies nothing.** It is not a display setting — no screen draws from it, and it governs the next folder open — so its case writes `AppSettings.folderOpenSort`, reloads its own section for the checkmark, and returns before the notification every other row posts. It sits below everything the player draws and above the search folders, with which it shares being about files rather than pixels.
 
 **It writes settings and posts; it never reaches for the screens that draw them.** The card is the only thing that has to react and it is elsewhere in the app, so `VibeDisplaySettingsDidChangeNotification` carries it — see the card's `displaySettingsDidChange`. This is the one place a notification is right where the mac would use a direct live-apply hook (`Common/CLAUDE.md`): the settings screen and the card have no owner in common below `RootViewController`.
 
-**`PlayerDisplaySettings`** is the store behind two of the three: `VibeiOSShowRemainingTime` and `VibeiOSShowFileInfo`, iOS-owned keys beside `FolderSession`'s and the waveform zoom's. Deliberately *not* `AppSettings`' equivalents — those sit inside its macOS-only block because they are read on every playback tick and ride the hot cache that block exists for, and iOS reads these a few times a second. File info defaults to **on**, which is the mac's default, so the absence of the key is tested rather than registered. The waveform style is the exception and is a shared `AppSettings` property: both platforms draw waveforms and both now offer the picker.
+**`PlayerDisplaySettings`** is the store behind two of them: `VibeiOSShowRemainingTime` and `VibeiOSShowFileInfo`, iOS-owned keys beside `FolderSession`'s and the waveform zoom's. Deliberately *not* `AppSettings`' equivalents — those sit inside its macOS-only block because they are read on every playback tick and ride the hot cache that block exists for, and iOS reads these a few times a second. File info defaults to **on**, which is the mac's default, so the absence of the key is tested rather than registered. The waveform style is the exception and is a shared `AppSettings` property: both platforms draw waveforms and both now offer the picker.
 
 ### SearchViewController
 

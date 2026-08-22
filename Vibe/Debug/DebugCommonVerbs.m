@@ -25,8 +25,10 @@
 #import "AudioTrackMetadataCache+Debug.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformCache+Debug.h"
+#import "AppSettings.h"
 #import "AudioLoadTiming.h"
 #import "MusicalKey.h"
+#import "SettingsRules.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Debug.h"
 #import "AudioTrack.h"
@@ -740,6 +742,20 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                                      id<VibeDebugPlayerSurface> surface) {
                 [VibeFakeCloud clearTrace];
                 return VibeJSONString(@{@"ok": @YES});
+            }),
+            // The order a folder open lands its tracks in. Shared, and neither
+            // shell live-applies it — it governs the NEXT open — so a test
+            // sets it and then opens something.
+            VibeDebugCmd(@"set_folder_sort <name|newest_first|as_received>", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
+                VibeFolderOpenSort sort = VibeNormalizedFolderOpenSort(arg);
+                if (![VibeFolderOpenSortIdentifier(sort) isEqualToString:arg]) {
+                    return VibeErrorJSON(@"usage: set_folder_sort <name|newest_first|as_received>");
+                }
+                AppSettings.sharedInstance.folderOpenSort = sort;
+                return VibeJSONString(@{@"ok": @YES, @"folderOpenSort": arg});
             }),
             // The real-provider lane-routing measurement; see NSURLUtil+Debug.h.
             VibeDebugCmd(@"set_dataless_diag <on|off>", 0,

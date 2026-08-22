@@ -54,6 +54,7 @@
     // dropped, but this bypasses AppDelegate's open funnel — no burst
     // coalescing, no open supersession. Use drag_drop to exercise the funnel.
     [NSURLUtil expandAndFilterList:@[[NSURL fileURLWithPath:path]]
+                          sortedBy:AppSettings.sharedInstance.folderOpenSort
                         completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
         if (expanded.count > 0) {
             [self play:expanded];

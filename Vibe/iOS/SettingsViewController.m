@@ -12,6 +12,7 @@
 #import "AppSettings.h"
 #import "PlayerDisplaySettings.h"
 #import "SearchFolderStore.h"
+#import "SettingsRules.h"
 #import "VibeStrings.h"
 #import "WaveformRendererRegistry.h"
 
@@ -20,6 +21,9 @@ typedef NS_ENUM(NSInteger, VibeSettingsSection) {
     VibeSettingsSectionWaveformTheme,
     VibeSettingsSectionTime,
     VibeSettingsSectionFileInfo,
+    // The two file sections, below everything the player draws: the order a
+    // folder opens in, then the folders the app may search.
+    VibeSettingsSectionFolderSort,
     // Last, and deliberately: everything above it is what the player draws,
     // where this grants the app access to a folder. Its footer needs the room a
     // last section has.
@@ -32,6 +36,16 @@ typedef NS_ENUM(NSInteger, VibeSettingsTimeRow) {
     VibeSettingsTimeRowTotal = 0,
     VibeSettingsTimeRowRemaining,
     VibeSettingsTimeRowCount,
+};
+
+// The folder-open order's three choices, in the order the mac's popup lists
+// them. Deliberately not cast to VibeFolderOpenSort: a row index is a screen
+// position, and the mapping below is where the two meet.
+typedef NS_ENUM(NSInteger, VibeSettingsFolderSortRow) {
+    VibeSettingsFolderSortRowName = 0,
+    VibeSettingsFolderSortRowNewestFirst,
+    VibeSettingsFolderSortRowAsReceived,
+    VibeSettingsFolderSortRowCount,
 };
 
 // The theme section: three choices — Album art is macOS-only until an iOS
@@ -56,6 +70,22 @@ static BOOL ThemeColorRowIsPlayed(NSInteger row) {
 
 static BOOL ThemeColorRowIsDark(NSInteger row) {
     return row == VibeSettingsThemeRowPlayedDark || row == VibeSettingsThemeRowUnplayedDark;
+}
+
+static VibeFolderOpenSort FolderSortForRow(NSInteger row) {
+    switch ((VibeSettingsFolderSortRow)row) {
+        case VibeSettingsFolderSortRowNewestFirst: return VibeFolderOpenSortNewestFirst;
+        case VibeSettingsFolderSortRowAsReceived:  return VibeFolderOpenSortAsReceived;
+        default:                                   return VibeFolderOpenSortName;
+    }
+}
+
+static NSString *FolderSortDisplayNameForRow(NSInteger row) {
+    switch ((VibeSettingsFolderSortRow)row) {
+        case VibeSettingsFolderSortRowNewestFirst: return STR_SETTINGS_FOLDER_SORT_NEWEST_FIRST;
+        case VibeSettingsFolderSortRowAsReceived:  return STR_SETTINGS_FOLDER_SORT_AS_RECEIVED;
+        default:                                   return STR_SETTINGS_FOLDER_SORT_NAME;
+    }
 }
 
 static NSString *const kChoiceCellIdentifier = @"choice";
@@ -156,6 +186,8 @@ static NSString *const kActionCellIdentifier = @"action";
                                             : VibeSettingsThemeRowChoiceCount;
         case VibeSettingsSectionTime:
             return VibeSettingsTimeRowCount;
+        case VibeSettingsSectionFolderSort:
+            return VibeSettingsFolderSortRowCount;
         case VibeSettingsSectionSearchFolders:
             return [self folderRowCount];
         default:
@@ -171,6 +203,8 @@ static NSString *const kActionCellIdentifier = @"action";
             return STR_SETTINGS_SECTION_WAVEFORM_THEME;
         case VibeSettingsSectionTime:
             return STR_SETTINGS_SECTION_TIME;
+        case VibeSettingsSectionFolderSort:
+            return STR_SETTINGS_SECTION_FOLDER_SORT;
         case VibeSettingsSectionSearchFolders:
             return STR_SETTINGS_SECTION_SEARCH_FOLDERS;
         default:
@@ -233,6 +267,10 @@ static NSString *const kActionCellIdentifier = @"action";
         content.text = ThemeDisplayNameForRow(indexPath.row);
         selected = [ThemeIdentifierForRow(indexPath.row)
                 isEqualToString:[self currentWaveformTheme]];
+    }
+    else if ((VibeSettingsSection)indexPath.section == VibeSettingsSectionFolderSort) {
+        content.text = FolderSortDisplayNameForRow(indexPath.row);
+        selected = FolderSortForRow(indexPath.row) == AppSettings.sharedInstance.folderOpenSort;
     }
     else {
         BOOL remaining = indexPath.row == VibeSettingsTimeRowRemaining;
@@ -439,6 +477,13 @@ static NSString *ThemeColorRowName(NSInteger row) {
         case VibeSettingsSectionTime:
             VibeSetShowsRemainingTime(indexPath.row == VibeSettingsTimeRowRemaining);
             break;
+        case VibeSettingsSectionFolderSort:
+            // Nothing on screen draws from it — the order governs the next
+            // folder open — so the checkmark moves and nothing is notified.
+            AppSettings.sharedInstance.folderOpenSort = FolderSortForRow(indexPath.row);
+            [tableView reloadSections:[NSIndexSet indexSetWithIndex:(NSUInteger)indexPath.section]
+                     withRowAnimation:UITableViewRowAnimationNone];
+            return;
         case VibeSettingsSectionSearchFolders:
             // A folder row is not a choice and not an open — the list is search
             // scope. Only the Add row does anything.

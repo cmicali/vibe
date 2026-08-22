@@ -5,6 +5,8 @@
 
 #import <Foundation/Foundation.h>
 
+#import "FolderOpenSort.h"
+
 NS_ASSUME_NONNULL_BEGIN
 
 // Asks the user to grant access to the folder a playlist file's entries live
@@ -70,7 +72,13 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // top-level URLs resolved as directories, counted here because the check stats
 // the file system and so belongs on the expansion queue, not the main-thread
 // caller. Completion runs on main.
+//
+// sort orders each expanded FOLDER's own audio, and nothing else: the
+// top-level URLs keep the order they were given, and a playlist file keeps its
+// list order, both of which the user chose explicitly. The caller reads the
+// setting — see audioFilesInDirectory:sortedBy:.
 + (void)expandAndFilterList:(NSArray<NSURL *> *)list
+                   sortedBy:(VibeFolderOpenSort)sort
                  completion:(void (^)(NSArray<NSURL *> *files, NSUInteger folderCount))completion;
 
 // Every playable extension, lowercase. Must cover every spelling the
@@ -79,9 +87,14 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 
 // The directory-as-playlist listing rule, in its single home: the folder's
 // non-empty audio files, non-recursive, hidden files and directories skipped,
-// sorted by filename with Finder's comparator. Synchronous — callers own the
-// threading.
-+ (NSArray<NSURL *> *)audioFilesInDirectory:(NSURL *)dir;
+// in the order sort names. Synchronous — callers own the threading.
+//
+// The order is a PARAMETER because it comes from a setting, and this layer may
+// not read one (Util/CLAUDE.md): each shell reads AppSettings.folderOpenSort
+// on main, with the rest of its open snapshot, and hands the answer down. So
+// an open cannot straddle a Settings change, and the walk stays testable
+// without a defaults store.
++ (NSArray<NSURL *> *)audioFilesInDirectory:(NSURL *)dir sortedBy:(VibeFolderOpenSort)sort;
 @end
 
 NS_ASSUME_NONNULL_END

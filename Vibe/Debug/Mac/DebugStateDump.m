@@ -7,6 +7,7 @@
 
 #import "DebugInternal.h"
 #import "AppSettings.h"
+#import "SettingsRules.h"
 
 #if DEBUG
 
@@ -82,6 +83,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"keyColors": @(AppSettings.sharedInstance.keyColorsEnabled),
             @"uiUpdateHzCap": @(AppSettings.sharedInstance.uiUpdateHzCap),
             @"folderArt": @(AppSettings.sharedInstance.useFolderArt),
+            @"folderOpenSort": VibeFolderOpenSortIdentifier(AppSettings.sharedInstance.folderOpenSort),
         },
     }];
     return state;

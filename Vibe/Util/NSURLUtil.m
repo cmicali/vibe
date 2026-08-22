@@ -185,11 +185,62 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
     return PlayableExtensions.lookup;
 }
 
+// Puts one folder's audio into the order the user picked. byFullPath is the
+// name comparator's subject: the whole path for a recursive walk, which groups
+// subfolders, and the filename alone for a flat listing. It is also
+// newest-first's tiebreak, so a batch of files copied in one go — one shared
+// mtime — still reads in track order rather than arbitrarily.
+//
+// TRAP: the dates are decorated onto the list once rather than read inside the
+// comparator, which runs O(n log n) times. The enumeration prefetches the key,
+// so each read here is served from that batch instead of costing a round trip
+// to the file provider.
+static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort sort,
+                              BOOL byFullPath) {
+    if (sort == VibeFolderOpenSortAsReceived) {
+        return;
+    }
+    NSComparisonResult (^byName)(NSURL *, NSURL *) = ^(NSURL *a, NSURL *b) {
+        return byFullPath ? [a.path localizedStandardCompare:b.path]
+                          : [a.lastPathComponent localizedStandardCompare:b.lastPathComponent];
+    };
+    if (sort != VibeFolderOpenSortNewestFirst) {
+        [urls sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
+            return byName(a, b);
+        }];
+        return;
+    }
+    NSMutableDictionary<NSURL*, NSDate*> *dateByURL =
+            [NSMutableDictionary dictionaryWithCapacity:urls.count];
+    for (NSURL *url in urls) {
+        NSDate *modified = nil;
+        if ([url getResourceValue:&modified forKey:NSURLContentModificationDateKey error:NULL]
+                && modified) {
+            dateByURL[url] = modified;
+        }
+    }
+    // A file whose date the file system or provider would not give up sorts
+    // after every dated one, then by name, so the order stays total and
+    // repeatable instead of the missing date reading as the epoch.
+    [urls sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
+        NSDate *dateA = dateByURL[a];
+        NSDate *dateB = dateByURL[b];
+        if (!dateA || !dateB) {
+            if (dateA != dateB) {
+                return dateA ? NSOrderedAscending : NSOrderedDescending;
+            }
+            return byName(a, b);
+        }
+        NSComparisonResult newestFirst = [dateB compare:dateA];
+        return newestFirst != NSOrderedSame ? newestFirst : byName(a, b);
+    }];
+}
+
 // The walk picks the album cover out on the way past: it already touches every
 // entry, so the walked-directories handler gets the whole folder's answer for
 // the cost of a rank lookup per name. Only directories contributing playable
 // audio are handed over; nothing will ask about an "Artwork" subfolder.
-+ (NSArray<NSURL*>*) expandDirectory:(NSURL*)dir {
++ (NSArray<NSURL*>*) expandDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
 
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
     NSFileManager *fileManager = [NSFileManager defaultManager];
@@ -208,9 +259,14 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
     // filetype filter but which hold resource-fork metadata rather than audio;
     // each one showed up as a duplicate, unplayable playlist row. Skipping
     // package descendants keeps the walk out of app and bundle internals.
+    // The modification date is prefetched only when the sort needs it; every
+    // key here is one more attribute the provider has to answer for.
+    NSArray<NSURLResourceKey> *keys = sort == VibeFolderOpenSortNewestFirst
+            ? @[NSURLIsDirectoryKey, NSURLContentModificationDateKey]
+            : @[NSURLIsDirectoryKey];
     NSDirectoryEnumerator *enumerator = [fileManager
             enumeratorAtURL:dir
- includingPropertiesForKeys:@[NSURLIsDirectoryKey]
+ includingPropertiesForKeys:keys
                     options:NSDirectoryEnumerationSkipsHiddenFiles | NSDirectoryEnumerationSkipsPackageDescendants
                errorHandler:^(NSURL *url, NSError *error) {
                    // Skip the unreadable entry or subtree, but keep
@@ -259,24 +315,25 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
         walked(directoriesWalked, artByDirectory);
     }
 
-    // The enumerator returns APFS hash order, which is effectively random, so
-    // sort by full path with Finder's comparator, which is numeric and groups
-    // subfolders. An explicit multi-file drop keeps its pasteboard order; see
-    // expandFileList:folderCount:.
-    [results sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
-        return [a.path localizedStandardCompare:b.path];
-    }];
+    // The enumerator returns APFS hash order, which is effectively random —
+    // which is also what Settings > Files' "Keep folder order" leaves in place
+    // here, since a local volume has no meaningful order to preserve. The
+    // other two choices sort by full path with Finder's numeric comparator,
+    // which groups subfolders, or by date. An explicit multi-file drop keeps its pasteboard
+    // order either way; see expandFileList:folderCount:.
+    VibeSortAudioURLs(results, sort, YES);
 
     return results;
 }
 
-+ (NSArray<NSURL*>*) audioFilesInDirectory:(NSURL*)dir {
-    // Non-recursive, unlike expandDirectory:. Skipping hidden files also
-    // drops the AppleDouble "._Song.mp3" sidecars; see expandDirectory:.
++ (NSArray<NSURL*>*) audioFilesInDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
+    // Non-recursive, unlike expandDirectory:sortedBy:. Skipping hidden files
+    // also drops the AppleDouble "._Song.mp3" sidecars; see that method.
     NSError *error = nil;
     NSArray<NSURL*> *contents = [[NSFileManager defaultManager]
             contentsOfDirectoryAtURL:dir
-          includingPropertiesForKeys:nil
+          includingPropertiesForKeys:(sort == VibeFolderOpenSortNewestFirst
+                                              ? @[NSURLContentModificationDateKey] : @[])
                              options:NSDirectoryEnumerationSkipsHiddenFiles
                                error:&error];
     if (!contents) {
@@ -293,9 +350,7 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
             [results addObject:url];
         }
     }
-    [results sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
-        return [a.lastPathComponent localizedStandardCompare:b.lastPathComponent];
-    }];
+    VibeSortAudioURLs(results, sort, NO);
     return results;
 }
 
@@ -321,20 +376,25 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
 }
 
 + (void) expandAndFilterList:(NSArray<NSURL*>*)list
+                    sortedBy:(VibeFolderOpenSort)sort
                   completion:(void (^)(NSArray<NSURL*>*, NSUInteger))completion {
     [[self expansionQueue] addOperationWithBlock:^{
         NSUInteger folderCount = 0;
-        NSArray<NSURL*> *results = [self expandAndFilterList:list folderCount:&folderCount];
+        NSArray<NSURL*> *results = [self expandAndFilterList:list sortedBy:sort
+                                                 folderCount:&folderCount];
         dispatch_async(dispatch_get_main_queue(), ^{
             completion(results, folderCount);
         });
     }];
 }
 
-+ (NSArray<NSURL*>*) expandAndFilterList:(NSArray<NSURL*>*)list folderCount:(NSUInteger *)folderCount {
++ (NSArray<NSURL*>*) expandAndFilterList:(NSArray<NSURL*>*)list
+                                sortedBy:(VibeFolderOpenSort)sort
+                             folderCount:(NSUInteger *)folderCount {
     NSUInteger inputCount = list.count;
     NSMutableSet<NSString*> *looseFileDirectories = [NSMutableSet set];
     list = [NSURLUtil expandFileList:list
+                            sortedBy:sort
                          folderCount:folderCount
                 looseFileDirectories:looseFileDirectories];
     NSUInteger expandedCount = list.count;
@@ -369,6 +429,7 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
 // walking a folder — a multi-file open, or a playlist file's tracks. Only those
 // still need their artwork resolved; a walked folder settled its own.
 + (NSArray<NSURL*>*) expandFileList:(NSArray<NSURL*>*)list
+                           sortedBy:(VibeFolderOpenSort)sort
                         folderCount:(NSUInteger *)folderCount
                looseFileDirectories:(NSMutableSet<NSString*> *)looseFileDirectories {
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] initWithCapacity:list.count];
@@ -385,7 +446,7 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
             if (folderCount) {
                 (*folderCount)++;
             }
-            [results addObjectsFromArray:[self expandDirectory:url]];
+            [results addObjectsFromArray:[self expandDirectory:url sortedBy:sort]];
         }
         else if ([PlaylistFile isPlaylistExtension:[url.pathExtension lowercaseString]]) {
             NSArray<NSURL*> *tracks = [self expandPlaylistFile:url];
