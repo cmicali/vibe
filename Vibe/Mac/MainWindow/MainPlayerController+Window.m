@@ -12,6 +12,7 @@
 #import "MainMenuBuilder.h" // vends the context-menu items shared with the main menu
 #import "MainPlayerContentView.h"
 #import "MainWindow.h"
+#import "MenuValidationRules.h"
 #import "PitchControlPanel.h"
 #import "PlaylistController.h"
 #import "PlaylistTableView.h"
@@ -190,11 +191,10 @@
 }
 
 + (CGFloat)contentWidthForSizeIdentifier:(NSString *)identifier {
-    if ([identifier isEqualToString:@"view_size_small"]) {
-        return kMainWindowMinContentWidth;
-    }
-    if ([identifier isEqualToString:@"view_size_large"]) {
-        return kMainWindowLargeContentWidth;
+    switch (VibeWindowSizePresetForMenuIdentifier(identifier)) {
+        case VibeWindowSizePresetSmall: return kMainWindowMinContentWidth;
+        case VibeWindowSizePresetLarge: return kMainWindowLargeContentWidth;
+        case VibeWindowSizePresetDefault: break;
     }
     return kMainWindowContentWidth;
 }

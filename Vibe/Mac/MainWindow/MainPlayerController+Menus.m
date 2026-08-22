@@ -6,6 +6,7 @@
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Window.h" // contentWidthForSizeIdentifier:, for the Size checkmarks
+#import "MenuValidationRules.h"
 #import "AppSettings.h"
 #import "AudioFX.h"
 #import "MainWindow.h"
@@ -18,6 +19,50 @@
 @implementation MainPlayerController (Menus)
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
+    switch (VibeMenuValidationDomainForIdentifier(menuItem.identifier)) {
+        case VibeMenuValidationDomainViewToggle:
+            [self applyViewToggleStateToMenuItem:menuItem];
+            return YES;
+        case VibeMenuValidationDomainWindowSize:
+            [self applyWindowSizeStateToMenuItem:menuItem];
+            return YES;
+        case VibeMenuValidationDomainAppearance:
+            [self applyAppearanceStateToMenuItem:menuItem];
+            return YES;
+        case VibeMenuValidationDomainFX:
+            [self applyFXStateToMenuItem:menuItem];
+            return YES;
+        case VibeMenuValidationDomainPitchRange:
+            [self applyPitchRangeStateToMenuItem:menuItem];
+            return YES;
+        case VibeMenuValidationDomainTransport:
+            return [self validateTransportMenuItem:menuItem];
+        case VibeMenuValidationDomainFile:
+            return [self validateFileMenuItem:menuItem];
+        case VibeMenuValidationDomainEdit:
+            return [self validateEditMenuItem:menuItem];
+        case VibeMenuValidationDomainConvert:
+            return [self validateConvertMenuItem:menuItem];
+        case VibeMenuValidationDomainWaveformStyle:
+            // menuNeedsUpdate: mints these and sets their state and enablement.
+            return YES;
+        case VibeMenuValidationDomainUnknown:
+            break;
+    }
+    // Only items this controller is the target of reach here, so an unknown
+    // one is a menu item that was added without a validation policy.
+    LogWarn(@"Menu item %@ targets the player with no validation policy", menuItem.identifier);
+    NSAssert(NO, @"unvalidated menu identifier %@ — add it to MenuValidationRules.h",
+             menuItem.identifier);
+    return NO;
+}
+
+#pragma mark - Presentation-only domains
+
+// A preference or a window state, not an action, so each of these is a
+// checkmark and nothing else: there is no condition under which the item
+// should go unavailable.
+- (void)applyViewToggleStateToMenuItem:(NSMenuItem *)menuItem {
     MainWindow *window = (MainWindow *)self.window;
     if ([menuItem.identifier isEqualToString:@"menu_show_playlist"]) {
         menuItem.state = StateForBOOL(window.isPlaylistShown);
@@ -25,80 +70,94 @@
     else if ([menuItem.identifier isEqualToString:@"menu_show_pitch"]) {
         menuItem.state = StateForBOOL(window.isPitchPanelShown);
     }
-    // A preference, not an action, so never disabled.
     else if ([menuItem.identifier isEqualToString:@"menu_show_file_info"]) {
         menuItem.state = StateForBOOL(AppSettings.sharedInstance.showFileInfo);
     }
-    // A preference, not an action, so never disabled.
     else if ([menuItem.identifier isEqualToString:@"menu_always_on_top"]) {
         menuItem.state = StateForBOOL(AppSettings.sharedInstance.alwaysOnTop);
     }
-    // Size: checkmark whichever preset the current body width already sits at,
-    // which after a drag-resize is none of them.
-    else if ([menuItem.identifier hasPrefix:@"view_size_"]) {
-        menuItem.state = StateForBOOL(window.contentWidth ==
-                [MainPlayerController contentWidthForSizeIdentifier:menuItem.identifier]);
-    }
-    else if ([menuItem.identifier isEqualToString:@"view_appearance_system_default"]) {
-        menuItem.state = StateForString(AppSettings.sharedInstance.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT);
+}
+
+// Checkmark whichever preset the current body width already sits at, which
+// after a drag-resize is none of them.
+- (void)applyWindowSizeStateToMenuItem:(NSMenuItem *)menuItem {
+    MainWindow *window = (MainWindow *)self.window;
+    menuItem.state = StateForBOOL(window.contentWidth ==
+            [MainPlayerController contentWidthForSizeIdentifier:menuItem.identifier]);
+}
+
+- (void)applyAppearanceStateToMenuItem:(NSMenuItem *)menuItem {
+    NSString *style = AppSettings.sharedInstance.windowAppearanceStyle;
+    if ([menuItem.identifier isEqualToString:@"view_appearance_system_default"]) {
+        menuItem.state = StateForString(style, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT);
     }
     else if ([menuItem.identifier isEqualToString:@"view_appearance_light"]) {
-        menuItem.state = StateForString(AppSettings.sharedInstance.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT);
+        menuItem.state = StateForString(style, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT);
     }
     else if ([menuItem.identifier isEqualToString:@"view_appearance_dark"]) {
-        menuItem.state = StateForString(AppSettings.sharedInstance.windowAppearanceStyle, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK);
+        menuItem.state = StateForString(style, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK);
     }
-    else if ([menuItem.identifier isEqualToString:@"menu_next_track"]) {
-        // Only when there really is a track after the current one. At the end
-        // of the playlist, next: is a no-op.
-        return self.playlistController.hasNextTrack;
-    }
-    else if ([menuItem.identifier isEqualToString:@"menu_previous_track"]) {
-        return self.playlistController.hasPreviousTrack;
-    }
-    else if ([menuItem.identifier isEqualToString:@"menu_play_selected"]) {
-        // A selection nobody can see is not a selection: with the playlist
-        // collapsed the arrow keys do not move it either (TransportKeyMonitor),
-        // so Return has nothing to act on.
-        return window.isPlaylistShown && self.playlistController.hasSelectedTrack;
-    }
-    else if ([menuItem.identifier isEqualToString:@"menu_skip_forward"] ||
-             [menuItem.identifier isEqualToString:@"menu_skip_forward_more"] ||
-             [menuItem.identifier isEqualToString:@"menu_skip_forward_most"] ||
-             [menuItem.identifier isEqualToString:@"menu_skip_back"] ||
-             [menuItem.identifier isEqualToString:@"menu_skip_back_more"] ||
-             [menuItem.identifier isEqualToString:@"menu_skip_back_most"]) {
-        // This needs both a loaded track and a player that is not stopped:
-        // after the playlist ends there is no node left to seek. See
-        // skipByFileSeconds:.
-        return self.playlistController.currentTrack != nil && !self.audioPlayer.isStopped;
-    }
-    // FX: one checkmark per effect. They are never disabled, because the
-    // effects are deck controls that outlive any single track; see the FX menu
-    // in MainMenuBuilder — which omits the menu entirely when FX is off, so
-    // these branches only ever run with a non-nil fx.
-    else if ([menuItem.identifier isEqualToString:@"menu_fx_low_kill"]) {
-        menuItem.state = StateForBOOL(self.audioPlayer.fx.lowKillEnabled);
+}
+
+// One checkmark per effect. Never disabled, because the effects are deck
+// controls that outlive any single track; see the FX menu in MainMenuBuilder —
+// which omits the menu entirely when FX is off, so this only ever runs with a
+// non-nil fx.
+- (void)applyFXStateToMenuItem:(NSMenuItem *)menuItem {
+    AudioFX *fx = self.audioPlayer.fx;
+    if ([menuItem.identifier isEqualToString:@"menu_fx_low_kill"]) {
+        menuItem.state = StateForBOOL(fx.lowKillEnabled);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_fx_low_kill_boost"]) {
-        menuItem.state = StateForBOOL(self.audioPlayer.fx.lowKillBoostActive);
+        menuItem.state = StateForBOOL(fx.lowKillBoostActive);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_fx_reverb"]) {
-        menuItem.state = StateForBOOL(self.audioPlayer.fx.reverbSendEnabled);
+        menuItem.state = StateForBOOL(fx.reverbSendEnabled);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_fx_delay"]) {
-        menuItem.state = StateForBOOL(self.audioPlayer.fx.delaySendEnabled);
+        menuItem.state = StateForBOOL(fx.delaySendEnabled);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_fx_short_delay"]) {
-        menuItem.state = StateForBOOL(self.audioPlayer.fx.shortDelaySendEnabled);
+        menuItem.state = StateForBOOL(fx.shortDelaySendEnabled);
     }
-    else if ([menuItem.identifier isEqualToString:@"pitch_range_8"]) {
-        menuItem.state = StateForBOOL(AppSettings.sharedInstance.pitchRange == 8);
+}
+
+- (void)applyPitchRangeStateToMenuItem:(NSMenuItem *)menuItem {
+    NSInteger range = AppSettings.sharedInstance.pitchRange;
+    if ([menuItem.identifier isEqualToString:@"pitch_range_8"]) {
+        menuItem.state = StateForBOOL(range == 8);
     }
     else if ([menuItem.identifier isEqualToString:@"pitch_range_16"]) {
-        menuItem.state = StateForBOOL(AppSettings.sharedInstance.pitchRange == 16);
+        menuItem.state = StateForBOOL(range == 16);
     }
-    else if ([menuItem.identifier isEqualToString:@"menu_play"]) {
+}
+
+#pragma mark - Conditional domains
+
+- (BOOL)validateTransportMenuItem:(NSMenuItem *)menuItem {
+    MainWindow *window = (MainWindow *)self.window;
+    // Only when there really is a track after the current one. At the end of
+    // the playlist, next: is a no-op.
+    if ([menuItem.identifier isEqualToString:@"menu_next_track"]) {
+        return self.playlistController.hasNextTrack;
+    }
+    if ([menuItem.identifier isEqualToString:@"menu_previous_track"]) {
+        return self.playlistController.hasPreviousTrack;
+    }
+    // A selection nobody can see is not a selection: with the playlist
+    // collapsed the arrow keys do not move it either (TransportKeyMonitor), so
+    // Return has nothing to act on.
+    if ([menuItem.identifier isEqualToString:@"menu_play_selected"]) {
+        return window.isPlaylistShown && self.playlistController.hasSelectedTrack;
+    }
+    // The skips need both a loaded track and a player that is not stopped:
+    // after the playlist ends there is no node left to seek. See
+    // skipByFileSeconds:.
+    return self.playlistController.currentTrack != nil && !self.audioPlayer.isStopped;
+}
+
+- (BOOL)validateFileMenuItem:(NSMenuItem *)menuItem {
+    if ([menuItem.identifier isEqualToString:@"menu_play"]) {
         // The action is playPause:, so mirror the toggle in the title and
         // icon, as standard macOS players do. During Loading, isPlaying
         // follows whether the pending open will start or park.
@@ -108,54 +167,51 @@
                                    accessibilityDescription:menuItem.title];
         return self.playlistController.count > 0;
     }
-    else if ([menuItem.identifier isEqualToString:@"menu_close"]) {
+    if ([menuItem.identifier isEqualToString:@"menu_close"]) {
         menuItem.title = self.playlistController.count > 1 ? STR_MENU_FILE_CLOSE_ALL : STR_MENU_FILE_CLOSE;
         // Nil-targeted, so the key window's closeFile: target owns both the
         // action and this shared item's title. Settings and About restore the
         // singular title in their own validators.
         return self.playlistController.count > 0;
     }
-    else if ([menuItem.identifier isEqualToString:@"show_in_finder"]) {
-        return self.playlistController.currentTrack.url != nil;
-    }
-    else if ([menuItem.identifier isEqualToString:@"menu_convert_to_flac"]) {
-        // The Convert menu's item and the window-body context menu's share
-        // this identifier; the converter owns the enable-and-retitle rule.
-        // With Convert switched off (Settings > Convert > Enabled) the whole
-        // feature is hidden — the menu bar's Convert menu through
-        // applyConvertMenuVisibility, and this shared item here, which is how
-        // the context menus follow the setting live.
-        menuItem.hidden = !AppSettings.sharedInstance.convertEnabled;
-        if (menuItem.hidden) {
-            return NO;
-        }
-        return [self.fileConverter validateConvertMenuItem:menuItem
-                                                  forTrack:self.playlistController.currentTrack];
-    }
+    return self.playlistController.currentTrack.url != nil;   // show_in_finder
+}
+
+- (BOOL)validateEditMenuItem:(NSMenuItem *)menuItem {
     // NSUndoManager's own state and titles, never a stat; an emptied Trash
     // surfaces only when the restore runs.
-    else if ([menuItem.identifier isEqualToString:@"menu_edit_undo"]) {
+    if ([menuItem.identifier isEqualToString:@"menu_edit_undo"]) {
         menuItem.title = self.window.undoManager.undoMenuItemTitle;
         return !self.isConversionUndoRedoInFlight && self.window.undoManager.canUndo;
     }
-    else if ([menuItem.identifier isEqualToString:@"menu_edit_redo"]) {
+    if ([menuItem.identifier isEqualToString:@"menu_edit_redo"]) {
         menuItem.title = self.window.undoManager.redoMenuItemTitle;
         return !self.isConversionUndoRedoInFlight && self.window.undoManager.canRedo;
     }
     // The Copy items act on the current track, like Show in Finder.
-    else if ([menuItem.identifier isEqualToString:@"menu_edit_copy_file"]) {
+    if ([menuItem.identifier isEqualToString:@"menu_edit_copy_file"]) {
         return self.playlistController.currentTrack.url != nil;
     }
-    else if ([menuItem.identifier isEqualToString:@"menu_edit_copy_name"]) {
-        return self.playlistController.currentTrack != nil;
-    }
+    return self.playlistController.currentTrack != nil;   // menu_edit_copy_name
+}
+
+- (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem {
     // A preference, not an action, so never disabled.
-    else if ([menuItem.identifier isEqualToString:@"menu_convert_delete_original"]) {
+    if ([menuItem.identifier isEqualToString:@"menu_convert_delete_original"]) {
         menuItem.state = StateForBOOL(AppSettings.sharedInstance.deleteOriginalAfterConvert);
+        return YES;
     }
-    // show_clicked_track_in_finder, on the playlist's row context menu,
-    // targets PlaylistController, which validates it.
-    return YES;
+    // The Convert menu's item and the window-body context menu's share this
+    // identifier; the converter owns the enable-and-retitle rule. With Convert
+    // switched off (Settings > Convert > Enabled) the whole feature is hidden —
+    // the menu bar's Convert menu through applyConvertMenuVisibility, and this
+    // shared item here, which is how the context menus follow the setting live.
+    menuItem.hidden = !AppSettings.sharedInstance.convertEnabled;
+    if (menuItem.hidden) {
+        return NO;
+    }
+    return [self.fileConverter validateConvertMenuItem:menuItem
+                                              forTrack:self.playlistController.currentTrack];
 }
 
 // A plain helper, deliberately not named numberOfItemsInMenu:. That selector
@@ -187,7 +243,7 @@
             // The identifier travels on the item — a localized title can't
             // round-trip into NSUserDefaults — and gives click_menu a stable id.
             item.representedObject = identifier;
-            item.identifier = [@"waveform_style_" stringByAppendingString:identifier];
+            item.identifier = VibeWaveformStyleMenuIdentifier(identifier);
             item.state = StateForBOOL([identifier isEqualToString:waveformView.currentWaveformStyle]);
             item.enabled = YES;
             item.target = self;

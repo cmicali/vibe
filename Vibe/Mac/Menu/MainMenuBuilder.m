@@ -11,6 +11,7 @@
 #import "MainPlayerController+Window.h"
 #import "MainPlayerController+Convert.h"
 #import "MainPlayerController+Transport.h"
+#import "MenuValidationRules.h"
 #import "OpenRecentMenuController.h"
 #import "OutputDevicesMenuController.h"
 #import "VibeStrings.h"
@@ -293,9 +294,12 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // the design width; see setWindowSize:. The height is deliberately
     // untouched, since it belongs to Show Playlist and the resize handle.
     NSMenu *sizeMenu = Submenu(viewMenu, STR_MENU_VIEW_SIZE).submenu;
-    AddItem(sizeMenu, STR_MENU_SIZE_SMALL, @selector(setWindowSize:), player, @"", 0, @"view_size_small");
-    AddItem(sizeMenu, STR_MENU_SIZE_DEFAULT, @selector(setWindowSize:), player, @"", 0, @"view_size_default");
-    AddItem(sizeMenu, STR_MENU_SIZE_LARGE, @selector(setWindowSize:), player, @"", 0, @"view_size_large");
+    AddItem(sizeMenu, STR_MENU_SIZE_SMALL, @selector(setWindowSize:), player, @"", 0,
+            VibeWindowSizeMenuIdentifier(VibeWindowSizePresetSmall));
+    AddItem(sizeMenu, STR_MENU_SIZE_DEFAULT, @selector(setWindowSize:), player, @"", 0,
+            VibeWindowSizeMenuIdentifier(VibeWindowSizePresetDefault));
+    AddItem(sizeMenu, STR_MENU_SIZE_LARGE, @selector(setWindowSize:), player, @"", 0,
+            VibeWindowSizeMenuIdentifier(VibeWindowSizePresetLarge));
 
     NSMenu *appearanceMenu = Submenu(viewMenu, STR_MENU_VIEW_APPEARANCE).submenu;
     AddItem(appearanceMenu, STR_MENU_APPEARANCE_SYSTEM, @selector(setAppearance:), player, @"", 0, @"view_appearance_system_default");
