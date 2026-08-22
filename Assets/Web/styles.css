@@ -67,7 +67,12 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
   width: 100%;
   filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.75));
 }
-.shot { margin: 0; }
+/* Narrower than the text column: the window shots are the widest thing on the
+   page and were setting its apparent width. Text keeps the 1080 container. */
+.shot {
+  margin: 0 auto;
+  max-width: 900px;
+}
 
 /* ---------- hero ---------- */
 
