@@ -16,7 +16,7 @@
 
 @implementation AudioPlayer (Gapless)
 
-// Sole writer of _gaplessQueued, keeping the lock-free mirror in step.
+// Sole writer of _gaplessQueued, keeping the UI-facing mirror in step.
 - (void)setGaplessQueuedOnQueue:(BOOL)queued {
     _gaplessQueued = queued;
     os_unfair_lock_lock(&_stateLock);

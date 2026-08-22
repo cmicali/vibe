@@ -169,19 +169,20 @@ NS_ASSUME_NONNULL_BEGIN
 // compiles cleanly; to callers it is simply part of AudioPlayer, exactly as
 // (Devices) below is.
 //
-// None of these blocks. Each takes the state lock, copies what it needs, and
-// computes off the lock — which is what lets the update timer call position
-// several times a second and the refresh funnels call the rest on every pass.
-// They read and never drive: nothing here touches the engine, the graph or the
-// player queue.
+// None of these makes a player-queue round trip. Each takes the state lock,
+// copies what it needs, and computes off the lock — which is what lets the
+// update timer call position several times a second and the refresh funnels
+// call the rest on every pass. They are short locked snapshots, not lock-free
+// reads: acquiring that lock can briefly wait. They read and never drive:
+// nothing here touches the engine or the graph.
 @interface AudioPlayer (State)
 
-// Playhead in file seconds. Lock-free, and reads 0 while Stopped or Loading.
+// Playhead in file seconds. Reads 0 while Stopped or Loading.
 // Seek with seekToPosition:; the move is asynchronous.
 @property (readonly) NSTimeInterval position;
 
 // Whether the next track is pre-scheduled on the current node for a gapless
-// splice at the boundary. Observability (the debug channel); lock-free.
+// splice at the boundary. Observability (the debug channel).
 @property (readonly, getter=isGaplessArmed) BOOL gaplessArmed;
 
 // Actual modeled output liveness, unlike isPlaying's transport intent:

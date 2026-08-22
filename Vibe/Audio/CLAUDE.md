@@ -31,7 +31,7 @@ They all share `AudioPlayerInternal.h` — the class extension and every ivar a 
 
 ### Threading
 
-Every engine mutation runs on a serial `dispatch_queue` (`com.vibe.audioplayer`). The UI-facing getters — `position`, `duration`, `isPlaying` — read under an `os_unfair_lock` and never block. Two generation counters sort out async work: `_segmentGeneration` discards stale `scheduleSegment` completions, and `_rampGeneration` cancels in-flight volume fades, which stop, seek, skip and device switches all bump first. Every fade is asynchronous, so the queue never sleeps.
+Every engine mutation runs on a serial `dispatch_queue` (`com.vibe.audioplayer`). The UI-facing getters — `position`, `duration`, `isPlaying` — take an `os_unfair_lock`, copy, and compute off it: no player-queue round trip, though acquiring the lock itself can briefly wait. Two generation counters sort out async work: `_segmentGeneration` discards stale `scheduleSegment` completions, and `_rampGeneration` cancels in-flight volume fades, which stop, seek, skip and device switches all bump first. Every fade is asynchronous, so the queue never sleeps.
 
 **TRAP: `AVAudioPlayerNode` fires completions on stop and reschedule too, not only at a natural end** — so every interruption (skip, seek, device switch, a new play) bumps `_segmentGeneration` first and those completions are dropped.
 
@@ -75,7 +75,7 @@ The current segment's completion then means "boundary passed", not "playback sto
 
 Because a promote can land between a main-thread action and its queue block, intent is snapshotted: `seekToPosition:` and `finishCurrentTrack` capture the current track at dispatch and drop the request if the boundary advanced it.
 
-CoreAudio honors LAME/iTunes gapless metadata, so tagged MP3/AAC and all lossless files splice seamlessly; an untagged MP3's baked-in encoder padding is the one gap this cannot remove. `isGaplessArmed` (lock-free) surfaces the armed state to `dump_state`.
+CoreAudio honors LAME/iTunes gapless metadata, so tagged MP3/AAC and all lossless files splice seamlessly; an untagged MP3's baked-in encoder padding is the one gap this cannot remove. `isGaplessArmed` surfaces the armed state to `dump_state`.
 
 ### Live output levels
 

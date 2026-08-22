@@ -137,8 +137,8 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // park: AVAudioFile has one stateful read position and the node pre-reads
     // scheduled files on its own worker, so the armed segment must never share
     // the instance a play: would consume. All queue-confined; _gaplessQueued
-    // additionally mirrors to _gaplessArmedForUI (under _stateLock) for the
-    // lock-free isGaplessArmed, through setGaplessQueuedOnQueue:, the flag's
+    // additionally mirrors to _gaplessArmedForUI (under _stateLock) for
+    // isGaplessArmed to snapshot, through setGaplessQueuedOnQueue:, the flag's
     // sole writer. ALWAYS: every [node stop] of the current node drops its
     // queued segment, so every such site clears the flag first and, when it
     // keeps playing the same file, re-arms after its reschedule.

@@ -102,9 +102,9 @@
     AVAudioTime *playerTime = nil;
     @try {
         // The queue can detach this node concurrently, on fast skips, because
-        // this getter is deliberately lock-free, and a detached node's
-        // lastRenderTime raises when _engine is non-nil rather than returning
-        // nil. Treat that as no reading: the fallback below serves the last
+        // the snapshot above is deliberately used off the lock, and a detached
+        // node's lastRenderTime raises when _engine is non-nil rather than
+        // returning nil. Treat that as no reading: the fallback below serves the last
         // valid position, and the next tick reads the replacement node.
         AVAudioTime *nodeTime = node.lastRenderTime;
         // A stopped engine's node hands back a non-nil time with BOTH validity
