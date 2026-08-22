@@ -28,6 +28,11 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
 // with its scope held for the session and released when the row goes.
 @property (nonatomic) NSURL *resolvedURL;
 @property (nonatomic) BOOL scopeStarted;
+// resolvedURL is only set when the operation LANDS, so it cannot double as the
+// already-asked test: Search re-applies its roots on every delivery, and each
+// re-apply would enqueue another resolve for every row still in flight — two
+// startAccessingSecurityScopedResource calls against one recorded stop.
+@property (nonatomic) BOOL scopeResolveInFlight;
 - (instancetype)initWithName:(NSString *)name
                     location:(NSString *)location
                         path:(NSString *)path
@@ -291,9 +296,10 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
 // is gone simply never becomes a root: the row stays, because it is still a
 // place the user asked to keep, and tapping it says so with the alert.
 - (void)resolveScopeForFavorite:(FavoriteFolder *)favorite {
-    if (favorite.resolvedURL) {
+    if (favorite.resolvedURL || favorite.scopeResolveInFlight) {
         return;
     }
+    favorite.scopeResolveInFlight = YES;
     NSData *bookmark = favorite.bookmark;
     [_scopeQueue addOperationWithBlock:^{
         BOOL stale = NO;
@@ -306,6 +312,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
         // security-scoped. Record what was started, for the balanced stop.
         BOOL scoped = url ? [url startAccessingSecurityScopedResource] : NO;
         run_on_main_thread({
+            favorite.scopeResolveInFlight = NO;
             if (!url) {
                 return;
             }
@@ -331,6 +338,8 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
 // resolvedRootCoveringURL: and then takes a hold of its OWN. Both own their
 // readability, so dropping this one cannot leave a playlist unreadable.
 - (void)releaseScopeForFavorite:(FavoriteFolder *)favorite {
+    // A resolve still in flight checks membership before recording anything, so
+    // it releases its own hold and there is nothing here to balance.
     if (favorite.scopeStarted) {
         [favorite.resolvedURL stopAccessingSecurityScopedResource];
         favorite.scopeStarted = NO;

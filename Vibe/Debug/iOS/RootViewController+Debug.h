@@ -62,6 +62,11 @@
 // Whether the file walk is still running, so a poll can tell "no matches" from
 // "not finished looking".
 - (BOOL)isBuildingFileIndex;
+// The walk and the file matching are BOTH gated on this. False means the files
+// half answered nothing because it never ran — the card is up over this screen,
+// another tab is forward, or the scene is not active — which is otherwise
+// indistinguishable from a query that genuinely matched no file.
+- (BOOL)isMateriallyVisible;
 @end
 
 @interface RootViewController (Debug) <VibeDebugPlayerSurface>

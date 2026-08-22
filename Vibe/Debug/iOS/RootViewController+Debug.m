@@ -151,7 +151,13 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
             @"rows": rows
         }];
     }
-    return @{@"ok": @YES, @"query": query, @"sections": sections};
+    return @{@"ok": @YES,
+             @"query": query,
+             // Without this an empty files section reads as "no matches" when it
+             // really means "the files half never ran".
+             @"materiallyVisible": @(screen.isMateriallyVisible),
+             @"filesWalkRunning": @(screen.isBuildingFileIndex),
+             @"sections": sections};
 }
 
 - (BOOL)debugTapSearchFileAtIndex:(NSUInteger)index {
