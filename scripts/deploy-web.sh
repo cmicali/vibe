@@ -122,7 +122,7 @@ PROJECT="${CLOUDFLARE_PAGES_PROJECT:-vibe}"
 # authenticates.
 if [[ -n "$USE_LOGIN" ]]; then
     echo "🔊 using this machine's wrangler login rather than a token"
-elif [[ -z "${CLOUDFLARE_API_TOKEN:-}" || -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
+elif [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
     cat >&2 <<'MSG'
 error: Cloudflare credentials not configured.
 
@@ -135,8 +135,9 @@ error: Cloudflare credentials not configured.
   to the gitignored .release-env in the repo root, beside the ASC keys:
 
       CLOUDFLARE_API_TOKEN=...
-      CLOUDFLARE_ACCOUNT_ID=...
-      CLOUDFLARE_PAGES_PROJECT=vibe     # optional, defaults to vibe
+      CLOUDFLARE_ACCOUNT_ID=...          # optional; needed only if the token
+                                         # can reach more than one account
+      CLOUDFLARE_PAGES_PROJECT=vibe      # optional, defaults to vibe
 
   (.release-env is gitignored. Never commit the token.)
 
@@ -146,7 +147,10 @@ error: Cloudflare credentials not configured.
 MSG
     exit 1
 else
-    export CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID
+    # The account id is only needed to disambiguate a token that can reach
+    # several accounts; wrangler resolves a single-account token by itself.
+    export CLOUDFLARE_API_TOKEN
+    [[ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]] && export CLOUDFLARE_ACCOUNT_ID
 fi
 
 echo "🔊 deploying $DIR to Cloudflare Pages project '$PROJECT'"

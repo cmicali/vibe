@@ -93,11 +93,12 @@ without uploading, and needs no credentials.
 
 ## Credentials, and why Cloudflare is local-only
 
-`deploy-web` reads `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from the
-gitignored `.release-env` at the repo root, the same file the App Store Connect
-keys live in. The token needs exactly one permission: **Account | Cloudflare
-Pages | Edit**. `CLOUDFLARE_PAGES_PROJECT` overrides the project name, which
-defaults to `vibe`.
+`deploy-web` reads `CLOUDFLARE_API_TOKEN` from the gitignored `.release-env` at
+the repo root, the same file the App Store Connect keys live in. The token needs
+exactly one permission: **Account | Cloudflare Pages | Edit**.
+`CLOUDFLARE_ACCOUNT_ID` is optional — wrangler resolves a single-account token
+by itself, and the id is only needed to disambiguate one that can reach several.
+`CLOUDFLARE_PAGES_PROJECT` overrides the project name, which defaults to `vibe`.
 
 That token deliberately does not go into CI. A repository secret is readable by
 any workflow change, and publishing a static site should not need a standing
