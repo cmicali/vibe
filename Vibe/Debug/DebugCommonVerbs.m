@@ -26,6 +26,7 @@
 #import "AudioWaveformCache.h"
 #import "AudioWaveformCache+Debug.h"
 #import "AppSettings.h"
+#import "AppStats.h"
 #import "AudioLoadTiming.h"
 #import "MusicalKey.h"
 #import "SettingsRules.h"
@@ -171,6 +172,17 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             VibeDebugCmd(@"dump_state", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                        id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString(surface.debugStateDictionary);
+            }),
+            // Shared since AppStats became shared: both shells count opens and
+            // listening time, and both show the totals in Settings > About.
+            VibeDebugCmd(@"dump_stats", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                       id<VibeDebugPlayerSurface> surface) {
+                AppStats *stats = [AppStats sharedInstance];
+                return VibeJSONString(@{
+                    @"filesOpened": @(stats.totalFilesOpened),
+                    @"foldersOpened": @(stats.totalFoldersOpened),
+                    @"secondsPlayed": @(stats.totalSecondsPlayed),
+                });
             }),
             VibeDebugCmd(@"dump_now_playing", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                              id<VibeDebugPlayerSurface> surface) {

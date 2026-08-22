@@ -15,6 +15,7 @@
 #import "OpenRecentMenuController.h"
 #import "NSBundle+BuildInfo.h"
 #import "AppStats.h"
+#import "VibeProductURLs.h"
 #import "DocumentTypes.h"
 #import "FolderAccessManager.h"
 #import "FolderAccessManager+GrantPanel.h"
@@ -27,7 +28,6 @@
 #import "OpenBurstCoalescer+Debug.h"
 #endif
 
-NSString *const kVibeSupportURL = @"https://vibeplayer.app/support";
 
 @interface AppDelegate ()
 

@@ -9,7 +9,6 @@
 
 // The app's support page. Help > Get Support and the About pane's link are
 // the two doors to it, so the address is written once.
-extern NSString *const kVibeSupportURL;
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 

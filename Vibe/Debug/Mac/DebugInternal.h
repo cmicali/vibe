@@ -53,7 +53,6 @@
 #import "SymbolButton.h"
 #import "AppSettings.h"
 #import "NSURLUtil.h"
-#import "AppStats.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

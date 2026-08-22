@@ -66,14 +66,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         table = @[
-            VibeCmd(@"dump_stats", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                AppStats *stats = [AppStats sharedInstance];
-                return VibeJSONString(@{
-                    @"filesOpened": @(stats.totalFilesOpened),
-                    @"foldersOpened": @(stats.totalFoldersOpened),
-                    @"secondsPlayed": @(stats.totalSecondsPlayed),
-                });
-            }),
             // The stress driver's two oracles; see DebugHealth.h. dump_health
             // and check_consistency (shared table) both reach the player's
             // serial queue for the engine node count, so a wedged queue times

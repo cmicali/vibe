@@ -5,10 +5,10 @@
 //  The bounded image decode, in platform-neutral terms. It is the companion to
 //  PlatformTypes.h: that header names VibeImage, this one builds one.
 //
-//  It is a free function rather than a category because there is no single
-//  foreign class to hang it on — the constructed class is NSImage or UIImage
-//  depending on the target — and because it constructs rather than adds
-//  behavior to an instance.
+//  These are free functions rather than categories because there is no single
+//  foreign class to hang them on: the image is NSImage or UIImage depending on
+//  the target, and the color one of them returns is NSColor or UIColor. Same
+//  reason PlatformColor.h's VibeHexStringFromColor is a function.
 //
 
 #import <Foundation/Foundation.h>
@@ -39,5 +39,17 @@ FOUNDATION_EXPORT const CGFloat kVibeArchivedDisplayArtDimension;
 // bitmap. nil for nil data, or data that is not a decodable image. The decode
 // can take 10-100ms, so it belongs off the main thread.
 FOUNDATION_EXPORT VibeImage *_Nullable VibeDecodedImageWithData(NSData *_Nullable data, CGFloat maxPixelSize);
+
+// The image's dominant color, for tinting a surface to match album art: the
+// average of the most-populated hue band, weighted by saturation times
+// brightness, so a colorful accent beats a large muted background. An
+// effectively monochrome image falls back to the plain average and returns that
+// gray. It downsamples to a fixed 32x32 internally, so the cost is independent
+// of image size; nil only when the image cannot be rasterized.
+//
+// Callers that ask repeatedly for the same image should memoize — the mac's
+// ArtworkDisplayController keys a weak map by source image, iOS memoizes on the
+// UIImage itself (UIImage+DominantColor).
+FOUNDATION_EXPORT VibeColor *_Nullable VibeDominantColorOfImage(VibeImage *_Nullable image);
 
 NS_ASSUME_NONNULL_END

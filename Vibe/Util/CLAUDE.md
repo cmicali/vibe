@@ -12,9 +12,13 @@ Code with **no feature**. That is the whole admission test, and it is stricter t
 - `HelperMacros.h` — control-state and main-thread shorthands, `clampMin`. It reaches every translation unit through the `.pch`, so anything added there is paid for everywhere.
 - `VibeWeakProxy` — a Foundation-only forwarding proxy that breaks the retain cycle a `CADisplayLink` or `NSTimer` target creates. Shared because the class is platform-free, and used from shared code: `EqualizerIndicatorView` aims its level poller through one on both platforms, whichever of the two pollers it holds, as does the iOS `PlayerViewController`'s scroll display link.
 
-**`Categories/` (portable):** `NSURL+Hash` (the cache key — see the root `CLAUDE.md`), `NSURL+AudioOpen`, `NSBundle+BuildInfo`, `NSString+CPPStrings`.
+**`Categories/` (portable):** `NSURL+Hash` (the cache key — see the root `CLAUDE.md`), `NSURL+AudioOpen`, `NSBundle+BuildInfo`, `NSString+CPPStrings`, `NSString+FormLabel`.
+
+`NSString+FormLabel`'s `vibeFormLabel` drops a settings string's form-layout colon ("Output:", French "Sortie :"). The catalogs keep the colon, because that is the form most of the mac's panes draw; a grouped row — the mac's cards, every row on the iOS settings screens — puts the value in its own column and wants the bare noun. Both platforms ask here rather than each trimming its own way, so one rule covers the French no-break space and the fullwidth colon CJK uses.
 
 **`Mac/` (AppKit)** and **`iOS/` (UIKit)** each have their own `CLAUDE.md`. Neither target names the other's subdirectory — see the root `CLAUDE.md` on the directory being the platform boundary.
+
+`NSImage+Util`'s **`dominantColor`** is a thin forward to `Common/PlatformImage.h`'s `VibeDominantColorOfImage`, shared with iOS so the two platforms cannot drift on what a cover's color is. It stays a category because that is how a mac call site asks an `NSImage` for it.
 
 `NSBundle+BuildInfo` also vends **`VibeLogBuildProvenance()`**, the launch banner both app delegates print, so a log excerpt identifies its build the same way on either platform.
 

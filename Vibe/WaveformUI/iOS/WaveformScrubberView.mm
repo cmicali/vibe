@@ -319,10 +319,10 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     [self applyResolvedTheme];
 }
 
-// The one resolution site on this view: settings + appearance into the
-// renderer's palette. No artwork color — the album_art theme is macOS-only
-// until an iOS dominant-color extraction exists, and WaveformTheme resolves
-// its identifier to White's answer here.
+// The one resolution site on this view: settings + appearance + this page's
+// artwork color into the renderer's palette. Only the album_art theme reads the
+// last of those, and nil there is a real answer — a track with no art resolves
+// to Mono's, which is what WaveformTheme does with it.
 - (void)applyResolvedTheme {
     if (!_renderer) {
         return;
@@ -330,27 +330,40 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     AppSettings *settings = AppSettings.sharedInstance;
     _renderer.theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
                                                  isDark:self.isDark
-                                           artworkColor:nil
+                                           artworkColor:_artworkThemeColor
                                            customPlayed:[settings waveformCustomPlayedColorForDark:self.isDark]
                                          customUnplayed:[settings waveformCustomUnplayedColorForDark:self.isDark]];
     [_renderer updateColors:self.isDark];
-    _themeSignature = [self.class themeSignature];
+    _themeSignature = [self themeSignature];
 }
 
 // What syncWaveformTheme compares to decide "the palette moved": the
 // identifier and all four custom hexes, everything the resolution above can
-// read from settings in either appearance.
-+ (NSString *)themeSignature {
+// read from settings in either appearance — plus this page's artwork color,
+// which is why it is an INSTANCE method where the rest is app-wide. Leave the
+// color out and a swipe onto a track with different art would compare equal and
+// keep the previous track's palette.
+- (NSString *)themeSignature {
     AppSettings *settings = AppSettings.sharedInstance;
-    return [NSString stringWithFormat:@"%@|%@|%@|%@|%@", settings.waveformTheme,
+    return [NSString stringWithFormat:@"%@|%@|%@|%@|%@|%@", settings.waveformTheme,
             VibeHexStringFromColor([settings waveformCustomPlayedColorForDark:YES]) ?: @"",
             VibeHexStringFromColor([settings waveformCustomUnplayedColorForDark:YES]) ?: @"",
             VibeHexStringFromColor([settings waveformCustomPlayedColorForDark:NO]) ?: @"",
-            VibeHexStringFromColor([settings waveformCustomUnplayedColorForDark:NO]) ?: @""];
+            VibeHexStringFromColor([settings waveformCustomUnplayedColorForDark:NO]) ?: @"",
+            VibeHexStringFromColor(_artworkThemeColor) ?: @""];
+}
+
+// Re-resolves through the same path a settings change takes, so a page handed
+// new art needs no second call. syncWaveformTheme's own signature compare makes
+// a repeated set with the same color free, which matters because the pager
+// reconfigures a page on every pass through the reuse pool.
+- (void)setArtworkThemeColor:(UIColor *)artworkThemeColor {
+    _artworkThemeColor = artworkThemeColor;
+    [self syncWaveformTheme];
 }
 
 - (void)syncWaveformTheme {
-    if (!_renderer || [[self.class themeSignature] isEqualToString:_themeSignature]) {
+    if (!_renderer || [[self themeSignature] isEqualToString:_themeSignature]) {
         return;
     }
     // The appearance-change shape: recolor the live tree, drop the bake —

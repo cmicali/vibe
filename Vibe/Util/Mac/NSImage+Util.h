@@ -31,11 +31,9 @@
 // rasterized.
 - (nullable NSImage *)squareCroppedImage;
 
-// The image's dominant color, for tinting a backdrop to match album art. It is
-// the average of the most-populated hue band, weighted by saturation times
-// brightness, so that a colorful accent beats a large muted background. For an
-// effectively monochrome image it falls back to the plain average and returns
-// that gray. It downsamples internally, so its cost is independent of image
-// size, and it returns nil only if the image cannot be rasterized.
+// The image's dominant color, for tinting a backdrop to match album art.
+// A thin forward to PlatformImage.h's VibeDominantColorOfImage, which both
+// platforms share; the rules and the cost are documented there. It stays a
+// category because that is how a mac call site asks an NSImage for it.
 - (nullable NSColor *)dominantColor;
 @end

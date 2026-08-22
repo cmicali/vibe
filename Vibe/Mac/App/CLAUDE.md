@@ -39,6 +39,6 @@ Restoration has three utility workers plus one user-initiated lane reserved for 
 
 ## Stats
 
-`AppStats` counts lifetime usage — `totalFilesOpened`, `totalFoldersOpened`, `totalSecondsPlayed` — in `NSUserDefaults`, and the Advanced settings pane reads it. **macOS-only**, like the pane that displays it.
+`AppStats` lives in `Vibe/Common/` and counts for **both** platforms; this shell feeds it from `deliverExpandedURLs:` (the open funnel) and from the player events, and `applicationWillTerminate:` folds the in-progress listening run. See `Common/CLAUDE.md` for the store and for what the two platforms do differently about keeping a running clock honest.
 
 The open sinks and the player-delegate transitions feed it. **`stop` and quit fire no delegate callback**, so `closeFile:` and `applicationWillTerminate:` flush by hand; that asymmetry is the whole reason the counters are not simply derived.

@@ -4,6 +4,7 @@
 //
 
 #import "SettingsFormViews.h"
+#import "NSString+FormLabel.h"
 
 static const CGFloat kRowPaddingH = 16;
 static const CGFloat kRowPaddingV = 8;
@@ -11,17 +12,6 @@ static const CGFloat kRowMinHeight = 38;
 static const CGFloat kRowTitleControlGap = 8;
 static const CGFloat kCardCornerRadius = 6;
 static const CGFloat kHeaderCardGap = 6;
-
-// The shared strings keep their form-layout colon ("Output:", French
-// "Sortie :"); the grouped row drops it for display without touching the
-// catalogs. whitespaceCharacterSet covers the no-break space French uses.
-static NSString *StripTrailingColon(NSString *text) {
-    if ([text hasSuffix:@":"] || [text hasSuffix:@"："]) {
-        return [[text substringToIndex:text.length - 1]
-                stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
-    }
-    return text;
-}
 
 // updateLayer resolves colors against the current appearance, and the
 // appearance-change hook re-runs it, so both dynamic colors track a live
@@ -132,7 +122,7 @@ static NSString *StripTrailingColon(NSString *text) {
     ]];
 
     if (title.length) {
-        NSTextField *titleLabel = [NSTextField labelWithString:StripTrailingColon(title)];
+        NSTextField *titleLabel = [NSTextField labelWithString:title.vibeFormLabel];
         titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
         titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
         [row addSubview:titleLabel];
@@ -243,7 +233,7 @@ static NSString *StripTrailingColon(NSString *text) {
     NSLayoutYAxisAnchor *cardTopAttachment = section.topAnchor;
     CGFloat cardTopGap = 0;
     if (header.length) {
-        NSTextField *headerLabel = [NSTextField labelWithString:StripTrailingColon(header)];
+        NSTextField *headerLabel = [NSTextField labelWithString:header.vibeFormLabel];
         headerLabel.translatesAutoresizingMaskIntoConstraints = NO;
         headerLabel.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize
                                              weight:NSFontWeightSemibold];

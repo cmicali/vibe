@@ -10,6 +10,11 @@
 NSNotificationName const VibeDisplaySettingsDidChangeNotification =
         @"VibeDisplaySettingsDidChange";
 
+void VibeNotifyDisplaySettingsChanged(void) {
+    [NSNotificationCenter.defaultCenter
+            postNotificationName:VibeDisplaySettingsDidChangeNotification object:nil];
+}
+
 static NSString *const kShowRemainingTimeKey = @"VibeiOSShowRemainingTime";
 static NSString *const kShowFileInfoKey      = @"VibeiOSShowFileInfo";
 

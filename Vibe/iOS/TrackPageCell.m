@@ -6,6 +6,7 @@
 #import "TrackPageCell.h"
 #import "OutputRouteView.h"
 #import "UIImage+Blur.h"
+#import "UIImage+DominantColor.h"
 #import "VibeStrings.h"
 #import "WaveformScrubberView.h"
 
@@ -697,6 +698,11 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     // which UIImage+Blur memoizes on the artwork, so a page reconfigured for
     // the same track pays nothing.
     _artCardView.image = art;
+    // The album_art waveform theme's color rides the art install, exactly as it
+    // does on the mac: the color is derived from the image this page was just
+    // handed, so it cannot belong to another track however the delivery raced.
+    // Memoized on the image, and the setter no-ops when the color has not moved.
+    _waveformView.artworkThemeColor = art.vibeDominantColor;
     UIImage *backdrop = [art vibeBlurredBackdrop];
     _backdropView.image = backdrop;
     // Opaque, so the render server can stop at this layer instead of drawing

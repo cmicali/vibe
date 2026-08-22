@@ -5,6 +5,7 @@
 
 #import "FolderSession.h"
 #import "AppSettings.h"
+#import "AppStats.h"
 #import "DocumentTypes.h"
 #import "FileSearchRules.h"
 #import "NSURLUtil.h"
@@ -443,6 +444,13 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     _scopedURL = scopedURL;
     _scopeActive = (scopedURL != nil);
     _folderURL = folderURL;
+    // The one place all three entry points land, so the counters cannot miss an
+    // open or double-count one. A launch restore is not an open the user made,
+    // and counting it would add a folder to the total on every cold start.
+    if (!restored) {
+        [[AppStats sharedInstance] recordOpenedFiles:tracks.count
+                                             folders:(folderURL ? 1 : 0)];
+    }
     [self.delegate folderSession:self didOpenTracks:tracks folderURL:folderURL
                      selectedURL:selectedURL restored:restored];
 }

@@ -11,16 +11,14 @@
 
 @implementation AppStats {
     // systemUptime when the current playback run began, or 0 while not
-    // playing. Monotonic, but NOT frozen during system sleep on Apple Silicon,
-    // so sleep — which silences the engine without a pause callback — would
-    // count the whole night as listening. The workspace sleep/wake observers
-    // below bracket the run instead: will-sleep folds and zeroes the baseline,
-    // did-wake restarts it.
+    // playing.
     NSTimeInterval _playbackStartUptime;
+#if TARGET_OS_OSX
     // A run folded at will-sleep and awaiting its did-wake restart. While set,
     // the run is logically still active — playbackStopped must still balance
     // the sudden-termination hold, and playbackStarted must not re-take it.
     BOOL _sleepPausedRun;
+#endif
 }
 
 + (AppStats *)sharedInstance {
@@ -35,9 +33,10 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        // Process-lifetime singleton, so the observers are never removed.
-        // Workspace notifications arrive on the main thread, matching this
+        // Process-lifetime singleton, so the observers are never removed. Both
+        // platforms' notifications arrive on the main thread, matching this
         // class's main-thread-only contract.
+#if TARGET_OS_OSX
         NSNotificationCenter *center = NSWorkspace.sharedWorkspace.notificationCenter;
         [center addObserver:self
                    selector:@selector(workspaceWillSleep:)
@@ -47,6 +46,17 @@
                    selector:@selector(workspaceDidWake:)
                        name:NSWorkspaceDidWakeNotification
                      object:nil];
+#else
+        NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+        [center addObserver:self
+                   selector:@selector(flushRunningClock:)
+                       name:UIApplicationDidEnterBackgroundNotification
+                     object:nil];
+        [center addObserver:self
+                   selector:@selector(flushRunningClock:)
+                       name:UIApplicationWillTerminateNotification
+                     object:nil];
+#endif
     }
     return self;
 }
@@ -80,14 +90,19 @@
 }
 
 - (void)playbackStarted {
+#if TARGET_OS_OSX
     if (![self runActive]) {
         // The app supports sudden termination, under which quit is a SIGKILL
         // and applicationWillTerminate: never runs. Holding it off while the
-        // clock runs is what lets the quit-time flush actually happen.
+        // clock runs is what lets the quit-time flush actually happen. iOS has
+        // no such API — it folds at every background edge instead, below.
         [NSProcessInfo.processInfo disableSuddenTermination];
     }
+#endif
     [self foldElapsedPlayback];
+#if TARGET_OS_OSX
     _sleepPausedRun = NO;
+#endif
     _playbackStartUptime = NSProcessInfo.processInfo.systemUptime;
 }
 
@@ -97,14 +112,26 @@
     }
     [self foldElapsedPlayback];
     _playbackStartUptime = 0;
+#if TARGET_OS_OSX
     _sleepPausedRun = NO;
     [NSProcessInfo.processInfo enableSuddenTermination];
+#endif
 }
 
 - (BOOL)runActive {
+#if TARGET_OS_OSX
     return _playbackStartUptime > 0 || _sleepPausedRun;
+#else
+    return _playbackStartUptime > 0;
+#endif
 }
 
+#if TARGET_OS_OSX
+
+// systemUptime is monotonic, but NOT frozen during system sleep on Apple
+// Silicon, so sleep — which silences the engine without a pause callback —
+// would count the whole night as listening. These two bracket the run instead:
+// will-sleep folds and zeroes the baseline, did-wake restarts it.
 - (void)workspaceWillSleep:(NSNotification *)notification {
     if (_playbackStartUptime <= 0) {
         return;
@@ -120,6 +147,26 @@
         _playbackStartUptime = NSProcessInfo.processInfo.systemUptime;
     }
 }
+
+#else
+
+// iOS needs no sleep bracket: a device does not go to sleep out from under a
+// running audio session, and anything that does silence one — an interruption,
+// a route loss — reaches the player and pauses it, so the run ends through
+// playbackStopped like any other. What it needs instead is a persistence edge,
+// because a backgrounded app is killed with no notice and no terminate
+// callback. Both edges fold the elapsed time into the total and restart the
+// baseline WITHOUT ending the run: playback carries on in the background
+// (UIBackgroundModes: audio), so the clock must keep running after the write.
+- (void)flushRunningClock:(NSNotification *)notification {
+    if (_playbackStartUptime <= 0) {
+        return;
+    }
+    [self foldElapsedPlayback];
+    _playbackStartUptime = NSProcessInfo.processInfo.systemUptime;
+}
+
+#endif
 
 - (void)foldElapsedPlayback {
     if (_playbackStartUptime <= 0) {

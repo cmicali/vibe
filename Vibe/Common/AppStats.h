@@ -6,7 +6,13 @@
 #import <Foundation/Foundation.h>
 
 // Lifetime usage counters, persisted in NSUserDefaults. Main thread only:
-// every caller — the open sinks and the player delegate — already lives there.
+// every caller — the open sinks and the player delegates — already lives there.
+//
+// Both platforms count, and both show the totals in Settings > About. What
+// differs is only how a running listening clock is kept honest across the
+// process going quiet, and that is one #if TARGET_OS_OSX block in the
+// implementation: the mac brackets its clock around system sleep and holds off
+// sudden termination, iOS folds it at every background and terminate edge.
 @interface AppStats : NSObject
 
 + (AppStats *)sharedInstance;

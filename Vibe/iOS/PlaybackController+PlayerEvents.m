@@ -18,6 +18,7 @@
 #import "PlaybackControllerInternal.h"
 #import "PlaybackController+NowPlaying.h"
 
+#import "AppStats.h"
 #import "AudioErrorRules.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
@@ -130,6 +131,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (!playing) {
         [_audioSession deactivateWhenIdle];
     }
+    else {
+        [[AppStats sharedInstance] playbackStarted];
+    }
     [self notifyDidChangePlayState];
     [self notifyDidTick];
 }
@@ -138,6 +142,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (![_playlist isCurrentTrack:track]) {
         return;
     }
+    [[AppStats sharedInstance] playbackStopped];
     _updateTimer.wanted = NO;
     [_audioSession deactivateWhenIdle];
     [self notifyDidChangePlayState];
@@ -151,6 +156,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // A resume from a media-reset (or interrupted-load) park goes through
     // playPause directly, never playCurrentTrack, so the flag clears here.
     _parked = NO;
+    [[AppStats sharedInstance] playbackStarted];
     _updateTimer.wanted = YES;
     [self notifyDidChangePlayState];
     [self notifyDidTick];
@@ -178,8 +184,21 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // player first — and advancing then skips past the track the user just
     // picked. Same guard as the mac's MainPlayerController+PlayerEvents.
     if (track && ![_playlist isCurrentTrack:track]) {
+        // The replacement may still be opening, and in that gap the player has
+        // no current track, so the finished track's stats run must stop here;
+        // didStartPlaying: starts a fresh one once the replacement produces
+        // audio. A replacement that is already playing has its restarted clock
+        // left alone — which is why a playlist emptied since (both sides nil,
+        // and so equal) must not read as that case and leave the clock running.
+        AudioTrack *playlistTrack = _playlist.currentTrack;
+        if (!playlistTrack || audioPlayer.currentTrack != playlistTrack) {
+            [[AppStats sharedInstance] playbackStopped];
+        }
         return;
     }
+    // Folds the finished run. An advance restarts it through didStartPlaying:;
+    // a park leaves it stopped.
+    [[AppStats sharedInstance] playbackStopped];
     if ([_playlist next]) {
         [self playCurrentTrack];
         return;
@@ -247,6 +266,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (current) {
         [self notifyDidRenderCurrentTrack];
     }
+    [[AppStats sharedInstance] playbackStopped];
     _updateTimer.wanted = NO;
     [_audioSession deactivateWhenIdle];
     [self notifyDidChangePlayState];

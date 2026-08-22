@@ -8,12 +8,10 @@
 #import "AppStats.h"
 #import "Formatters.h"
 #import "NSBundle+BuildInfo.h"
+#import "VibeProductURLs.h"
 #import "VibeStrings.h"
 
 static const CGFloat kAboutIconSize = 96;
-
-static NSString *const kAboutWebURL = @"https://vibeplayer.app";
-static NSString *const kAboutRepoURL = @"https://github.com/cmicali/vibe";
 
 // A borderless button styled as a hyperlink; a plain NSButton so the debug
 // walker addresses it by title.
@@ -127,7 +125,7 @@ static NSString *const kAboutRepoURL = @"https://github.com/cmicali/vibe";
 }
 
 - (void)openWeb:(id)sender {
-    [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:kAboutWebURL]];
+    [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:kVibeWebURL]];
 }
 
 - (void)openSupport:(id)sender {
@@ -135,7 +133,7 @@ static NSString *const kAboutRepoURL = @"https://github.com/cmicali/vibe";
 }
 
 - (void)openRepo:(id)sender {
-    [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:kAboutRepoURL]];
+    [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:kVibeRepoURL]];
 }
 
 @end

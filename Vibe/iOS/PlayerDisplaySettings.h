@@ -25,6 +25,12 @@ NS_ASSUME_NONNULL_BEGIN
 // it repaints the pages itself.
 extern NSNotificationName const VibeDisplaySettingsDidChangeNotification;
 
+// Posts it. The settings screens are several — one per group, plus a picker
+// per choice — and every one of them that writes a display setting ends on
+// this rather than composing the post itself, so a new screen cannot post a
+// near-miss name to a card that would then never hear it.
+void VibeNotifyDisplaySettingsChanged(void);
+
 // The right-hand time label's mode, and the one place the two spellings live.
 // NO — the default, and the macOS default — shows the track's total duration;
 // YES shows the minus-prefixed remaining time ("-1:50"). Tapping the label

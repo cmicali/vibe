@@ -114,6 +114,17 @@ NS_ASSUME_NONNULL_BEGIN
 // and does nothing when they already match. Fanned out like the style.
 - (void)syncWaveformTheme;
 
+// The dominant color of THIS page's artwork, which the album_art theme draws
+// its palette from; nil for a track with no art, which resolves to Mono's
+// answer. The mac's AudioWaveformView carries the same property for the same
+// reason.
+//
+// It is per view rather than per app because each page of the track pager shows
+// a different track: one shared color would paint the whole pager with whatever
+// happened to be playing. Setting it re-resolves the palette, so a caller that
+// has just handed the page its art has nothing else to call.
+@property (nonatomic, strong, nullable) UIColor *artworkThemeColor;
+
 // Same contract as the mac view: reset ahead of a load (installing the
 // persisted style on first use), then hand snapshots to showWaveform:.
 - (void)prepareForWaveformLoad;
