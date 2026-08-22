@@ -86,6 +86,18 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 @interface AudioPlayer ()
+// playOnQueue:'s phases; the ordering constraints between them are commented
+// there, at the call sites.
+- (BOOL)rebindLoadingPlayOnQueueForTrack:(AudioTrack *)track
+                                    path:(NSString *)path
+                                  intent:(VibePendingPlaybackIntent)intent
+                 submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier;
+- (void)retireOutgoingChainOnQueueWithDeclick:(BOOL)declick;
+- (void)supersedePreviousOpenOnQueueForPath:(NSString *)path;
+- (BOOL)consumePrefetchedFileOnQueueForPath:(NSString *)path
+                              openRequestId:(uint64_t)openId;
+- (void)submitOpenOnQueueForTrack:(AudioTrack *)track
+                    openRequestId:(uint64_t)openId;
 - (void)cancelPlayOpenOnQueue;
 - (void)cancelPlayOpenForRequest:(uint64_t)openId;
 - (void)pauseOnQueue;
@@ -483,49 +495,112 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     os_unfair_lock_unlock(&_stateLock);
 }
 
+// One play submission, as the ordered phases it is: retire the superseded
+// successor, try to rebind an identical in-flight play, retire the outgoing
+// chain, commit to Loading, supersede the previous open, then either consume a
+// prefetched handle or admit a new one. The order is the correctness; each
+// phase's own reasoning is at its method, and the constraints BETWEEN them are
+// commented here, where the call sites are next to each other.
 - (void)playOnQueue:(AudioTrack *)track
               intent:(VibePendingPlaybackIntent)intent
              declick:(BOOL)declick
 submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     NSString *path = track.url.path;
+
     // Every explicit play submission retires the successor request belonging
-    // to the playback context it superseded. This precedes same-path rebind,
-    // which returns early below but is still a newer submission.
+    // to the playback context it superseded. This precedes the rebind, which
+    // returns early but is still a newer submission.
     [self terminallyRetirePrefetchRequestOnQueue];
-    // Attempted only inside Loading, because rebindTrack: MUTATES the request
-    // it matches: outside this branch the mutation would be made and then
-    // thrown away by the beginWithTrack: below.
-    if (_state == VibePlayerStateLoading) {
-        VibePlaybackRequestRebind rebind = [_pendingRequest rebindTrack:track
-                                                                   path:path
-                                                                 intent:intent
-                                                submittedPlayIdentifier:submittedPlayIdentifier];
-        if (rebind.matched) {
-            // This exact file is already loading, with its open in flight. Do
-            // not start another open: that would strand a second blocked
-            // worker and, on a slow file, flash a spurious timeout error
-            // before the first one completes. Do rebind the delivery to the
-            // new track object, though. A re-drop replaces the playlist with
-            // fresh AudioTrack instances, and completing with the old one
-            // would orphan the open's result. This runs before any teardown,
-            // so re-clicking the loading row is a true no-op rather than a
-            // generation bump plus a varispeed swap whose in-flight open then
-            // plays through a needlessly rebuilt chain.
-            VibePlaybackRequest *request = _pendingRequest.currentRequest;
-            [self mirrorLoadingRequest:request
-              clearingSubmittedPlayIdentifier:submittedPlayIdentifier];
-            if (rebind.shouldNotifySlowLoad) {
-                [self notifyDidBeginLoadingForRequest:request];
-            }
-            if (rebind.shouldNotifyLoadingPaused) {
-                [self notifyLoadingPausedForRequest:request];
-            }
-            return;
-        }
+    if ([self rebindLoadingPlayOnQueueForTrack:track
+                                          path:path
+                                        intent:intent
+                       submittedPlayIdentifier:submittedPlayIdentifier]) {
+        return;
     }
 
     _activeSubmittedPlayIdentifier = 0;
 
+    // Before the state flips to Loading below: the retire's crossfade decision
+    // asks whether it is replacing an AUDIBLY playing track, which Loading
+    // would answer NO to.
+    [self retireOutgoingChainOnQueueWithDeclick:declick];
+
+    self.currentTrack = nil;
+    LogDebug(@"play file: %@", path);
+    uint64_t openId = [_pendingRequest beginWithTrack:track
+                                                   path:path
+                                                 intent:intent
+                                  submittedPlayIdentifier:submittedPlayIdentifier];
+
+    // Enter the loading state: no node or file yet, but a play is committed.
+    // This clears the previous track's file and position, so the UI stops
+    // showing a stale duration and position for up to the full open timeout.
+    // publishPlaybackState: has already mirrored the request, so this only has
+    // to retire the pre-Loading handoff a seek would otherwise still aim at.
+    [self publishPlaybackState:VibePlayerStateLoading node:nil file:nil segmentStart:0 position:0];
+    [self clearSubmittedPlayIdentifier:submittedPlayIdentifier];
+
+    [self supersedePreviousOpenOnQueueForPath:path];
+
+    // Loading is published above either way, so the fast path lands in the
+    // same state the slow one does — it just never arms an open's timers.
+    if ([self consumePrefetchedFileOnQueueForPath:path openRequestId:openId]) {
+        return;
+    }
+    [self submitOpenOnQueueForTrack:track openRequestId:openId];
+}
+
+// Attempted only inside Loading, because rebindTrack: MUTATES the request it
+// matches: outside this branch the mutation would be made and then thrown away
+// by playOnQueue:'s beginWithTrack:. YES means this play is fully handled.
+//
+// This exact file is already loading, with its open in flight. Do not start
+// another open: that would strand a second blocked worker and, on a slow file,
+// flash a spurious timeout error before the first one completes. Do rebind the
+// delivery to the new track object, though. A re-drop replaces the playlist
+// with fresh AudioTrack instances, and completing with the old one would orphan
+// the open's result. Nothing here touches the graph or the open, so re-clicking
+// the loading row is a true no-op rather than a generation bump plus a
+// varispeed swap whose in-flight open then plays through a needlessly rebuilt
+// chain.
+- (BOOL)rebindLoadingPlayOnQueueForTrack:(AudioTrack *)track
+                                    path:(NSString *)path
+                                  intent:(VibePendingPlaybackIntent)intent
+                 submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
+    if (_state != VibePlayerStateLoading) {
+        return NO;
+    }
+    VibePlaybackRequestRebind rebind = [_pendingRequest rebindTrack:track
+                                                               path:path
+                                                             intent:intent
+                                            submittedPlayIdentifier:submittedPlayIdentifier];
+    if (!rebind.matched) {
+        return NO;
+    }
+    VibePlaybackRequest *request = _pendingRequest.currentRequest;
+    [self mirrorLoadingRequest:request
+      clearingSubmittedPlayIdentifier:submittedPlayIdentifier];
+    if (rebind.shouldNotifySlowLoad) {
+        [self notifyDidBeginLoadingForRequest:request];
+    }
+    if (rebind.shouldNotifyLoadingPaused) {
+        [self notifyLoadingPausedForRequest:request];
+    }
+    return YES;
+}
+
+// Retires the playing chain and stands the incoming one up beside it.
+//
+// Dual-varispeed crossfade: the incoming track gets a brand-new varispeed, and
+// the outgoing node retires together with its old one. The outgoing node's live
+// connection is therefore never rerouted. Rerouting a running node reconfigures
+// the graph and clicks, which is why the seek path never reconnects either;
+// here we only ramp its volume. The two tracks ride independent
+// player->varispeed->mixer chains, so the incoming connect cannot steal the
+// outgoing bus, and each varispeed is connected exactly once, for one track's
+// format. There is no cross-format reconnection; see
+// connectNode:throughVarispeedWithFormat:.
+- (void)retireOutgoingChainOnQueueWithDeclick:(BOOL)declick {
     _segmentGeneration++;
     [self preemptRampsOnQueue]; // preempt any in-flight resume fade-in
     // Any armed splice dies with the node this play retires; the retiring
@@ -536,24 +611,14 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     BOOL segmentWasQueued = _gaplessQueued;
     [self clearGaplessOnQueue];
 
-    // Dual-varispeed crossfade: the incoming track gets a brand-new varispeed,
-    // and the outgoing node retires together with its old one. The outgoing
-    // node's live connection is therefore never rerouted. Rerouting a running
-    // node reconfigures the graph and clicks, which is why the seek path never
-    // reconnects either; here we only ramp its volume. The two tracks ride
-    // independent player->varispeed->mixer chains, so the incoming connect
-    // cannot steal the outgoing bus, and each varispeed is connected exactly
-    // once, for one track's format. There is no cross-format reconnection; see
-    // connectNode:throughVarispeedWithFormat:.
     AVAudioPlayerNode *oldNode = _node;
     AVAudioUnitVarispeed *oldVarispeed = _varispeed;
     // Whether this play replaces an audibly playing track — the only case the
-    // user-set crossfade length applies to. Decided before the state flips to
-    // Loading below; retireNode re-makes the same check. Everything else — a
-    // first play, a play from pause or stop — fades at the declick minimum,
-    // so transport stays instant. Both sides of the crossfade ride
-    // _incomingFadeMilliseconds: the retire here, the fade-in when the open
-    // lands in finishPlayOnQueueWithFile:error:openRequestId:.
+    // user-set crossfade length applies to; retireNode re-makes the same check.
+    // Everything else — a first play, a play from pause or stop — fades at the
+    // declick minimum, so transport stays instant. Both sides of the crossfade
+    // ride _incomingFadeMilliseconds: the retire here, the fade-in when the
+    // open lands in finishPlayOnQueueWithFile:error:openRequestId:.
     // A queued splice segment forces the declick minimum even when the
     // crossfade setting was raised after it was armed: a crossfade-length
     // retire would let the queued file start sounding on the retiring node
@@ -573,54 +638,46 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     _varispeed = newVarispeed; // finishPlayOnQueueWithFile: connects its incoming node through this
 
     // The retire fades the outgoing side out while the incoming node fades in
-    // concurrently on the new varispeed, in finishPlayOnQueueWithFile: — an audible,
-    // true crossfade.
+    // concurrently on the new varispeed, in finishPlayOnQueueWithFile: — an
+    // audible, true crossfade.
     [self retireNode:oldNode varispeed:oldVarispeed milliseconds:_incomingFadeMilliseconds];
+}
 
-    self.currentTrack = nil;
-
-    LogDebug(@"play file: %@", path);
-
-    uint64_t openId = [_pendingRequest beginWithTrack:track
-                                                   path:path
-                                                 intent:intent
-                                  submittedPlayIdentifier:submittedPlayIdentifier];
-
-    // Enter the loading state: no node or file yet, but a play is committed.
-    // This clears the previous track's file and position, so the UI stops
-    // showing a stale duration and position for up to the full open timeout.
-    // publishPlaybackState: has already mirrored the request, so this only has
-    // to retire the pre-Loading handoff a seek would otherwise still aim at.
-    [self publishPlaybackState:VibePlayerStateLoading node:nil file:nil segmentStart:0 position:0];
-    [self clearSubmittedPlayIdentifier:submittedPlayIdentifier];
-
-    // Detach the previous play from its path claim and cancel any still-
-    // abortable materialization. If AVAudioFile has already blocked in the OS,
-    // the coordinator keeps the claim until it returns instead of losing track
-    // of it and multiplying workers on later requests.
+// Detach the previous play from its path claim and cancel any still-abortable
+// materialization. If AVAudioFile has already blocked in the OS, the
+// coordinator keeps the claim until it returns instead of losing track of it
+// and multiplying workers on later requests.
+//
+// A park from the previous playlist neighborhood must not compete with the
+// foreground provider transfer. A same-path park stays to race it.
+- (void)supersedePreviousOpenOnQueueForPath:(NSString *)path {
     [self cancelPlayOpenOnQueue];
-
-    // A park from the previous playlist neighborhood must not compete with
-    // the foreground provider transfer. A same-path park stays to race it.
     [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtPlaySubmission
                               playPath:path];
+}
 
-    // A prefetched handle for this exact path skips the open entirely, and the
-    // transition goes straight to schedule and play. Ownership passes to the
-    // normal finish path with a fresh open id, so it consumes that id like any
-    // completed open, and no timeout or loading-indicator timers ever exist.
-    // No materializer is minted: there is nothing left to download.
-    if (_prefetchedFile && [path isEqualToString:_prefetchedPath]) {
-        AVAudioFile *prefetchedFile = _prefetchedFile;
-        [self clearPrefetchOnQueue];
-        [self finishPlayOnQueueWithFile:prefetchedFile error:nil openRequestId:openId];
-        return;
+// A prefetched handle for this exact path skips the open entirely, and the
+// transition goes straight to schedule and play. Ownership passes to the normal
+// finish path with a fresh open id, so it consumes that id like any completed
+// open, and no timeout or loading-indicator timers ever exist. No materializer
+// is minted: there is nothing left to download. YES means the play is finished.
+- (BOOL)consumePrefetchedFileOnQueueForPath:(NSString *)path
+                              openRequestId:(uint64_t)openId {
+    if (!_prefetchedFile || ![path isEqualToString:_prefetchedPath]) {
+        return NO;
     }
+    AVAudioFile *prefetchedFile = _prefetchedFile;
+    [self clearPrefetchOnQueue];
+    [self finishPlayOnQueueWithFile:prefetchedFile error:nil openRequestId:openId];
+    return YES;
+}
 
-    // Open through the bounded interactive lane. The request id still pairs
-    // the logical open with its deadline, while the coordinator owns the
-    // underlying standardized-path claim until an uncancellable OS call really
-    // returns.
+// Open through the bounded interactive lane, and arm the two timers that bound
+// it. The request id still pairs the logical open with its deadline, while the
+// coordinator owns the underlying standardized-path claim until an
+// uncancellable OS call really returns.
+- (void)submitOpenOnQueueForTrack:(AudioTrack *)track
+                    openRequestId:(uint64_t)openId {
     NSURL *openURL = track.url;
     _playOpenRequestId = openId;
     _openTimeoutSnapshot = _loadingConfiguration.openTimeouts;
