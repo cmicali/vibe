@@ -3,30 +3,79 @@
 This document is the implementation backlog for the selected Section C audit
 findings, plus the items found while revalidating them.
 
-Every item below has been re-checked against the working copy at commit
-`162cf0c` (2026-08-22) and **none of them has been implemented yet**. Line
-numbers, quoted comment text and symbol names are current as of that check.
-The original C-identifiers are retained so each item can be selected
-independently; C6 and C9 were not selected for this backlog and are absent.
-C11 and C12 are new.
+Revalidated against `162cf0c` (2026-08-22), **implemented 2026-08-22**. Line
+numbers, quoted comment text and symbol names below are as of that
+revalidation, and drifted as soon as the first item landed; every item was
+located by comment text or symbol name rather than by line. The original
+C-identifiers are retained so each item could be selected independently; C6 and
+C9 were not selected for this backlog and are absent. C11 and C12 were found
+while revalidating.
 
 Scope is the macOS app and the shared code it consumes, plus the subsystem
 documentation that describes it.
 
-## Status at revalidation
+## What landed
 
-| Item | Priority | State |
+One commit per item, so any of them bisects alone.
+
+| Item | Priority | Commit |
 | --- | --- | --- |
-| C1 — `playOnQueue:` phases | Medium | unchanged; method grew to 179 lines |
-| C2 — historical narratives | Low | unchanged; a third, milder instance found |
-| C3 — menu validation | Medium | unchanged; identifier literals now span three files |
-| C4 — playback-state writer model | Medium | **partially fixed**; scope narrowed, see below |
-| C5 — "lock-free" getters | Low | unchanged; evidence list corrected and extended |
-| C7 — playlist fallback extensions | Low | unchanged |
-| C8 — codec/FX alpha comments | Low | unchanged |
-| C10 — About mail link | Low | unchanged |
-| C11 — retired materialization hold in iOS docs | Medium | **new** |
-| C12 — stale symbol names in subsystem docs | Low | **new** |
+| C11 — retired materialization hold in iOS docs | Medium | `a912933` |
+| C12 — stale symbol names in subsystem docs | Low | `cbb5155` |
+| C2 — historical narratives | Low | `c670e49` |
+| C5 — "lock-free" getters | Low | `6822158` |
+| C8 — codec/FX alpha comments | Low | `63a5787` |
+| C7 — playlist fallback extensions | Low | `c376d70` |
+| C3 — menu validation | Medium | `8ac4664` |
+| C4 — playback-state writer model | Medium | `d7fa14c` |
+| C1 — `playOnQueue:` phases | Medium | `7c514b4` |
+| C10 — About mail link | Low | `c6c1925`, `b99d0fa` |
+
+## Where it landed differently from the plan
+
+- **C10's preferred route does not work, and the item's own fallback is the
+  only one that does.** A standard attributed AppKit link in a tightly sized
+  field cannot satisfy "Full Keyboard Access can focus it, and Return/Space
+  opens the mail URL": AppKit gives a link inside static text no key-view
+  participation. `VibeLinkLabel` was therefore extracted and given a complete
+  accessible link. Recorded so nobody retries the standard control.
+- **C10 needed a follow-up.** The About window is reused
+  (`releasedWhenClosed = NO`), so a focused link stayed first responder across a
+  close and reopened with its focus ring already drawn. `windowWillClose:` now
+  clears first responder. Found by hand, not by the tests — see below.
+- **C12's first name was deleted rather than corrected.** `_pendingStartPaused`
+  named a private ivar the sentence did not need, so the parenthetical went
+  instead of being renamed to `_loadingStartPaused`. The optional doc-symbol
+  checker was weighed and not adopted: its allowlist would have grown faster
+  than the findings.
+- **C4 has two helpers, not one.** `finishPlaybackOnQueue` writes `_state` and
+  `_node` in a single lock acquisition; folding it into the plain unpublish
+  would have opened a window where the two disagree, which is a behavior change
+  made to reduce helper count.
+- **C7's alternates are ordered lossless-first**, which the item did not
+  specify. The order decides which replacement wins when a folder holds several,
+  so it needed a stated reason rather than an inherited accident; it also keeps
+  the existing order-pinning test green.
+- **Three items had one more instance than their evidence listed**, each fixed
+  with the rest: C5's `AudioPlayer.h` `(State)` preamble ("None of these
+  blocks"), C8's stale "unlike the BPM label below" (the BPM label is also at
+  alpha 1), and C2's `isDatalessFile:` cost note, kept without its benchmark
+  numbers.
+
+## What was not verified
+
+- **`make build-ios` and the VibeiOS half of `make analyze` never ran**: no iOS
+  simulator runtime is installed on the machine this was implemented on (the
+  iOS 26.5 SDK is present, the platform is not), so
+  `generic/platform=iOS Simulator` matches no destination. The shared-source
+  items — C2, C5, C7, C4, C1 — are unverified against the iOS target.
+- **C3's `show_in_finder`** lives only on the window context menu, and opening a
+  real context menu blocks the debug channel. Its code is unchanged apart from
+  being moved, and its domain is verified through `menu_play` and `menu_close`.
+- **C10's live keyboard and VoiceOver behavior.** Injected input reaches the
+  main player window, not the About window, and the app would not hold
+  activation, so Tab-into-About could not be scripted. The unit tests pin the
+  contract those two consume; the reopen bug above is what that gap cost.
 
 ## C1 — `playOnQueue:` hides an ordering-sensitive state transition inside one large method
 
