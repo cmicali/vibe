@@ -114,16 +114,12 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
   margin: 14px auto 0;
 }
 
-/* Tertiary rank: the source link reads as part of the fine print, well below
-   the two download buttons. */
 .meta {
   color: var(--ink-faint);
   font-size: 14px;
   margin-top: 18px;
 }
 
-.meta a { color: var(--ink-faint); text-decoration-color: var(--line); }
-.meta a:hover { color: var(--ink-dim); text-decoration-color: currentColor; }
 
 .actions {
   display: flex;
@@ -141,6 +137,10 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
   align-items: center;
   gap: 12px;
   padding: 11px 20px;
+  /* Side by side, flex stretch already equalises these. Once they wrap onto
+     their own rows there is nothing to stretch against, so a button with no
+     second line would sit shorter than its neighbours. */
+  min-height: 60px;
   border: 1px solid var(--line);
   border-radius: 13px;
   background: var(--panel);
