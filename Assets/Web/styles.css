@@ -49,10 +49,14 @@ a:hover { color: #7aabff; }
 
 /* ---------- shared layout ---------- */
 
+/* max() rather than addition: a normal screen keeps --pad, and only a notch
+   or home indicator wider than it pushes the content further in. */
 .hero, main > section, footer {
   max-width: 1080px;
   margin-inline: auto;
-  padding-inline: var(--pad);
+  padding-inline:
+    max(var(--pad), env(safe-area-inset-left))
+    max(var(--pad), env(safe-area-inset-right));
 }
 
 main > section { padding-block: clamp(56px, 9vw, 96px); }
@@ -191,7 +195,11 @@ code {
 .prose {
   max-width: 68ch;
   margin-inline: auto;
-  padding: clamp(32px, 6vw, 64px) var(--pad) clamp(48px, 7vw, 72px);
+  padding:
+    clamp(32px, 6vw, 64px)
+    max(var(--pad), env(safe-area-inset-right))
+    calc(clamp(48px, 7vw, 72px) + env(safe-area-inset-bottom))
+    max(var(--pad), env(safe-area-inset-left));
 }
 
 .prose .back { font-size: 15px; margin-bottom: clamp(28px, 5vw, 44px); }
@@ -226,7 +234,7 @@ code {
 
 footer {
   border-top: 1px solid var(--line);
-  padding-block: 40px 56px;
+  padding-block: 40px calc(56px + env(safe-area-inset-bottom));
   color: var(--ink-faint);
   font-size: 15px;
   text-align: center;
@@ -238,9 +246,19 @@ footer .links a:hover { color: var(--accent); text-decoration: underline; }
 footer .links {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 22px;
+  gap: 0 6px;
   justify-content: center;
-  margin-top: 18px;
+  margin-top: 8px;
+}
+
+/* 44px is the Apple HIG minimum for a touch target; the visible text is 24px
+   tall, so the rest is padding. The gap above shrinks by the same amount so
+   the row looks unchanged. */
+footer .links a {
+  display: inline-block;
+  padding: 10px 8px;
+  min-height: 44px;
+  box-sizing: border-box;
 }
 
 footer .copyright {
