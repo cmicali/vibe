@@ -14,6 +14,7 @@
 #import <unistd.h>
 
 #import "NSURLUtilInternal.h"
+#import "PlayableExtensions.h"
 
 @interface NSURLUtilTests : XCTestCase
 @end
@@ -139,6 +140,11 @@
     XCTAssertEqualObjects(supported, ([NSSet setWithArray:@[@"mp2", @"mp3", @"aac", @"aif", @"aiff",
                                                             @"wav", @"wave", @"bwf", @"flac",
                                                             @"m4a", @"mp4"]]));
+    // The filter and the playlist fallback read one list, so the ordered form
+    // the fallback walks must hold each spelling exactly once and no other.
+    NSArray<NSString *> *ordered = PlayableExtensions.ordered;
+    XCTAssertEqualObjects([NSSet setWithArray:ordered], supported);
+    XCTAssertEqual(ordered.count, supported.count);
     // OGG is not supported, and the playlist extensions are expanded rather
     // than played, so neither may leak into the filter.
     for (NSString *rejected in @[@"ogg", @"m3u", @"m3u8", @"cue", @"aifc", @"txt", @""]) {

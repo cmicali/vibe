@@ -31,7 +31,7 @@ So the rule is narrower than "imports nothing from a feature": **what `Util/` ma
 
 `NSURLUtilInternal.h` exposes the synchronous expansion steps so a test can drive one walk without the four-wide queue and the main-thread hop standing between every assertion and what the walk yielded. Do not import it outside `NSURLUtil.m` and its tests.
 
-The playable extension set is in `NSURLUtil.m`: `mp2 mp3 aac aif aiff wav wave bwf flac m4a mp4`.
+The playable extension set is `Common/PlayableExtensions`, not this file: the walk's filter tests membership in it and `PlaylistFile`'s entry-recovery walks the same spellings in order, so neither can grow a format the other has not got. OGG is not in it.
 
 ## Traps
 

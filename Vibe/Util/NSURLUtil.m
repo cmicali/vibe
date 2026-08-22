@@ -9,6 +9,7 @@
 #endif
 #import "FolderArtRules.h"
 #import "NSURL+AudioOpen.h"
+#import "PlayableExtensions.h"
 #import "PlaylistFile.h"
 
 #include <sys/stat.h>
@@ -178,18 +179,10 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
     return [path rangeOfString:@"/" options:0 range:remainder].location == NSNotFound;
 }
 
-// A static set, consulted once per file in a folder drop. Must cover every
-// spelling the CFBundleDocumentTypes claim admits: com.microsoft.waveform-audio
-// declares wav, wave, AND bwf, so dropping one here would let Finder offer
-// Vibe for a file the filter then silently discards.
+// A static set, consulted once per file in a folder drop. The spellings are
+// Common/PlayableExtensions', which the playlist fallback walks in order.
 + (NSSet<NSString*>*) supportedExtensions {
-    static NSSet<NSString*> *extensions;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        extensions = [NSSet setWithObjects:@"mp2", @"mp3", @"aac", @"aif", @"aiff",
-                                           @"wav", @"wave", @"bwf", @"flac", @"m4a", @"mp4", nil];
-    });
-    return extensions;
+    return PlayableExtensions.lookup;
 }
 
 // The walk picks the album cover out on the way past: it already touches every

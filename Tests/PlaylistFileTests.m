@@ -657,14 +657,61 @@
 }
 
 - (void)testTheAlternateExtensionsAreTriedInDeclaredOrder {
-    // wav, aif, aiff, flac, mp3 — the first that exists wins, so seeding two
-    // pins the order rather than just the membership.
+    // The first spelling that exists wins, so seeding two pins the order
+    // rather than just the membership: aif is lossless, mp3 is not.
     NSURL *dir = [self makeTempDirWithFiles:@[@"track.mp3", @"track.aif"]
                                playlistName:@"album.cue"
                                        text:@"FILE \"track.wav\" WAVE\n"];
     NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"album.cue"]];
     XCTAssertEqualObjects(urls.firstObject.lastPathComponent, @"track.aif");
+}
+
+// Every playable spelling is a fallback candidate, not the five the private
+// list used to hold: a sheet naming the pre-transcode file finds the m4a.
+- (void)testAnEntryRecoversToASpellingOutsideTheOldSubset {
+    NSURL *dir = [self makeTempDirWithFiles:@[@"track.m4a"]
+                               playlistName:@"album.cue"
+                                       text:@"FILE \"track.wav\" WAVE\n"];
+    NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:
+            [dir URLByAppendingPathComponent:@"album.cue"]];
+    XCTAssertEqualObjects(urls.firstObject.lastPathComponent, @"track.m4a");
+}
+
+// wave and bwf are the same UTI as wav and are equally playable, so a sheet
+// written against one spelling recovers to another.
+- (void)testTheWavAliasesAreFallbackCandidates {
+    for (NSString *name in (@[@"track.wave", @"track.bwf"])) {
+        NSURL *dir = [self makeTempDirWithFiles:@[name]
+                                   playlistName:@"mix.m3u"
+                                           text:@"track.wav\n"];
+        NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:
+                [dir URLByAppendingPathComponent:@"mix.m3u"]];
+        XCTAssertEqualObjects(urls.firstObject.lastPathComponent, name);
+    }
+}
+
+// OGG is not played, so it is not a rung either — the entry stays unresolved
+// and resolves to the primary it named.
+- (void)testAnOggBesideTheEntryIsNotAFallback {
+    NSURL *dir = [self makeTempDirWithFiles:@[@"track.ogg"]
+                               playlistName:@"mix.m3u"
+                                       text:@"track.wav\n"];
+    NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:
+            [dir URLByAppendingPathComponent:@"mix.m3u"]];
+    XCTAssertEqualObjects(urls.firstObject.lastPathComponent, @"track.wav");
+}
+
+// The entry already names a playable spelling, and the beside candidate is the
+// same path: the shared list must not make it a second candidate.
+- (void)testTheNamedPathIsNotDuplicatedByItsOwnSpelling {
+    NSURL *dir = [self makeTempDirWithFiles:@[@"track.flac"]
+                               playlistName:@"mix.m3u"
+                                       text:@"track.flac\ntrack.flac\n"];
+    NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:
+            [dir URLByAppendingPathComponent:@"mix.m3u"]];
+    XCTAssertEqualObjects([urls valueForKeyPath:@"lastPathComponent"],
+                          (@[@"track.flac", @"track.flac"]));
 }
 
 - (void)testAnExtensionlessEntryStillTriesTheAlternates {

@@ -5,6 +5,8 @@
 
 #import "PlaylistFile.h"
 
+#import "PlayableExtensions.h"
+
 #include <string.h>
 
 @implementation PlaylistFile
@@ -290,19 +292,13 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
         }
     };
     addCandidate(beside);
-    static NSArray<NSString *> *alternateExtensions;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        alternateExtensions = @[@"wav", @"aif", @"aiff", @"flac", @"mp3"];
-    });
-    // One readability probe of the primary's folder gates its five
-    // alternate-extension candidates: a sheet of absolute paths into a
-    // missing or unreachable volume then costs one stat per entry instead of
-    // six. The probe is memoized per directory across the pass — on a dead
-    // mount it blocks for an automounter timeout, and a list of absolute
-    // paths into one folder must pay that once, not once per entry. The
-    // beside candidates live in the playlist's own folder, which was just
-    // read, so they stay unconditional.
+    // One readability probe of the primary's folder gates its alternate-extension
+    // candidates: a sheet of absolute paths into a missing or unreachable volume
+    // then costs one stat per entry instead of one per playable spelling. The
+    // probe is memoized per directory across the pass — on a dead mount it blocks
+    // for an automounter timeout, and a list of absolute paths into one folder
+    // must pay that once, not once per entry. The beside candidates live in the
+    // playlist's own folder, which was just read, so they stay unconditional.
     NSString *primaryDir = primary.URLByDeletingLastPathComponent.path;
     BOOL primaryDirReachable = NO;
     if (primaryDir) {
@@ -313,7 +309,7 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
             dirReachable[primaryDir] = @(primaryDirReachable);
         }
     }
-    for (NSString *extension in alternateExtensions) {
+    for (NSString *extension in PlayableExtensions.ordered) {
         if (primaryDirReachable) {
             addCandidate([primary.URLByDeletingPathExtension URLByAppendingPathExtension:extension]);
         }
