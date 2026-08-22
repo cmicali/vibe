@@ -31,9 +31,13 @@ static const CGFloat kBackdropCornerRadius = 38;
 static const CGFloat kDismissTravelFraction = 0.25;
 static const CGFloat kDismissFlickVelocity = 900;
 
-// The breathing room between the mini strip and the tab bar below it, which
-// the Files browser's own bar has to clear along with the strip itself.
-static const CGFloat kMiniAccessoryGap = 8;
+// What the Files browser's own bar needs to clear the floating capsule below
+// it, and it is a sum of two measured things: UIKit's own 8pt gap between the
+// mini strip and the tab bar — the spacing two floating capsules are meant to
+// have — plus the ~12.7pt the browser draws PAST its own safe-area bottom.
+// Leave the overhang out and the two capsules touch rather than clear each
+// other. See applyFilesBottomInset.
+static const CGFloat kFilesBarClearance = 21;
 
 static NSString *const kTabPlaylist = @"playlist";
 static NSString *const kTabFiles = @"files";
@@ -217,10 +221,6 @@ static NSString *const kTabSearch = @"search";
         // resize changes under a minimized card.
         _player.view.transform = [self minimizedCardTransform];
     }
-    // A tab's view controller is built the first time it is shown, which can
-    // be long after the strip appeared, so the inset is applied on arrival
-    // too, not only when the strip's visibility changes.
-    [self applyFilesBottomInset];
 }
 
 - (CGAffineTransform)minimizedCardTransform {
@@ -339,31 +339,46 @@ static NSString *const kTabSearch = @"search";
             ? [[UITabAccessory alloc] initWithContentView:_miniPlayer]
             : nil;
     [_tabs setBottomAccessory:accessory animated:!UIAccessibilityIsReduceMotionEnabled()];
-    [self applyFilesBottomInset];
 }
 
-// The Files browser draws its OWN bottom bar (Recents / Shared / Browse) and
-// places it against its safe area. UIKit's tab children are inset for the tab
-// bar but not for the accessory, so with the strip up the browser's bar ends
-// up half underneath it. A scroll view would never show this — it just gets
-// extra content inset — which is why only this tab needs telling.
+// The Files browser draws its OWN bottom bar (Recents / Shared / Browse) as a
+// floating capsule placed against its safe area — and UIKit's safe area ends
+// exactly at the top of whichever of our floating capsules is lowest: the tab
+// bar with the strip down, the strip itself with it up. So the browser's
+// capsule lands flush on ours, overlapping by the few points it draws past its
+// own safe-area bottom, and the two read as one collided pill. A scroll view
+// never shows this — it just takes extra content inset — which is why this is
+// the only tab that needs telling.
 //
-// Measured off the live accessory rather than assumed, so a system height
-// change does not silently reopen the overlap.
+// TRAP: do NOT add the accessory's height here. UIKit's tab-child safe area
+// already accounts for the strip, so an earlier version that measured the live
+// strip and added it lifted the browser's bar a whole strip height clear of the
+// mini player, leaving a band of dead space. The clearance is therefore
+// constant — it does not depend on whether the strip is up, because UIKit has
+// already moved the safe area for it, and one value lands the same 8pt gap in
+// both states.
+//
+// TRAP: the browser's bar overhangs its safe area, so a clearance of only the
+// 8pt system gap still leaves the capsules touching. Measured on iOS 26.5,
+// window 874: with the strip down UIKit's inset is 83 and an added 12 put the
+// content bottom at 779, where the bar's own bottom edge drew at 791.67 —
+// 12.67pt past it, and flush against a tab capsule whose top is 791.
+//
+// Both halves are screenshot-measurable, which is how the numbers above were
+// got: scan a screenshot column for runs of non-background rows. The tab
+// capsule (791–853) and the accessory container (735–783) come from
+// dump_view_tree and anchor the scale; a run that spans the browser's bar AND
+// the capsule below it without a break is the bug.
 - (void)applyFilesBottomInset {
     UIViewController *files = _filesController;
     if (!files) {
         return;   // the lazy provider has not been asked for Files yet
     }
-    CGFloat accessoryHeight = _miniPlayer.superview
-            ? CGRectGetHeight(_miniPlayer.superview.frame)
-            : CGRectGetHeight(_miniPlayer.frame);
-    CGFloat wanted = _miniWanted ? accessoryHeight + kMiniAccessoryGap : 0;
     UIEdgeInsets insets = files.additionalSafeAreaInsets;
-    if (fabs(insets.bottom - wanted) < 0.5) {
+    if (fabs(insets.bottom - kFilesBarClearance) < 0.5) {
         return;
     }
-    insets.bottom = wanted;
+    insets.bottom = kFilesBarClearance;
     files.additionalSafeAreaInsets = insets;
 }
 
