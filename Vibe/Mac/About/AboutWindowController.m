@@ -5,6 +5,7 @@
 
 #import "AboutWindowController.h"
 #import "VectorBallsView.h"
+#import "VibeLinkLabel.h"
 #import "Fonts.h"
 #import "NSBundle+BuildInfo.h"
 #import "VibeStrings.h"
@@ -21,63 +22,6 @@ static const CGFloat kAboutTextFontSize = 13;
 // stays Info.plist's to word; an unmatched name simply renders unlinked.
 static NSString *const kAboutAuthorName = @"Christopher Micali";
 static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
-
-// A label with one clickable range. A selectable NSTextField would give links
-// for free, but these labels span the window's full width while their text is
-// centered and short, so selectability would turn a full-width strip into an
-// I-beam that also swallows the window's background drag. This hit-tests the
-// link's own glyphs instead: only those characters take the click and the
-// pointing-hand cursor, and the rest of the label stays transparent.
-@interface VibeLinkLabel : NSTextField
-@property (nonatomic, copy) NSURL *linkURL;
-@property (nonatomic) NSRange linkRange;
-@end
-
-@implementation VibeLinkLabel
-
-// The link's glyph rect. The text is a single centered line, so measuring the
-// whole string and the part before the link places it without a layout manager.
-- (NSRect)linkRect {
-    NSAttributedString *text = self.attributedStringValue;
-    if (!self.linkURL || self.linkRange.length == 0
-            || NSMaxRange(self.linkRange) > text.length) {
-        return NSZeroRect;
-    }
-    CGFloat total = ceil(text.size.width);
-    CGFloat before = ceil([text attributedSubstringFromRange:
-            NSMakeRange(0, self.linkRange.location)].size.width);
-    CGFloat width = ceil([text attributedSubstringFromRange:self.linkRange].size.width);
-    CGFloat x = round((NSWidth(self.bounds) - total) / 2.0) + before;
-    return NSMakeRect(x, 0, width, NSHeight(self.bounds));
-}
-
-- (NSView *)hitTest:(NSPoint)point {
-    NSPoint local = [self convertPoint:point fromView:self.superview];
-    return NSMouseInRect(local, [self linkRect], self.isFlipped) ? self : nil;
-}
-
-- (void)resetCursorRects {
-    [super resetCursorRects];
-    NSRect rect = [self linkRect];
-    if (!NSIsEmptyRect(rect)) {
-        [self addCursorRect:rect cursor:NSCursor.pointingHandCursor];
-    }
-}
-
-// Claim the down rather than forwarding to super — only a claimed down routes
-// the matching mouseUp here — and open on the up, with the cursor still over
-// the link, like any standard link.
-- (void)mouseDown:(NSEvent *)event {
-}
-
-- (void)mouseUp:(NSEvent *)event {
-    NSPoint local = [self convertPoint:event.locationInWindow fromView:nil];
-    if (self.linkURL && NSMouseInRect(local, [self linkRect], self.isFlipped)) {
-        [NSWorkspace.sharedWorkspace openURL:self.linkURL];
-    }
-}
-
-@end
 
 @interface AboutWindowController () <NSWindowDelegate, NSMenuItemValidation>
 @end
@@ -107,6 +51,12 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
     self = [super initWithWindow:window];
     if (self) {
         window.delegate = self;
+        // The copyright line's link is the window's only focusable view, so the
+        // loop is worth nothing until AppKit builds it. initialFirstResponder is
+        // the content view, which declines: without it AppKit would focus the
+        // link as the window opens and draw its ring unasked.
+        window.autorecalculatesKeyViewLoop = YES;
+        window.initialFirstResponder = window.contentView;
 
         // A grooved record texture filling the window behind the vectorballs.
         // A backing layer with resizeAspectFill covers the landscape window
