@@ -1,8 +1,8 @@
 [
   {
     "id": "player",
-    "headline": "Play local files fast",
-    "subhead": "MP3, FLAC, AIFF, WAV, and more. Click the waveform to seek."
+    "headline": "Play the music you own",
+    "subhead": "MP3, FLAC, AIFF, WAV, and more, from your disk or iCloud Drive. Click the waveform to seek."
   },
   {
     "id": "playlist",
@@ -17,6 +17,6 @@
   {
     "id": "keys",
     "headline": "Hands on the keyboard",
-    "subhead": "Transport, bar skips, performance FX, and pitch — no modifier keys."
+    "subhead": "Transport, bar skips, performance FX, and pitch."
   }
 ]

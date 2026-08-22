@@ -1,12 +1,19 @@
-Vibe is a fast, minimal player for your music files on the Mac. No third-party engine, no account, no subscription. Play the music you already have, wherever you keep it.
+Vibe is a fast, minimal player for your music files. No third-party engine, no account, no subscription. Play the music you already have, wherever you keep it.
 
-Waveform
-Vibe draws every track as a full waveform across the window. Click anywhere on it to seek. Vibe has no library to import and no database to rebuild. Drop a file or a folder on the window and it plays, whether it sits on your disk or in iCloud Drive or Dropbox. Vibe reads tags, artwork, and BPM in the background and caches them, so the next open is instant.
+Waveform view
+Vibe draws every track as a full waveform across the window. Click anywhere on it to seek.
 
-Formats
-MP3, MP2, AAC, FLAC, MP4/M4A, AIFF, and WAV, all decoded by macOS itself. Lossless files play at full resolution, and each track's format and sample rate sit next to the title.
+Fast
+Vibe is built to be small and fast. Tags, artwork, and waveforms are read in the background and cached, so the next open is instant.
 
-DJs Will Feel At Home
-• A pitch fader laid out like a turntable's, hidden until you want it.
-• Skips measured in bars, not seconds. When the tempo is known, jump 8, 16, or 32 bars and stay on the grid; when it isn't, the same keys move 10, 30, or 60 seconds.
-• Performance FX under one hand: a low-kill filter, a reverb wash, and delays locked to the track's BPM. Tap a key to latch an effect; hold it for momentary.
+Decoded by macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV, and FLAC, all played through the system APIs. Lossless files play at full resolution, and each track's format and sample rate sit next to the title.
+
+No library to import
+Drop a file or a folder — from your disk, iCloud Drive, or Dropbox — and it plays. There is no database to rebuild and no library to manage. Artwork, tags, and BPM fill in behind you while the first track is already playing.
+
+Built with DJs in mind
+Vibe includes turntable-style pitch control, BPM and key analysis, bar-accurate skips, and performance FX.
+
+Free and open source
+Vibe collects nothing and shows no ads. The full source is on GitHub under the Apache 2.0 license.
