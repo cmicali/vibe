@@ -118,21 +118,32 @@ issues the certificate itself.
 
 ### The stylesheet's cache TTL
 
-Pages serves HTML as `max-age=0` but everything else at four hours. That skew
-is worse than plain staleness: a browser pairs fresh markup with a four-hour-old
-stylesheet, so a layout change renders under the old rules and looks broken.
+Pages serves HTML as `max-age=0` but everything else at four hours, and it
+ignores `Cache-Control` from `_headers` for its own assets (it honours
+everything else in that file). Two consequences, and the second is the one that
+bites:
 
-`_headers` cannot fix it — Pages manages caching for its own assets and ignores
-`Cache-Control` from that file, though it honours everything else in it. So the
-TTL is set by a response-header Transform Rule on the `vibeplayer.app` zone:
+1. A browser pairs fresh markup with a four-hour-old stylesheet, so a layout
+   change renders under the old rules and looks broken rather than stale.
+2. Fixing the TTL at the edge only helps the *next* fetch. A browser already
+   holding a copy under the old TTL will not ask again until it expires, so
+   the fix appears not to work for hours.
 
-    when   http.request.uri.path eq "/styles.css"
-    then   set Cache-Control: public, max-age=0, must-revalidate
+Only changing the URL solves (2). `scripts/web-stamp-css.sh` writes the
+stylesheet's content hash into the `?v=` on every page that links it, so a
+changed stylesheet is a changed URL and no cache anywhere is consulted.
+`deploy-web.sh` runs it with `--check` and refuses to publish a mismatch,
+because that failure looks exactly like a deploy that did nothing.
+
+With the URL versioned, a given URL's bytes never change, so a Transform Rule
+on the zone caches the stamped form for a year and the unstamped form not at
+all:
+
+    /styles.css?v=…   ->  public, max-age=31536000, immutable
+    /styles.css       ->  public, max-age=0, must-revalidate
 
 Images keep the four-hour default on purpose: they are large, they change
-rarely, and a stale one is only ever a stale picture. The better long-term
-answer is a content-hashed stylesheet URL, which would allow a *longer* TTL
-rather than none; that needs a build step this site does not otherwise have.
+rarely, and a stale one is only ever a stale picture.
 
 ### The old domain
 
