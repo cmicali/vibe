@@ -18,6 +18,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
+#import "FavoritesStore.h"
 #import "SearchFolderStore.h"
 #import "UIUpdateTimer.h"
 
@@ -545,12 +546,24 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     [_folderSession openExternalURL:url openInPlace:openInPlace];
 }
 
+- (NSURL *)folderURL {
+    return _folderSession.folderURL;
+}
+
+- (void)bookmarkOpenFolderWithCompletion:(void (^)(NSURL *folderURL,
+                                                   NSData *bookmark))completion {
+    [_folderSession bookmarkOpenFolderWithCompletion:completion];
+}
+
 // The whole search scope, composed here and nowhere else: the session's own
-// transient root — the open folder — ahead of the persistent ones the store
-// holds. Nesting among them is FileSearchIndex's to prune.
+// transient root — the open folder — ahead of the persistent ones, which are
+// the folders added in Settings plus the ones starred on the Favorites tab.
+// Nesting among them is FileSearchIndex's to prune, so a folder that is both
+// starred and added is walked once.
 - (NSArray<NSURL *> *)searchRoots {
     NSURL *sessionRoot = _folderSession.searchRoot;
-    NSArray<NSURL *> *persistent = SearchFolderStore.shared.searchRoots;
+    NSArray<NSURL *> *persistent = [SearchFolderStore.shared.searchRoots
+            arrayByAddingObjectsFromArray:FavoritesStore.shared.searchRoots];
     return sessionRoot ? [@[sessionRoot] arrayByAddingObjectsFromArray:persistent] : persistent;
 }
 

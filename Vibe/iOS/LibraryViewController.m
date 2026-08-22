@@ -12,6 +12,7 @@
 #import "AudioTrackMetadata.h"
 #import "CloudTransferRegistry.h"
 #import "EqualizerIndicatorView.h"
+#import "FavoritesStore.h"
 #import "LoadingIndicatorMath.h"
 #import "LoadingIndicatorView.h"
 #import "PlaybackController.h"
@@ -78,6 +79,9 @@ static const CGFloat kArtTextGap = 14;
     // the pixels. Hidden tables do not animate toward it; the next reveal parks
     // once at the newest index.
     NSUInteger         _pendingScrollIndex;
+    // Kept because refreshChrome rebuilds the bar's items whenever the star
+    // comes and goes, and the gear is the constant beside it.
+    UIBarButtonItem    *_settingsItem;
 }
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback {
@@ -92,12 +96,12 @@ static const CGFloat kArtTextGap = 14;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.navigationItem.rightBarButtonItem =
+    _settingsItem =
             [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"gearshape"]
                                              style:UIBarButtonItemStylePlain
                                             target:self
                                             action:@selector(settingsTapped)];
-    self.navigationItem.rightBarButtonItem.accessibilityLabel = STR_SETTINGS_TITLE;
+    _settingsItem.accessibilityLabel = STR_SETTINGS_TITLE;
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
     self.navigationController.navigationBar.prefersLargeTitles = YES;
 
@@ -113,6 +117,12 @@ static const CGFloat kArtTextGap = 14;
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(thumbnailDidLoad:)
                                                name:AudioTrackMetadataThumbnailDidLoadNotification
+                                             object:nil];
+    // Unstarring on the Favorites tab has to empty the star here, and the
+    // star's own add lands asynchronously — both arrive as this one delivery.
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(refreshChrome)
+                                               name:VibeFavoritesDidChangeNotification
                                              object:nil];
     [self refreshChrome];
 }
@@ -209,12 +219,13 @@ static const CGFloat kArtTextGap = 14;
                                          animated:YES];
 }
 
-// Title and empty state both follow "is there anything to play", so they move
-// together and from one place.
+// Title, star and empty state all follow "what is open", so they move together
+// and from one place.
 - (void)refreshChrome {
     // navigationItem, not self.title: the latter is also the tab bar item's
     // title, and the open folder's name is not what the tab is called.
     self.navigationItem.title = _playback.folderDisplayName ?: STR_TAB_PLAYLIST;
+    [self refreshBarButtons];
     if (_playlist.count > 0) {
         self.contentUnavailableConfiguration = nil;
         return;
@@ -234,6 +245,48 @@ static const CGFloat kArtTextGap = 14;
         [weakSelf openTapped];
     }];
     self.contentUnavailableConfiguration = empty;
+}
+
+#pragma mark - The star
+
+// rightBarButtonItems is right-to-left, so the gear stays where it has always
+// been and the star takes the place beside it. The star is absent, not
+// disabled, when the playlist is a single file or nothing at all: there is no
+// folder to name, so there is nothing the control could act on.
+- (void)refreshBarButtons {
+    NSURL *folderURL = _playback.folderURL;
+    if (!folderURL) {
+        self.navigationItem.rightBarButtonItems = @[_settingsItem];
+        return;
+    }
+    BOOL favorited = [FavoritesStore.shared containsFolderURL:folderURL];
+    UIBarButtonItem *star = [[UIBarButtonItem alloc]
+            initWithImage:[UIImage systemImageNamed:favorited ? @"star.fill" : @"star"]
+                    style:UIBarButtonItemStylePlain
+                   target:self
+                   action:@selector(favoriteTapped)];
+    star.accessibilityLabel = favorited ? STR_A11Y_REMOVE_FAVORITE : STR_A11Y_ADD_FAVORITE;
+    self.navigationItem.rightBarButtonItems = @[_settingsItem, star];
+}
+
+// The star fills when the mint lands rather than on the tap. The alternative is
+// a favorite row with no bookmark behind it, which draws and cannot be opened —
+// and only FolderSession can mint one, since it holds the folder's scope.
+// A second tap before the first lands needs no guard: addFolderURL: dedupes.
+- (void)favoriteTapped {
+    NSURL *folderURL = _playback.folderURL;
+    if (!folderURL) {
+        return;
+    }
+    if ([FavoritesStore.shared containsFolderURL:folderURL]) {
+        [FavoritesStore.shared removeFolderURL:folderURL];
+        return;
+    }
+    [_playback bookmarkOpenFolderWithCompletion:^(NSURL *url, NSData *bookmark) {
+        if (url && bookmark) {
+            [FavoritesStore.shared addFolderURL:url bookmark:bookmark];
+        }
+    }];
 }
 
 #pragma mark - Table

@@ -9,6 +9,7 @@
 
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "FavoritesViewController.h"
 #import "FilesViewController.h"
 #import "LibraryViewController.h"
 #import "MiniPlayerView.h"
@@ -40,6 +41,7 @@ static const CGFloat kDismissFlickVelocity = 900;
 static const CGFloat kFilesBarClearance = 21;
 
 static NSString *const kTabPlaylist = @"playlist";
+static NSString *const kTabFavorites = @"favorites";
 static NSString *const kTabFiles = @"files";
 static NSString *const kTabSearch = @"search";
 
@@ -51,6 +53,7 @@ static NSString *const kTabSearch = @"search";
     PlaybackController   *_playback;
     UITabBarController   *_tabs;
     FilesViewController  *_filesController;
+    FavoritesViewController *_favorites;
     LibraryViewController *_library;
     SearchViewController *_searchController;
     MiniPlayerView       *_miniPlayer;
@@ -88,6 +91,18 @@ static NSString *const kTabSearch = @"search";
     return _playback;
 }
 
+- (LibraryViewController *)library {
+    return _library;
+}
+
+- (FavoritesViewController *)favorites {
+    return _favorites;
+}
+
+- (SearchViewController *)searchScreen {
+    return _searchController;
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     // The card's rounded corners cut to this, so it has to be the colour the
@@ -118,8 +133,8 @@ static NSString *const kTabSearch = @"search";
     }
 }
 
-// The iOS 26 tab shape, and Apple Music's: two tabs in the capsule and search
-// as a circle beside it rather than a third tab inside it. UISearchTab is what
+// The iOS 26 tab shape, and Apple Music's: the tabs in a capsule and search as
+// a circle beside it rather than one more tab inside it. UISearchTab is what
 // draws that circle, and automaticallyActivatesSearch is what makes tapping it
 // collapse the bar behind a search field and restore the previous tab on
 // cancel — the whole behavior, from UIKit, with no bar of our own.
@@ -142,6 +157,22 @@ static NSString *const kTabSearch = @"search";
         root->_library = library;
         [root syncTabSurfaces];
         return [[UINavigationController alloc] initWithRootViewController:library];
+    }];
+
+    // Between Playlist and Files, which is the order the three read in: what is
+    // playing, what has been kept, and everywhere else.
+    UITab *favorites = [[UITab alloc] initWithTitle:STR_TAB_FAVORITES
+                                              image:[UIImage systemImageNamed:@"star"]
+                                         identifier:kTabFavorites
+                         viewControllerProvider:^UIViewController *(__kindof UITab *tab) {
+        RootViewController *root = weakSelf;
+        if (!root) {
+            return nil;
+        }
+        FavoritesViewController *starred =
+                [[FavoritesViewController alloc] initWithPlayback:root->_playback];
+        root->_favorites = starred;
+        return [[UINavigationController alloc] initWithRootViewController:starred];
     }];
 
     // No navigation controller: the browser brings its own bar and its own
@@ -177,7 +208,7 @@ static NSString *const kTabSearch = @"search";
 
     _tabs = [[UITabBarController alloc] init];
     _tabs.delegate = self;
-    _tabs.tabs = @[playlist, files, search];
+    _tabs.tabs = @[playlist, favorites, files, search];
 
     [self addChildViewController:_tabs];
     _tabs.view.frame = self.view.bounds;
@@ -729,15 +760,28 @@ static NSString *const kTabSearch = @"search";
 // such event and stays minimized: nothing was asked for.
 //
 // It brings the Playlist tab forward too, so minimizing the card lands on what
-// was just opened rather than back in the Files browser. Search is the one
-// exception: UISearchTab owns the selection while its field is up — it restores
-// the previous tab on cancel — and its results are where the next pick comes
-// from anyway.
+// was just opened rather than back in the Files browser or the Favorites list.
+// Search is the one exception: UISearchTab owns the selection while its field
+// is up — it restores the previous tab on cancel — and its results are where
+// the next pick comes from anyway.
 - (void)playbackDidOpenNewFolder:(PlaybackController *)playback {
+    [self bringPlaylistTabForward];
+    [self expandPlayerAnimated:YES];
+}
+
+// A pick that found no audio still has to say so, and the only thing that says
+// it is the Playlist tab's empty state — so the answer has to be brought to
+// wherever the pick was made. Without this a favorite whose folder has emptied
+// since it was starred, or an empty folder opened from Files, produces nothing
+// visible at all. No card: there is nothing to show on it.
+- (void)playbackDidOpenEmptyFolder:(PlaybackController *)playback {
+    [self bringPlaylistTabForward];
+}
+
+- (void)bringPlaylistTabForward {
     if (![_tabs.selectedTab isKindOfClass:UISearchTab.class]) {
         [self setSelectedTabIdentifier:kTabPlaylist];
     }
-    [self expandPlayerAnimated:YES];
 }
 
 - (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated {

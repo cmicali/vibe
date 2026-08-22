@@ -7,6 +7,7 @@
 #import "AppSettings.h"
 #import "AppStats.h"
 #import "DocumentTypes.h"
+#import "FavoritesStore.h"
 #import "FileSearchRules.h"
 #import "NSURLUtil.h"
 #import "SearchFolderStoreInternal.h"
@@ -61,6 +62,10 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
 }
 
 - (NSURL *)searchRoot {
+    return _folderURL;
+}
+
+- (NSURL *)folderURL {
     return _folderURL;
 }
 
@@ -123,6 +128,17 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
             _scopedURL.URLByStandardizingPath.path,
             url.URLByStandardizingPath.path);
     NSURL *sessionScopedURL = sessionScopeCoversResult ? _scopedURL : nil;
+    // A hit inside a STARRED folder is covered by neither of those: the store
+    // holds that scope, and it drops it when the row goes. So the session takes
+    // a hold of its own on the favorite's root — the ownership adoptURL: has —
+    // rather than reading on the strength of somebody else's scope. That, and
+    // not a refcounted grant, is what keeps this playlist readable after the
+    // favorite is unstarred.
+    NSURL *favoriteRoot = (searchGrant || sessionScopeCoversResult)
+            ? nil
+            : [FavoritesStore.shared resolvedRootCoveringURL:url];
+    BOOL favoriteScopeStarted = [favoriteRoot startAccessingSecurityScopedResource];
+    NSURL *ownedScopeURL = favoriteScopeStarted ? favoriteRoot : sessionScopedURL;
     BOOL scopeHoldStarted = [sessionScopedURL startAccessingSecurityScopedResource];
     VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
     dispatch_async(_workQueue, ^{
@@ -130,10 +146,13 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
             if (scopeHoldStarted) {
                 [sessionScopedURL stopAccessingSecurityScopedResource];
             }
+            if (favoriteScopeStarted) {
+                [favoriteRoot stopAccessingSecurityScopedResource];
+            }
             return;
         }
         // The listing is provider IPC, like every other adoption's, so it runs
-        // here. No scope is started: the caller vouched that a root covers it.
+        // here, under whichever scope above is covering the hit.
         NSArray<NSURL *> *siblings = [NSURLUtil audioFilesInDirectory:parent sortedBy:sort];
         BOOL expanded = siblings.count > 0;
         if (scopeHoldStarted) {
@@ -145,8 +164,8 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
                          folderURL:expanded ? parent : nil
                        selectedURL:expanded ? url : nil
                           restored:NO
-                         scopedURL:sessionScopedURL
-                  scopedURLStarted:NO
+                         scopedURL:ownedScopeURL
+                  scopedURLStarted:favoriteScopeStarted
                        searchGrant:searchGrant
                           bookmark:nil];
         });
@@ -220,6 +239,29 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
         LogWarn(@"FolderSession: could not bookmark %@ (%@)", url, error);
     }
     return bookmark;
+}
+
+// The hold is what makes this safe to run off main: finishOpenIntent releases
+// the previous scope the moment a newer open lands, and a mint under a closed
+// scope fails.
+- (void)bookmarkOpenFolderWithCompletion:(void (^)(NSURL *folderURL,
+                                                   NSData *bookmark))completion {
+    NSURL *folderURL = _folderURL;
+    if (!folderURL) {
+        completion(nil, nil);
+        return;
+    }
+    NSURL *scopedURL = _scopeActive ? _scopedURL : nil;
+    BOOL scopeHoldStarted = [scopedURL startAccessingSecurityScopedResource];
+    dispatch_async(_workQueue, ^{
+        NSData *bookmark = [self bookmarkForURL:folderURL];
+        if (scopeHoldStarted) {
+            [scopedURL stopAccessingSecurityScopedResource];
+        }
+        run_on_main_thread({
+            completion(bookmark ? folderURL : nil, bookmark);
+        });
+    });
 }
 
 #pragma mark - Adoption

@@ -46,6 +46,11 @@ NS_ASSUME_NONNULL_BEGIN
 // after a single-file open).
 @property (nonatomic, readonly, nullable) NSString *folderDisplayName;
 
+// The open folder, or nil — a single-file playlist has none. The same URL
+// searchRoot reports, named for what it is at the call sites that are not
+// about search.
+@property (nonatomic, readonly, nullable) NSURL *folderURL;
+
 // This session's contribution to the search scope: the open folder, or nil. A
 // folder grant covers the WHOLE subtree, so its subfolders are searchable even
 // though the directory-as-playlist listing is flat.
@@ -81,6 +86,19 @@ NS_ASSUME_NONNULL_BEGIN
 // outcome arrives later: folderSession:didOpenTracks:… on success,
 // folderSessionRestoreDidFail: otherwise. All delegate calls land on main.
 - (BOOL)restorePersistedFolder;
+
+// Mints a fresh bookmark for the open folder so something outside this session
+// can reopen it later — Favorites is the only caller. The mint runs off main
+// under a temporary hold on the live scope, the same hold every adoption takes,
+// because minting needs that scope OPEN and an open landing meanwhile releases
+// it. completion lands on main; both arguments are nil when there is no open
+// folder or the mint failed.
+//
+// It carries no openIntentGeneration, unlike an adoption: it changes no session
+// state, and the user starred the folder that was open when they asked — a
+// newer open landing first does not retract that.
+- (void)bookmarkOpenFolderWithCompletion:(void (^)(NSURL *_Nullable folderURL,
+                                                   NSData *_Nullable bookmark))completion;
 
 // The last track filename the player screen wants restored next launch.
 // Stored alongside the bookmark; nil clears it.

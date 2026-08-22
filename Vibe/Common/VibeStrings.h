@@ -138,7 +138,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_MENU_VIEW_PITCH_CONTROL NSLS(@"menu.view.pitch_control",     @"Show Pitch Control", @"View menu item: shows the pitch fader panel.")
 #define STR_MENU_VIEW_FILE_INFO     NSLS(@"menu.view.file_info",         @"Show File Info",     @"View menu item: checkmarked toggle showing the header's file-format readout (codec, bitrate, sample rate) and the BPM/key line.")
 #define STR_MENU_VIEW_ALWAYS_ON_TOP NSLS(@"menu.view.always_on_top",     @"Always on Top",      @"View menu item: checkmarked toggle that keeps the player window above all other apps' windows.")
-#define STR_MENU_VIEW_APPEARANCE    NSLS(@"menu.view.appearance",        @"Appearance",         @"View menu: submenu choosing the light/dark appearance.")
+#define STR_MENU_VIEW_APPEARANCE    NSLS(@"menu.view.appearance",        @"Appearance",         @"View menu: submenu choosing the light/dark appearance; also the Appearance pane's label in the mac Settings window and the Appearance row on the iOS settings screen. One word for all three.")
 #define STR_MENU_APPEARANCE_SYSTEM  NSLS(@"menu.view.appearance.system", @"Auto",               @"Appearance menu item: follow the system's light/dark setting. macOS System Settings names this choice Auto, beside Light and Dark — use the same word.")
 #define STR_MENU_APPEARANCE_LIGHT   NSLS(@"menu.view.appearance.light",  @"Light",              @"Appearance menu item: always use the light appearance.")
 #define STR_MENU_APPEARANCE_DARK    NSLS(@"menu.view.appearance.dark",   @"Dark",               @"Appearance menu item: always use the dark appearance.")
@@ -203,7 +203,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_LABEL_PLAYLIST_OR_PRESS     NSLS(@"label.playlist.or_press",     @"or press",                   @"Empty playlist pane, second hint line: followed by a drawn ⌘O keycap, reading 'or press ⌘O'. Lower-case — it continues the first line's sentence.")
 #define STR_LABEL_PLAYLIST_DROP_REPLACE NSLS(@"label.playlist.drop_replace", @"Drop to replace playlist",   @"Drop-target label shown while dragging files over a populated playlist: dropping here replaces the whole playlist.")
 #define STR_LABEL_PLAYLIST_DROP_ADD     NSLS(@"label.playlist.drop_add",     @"Drop to add to playlist",    @"Drop-target label shown while dragging files over the playlist: dropping here appends to the playlist.")
-#define STR_LABEL_ABOUT_VERSION      NSLS(@"label.about.version",      @"Version %@",              @"About window: %@ is the version number, e.g. '1.5 (15) · Release'.")
+#define STR_LABEL_ABOUT_VERSION      NSLS(@"label.about.version",      @"Version %@",              @"About window, and the About screen on both platforms: %@ is the version number, e.g. '1.5 (15) · Release'.")
 
 #pragma mark - Settings window
 
@@ -251,7 +251,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_WAVEFORM_THEME_LABEL NSLS(@"settings.appearance.waveform_theme_label",     @"Color theme",              @"Settings, Appearance pane, Waveform group: row beside the dropdown choosing the waveform's color palette (as opposed to its drawing style).")
 #define STR_SETTINGS_WAVEFORM_THEME_MONO NSLS(@"settings.appearance.waveform_theme.mono",       @"Mono",                     @"Settings, waveform color theme choice: the monochrome default — white-based in dark mode, black-based in light. 'Mono' as in monochrome, not monaural audio. The default.")
 #define STR_SETTINGS_WAVEFORM_THEME_ORANGE NSLS(@"settings.appearance.waveform_theme.orange",   @"Orange",                   @"Settings, waveform color theme choice: the played part of the waveform draws in orange.")
-#define STR_SETTINGS_WAVEFORM_THEME_ALBUM_ART NSLS(@"settings.appearance.waveform_theme.album_art", @"Album art",            @"Settings, waveform color theme choice (macOS only): the not-yet-played part of the waveform draws in a color derived from the current track's cover artwork, under a white (dark mode) or black (light mode) played part.")
+#define STR_SETTINGS_WAVEFORM_THEME_ALBUM_ART NSLS(@"settings.appearance.waveform_theme.album_art", @"Album art",            @"Settings, waveform color theme choice: the not-yet-played part of the waveform draws in a color derived from the track's cover artwork, under a white (dark mode) or black (light mode) played part.")
 #define STR_SETTINGS_WAVEFORM_THEME_CUSTOM NSLS(@"settings.appearance.waveform_theme.custom",   @"Custom",                   @"Settings, waveform color theme choice: the user picks the two waveform colors with color wells.")
 #define STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL NSLS(@"settings.appearance.waveform_custom_dark_label", @"Dark colors:",     @"Settings, Appearance pane: label beside the custom waveform color wells used while the app is in dark mode. Ends with a colon.")
 #define STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL NSLS(@"settings.appearance.waveform_custom_light_label", @"Light colors:",  @"Settings, Appearance pane: label beside the custom waveform color wells used while the app is in light mode. Ends with a colon.")
@@ -284,7 +284,7 @@ static inline NSString *VibeAppName(void) {
 // meaning and translation; only the pane's own title is a new key, since
 // reusing one would keep shipping the translated word "Permissions" until every
 // language was revisited.
-#define STR_SETTINGS_FILES                NSLS(@"settings.files",                               @"Files",                    @"Settings window: the Files pane's toolbar item, and the window's title while that pane is selected. The pane covers where the app looks for album art and which folders it keeps access to.")
+#define STR_SETTINGS_FILES                NSLS(@"settings.files",                               @"Files",                    @"Settings window: the Files pane's toolbar item, and the window's title while that pane is selected; also the Files row on the iOS settings screen. The pane covers where the app looks for album art and which folders it keeps access to.")
 #define STR_SETTINGS_FOLDER_SORT_LABEL    NSLS(@"settings.files.folder_sort_label",             @"When opening a folder:",   @"Settings, Files pane: label beside the dropdown choosing the order a folder's songs are added to the playlist when that folder is opened. Ends with a colon.")
 #define STR_SETTINGS_FOLDER_SORT_NAME     NSLS(@"settings.files.folder_sort.name",              @"Sort by name",             @"Settings, Files pane, folder open sort choice: order the songs by filename, counting numbers in a filename as numbers. The default.")
 #define STR_SETTINGS_FOLDER_SORT_NEWEST_FIRST NSLS(@"settings.files.folder_sort.newest_first", @"Newest first",             @"Settings, Files pane, folder open sort choice: order the songs by the date each file was last changed, most recent first — the same date the Finder and the iPhone Files app call Date Modified.")
@@ -316,10 +316,10 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_CACHE_LABEL          NSLS(@"settings.advanced.cache_label",                @"Cache size:",              @"Settings, Advanced pane: label beside the readout of the metadata and waveform caches' current size. Ends with a colon.")
 #define STR_SETTINGS_CACHE_VALUE          NSLS(@"settings.advanced.cache_value",                @"%1$@ files, %2$@ MB",      @"Settings, Advanced pane: the cache-size readout, e.g. '312 files, 48.2 MB'. %1$@ is the already-formatted file count, %2$@ the already-formatted megabytes.")
 #define STR_SETTINGS_CLEAR_CACHE          NSLS(@"settings.advanced.clear_cache",                @"Clear Cache",              @"Settings, Advanced pane: button that empties the metadata and waveform caches.")
-#define STR_SETTINGS_STATS_SECTION        NSLS(@"settings.advanced.stats_section",              @"Statistics",               @"Settings, About pane: heading above the group of lifetime playback-statistics rows.")
-#define STR_SETTINGS_FILES_OPENED_LABEL   NSLS(@"settings.advanced.files_opened_label",         @"Files opened:",            @"Settings, About pane, statistics: label beside the lifetime count of files opened. Ends with a colon.")
-#define STR_SETTINGS_FOLDERS_OPENED_LABEL NSLS(@"settings.advanced.folders_opened_label",       @"Folders opened:",          @"Settings, About pane, statistics: label beside the lifetime count of folders opened. Ends with a colon.")
-#define STR_SETTINGS_AUDIO_PLAYED_LABEL   NSLS(@"settings.advanced.audio_played_label",         @"Audio played:",            @"Settings, About pane, statistics: label beside the total listening time, shown in words like '3 days, 4 hours'. Ends with a colon.")
+#define STR_SETTINGS_STATS_SECTION        NSLS(@"settings.advanced.stats_section",              @"Statistics",               @"Settings, About pane on both platforms: heading above the group of lifetime playback-statistics rows.")
+#define STR_SETTINGS_FILES_OPENED_LABEL   NSLS(@"settings.advanced.files_opened_label",         @"Files opened:",            @"Settings, About pane on both platforms, statistics: label beside the lifetime count of files opened. Ends with a colon, dropped where the layout puts the value in its own column.")
+#define STR_SETTINGS_FOLDERS_OPENED_LABEL NSLS(@"settings.advanced.folders_opened_label",       @"Folders opened:",          @"Settings, About pane on both platforms, statistics: label beside the lifetime count of folders opened. Ends with a colon, dropped where the layout puts the value in its own column.")
+#define STR_SETTINGS_AUDIO_PLAYED_LABEL   NSLS(@"settings.advanced.audio_played_label",         @"Audio played:",            @"Settings, About pane on both platforms, statistics: label beside the total listening time, shown in words like '3 days, 4 hours'. Ends with a colon, dropped where the layout puts the value in its own column.")
 
 #define STR_SETTINGS_BUILD_SECTION        NSLS(@"settings.advanced.build_section",              @"Build",                    @"Settings, Advanced pane: heading above the rows describing this exact build of the app — version, source revision and languages. 'Build' as the software-development noun.")
 #define STR_SETTINGS_VERSION_LABEL        NSLS(@"settings.advanced.version_label",              @"Version:",                 @"Settings, Advanced pane, Build group: label beside the app's version number. Ends with a colon.")
@@ -327,9 +327,9 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_LANGUAGE_LABEL       NSLS(@"settings.advanced.language_label",             @"Language:",                @"Settings, Advanced pane, Build group: label beside the language the app is currently running in. Ends with a colon.")
 #define STR_SETTINGS_LANGUAGES_LABEL      NSLS(@"settings.advanced.languages_label",            @"Available languages:",     @"Settings, Advanced pane, Build group: label beside the row of flags for every language this build ships. Ends with a colon.")
 
-#define STR_SETTINGS_ABOUT                NSLS(@"settings.about",                               @"About",                    @"Settings window: the About pane's sidebar item, and the window's title while that pane is selected. The pane shows the app icon, version, project links and lifetime statistics. Use the word Apple uses for an app's About screen in this language.")
-#define STR_SETTINGS_ABOUT_WEB            NSLS(@"settings.about.web",                           @"Web",                      @"Settings, About pane: row title beside the link to the app's website. Short label for a website address; keep it to one word.")
-#define STR_SETTINGS_ABOUT_SUPPORT        NSLS(@"settings.about.support",                       @"Support",                  @"Settings, About pane: row title beside the link to the app's support page, where a user gets help or reports a problem.")
+#define STR_SETTINGS_ABOUT                NSLS(@"settings.about",                               @"About",                    @"Settings window: the About pane's sidebar item, and the window's title while that pane is selected; also the About row and screen title on iOS. It shows the app icon, version, project links and lifetime statistics. Use the word Apple uses for an app's About screen in this language.")
+#define STR_SETTINGS_ABOUT_WEB            NSLS(@"settings.about.web",                           @"Web",                      @"Settings, About pane on both platforms: row title beside the link to the app's website. Short label for a website address; keep it to one word.")
+#define STR_SETTINGS_ABOUT_SUPPORT        NSLS(@"settings.about.support",                       @"Support",                  @"Settings, About pane on both platforms: row title beside the link to the app's support page, where a user gets help or reports a problem.")
 
 #pragma mark - Accessibility labels
 
@@ -381,13 +381,20 @@ static inline NSString *VibeAppName(void) {
 #define STR_BUTTON_OK                       NSLS(@"button.ok",                       @"OK",                @"Dismiss button of an alert that only reports something, with nothing to choose. Use the wording the system uses for this button in this language.")
 
 #define STR_TAB_PLAYLIST        NSLS(@"tab.playlist",        @"Playlist",                    @"iOS: title of the tab showing the tracks queued to play.")
+#define STR_TAB_FAVORITES       NSLS(@"tab.favorites",       @"Favorites",                   @"iOS: title of the tab listing the folders the user starred, to reopen one in a tap.")
 #define STR_TAB_FILES           NSLS(@"tab.files",           @"Files",                       @"iOS: title of the tab showing the system file browser, for picking music to play.")
 #define STR_BUTTON_OPEN         NSLS(@"button.open",         @"Open",                        @"iOS: button that opens the system document picker to choose a folder or file to play.")
 #define STR_LABEL_EMPTY_TITLE   NSLS(@"label.library.empty.title",   @"Nothing to Play",     @"iOS: headline of the empty library screen, shown when no folder or file has been opened.")
 #define STR_LABEL_EMPTY_MESSAGE NSLS(@"label.library.empty.message", @"Choose a folder or file to get started.", @"iOS: explanatory line under the empty library headline, above the Open button.")
 
+#define STR_LABEL_FAVORITES_EMPTY_TITLE   NSLS(@"label.favorites.empty.title",   @"No Favorites", @"iOS: headline of the empty favorites screen, shown when the user has not starred any folder yet.")
+#define STR_LABEL_FAVORITES_EMPTY_MESSAGE NSLS(@"label.favorites.empty.message", @"Star a folder you have open to keep it here.", @"iOS: explanatory line under the empty favorites headline. It says how a favorite is made: open a folder, then tap the star button on the playlist screen.")
+#define STR_ERROR_FAVORITE_UNAVAILABLE    NSLS(@"error.favorite.unavailable",    @"This folder can’t be opened right now. It may have been moved or deleted, or its cloud service may be signed out.", @"iOS: alert message shown when tapping a favorite whose folder could not be found. The alert’s title is the folder’s name. Uses a curly apostrophe (’).")
+
 #define STR_A11Y_MINIPLAYER_EXPAND NSLS(@"a11y.miniplayer.expand", @"Now Playing",  @"iOS: accessibility label for the mini player strip above the tab bar; activating it opens the full-screen player.")
 #define STR_A11Y_PLAYER_MINIMIZE   NSLS(@"a11y.player.minimize",   @"Minimize",     @"iOS: accessibility label for the full-screen player's grabber, which returns it to the mini player strip.")
 #define STR_A11Y_PLAYER_OUTPUT_ROUTE NSLS(@"a11y.player.output_route", @"Output Device", @"iOS: accessibility label for the button on the full-screen player that opens the system list of AirPlay and Bluetooth devices to play through.")
+#define STR_A11Y_ADD_FAVORITE      NSLS(@"a11y.favorite.add",      @"Add to Favorites",      @"iOS: accessibility label for the star button on the playlist screen, when the open folder is not starred yet; activating it adds the folder to the Favorites tab.")
+#define STR_A11Y_REMOVE_FAVORITE   NSLS(@"a11y.favorite.remove",   @"Remove from Favorites", @"iOS: accessibility label for the star button on the playlist screen, when the open folder is already starred; activating it takes the folder off the Favorites tab.")
 
 #endif /* VibeStrings_h */

@@ -11,6 +11,7 @@
 #import "FileSearchRules.h"
 #import "PlaybackController.h"
 #import "Playlist.h"
+#import "FavoritesStore.h"
 #import "SearchFolderStore.h"
 #import "VibeStrings.h"
 
@@ -98,6 +99,14 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
                                            selector:@selector(searchFoldersDidChange:)
                                                name:VibeSearchFoldersDidChangeNotification
                                              object:nil];
+    // The starred folders are the other half of the persistent scope, and they
+    // land the same way: prepareSearchScope resolves each saved grant off main,
+    // so roots arrive after this screen is up. A folder starred on the Playlist
+    // tab while this one exists reaches the walk through the same delivery.
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(searchFoldersDidChange:)
+                                               name:VibeFavoritesDidChangeNotification
+                                             object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(thumbnailDidLoad:)
                                                name:AudioTrackMetadataThumbnailDidLoadNotification
@@ -141,7 +150,22 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 // Different roots discard the index and re-walk; the same ones are a no-op, so
 // this is cheap to call on every appearance. The build is started only from a
 // screen that is up: arriving here is the signal the work is wanted.
+- (BOOL)isBuildingFileIndex {
+    return _fileIndex.isBuilding;
+}
+
+// The field is the query's home: requestFileHitsForQuery: drops any delivery
+// whose query no longer matches currentQuery, so putting the text anywhere else
+// would filter once and then discard the file half's answer.
+- (void)setQueryText:(NSString *)query {
+    _searchController.searchBar.text = query;
+    [self filterWithQuery:query];
+}
+
 - (void)applySearchRoots {
+    // Starred folders are resolvable but not yet resolved until this asks: the
+    // saved grant is only worth opening once something is going to walk it.
+    [FavoritesStore.shared prepareSearchScope];
     [_fileIndex setRoots:_playback.searchRoots];
     if ([self isMateriallyVisible]) {
         [_fileIndex beginBuildIfNeeded];
@@ -159,10 +183,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     _viewPresentationVisible = YES;
-    [_fileIndex setRoots:_playback.searchRoots];
-    if ([self isMateriallyVisible]) {
-        [_fileIndex beginBuildIfNeeded];
-    }
+    [self applySearchRoots];
     // Unconditional, not gated on _matchesStale: the walk delivers while this
     // screen is off in the wings and its reloads are dropped there, so appearing
     // is the one place both sections are known to be drawn from what is current.

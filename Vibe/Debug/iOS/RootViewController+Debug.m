@@ -14,6 +14,10 @@
 
 #if DEBUG
 
+// The search screen's own section order; it owns the enum, and this is the one
+// place outside it that has to name a section.
+static const NSInteger VibeDebugSearchFilesSection = 1;
+
 #import "PlaybackController+Debug.h"
 #import "PlayerViewController+Debug.h"
 
@@ -23,6 +27,8 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
+#import "LibraryViewController.h"
+#import "SearchViewController.h"
 #import "DebugCommonVerbs.h"
 #import "PlaybackController.h"
 #import "Playlist.h"
@@ -66,6 +72,113 @@
 
 - (void)debugSetWaveformZoom:(CGFloat)fraction {
     [self.player debugSetWaveformZoom:fraction];
+}
+
+- (BOOL)debugTapFavoriteStar {
+    // No library means the Playlist tab was never resolved, so its bar — and
+    // the star on it — does not exist to tap.
+    LibraryViewController *library = self.library;
+    if (!library || !self.playback.folderURL) {
+        return NO;
+    }
+    [library favoriteTapped];
+    return YES;
+}
+
+// The files half answers off a walk and a background match, so there is no
+// synchronous moment to read. Rather than guess a delay, this re-reads the
+// table until its row counts stop moving — the same thing a human watching the
+// list does — bounded so a stalled provider ends the command instead of the
+// timeout.
+- (BOOL)debugSearchQuery:(NSString *)query
+              completion:(void (^)(NSDictionary *result))completion {
+    SearchViewController *screen = self.searchScreen;
+    if (!screen) {
+        return NO;
+    }
+    [screen setQueryText:query];
+    [self debugPollSearchTable:screen query:query
+                     lastCounts:nil stableRounds:0 roundsLeft:40
+                     completion:completion];
+    return YES;
+}
+
+- (void)debugPollSearchTable:(SearchViewController *)screen
+                       query:(NSString *)query
+                  lastCounts:(NSArray<NSNumber *> *)lastCounts
+                stableRounds:(NSUInteger)stableRounds
+                  roundsLeft:(NSUInteger)roundsLeft
+                  completion:(void (^)(NSDictionary *result))completion {
+    UITableView *table = screen.tableView;
+    NSMutableArray<NSNumber *> *counts = [NSMutableArray array];
+    for (NSInteger section = 0; section < table.numberOfSections; section++) {
+        [counts addObject:@([table numberOfRowsInSection:section])];
+    }
+    NSUInteger stable = [counts isEqualToArray:lastCounts] ? stableRounds + 1 : 0;
+    // Two quiet rounds, because a batch can land between any two of them.
+    if ((stable >= 2 && !screen.isBuildingFileIndex) || roundsLeft == 0) {
+        completion([self debugSearchResultForScreen:screen query:query counts:counts]);
+        return;
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        [self debugPollSearchTable:screen query:query lastCounts:counts
+                      stableRounds:stable roundsLeft:roundsLeft - 1
+                        completion:completion];
+    });
+}
+
+// Read off the CELLS, so what this reports is what the screen draws.
+- (NSDictionary *)debugSearchResultForScreen:(SearchViewController *)screen
+                                       query:(NSString *)query
+                                      counts:(NSArray<NSNumber *> *)counts {
+    UITableView *table = screen.tableView;
+    NSMutableArray<NSDictionary *> *sections = [NSMutableArray array];
+    for (NSInteger section = 0; section < counts.count; section++) {
+        NSMutableArray<NSDictionary *> *rows = [NSMutableArray array];
+        for (NSInteger row = 0; row < counts[(NSUInteger)section].integerValue; row++) {
+            NSIndexPath *path = [NSIndexPath indexPathForRow:row inSection:section];
+            UITableViewCell *cell = [table.dataSource tableView:table cellForRowAtIndexPath:path];
+            UIListContentConfiguration *content =
+                    (UIListContentConfiguration *)cell.contentConfiguration;
+            [rows addObject:@{@"text": content.text ?: @"",
+                              @"secondaryText": content.secondaryText ?: @""}];
+        }
+        [sections addObject:@{
+            @"header": [table.dataSource respondsToSelector:@selector(tableView:titleForHeaderInSection:)]
+                    ? ([table.dataSource tableView:table titleForHeaderInSection:section] ?: @"")
+                    : @"",
+            @"rows": rows
+        }];
+    }
+    return @{@"ok": @YES, @"query": query, @"sections": sections};
+}
+
+- (BOOL)debugTapSearchFileAtIndex:(NSUInteger)index {
+    SearchViewController *screen = self.searchScreen;
+    if (!screen) {
+        return NO;
+    }
+    UITableView *table = screen.tableView;
+    NSInteger files = VibeDebugSearchFilesSection;
+    if (files >= table.numberOfSections
+            || index >= (NSUInteger)[table numberOfRowsInSection:files]) {
+        return NO;
+    }
+    [screen tableView:table
+            didSelectRowAtIndexPath:[NSIndexPath indexPathForRow:(NSInteger)index
+                                                       inSection:files]];
+    return YES;
+}
+
+- (BOOL)debugTapFavoriteAtIndex:(NSUInteger)index {
+    FavoritesViewController *favorites = self.favorites;
+    if (!favorites || index >= (NSUInteger)[favorites.tableView numberOfRowsInSection:0]) {
+        return NO;
+    }
+    NSIndexPath *path = [NSIndexPath indexPathForRow:(NSInteger)index inSection:0];
+    [favorites tableView:favorites.tableView didSelectRowAtIndexPath:path];
+    return YES;
 }
 
 - (void)debugSetOutputRouteKind:(VibeOutputRouteKind)kind deviceName:(NSString *)name {

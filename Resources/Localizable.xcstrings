@@ -1,6 +1,378 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "a11y.favorite.add": {
+      "comment": "iOS: accessibility label for the star button on the playlist screen, when the open folder is not starred yet; activating it adds the folder to the Favorites tab.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавяне към любими"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Přidat mezi oblíbené"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Føj til favoritter"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu Favoriten hinzufügen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Προσθήκη στα αγαπημένα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to Favorites"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir a favoritos"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lisää suosikkeihin"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter aux favoris"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj u favorite"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hozzáadás a kedvencekhez"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambahkan ke Favorit"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi ai preferiti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "お気に入りに追加"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "즐겨찾기에 추가"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legg til i favoritter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voeg toe aan favorieten"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj do ulubionych"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar aos favoritos"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar aos favoritos"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adaugă la favorite"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить в избранное"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pridať medzi obľúbené"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lägg till i favoriter"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เพิ่มไปยังรายการโปรด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favorilere Ekle"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Додати у вибране"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm vào mục yêu thích"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加到收藏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入收藏"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "a11y.favorite.remove": {
+      "comment": "iOS: accessibility label for the star button on the playlist screen, when the open folder is already starred; activating it takes the folder off the Favorites tab.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Премахване от любими"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odebrat z oblíbených"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fjern fra favoritter"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus Favoriten entfernen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αφαίρεση από τα αγαπημένα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from Favorites"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar de favoritos"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poista suosikeista"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer des favoris"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukloni iz favorita"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eltávolítás a kedvencekből"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hapus dari Favorit"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rimuovi dai preferiti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "お気に入りから削除"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "즐겨찾기에서 제거"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fjern fra favoritter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwijder uit favorieten"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usuń z ulubionych"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remover dos favoritos"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remover dos favoritos"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elimină de la favorite"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить из избранного"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odstrániť z obľúbených"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta bort från favoriter"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "นำออกจากรายการโปรด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favorilerden Kaldır"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вилучити з вибраного"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xóa khỏi mục yêu thích"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从收藏中移除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從收藏中移除"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "a11y.miniplayer.expand": {
       "comment": "iOS: accessibility label for the mini player strip above the tab bar; activating it opens the full-screen player.",
       "localizations": {
@@ -190,12 +562,6 @@
     "a11y.pitch_fader": {
       "comment": "Accessibility label for the pitch fader, the slider that speeds the track up or slows it down like a turntable's. Read aloud by a screen reader, never drawn on screen; the drawn legend is the separate upper-case 'PITCH'.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pitch"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -221,6 +587,12 @@
           }
         },
         "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pitch"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Pitch"
@@ -1120,12 +1492,6 @@
     "a11y.waveform": {
       "comment": "Accessibility label for the waveform, which is a slider: it shows where playback has reached in the track and seeks when adjusted. Read aloud by a screen reader, never drawn on screen. Both platforms.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Playback Position"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -1154,6 +1520,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Θέση αναπαραγωγής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback Position"
           }
         },
         "es": {
@@ -2605,6 +2977,192 @@
       },
       "extractionState": "manual"
     },
+    "error.favorite.unavailable": {
+      "comment": "iOS: alert message shown when tapping a favorite whose folder could not be found. The alert’s title is the folder’s name. Uses a curly apostrophe (’).",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тази папка не може да се отвори в момента. Възможно е да е преместена или изтрита, или облачната ѝ услуга да е отписана."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tuto složku teď nelze otevřít. Mohla být přesunuta či smazána, nebo je její cloudová služba odhlášená."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denne mappe kan ikke åbnes lige nu. Den er måske flyttet eller slettet, eller dens skytjeneste er logget ud."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Ordner kann gerade nicht geöffnet werden. Er wurde vielleicht bewegt oder gelöscht, oder sein Cloud‑Dienst ist abgemeldet."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αυτός ο φάκελος δεν μπορεί να ανοίξει αυτήν τη στιγμή. Ίσως μετακινήθηκε ή διαγράφηκε ή έγινε αποσύνδεση από την υπηρεσία cloud του."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This folder can’t be opened right now. It may have been moved or deleted, or its cloud service may be signed out."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta carpeta no se puede abrir ahora. Puede que se haya movido o eliminado, o que su servicio en la nube tenga la sesión cerrada."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tätä kansiota ei voi avata juuri nyt. Se on ehkä siirretty tai poistettu, tai sen pilvipalvelusta on kirjauduttu ulos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce dossier ne peut pas être ouvert pour le moment. Il a peut‑être été déplacé ou supprimé, ou vous êtes déconnecté de son service de stockage."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ovu mapu trenutačno nije moguće otvoriti. Možda je premještena ili izbrisana ili je odjavljena njezina usluga u oblaku."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ez a mappa most nem nyitható meg. Lehet, hogy áthelyezted vagy törölted, vagy ki vagy jelentkezve a felhőszolgáltatásából."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder ini tidak dapat dibuka sekarang. Folder mungkin telah dipindahkan atau dihapus, atau layanan cloud-nya telah keluar."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non è possibile aprire questa cartella al momento. Potrebbe essere stata spostata o eliminata, oppure hai effettuato la disconnessione dal suo servizio cloud."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このフォルダは現在開けません。移動または削除されたか、クラウドサービスからサインアウトしている可能性があります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 폴더를 지금 열 수 없습니다. 폴더가 이동 또는 삭제되었거나 클라우드 서비스에서 로그아웃되었을 수 있습니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denne mappen kan ikke åpnes akkurat nå. Den kan ha blitt flyttet eller slettet, eller skytjenesten er logget av."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deze map kan nu niet worden geopend. Mogelijk is de map verplaatst of verwijderd, of is de clouddienst afgemeld."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie można teraz otworzyć tego folderu. Mógł zostać przeniesiony lub usunięty albo nastąpiło wylogowanie z jego usługi w chmurze."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não é possível abrir esta pasta agora. Ela pode ter sido movida ou apagada, ou o serviço de nuvem dela pode estar desconectado."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não é possível abrir esta pasta agora. Pode ter sido movida ou apagada, ou pode ter terminado sessão no respetivo serviço na nuvem."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acest dosar nu poate fi deschis acum. Este posibil să fi fost mutat sau șters ori să fiți deconectat de la serviciul său cloud."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эту папку сейчас нельзя открыть. Возможно, она перемещена или удалена либо выполнен выход из её облачного сервиса."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tento priečinok sa teraz nedá otvoriť. Mohol byť presunutý alebo vymazaný, prípadne ste odhlásený z jeho cloudovej služby."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Det går inte att öppna den här mappen just nu. Den kan ha flyttats eller raderats, eller så är dess molntjänst utloggad."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เปิดโฟลเดอร์นี้ในตอนนี้ไม่ได้ โฟลเดอร์อาจถูกย้ายหรือลบไปแล้ว หรือบริการคลาวด์ของโฟลเดอร์อาจลงชื่อออกอยู่"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu klasör şu anda açılamıyor. Taşınmış veya silinmiş olabilir ya da bulut servisinin oturumu kapatılmış olabilir."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цю папку зараз неможливо відкрити. Можливо, її перемістили чи вилучили або виконано вихід із її хмарної служби."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiện không thể mở thư mục này. Thư mục có thể đã bị di chuyển hoặc xóa, hoặc dịch vụ đám mây của thư mục đã đăng xuất."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前无法打开此文件夹。它可能已被移动或删除，或者其云服务已退出登录。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前無法打開此檔案夾。它可能已被移動或刪除，或者其雲端服務已登出。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "error.folder_empty": {
       "comment": "iOS: shown after picking a folder that contains no playable audio files.",
       "localizations": {
@@ -3350,7 +3908,7 @@
       "extractionState": "manual"
     },
     "label.about.version": {
-      "comment": "About window: %@ is the version number, e.g. '1.5 (15) · Release'.",
+      "comment": "About window, and the About screen on both platforms: %@ is the version number, e.g. '1.5 (15) · Release'.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -4274,6 +4832,378 @@
           "stringUnit": {
             "state": "translated",
             "value": "拖放檔案或按 %@"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "label.favorites.empty.message": {
+      "comment": "iOS: explanatory line under the empty favorites headline. It says how a favorite is made: open a folder, then tap the star button on the playlist screen.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Докоснете звездата при отворена папка, за да я запазите тук."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "U otevřené složky klepněte na hvězdičku a zůstane tady."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tryk på stjernen, når en mappe er åben, for at beholde den her."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tippe bei einem geöffneten Ordner auf den Stern, um ihn hier zu behalten."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αγγίξτε το αστέρι σε έναν ανοιχτό φάκελο για να τον κρατήσετε εδώ."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Star a folder you have open to keep it here."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toca la estrella con una carpeta abierta para guardarla aquí."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pidä kansio täällä napauttamalla tähteä, kun kansio on avoinna."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touchez l’étoile lorsqu’un dossier est ouvert pour le conserver ici."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodirnite zvjezdicu kad je mapa otvorena da biste je zadržali ovdje."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Érintsd meg a csillagot egy megnyitott mappánál, hogy itt maradjon."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ketuk bintang saat folder terbuka untuk menyimpannya di sini."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tocca la stella con una cartella aperta per tenerla qui."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダを開いた状態で星をタップすると、ここに残ります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더를 연 상태에서 별을 탭하면 여기에 보관됩니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trykk på stjernen når en mappe er åpen, for å beholde den her."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tik op de ster bij een geopende map om deze hier te bewaren."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stuknij w gwiazdkę przy otwartym folderze, aby zachować go tutaj."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toque na estrela com uma pasta aberta para mantê‑la aqui."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toque na estrela com uma pasta aberta para mantê‑la aqui."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atingeți steaua când un dosar este deschis pentru a‑l păstra aici."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нажмите звёздочку при открытой папке, чтобы сохранить её здесь."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pri otvorenom priečinku ťuknite na hviezdičku a zostane tu."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tryck på stjärnan när en mapp är öppen för att behålla den här."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "แตะรูปดาวขณะเปิดโฟลเดอร์อยู่ เพื่อเก็บโฟลเดอร์นั้นไว้ที่นี่"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir klasör açıkken yıldıza dokunarak klasörü burada tutun."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Торкніться зірочки за відкритої папки, щоб зберегти її тут."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạm vào ngôi sao khi đang mở một thư mục để giữ thư mục đó ở đây."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开文件夹后轻点星标，即可保留在这里。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開檔案夾後點一下星號，即可保留在這裡。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "label.favorites.empty.title": {
+      "comment": "iOS: headline of the empty favorites screen, shown when the user has not starred any folder yet.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Няма любими"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Žádné oblíbené"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ingen favoritter"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Favoriten"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Κανένα αγαπημένο"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Favorites"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin favoritos"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ei suosikkeja"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun favori"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nema favorita"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nincsenek kedvencek"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak Ada Favorit"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun preferito"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "お気に入りなし"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "즐겨찾기 없음"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ingen favoritter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen favorieten"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brak ulubionych"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nenhum favorito"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nenhum favorito"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niciun favorit"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет избранного"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Žiadne obľúbené"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inga favoriter"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่มีรายการโปรด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favori Yok"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Немає вибраного"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có mục yêu thích"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无收藏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有收藏"
           }
         }
       },
@@ -15440,7 +16370,7 @@
       "extractionState": "manual"
     },
     "menu.view.appearance": {
-      "comment": "View menu: submenu choosing the light/dark appearance.",
+      "comment": "View menu: submenu choosing the light/dark appearance; also the Appearance pane's label in the mac Settings window and the Appearance row on the iOS settings screen. One word for all three.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -18602,7 +19532,7 @@
       "extractionState": "manual"
     },
     "settings.about": {
-      "comment": "Settings window: the About pane's sidebar item, and the window's title while that pane is selected. The pane shows the app icon, version, project links and lifetime statistics. Use the word Apple uses for an app's About screen in this language.",
+      "comment": "Settings window: the About pane's sidebar item, and the window's title while that pane is selected; also the About row and screen title on iOS. It shows the app icon, version, project links and lifetime statistics. Use the word Apple uses for an app's About screen in this language.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -18788,7 +19718,7 @@
       "extractionState": "manual"
     },
     "settings.about.support": {
-      "comment": "Settings, About pane: row title beside the link to the app's support page, where a user gets help or reports a problem.",
+      "comment": "Settings, About pane on both platforms: row title beside the link to the app's support page, where a user gets help or reports a problem.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -18974,7 +19904,7 @@
       "extractionState": "manual"
     },
     "settings.about.web": {
-      "comment": "Settings, About pane: row title beside the link to the app's website. Short label for a website address; keep it to one word.",
+      "comment": "Settings, About pane on both platforms: row title beside the link to the app's website. Short label for a website address; keep it to one word.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -19346,7 +20276,7 @@
       "extractionState": "manual"
     },
     "settings.advanced.audio_played_label": {
-      "comment": "Settings, About pane, statistics: label beside the total listening time, shown in words like '3 days, 4 hours'. Ends with a colon.",
+      "comment": "Settings, About pane on both platforms, statistics: label beside the total listening time, shown in words like '3 days, 4 hours'. Ends with a colon, dropped where the layout puts the value in its own column.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -20462,7 +21392,7 @@
       "extractionState": "manual"
     },
     "settings.advanced.files_opened_label": {
-      "comment": "Settings, About pane, statistics: label beside the lifetime count of files opened. Ends with a colon.",
+      "comment": "Settings, About pane on both platforms, statistics: label beside the lifetime count of files opened. Ends with a colon, dropped where the layout puts the value in its own column.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -20648,7 +21578,7 @@
       "extractionState": "manual"
     },
     "settings.advanced.folders_opened_label": {
-      "comment": "Settings, About pane, statistics: label beside the lifetime count of folders opened. Ends with a colon.",
+      "comment": "Settings, About pane on both platforms, statistics: label beside the lifetime count of folders opened. Ends with a colon, dropped where the layout puts the value in its own column.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -22322,7 +23252,7 @@
       "extractionState": "manual"
     },
     "settings.advanced.stats_section": {
-      "comment": "Settings, About pane: heading above the group of lifetime playback-statistics rows.",
+      "comment": "Settings, About pane on both platforms: heading above the group of lifetime playback-statistics rows.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -27158,7 +28088,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_theme.album_art": {
-      "comment": "Settings, waveform color theme choice (macOS only): the not-yet-played part of the waveform draws in a color derived from the current track's cover artwork, under a white (dark mode) or black (light mode) played part.",
+      "comment": "Settings, waveform color theme choice: the not-yet-played part of the waveform draws in a color derived from the track's cover artwork, under a white (dark mode) or black (light mode) played part.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -30134,7 +31064,7 @@
       "extractionState": "manual"
     },
     "settings.files": {
-      "comment": "Settings window: the Files pane's toolbar item, and the window's title while that pane is selected. The pane covers where the app looks for album art and which folders it keeps access to.",
+      "comment": "Settings window: the Files pane's toolbar item, and the window's title while that pane is selected; also the Files row on the iOS settings screen. The pane covers where the app looks for album art and which folders it keeps access to.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -40730,6 +41660,192 @@
           "stringUnit": {
             "state": "translated",
             "value": "設定"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "tab.favorites": {
+      "comment": "iOS: title of the tab listing the folders the user starred, to reopen one in a tap.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Любими"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oblíbené"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favoritter"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favoriten"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αγαπημένα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favorites"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favoritos"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suosikit"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favoris"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favoriti"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kedvencek"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favorit"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preferiti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "お気に入り"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "즐겨찾기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favoritter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favorieten"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ulubione"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favoritos"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favoritos"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favorite"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Избранное"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obľúbené"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favoriter"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "รายการโปรด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favoriler"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вибране"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yêu thích"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收藏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收藏"
           }
         }
       },

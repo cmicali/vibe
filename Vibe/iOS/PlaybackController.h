@@ -174,17 +174,30 @@ NS_ASSUME_NONNULL_BEGIN
 // delegate.
 - (void)handleOpenURLContexts:(NSSet<UIOpenURLContext *> *)contexts;
 
-// One URL adopted from outside the picker: the Files tab's browser, or a share
-// sheet. openInPlace mirrors UIOpenURLContext.options — YES means the real
-// file, so the security scope covers the folder it came from and the usual
-// expand-to-directory applies.
+// One URL adopted from outside the picker: the Files tab's browser, a share
+// sheet, or a favorite whose bookmark just resolved. openInPlace mirrors
+// UIOpenURLContext.options — YES means the real file, so the security scope
+// covers the folder it came from and the usual expand-to-directory applies.
 - (void)openExternalURL:(NSURL *)url openInPlace:(BOOL)openInPlace;
+
+// The open folder, or nil for a single-file playlist and before anything was
+// opened. The Playlist tab's star draws from it: there is nothing to favorite
+// when the playlist is not a folder.
+@property (nonatomic, readonly, nullable) NSURL *folderURL;
+
+// Mints a bookmark that reopens the folder above, for FavoritesStore — the
+// session owns the security scope, so it is the only thing that can. Off main,
+// completion on main, both arguments nil when there is no folder or the mint
+// failed. See FolderSession.
+- (void)bookmarkOpenFolderWithCompletion:(void (^)(NSURL *_Nullable folderURL,
+                                                   NSData *_Nullable bookmark))completion;
 
 // The file trees the search screen may walk, composed in one place: the
 // session's transient root (FolderSession.searchRoot — the open folder) plus the
 // persistent ones (SearchFolderStore.searchRoots — the folders the user added in
-// Settings, and the app's own Documents directory). Nesting among them is
-// FileSearchIndex's to prune.
+// Settings, and the app's own Documents directory — and FavoritesStore.searchRoots,
+// the starred folders, once that store has resolved them). Nesting among them is
+// FileSearchIndex's to prune, so a folder both starred and added is walked once.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
 // A file the search screen found under one of searchRoots. Its own directory

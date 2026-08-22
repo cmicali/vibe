@@ -16,6 +16,9 @@
 
 #import "RootViewController.h"
 #import "DebugPlayerSurface.h"
+#import "FavoritesViewController.h" // the categories below need the classes,
+#import "LibraryViewController.h"   // not a @class
+#import "SearchViewController.h"
 #import "OutputRouteRules.h"        // VibeOutputRouteKind, taken below
 
 @class AudioTrackMetadataCache;
@@ -30,6 +33,10 @@
 
 @property (nonatomic, readonly) PlaybackController *playback;
 @property (nonatomic, readonly) PlayerViewController *player;
+// Each is nil until its tab's lazy provider has run.
+@property (nonatomic, readonly) LibraryViewController *library;
+@property (nonatomic, readonly) FavoritesViewController *favorites;
+@property (nonatomic, readonly) SearchViewController *searchScreen;
 @property (nonatomic, readonly, getter=isPlayerExpanded) BOOL playerExpanded;
 @property (nonatomic, readonly, getter=isMiniPlayerShown) BOOL miniPlayerShown;
 @property (nonatomic, copy) NSString *selectedTabIdentifier;
@@ -37,6 +44,24 @@
 - (void)expandPlayerAnimated:(BOOL)animated;
 - (void)minimizePlayerAnimated:(BOOL)animated;
 
+@end
+
+// The star lives on the Playlist tab's navigation bar, and the channel cannot
+// synthesize the tap — the same reason expand_player and select_tab exist.
+@interface LibraryViewController (DebugSurface)
+- (void)favoriteTapped;
+@end
+
+// The search field takes KEYSTROKES, which the channel cannot synthesize and
+// the touch driver has no verb for either — so a query, and the row tap that
+// follows it, come through here.
+@interface SearchViewController (DebugSurface)
+// Puts the query in the FIELD and filters — the field is where currentQuery is
+// read from, and the file half's delivery is dropped if the two disagree.
+- (void)setQueryText:(NSString *)query;
+// Whether the file walk is still running, so a poll can tell "no matches" from
+// "not finished looking".
+- (BOOL)isBuildingFileIndex;
 @end
 
 @interface RootViewController (Debug) <VibeDebugPlayerSurface>
@@ -57,6 +82,21 @@
 - (void)debugSeekToSeconds:(NSTimeInterval)seconds;
 // The waveform zoom, the one gesture the command channel cannot synthesize.
 - (void)debugSetWaveformZoom:(CGFloat)fraction;
+// Exactly what tapping the star does: it toggles, and the ADD lands
+// asynchronously because the bookmark has to be minted off main. Returns NO
+// when there is no Playlist tab yet or no open folder to star.
+- (BOOL)debugTapFavoriteStar;
+// Exactly what tapping a favorite row does, resolve and alert included. NO
+// means the Favorites tab was never visited, or the index is past the list.
+- (BOOL)debugTapFavoriteAtIndex:(NSUInteger)index;
+// Runs a query through the search screen and reports both sections as it draws
+// them. The files half is asynchronous, so this settles on the table rather
+// than on the keystroke; NO means the Search tab was never visited.
+- (BOOL)debugSearchQuery:(NSString *)query
+              completion:(void (^)(NSDictionary *result))completion;
+// Taps a row of the search screen's files section — an OPEN, where a playlist
+// row would be a mere selection.
+- (BOOL)debugTapSearchFileAtIndex:(NSUInteger)index;
 
 // Draws the card's route indicator as a given route, model untouched — the
 // only way to see the off-device renderings, which the simulator never reports.

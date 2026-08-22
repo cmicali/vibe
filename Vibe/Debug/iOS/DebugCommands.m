@@ -12,6 +12,7 @@
 #import "DebugWireFormat.h"
 #import "DebugCommandDispatch.h"
 #import "DebugCommonVerbs.h"
+#import "FavoritesStore.h"
 #import "PlaybackController.h"
 #import "RootViewController.h"
 #import "RootViewController+Debug.h"
@@ -144,6 +145,16 @@ static NSDictionary *VibeSearchScopeDictionary(RootViewController *controller) {
     return @{@"roots": roots, @"folders": folders};
 }
 
+static NSDictionary *VibeFavoritesDictionary(void) {
+    NSMutableArray<NSDictionary *> *rows = [NSMutableArray array];
+    for (FavoriteFolder *favorite in FavoritesStore.shared.favorites) {
+        [rows addObject:@{@"name": favorite.name,
+                          @"location": favorite.location,
+                          @"path": favorite.path}];
+    }
+    return @{@"favorites": rows};
+}
+
 #pragma mark Command table
 
 // The UIKit-only verbs. Everything both platforms answer the same way is in
@@ -272,10 +283,68 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                     @"routeShown": ui[@"routeShown"] ?: @NO,
                 });
             }),
-            VibeCmd(@"select_tab <playlist|files|search>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeCmd(@"dump_favorites", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                return VibeJSONString(VibeFavoritesDictionary());
+            }),
+            // The star sits on the Playlist tab's navigation bar and the channel
+            // cannot synthesize the tap — the same reason expand_player and
+            // select_tab exist. It drives the real handler, so the toggle, the
+            // dedupe and the off-main bookmark mint are all the ones the tap
+            // gets; there is deliberately no add-a-path verb, which would have
+            // to record a bookmark with no security scope behind it and so a
+            // row that draws and cannot be opened.
+            //
+            // TRAP: the ADD is asynchronous. ok:true means the handler ran, not
+            // that the row exists — poll dump_favorites for that.
+            VibeCmd(@"tap_favorite_star", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                if (![controller debugTapFavoriteStar]) {
+                    return VibeErrorJSON(@"no open folder on the playlist tab to star");
+                }
+                return VibeJSONString(@{@"ok": @YES});
+            }),
+            // Same reason as the star: the row is a touch the channel cannot
+            // make. It drives the screen's own didSelectRow:, so the resolve,
+            // the open and the unreachable-folder alert are the tap's.
+            // Requires the Favorites tab to have been selected once — the
+            // provider is lazy, so before that there is no screen to tap.
+            VibeCmd(@"open_favorite <index in dump_favorites.favorites>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
+                if (index < 0) {
+                    return VibeErrorJSON(@"usage: open_favorite <index in dump_favorites.favorites>");
+                }
+                if (![controller debugTapFavoriteAtIndex:(NSUInteger)index]) {
+                    return VibeErrorJSON(@"no such favorite row (select_tab favorites first)");
+                }
+                return VibeJSONString(@{@"ok": @YES});
+            }),
+            // The search field takes keystrokes, which neither the channel nor
+            // the touch driver can synthesize. These two are how a query and
+            // the row tap that follows it are driven; both go through the
+            // screen's own methods, so the matching, the exclusion set and the
+            // open are the ones a real search gets. `search` replies when the
+            // table settles, since the files half answers off a walk.
+            VibeCmd(@"search <query>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                NSString *query = tokens.count > 1 ? tokens[1] : @"";
+                BOOL started = [controller debugSearchQuery:query
+                                                 completion:^(NSDictionary *result) {
+                    VibeWriteDebugResponse(commandId, VibeJSONString(result));
+                }];
+                if (!started) {
+                    return VibeErrorJSON(@"the search tab was never visited (select_tab search first)");
+                }
+                return nil;   // replies asynchronously
+            }),
+            VibeCmd(@"open_search_hit <index into search.sections[1].rows>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
+                if (index < 0 || ![controller debugTapSearchFileAtIndex:(NSUInteger)index]) {
+                    return VibeErrorJSON(@"no such file hit (run `search <query>` first)");
+                }
+                return VibeJSONString(@{@"ok": @YES});
+            }),
+            VibeCmd(@"select_tab <playlist|favorites|files|search>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSString *identifier = tokens.count > 1 ? tokens[1] : nil;
-                if (![@[@"playlist", @"files", @"search"] containsObject:identifier ?: @""]) {
-                    return VibeErrorJSON(@"usage: select_tab <playlist|files|search>");
+                if (![@[@"playlist", @"favorites", @"files", @"search"] containsObject:identifier ?: @""]) {
+                    return VibeErrorJSON(@"usage: select_tab <playlist|favorites|files|search>");
                 }
                 controller.selectedTabIdentifier = identifier;
                 return VibeJSONString(@{@"ok": @YES, @"selectedTab": controller.selectedTabIdentifier});
