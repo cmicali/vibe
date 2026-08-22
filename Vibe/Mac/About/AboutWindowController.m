@@ -165,6 +165,10 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
     // Drop the Metal view and its resources. showWindow rebuilds it next time.
     [_ballsView removeFromSuperview];
     _ballsView = nil;
+    // TRAP: this window is reused (releasedWhenClosed = NO), so first responder
+    // survives a close. A link left focused would come back with its ring
+    // already drawn, on a window the user just opened fresh.
+    [self.window makeFirstResponder:nil];
 }
 
 // Pauses the 60fps Metal render loop while the window cannot be seen — fully
