@@ -299,6 +299,12 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // (--no-audio-hw, --silent) included — the init path and the iOS
 // media-services rebuild must configure the engine identically.
 - (void)createEngineAndMasterBusOnQueue;
+// The permitted partial writers of the published playback state; the full
+// model, and why there are exactly three of them, is at publishPlaybackState:
+// in AudioPlayer.m. Both return the node they unpublished, for the caller to
+// stop and detach off the lock.
+- (nullable AVAudioPlayerNode *)unpublishNodeOnQueue;
+- (nullable AVAudioPlayerNode *)unpublishNodeOnQueueEnteringTerminalState:(VibePlayerState)state;
 - (void)publishPlaybackState:(VibePlayerState)state
                         node:(nullable AVAudioPlayerNode *)node
                         file:(nullable AVAudioFile *)file

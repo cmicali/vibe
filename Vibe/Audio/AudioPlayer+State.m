@@ -11,11 +11,12 @@
 // raises rather than answering nil; and the value it computes off-lock can be
 // superseded by a seek or a track change before it is stored back.
 //
-// The single writer of everything here is publishPlaybackState:, in
-// AudioPlayer.m, and the fields stay readonly on the shared surface so that
-// keeping it the single writer is a compile error to get wrong. The one
-// exception is _lastValidPosition, which the position getter writes back under
-// the epoch check.
+// The state read here is published by AudioPlayer.m's publishPlaybackState:,
+// which is where the writer model is written down: it is the full-tuple
+// publisher, and there are exactly three permitted partial writers. One of them
+// is below — the position getter's epoch-guarded _lastValidPosition writeback.
+// The fields stay readonly on the shared surface so that adding a fourth from a
+// category is a compile error rather than a race.
 
 #import "AudioPlayerInternal.h"
 

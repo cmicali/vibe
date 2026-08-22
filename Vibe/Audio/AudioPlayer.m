@@ -566,9 +566,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                                                              replacingAudibleTrack,
                                                              declick,
                                                              segmentWasQueued);
-    os_unfair_lock_lock(&_stateLock);
-    _node = nil;
-    os_unfair_lock_unlock(&_stateLock);
+    [self unpublishNodeOnQueue];   // oldNode above is the handle the retire uses
 
     AVAudioUnitVarispeed *newVarispeed = [[AVAudioUnitVarispeed alloc] init];
     [_engine attachNode:newVarispeed];
@@ -892,11 +890,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // Un-armed material (format mismatch, crossfade on) dies with the node;
     // the next track's play re-acquires through its own prefetch.
     [self clearGaplessOnQueue];
-    os_unfair_lock_lock(&_stateLock);
-    _state = VibePlayerStateStopped;
-    AVAudioPlayerNode *finishedNode = _node;
-    _node = nil;
-    os_unfair_lock_unlock(&_stateLock);
+    AVAudioPlayerNode *finishedNode =
+            [self unpublishNodeOnQueueEnteringTerminalState:VibePlayerStateStopped];
     if (finishedNode) {
         [finishedNode stop];
         [_engine detachNode:finishedNode];
@@ -1003,11 +998,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 
     // Pull the node/varispeed pair out of the live state, fade it to silence
     // if audible, and detach both.
-    AVAudioPlayerNode *oldNode = _node;
     AVAudioUnitVarispeed *oldVarispeed = _varispeed;
-    os_unfair_lock_lock(&_stateLock);
-    _node = nil;
-    os_unfair_lock_unlock(&_stateLock);
+    AVAudioPlayerNode *oldNode = [self unpublishNodeOnQueue];
     _varispeed = nil;
 
     // The declick minimum, never the crossfade length: a stop should land
@@ -1437,16 +1429,52 @@ static NSString *VibeAudioLevelNormalizationModeName(
     });
 }
 
-// The single writer for the whole playback and position state, in one lock
-// acquisition, so the main-thread getters never observe a torn combination
-// such as a new state carrying the old track's position. A caller whose
-// operation leaves a field untouched passes the current value through. The
-// epoch bump is structural: the position getter computes off-lock and writes
+// The writer model for the playback and position state, in one place.
+//
+// The player queue owns every engine and playback-state transition; _stateLock
+// protects only the snapshot the main-thread getters read. This is the atomic
+// FULL-TUPLE publisher: it writes state, node, file and the position fields in
+// one lock acquisition, so a getter can never observe a torn combination such
+// as a new state carrying the old track's position. A caller whose operation
+// leaves a field untouched passes the current value through. The epoch bump is
+// structural: the position getter computes off-lock and writes
 // _lastValidPosition back only if its snapshotted epoch is still current.
 //
-// A few sites write _state or _node alone under the lock without coming
-// through here. That is safe only because they never move the position fields;
-// any write that does must use this publisher.
+// Three PARTIAL writers are permitted, and they are the whole set. Each holds
+// _stateLock, and each is safe only because it never moves the position fields:
+//
+//   unpublishNodeOnQueue                       — clears _node alone.
+//   unpublishNodeOnQueueEnteringTerminalState: — _state and _node together.
+//   the position getter's writeback            — _lastValidPosition, under the
+//                                                epoch check (AudioPlayer+State.m).
+//
+// Anything else that writes this state, and anything at all that moves the
+// position fields, must come through this publisher.
+// Partial writer 1 of 3. Hands back what it removed so the caller can stop and
+// detach the node off the lock, which is the point of unpublishing first: the
+// position getter uses its snapshot of _node off the lock, and calling into a
+// detached node raises.
+- (AVAudioPlayerNode *)unpublishNodeOnQueue {
+    os_unfair_lock_lock(&_stateLock);
+    AVAudioPlayerNode *node = _node;
+    _node = nil;
+    os_unfair_lock_unlock(&_stateLock);
+    return node;
+}
+
+// Partial writer 2 of 3. One acquisition, because a state that disagrees with
+// the published node is exactly what the full-tuple publisher exists to
+// prevent. The position fields are deliberately left where the last publish put
+// them, so a track end keeps its playhead.
+- (AVAudioPlayerNode *)unpublishNodeOnQueueEnteringTerminalState:(VibePlayerState)state {
+    os_unfair_lock_lock(&_stateLock);
+    _state = state;
+    AVAudioPlayerNode *node = _node;
+    _node = nil;
+    os_unfair_lock_unlock(&_stateLock);
+    return node;
+}
+
 - (void)publishPlaybackState:(VibePlayerState)state
                         node:(AVAudioPlayerNode *)node
                         file:(AVAudioFile *)file

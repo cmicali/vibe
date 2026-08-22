@@ -31,7 +31,7 @@ They all share `AudioPlayerInternal.h` — the class extension and every ivar a 
 
 ### Threading
 
-Every engine mutation runs on a serial `dispatch_queue` (`com.vibe.audioplayer`). The UI-facing getters — `position`, `duration`, `isPlaying` — take an `os_unfair_lock`, copy, and compute off it: no player-queue round trip, though acquiring the lock itself can briefly wait. Two generation counters sort out async work: `_segmentGeneration` discards stale `scheduleSegment` completions, and `_rampGeneration` cancels in-flight volume fades, which stop, seek, skip and device switches all bump first. Every fade is asynchronous, so the queue never sleeps.
+Every engine mutation runs on a serial `dispatch_queue` (`com.vibe.audioplayer`). The UI-facing getters — `position`, `duration`, `isPlaying` — take an `os_unfair_lock`, copy, and compute off it: no player-queue round trip, though acquiring the lock itself can briefly wait. What that lock guards is the snapshot they read, and `publishPlaybackState:` is its full-tuple publisher — the writer model, including the three partial writers it permits, is written down at that method. Two generation counters sort out async work: `_segmentGeneration` discards stale `scheduleSegment` completions, and `_rampGeneration` cancels in-flight volume fades, which stop, seek, skip and device switches all bump first. Every fade is asynchronous, so the queue never sleeps.
 
 **TRAP: `AVAudioPlayerNode` fires completions on stop and reschedule too, not only at a natural end** — so every interruption (skip, seek, device switch, a new play) bumps `_segmentGeneration` first and those completions are dropped.
 
