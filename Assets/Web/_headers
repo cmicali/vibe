@@ -12,3 +12,8 @@
 # a stale one is only ever a stale picture.
 /styles.css
   Cache-Control: public, max-age=0, must-revalidate
+
+# Applied to everything. Cheap, and they are worth having regardless.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
