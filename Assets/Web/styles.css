@@ -76,39 +76,30 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
   text-align: center;
 }
 
-/* Icon and wordmark are one lockup. Side by side on a phone, where vertical
-   space above the fold is the scarce thing; stacked once there is room for the
-   larger icon to carry the top of the page. */
+/* Icon and wordmark are one lockup, side by side at every width. One custom
+   property drives both, so the icon keeps a fixed ratio to the wordmark
+   instead of the two being tuned per breakpoint. */
 .brand {
+  --lockup: clamp(46px, 9vw, 76px);
   display: flex;
-  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 15px;
+  gap: clamp(15px, 1.6vw, 22px);
 }
 
 .brand picture { display: flex; }
 
 .hero-icon {
-  width: 62px;
+  width: calc(var(--lockup) * 1.3);
   height: auto;
   border-radius: 22.5%;
-  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.7));
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.7));
 }
 
 .hero h1 {
-  font-size: clamp(46px, 9vw, 76px);
+  font-size: var(--lockup);
   font-weight: 700;
   letter-spacing: -0.035em;
-}
-
-@media (min-width: 640px) {
-  .brand { flex-direction: column; gap: 0; }
-  .hero-icon {
-    width: clamp(88px, 12vw, 112px);
-    filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.7));
-  }
-  .hero h1 { margin-top: 22px; }
 }
 
 .tagline {
