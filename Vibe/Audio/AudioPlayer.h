@@ -2,9 +2,6 @@
 //  AudioPlayer.h
 //  Vibe
 //
-//  Created by Christopher Micali on 12/18/19.
-//  Copyright © 2019 Christopher Micali. All rights reserved.
-//
 
 #import <Foundation/Foundation.h>
 

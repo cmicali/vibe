@@ -214,7 +214,7 @@
     NSURL *_directory;
     AudioFileMaterializationCoordinator *_coordinator;
     dispatch_queue_t _completionQueue;
-    // Every coordinator a test builds, so the teardown invariant covers the
+    // Every coordinator a test builds, so the teardown guarantee covers the
     // ad-hoc ones too rather than only the setUp instance.
     NSMutableArray<AudioFileMaterializationCoordinator *> *_coordinators;
 }
@@ -242,7 +242,7 @@
 // B1 of docs/testing/materialization-coverage-plan.md. Every dispatched
 // AVAudioFile call must return and every lane slot must be given back before a
 // test is over; a stranded one is invisible to every delivery assertion in this
-// file, which is the shape of the bug this invariant exists for. A test that
+// file, which is the shape of the bug this guarantee exists for. A test that
 // means to leave an open wedged releases its gate before it ends.
 - (void)assertAccountingSettles {
     for (AudioFileMaterializationCoordinator *coordinator in _coordinators) {
@@ -344,7 +344,7 @@
 // share: drive one purpose's handle open into the uncancellable call, hold it
 // there, and ask what stage 1 will still admit for an unrelated path.
 //
-// The gate is released before the test returns so the teardown invariant can
+// The gate is released before the test returns so the teardown guarantee can
 // settle; leaving it held would strand a worker for the rest of the suite.
 - (void)runWedgedOpenOnPurpose:(VibeAudioFileOpenPurpose)wedgedPurpose
                     secondRole:(VibeAudioFileMaterializationRole)secondRole {

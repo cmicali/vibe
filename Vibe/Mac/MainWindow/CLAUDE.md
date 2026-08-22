@@ -15,7 +15,7 @@
 | `+Window` | Building content into the window, the two sibling frames, resize/occlusion/restoration rules, and the actions that change the window's shape or appearance. `NSWindowDelegate` and `NSWindowRestoration` declared here. |
 | `+PlayerEvents` | Every `AudioPlayerDelegate` callback. |
 | `+Delivery` | Where asynchronous results land: metadata, waveform snapshots, detected BPM and key, and the waveform's scrub seek. |
-| `+Menus` | Menu validation and the waveform-style submenu. |
+| `+Menus` | Menu validation and the waveform-style submenu. The identifiers and the domain that decides each one are `MenuValidationRules.h` — the single home of those literals, which the builder mints, `validateMenuItem:` dispatches on, and `contentWidthForSizeIdentifier:` sizes the window from, so a rename that misses a site fails the build. **TRAP: an identifier that reaches Unknown is DISABLED, not enabled** — adding a controller-targeted menu item means adding it there too, or it silently skips validation. |
 | `+NowPlaying` | The `updateNowPlaying` publish and `NowPlayingControllerDelegate` routing. |
 | `+Transport` | Relative-seek skips and DJ effect toggles. |
 | `+Convert` | The Convert to FLAC funnel, the playlist swap and the undo round trip, with `VibeFLACConversionRecord`. |
@@ -121,4 +121,4 @@ All three programmatic resizes animate at one fixed `animationResizeTime:` (`kWi
 
 A drop resolves the empty-state wells into an append-or-replace decision **synchronously** — the wells are geometry, and the dragging session is gone by the time the expansion lands — then hands the URLs to `AppDelegate.openDroppedURLs:appending:`, the app's one open funnel. See `Mac/App/CLAUDE.md` for the burst and supersession rules.
 
-A folder's recursive walk filters unsupported entries before retaining and sorting them, then sorts by full path with `localizedStandardCompare:` — Finder's numeric ordering, subfolders grouped. **`NSDirectoryEnumerator` hands back APFS hash order, which played an album shuffled.** An explicit multi-file drop keeps its pasteboard order, which is the user's own.
+A dropped folder's recursive walk filters unsupported entries, then orders what it expanded by `AppSettings.folderOpenSort` — name, newest-modified-first, or the order the file system enumerated. The drop does not read that setting itself: it funnels through `AppDelegate.openDroppedURLs:appending:` into the one open path, and `openURLsWithRestoredAccess:token:` takes the setting with the rest of the open snapshot and hands it to the walk, which is a path utility and reaches no setting (`Util/CLAUDE.md`). **An explicit multi-file drop keeps its pasteboard order under every choice**, which is the user's own, and the sort reaches only what the walk expanded beneath it.

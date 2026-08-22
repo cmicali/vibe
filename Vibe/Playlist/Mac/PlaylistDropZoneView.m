@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 7/29/26.
-// Copyright (c) 2026 Christopher Micali. All rights reserved.
+//  PlaylistDropZoneView.m
+//  Vibe
 //
 
 #import <QuartzCore/QuartzCore.h> // CATransition for the state fade

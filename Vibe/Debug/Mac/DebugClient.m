@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 8/10/26.
-// Copyright (c) 2026 Christopher Micali. All rights reserved.
+//  DebugClient.m
+//  Vibe
 //
 
 #import "DebugUtil.h"

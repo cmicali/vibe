@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 1/9/20.
-// Copyright (c) 2020 Christopher Micali. All rights reserved.
+//  NSView+DarkMode.m
+//  Vibe
 //
 
 #import "NSView+DarkMode.h"

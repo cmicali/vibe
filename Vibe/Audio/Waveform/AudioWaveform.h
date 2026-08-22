@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 1/8/20.
-// Copyright (c) 2020 Christopher Micali. All rights reserved.
+//  AudioWaveform.h
+//  Vibe
 //
 
 #include <Accelerate/Accelerate.h>

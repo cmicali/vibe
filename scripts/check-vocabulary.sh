@@ -1,7 +1,8 @@
 #!/bin/bash
 # Enforces the mechanical half of CLAUDE.md's Vocabulary section. Prose rules
-# there cover judgment; these three cover what a grep can settle, so they can
-# be reviewed by CI instead of by memory.
+# there cover judgment; the rules below cover what a grep can settle, so they
+# can be reviewed by CI instead of by memory. Keep their count in step with the
+# numbered list in the root CLAUDE.md, which is written against this file.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -68,6 +69,20 @@ bad_trap=$(grep -rn 'TRAP' Vibe --include='*.h' --include='*.m' --include='*.mm'
 if [ -n "$bad_trap" ]; then
     fail "trap marker must be spelled 'TRAP:':"
     echo "$bad_trap" >&2
+fi
+
+# A condition the code must keep true is a 'guarantee'. 'invariant' is the
+# synonym that keeps coming back, and a second word for it is what stops
+# `grep -rn guarantee` from finding every one. No allowlist: the two prior
+# non-synonym uses ("invariant scaffolding", "shift-invariant") both read
+# better as plain English, so neither earns an exception here. Covers the
+# directory docs too, since they carry as many of these conditions as the code.
+bad_invariant=$(grep -rni 'invariant' Vibe Tests \
+        --include='*.h' --include='*.m' --include='*.mm' --include='*.md' 2>/dev/null \
+        | grep -v ThirdParty || true)
+if [ -n "$bad_invariant" ]; then
+    fail "a condition the code must keep true is a 'guarantee', never an 'invariant':"
+    echo "$bad_invariant" >&2
 fi
 
 if [ "$status" -eq 0 ]; then

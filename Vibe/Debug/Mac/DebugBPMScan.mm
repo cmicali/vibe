@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 7/19/26.
-// Copyright (c) 2026 Christopher Micali. All rights reserved.
+//  DebugBPMScan.mm
+//  Vibe
 //
 
 #import "DebugUtil.h"

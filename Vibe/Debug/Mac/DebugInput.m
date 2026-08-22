@@ -70,7 +70,7 @@ static NSString *VibeKeyCharacters(NSString *name) {
 
 // What `characters` carries when shift is held. uppercaseString covers letters
 // alone, so the digits get their US-layout shifted forms explicitly. The
-// specials and arrows are shift-invariant either way.
+// specials and arrows are unaffected by shift either way.
 static NSString *VibeShiftedKeyCharacters(NSString *chars) {
     static NSDictionary<NSString *, NSString *> *shifted;
     static dispatch_once_t once;

@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 7/25/26.
-// Copyright (c) 2026 Christopher Micali. All rights reserved.
+//  NSBundle+BuildInfo.m
+//  Vibe
 //
 
 #import "NSBundle+BuildInfo.h"

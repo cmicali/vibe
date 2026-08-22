@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 12/23/19.
-// Copyright (c) 2019 Christopher Micali. All rights reserved.
+//  AudioWaveformCache.mm
+//  Vibe
 //
 
 #import "AudioWaveformCache.h"
