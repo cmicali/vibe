@@ -7,7 +7,7 @@
   --line: #2a2a31;
   --ink: #f2f2f4;
   --ink-dim: #a3a3ad;
-  --ink-faint: #6f6f7a;
+  --ink-faint: #7a7a85;   /* 4.7:1 on --bg; #6f6f7a was 4.0 and under AA */
   --ink-ghost: #4a4a53;
   --accent: #4c8dff;
   --accent-solid: #2458ca;
