@@ -22,15 +22,19 @@ Both preflight `asc_require_translations` before the archive: a key missing any 
 
 ## The marketing page
 
-`Assets/Web/` is a static site with no build step, served from two hosts: Cloudflare Pages at **vibe.commonwealthrecordings.com** (canonical, deployed on purpose with `make deploy-web`) and GitHub Pages at cmicali.github.io/vibe (deployed by `.github/workflows/pages.yml` on any push touching `Assets/Web/**`). Its own `README.md` has the detail.
+`Assets/Web/` is a static site with no build step, served from two hosts: Cloudflare Pages at **vibe.commonwealthrecordings.com** (canonical) and GitHub Pages at cmicali.github.io/vibe. Its own `README.md` has the detail.
 
-The page's Download button links a **direct** `.dmg` URL and shows the version beside it, so the two must agree. GitHub's `latest/download` shortcut cannot supply that — it only redirects for an asset name that never changes, and the assets are `Vibe-macOS-<version>.dmg`. So `github-release.sh` rewrites it: after a successful publish it runs `scripts/web-set-version.sh <version>`, which edits the two version-bearing spots in `index.html` keyed on the `dmg-link` and `dmg-version` element ids, then commits **that one file by explicit pathspec** and pushes. A dirty tree cannot ride along, and because the release is already published by then, a failed commit or push is a warning with the manual command rather than a failure.
+The page's Download button links a **direct** `.dmg` URL and shows the version beside it, so the two must agree. GitHub's `latest/download` shortcut cannot supply that — it only redirects for an asset name that never changes, and the assets are `Vibe-macOS-<version>.dmg`. So `scripts/web-set-version.sh <version>` rewrites both, keyed on the `dmg-link` and `dmg-version` element ids rather than the markup around them; a pattern that stops matching is an error, never a silent no-op.
 
-`--draft` skips all of it: a draft's download is not public, so pointing the live page at it would ship a 404. Repoint by hand once it goes out (`scripts/web-set-version.sh <version> && make deploy-web`).
+**`github-release.sh` runs it before creating the release, not after, and the ordering is the point.** The page update is committed — that one file, by explicit pathspec, so a dirty tree cannot ride along — and pushed, and only then is `gh release create` called with `--target HEAD`. The tag therefore names a tree whose website already advertises that release: checking out `v<version>` gets the page that goes with it. This is the one step that moves `main`, and it happens while everything is still reversible, which is why a failed commit or push here is **fatal** rather than a warning — nothing has been published yet, and a tag on an unpushed commit would dangle. The tag-points-at-HEAD preflight moved down with it, since it is only authoritative once HEAD has stopped moving.
 
-`make deploy-web` then carries the same page to Cloudflare. It refuses to upload a page whose Download button does not return 200 — the check that the rewrite and the release happened in that order — and `ARGS="--dry-run"` runs that check and lists the files without credentials. Its `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` come from the same gitignored `.release-env` as the ASC keys; the token needs exactly **Account | Cloudflare Pages | Edit**.
+`--draft` skips all of it: a draft's download is not public, and a draft creates no tag until published, so there is no ordering to preserve. Repoint by hand once it goes out (`scripts/web-set-version.sh <version> && make deploy-web`).
 
-So the full sequence is `make release`, `make github-release`, `make deploy-web`.
+`make deploy-web` then carries the same page to Cloudflare. It refuses to upload a page whose Download button does not return 200 — the check that the rewrite and the release happened in that order — and `ARGS="--dry-run"` runs that check and lists the files without credentials.
+
+**It is local-only, and enforced as such.** `deploy-web.sh` exits if `CI`, `GITHUB_ACTIONS`, `GITLAB_CI` or `BUILDKITE` is set. The Cloudflare token stays in the gitignored `.release-env` beside the ASC keys, out of CI secrets, so a later "just add it to a workflow" has to be deliberate. The token needs exactly **Account | Cloudflare Pages | Edit**. GitHub Pages is the copy CI is allowed to publish, precisely because `.github/workflows/pages.yml` needs no credential — it deploys with the workflow's own OIDC token.
+
+So the full sequence, all from a machine with `.release-env`: `make release`, `make github-release`, `make deploy-web`.
 
 ## Product-page metadata
 

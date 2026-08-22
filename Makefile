@@ -112,9 +112,11 @@ github-release:
 	scripts/github-release.sh
 
 # Publish Assets/Web to Cloudflare Pages, which serves the canonical
-# vibe.commonwealthrecordings.com. GitHub Pages is not deployed from here — its
-# workflow triggers on a push touching Assets/Web/**. Refuses to upload a page
-# whose Download button does not resolve; ARGS="--dry-run" lists what would go.
+# vibe.commonwealthrecordings.com. Local-only on purpose: the API token stays
+# out of CI secrets, and the script refuses to run there. GitHub Pages is the
+# copy CI publishes, from a workflow that needs no credential. Refuses to
+# upload a page whose Download button does not resolve; ARGS="--dry-run" lists
+# what would go, and needs no credentials.
 deploy-web:
 	scripts/deploy-web.sh $(ARGS)
 

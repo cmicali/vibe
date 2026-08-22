@@ -117,12 +117,6 @@ if gh release view "$TAG" >/dev/null 2>&1; then
     echo "error: release $TAG already exists — bump MARKETING_VERSION in project.yml and rebuild" >&2
     exit 1
 fi
-if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null \
-        && [[ "$(git rev-parse "refs/tags/$TAG^{commit}")" != "$(git rev-parse HEAD)" ]]; then
-    echo "error: tag $TAG exists and does not point at HEAD" >&2
-    exit 1
-fi
-
 # ---------------------------------------------------------------------------
 # Publish.
 # ---------------------------------------------------------------------------
@@ -141,6 +135,50 @@ ASSET_ZIP="$BUILD_DIR/Vibe-macOS-$ARCH-$VERSION.zip"
 cp "$DMG" "$ASSET_DMG"
 cp "$ZIP" "$ASSET_ZIP"
 
+# ---------------------------------------------------------------------------
+# Repoint the marketing page, and land it BEFORE the tag.
+# ---------------------------------------------------------------------------
+# The page advertises a direct .dmg URL, which is only correct because this
+# runs; web-set-version.sh has the why. It happens here rather than after
+# publishing so the tag names a tree whose website already points at this
+# release — checking out v<version> gets the page that goes with it.
+#
+# Commit just that file by explicit pathspec, so a dirty tree cannot ride
+# along. Unlike every other step here this one moves main, and it does so
+# before anything irreversible: the release is created from HEAD immediately
+# after, so a failed commit or push has to be fatal — a tag on an unpushed
+# commit would dangle, and the release does not exist yet to be inconsistent
+# with.
+#
+# A draft is skipped entirely. Its download is not public, so the page would
+# advertise a 404; a draft also creates no tag until it is published, so there
+# is no ordering to preserve.
+if [[ -n "$DRAFT" ]]; then
+    echo "🔊 draft — leaving the web page pointing at the previous release"
+    echo "   once published: scripts/web-set-version.sh $VERSION && make deploy-web"
+else
+    scripts/web-set-version.sh "$VERSION"
+    if [[ -n "$(git status --porcelain -- Assets/Web/index.html)" ]]; then
+        git commit -q -m "web: point the download at v$VERSION" -- Assets/Web/index.html || {
+            echo "error: could not commit the web page update — nothing has been published" >&2
+            exit 1
+        }
+        git push -q origin HEAD || {
+            echo "error: could not push the web page update — the tag would dangle." >&2
+            echo "       Nothing has been published. Push, then re-run." >&2
+            exit 1
+        }
+        echo "🔊 web page repointed and pushed — the release will tag it"
+    fi
+fi
+
+# Authoritative only now that HEAD has stopped moving.
+if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null \
+        && [[ "$(git rev-parse "refs/tags/$TAG^{commit}")" != "$(git rev-parse HEAD)" ]]; then
+    echo "error: tag $TAG exists and does not point at HEAD" >&2
+    exit 1
+fi
+
 echo "🔊 releasing $TAG (build $BUILD) at $(git rev-parse --short HEAD)"
 gh release create "$TAG" \
     "$ASSET_DMG#Vibe $VERSION (macOS, notarized disk image)" \
@@ -149,28 +187,6 @@ gh release create "$TAG" \
     --notes-file "$NOTES" \
     --target "$(git rev-parse HEAD)" \
     ${DRAFT:+"$DRAFT"}
-
-# The marketing page advertises a direct .dmg URL, which only stays correct
-# because this runs. Commit just that file by explicit path, so a dirty tree
-# cannot ride along. The release is already published by here, so a failure to
-# commit or push is a warning with the manual command, never a hard failure.
-# A draft has no public download yet, so pointing the live page at it would
-# ship a 404 — leave the page on the previous release until the draft goes out.
-if [[ -n "$DRAFT" ]]; then
-    echo "🔊 draft — leaving the web page pointing at the previous release"
-    echo "   once published: scripts/web-set-version.sh $VERSION && make deploy-web"
-else
-    scripts/web-set-version.sh "$VERSION"
-    if [[ -n "$(git status --porcelain -- Assets/Web/index.html)" ]]; then
-        if git commit -q -m "web: point the download at v$VERSION" -- Assets/Web/index.html \
-                && git push -q origin HEAD; then
-            echo "🔊 pushed the web page update — GitHub Pages redeploys itself"
-        else
-            echo "warning: could not commit or push the web page update. Run:" >&2
-            echo "         git commit -m 'web: point the download at v$VERSION' -- Assets/Web/index.html && git push" >&2
-        fi
-    fi
-fi
 
 echo "🔊 done"
 gh release view "$TAG" --json url -q .url

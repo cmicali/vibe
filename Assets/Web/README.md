@@ -71,31 +71,39 @@ So the link is rewritten instead. `scripts/web-set-version.sh <version>` edits
 the two places in `index.html` that name a version, keying on the `dmg-link`
 and `dmg-version` element ids rather than the markup around them, and erroring
 rather than silently doing nothing if either stops matching.
-`scripts/github-release.sh` calls it with the version it just published, then
-commits and pushes that one file — so a release updates GitHub Pages by itself,
-and `make deploy-web` carries the same change to Cloudflare.
 
-A draft release is skipped: its download is not public yet, and `deploy-web`
-refuses to upload a page whose button does not return 200.
+`scripts/github-release.sh` runs it **before** creating the release, commits
+that one file, and pushes — so the tag it then creates names a tree whose page
+already points at the release. A failed push there is fatal, because nothing
+has been published yet and a tag on an unpushed commit would dangle.
+
+A draft release is skipped: its download is not public, and a draft creates no
+tag until published, so there is no ordering to preserve.
 
 ## Releasing, end to end
 
 ```bash
 make release            # build, sign, notarize, staple -> build/release/Vibe.dmg
-make github-release     # publish; repoints the page and pushes it
+make github-release     # repoint the page, push it, then tag and publish
 make deploy-web         # push the same page to Cloudflare
 ```
 
 `make deploy-web ARGS="--dry-run"` checks the download link and lists the files
 without uploading, and needs no credentials.
 
-## Credentials
+## Credentials, and why Cloudflare is local-only
 
 `deploy-web` reads `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from the
 gitignored `.release-env` at the repo root, the same file the App Store Connect
 keys live in. The token needs exactly one permission: **Account | Cloudflare
 Pages | Edit**. `CLOUDFLARE_PAGES_PROJECT` overrides the project name, which
 defaults to `vibe`.
+
+That token deliberately does not go into CI. A repository secret is readable by
+any workflow change, and publishing a static site should not need a standing
+credential in a shared place — so `deploy-web.sh` refuses to run when `CI`,
+`GITHUB_ACTIONS`, `GITLAB_CI` or `BUILDKITE` is set. GitHub Pages is the copy CI
+publishes, precisely because its workflow needs no secret at all.
 
 The Pages project has to exist once before the first deploy:
 

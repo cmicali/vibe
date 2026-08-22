@@ -2,7 +2,7 @@
 #
 # Publish Assets/Web to Cloudflare Pages.
 #
-#   scripts/deploy-web.sh [--dry-run] [--skip-link-check]
+#   scripts/deploy-web.sh [--dry-run] [--skip-link-check] [--wrangler-login]
 #
 # The site is static — no build step on either host — so this uploads the
 # directory as it stands. GitHub Pages is not deployed from here: its workflow
@@ -10,6 +10,18 @@
 # Assets/Web/**, so committing is what updates that copy. Cloudflare serves the
 # canonical URL and is deployed on purpose, at release time, which is why this
 # is a script and not a second push trigger.
+#
+# LOCAL ONLY, deliberately. This step needs a Cloudflare API token, and that
+# token is not going into CI: a repository secret is readable by any workflow
+# change, and the whole point of a static site is that publishing it needs no
+# standing credential in a shared place. The token lives in the gitignored
+# .release-env on the machine that cuts releases, beside the App Store Connect
+# keys, and the script refuses to run in CI so that a later "just add it to a
+# workflow" has to be a deliberate act rather than a passing convenience.
+#
+# GitHub Pages is the copy CI is allowed to publish, precisely because it needs
+# no secret — .github/workflows/pages.yml deploys with the workflow's own OIDC
+# token and nothing else.
 #
 # Before uploading it checks that the .dmg the page advertises actually
 # resolves. A page whose Download button 404s is worse than a stale one, and
@@ -23,12 +35,14 @@ DIR="Assets/Web"
 PAGE="$DIR/index.html"
 DRY_RUN=""
 CHECK_LINK=1
+USE_LOGIN=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry-run)         DRY_RUN=1 ;;
         --skip-link-check) CHECK_LINK=0 ;;
-        *) echo "usage: scripts/deploy-web.sh [--dry-run] [--skip-link-check]" >&2; exit 64 ;;
+        --wrangler-login)  USE_LOGIN=1 ;;
+        *) echo "usage: scripts/deploy-web.sh [--dry-run] [--skip-link-check] [--wrangler-login]" >&2; exit 64 ;;
     esac
     shift
 done
@@ -37,6 +51,20 @@ done
 # Preflight.
 # ---------------------------------------------------------------------------
 [[ -f "$PAGE" ]] || { echo "error: $PAGE not found" >&2; exit 1; }
+
+# See the header: the Cloudflare token is a local credential on purpose.
+if [[ -n "${CI:-}${GITHUB_ACTIONS:-}${GITLAB_CI:-}${BUILDKITE:-}" ]]; then
+    cat >&2 <<'MSG'
+error: deploy-web is local-only and will not run in CI.
+
+  It needs a Cloudflare API token, which is deliberately kept out of CI
+  secrets — see the comment at the top of this script. GitHub Pages is the
+  copy CI publishes, and it needs no credential at all.
+
+  Cut the release from a machine that has .release-env.
+MSG
+    exit 1
+fi
 
 command -v npx >/dev/null || {
     echo "error: npx is not installed — wrangler runs through it (brew install node)" >&2
@@ -87,7 +115,14 @@ fi
 
 PROJECT="${CLOUDFLARE_PAGES_PROJECT:-vibe}"
 
-if [[ -z "${CLOUDFLARE_API_TOKEN:-}" || -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
+# An interactive `wrangler login` on this machine is also a local-only
+# credential, so it is a legitimate alternative to the token — just a less
+# durable one, since the OAuth session expires. Opt in explicitly rather than
+# sniffing wrangler's cache, so a release never silently changes how it
+# authenticates.
+if [[ -n "$USE_LOGIN" ]]; then
+    echo "🔊 using this machine's wrangler login rather than a token"
+elif [[ -z "${CLOUDFLARE_API_TOKEN:-}" || -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
     cat >&2 <<'MSG'
 error: Cloudflare credentials not configured.
 
@@ -104,10 +139,15 @@ error: Cloudflare credentials not configured.
       CLOUDFLARE_PAGES_PROJECT=vibe     # optional, defaults to vibe
 
   (.release-env is gitignored. Never commit the token.)
+
+  Already run `wrangler login` on this machine? Pass --wrangler-login to use
+  that instead: also local-only, but the OAuth session expires, so a token is
+  the better answer for something in the release path.
 MSG
     exit 1
+else
+    export CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID
 fi
-export CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID
 
 echo "🔊 deploying $DIR to Cloudflare Pages project '$PROJECT'"
 set +e

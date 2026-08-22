@@ -57,6 +57,11 @@ __pycache__/
 # App Store Connect API keys must never be committed, wherever they're dropped.
 *.p8
 
+# wrangler's local cache for scripts/deploy-web.sh. Holds the Cloudflare
+# account id it last talked to, never a token — the token lives in
+# .release-env, above — but it is machine state either way.
+/.wrangler/
+
 
 
 
