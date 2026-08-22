@@ -116,9 +116,21 @@ Then attach `vibe.commonwealthrecordings.com` under the project's Custom
 domains. With the zone in the same account, Cloudflare writes the CNAME and
 issues the certificate itself.
 
-## Before it goes live
+## App Store Connect
 
-- `Assets/app-store/copy/marketing-url.txt` is what App Store Connect links to.
-  Update it if this page replaces the current marketing URL.
-- The App Store privacy policy URL should point at
-  <https://vibe.commonwealthrecordings.com/privacy>.
+The two URL files under `Assets/app-store/copy/` upload to every locale with
+`make appstore-upload-metadata`:
+
+| File | Value |
+| --- | --- |
+| `marketing-url.txt` | `https://vibe.commonwealthrecordings.com` |
+| `support-url.txt` | `https://github.com/cmicali/vibe/issues` |
+
+**The privacy policy URL is not one of them.** It lives on ASC's app-level
+`appInfoLocalizations`, which the uploader deliberately does not touch, so set
+it by hand in App Store Connect under App Information:
+
+    https://vibe.commonwealthrecordings.com/privacy/
+
+Note the trailing slash — `/privacy` 308-redirects to it, and the page names
+the redirect target as its canonical URL.
