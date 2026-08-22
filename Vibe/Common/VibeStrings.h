@@ -380,5 +380,6 @@ static inline NSString *VibeAppName(void) {
 
 #define STR_A11Y_MINIPLAYER_EXPAND NSLS(@"a11y.miniplayer.expand", @"Now Playing",  @"iOS: accessibility label for the mini player strip above the tab bar; activating it opens the full-screen player.")
 #define STR_A11Y_PLAYER_MINIMIZE   NSLS(@"a11y.player.minimize",   @"Minimize",     @"iOS: accessibility label for the full-screen player's grabber, which returns it to the mini player strip.")
+#define STR_A11Y_PLAYER_OUTPUT_ROUTE NSLS(@"a11y.player.output_route", @"Output Device", @"iOS: accessibility label for the button on the full-screen player that opens the system list of AirPlay and Bluetooth devices to play through.")
 
 #endif /* VibeStrings_h */

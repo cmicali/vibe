@@ -23,6 +23,7 @@
 #import <UIKit/UIKit.h>
 
 #import "EqualizerLevelSource.h"
+#import "OutputRouteRules.h"         // VibeOutputRouteKind, republished below
 #import "PlayerScreenRules.h"        // VibePlayerScreenState, returned below
 
 @class AudioTrack;
@@ -61,6 +62,12 @@ NS_ASSUME_NONNULL_BEGIN
 // The position tick: time labels and progress. Fires at 3 Hz while playing and
 // once for every event that moves the playhead.
 - (void)playbackDidTick:(PlaybackController *)playback;
+
+#pragma mark The output route
+
+// The system moved the audio to a different output. Read outputRouteKind and
+// outputRouteName; the event carries no payload.
+- (void)playbackDidChangeOutputRoute:(PlaybackController *)playback;
 
 #pragma mark The current track's open
 
@@ -133,6 +140,12 @@ NS_ASSUME_NONNULL_BEGIN
 // waveform from snapping back for those frames.
 @property (nonatomic, readonly) BOOL seekInFlight;
 @property (nonatomic, readonly) float pendingSeekProgress;
+
+// What the audio is coming out of, straight from the session controller — the
+// card's route indicator is the only reader. None before the first activation,
+// which is a real answer there: nothing has claimed the output yet.
+@property (nonatomic, readonly) VibeOutputRouteKind outputRouteKind;
+@property (nonatomic, readonly, nullable) NSString *outputRouteName;
 
 #pragma mark - Transport
 

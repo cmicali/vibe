@@ -16,6 +16,7 @@
 
 #import "RootViewController.h"
 #import "DebugPlayerSurface.h"
+#import "OutputRouteRules.h"        // VibeOutputRouteKind, taken below
 
 @class AudioTrackMetadataCache;
 @class AudioWaveformCache;
@@ -56,6 +57,10 @@
 - (void)debugSeekToSeconds:(NSTimeInterval)seconds;
 // The waveform zoom, the one gesture the command channel cannot synthesize.
 - (void)debugSetWaveformZoom:(CGFloat)fraction;
+
+// Draws the card's route indicator as a given route, model untouched — the
+// only way to see the off-device renderings, which the simulator never reports.
+- (void)debugSetOutputRouteKind:(VibeOutputRouteKind)kind deviceName:(NSString *)name;
 - (void)debugOpenPath:(NSString *)path;
 - (AudioTrackMetadataCache *)debugMetadataCache;
 - (AudioWaveformCache *)debugWaveformCache;

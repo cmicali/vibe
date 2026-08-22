@@ -19,8 +19,11 @@
 #if DEBUG
 
 #import "PlayerViewController.h"
+#import "OutputRouteRules.h"
 
 @class AudioWaveformCache;
+
+NS_ASSUME_NONNULL_BEGIN
 
 @interface PlayerViewController (Debug)
 
@@ -43,8 +46,16 @@
 // read waveformZoomEffective back to see whether that happened.
 - (void)debugSetWaveformZoom:(CGFloat)fraction;
 
+// Draws the route indicator as a given route, with no session behind it. The
+// simulator only ever reports the built-in speaker, so this is the only way to
+// see the Bluetooth, AirPlay and CarPlay renderings at all — the model is
+// untouched, and the next real route event overwrites this.
+- (void)debugSetOutputRouteKind:(VibeOutputRouteKind)kind deviceName:(nullable NSString *)name;
+
 - (AudioWaveformCache *)debugWaveformCache;
 
 @end
+
+NS_ASSUME_NONNULL_END
 
 #endif

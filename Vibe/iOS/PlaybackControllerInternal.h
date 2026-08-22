@@ -80,6 +80,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)notifyDidMoveToCurrentTrackAnimated:(BOOL)animated;
 - (void)notifyDidRenderCurrentTrack;
 - (void)notifyDidChangePlayState;
+- (void)notifyDidChangeOutputRoute;
 // Publishes the Now Playing card, then ticks the observers. The publish rides
 // along because every caller wants both and the card must never lag the
 // screens.

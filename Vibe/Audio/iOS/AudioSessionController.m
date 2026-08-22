@@ -19,19 +19,59 @@ typedef NS_OPTIONS(NSUInteger, VibeAudioSessionRecoveryBlocker) {
     VibeAudioSessionRecoveryBlockerMediaReset = 1 << 2,
 };
 
-static VibeAudioSessionOutputRouteKind VibeAudioSessionRouteKind(
-        AVAudioSessionRouteDescription *route) {
-    if (route.outputs.count == 0) {
-        return VibeAudioSessionOutputRouteNone;
+static VibeOutputRouteKind VibeOutputRouteKindForPort(AVAudioSessionPort portType) {
+    if ([portType isEqualToString:AVAudioSessionPortBuiltInSpeaker]) {
+        return VibeOutputRouteKindBuiltInSpeaker;
     }
+    if ([portType isEqualToString:AVAudioSessionPortBuiltInReceiver]) {
+        return VibeOutputRouteKindBuiltInReceiver;
+    }
+    if ([portType isEqualToString:AVAudioSessionPortHeadphones]
+            || [portType isEqualToString:AVAudioSessionPortLineOut]
+            || [portType isEqualToString:AVAudioSessionPortUSBAudio]) {
+        return VibeOutputRouteKindWired;
+    }
+    if ([portType isEqualToString:AVAudioSessionPortBluetoothA2DP]
+            || [portType isEqualToString:AVAudioSessionPortBluetoothLE]
+            || [portType isEqualToString:AVAudioSessionPortBluetoothHFP]) {
+        return VibeOutputRouteKindBluetooth;
+    }
+    if ([portType isEqualToString:AVAudioSessionPortAirPlay]) {
+        return VibeOutputRouteKindAirPlay;
+    }
+    if ([portType isEqualToString:AVAudioSessionPortCarAudio]) {
+        return VibeOutputRouteKindCarPlay;
+    }
+    return VibeOutputRouteKindOther;
+}
+
+// The one place a route is classified, for both the indicator the card draws
+// and — through VibeAudioSessionOutputRouteKindForRouteKind — the pause/recover
+// decision. The first non-built-in output decides, exactly as the coarse
+// classifier this replaced did, so the fold reproduces its answers.
+static VibeOutputRouteKind VibeOutputRouteKindForRoute(
+        AVAudioSessionRouteDescription *route, NSString *__strong *outName) {
+    if (outName) {
+        *outName = nil;
+    }
+    if (route.outputs.count == 0) {
+        return VibeOutputRouteKindNone;
+    }
+    AVAudioSessionPortDescription *chosen = route.outputs.firstObject;
+    VibeOutputRouteKind kind = VibeOutputRouteKindForPort(chosen.portType);
     for (AVAudioSessionPortDescription *output in route.outputs) {
-        AVAudioSessionPort portType = output.portType;
-        if (![portType isEqualToString:AVAudioSessionPortBuiltInSpeaker]
-                && ![portType isEqualToString:AVAudioSessionPortBuiltInReceiver]) {
-            return VibeAudioSessionOutputRouteExternal;
+        VibeOutputRouteKind outputKind = VibeOutputRouteKindForPort(output.portType);
+        if (VibeAudioSessionOutputRouteKindForRouteKind(outputKind)
+                == VibeAudioSessionOutputRouteExternal) {
+            chosen = output;
+            kind = outputKind;
+            break;
         }
     }
-    return VibeAudioSessionOutputRouteBuiltIn;
+    if (outName) {
+        *outName = chosen.portName;
+    }
+    return kind;
 }
 
 @interface AudioSessionController ()
@@ -40,7 +80,8 @@ static VibeAudioSessionOutputRouteKind VibeAudioSessionRouteKind(
 - (VibeAudioSessionConfigurationAction)beginConfigurationActionForOutputRoute:
         (VibeAudioSessionOutputRouteKind)currentRoute
         generation:(uint64_t *)generation;
-- (void)recordOutputRoute:(VibeAudioSessionOutputRouteKind)route;
+- (BOOL)recordOutputRoute:(VibeOutputRouteKind)kind name:(nullable NSString *)name;
+- (void)publishOutputRouteChange;
 - (void)addConfigurationRecoveryBlocker:(VibeAudioSessionRecoveryBlocker)blocker;
 - (void)removeConfigurationRecoveryBlocker:(VibeAudioSessionRecoveryBlocker)blocker;
 - (VibeAudioSessionRecoveryBlocker)clearConfigurationRecoveryBlockersForActivation;
@@ -75,6 +116,11 @@ static VibeAudioSessionOutputRouteKind VibeAudioSessionRouteKind(
     uint64_t _configurationRecoveryGeneration;
     VibeAudioSessionRecoveryBlocker _configurationRecoveryBlockers;
     VibeAudioSessionOutputRouteKind _lastOutputRoute;
+    // The same route, at the resolution the card's indicator draws. Written
+    // with _lastOutputRoute under the lock above, so the pair and the fold can
+    // never describe two different routes.
+    VibeOutputRouteKind _outputRouteKind;
+    NSString *_outputRouteName;
 }
 
 - (instancetype)initWithDelegate:(id<AudioSessionControllerDelegate>)delegate {
@@ -84,7 +130,12 @@ static VibeAudioSessionOutputRouteKind VibeAudioSessionRouteKind(
         _configurationRecoveryLock = OS_UNFAIR_LOCK_INIT;
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         AVAudioSession *session = [AVAudioSession sharedInstance];
-        _lastOutputRoute = VibeAudioSessionRouteKind(session.currentRoute);
+        // Recorded, deliberately not published: the delegate pointer is set
+        // but PlaybackController is still inside its own init.
+        NSString *routeName = nil;
+        VibeOutputRouteKind routeKind =
+                VibeOutputRouteKindForRoute(session.currentRoute, &routeName);
+        [self recordOutputRoute:routeKind name:routeName];
         [center addObserver:self selector:@selector(handleInterruption:)
                        name:AVAudioSessionInterruptionNotification object:session];
         [center addObserver:self selector:@selector(handleRouteChange:)
@@ -140,7 +191,15 @@ static VibeAudioSessionOutputRouteKind VibeAudioSessionRouteKind(
         LogError(@"AudioSession: setActive failed (%@)", error);
         return NO;
     }
-    [self recordOutputRoute:VibeAudioSessionRouteKind(session.currentRoute)];
+    // Only on a real change: activate runs before every play, and this is the
+    // edge where a destination picked while the session was inactive — which
+    // posts no route notification of its own — first becomes visible.
+    NSString *routeName = nil;
+    VibeOutputRouteKind routeKind =
+            VibeOutputRouteKindForRoute(session.currentRoute, &routeName);
+    if ([self recordOutputRoute:routeKind name:routeName]) {
+        [self publishOutputRouteChange];
+    }
     return YES;
 }
 
@@ -214,13 +273,51 @@ static VibeAudioSessionOutputRouteKind VibeAudioSessionRouteKind(
     return action;
 }
 
-- (void)recordOutputRoute:(VibeAudioSessionOutputRouteKind)route {
+// Returns whether the pair actually moved, so the display edge is published
+// once per real change rather than once per play.
+- (BOOL)recordOutputRoute:(VibeOutputRouteKind)kind name:(nullable NSString *)name {
     // A non-loss route notification may follow the configuration notification
     // it explains. Recording it must not cancel that pending restart; safety
     // notifications separately add a blocker, which does cancel it.
     os_unfair_lock_lock(&_configurationRecoveryLock);
-    _lastOutputRoute = route;
+    BOOL changed = kind != _outputRouteKind
+            || !(name == _outputRouteName || [name isEqualToString:_outputRouteName]);
+    _outputRouteKind = kind;
+    _outputRouteName = [name copy];
+    _lastOutputRoute = VibeAudioSessionOutputRouteKindForRouteKind(kind);
     os_unfair_lock_unlock(&_configurationRecoveryLock);
+    if (changed) {
+        LogInfo(@"AudioSession: output route is now %lu (%@)",
+                (unsigned long)kind, name ?: @"unnamed");
+    }
+    return changed;
+}
+
+- (VibeOutputRouteKind)outputRouteKind {
+    os_unfair_lock_lock(&_configurationRecoveryLock);
+    VibeOutputRouteKind kind = _outputRouteKind;
+    os_unfair_lock_unlock(&_configurationRecoveryLock);
+    return kind;
+}
+
+- (NSString *)outputRouteName {
+    os_unfair_lock_lock(&_configurationRecoveryLock);
+    NSString *name = _outputRouteName;
+    os_unfair_lock_unlock(&_configurationRecoveryLock);
+    return name;
+}
+
+// TRAP: an unconditional dispatch_async, not onMain:. This edge fans out
+// through PlaybackController to every observer, and activateSession publishes
+// it from inside a session activation the play path is waiting on — running
+// that broadcast inline there is a re-entrancy the notification paths never
+// have.
+- (void)publishOutputRouteChange {
+    __weak AudioSessionController *weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        AudioSessionController *strongSelf = weakSelf;
+        [strongSelf.delegate audioSessionOutputRouteDidChange:strongSelf];
+    });
 }
 
 - (void)addConfigurationRecoveryBlocker:(VibeAudioSessionRecoveryBlocker)blocker {
@@ -355,8 +452,14 @@ static VibeAudioSessionOutputRouteKind VibeAudioSessionRouteKind(
 
 - (void)handleRouteChange:(NSNotification *)note {
     NSUInteger reason = [note.userInfo[AVAudioSessionRouteChangeReasonKey] unsignedIntegerValue];
-    [self recordOutputRoute:VibeAudioSessionRouteKind(
-            [AVAudioSession sharedInstance].currentRoute)];
+    NSString *routeName = nil;
+    VibeOutputRouteKind routeKind = VibeOutputRouteKindForRoute(
+            [AVAudioSession sharedInstance].currentRoute, &routeName);
+    // Published outside the loss branch below: a new device, an override and a
+    // category change are exactly the cases the indicator exists for.
+    if ([self recordOutputRoute:routeKind name:routeName]) {
+        [self publishOutputRouteChange];
+    }
     // Only the disappearing-output case pauses — the unplugged-headphones
     // rule. Overrides and new devices keep playing on the new route: the
     // engine stops itself on those too, and the configuration-change verdict
@@ -394,8 +497,9 @@ static VibeAudioSessionOutputRouteKind VibeAudioSessionRouteKind(
     uint64_t configurationRecoveryGeneration = 0;
     VibeAudioSessionConfigurationAction action =
             [self beginConfigurationActionForOutputRoute:
-                    VibeAudioSessionRouteKind(
-                            [AVAudioSession sharedInstance].currentRoute)
+                    VibeAudioSessionOutputRouteKindForRouteKind(
+                            VibeOutputRouteKindForRoute(
+                                    [AVAudioSession sharedInstance].currentRoute, NULL))
                     generation:&configurationRecoveryGeneration];
     if (action == VibeAudioSessionConfigurationActionIgnore) {
         return;

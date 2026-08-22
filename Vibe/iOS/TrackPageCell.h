@@ -18,6 +18,8 @@
 
 #import <UIKit/UIKit.h>
 
+@class OutputRouteView;
+
 NS_ASSUME_NONNULL_BEGIN
 
 @class WaveformScrubberView;
@@ -58,6 +60,10 @@ NS_ASSUME_NONNULL_BEGIN
 // controller wires the three actions, swaps the play/pause symbol, and fades
 // the row as a unit (the empty state shows none of it).
 @property (nonatomic, readonly) TrackPageTransportView *transportView;
+// The output-route indicator, between the time labels above the transport. It
+// rides the page for the same reason the transport does; the controller wires
+// its delegate and pushes the route every page draws.
+@property (nonatomic, readonly) OutputRouteView *routeView;
 @property (nonatomic, readonly) UIButton *previousButton;
 @property (nonatomic, readonly) UIButton *playPauseButton;
 @property (nonatomic, readonly) UIButton *nextButton;

@@ -16,6 +16,8 @@
 
 #import <Foundation/Foundation.h>
 
+#import "OutputRouteRules.h"     // VibeOutputRouteKind, published below
+
 NS_ASSUME_NONNULL_BEGIN
 
 @class AudioSessionController;
@@ -51,6 +53,12 @@ NS_ASSUME_NONNULL_BEGIN
 // the player; that method's main completion owns UI state and re-parking.
 - (void)audioSessionDidReceiveMediaServicesReset:(AudioSessionController *)controller;
 
+// The system moved the audio to a different output, or an activation recorded
+// one. Read outputRouteKind and outputRouteName: the event carries no payload
+// deliberately, so a burst of route changes coalesces into one read of the
+// current answer rather than delivering a pair already moved past.
+- (void)audioSessionOutputRouteDidChange:(AudioSessionController *)controller;
+
 @end
 
 @interface AudioSessionController : NSObject
@@ -79,6 +87,14 @@ NS_ASSUME_NONNULL_BEGIN
 // interruption is in progress, because deactivating mid-interruption can
 // forfeit the interruption-ended notification the resume depends on.
 - (void)deactivateWhenIdle;
+
+// What the audio is coming out of. Written together under one lock, so the
+// pair is always one route's answer. BEFORE the first activate the session can
+// report no outputs at all, which reads as VibeOutputRouteKindNone — and an
+// AirPlay destination picked while the session is inactive is not reflected
+// until the next activation records it.
+@property (nonatomic, readonly) VibeOutputRouteKind outputRouteKind;
+@property (nonatomic, readonly, nullable) NSString *outputRouteName;
 
 @end
 

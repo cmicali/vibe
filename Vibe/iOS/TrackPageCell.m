@@ -4,6 +4,7 @@
 //
 
 #import "TrackPageCell.h"
+#import "OutputRouteView.h"
 #import "UIImage+Blur.h"
 #import "VibeStrings.h"
 #import "WaveformScrubberView.h"
@@ -53,6 +54,11 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
 // The waveform is a third shorter here and the transport rides the time row's
 // centerline, so portrait's pull-up would put a glyph over the envelope.
 static const CGFloat kCellTimeWaveformGapLandscape = 3;
+// The route indicator's cap. Portrait puts it between the time labels and
+// landscape on the codec line, and in both a long device name has to stop
+// short of whatever sits beside it.
+static const CGFloat kCellRouteMaxWidth = 160;
+static const CGFloat kCellRouteGap = 10;
 
 static void VibeConfigureTimeLabel(UILabel *label) {
     label.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleSubheadline]
@@ -297,6 +303,13 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         _transportView.translatesAutoresizingMaskIntoConstraints = NO;
         [content addSubview:_transportView];
 
+        // Where the audio is going, in the gap the time row leaves in its
+        // middle — Apple Music's placement, one row above the transport. It
+        // rides the page for the same reason the transport does.
+        _routeView = [[OutputRouteView alloc] initWithFrame:CGRectZero];
+        _routeView.translatesAutoresizingMaskIntoConstraints = NO;
+        [content addSubview:_routeView];
+
         _previousButton = [self makeTransportButton];
         _previousButton.accessibilityLabel = STR_TRANSPORT_PREVIOUS;
         [self setGlyph:@"backward.end.fill" onButton:_previousButton
@@ -329,6 +342,11 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 
             [_transportView.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
             [_transportView.heightAnchor constraintEqualToConstant:kTransportButtonSide],
+            [_routeView.widthAnchor constraintLessThanOrEqualToConstant:kCellRouteMaxWidth],
+            // The tap target, as everywhere else on this screen: a small glyph
+            // in a finger-sized box. It clears the transport row below it in
+            // both layouts — check the frames if either moves.
+            [_routeView.heightAnchor constraintEqualToConstant:44],
             [_remainingTimeControl.widthAnchor constraintGreaterThanOrEqualToConstant:44],
             [_remainingTimeControl.heightAnchor constraintGreaterThanOrEqualToConstant:44],
             [_previousButton.leadingAnchor constraintEqualToAnchor:_transportView.leadingAnchor],
@@ -469,19 +487,25 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         [_elapsedLabel.topAnchor constraintEqualToAnchor:_waveformView.bottomAnchor
                                                 constant:-kCellTimeWaveformOverlap],
         [_elapsedLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
-        [_elapsedLabel.trailingAnchor constraintLessThanOrEqualToAnchor:content.centerXAnchor
-                                                            constant:-6],
         [_remainingTimeControl.bottomAnchor constraintEqualToAnchor:_elapsedLabel.bottomAnchor],
         [_remainingTimeControl.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
-        [_remainingTimeControl.leadingAnchor constraintGreaterThanOrEqualToAnchor:content.centerXAnchor
-                                                                 constant:6],
+
+        // The route indicator takes the middle of the time row, so the two
+        // times are bounded against IT rather than against the centerline —
+        // it is what they can collide with now.
+        [_routeView.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
+        [_routeView.centerYAnchor constraintEqualToAnchor:_elapsedLabel.centerYAnchor],
+        [_elapsedLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_routeView.leadingAnchor
+                                                               constant:-kCellRouteGap],
+        [_remainingTimeControl.leadingAnchor constraintGreaterThanOrEqualToAnchor:_routeView.trailingAnchor
+                                                                        constant:kCellRouteGap],
     ];
 }
 
-// The mac main window, transplanted: a small square art card top-left,
-// artist over title left-aligned beside it, the codec line right-aligned in
-// the top corner, the waveform across the whole width with the time row
-// beneath it, clear of the glass bar.
+// The mac main window, transplanted: a small square art card top-left, artist
+// over title left-aligned beside it, the codec line right-aligned beside the
+// route indicator in the top corner, and the waveform across the whole width
+// with the time row beneath it, clear of the glass bar.
 - (NSArray<NSLayoutConstraint *> *)buildLandscapeConstraints {
     UIView *content = self.contentView;
     UILayoutGuide *safe = content.safeAreaLayoutGuide;
@@ -500,10 +524,17 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         [_titleLabel.topAnchor constraintEqualToAnchor:_artistLabel.bottomAnchor constant:2],
         [_titleLabel.leadingAnchor constraintEqualToAnchor:_artCard.trailingAnchor
                                                   constant:kCellHeaderGapLandscape],
-        [_titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor
-                                                             constant:-16],
+        [_titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_routeView.leadingAnchor
+                                                             constant:-kCellRouteGap],
         [_fileInfoLabel.topAnchor constraintEqualToAnchor:_artistLabel.topAnchor],
-        [_fileInfoLabel.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
+        [_fileInfoLabel.trailingAnchor constraintEqualToAnchor:_routeView.leadingAnchor
+                                                      constant:-kCellRouteGap],
+
+        // The transport rides the time row's centerline down there, so the
+        // indicator cannot have the middle of it: it takes the top-trailing
+        // corner instead, on the codec line, which is bounded against it above.
+        [_routeView.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
+        [_routeView.centerYAnchor constraintEqualToAnchor:_fileInfoLabel.centerYAnchor],
 
         [_waveformView.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
         [_waveformView.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],

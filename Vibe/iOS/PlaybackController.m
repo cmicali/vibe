@@ -156,6 +156,24 @@ static const NSUInteger kUIUpdateHz = 3;
     }
 }
 
+- (void)notifyDidChangeOutputRoute {
+    for (id<PlaybackObserver> observer in [self observerSnapshot]) {
+        if ([observer respondsToSelector:@selector(playbackDidChangeOutputRoute:)]) {
+            [observer playbackDidChangeOutputRoute:self];
+        }
+    }
+}
+
+#pragma mark - The output route
+
+- (VibeOutputRouteKind)outputRouteKind {
+    return _audioSession.outputRouteKind;
+}
+
+- (NSString *)outputRouteName {
+    return _audioSession.outputRouteName;
+}
+
 #pragma mark - Equalizer levels
 
 // The tap exists to feed indicators, so it runs only while an indicator is
@@ -680,6 +698,10 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     // while the state still reads Playing. Follow it with the idempotent health
     // check so an engine already stopped by the interruption is rebuilt too.
     [_player recoverFromEngineConfigurationChange];
+}
+
+- (void)audioSessionOutputRouteDidChange:(AudioSessionController *)controller {
+    [self notifyDidChangeOutputRoute];
 }
 
 - (void)audioSessionEngineConfigurationChanged:(AudioSessionController *)controller {

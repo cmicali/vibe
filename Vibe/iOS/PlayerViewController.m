@@ -20,6 +20,11 @@
 #import "VibeWeakProxy.h"
 #import "WaveformScrubberView.h"
 
+// How long the playhead's display link stays held for the system route picker
+// before releasing itself. Long enough to cover the sheet a user actually
+// dismisses, bounded because AVKit's end edge is not guaranteed.
+static const NSTimeInterval kRoutePickerHoldSeconds = 10;
+
 // The pager must not take a horizontal drag that starts on a waveform: the
 // scrubber owns those.
 //
@@ -305,17 +310,54 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     // The transport ROW is declined as a whole, not just its buttons: a
     // disabled button is not handed back by hit-testing, so next at the end of
     // the playlist would otherwise pass its tap through to the pause below it.
+    // The route indicator is declined for the same reason at one remove: what
+    // hit-tests inside it is AVKit's own view, and declining on a class we own
+    // does not depend on that view being a UIControl.
     for (UIView *view = touch.view; view && view != self.view; view = view.superview) {
         if (view == _grabberTarget) {
             return gestureRecognizer == _minimizePan;
         }
         if ([view isKindOfClass:[UIControl class]]
                 || [view isKindOfClass:[TrackPageTransportView class]]
+                || [view isKindOfClass:[OutputRouteView class]]
                 || [view isKindOfClass:[WaveformScrubberView class]]) {
             return NO;
         }
     }
     return YES;
+}
+
+#pragma mark - OutputRouteViewDelegate
+
+- (void)outputRouteView:(OutputRouteView *)view isPresentingRoutes:(BOOL)presenting {
+    if (presenting == _routePickerPresenting) {
+        return;
+    }
+    _routePickerPresenting = presenting;
+    uint64_t generation = ++_routePickerHoldGeneration;
+    [self updateScrollLinkState];
+    if (presenting) {
+        // The hold's own release, because AVKit's may never come — see the
+        // flag's trap. Overshooting a sheet that is still up costs nothing but
+        // an animated waveform nobody can see, which is what every other sheet
+        // over this card already does.
+        __weak PlayerViewController *weakSelf = self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                                     (int64_t)(kRoutePickerHoldSeconds * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            PlayerViewController *strongSelf = weakSelf;
+            if (!strongSelf || generation != strongSelf->_routePickerHoldGeneration) {
+                return;
+            }
+            strongSelf->_routePickerPresenting = NO;
+            [strongSelf updateScrollLinkState];
+        });
+        return;
+    }
+    // The only edge that says the user may have just picked something: a
+    // destination chosen against an inactive session posts no route
+    // notification of its own, so nothing else would repaint this.
+    [self updateOutputRoute];
 }
 
 #pragma mark - Presentation
@@ -329,6 +371,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     if (presented) {
         // Minimized the card takes no ticks, so its labels, waveform and page
         // are however the last one left them.
+        [self updateOutputRoute];
         [self updatePlaybackUI];
         [self renderHeaderForTrack:_playlist.currentTrack];
         [self scrollToCurrentPageAnimated:NO];
@@ -340,8 +383,15 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         return;
     }
     _sceneActive = sceneActive;
+    if (sceneActive) {
+        // Coming back settles a picker AVKit tore down without telling us,
+        // ahead of the deadline; see the flag's trap.
+        _routePickerPresenting = NO;
+        _routePickerHoldGeneration++;
+    }
     [self updateScrollLinkState];
     if (sceneActive) {
+        [self updateOutputRoute];
         [self updatePlaybackUI];
     }
 }
@@ -382,21 +432,33 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [self updateChrome];
 }
 
-// The transport stays up whatever the play state — it is the page's controls,
-// not a paused-state affordance. The empty state is the one thing that hides
-// it: there is nothing to play until a folder is chosen.
+// The transport and the route indicator stay up whatever the play state — they
+// are controls, not a paused-state affordance. The empty state is the one thing
+// that hides them: there is nothing to play until a folder is chosen.
 - (CGFloat)chromeAlpha {
     return _playback.screenState == VibePlayerScreenStateEmpty ? 0 : 1;
 }
 
 - (void)updateChrome {
     CGFloat rowAlpha = [self chromeAlpha];
-    if (_transportView.alpha == rowAlpha) {
+    if (_transportView.alpha == rowAlpha && _routeView.alpha == rowAlpha) {
         return;
     }
     [UIView animateWithDuration:0.3 animations:^{
         self->_transportView.alpha = rowAlpha;
+        self->_routeView.alpha = rowAlpha;
     }];
+}
+
+// Every visible page, not just the bound one: each carries its own indicator in
+// its own time row, and a neighbor would otherwise keep the previous route
+// until it was recycled. Same reason repaintTimesOnVisiblePages exists.
+- (void)updateOutputRoute {
+    VibeOutputRouteKind kind = _playback.outputRouteKind;
+    NSString *name = _playback.outputRouteName;
+    for (TrackPageCell *cell in _pagesView.visibleCells) {
+        [cell.routeView setRouteKind:kind deviceName:name];
+    }
 }
 
 // Paused unless the playhead is actually moving where someone can see it. A
@@ -410,7 +472,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 - (void)updateScrollLinkState {
     _scrollLink.paused = !(_playback.isPlaying && _sceneActive && self.isPresented
                            && !_pagerScrolling && !_pagerProgrammaticScrolling
-                           && !_windowResizeInFlight);
+                           && !_windowResizeInFlight && !_routePickerPresenting);
 }
 
 - (void)scrollTick:(CADisplayLink *)link {
@@ -570,6 +632,10 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 - (void)playbackDidChangePlayState:(PlaybackController *)playback {
     [self updateScrollLinkState];
     [self updatePlayButton];
+}
+
+- (void)playbackDidChangeOutputRoute:(PlaybackController *)playback {
+    [self updateOutputRoute];
 }
 
 - (void)playbackDidTick:(PlaybackController *)playback {

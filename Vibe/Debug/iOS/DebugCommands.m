@@ -235,6 +235,43 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 reply[@"ok"] = @YES;
                 return VibeJSONString(reply);
             }),
+            // The simulator reports the built-in speaker and nothing else,
+            // and a route cannot be faked at the session — so this draws the
+            // indicator as a route for a look, leaving the model alone. The
+            // next real route event overwrites it.
+            VibeCmd(@"set_output_route <none|speaker|receiver|wired|bluetooth|airplay|carplay|other> [name]", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                NSDictionary<NSString *, NSNumber *> *kinds = @{
+                    @"none": @(VibeOutputRouteKindNone),
+                    @"speaker": @(VibeOutputRouteKindBuiltInSpeaker),
+                    @"receiver": @(VibeOutputRouteKindBuiltInReceiver),
+                    @"wired": @(VibeOutputRouteKindWired),
+                    @"bluetooth": @(VibeOutputRouteKindBluetooth),
+                    @"airplay": @(VibeOutputRouteKindAirPlay),
+                    @"carplay": @(VibeOutputRouteKindCarPlay),
+                    @"other": @(VibeOutputRouteKindOther),
+                };
+                NSNumber *kind = tokens.count > 1 ? kinds[tokens[1]] : nil;
+                if (!kind) {
+                    return VibeErrorJSON(@"usage: set_output_route <none|speaker|receiver|wired|bluetooth|airplay|carplay|other> [name]");
+                }
+                // tokens[0] is the verb and tokens[1] the kind, so the name is
+                // whatever follows — rejoined, since an unquoted device name is
+                // several tokens.
+                NSArray<NSString *> *nameTokens = tokens.count > 2
+                        ? [@[tokens[0]] arrayByAddingObjectsFromArray:
+                                [tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)]]
+                        : @[];
+                NSString *name = nameTokens.count > 0 ? VibeRestArgument(nameTokens) : nil;
+                [controller debugSetOutputRouteKind:(VibeOutputRouteKind)kind.unsignedIntegerValue
+                                         deviceName:name];
+                NSDictionary *ui = [controller debugStateDictionary][@"ui"];
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"routeSymbol": ui[@"routeSymbol"] ?: @"",
+                    @"routeNameShown": ui[@"routeNameShown"] ?: @NO,
+                    @"routeShown": ui[@"routeShown"] ?: @NO,
+                });
+            }),
             VibeCmd(@"select_tab <playlist|files|search>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSString *identifier = tokens.count > 1 ? tokens[1] : nil;
                 if (![@[@"playlist", @"files", @"search"] containsObject:identifier ?: @""]) {

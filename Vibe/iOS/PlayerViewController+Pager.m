@@ -61,6 +61,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     _elapsedLabel = cell.elapsedLabel;
     _remainingTimeControl = cell.remainingTimeControl;
     _transportView = cell.transportView;
+    _routeView = cell.routeView;
     // A rebind means a fresh (or reloaded) cell whose labels came back at
     // their reuse defaults; while paused no timer tick will repopulate them,
     // so refresh now — the play glyph's symbol and visibility included.
@@ -140,6 +141,9 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
         // setting, so every page redraws, not just the tapped one.
         [page.remainingTimeControl addTarget:self action:@selector(remainingTimeTapped)
                            forControlEvents:UIControlEventTouchUpInside];
+        // The picker's sheet holds the playhead's display link, so the card
+        // hears about it from whichever page raised it.
+        page.routeView.delegate = self;
     }
 
     // Unconditional, not part of the one-time block above: a recycled cell
@@ -187,6 +191,10 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     // with next already dimmed. Playlist.hasNextTrack is the same test against
     // the cursor — the one place the boundary is decided.
     [cell setNextEnabled:index + 1 < _playlist.count];
+    // One route for the whole app, so every page draws the same one — a
+    // recycled cell arrives holding whatever the previous page had.
+    [cell.routeView setRouteKind:_playback.outputRouteKind
+                      deviceName:_playback.outputRouteName];
 }
 
 - (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView
@@ -198,6 +206,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     // Reuse hands back the transport at its resting look; stamp the live
     // chrome state so a page never appears with the wrong visibility.
     cell.transportView.alpha = [self chromeAlpha];
+    cell.routeView.alpha = [self chromeAlpha];
     return cell;
 }
 

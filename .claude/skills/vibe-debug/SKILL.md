@@ -104,6 +104,7 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" open <path>         # file INSIDE the container (seed via launch-ios.sh); the FolderSession open-in-place path. Replaces the playlist, plays, AND expands the card
 "$S" expand_player       # the card, without a gesture; also: minimize_player. The shell presents it only on an open, so this is how to get to it otherwise
 "$S" set_waveform_zoom 0.12 # the DJ zoom, 0-1 = fraction of the track visible; through the same delegate callback a released pinch takes, so it fans out across pages and persists. Replies {waveformZoomRequested, waveformZoomEffective} — they DIFFER when the layout cannot draw the depth asked for, which is the only way to check the clamp
+"$S" set_output_route airplay "Living Room"  # draws the card's route indicator as any route kind (none|speaker|receiver|wired|bluetooth|airplay|carplay|other), model untouched — the simulator reports the built-in speaker and NOTHING else, so this is the only way to see the off-device renderings. A page reconfigure or a real route event overwrites it, so set it immediately before the check
 "$S" select_tab playlist # or files, or search (the UISearchTab circle)
 "$S" dump_search         # {roots, folders} — the search screen's whole scope. roots is what its walk covers: the open folder, then the folders the user added in Settings, then the app's own Documents. folders is just the added ones, i.e. the rows Settings shows
 "$S" add_search_folder <dir>  # {ok, added, roots, folders} — widens the scope as picking a folder in Settings would; also: remove_search_folder <index into dump_search.folders>. The channel cannot drive the system document picker (another process's UI, out of the touch driver's reach either), so these are the only way to set a scope up for a test. added:false is the "a persistent root already covers it" answer, not a failure
@@ -159,7 +160,7 @@ Latency: ~1s per gesture at steady state; the FIRST gesture after a start or an 
 
 `input.swift` clicks on the Simulator *window* are obsolete for this — no calibration, no frontmost dance.
 
-**Simulator blind spots.** Interruptions (calls/Siri), route changes (headphone unplug), background audio past lock, and the lock-screen card need a real device. The `AVAudioSession` code runs but the simulator does not exercise it faithfully. Per the simulator-only rule above, do not drive a connected phone to close these gaps — report them as unverified and let the user test on their own device, unless they explicitly ask for a one-time on-device run.
+**Simulator blind spots.** Interruptions (calls/Siri), route changes (headphone unplug), background audio past lock, and the lock-screen card need a real device. The card's route indicator draws and its picker opens on a tap — `dump_state`'s `ui.routePickerUp` flips — but the simulator offers no second route, so the sheet shows nothing and AVKit never sends the did-end edge; only `set_output_route` shows the off-device renderings there. The `AVAudioSession` code runs but the simulator does not exercise it faithfully. Per the simulator-only rule above, do not drive a connected phone to close these gaps — report them as unverified and let the user test on their own device, unless they explicitly ask for a one-time on-device run.
 
 ## Driving and inspecting the running app: `--debug-cmd`
 

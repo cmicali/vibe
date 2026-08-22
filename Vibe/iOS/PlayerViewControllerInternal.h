@@ -22,6 +22,7 @@
 //
 
 #import "PlayerViewController.h"
+#import "OutputRouteView.h"         // OutputRouteViewDelegate, adopted below
 #import "PlaybackController.h"      // PlaybackObserver, adopted below
 #import "PlayerDisplaySettings.h"   // the two display preferences, read below
 #import "PlayerScreenRules.h"       // VibePlayerScreenState, read below
@@ -44,7 +45,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 // These two conformances stay on the class because PlayerViewController.m
 // implements them. Every other one is declared on the category that implements
 // it, so the compiler checks each against the file that holds it.
-@interface PlayerViewController () <PlaybackObserver, UIGestureRecognizerDelegate> {
+@interface PlayerViewController () <OutputRouteViewDelegate, PlaybackObserver,
+        UIGestureRecognizerDelegate> {
     PlaybackController      *_playback;
     // Borrowed from _playback, which owns the one instance for the process.
     // Held by name because the pager reads it on every data-source callback.
@@ -82,6 +84,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     UILabel                 *_elapsedLabel;
     TrackPageTimeControl    *_remainingTimeControl;
     UIView                  *_transportView;    // bound: the current page's transport row
+    OutputRouteView         *_routeView;        // bound: the current page's route indicator
     // Whichever scrubber currently holds the pager still, which is NOT always
     // the bound page's: playback runs on through a scrub, so a track ending
     // mid-drag rebinds the chrome above while the finger is still down on the
@@ -104,6 +107,20 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     // Whether this exact scene is foreground-active. Core state, here because
     // the debug channel's state dump reports it.
     BOOL                    _sceneActive;
+
+    // The route indicator's system picker is up, which holds the playhead
+    // display link exactly as a sheet does.
+    //
+    // TRAP: AVKit does NOT reliably send the did-end edge — measured on the
+    // simulator, where there is no second route to offer, the begin edge
+    // arrives and the end edge never does. A stuck YES would freeze the
+    // waveform under correct time labels for the life of the process, which
+    // reads as a rendering bug rather than a stuck gate. The bounded deadline
+    // below is the release that does not depend on AVKit; the generation pairs
+    // each deadline with the presentation that armed it, so a later begin
+    // cannot be released by an earlier one's timer.
+    BOOL                    _routePickerPresenting;
+    uint64_t                _routePickerHoldGeneration;
 
     // The whole second the time labels last rendered for a scrub. The scrub
     // position arrives per frame of scroll and the labels show seconds, so
@@ -129,8 +146,11 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 // The transport row is up whenever there is something to play: only the empty
 // state hides it.
 - (CGFloat)chromeAlpha;
-// The display link runs only while playing in the active scene.
+// The display link runs only while playing in the active scene, and not while
+// the system route picker covers the card.
 - (void)updateScrollLinkState;
+// Redraws the route indicator from the model's current pair.
+- (void)updateOutputRoute;
 // The pager owns the header, art, and waveform; rendering the current track
 // means refreshing its page and rebinding the live chrome to it.
 - (void)renderHeaderForTrack:(nullable AudioTrack *)track;

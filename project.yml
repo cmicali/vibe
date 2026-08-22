@@ -502,6 +502,7 @@ targets:
           - "@executable_path/Frameworks"
     dependencies:
       - sdk: AVFoundation.framework
+      - sdk: AVKit.framework                # AVRoutePickerView (OutputRouteView)
       - sdk: Accelerate.framework
       - sdk: AudioToolbox.framework
       - sdk: ImageIO.framework

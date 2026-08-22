@@ -39,6 +39,12 @@
     ui[@"parked"] = @(playback.debugParked);
     ui[@"trackStartPending"] = @(playback.debugTrackStartPending);
     ui[@"error"] = playback.errorText ?: @"";
+    // The model's answer beside the indicator's drawn one, so the publish path
+    // is checkable end to end.
+    ui[@"outputRoute"] = @{
+        @"kind": @(playback.outputRouteKind),
+        @"name": playback.outputRouteName ?: @"",
+    };
     // The shell: which tab is up, whether the strip is showing, and whether
     // the card is up over both.
     ui[@"playerPresentation"] = self.isPlayerExpanded ? @"full" : @"minimized";
@@ -60,6 +66,10 @@
 
 - (void)debugSetWaveformZoom:(CGFloat)fraction {
     [self.player debugSetWaveformZoom:fraction];
+}
+
+- (void)debugSetOutputRouteKind:(VibeOutputRouteKind)kind deviceName:(NSString *)name {
+    [self.player debugSetOutputRouteKind:kind deviceName:name];
 }
 
 - (NSDictionary *)debugArtDictionary {

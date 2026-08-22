@@ -26,6 +26,12 @@
         @"elapsed": _elapsedLabel.text ?: @"",
         @"remaining": _remainingTimeControl.text ?: @"",
         @"transportShown": @(_transportView.alpha > 0),
+        @"routeShown": @(_routeView.alpha > 0),
+        @"routeSymbol": _routeView.symbolName ?: @"",
+        @"routeNameShown": @(_routeView.showsDeviceName),
+        // The flag that freezes the playhead if it ever sticks; with
+        // waveformBaked it says which of the two ways a still waveform means.
+        @"routePickerUp": @(_routePickerPresenting),
         @"waveformProgress": @(_waveformView.progress),
         @"waveformOverscroll": @(_waveformView.overscroll),
         @"waveformScrollGeom": _waveformView.scrollGeometry ?: @[],
@@ -40,6 +46,10 @@
         @"waveformZoomEffective": @(_waveformView.effectiveVisibleFraction),
         @"sceneActive": @(_sceneActive),
     };
+}
+
+- (void)debugSetOutputRouteKind:(VibeOutputRouteKind)kind deviceName:(NSString *)name {
+    [_routeView setRouteKind:kind deviceName:name];
 }
 
 - (NSDictionary *)debugArtDictionary {
