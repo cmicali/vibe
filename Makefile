@@ -13,8 +13,14 @@ setup:
 	brew bundle
 
 # Generate Vibe.xcodeproj from project.yml (requires xcodegen — `make setup`).
+#
+# Under the build lock: several agent sessions share one checkout, and
+# rewriting the project file while another session's xcodebuild has it open
+# fails that build or, worse, feeds it a half-written one. The lock is taken
+# per command, so this waits for a build in flight and releases before the next
+# recipe runs — see scripts/build-lock.sh.
 project:
-	xcodegen generate
+	scripts/build-lock.sh xcodegen generate
 
 # Build the app. Regenerates the project first via the `project` prerequisite,
 # so build.sh is told to skip its own generate. Override with: make build CONFIG=Debug
@@ -25,8 +31,11 @@ build: project
 # the check that catches an AppKit leak into a shared directory. The
 # destination is generic, so nothing has to be booted. CI passes CONFIG=Debug;
 # the default stays Release to match `build`.
+# Locked too: this and `drive-ios.sh start` build into the same products
+# directory, and the simulator app the touch driver installs from is the one
+# they both write.
 build-ios: project
-	xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -configuration $(CONFIG) \
+	scripts/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -configuration $(CONFIG) \
 	    -destination 'generic/platform=iOS Simulator' \
 	    -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
 

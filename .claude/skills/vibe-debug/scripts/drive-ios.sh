@@ -59,6 +59,20 @@ fi
 TMP="$ROOT/build/ios-driver/$UDID"
 LOG="$TMP/driver.log"
 
+. "$ROOT/scripts/build-lock.sh"
+
+# Ready means the marker AND BOTH halves of the session. xcodebuild owns the
+# automation session; the runner it launched performs the gestures. The marker
+# alone lies after either dies without cleanup — a crash, a kill, a
+# `simctl erase` — and a runner outliving its xcodebuild answers nothing, so a
+# gesture sent to it burned the full 90s timeout instead of failing in
+# milliseconds. Both patterns are scoped to this device, so a session driving
+# another simulator is never mistaken for this one.
+driver_alive() {
+    pgrep -f "VibeiOSDriver -destination id=$UDID" >/dev/null 2>&1 \
+        && pgrep -f "Devices/$UDID/.*VibeiOSDriver-Runner" >/dev/null 2>&1
+}
+
 # stop is the quit verb by another name; macOS bash has no ;;& fallthrough.
 [ "$1" = "stop" ] && set -- quit
 
@@ -70,27 +84,43 @@ start)
     pkill -f "Devices/$UDID/.*VibeiOSDriver-Runner" 2>/dev/null || true
     mkdir -p "$TMP"
     rm -f "$TMP/$READY_NAME" "$TMP"/vibe-touch-*
+    # The device is this session's; the build tree is the whole checkout's.
+    # Held across the generate, the build and the install that follows, then
+    # dropped as soon as the runner is up — the rest of the session (gestures,
+    # screenshots, the debug channel) stays concurrent with other sessions,
+    # which is the point of the per-session device. Without it, xcodegen
+    # rewrote Vibe.xcodeproj under another session's live xcodebuild and the two
+    # builds clobbered one products directory.
+    vibe_build_lock_acquire
     ( cd "$ROOT" && xcodegen generate >/dev/null )
     ( cd "$ROOT" && TEST_RUNNER_VIBE_DRIVER_DIR="$TMP" \
         nohup xcodebuild test -project Vibe.xcodeproj -scheme VibeiOSDriver \
             -destination "id=$UDID" -derivedDataPath build/DerivedData \
-            CODE_SIGNING_ALLOWED=NO > "$LOG" 2>&1 & )
+            CODE_SIGNING_ALLOWED=NO > "$LOG" 2>&1 & echo $! > "$TMP/xcodebuild.pid" )
+    BUILD_PID="$(cat "$TMP/xcodebuild.pid")"
     # Build + runner spin-up; the marker is the readiness signal.
     for _ in $(seq 1 240); do
         if [ -f "$TMP/$READY_NAME" ]; then
             # AFTER the build finishes, never before. TRAP: `xcodebuild test`
-            # leaves the app-under-test it re-signed on disk WITHOUT installing
-            # it — measured, not assumed: an app installed a second before the
-            # build is already older than the product a second after it. Left
-            # to xcodebuild, the driver attaches to the previous binary and
-            # every gesture from then on exercises code that is not checked
-            # out, silently, because a stale app launches and answers exactly
-            # like a fresh one. This is the install that makes the driver drive
-            # the checkout; it is a no-op when they already match, and the next
-            # gesture pays the driver's own relaunch to re-attach.
+            # leaves the app-under-test it built on disk WITHOUT installing it.
+            # Left to xcodebuild, the driver attaches to whatever the device
+            # already held and every gesture from then on exercises code that
+            # is not checked out, silently, because a stale app launches and
+            # answers exactly like a fresh one. This is the install that makes
+            # the driver drive the checkout; it is a no-op when the bundles
+            # already match, and the next gesture pays the driver's own
+            # relaunch to re-attach.
             "$DIR/install-ios.sh" "$UDID"
             echo '{"ok": true, "ready": true}'
             exit 0
+        fi
+        # A build that fails — a compile error, a destination xcodebuild cannot
+        # resolve — exits in seconds and never writes the marker. Without this
+        # the caller waits out the whole four minutes for a verdict already in
+        # the log.
+        if ! kill -0 "$BUILD_PID" 2>/dev/null; then
+            echo "{\"error\": \"xcodebuild exited before the driver was ready — see $LOG\"}"
+            exit 1
         fi
         sleep 1
     done
@@ -101,7 +131,7 @@ status)
     # The marker alone lies after a driver dies without cleanup (crash, kill,
     # simctl erase): ready means marker AND runner process. A stale marker is
     # cleaned so launch-ios.sh's install-skip stops believing it too.
-    if [ -f "$TMP/$READY_NAME" ] && pgrep -f "Devices/$UDID/.*VibeiOSDriver-Runner" >/dev/null 2>&1; then
+    if [ -f "$TMP/$READY_NAME" ] && driver_alive; then
         # appStale is the belt to install-ios.sh's braces: a driver can outlive
         # a rebuild, and a gesture against the old binary looks exactly like a
         # gesture against the new one. Reported here rather than checked per
@@ -118,7 +148,7 @@ status)
     fi
     ;;
 *)
-    if [ ! -f "$TMP/$READY_NAME" ] || ! pgrep -f "Devices/$UDID/.*VibeiOSDriver-Runner" >/dev/null 2>&1; then
+    if [ ! -f "$TMP/$READY_NAME" ] || ! driver_alive; then
         rm -f "$TMP/$READY_NAME"   # same stale-marker cleanup as status
         echo '{"error": "driver not running — drive-ios.sh start first"}'
         exit 1
