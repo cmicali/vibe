@@ -116,6 +116,22 @@ Then attach `vibeplayer.app` under the project's Custom
 domains. With the zone in the same account, Cloudflare writes the CNAME and
 issues the certificate itself.
 
+### The old domain
+
+`vibe.commonwealthrecordings.com` served this site before `vibeplayer.app` was
+registered, and 301s to it now. The redirect is a Redirect Rule on the
+`commonwealthrecordings.com` zone, not anything in this repo:
+
+    when   http.host eq "vibe.commonwealthrecordings.com"
+    then   301 -> concat("https://vibeplayer.app", http.request.uri.path)
+           preserve query string
+
+It is a *dynamic* redirect so the path carries over — `/privacy/` on the old
+host lands on `/privacy/`, not the front page. The hostname has to keep
+resolving through Cloudflare for the rule to fire, so once it is detached from
+the Pages project it needs a proxied placeholder record (`AAAA vibe -> 100::`)
+in its place.
+
 ## App Store Connect
 
 The three URL files under `Assets/app-store/copy/` upload to every locale with
