@@ -409,12 +409,8 @@ static const NSUInteger kUIUpdateHz = 3;
     // Parked with nothing open — a relaunch restore, or the end of the
     // playlist. The player holds no file, so its duration is 0 and there is
     // nothing to seek IN; the metadata knows the length, so the file is opened
-    // AT the scrubbed position instead, and opened PAUSED.
-    //
-    // It used to call playCurrentTrack, which starts at zero and starts
-    // playing: a scrub answered by throwing away the position the user just
-    // chose and blasting the track from the top. A scrub is a request to move
-    // the playhead and nothing else.
+    // AT the scrubbed position instead, and opened PAUSED. A scrub is a request
+    // to move the playhead and nothing else.
     AudioTrack *track = _playlist.currentTrack;
     if (track.duration <= 0) {
         return;

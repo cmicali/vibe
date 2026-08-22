@@ -40,13 +40,9 @@ NS_ASSUME_NONNULL_BEGIN
 // this the owner's header keeps describing the previous track after the row
 // indicator has already moved.
 //
-// It hangs off `play` — the one funnel every start goes through — rather than
-// off any single entry point, and that is the whole of the fix: it used to
-// fire from the double-click alone, so a play begun any OTHER way (an open, a
-// drop, Open Recent) kept the stale header for the full half second. On local
-// files that window is invisible, which is why it survived; against a file
-// provider it is half a second of the wrong title on every track you pick, and
-// the cloud stress profile fails a consistency check on it every time.
+// It hangs off `play`, the one funnel every start goes through, so a play
+// begun any other way — an open, a drop, Open Recent — raises it exactly as a
+// double-click does.
 @property (nonatomic, copy, nullable) void (^playWillStartHandler)(void);
 
 // Fires whenever currentIndex comes to name a different track — every play,

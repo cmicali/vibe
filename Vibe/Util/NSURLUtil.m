@@ -104,27 +104,14 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
 
 // One stat, and SF_DATALESS is the whole answer.
 //
-// It briefly also consulted NSURLUbiquitousItemDownloadingStatus, to cover a
-// provider whose placeholders the kernel might not flag. Both halves of that
-// turned out badly and it is recorded here so nobody adds it back:
-//
-//   It was not needed. MEASURED on a device against Dropbox — the case it was
-//   written for — the flag IS set: `dataless=1 flags=0x40000060`, with the
-//   ubiquitous status agreeing.
-//
-//   It cost 10x. This test runs once per track in the scan's lane routing, and
-//   the resource-value read is a getattrlist round trip: 25us per call against
-//   2.3us for the stat alone (20,000 iterations, debug build). Over a 50,000
-//   file library that is a second of syscall per scan, all of it on local
-//   files, to answer a question the stat had already answered.
-//
-//   And it was wrong in a way that took hours to find. NSURL memoizes resource
-//   values on the INSTANCE, and these URLs live as long as their AudioTrack, so
-//   the first answer froze for the file's whole life: a placeholder read once
-//   while downloading still said "not downloaded" after it materialized, and
-//   the current-track lane — which skips a dataless file and retries when the
-//   open lands — skipped forever, leaving the playing track's tags and art to
-//   whenever the background sweep happened to reach them.
+// TRAP: do not second-guess it with NSURLUbiquitousItemDownloadingStatus, or
+// with any other NSURL resource value. NSURL memoizes resource values on the
+// INSTANCE, and these URLs live as long as their AudioTrack, so the first
+// answer freezes for the file's whole life — a placeholder read while
+// downloading still reads "not downloaded" once it has materialized, and the
+// current-track lane, which skips a dataless file and retries when the open
+// lands, then skips forever. It is a getattrlist round trip besides, on a test
+// the scan's lane routing runs once per track.
 //
 // If a provider ever does appear whose placeholders carry no flag, the symptom
 // is specific: its files route to the wide scan lane instead of the serial
