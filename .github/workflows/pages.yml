@@ -1,0 +1,46 @@
+name: Pages
+
+# Publishes Assets/Web to GitHub Pages. The same directory is the build output
+# of the Cloudflare Pages project serving vibe.commonwealthrecordings.com, so
+# the two hosts always ship the identical tree; the page names the Cloudflare
+# URL as canonical.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Assets/Web/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+# Only the deploy job needs more than read, and it needs exactly these: pages
+# to publish, id-token for the deployment's OIDC exchange.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A newer push supersedes a queued deploy, but never cancels one already
+# publishing — a half-uploaded artifact would take the live site with it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: Assets/Web
+
+      - id: deploy
+        uses: actions/deploy-pages@v5

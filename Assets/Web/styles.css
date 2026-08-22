@@ -1,0 +1,244 @@
+/* Vibe marketing page. Colors are sampled from the app: the vinyl black of the
+   icon, the panel grey of the window, and the playlist's selection blue. */
+
+:root {
+  --bg: #08080a;
+  --panel: #16161a;
+  --line: #2a2a31;
+  --ink: #f2f2f4;
+  --ink-dim: #a3a3ad;
+  --ink-faint: #6f6f7a;
+  --ink-ghost: #4a4a53;
+  --accent: #4c8dff;
+  --accent-solid: #2458ca;
+  --measure: 62ch;
+  --pad: clamp(20px, 5vw, 32px);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
+          Helvetica, Arial, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 17px/1.6 var(--font);
+  -webkit-font-smoothing: antialiased;
+  /* A faint echo of the icon's vinyl groove, behind the fold. */
+  background-image: radial-gradient(120% 70% at 50% -10%, #1b1b22 0%, transparent 60%);
+  background-repeat: no-repeat;
+}
+
+h1, h2, h3 { line-height: 1.15; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+p { margin: 0; text-wrap: pretty; }
+img { display: block; max-width: 100%; height: auto; }
+
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { color: #7aabff; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px;
+  margin: -1px; padding: 0; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
+
+/* ---------- shared layout ---------- */
+
+.hero, main > section, footer {
+  max-width: 1080px;
+  margin-inline: auto;
+  padding-inline: var(--pad);
+}
+
+main > section { padding-block: clamp(56px, 9vw, 96px); }
+
+/* The screenshots carry the window's own rounded corners and a transparent
+   margin, so the page shadow has to follow the alpha, not the element box. */
+.shot img {
+  width: 100%;
+  filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.75));
+}
+.shot { margin: 0; }
+
+/* ---------- hero ---------- */
+
+.hero {
+  padding-top: clamp(48px, 9vw, 88px);
+  text-align: center;
+}
+
+.hero-icon {
+  width: clamp(88px, 12vw, 112px);
+  height: auto;
+  margin-inline: auto;
+  border-radius: 22.5%;
+  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.7));
+}
+
+.hero h1 {
+  font-size: clamp(48px, 9vw, 76px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  margin-top: 22px;
+}
+
+.tagline {
+  font-size: clamp(21px, 3.2vw, 27px);
+  font-weight: 500;
+  margin-top: 12px;
+}
+
+.sub {
+  color: var(--ink-dim);
+  max-width: 46ch;
+  margin: 14px auto 0;
+}
+
+/* Tertiary rank: the source link reads as part of the fine print, well below
+   the two download buttons. */
+.meta {
+  color: var(--ink-faint);
+  font-size: 14px;
+  margin-top: 18px;
+}
+
+.meta a { color: var(--ink-faint); text-decoration-color: var(--line); }
+.meta a:hover { color: var(--ink-dim); text-decoration-color: currentColor; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+.btn {
+  display: inline-block;
+  padding: 12px 22px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.btn:hover { background: #1f1f26; border-color: #3a3a44; color: var(--ink); }
+
+.btn-primary {
+  background: var(--accent-solid);
+  border-color: var(--accent-solid);
+  color: #fff;
+}
+.btn-primary:hover { background: #2f68e0; border-color: #2f68e0; color: #fff; }
+
+.shot-hero { margin-top: clamp(44px, 7vw, 72px); }
+
+/* ---------- feature grid ---------- */
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: clamp(20px, 3vw, 28px);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.grid h3 { font-size: 19px; font-weight: 600; }
+.grid p { color: var(--ink-dim); font-size: 16px; margin-top: 7px; }
+
+/* ---------- alternating copy + screenshot ---------- */
+
+.feature-row { border-top: 1px solid var(--line); }
+.feature-row .copy { max-width: var(--measure); margin-inline: auto; text-align: center; }
+.feature-row h2 { font-size: clamp(28px, 4.4vw, 38px); font-weight: 650; }
+.feature-row .copy > p { color: var(--ink-dim); margin-top: 14px; }
+.feature-row .shot { margin-top: clamp(32px, 5vw, 48px); }
+
+code {
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--panel);
+  font: 500 0.88em/1 ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--ink);
+}
+
+/* ---------- closing CTA ---------- */
+
+.cta { border-top: 1px solid var(--line); text-align: center; }
+.cta h2 { font-size: clamp(28px, 4.4vw, 38px); font-weight: 650; }
+
+/* ---------- prose (privacy) ---------- */
+
+.prose {
+  max-width: 68ch;
+  margin-inline: auto;
+  padding: clamp(32px, 6vw, 64px) var(--pad) clamp(48px, 7vw, 72px);
+}
+
+.prose .back { font-size: 15px; margin-bottom: clamp(28px, 5vw, 44px); }
+.prose .back a { color: var(--ink-dim); text-decoration: none; }
+.prose .back a:hover { color: var(--accent); }
+
+.prose h1 { font-size: clamp(34px, 6vw, 46px); font-weight: 700; }
+
+.prose .lede {
+  font-size: clamp(18px, 2.4vw, 21px);
+  color: var(--ink);
+  margin-top: 18px;
+}
+
+.prose .updated { color: var(--ink-faint); font-size: 15px; margin-top: 14px; }
+
+.prose h2 {
+  font-size: 21px;
+  font-weight: 600;
+  margin-top: clamp(34px, 5vw, 46px);
+}
+
+.prose p, .prose li { color: var(--ink-dim); }
+.prose h2 + p, .prose h2 + ul { margin-top: 12px; }
+.prose p + p { margin-top: 14px; }
+
+.prose ul { margin: 12px 0 0; padding-left: 22px; }
+.prose li { margin-top: 8px; }
+.prose ul + p { margin-top: 14px; }
+
+/* ---------- footer ---------- */
+
+footer {
+  border-top: 1px solid var(--line);
+  padding-block: 40px 56px;
+  color: var(--ink-faint);
+  font-size: 15px;
+  text-align: center;
+}
+
+footer .links a { color: var(--ink-dim); text-decoration: none; }
+footer .links a:hover { color: var(--accent); text-decoration: underline; }
+
+footer .links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+footer .copyright {
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--ink-ghost);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; }
+}
