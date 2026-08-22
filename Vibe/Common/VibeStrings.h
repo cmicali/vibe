@@ -168,6 +168,11 @@ static inline NSString *VibeAppName(void) {
 #define STR_MENU_OUTPUT_SYSTEM_NAMED NSLS(@"menu.output.system_named", @"System Output (%@)", @"Output menu item: follow the system's default output device. %@ is that device's name.")
 #define STR_MENU_OUTPUT_SYSTEM       NSLS(@"menu.output.system",       @"System Output",      @"Output menu item: follow the system's default output device, used when its name is unknown.")
 
+#pragma mark - Help menu
+
+#define STR_MENU_HELP         NSLS(@"menu.help",         @"Help",        @"Menu bar: the Help menu, the rightmost one. macOS uses this same name in every app.")
+#define STR_MENU_HELP_SUPPORT NSLS(@"menu.help.support", @"Get Support", @"Help menu item: opens the app's support page in the browser, where a user gets help or reports a problem.")
+
 #pragma mark - Context menus
 
 #define STR_MENU_SHOW_IN_FINDER NSLS(@"menu.context.show_in_finder", @"Show in Finder", @"Context menu item: reveals the track's file in the Finder. Matches the Finder's own wording.")
@@ -322,8 +327,9 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_LANGUAGE_LABEL       NSLS(@"settings.advanced.language_label",             @"Language:",                @"Settings, Advanced pane, Build group: label beside the language the app is currently running in. Ends with a colon.")
 #define STR_SETTINGS_LANGUAGES_LABEL      NSLS(@"settings.advanced.languages_label",            @"Available languages:",     @"Settings, Advanced pane, Build group: label beside the row of flags for every language this build ships. Ends with a colon.")
 
-#define STR_SETTINGS_ABOUT                NSLS(@"settings.about",                               @"About",                    @"Settings window: the About pane's sidebar item, and the window's title while that pane is selected. The pane shows the app icon, version, copyright, project links and lifetime statistics. Use the word Apple uses for an app's About screen in this language.")
-#define STR_SETTINGS_ABOUT_REPORT_ISSUE   NSLS(@"settings.about.report_issue",                  @"Report an issue",          @"Settings, About pane: row title beside the link to the project's issue tracker, for reporting a bug or requesting a feature.")
+#define STR_SETTINGS_ABOUT                NSLS(@"settings.about",                               @"About",                    @"Settings window: the About pane's sidebar item, and the window's title while that pane is selected. The pane shows the app icon, version, project links and lifetime statistics. Use the word Apple uses for an app's About screen in this language.")
+#define STR_SETTINGS_ABOUT_WEB            NSLS(@"settings.about.web",                           @"Web",                      @"Settings, About pane: row title beside the link to the app's website. Short label for a website address; keep it to one word.")
+#define STR_SETTINGS_ABOUT_SUPPORT        NSLS(@"settings.about.support",                       @"Support",                  @"Settings, About pane: row title beside the link to the app's support page, where a user gets help or reports a problem.")
 
 #pragma mark - Accessibility labels
 

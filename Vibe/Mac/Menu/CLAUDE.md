@@ -59,3 +59,7 @@ One checkmarked toggle per performance effect: Low Kill, Low Kill Boost, Reverb,
 Layout: "System Output (<default device>)" — tag -1, the default choice — then a separator, then every output device. The checkmark tracks `AudioPlayer.currentlyRequestedAudioDeviceId`. An explicitly chosen device that disappears falls back to System Output, persisted.
 
 **A second instance serves the Output popup in Settings > General**, using the same controller as the popup menu's delegate and builder, so the two layouts cannot drift.
+
+## Help
+
+Built last, so it draws rightmost. `NSApp.helpMenu` is what puts AppKit's own Search field — which searches the menu bar — at the top of it; naming the menu that way rather than letting AppKit find one titled "Help" is what keeps the field there in every language. The app ships no help book, so Get Support, which opens `kVibeSupportURL` (`Mac/App/AppDelegate.h`, shared with the Settings > About link), is the only item of ours. AppKit inserts the search field when the menu opens, so `dump_menu` on an unopened Help menu reports Get Support alone.

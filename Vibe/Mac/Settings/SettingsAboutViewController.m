@@ -12,8 +12,8 @@
 
 static const CGFloat kAboutIconSize = 96;
 
+static NSString *const kAboutWebURL = @"https://vibeplayer.app";
 static NSString *const kAboutRepoURL = @"https://github.com/cmicali/vibe";
-static NSString *const kAboutIssuesURL = @"https://github.com/cmicali/vibe/issues";
 
 // A borderless button styled as a hyperlink; a plain NSButton so the debug
 // walker addresses it by title.
@@ -36,10 +36,12 @@ static NSString *const kAboutIssuesURL = @"https://github.com/cmicali/vibe/issue
 }
 
 - (void)loadView {
+    NSButton *webLink = [self linkButtonWithTitle:VibeNotLocalized(@"vibeplayer.app")
+                                           action:@selector(openWeb:)];
+    NSButton *supportLink = [self linkButtonWithTitle:VibeNotLocalized(@"vibeplayer.app/support")
+                                               action:@selector(openSupport:)];
     NSButton *repoLink = [self linkButtonWithTitle:VibeNotLocalized(@"github.com/cmicali/vibe")
                                             action:@selector(openRepo:)];
-    NSButton *issuesLink = [self linkButtonWithTitle:VibeNotLocalized(@"github.com/cmicali/vibe/issues")
-                                              action:@selector(openIssues:)];
 
     _filesOpenedValue = [self valueLabel];
     _foldersOpenedValue = [self valueLabel];
@@ -48,8 +50,9 @@ static NSString *const kAboutIssuesURL = @"https://github.com/cmicali/vibe/issue
     [self loadPaneWithSections:@[
         [self identityBlock],
         [SettingsSectionView sectionWithRows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_ABOUT_WEB control:webLink],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_ABOUT_SUPPORT control:supportLink],
             [SettingsRowView rowWithTitle:VibeNotLocalized(@"GitHub") control:repoLink],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_ABOUT_REPORT_ISSUE control:issuesLink],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_STATS_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_FILES_OPENED_LABEL control:_filesOpenedValue],
@@ -59,8 +62,8 @@ static NSString *const kAboutIssuesURL = @"https://github.com/cmicali/vibe/issue
     ]];
 }
 
-// Icon, name, version and copyright, centered on the pane background rather
-// than inside a card.
+// Icon, name and version, centered on the pane background rather than inside
+// a card.
 - (NSView *)identityBlock {
     // The icon doubles as the About window's opener, with the hand cursor as
     // the affordance. Nil-targeted: the settings window is key when clicked,
@@ -87,15 +90,7 @@ static NSString *const kAboutIssuesURL = @"https://github.com/cmicali/vibe/issue
     version.font = [NSFont systemFontOfSize:12];
     version.textColor = NSColor.secondaryLabelColor;
 
-    // objectForInfoDictionaryKey:, NOT infoDictionary[…] — only the former
-    // applies InfoPlist.xcstrings.
-    NSString *copyrightText = [NSBundle.mainBundle objectForInfoDictionaryKey:@"NSHumanReadableCopyright"] ?: @"";
-    NSTextField *copyright = [NSTextField labelWithString:copyrightText];
-    copyright.font = [NSFont systemFontOfSize:11];
-    copyright.textColor = NSColor.tertiaryLabelColor;
-    copyright.alignment = NSTextAlignmentCenter;
-
-    NSStackView *stack = [NSStackView stackViewWithViews:@[icon, name, version, copyright]];
+    NSStackView *stack = [NSStackView stackViewWithViews:@[icon, name, version]];
     stack.orientation = NSUserInterfaceLayoutOrientationVertical;
     stack.alignment = NSLayoutAttributeCenterX;
     stack.spacing = 4;
@@ -131,12 +126,16 @@ static NSString *const kAboutIssuesURL = @"https://github.com/cmicali/vibe/issue
     _audioPlayedValue.stringValue = [formatters spelledDurationString:stats.totalSecondsPlayed];
 }
 
-- (void)openRepo:(id)sender {
-    [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:kAboutRepoURL]];
+- (void)openWeb:(id)sender {
+    [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:kAboutWebURL]];
 }
 
-- (void)openIssues:(id)sender {
-    [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:kAboutIssuesURL]];
+- (void)openSupport:(id)sender {
+    [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:kVibeSupportURL]];
+}
+
+- (void)openRepo:(id)sender {
+    [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:kAboutRepoURL]];
 }
 
 @end

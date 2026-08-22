@@ -11719,6 +11719,378 @@
       },
       "extractionState": "manual"
     },
+    "menu.help": {
+      "comment": "Menu bar: the Help menu, the rightmost one. macOS uses this same name in every app.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помощ"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nápověda"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hjælp"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hilfe"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Βοήθεια"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayuda"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohjeet"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aide"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pomoć"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Súgó"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bantuan"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aiuto"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ヘルプ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "도움말"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hjelp"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pomoc"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajuda"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajuda"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajutor"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Справка"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pomocník"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hjälp"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ความช่วยเหลือ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yardım"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Довідка"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trợ giúp"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帮助"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輔助說明"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.help.support": {
+      "comment": "Help menu item: opens the app's support page in the browser, where a user gets help or reports a problem.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Получи поддръжка"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Získat podporu"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Få support"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Support erhalten"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Λήψη υποστήριξης"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get Support"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obtener soporte"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hanki tukea"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obtenir de l’assistance"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zatraži podršku"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Támogatás kérése"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dapatkan Dukungan"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ottieni supporto"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サポートを見る"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지원 받기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Få kundestøtte"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vraag ondersteuning aan"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uzyskaj wsparcie"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obter suporte"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obter suporte"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obțineți asistență"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Получить поддержку"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Získať podporu"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Få support"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "รับการสนับสนุน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Destek Al"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отримати підтримку"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhận hỗ trợ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "获取支持"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取得支援"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "menu.output": {
       "comment": "Menu bar: the menu selecting the audio output device.",
       "localizations": {
@@ -17858,7 +18230,7 @@
       "extractionState": "manual"
     },
     "settings.about": {
-      "comment": "Settings window: the About pane's sidebar item, and the window's title while that pane is selected. The pane shows the app icon, version, copyright, project links and lifetime statistics. Use the word Apple uses for an app's About screen in this language.",
+      "comment": "Settings window: the About pane's sidebar item, and the window's title while that pane is selected. The pane shows the app icon, version, project links and lifetime statistics. Use the word Apple uses for an app's About screen in this language.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -18043,187 +18415,373 @@
       },
       "extractionState": "manual"
     },
-    "settings.about.report_issue": {
-      "comment": "Settings, About pane: row title beside the link to the project's issue tracker, for reporting a bug or requesting a feature.",
+    "settings.about.support": {
+      "comment": "Settings, About pane: row title beside the link to the app's support page, where a user gets help or reports a problem.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Съобщаване на проблем"
+            "value": "Поддръжка"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nahlásit problém"
+            "value": "Podpora"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rapportér et problem"
+            "value": "Support"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Problem melden"
+            "value": "Support"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Αναφορά προβλήματος"
+            "value": "Υποστήριξη"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Report an issue"
+            "value": "Support"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Informar de un problema"
+            "value": "Soporte"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ilmoita ongelmasta"
+            "value": "Tuki"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Signaler un problème"
+            "value": "Assistance"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prijavi problem"
+            "value": "Podrška"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Probléma jelentése"
+            "value": "Támogatás"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Laporkan masalah"
+            "value": "Dukungan"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Segnala un problema"
+            "value": "Supporto"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "問題を報告"
+            "value": "サポート"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "문제 보고"
+            "value": "지원"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rapporter et problem"
+            "value": "Kundestøtte"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Een probleem melden"
+            "value": "Ondersteuning"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zgłoś problem"
+            "value": "Wsparcie"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Relatar um problema"
+            "value": "Suporte"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Comunicar um problema"
+            "value": "Suporte"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Raportează o problemă"
+            "value": "Asistență"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сообщить о проблеме"
+            "value": "Поддержка"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nahlásiť problém"
+            "value": "Podpora"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rapportera ett problem"
+            "value": "Support"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "รายงานปัญหา"
+            "value": "การสนับสนุน"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sorun bildir"
+            "value": "Destek"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Повідомити про проблему"
+            "value": "Підтримка"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Báo cáo sự cố"
+            "value": "Hỗ trợ"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "报告问题"
+            "value": "支持"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "回報問題"
+            "value": "支援"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.about.web": {
+      "comment": "Settings, About pane: row title beside the link to the app's website. Short label for a website address; keep it to one word.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уебсайт"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Websted"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Website"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ιστότοπος"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verkkosivusto"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Site web"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weboldal"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Situs web"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sito web"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Webサイト"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "웹사이트"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nettsted"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Website"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Witryna"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Site"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Site"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Site web"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Веб-сайт"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Webbplats"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เว็บไซต์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web sitesi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Веб-сайт"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trang web"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网站"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "網站"
           }
         }
       },

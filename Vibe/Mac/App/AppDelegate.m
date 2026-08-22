@@ -30,6 +30,8 @@
 #import "OpenBurstCoalescer+Debug.h"
 #endif
 
+NSString *const kVibeSupportURL = @"https://vibeplayer.app/support";
+
 @interface AppDelegate ()
 
 @property (nonatomic, strong) AboutWindowController *aboutWindowController;
@@ -319,6 +321,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     }
     [self applyAuxiliaryWindowLevels];
     [self.settingsWindowController showWindow:sender];
+}
+
+- (IBAction)showSupportPage:(id)sender {
+    [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:kVibeSupportURL]];
 }
 
 - (void)applyAuxiliaryWindowLevels {

@@ -10,6 +10,10 @@
 
 @class MainPlayerController;
 
+// The app's support page. Help > Get Support and the About pane's link are
+// the two doors to it, so the address is written once.
+extern NSString *const kVibeSupportURL;
+
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 
 @property (nonatomic, strong) MainPlayerController *mainPlayerController;
@@ -17,6 +21,7 @@
 - (IBAction)openDocument:(id)sender;
 - (IBAction)showAboutWindow:(id)sender;
 - (IBAction)showSettingsWindow:(id)sender;
+- (IBAction)showSupportPage:(id)sender;
 
 // The target of the Open Recent menu items OpenRecentMenuController creates.
 - (void)openRecentDocument:(NSMenuItem *)sender;

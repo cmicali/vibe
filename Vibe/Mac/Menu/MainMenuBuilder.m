@@ -132,6 +132,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     [self buildViewMenuIn:mainMenu player:player];
     [self buildConvertMenuIn:mainMenu player:player];
     [self buildOutputMenuIn:mainMenu player:player];
+    [self buildHelpMenuIn:mainMenu appDelegate:appDelegate];
 
     NSApp.mainMenu = mainMenu;
 }
@@ -352,6 +353,19 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenu *outputMenu = Submenu(mainMenu, STR_MENU_OUTPUT).submenu;
     outputMenu.autoenablesItems = NO;
     outputMenu.delegate = player.devicesMenuController; // builds the device list
+}
+
++ (void)buildHelpMenuIn:(NSMenu *)mainMenu appDelegate:(AppDelegate *)appDelegate {
+    // Help, last so it draws rightmost, as macOS expects. Registering it as
+    // NSApp.helpMenu is what puts AppKit's own Search field at the top —
+    // it searches the menu bar, and the app ships no help book, so Get
+    // Support is the only item of ours here. Naming the menu explicitly beats
+    // letting AppKit find it by title, which it does only in English.
+    NSMenuItem *helpItem = Submenu(mainMenu, STR_MENU_HELP);
+    NSMenu *helpMenu = helpItem.submenu;
+    AddSymbolItem(helpMenu, STR_MENU_HELP_SUPPORT, @"lifepreserver", @selector(showSupportPage:),
+                  appDelegate, @"", 0, @"menu_help_support");
+    NSApp.helpMenu = helpMenu;
 }
 
 @end
