@@ -42,7 +42,7 @@ The build upload carries no product-page content. Localized copy and screenshots
 
 The loop:
 
-1. Edit `Assets/app-store/copy/<lang>/` — every catalog language, not just `en`; nothing auto-translates. **`whats-new.txt` must be rewritten for every release** — ASC blocks submission when any locale lacks release notes, and stale notes upload silently. The shared `copy/support-url.txt` and `copy/marketing-url.txt` upload to every locale too.
+1. Edit `Assets/app-store/copy/<lang>/` — every catalog language, not just `en`; nothing auto-translates. **`whats-new.txt` must be rewritten for every release** — ASC blocks submission when any locale lacks release notes, and stale notes upload silently. The shared `copy/support-url.txt`, `copy/marketing-url.txt` and `copy/privacy-url.txt` upload to every locale too.
 2. `make appstore-validate-copy` — ASC character limits, markdown that would upload verbatim, captions that overflow the screenshot layout. (`appstore-upload-metadata` runs this first anyway.)
 3. `make appstore-generate-store-screenshots-all` — only if `screenshots.json` captions or the window captures changed.
 4. `make appstore-upload-metadata ARGS="--dry-run"`, then without.
@@ -54,7 +54,8 @@ Traps and semantics:
 - **It targets the one *editable* macOS version.** After a release goes live there is none — the tool errors, listing every version's state. `--create-version <next>` opens the next version's page (the same version record a later `make appstore-upload-signed-build` build attaches to, so metadata-first is the normal order).
 - **Text is diffed, screenshots are not.** Unchanged text fields are skipped; each locale's `APP_DESKTOP` screenshot set is deleted and re-uploaded wholesale, ordered by file name. Don't read "uploaded 4 screenshots" as "they changed".
 - **`bg` is skipped by design** — the App Store has no Bulgarian product page; the translation ships in-app only. Catalog `nb` maps to ASC `no`. A new catalog language fails loudly until added to `ascLocale` in `ASCUpload.swift`.
-- **Out of scope, on purpose:** app name and subtitle (`appInfoLocalizations`, rarely change — edit in ASC by hand).
+- **The privacy policy URL is not a version field.** It lives on `appInfoLocalizations`, per locale, beside the app name and subtitle — so setting it by hand is the same edit 29 times. `copy/privacy-url.txt` uploads it: the tool finds the one editable `AppInfo`, then patches each locale whose URL differs. It only *patches*; creating an `appInfoLocalization` requires a `name`, and inventing an app name per locale is the mistake the out-of-scope rule below exists to prevent, so a locale with no localization is reported rather than created.
+- **Out of scope, on purpose:** app name and subtitle (the other `appInfoLocalizations` fields, rarely change — edit in ASC by hand).
 - `description.txt` uploads *verbatim* — plain text only; `appstore-validate-copy` rejects leftover markdown markers.
 
 ## The shared API key

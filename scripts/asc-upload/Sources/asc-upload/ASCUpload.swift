@@ -27,6 +27,14 @@ let ascLocale: [String: String?] = [
     "uk": "uk", "vi": "vi", "zh-Hans": "zh-Hans", "zh-Hant": "zh-Hant",
 ]
 
+// The AppInfo carrying the privacy policy URL has its own state enum, so the
+// editable set has to be spelled twice. An app normally has two AppInfos: the
+// live one (READY_FOR_DISTRIBUTION) and the one being prepared.
+let editableAppInfoStates: Set<AppInfo.Attributes.State> = [
+    .prepareForSubmission, .developerRejected, .rejected,
+    .readyForReview, .waitingForReview,
+]
+
 // States whose metadata App Store Connect still allows editing.
 let editableStates: Set<AppVersionState> = [
     .prepareForSubmission, .developerRejected, .rejected, .metadataRejected,
@@ -90,6 +98,7 @@ struct LocaleCopy {
     let whatsNew: String
     let supportUrl: String     // shared across locales (copy/support-url.txt)
     let marketingUrl: String   // shared across locales (copy/marketing-url.txt)
+    let privacyPolicyUrl: String  // shared (copy/privacy-url.txt); appInfo, not version
     let screenshots: [URL]     // ordered
 }
 
@@ -110,6 +119,7 @@ func loadCopy(root: URL, options: Options) throws -> [LocaleCopy] {
     }
     let supportUrl = try sharedURL("support-url.txt")
     let marketingUrl = try sharedURL("marketing-url.txt")
+    let privacyPolicyUrl = try sharedURL("privacy-url.txt")
 
     var out: [LocaleCopy] = []
     for language in languages {
@@ -147,6 +157,7 @@ func loadCopy(root: URL, options: Options) throws -> [LocaleCopy] {
             whatsNew: try field("whats-new.txt"),
             supportUrl: supportUrl,
             marketingUrl: marketingUrl,
+            privacyPolicyUrl: privacyPolicyUrl,
             screenshots: screenshots))
     }
     return out
@@ -218,7 +229,71 @@ struct ASCUpload {
             try await sync(copy, version: version, current: byLocale[copy.locale],
                            service: service, options: options)
         }
+
+        if !options.skipText {
+            try await syncPrivacyPolicyUrl(appId: app.id, copies: copies,
+                                           service: service, options: options)
+        }
         print(options.dryRun ? "dry run complete — nothing was uploaded" : "done")
+    }
+
+    /// The privacy policy URL is the one product-page field that does not live
+    /// on the version. It sits on appInfoLocalizations, per locale, beside the
+    /// app name and subtitle — which this tool still leaves alone, because they
+    /// rarely change and getting them wrong renames the app. The URL is
+    /// different: it is the same string in every locale, so setting it by hand
+    /// means the same edit 29 times in App Store Connect.
+    ///
+    /// Only existing localizations are patched. Creating one requires a `name`,
+    /// and inventing an app name per locale is exactly the mistake the
+    /// out-of-scope rule exists to prevent — a locale with no appInfoLocalization
+    /// is reported instead.
+    static func syncPrivacyPolicyUrl(appId: String, copies: [LocaleCopy],
+                                     service: BagbutikService, options: Options) async throws {
+        guard let url = copies.first?.privacyPolicyUrl else { return }
+
+        let infos = try await service.request(.listAppInfosForAppV1(
+            id: appId, limits: [.limit(20)])).data
+        let editable = infos.filter {
+            guard let state = $0.attributes?.state else { return false }
+            return editableAppInfoStates.contains(state)
+        }
+        guard editable.count == 1, let info = editable.first else {
+            let states = infos.map { $0.attributes?.state?.rawValue ?? "?" }
+            throw Fail("need exactly one editable appInfo for the privacy policy URL, found \(editable.count) — states: \(states.joined(separator: ", "))")
+        }
+
+        let localizations = try await service.request(
+            .listAppInfoLocalizationsForAppInfoV1(id: info.id, limit: 50)).data
+        var byLocale = [String: AppInfoLocalization]()
+        for l in localizations { if let loc = l.attributes?.locale { byLocale[loc] = l } }
+
+        var changed = 0, unchanged = 0
+        var missing: [String] = []
+        for copy in copies {
+            guard let current = byLocale[copy.locale] else {
+                missing.append(copy.locale)
+                continue
+            }
+            if current.attributes?.privacyPolicyUrl == url {
+                unchanged += 1
+                continue
+            }
+            changed += 1
+            print("\(copy.locale): privacy policy URL -> \(url)")
+            if !options.dryRun {
+                _ = try await service.request(.updateAppInfoLocalizationV1(
+                    id: current.id,
+                    requestBody: AppInfoLocalizationUpdateRequest(data: .init(
+                        id: current.id,
+                        attributes: .init(privacyPolicyUrl: url)))))
+            }
+        }
+        print("privacy policy URL: \(changed) updated, \(unchanged) already correct")
+        if !missing.isEmpty {
+            print("warning: no appInfoLocalization for \(missing.joined(separator: ", ")) — "
+                  + "set the app name for those locales in App Store Connect first")
+        }
     }
 
     static func sync(_ copy: LocaleCopy, version: AppStoreVersion,

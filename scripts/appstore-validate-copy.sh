@@ -2,8 +2,8 @@
 # Fail unless every catalog language has complete App Store copy in
 # Assets/app-store/copy/<lang>/ and it holds up: the four text fields present,
 # non-empty and within ASC's character limits (counted in characters, not
-# bytes), description free of leftover markdown, the shared support-url.txt a
-# bare URL, and screenshots.json holding a non-empty headline and subhead for
+# bytes), description free of leftover markdown, the shared support-url.txt,
+# marketing-url.txt and privacy-url.txt each a bare URL, and screenshots.json holding a non-empty headline and subhead for
 # every shot, each fitting the screenshot layout
 # (compose-app-store-overlay.swift --measure).
 set -euo pipefail
@@ -57,8 +57,10 @@ check_captions() { # <lang> <screenshots.json>
 
 # Shared across locales. ASC requires a support URL per localization — one
 # created without it blocks submission; the marketing URL is optional but kept
-# uniform the same way.
-for u in support-url marketing-url; do
+# uniform the same way. The privacy URL is a different record entirely — it
+# lives on appInfoLocalizations rather than the version — but it is the same
+# shape of file and the same one-string-everywhere rule.
+for u in support-url marketing-url privacy-url; do
     URL_FILE="$ROOT/Assets/app-store/copy/$u.txt"
     if [ ! -f "$URL_FILE" ]; then
         err "missing copy/$u.txt"

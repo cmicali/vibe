@@ -11,6 +11,11 @@ copy/support-url.txt     one URL, shared by every locale (ASC requires it per
                          localization; missing blocks submission)
 copy/marketing-url.txt   one URL, shared by every locale (optional in ASC,
                          kept uniform the same way)
+copy/privacy-url.txt     one URL, shared by every locale. Unlike the two
+                         above it is NOT a version field: it lives on ASC's
+                         appInfoLocalizations, beside the app name and
+                         subtitle, and the uploader patches it per locale
+                         so it is not 29 identical edits by hand
 copy/<lang>/
   promotional-text.txt   one line, ≤170 chars (ASC limit)
   description.txt        literal plain text as uploaded — no markdown
