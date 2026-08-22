@@ -186,7 +186,23 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
-.grid h3 { font-size: 19px; font-weight: 600; }
+/* Glyph then title on one line. flex-start rather than center so a heading
+   that wraps keeps its icon beside the first line, not floating mid-block. */
+.grid h3 {
+  font-size: 19px;
+  font-weight: 600;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.card-glyph {
+  width: 19px;
+  height: 19px;
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
 .grid p { color: var(--ink-dim); font-size: 16px; margin-top: 7px; }
 
 /* ---------- alternating copy + screenshot ---------- */
