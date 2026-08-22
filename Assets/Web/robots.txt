@@ -1,0 +1,7 @@
+# Everything here is public and meant to be found, including by AI crawlers.
+# Listed as an explicit allow rather than left implicit, so that narrowing it
+# later is a deliberate edit rather than a default nobody chose.
+User-agent: *
+Allow: /
+
+Sitemap: https://vibeplayer.app/sitemap.xml

@@ -1,0 +1,33 @@
+# Vibe
+
+> A fast, minimal music player for Mac. Plays local audio files with a
+> seekable full-track waveform, a turntable-style pitch fader and DJ
+> performance FX. No library to import, no account, no subscription, and no
+> network access at all.
+
+Vibe is a native macOS app written in Objective-C on CoreAudio and
+AVAudioEngine, with no third-party audio engine. It is free, open source under
+Apache 2.0, and available on the Mac App Store or as a direct download.
+
+- Requires macOS 13 Ventura or later, Apple silicon or Intel.
+- Formats: MP3, MP2, AAC, FLAC, MP4/M4A, AIFF, WAV — all decoded by macOS
+  itself, lossless at full resolution.
+- No library or database: drop a file or folder on the window and it plays.
+  Tags, artwork and BPM are read in the background and cached to disk.
+- For DJs: a turntable-style pitch fader, skips measured in bars rather than
+  seconds when the tempo is known, and performance FX on the keyboard — a
+  low-kill filter, a reverb wash, and delays locked to the track's BPM.
+- Localized into 30 languages.
+- Collects nothing. The macOS sandbox carries no network-client entitlement,
+  so the operating system will not permit an outbound connection.
+
+## Links
+
+- [Home](https://vibeplayer.app/): what the app is, with screenshots.
+- [Privacy policy](https://vibeplayer.app/privacy): what Vibe stores locally,
+  and why it cannot send anything anywhere.
+- [Download (.dmg)](https://github.com/cmicali/vibe/releases/latest): the
+  latest notarized disk image.
+- [Mac App Store](https://apps.apple.com/us/app/vibe-music-player/id1582482361?mt=12)
+- [Source code](https://github.com/cmicali/vibe): Apache 2.0.
+- [Support](https://vibeplayer.app/support): the GitHub issue tracker.

@@ -14,7 +14,71 @@
 <meta property="og:description" content="Seekable waveform, turntable-style pitch fader, and DJ FX. No library, no account, no subscription.">
 <meta property="og:url" content="https://vibeplayer.app/">
 <meta property="og:image" content="https://vibeplayer.app/img/player.png">
+<meta property="og:image:alt" content="The Vibe window: album art, track title, and a full-width waveform.">
+<meta property="og:image:width" content="1452">
+<meta property="og:image:height" content="392">
+<meta property="og:site_name" content="Vibe">
+<meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Vibe — a fast, minimal music player for Mac">
+<meta name="twitter:description" content="Seekable waveform, turntable-style pitch fader, and DJ FX. No library, no account, no subscription.">
+<meta name="twitter:image" content="https://vibeplayer.app/img/player.png">
+<meta name="theme-color" content="#08080a">
+
+<!-- Machine-readable facts, for search engines and for agents that read the
+     page rather than render it. Every value here is also stated in the visible
+     copy; nothing is asserted only to a crawler. softwareVersion and
+     downloadUrl are rewritten by scripts/web-set-version.sh at release, so
+     they cannot drift from the button above. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Vibe",
+  "alternateName": "Vibe Music Player",
+  "description": "A fast, minimal music player for Mac. Plays local MP3, FLAC, AAC, AIFF, WAV, MP2 and M4A files with a seekable full-track waveform, a turntable-style pitch fader and DJ performance FX. No library to import, no account, no subscription, and no network access at all.",
+  "url": "https://vibeplayer.app/",
+  "applicationCategory": "MultimediaApplication",
+  "applicationSubCategory": "Music Player",
+  "operatingSystem": "macOS 13.0 or later",
+  "processorRequirements": "Apple silicon or Intel",
+  "softwareVersion": "1.10",
+  "downloadUrl": "https://github.com/cmicali/vibe/releases/download/v1.10/Vibe-macOS-1.10.dmg",
+  "installUrl": "https://apps.apple.com/us/app/vibe-music-player/id1582482361?mt=12",
+  "fileFormat": ["audio/mpeg", "audio/flac", "audio/aac", "audio/aiff", "audio/wav", "audio/mp4"],
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "isAccessibleForFree": true,
+  "license": "https://www.apache.org/licenses/LICENSE-2.0",
+  "author": {
+    "@type": "Person",
+    "name": "Christopher Micali"
+  },
+  "screenshot": [
+    "https://vibeplayer.app/img/player.png",
+    "https://vibeplayer.app/img/playlist.png"
+  ],
+  "featureList": [
+    "Seekable full-track waveform",
+    "Plays MP3, MP2, AAC, FLAC, MP4/M4A, AIFF and WAV, decoded by macOS itself",
+    "Lossless playback at full resolution",
+    "No library or database to import",
+    "Tags, artwork and BPM read in the background and cached",
+    "Turntable-style pitch fader",
+    "DJ performance FX: low-kill filter, reverb wash and BPM-synced delays",
+    "Bar-accurate skipping when the tempo is known",
+    "Works entirely offline with no network access",
+    "Localized into 30 languages"
+  ],
+  "sameAs": [
+    "https://github.com/cmicali/vibe",
+    "https://apps.apple.com/us/app/vibe-music-player/id1582482361?mt=12"
+  ]
+}
+</script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -48,7 +112,7 @@
       </span>
     </a>
   </div>
-  <p class="meta">macOS 13 Ventura or later &middot; Apple silicon and Intel &middot; Open source, Apache 2.0 &middot; <a href="https://github.com/cmicali/vibe">View source on GitHub</a></p>
+  <p class="meta">macOS 13 Ventura or later &middot; Apple silicon and Intel &middot; Free and open source, Apache 2.0 &middot; <a href="https://github.com/cmicali/vibe">View source on GitHub</a></p>
 
   <figure class="shot shot-hero">
     <img src="img/player.png" width="1452" height="392" alt="The Vibe window: album art, track title, and a full-width waveform with elapsed and remaining time." fetchpriority="high">
@@ -66,7 +130,7 @@
     </li>
     <li>
       <h3>No library to import</h3>
-      <p>There is no database to rebuild. Drop a file or a folder on the window and it plays.</p>
+      <p>There is no database to rebuild. Drop a file or a folder on the window and it plays. Vibe works entirely offline &mdash; it has no network access at all.</p>
     </li>
     <li>
       <h3>Decoded by macOS itself</h3>
@@ -77,8 +141,8 @@
       <p>Tags, artwork, and BPM are read in the background and cached to disk, so the next open is instant.</p>
     </li>
     <li>
-      <h3>Hands on the keyboard</h3>
-      <p>Transport, bar skips, performance FX, and pitch, all without a modifier key.</p>
+      <h3>Built for DJs too</h3>
+      <p>A turntable-style pitch fader, bar-accurate skips, and performance FX &mdash; a low-kill filter, a reverb wash, and BPM-synced delays &mdash; all on the keyboard, without a modifier key.</p>
     </li>
     <li>
       <h3>Speaks 30 languages</h3>
