@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 12/18/19.
-// Copyright (c) 2019 Christopher Micali. All rights reserved.
+//  NSDockTile+Util.m
+//  Vibe
 //
 
 #import "NSDockTile+Util.h"

@@ -2,6 +2,8 @@
 
 Tags, their disk cache, embedded artwork, and the macOS folder-cover fallback.
 
+The lettered items cited below (`spec A1`, `J4`, `J6`) are `docs/file-loading-spec.md`'s, which is where the decisions behind this directory's admission and retry rules were settled.
+
 ## Ownership
 
 | Type | Owns |
@@ -11,6 +13,7 @@ Tags, their disk cache, embedded artwork, and the macOS folder-cover fallback.
 | `MetadataParseCoordinator` | Only the per-URL owner/waiter table. It does no I/O, parsing, installation, or delivery. |
 | `AudioTrackMetadata` | One immutable set of tags plus the display-facing artwork facade. TagLib and cache coding live here because this is the only ObjC++ object in the flow. |
 | `AudioTrackArtwork` | One metadata row's embedded-art state and the shared bounded full-art loader. It is private behind `AudioTrackMetadata`. |
+| `ArtworkLoadRegistry` | The bounded-admission state machine behind those loads — the running/pending counts, the retry backoff and the generation fence. A file boundary, not an owner: `AudioTrackArtwork` is its only client and the flow stays that class's. |
 | `FolderArtResolver` | Shared, per-directory discovery and caching of macOS sidecar covers. |
 
 Do not add a runner, driver, or second coordinator for these flows. Straight-line metadata work stays in the loader; per-row art work stays in `AudioTrackArtwork`.
@@ -38,7 +41,9 @@ Both shells defer the first scan until the selected track's open settles. The fo
 
 Materialization results, not error text, decide retries:
 
-- `Yielded` spends no attempt. A scan record requeues at its rank. A yielded **priority** record is re-judged on every tick of the gated clock: a file the open made local retries at once, hold or no hold — its parse starts no transfer (spec A1's exemption), and waiting was measured costing the now-playing tags the length of the successor's whole prefetch — while a still-dataless one waits out the foreground activity (re-picking would spin against the coordinator's synchronous yield) and demotes only at the first idle tick: still dataless once the foreground settled means the open failed, and it becomes an ordinary sweep candidate at its rank rather than re-downloading a dead pick behind its error UI.
+- `Yielded` spends no attempt. A scan record requeues at its rank. A yielded **priority** record is re-judged on every tick of the gated clock, and the tick sorts it into one of two cases:
+  - **Local now** — the open made the file local, so it retries at once, hold or no hold. Its parse starts no transfer (spec A1's exemption), and waiting instead was measured costing the now-playing tags the length of the successor's whole prefetch.
+  - **Still dataless** — it waits out the foreground activity rather than re-picking, which would only spin against the coordinator's synchronous yield. It demotes at the **first idle tick**: still dataless once the foreground has settled means the open failed, so it becomes an ordinary sweep candidate at its rank instead of re-downloading a dead pick behind its own error UI.
 - `Failed` spends the bounded per-path budget and re-enters below untried rows.
 - `AdmissionExhausted` spends the same budget after a 0.25–2 second delay.
 

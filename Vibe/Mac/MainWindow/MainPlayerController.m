@@ -2,9 +2,6 @@
 //  MainPlayerController.m
 //  Vibe
 //
-//  Created by Christopher Micali on 12/15/19.
-//  Copyright © 2019 Christopher Micali. All rights reserved.
-//
 
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Menus.h"

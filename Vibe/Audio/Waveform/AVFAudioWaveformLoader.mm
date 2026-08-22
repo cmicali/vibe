@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 1/2/20.
-// Copyright (c) 2020 Christopher Micali. All rights reserved.
+//  AVFAudioWaveformLoader.mm
+//  Vibe
 //
 // One decode of one file, in five phases — the five methods below, in the
 // order load: calls them: open and validate, size the chunk array, run the

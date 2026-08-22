@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 1/3/20.
-// Copyright (c) 2020 Christopher Micali. All rights reserved.
+//  SonicCirrusWaveformRenderer.mm
+//  Vibe
 //
 
 #import "SonicCirrusWaveformRenderer.h"

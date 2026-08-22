@@ -45,4 +45,4 @@ The playable extension set is `Common/PlayableExtensions`, not this file: the wa
 
 ## Categories
 
-Behavior added to a foreign class is a category, never a free function taking that class as its first argument. A category on an AppKit class belongs in `Mac/`, a portable one in `Categories/`; a category on one of the app's own classes belongs beside that class. The one deliberate exception is `Common/PlatformImage.h`'s bounded decode, which constructs an `NSImage` or a `UIImage` and so has no single class to hang on.
+Behavior added to a foreign class is a category, never a free function taking that class as its first argument. A category on an AppKit class belongs in `Mac/`, a portable one in `Categories/`; a category on one of the app's own classes belongs beside that class. The deliberate exceptions are `Common/PlatformImage.h`'s and `PlatformColor.h`'s free functions, where the class involved differs per target — see the root `CLAUDE.md`'s Vocabulary section.

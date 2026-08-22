@@ -1,6 +1,6 @@
 //
-// Created by Christopher Micali on 12/30/19.
-// Copyright (c) 2019 Christopher Micali. All rights reserved.
+//  NSURL+Hash.m
+//  Vibe
 //
 
 #import "NSURL+Hash.h"
