@@ -1,12 +1,32 @@
 # Deferred understandability changes
 
 This document is the implementation backlog for the selected Section C audit
-findings. These items have been revalidated against the current working copy,
-but **none of the changes described below has been implemented yet**. The
-original identifiers are retained so each item can be selected independently.
+findings, plus the items found while revalidating them.
 
-Scope is the macOS app and the shared code it consumes. C6 and C9 are omitted
-because they were not selected for this backlog.
+Every item below has been re-checked against the working copy at commit
+`162cf0c` (2026-08-22) and **none of them has been implemented yet**. Line
+numbers, quoted comment text and symbol names are current as of that check.
+The original C-identifiers are retained so each item can be selected
+independently; C6 and C9 were not selected for this backlog and are absent.
+C11 and C12 are new.
+
+Scope is the macOS app and the shared code it consumes, plus the subsystem
+documentation that describes it.
+
+## Status at revalidation
+
+| Item | Priority | State |
+| --- | --- | --- |
+| C1 — `playOnQueue:` phases | Medium | unchanged; method grew to 179 lines |
+| C2 — historical narratives | Low | unchanged; a third, milder instance found |
+| C3 — menu validation | Medium | unchanged; identifier literals now span three files |
+| C4 — playback-state writer model | Medium | **partially fixed**; scope narrowed, see below |
+| C5 — "lock-free" getters | Low | unchanged; evidence list corrected and extended |
+| C7 — playlist fallback extensions | Low | unchanged |
+| C8 — codec/FX alpha comments | Low | unchanged |
+| C10 — About mail link | Low | unchanged |
+| C11 — retired materialization hold in iOS docs | Medium | **new** |
+| C12 — stale symbol names in subsystem docs | Low | **new** |
 
 ## C1 — `playOnQueue:` hides an ordering-sensitive state transition inside one large method
 
@@ -14,10 +34,11 @@ because they were not selected for this backlog.
 
 ### Current issue
 
-`AudioPlayer`'s queue-confined play transition is one 171-line method. Its
+`AudioPlayer`'s queue-confined play transition is one 179-line method. Its
 length is not merely cosmetic: it interleaves several independently meaningful
 phases whose order is part of playback correctness:
 
+- terminally retiring the superseded playback context's prefetch request;
 - rebinding a repeated play to an existing Loading request;
 - preempting fades and retiring a possible gapless splice;
 - snapshotting and retiring the outgoing node/varispeed chain;
@@ -31,9 +52,19 @@ The phases can be reconstructed from the comments, but they are not visible in
 the method's structure. A maintenance change near the middle can therefore
 move or bypass state mutations whose dependency is hundreds of lines away.
 
+The ordering hazard is not hypothetical: the very first statement is
+`terminallyRetirePrefetchRequestOnQueue`, and its comment has to explain that
+it must precede the same-path rebind that returns early ~15 lines later. That
+is exactly the kind of constraint a named phase boundary would carry for free.
+
 ### Evidence
 
-- `Vibe/Audio/AudioPlayer.m:359-529` — `playOnQueue:intent:declick:submittedPlayIdentifier:`.
+- `Vibe/Audio/AudioPlayer.m:486-664` —
+  `playOnQueue:intent:declick:submittedPlayIdentifier:`. The next method,
+  `finishPlayOnQueueWithFile:error:openRequestId:`, starts at line 667.
+- `Vibe/Audio/AudioPlayer.m:490-494` — the retire-before-rebind ordering note.
+- `Vibe/Audio/AudioPlayer.m:496-499` — why the rebind is attempted only inside
+  Loading (`rebindTrack:` mutates the request it matches).
 - The method has early returns for both same-request rebinding and the
   prefetched-file fast path, in addition to the normal asynchronous-open path.
 
@@ -57,6 +88,7 @@ the intent.
 - `playOnQueue:` reads as a small number of named, ordered phases.
 - Every mutation remains on the player queue and the existing state-lock
   boundaries are unchanged unless separately justified.
+- The prefetch retirement still precedes the same-path rebind's early return.
 - The same-file Loading rebind remains a true no-op for graph/open work.
 - The prefetched-file fast path still publishes Loading before finishing the
   request and never arms open timers.
@@ -76,12 +108,12 @@ the intent.
 
 ### Current issue
 
-Two comments preserve the history of a fix rather than stating the current
-rule a maintainer must keep:
+Comments preserve the history of a fix rather than stating the current rule a
+maintainer must keep:
 
-- `isDatalessFile:` includes an abandoned `NSURL` resource-value design, a
-  device measurement transcript, benchmark numbers, and the symptoms observed
-  while debugging it.
+- `isDatalessFile:` carries a 29-line preamble containing an abandoned `NSURL`
+  resource-value design, a device measurement transcript, benchmark numbers,
+  and the symptoms observed while debugging it.
 - `playWillStartHandler` explains where the callback used to fire and narrates
   why the old implementation failed.
 
@@ -90,31 +122,43 @@ inside change history. This conflicts with the repository rule that comments
 state non-obvious current behavior, threading/order requirements, or traps;
 implementation history belongs in version control.
 
+A third, milder instance shares the shape: `seekToProgress:`'s parked branch
+spends four lines on what it used to call and why that was wrong, before
+landing on the one durable sentence ("a scrub is a request to move the
+playhead and nothing else").
+
 ### Evidence
 
-- `Vibe/Util/NSURLUtil.m:74-102`.
-- `Vibe/Playlist/Mac/PlaylistController.h:25-37`.
+- `Vibe/Util/NSURLUtil.m:104-132` — the preamble above `+ isDatalessFile:`
+  (line 133). Lines 106-126 are the abandoned design, the measurement and the
+  bug story; 128-132 is the durable forward-looking part.
+- `Vibe/Playlist/Mac/PlaylistController.h:37-50` — the `playWillStartHandler`
+  comment. Lines 43-49 are the account of the old behavior.
+- `Vibe/iOS/PlaybackController.m:414-417` — the milder third instance.
 
 ### Implementation direction
 
 Replace each narrative with a terse, present-tense contract:
 
 - For dataless detection, retain that one `stat` and `SF_DATALESS` are the
-  authoritative check. If the per-instance caching behavior of `NSURL`
-  resource values is important enough to prevent recurrence, preserve it as a
-  short `TRAP:` or in `Vibe/Util/CLAUDE.md`, without the experiment log and
-  benchmark transcript.
+  authoritative check, and keep the forward-looking paragraph about a provider
+  whose placeholders carry no flag — that one says what to do next, not what
+  was done. If the per-instance caching behavior of `NSURL` resource values is
+  important enough to prevent recurrence, preserve it as a short `TRAP:` or in
+  `Vibe/Util/CLAUDE.md`, without the experiment log and benchmark transcript.
 - For `playWillStartHandler`, state when it fires, that it precedes the
   asynchronous open, and that the common `play` funnel covers every playback
   entry point. Remove the account of what the code used to do.
+- For the scrub branch, keep the rule and drop the account of the old call.
 
 No runtime behavior should change under this item.
 
 ### Acceptance criteria
 
-- The comments answer “what must remain true?” without describing an abandoned
+- The comments answer "what must remain true?" without describing an abandoned
   implementation, a past bug, or how the change was verified.
 - The reason not to use cached `NSURL` resource values remains discoverable.
+- The forward-looking "if a provider ever does appear" guidance survives.
 - The handler's timing and all-entry-point coverage remain unambiguous.
 - No source behavior, public API, or test expectation changes.
 
@@ -123,6 +167,7 @@ No runtime behavior should change under this item.
 - `Vibe/Util/NSURLUtil.m`
 - `Vibe/Util/CLAUDE.md`, only if the durable trap belongs there
 - `Vibe/Playlist/Mac/PlaylistController.h`
+- `Vibe/iOS/PlaybackController.m`
 
 ## C3 — Menu validation is monolithic and silently enables unknown identifiers
 
@@ -131,7 +176,8 @@ No runtime behavior should change under this item.
 ### Current issue
 
 `MainPlayerController` validates most of the app's menu surface through one
-125-line `if`/`else if` chain. The chain mixes several different jobs:
+139-line `if`/`else if` chain over 26 identifier literals. The chain mixes
+several different jobs:
 
 - setting preference and view checkmarks;
 - updating dynamic titles and symbols;
@@ -146,37 +192,54 @@ silently enables every unrecognized identifier. Adding, removing, or mistyping
 a controller-targeted menu identifier can therefore bypass required validation
 without an obvious failure.
 
+The identifier literals have no single home. `view_size_small` is written as a
+string in three files — the builder that creates it, the validator's `hasPrefix:`
+test, and the width lookup that consumes it — so a rename is a three-site
+grep with no compiler help.
+
 ### Evidence
 
-- `Vibe/Mac/MainWindow/MainPlayerController+Menus.m:19-143`.
-- `Vibe/Mac/Menu/MainMenuBuilder.m` is the principal static identifier source;
-  waveform style items are populated dynamically by the same category.
+- `Vibe/Mac/MainWindow/MainPlayerController+Menus.m:20-158` —
+  `validateMenuItem:`; the unconditional `return YES;` is line 158.
+- `Vibe/Mac/Menu/MainMenuBuilder.m:296-298` — the `view_size_*` literals.
+- `Vibe/Mac/MainWindow/MainPlayerController+Window.m:193,196` — the same
+  literals again, in `contentWidthForSizeIdentifier:`.
+- `Vibe/Mac/MainWindow/MainPlayerController+Menus.m:169-196` —
+  `menuNeedsUpdate:` mints the dynamic `waveform_style_*` family, targets them
+  at this controller, and sets `item.enabled = YES` directly; they reach the
+  validator's fall-through with no branch of their own.
+- `Vibe/Playlist/Mac/PlaylistController.m:537-547` is the deliberate
+  delegation boundary and is small enough to leave alone.
 
 ### Implementation direction
 
 Split validation into small domain-specific decisions, while retaining one
-`validateMenuItem:` entry point. A helper result must distinguish “recognized
-and always enabled” from “not recognized”; a plain `BOOL` cannot express that
+`validateMenuItem:` entry point. A helper result must distinguish "recognized
+and always enabled" from "not recognized"; a plain `BOOL` cannot express that
 distinction safely.
 
 Give every builder-owned identifier an explicit disposition. Explicitly cover
-the always-enabled preference/FX items and the dynamic
-`waveform_style_*` family. Unknown items targeted at this controller should be
-disabled in release behavior and made visible during development with a Debug
-assertion or log. Identifier ownership should be centralized or otherwise
-shared with the builder closely enough that coverage can be audited without
-searching a long string chain.
+the always-enabled preference/FX items and the dynamic `waveform_style_*`
+family. Unknown items targeted at this controller should be disabled in
+release behavior and made visible during development with a Debug assertion or
+log. Identifier ownership should be centralized or otherwise shared with the
+builder closely enough that coverage can be audited without searching a long
+string chain — a shared constants header consumed by builder, validator and
+`contentWidthForSizeIdentifier:` is the smallest thing that achieves it.
 
 Preserve the deliberate delegation boundaries: playlist row-menu items are
 validated by `PlaylistController`, Output has its own menu controller, and the
 converter remains the authority for Convert to FLAC enablement and retitling.
+`menu_convert_to_flac`'s hidden-when-disabled behavior is load-bearing for the
+context menus and must survive.
 
 ### Acceptance criteria
 
 - Every static and dynamic menu identifier targeting `MainPlayerController`
   has one explicit validation policy.
 - Unknown targeted identifiers no longer default silently to enabled.
-- Existing checkmarks, titles, images, and enablement remain unchanged.
+- Existing checkmarks, titles, images, hidden state, and enablement remain
+  unchanged.
 - The top-level validator makes its validation domains visible without reading
   every identifier branch.
 - Tests cover identifier classification and the unknown-identifier policy
@@ -190,38 +253,52 @@ converter remains the authority for Convert to FLAC enablement and retitling.
 - `Vibe/Mac/MainWindow/MainPlayerController+Menus.m`
 - `Vibe/Mac/Menu/MainMenuBuilder.m` or a shared identifier declaration if that
   is the cleanest way to make ownership explicit
+- `Vibe/Mac/MainWindow/MainPlayerController+Window.m`
 - `Tests/`, if a pure identifier-classification seam is introduced
 
 ## C4 — Playback-state documentation contradicts the actual writer model
 
-**Priority:** Medium
+**Priority:** Medium — **partially fixed; scope reduced**
 
-### Current issue
+### What has since been fixed
 
-The state documentation repeatedly calls `publishPlaybackState:` the “single
-writer,” then immediately documents exceptions:
+Two of the four originally cited sites now document the model honestly:
 
-- `position` writes `_lastValidPosition` after an epoch check;
-- node-retirement paths unpublish `_node` directly under `_stateLock` before
-  detaching it; and
-- track completion writes `_state` and `_node` together without publishing the
-  full position tuple.
+- `Vibe/Audio/AudioPlayer.m:1445-1448` now says outright that "a few sites
+  write `_state` or `_node` alone under the lock without coming through here",
+  and states the condition that makes it safe (they never move the position
+  fields).
+- `Vibe/Audio/AudioPlayerInternal.h:206-217` now explains `_lastValidPosition`
+  as an ivar precisely because "the position getter is a second writer".
 
-Those writes can be correct while the wording is still unsafe. A maintainer
-cannot tell whether “single writer” is the actual threading guarantee, an
-aspiration with violations, or shorthand for “the only full-tuple writer.”
+### Remaining issue
+
+Two sites still open with an unqualified "single writer" and then contradict
+themselves, and the permitted partial writers are still anonymous — the
+honest paragraph at `AudioPlayer.m:1445` says "a few sites" without naming
+them, so there is no way to audit the set.
+
+Four call sites now repeat the same three-line node-unpublish sequence
+verbatim (`lock`, `_node = nil`, `unlock`), which is exactly the named helper
+the original item proposed and is also what would make the set enumerable.
 
 ### Evidence
 
-- `Vibe/Audio/AudioPlayer+State.m:14-18` — claims a single writer and then names
-  `_lastValidPosition` as a second writer.
-- `Vibe/Audio/AudioPlayer+State.m:123-135` — epoch-guarded cache writeback.
-- `Vibe/Audio/AudioPlayer.m:1151-1160` — calls the publisher the single writer,
-  then permits direct `_state` and `_node` writes.
-- `Vibe/Audio/AudioPlayerInternal.h:157-177` — repeats the mixed ownership
-  story on the shared state.
-- Representative partial writes currently appear in `AudioPlayer.m`'s play,
-  finish, and stop paths and in `AudioPlayer+Devices.m` before node detachment.
+- `Vibe/Audio/AudioPlayer+State.m:14-18` — claims a single writer and then
+  names `_lastValidPosition` as a second writer.
+- `Vibe/Audio/AudioPlayer.m:1440-1448` — "The single writer for the whole
+  playback and position state", contradicted seven lines later.
+- `Vibe/Audio/AudioPlayer+State.m:132-148` — the epoch-guarded cache
+  writeback.
+- The duplicated node-unpublish blocks, all correctly under `_stateLock`:
+  - `Vibe/Audio/AudioPlayer.m:568-570` (play's outgoing-chain retirement);
+  - `Vibe/Audio/AudioPlayer.m:895-899` (`finishPlaybackOnQueue`, which writes
+    `_state` and `_node` together and deliberately leaves position alone);
+  - `Vibe/Audio/AudioPlayer.m:1007-1010` (stop);
+  - `Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m:175-181` (device switch).
+- `Vibe/Audio/CLAUDE.md:17` — "`AudioPlayer.m` … is the single writer of the
+  state it publishes" is about the *file*, not the method, and is accurate.
+  Do not sweep it up.
 
 ### Implementation direction
 
@@ -235,20 +312,21 @@ Document the model that the code actually enforces:
   terminal state that intentionally preserves position fields, or refresh the
   last-valid-position cache under the epoch guard.
 
-Where it improves auditability, hide repeated partial mutation behind named
-private helpers such as node unpublication or epoch-checked position-cache
-refresh. Do not force a full publisher call into a path whose deliberate
-purpose is to leave the position tuple untouched.
+Introduce a named private helper for node unpublication and use it at all four
+sites; that turns "a few sites" into a call-site list a grep can produce. Do
+not force a full publisher call into a path whose deliberate purpose is to
+leave the position tuple untouched.
 
 ### Acceptance criteria
 
-- No unqualified “single writer” claim remains where multiple writers exist.
+- No unqualified "single writer" claim remains where multiple writers exist.
 - The distinction between full-tuple publication and permitted partial writes
   is stated once and reflected consistently in the source and subsystem docs.
 - Every permitted partial writer is discoverable by name or is documented next
   to the protected state.
 - Direct partial writes still hold `_stateLock`; position writeback still
   verifies the snapshotted epoch.
+- `finishPlaybackOnQueue`'s deliberate position preservation is unchanged.
 - No behavior change is introduced solely to make an inaccurate comment true.
 
 ### Likely files
@@ -256,8 +334,7 @@ purpose is to leave the position tuple untouched.
 - `Vibe/Audio/AudioPlayer.m`
 - `Vibe/Audio/AudioPlayer+State.m`
 - `Vibe/Audio/AudioPlayerInternal.h`
-- `Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m`, if a named unpublish helper is
-  adopted
+- `Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m`
 - `Vibe/Audio/CLAUDE.md`
 
 ## C5 — Player getters are described as lock-free even though they take `_stateLock`
@@ -266,32 +343,47 @@ purpose is to leave the position tuple untouched.
 
 ### Current issue
 
-The public header first explains that state getters take a short state-lock
-snapshot, then calls `position` and `gaplessArmed` “lock-free.” The
+The public header calls `position` and `gaplessArmed` lock-free. The
 implementation confirms that these accessors do take `os_unfair_lock`:
 `position` takes it for the initial snapshot and again for guarded cache
-writeback, and `isGaplessArmed` takes it for its mirror read.
+writeback, and `isGaplessArmed` takes it for its mirror read. The subsystem
+doc goes further and says these getters "never block".
 
 The intended property is useful but differently named: these getters are
 synchronous and do not marshal work onto the player queue. They can still wait
-briefly to acquire `_stateLock`. Calling them lock-free—or saying they never
-block—overstates the guarantee and could invite use from a lock-held or
+briefly to acquire `_stateLock`. Calling them lock-free — or saying they never
+block — overstates the guarantee and could invite use from a lock-held or
 real-time context where even brief contention matters.
 
 ### Evidence
 
-- `Vibe/Audio/AudioPlayer.h:124-136`.
-- `Vibe/Audio/AudioPlayer+State.m:73-81`, `124-135`, and `143-145`.
-- False player-state “lock-free” wording also appears in:
-  - `Vibe/Audio/AudioPlayer+State.m:97-101`;
-  - `Vibe/Audio/AudioPlayer+Gapless.m:13`;
-  - `Vibe/Audio/AudioPlayerInternal.h:116`;
-  - `Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m:176-181`; and
-  - `Vibe/Audio/CLAUDE.md:70`.
+False player-state wording:
 
-Other uses of “lock-free,” such as `AudioTrack`'s atomic memoized-cache read,
-are separate claims and should not be mechanically renamed without checking
-their implementations.
+- `Vibe/Audio/AudioPlayer.h:179` — `position`, "Lock-free".
+- `Vibe/Audio/AudioPlayer.h:184` — `gaplessArmed`, "lock-free".
+- `Vibe/Audio/AudioPlayer+State.m:105` — "this getter is deliberately
+  lock-free", inside `position`, which took the lock at line 81.
+- `Vibe/Audio/AudioPlayer+Gapless.m:19` — "the lock-free mirror".
+- `Vibe/Audio/AudioPlayerInternal.h:141` — "the lock-free isGaplessArmed".
+- `Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m:176-177` — "The position
+  getter reads `_node` lock-free on the main thread".
+- `Vibe/Audio/CLAUDE.md:34` — "read under an `os_unfair_lock` and never
+  block", which is self-contradictory in one sentence.
+- `Vibe/Audio/CLAUDE.md:78` — "`isGaplessArmed` (lock-free)".
+
+The implementations: `Vibe/Audio/AudioPlayer+State.m:79-88` (snapshot under
+the lock), `132-148` (guarded writeback), `154-159` (`isGaplessArmed`).
+
+**Genuinely lock-free, and out of scope — do not rename these:**
+
+- `Vibe/Audio/AudioPlayer.h:63` / `Vibe/Audio/Levels/AudioLevelPublisher.m:77`
+  — `copyBandLevels:` is a real seqlock over atomics with a retry loop.
+- `Vibe/Audio/AudioTrack.m:15` — atomic memoized-cache read.
+- `Vibe/Audio/AudioFileMaterializationCoordinator.m:571` /
+  `Vibe/Debug/Mac/DebugHealth.m:197` — `handleOpensInFlight` is two atomic
+  loads, and the comment's point is precisely that it avoids the state queue.
+- `Vibe/Debug/AudioPlayer+Debug.h:20` — `manualRenderingActive` is a plain
+  ivar read taken once during async init.
 
 ### Implementation direction
 
@@ -300,16 +392,22 @@ that they perform no player-queue round trip and can briefly contend on
 `_stateLock`. Keep the current locking design rather than attempting a riskier
 lock-free rewrite for a terminology cleanup.
 
+Note that `AudioPlayer+Devices.m:176` and `AudioPlayer+State.m:105` are making
+a *correct* point about node lifetime that happens to be worded with the wrong
+term — the hazard is that the queue can detach `_node` between the snapshot
+and the off-lock read, and that survives the rewording intact.
+
 ### Acceptance criteria
 
 - Public, private, implementation, device, and subsystem documentation use the
   same accurate terminology for these getters.
-- “Performs no player-queue round trip” and “can wait for `_stateLock`” are
+- "Performs no player-queue round trip" and "can wait for `_stateLock`" are
   clearly distinguished.
+- The node-detach hazard notes keep their meaning.
 - The getter implementations and their synchronization remain unchanged unless
   a separate measured reason justifies redesign.
 - A repository search leaves no false lock-free claim attached to the player
-  position or gapless snapshot.
+  position or gapless snapshot, and the four genuine uses above are untouched.
 
 ### Likely files
 
@@ -336,12 +434,17 @@ The duplication has two costs. A playlist referring to a pre-transcode name
 cannot recover to another fully supported extension such as `.m4a`, and future
 format changes can update one list without the other. The relationship between
 the two lists is not named, so a reader cannot know whether the five-item
-subset is deliberate or stale.
+subset is deliberate or stale. The surrounding comment even hardcodes the
+count ("its five alternate-extension candidates"), which a shared source would
+have to reword.
 
 ### Evidence
 
-- `Vibe/Playlist/PlaylistFile.m:289-317` — five alternate extensions.
-- `Vibe/Util/NSURLUtil.m:132-143` — eleven supported extension spellings.
+- `Vibe/Playlist/PlaylistFile.m:293-297` — the five alternate extensions;
+  `298-321` is the directory-probe optimization and the candidate loop.
+- `Vibe/Util/NSURLUtil.m:197-206` — `+ supportedExtensions`, eleven spellings.
+- `Vibe/Util/NSURLUtil.m:12` — `NSURLUtil.m` imports `PlaylistFile.h`, which
+  is the dependency that must not be inverted.
 - `Vibe/Util/CLAUDE.md` identifies the latter as the playable extension set.
 
 ### Implementation direction
@@ -355,8 +458,8 @@ filtering without duplicating the literal values.
 
 Preserve candidate precedence: the explicitly named path first, the basename
 beside the playlist second, then alternate spellings. Preserve path-based
-deduplication and the one-probe-per-primary-directory optimization. OGG remains
-unsupported.
+deduplication and the one-probe-per-primary-directory optimization, including
+its memoization across the pass. OGG remains unsupported.
 
 ### Acceptance criteria
 
@@ -365,6 +468,8 @@ unsupported.
 - Candidate order is deterministic and the named path/basename precedence is
   unchanged.
 - Case normalization and path deduplication remain correct.
+- The per-directory reachability memo still gates the primary-path candidates
+  and still leaves the beside-the-playlist candidates unconditional.
 - Tests cover a replacement extension absent from the old five-item subset,
   aliases such as `wave`/`bwf`, duplicate suppression, and OGG exclusion.
 - The documented extension set and the app's declared document types cannot
@@ -389,28 +494,37 @@ unsupported.
 The current rendering deliberately gives the inline FX symbols full-strength
 `secondaryLabelColor` while the codec text uses `tertiaryLabelColor`; the field
 itself stays at alpha 1.0 so it does not dim both runs together. The appearance
-documentation and `symbolRun` implementation agree on that model.
+documentation, the content view's field setup and the `symbolRun` implementation
+all agree on that model.
 
 The comment above `composeFileMetadataLabel`, however, still says that inline
-symbols receive the label's color and 50 percent alpha “for free.” Nearby
-spacer wording also describes inherited dimming imprecisely, and the content
-view points to a stale `codecTextAttributes` helper name. These comments direct
-future appearance work toward behavior the code intentionally removed.
+symbols receive the label's color and 50 percent alpha "for free." The spacer
+wording claims the whitespace run is "dimmed like the codec text", but the
+spacer carries only `NSFontAttributeName` and so draws at the field's own
+`secondaryLabelColor` — harmless, since it is whitespace, and the real reason
+for the comment is the kerning note that follows it. The content view then
+points to a `codecTextAttributes` helper that does not exist; the helper is
+`cornerTextAttributes`. These comments direct future appearance work toward
+behavior the code intentionally removed.
 
 ### Evidence
 
-- Stale description: `Vibe/Mac/MainWindow/TrackDisplayController.m:420-424`.
-- Nearby spacer wording: `Vibe/Mac/MainWindow/TrackDisplayController.m:437-450`.
+- Stale description: `Vibe/Mac/MainWindow/TrackDisplayController.m:423-427`;
+  the false sentence is line 427.
+- Nearby spacer wording: `Vibe/Mac/MainWindow/TrackDisplayController.m:442-445`.
 - Stale helper reference: `Vibe/Mac/MainWindow/MainPlayerContentView.m:649-653`.
-- Current implementation: `Vibe/Mac/MainWindow/TrackDisplayController.m:483-499`.
-- Current design: `Vibe/Mac/MainWindow/APPEARANCE.md:35-45`.
+- Current implementation: `Vibe/Mac/MainWindow/TrackDisplayController.m:497-501`
+  (`symbolRun`'s full-strength secondary) and `104-108` (`cornerTextAttributes`,
+  tertiary).
+- Current design: `Vibe/Mac/MainWindow/APPEARANCE.md:45-51`.
 
 ### Implementation direction
 
 Correct or remove the stale sentences. Keep only the non-obvious reason the
-symbols are inline—the fixed right-aligned run keeps them attached to the
-moving left edge of the codec text—and describe the current per-run colors.
-Align the spacer explanation and helper reference with the actual attributes.
+symbols are inline — the fixed right-aligned run keeps them attached to the
+moving left edge of the codec text — and describe the current per-run colors.
+Align the spacer explanation with what the run actually carries, keeping the
+kerning rationale, and rename the helper reference.
 
 This item should not alter layout, alpha, color, or attributed-string behavior.
 
@@ -419,7 +533,9 @@ This item should not alter layout, alpha, color, or attributed-string behavior.
 - All descriptions agree that the field alpha is 1.0, codec text is tertiary,
   and FX symbols are full-strength secondary.
 - No comment says the symbols inherit a 50 percent field alpha.
-- References name the helper that actually supplies codec text attributes.
+- References name the helper that actually supplies codec text attributes
+  (`cornerTextAttributes`).
+- The spacer comment keeps the kerning reason and drops the color claim.
 - The source diff contains no rendering behavior change.
 
 ### Likely files
@@ -446,10 +562,16 @@ events pass through to the copyright label and window background.
 
 ### Evidence
 
-- `Vibe/Mac/About/AboutWindowController.m:25-78` — custom mouse-only label.
-- `Vibe/Mac/About/AboutWindowController.m:147-172` — underlined name and URL.
-- `Vibe/Mac/About/VectorBallsView.m:434-439` — decorative overlay is explicitly
-  hit-test transparent.
+- `Vibe/Mac/About/AboutWindowController.m:25-81` — the custom mouse-only
+  label: `linkRect` (38-52), `hitTest:` (54-57), `resetCursorRects` (59-65),
+  the claimed-but-empty `mouseDown:` (71-72) and `mouseUp:` (73-78).
+- `Vibe/Mac/About/AboutWindowController.m:163-170` — the underline attribute
+  and the `mailto:` URL assignment.
+- `Vibe/Mac/About/AboutWindowController.m:22-23` — the author name is matched
+  as a substring of the Info.plist copyright line, so an unmatched name simply
+  renders unlinked; that fallback must survive.
+- `Vibe/Mac/About/VectorBallsView.m:408-413` — decorative overlay is
+  explicitly hit-test transparent.
 
 ### Implementation direction
 
@@ -470,6 +592,8 @@ correct behavior.
 - Full Keyboard Access can focus it, and Return/Space opens the mail URL.
 - Pointer activation remains confined to the visible link/text region.
 - Clicking elsewhere still permits normal About-window background dragging.
+- A copyright line that does not contain the author name still renders, with
+  no link and no crash.
 - The decorative Metal view remains hit-test transparent.
 - The mail URL and visible copyright localization behavior remain unchanged.
 
@@ -478,6 +602,146 @@ correct behavior.
 - `Vibe/Mac/About/AboutWindowController.m`
 - `Vibe/Mac/About/VectorBallsView.m` only if a comment reference needs updating;
   its behavior should not change
+
+## C11 — iOS documentation describes a retired shell-side materialization hold
+
+**Priority:** Medium — **new**
+
+### Current issue
+
+The foreground/background rule used to be shell state: the player raised a
+pre-submit delegate edge, and each shell set and released a hold on the
+metadata cache. That design was replaced — the rule now lives entirely inside
+`AudioFileMaterializationCoordinator`, which derives "a foreground transfer is
+active" from its own claim table. `Vibe/Audio/Metadata/CLAUDE.md` states the
+replacement explicitly: "The foreground/background rule itself carries no shell
+or cache state at all."
+
+`Vibe/iOS/CLAUDE.md` still documents the old design, and it names a delegate
+selector, `willSubmitPlayForTrack:`, that exists nowhere in the source. Root
+`CLAUDE.md` carries a weaker version of the same residue in a parenthetical.
+
+This is the most costly kind of stale doc in this backlog: it is not a wrong
+name for a live thing, it is a live-sounding description of a mechanism that
+was deliberately removed, sitting in the file a maintainer reads *first* when
+working on iOS playback, and it directly contradicts the subsystem doc it
+cross-references.
+
+### Evidence
+
+- `Vibe/iOS/CLAUDE.md:30` — "the metadata cache's background-materialization
+  hold, set here from the player's pre-submit `willSubmitPlayForTrack:` edge
+  and released in `didStartPlaying:`'s prefetch claim acknowledgement or the
+  error path".
+- No such selector exists: `grep -rn willSubmitPlay Vibe` matches only that
+  documentation line. `AudioPlayerDelegate` (`Vibe/Audio/AudioPlayer.h:227-267`)
+  has no pre-submit edge at all.
+- `Vibe/Audio/Metadata/CLAUDE.md:37` — the contradicting, current statement.
+- `Vibe/Audio/AudioFileMaterializationCoordinator.m:577` —
+  `isForegroundTransferActive`, derived from the claim table.
+- Root `CLAUDE.md:101` — "state the newer play has already set up, the
+  background-materialization hold included", which reads as shell state a
+  settlement can tear down.
+- `docs/future/carplay.md:65` inherits the phrase from the same era.
+- `Vibe/Mac/MainWindow/CLAUDE.md` has no equivalent residue — the macOS half
+  was cleaned up when the rule moved; only the iOS half was missed.
+
+### Implementation direction
+
+Rewrite `Vibe/iOS/CLAUDE.md:30` to describe what the iOS shell actually still
+owns — deferring the sweep's *start* until the picked track's open settles
+(`scheduleDeferredMetadataLoad`, the two-second fallback, the
+`folderSession:didOpenTracks:` / `didStartPlaying:` / error-path wiring) — and
+to point at the coordinator for the rule itself, matching root `CLAUDE.md`'s
+"the open the user is waiting on outranks every background read" guarantee.
+
+Reword root `CLAUDE.md:101` so the settlement-identity guarantee stands on its
+own without implying a shell-held hold; the point it is making (a stale
+settlement tears down state a newer play set up) survives without that example.
+Fix `docs/future/carplay.md:65` in the same pass so a future CarPlay
+implementer does not go looking for the hold.
+
+No source change is expected. If a hold-shaped mechanism turns out to still
+exist under a different name, document that name instead and note the finding.
+
+### Acceptance criteria
+
+- No document names `willSubmitPlayForTrack:` or any other selector absent
+  from the source.
+- `Vibe/iOS/CLAUDE.md` and `Vibe/Audio/Metadata/CLAUDE.md` agree on where the
+  foreground/background rule lives, and both agree with root `CLAUDE.md`.
+- The scheduling-nicety half that the shell genuinely still owns is still
+  documented, on both platforms, and still distinguished from the rule.
+- Root `CLAUDE.md`'s settlement-identity guarantee keeps its meaning.
+- No behavior change.
+
+### Likely files
+
+- `Vibe/iOS/CLAUDE.md`
+- `CLAUDE.md`
+- `docs/future/carplay.md`
+
+## C12 — Subsystem docs name symbols that do not exist
+
+**Priority:** Low — **new**
+
+### Current issue
+
+Two subsystem docs name a symbol that the source does not define. Neither is
+load-bearing on its own, but each sends a reader to a `grep` that returns
+nothing, in a repository whose documentation is otherwise precise enough that
+readers trust the names.
+
+- `Vibe/Audio/CLAUDE.md` names the pending-start-paused state `_pendingStartPaused`.
+  The ivar is `_loadingStartPaused` and the internal property is
+  `loadingStartPaused`.
+- `Vibe/WaveformUI/Mac/CLAUDE.md` says the loading control "is the shared
+  `WaveformLoadingIndicator`". There is no such class. The shared control is
+  `LoadingIndicator` in `Vibe/Controls/`, drawn in its waveform style, with
+  `LoadingIndicatorView` as the row-gutter host — which is exactly what
+  `Vibe/Controls/CLAUDE.md` says.
+
+### Evidence
+
+- `Vibe/Audio/CLAUDE.md:88` — `_pendingStartPaused`.
+  Actual: `Vibe/Audio/AudioPlayerInternal.h:271` (`loadingStartPaused`),
+  `Vibe/Audio/AudioPlayer.m:1392,1468,1473` (`_loadingStartPaused`).
+- `Vibe/WaveformUI/Mac/CLAUDE.md:10` — `WaveformLoadingIndicator`.
+  Actual: `Vibe/Controls/LoadingIndicator.h:32`,
+  `Vibe/Controls/LoadingIndicatorView.h:31`,
+  `Vibe/Controls/CLAUDE.md:15-19`.
+
+Deliberately **not** findings, checked and cleared: framework names
+(`UnderWindowBackground`, `resignKeyAppearance`, `CFRunLoopObserver`,
+`NSFileProviderSearchQuery`, `zoomScale`), documented-as-removed symbols
+(`baselineAlphaForPlayed:` in `Vibe/WaveformUI/iOS/CLAUDE.md:41`), ellipsis
+shorthand (`…DidEndAdjusting:`), enum-member fragments, and directory names.
+Root `CLAUDE.md` is clean.
+
+### Implementation direction
+
+Correct both names. While there, consider whether this class of drift is worth
+a mechanical gate: a script that extracts backticked identifiers from every
+`CLAUDE.md` / `APPEARANCE.md` and fails on any that appears nowhere in the
+non-Markdown sources catches all of the above. It needs an allowlist for
+framework symbols and for symbols the docs name precisely because they were
+removed, which is the reason to weigh it rather than adopt it reflexively — an
+allowlist that grows faster than the findings is worse than the drift. If
+adopted it belongs beside `make check-vocabulary`, not inside it.
+
+### Acceptance criteria
+
+- Both names match the source.
+- If a checker is added, it runs clean on the current tree, its allowlist is
+  short and each entry is justified in a comment, and it is wired into the
+  same place as the other `check-*` gates.
+- No behavior change.
+
+### Likely files
+
+- `Vibe/Audio/CLAUDE.md`
+- `Vibe/WaveformUI/Mac/CLAUDE.md`
+- `scripts/` and `Makefile`, only if the optional checker is adopted
 
 ## Future integrated verification
 
@@ -490,8 +754,14 @@ the touched shared/macOS code:
 - `make analyze CONFIG=Release`
 - `make check-layout`
 - `make check-vocabulary`
-- `make check-strings`
+- `make check-strings`, and `make check-translations` if any item ends up
+  adding or rewording a user-facing string
 - `git diff --check`
+
+C11 and C12 are documentation-only and need no build gate beyond
+`git diff --check`, but C11 should be re-read against
+`Vibe/Audio/Metadata/CLAUDE.md` and root `CLAUDE.md` after editing, since its
+whole purpose is to make three files agree.
 
 The menu and About-link items also require running-app verification. Menu state
 must be exercised across transport/playlist states, and the link must be
