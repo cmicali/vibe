@@ -62,7 +62,7 @@ Templates then fall out easily: a `CPListTemplate` of persistent roots, a `CPLis
 
 ### 4. Cloud folders degrade silently, and that is accepted
 
-A dataless Dropbox or iCloud track takes seconds to make a sound, and in the car there is no shimmer, no determinate fill and no download progress to show — `DownloadProgressMonitor` has no consumer-side fraction on iOS anyway (`System/CLAUDE.md`). A list-item spinner is the entire available vocabulary. The deferred metadata sweep and the cache's background-materialization hold still apply and still matter; they just have no visual explanation in the car.
+A dataless Dropbox or iCloud track takes seconds to make a sound, and in the car there is no shimmer, no determinate fill and no download progress to show — `DownloadProgressMonitor` has no consumer-side fraction on iOS anyway (`System/CLAUDE.md`). A list-item spinner is the entire available vocabulary. The deferred metadata sweep and the coordinator's foreground-transfer rule still apply and still matter; they just have no visual explanation in the car.
 
 ## Files
 
