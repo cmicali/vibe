@@ -141,9 +141,14 @@ The three URL files under `Assets/app-store/copy/` upload to every locale with
 | --- | --- |
 | `marketing-url.txt` | `https://vibeplayer.app` |
 | `support-url.txt` | `https://github.com/cmicali/vibe/issues` |
-| `privacy-url.txt` | `https://vibeplayer.app/privacy/` |
+| `privacy-url.txt` | `https://vibeplayer.app/privacy` |
 
 The privacy URL is not a version field — it lives on ASC's `appInfoLocalizations`,
 per locale — but the uploader patches it there too, so it is not 29 identical
-edits by hand. Note the trailing slash: `/privacy` 308-redirects to it, and the
-page names the redirect target as its canonical URL.
+edits by hand.
+
+What is published and what is canonical differ on purpose. The page lives at
+`/privacy/`, because it is a directory (see above), and both hosts 308 or 301
+`/privacy` onto it. So `rel=canonical` names `/privacy/` — the URL that answers
+200 — while everything **published** uses the cleaner `/privacy`, which every
+crawler and App Review follows through the one hop without complaint.

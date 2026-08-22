@@ -1,0 +1,15 @@
+# Cloudflare Pages redirects. Config, not content — Pages consumes this file
+# and never serves it.
+#
+# A branded /support means the App Store listing can point at this domain
+# rather than at whatever the support channel happens to be today; changing
+# channels then becomes a commit here instead of an App Store metadata upload.
+#
+# Both spellings are listed because a rule matches the exact path: /support
+# would not catch /support/.
+#
+# GitHub Pages ignores this file, so /support resolves on vibeplayer.app only.
+# That is the canonical host, and the one the store links to.
+
+/support   https://github.com/cmicali/vibe/issues   301
+/support/  https://github.com/cmicali/vibe/issues   301

@@ -2,7 +2,7 @@
 
 A fast, minimal music player for the Mac. No third-party engine, no account, no subscription. Just a simple, fast player for your files. 
 
-**[vibeplayer.app](https://vibeplayer.app)** — website, downloads, and [privacy policy](https://vibeplayer.app/privacy/).
+**[vibeplayer.app](https://vibeplayer.app)** — website, downloads, and [privacy policy](https://vibeplayer.app/privacy).
 
 ![Vibe screenshot](Assets/screenshot-basic.png)
 
