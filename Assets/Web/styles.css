@@ -76,19 +76,39 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
   text-align: center;
 }
 
+/* Icon and wordmark are one lockup. Side by side on a phone, where vertical
+   space above the fold is the scarce thing; stacked once there is room for the
+   larger icon to carry the top of the page. */
+.brand {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+}
+
+.brand picture { display: flex; }
+
 .hero-icon {
-  width: clamp(88px, 12vw, 112px);
+  width: 62px;
   height: auto;
-  margin-inline: auto;
   border-radius: 22.5%;
-  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.7));
+  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.7));
 }
 
 .hero h1 {
-  font-size: clamp(48px, 9vw, 76px);
+  font-size: clamp(46px, 9vw, 76px);
   font-weight: 700;
   letter-spacing: -0.035em;
-  margin-top: 22px;
+}
+
+@media (min-width: 640px) {
+  .brand { flex-direction: column; gap: 0; }
+  .hero-icon {
+    width: clamp(88px, 12vw, 112px);
+    filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.7));
+  }
+  .hero h1 { margin-top: 22px; }
 }
 
 .tagline {
