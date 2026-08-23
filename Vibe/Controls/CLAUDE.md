@@ -14,9 +14,11 @@ Both `audioOutputActive` and `presentationVisible` default to NO. The poller als
 
 ## LoadingIndicator and LoadingIndicatorView
 
-`LoadingIndicator` is one control across **two styles and both modes**: a faint full-width track, a solid filled head over `[0, fraction]`, and — waveform style only — a shimmer band sweeping the unfilled remainder. Indeterminate is simply the case where nothing is filled.
+`LoadingIndicator` is one control across **two styles and both modes**: a faint track across the bounds it is given, a solid filled head over `[0, fraction]`, and — waveform style only — a shimmer band sweeping the unfilled remainder. Indeterminate is simply the case where nothing is filled.
 
-The **waveform style** is the hairline midline both waveform views draw; they own *when* to show it, and `WaveformUI/CLAUDE.md` keeps its traps.
+**`layoutInBounds:` honors the origin, not just the size.** Two of the three sites hand it their full bounds, so for them it reads as it always did; the iOS scrubber hands it the span its track's *content* occupies, because there the playhead is pinned at the view's center and a track at its start covers only the right half (`WaveformUI/iOS/CLAUDE.md`).
+
+The **waveform style** is the hairline midline both waveform views draw; they own *when* to show it and how wide, and `WaveformUI/CLAUDE.md` keeps its traps.
 
 The **row style** is a small round-ended pill for the 16pt number gutter, and **it builds no shimmer at all** (`hasShimmer`). A 16pt gutter has no room for a sweep to read as motion rather than flicker, so its indeterminate motion is a slow whole-pill alpha pulse (`pulseAlpha`) instead — a provider's transfer can sit indeterminate for a long time before its first real fraction, and a static pill there reads as a bar stuck at zero.
 

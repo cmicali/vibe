@@ -182,11 +182,18 @@ static const CFTimeInterval kPulseHalfPeriod = 0.9;
 // duration > 0 eases the parts that track the download's progress; the rest is
 // always instant. Resize and state changes pass 0.
 //
+// The ORIGIN is honored, not just the size: the iOS scrubber hands this the
+// span the track's own content occupies rather than its whole width, since
+// there the playhead is pinned at the view's center and a track at its start
+// covers only the right half. The other two sites pass their full bounds, so
+// for them minX is 0 and this reads exactly as it did.
+//
 // Every layer here may legitimately be nil: endSweepKeepingFill leaves only
 // the fill behind, and messages to nil no-op, so this places whatever is left.
 - (void)layoutInBounds:(CGRect)bounds animatedOver:(CFTimeInterval)duration {
     CGFloat width = bounds.size.width;
-    CGFloat midY = bounds.size.height / 2;
+    CGFloat minX = bounds.origin.x;
+    CGFloat midY = CGRectGetMidY(bounds);
     VibeLoadingIndicatorMetrics metrics = VibeLoadingIndicatorMetricsForStyle(_style, width);
     // The shimmer sweeps the *unfilled* remainder only: it is the "still
     // working on this part" half of one control, and the fill is the "this
@@ -215,10 +222,10 @@ static const CFTimeInterval kPulseHalfPeriod = 0.9;
         // the edge rather than as a soft edge.
         CGFloat fade = MIN(metrics.frontFadePoints, remainder);
         _fill.locations = @[ @0, @(MAX(0.0, (fillEnd - fade) / fillEnd)), @1 ];
-        _fill.frame = CGRectMake(0, midY - metrics.height / 2, fillEnd, metrics.height);
+        _fill.frame = CGRectMake(minX, midY - metrics.height / 2, fillEnd, metrics.height);
         _fill.cornerRadius = metrics.cornerRadius;
     }
-    _shimmerClip.frame = CGRectMake(fillEnd, midY - metrics.height / 2,
+    _shimmerClip.frame = CGRectMake(minX + fillEnd, midY - metrics.height / 2,
                                     remainder, metrics.height);
     _shimmerClip.cornerRadius = metrics.cornerRadius;
     [CATransaction commit];
@@ -232,7 +239,7 @@ static const CFTimeInterval kPulseHalfPeriod = 0.9;
     // Near completion there is no room left to sweep, so the band fades out
     // rather than jittering in a sliver.
     _shimmer.opacity = (float)MIN(1.0, remainder / MAX(width * 0.08, 1));
-    _track.frame = CGRectMake(0, midY - metrics.height / 2, width, metrics.height);
+    _track.frame = CGRectMake(minX, midY - metrics.height / 2, width, metrics.height);
     _track.cornerRadius = metrics.cornerRadius;
     [CATransaction commit];
 

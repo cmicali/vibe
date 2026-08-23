@@ -10,13 +10,13 @@
 //  copy kept an older shimmer with a separate un-eased bar bolted on.
 //
 //  IT IS ONE CONTROL ACROSS TWO STYLES AND BOTH MODES, not a shimmer with a
-//  progress bar added: a faint full-width track, a solid filled head over
-//  [0, fraction] whose last few points fade out, and the shimmer band sweeping
-//  ONLY the unfilled remainder. Indeterminate is simply the case where nothing
-//  is filled, so the sweep spans the whole width. That is why every part of it
-//  is placed by layoutInBounds:animatedOver: and nowhere else, and why a
-//  negative fraction reverts cleanly. The style changes metrics, not
-//  structure — LoadingIndicatorMath.h.
+//  progress bar added: a faint track across the bounds it is given, a solid
+//  filled head over [0, fraction] whose last few points fade out, and the
+//  shimmer band sweeping ONLY the unfilled remainder. Indeterminate is simply
+//  the case where nothing is filled, so the sweep spans the whole track. That
+//  is why every part of it is placed by layoutInBounds:animatedOver: and
+//  nowhere else, and why a negative fraction reverts cleanly. The style changes
+//  metrics, not structure — LoadingIndicatorMath.h.
 //
 //  Main thread only, like the views that own it.
 //
@@ -52,8 +52,10 @@ NS_ASSUME_NONNULL_BEGIN
 // whole control.
 - (BOOL)endSweepKeepingFill;
 
-// Places the whole control for these bounds. Pass 0 for a resize or a state
-// change; setProgress: passes its own ease.
+// Places the whole control for these bounds, ORIGIN INCLUDED — the iOS
+// scrubber gives it the span its track's content occupies rather than the
+// view's whole width. Pass 0 for a resize or a state change; setProgress:
+// passes its own ease.
 - (void)layoutInBounds:(CGRect)bounds;
 
 // Determinate download progress: the track fills from the left as the

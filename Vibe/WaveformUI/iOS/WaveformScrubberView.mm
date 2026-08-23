@@ -93,6 +93,9 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     // determinate fill and the sweep's traps all live there. Nil when no load
     // is showing.
     LoadingIndicator *_loadingIndicator;
+    // The span it was last placed across, so a progress write that does not
+    // move it costs nothing. Meaningless while _loadingIndicator is nil.
+    CGRect            _loadingTrackBounds;
     // The scrub-tick haptic and the last virtual-x bucket that fired it.
     UIImpactFeedbackGenerator *_scrubHaptics;
     NSInteger               _lastTickBucket;
@@ -425,6 +428,7 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 - (void)applyScrollAndProgress {
     [self syncContentOffsetToProgress];
     [self applyPlayedClip];
+    [self syncLoadingTrackToProgress];
 }
 
 // Playback's writes move the scroll; the finger's do not get overwritten.
@@ -840,8 +844,52 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     [self layoutLoadingLayer];
 }
 
+// The span the TRACK's own content occupies, which is not the view's width.
+// The playhead is pinned at the center and the content scrolls under it, so a
+// track at its start begins at the center and runs off the right edge — and
+// the loading line drawn across the whole view put half of itself in the empty
+// space beside the track, which is exactly the stray line the off-track midline
+// hairlines were removed for. Falls back to the full bounds before layout, when
+// there is no virtual width to derive anything from.
+- (CGRect)loadingTrackBounds {
+    CGFloat width = self.bounds.size.width;
+    CGFloat virtualWidth = [self virtualWidth];
+    if (virtualWidth <= 0) {
+        return self.bounds;
+    }
+    CGFloat centerX = width / 2;
+    CGFloat progress = MAX(0.0, MIN(1.0, _progress));
+    CGFloat left = MAX(0.0, centerX - progress * virtualWidth);
+    CGFloat right = MIN(width, centerX + (1 - progress) * virtualWidth);
+    if (right <= left) {
+        return self.bounds;
+    }
+    return CGRectMake(left, 0, right - left, self.bounds.size.height);
+}
+
 - (void)layoutLoadingLayer {
-    [_loadingIndicator layoutInBounds:self.bounds];
+    _loadingTrackBounds = [self loadingTrackBounds];
+    [_loadingIndicator layoutInBounds:_loadingTrackBounds];
+}
+
+// The span moves with the playhead, because what it marks is where the
+// waveform WILL be drawn: showLoadingIndicator always runs against progress 0
+// (resetWaveformContentState puts it there), so a page swiped back onto the
+// PLAYING track would otherwise keep a half-width line while the shell's next
+// tick restores the real position and the content spreads out under it.
+//
+// TRAP: this is the one relayout that can land mid-download. A determinate
+// fill is easing between provider samples, and a duration-0 relayout snaps it
+// to its target. In practice the two do not overlap — the fill exists while
+// the provider is still materializing the file, which is before the audio has
+// opened, so progress is parked at 0 and the rect test below declines — and
+// the rect test is what keeps it that way. Do not drop it for an unconditional
+// relayout.
+- (void)syncLoadingTrackToProgress {
+    if (!_loadingIndicator || CGRectEqualToRect([self loadingTrackBounds], _loadingTrackBounds)) {
+        return;
+    }
+    [self layoutLoadingLayer];
 }
 
 // Data arrival ends the shimmer but deliberately NOT the download fill: a
@@ -863,7 +911,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 // today the allocated-size monitor. The control owns the easing and the
 // indeterminate revert; see LoadingIndicator.
 - (void)setLoadingProgress:(float)fraction {
-    [_loadingIndicator setProgress:fraction inBounds:self.bounds];
+    _loadingTrackBounds = [self loadingTrackBounds];
+    [_loadingIndicator setProgress:fraction inBounds:_loadingTrackBounds];
 }
 
 #pragma mark - Touch scrubbing
