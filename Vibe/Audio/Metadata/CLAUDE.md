@@ -111,4 +111,4 @@ The entry history is a bounded MRU: 4,096 directories, trimmed in one background
 
 **TRAP: neither normal invalidation is a full wipe.** `folderArtSettingDidChange` preserves discovery answers while dropping decoded images. `invalidateDirectoriesSettledWithoutGrant` forgets unresolved no-grant answers and re-arms known paths whose reads were access-blocked; it preserves every discovered cover path. Full `invalidate` is test/diagnostic surface only.
 
-**TRAP: the resolver caches `AppSettings.useFolderArt`.** Both writers must go through `MainPlayerController.refreshFolderArt`, which calls `folderArtSettingDidChange`; a direct defaults write is not observed.
+**TRAP: the resolver caches `AppSettings.useFolderArt`.** Both in-process writers must request `VibeSettingsLiveEffectFolderArt`, whose mapping calls `folderArtSettingDidChange`; a direct defaults write is not observed.

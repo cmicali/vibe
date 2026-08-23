@@ -10,6 +10,8 @@ Around that sit a full-size content view and a unified toolbar carrying exactly 
 
 The *store* is `AppSettings` (`Vibe/Common/`); this directory is only the window. `DefaultAppRegistration` also lives here, because it is the AppKit/Launch Services half of `Common/DocumentTypes`.
 
+**A store-first setting write that must change the running app has one post-write path:** store the value, then request the exact `VibeSettingsLiveEffect` from `MainPlayerController+Settings`. The mapping runs synchronously on main and only applies already-stored state; it never writes a setting or changes window geometry. Settings read at the next gesture or operation request no effect. The Audio FX graph remains a launch-time choice, while `FXControls` clears active effects and withdraws its menu and keys immediately when switched off. Factory Reset requests `All`, then restores window shape separately because that action persists its own state and frame.
+
 ## Pane scaffolding
 
 One pane per `SettingsPaneViewController` subclass, one file each, on shared scaffolding in the base class: the pane size, the grouped section stack, and the switch factory. A pane builds `SettingsSectionView`s of `SettingsRowView`s (`SettingsFormViews.h`) — the System Settings grouped form: rounded cards of hairline-separated rows, title (and optional caption) leading, controls trailing, an optional header above a card. Boolean rows use `NSSwitch` via the base's `switchWithAction:`, which reads and writes exactly like the checkbox it replaced. **The debug walker keys off these classes** — a row's title is the addressing label for the controls beside it, a section header inherits down to untitled rows — so a pane built from anything else loses `settings_click`'s by-name addressing. The row strips a trailing colon from its title at display time (`NSString+FormLabel`, shared with the iOS screens), which is what lets the labels keep their form-era localized values.
@@ -48,33 +50,33 @@ Seven panes, in sidebar order. Each is listed by what it holds and, where a row 
 ### General
 
 - **Output** popup — mirrors the menu bar's Output menu by using its own `OutputDevicesMenuController` instance as the popup menu's delegate and builder, so the two layouts cannot drift.
-- **Always on top** switch — writes `AppSettings.alwaysOnTop`, then calls `MainPlayerController.applyAlwaysOnTop`. That is the one place window levels are pushed: the player's, and through `AppDelegate.applyAuxiliaryWindowLevels` the About and Settings windows' too, which must ride at the player's level or a floating player would bury them.
-- **Waveform drag** (`waveformDragBehavior`, identifiers `drag_window` and `seek`) above **Artwork drag** (`artworkDragAction`, identifiers `copy_file`, `copy_path`, `copy_artist_title`) — **the two rows with no live-apply hook**, because each view reads the setting per gesture: the waveform per mouse-down (`WaveformUI/Mac/CLAUDE.md`), the art view per drag start (`Mac/Controls/CLAUDE.md`). The waveform label string keeps its historical `settings.appearance` key.
+- **Always on top** switch — writes `AppSettings.alwaysOnTop`, then requests `AlwaysOnTop`. That effect pushes the player's window level and, through `AppDelegate.applyAuxiliaryWindowLevels`, the About and Settings windows' too, which must ride at the player's level or a floating player would bury them.
+- **Waveform drag** (`waveformDragBehavior`, identifiers `drag_window` and `seek`) above **Artwork drag** (`artworkDragAction`, identifiers `copy_file`, `copy_path`, `copy_artist_title`) — **the two rows with no live effect**, because each view reads the setting per gesture: the waveform per mouse-down (`WaveformUI/Mac/CLAUDE.md`), the art view per drag start (`Mac/Controls/CLAUDE.md`). The waveform label string keeps its historical `settings.appearance` key.
 - **Default music player** (`settings.general.default_player*`) — the button reads "Set Vibe as default", or "Vibe is the default" and disabled once every type is held. `DefaultAppRegistration` claims each declared audio type **one at a time**: every request can raise its own system confirmation panel, and a refusal stops the walk. There is no alert of our own — the system's panel is the whole conversation and the button reports the result. **The folder declaration is excluded on purpose: Vibe must never become the default folder handler.**
 
 ### Playback
 
-- **On track end** (`pauseAtTrackEnd`, identifiers `play_next` and `pause` on `representedObject`). **TRAP: the pane must call `MainPlayerController.applyEndOfTrackAction` after writing it.** That call re-parks or drops the player's successor handle; without it a mid-track switch to Pause leaves an armed gapless splice that advances past the end anyway.
-- **Pitch range**, the **skip-step presets** (`skipBaseBars`), and the **crossfade length**, pushed live to `AudioPlayer.crossfadeMilliseconds`.
-- **Audio FX** (`audioFXEnabled`) — read once at player init, which is why the caption says it lands on relaunch.
+- **On track end** (`pauseAtTrackEnd`, identifiers `play_next` and `pause` on `representedObject`). **TRAP: the pane must request `EndOfTrack` after writing it.** That effect re-parks or drops the player's successor handle; without it a mid-track switch to Pause leaves an armed gapless splice that advances past the end anyway.
+- **Pitch range** and the **crossfade length** request their live effects. The **skip-step presets** (`skipBaseBars`) are read at the next skip.
+- **Audio FX** (`audioFXEnabled`) requests `FXControls`. Switching off clears all five active effect states before hiding the FX menu and disabling Q/W/E/R/T. The graph itself is still chosen once at player init: a run launched with one can hide and restore its controls, while a run launched without one shows the relaunch caption and cannot expose controls until the next launch.
 - **The BPM and key analysis toggles.** **How a key is *written* is Appearance's business; this pane only decides whether it is detected.**
 
 ### Appearance
 
 A **Window** group first, under the same `settings.general.window_section` heading the General pane uses:
 
-- the **appearance** choice, and the **window tint** (`windowTint`, identifiers `mono`/`artwork`/`custom` on `representedObject`, default `artwork`; `refreshWindowTint` is the write path). Its row is titled just **Window**, the group naming what it tints. It governs the **header wash alone** — the dock icon and the `album_art` waveform theme read the same art color and are untouched (`MainWindow/APPEARANCE.md`).
+- the **appearance** choice, and the **window tint** (`windowTint`, identifiers `mono`/`artwork`/`custom` on `representedObject`, default `artwork`). Its row is titled just **Window**, the group naming what it tints. It governs the **header wash alone** — the dock icon and the `album_art` waveform theme read the same art color and are untouched (`MainWindow/APPEARANCE.md`).
 - its **one custom well per appearance**, in two rows built always and hidden unless the tint is `custom`, seeded from their displayed fallbacks when Custom is chosen. Same shape as the waveform theme's wells below, with one well instead of a pair.
 
-Then the display rows, all pushing live through their own `refresh*` hooks: **waveform style** (identifiers on `representedObject`, localized names display-only), **waveform theme** (same convention; `applyWaveformTheme:` is the write path), **Show file info**, the **time-display mode**, **Show BPM**, **Show key**, and the two key-label choices — notation (`keyNotation`) and `keyColorsEnabled`.
+Then the display rows: **waveform style** and **waveform theme** each request their named effect; **Show file info**, the **time-display mode**, **Show BPM**, **Show key**, notation (`keyNotation`) and `keyColorsEnabled` share the `TrackDisplay` effect. Popup identifiers live on `representedObject`; localized names are display-only.
 
 - **Both key choices govern every key shown, a tagged one included**, since a tag is parsed to a `VibeMusicalKey` when read and never displayed as written.
-- **The custom theme's four wells** — a played/unplayed pair per appearance, alpha included, since a color's alpha is its side's resting level — sit in two rows built always and hidden unless the theme is `custom`. A well's action writes the hex setting and calls `refreshWaveformTheme`; choosing Custom seeds any unset color from the wells' displayed fallbacks, so the waveform immediately matches them.
+- **The custom theme's four wells** — a played/unplayed pair per appearance, alpha included, since a color's alpha is its side's resting level — sit in two rows built always and hidden unless the theme is `custom`. A well's action writes the hex setting and requests `WaveformTheme`; choosing Custom seeds any unset color from the wells' displayed fallbacks, so the waveform immediately matches them.
 - **Show BPM** (`AppSettings.showBPM`, default on) and **Show key** (`AppSettings.showKey`, default on) each blank their own half of the header's BPM/key readout when off, leaving detection, tags and the delay's BPM-synced taps untouched. Show key additionally dims the notation and key-color rows below it, which then have nothing to govern; Show BPM governs nothing but itself, so it dims nothing.
 
 ### Convert
 
-- **Enabled** (`AppSettings.convertEnabled`, default on). Off hides the whole feature, live: the menu bar's Convert menu through `MainMenuBuilder.applyConvertMenuVisibility`, the context menus' shared item through its validation branch (`Mac/Menu/CLAUDE.md`). It also dims this pane's other rows.
+- **Enabled** (`AppSettings.convertEnabled`, default on). Off requests `ConvertMenu`: the menu bar's Convert menu is hidden in place, and the context menus' shared item follows through its validation branch (`Mac/Menu/CLAUDE.md`). It also dims this pane's other rows.
 - **`convertAsksWhereToSave`** and **Delete Original After Convert**, the latter the same setting as the Convert menu's checkmarked item.
 
 ### Files
@@ -83,10 +85,10 @@ The folder-open-order popup, the Album art popup and the granted-folder list —
 
 ### Advanced
 
-- **Playhead refresh cap** (`uiUpdateHzCap`) — the pane calls `syncUITimerRate`, the public live-apply hook, since otherwise only a track start or a resize would recompute the rate.
+- **Playhead refresh cap** (`uiUpdateHzCap`) — the pane requests `UIUpdateRate`, since otherwise only a track start or a resize would recompute the rate.
 - **Cache size** — both stores summed, generation-guarded so a stale reply cannot land after a clear — with the **Clear Cache** button.
-- **Factory reset**, below it. `AppSettings.resetToDefaults` clears only that store; bookmarks, stats and window frames belong to other objects. The pane then runs the same live-apply hooks the panes' own write paths use and reloads every pane. Enabled only while some setting differs from its default (`VibeSettingsAreAtDefaults`, `SettingsRules.h`).
-  - **TRAP: the two window-shape settings are cleared with everything else, and no pane shows them.** The reset must also call `MainWindow.resetToDefaultShape` — the live half, which closes both panes and restores the shipping size. Without it the window keeps a shape the store no longer agrees with, and snaps at the next launch.
+- **Factory reset**, below it. `AppSettings.resetToDefaults` clears only that store; bookmarks, stats and window frames belong to other objects. The pane requests `All`, restores window shape separately, and reloads every pane. Enabled only while some setting differs from its default (`VibeSettingsAreAtDefaults`, `SettingsRules.h`).
+  - **TRAP: the two window-shape settings are cleared with everything else, and no pane shows them.** The reset must call `MainWindow.resetToDefaultShape` after `All`; shape is separate because resetting it writes the two settings and saves the frame. Without it the window keeps a shape the store no longer agrees with, and snaps at the next launch.
 - The **Build** group: version, the git revision (`NSBundle+BuildInfo`'s `vibeGitString`), the running language, and one flag per shipped `.lproj`. The list is read **from the bundle, not the catalog**, so the row cannot drift from what the build actually contains. A language's flag comes from its identifier's region where it carries one (`pt-BR`), else from a fixed language-to-region table; an unmapped language falls back to its code.
 
 ### About
@@ -101,9 +103,9 @@ The folder-open-order popup, the Album art popup and the granted-folder list —
 
 What opening a folder does, and the grants that let it.
 
-**When opening a folder** — `AppSettings.folderOpenSort`, with the `VibeFolderOpenSort` itself on `representedObject` rather than a stable string, since `FolderOpenSort.h`'s identifiers are the store's business and this popup never persists one. Alone among the panes' popups it has **no live-apply hook and needs none**: the order governs the *next* open, and re-sorting the playlist on screen would throw away one the user may have built by hand. Both shells read it at open time and hand it to the walk, which reads no setting itself — `Util/CLAUDE.md`. The channel sets it with `set_folder_sort`, a shared verb, since the pane cannot be driven from a test that then opens something.
+**When opening a folder** — `AppSettings.folderOpenSort`, with the `VibeFolderOpenSort` itself on `representedObject` rather than a stable string, since `FolderOpenSort.h`'s identifiers are the store's business and this popup never persists one. Alone among the panes' popups it has **no live effect and needs none**: the order governs the *next* open, and re-sorting the playlist on screen would throw away one the user may have built by hand. Both shells read it at open time and hand it to the walk, which reads no setting itself — `Util/CLAUDE.md`. The channel sets it with `set_folder_sort`, a shared verb, since the pane cannot be driven from a test that then opens something.
 
-**Album art** — `AppSettings.useFolderArt`, with stable identifiers (`file_only`, `file_then_folder`) on `representedObject`. **TRAP: the pane must call `MainPlayerController.refreshFolderArt` after writing it** — not merely to redraw. The resolver caches that setting because it gates every accessor on every cell draw, and that call is the one thing that drops the cache, so a write without it is not observed at all. What the resolver has *settled* survives deliberately; see `Audio/Metadata/CLAUDE.md`.
+**Album art** — `AppSettings.useFolderArt`, with stable identifiers (`file_only`, `file_then_folder`) on `representedObject`. **TRAP: the pane must request `FolderArt` after writing it** — not merely to redraw. The resolver caches that setting because it gates every accessor on every cell draw, and that effect is the one thing that drops the cache, so a write without it is not observed at all. What the resolver has *settled* survives deliberately; see `Audio/Metadata/CLAUDE.md`.
 
 **Granted folders**, over `FolderAccessManager` (`Mac/App/`). Every folder the user opens, drags onto the app, or adds through Add Folder is stored as an app-scoped security bookmark (`com.apple.security.files.bookmarks.app-scope`) and re-opened on the next launch. **Stored rows are visible immediately but do not authorize background reads until bookmark restoration has started the security scope**, which is why a row carries a `VibeGrantedFolderState` and the pane dims an unavailable one and appends "(Unavailable)".
 

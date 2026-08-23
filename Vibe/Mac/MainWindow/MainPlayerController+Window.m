@@ -5,6 +5,7 @@
 
 #import "MainPlayerController+Window.h"
 #import "MainPlayerControllerInternal.h"
+#import "MainPlayerController+Settings.h"
 
 #import "AppDelegate.h"
 #import "AppSettings.h"
@@ -250,7 +251,7 @@
 
 - (IBAction) toggleAlwaysOnTop:(id)sender {
     AppSettings.sharedInstance.alwaysOnTop = !AppSettings.sharedInstance.alwaysOnTop;
-    [self applyAlwaysOnTop];
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectAlwaysOnTop];
 }
 
 - (void)applyAlwaysOnTop {
@@ -259,19 +260,24 @@
     [(AppDelegate *)NSApp.delegate applyAuxiliaryWindowLevels];
 }
 
-- (IBAction) setAppearance:(id)sender {
-    if([sender isKindOfClass:[NSMenuItem class]]) {
-        NSMenuItem *item = sender;
-        if ([item.identifier isEqualToString:@"view_appearance_light"]) {
-            AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
-        }
-        else if ([item.identifier isEqualToString:@"view_appearance_dark"]) {
-            AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK;
-        }
-        else {
-            AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
-        }
+- (IBAction)setAppearance:(id)sender {
+    if (![sender isKindOfClass:NSMenuItem.class]) {
+        return;
     }
+    NSMenuItem *item = sender;
+    if ([item.identifier isEqualToString:@"view_appearance_light"]) {
+        AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
+    }
+    else if ([item.identifier isEqualToString:@"view_appearance_dark"]) {
+        AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK;
+    }
+    else {
+        AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
+    }
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
+}
+
+- (void)applyStoredAppearance {
     self.window.appearance = AppSettings.sharedInstance.windowAppearance;
     [self.playlistController reloadCurrentTrack];
 }

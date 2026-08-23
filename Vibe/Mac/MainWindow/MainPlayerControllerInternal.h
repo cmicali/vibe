@@ -137,6 +137,16 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable AudioTrack *)displayedTrackForState:(TrackDisplayState)state
                                           track:(nullable AudioTrack *)track;
 
+#pragma mark - Settings live effects
+
+// Settings-effect implementations kept internal to MainPlayerController.
+// Pitch range and timer rate also have non-setting callers.
+- (void)applyPitchRange;
+- (void)applyEndOfTrackAction;
+- (void)syncUITimerRate;
+- (void)refreshFolderArt;
+- (void)refreshWindowTint;
+
 #pragma mark - The update timer
 
 - (void)pauseUIUpdateTimer;

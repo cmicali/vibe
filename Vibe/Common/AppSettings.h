@@ -106,8 +106,8 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // Settings > Advanced > Factory reset. Covers every AppSettings key
 // and nothing else — granted-folder bookmarks, stats and window frames are
 // other objects' stores. Resetting only clears the store; the caller owns the
-// live-apply, exactly as a pane writing one setting does, and window shape is
-// part of that apply (MainWindow.resetToDefaultShape).
+// running-app effects and restores window shape separately, since that action
+// writes geometry and its own settings.
 - (BOOL)allSettingsAtDefaults;
 - (void)resetToDefaults;
 
@@ -159,8 +159,8 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // The window header's color wash — see the SETTINGS_VALUE_WINDOW_TINT_*
 // identifiers above. Normalized on read: an unknown stored value reads as
 // artwork. ArtworkDisplayController's refreshHeaderTint is the one place that
-// resolves it, and a writer must call MainPlayerController.refreshWindowTint
-// to fade the wash across.
+// resolves it; a writer requests VibeSettingsLiveEffectWindowTint to fade the
+// wash across.
 - (NSString *)windowTint;
 - (void)setWindowTint:(NSString *)identifier;
 
@@ -179,8 +179,8 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 
 // YES keeps the player window above every other app's windows
 // (NSFloatingWindowLevel). View > Always on Top and Settings > General share
-// this setting; MainPlayerController's applyAlwaysOnTop is the one place that
-// acts on it.
+// this setting; VibeSettingsLiveEffectAlwaysOnTop is the shared post-write
+// path that acts on it.
 - (BOOL)alwaysOnTop;
 - (void)setAlwaysOnTop:(BOOL)onTop;
 
@@ -193,7 +193,7 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // YES, the default, shows the header's file-format readout (codec, bitrate,
 // sample rate) and the BPM/key line. View > Show File Info and Settings >
 // Appearance share this setting; TrackDisplayController reads it at render
-// time, and MainPlayerController's refreshFileInfoDisplay repaints a toggle.
+// time, and VibeSettingsLiveEffectTrackDisplay repaints a toggle.
 - (BOOL)showFileInfo;
 - (void)setShowFileInfo:(BOOL)show;
 
@@ -232,17 +232,17 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (void)setSkipBaseBars:(NSInteger)bars;
 
 // Track-change crossfade length: 10 (instant, the declick minimum), 500 or
-// 2000. Applied to AudioPlayer.crossfadeMilliseconds by whoever writes it;
-// pause, seek and stop declicks never scale with it.
+// 2000. VibeSettingsLiveEffectCrossfade pushes it to AudioPlayer; pause, seek
+// and stop declicks never scale with it.
 - (NSInteger)crossfadeMilliseconds;
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds;
 
 // Settings > Playback > On track end. NO, the default, plays the next track
 // in the playlist when one ends; YES parks on the finished track exactly as
-// the end of the playlist does. It is enforced in one place — the successor prefetch,
-// which is also the player's gapless arm point (MainPlayerController's
-// successorPrefetchTrack) — so a writer must call
-// MainPlayerController.applyEndOfTrackAction to re-park or drop the handle.
+// the end of the playlist does. It is enforced in one place — the successor
+// prefetch, which is also the player's gapless arm point (MainPlayerController's
+// successorPrefetchTrack) — so a writer must request
+// VibeSettingsLiveEffectEndOfTrack to re-park or drop the handle.
 - (BOOL)pauseAtTrackEnd;
 - (void)setPauseAtTrackEnd:(BOOL)pause;
 
@@ -258,9 +258,10 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // NO keeps the DJ performance-FX graph segment — low kill, reverb and delay
 // returns — out of the audio engine entirely: AudioPlayer is created with FX
 // off, fx reads nil, and the main mixer wires straight to the output. The FX
-// menu is omitted from the menu bar and the Q/W/E/R/T keys pass through
-// unhandled. Read once at launch, so a change applies on relaunch. iOS passes
-// a hard NO and never consults this; see PlayerViewController.
+// graph choice is read once at launch. When a graph exists, switching this off
+// clears every active effect and withdraws its macOS menu and Q/W/E/R/T controls
+// immediately; without one the controls remain absent until relaunch. iOS
+// passes a hard NO and never consults this; see PlayerViewController.
 - (BOOL)audioFXEnabled;
 - (void)setAudioFXEnabled:(BOOL)enabled;
 
@@ -313,11 +314,10 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 
 // YES lets a file with no art of its own show a cover image sitting beside it —
 // cover.jpg and its cousins; see FolderArtResolver, which reads this. Default on,
-// and it never overrides a file's own art. **Whoever writes it must then call
-// MainPlayerController.refreshFolderArt**: the resolver caches this value,
-// since it gates every accessor on every cell draw, and only that call drops
-// the cached copy — so a write without it is not observed at all. Reading a
-// sibling file needs a folder grant, which is why Settings > Files holds both
+// and it never overrides a file's own art. **Whoever writes it must then request
+// VibeSettingsLiveEffectFolderArt**: the resolver caches this value, and that
+// effect drops the cached copy — so a write without it is not observed at all.
+// Reading a sibling file needs a folder grant, which is why Settings > Files holds both
 // this and the grants. Folder art is macOS-only; iOS leaves AudioTrackArtwork's
 // resolver handle nil and shows embedded art alone.
 - (BOOL)useFolderArt;

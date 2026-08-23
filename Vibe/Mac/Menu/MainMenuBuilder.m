@@ -84,6 +84,24 @@ static NSMenuItem *AddSymbolItem(NSMenu *parent, NSString *title, NSString *symb
     return item;
 }
 
+static NSMenuItem *AddFXItem(NSMenu *parent, NSString *title, NSString *symbolName, SEL action,
+                             id target, NSString *key, NSString *identifier) {
+    NSMenuItem *item = AddSymbolItem(parent, title, symbolName, action, target, key, 0, identifier);
+    // Keep the intended shortcut while the live setting clears keyEquivalent.
+    // AppKit still matches descendants of a hidden top-level menu.
+    item.representedObject = key;
+    return item;
+}
+
+static NSMenuItem *TopLevelMenuItemWithIdentifier(NSString *identifier) {
+    for (NSMenuItem *item in NSApp.mainMenu.itemArray) {
+        if ([item.identifier isEqualToString:identifier]) {
+            return item;
+        }
+    }
+    return nil;
+}
+
 static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenuItem *item = [NSMenuItem separatorItem];
     [parent addItem:item];
@@ -266,20 +284,22 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // T, at mask 0. As with the skip keys, the equivalents here are for
     // display and as the fallback path. TransportKeyMonitor actually handles
     // the presses, and it alone can tell a tap, which latches like these
-    // toggles, from a hold, which is momentary. They are always enabled,
-    // because they are deck controls that persist across tracks and apply to
-    // whatever is playing or starts to play. Validation shows each one's state
-    // as a checkmark. With FX disabled (Settings > Playback, read at launch)
-    // the whole menu is omitted — fx is nil for this run, and the key monitor
-    // passes Q/W/E/R/T through for the same reason.
+    // toggles, from a hold, which is momentary. While exposed, they stay
+    // enabled because they are deck controls that persist across tracks and
+    // apply to whatever is playing or starts to play. Validation shows each
+    // one's state as a checkmark. The graph is a launch-time choice; when one
+    // exists, the stored setting can still hide these controls immediately.
     if (player.audioPlayer.fx) {
-        NSMenu *fxMenu = Submenu(mainMenu, STR_MENU_FX).submenu;
-        AddSymbolItem(fxMenu, STR_MENU_FX_LOW_KILL, @"dial.min", @selector(toggleLowKill:), player, @"q", 0, @"menu_fx_low_kill");
-        AddSymbolItem(fxMenu, STR_MENU_FX_LOW_KILL_BOOST, @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"w", 0, @"menu_fx_low_kill_boost");
+        NSMenuItem *fxItem = Submenu(mainMenu, STR_MENU_FX);
+        fxItem.identifier = @"menu_fx";
+        NSMenu *fxMenu = fxItem.submenu;
+        AddFXItem(fxMenu, STR_MENU_FX_LOW_KILL, @"dial.min", @selector(toggleLowKill:), player, @"q", @"menu_fx_low_kill");
+        AddFXItem(fxMenu, STR_MENU_FX_LOW_KILL_BOOST, @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"w", @"menu_fx_low_kill_boost");
         AddSeparator(fxMenu);
-        AddSymbolItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"e", 0, @"menu_fx_reverb");
-        AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_8, @"repeat", @selector(toggleDelaySend:), player, @"r", 0, @"menu_fx_delay");
-        AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_16, @"repeat.circle", @selector(toggleShortDelaySend:), player, @"t", 0, @"menu_fx_short_delay");
+        AddFXItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"e", @"menu_fx_reverb");
+        AddFXItem(fxMenu, STR_MENU_FX_DELAY_8, @"repeat", @selector(toggleDelaySend:), player, @"r", @"menu_fx_delay");
+        AddFXItem(fxMenu, STR_MENU_FX_DELAY_16, @"repeat.circle", @selector(toggleShortDelaySend:), player, @"t", @"menu_fx_short_delay");
+        [self applyFXMenuVisibility:fxItem];
     }
 }
 
@@ -316,10 +336,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 }
 
 + (void)buildConvertMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
-    // Convert. Unlike the FX menu, which is omitted at build because the
-    // engine reads its setting once at launch, this menu is always built and
-    // hidden in place: Settings > Convert > Enabled applies live through
-    // applyConvertMenuVisibility.
+    // Convert is always built and hidden in place by its settings effect.
     NSMenuItem *convertItem = Submenu(mainMenu, STR_MENU_CONVERT);
     convertItem.identifier = @"menu_convert";
     NSMenu *convertMenu = convertItem.submenu;
@@ -332,20 +349,34 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     [self applyConvertMenuVisibility:convertItem];
 }
 
-// The live-apply hook for AppSettings.convertEnabled: the Settings pane calls
-// it after writing, and the build above seeds the initial state through the
-// one-item variant. The context menus' shared Convert to FLAC item hides
-// through validation instead (MainPlayerController+Menus).
+// The ConvertMenu settings effect calls this after a write, and the build
+// above seeds the initial state through the one-item variant. The context
+// menus' shared Convert to FLAC item hides through validation instead.
 + (void)applyConvertMenuVisibility {
-    for (NSMenuItem *item in NSApp.mainMenu.itemArray) {
-        if ([item.identifier isEqualToString:@"menu_convert"]) {
-            [self applyConvertMenuVisibility:item];
-        }
-    }
+    [self applyConvertMenuVisibility:TopLevelMenuItemWithIdentifier(@"menu_convert")];
 }
 
 + (void)applyConvertMenuVisibility:(NSMenuItem *)convertItem {
     convertItem.hidden = !AppSettings.sharedInstance.convertEnabled;
+}
+
++ (void)applyFXMenuVisibility {
+    NSMenuItem *fxItem = TopLevelMenuItemWithIdentifier(@"menu_fx");
+    if (!fxItem) {
+        return;
+    }
+    [self applyFXMenuVisibility:fxItem];
+}
+
++ (void)applyFXMenuVisibility:(NSMenuItem *)fxItem {
+    BOOL enabled = AppSettings.sharedInstance.audioFXEnabled;
+    for (NSMenuItem *item in fxItem.submenu.itemArray) {
+        NSString *intendedKey = item.representedObject;
+        if ([intendedKey isKindOfClass:NSString.class]) {
+            item.keyEquivalent = enabled ? intendedKey : @"";
+        }
+    }
+    fxItem.hidden = !enabled;
 }
 
 + (void)buildOutputMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {

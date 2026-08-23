@@ -5,13 +5,10 @@
 
 #import "SettingsAdvancedViewController.h"
 #import "AppSettings.h"
-#import "AudioPlayer.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "Formatters.h"
-#import "MainMenuBuilder.h"
-#import "MainPlayerController.h"
-#import "MainPlayerController+Menus.h"
+#import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Window.h"
 #import "NSBundle+BuildInfo.h"
 #import "VibeStrings.h"
@@ -152,32 +149,17 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 
 #pragma mark - Reset to defaults
 
-// The reset only clears the store, so this runs the same live-apply hooks the
-// panes' own write paths use; the two relaunch-applied settings (audio FX,
-// output device) land at the next launch exactly as their captions say. Every
-// pane resolves the rows the reset hid before the shared size is retaken, but
-// hidden panes defer their full refresh until selected. The window's own two
-// settings are cleared by the same pass and no pane shows them, so the window
-// is put back to its shipping shape here — without it the live window would
-// disagree with the store until the next launch, and then snap.
+// The reset only clears the store, so this applies every running-app effect;
+// the audio FX graph and output device land at the next launch exactly as
+// their captions say. Each pane resolves the rows the reset hid before the
+// shared size is retaken, but hidden panes defer their full refresh until
+// selected. The window's own two settings are cleared by the same pass and no
+// pane shows them, so the window is put back to its shipping shape separately
+// — that action writes its own state and frame.
 - (void)resetSettings:(id)sender {
     [AppSettings.sharedInstance resetToDefaults];
     MainPlayerController *player = self.playerController;
-    [player applyAlwaysOnTop];
-    [player applyPitchRange];
-    [player applyEndOfTrackAction];
-    player.audioPlayer.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
-    [player syncUITimerRate];
-    [player setAppearance:nil];
-    [player applyWaveformStyle:AppSettings.sharedInstance.waveformStyle];
-    [player refreshWaveformTheme];
-    [player refreshWindowTint];
-    [player refreshFileInfoDisplay];
-    [player refreshTimeDisplay];
-    [player refreshBPMDisplay];
-    [player refreshKeyDisplay];
-    [player refreshFolderArt];
-    [MainMenuBuilder applyConvertMenuVisibility];
+    [player applySettingsLiveEffects:VibeSettingsLiveEffectAll];
     [player resetWindowToDefaultShape];
     for (__kindof NSViewController *pane in self.parentViewController.childViewControllers) {
         if ([pane isKindOfClass:SettingsPaneViewController.class]) {
@@ -192,9 +174,7 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 
 - (void)refreshRateChanged:(id)sender {
     AppSettings.sharedInstance.uiUpdateHzCap = _refreshRatePopUp.selectedTag;
-    // The live half: the timer re-arms at once, without waiting for the next
-    // track start or resize to recompute the rate.
-    [self.playerController syncUITimerRate];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectUIUpdateRate];
 }
 
 #pragma mark - Cache

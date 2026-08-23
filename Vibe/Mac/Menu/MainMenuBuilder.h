@@ -44,10 +44,13 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSMenuItem *)copyFileItemWithTarget:(nullable id)target;
 + (NSMenuItem *)convertToFLACItemWithTarget:(nullable id)target;
 
-// The live-apply hook for AppSettings.convertEnabled: shows or hides the menu
-// bar's Convert menu in place. The build seeds the initial state; the
-// Settings > Convert pane calls this after writing the setting.
+// Shows or hides the menu bar's Convert menu in place. The build seeds the
+// initial state; the ConvertMenu settings effect calls this after a write.
 + (void)applyConvertMenuVisibility;
+
+// Shows or hides the FX menu and withdraws or restores its bare shortcuts when
+// this run has an FX graph. The graph itself remains a launch-time choice.
++ (void)applyFXMenuVisibility;
 
 @end
 

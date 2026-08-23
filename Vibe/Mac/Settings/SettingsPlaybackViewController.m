@@ -6,7 +6,7 @@
 #import "SettingsPlaybackViewController.h"
 #import "AppSettings.h"
 #import "AudioPlayer.h"
-#import "MainPlayerController.h"
+#import "MainPlayerController+Settings.h"
 #import "VibeStrings.h"
 
 static const CGFloat kPlaybackPopUpWidth = 200;
@@ -70,14 +70,17 @@ static NSString *const kOnEndPause = @"pause";
         _crossfadePopUp.lastItem.tag = kVibeCrossfadePresets[i];
     }
 
-    // The player reads this once at init, so the toggle lands on the next
-    // launch; the row's caption says so.
+    // A missing graph can only be added on the next launch. When it already
+    // exists, the switch changes the controls and their state immediately.
     _enableFXSwitch = [self switchWithAction:@selector(toggleEnableFX:)];
     _detectBPMSwitch = [self switchWithAction:@selector(toggleDetectBPM:)];
-    _detectKeySwitch = [self switchWithAction:@selector(toggleDetectKey:)];
-
     // How the key is written and colored is Appearance's business; this pane
     // only decides whether it is detected at all.
+    _detectKeySwitch = [self switchWithAction:@selector(toggleDetectKey:)];
+
+    NSString *fxCaption = self.playerController.audioPlayer.fx
+            ? nil
+            : [NSString stringWithFormat:STR_SETTINGS_ENABLE_FX_RESTART, VibeAppName()];
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithRows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_ON_END_LABEL control:_onEndPopUp],
@@ -87,7 +90,7 @@ static NSString *const kOnEndPause = @"pause";
         ]],
         [SettingsSectionView sectionWithRows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_ENABLE_FX
-                                  caption:[NSString stringWithFormat:STR_SETTINGS_ENABLE_FX_RESTART, VibeAppName()]
+                                  caption:fxCaption
                                   control:_enableFXSwitch],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_ANALYSIS_SECTION rows:@[
@@ -113,15 +116,12 @@ static NSString *const kOnEndPause = @"pause";
 
 - (void)onEndChanged:(id)sender {
     AppSettings.sharedInstance.pauseAtTrackEnd = [_onEndPopUp.selectedItem.representedObject isEqual:kOnEndPause];
-    // The live half: a mid-track change must re-park or drop the successor
-    // handle, or an already-armed splice would advance past the end anyway.
-    [self.playerController applyEndOfTrackAction];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
 }
 
 - (void)pitchRangeChanged:(NSButton *)sender {
     AppSettings.sharedInstance.pitchRange = sender.tag;
-    // The live half: re-clamps the pitch and redraws the fader scale.
-    [self.playerController applyPitchRange];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectPitchRange];
 }
 
 - (void)skipStepsChanged:(id)sender {
@@ -129,13 +129,13 @@ static NSString *const kOnEndPause = @"pause";
 }
 
 - (void)crossfadeChanged:(id)sender {
-    NSInteger milliseconds = _crossfadePopUp.selectedTag;
-    AppSettings.sharedInstance.crossfadeMilliseconds = milliseconds;
-    self.playerController.audioPlayer.crossfadeMilliseconds = milliseconds;
+    AppSettings.sharedInstance.crossfadeMilliseconds = _crossfadePopUp.selectedTag;
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectCrossfade];
 }
 
 - (void)toggleEnableFX:(id)sender {
     AppSettings.sharedInstance.audioFXEnabled = (_enableFXSwitch.state == NSControlStateValueOn);
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectFXControls];
 }
 
 - (void)toggleDetectBPM:(id)sender {

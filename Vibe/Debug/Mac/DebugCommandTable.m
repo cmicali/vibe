@@ -7,6 +7,7 @@
 
 #import "DebugInternal.h"
 #import "AppSettings.h"
+#import "MainPlayerController+Settings.h"
 
 #if DEBUG
 
@@ -146,6 +147,8 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeActionCmd(@"skip_back_more", ^(MainPlayerController *controller) { [controller skipBackMore:nil]; }),
             VibeActionCmd(@"skip_back_most", ^(MainPlayerController *controller) { [controller skipBackMost:nil]; }),
             VibeActionCmd(@"toggle_pitch_panel", ^(MainPlayerController *controller) { [controller togglePitchPanel:nil]; }),
+            // Model-level FX drivers intentionally bypass audioFXEnabled; use
+            // injected key events to exercise the shipping input gates.
             VibeActionCmd(@"toggle_low_kill", ^(MainPlayerController *controller) { [controller toggleLowKill:nil]; }),
             VibeActionCmd(@"reverb_send_on", ^(MainPlayerController *controller) { [controller setReverbSendActive:YES]; }),
             VibeActionCmd(@"reverb_send_off", ^(MainPlayerController *controller) { [controller setReverbSendActive:NO]; }),
@@ -182,7 +185,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     return VibeErrorJSON(@"usage: set_folder_art <on|off>");
                 }
                 AppSettings.sharedInstance.useFolderArt = [arg isEqualToString:@"on"];
-                [controller refreshFolderArt];
+                [controller applySettingsLiveEffects:VibeSettingsLiveEffectFolderArt];
                 return VibeJSONString(@{@"ok": @YES, @"folderArt": @(AppSettings.sharedInstance.useFolderArt)});
             }),
             VibeCmd(@"set_pause_at_track_end <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
@@ -191,9 +194,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     return VibeErrorJSON(@"usage: set_pause_at_track_end <on|off>");
                 }
                 AppSettings.sharedInstance.pauseAtTrackEnd = [arg isEqualToString:@"on"];
-                // The setting's contract includes re-parking or dropping the
-                // successor already armed by the running controller.
-                [controller applyEndOfTrackAction];
+                [controller applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
                 return VibeJSONString(@{
                     @"ok": @YES,
                     @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),

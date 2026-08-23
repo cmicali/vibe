@@ -56,11 +56,11 @@ Not a guard per property. Almost everything here configures something only macOS
 
 The settings read far more often than the rest are cached in the class: `showRemainingTime`, `showFileInfo`, `showBPM`, `showKey`, `keyNotation`, `keyColorsEnabled`, `uiUpdateHzCap`. Every one of them is a macOS setting, which is why the whole cache is inside the `#if`. Main thread only.
 
-**TRAP: `NSUserDefaultsDidChangeNotification` does not fire for a write from another process**, and the debug channel's prefs verbs (`set_key_display`, `set_analysis`, `set_folder_art`) are exactly that — the CLI client writing while the app runs, as is a plain `defaults write`. Invalidating on that notification left the app reporting the old value for good. So the cache's lifetime is a run-loop turn instead: a `CFRunLoopObserver` drops it before the loop sleeps, and the setters drop it immediately (`invalidateHotCache`). A value is therefore never more than one turn stale, and no writer has to remember anything.
+**TRAP: `NSUserDefaultsDidChangeNotification` does not fire for a write from another process**, and the debug channel's prefs verbs (`set_key_display`, `set_analysis`) are exactly that — the CLI client writing while the app runs, as is a plain `defaults write`. Invalidating on that notification left the app reporting the old value for good. So the cache's lifetime is a run-loop turn instead: a `CFRunLoopObserver` drops it before the loop sleeps, and the setters drop it immediately (`invalidateHotCache`). A value is therefore never more than one turn stale, and no writer has to remember anything.
 
 The analysis flags are deliberately **not** cached — the waveform loader is handed their values once per decode through its analysis provider, which is not a hot path.
 
-`FolderArtResolver` caches its own setting for the same hot-path reason, but its cache must be dropped **by hand**: a write to `AppSettings.useFolderArt` that skips `MainPlayerController.refreshFolderArt` is not observed at all. See `Audio/Metadata/CLAUDE.md`.
+`FolderArtResolver` caches its own setting for the same hot-path reason, but its cache must be dropped **by hand**: a write to `AppSettings.useFolderArt` that skips `VibeSettingsLiveEffectFolderArt` is not observed at all. See `Audio/Metadata/CLAUDE.md`.
 
 **TRAP: a stored `NSUserDefaults` key must never follow a rename of its macro.** `SETTING_FOLDER_ART` is still `@"Audio.folderArtwork"`, predating the folder-artwork → folder-art vocabulary; changing the string would silently reset every existing user's setting to the default.
 
@@ -68,4 +68,4 @@ The analysis flags are deliberately **not** cached — the waveform loader is ha
 
 ## Where the Settings *window* lives
 
-`Vibe/Mac/Settings/`, not here. This side is the store; that side is the window. A live-apply hook — when a pane writes a setting the app must act on immediately — is a method on whatever owns the affected state, usually `MainPlayerController`, and never a notification from here.
+`Vibe/Mac/Settings/`, not here. This side is the store; that side is the window. On macOS, a store-first writer that needs immediate follow-up requests a named effect from `MainPlayerController+Settings`; that central, synchronous mapping calls the behavior owned by the affected object. It never writes settings or uses a notification.

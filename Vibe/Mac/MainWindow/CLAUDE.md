@@ -8,7 +8,7 @@
 
 ## The controller
 
-`MainPlayerController` (`NSWindowController`) is the central coordinator. Its public header exposes only collaborators, actions and `NSMenuDelegate`. What is left in `MainPlayerController.m` is the coordination: the `updateUI` funnel, display-state resolution, the open and playlist entry points, and the settings live-apply hooks. Everything else is a category:
+`MainPlayerController` (`NSWindowController`) is the central coordinator. Its public header exposes only collaborators, actions and `NSMenuDelegate`. What is left in `MainPlayerController.m` is the coordination: the `updateUI` funnel, display-state resolution, and the open and playlist entry points. Everything else is a category:
 
 | Category | Owns |
 | --- | --- |
@@ -16,6 +16,7 @@
 | `+PlayerEvents` | Every `AudioPlayerDelegate` callback. |
 | `+Delivery` | Where asynchronous results land: metadata, waveform snapshots, detected BPM and key, and the waveform's scrub seek. |
 | `+Menus` | Menu validation and the waveform-style submenu. The identifiers and the domain that decides each one are `MenuValidationRules.h` — the single home of those literals, which the builder mints, `validateMenuItem:` dispatches on, and `contentWidthForSizeIdentifier:` sizes the window from, so a rename that misses a site fails the build. **TRAP: an identifier that reaches Unknown is DISABLED, not enabled** — adding a controller-targeted menu item means adding it there too, or it silently skips validation. |
+| `+Settings` | The synchronous post-write mapping from named settings effects to behavior already owned by the controller and menu builder. It never persists a setting or changes window geometry. |
 | `+NowPlaying` | The `updateNowPlaying` publish and `NowPlayingControllerDelegate` routing. |
 | `+Transport` | Relative-seek skips and DJ effect toggles. |
 | `+Convert` | The Convert to FLAC funnel, the playlist swap and the undo round trip, with `VibeFLACConversionRecord`. |
@@ -29,7 +30,7 @@
 
 The feature lives in `Audio/Metadata/FolderArtResolver`, but this controller owns its invalidation and its redraws.
 
-`refreshFolderArt` (public) runs when Settings > Files changes the album-art setting and calls the resolver's `folderArtSettingDidChange`. **The setting is cached in the resolver, on the hot cell-draw path, so this call is what makes the write observable at all** — not merely a redraw. It deliberately keeps the settled answers.
+The `FolderArt` settings effect calls `refreshFolderArt`, which invokes the resolver's `folderArtSettingDidChange`. **The setting is cached in the resolver, on the hot cell-draw path, so this effect is what makes the write observable at all** — not merely a redraw. It deliberately keeps the settled answers.
 
 A **grant** change is answered separately in `grantedFoldersDidChange:`, with the resolver's narrow `invalidateDirectoriesSettledWithoutGrant`. It forgets no-grant discovery answers and re-arms known cover reads, which recheck active access before touching the file. The controller observes `FolderAccessManagerDidChangeNotification` itself, because a grant can change after a drop, open, or Settings edit with the Files pane no longer visible.
 
@@ -40,6 +41,8 @@ See `Audio/Metadata/CLAUDE.md` for why neither invalidation may be a full wipe.
 ## Transport keys
 
 `TransportKeyMonitor` handles the bare keys: Space, B, N, P, Tab; A/S/D skip forward, Z/X/C skip back; the playlist's Return and arrows; and the dual-mode effect keys Q, W, E, R, T (R = 1/8-note delay taps, T = 1/16). **A tap toggles, a hold is momentary**: the effect flips at keyDown, and keyUp reverts to the pre-press state when the press ran past the ~0.35s tap threshold — **keyUp is what decides tap vs hold**, which is why the menu items' key equivalents are display and fallback only.
+
+The five FX keys are effects only while this run has an `AudioFX` graph and `AppSettings.audioFXEnabled` is on. Turning the setting off clears all five live states and makes the monitor stop changing FX immediately even though removing the graph itself still waits for relaunch. The menu builder removes the fallback key equivalents and validation disables their items (`Mac/Menu/CLAUDE.md`).
 
 **The playlist keys are dead while the playlist is collapsed** — Return, the keypad's Enter, and the up and down arrows. The table keeps focus off screen when the window shrinks, so without this the arrows would walk a selection nobody can see; the monitor swallows all four rather than passing them on, because an unhandled key reaching the focused table wedges its input context. With the pane showing, the arrows go through to the table's own `moveUp:`/`moveDown:` and Return plays the selected row through `PlaylistController.playSelectedTrack` — the same two steps the double-click takes. Playback > Play Selected Track carries the same bare Return as display and fallback, validated on both halves: the playlist showing, and a row selected.
 
@@ -61,7 +64,7 @@ Skip actions seek **by bars when the tempo is known** — tagged BPM beats analy
 
 A forward skip past the end calls `AudioPlayer.finishCurrentTrack`, which fires `didFinishPlaying:`, so the usual auto-advance / end-of-playlist path handles it — no bespoke branch.
 
-**Whether a track end advances at all is Settings > Playback > On track end** (`AppSettings.pauseAtTrackEnd`), enforced in the two places a track end can advance from. `successorPrefetchTrack` covers the audio advancing itself: every prefetch site asks it for the playlist's next track, and under Pause it answers nil, so nothing is parked and the player cannot arm its gapless splice. `advanceOrParkAtTrackEnd` covers the shell advancing it: an end that reaches `didFinishPlaying:` reads the setting again, since that decision comes from `hasNextTrack` alone and never asks what was parked — without the second read a mid-playlist end would advance under Pause. A pane write must call `applyEndOfTrackAction`, or a mid-track switch to Pause leaves an armed splice that advances anyway.
+**Whether a track end advances at all is Settings > Playback > On track end** (`AppSettings.pauseAtTrackEnd`), enforced in the two places a track end can advance from. `successorPrefetchTrack` covers the audio advancing itself: every prefetch site asks it for the playlist's next track, and under Pause it answers nil, so nothing is parked and the player cannot arm its gapless splice. `advanceOrParkAtTrackEnd` covers the shell advancing it: an end that reaches `didFinishPlaying:` reads the setting again, since that decision comes from `hasNextTrack` alone and never asks what was parked — without the second read a mid-playlist end would advance under Pause. A writer must request `VibeSettingsLiveEffectEndOfTrack`, or a mid-track switch to Pause leaves an armed splice that advances anyway.
 
 Skips need a player that is not Stopped, gated in both `skipByFileSeconds:` (bare keys bypass validation) and menu validation: **after the playlist ends the finished file stays open, so `duration` alone still looks seekable while no node exists.**
 

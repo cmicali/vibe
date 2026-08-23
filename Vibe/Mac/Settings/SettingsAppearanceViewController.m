@@ -5,9 +5,8 @@
 
 #import "SettingsAppearanceViewController.h"
 #import "AppSettings.h"
-#import "MainPlayerController.h"
-#import "MainPlayerController+Window.h"
 #import "MainPlayerController+Menus.h"
+#import "MainPlayerController+Settings.h"
 #import "VibeStrings.h"
 
 static const CGFloat kAppearancePopUpWidth = 220;
@@ -299,12 +298,12 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
 
 - (void)toggleShowBPM:(id)sender {
     AppSettings.sharedInstance.showBPM = (_showBPMSwitch.state == NSControlStateValueOn);
-    [self.playerController refreshBPMDisplay];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
 }
 
 - (void)toggleShowKey:(id)sender {
     AppSettings.sharedInstance.showKey = (_showKeySwitch.state == NSControlStateValueOn);
-    [self.playerController refreshKeyDisplay];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
     [self refreshFromSettings];
 }
 
@@ -320,12 +319,16 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
             AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
             break;
     }
-    // A non-menu sender applies the stored setting without rewriting it.
-    [self.playerController setAppearance:nil];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
 }
 
 - (void)waveformStyleChanged:(id)sender {
-    [self.playerController applyWaveformStyle:_waveformPopUp.selectedItem.representedObject];
+    NSString *identifier = _waveformPopUp.selectedItem.representedObject;
+    if (!identifier) {
+        return;
+    }
+    AppSettings.sharedInstance.waveformStyle = identifier;
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWaveformStyle];
 }
 
 // The custom pairs' fallbacks, shared by the wells' display and the seed on
@@ -358,11 +361,12 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
             }
         }
     }
+    AppSettings.sharedInstance.waveformTheme = identifier;
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWaveformTheme];
     [self animatePaneContentChange:^{
         self->_customDarkRow.hidden = !custom;
         self->_customLightRow.hidden = !custom;
     }];
-    [self.playerController applyWaveformTheme:identifier];
 }
 
 - (void)customColorChanged:(NSColorWell *)sender {
@@ -376,7 +380,7 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     } else {
         [settings setWaveformCustomUnplayedColor:sender.color forDark:NO];
     }
-    [self.playerController refreshWaveformTheme];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWaveformTheme];
 }
 
 // The custom wash's fallbacks, shared by the wells' display and the seed on
@@ -402,38 +406,38 @@ static NSColor *DefaultWindowTintColor(BOOL isDark) {
             }
         }
     }
+    settings.windowTint = identifier;
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowTint];
     [self animatePaneContentChange:^{
         self->_windowTintDarkRow.hidden = !custom;
         self->_windowTintLightRow.hidden = !custom;
     }];
-    settings.windowTint = identifier;
-    [self.playerController refreshWindowTint];
 }
 
 - (void)windowTintColorChanged:(NSColorWell *)sender {
     [AppSettings.sharedInstance setWindowTintCustomColor:sender.color
                                                  forDark:(sender == _windowTintDarkWell)];
-    [self.playerController refreshWindowTint];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowTint];
 }
 
 - (void)toggleFileInfo:(id)sender {
     AppSettings.sharedInstance.showFileInfo = (_fileInfoSwitch.state == NSControlStateValueOn);
-    [self.playerController refreshFileInfoDisplay];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
 }
 
 - (void)timeDisplayChanged:(NSButton *)sender {
     AppSettings.sharedInstance.showRemainingTime = (sender == _timeRemainingRadio);
-    [self.playerController refreshTimeDisplay];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
 }
 
 - (void)keyNotationChanged:(id)sender {
     AppSettings.sharedInstance.keyNotation = _keyNotationPopUp.selectedItem.representedObject;
-    [self.playerController refreshKeyDisplay];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
 }
 
 - (void)toggleKeyColors:(id)sender {
     AppSettings.sharedInstance.keyColorsEnabled = (_keyColorsSwitch.state == NSControlStateValueOn);
-    [self.playerController refreshKeyDisplay];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
 }
 
 @end

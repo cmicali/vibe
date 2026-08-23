@@ -5,7 +5,7 @@
 
 #import "SettingsConvertViewController.h"
 #import "AppSettings.h"
-#import "MainMenuBuilder.h"
+#import "MainPlayerController+Settings.h"
 #import "VibeStrings.h"
 
 static const CGFloat kConvertPopUpWidth = 220;
@@ -52,9 +52,7 @@ static const CGFloat kConvertPopUpWidth = 220;
 
 - (void)toggleEnabled:(id)sender {
     AppSettings.sharedInstance.convertEnabled = (_enabledSwitch.state == NSControlStateValueOn);
-    // The live half: hides or shows the menu bar's Convert menu in place. The
-    // context menus' shared item follows through validation on its own.
-    [MainMenuBuilder applyConvertMenuVisibility];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectConvertMenu];
     [self refreshFromSettings];
 }
 

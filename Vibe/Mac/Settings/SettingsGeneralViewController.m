@@ -9,7 +9,7 @@
 #import "AudioPlayer.h"
 #import "DefaultAppRegistration.h"
 #import "MainPlayerController.h"
-#import "MainPlayerController+Window.h"
+#import "MainPlayerController+Settings.h"
 #import "OutputDevicesMenuController.h"
 #import "VibeStrings.h"
 
@@ -65,7 +65,7 @@ static const CGFloat kOutputPopUpWidth = 280;
     _alwaysOnTopSwitch = [self switchWithAction:@selector(toggleAlwaysOnTop:)];
 
     // Identifiers in representedObject, localized names in the titles — a
-    // display name must never reach NSUserDefaults. No live-apply hook on
+    // display name must never reach NSUserDefaults. No live effect for
     // either popup: the waveform view reads its setting per mouse-down, the
     // art view reads its own per drag start.
     _waveformDragPopUp = [self popUpButtonWithWidth:kOutputPopUpWidth action:@selector(waveformDragChanged:)];
@@ -117,7 +117,7 @@ static const CGFloat kOutputPopUpWidth = 280;
 
 - (void)toggleAlwaysOnTop:(id)sender {
     AppSettings.sharedInstance.alwaysOnTop = (_alwaysOnTopSwitch.state == NSControlStateValueOn);
-    [self.playerController applyAlwaysOnTop];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectAlwaysOnTop];
 }
 
 - (void)waveformDragChanged:(id)sender {

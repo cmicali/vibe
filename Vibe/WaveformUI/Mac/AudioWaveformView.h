@@ -34,8 +34,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nullable, strong) NSColor *artworkThemeColor;
 
 // Re-resolves the waveform theme — settings, appearance, artworkThemeColor —
-// and repaints the renderer with it. The live-apply path for a theme or
-// custom-color change and for an artwork color settling.
+// and repaints the renderer after a stored theme or custom color changes, or
+// after an artwork color settles.
 - (void)refreshThemeColors;
 
 // Styles are identified by the renderer's stable styleIdentifier, never its

@@ -6,7 +6,7 @@
 #import "SettingsFilesViewController.h"
 #import "AppSettings.h"
 #import "FolderAccessManager.h"
-#import "MainPlayerController.h"
+#import "MainPlayerController+Settings.h"
 #import "SettingsRules.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -316,7 +316,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 
 #pragma mark - Actions
 
-// No live-apply: the order governs the next open, and re-sorting the playlist
+// No live effect: the order governs the next open, and re-sorting the playlist
 // already on screen would throw away an order the user may have built by hand.
 - (void)folderOpenSortChanged:(id)sender {
     AppSettings.sharedInstance.folderOpenSort =
@@ -325,7 +325,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 
 - (void)albumArtSourceChanged:(id)sender {
     AppSettings.sharedInstance.useFolderArt = [_albumArtPopUp.selectedItem.representedObject isEqual:kAlbumArtFolder];
-    [self.playerController refreshFolderArt];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectFolderArt];
 }
 
 - (void)addFolder:(id)sender {

@@ -34,7 +34,7 @@ Transport first — Play, Previous Track, Next Track, then **Play Selected Track
 
 Between View and Output: Convert to FLAC, a separator, then Delete Original.
 
-**Settings > Convert > Enabled off hides the whole feature, live.** Unlike the FX menu, which is omitted at build because the engine reads its setting once at launch, the Convert menu is always built (identifier `menu_convert`) and hidden in place: `MainMenuBuilder.applyConvertMenuVisibility` is the live-apply hook the Settings pane calls, and the build seeds the initial state. The context menus' shared Convert to FLAC item follows through its validation branch instead, which hides it and returns NO while the setting is off. A hidden item stays in `itemArray` — `dump_menu` reports it with `hidden: true`.
+**Settings > Convert > Enabled off hides the whole feature, live.** The Convert menu is always built (identifier `menu_convert`) and hidden in place: the `ConvertMenu` settings effect calls `MainMenuBuilder.applyConvertMenuVisibility`, and the build seeds the initial state. The context menus' shared Convert to FLAC item follows through its validation branch instead, which hides it and returns NO while the setting is off. A hidden item stays in `itemArray` — `dump_menu` reports it with `hidden: true`.
 
 **Convert to FLAC** re-encodes an uncompressed current track as FLAC beside it. The rule is `AudioFileConverter.validateConvertMenuItem:forTrack:`, shared with the window-body menu's item, which reuses this one's `menu_convert_to_flac` identifier: enabled only for WAV and AIFF with no FLAC already there, retitled with the reason otherwise — "Converting…" or "FLAC Already Exists". **Only the current track is convertible, so there is deliberately no playlist row item.**
 
@@ -42,15 +42,17 @@ Between View and Output: Convert to FLAC, a separator, then Delete Original.
 
 ## View
 
-- **Show File Info** — a checkmarked preference flipping `AppSettings.showFileInfo` (default on), repainted through `MainPlayerController.refreshFileInfoDisplay`, shared with the Settings > Appearance checkbox. Off hides the header's codec and BPM/key readouts; **the FX symbols riding the codec line are deck state, not file info, and keep rendering** (`MainWindow/APPEARANCE.md`).
-- **Always on Top** — flips `AppSettings.alwaysOnTop` and funnels through `MainPlayerController.applyAlwaysOnTop`, shared with the Settings > General checkbox.
+- **Show File Info** — a checkmarked preference flipping `AppSettings.showFileInfo` (default on), then requesting the shared `TrackDisplay` settings effect. Off hides the header's codec and BPM/key readouts; **the FX symbols riding the codec line are deck state, not file info, and keep rendering** (`MainWindow/APPEARANCE.md`).
+- **Always on Top** — flips `AppSettings.alwaysOnTop`, then requests the shared `AlwaysOnTop` settings effect.
 - **Size** (Small, Default, Large) — snaps the window to `kMainWindowMinContentWidth`, `kMainWindowContentWidth` or `kMainWindowLargeContentWidth`. These are *body* widths — the window is that plus the pitch panel's slice — and the height is deliberately untouched, since it belongs to Show Playlist and the resize handle. One identifier-to-width mapping, `contentWidthForSizeIdentifier:`, serves both the action and the checkmarks, so dragging off a preset simply matches none of them.
 
 ## FX
 
-One checkmarked toggle per performance effect: Low Kill, Low Kill Boost, Reverb, Delay 1/8, Delay 1/16, on bare Q, W, E, R, T. Always enabled, being deck controls that persist across tracks. The toggle actions live in `MainPlayerController+Transport` and are written against its state pass-throughs, so a menu toggle and a bare-key tap are the same flip.
+One checkmarked toggle per performance effect: Low Kill, Low Kill Boost, Reverb, Delay 1/8, Delay 1/16, on bare Q, W, E, R, T. While available they are deck controls that persist across tracks. The toggle actions live in `MainPlayerController+Transport` and are written against its state pass-throughs, so a menu toggle and a bare-key tap are the same flip.
 
-**With `AppSettings.audioFXEnabled` off, `MainMenuBuilder` omits the whole FX menu** and `TransportKeyMonitor` passes Q/W/E/R/T through unhandled. The setting is read once at player init, so it lands on relaunch.
+The graph remains a launch-time choice. When this run has one, `MainMenuBuilder` builds the top-level `menu_fx` item and the `FXControls` settings effect clears every active effect before hiding the item, or restores it immediately when enabled. Hiding also clears the child items' key equivalents; restoring puts their intended keys back. Menu validation and `TransportKeyMonitor` additionally require the setting and a graph, so Q/W/E/R/T cannot change an effect while the controls are off. A run launched without the graph builds no menu and cannot expose the controls until relaunch.
+
+**TRAP: hiding a top-level submenu does not deactivate its children's key equivalents.** AppKit can still match Q/W/E/R/T under a hidden `menu_fx`, even when validation returns NO. The visibility effect must clear and restore those equivalents as well as hiding the item; validation remains the direct-dispatch gate.
 
 ## Output
 

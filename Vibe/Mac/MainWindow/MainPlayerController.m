@@ -5,6 +5,7 @@
 
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Menus.h"
+#import "MainPlayerController+Settings.h"
 #import "AppSettings.h"
 #import "ArtworkDisplayController.h"
 #import "TrackDisplayController.h"
@@ -705,13 +706,7 @@
 
 - (IBAction) toggleFileInfo:(id)sender {
     AppSettings.sharedInstance.showFileInfo = !AppSettings.sharedInstance.showFileInfo;
-    [self refreshFileInfoDisplay];
-}
-
-- (void)refreshFileInfoDisplay {
-    // updateUI re-runs renderState: (the codec line) and
-    // effectiveTempoDidChange (the BPM/key line); both read the setting.
-    [self updateUI];
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
 }
 
 - (void)refreshFolderArt {
@@ -726,6 +721,7 @@
 }
 
 - (void)refreshWindowTint {
+    // The artwork color has already settled; only re-resolve the wash from it.
     [_artworkController refreshHeaderTint];
 }
 
@@ -778,7 +774,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     if ([sender isKindOfClass:[NSMenuItem class]]) {
         NSMenuItem *item = sender;
         AppSettings.sharedInstance.pitchRange = [item.identifier isEqualToString:@"pitch_range_16"] ? 16 : 8;
-        [self applyPitchRange];
+        [self applySettingsLiveEffects:VibeSettingsLiveEffectPitchRange];
     }
 }
 
@@ -846,19 +842,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 // coherent.
 - (IBAction)toggleTimeDisplayMode:(id)sender {
     AppSettings.sharedInstance.showRemainingTime = !AppSettings.sharedInstance.showRemainingTime;
-    [self updateUI];
-}
-
-- (void)refreshTimeDisplay {
-    [self updateUI];
-}
-
-- (void)refreshKeyDisplay {
-    [self effectiveTempoDidChange];
-}
-
-- (void)refreshBPMDisplay {
-    [self effectiveTempoDidChange];
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
 }
 
 // The Edit and window-body menus act on the current track; the playlist's row

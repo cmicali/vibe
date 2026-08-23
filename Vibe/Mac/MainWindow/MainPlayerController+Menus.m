@@ -5,6 +5,7 @@
 
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerControllerInternal.h"
+#import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Window.h" // contentWidthForSizeIdentifier:, for the Size checkmarks
 #import "MenuValidationRules.h"
 #import "AppSettings.h"
@@ -31,7 +32,10 @@
             return YES;
         case VibeMenuValidationDomainFX:
             [self applyFXStateToMenuItem:menuItem];
-            return YES;
+            // TRAP: hiding a parent does not disable its descendants. The menu
+            // builder removes their key equivalents; this also blocks direct
+            // menu dispatch while the controls are off.
+            return self.audioPlayer.fx != nil && AppSettings.sharedInstance.audioFXEnabled;
         case VibeMenuValidationDomainPitchRange:
             [self applyPitchRangeStateToMenuItem:menuItem];
             return YES;
@@ -99,10 +103,8 @@
     }
 }
 
-// One checkmark per effect. Never disabled, because the effects are deck
-// controls that outlive any single track; see the FX menu in MainMenuBuilder —
-// which omits the menu entirely when FX is off, so this only ever runs with a
-// non-nil fx.
+// One checkmark per effect. The controls outlive any single track, but become
+// unavailable together when their stored setting hides the FX menu.
 - (void)applyFXStateToMenuItem:(NSMenuItem *)menuItem {
     AudioFX *fx = self.audioPlayer.fx;
     if ([menuItem.identifier isEqualToString:@"menu_fx_low_kill"]) {
@@ -261,7 +263,11 @@
 
 - (IBAction)setWaveformStyle:(id)sender {
     if ([sender isKindOfClass:NSMenuItem.class]) {
-        [self applyWaveformStyle:((NSMenuItem *)sender).representedObject];
+        NSString *identifier = ((NSMenuItem *)sender).representedObject;
+        if (identifier) {
+            AppSettings.sharedInstance.waveformStyle = identifier;
+            [self applySettingsLiveEffects:VibeSettingsLiveEffectWaveformStyle];
+        }
     }
 }
 
@@ -271,22 +277,6 @@
 
 - (NSString *)displayNameForWaveformStyle:(NSString *)identifier {
     return [self.waveformView displayNameForStyle:identifier];
-}
-
-- (void)applyWaveformStyle:(NSString *)identifier {
-    if (!identifier) {
-        return;
-    }
-    self.waveformView.waveformStyle = identifier;
-    AppSettings.sharedInstance.waveformStyle = identifier;
-}
-
-- (void)applyWaveformTheme:(NSString *)identifier {
-    if (!identifier) {
-        return;
-    }
-    AppSettings.sharedInstance.waveformTheme = identifier;
-    [self refreshWaveformTheme];
 }
 
 - (void)refreshWaveformTheme {

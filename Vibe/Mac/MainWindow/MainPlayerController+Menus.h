@@ -20,17 +20,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)setWaveformStyle:(id)sender;
 
 // The waveform-style registry, re-exposed for the Settings pane's popup:
-// stable identifiers in, localized names for display only. applyWaveformStyle:
-// is the one write path the menu action funnels through too.
+// stable identifiers in, localized names for display only.
 - (NSArray<NSString *> *)availableWaveformStyleIdentifiers;
 - (NSString *)displayNameForWaveformStyle:(NSString *)identifier;
-- (void)applyWaveformStyle:(NSString *)identifier;
 
-// The waveform theme's live-apply pair, applyWaveformStyle:'s shape:
-// applyWaveformTheme: persists the identifier and repaints;
-// refreshWaveformTheme re-resolves without rewriting — a custom color was
-// edited, or an artwork color landed.
-- (void)applyWaveformTheme:(NSString *)identifier;
+// Re-resolves colors without writing a setting — a custom color was edited,
+// an artwork color landed, or the settings live-effect mapping requested it.
 - (void)refreshWaveformTheme;
 
 @end

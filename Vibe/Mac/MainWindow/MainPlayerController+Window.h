@@ -57,13 +57,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)togglePitchPanel:(nullable id)sender;
 
 - (IBAction)toggleAlwaysOnTop:(nullable id)sender;
-// Pushes AppSettings.sharedInstance.alwaysOnTop to the window's level. The Settings pane calls
-// it after writing the setting; the menu action funnels through it too.
+// Pushes AppSettings.sharedInstance.alwaysOnTop to the window's level. Used at
+// construction and by the settings live-effect mapping.
 - (void)applyAlwaysOnTop;
 
-// View > Appearance, dispatching on the menu item's identifier. The Settings
-// pane calls it with nil after writing the setting.
-- (IBAction)setAppearance:(nullable id)sender;
+// View > Appearance, dispatching on the menu item's identifier and storing it.
+- (IBAction)setAppearance:(id)sender;
+// Applies the already-stored appearance without writing it.
+- (void)applyStoredAppearance;
 
 // YES while the window is unoccluded. The update timer's visibility gate.
 - (BOOL)isWindowVisible;

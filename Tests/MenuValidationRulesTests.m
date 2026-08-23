@@ -74,12 +74,12 @@
 }
 
 // The whole point of the enum: an item nobody claimed is not silently enabled.
-// The first three belong to other validators, the rest are the shapes a typo
-// and a missing identifier take.
+// The first four are owned elsewhere or carry no action; the rest are the
+// shapes a typo and a missing identifier take.
 - (void)testUnclaimedIdentifiersAreUnknownRatherThanEnabled {
     [self assertIdentifiers:@[@"show_clicked_track_in_finder", @"menu_settings", @"menu_convert",
-                              @"menu_edit_select_all", @"menu_next_trak", @"view_appearance",
-                              @"waveform_style", @"view_size", @"", @"menu_"]
+                              @"menu_fx", @"menu_edit_select_all", @"menu_next_trak",
+                              @"view_appearance", @"waveform_style", @"view_size", @"", @"menu_"]
                    classify:VibeMenuValidationDomainUnknown];
     XCTAssertEqual(VibeMenuValidationDomainForIdentifier(nil), VibeMenuValidationDomainUnknown);
 }
