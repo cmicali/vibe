@@ -29,8 +29,7 @@ static const CGFloat kSettingsPaneMinHeight = 480;
 // The panes' host — the tab controller — owns the window's size. A pane's own
 // constraints sit below required, so the window edge wins over them while a
 // pane is on screen (see SettingsWindowController); this is how a size change
-// made while the window is open reaches the frame instead of waiting for the
-// next pane switch.
+// made while the window is open reaches the frame.
 @protocol SettingsPaneSizeHost <NSObject>
 - (void)settingsPaneSizeDidChange;
 @end
@@ -76,6 +75,12 @@ static const CGFloat kSettingsPaneMinHeight = 480;
 // hides or shows a row at any other moment must call it, or the window keeps
 // the size it was last measured at.
 - (void)paneContentDidChange;
+
+// Applies a visible-row change, remeasures every pane, and animates the
+// resulting stack layout and window frame in one transaction. A direct UI
+// action that hides or reveals rows uses this instead of changing them before
+// paneContentDidChange, which would make the rows jump ahead of the window.
+- (void)animatePaneContentChange:(void (^)(void))change;
 
 @end
 

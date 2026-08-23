@@ -4,6 +4,7 @@
 //
 
 #import "SettingsPaneViewController.h"
+#import "WindowAnimation.h"
 
 static const CGFloat kPanePadding = 20;
 
@@ -29,6 +30,9 @@ static const CGFloat kPanePadding = 20;
     stack.alignment = NSLayoutAttributeLeading;
     stack.spacing = 20;
     stack.translatesAutoresizingMaskIntoConstraints = NO;
+    // TRAP: implicit layout animation only moves layer-backed views. Back the
+    // whole subtree or the cards animate while their section headers jump.
+    stack.wantsLayer = YES;
     for (NSView *section in sections) {
         [section.widthAnchor constraintEqualToAnchor:stack.widthAnchor].active = YES;
     }
@@ -45,10 +49,9 @@ static const CGFloat kPanePadding = 20;
     // contentViewController window to its content's fitting size after every
     // layout pass (_changeWindowFrameFromConstraintsIfNecessary), so a frame
     // held anywhere else snaps back. At 999, not required: a required size
-    // forces the window there in a single layout pass on pane switch, which
-    // is exactly the snap the animated resize in SettingsWindowController
-    // exists to replace — at 999 the window edge wins while the frame is
-    // animating and the pane stretches with it.
+    // forces the window there in a single layout pass when shared size changes;
+    // at 999 the window edge wins while the coordinated frame and pane layout
+    // animate to that size.
     //
     // The height rides the safe-area guide, not the view: the titlebar
     // overlays the pane (full-size content view), and anchoring the guide
@@ -134,25 +137,54 @@ static const CGFloat kPanePadding = 20;
         }
     }
     // The visible pane's constraints cannot move the window on their own —
-    // they sit below required — so the host resizes it, the same path a pane
-    // switch takes.
+    // they sit below required — so the host applies the matching frame.
     id host = panes.firstObject.parentViewController;
     if (changed && [host conformsToProtocol:@protocol(SettingsPaneSizeHost)]) {
         [(id<SettingsPaneSizeHost>)host settingsPaneSizeDidChange];
     }
 }
 
-// TRAP: loadView runs before resolveLayoutStateFromSettings, so the size first
-// measured there counts every row that later hides itself. The shared-size
-// pass resolves that layout state before taking its maximum, and the panes are
-// remeasured after each selected-pane refresh or direct row toggle. Siblings,
-// not self alone: the size is shared, so one pane's change re-sizes all of them.
-- (void)paneContentDidChange {
+// Siblings, not self alone: the size is shared, so one pane's change re-sizes
+// all of them.
+- (void)remeasurePanes {
     if (!_sectionStack) {
         return;
     }
     NSArray<__kindof NSViewController *> *panes = self.parentViewController.childViewControllers;
     [SettingsPaneViewController applySharedSizeToPanes:panes.count > 0 ? panes : @[self]];
+}
+
+// TRAP: loadView runs before resolveLayoutStateFromSettings, so the size first
+// measured there counts every row that later hides itself. The shared-size
+// pass resolves that layout state before taking its maximum, and the panes are
+// remeasured after each selected-pane refresh or direct row toggle.
+- (void)paneContentDidChange {
+    [self animatePaneContentChange:^{}];
+}
+
+- (void)animatePaneContentChange:(void (^)(void))change {
+    if (!_sectionStack) {
+        change();
+        return;
+    }
+    // Capture the old arranged-view frames before hidden changes replace the
+    // stack's constraints. The layout pass inside the animation then moves the
+    // section headers and cards with the frame instead of jumping ahead of it.
+    [self.view layoutSubtreeIfNeeded];
+    void (^updates)(void) = ^{
+        change();
+        [self remeasurePanes];
+        [self.view layoutSubtreeIfNeeded];
+    };
+    if (!self.view.window.isVisible) {
+        updates();
+        return;
+    }
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+        context.duration = kWindowResizeAnimationDuration;
+        context.allowsImplicitAnimation = YES;
+        updates();
+    }];
 }
 
 - (NSPopUpButton *)popUpButtonWithWidth:(CGFloat)width action:(SEL)action {

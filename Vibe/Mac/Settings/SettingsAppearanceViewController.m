@@ -358,9 +358,10 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
             }
         }
     }
-    _customDarkRow.hidden = !custom;
-    _customLightRow.hidden = !custom;
-    [self paneContentDidChange];
+    [self animatePaneContentChange:^{
+        self->_customDarkRow.hidden = !custom;
+        self->_customLightRow.hidden = !custom;
+    }];
     [self.playerController applyWaveformTheme:identifier];
 }
 
@@ -401,9 +402,10 @@ static NSColor *DefaultWindowTintColor(BOOL isDark) {
             }
         }
     }
-    _windowTintDarkRow.hidden = !custom;
-    _windowTintLightRow.hidden = !custom;
-    [self paneContentDidChange];
+    [self animatePaneContentChange:^{
+        self->_windowTintDarkRow.hidden = !custom;
+        self->_windowTintLightRow.hidden = !custom;
+    }];
     settings.windowTint = identifier;
     [self.playerController refreshWindowTint];
 }

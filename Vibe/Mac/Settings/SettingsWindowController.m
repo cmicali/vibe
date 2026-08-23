@@ -4,7 +4,6 @@
 //
 
 #import "SettingsWindowController.h"
-#import "WindowAnimation.h"
 #import "SettingsAboutViewController.h"
 #import "SettingsAdvancedViewController.h"
 #import "SettingsAppearanceViewController.h"
@@ -118,13 +117,9 @@ static const CGFloat kSettingsSidebarWidth = 200;
 
 #pragma mark - Tab controller
 
-// Owns the pane-switch window resize. The panes' size constraints sit just
-// below required (see SettingsPaneViewController), so the tab controller's
-// own layout pass no longer snaps the window; this animates it to the
-// incoming pane's target frame instead, top-left anchored, at the app's one
-// fixed window-resize duration. Also the sync point back to the sidebar, so
-// a programmatic selection (the debug channel's settings_open) moves the
-// highlighted row too.
+// Owns the frame update when every pane's shared size changes. Also the sync
+// point back to the sidebar, so a programmatic selection (the debug channel's
+// settings_open) moves the highlighted row too.
 @interface SettingsTabViewController : NSTabViewController <SettingsPaneSizeHost>
 @property (weak, nonatomic) NSTableView *sidebarTable;
 @end
@@ -152,20 +147,20 @@ static const CGFloat kSettingsSidebarWidth = 200;
     // The window binds its title to the split controller's; the pane's title
     // reaches it through here, never set on the window directly.
     self.parentViewController.title = pane.title;
-    [self animateWindowToPaneSize:pane];
 }
 
 // A pane revealed or hid a row, so every pane's shared size moved under the
-// open window; the frame follows down the same path a pane switch takes.
+// open window. SettingsPaneViewController has already opened the animation
+// transaction that moves the visible layout with this frame update.
 - (void)settingsPaneSizeDidChange {
     NSInteger index = self.selectedTabViewItemIndex;
     if (index < 0 || index >= (NSInteger)self.tabViewItems.count) {
         return;
     }
-    [self animateWindowToPaneSize:self.tabViewItems[(NSUInteger)index].viewController];
+    [self resizeWindowToPaneSize:self.tabViewItems[(NSUInteger)index].viewController];
 }
 
-- (void)animateWindowToPaneSize:(NSViewController *)pane {
+- (void)resizeWindowToPaneSize:(NSViewController *)pane {
     NSWindow *window = self.view.window;
     if (!pane || !window) {
         return;
@@ -185,13 +180,20 @@ static const CGFloat kSettingsSidebarWidth = 200;
     content.origin.y += content.size.height - target.height;
     content.size = target;
     NSRect targetFrame = [window frameRectForContentRect:content];
-    // The animator, not setFrame:display:animate: — the legacy blocking
-    // stepper consumes its duration without rendering a single intermediate
-    // frame here, an invisible "animation".
-    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
-        context.duration = kWindowResizeAnimationDuration;
-        [[window animator] setFrame:targetFrame display:YES];
-    }];
+    if (fabs(NSMinX(window.frame) - NSMinX(targetFrame)) < 0.5
+            && fabs(NSMinY(window.frame) - NSMinY(targetFrame)) < 0.5
+            && fabs(NSWidth(window.frame) - NSWidth(targetFrame)) < 0.5
+            && fabs(NSHeight(window.frame) - NSHeight(targetFrame)) < 0.5) {
+        return;
+    }
+    if (!window.isVisible) {
+        [window setFrame:targetFrame display:NO];
+        return;
+    }
+    // The pane owns the explicit animation context so its arranged views and
+    // this frame share one transaction. The animator, not the legacy blocking
+    // setFrame:display:animate:, supplies the intermediate frames.
+    [[window animator] setFrame:targetFrame display:YES];
 }
 
 @end
@@ -215,6 +217,9 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController {
     SettingsTabViewController *tabs = [[SettingsTabViewController alloc] init];
     tabs.tabStyle = NSTabViewControllerTabStyleUnspecified;
+    // Every pane already has the same size. AppKit's default crossfade briefly
+    // composites section headers from both panes and makes the swap flash.
+    tabs.transitionOptions = NSViewControllerTransitionNone;
     tabs.tabView.tabViewType = NSNoTabsNoBorder;
 
     [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController],
