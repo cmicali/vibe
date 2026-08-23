@@ -9,9 +9,10 @@
 
 #import "VibeStrings.h"
 
-// The tap target, which stays comfortably large around a small glyph — the
-// mini player's rule.
-static const CGFloat kRouteGlyphPointSize = 15;
+// The tap target stays comfortably large around the glyph — the mini player's
+// rule — whatever size the owner asks for. This is the fallback for an owner
+// that asks for none.
+static const CGFloat kRouteDefaultGlyphPointSize = 15;
 static const CGFloat kRouteContentSpacing = 5;
 // What the control is worth touching at, whatever it draws: on the built-in
 // speaker the content is one 17pt glyph, and a target that narrow is a miss.
@@ -40,15 +41,21 @@ static const CGFloat kRoutePressedAlpha = 0.35;
     // extending its hit area to a stretched frame, the fallback is contained
     // here: drop _symbolView, size the picker to its intrinsic width in that
     // slot and keep the label beside it.
-    AVRoutePickerView *_routePicker;
-    UIStackView       *_content;
-    UIImageView       *_symbolView;
-    UILabel           *_nameLabel;
+    AVRoutePickerView   *_routePicker;
+    UIStackView         *_content;
+    UIImageView         *_symbolView;
+    UILabel             *_nameLabel;
+
+    // The last pair it was told, kept so a glyph-size change can redraw it
+    // without the owner having to push the route again.
+    VibeOutputRouteKind  _kind;
+    NSString            *_name;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
+        _glyphPointSize = kRouteDefaultGlyphPointSize;
         [self buildUI];
         [self setRouteKind:VibeOutputRouteKindNone deviceName:nil];
     }
@@ -140,12 +147,23 @@ static const CGFloat kRoutePressedAlpha = 0.35;
     ]];
 }
 
+- (void)setGlyphPointSize:(CGFloat)glyphPointSize {
+    if (_glyphPointSize == glyphPointSize) {
+        return;
+    }
+    _glyphPointSize = glyphPointSize;
+    // Redraw what is already up: the card's layouts swap under a live cell.
+    [self setRouteKind:_kind deviceName:_name];
+}
+
 - (void)setRouteKind:(VibeOutputRouteKind)kind deviceName:(NSString *)name {
+    _kind = kind;
+    _name = [name copy];
     _symbolName = [VibeOutputRouteSymbolName(kind) copy];
     _showsDeviceName = VibeOutputRouteShowsDeviceName(kind, name);
 
     UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration
-            configurationWithPointSize:kRouteGlyphPointSize
+            configurationWithPointSize:_glyphPointSize
                                 weight:UIImageSymbolWeightMedium];
     _symbolView.image = [UIImage systemImageNamed:_symbolName withConfiguration:config];
     _nameLabel.text = _showsDeviceName ? name : nil;

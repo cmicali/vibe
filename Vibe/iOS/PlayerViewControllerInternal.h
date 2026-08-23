@@ -31,6 +31,7 @@
 @class AudioTrack;
 @class AudioWaveformCache;
 @class PageWaveformCoordinator;
+@class TrackPageActionBarView;
 @class TrackPageCell;
 @class TrackPageTimeControl;
 @class WaveformScrubberView;
@@ -85,6 +86,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     TrackPageTimeControl    *_remainingTimeControl;
     UIView                  *_transportView;    // bound: the current page's transport row
     OutputRouteView         *_routeView;        // bound: the current page's route indicator
+    TrackPageActionBarView  *_actionBar;        // bound: the current page's action bar
     // Whichever scrubber currently holds the pager still, which is NOT always
     // the bound page's: playback runs on through a scrub, so a track ending
     // mid-drag rebinds the chrome above while the finger is still down on the

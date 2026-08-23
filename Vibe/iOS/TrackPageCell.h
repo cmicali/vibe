@@ -11,9 +11,15 @@
 //  the waveform full-width. The transport row rides the page too — under the
 //  time labels in portrait, on their centerline in landscape.
 //
-//  The waveform, the time row and the transport are one chain off the safe
-//  bottom, and the header labels have reserved heights, so the waveform sits
-//  at the same y on every page whatever the title and artist are.
+//  Portrait ends in an action bar: a capsule off the safe bottom carrying the
+//  output-route control, which is the only thing in it so far. Landscape has
+//  no height for one, so the bar is hidden there and the route control takes
+//  the top-trailing corner instead.
+//
+//  The waveform, the time row, the transport and the action bar are one chain
+//  off the safe bottom, and the header labels have reserved heights, so the
+//  waveform sits at the same y on every page whatever the title and artist
+//  are.
 //
 
 #import <UIKit/UIKit.h>
@@ -31,6 +37,13 @@ NS_ASSUME_NONNULL_BEGIN
 // disabled button — the touch falls through to the view behind it — so a tap
 // on next at the end of the playlist paused playback instead of doing nothing.
 @interface TrackPageTransportView : UIView
+@end
+
+// Portrait's bottom action bar — a capsule behind the controls that sit in it.
+// A class of its own for the same reason the transport row is one: the card's
+// tap-anywhere-to-pause must decline every touch that lands in the bar, and the
+// backdrop between two controls is not a UIControl to test for.
+@interface TrackPageActionBarView : UIView
 @end
 
 // The right-hand time readout is a control because tapping it changes the
@@ -60,10 +73,14 @@ NS_ASSUME_NONNULL_BEGIN
 // controller wires the three actions, swaps the play/pause symbol, and fades
 // the row as a unit (the empty state shows none of it).
 @property (nonatomic, readonly) TrackPageTransportView *transportView;
-// The output-route indicator, between the time labels above the transport. It
-// rides the page for the same reason the transport does; the controller wires
-// its delegate and pushes the route every page draws.
+// The output-route indicator, centered in the action bar in portrait and in
+// the top-trailing corner in landscape. It rides the page for the same reason
+// the transport does; the controller wires its delegate and pushes the route
+// every page draws.
 @property (nonatomic, readonly) OutputRouteView *routeView;
+// The capsule behind it, portrait only. Exposed so the controller can fade it
+// with the rest of the chrome — the empty state shows none of it.
+@property (nonatomic, readonly) TrackPageActionBarView *actionBar;
 @property (nonatomic, readonly) UIButton *previousButton;
 @property (nonatomic, readonly) UIButton *playPauseButton;
 @property (nonatomic, readonly) UIButton *nextButton;

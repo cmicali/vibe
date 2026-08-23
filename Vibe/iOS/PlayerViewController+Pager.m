@@ -62,6 +62,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     _remainingTimeControl = cell.remainingTimeControl;
     _transportView = cell.transportView;
     _routeView = cell.routeView;
+    _actionBar = cell.actionBar;
     // A rebind means a fresh (or reloaded) cell whose labels came back at
     // their reuse defaults; while paused no timer tick will repopulate them,
     // so refresh now — the play glyph's symbol and visibility included.
@@ -207,6 +208,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     // chrome state so a page never appears with the wrong visibility.
     cell.transportView.alpha = [self chromeAlpha];
     cell.routeView.alpha = [self chromeAlpha];
+    cell.actionBar.alpha = [self chromeAlpha];
     return cell;
 }
 

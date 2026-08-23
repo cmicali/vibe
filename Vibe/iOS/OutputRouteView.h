@@ -34,6 +34,11 @@ NS_ASSUME_NONNULL_BEGIN
 // The one entry point: the pair read from PlaybackController.
 - (void)setRouteKind:(VibeOutputRouteKind)kind deviceName:(nullable NSString *)name;
 
+// The glyph's point size, which the two card layouts disagree about: portrait
+// draws it alone in the action bar at Pocket Casts' size, landscape squeezes it
+// onto the codec line beside a footnote. Set it before the first route.
+@property (nonatomic) CGFloat glyphPointSize;
+
 // What it actually drew. Ordinary readonly state that the debug channel's
 // state dump reports — a shipping header carries no #if DEBUG.
 @property (nonatomic, readonly, copy) NSString *symbolName;

@@ -310,15 +310,19 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     // The transport ROW is declined as a whole, not just its buttons: a
     // disabled button is not handed back by hit-testing, so next at the end of
     // the playlist would otherwise pass its tap through to the pause below it.
-    // The route indicator is declined for the same reason at one remove: what
-    // hit-tests inside it is AVKit's own view, and declining on a class we own
-    // does not depend on that view being a UIControl.
+    // The action bar is declined for the same reason from the other side —
+    // nothing hit-tests in the backdrop between its controls, so a tap on the
+    // capsule itself would reach the pause behind it. The route indicator is
+    // declined at one remove: what hit-tests inside it is AVKit's own view, and
+    // declining on a class we own does not depend on that view being a
+    // UIControl.
     for (UIView *view = touch.view; view && view != self.view; view = view.superview) {
         if (view == _grabberTarget) {
             return gestureRecognizer == _minimizePan;
         }
         if ([view isKindOfClass:[UIControl class]]
                 || [view isKindOfClass:[TrackPageTransportView class]]
+                || [view isKindOfClass:[TrackPageActionBarView class]]
                 || [view isKindOfClass:[OutputRouteView class]]
                 || [view isKindOfClass:[WaveformScrubberView class]]) {
             return NO;
@@ -424,6 +428,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         _elapsedLabel = nil;
         _remainingTimeControl = nil;
         _transportView = nil;
+        _routeView = nil;
+        _actionBar = nil;
     }
 }
 
@@ -432,21 +438,24 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [self updateChrome];
 }
 
-// The transport and the route indicator stay up whatever the play state — they
-// are controls, not a paused-state affordance. The empty state is the one thing
-// that hides them: there is nothing to play until a folder is chosen.
+// The transport, the action bar and the route indicator stay up whatever the
+// play state — they are controls, not a paused-state affordance. The empty
+// state is the one thing that hides them: there is nothing to play until a
+// folder is chosen.
 - (CGFloat)chromeAlpha {
     return _playback.screenState == VibePlayerScreenStateEmpty ? 0 : 1;
 }
 
 - (void)updateChrome {
     CGFloat rowAlpha = [self chromeAlpha];
-    if (_transportView.alpha == rowAlpha && _routeView.alpha == rowAlpha) {
+    if (_transportView.alpha == rowAlpha && _routeView.alpha == rowAlpha
+            && _actionBar.alpha == rowAlpha) {
         return;
     }
     [UIView animateWithDuration:0.3 animations:^{
         self->_transportView.alpha = rowAlpha;
         self->_routeView.alpha = rowAlpha;
+        self->_actionBar.alpha = rowAlpha;
     }];
 }
 

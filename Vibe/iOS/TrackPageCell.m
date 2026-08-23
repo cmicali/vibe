@@ -14,9 +14,8 @@
 static const CGFloat kCellWaveformHeight = 180;
 static const CGFloat kCellWaveformHeightLandscape = 120;
 
-// What both layouts leave below themselves. It used to be the glass bottom
-// bar's slice of the safe area; the card has no bar now — the playlist and
-// the search field are the shell's — so it is an ordinary bottom margin.
+// Landscape's bottom margin. Portrait has the action bar down there instead,
+// which sits flush against the safe area and defines its own edge.
 static const CGFloat kCellBottomMargin = 16;
 
 // Portrait is four bands, and only one of them moves:
@@ -24,27 +23,53 @@ static const CGFloat kCellBottomMargin = 16;
 //   1. a fixed strip under the safe top, holding the grabber pill the card's
 //      own chrome draws (kCellTopBandHeight),
 //   2. the ART band — everything left over, so it is the one that grows with
-//      the screen; the card sits centered in it at kCellArtBandFill, leaving
-//      the rest as padding all round,
+//      the screen; the card takes what its two caps allow and rides centered
+//      in it, leaving the rest as padding all round,
 //   3. the LABEL band, fixed because the header labels are given exact
 //      line-count heights,
-//   4. the waveform, time row and transport row, one chain off the SAFE
-//      BOTTOM — which is what puts the waveform at the same y on every page.
+//   4. the waveform, time row, transport row and action bar, one chain off the
+//      SAFE BOTTOM — which is what puts the waveform at the same y on every
+//      page.
 static const CGFloat kCellTopBandHeight = 36;       // safe top → art band
-static const CGFloat kCellArtBandFill = 0.8;        // art : its band — the rest is padding
+// The art's two caps. The WIDTH one is Apple Music's proportion — its card is
+// 259pt across a 402pt screen — and on a screen tall enough it is the one that
+// binds, which is what makes the art the same fraction of the width whatever
+// the height. The BAND one takes over on a short screen, and leaves the rest of
+// the band as padding above and below.
+static const CGFloat kCellArtWidthFraction = 0.645;
+static const CGFloat kCellArtBandFill = 0.94;
 static const CGFloat kCellLabelGap = 6;             // one gap for both label seams
 static const CGFloat kCellLabelBandPadding = 10;    // label band's own top and bottom inset
-static const CGFloat kCellWaveformTransportGap = 32;  // waveform ↔ transport row, the time row between them
+static const CGFloat kCellWaveformTransportGap = 28;  // waveform ↔ transport row, the time row between them
+
+// The action bar: a capsule off the safe bottom, Pocket Casts' proportions —
+// 56pt tall inside a 20pt side inset, its corner radius half its height. The
+// route control is the only thing in it so far and rides its center.
+static const CGFloat kCellActionBarHeight = 56;
+static const CGFloat kCellActionBarInset = 20;
+static const CGFloat kCellActionBarTransportGap = 16;
+// White over the backdrop, which UIImage+Blur has already darkened, rather than
+// a live-blurring effect view: the bar sits over a picture that never changes.
+static const CGFloat kCellActionBarFillAlpha = 0.12;
 
 // The scrubber reserves headroom above and below its envelope, so the time row
 // is pulled UP into the bottom of the view: the edge the eye measures against
 // is the drawn waveform, not the view's frame.
 static const CGFloat kCellTimeWaveformOverlap = 12;
 static const CGFloat kArtCornerRadius = 12;
-static const CGFloat kCellGlyphPointSize = 41;      // play/pause
-static const CGFloat kCellSideGlyphPointSize = 28;  // previous/next
+// Apple Music's transport, measured off it and then asked of OUR glyphs: its
+// play triangle is 35pt tall and its side pair 23pt, which is what these point
+// sizes render backward.end.fill and play.fill at. The tap targets stay far
+// larger than either.
+static const CGFloat kCellGlyphPointSize = 34;      // play/pause
+static const CGFloat kCellSideGlyphPointSize = 23;  // previous/next
 static const CGFloat kTransportButtonSide = 66;     // the tap target, not the glyph
-static const CGFloat kTransportButtonGap = 20;
+// Apple Music spaces its three glyph centers 107pt apart, which at this tap
+// target is the portrait gap. Landscape keeps the narrow one: the row rides the
+// time row's centerline there, between two labels bounded only against the
+// middle of the screen, so a wider row would run into a long readout.
+static const CGFloat kTransportButtonGap = 41;
+static const CGFloat kTransportButtonGapLandscape = 20;
 static const CGFloat kTransportDisabledAlpha = 0.5;
 
 // Landscape: the mac main window's arrangement — a small square art card
@@ -55,11 +80,17 @@ static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
 // The waveform is a third shorter here and the transport rides the time row's
 // centerline, so portrait's pull-up would put a glyph over the envelope.
 static const CGFloat kCellTimeWaveformGapLandscape = 3;
-// The route indicator's cap. Portrait puts it between the time labels and
-// landscape on the codec line, and in both a long device name has to stop
-// short of whatever sits beside it.
-static const CGFloat kCellRouteMaxWidth = 160;
+// The route indicator's cap. Landscape puts it on the codec line, where a long
+// device name has to stop short of the label beside it; portrait has the whole
+// action bar to itself and can afford more. Its glyph is sized the same way:
+// Pocket Casts' 23pt-tall icon in the bar, a codec-line-sized one in the corner.
+static const CGFloat kCellRouteMaxWidth = 220;
+static const CGFloat kCellRouteMaxWidthLandscape = 160;
+static const CGFloat kCellRouteGlyphPointSize = 23;
+static const CGFloat kCellRouteGlyphPointSizeLandscape = 15;
 static const CGFloat kCellRouteGap = 10;
+// Portrait's time row, which no longer has the route indicator in its middle.
+static const CGFloat kCellTimeGap = 12;
 
 static void VibeConfigureTimeLabel(UILabel *label) {
     label.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleSubheadline]
@@ -152,6 +183,13 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 @implementation TrackPageTransportView
 @end
 
+@implementation TrackPageActionBarView
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    self.layer.cornerRadius = self.bounds.size.height / 2;
+}
+@end
+
 @implementation TrackPageArtCardView
 - (void)layoutSubviews {
     [super layoutSubviews];
@@ -185,6 +223,13 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     // Zeroed along with the height when there is no codec line to draw — the
     // gap alone would otherwise stay in the band as slack under the artist.
     NSLayoutConstraint *_fileInfoTop;
+
+    // Constants the two layouts disagree about, on constraints that are active
+    // in both. The transport's gap and the route indicator's width cap are the
+    // whole list; everything else is in one set or the other.
+    NSLayoutConstraint *_playPauseGap;
+    NSLayoutConstraint *_nextGap;
+    NSLayoutConstraint *_routeMaxWidth;
 
     // The orientation-specific constraint sets; layoutSubviews swaps them on
     // the cell's own aspect, so a rotation mid-reuse can never strand a cell
@@ -241,15 +286,16 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         _artCardView.translatesAutoresizingMaskIntoConstraints = NO;
         [_artCard addSubview:_artCardView];
 
-        // Title over artist over the codec line, centered under the art,
-        // Apple Music style. All Dynamic Type: the fonts scale with the
+        // Title over artist over the codec line, centered under the art. The
+        // pair is Pocket Casts' — a 22pt bold title over a 16pt regular artist,
+        // six points apart. All Dynamic Type: the fonts scale with the
         // user's text size, and the vertical chain squeezes the art card —
         // never the text — when they grow. All three shrink to fit their
         // width rather than truncate: the header block's height is fixed, so
         // a long title has nowhere to grow into.
         _titleLabel = [[UILabel alloc] init];
         _titleLabel.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleTitle2]
-                scaledFontForFont:[UIFont boldSystemFontOfSize:28]];
+                scaledFontForFont:[UIFont boldSystemFontOfSize:22]];
         _titleLabel.adjustsFontForContentSizeCategory = YES;
         _titleLabel.adjustsFontSizeToFitWidth = YES;
         _titleLabel.minimumScaleFactor = 0.6;
@@ -261,8 +307,8 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         [content addSubview:_titleLabel];
 
         _artistLabel = [[UILabel alloc] init];
-        _artistLabel.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleSubheadline]
-                scaledFontForFont:[UIFont boldSystemFontOfSize:20]];
+        _artistLabel.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleCallout]
+                scaledFontForFont:[UIFont systemFontOfSize:16]];
         _artistLabel.adjustsFontForContentSizeCategory = YES;
         _artistLabel.adjustsFontSizeToFitWidth = YES;
         _artistLabel.minimumScaleFactor = 0.7;
@@ -304,9 +350,19 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         _transportView.translatesAutoresizingMaskIntoConstraints = NO;
         [content addSubview:_transportView];
 
-        // Where the audio is going, in the gap the time row leaves in its
-        // middle — Apple Music's placement, one row above the transport. It
-        // rides the page for the same reason the transport does.
+        // The action bar, and the route control that rides its center. The bar
+        // is behind the control rather than around it because landscape has no
+        // bar and the control still has to go somewhere — so each layout places
+        // the two independently, and only portrait's set positions the bar.
+        _actionBar = [[TrackPageActionBarView alloc] init];
+        _actionBar.backgroundColor = [UIColor colorWithWhite:1
+                                                       alpha:kCellActionBarFillAlpha];
+        _actionBar.layer.cornerCurve = kCACornerCurveContinuous;
+        _actionBar.translatesAutoresizingMaskIntoConstraints = NO;
+        [content addSubview:_actionBar];
+
+        // Where the audio is going. It rides the page for the same reason the
+        // transport does.
         _routeView = [[OutputRouteView alloc] initWithFrame:CGRectZero];
         _routeView.translatesAutoresizingMaskIntoConstraints = NO;
         [content addSubview:_routeView];
@@ -329,6 +385,15 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         [_fileInfoLabel setContentCompressionResistancePriority:760
                 forAxis:UILayoutConstraintAxisHorizontal];
 
+        _playPauseGap = [_playPauseButton.leadingAnchor
+                constraintEqualToAnchor:_previousButton.trailingAnchor
+                               constant:kTransportButtonGap];
+        _nextGap = [_nextButton.leadingAnchor
+                constraintEqualToAnchor:_playPauseButton.trailingAnchor
+                               constant:kTransportButtonGap];
+        _routeMaxWidth = [_routeView.widthAnchor
+                constraintLessThanOrEqualToConstant:kCellRouteMaxWidth];
+
         [NSLayoutConstraint activateConstraints:@[
             [_backdropView.topAnchor constraintEqualToAnchor:content.topAnchor],
             [_backdropView.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
@@ -343,18 +408,16 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 
             [_transportView.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
             [_transportView.heightAnchor constraintEqualToConstant:kTransportButtonSide],
-            [_routeView.widthAnchor constraintLessThanOrEqualToConstant:kCellRouteMaxWidth],
+            _routeMaxWidth,
             // The tap target, as everywhere else on this screen: a small glyph
-            // in a finger-sized box. It clears the transport row below it in
+            // in a finger-sized box. It clears the transport row above it in
             // both layouts — check the frames if either moves.
             [_routeView.heightAnchor constraintEqualToConstant:44],
             [_remainingTimeControl.widthAnchor constraintGreaterThanOrEqualToConstant:44],
             [_remainingTimeControl.heightAnchor constraintGreaterThanOrEqualToConstant:44],
             [_previousButton.leadingAnchor constraintEqualToAnchor:_transportView.leadingAnchor],
-            [_playPauseButton.leadingAnchor constraintEqualToAnchor:_previousButton.trailingAnchor
-                                                           constant:kTransportButtonGap],
-            [_nextButton.leadingAnchor constraintEqualToAnchor:_playPauseButton.trailingAnchor
-                                                      constant:kTransportButtonGap],
+            _playPauseGap,
+            _nextGap,
             [_nextButton.trailingAnchor constraintEqualToAnchor:_transportView.trailingAnchor],
         ]];
 
@@ -431,24 +494,36 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     _fileInfoTop = [_fileInfoLabel.topAnchor constraintEqualToAnchor:_artistLabel.bottomAnchor
                                                             constant:kCellLabelGap];
 
-    // As big as its band allows, leaving the padding all round. The two
-    // required caps bound it on each axis; this makes it take what it can,
-    // and it is the one that gives at oversized accessibility text.
+    // As big as its caps allow, leaving the padding all round. The two required
+    // caps bound it on each axis; this makes it take what it can, and it is the
+    // one that gives at oversized accessibility text.
     NSLayoutConstraint *artFill =
-            [_artCard.heightAnchor constraintEqualToAnchor:artBand.heightAnchor
-                                                multiplier:kCellArtBandFill];
+            [_artCard.widthAnchor constraintEqualToAnchor:safe.widthAnchor
+                                               multiplier:kCellArtWidthFraction];
     artFill.priority = UILayoutPriorityDefaultHigh;
 
+    // The strip under the safe top is what gives on a window too short for the
+    // whole chain — the minimum iPad one, 320x480, is 20pt short of it. Below
+    // required, so the art collapses to nothing instead of to a NEGATIVE size:
+    // every other edge down to the safe bottom is an equality, and with none of
+    // them breakable the solver would happily hand the card a negative height
+    // and draw its shadow around nothing.
+    NSLayoutConstraint *topBand = [artBand.topAnchor
+            constraintEqualToAnchor:safe.topAnchor
+                           constant:kCellTopBandHeight];
+    topBand.priority = UILayoutPriorityRequired - 1;
+
     return @[
-        [artBand.topAnchor constraintEqualToAnchor:safe.topAnchor
-                                          constant:kCellTopBandHeight],
+        topBand,
+        [artBand.topAnchor constraintGreaterThanOrEqualToAnchor:safe.topAnchor],
+        [_artCard.heightAnchor constraintGreaterThanOrEqualToConstant:0],
         [artBand.bottomAnchor constraintEqualToAnchor:labelBand.topAnchor],
         [_artCard.centerYAnchor constraintEqualToAnchor:artBand.centerYAnchor],
         [_artCard.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
         [_artCard.heightAnchor constraintLessThanOrEqualToAnchor:artBand.heightAnchor
                                                       multiplier:kCellArtBandFill],
         [_artCard.widthAnchor constraintLessThanOrEqualToAnchor:safe.widthAnchor
-                                                    multiplier:kCellArtBandFill],
+                                                    multiplier:kCellArtWidthFraction],
         artFill,
 
         [labelBand.bottomAnchor constraintEqualToAnchor:_waveformView.topAnchor],
@@ -475,14 +550,23 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         [_waveformView.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
         [_waveformView.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
         [_waveformView.heightAnchor constraintEqualToConstant:kCellWaveformHeight],
-        // The bottom chain, and the reason it is a chain: transport row and
-        // waveform both hang off the SAFE BOTTOM, so the waveform sits at the
-        // same y on every page. Anything above it — a two-line title, a
-        // missing artist — moves the art, never this. The time row hangs off
-        // the waveform rather than sitting between the two, so tightening it
-        // against the waveform cannot push the waveform down.
-        [_transportView.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor
-                                                    constant:-kCellBottomMargin],
+        // The bottom chain, and the reason it is a chain: the action bar hangs
+        // off the SAFE BOTTOM and everything above it off the bar, so the
+        // waveform sits at the same y on every page. Anything above it — a
+        // two-line title, a missing artist — moves the art, never this. The
+        // time row hangs off the waveform rather than sitting between waveform
+        // and transport, so tightening it cannot push the waveform down.
+        [_actionBar.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
+        [_actionBar.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor
+                                                 constant:kCellActionBarInset],
+        [_actionBar.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor
+                                                  constant:-kCellActionBarInset],
+        [_actionBar.heightAnchor constraintEqualToConstant:kCellActionBarHeight],
+        [_routeView.centerXAnchor constraintEqualToAnchor:_actionBar.centerXAnchor],
+        [_routeView.centerYAnchor constraintEqualToAnchor:_actionBar.centerYAnchor],
+
+        [_transportView.bottomAnchor constraintEqualToAnchor:_actionBar.topAnchor
+                                                    constant:-kCellActionBarTransportGap],
         [_waveformView.bottomAnchor constraintEqualToAnchor:_transportView.topAnchor
                                                    constant:-kCellWaveformTransportGap],
         [_elapsedLabel.topAnchor constraintEqualToAnchor:_waveformView.bottomAnchor
@@ -490,16 +574,10 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         [_elapsedLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
         [_remainingTimeControl.bottomAnchor constraintEqualToAnchor:_elapsedLabel.bottomAnchor],
         [_remainingTimeControl.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
-
-        // The route indicator takes the middle of the time row, so the two
-        // times are bounded against IT rather than against the centerline —
-        // it is what they can collide with now.
-        [_routeView.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
-        [_routeView.centerYAnchor constraintEqualToAnchor:_elapsedLabel.centerYAnchor],
-        [_elapsedLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_routeView.leadingAnchor
-                                                               constant:-kCellRouteGap],
-        [_remainingTimeControl.leadingAnchor constraintGreaterThanOrEqualToAnchor:_routeView.trailingAnchor
-                                                                        constant:kCellRouteGap],
+        // Nothing sits between the two times now that the route indicator is in
+        // the bar, so they are bounded against each other.
+        [_elapsedLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_remainingTimeControl.leadingAnchor
+                                                               constant:-kCellTimeGap],
     ];
 }
 
@@ -559,9 +637,10 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     ];
 }
 
-// Swaps the constraint sets and the styling that rides with them: portrait
-// centers text under the rounded floating card, landscape left-aligns the
-// header beside the flush square art, mac-style.
+// Swaps the constraint sets, the constants the two share, and the styling that
+// rides with them: portrait centers text under the rounded floating card and
+// ends in the action bar, landscape left-aligns the header beside the flush
+// square art, mac-style, with no bar and the route control in the corner.
 - (void)applyLayoutForBounds:(CGRect)bounds {
     BOOL landscape = bounds.size.width > bounds.size.height;
     if (_layoutApplied && landscape == _landscapeActive) {
@@ -581,6 +660,16 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         [NSLayoutConstraint deactivateConstraints:_landscapeConstraints];
         [NSLayoutConstraint activateConstraints:_portraitConstraints];
     }
+    // The constants on the constraints both sets share, and the bar landscape
+    // has no room for — its own placement is in the portrait set alone, so
+    // hiding it is all landscape has to do.
+    _playPauseGap.constant = landscape ? kTransportButtonGapLandscape : kTransportButtonGap;
+    _nextGap.constant = _playPauseGap.constant;
+    _routeMaxWidth.constant = landscape ? kCellRouteMaxWidthLandscape : kCellRouteMaxWidth;
+    _routeView.glyphPointSize = landscape ? kCellRouteGlyphPointSizeLandscape
+                                          : kCellRouteGlyphPointSize;
+    _actionBar.hidden = landscape;
+
     NSTextAlignment alignment = landscape ? NSTextAlignmentLeft : NSTextAlignmentCenter;
     _titleLabel.textAlignment = alignment;
     _artistLabel.textAlignment = alignment;
