@@ -47,8 +47,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)debugBackgroundMaterializationHeld;
 
 // The priority lane's request bookkeeping by track name: queued, parked, the
-// later-load markers, and the live materialization token count. Main thread.
+// later-load markers, and whether its own materialization token is live. Main
+// thread; the scan slot is reported separately below.
 - (NSDictionary *)debugPriorityLaneState;
+
+// The ordinary scan lane, separated from priority records so a scenario can
+// prove stage-one completion and scan demand without subtracting aggregates.
+- (NSDictionary *)debugScanLaneState;
 
 @end
 

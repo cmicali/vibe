@@ -122,6 +122,23 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 // The rest of the tokens, so exact titles with spaces work too.
                 return VibeClickMenuItem(VibeRestArgument(tokens));
             }),
+            VibeCmd(@"append <file-or-directory>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: append <file-or-directory>");
+                }
+                NSString *path = VibePathArgument(tokens);
+                if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
+                    return VibeErrorJSON(@"no file or directory at '%@'", path);
+                }
+                AppDelegate *delegate = (AppDelegate *)NSApp.delegate;
+                if (![delegate isKindOfClass:AppDelegate.class]) {
+                    return VibeErrorJSON(@"app delegate is not ready");
+                }
+                // Enter the actual deliberate-open funnel. The shared `open`
+                // verb intentionally bypasses it so it can serve both shells.
+                [delegate openDroppedURLs:@[[NSURL fileURLWithPath:path]] appending:YES];
+                return VibeJSONString(@{@"ok": @YES, @"appending": path});
+            }),
             VibeActionCmd(@"skip_forward", ^(MainPlayerController *controller) { [controller skipForward:nil]; }),
             VibeActionCmd(@"skip_forward_more", ^(MainPlayerController *controller) { [controller skipForwardMore:nil]; }),
             VibeActionCmd(@"skip_forward_most", ^(MainPlayerController *controller) { [controller skipForwardMost:nil]; }),
@@ -167,6 +184,20 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 AppSettings.sharedInstance.useFolderArt = [arg isEqualToString:@"on"];
                 [controller refreshFolderArt];
                 return VibeJSONString(@{@"ok": @YES, @"folderArt": @(AppSettings.sharedInstance.useFolderArt)});
+            }),
+            VibeCmd(@"set_pause_at_track_end <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
+                if (![arg isEqualToString:@"on"] && ![arg isEqualToString:@"off"]) {
+                    return VibeErrorJSON(@"usage: set_pause_at_track_end <on|off>");
+                }
+                AppSettings.sharedInstance.pauseAtTrackEnd = [arg isEqualToString:@"on"];
+                // The setting's contract includes re-parking or dropping the
+                // successor already armed by the running controller.
+                [controller applyEndOfTrackAction];
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
+                });
             }),
             VibeCmd(@"set_window_width <body-points>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 double bodyPoints = 0;

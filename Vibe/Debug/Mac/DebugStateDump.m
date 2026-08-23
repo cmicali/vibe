@@ -13,6 +13,17 @@
 
 #pragma mark App side: command execution
 
+static NSString *VibeDebugDisplayStateName(TrackDisplayState state) {
+    switch (state) {
+        case TrackDisplayStateTrack: return @"track";
+        case TrackDisplayStateLoading: return @"loading";
+        case TrackDisplayStateEmpty: return @"empty";
+        case TrackDisplayStateLaunchGrace: return @"launch-grace";
+        case TrackDisplayStateError: return @"error";
+    }
+    return @"unknown";
+}
+
 NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
     AudioPlayer *player = controller.audioPlayer;
     MainWindow *window = (MainWindow *)controller.window;
@@ -54,6 +65,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"canUndo": @(window.undoManager.canUndo),
             @"canRedo": @(window.undoManager.canRedo),
             @"uiUpdateHz": @(controller.debugUIUpdateHz),
+            @"displayState": VibeDebugDisplayStateName(controller.displayState),
         },
         @"window": @{
             @"frame": NSStringFromRect(window.frame),

@@ -6,13 +6,17 @@
 
 ## What belongs here
 
-Pure logic only — code that is a function of its inputs and needs no running app: sample and geometry math, archive encode/decode and validation, string and duration formatting, precedence and fallback rules, cache-key derivation. The suite is **host-less** (no `TEST_HOST`), so it runs in seconds with no window server, no audio hardware, no permissions and no Vibe instance — and it does not inherit the app's sandbox, which is what lets it read fixtures from the repo.
+Deterministic host-less logic and machinery only — code whose outcome is controlled by its inputs or narrow injected I/O boundaries and needs no running app: sample and geometry math, archive encode/decode and validation, string and duration formatting, precedence and fallback rules, cache-key derivation, coordinator accounting, queue/barrier/retry orchestration, and local temporary-file wrappers. The suite is **host-less** (no `TEST_HOST`), so it runs in seconds with no window server, no audio hardware, no permissions and no Vibe instance — and it does not inherit the app's sandbox, which is what lets it read fixtures from the repo.
 
 Anything that needs the app running — transport, FX, menus, drag-and-drop, layout, rendering, Now Playing, device switching — belongs in the `vibe-debug` skill's command channel instead, which drives a live app and reads back state as JSON.
 
 **Where the engine is the whole class, extract the arithmetic into a seam.** `AudioPlayer` and `AudioFX` own `AVAudioEngine` graphs and are unreachable from a host-less suite, so their decisions live in header-only `*Rules.h` / `*Math.h` files that the shipping class **calls** rather than restates: `FadeMath.h` (`VibeIncomingFadeMilliseconds`, `VibeFadeStepsForMilliseconds`, called from `AudioPlayer.m` and `+Fades.m`), `AudioFXMath.h` (called from `AudioFX.m`), `GaplessSpliceMath.h`, `TransportMath.h`, `NowPlayingRules.h`, `PlayerScreenRules.h`. Reach for that before concluding a class cannot be tested.
 
 **The line is the engine, not the framework.** `AVFAudioWaveformLoaderTests` writes a WAV with `AVAudioFile` and reads it back through the real loader — `AVAudioFile` is file I/O with no engine, no device and nothing to configure. `AVAudioEngine` is the other side of that line and stays out.
+
+**Test an orchestrator as itself when its nondeterminism has narrow boundaries.** `AudioTrackMetadataLoaderTests` runs the production queues, stage-one barrier, ranking, materialization slots, real coordinator, parse claims, installation, publication and cancellation while replacing only cache reads, file parsing and the coordinator's provider-operation boundary. Do not copy its state machine into a fake or flatten it into disconnected rule tests: that would stop testing the machinery the live scenario relies on. OS provider state, app-shell routing and AVFoundation playback settlement remain live tests.
+
+The test target deliberately links an incomplete `AudioTrackMetadata` decoy because the real implementation is ObjC++/TagLib. Its real-parser constructor raises; loader fixtures must use the copy-capable duck fake, and any newly required selector must be added deliberately rather than treating the decoy as production metadata.
 
 ## Rules that are easy to get wrong
 

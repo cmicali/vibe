@@ -26,6 +26,8 @@ Three sources, best wins. Everywhere: a poll of the dataless file's allocated si
 
 `DownloadProgressMonitor` owns only source precedence, movement and whole-percent coalescing. The private classes in `DownloadProgressSourceAdapters` each own one system lifecycle — timer, metadata query or File Provider subscription/KVO — including its complete cancellation path. A new observation mechanism belongs behind the same fraction callback instead of adding another lifecycle to the monitor.
 
+`DownloadProgressSourceAdaptersInternal.h` narrows the host-less boundary to iCloud query construction/ubiquity lookup and File Provider subscriber registration. The tests still drive the production notification, filtering, KVO, replacement, unpublish and cancellation paths; only the OS finding a cross-process publication remains a live-app check.
+
 An `NSProgress` unpublish is not completion: it also covers an abandoned operation or a disappearing provider. It detaches that exact source and lets the poll verify the file; only a reported 100% or materialized filesystem state publishes completion.
 
 The UI fraction remains whole-percent coalesced, but transfer liveness is not. Only a finite, strictly positive raw increase is movement; initial zero, repeated, backward, negative and NaN samples never extend the player's deadline. The fake source passes zero through the same rule rather than silently hiding the provider's initial-value shape.

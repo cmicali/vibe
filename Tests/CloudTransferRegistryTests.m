@@ -92,6 +92,25 @@
     XCTAssertEqualWithAccuracy([_registry progressForURL:url], 0.4f, 0.0001);
 }
 
+- (void)testTransferSnapshotProjectsEveryPathAndCurrentFraction {
+    NSURL *moving = [self urlForName:@"snapshot-moving.wav"];
+    NSURL *indeterminate = [self urlForName:@"snapshot-indeterminate.wav"];
+    [self beginForURL:moving];
+    [self beginForURL:indeterminate];
+    [_registry noteProgress:0.4f forURL:moving];
+
+    NSDictionary<NSString *, NSNumber *> *snapshot = [_registry transferSnapshot];
+    XCTAssertEqualObjects(snapshot, (@{
+        VibeStandardizedAudioOpenPath(moving): @0.4f,
+        VibeStandardizedAudioOpenPath(indeterminate): @-1.0f,
+    }));
+
+    [self endForURL:moving];
+    XCTAssertEqualObjects([_registry transferSnapshot], (@{
+        VibeStandardizedAudioOpenPath(indeterminate): @-1.0f,
+    }));
+}
+
 // A provider's zero sample is status, not progress: the row stays
 // indeterminate until real movement arrives, and a stray zero afterwards
 // never downgrades a fraction already shown.

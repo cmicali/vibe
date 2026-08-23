@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: setup project build build-ios install-ios test test-summary analyze stress release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
+.PHONY: setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -48,12 +48,12 @@ install-ios: project
 	SKIP_GENERATE=1 scripts/install-ios.sh $(CONFIG)
 
 # Run the unit tests (Tests/, VibeTests target). Always Debug — the suite is
-# host-less pure-logic only, so it needs no window server, no audio hardware,
-# no permissions, and no running Vibe instance. Anything requiring the running
-# app belongs in the vibe-debug skill's command channel instead.
+# host-less deterministic logic and machinery, so it needs no window server,
+# audio hardware, permissions, or running Vibe instance. Anything requiring
+# the running app belongs in the vibe-debug skill's command channel instead.
 #
 # The rm matters: xcodebuild refuses to write over an existing result bundle.
-test: project
+test: project check-cloud-scenarios
 	rm -rf $(RESULT_BUNDLE)
 	xcodebuild \
 	    -project Vibe.xcodeproj \
@@ -61,7 +61,14 @@ test: project
 	    -configuration Debug \
 	    -derivedDataPath build/DerivedData \
 	    -resultBundlePath $(RESULT_BUNDLE) \
+	    -enableCodeCoverage YES \
 	    test
+
+# The live cloud suite needs a Debug app and a window, but its trace matching,
+# span assembly, exact-order projection and selector validation are pure Python.
+# Keep those in CI so a broken oracle cannot make the expensive live run green.
+check-cloud-scenarios:
+	python3 -m unittest discover -s .claude/skills/vibe-stress/tests -p 'test_*.py'
 
 # Pass/fail counts and failure messages from the last `make test`, as a
 # markdown table. CI appends it to the run summary; run it by hand after a

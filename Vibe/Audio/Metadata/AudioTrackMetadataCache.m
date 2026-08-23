@@ -16,6 +16,7 @@
 #import "MetadataParseCoordinator.h"
 #if DEBUG
 #import "AudioTrackMetadataCache+Debug.h"
+#import "AudioTrackMetadataLoader+Debug.h"
 #endif
 
 @interface AudioTrackMetadataCache ()
@@ -25,13 +26,6 @@
 + (NSString *)cacheName;
 - (void)setNeighborhoodURLs:(nullable NSArray<NSURL *> *)urls;
 @end
-
-#if DEBUG
-@interface AudioTrackMetadataLoader (CacheDebug)
-- (NSUInteger)debugPendingBackgroundMaterializationCount;
-- (NSDictionary *)debugPriorityLaneState;
-@end
-#endif
 
 @implementation AudioTrackMetadataCache {
     AudioTrackMetadataLoader*   _currentLoader;
@@ -210,6 +204,10 @@ static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
 
 - (NSDictionary *)debugPriorityLaneState {
     return [_currentLoader debugPriorityLaneState] ?: @{};
+}
+
+- (NSDictionary *)debugScanLaneState {
+    return [_currentLoader debugScanLaneState] ?: @{};
 }
 #endif
 

@@ -49,12 +49,12 @@ static NSMutableDictionary<NSString *, NSNumber *> *sTransferStartedAt;
 static NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *sInFlightRolesByPath;
 static NSUInteger sMetadataOverlapTransfers;
 // How many transfers of each role are in flight across all paths, and how many
-// times a metadata transfer took a slot while a PLAYBACK transfer already held
-// one. That is the foreground hold's whole job stated as a number: from play
-// submission until the open settles the background lane is closed, so a
-// background download beginning inside that window means the hold was lost —
-// whichever edge lost it. It is the one symptom every lost-release bug shares,
-// and no other counter shows it.
+// times a metadata transfer took a slot while a PLAYBACK or PREFETCH transfer
+// already held one. Both roles carry foreground waiters in the coordinator's
+// claim table, so both close the background lane. A background download
+// beginning inside either window means the hold was lost — whichever edge lost
+// it. It is the one symptom every lost-release bug shares, and no other counter
+// shows it.
 //
 // The reverse order is NOT counted and must not be: a metadata transfer already
 // running when a play is submitted is exactly what the hold cancels, and it is
@@ -396,7 +396,9 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
                     sInFlightRolesByPath[path] = roles;
                 }
                 [roles addObject:whose];
-                NSUInteger playbackInFlight = sInFlightByRole[@"playback"].unsignedIntegerValue;
+                NSUInteger foregroundInFlight =
+                        sInFlightByRole[@"playback"].unsignedIntegerValue
+                        + sInFlightByRole[@"prefetch"].unsignedIntegerValue;
                 sInFlightByRole[whose] = @(sInFlightByRole[whose].unsignedIntegerValue + 1);
                 VibeTraceLocked(@"started", role, path, @{
                     @"queuedMs": @((NSUInteger)((CFAbsoluteTimeGetCurrent() - queuedAt) * 1000.0)),
@@ -405,7 +407,7 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
                     sMetadataOverlapTransfers++;
                     VibeTraceLocked(@"overlap", role, path, @{@"roles": [roles copy]});
                 }
-                if (VibeFakeCloudRoleIsMetadata(whose) && playbackInFlight > 0) {
+                if (VibeFakeCloudRoleIsMetadata(whose) && foregroundInFlight > 0) {
                     sForegroundContentionStarts++;
                     if (sContentionEvents.count >= kContentionEventCapacity) {
                         [sContentionEvents removeObjectAtIndex:0];
@@ -414,15 +416,15 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
                         @"at": @(CFAbsoluteTimeGetCurrent() - sInstalledAt),
                         @"role": whose,
                         @"file": path.lastPathComponent ?: @"",
-                        @"playbackInFlight": @(playbackInFlight),
+                        @"foregroundInFlight": @(foregroundInFlight),
                     }];
                     VibeTraceLocked(@"contention", role, path,
-                                    @{@"playbackInFlight": @(playbackInFlight)});
+                                    @{@"foregroundInFlight": @(foregroundInFlight)});
                     // Warn level, because the bounded trace rotates: churny
                     // runs evicted the one event the oracle fails on, leaving
                     // a cumulative counter and no culprit.
-                    LogWarn(@"Fake cloud contention: %@ transfer of %@ started with %lu playback transfer(s) in flight",
-                            whose, path.lastPathComponent, (unsigned long)playbackInFlight);
+                    LogWarn(@"Fake cloud contention: %@ transfer of %@ started with %lu foreground transfer(s) in flight",
+                            whose, path.lastPathComponent, (unsigned long)foregroundInFlight);
                 }
                 os_unfair_lock_unlock(&sLock);
                 return YES;

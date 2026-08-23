@@ -33,7 +33,7 @@ Everything below runs in CI (`.github/workflows/build.yml`) and can be run local
 
 | Command | Gate |
 | --- | --- |
-| `make test` | Unit tests (`Tests/`, `VibeTests` target, always Debug). Pure logic only, host-less. **Read `Tests/CLAUDE.md` before adding to it.** |
+| `make test` | Host-less unit/orchestration tests (`Tests/`, `VibeTests` target, always Debug) plus the cloud-runner oracle tests; provider, TagLib and other nondeterministic external boundaries stay injected. **Read `Tests/CLAUDE.md` before adding to it.** |
 | `make test-summary` | Markdown pass/fail table from the last `make test`. |
 | `make analyze CONFIG=Release` | clang static analyzer over **both** app targets; fails on any finding outside `ThirdParty/`. Findings are config-dependent — keep Release clean, which is what CI checks. |
 | `make check-layout` | The layout rule below. |

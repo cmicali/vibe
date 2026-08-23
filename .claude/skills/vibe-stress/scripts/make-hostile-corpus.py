@@ -28,7 +28,8 @@ import shutil
 import struct
 import sys
 
-AUDIO_SUFFIXES = {".mp3", ".m4a", ".flac", ".wav", ".aif", ".aiff", ".mp4", ".aac", ".mp2"}
+AUDIO_SUFFIXES = {".mp3", ".m4a", ".flac", ".wav", ".wave", ".bwf",
+                  ".aif", ".aiff", ".mp4", ".aac", ".mp2"}
 
 
 def pick_sources(source: pathlib.Path, rng, want):

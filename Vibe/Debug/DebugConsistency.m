@@ -307,7 +307,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
         checked++;
         if ([fake[@"foregroundContentionStarts"] unsignedIntegerValue] > 0) {
             VibeDebugViolation(v, @"cloud.foreground_outranks_background",
-                    @"a metadata download began during a playback download %@ time(s)",
+                    @"a metadata download began during foreground provider work %@ time(s)",
                     fake[@"foregroundContentionStarts"]);
         }
     }

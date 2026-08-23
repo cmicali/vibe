@@ -270,16 +270,29 @@
     do {
         [_controller completeAll];
         snapshot = [_coordinator stateSnapshotForTesting];
-        if (snapshot.interactiveRunningCount == 0 && snapshot.backgroundRunningCount == 0
+        if (snapshot.claimCount == 0 && snapshot.waiterCount == 0
+                && snapshot.interactiveRunningCount == 0
+                && snapshot.backgroundRunningCount == 0
+                && snapshot.interactivePendingCount == 0
+                && snapshot.backgroundPendingCount == 0
+                && snapshot.handleRunCount == 0
+                && !snapshot.foregroundTransferActive
                 && snapshot.handleOpensStarted == snapshot.handleOpensCompleted) {
             return;
         }
         [NSThread sleepForTimeInterval:0.01];
     } while (deadline.timeIntervalSinceNow > 0);
-    XCTFail(@"lane accounting did not settle: interactive %lu, background %lu, "
+    XCTFail(@"coordinator did not settle: claims %lu, waiters %lu, "
+            @"interactive %lu/%lu, background %lu/%lu, handles %lu, foreground %d, "
             @"opens %llu started / %llu completed",
+            (unsigned long)snapshot.claimCount,
+            (unsigned long)snapshot.waiterCount,
             (unsigned long)snapshot.interactiveRunningCount,
+            (unsigned long)snapshot.interactivePendingCount,
             (unsigned long)snapshot.backgroundRunningCount,
+            (unsigned long)snapshot.backgroundPendingCount,
+            (unsigned long)snapshot.handleRunCount,
+            snapshot.foregroundTransferActive,
             snapshot.handleOpensStarted, snapshot.handleOpensCompleted);
 }
 
@@ -410,6 +423,37 @@
     [self waitForExpectations:@[scan, prefetch] timeout:2];
 }
 
+- (void)testCurrentTrackMetadataJoinsTheLivePlaybackClaim {
+    [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
+    XCTestExpectation *playbackReady = [self expectationWithDescription:@"playback ready"];
+    __unused AudioFileMaterializationRequestToken *playback = [self requestName:@"current.wav"
+            role:VibeAudioFileMaterializationRolePlayback
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error,
+                         NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
+        [playbackReady fulfill];
+    }];
+    XCTAssertTrue([_controller waitForStartedCount:1]);
+
+    XCTestExpectation *metadataReady = [self expectationWithDescription:@"metadata ready"];
+    __unused AudioFileMaterializationRequestToken *metadata = [self requestName:@"current.wav"
+            role:VibeAudioFileMaterializationRoleMetadataPriority
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error,
+                         NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
+        [metadataReady fulfill];
+    }];
+    VibeAudioFileMaterializationCoordinatorSnapshot joined =
+            [_coordinator stateSnapshotForTesting];
+    XCTAssertEqual(joined.claimCount, 1u);
+    XCTAssertEqual(joined.waiterCount, 2u);
+    XCTAssertEqual(_controller.startedOperations.count, 1u,
+                   @"metadata for the current track must join playback's transfer");
+
+    [_controller.startedOperations.firstObject completeReady:YES];
+    [self waitForExpectations:@[playbackReady, metadataReady] timeout:2];
+}
+
 - (void)testCancelledRunRebindsOnePathClaimAndRestartsAtThePromotedRole {
     [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
     XCTestExpectation *oldSilent = [self expectationWithDescription:@"cancelled waiter silent"];
@@ -521,6 +565,8 @@
     [_controller.startedOperations.firstObject completeWithError:providerError];
     [self waitForExpectations:@[failed] timeout:2];
     XCTAssertEqual(_controller.startedOperations.count, 1u);
+    XCTAssertEqual([_coordinator stateSnapshotForTesting].requestsFailed, 1u,
+                   @"requestsFailed never moved");
 }
 
 - (void)testCancellingOneWaiterLeavesThePathOwnerForTheOther {
@@ -581,6 +627,8 @@
         [newYield fulfill];
     }];
     [self waitForExpectations:@[newYield] timeout:2];
+    XCTAssertEqual([_coordinator stateSnapshotForTesting].requestsYielded, 2u,
+                   @"requestsYielded never moved for the preempted and rejected requests");
     // The scan's cancelled run plus the playback transfer, and nothing for
     // the yielded requests.
     XCTAssertEqual(_controller.startedOperations.count, 2u);
@@ -589,6 +637,54 @@
     XCTAssertFalse([_coordinator stateSnapshotForTesting].foregroundTransferActive);
     dispatch_sync(_completionQueue, ^{});
     XCTAssertEqual(deliveries, 1u);
+}
+
+- (void)testForegroundRiseYieldsBothRunningAndPendingMetadataClaims {
+    VibeAudioLoadingConfigurationValues values =
+            VibeAudioLoadingProductionConfigurationValues();
+    values.maximumBackgroundMaterializations = 1;
+    values.maximumBackgroundPendingMaterializations = 2;
+    [self makeCoordinatorWithValues:values];
+
+    XCTestExpectation *runningYielded = [self expectationWithDescription:@"running yielded"];
+    __unused AudioFileMaterializationRequestToken *running = [self requestName:@"running-scan.wav"
+            role:VibeAudioFileMaterializationRoleMetadataScan
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error,
+                         NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultYielded);
+        [runningYielded fulfill];
+    }];
+    XCTAssertTrue([_controller waitForStartedCount:1]);
+
+    XCTestExpectation *pendingYielded = [self expectationWithDescription:@"pending yielded"];
+    __unused AudioFileMaterializationRequestToken *pending = [self requestName:@"pending-scan.wav"
+            role:VibeAudioFileMaterializationRoleMetadataScan
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error,
+                         NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultYielded);
+        [pendingYielded fulfill];
+    }];
+    XCTAssertEqual([_coordinator stateSnapshotForTesting].backgroundPendingCount, 1u);
+
+    XCTestExpectation *playbackReady = [self expectationWithDescription:@"playback ready"];
+    __unused AudioFileMaterializationRequestToken *playback = [self requestName:@"picked.wav"
+            role:VibeAudioFileMaterializationRolePlayback
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error,
+                         NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
+        [playbackReady fulfill];
+    }];
+    [self waitForExpectations:@[runningYielded, pendingYielded] timeout:2];
+    XCTAssertEqual(_controller.totalCancellationCount, 1u);
+    VibeAudioFileMaterializationCoordinatorSnapshot preempted =
+            [_coordinator stateSnapshotForTesting];
+    XCTAssertEqual(preempted.backgroundPendingCount, 0u);
+    XCTAssertEqual(preempted.requestsYielded, 2u);
+    XCTAssertTrue(preempted.foregroundTransferActive);
+
+    XCTAssertTrue([_controller waitForStartedCount:2]);
+    [[_controller operationForLastPathComponent:@"picked.wav"] completeReady:YES];
+    [self waitForExpectations:@[playbackReady] timeout:2];
 }
 
 - (void)testLocalFileStartsPastBackgroundCapacity {

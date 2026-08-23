@@ -3,7 +3,7 @@
 //  Vibe
 //
 
-#import "DownloadProgressSourceAdapters.h"
+#import "DownloadProgressSourceAdaptersInternal.h"
 
 #include <errno.h>
 #include <sys/stat.h>
@@ -122,17 +122,36 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
     NSURL *_url;
     NSString *_path;
     DownloadProgressFractionHandler _handler;
+    DownloadMetadataQueryFactory _queryFactory;
+    DownloadUbiquitousItemProbe _ubiquitousProbe;
     NSMetadataQuery *_query;
     BOOL _active;
 }
 
 - (instancetype)initWithURL:(NSURL *)url
                      handler:(DownloadProgressFractionHandler)handler {
+    return [self initWithURL:url handler:handler queryFactory:^NSMetadataQuery *{
+        return [[NSMetadataQuery alloc] init];
+    } ubiquitousProbe:^BOOL(NSURL *candidate) {
+        id ubiquitous = nil;
+        return [candidate getResourceValue:&ubiquitous
+                                    forKey:NSURLIsUbiquitousItemKey
+                                     error:NULL]
+                && [ubiquitous boolValue];
+    }];
+}
+
+- (instancetype)initWithURL:(NSURL *)url
+                     handler:(DownloadProgressFractionHandler)handler
+                queryFactory:(DownloadMetadataQueryFactory)queryFactory
+             ubiquitousProbe:(DownloadUbiquitousItemProbe)ubiquitousProbe {
     self = [super init];
     if (self) {
         _url = [url copy];
         _path = [url.path copy];
         _handler = [handler copy];
+        _queryFactory = [queryFactory copy];
+        _ubiquitousProbe = [ubiquitousProbe copy];
     }
     return self;
 }
@@ -142,13 +161,11 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
 }
 
 - (void)startIfUbiquitous {
-    id ubiquitous = nil;
-    if (![_url getResourceValue:&ubiquitous forKey:NSURLIsUbiquitousItemKey error:NULL]
-            || ![ubiquitous boolValue]) {
+    if (_query || !_handler || !_ubiquitousProbe(_url)) {
         return;
     }
 
-    NSMetadataQuery *query = [[NSMetadataQuery alloc] init];
+    NSMetadataQuery *query = _queryFactory();
     query.searchScopes = @[NSMetadataQueryUbiquitousDataScope,
                            NSMetadataQueryUbiquitousDocumentsScope,
                            NSMetadataQueryAccessibleUbiquitousExternalDocumentsScope];
@@ -160,7 +177,9 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
     [center addObserver:self selector:@selector(queryUpdated:)
                    name:NSMetadataQueryDidUpdateNotification object:query];
     _query = query;
-    [query startQuery];
+    if (![query startQuery]) {
+        [self cancel];
+    }
 }
 
 - (void)queryUpdated:(NSNotification *)note {
@@ -225,6 +244,8 @@ static void *kFileProviderFractionContext = &kFileProviderFractionContext;
     NSString *_path;
     DownloadProgressFractionHandler _handler;
     id _subscriberToken;
+    DownloadFileProviderSubscriber _subscriber;
+    DownloadFileProviderUnsubscriber _unsubscriber;
     NSProgress *_publishedProgress;
     BOOL _active;
     BOOL _cancelled;
@@ -232,11 +253,26 @@ static void *kFileProviderFractionContext = &kFileProviderFractionContext;
 
 - (instancetype)initWithURL:(NSURL *)url
                      handler:(DownloadProgressFractionHandler)handler {
+    return [self initWithURL:url handler:handler
+            subscriber:^id(NSURL *candidate, NSProgressPublishingHandler publishingHandler) {
+        return [NSProgress addSubscriberForFileURL:candidate
+                              withPublishingHandler:publishingHandler];
+    } unsubscriber:^(id subscriberToken) {
+        [NSProgress removeSubscriber:subscriberToken];
+    }];
+}
+
+- (instancetype)initWithURL:(NSURL *)url
+                     handler:(DownloadProgressFractionHandler)handler
+                  subscriber:(DownloadFileProviderSubscriber)subscriber
+                unsubscriber:(DownloadFileProviderUnsubscriber)unsubscriber {
     self = [super init];
     if (self) {
         _url = [url copy];
         _path = [url.path copy];
         _handler = [handler copy];
+        _subscriber = [subscriber copy];
+        _unsubscriber = [unsubscriber copy];
     }
     return self;
 }
@@ -250,8 +286,8 @@ static void *kFileProviderFractionContext = &kFileProviderFractionContext;
         return;
     }
     __weak DownloadFileProviderProgressSource *weakSelf = self;
-    _subscriberToken = [NSProgress addSubscriberForFileURL:_url
-            withPublishingHandler:^NSProgressUnpublishingHandler(NSProgress *progress) {
+    _subscriberToken = _subscriber(_url,
+            ^NSProgressUnpublishingHandler(NSProgress *progress) {
         // The publishing handler arrives on an arbitrary thread; _active and
         // _publishedProgress are main-confined (cancel, isActive), so attach on
         // main. The cancelled check moves inside the hop for the same reason.
@@ -282,7 +318,7 @@ static void *kFileProviderFractionContext = &kFileProviderFractionContext;
                 }
             });
         };
-    }];
+    });
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath
@@ -323,7 +359,7 @@ static void *kFileProviderFractionContext = &kFileProviderFractionContext;
 - (void)cancel {
     _cancelled = YES;
     if (_subscriberToken) {
-        [NSProgress removeSubscriber:_subscriberToken];
+        _unsubscriber(_subscriberToken);
         _subscriberToken = nil;
     }
     [self detachPublishedProgress];

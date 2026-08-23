@@ -571,6 +571,7 @@ targets:
       - path: Vibe/Debug/AudioLoadTiming.m
       - path: Vibe/Debug/AudioLoadingConfiguration+Debug.m
       - path: Vibe/Debug/DebugWireFormat.m
+      - path: Vibe/Debug/VibeFakeCloud.m
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
@@ -579,6 +580,7 @@ targets:
       - path: Vibe/Audio/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
       - path: Vibe/Audio/Levels/AudioLevelPublisher.m
+      - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader.m
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
       - path: Vibe/Audio/PlaybackRequestCoordinator.m
       - path: Vibe/Audio/Metadata/FolderArtResolver.m
@@ -652,6 +654,8 @@ targets:
           - "$(SRCROOT)/Vibe/Mac/MainWindow"
           - "$(SRCROOT)/Vibe/Audio/Mac/Convert"
           - "$(SRCROOT)/Vibe/Mac/Settings"
+          # PINCache's angle-bracket self-import resolves from the vendored root.
+          - "$(SRCROOT)/Vibe/ThirdParty"
           # PlayerScreenRules.h only: header-only and Foundation-only, so the
           # iOS screen's state machine is testable from this macOS suite. No
           # source under Vibe/iOS is compiled here.

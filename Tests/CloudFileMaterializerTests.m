@@ -1,8 +1,9 @@
 //
 //  CloudFileMaterializerTests.m
 //
-//  The fake transfer exercises this app's token and cancellation ordering;
-//  NSFileCoordinator's provider behavior remains an integration concern.
+//  These tests exercise the real local NSFileCoordinator wrapper and this
+//  app's token/cancellation ordering at an injected provider boundary. Actual
+//  provider-mediated coordination and cancellation remain integration work.
 //
 
 
@@ -106,6 +107,23 @@
     XCTAssertEqualObjects(completions, (@[@YES]));
 }
 
+- (void)testRealCoordinatedReadMaterializesAForcedDatalessLocalFile {
+    NSURL *url = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
+            URLByAppendingPathComponent:[NSUUID UUID].UUIDString];
+    XCTAssertTrue([[NSMutableData dataWithLength:4096] writeToURL:url atomically:YES]);
+    [NSURLUtil setDatalessProbe:^BOOL(NSURL *candidate) {
+        return [candidate isEqual:url];
+    }];
+
+    CloudFileMaterializer *materializer = [CloudFileMaterializer new];
+    NSError *error = nil;
+    XCTAssertTrue([materializer materializeURL:url
+                                         token:[materializer prepareMaterialization]
+                                         error:&error]);
+    XCTAssertNil(error);
+    [NSFileManager.defaultManager removeItemAtURL:url error:NULL];
+}
+
 // A transfer cancelled while still queued for the shared provider slot ends
 // exactly as one cancelled mid-wait: NO, NSUserCancelledError, and a didFinish
 // saying it did not complete.
@@ -137,6 +155,78 @@
     XCTAssertEqualObjects(error.domain, NSCocoaErrorDomain);
     XCTAssertEqual(error.code, NSUserCancelledError);
     XCTAssertEqualObjects(completions, (@[@NO]));
+}
+
+- (void)testCancelDuringActiveFakeTransferReleasesAndFinishesExactlyOnce {
+    NSURL *url = [NSURL fileURLWithPath:@"/fake/active-track.flac"];
+    XCTestExpectation *acquired = [self expectationWithDescription:@"slot acquired"];
+    XCTestExpectation *returned = [self expectationWithDescription:@"materialize returned"];
+    __block NSUInteger releases = 0;
+    __block NSMutableArray<NSNumber *> *completions = [NSMutableArray array];
+    [CloudFileMaterializer setFakeTransferProvider:^NSTimeInterval(NSURL *candidate,
+                                                                   NSString *role) {
+        return 5.0;
+    } acquireSlot:^BOOL(NSURL *candidate, NSString *role, BOOL (^cancelled)(void)) {
+        [acquired fulfill];
+        return YES;
+    } releaseSlot:^(NSURL *candidate, NSString *role) {
+        releases++;
+    } didFinish:^(NSURL *candidate, NSString *role, BOOL completed) {
+        [completions addObject:@(completed)];
+    }];
+
+    CloudFileMaterializer *materializer = [CloudFileMaterializer new];
+    CloudFileMaterializationToken *token = [materializer prepareMaterialization];
+    __block BOOL ready = YES;
+    __block NSError *finishError = nil;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        ready = [materializer materializeURL:url token:token error:&finishError];
+        [returned fulfill];
+    });
+    [self waitForExpectations:@[acquired] timeout:2];
+    [materializer cancel];
+    [self waitForExpectations:@[returned] timeout:2];
+
+    XCTAssertFalse(ready);
+    XCTAssertEqualObjects(finishError.domain, NSCocoaErrorDomain);
+    XCTAssertEqual(finishError.code, NSUserCancelledError);
+    XCTAssertEqual(releases, 1u);
+    XCTAssertEqualObjects(completions, (@[@NO]));
+}
+
+- (void)testFailureSentinelForwardsRoleReleasesSlotAndReportsProviderError {
+    NSURL *url = [NSURL fileURLWithPath:@"/fake/failing-track.flac"];
+    NSMutableArray<NSString *> *hookRoles = [NSMutableArray array];
+    NSMutableArray<NSNumber *> *completions = [NSMutableArray array];
+    __block NSUInteger releases = 0;
+    [CloudFileMaterializer setFakeTransferProvider:^NSTimeInterval(NSURL *candidate,
+                                                                   NSString *role) {
+        [hookRoles addObject:[@"request:" stringByAppendingString:role]];
+        return -0.001;
+    } acquireSlot:^BOOL(NSURL *candidate, NSString *role, BOOL (^cancelled)(void)) {
+        [hookRoles addObject:[@"acquire:" stringByAppendingString:role]];
+        return YES;
+    } releaseSlot:^(NSURL *candidate, NSString *role) {
+        releases++;
+        [hookRoles addObject:[@"release:" stringByAppendingString:role]];
+    } didFinish:^(NSURL *candidate, NSString *role, BOOL completed) {
+        [hookRoles addObject:[@"finish:" stringByAppendingString:role]];
+        [completions addObject:@(completed)];
+    }];
+
+    CloudFileMaterializer *materializer = [CloudFileMaterializer new];
+    materializer.label = @"metadata-scan";
+    NSError *error = nil;
+    XCTAssertFalse([materializer materializeURL:url
+                                         token:[materializer prepareMaterialization]
+                                         error:&error]);
+    XCTAssertEqualObjects(error.domain, @"com.vibe.fake-cloud");
+    XCTAssertEqual(releases, 1u);
+    XCTAssertEqualObjects(completions, (@[@NO]));
+    XCTAssertEqualObjects(hookRoles, (@[@"request:metadata-scan",
+                                        @"acquire:metadata-scan",
+                                        @"release:metadata-scan",
+                                        @"finish:metadata-scan"]));
 }
 
 @end

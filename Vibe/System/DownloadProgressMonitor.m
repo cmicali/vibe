@@ -3,7 +3,7 @@
 //  Vibe
 //
 
-#import "DownloadProgressMonitor.h"
+#import "DownloadProgressMonitorInternal.h"
 #import "DownloadProgressRules.h"
 #import "DownloadProgressSourceAdapters.h"
 #if DEBUG

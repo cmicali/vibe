@@ -10,6 +10,25 @@ The original bug in one line: a background-lane `AVAudioFile` open that never re
 
 The coverage substrate landed against the unfixed code on 2026-08-21. The fix-specific rows were completed with J8 on 2026-08-23; the table preserves the pre-fix result where that is what proves the regression was real.
 
+### Audit correction — 2026-08-23
+
+The earlier "24 scenarios passed" line at the end of this record was an execution result, not valid evidence for the breadth it claimed. A scenario-by-scenario audit found four false-green mechanisms: the central metadata matcher looked for the obsolete exact role `metadata` after the trace had split into `metadata-priority` and `metadata-scan`; capacity one could hide an illegally admitted request because the fake emits `requested` before its provider queue but `started` after it; each launch had already opened the grant corpus and started work before the scenario cleared state; and S11 used the direct replacing `open` verb while claiming to exercise append through AppDelegate. The runner now matches exact roles or role families deliberately, distinguishes request spans from provider-slot spans, requires a settled/cold launch before arming, and has a mac-only `append` verb through the real deliberate-open funnel.
+
+An adversarial second pass then removed the subtler weak claims: one completion can no longer hide a cancelled partial transfer and retry; the stalled-timeout cases must observe the scripted movement and its full silence budget; both halves of the replacement storm carry post-marker folder identity; Close forbids every later metadata request or start; the nominal two-second fallback has lower and upper bounds; and corpus sizing counts playable extensions rather than arbitrary sidecars. S11 was narrowed to what the trace can identify—actual AppDelegate append preservation plus the local replay fast path—because the eventual sweep cannot be attributed to either append or the pending play's settlement. Scenario-specific counterexamples live in the Python oracle tests.
+
+The current registry contains 25 scenarios. The audited full run completed **24 PASS, 1 XFAIL (S9), 0 XPASS/FAIL/ERROR**. Only S9's typed, evidence-bearing `ExpectedGap` is accepted as XFAIL; an arm, launch, wait or unrelated assertion failure in S9 is a hard FAIL. S9 records the remaining unflagged-placeholder gap: if a provider withholds `SF_DATALESS`, admission cannot distinguish its placeholder from a local file, so the local-file exemption can admit a metadata request during foreground playback. Current S20 tests row loading against live provider transfers. It reuses an identifier from this historical plan; the original gapless-purpose D2/S20 remains deliberately absent for the basename ambiguity below and is covered by a purpose-selected XCTest instead.
+
+The audit also moved deterministic control-plane coverage to the fast host-less suite:
+
+| Fast XCTest / CI owns | Live cloud scenarios own |
+| --- | --- |
+| The real `AudioTrackMetadataLoader`'s stage-one barrier and reported lane state, exact neighborhood order, priority deduplication, revision-safe reprioritization across an off-lock locality probe, loader cancellation cleanup, foreground yield, delayed-admission recovery, retry/demotion, shared per-path retry accounting and single-flight waiter publication. These tests use the real materialization coordinator and replace only cache reads, file parsing and its provider-operation boundary. | Shell scheduling and deferred-scan wiring; actual cache-to-loader and playlist replacement/append routing; playback/prefetch/error settlement through the running app |
+| `DownloadProgressMonitor` raw movement versus whole-percent UI coalescing, stale URL/replacement cancellation, invalid/backward progress, clamp/final delivery | Diagnostic deadline configuration reaching all live consumers and sub-one-percent progress keeping an actual open alive |
+| Materialization claim joining, exact production role mapping, foreground preemption, running and pending metadata yield, admission/failure/cancellation accounting, plus `CloudFileMaterializer` release/finish balance and its real local `NSFileCoordinator` wrapper | Queue composition across loader, coordinator, player and fake provider; loading-row projection; full-folder convergence and teardown; fake-provider/app cancellation composition |
+| Allocated-size progress sampling for empty, sparse and fully allocated files; injected iCloud query configuration, filtering, normalization, start failure and cancellation; injected File Provider publication, KVO, replacement, unpublish, stale-callback and cancellation lifecycle; `VibeFakeCloud` option exposure, capacity-queue cancellation, sticky/unflagged behavior, provider failure, every scripted progress mode, trace clearing and sequence continuity, overlap accounting, playback-and-prefetch contention, ordered exact-role trace, balanced statistics and ring cap; Python tests for role-family matching, request/transfer span assembly, exact order, deadline/cancellation oracles, corpus bounds, typed XFAIL/XPASS handling and selector validation | App/provider boundary observations. Actual `SF_DATALESS`, OS discovery/cross-process publication, provider-mediated cancellation and named-provider behavior remain real-provider tests, not fake-provider claims |
+
+On the final audited run, `make test` completed 1,022 XTests with no failures (29.0 seconds of test execution, 36.9 seconds reported for the result bundle) and also ran 25 Python runner-oracle tests. Measured line coverage was 2,847/3,190 (**89.25%**) across the deterministic shipping materialization/metadata-loading core. Adding the progress-source adapters makes the broader shipping slice 3,255/3,610 (**90.17%**); including the debug fake makes it 3,777/4,205 (**89.82%**). The largest directly affected units were `AudioTrackMetadataLoader.m` at 1,168/1,353 (**86.33%**), `DownloadProgressMonitor.m` at 207/229 (**90.39%**), `DownloadProgressSourceAdapters.m` at 408/420 (**97.14%**), `CloudFileMaterializer.m` at 182/194 (**93.81%**), `CloudTransferRegistry.m` at 124/132 (**93.94%**) and `VibeFakeCloud.m` at 522/595 (**87.73%**). Those percentages are a reachability measurement, not a substitute for the semantic split above: the real PIN cache, TagLib/display-art parse and OS discovery/cross-process provider publication branches deliberately remain integration territory.
+
 | Item | Landed as | Result |
 | --- | --- | --- |
 | C2 | Cumulative counters on the coordinator: `handleOpensStarted/Completed`, `requestsReady/Failed/Yielded/AdmissionExhausted` | done — named per *outcome per request*, not the plan's vaguer `transfersCompleted`; a claim four waiters joined settles four requests, while a pre-stage-1 handle refusal settles one |
@@ -27,11 +46,11 @@ The coverage substrate landed against the unfixed code on 2026-08-21. The fix-sp
 | E4 | Reported, not scored | admission refusals print in the run summary with a warning when they exceed requests served; a scored threshold would fire on ordinary capacity pressure |
 | F1 | `exercised:` line in the stress summary | done — prints `[NONE — this run covered no stage 2]` when a run performed no handle opens |
 | F2 | `testOutcomeCountersMoveWithRealWork`, `testAdmissionExhaustionIsCounted`, and the seventh-handle-run refusal assertion | done — both admission gates move the shared refusal counter |
-| **D2 (S20)** | **not implemented — deliberately** | see below |
+| **D2 (original gapless-purpose S20)** | **not implemented — deliberately** | see below; current S20 is the unrelated row-loading scenario |
 | A2–A4 | Fixed handle-run admission and lifecycle tests | done — six live keys admit, the seventh refuses before stage 1, same-key rebind still works, and membership follows the real run lifetime |
 | A5 | Proposed handle-open configuration tests | deliberately dropped — J8 uses a private safety ceiling, not another loading knob |
 
-**Why S20 was dropped.** `hang_open` matches by basename, and a successor's prefetch open and its gapless open are opens *of the same file* — so at the scenario level the two are not separable, and a scenario claiming to wedge gapless would in practice be wedging whichever ran first. That is precisely the S18 defect this plan exists to correct, so writing it would have been worse than not writing it. The gapless path is instead pinned deterministically by the unit test, where the purpose is chosen explicitly rather than inferred.
+**Why the original gapless-purpose S20 was dropped.** `hang_open` matches by basename, and a successor's prefetch open and its gapless open are opens *of the same file* — so at the scenario level the two are not separable, and a scenario claiming to wedge gapless would in practice be wedging whichever ran first. That is precisely the S18 defect this plan exists to correct, so writing it would have been worse than not writing it. The gapless path is instead pinned deterministically by the unit test, where the purpose is chosen explicitly rather than inferred. The current runner's S20 is a different scenario: it asserts the row loading projection for live playback and metadata provider transfers.
 
 ## Execution order and fix dependency
 
@@ -50,7 +69,7 @@ The substrate was executable before the fix. A2–A4 landed with J8; A5 was supe
 | **A2–A4** | Handle-run ceiling, lifecycle and gapless path | **no** — these landed with J8 |
 | **A5** | Proposed configuration surface | deliberately omitted — the ceiling is private and not tunable |
 
-**Expected-fail was the proof pattern, not a workaround.** The A1 tests and S19 first ran marked so the unfixed behavior was captured rather than skipped. J8 removes those marks; an XPASS would now mean the harness was not updated with the implementation. S20 was deliberately omitted for the basename ambiguity described above.
+**Expected-fail was the proof pattern, not a workaround.** The A1 tests and S19 first ran marked so the unfixed behavior was captured rather than skipped. J8 removes those marks; an XPASS would now mean the harness was not updated with the implementation. The original gapless-purpose S20 was deliberately omitted for the basename ambiguity described above. S9 is now the suite's one XFAIL for the separate unflagged-placeholder gap.
 
 ## The missing oracle category
 
@@ -101,7 +120,7 @@ These are the ones worth having even if the fix changes shape. Each is generic �
 ### D. New cloud scenarios
 
 - **D1. S19 — a wedged *prefetch* open does not starve the sweep.** S18's shape, but wedging stage 2 on the successor, asserting a dataless metadata transfer *does* start afterwards. The end-to-end pin for this bug.
-- **D2. S20 — deliberately omitted.** `hang_open` selects by basename, while prefetch and gapless can open the same successor file; the scenario could not prove which purpose it wedged. The purpose-specific A1 unit test covers gapless without that ambiguity.
+- **D2. Original S20 — deliberately omitted.** `hang_open` selects by basename, while prefetch and gapless can open the same successor file; the scenario could not prove which purpose it wedged. The purpose-specific A1 unit test covers gapless without that ambiguity. Current S20 is the unrelated row-loading/provider-transfer assertion.
 - **D3. S21 — convergence.** Open a cloud folder, let it settle, assert *every* row carries resolved metadata. Mechanism-free, so it outlives any refactor of the lanes.
 - **D4. Retrofit S18.** Give it the `["materialization"]` read it should always have had, so it distinguishes "gated by C1" from "starved" and its pass means what its name says.
 
@@ -124,6 +143,6 @@ The skill already learned this with `set_folder_art`: *"verify the duty cycle fr
 
 `make test`, `make analyze CONFIG=Release`, `make build`, `make build-ios`, `make check-layout`, `make check-vocabulary`.
 
-Then `cloud-scenarios.py --corpus build/cloud-scenarios-corpus` end to end: every registered scenario, including S18, S19 and S21, must pass. S20 does not exist for the purpose-selection reason above.
+Then `cloud-scenarios.py --corpus build/cloud-scenarios-corpus` end to end: all 25 registered scenarios run; S18, S19, S20 and S21 must pass, S9 must report the documented XFAIL, and no scenario may report FAIL or ERROR. The original gapless-purpose S20 does not exist for the purpose-selection reason above.
 
-Verified 2026-08-23: all 24 registered scenarios passed. S19 observed seven metadata transfers start behind the wedged prefetch handle open; with the current three-folder/42-file corpus, S21 resolved all 14 rows in its selected folder.
+Historical run, superseded by the audit correction above: 24 registered scenarios reported pass; S19 observed seven metadata transfers start behind the wedged prefetch handle open, and S21 resolved all 14 rows in its selected folder. Do not use that result as current acceptance evidence because the old matcher, capacity, launch-state and append defects could make claims pass without reaching what they named.

@@ -115,14 +115,16 @@ typedef NS_ENUM(NSInteger, VibeFakeCloudProgressMode) {
 // Path-wide single-flight ownership keeps that at zero; it shows up in no
 // other counter, since both transfers can otherwise complete.
 // foregroundContentionStarts is the foreground hold's job stated as a number —
-// metadata downloads that BEGAN while a playback download was still running.
+// metadata downloads that BEGAN while a playback or prefetch download was
+// still running.
 + (NSDictionary *)statistics;
 
 // The bounded admission trace: one entry per transfer event — requested,
 // started (with its queued milliseconds), completed, cancelled — each carrying
 // a sequence number, milliseconds since install, the caller's role (playback,
-// prefetch, metadata), and the file. Ordering tests assert on this rather than
-// inferring order from elapsed time. Capped; oldest entries fall off.
+// prefetch, metadata-priority, metadata-scan), and the file. Ordering tests
+// assert on this rather than inferring order from elapsed time. Capped; oldest
+// entries fall off.
 + (NSArray<NSDictionary *> *)traceEvents;
 + (void)clearTrace;
 

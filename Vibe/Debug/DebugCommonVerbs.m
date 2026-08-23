@@ -450,6 +450,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"cloudParsesPending": @([cache debugPendingBackgroundMaterializationCount]),
                     @"cloudLaneHeld": @([cache debugBackgroundMaterializationHeld] ? 1 : 0),
                     @"priorityLane": [cache debugPriorityLaneState],
+                    @"scanLane": [cache debugScanLaneState],
                     @"materialization":
                             [AudioFileMaterializationCoordinator.sharedCoordinator debugState],
                 });
