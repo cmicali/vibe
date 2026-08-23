@@ -104,11 +104,11 @@ static const CGFloat kPanePadding = 20;
 
 + (void)settleSharedSizeForPanes:(NSArray<__kindof NSViewController *> *)panes {
     for (NSViewController *pane in panes) {
-        // Loads the rows, then settles which of them are visible — the order
-        // paneContentDidChange's trap is about.
+        // Loads the rows, then settles only the state that affects their
+        // measurement. Full refreshes belong to the selected pane.
         (void)pane.view;
         if ([pane isKindOfClass:SettingsPaneViewController.class]) {
-            [(SettingsPaneViewController *)pane refreshFromSettings];
+            [(SettingsPaneViewController *)pane resolveLayoutStateFromSettings];
         }
     }
     [self applySharedSizeToPanes:panes];
@@ -142,14 +142,11 @@ static const CGFloat kPanePadding = 20;
     }
 }
 
-// TRAP: loadView runs before refreshFromSettings, so the size measured there
-// counts every row that hides itself on the pane's first appearance —
-// Appearance's two custom-color pairs and its custom tint wells. Left at that,
-// the pane reserves four unseen rows and drags every other pane up to that
-// height. So the panes are remeasured whenever the visible rows change: here,
-// from the base after each refreshFromSettings, and from a pane that toggles a
-// row outside one. Siblings, not self alone: the size is shared, so one pane's
-// change re-sizes all of them.
+// TRAP: loadView runs before resolveLayoutStateFromSettings, so the size first
+// measured there counts every row that later hides itself. The shared-size
+// pass resolves that layout state before taking its maximum, and the panes are
+// remeasured after each selected-pane refresh or direct row toggle. Siblings,
+// not self alone: the size is shared, so one pane's change re-sizes all of them.
 - (void)paneContentDidChange {
     if (!_sectionStack) {
         return;
@@ -176,6 +173,9 @@ static const CGFloat kPanePadding = 20;
     return toggle;
 }
 
+- (void)resolveLayoutStateFromSettings {
+}
+
 - (void)refreshFromSettings {
 }
 
@@ -185,6 +185,7 @@ static const CGFloat kPanePadding = 20;
 }
 
 - (void)refreshSettingsAndPaneSize {
+    [self resolveLayoutStateFromSettings];
     [self refreshFromSettings];
     [self paneContentDidChange];
 }

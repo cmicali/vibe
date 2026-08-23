@@ -155,8 +155,8 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 // The reset only clears the store, so this runs the same live-apply hooks the
 // panes' own write paths use; the two relaunch-applied settings (audio FX,
 // output device) land at the next launch exactly as their captions say. Every
-// pane then reloads, which also settles the rows the reset hid (the custom
-// color wells) before the shared size is retaken. The window's own two
+// pane resolves the rows the reset hid before the shared size is retaken, but
+// hidden panes defer their full refresh until selected. The window's own two
 // settings are cleared by the same pass and no pane shows them, so the window
 // is put back to its shipping shape here — without it the live window would
 // disagree with the store until the next launch, and then snap.
@@ -181,9 +181,10 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     [player resetWindowToDefaultShape];
     for (__kindof NSViewController *pane in self.parentViewController.childViewControllers) {
         if ([pane isKindOfClass:SettingsPaneViewController.class]) {
-            [pane refreshFromSettings];
+            [pane resolveLayoutStateFromSettings];
         }
     }
+    [self refreshFromSettings];
     [self paneContentDidChange];
 }
 
@@ -241,7 +242,13 @@ static NSString *VibeFlagForLanguage(NSString *language) {
                 __typeof(self) strongSelf = weakSelf;
                 if (strongSelf) {
                     strongSelf->_clearCacheButton.enabled = YES;
-                    [strongSelf refreshCacheSize];
+                    NSTabViewController *tabs = (NSTabViewController *)strongSelf.parentViewController;
+                    NSInteger selected = tabs.selectedTabViewItemIndex;
+                    BOOL stillSelected = selected >= 0 && selected < (NSInteger)tabs.tabViewItems.count
+                            && tabs.tabViewItems[(NSUInteger)selected].viewController == strongSelf;
+                    if (stillSelected && strongSelf.view.window.isVisible) {
+                        [strongSelf refreshCacheSize];
+                    }
                 }
             }
         });

@@ -72,7 +72,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 }
 
 - (void)loadView {
-    _folders = FolderAccessManager.sharedInstance.grantedFolders;
+    _folders = @[];
 
     // The choices carry the VibeFolderOpenSort itself: the stored identifiers
     // are AppSettings' business, and a menu item has no reason to know them.
@@ -121,7 +121,8 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     NSButton *addButton = [NSButton buttonWithTitle:STR_SETTINGS_ADD_FOLDER
                                              target:self action:@selector(addFolder:)];
     _addCommonButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:YES];
-    [self refreshCommonFolderMenu];
+    // Build an unprobed menu for layout; selection triggers the real refresh.
+    [self rebuildCommonFolderMenu];
     _removeButton = [NSButton buttonWithTitle:STR_SETTINGS_REMOVE_FOLDER
                                        target:self action:@selector(removeFolder:)];
     _removeButton.enabled = NO;

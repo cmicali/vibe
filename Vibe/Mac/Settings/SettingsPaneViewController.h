@@ -6,9 +6,8 @@
 //  section stack, and the refresh contract. A pane subclass builds its
 //  sections (SettingsFormViews.h) in loadView, hands them to
 //  loadPaneWithSections:, and reloads control state in refreshFromSettings,
-//  which the base runs on every appearance, whenever the window regains key,
-//  and after any menu-bar interaction ends — so the visible pane tracks
-//  changes made through the menus or after a system panel.
+//  which the base runs for the selected pane on every appearance, whenever
+//  the window regains key, and after any menu-bar interaction ends.
 //
 
 #import <Cocoa/Cocoa.h>
@@ -49,11 +48,9 @@ static const CGFloat kSettingsPaneMinHeight = 480;
 // that sits outside any card (the About pane's identity block).
 - (void)loadPaneWithSections:(NSArray<__kindof NSView *> *)sections;
 
-// Loads every pane, settles which of its rows are visible, and sizes them all
-// to the largest — the one size the window then holds, so a pane switch
-// resizes nothing. The settings window controller calls it once, as soon as
-// its panes exist; measuring a pane before its rows settle would reserve room
-// for rows nobody sees (see paneContentDidChange).
+// Loads every pane, resolves only the state that affects its layout, and sizes
+// them all to the largest — the one size the window then holds, so a pane
+// switch resizes nothing. Full refreshes remain selected-pane work.
 + (void)settleSharedSizeForPanes:(NSArray<__kindof NSViewController *> *)panes;
 
 // A fixed-width popup targeting the pane; pass NULL for a popup whose items
@@ -64,15 +61,20 @@ static const CGFloat kSettingsPaneMinHeight = 480;
 // the checkbox it replaced (NSControlStateValueOn/Off).
 - (NSSwitch *)switchWithAction:(SEL)action;
 
-// Reloads every control from AppSettings and live state. Override; the base
-// implementation does nothing.
+// Resolves only state that changes the pane's measured layout. Override when
+// settings hide or reveal rows; the eager shared-size pass calls this for all
+// panes and must not start refresh work.
+- (void)resolveLayoutStateFromSettings;
+
+// Reloads every control from AppSettings and live state. The base invokes it
+// only for the selected pane; the eager shared-size pass never calls it.
 - (void)refreshFromSettings;
 
 // Remeasures every pane against the rows it is actually showing and re-sizes
 // them all to the largest, which is what the settings window sizes itself to.
-// The base runs it after every refreshFromSettings; a pane that hides or shows
-// a row at any other moment must call it, or the window keeps the size it was
-// last measured at.
+// The base selected-pane refresh path runs it after refreshing; a pane that
+// hides or shows a row at any other moment must call it, or the window keeps
+// the size it was last measured at.
 - (void)paneContentDidChange;
 
 @end

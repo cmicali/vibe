@@ -192,6 +192,18 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     return well;
 }
 
+- (void)resolveLayoutStateFromSettings {
+    AppSettings *settings = AppSettings.sharedInstance;
+    BOOL customTheme = [settings.waveformTheme
+            isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
+    _customDarkRow.hidden = !customTheme;
+    _customLightRow.hidden = !customTheme;
+    BOOL customTint = [settings.windowTint
+            isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
+    _windowTintDarkRow.hidden = !customTint;
+    _windowTintLightRow.hidden = !customTint;
+}
+
 - (void)refreshFromSettings {
     NSString *style = AppSettings.sharedInstance.windowAppearanceStyle;
     if ([style isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT]) {
@@ -237,9 +249,6 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
             break;
         }
     }
-    BOOL customHidden = ![theme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
-    _customDarkRow.hidden = customHidden;
-    _customLightRow.hidden = customHidden;
     AppSettings *settings = AppSettings.sharedInstance;
     _customDarkPlayedWell.color = [settings waveformCustomPlayedColorForDark:YES]
             ?: DefaultCustomPlayedColor(YES);
@@ -259,9 +268,6 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
             break;
         }
     }
-    BOOL tintCustom = [tint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
-    _windowTintDarkRow.hidden = !tintCustom;
-    _windowTintLightRow.hidden = !tintCustom;
     _windowTintDarkWell.color = [AppSettings.sharedInstance windowTintCustomColorForDark:YES]
             ?: DefaultWindowTintColor(YES);
     _windowTintLightWell.color = [AppSettings.sharedInstance windowTintCustomColorForDark:NO]
