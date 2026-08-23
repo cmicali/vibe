@@ -1,3 +1,12 @@
+# v1.11
+
+* ios: New favorites tab
+* ios: Updated now playing screen design, added output device picker
+* mac: Added folder ordering setting
+* mac: Added accessibility/VoiceOver to waveform and pitch fader
+* Improved slow/cloud file loading
+* Improved playlist scrolling performance with large libraries
+
 # v1.10
 
 * Added color themes and customizable colors for window and waveform
