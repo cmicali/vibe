@@ -16,8 +16,8 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT NSString * const VibeAudioFileOpenErrorDomain;
 
 typedef NS_ENUM(NSInteger, VibeAudioFileOpenErrorCode) {
-    // The request never entered file materialization/open: every fixed worker
-    // slot remained occupied and its bounded pending admission was exhausted.
+    // The request never entered its next stage: materialization admission or
+    // the fixed live handle-run ceiling was exhausted.
     VibeAudioFileOpenErrorAdmissionExhausted = 1,
     // A run that produced no file because it had been abandoned, delivered to a
     // waiter that bound afterwards. It says nothing about the file; the caller

@@ -23,9 +23,8 @@ VibeAudioLoadingConfigurationValues VibeAudioLoadingProductionConfigurationValue
     values.maximumBackgroundMaterializations = 1;
     values.localMetadataParseConcurrency = 4;
     values.prefetchDepth = 1;
-    // Three, not two: the lane slot a transfer holds is carried through its
-    // AVAudioFile open (spec J7), so a wedged open occupies a slot until
-    // process exit — at two, one wedge would halve foreground capacity.
+    // Handle-run admission is independent (spec J8); changing foreground
+    // transfer concurrency would be a separate policy decision.
     values.maximumInteractiveMaterializations = 3;
     values.maximumInteractivePendingMaterializations = 1;
     values.maximumBackgroundPendingMaterializations = 6;

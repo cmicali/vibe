@@ -82,10 +82,13 @@ typedef void (^VibeAudioFileMaterializationCompletion)(
 // binding without starting another handle open. Playback and prefetch first
 // ride the path-wide transfer (joining any claim already moving those bytes);
 // gapless opens a second local handle directly — the parked file already
-// proved the bytes local. The lane slot a transfer held is carried through
-// its purposes' handle opens and released when the last returns, so a wedged
-// AVAudioFile call is bounded by the same admission that bounded its
-// transfer. Completions run on completionQueue; an admission failure uses
+// proved the bytes local. Transfer capacity ends when stage 1 settles. A
+// separate private ceiling permits six live purpose/path handle runs per
+// coordinator. An existing key rebinds even at the ceiling, while a new
+// seventh key is refused immediately before materialization. The ceiling is
+// purpose-blind: saturation may refuse playback rather than start a seventh
+// worker. There is no handle-run queue, grace or configuration. Completions run
+// on completionQueue; either kind of admission failure uses
 // VibeAudioFileOpenErrorAdmissionExhausted, distinct from a file open which
 // began and hit the player's ordinary per-file timeout.
 - (AudioFileOpenToken *)openURL:(NSURL *)url

@@ -71,11 +71,13 @@ H policy numbers · I platform differences · J open items · K non-goals.
 - **B7. Successor prefetch is where "On track end" is enforced.** Every prefetch site
   asks one function for the track to park; under Pause-at-track-end it answers nil,
   and with nothing parked no splice can advance the audio by itself.
-- **B8. Admission is bounded end to end.** Concurrent foreground transfers, pending
-  foreground work, and handle opens are all bounded (numbers in H); admission
-  rejections surface promptly as an "admission exhausted" error, never as a silent
-  queue. A truly never-returning OS call keeps its slot until process restart, but
-  bounded admission prevents that loss from becoming unbounded worker growth.
+- **B8. Admission is bounded end to end.** Concurrent provider transfers, pending
+  transfer work, and live handle runs are all bounded (numbers in H). Transfer
+  work may wait only within its explicit pending bound and grace. A seventh distinct
+  handle run is refused immediately as "admission exhausted" — it has no queue,
+  pending allowance, or grace. A truly never-returning OS call remains one of the
+  six live runs until process restart, but consumes no transfer capacity and cannot
+  become unbounded worker growth.
 - **B9. Stop/Close fires no delegate callback.** It supersedes any in-flight open so
   a Loading track never starts, and never drives auto-advance. Track-end and
   skip-past-end funnel through exactly one settlement each.
@@ -217,8 +219,9 @@ H policy numbers · I platform differences · J open items · K non-goals.
 | Slow-open indicator threshold | 0.5 s | `AudioPlayer.m:72` |
 | Open no-progress deadline | 60 s | `AudioFileOpenTimeoutMath.h:15` |
 | Open progress-silence deadline | 60 s past last movement | `AudioFileOpenTimeoutMath.h:16` |
-| Foreground transfers (running / pending / grace) | 3 / 1 / 5 s — the slot spans transfer + handle open (J7) | `AudioLoadingConfiguration.m` |
+| Foreground transfers (running / pending / grace) | 3 / 1 / 5 s | `AudioLoadingConfiguration.m` |
 | Background transfers (running / pending / grace) | 1 / 6 / 10 s | same |
+| Live handle runs (shared production coordinator) | 6 — immediate refusal; no pending/grace/configuration | `AudioFileMaterializationCoordinator.m` |
 | Prefetch depth | 1 | same |
 | Metadata attempts per path (total) | 3 | same (`metadataRetryCount` 2) |
 | Admission-exhausted retry delay | 0.25 s → 2 s escalating | `MetadataRetryRules.h` |
@@ -247,7 +250,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
 - **I5.** Analysis (BPM/key) rides the waveform decode pass and is macOS-only; on
   iOS the tagged value is the whole answer.
 
-## J. Open items — all resolved 2026-08-20
+## J. Open items — all resolved through 2026-08-23
 
 - **J1. Priority-lane retention (defect → DECIDED).** Replayed/replaced playlists
   accumulate per-track state in the current-track lane; entries from abandoned
@@ -282,12 +285,29 @@ H policy numbers · I platform differences · J open items · K non-goals.
   simultaneously wanted. **Resolution:** delete during the simplification,
   gated on an on-device iOS pager check against a stuck fake provider (the one
   failure mode with no host-less test).
-- **J7. Stacked open admission (DECIDED).** Handle opens are bounded by a second
-  scheduler whose limits duplicate the transfer lane's and are not tunable through
-  the same configuration surface; callers cannot distinguish the two rejections.
-  **Resolution:** one bound per claim spanning transfer + handle open, with the
-  foreground lane resized 2 → 3 so one wedged open cannot halve foreground
-  capacity. H's table gains the new value when it lands.
+- **J7. Stacked open admission (DECIDED, superseded by J8).** Handle opens were
+  bounded by a second scheduler whose limits duplicated the transfer lane's.
+  The original resolution made one lane slot span transfer and handle open, and
+  resized the foreground lane 2 → 3. That spanning lifetime coupled two different
+  resources and is retired by J8.
+- **J8. Transfer/open lifetime separation (defect → DECIDED; supersedes J7).** A
+  never-returning prefetch or gapless `AVAudioFile` call carried the sole background
+  transfer slot forever, permanently starving dataless metadata and prefetch work.
+  **Resolution:** every transfer slot ends when its stage-1 materialization settles;
+  no slot is carried into stage 2. Independently, at most 6 distinct
+  `(purpose, standardized path)` handle runs may be live per coordinator. Production
+  uses the shared coordinator, making that ceiling process-wide in the app. An existing
+  key rebinds before the ceiling is checked; a new seventh run is refused immediately
+  with the existing admission-exhausted result before materialization starts. The
+  ceiling is the private `_handleRuns.count`, conservatively derived from one player's
+  three queue-confined open sources plus room for three stranded calls in aggregate.
+  It is purpose-blind: prefetch or gapless can consume all six and cause a later
+  playback key to be refused. That refusal contributes to the existing
+  `requestsAdmissionExhausted` outcome counter; there is no queue, pending allowance,
+  grace, configuration value, duplicate counter, or watchdog. A run remains a member
+  through an uncancellable open and any rebound restart until it actually finishes.
+  Another player or open source, or a multi-flight source, requires re-deriving the
+  ceiling and its tests. Foreground and background transfer limits remain 3 and 1.
 
 ## K. Non-goals — what this spec deliberately does not constrain
 

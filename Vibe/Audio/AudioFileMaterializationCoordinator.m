@@ -331,6 +331,12 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 @end
 
 static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKey;
+// One production player has three queue-confined open sources: playback,
+// prefetch and gapless. Six conservatively leaves three stranded-call
+// memberships beyond that source bound while capping uncancellable workers.
+// The fuse is purpose-blind, so saturation can refuse playback. A new player,
+// source or multi-flight source requires re-deriving this ceiling.
+static const NSUInteger kMaximumHandleRunCount = 6;
 
 @implementation AudioFileMaterializationCoordinator {
     dispatch_queue_t _stateQueue;
@@ -338,12 +344,9 @@ static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKe
     dispatch_queue_t _backgroundWorkerQueue;
     dispatch_source_t _pendingTimer;
     NSMutableDictionary<NSString *, VibeAudioFileMaterializationClaim *> *_claims;
-    // Stage 2, keyed "purpose:path". A run outlives its transfer claim: the
-    // claim leaves _claims at settlement while the AVAudioFile open it fed is
-    // still returning, and the transfer's lane slot rides along in
-    // _carriedSlotLanes until the path's last run finishes.
+    // Stage 2, keyed "purpose:path". Membership is also the fixed admission:
+    // a run stays registered until its uncancellable AVAudioFile call returns.
     NSMutableDictionary<NSString *, VibeAudioHandleRun *> *_handleRuns;
-    NSMutableDictionary<NSString *, NSNumber *> *_carriedSlotLanes;
     NSMutableArray<VibeAudioFileMaterializationClaim *> *_interactivePending;
     NSMutableArray<VibeAudioFileMaterializationClaim *> *_backgroundPending;
     NSUInteger _interactiveRunningCount;
@@ -436,7 +439,6 @@ static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKe
         _fileOpener = [fileOpener copy];
         _claims = [NSMutableDictionary dictionary];
         _handleRuns = [NSMutableDictionary dictionary];
-        _carriedSlotLanes = [NSMutableDictionary dictionary];
         _interactivePending = [NSMutableArray array];
         _backgroundPending = [NSMutableArray array];
         _stateQueue = dispatch_queue_create("com.vibe.materialization.state", DISPATCH_QUEUE_SERIAL);
@@ -615,10 +617,9 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
                            userInfo:@{NSLocalizedDescriptionKey: description}];
 }
 
-// Every terminal outcome a caller can observe, counted in one place. Callers
-// see requests, not claims, so the denominator is the waiter: a claim four
-// waiters joined settles four requests. State-queue only, like everything else
-// here.
+// Every terminal outcome a caller can observe, counted in one place. A stage-1
+// claim four waiters joined settles four requests; a pre-stage-1 handle refusal
+// settles one. State-queue only, like everything else here.
 - (void)countSettledRequest:(VibeAudioFileMaterializationResult)result {
     switch (result) {
         case VibeAudioFileMaterializationResultReady: _requestsReady++; break;
@@ -844,17 +845,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
             [CloudTransferRegistry.sharedRegistry endedTransferForPath:transferPath];
         });
     }
-    // A Ready transfer with handle runs riding this path hands its lane slot
-    // to them rather than releasing it: the AVAudioFile opens it fed are
-    // still returning, and a wedged one must stay inside the same admission
-    // that bounded its transfer (spec J7). The path's last run releases it.
-    BOOL carrySlot = ready && !claim.runWasCancelled
-            && [self pathHasLiveHandleRuns:claim.path]
-            && _carriedSlotLanes[claim.path] == nil;
-    if (carrySlot) {
-        _carriedSlotLanes[claim.path] = @(claim.lane);
-    }
-    else if (claim.lane == VibeMaterializationLaneInteractive) {
+    if (claim.lane == VibeMaterializationLaneInteractive) {
         if (_interactiveRunningCount > 0) _interactiveRunningCount--;
     }
     else {
@@ -1072,36 +1063,6 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
     return [NSString stringWithFormat:@"%ld:%@", (long)purpose, path];
 }
 
-- (BOOL)pathHasLiveHandleRuns:(NSString *)path {
-    for (long purpose = VibeAudioFileOpenPurposePlayback;
-            purpose <= VibeAudioFileOpenPurposeGapless; purpose++) {
-        if (_handleRuns[VibeHandleRunKey((VibeAudioFileOpenPurpose)purpose, path)]) {
-            return YES;
-        }
-    }
-    return NO;
-}
-
-- (void)releaseCarriedSlotIfNoLiveRunsForPath:(NSString *)path {
-    if ([self pathHasLiveHandleRuns:path]) {
-        return;
-    }
-    NSNumber *lane = _carriedSlotLanes[path];
-    if (lane == nil) {
-        return;
-    }
-    [_carriedSlotLanes removeObjectForKey:path];
-    if ((VibeMaterializationLane)lane.unsignedIntegerValue
-            == VibeMaterializationLaneInteractive) {
-        if (_interactiveRunningCount > 0) _interactiveRunningCount--;
-    }
-    else {
-        if (_backgroundRunningCount > 0) _backgroundRunningCount--;
-    }
-    [self drainPendingClaims];
-    [self reschedulePendingTimer];
-}
-
 - (AudioFileOpenToken *)openURL:(NSURL *)url
                          purpose:(VibeAudioFileOpenPurpose)purpose
                  completionQueue:(dispatch_queue_t)completionQueue
@@ -1123,6 +1084,22 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
             // binding without another handle open. The superseded token stays
             // silent by never taking delivery.
             run.waiter = token;
+            return;
+        }
+        if (self->_handleRuns.count >= kMaximumHandleRunCount) {
+            [self countSettledRequest:VibeAudioFileMaterializationResultAdmissionExhausted];
+            NSError *error = [NSError errorWithDomain:VibeAudioFileOpenErrorDomain
+                    code:VibeAudioFileOpenErrorAdmissionExhausted
+                    userInfo:@{NSLocalizedDescriptionKey:
+                            @"Audio file open capacity was exhausted"}];
+            LogWarn(@"Audio file open admission exhausted for %@ (%lu active runs)",
+                    url.lastPathComponent, (unsigned long)self->_handleRuns.count);
+            dispatch_async(token.completionQueue, ^{
+                VibeAudioFileOpenCompletion delivery = [token takeCompletionForDelivery];
+                if (delivery) {
+                    delivery(nil, error, 0);
+                }
+            });
             return;
         }
         run = [[VibeAudioHandleRun alloc] init];
@@ -1159,10 +1136,9 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
             [run.materializationToken cancel];
             run.materializationToken = nil;
             [self->_handleRuns removeObjectForKey:run.key];
-            [self releaseCarriedSlotIfNoLiveRunsForPath:run.path];
         }
         // Stage 2 already dispatched: the AVAudioFile call is uncancellable
-        // and keeps the run (and its carried slot) until it returns.
+        // and keeps the run's fixed admission until it returns.
     });
 }
 
@@ -1171,13 +1147,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
     uint64_t runGeneration = run.runGeneration;
     if (run.purpose == VibeAudioFileOpenPurposeGapless) {
         // Stage 2 only: the parked file already proved the bytes local, and
-        // the private handle must never share the parked instance. The open
-        // borrows a background slot (over-subscribing briefly, like the
-        // local-file fast path) so a wedged call still counts somewhere.
-        if (self->_carriedSlotLanes[run.path] == nil) {
-            self->_backgroundRunningCount++;
-            self->_carriedSlotLanes[run.path] = @(VibeMaterializationLaneBackground);
-        }
+        // the private handle must never share the parked instance.
         [self dispatchHandleOpenForRun:run runGeneration:runGeneration];
         return;
     }
@@ -1296,7 +1266,6 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
         return;
     }
     [_handleRuns removeObjectForKey:run.key];
-    [self releaseCarriedSlotIfNoLiveRunsForPath:run.path];
     if (!waiter) {
         return;
     }

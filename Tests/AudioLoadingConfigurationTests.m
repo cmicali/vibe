@@ -19,8 +19,8 @@
     XCTAssertEqual(configuration.maximumBackgroundMaterializations, 1u);
     XCTAssertEqual(configuration.localMetadataParseConcurrency, 4u);
     XCTAssertEqual(configuration.prefetchDepth, 1u);
-    // Three, not two: the lane slot spans the transfer AND its AVAudioFile
-    // open (spec J7), so one wedged open must not halve foreground capacity.
+    // Handle-run admission is independent (spec J8); changing foreground
+    // transfer concurrency would be a separate policy decision.
     XCTAssertEqual(configuration.maximumInteractiveMaterializations, 3u);
     XCTAssertEqual(configuration.maximumInteractivePendingMaterializations, 1u);
     XCTAssertEqual(configuration.maximumBackgroundPendingMaterializations, 6u);

@@ -1082,10 +1082,7 @@ SCENARIOS = [
     ("S16", s16_close_during_a_live_transfer_starts_nothing, False),
     ("S17", s17_play_pause_during_loading_lands_parked, False),
     ("S18", s18_a_wedged_open_still_starts_the_sweep, False),
-    # Expected-fail until docs/bugs/background-lane-wedged-open-starvation.md
-    # is fixed. Run and reported, never skipped: the day it XPASSes is the day
-    # the fix landed, or the day the scenario stopped reaching the bug.
-    ("S19", s19_a_wedged_prefetch_open_does_not_starve_the_sweep, True),
+    ("S19", s19_a_wedged_prefetch_open_does_not_starve_the_sweep, False),
     ("S21", s21_the_library_converges, False),
 ]
 

@@ -250,14 +250,26 @@
         VibeAudioFileMaterializationCoordinatorSnapshot snapshot;
         do {
             snapshot = [coordinator stateSnapshotForTesting];
-            if (snapshot.interactiveRunningCount == 0 && snapshot.backgroundRunningCount == 0
+            if (snapshot.claimCount == 0 && snapshot.waiterCount == 0
+                    && snapshot.interactiveRunningCount == 0
+                    && snapshot.backgroundRunningCount == 0
+                    && snapshot.interactivePendingCount == 0
+                    && snapshot.backgroundPendingCount == 0
+                    && snapshot.handleRunCount == 0
+                    && !snapshot.foregroundTransferActive
                     && snapshot.handleOpensStarted == snapshot.handleOpensCompleted) {
                 break;
             }
             [NSThread sleepForTimeInterval:0.01];
         } while (deadline.timeIntervalSinceNow > 0);
+        XCTAssertEqual(snapshot.claimCount, 0u, @"materialization claim stranded");
+        XCTAssertEqual(snapshot.waiterCount, 0u, @"materialization waiter stranded");
         XCTAssertEqual(snapshot.interactiveRunningCount, 0u, @"interactive slot stranded");
         XCTAssertEqual(snapshot.backgroundRunningCount, 0u, @"background slot stranded");
+        XCTAssertEqual(snapshot.interactivePendingCount, 0u, @"interactive claim pending");
+        XCTAssertEqual(snapshot.backgroundPendingCount, 0u, @"background claim pending");
+        XCTAssertEqual(snapshot.handleRunCount, 0u, @"handle run stranded");
+        XCTAssertFalse(snapshot.foregroundTransferActive, @"foreground rule stranded");
         XCTAssertEqual(snapshot.handleOpensStarted, snapshot.handleOpensCompleted,
                        @"an AVAudioFile call never returned");
     }
@@ -356,8 +368,8 @@
     VibeOpenTestMaterializationHarness *harness =
             [[VibeOpenTestMaterializationHarness alloc] init];
     // An expectation rather than a semaphore for the arrival: the open runs on a
-    // Utility queue, and blocking this thread on it trips the priority-inversion
-    // checker, whose report would land as a test failure of its own.
+    // Utility queue, and blocking this thread on it can trip the priority-inversion
+    // checker and obscure the result.
     XCTestExpectation *openBegan = [self expectationWithDescription:@"handle open began"];
     dispatch_semaphore_t releaseOpen = dispatch_semaphore_create(0);
     AudioFileMaterializationCoordinator *coordinator =
@@ -395,32 +407,23 @@
     dispatch_semaphore_signal(releaseOpen);
 }
 
-// A1. The regression itself: one wedged background-lane open, and every later
-// dataless background claim is refused for the life of the process. Expected to
-// fail until the fix in docs/bugs/background-lane-wedged-open-starvation.md
-// lands — unmarking this is how that fix proves it fixed something.
+// A1. One wedged background handle open must not keep the transfer lane that
+// admitted its stage 1, or every later dataless background claim is refused for
+// the life of the process.
 - (void)testAWedgedPrefetchOpenDoesNotStarveBackgroundTransfers {
-    XCTExpectFailure(@"B1: a prefetch open carries the sole background lane slot "
-                     @"and never gives it back; see "
-                     @"docs/bugs/background-lane-wedged-open-starvation.md");
     [self runWedgedOpenOnPurpose:VibeAudioFileOpenPurposePrefetch
                       secondRole:VibeAudioFileMaterializationRoleMetadataScan];
 }
 
-// A1, the other way in. Gapless takes its background slot at a different place
-// and with no capacity check at all, so it would keep starving the lane even if
-// only the carried-slot half were fixed.
+// A1, the other way in. Gapless enters directly at stage 2 and therefore must
+// not touch the transfer-lane accounting at all.
 - (void)testAWedgedGaplessOpenDoesNotStarveBackgroundTransfers {
-    XCTExpectFailure(@"B1: gapless takes the sole background lane slot outright; "
-                     @"see docs/bugs/background-lane-wedged-open-starvation.md");
     [self runWedgedOpenOnPurpose:VibeAudioFileOpenPurposeGapless
                       secondRole:VibeAudioFileMaterializationRoleMetadataScan];
 }
 
-// B3. The same question in the lane that was sized for it. This passes today,
-// and its job is to keep passing: it is what "three, not two" bought, and the
-// pair with the two above is what makes the asymmetry visible as a test result
-// rather than as a comment.
+// B3. Stage 2 and transfer admission are independent in the foreground path
+// too. Paired with the two tests above, this pins the rule on both lanes.
 - (void)testAWedgedPlaybackOpenDoesNotStarveForegroundTransfers {
     [self runWedgedOpenOnPurpose:VibeAudioFileOpenPurposePlayback
                       secondRole:VibeAudioFileMaterializationRolePlayback];
@@ -547,8 +550,10 @@
 
 - (void)testARebindWhileAnAbandonedHandleOpenReturnsGetsAFreshRun {
     NSURL *url = [self writeToneNamed:@"controlled-rebound.wav"];
-    dispatch_semaphore_t firstOpenBegan = dispatch_semaphore_create(0);
+    XCTestExpectation *firstOpenBegan = [self expectationWithDescription:@"first open began"];
+    XCTestExpectation *secondOpenBegan = [self expectationWithDescription:@"second open began"];
     dispatch_semaphore_t releaseFirstOpen = dispatch_semaphore_create(0);
+    dispatch_semaphore_t releaseSecondOpen = dispatch_semaphore_create(0);
     NSLock *countLock = [[NSLock alloc] init];
     __block NSUInteger openCount = 0;
     VibeAudioFileOpener opener = ^AVAudioFile *(NSURL *openURL, NSError **error) {
@@ -556,10 +561,12 @@
         NSUInteger invocation = ++openCount;
         [countLock unlock];
         if (invocation == 1) {
-            dispatch_semaphore_signal(firstOpenBegan);
+            [firstOpenBegan fulfill];
             dispatch_semaphore_wait(releaseFirstOpen, DISPATCH_TIME_FOREVER);
             return nil;
         }
+        [secondOpenBegan fulfill];
+        dispatch_semaphore_wait(releaseSecondOpen, DISPATCH_TIME_FOREVER);
         return [[AVAudioFile alloc] initForReading:openURL error:error];
     };
     AudioFileMaterializationCoordinator *coordinator =
@@ -573,9 +580,12 @@
             completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
         [oldSilent fulfill];
     }];
-    XCTAssertEqual(dispatch_semaphore_wait(firstOpenBegan,
-            dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0);
+    [self waitForExpectations:@[firstOpenBegan] timeout:2];
     [first cancel];
+    VibeAudioFileMaterializationCoordinatorSnapshot abandoned =
+            [coordinator stateSnapshotForTesting];
+    XCTAssertEqual(abandoned.handleRunCount, 1u,
+                   @"stage-2 cancellation must retain its uncancellable membership");
 
     XCTestExpectation *secondOpened = [self expectationWithDescription:@"fresh handle run opened"];
     __unused AudioFileOpenToken *second = [coordinator openURL:url
@@ -585,10 +595,19 @@
         XCTAssertNil(error);
         [secondOpened fulfill];
     }];
-    // Flush the state queue so the fresh waiter has rebound before the first
-    // open is released.
-    (void)[coordinator stateSnapshotForTesting];
+    VibeAudioFileMaterializationCoordinatorSnapshot rebound =
+            [coordinator stateSnapshotForTesting];
+    XCTAssertEqual(rebound.handleRunCount, 1u,
+                   @"rebind must reuse the abandoned run's membership");
     dispatch_semaphore_signal(releaseFirstOpen);
+    [self waitForExpectations:@[secondOpenBegan] timeout:2];
+    VibeAudioFileMaterializationCoordinatorSnapshot restarted =
+            [coordinator stateSnapshotForTesting];
+    XCTAssertEqual(restarted.handleRunCount, 1u,
+                   @"restart must neither release nor duplicate membership");
+    XCTAssertEqual(restarted.handleOpensStarted, 2u);
+    XCTAssertEqual(restarted.handleOpensCompleted, 1u);
+    dispatch_semaphore_signal(releaseSecondOpen);
     [self waitForExpectations:@[secondOpened] timeout:2];
     [self waitForExpectations:@[oldSilent] timeout:0.1];
     [countLock lock];
@@ -937,6 +956,187 @@
 
 #pragma mark - Bounding
 
+- (void)testSixWedgedGaplessRunsRejectASeventhBeforeMaterialization {
+    VibeOpenTestMaterializationHarness *harness =
+            [[VibeOpenTestMaterializationHarness alloc] init];
+    XCTestExpectation *opensBegan = [self expectationWithDescription:@"six handle opens began"];
+    opensBegan.expectedFulfillmentCount = 6;
+    dispatch_semaphore_t releaseOpens = dispatch_semaphore_create(0);
+    AudioFileMaterializationCoordinator *coordinator =
+            [self coordinatorWithHarness:harness fileOpener:^AVAudioFile *(
+                    NSURL *url, NSError **error) {
+        [opensBegan fulfill];
+        dispatch_semaphore_wait(releaseOpens, DISPATCH_TIME_FOREVER);
+        return nil;
+    }];
+
+    NSMutableArray<AudioFileOpenToken *> *tokens = [NSMutableArray array];
+    for (NSUInteger index = 0; index < 6; index++) {
+        NSURL *url = [_directory URLByAppendingPathComponent:
+                [NSString stringWithFormat:@"bounded-gapless-%lu.wav", (unsigned long)index]];
+        AudioFileOpenToken *token = [coordinator openURL:url
+                purpose:VibeAudioFileOpenPurposeGapless completionQueue:_completionQueue
+                completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {}];
+        [tokens addObject:token];
+    }
+    [self waitForExpectations:@[opensBegan] timeout:2];
+    XCTAssertEqual([coordinator stateSnapshotForTesting].handleRunCount, 6u);
+
+    XCTestExpectation *rejected = [self expectationWithDescription:@"seventh run rejected"];
+    NSURL *seventhURL = [_directory URLByAppendingPathComponent:@"bounded-seventh.wav"];
+    AudioFileOpenToken *seventh = [coordinator openURL:seventhURL
+            purpose:VibeAudioFileOpenPurposePlayback completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertNil(file);
+        XCTAssertEqualObjects(error.domain, VibeAudioFileOpenErrorDomain);
+        XCTAssertEqual(error.code, VibeAudioFileOpenErrorAdmissionExhausted);
+        [rejected fulfill];
+    }];
+    [self waitForExpectations:@[rejected] timeout:2];
+    VibeAudioFileMaterializationCoordinatorSnapshot full =
+            [coordinator stateSnapshotForTesting];
+    XCTAssertEqual(full.handleRunCount, 6u);
+    XCTAssertEqual(full.handleOpensStarted, 6u);
+    XCTAssertEqual(full.requestsAdmissionExhausted, 1u,
+                   @"a handle-run refusal must be visible to health oracles");
+    XCTAssertEqual(harness.startedOperations.count, 0u,
+                   @"handle-run admission must happen before stage 1");
+
+    [seventh cancel];
+    for (AudioFileOpenToken *token in tokens) {
+        [token cancel];
+    }
+    XCTAssertEqual([coordinator stateSnapshotForTesting].handleRunCount, 6u,
+                   @"a dispatched handle open remains admitted until it returns");
+    for (NSUInteger index = 0; index < 6; index++) {
+        dispatch_semaphore_signal(releaseOpens);
+    }
+}
+
+- (void)testSameKeyRebindSucceedsWhenHandleRunAdmissionIsFull {
+    VibeOpenTestMaterializationHarness *harness =
+            [[VibeOpenTestMaterializationHarness alloc] init];
+    XCTestExpectation *opensBegan = [self expectationWithDescription:@"six handle opens began"];
+    opensBegan.expectedFulfillmentCount = 6;
+    dispatch_semaphore_t releaseOpens = dispatch_semaphore_create(0);
+    AudioFileMaterializationCoordinator *coordinator =
+            [self coordinatorWithHarness:harness fileOpener:^AVAudioFile *(
+                    NSURL *url, NSError **error) {
+        [opensBegan fulfill];
+        dispatch_semaphore_wait(releaseOpens, DISPATCH_TIME_FOREVER);
+        if (error) {
+            *error = [NSError errorWithDomain:@"com.vibe.test-open" code:1 userInfo:nil];
+        }
+        return nil;
+    }];
+
+    NSMutableArray<AudioFileOpenToken *> *tokens = [NSMutableArray array];
+    NSURL *reboundURL = nil;
+    XCTestExpectation *supersededSilent =
+            [self expectationWithDescription:@"superseded waiter silent"];
+    supersededSilent.inverted = YES;
+    for (NSUInteger index = 0; index < 6; index++) {
+        NSURL *url = [_directory URLByAppendingPathComponent:
+                [NSString stringWithFormat:@"full-rebind-%lu.wav", (unsigned long)index]];
+        if (index == 0) reboundURL = url;
+        AudioFileOpenToken *token = [coordinator openURL:url
+                purpose:VibeAudioFileOpenPurposeGapless completionQueue:_completionQueue
+                completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+            if ([url isEqual:reboundURL]) {
+                [supersededSilent fulfill];
+            }
+        }];
+        [tokens addObject:token];
+    }
+    [self waitForExpectations:@[opensBegan] timeout:2];
+
+    XCTestExpectation *replacementDelivered =
+            [self expectationWithDescription:@"replacement waiter delivered"];
+    __unused AudioFileOpenToken *replacement = [coordinator openURL:reboundURL
+            purpose:VibeAudioFileOpenPurposeGapless completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertNil(file);
+        XCTAssertEqualObjects(error.domain, @"com.vibe.test-open");
+        [replacementDelivered fulfill];
+    }];
+    VibeAudioFileMaterializationCoordinatorSnapshot rebound =
+            [coordinator stateSnapshotForTesting];
+    XCTAssertEqual(rebound.handleRunCount, 6u);
+    XCTAssertEqual(rebound.handleOpensStarted, 6u,
+                   @"a same-key request must rebind before admission is checked");
+
+    for (AudioFileOpenToken *token in tokens) {
+        [token cancel];
+        dispatch_semaphore_signal(releaseOpens);
+    }
+    [self waitForExpectations:@[replacementDelivered] timeout:2];
+    [self waitForExpectations:@[supersededSilent] timeout:0.1];
+}
+
+- (void)testCancellingAStageOneRunFreesHandleRunAdmission {
+    VibeOpenTestMaterializationHarness *harness =
+            [[VibeOpenTestMaterializationHarness alloc] init];
+    XCTestExpectation *blockerOpensBegan =
+            [self expectationWithDescription:@"five blocker opens began"];
+    blockerOpensBegan.expectedFulfillmentCount = 5;
+    XCTestExpectation *replacementOpenBegan =
+            [self expectationWithDescription:@"replacement open began"];
+    dispatch_semaphore_t releaseOpens = dispatch_semaphore_create(0);
+    AudioFileMaterializationCoordinator *coordinator =
+            [self coordinatorWithHarness:harness fileOpener:^AVAudioFile *(
+                    NSURL *url, NSError **error) {
+        if ([url.lastPathComponent hasPrefix:@"detach-blocker-"]) {
+            [blockerOpensBegan fulfill];
+        } else if ([url.lastPathComponent isEqualToString:@"detach-replacement.wav"]) {
+            [replacementOpenBegan fulfill];
+        } else {
+            XCTFail(@"unexpected handle open for %@", url.lastPathComponent);
+        }
+        dispatch_semaphore_wait(releaseOpens, DISPATCH_TIME_FOREVER);
+        return nil;
+    }];
+
+    NSMutableArray<AudioFileOpenToken *> *wedged = [NSMutableArray array];
+    for (NSUInteger index = 0; index < 5; index++) {
+        NSURL *url = [_directory URLByAppendingPathComponent:
+                [NSString stringWithFormat:@"detach-blocker-%lu.wav", (unsigned long)index]];
+        AudioFileOpenToken *token = [coordinator openURL:url
+                purpose:VibeAudioFileOpenPurposeGapless completionQueue:_completionQueue
+                completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {}];
+        [wedged addObject:token];
+    }
+    [self waitForExpectations:@[blockerOpensBegan] timeout:2];
+
+    NSURL *stageOneURL = [_directory URLByAppendingPathComponent:@"detach-stage-one.wav"];
+    AudioFileOpenToken *stageOne = [coordinator openURL:stageOneURL
+            purpose:VibeAudioFileOpenPurposePlayback completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {}];
+    XCTAssertTrue([harness waitForStartedCount:1]);
+    XCTAssertEqual([coordinator stateSnapshotForTesting].handleRunCount, 6u);
+    [stageOne cancel];
+    XCTAssertTrue([harness waitForCancellationCount:1]);
+    XCTAssertEqual([coordinator stateSnapshotForTesting].handleRunCount, 5u,
+                   @"a run detached before stage 2 has no uncancellable work to retain");
+
+    NSURL *replacementURL = [_directory URLByAppendingPathComponent:@"detach-replacement.wav"];
+    AudioFileOpenToken *replacement = [coordinator openURL:replacementURL
+            purpose:VibeAudioFileOpenPurposeGapless completionQueue:_completionQueue
+            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {}];
+    [self waitForExpectations:@[replacementOpenBegan] timeout:2];
+    VibeAudioFileMaterializationCoordinatorSnapshot refilled =
+            [coordinator stateSnapshotForTesting];
+    XCTAssertEqual(refilled.handleRunCount, 6u);
+    XCTAssertEqual(refilled.handleOpensStarted, 6u);
+
+    [replacement cancel];
+    for (AudioFileOpenToken *token in wedged) {
+        [token cancel];
+    }
+    for (NSUInteger index = 0; index < 6; index++) {
+        dispatch_semaphore_signal(releaseOpens);
+    }
+}
+
 // The reason the whole thing exists: many requests for many paths must not
 // multiply workers without bound. Every one of them still settles.
 - (void)testABurstOfDistinctPathsAllSettle {
@@ -951,8 +1151,8 @@
         [_coordinator openURL:url purpose:VibeAudioFileOpenPurposePrefetch
               completionQueue:_completionQueue
                    completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
-            // Either outcome is fine — the background lane's pending bound may
-            // legitimately refuse some of a burst this size. What must not
+            // Either outcome is fine — bounded transfer or handle-run admission
+            // may legitimately refuse some of a burst this size. What must not
             // happen is a request that never answers at all.
             XCTAssertTrue(file != nil || error != nil);
             [done fulfill];

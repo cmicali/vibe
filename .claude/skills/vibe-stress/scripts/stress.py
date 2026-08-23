@@ -966,7 +966,7 @@ PENDING_KEYS = ("metadataHolders", "metadataWaiters", "openResultsBuffered",
 # cancelled, so the count only ever goes up. At rest it must be zero, and a
 # single stuck open is a permanent loss of admission capacity that no other
 # counter here carries — the bug in
-# docs/bugs/background-lane-wedged-open-starvation.md was invisible to this
+# docs/done/background-lane-wedged-open-starvation.md was invisible to this
 # whole table until it was added.
 #
 # dump_health's pending section also carries cloudParsesPending and
