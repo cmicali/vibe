@@ -38,6 +38,7 @@ static BOOL VibeHangInstalled;
         @"backgroundPending": @(snapshot.backgroundPendingCount),
         @"foregroundTransferActive": @(snapshot.foregroundTransferActive),
         @"handleRuns": @(snapshot.handleRunCount),
+        @"datalessProbesInFlight": @(snapshot.datalessProbesInFlight),
         // The stranded-open signal: an AVAudioFile call the OS still owes an
         // answer for. Nonzero at rest means a run will never finish, which no
         // gauge above can say — see docs/testing/materialization-coverage-plan.md.

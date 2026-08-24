@@ -52,16 +52,18 @@ static inline NSTimeInterval VibeMetadataAdmissionRetryDelay(
 }
 
 // What happens to a priority record whose materialization came back Yielded.
-// A yield only ever means "the foreground hold was up when the coordinator
-// judged this request", so while the hold still reads up the record WAITS —
-// requeued, marked, not re-picked until the release edge, or the pick/submit/
-// yield cycle spins against the synchronous yield. At the release edge (or a
-// yield delivered after it — the two orders of the same race), the file is
-// probed: local means the settled open downloaded it, so the record retries
-// and its parse lands immediately; still dataless means the open failed, and
-// chasing it would spend the provider's next slot re-downloading a file
-// behind a terminal error the user is looking at — the record DEMOTES to an
-// ordinary sweep candidate at its rank. Yielding never spends the budget.
+// A yield means dataless metadata was stopped by the foreground rule: the hold
+// was active at classification, or its same-path foreground waiter departed
+// while classification was outstanding. While the hold remains, a
+// still-dataless record WAITS: re-picking would install a fresh Probing claim,
+// occupy a bounded probe slot, repeat the filesystem probe, and yield when the
+// result lands. At the release edge (or a yield delivered after it — the two
+// orders of the same race), the file is probed: local means the settled open
+// downloaded it, so the record retries and its parse lands immediately; still
+// dataless means the open failed, and chasing it would spend the provider's
+// next slot re-downloading a file behind a terminal error the user is looking
+// at — the record DEMOTES to an ordinary sweep candidate at its rank. Yielding
+// never spends the budget.
 typedef NS_ENUM(NSUInteger, VibeMetadataPriorityYieldOutcome) {
     VibeMetadataPriorityYieldWait = 0,
     VibeMetadataPriorityYieldRetry,

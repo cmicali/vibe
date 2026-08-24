@@ -3,10 +3,11 @@
 //  Vibe
 //
 //  The coordinator's publication surface for "which files are on the wire":
-//  AudioFileMaterializationCoordinator publishes its startClaim:/finishClaim:
-//  edges here, gated on the dataless probe, so a local file — whose run is a
-//  stat and a no-op coordinated read — publishes nothing, and a claim merely
-//  queued behind lane capacity publishes nothing either. Lane capacity
+//  AudioFileMaterializationCoordinator publishes begin/end here only when its
+//  accepted initial or start-refresh classification says the file is dataless.
+//  A local file — whose operation is a no-op coordinated read — publishes
+//  nothing, and a claim merely queued behind lane capacity publishes nothing
+//  either. Lane capacity
 //  therefore bounds the indicators as well as the transfers: dropping a large
 //  cloud folder marks the one to three files actually downloading and leaves
 //  every other row its number.

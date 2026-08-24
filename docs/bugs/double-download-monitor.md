@@ -65,7 +65,7 @@ The fake is precisely the case where the bug is invisible. Real providers pay. *
 Checked and cleared, so they are not re-investigated:
 
 - **The fraction never goes wrong.** `displayFraction:over:` (`CloudTransferRegistry.m:128`) never downgrades a positive value to zero, and once `externallyFed` is set the registry monitor's samples are dropped (`:136`). Even the three-monitor case yields a plausible fraction for the right file.
-- **Local files are exempt.** `claim.publishedTransfer = _datalessProbe(claim.url)` (`AudioFileMaterializationCoordinator.m:733`) means a local claim publishes nothing and no monitor is minted at all.
+- **Local files are exempt.** The coordinator publishes only when an accepted initial or start-refresh classification is dataless, so a local claim publishes nothing and no monitor is minted at all.
 - **Prefetch and playback do not double-publish.** The coordinator holds one claim per path (`_claims[claim.path]`), so a prefetch joining a playback open is one begin, not two.
 - **No leak.** Both monitors are cancelled on their own paths; this is concurrent waste, not unbounded growth.
 

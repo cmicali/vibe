@@ -47,8 +47,8 @@
 // open downloading this very file is the common way it flips to YES.
 @property (nonatomic) BOOL local;
 // A priority submission came back Yielded while the hold was up. The record
-// waits — re-picking it would spin against the coordinator's synchronous
-// yield — until the release edge re-judges it (MetadataRetryRules.h).
+// waits: re-picking would install another bounded probe and repeat the stat
+// before yielding again. The release edge re-judges it (MetadataRetryRules.h).
 @property (nonatomic) BOOL yieldedUnderHold;
 // The exact prioritizeTrack: edge this record carried when its priority slot
 // was claimed. A locality probe runs without the bookkeeping lock, so its
@@ -553,7 +553,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 - (void)dispatchNextScanMaterializationOnCallbackQueue {
     // Sampled once per pass, off the lock: the coordinator's answer is a
     // snapshot either way, and a submission that races a rising edge is
-    // yielded at admission, spending nothing.
+    // yielded before it can enter a provider operation, spending nothing.
     BOOL suspended = [_materializationCoordinator isForegroundTransferActive];
     // A yielded record must be judged before any idle pick, not only by the
     // one-second clock. Otherwise an unrelated kick in the release gap can

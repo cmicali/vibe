@@ -86,10 +86,10 @@
 // every gated tick. A local file retries whether or not the rule holds: its
 // parse starts no transfer, and waiting it out was measured costing the
 // now-playing tags the length of the successor's whole prefetch. A dataless
-// record waits while the hold is up — re-picking would spin against the
-// coordinator's synchronous yield — and demotes only once the foreground
-// settles with the file still dataless: the open failed, and re-downloading
-// a dead pick behind its error UI is the sweep's call to make, at its rank.
+// record waits while the hold is up — re-picking would repeat the bounded
+// probe and yield when its answer lands — and demotes only once the foreground
+// settles with the file still dataless: the open failed, and re-downloading a
+// dead pick behind its error UI is the sweep's call to make, at its rank.
 - (void)testADatalessYieldWhileHeldWaitsForTheReleaseEdge {
     XCTAssertEqual(VibeMetadataPriorityAfterYield(YES, NO),
             VibeMetadataPriorityYieldWait);

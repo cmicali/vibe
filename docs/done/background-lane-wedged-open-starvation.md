@@ -68,7 +68,7 @@ Split the two lifetimes, using state the coordinator already owns. The net imple
 
 This is file-loading spec **J8**, which supersedes J7's spanning-slot resolution. The existing `handleRunCount` snapshot and cumulative open counters, added by the coverage work, remain diagnostics; a handle-run refusal contributes to the existing `requestsAdmissionExhausted` outcome counter, so the fix adds no new counter or configuration surface.
 
-`foregroundTransferActiveLocked` derives from `_claims`, never from the running counts, so **the C1 foreground rule is untouched by all of this**. `CloudTransferRegistry` publication is likewise gated on `publishedTransfer` at `startClaim:`/`finishClaim:`, independent of the carried slot — the change repairs the root `CLAUDE.md` claim that "lane capacity bounds the indicators as well as the transfers", which carried slots had skewed.
+`foregroundTransferActiveLocked` derives from `_claims`, never from the running counts, so **the C1 foreground rule is untouched by all of this**. `CloudTransferRegistry` publication is likewise gated on the claim's accepted dataless classification, independent of the carried slot — the change repairs the root `CLAUDE.md` claim that "lane capacity bounds the indicators as well as the transfers", which carried slots had skewed.
 
 ### Alternative, rejected
 

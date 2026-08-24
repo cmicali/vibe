@@ -81,6 +81,15 @@ H policy numbers · I platform differences · J open items · K non-goals.
 - **B9. Stop/Close fires no delegate callback.** It supersedes any in-flight open so
   a Loading track never starts, and never drives auto-advance. Track-end and
   skip-past-end funnel through exactly one settlement each.
+- **B10. Classification concurrency is bounded and state-isolated.** Initial
+  classifications use eight running and sixteen pending slots. One stalled initial
+  probe leaves other running slots free; saturation can make a healthy pending probe
+  fail after five seconds as admission exhausted — and for metadata spend D7's
+  per-path budget — rather than create an unbounded worker tail. A delayed/readmitted
+  dataless refresh begins only after reserving its transfer lane and does not use those
+  slots. It has no expiry: a never-returning refresh holds that lane indefinitely,
+  including production's one-wide background lane. Neither phase blocks request
+  registration or coordinator state.
 
 ## C. The foreground/background rule
 
@@ -221,6 +230,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
 | Open progress-silence deadline | 60 s past last movement | `AudioFileOpenTimeoutMath.h:16` |
 | Foreground transfers (running / pending / grace) | 3 / 1 / 5 s | `AudioLoadingConfiguration.m` |
 | Background transfers (running / pending / grace) | 1 / 6 / 10 s | same |
+| Initial classification probes (running / pending / grace) | 8 / 16 / 5 s | `AudioFileMaterializationCoordinator.m` |
 | Live handle runs (shared production coordinator) | 6 — immediate refusal; no pending/grace/configuration | `AudioFileMaterializationCoordinator.m` |
 | Prefetch depth | 1 | same |
 | Metadata attempts per path (total) | 3 | same (`metadataRetryCount` 2) |
@@ -250,7 +260,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
 - **I5.** Analysis (BPM/key) rides the waveform decode pass and is macOS-only; on
   iOS the tagged value is the whole answer.
 
-## J. Open items — all resolved through 2026-08-23
+## J. Open items and decisions
 
 - **J1. Priority-lane retention (defect → DECIDED).** Replayed/replaced playlists
   accumulate per-track state in the current-track lane; entries from abandoned
@@ -308,6 +318,12 @@ H policy numbers · I platform differences · J open items · K non-goals.
   through an uncancellable open and any rebound restart until it actually finishes.
   Another player or open source, or a multi-flight source, requires re-deriving the
   ceiling and its tests. Foreground and background transfer limits remain 3 and 1.
+- **J9. Running-stage materialization deadline (defect → OPEN).** Once stage 1 is
+  `Running`, pending admission expiry no longer reaches it. A coordinated read stalled
+  on SMB, NFS, or a sleeping external disk can hold its transfer lane indefinitely;
+  metadata and artwork callers have no deadline that guarantees cancellation. A fix
+  needs explicit slow-volume, caller-deadline, and retry policy; see the
+  [bug record](bugs/no-deadline-on-a-running-materialization.md).
 
 ## K. Non-goals — what this spec deliberately does not constrain
 

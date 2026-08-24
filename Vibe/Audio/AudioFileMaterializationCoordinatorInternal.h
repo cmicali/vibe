@@ -21,9 +21,11 @@ typedef id<AudioFileMaterializationOperation> _Nonnull
                 NSURL *url, VibeAudioFileMaterializationRole role);
 typedef NSTimeInterval (^VibeAudioFileMaterializationClock)(void);
 // YES when the file's contents are not local, so materializing it means a
-// provider transfer. Production is NSURLUtil.isDatalessFile:. Lane capacity,
-// the admission grace, and the foreground rule all bound *transfers*, so a NO
-// answer exempts a claim from every one of them.
+// provider transfer. Production is NSURLUtil.isDatalessFile:. Called
+// concurrently on bounded workers, may block, and must be thread-safe. An
+// initial NO answer bypasses transfer admission. A refresh runs only after its
+// lane is reserved; NO suppresses transfer publication, but that run returns
+// the lane only when its operation settles.
 typedef BOOL (^VibeAudioFileMaterializationDatalessProbe)(NSURL *url);
 // Stage 2's injected seam: the one AVAudioFile call, host-lessly replaceable.
 typedef AVAudioFile * _Nullable (^VibeAudioFileOpener)(
@@ -37,6 +39,7 @@ typedef struct {
     NSUInteger interactivePendingCount;
     NSUInteger backgroundPendingCount;
     NSUInteger handleRunCount;
+    uint64_t datalessProbesInFlight;
     BOOL foregroundTransferActive;
     // Cumulative for the life of the coordinator. The gauges above cannot tell
     // "nothing is happening" from "a great deal is happening quickly", which is
@@ -76,6 +79,12 @@ typedef struct {
 // Stranded AVAudioFile calls, readable from any thread without taking the
 // state queue. The health probe polls this; nothing else should need it.
 - (uint64_t)handleOpensInFlight;
+
+// Dataless classification attempts outstanding from scheduler/worker handoff
+// through cancellation, rejection, or state settlement. This includes queued
+// initial work and a running call whose last waiter detached. Lock-free for
+// quiescence.
+- (uint64_t)datalessProbesInFlight;
 
 - (VibeAudioFileMaterializationCoordinatorSnapshot)stateSnapshotForTesting;
 - (void)expirePendingClaimsForTesting;

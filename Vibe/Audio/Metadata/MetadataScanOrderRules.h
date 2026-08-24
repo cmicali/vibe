@@ -19,7 +19,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, copy) NSURL *url;
 // A priority submission of this record came back Yielded while the foreground
 // rule was in force; the record waits for an idle re-pick rather than
-// spinning against the coordinator's synchronous yield (MetadataRetryRules.h).
+// installing another bounded probe which will repeat the stat and yield
+// (MetadataRetryRules.h).
 @property (nonatomic, readonly) BOOL yieldedUnderHold;
 @end
 
@@ -51,9 +52,9 @@ static inline BOOL VibeMetadataScanOrderedBefore(
 // prioritized, an untried record beats a deferred retry, then the lowest
 // playlist row wins (NSNotFound — a record minted outside the sweep — sorts
 // last by being the largest NSUInteger). While the foreground rule is in
-// force, a record it already yielded is skipped: re-picking it would spin
-// against the coordinator's synchronous yield, so it waits for the first
-// idle re-pick. Neighborhood rank deliberately plays no part — priority
+// force, a record it already yielded is skipped: re-picking it would install
+// another bounded probe, repeat the stat, and yield again, so it waits for the
+// first idle re-pick. Neighborhood rank deliberately plays no part — priority
 // records are the current track and at most a convert target, and their own
 // slot is the whole of their precedence.
 static inline id<MetadataScanOrderCandidate> _Nullable VibeBestPriorityScanCandidate(

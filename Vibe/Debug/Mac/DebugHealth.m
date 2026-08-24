@@ -151,13 +151,9 @@ static void VibeCountViews(NSView *view, NSUInteger *views, NSUInteger *tracking
 
 #pragma mark - Pending work
 
-// Every unbounded container in the app that holds work in flight. These are
-// the leak signals the process counters cannot see: a stranded parse claim or
-// an undelivered open result is a few hundred bytes, so a thousand of them
-// would not move the footprint, yet each one is a piece of work that will
-// never finish. All of them belong at zero once the app settles, which is why
-// the quiesce verb exists and why the stress driver holds them to a growth
-// limit of a few rather than a few hundred megabytes.
+// App-owned work which must return to zero at rest. The containers are leak
+// signals too small for process counters; the fixed-bounded syscall gauges
+// instead let quiesce name work stuck below those containers.
 // engineCounts comes from the caller so the player's queue is crossed once per
 // dump, not once per section.
 static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerController *controller,
@@ -187,6 +183,12 @@ static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerControl
     // counter carried it.
     out[@"priorityRecordsPending"] =
             @([(NSArray *)[controller.metadataCache debugPriorityLaneState][@"pending"] count]);
+    // Accounting starts before the scheduler/worker handoff, so a probe can
+    // outlive the claim whose last waiter detached without a zero-count gap.
+    // At rest this distinguishes stuck classification from transfer/open work.
+    out[@"datalessProbesInFlight"] =
+            @([AudioFileMaterializationCoordinator.sharedCoordinator
+                    datalessProbesInFlight]);
     // An AVAudioFile call the OS still owes an answer for. Unlike everything
     // above it is not a container the app can drain — a never-returning open
     // cannot be cancelled — so nonzero here at rest is not "work still in

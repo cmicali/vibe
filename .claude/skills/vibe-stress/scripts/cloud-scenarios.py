@@ -607,7 +607,7 @@ def loading_residue(ctx):
     materialization = health.get("materialization", {})
     keys = ("claims", "waiters", "interactiveRunning", "backgroundRunning",
             "interactivePending", "backgroundPending", "handleRuns",
-            "handleOpensInFlight")
+            "datalessProbesInFlight", "handleOpensInFlight")
     live = {key: materialization.get(key, 0) for key in keys
             if materialization.get(key, 0)}
     priority = health.get("priorityLane", {})
@@ -1408,12 +1408,23 @@ def s8c_a_stall_after_progress_times_out(ctx):
 def s9_unflagged_placeholders(ctx):
     """A placeholder that denies being dataless still waits its turn.
 
-    Some providers answer NO to the dataless probe for files whose read still
-    costs a whole download. The coordinator must exempt genuinely local files,
-    so a false-negative probe currently routes this request as local. Unlimited
-    fake-provider capacity ensures the provider queue cannot hide that bypass;
-    this scenario remains an explicit expected-fail until the app has a second
-    reliable signal or the affected providers are ruled out.
+    This guards a HYPOTHETICAL provider, not an observed one. No provider has
+    been measured withholding SF_DATALESS; the one named-provider measurement
+    in the repo found the opposite (DownloadProgressMonitor.h: Dropbox on
+    iPhone reported dataless=1 for the whole transfer, and withheld PROGRESS
+    rather than the flag). NSURLUtil.m states the same conditionally — "if a
+    provider ever does appear whose placeholders carry no flag" — and names
+    where the fix would go. Keep the wording conditional here too: a suite
+    that asserts an unobserved fact teaches the next reader something false.
+
+    Were such a provider to exist, the probe's NO would be indistinguishable
+    from a genuinely local file at the admission seam, and the local-file
+    exemption — load-bearing, and correct for real local files — would route
+    its metadata read straight past the foreground hold. Unlimited
+    fake-provider capacity ensures the provider queue cannot hide that bypass.
+    This stays an explicit expected-fail until the app has a second reliable
+    signal or real providers are ruled out; `set_dataless_diag` /
+    `dump_dataless_diag` is the instrument for the latter.
 
     The property has to be measured DURING the picked track's open, not after
     it. "Rows were parsed" is true either way once the open settles — that is

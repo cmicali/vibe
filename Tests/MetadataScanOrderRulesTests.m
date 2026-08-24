@@ -214,8 +214,8 @@
                                                   deferred:NO
                                           yieldedUnderHold:YES]];
     NSSet *priority = [NSSet setWithObject:yielded];
-    // Re-picking under an active foreground would spin against the
-    // coordinator's synchronous yield; the first idle pick takes it.
+    // Re-picking under an active foreground would repeat the bounded probe and
+    // yield when its answer lands; the first idle pick takes it.
     XCTAssertNil(VibeBestPriorityScanCandidate(candidates, priority, YES));
     XCTAssertEqualObjects(
             VibeBestPriorityScanCandidate(candidates, priority, NO).url, yielded);

@@ -107,7 +107,7 @@ typedef void (^VibeAudioFileMaterializationCompletion)(
 // transfers, which it never starts. Background pickers (the metadata sweep)
 // read this before submitting dataless work; it is a snapshot the moment it
 // returns, which is fine — a submission that races a rising edge is yielded
-// at admission, spending nothing.
+// before it can enter a provider operation, spending nothing.
 - (BOOL)isForegroundTransferActive;
 
 @end
