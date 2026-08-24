@@ -1,1 +1,1 @@
-audiophile,audio,flac,mp3,dj,bpm,wav,aac,aiff,winamp,lossless,platine,lecteur,musique,dossier
+audio,flac,mp3,dj,bpm,wav,aiff,winamp,lossless,lecteur,musique,dossier,gapless,camelot,convertisseur

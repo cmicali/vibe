@@ -1,1 +1,1 @@
-audiofil,musik,flac,vågform,dj,mp3,aiff,lossless,bpm,winamp,mapp,offline,skivspelare,wav,aac
+musik,flac,vågform,dj,mp3,aiff,lossless,bpm,winamp,mapp,offline,wav,gapless,camelot,konverterare

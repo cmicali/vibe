@@ -1,1 +1,1 @@
-音乐,播放器,本地,波形,无损,flac,mp3,wav,aac,aiff,dj,bpm,唱机,文件夹,离线
+音乐,播放器,本地,波形,无损,flac,mp3,wav,aac,aiff,dj,bpm,文件夹,离线,gapless,camelot,转换

@@ -1,12 +1,19 @@
-Vibe je brz, minimalistički glazbeni player za Mac. Bez vanjskih enginea, bez računa, bez pretplate. Samo jednostavan, brz player za vaše datoteke.
+Vibe je brz, minimalistički player za vaše glazbene datoteke. Bez vanjskih enginea, bez računa, bez pretplate. Slušajte glazbu koju već imate — gdje god je držali.
 
-Valni oblik
-Vibe iscrtava svaku pjesmu kao valni oblik preko cijelog prozora. Kliknite bilo gdje na njemu za premotavanje. Nema biblioteke za uvoz ni baze koju treba obnavljati. Ispustite datoteku ili mapu na prozor — i svira. Oznake, omote i BPM Vibe učitava u pozadini i kešira, pa je sljedeće otvaranje trenutačno.
+Prikaz valnog oblika
+Vibe crta svaku pjesmu kao cijeli valni oblik preko prozora. Kliknite bilo gdje na njemu i skočite tamo.
 
-Formati
-MP3, MP2, AAC, FLAC, MP4/M4A, AIFF i WAV — sve dekodira sam macOS. Lossless datoteke sviraju u punoj rezoluciji, a format i frekvencija uzorkovanja pjesme stoje uz naslov.
+Brz
+Vibe je građen da bude malen i brz. Tagovi, omoti i valni oblici čitaju se u pozadini i spremaju u predmemoriju, pa je sljedeće otvaranje trenutačno.
 
-DJ-i će se osjećati kao doma
-• Pitch fader postavljen kao na gramofonu, skriven dok ga ne zatrebate.
-• Skokovi mjereni u taktovima, ne sekundama. Kad je tempo poznat, skačite 8, 16 ili 32 takta i ostanite na mreži; kad nije, iste tipke pomiču 10, 30 ili 60 sekundi.
-• Performance FX pod jednom rukom: Low Kill filtar, val reverba i delayi zaključani na BPM pjesme. Dodirnite tipku da zadržite efekt; držite je za trenutni.
+Dekodira macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC, svi reproducirani kroz sistemske API-je. Lossless datoteke sviraju u punoj rezoluciji, a format i frekvencija uzorkovanja svake pjesme stoje uz naslov.
+
+Nema biblioteke za uvoz
+Ispustite datoteku ili mapu — s diska, iz iCloud Drivea ili Dropboxa — i svira. Nema baze podataka za ponovnu izgradnju ni biblioteke za održavanje. Omoti, tagovi i BPM popunjavaju se u pozadini dok prva pjesma već svira.
+
+Građen s DJ-evima na umu
+Vibe donosi pitch fader u stilu gramofona, analizu BPM-a i tonaliteta, skokove točne na takt i performance FX.
+
+Besplatan i otvorenog koda
+Vibe ne prikuplja ništa i ne prikazuje oglase. Cijeli izvorni kod je na GitHubu pod licencom Apache 2.0.

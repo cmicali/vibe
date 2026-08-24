@@ -1,12 +1,19 @@
-O Vibe é um leitor de música rápido e minimalista para o Mac. Sem motor de terceiros, sem conta, sem subscrição. Apenas um leitor simples e rápido para os seus ficheiros.
+O Vibe é um leitor rápido e minimalista para os seus ficheiros de música. Sem motor de terceiros, sem conta, sem subscrição. Ouça a música que já tem, onde quer que a guarde.
 
-Forma de onda
-O Vibe desenha cada faixa como uma forma de onda ao longo da janela. Clique em qualquer ponto para saltar até lá. Não há biblioteca para importar nem base de dados para reconstruir: largue um ficheiro ou uma pasta na janela e a música toca. O Vibe lê etiquetas, capas e BPM em segundo plano e guarda tudo em cache, pelo que a abertura seguinte é instantânea.
+Vista de forma de onda
+O Vibe desenha cada faixa como uma forma de onda ao longo de toda a janela. Clique em qualquer ponto para avançar até aí.
 
-Formatos
-MP3, MP2, AAC, FLAC, MP4/M4A, AIFF e WAV, todos descodificados pelo próprio macOS. Os ficheiros lossless tocam em resolução completa, e o formato e a frequência de amostragem de cada faixa surgem junto ao título.
+Rápido
+O Vibe foi feito para ser pequeno e rápido. As etiquetas, as capas e as formas de onda são lidas em segundo plano e ficam em cache, pelo que a abertura seguinte é instantânea.
 
-Os DJs vão sentir-se em casa
-• Um fader de pitch ao estilo de um gira-discos, escondido até precisar dele.
-• Saltos medidos em compassos, não em segundos. Quando o tempo é conhecido, salte 8, 16 ou 32 compassos sem sair da grelha; quando não é, as mesmas teclas movem 10, 30 ou 60 segundos.
-• FX de atuação sob uma mão: low kill, uma camada de reverb e delays presos ao BPM da faixa. Toque numa tecla para fixar um efeito; mantenha-a premida para um efeito momentâneo.
+Descodificado pelo macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, todos reproduzidos através das APIs do sistema. Os ficheiros lossless são reproduzidos em resolução total, e o formato e a frequência de amostragem de cada faixa aparecem junto ao título.
+
+Nenhuma biblioteca para importar
+Largue um ficheiro ou uma pasta — do seu disco, do iCloud Drive ou do Dropbox — e começa a tocar. Não há base de dados para reconstruir nem biblioteca para manter. Capas, etiquetas e BPM vão sendo preenchidos em segundo plano enquanto a primeira faixa já toca.
+
+Pensado para DJs
+O Vibe inclui controlo de pitch ao estilo de gira-discos, análise de BPM e tonalidade, saltos exactos por compassos e FX de performance.
+
+Gratuito e de código aberto
+O Vibe não recolhe nada e não mostra anúncios. Todo o código-fonte está no GitHub sob a licença Apache 2.0.

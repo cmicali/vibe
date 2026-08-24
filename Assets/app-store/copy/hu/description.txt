@@ -1,12 +1,19 @@
-A Vibe gyors, minimalista zenelejátszó Macre. Nincs külső lejátszómotor, nincs fiók, nincs előfizetés. Csak egy egyszerű, gyors lejátszó a fájljaidhoz.
+A Vibe gyors, minimalista lejátszó a zenei fájljaidhoz. Nincs külső lejátszómotor, nincs fiók, nincs előfizetés. Hallgasd azt a zenét, ami már megvan — bárhol is tartod.
 
-Hullámforma
-A Vibe minden számot teljes hullámformaként rajzol ki az ablak teljes szélességében. Kattints bárhová rajta a tekeréshez. Nincs importálandó könyvtár és nincs újraépítendő adatbázis. Húzz egy fájlt vagy mappát az ablakra, és már szól is. A Vibe a tageket, a borítókat és a BPM-et a háttérben olvassa be és gyorsítótárazza, így a következő megnyitás azonnali.
+Hullámforma nézet
+A Vibe minden számot teljes hullámformaként rajzol ki az ablakon át. Kattints rá bárhol, és odaugrik.
 
-Formátumok
-MP3, MP2, AAC, FLAC, MP4/M4A, AIFF és WAV — mindet maga a macOS dekódolja. A veszteségmentes fájlok teljes felbontásban szólnak, a szám formátuma és mintavételi frekvenciája pedig ott áll a cím mellett.
+Gyors
+A Vibe kicsire és gyorsra épült. A címkéket, a borítókat és a hullámformákat a háttérben olvassa be és gyorsítótárazza, így a következő megnyitás azonnali.
 
-A DJ-k otthon érzik majd magukat
-• Gramofonszerűen elrendezett pitch-csúszka, amely rejtve marad, amíg nem kell.
-• Az ugrások ütemekben mérve, nem másodpercekben. Ha ismert a tempó, ugorj 8, 16 vagy 32 ütemet, és maradj a rácson; ha nem, ugyanazok a billentyűk 10, 30 vagy 60 másodpercet lépnek.
-• Performance FX egy kéz alatt: Low Kill szűrő, zengő reverb és a szám BPM-jéhez igazított delayek. Koppints egy billentyűre az effekt rögzítéséhez; tartsd lenyomva, hogy csak addig szóljon.
+A macOS dekódolja
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV és FLAC, mind a rendszer API-jain keresztül szól. A veszteségmentes fájlok teljes felbontásban szólnak, és minden szám formátuma és mintavételi frekvenciája ott van a cím mellett.
+
+Nincs importálandó könyvtár
+Dobj rá egy fájlt vagy egy mappát — a lemezedről, az iCloud Drive-ról vagy a Dropboxból — és szól. Nincs újraépítendő adatbázis és nincs karbantartandó könyvtár. A borítók, a címkék és a BPM mögötted töltődnek fel, miközben az első szám már játszik.
+
+DJ-kre szabva
+A Vibe-ban van lemezjátszó stílusú pitch fader, BPM- és hangnemelemzés, ütempontos ugrások és performance FX.
+
+Ingyenes és nyílt forráskódú
+A Vibe semmit nem gyűjt és nem mutat hirdetést. A teljes forráskód a GitHubon van, Apache 2.0 licenc alatt.

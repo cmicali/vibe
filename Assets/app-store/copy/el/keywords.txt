@@ -1,1 +1,1 @@
-μουσική,player,flac,dj,mp3,bpm,winamp,κυματομορφή,φάκελος,offline,πικάπ,wav,aac,ήχος,aiff,lossless
+μουσική,player,flac,dj,mp3,bpm,winamp,κυματομορφή,φάκελος,offline,wav,aiff,lossless,gapless,camelot

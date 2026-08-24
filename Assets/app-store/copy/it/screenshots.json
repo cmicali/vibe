@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "I tuoi file, subito in play",
+    "headline": "Un lettore veloce ed essenziale per i tuoi file musicali",
     "subhead": "MP3, FLAC, AIFF, WAV e altro. Clicca sulla forma d’onda per spostarti."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "I DJ si sentiranno a casa",
-    "subhead": "Fader del pitch stile giradischi, salti a battute e FX sui tasti."
+    "subhead": "Fader del pitch stile giradischi, salti a battute e FX."
   },
   {
     "id": "keys",
     "headline": "Mani sulla tastiera",
-    "subhead": "Trasporto, salti a battute, FX e pitch — senza tasti modificatori."
+    "subhead": "Trasporto, salti a battute, FX e pitch."
   }
 ]

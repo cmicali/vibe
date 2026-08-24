@@ -1,1 +1,1 @@
-audio,flac,mp3,dj,bpm,wav,aac,aiff,winamp,lossless,reproductor,musica,tocadiscos,carpeta
+audio,flac,mp3,dj,bpm,wav,aiff,winamp,lossless,reproductor,musica,carpeta,gapless,camelot,conversor

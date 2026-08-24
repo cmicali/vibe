@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Spela lokala filer blixtsnabbt",
+    "headline": "En snabb, minimalistisk spelare för dina musikfiler",
     "subhead": "MP3, FLAC, AIFF, WAV med mera. Klicka på vågformen för att söka."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "DJs känner sig hemma",
-    "subhead": "Pitchfader som på en skivspelare, taktfasta hopp och performance-FX på tangenterna."
+    "subhead": "Pitchfader som på en skivspelare, taktfasta hopp och performance-FX."
   },
   {
     "id": "keys",
     "headline": "Händerna på tangentbordet",
-    "subhead": "Transport, takthopp, performance-FX och pitch — utan modifierartangenter."
+    "subhead": "Transport, takthopp, performance-FX och pitch."
   }
 ]

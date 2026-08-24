@@ -1,1 +1,1 @@
-prehrávač,hudba,flac,dj,mp3,bpm,winamp,gramofón,audio,offline,bezstratový,wav,aac,aiff,audiofil
+prehrávač,hudba,flac,dj,mp3,bpm,winamp,audio,offline,bezstratový,wav,aiff,gapless,camelot,konvertor

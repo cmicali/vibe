@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Vaše soubory, okamžitě",
+    "headline": "Rychlý, minimalistický přehrávač vašich hudebních souborů",
     "subhead": "MP3, FLAC, AIFF, WAV a další. Kliknutím na vlnu přetočíte."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "DJové se budou cítit jako doma",
-    "subhead": "Pitch fader jako na gramofonu, skoky po taktech a FX na klávesách."
+    "subhead": "Pitch fader jako na gramofonu, skoky po taktech a FX."
   },
   {
     "id": "keys",
     "headline": "Ruce na klávesnici",
-    "subhead": "Transport, skoky po taktech, FX a pitch — bez modifikačních kláves."
+    "subhead": "Transport, skoky po taktech, FX a pitch."
   }
 ]

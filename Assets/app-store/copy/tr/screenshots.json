@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Yerel dosyaları hızla çalın",
+    "headline": "Müzik dosyalarınız için hızlı ve sade bir çalar",
     "subhead": "MP3, FLAC, AIFF, WAV ve daha fazlası. Dalga biçimine tıklayıp atlayın."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "DJ'ler kendini evinde hissedecek",
-    "subhead": "Pikap tarzı pitch fader, ölçü hassasiyetinde atlamalar ve tuşlarda performans FX'leri."
+    "subhead": "Pikap tarzı pitch fader, ölçü hassasiyetinde atlamalar ve performans FX’leri."
   },
   {
     "id": "keys",
     "headline": "Eller klavyede",
-    "subhead": "Çalma denetimleri, ölçü atlamaları, performans FX'leri ve pitch. Değiştirici tuş gerekmez."
+    "subhead": "Çalma denetimleri, ölçü atlamaları, performans FX’leri ve pitch."
   }
 ]

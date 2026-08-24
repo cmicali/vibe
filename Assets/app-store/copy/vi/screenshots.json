@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Phát tệp cục bộ thật nhanh",
+    "headline": "Trình phát nhanh, tối giản cho tệp nhạc của bạn",
     "subhead": "MP3, FLAC, AIFF, WAV và hơn nữa. Bấm vào dạng sóng để tua."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "DJ sẽ thấy như ở nhà",
-    "subhead": "Thanh pitch kiểu turntable, tua chính xác theo ô nhịp và FX biểu diễn trên phím."
+    "subhead": "Thanh pitch kiểu turntable, tua chính xác theo ô nhịp và FX biểu diễn."
   },
   {
     "id": "keys",
     "headline": "Đôi tay trên bàn phím",
-    "subhead": "Điều khiển phát, tua theo ô nhịp, FX biểu diễn và pitch — không cần phím bổ trợ."
+    "subhead": "Điều khiển phát, tua theo ô nhịp, FX biểu diễn và pitch."
   }
 ]

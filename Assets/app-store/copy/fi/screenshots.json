@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Paikalliset tiedostot soimaan heti",
+    "headline": "Nopea, pelkistetty soitin musiikkitiedostoillesi",
     "subhead": "MP3, FLAC, AIFF, WAV ja muut. Klikkaa aaltomuotoa ja hyppää haluamaasi kohtaan."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "DJ tuntee olonsa kotoisaksi",
-    "subhead": "Levysoitintyylinen pitch-säädin, tahtitarkat hypyt ja performance-FX näppäimillä."
+    "subhead": "Levysoitintyylinen pitch-säädin, tahtitarkat hypyt ja performance-FX."
   },
   {
     "id": "keys",
     "headline": "Kädet näppäimistöllä",
-    "subhead": "Toisto, tahtihypyt, performance-FX ja pitch — ilman muuntonäppäimiä."
+    "subhead": "Toisto, tahtihypyt, performance-FX ja pitch."
   }
 ]

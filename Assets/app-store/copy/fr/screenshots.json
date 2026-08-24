@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Vos fichiers, lus en un éclair",
+    "headline": "Un lecteur rapide et minimaliste pour vos fichiers musicaux",
     "subhead": "MP3, FLAC, AIFF, WAV et plus. Cliquez sur la forme d’onde pour naviguer."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "Les DJs sont chez eux",
-    "subhead": "Fader de pitch façon platine, sauts calés à la mesure et FX au clavier."
+    "subhead": "Fader de pitch façon platine, sauts calés à la mesure et FX."
   },
   {
     "id": "keys",
     "headline": "Les mains sur le clavier",
-    "subhead": "Transport, sauts par mesures, FX et pitch — sans touche de modification."
+    "subhead": "Transport, sauts par mesures, FX et pitch."
   }
 ]

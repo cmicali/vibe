@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Lokálne súbory, okamžite",
+    "headline": "Rýchly, minimalistický prehrávač vašich hudobných súborov",
     "subhead": "MP3, FLAC, AIFF, WAV a ďalšie. Kliknutím na vlnový priebeh sa presuniete."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "DJ-i sa budú cítiť ako doma",
-    "subhead": "Pitch fader ako na gramofóne, skoky po taktoch a FX na klávesoch."
+    "subhead": "Pitch fader ako na gramofóne, skoky po taktoch a FX."
   },
   {
     "id": "keys",
     "headline": "Ruky na klávesnici",
-    "subhead": "Transport, skoky po taktoch, FX a pitch — bez modifikačných kláves."
+    "subhead": "Transport, skoky po taktoch, FX a pitch."
   }
 ]

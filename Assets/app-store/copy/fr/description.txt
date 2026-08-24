@@ -1,12 +1,19 @@
-Vibe est un lecteur de musique rapide et minimaliste pour Mac. Pas de moteur tiers, pas de compte, pas d’abonnement. Juste un lecteur simple et rapide pour vos fichiers.
+Vibe est un lecteur rapide et minimaliste pour vos fichiers musicaux. Pas de moteur tiers, pas de compte, pas d’abonnement. Écoutez la musique que vous avez déjà, où que vous la gardiez.
 
-Forme d’onde
-Vibe dessine chaque morceau sous forme d’onde sur toute la largeur de la fenêtre. Cliquez n’importe où pour vous y rendre. Aucune bibliothèque à importer, aucune base de données à reconstruire : déposez un fichier ou un dossier sur la fenêtre et la lecture démarre. Vibe lit les tags, les pochettes et le BPM en arrière-plan et les met en cache, si bien que la prochaine ouverture est instantanée.
+Vue en forme d’onde
+Vibe dessine chaque morceau sous forme d’onde sur toute la largeur de la fenêtre. Cliquez n’importe où dessus pour vous y rendre.
 
-Formats
-MP3, MP2, AAC, FLAC, MP4/M4A, AIFF et WAV, tous décodés par macOS lui-même. Les fichiers lossless sont lus en pleine résolution, et le format et la fréquence d’échantillonnage de chaque morceau s’affichent à côté du titre.
+Rapide
+Vibe est conçu pour rester léger et rapide. Les tags, les pochettes et les formes d’onde sont lus en arrière-plan et mis en cache, si bien que la prochaine ouverture est instantanée.
 
-Les DJs sont chez eux
-• Un fader de pitch disposé comme sur une platine, masqué tant que vous n’en avez pas besoin.
-• Des sauts comptés en mesures, pas en secondes. Quand le tempo est connu, sautez de 8, 16 ou 32 mesures en restant calé sur la grille ; sinon, les mêmes touches avancent de 10, 30 ou 60 secondes.
-• Des FX de performance sous une main : un coupe-basses, une nappe de réverbération et des delays calés sur le BPM du morceau. Tapez une touche pour verrouiller un effet ; maintenez-la pour un effet momentané.
+Décodé par macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV et FLAC, tous lus via les API du système. Les fichiers lossless sont lus en pleine résolution, et le format et la fréquence d’échantillonnage de chaque morceau s’affichent à côté du titre.
+
+Aucune bibliothèque à importer
+Déposez un fichier ou un dossier — depuis votre disque, iCloud Drive ou Dropbox — et la lecture démarre. Aucune base de données à reconstruire, aucune bibliothèque à entretenir. Pochettes, tags et BPM se remplissent en arrière-plan pendant que le premier morceau joue déjà.
+
+Pensé pour les DJs
+Vibe propose un fader de pitch façon platine, l’analyse du BPM et de la tonalité, des sauts calés à la mesure et des FX de performance.
+
+Gratuit et open source
+Vibe ne collecte rien et n’affiche aucune publicité. L’intégralité du code source est sur GitHub sous licence Apache 2.0.

@@ -1,12 +1,19 @@
-Vibe je rýchly, minimalistický hudobný prehrávač pre Mac. Žiadny externý engine, žiadny účet, žiadne predplatné. Len jednoduchý a rýchly prehrávač vašich súborov.
+Vibe je rýchly, minimalistický prehrávač vašich hudobných súborov. Žiadny externý engine, žiadny účet, žiadne predplatné. Prehrajte hudbu, ktorú už máte — nech ju máte uloženú kdekoľvek.
 
-Vlnový priebeh
-Vibe vykreslí každú skladbu ako vlnový priebeh cez celé okno. Kliknutím kamkoľvek naň sa presuniete. Vibe nemá knižnicu na importovanie ani databázu na prestavovanie. Presuňte súbor alebo priečinok na okno a hrá. Tagy, obaly a BPM načítava na pozadí a ukladá do cache, takže ďalšie otvorenie je okamžité.
+Zobrazenie vlnového priebehu
+Vibe vykreslí každú skladbu ako celý vlnový priebeh cez okno. Kliknutím kamkoľvek naň sa presuniete.
 
-Formáty
-MP3, MP2, AAC, FLAC, MP4/M4A, AIFF a WAV — všetky dekóduje samotný macOS. Bezstratové súbory hrajú v plnom rozlíšení a formát aj vzorkovacia frekvencia skladby sú hneď vedľa názvu.
+Rýchly
+Vibe je stavaný tak, aby bol malý a rýchly. Tagy, obaly a vlnové priebehy sa čítajú na pozadí a ukladajú do vyrovnávacej pamäte, takže ďalšie otvorenie je okamžité.
 
-DJ-i sa budú cítiť ako doma
-• Pitch fader rozložený ako na gramofóne, skrytý, kým ho nepotrebujete.
-• Skoky merané v taktoch, nie v sekundách. Keď je tempo známe, skáčte o 8, 16 alebo 32 taktov a zostaňte v mriežke; keď nie je, tie isté klávesy posúvajú o 10, 30 alebo 60 sekúnd.
-• Performance FX pod jednou rukou: filter Low Kill, plocha reverbu a delaye zosynchronizované s BPM skladby. Ťuknutím na kláves efekt zaistíte; podržaním pôsobí len dočasne.
+Dekóduje macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV a FLAC, všetky prehrávané cez systémové API. Bezstratové súbory hrajú v plnom rozlíšení a formát aj vzorkovacia frekvencia každej skladby sú hneď vedľa názvu.
+
+Žiadna knižnica na import
+Pretiahnite súbor alebo priečinok — z disku, z iCloud Drive alebo z Dropboxu — a hrá. Niet databázy na prestavbu ani knižnice na údržbu. Obaly, tagy a BPM sa doplnia za pochodu, kým prvá skladba už hrá.
+
+Stavané pre DJov
+Vibe ponúka pitch fader v štýle gramofónu, analýzu BPM a tóniny, presné skoky po taktoch a performance FX.
+
+Zadarmo a open source
+Vibe nič nezbiera a nezobrazuje reklamy. Kompletný zdrojový kód je na GitHube pod licenciou Apache 2.0.

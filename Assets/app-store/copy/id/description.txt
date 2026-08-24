@@ -1,12 +1,19 @@
-Vibe adalah pemutar musik yang cepat dan minimal untuk Mac. Tanpa engine pihak ketiga, tanpa akun, tanpa langganan. Hanya pemutar sederhana dan cepat untuk file Anda.
+Vibe adalah pemutar yang cepat dan minimal untuk file musik Anda. Tanpa engine pihak ketiga, tanpa akun, tanpa langganan. Putar musik yang sudah Anda miliki — di mana pun Anda menyimpannya.
 
-Bentuk Gelombang
-Vibe menggambar setiap trek sebagai bentuk gelombang penuh di sepanjang jendela. Klik di mana saja untuk berpindah posisi. Vibe tidak punya library untuk diimpor dan tidak ada database yang harus dibangun ulang. Letakkan file atau folder di jendela dan musik langsung diputar. Vibe membaca tag, artwork, dan BPM di latar belakang lalu menyimpannya dalam cache, sehingga pembukaan berikutnya berlangsung instan.
+Tampilan bentuk gelombang
+Vibe menggambar setiap lagu sebagai bentuk gelombang penuh selebar jendela. Klik di mana saja padanya untuk melompat ke sana.
 
-Format
-MP3, MP2, AAC, FLAC, MP4/M4A, AIFF, dan WAV, semuanya didekode langsung oleh macOS. File lossless diputar dalam resolusi penuh, dan format serta sample rate setiap trek tampil di samping judulnya.
+Cepat
+Vibe dibuat agar kecil dan cepat. Tag, sampul, dan bentuk gelombang dibaca di latar belakang dan disimpan dalam cache, sehingga pembukaan berikutnya seketika.
 
-DJ Akan Merasa Seperti di Rumah
-• Fader pitch yang ditata seperti pada turntable, tersembunyi sampai Anda membutuhkannya.
-• Lompatan diukur dalam bar, bukan detik. Saat tempo diketahui, lompatlah 8, 16, atau 32 bar dan tetap di grid; saat tidak, tombol yang sama bergerak 10, 30, atau 60 detik.
-• FX performa dalam satu genggaman: filter low-kill, sapuan reverb, dan delay yang terkunci ke BPM trek. Ketuk tombol untuk mengunci efek; tahan untuk efek sesaat.
+Didekode oleh macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV, dan FLAC, semuanya diputar lewat API sistem. File lossless diputar pada resolusi penuh, dan format serta laju sampel tiap lagu tertera di samping judulnya.
+
+Tanpa pustaka untuk diimpor
+Jatuhkan sebuah file atau folder — dari disk Anda, iCloud Drive, atau Dropbox — dan langsung diputar. Tidak ada basis data yang perlu dibangun ulang dan tidak ada pustaka yang perlu dikelola. Sampul, tag, dan BPM terisi di belakang Anda sementara lagu pertama sudah berjalan.
+
+Dirancang dengan DJ dalam pikiran
+Vibe punya kontrol pitch bergaya turntable, analisis BPM dan nada dasar, lompatan akurat per bar, dan FX performa.
+
+Gratis dan sumber terbuka
+Vibe tidak mengumpulkan apa pun dan tidak menampilkan iklan. Seluruh kode sumbernya ada di GitHub dengan lisensi Apache 2.0.

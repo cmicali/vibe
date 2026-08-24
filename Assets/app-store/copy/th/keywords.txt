@@ -1,1 +1,1 @@
-เพลง,ฟังเพลง,เครื่องเล่นเพลง,flac,mp3,wav,aac,aiff,dj,bpm,lossless,waveform,ออฟไลน์,winamp
+เพลง,ฟังเพลง,เครื่องเล่นเพลง,flac,mp3,wav,dj,bpm,lossless,waveform,ออฟไลน์,winamp,gapless,camelot

@@ -1,1 +1,1 @@
-audiofiili,musiikki,flac,aaltomuoto,dj,mp3,aiff,häviötön,bpm,winamp,kansio,levysoitin,wav,aac
+musiikki,flac,aaltomuoto,dj,mp3,aiff,häviötön,bpm,winamp,kansio,wav,gapless,camelot,muunnin

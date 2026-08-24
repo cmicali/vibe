@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Twoje pliki, od razu",
+    "headline": "Szybki, minimalistyczny odtwarzacz Twoich plików muzycznych",
     "subhead": "MP3, FLAC, AIFF, WAV i inne. Kliknij kształt fali, aby przewinąć."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "DJ-e poczują się jak w domu",
-    "subhead": "Suwak pitcha jak w gramofonie, skoki o takty i FX na klawiszach."
+    "subhead": "Suwak pitcha jak w gramofonie, skoki o takty i FX."
   },
   {
     "id": "keys",
     "headline": "Ręce na klawiaturze",
-    "subhead": "Transport, skoki o takty, FX i pitch — bez klawiszy modyfikujących."
+    "subhead": "Transport, skoki o takty, FX i pitch."
   }
 ]

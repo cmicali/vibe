@@ -1,12 +1,19 @@
-Vibe is een snelle, minimalistische muziekspeler voor de Mac. Geen externe engine, geen account, geen abonnement. Gewoon een simpele, snelle speler voor je bestanden.
+Vibe is een snelle, minimalistische speler voor je muziekbestanden. Geen externe engine, geen account, geen abonnement. Speel de muziek die je al hebt — waar je die ook bewaart.
 
-Golfvorm
-Vibe tekent elk nummer als een volledige golfvorm over het venster. Klik er ergens op en je springt ernaartoe. Er is geen bibliotheek om te importeren en geen database om opnieuw op te bouwen. Sleep een bestand of een map naar het venster en het speelt. Tags, artwork en BPM leest Vibe op de achtergrond en bewaart ze in de cache — de volgende keer openen is direct.
+Golfvormweergave
+Vibe tekent elk nummer als een volledige golfvorm over het venster. Klik er ergens op om te zoeken.
 
-Formaten
-MP3, MP2, AAC, FLAC, MP4/M4A, AIFF en WAV, allemaal gedecodeerd door macOS zelf. Lossless bestanden spelen op volle resolutie, en het formaat en de samplerate van elk nummer staan naast de titel.
+Snel
+Vibe is klein en snel gebouwd. Tags, artwork en golfvormen worden op de achtergrond gelezen en gecachet, zodat de volgende keer openen meteen gaat.
 
-DJs voelen zich thuis
-• Een pitchfader ingedeeld als die van een draaitafel, verborgen tot je hem nodig hebt.
-• Sprongen in maten, niet in seconden. Is het tempo bekend, dan spring je 8, 16 of 32 maten en blijf je in de grid; zo niet, dan verplaatsen dezelfde toetsen 10, 30 of 60 seconden.
-• Performance-FX onder één hand: een low-kill-filter, een reverb-wash en delays gelockt op de BPM van het nummer. Tik op een toets om een effect vast te zetten; houd hem ingedrukt voor tijdelijk effect.
+Gedecodeerd door macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV en FLAC, allemaal afgespeeld via de systeem-API’s. Lossless bestanden spelen op volle resolutie, en het formaat en de samplerate van elk nummer staan naast de titel.
+
+Geen bibliotheek om te importeren
+Sleep een bestand of een map — vanaf je schijf, iCloud Drive of Dropbox — en het speelt. Er is geen database om opnieuw op te bouwen en geen bibliotheek om bij te houden. Artwork, tags en BPM vullen zich achter je aan terwijl het eerste nummer al speelt.
+
+Gemaakt met dj’s in gedachten
+Vibe heeft een pitchfader in turntable-stijl, BPM- en toonsoortanalyse, maatnauwkeurige sprongen en performance-FX.
+
+Gratis en open source
+Vibe verzamelt niets en toont geen advertenties. De volledige broncode staat op GitHub onder de Apache 2.0-licentie.

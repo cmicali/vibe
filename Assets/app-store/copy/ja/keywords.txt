@@ -1,1 +1,1 @@
-音楽,プレーヤー,再生,波形,flac,mp3,wav,aac,aiff,dj,bpm,ロスレス,オフライン,ターンテーブル
+音楽,プレーヤー,再生,波形,flac,mp3,wav,aac,aiff,dj,bpm,ロスレス,オフライン,gapless,camelot,変換

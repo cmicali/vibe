@@ -1,1 +1,1 @@
-audiofil,audio,flac,mp3,dj,bpm,wav,aac,aiff,winamp,lossless,player,muzica,platan,dosar
+audio,flac,mp3,dj,bpm,wav,aiff,winamp,lossless,player,muzica,dosar,gapless,camelot,convertor

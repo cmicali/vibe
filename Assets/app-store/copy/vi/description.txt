@@ -1,12 +1,19 @@
-Vibe là trình phát nhạc nhanh, tối giản cho máy Mac. Không engine bên thứ ba, không tài khoản, không thuê bao. Chỉ là một trình phát đơn giản, nhanh cho tệp nhạc của bạn.
+Vibe là trình phát nhanh, tối giản cho các tệp nhạc của bạn. Không engine bên thứ ba, không tài khoản, không thuê bao. Hãy nghe thứ nhạc bạn đã có, dù bạn cất nó ở đâu.
 
-Dạng sóng
-Vibe vẽ mỗi bản nhạc thành một dạng sóng đầy đủ trải khắp cửa sổ. Bấm vào bất kỳ điểm nào trên đó để tua. Vibe không có thư viện phải nhập và không có cơ sở dữ liệu phải dựng lại. Thả một tệp hoặc thư mục vào cửa sổ là nhạc phát ngay. Vibe đọc tag, ảnh bìa và BPM ở chế độ nền rồi lưu vào bộ nhớ đệm, nên lần mở sau là tức thì.
+Chế độ xem dạng sóng
+Vibe vẽ mỗi bản nhạc thành một dạng sóng trải hết chiều ngang cửa sổ. Bấm vào bất kỳ điểm nào trên đó để nhảy tới.
 
-Định dạng
-MP3, MP2, AAC, FLAC, MP4/M4A, AIFF và WAV, tất cả do chính macOS giải mã. Tệp lossless phát ở độ phân giải đầy đủ, và định dạng cùng tần số lấy mẫu của mỗi bản nhạc hiển thị ngay cạnh tiêu đề.
+Nhanh
+Vibe được dựng để nhỏ gọn và nhanh. Thẻ, ảnh bìa và dạng sóng được đọc ở nền rồi lưu đệm, nên lần mở sau là tức thì.
 
-DJ sẽ thấy như ở nhà
-• Thanh pitch bố trí như trên turntable, ẩn đi cho đến khi bạn cần.
-• Tua theo ô nhịp thay vì giây. Khi đã biết tempo, nhảy 8, 16 hoặc 32 ô nhịp mà vẫn đúng lưới nhịp; khi chưa biết, cùng những phím đó tua 10, 30 hoặc 60 giây.
-• FX biểu diễn trong tầm một bàn tay: bộ lọc cắt bass, lớp reverb và delay khóa theo BPM của bản nhạc. Gõ phím để giữ hiệu ứng; nhấn giữ để chỉ dùng tạm thời.
+Được macOS giải mã
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV và FLAC, tất cả đều phát qua API hệ thống. Tệp lossless phát ở độ phân giải đầy đủ, và định dạng cùng tần số lấy mẫu của từng bản nhạc nằm ngay cạnh tiêu đề.
+
+Không có thư viện nào phải nhập
+Thả một tệp hoặc một thư mục — từ ổ đĩa của bạn, từ iCloud Drive hay Dropbox — là nhạc chạy. Không có cơ sở dữ liệu nào phải dựng lại và không có thư viện nào phải trông nom. Ảnh bìa, thẻ và BPM lấp đầy phía sau trong khi bản nhạc đầu tiên đã phát.
+
+Dựng cho DJ
+Vibe có bộ chỉnh pitch kiểu bàn xoay, phân tích BPM và tông, các bước nhảy chính xác theo ô nhịp, cùng FX biểu diễn.
+
+Miễn phí và mã nguồn mở
+Vibe không thu thập gì và không hiển thị quảng cáo. Toàn bộ mã nguồn có trên GitHub theo giấy phép Apache 2.0.

@@ -1,1 +1,1 @@
-nghe nhac,flac,dang song,dj,mp3,aiff,lossless,bpm,winamp,thu muc,offline,turntable,wav,aac
+nghe nhac,flac,dang song,dj,mp3,aiff,lossless,bpm,winamp,thu muc,offline,wav,gapless,camelot

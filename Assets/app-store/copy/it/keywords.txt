@@ -1,1 +1,1 @@
-audio,flac,mp3,dj,bpm,wav,aac,aiff,winamp,lossless,giradischi,lettore,musica,cartella
+audio,flac,mp3,dj,bpm,wav,aiff,winamp,lossless,lettore,musica,cartella,gapless,camelot,convertitore

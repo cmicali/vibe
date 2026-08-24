@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Helyi fájlok, azonnal",
+    "headline": "Gyors, minimalista lejátszó a zenei fájljaidhoz",
     "subhead": "MP3, FLAC, AIFF, WAV és több más. Kattints a hullámformára a tekeréshez."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "A DJ-k otthon érzik magukat",
-    "subhead": "Gramofonszerű pitch-csúszka, ütempontos ugrások és FX a billentyűkön."
+    "subhead": "Gramofonszerű pitch-csúszka, ütempontos ugrások és FX."
   },
   {
     "id": "keys",
     "headline": "Kéz a billentyűzeten",
-    "subhead": "Transzport, ütemugrások, FX és pitch — módosítóbillentyűk nélkül."
+    "subhead": "Transzport, ütemugrások, FX és pitch."
   }
 ]

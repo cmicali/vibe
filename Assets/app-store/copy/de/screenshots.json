@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Lokale Dateien, sofort abgespielt",
+    "headline": "Ein schneller, minimalistischer Player für deine Musikdateien",
     "subhead": "MP3, FLAC, AIFF, WAV und mehr. Ein Klick in die Wellenform springt an die Stelle."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "DJs fühlen sich zu Hause",
-    "subhead": "Tempo-Regler im Turntable-Stil, taktgenaue Sprünge und Performance-FX auf den Tasten."
+    "subhead": "Tempo-Regler im Turntable-Stil, taktgenaue Sprünge und Performance-FX."
   },
   {
     "id": "keys",
     "headline": "Hände auf der Tastatur",
-    "subhead": "Transport, Takt-Sprünge, Performance-FX und Tempo — ganz ohne Sondertasten."
+    "subhead": "Transport, Takt-Sprünge, Performance-FX und Tempo."
   }
 ]

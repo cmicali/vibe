@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Spill lokale filer lynraskt",
+    "headline": "En rask, minimalistisk spiller for musikkfilene dine",
     "subhead": "MP3, FLAC, AIFF, WAV og mer. Klikk på bølgeformen for å spole."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "DJ-er vil føle seg hjemme",
-    "subhead": "Pitchfader som på en platespiller, taktfaste hopp og performance-FX på tastene."
+    "subhead": "Pitchfader som på en platespiller, taktfaste hopp og performance-FX."
   },
   {
     "id": "keys",
     "headline": "Hendene på tastaturet",
-    "subhead": "Transport, takthopp, performance-FX og pitch — helt uten spesialtaster."
+    "subhead": "Transport, takthopp, performance-FX og pitch."
   }
 ]

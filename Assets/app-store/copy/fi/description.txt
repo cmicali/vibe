@@ -1,12 +1,19 @@
-Vibe on nopea, minimalistinen musiikkisoitin Macille. Ei kolmannen osapuolen moottoria, ei tiliä, ei tilausta. Vain yksinkertainen, nopea soitin tiedostoillesi.
+Vibe on nopea ja pelkistetty soitin musiikkitiedostoillesi. Ei kolmannen osapuolen moottoria, ei tiliä, ei tilausta. Soita se musiikki, joka sinulla jo on — säilytit sen missä tahansa.
 
-Aaltomuoto
-Vibe piirtää jokaisen kappaleen koko ikkunan levyisenä aaltomuotona. Klikkaa mitä tahansa kohtaa hypätäksesi siihen. Kirjastoa ei tarvitse tuoda eikä tietokantaa rakentaa uudelleen. Pudota tiedosto tai kansio ikkunaan, ja se soi. Tagit, kansikuvat ja BPM luetaan taustalla ja tallennetaan välimuistiin, joten seuraava avaus on välitön.
+Aaltomuotonäkymä
+Vibe piirtää jokaisen kappaleen koko ikkunan levyisenä aaltomuotona. Klikkaa sitä mistä tahansa kohdasta ja hyppää siihen.
 
-Formaatit
-MP3, MP2, AAC, FLAC, MP4/M4A, AIFF ja WAV — kaikki macOS:n itsensä dekoodaamia. Häviöttömät tiedostot soivat täydellä resoluutiolla, ja jokaisen kappaleen formaatti ja näytteenottotaajuus näkyvät otsikon vieressä.
+Nopea
+Vibe on rakennettu pieneksi ja nopeaksi. Tagit, kansikuvat ja aaltomuodot luetaan taustalla ja tallennetaan välimuistiin, joten seuraava avaus on välitön.
 
-DJ tuntee olonsa kotoisaksi
-• Levysoittimen tapaan aseteltu pitch-säädin, piilossa kunnes tarvitset sitä.
-• Hypyt tahdeissa, ei sekunneissa. Kun tempo tunnetaan, hyppäät 8, 16 tai 32 tahtia ja pysyt gridissä; kun ei, samat näppäimet siirtävät 10, 30 tai 60 sekuntia.
-• Performance-FX yhden käden alla: low kill -suodin, reverb-huntu ja kappaleen BPM:ään lukitut delayt. Näpäytä näppäintä lukitaksesi efektin; pidä pohjassa hetkelliseen käyttöön.
+macOS dekoodaa
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV ja FLAC, kaikki toistetaan järjestelmän omilla rajapinnoilla. Häviöttömät tiedostot soivat täydellä tarkkuudella, ja kunkin kappaleen formaatti ja näytteenottotaajuus näkyvät nimen vieressä.
+
+Ei kirjastoa tuotavaksi
+Pudota tiedosto tai kansio — levyltäsi, iCloud Drivesta tai Dropboxista — ja se soi. Ei tietokantaa rakennettavaksi uudelleen eikä kirjastoa ylläpidettäväksi. Kansikuvat, tagit ja BPM täydentyvät taustalla, kun ensimmäinen kappale jo soi.
+
+Suunniteltu DJ:itä ajatellen
+Vibessä on levysoitintyylinen pitch-säädin, BPM- ja sävellajianalyysi, tahtitarkat hypyt ja performance-FX.
+
+Ilmainen ja avoin lähdekoodi
+Vibe ei kerää mitään eikä näytä mainoksia. Koko lähdekoodi on GitHubissa Apache 2.0 -lisenssillä.

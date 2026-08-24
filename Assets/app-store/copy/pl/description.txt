@@ -1,12 +1,19 @@
-Vibe to szybki, minimalistyczny odtwarzacz muzyki na Maca. Bez zewnętrznych silników, konta i subskrypcji. Po prostu prosty, szybki odtwarzacz Twoich plików.
+Vibe to szybki, minimalistyczny odtwarzacz Twoich plików muzycznych. Bez zewnętrznych silników, konta i subskrypcji. Odtwarzaj muzykę, którą już masz — gdziekolwiek ją trzymasz.
 
-Kształt fali
-Vibe rysuje każdy utwór jako kształt fali na całą szerokość okna. Kliknij w dowolnym miejscu, aby przewinąć. Nie ma biblioteki do importowania ani bazy do przebudowywania. Upuść plik lub teczkę na okno — i gra. Tagi, okładki i BPM wczytywane są w tle i buforowane, więc następne otwarcie jest natychmiastowe.
+Widok fali
+Vibe rysuje każdy utwór jako pełną falę przez całe okno. Kliknij w dowolnym jej miejscu, aby tam przeskoczyć.
 
-Formaty
-MP3, MP2, AAC, FLAC, MP4/M4A, AIFF i WAV — wszystkie dekodowane przez sam macOS. Pliki bezstratne grają w pełnej rozdzielczości, a format i częstotliwość próbkowania utworu widać obok tytułu.
+Szybki
+Vibe jest zbudowany tak, by był mały i szybki. Tagi, okładki i fale są odczytywane w tle i zapisywane w pamięci podręcznej, więc kolejne otwarcie jest natychmiastowe.
 
-DJ-e poczują się jak w domu
-• Suwak pitcha ułożony jak w gramofonie, ukryty, dopóki go nie potrzebujesz.
-• Skoki mierzone w taktach, nie sekundach. Gdy tempo jest znane, przeskakuj o 8, 16 lub 32 takty, nie wypadając z siatki; gdy nie jest — te same klawisze przewijają o 10, 30 lub 60 sekund.
-• Performance FX pod jedną ręką: filtr Low Kill, fala pogłosu i delaye zsynchronizowane z BPM utworu. Stuknij klawisz, aby zatrzasnąć efekt; przytrzymaj, aby działał chwilowo.
+Dekodowanie przez macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC — wszystkie odtwarzane przez systemowe API. Pliki bezstratne grają w pełnej rozdzielczości, a format i częstotliwość próbkowania każdego utworu widnieją obok tytułu.
+
+Żadnej biblioteki do zaimportowania
+Upuść plik albo folder — z dysku, z iCloud Drive lub z Dropboxa — i gra. Nie ma bazy danych do przebudowania ani biblioteki do pielęgnowania. Okładki, tagi i BPM uzupełniają się w tle, gdy pierwszy utwór już leci.
+
+Z myślą o DJ-ach
+Vibe ma suwak pitch w stylu gramofonu, analizę BPM i tonacji, skoki co do taktu oraz performance FX.
+
+Za darmo i open source
+Vibe niczego nie zbiera i nie wyświetla reklam. Cały kod źródłowy jest na GitHubie na licencji Apache 2.0.

@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "极速播放本地文件",
+    "headline": "为你的音乐文件打造的快速极简播放器",
     "subhead": "支持 MP3、FLAC、AIFF、WAV 等格式。点按波形即可跳转。"
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "DJ 的熟悉手感",
-    "subhead": "唱机式音高推子、按小节跳转，还有键盘上的表演 FX。"
+    "subhead": "唱机式音高推子、按小节跳转，还有表演 FX。"
   },
   {
     "id": "keys",
     "headline": "双手不离键盘",
-    "subhead": "播放控制、小节跳转、FX 与音高，无需修饰键。"
+    "subhead": "播放控制、小节跳转、FX 与音高。"
   }
 ]

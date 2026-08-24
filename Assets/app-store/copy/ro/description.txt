@@ -1,12 +1,19 @@
-Vibe este un player de muzică rapid și minimalist pentru Mac. Fără motor terț, fără cont, fără abonament. Doar un player simplu și rapid pentru fișierele tale.
+Vibe este un player rapid și minimalist pentru fișierele tale de muzică. Fără motor terț, fără cont, fără abonament. Ascultă muzica pe care o ai deja, oriunde ai ține-o.
 
-Formă de undă
-Vibe desenează fiecare piesă ca o formă de undă pe toată lățimea ferestrei. Dă clic oriunde pe ea ca să sari acolo. Nu există bibliotecă de importat și nicio bază de date de reconstruit: plasează un fișier sau un dosar pe fereastră și muzica pornește. Vibe citește tagurile, coperțile și BPM-ul în fundal și le păstrează în cache, așa că următoarea deschidere este instantanee.
+Vizualizare formă de undă
+Vibe desenează fiecare piesă ca o formă de undă pe toată lățimea ferestrei. Dă clic oriunde pe ea ca să sari acolo.
 
-Formate
-MP3, MP2, AAC, FLAC, MP4/M4A, AIFF și WAV, toate decodate chiar de macOS. Fișierele lossless sunt redate la rezoluție completă, iar formatul și frecvența de eșantionare ale fiecărei piese apar lângă titlu.
+Rapid
+Vibe e construit să fie mic și rapid. Etichetele, coperțile și formele de undă sunt citite în fundal și păstrate în cache, așa că următoarea deschidere e instantanee.
 
-DJ-ii se vor simți ca acasă
-• Un fader de pitch așezat ca pe un platan, ascuns până când ai nevoie de el.
-• Salturi în măsuri, nu în secunde. Când tempoul este cunoscut, sari 8, 16 sau 32 de măsuri și rămâi pe grilă; când nu este, aceleași taste mută 10, 30 sau 60 de secunde.
-• FX de performanță sub o singură mână: low kill, un val de reverb și delay-uri blocate pe BPM-ul piesei. Apasă o tastă ca să fixezi un efect; ține-o apăsată pentru efect de moment.
+Decodat de macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV și FLAC, toate redate prin API-urile sistemului. Fișierele lossless se redau la rezoluție completă, iar formatul și rata de eșantionare ale fiecărei piese apar lângă titlu.
+
+Nicio bibliotecă de importat
+Trage un fișier sau un folder — de pe disc, din iCloud Drive sau din Dropbox — și pornește. Nu există bază de date de reconstruit și nicio bibliotecă de întreținut. Coperțile, etichetele și BPM-ul se completează în urma ta în timp ce prima piesă rulează deja.
+
+Gândit pentru DJ
+Vibe are un fader de pitch în stil pick-up, analiză de BPM și tonalitate, salturi exacte pe măsuri și FX de performance.
+
+Gratuit și open source
+Vibe nu colectează nimic și nu afișează reclame. Tot codul sursă e pe GitHub sub licența Apache 2.0.

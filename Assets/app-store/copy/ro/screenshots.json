@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Fișiere locale, redare instant",
+    "headline": "Un player rapid și minimalist pentru fișierele tale de muzică",
     "subhead": "MP3, FLAC, AIFF, WAV și altele. Clic pe forma de undă pentru a sări oriunde."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "DJ-ii se vor simți ca acasă",
-    "subhead": "Fader de pitch ca pe platan, salturi în măsuri și FX pe taste."
+    "subhead": "Fader de pitch ca pe platan, salturi în măsuri și FX."
   },
   {
     "id": "keys",
     "headline": "Mâinile pe tastatură",
-    "subhead": "Transport, salturi în măsuri, FX și pitch — fără taste modificatoare."
+    "subhead": "Transport, salturi în măsuri, FX și pitch."
   }
 ]

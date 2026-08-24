@@ -1,1 +1,1 @@
-audiophil,audio,flac,wellenform,dj,mp3,aiff,lossless,bpm,winamp,ordner,offline,turntable,wav,aac
+audio,flac,wellenform,dj,mp3,aiff,lossless,bpm,winamp,ordner,offline,wav,gapless,camelot,konverter

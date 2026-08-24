@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Tus archivos, al instante",
+    "headline": "Un reproductor rápido y minimalista para tu música",
     "subhead": "MP3, FLAC, AIFF, WAV y más. Haz clic en la forma de onda para saltar."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "Los DJs se sentirán en casa",
-    "subhead": "Fader de pitch estilo giradiscos, saltos por compases y FX en el teclado."
+    "subhead": "Fader de pitch estilo giradiscos, saltos por compases y FX."
   },
   {
     "id": "keys",
     "headline": "Las manos en el teclado",
-    "subhead": "Transporte, saltos por compases, FX y pitch, sin teclas modificadoras."
+    "subhead": "Transporte, saltos por compases, FX y pitch."
   }
 ]

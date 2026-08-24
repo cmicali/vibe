@@ -1,12 +1,19 @@
-Vibe är en snabb, minimalistisk musikspelare för Mac. Ingen tredjepartsmotor, inget konto, ingen prenumeration. Bara en enkel, snabb spelare för dina filer.
+Vibe är en snabb, minimalistisk spelare för dina musikfiler. Ingen tredjepartsmotor, inget konto, ingen prenumeration. Spela musiken du redan har — var du än förvarar den.
 
-Vågform
-Vibe ritar varje spår som en hel vågform tvärs över fönstret. Klicka var som helst på den för att söka. Det finns inget bibliotek att importera och ingen databas att bygga om. Släpp en fil eller en mapp på fönstret så spelas den. Taggar, omslag och BPM läses i bakgrunden och cachas, så nästa öppning är omedelbar.
+Vågformsvy
+Vibe ritar varje låt som en hel vågform tvärs över fönstret. Klicka var som helst på den för att söka.
 
-Format
-MP3, MP2, AAC, FLAC, MP4/M4A, AIFF och WAV — alla avkodade av macOS självt. Lossless-filer spelas i full upplösning, och varje spårs format och samplingsfrekvens står bredvid titeln.
+Snabb
+Vibe är byggd liten och snabb. Taggar, omslag och vågformer läses i bakgrunden och cachas, så nästa öppning sker direkt.
 
-DJs känner sig hemma
-• En pitchfader upplagd som på en skivspelare, dold tills du vill ha den.
-• Hopp mätta i takter, inte sekunder. När tempot är känt hoppar du 8, 16 eller 32 takter och stannar i gridden; när det inte är det flyttar samma tangenter 10, 30 eller 60 sekunder.
-• Performance-FX under en hand: ett low kill-filter, en reverb-wash och delays låsta till spårets BPM. Tryck på en tangent för att låsa en effekt; håll den intryckt för tillfällig effekt.
+Avkodas av macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV och FLAC, alla spelade genom systemets API:er. Lossless-filer spelas i full upplösning, och varje låts format och samplingsfrekvens står bredvid titeln.
+
+Inget bibliotek att importera
+Släpp en fil eller en mapp — från din disk, iCloud Drive eller Dropbox — och den spelar. Det finns ingen databas att bygga om och inget bibliotek att sköta. Omslag, taggar och BPM fylls i bakom dig medan första låten redan spelar.
+
+Byggd med DJ:s i åtanke
+Vibe har en pitchfader i skivspelarstil, BPM- och tonartsanalys, taktexakta hopp och performance-FX.
+
+Gratis och öppen källkod
+Vibe samlar inte in något och visar inga annonser. Hela källkoden finns på GitHub under Apache 2.0-licensen.

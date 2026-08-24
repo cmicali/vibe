@@ -1,1 +1,1 @@
-audio,flac,mp3,dj,bpm,wav,aac,aiff,winamp,lossless,leitor,musica,gira-discos,pasta
+audio,flac,mp3,dj,bpm,wav,aiff,winamp,lossless,leitor,musica,pasta,gapless,camelot,conversor

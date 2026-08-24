@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Lokale bestanden, direct geluid",
+    "headline": "Een snelle, minimalistische speler voor je muziekbestanden",
     "subhead": "MP3, FLAC, AIFF, WAV en meer. Klik op de golfvorm en spring naar elk punt."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "DJs voelen zich thuis",
-    "subhead": "Een pitchfader als op een draaitafel, maatvaste sprongen en performance-FX op de toetsen."
+    "subhead": "Pitchfader als op een draaitafel, maatvaste sprongen en performance-FX."
   },
   {
     "id": "keys",
     "headline": "Handen op het toetsenbord",
-    "subhead": "Transport, maatsprongen, performance-FX en pitch — zonder speciale toetsen."
+    "subhead": "Transport, maatsprongen, performance-FX en pitch."
   }
 ]

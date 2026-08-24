@@ -1,7 +1,7 @@
 [
   {
     "id": "player",
-    "headline": "Vaše datoteke, odmah",
+    "headline": "Brz, minimalistički player za vaše glazbene datoteke",
     "subhead": "MP3, FLAC, AIFF, WAV i drugi. Kliknite valni oblik za premotavanje."
   },
   {
@@ -12,11 +12,11 @@
   {
     "id": "pitch",
     "headline": "DJ-i će biti kao doma",
-    "subhead": "Pitch fader kao na gramofonu, skokovi po taktovima i FX na tipkama."
+    "subhead": "Pitch fader kao na gramofonu, skokovi po taktovima i FX."
   },
   {
     "id": "keys",
     "headline": "Ruke na tipkovnici",
-    "subhead": "Transport, skokovi po taktovima, FX i pitch — bez modifikatora."
+    "subhead": "Transport, skokovi po taktovima, FX i pitch."
   }
 ]
