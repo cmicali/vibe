@@ -217,6 +217,15 @@ NSString *VibeClickMenuItem(NSString *name) {
     if (!item.isEnabled) {
         return VibeErrorJSON(@"menu item '%@' is disabled", item.title);
     }
+    // TRAP: a submenu parent is built with action:NULL, but AppKit assigns it
+    // submenuAction: as soon as it gets a submenu — so the nil-action check
+    // below does NOT catch it, and sending that action reaches a responder
+    // which does not implement it and aborts the app. The random clicker finds
+    // every top-level submenu, so this read as an app crash in stress runs.
+    if (item.hasSubmenu) {
+        return VibeErrorJSON(@"menu item '%@' opens a submenu; click one of its items",
+                             item.title);
+    }
     if (!item.action) {
         return VibeErrorJSON(@"menu item '%@' has no action", item.title);
     }

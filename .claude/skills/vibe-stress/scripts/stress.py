@@ -1326,7 +1326,14 @@ def collect_menu_ids(channel):
         for item in items:
             identifier = item.get("id")
             action = item.get("action") or ""
-            if identifier and not MENU_DENY.search(identifier) and not MENU_DENY.search(action):
+            # A submenu parent is not a clickable op: it is built with a nil
+            # action, but AppKit assigns it submenuAction: once it has a
+            # submenu, which reaches no responder. Recurse into its children
+            # rather than collecting it.
+            has_submenu = "items" in item
+            if (identifier and not has_submenu
+                    and not MENU_DENY.search(identifier)
+                    and not MENU_DENY.search(action)):
                 ids.append(identifier)
             if item.get("items"):
                 walk(item["items"])
