@@ -129,6 +129,8 @@ static BOOL VibeMetadataLoaderCoordinatorIsSettled(
 @property(atomic, strong) XCTestExpectation *cancellationExpectation;
 @property(atomic, copy) void (^startObserver)(NSURL *url,
         VibeAudioFileMaterializationRole role);
+- (void)setAfterFailureCheck:(nullable dispatch_block_t)afterFailureCheck;
+- (nullable dispatch_block_t)takeAfterFailureCheck;
 - (id<AudioFileMaterializationOperation>)operationForURL:(NSURL *)url
                                                     role:(VibeAudioFileMaterializationRole)role;
 - (void)recordStartForURL:(NSURL *)url role:(VibeAudioFileMaterializationRole)role;
@@ -168,6 +170,9 @@ static BOOL VibeMetadataLoaderCoordinatorIsSettled(
 
 - (BOOL)runWithError:(NSError *__autoreleasing *)error {
     VibeMetadataLoaderOperationController *controller = _controller;
+    // TRAP: recordStart fulfills the test's synchronization edge. Snapshot
+    // the hold first so a later clear cannot retarget this run to success.
+    BOOL parks = controller.blocksUntilCancelled;
     [controller recordStartForURL:_url role:_role];
     if ([controller consumeFailureForURL:_url]) {
         if (error) {
@@ -176,7 +181,11 @@ static BOOL VibeMetadataLoaderCoordinatorIsSettled(
         }
         return NO;
     }
-    if (!controller.blocksUntilCancelled) {
+    dispatch_block_t afterFailureCheck = [controller takeAfterFailureCheck];
+    if (afterFailureCheck) {
+        afterFailureCheck();
+    }
+    if (!parks) {
         return YES;
     }
     [_condition lock];
@@ -241,6 +250,7 @@ static BOOL VibeMetadataLoaderCoordinatorIsSettled(
     NSMutableArray<NSURL *> *_startedURLs;
     NSMutableArray<NSNumber *> *_startedRoles;
     NSMutableDictionary<NSString *, NSNumber *> *_failuresRemainingByPath;
+    dispatch_block_t _afterFailureCheck;
 }
 
 - (instancetype)init {
@@ -295,6 +305,20 @@ static BOOL VibeMetadataLoaderCoordinatorIsSettled(
     }
     [_lock unlock];
     return remaining > 0;
+}
+
+- (void)setAfterFailureCheck:(dispatch_block_t)afterFailureCheck {
+    [_lock lock];
+    _afterFailureCheck = [afterFailureCheck copy];
+    [_lock unlock];
+}
+
+- (dispatch_block_t)takeAfterFailureCheck {
+    [_lock lock];
+    dispatch_block_t afterFailureCheck = _afterFailureCheck;
+    _afterFailureCheck = nil;
+    [_lock unlock];
+    return afterFailureCheck;
 }
 
 - (NSArray<NSURL *> *)startedURLs {
@@ -1448,11 +1472,20 @@ materializationCoordinator:coordinator
     NSURL *url = [self URLNamed:@"joined-duplicate-attempts.wav"];
     AudioTrack *scan = [AudioTrack withURL:url];
     AudioTrack *priority = [AudioTrack withURL:url];
+    dispatch_semaphore_t holdDecisionGate = dispatch_semaphore_create(0);
+    XCTestExpectation *holdDecisionReached =
+            [self expectationWithDescription:@"first duplicate hold decided"];
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
     controller.blocksUntilCancelled = YES;
     controller.firstStartExpectation =
             [self expectationWithDescription:@"first duplicate scan held"];
+    [controller setAfterFailureCheck:^{
+        [holdDecisionReached fulfill];
+        long waitResult = dispatch_semaphore_wait(holdDecisionGate,
+                dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        XCTAssertEqual(waitResult, 0L, @"hold decision gate timed out");
+    }];
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:[self testConfigurationWithRetryCount:2]
             cacheReader:^AudioTrackMetadata *(AudioTrack *candidate) { return nil; }
@@ -1461,20 +1494,28 @@ materializationCoordinator:coordinator
         return VibeLoaderTestMetadataResult(NO, @"unexpected");
     }];
 
-    [loader load:@[scan, priority]];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
-    [loader prioritizeTrack:priority];
     AudioFileMaterializationCoordinator *coordinator = _coordinators.lastObject;
-    [self waitForCondition:^BOOL{
-        NSDictionary *lane = [loader debugPriorityLaneState];
-        return [lane[@"pending"] count] == 1
-                && [lane[@"liveTokens"] unsignedIntegerValue] == 0
-                && [coordinator stateSnapshotForTesting].waiterCount == 1;
-    } description:@"priority did not stay behind the active same-path scan claim"];
+    @try {
+        [loader load:@[scan, priority]];
+        [self waitForExpectations:@[
+            controller.firstStartExpectation, holdDecisionReached
+        ] timeout:2];
+        [loader prioritizeTrack:priority];
+        [self waitForCondition:^BOOL{
+            NSDictionary *lane = [loader debugPriorityLaneState];
+            return [lane[@"pending"] count] == 1
+                    && [lane[@"liveTokens"] unsignedIntegerValue] == 0
+                    && [coordinator stateSnapshotForTesting].waiterCount == 1;
+        } description:@"priority did not stay behind the active same-path scan claim"];
 
-    [controller failNextStarts:10 forURL:url];
-    controller.blocksUntilCancelled = NO;
-    [controller completeFirstFailed];
+        [controller failNextStarts:10 forURL:url];
+        controller.blocksUntilCancelled = NO;
+        [controller completeFirstFailed];
+    }
+    @finally {
+        [controller setAfterFailureCheck:nil];
+        dispatch_semaphore_signal(holdDecisionGate);
+    }
     [self waitForCondition:^BOOL{
         return controller.startedURLs.count >= 3;
     } description:@"remaining physical retries did not start"];
