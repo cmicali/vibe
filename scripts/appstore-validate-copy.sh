@@ -2,7 +2,8 @@
 # Fail unless every catalog language has complete App Store copy in
 # Assets/app-store/copy/<lang>/ and it holds up: the four text fields present,
 # non-empty and within ASC's character limits (counted in characters, not
-# bytes), description free of leftover markdown, the shared support-url.txt,
+# bytes), description free of leftover markdown (bold, links, headings and
+# bullets — it uploads verbatim), the shared support-url.txt,
 # marketing-url.txt and privacy-url.txt each a bare URL, and screenshots.json holding a non-empty headline and subhead for
 # every shot, each fitting the screenshot layout
 # (compose-app-store-overlay.swift --measure).
@@ -38,7 +39,13 @@ check_text() { # <lang> <dir>
             err "$1: $f.txt is $len chars (ASC limit $limit)"
         fi
     done
-    if [ -f "$2/description.txt" ] && grep -qE '^(##|\*) ' "$2/description.txt"; then
+    # The old pattern required a space after the marker, so **bold** headings
+    # slipped through and would have shipped as literal asterisks in 30 locales.
+    # Bold and links are matched anywhere on the line, headings and bullets only
+    # at line start. whats-new.txt is exempt by construction — this only reads
+    # description.txt — and its "* " bullets upload verbatim on purpose.
+    if [ -f "$2/description.txt" ] \
+        && grep -qE '(\*\*|__|\[[^]]+\]\([^)]+\))|^(#{1,6}|\*|-) ' "$2/description.txt"; then
         err "$1: description.txt contains markdown markup — it uploads verbatim"
     fi
 }
