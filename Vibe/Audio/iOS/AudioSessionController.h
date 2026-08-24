@@ -65,6 +65,16 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak, readonly) id<AudioSessionControllerDelegate> delegate;
 
+// Parks the mixable Ambient category on the shared session. Claims nothing,
+// activates nothing, registers nothing — call it once before anything can
+// build an audio graph, which is why it is a class method rather than part of
+// init. AVAudioEngine instantiates its output unit while its master bus is
+// wired, and that runs against whatever category the session carries; the
+// system default is SoloAmbient, which is not mixable, so without this the
+// engine's construction alone stops whatever else the device is playing.
+// activate switches to Playback at the first play.
++ (void)prepareIdleCategory;
+
 // Registration begins during initialization, so the delegate must already be
 // present when the first notification can arrive.
 - (instancetype)initWithDelegate:(id<AudioSessionControllerDelegate>)delegate

@@ -8,6 +8,8 @@ The `AVAudioSession` half of what `AudioPlayer+Devices` is on macOS.
 
 **The playback category is activated before every play, never at launch**, and released with `NotifyOthersOnDeactivation` once playback sits idle past the engine's own idle stop — so an interrupted podcast gets its resume hint.
 
+**Not activating is not enough on its own, which is what `prepareIdleCategory` exists for.** `AVAudioEngine` instantiates its output unit while its master bus is wired — `AudioPlayer`'s `installMasterBusOnQueue`, on the player's queue moments after launch — and that runs against whatever category the session carries, activating it without anyone asking. The system default is SoloAmbient, which is not mixable, so the engine's construction alone stopped whatever else the device was playing: at a cold launch only, since the graph is built once, and with Vibe itself silent. Parking the mixable Ambient category first makes that implicit activation claim nothing. `PlaybackController` calls it above the player's own creation, and the ordering is the whole point — it cannot move down beside the controller's construction, which happens after.
+
 Four events, four delegate verdicts, each mapped onto the player's public API:
 
 | Event | Verdict |
@@ -40,4 +42,4 @@ The player's engine-recovery category, on `AudioPlayerInternal.h`'s shared priva
 
 ## Verifying
 
-The simulator exercises none of this faithfully. Interruptions, route changes (headphone unplug), background audio past lock and the lock-screen card need a real device.
+The simulator exercises none of this faithfully. Interruptions, route changes (headphone unplug), background audio past lock, the lock-screen card and whether a cold launch leaves another app's audio playing all need a real device.

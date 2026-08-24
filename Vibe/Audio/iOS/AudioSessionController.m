@@ -157,6 +157,14 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
++ (void)prepareIdleCategory {
+    NSError *error = nil;
+    if (![[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryAmbient
+                                                error:&error]) {
+        LogError(@"AudioSession: idle setCategory failed (%@)", error);
+    }
+}
+
 - (BOOL)activate {
     _activationGeneration++; // cancel any pending idle deactivation
     // Clear the old blockers before entering AVAudioSession. A notification
