@@ -138,13 +138,15 @@ cp "$ZIP" "$ASSET_ZIP"
 # ---------------------------------------------------------------------------
 # Repoint the marketing page, and land it BEFORE the tag.
 # ---------------------------------------------------------------------------
-# The page advertises a direct .dmg URL, which is only correct because this
-# runs; web-set-version.sh has the why. It happens here rather than after
-# publishing so the tag names a tree whose website already points at this
-# release — checking out v<version> gets the page that goes with it.
+# The page advertises a direct .dmg URL, and so do the /download rules in
+# _redirects that make vibeplayer.app/download/latest stable; both are only
+# correct because this runs, and web-set-version.sh has the why. It happens
+# here rather than after publishing so the tag names a tree whose website
+# already points at this release — checking out v<version> gets the page that
+# goes with it.
 #
-# Commit just that file by explicit pathspec, so a dirty tree cannot ride
-# along. Unlike every other step here this one moves main, and it does so
+# Commit just those two files by explicit pathspec, so a dirty tree cannot
+# ride along. Unlike every other step here this one moves main, and it does so
 # before anything irreversible: the release is created from HEAD immediately
 # after, so a failed commit or push has to be fatal — a tag on an unpushed
 # commit would dangle, and the release does not exist yet to be inconsistent
@@ -158,8 +160,9 @@ if [[ -n "$DRAFT" ]]; then
     echo "   once published: scripts/web-set-version.sh $VERSION && make deploy-web"
 else
     scripts/web-set-version.sh "$VERSION"
-    if [[ -n "$(git status --porcelain -- Assets/Web/index.html)" ]]; then
-        git commit -q -m "web: point the download at v$VERSION" -- Assets/Web/index.html || {
+    WEB_FILES=(Assets/Web/index.html Assets/Web/_redirects)
+    if [[ -n "$(git status --porcelain -- "${WEB_FILES[@]}")" ]]; then
+        git commit -q -m "web: point the download at v$VERSION" -- "${WEB_FILES[@]}" || {
             echo "error: could not commit the web page update — nothing has been published" >&2
             exit 1
         }

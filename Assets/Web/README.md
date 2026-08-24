@@ -68,17 +68,38 @@ shortcut cannot help: it only redirects for an asset name that never changes,
 and the release assets are named `Vibe-macOS-<version>.dmg`.
 
 So the link is rewritten instead. `scripts/web-set-version.sh <version>` edits
-the two places in `index.html` that name a version, keying on the `dmg-link`
-and `dmg-version` element ids rather than the markup around them, and erroring
-rather than silently doing nothing if either stops matching.
+the four places in `index.html` that name a version — the button's `href` and
+the label under it, keyed on the `dmg-link` and `dmg-version` element ids
+rather than the markup around them, and the JSON-LD `softwareVersion` and
+`downloadUrl` — plus the `/download` rules in `_redirects`, erroring rather
+than silently doing nothing if any of them stops matching.
 
 `scripts/github-release.sh` runs it **before** creating the release, commits
-that one file, and pushes — so the tag it then creates names a tree whose page
-already points at the release. A failed push there is fatal, because nothing
-has been published yet and a tag on an unpushed commit would dangle.
+those two files, and pushes — so the tag it then creates names a tree whose
+page already points at the release. A failed push there is fatal, because
+nothing has been published yet and a tag on an unpushed commit would dangle.
 
 A draft release is skipped: its download is not public, and a draft creates no
 tag until published, so there is no ordering to preserve.
+
+### The stable link
+
+    https://vibeplayer.app/download/latest        # /download and /download/ too
+
+is what anything outside this repo should link — a README, a forum post, a
+`curl -L` — so an external link never has to be revisited for a release. It is
+a `_redirects` rule pointing at the same URL as the button, written by the same
+`web-set-version.sh` run, so the branded link and the button cannot come to
+name different builds. `deploy-web.sh` refuses to publish if they disagree, and
+that check runs even under `--skip-link-check`: no page displays where
+`/download/latest` lands, so nothing else would ever reveal it going stale.
+
+**302, never 301.** The target moves every release, and a browser that cached a
+permanent redirect would keep fetching that one version forever with nothing on
+this end able to correct it. `deploy-web.sh` checks the status code too.
+
+Cloudflare only, like `/support` — GitHub Pages ignores `_redirects`, so the
+path 404s on the non-canonical copy.
 
 ## Releasing, end to end
 

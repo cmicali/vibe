@@ -24,14 +24,16 @@
 # no secret — .github/workflows/pages.yml deploys with the workflow's own OIDC
 # token and nothing else.
 #
-# Before uploading it checks two things. That Assets/Web matches origin/main,
+# Before uploading it checks three things. That Assets/Web matches origin/main,
 # because this uploads the working tree rather than a commit — being on the
 # wrong branch, or holding an uncommitted edit, would otherwise put something
 # on the canonical domain that is in no branch at all, and leave the two hosts
-# serving different sites. And that the .dmg the page advertises actually
-# resolves. A page whose Download button 404s is worse than a stale one, and
-# the link is only correct because web-set-version.sh rewrote it — this is the
-# check that the rewrite and the release actually happened in that order.
+# serving different sites. That the .dmg the page advertises actually resolves.
+# A page whose Download button 404s is worse than a stale one, and the link is
+# only correct because web-set-version.sh rewrote it — this is the check that
+# the rewrite and the release actually happened in that order. And that the
+# /download rules in _redirects still name that same file, since the branded
+# link is the half no page displays.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -116,12 +118,41 @@ scripts/web-stamp-css.sh --check
 
 # The button's href is the one thing on the page that can be wrong in a way a
 # visitor notices immediately.
-if [[ "$CHECK_LINK" == 1 ]]; then
-    DMG_URL="$(perl -ne 'print $1 if /id="dmg-link"\s+href="([^"]+)"/' "$PAGE")"
-    if [[ -z "$DMG_URL" ]]; then
-        echo "error: no id=\"dmg-link\" href in $PAGE — has the button markup changed?" >&2
+DMG_URL="$(perl -ne 'print $1 if /id="dmg-link"\s+href="([^"]+)"/' "$PAGE")"
+if [[ -z "$DMG_URL" ]]; then
+    echo "error: no id=\"dmg-link\" href in $PAGE — has the button markup changed?" >&2
+    exit 1
+fi
+
+# /download/latest is the URL external links use, so it is the one nobody here
+# would notice going stale — no page shows where it lands, and it answers 302
+# whatever it points at. Both come out of the same web-set-version.sh run, so a
+# disagreement means one of the two rewrites was undone by hand. Costs nothing,
+# so it runs even under --skip-link-check.
+while read -r RULE TARGET CODE; do
+    if [[ "$TARGET" != "$DMG_URL" ]]; then
+        cat >&2 <<MSG
+error: $DIR/_redirects and the Download button name different files.
+
+  $RULE  ->  $TARGET
+  button ->  $DMG_URL
+
+  Re-run scripts/web-set-version.sh <version> to write both from one URL.
+MSG
         exit 1
     fi
+    if [[ "$CODE" != "302" ]]; then
+        cat >&2 <<MSG
+error: $DIR/_redirects sends $RULE with status $CODE, not 302.
+
+  The target moves every release, so a 301 would be cached permanently by
+  every browser that followed it — and nothing here could correct them.
+MSG
+        exit 1
+    fi
+done < <(grep '^/download' "$DIR/_redirects")
+
+if [[ "$CHECK_LINK" == 1 ]]; then
     echo "🔊 checking the download link: $DMG_URL"
     CODE="$(curl -sIL -o /dev/null -w '%{http_code}' "$DMG_URL" || echo 000)"
     if [[ "$CODE" != "200" ]]; then

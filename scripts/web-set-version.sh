@@ -10,6 +10,11 @@
 # the version it just published, so the number the page advertises and the file
 # it hands you can never disagree.
 #
+# It rewrites the /download rules in Assets/Web/_redirects from that same URL,
+# which is what makes vibeplayer.app/download/latest a stable link anyone may
+# publish. Same URL, one source: the branded link and the button cannot come
+# to name different builds.
+#
 # The page hardcodes a direct .dmg URL rather than /releases/latest because the
 # asset name carries the version — Vibe-macOS-<version>.dmg — and GitHub's
 # latest/download shortcut only redirects for a filename that never changes.
@@ -26,6 +31,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PAGE="Assets/Web/index.html"
+REDIRECTS="Assets/Web/_redirects"
+REDIRECT_RULES=3                       # /download, /download/, /download/latest
 VERSION="${1:-}"
 
 [[ -n "$VERSION" ]] || {
@@ -41,10 +48,14 @@ VERSION="${VERSION#v}"
     echo "error: $PAGE not found" >&2
     exit 1
 }
+[[ -f "$REDIRECTS" ]] || {
+    echo "error: $REDIRECTS not found" >&2
+    exit 1
+}
 
 URL="https://github.com/cmicali/vibe/releases/download/v$VERSION/Vibe-macOS-$VERSION.dmg"
 
-BEFORE="$(cat "$PAGE")"
+BEFORE="$(cat "$PAGE" "$REDIRECTS")"
 
 perl -0pi -e "s{(id=\"dmg-link\"\\s+href=\")[^\"]*(\")}{\${1}$URL\${2}}" "$PAGE"
 perl -0pi -e "s{(id=\"dmg-version\">)[^<]*(</span>)}{\${1}v$VERSION\${2}}" "$PAGE"
@@ -69,9 +80,23 @@ grep -q "\"downloadUrl\": \"$URL\"" "$PAGE" || {
     exit 1
 }
 
-if [[ "$BEFORE" == "$(cat "$PAGE")" ]]; then
+# The /download* rules in _redirects. Keyed on the path column and the 302,
+# so the target may be swapped without the rule text being reproduced here;
+# the count is asserted because a rule that stopped matching would leave the
+# branded link pointing at the previous release while the button moved on.
+perl -0pi -e "s{^(/download\\S*\\s+)\\S+\\s+302\$}{\${1}$URL   302}mg" "$REDIRECTS"
+
+FOUND="$(grep -c "^/download.*[[:space:]]$URL[[:space:]]*302\$" "$REDIRECTS" || true)"
+if [[ "$FOUND" != "$REDIRECT_RULES" ]]; then
+    echo "error: rewrote $FOUND of $REDIRECT_RULES /download rules in $REDIRECTS." >&2
+    echo "       Each must read: /<path>  <url>  302" >&2
+    exit 1
+fi
+
+if [[ "$BEFORE" == "$(cat "$PAGE" "$REDIRECTS")" ]]; then
     echo "🔊 web page already points at v$VERSION"
 else
     echo "🔊 web page now points at v$VERSION"
 fi
 echo "   $URL"
+echo "   https://vibeplayer.app/download/latest redirects there"
