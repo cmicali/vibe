@@ -8,6 +8,8 @@
 
 #import <Foundation/Foundation.h>
 
+#import "FLACDisposalRules.h"
+
 NS_ASSUME_NONNULL_BEGIN
 
 @class AudioTrack;
@@ -23,6 +25,9 @@ typedef NS_ENUM(NSInteger, VibeConvertErrorCode) {
     VibeConvertErrorRestoreFailed,
     VibeConvertErrorEncodeFailed,
     VibeConvertErrorTagCopyFailed,
+    VibeConvertErrorTrashFailed,
+    VibeConvertErrorReplacementUnavailable,
+    VibeConvertErrorDestinationMatchesSource,
 };
 
 @interface AudioFileConverter : NSObject
@@ -39,8 +44,10 @@ typedef NS_ENUM(NSInteger, VibeConvertErrorCode) {
 // copies the tags across and moves it into place. Asynchronous; completion
 // runs on the main thread with the URL actually written, which differs from
 // the sibling path when the sandbox forced a save panel. Never overwrites the
-// destination. window hosts the panel; nil makes a denied sibling write fail.
-// A dismissed panel reports NSUserCancelledError.
+// automatic sibling destination; a save-panel replacement happens only after
+// the panel confirms it and may never name the source itself. window hosts the
+// panel; nil makes a denied sibling write fail. A dismissed panel reports
+// NSUserCancelledError.
 - (void)convertTrackToFLAC:(AudioTrack *)track
           presentingWindow:(nullable NSWindow *)window
                 completion:(void (^)(NSURL *_Nullable outputURL, NSError *_Nullable error))completion;
@@ -50,12 +57,15 @@ typedef NS_ENUM(NSInteger, VibeConvertErrorCode) {
 // conversion, never the one in flight. Trash rather than unlink, so it is
 // undoable. Call on the main thread once the FLAC has taken the source's
 // place; the player holds the source open until then. Failure is non-fatal
-// and only logged. completion always runs asynchronously on the main thread
-// with where the Trash put the file — nil when nothing moved — for the
-// caller's undo record.
+// and only logged. completion always runs asynchronously on the main thread.
+// Its outcome says whether the file moved independently of the optional URL;
+// a successful Trash move is allowed to have no location the caller can use
+// for restoration.
 - (void)trashSourceIfEnabled:(NSURL *)sourceURL
                  convertedTo:(NSURL *)outputURL
-                  completion:(nullable void (^)(NSURL *_Nullable trashedURL))completion;
+                  completion:(nullable void (^)(VibeTrashOutcome outcome,
+                                                NSURL *_Nullable trashedURL,
+                                                NSError *_Nullable error))completion;
 
 // The undo/redo file primitives for Undo Convert to FLAC. Main thread; the
 // moves run on a serial queue — unbounded on a cloud or network folder — and
@@ -64,10 +74,19 @@ typedef NS_ENUM(NSInteger, VibeConvertErrorCode) {
 // coordination. The restore refuses to overwrite, so something new at the
 // original path is never clobbered.
 - (void)trashItemAtURL:(NSURL *)url
-            completion:(void (^)(NSURL *_Nullable trashedURL, NSError *_Nullable error))completion;
+            completion:(void (^)(VibeTrashOutcome outcome,
+                                 NSURL *_Nullable trashedURL,
+                                 NSError *_Nullable error))completion;
 - (void)restoreTrashedItemAtURL:(NSURL *)trashedURL
                           toURL:(NSURL *)originalURL
                      completion:(void (^)(BOOL restored, NSError *_Nullable error))completion;
+
+// Positively verifies that a replacement can be read and parsed as audio
+// before undo, redo or conversion lets it take a playlist row and disposes of
+// the currently playable counterpart. Main thread; the probe runs on the
+// serial disposal queue and completion returns asynchronously on main.
+- (void)verifyPlayableFileAtURL:(NSURL *)url
+                     completion:(void (^)(BOOL playable, NSError *_Nullable error))completion;
 
 // The FLAC that would sit beside sourceURL; the conversion and the menu rule
 // share it, so the item talks about the file the action writes.

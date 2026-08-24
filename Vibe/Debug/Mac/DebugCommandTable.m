@@ -7,6 +7,8 @@
 
 #import "DebugInternal.h"
 #import "AppSettings.h"
+#import "AudioTrackMetadata.h"
+#import "FLACConvertRules.h"
 #import "MainPlayerController+Settings.h"
 
 #if DEBUG
@@ -42,13 +44,18 @@ static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerControlle
         return VibeErrorJSON(redo ? @"nothing to redo" : @"nothing to undo");
     }
     NSString *actionName = redo ? undoManager.redoActionName : undoManager.undoActionName;
-    controller.conversionUndoRedoSettledHandler = ^{
-        VibeWriteDebugResponse(commandId, VibeJSONString(@{
+    controller.conversionUndoRedoSettledHandler = ^(BOOL committed, NSString *reason) {
+        NSMutableDictionary *response = [@{
             @"ok": @YES,
             (redo ? @"redid" : @"undid"): actionName ?: @"",
+            @"committed": @(committed),
             @"canUndo": @(undoManager.canUndo),
             @"canRedo": @(undoManager.canRedo),
-        }));
+        } mutableCopy];
+        if (reason) {
+            response[@"reason"] = reason;
+        }
+        VibeWriteDebugResponse(commandId, VibeJSONString(response));
     };
     if (redo) {
         [controller redo:nil];
@@ -306,23 +313,46 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return nil; // response written by the block above
             }),
             // The whole Convert to FLAC path on the current track, swap and
-            // disposal included. The optional keep|delete token writes
-            // Convert > Delete Original, as the menu item does, and leaves it
-            // written — applied only once the command will actually convert,
-            // so a usage error or missing track mutates nothing. The
-            // 120-second clientTimeout covers a long encode.
-            VibeCmd(@"convert_to_flac [keep|delete]", 120, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            // disposal included. The optional keep|delete token writes Convert
+            // > Delete Original, as the menu item does, and leaves it written.
+            // omit-trash-url is a one-shot fault for the ambiguous successful
+            // Trash result; applied only once the command will actually convert.
+            // The 120-second clientTimeout covers a long encode.
+            VibeCmd(@"convert_to_flac [keep|delete] [omit-trash-url]", 120, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *mode = tokens.count > 1 ? tokens[1].lowercaseString : nil;
-                if (tokens.count > 2 ||
-                        (mode && !([mode isEqualToString:@"keep"] || [mode isEqualToString:@"delete"]))) {
-                    return VibeErrorJSON(@"usage: convert_to_flac [keep|delete]");
+                NSString *fault = tokens.count > 2 ? tokens[2].lowercaseString : nil;
+                BOOL omitTrashURL = [fault isEqualToString:@"omit-trash-url"];
+                if (tokens.count > 3 ||
+                        (mode && !([mode isEqualToString:@"keep"] || [mode isEqualToString:@"delete"])) ||
+                        (fault && !omitTrashURL) ||
+                        (omitTrashURL && ![mode isEqualToString:@"delete"])) {
+                    return VibeErrorJSON(@"usage: convert_to_flac [keep|delete] [omit-trash-url]");
                 }
                 AudioTrack *track = controller.playlistController.currentTrack;
                 if (!track) {
                     return VibeErrorJSON(@"no track to convert");
                 }
+                // Refuse before touching the one-shot fault. Command handlers
+                // may overlap while an earlier async conversion is running;
+                // clearing or arming its hook here would change that request's
+                // undo record. Mirror the converter's synchronous refusals so
+                // an unaccepted request never leaves a fault awaiting some
+                // later conversion either.
+                if (controller.fileConverter.isConverting) {
+                    return VibeErrorJSON(@"conversion already in progress");
+                }
+                if (!track.url.isFileURL ||
+                        !VibeTrackIsConvertibleToFLAC(track.metadata.fileType,
+                                                     track.url.pathExtension)) {
+                    return VibeErrorJSON(@"current track is not convertible to FLAC");
+                }
                 if (mode) {
                     AppSettings.sharedInstance.deleteOriginalAfterConvert = [mode isEqualToString:@"delete"];
+                }
+                [controller.fileConverter debugClearPendingSourceTrashURLFault];
+                id faultOwner = nil;
+                if (omitTrashURL) {
+                    faultOwner = [controller.fileConverter debugArmOmitNextSourceTrashURL];
                 }
                 // Read before the swap replaces the track; reported back so a
                 // test can assert the deletion without reading the Trash,
@@ -330,6 +360,13 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 NSString *sourcePath = track.url.path;
                 [controller convertTrackToFLAC:track
                                     completion:^(NSURL *outputURL, BOOL sourceDeleted, NSError *error) {
+                    // Source disposal normally consumes this before starting
+                    // its move. Cancel only if this request still owns a fault
+                    // left pending by an earlier conversion failure.
+                    if (faultOwner) {
+                        [controller.fileConverter
+                                debugCancelPendingSourceTrashURLFaultWithOwner:faultOwner];
+                    }
                     if (!outputURL) {
                         VibeWriteDebugResponse(commandId,
                                 VibeErrorJSON(@"convert failed: %@", error.localizedDescription));

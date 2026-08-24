@@ -13,8 +13,8 @@
 //     while a presenter claiming that relationship is registered AND only
 //     inside a coordinated write. This is the rung that makes "convert the
 //     file I opened, in place" work with no folder grant at all.
-//  3. **A save panel.** Always works, because the user's pick carries its own
-//     grant, and costs one Return keypress since it is pre-filled.
+//  3. **A save panel.** The user's pick carries its own grant, and costs one
+//     Return keypress since it is pre-filled. It refuses the source itself.
 //
 //  A successful presenter from rung 2 is deliberately never unregistered: the
 //  extension dies with the registration, and the app goes on reading the file
@@ -35,8 +35,10 @@ NS_ASSUME_NONNULL_BEGIN
                        error:(NSError **)error;
 
 // Rung 3. Sheets on window; the completion runs on the main thread, with
-// NSUserCancelledError when the user dismisses the panel.
+// NSUserCancelledError when the user dismisses the panel. A selection that
+// names the source itself is refused before replacement.
 - (void)runSavePanelForTemp:(NSURL *)tempURL
+                     source:(NSURL *)sourceURL
                 destination:(NSURL *)destinationURL
                      window:(NSWindow *)window
                  completion:(void (^)(NSURL *_Nullable, NSError *_Nullable))completion;

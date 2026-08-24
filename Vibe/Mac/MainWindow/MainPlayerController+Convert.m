@@ -16,14 +16,17 @@
 #import "TrackDisplayController.h"
 
 // One finished conversion, as NSUndoManager's invocation argument: where the
-// source was, where the FLAC landed, and where the Trash holds whichever of
-// them was last moved aside — nil meaning the file sits at its original path.
-// Mutated in place as moves land, so one object rides both undo directions.
+// source was, where the FLAC landed, and any known Trash location for whichever
+// was last moved aside. A nil Trash URL says only that no location is known;
+// the expected live path must still be verified before either direction
+// commits. Mutated in place as moves land, so one object rides both directions.
 @interface VibeFLACConversionRecord : NSObject
 @property (strong) NSURL *sourceURL;
 @property (strong) NSURL *outputURL;
 @property (strong) NSURL *sourceTrashURL;
 @property (strong) NSURL *outputTrashURL;
+@property VibeFLACFileLocation sourceLocation;
+@property VibeFLACFileLocation outputLocation;
 // Whether the conversion trashed its source, so redo re-trashes it rather
 // than re-reading a setting that may have flipped.
 @property BOOL sourceWasTrashed;
@@ -58,7 +61,10 @@
             reply(NO); // nothing left to swap into; do not stand the caller up
             return;
         }
-        [strongSelf didConvertTrack:track toURL:outputURL error:error completion:reply];
+        [strongSelf didConvertTrack:track
+                              toURL:outputURL
+                              error:error
+                         completion:reply];
     }];
 }
 
@@ -91,6 +97,14 @@
     // vanished mid-encode has a nil path, and fileURLWithPath: throws on nil.
     NSString *sourcePath = track.url.path;
     NSURL *sourceURL = sourcePath ? [NSURL fileURLWithPath:sourcePath] : track.url;
+    if ([sourceURL.URLByStandardizingPath.path
+            isEqualToString:outputURL.URLByStandardizingPath.path]) {
+        LogError(@"Convert to FLAC kept the playlist unchanged because the output replaced its source at %@",
+                sourceURL.path);
+        NSBeep();
+        completion(NO);
+        return;
+    }
     [self swapConvertedTrack:track toURL:outputURL];
     [self.fileConverter refreshDestinationStateForTrack:self.playlistController.currentTrack];
     // Runs whether or not the swap found a row: the FLAC is on disk either
@@ -98,17 +112,21 @@
     __weak MainPlayerController *weakSelf = self;
     [self.fileConverter trashSourceIfEnabled:sourceURL
                                  convertedTo:outputURL
-                                  completion:^(NSURL *trashedURL) {
+                                  completion:^(VibeTrashOutcome outcome,
+                                               NSURL *trashedURL,
+                                               NSError *__unused disposalError) {
         MainPlayerController *strongSelf = weakSelf;
         if (strongSelf) {
             VibeFLACConversionRecord *record = [VibeFLACConversionRecord new];
             record.sourceURL = sourceURL;
             record.outputURL = outputURL;
             record.sourceTrashURL = trashedURL;
-            record.sourceWasTrashed = trashedURL != nil;
+            record.sourceLocation = VibeFLACFileLocationAfterTrash(outcome);
+            record.outputLocation = VibeFLACFileLocationExpectedPath;
+            record.sourceWasTrashed = VibeTrashOutcomeDidMove(outcome);
             [strongSelf registerUndoOfConversion:record];
         }
-        completion(trashedURL != nil);
+        completion(VibeTrashOutcomeDidMove(outcome));
     }];
 }
 
@@ -238,7 +256,7 @@
             record.sourceURL.path, record.sourceTrashURL.path ?: @"-",
             record.outputURL.path, record.outputTrashURL.path ?: @"-");
     __weak MainPlayerController *weakSelf = self;
-    if (record.sourceTrashURL) {
+    if (record.sourceLocation == VibeFLACFileLocationKnownTrashURL) {
         [self.fileConverter restoreTrashedItemAtURL:record.sourceTrashURL
                                               toURL:record.sourceURL
                                          completion:^(BOOL restored, NSError *error) {
@@ -248,20 +266,74 @@
             }
             if (!restored) {
                 [strongSelf revealFailedRestoreAt:record.sourceTrashURL error:error];
-                [strongSelf conversionUndoRedoDidSettle];
+                [strongSelf conversionUndoRedoDidSettleCommitted:NO reason:@"restore_failed"];
                 return;
             }
             record.sourceTrashURL = nil;
-            [strongSelf finishUndoConversion:record];
+            record.sourceLocation = VibeFLACFileLocationExpectedPath;
+            [strongSelf verifyConversionReplacementAtURL:record.sourceURL
+                                                   ready:^(MainPlayerController *controller) {
+                [controller finishUndoConversion:record];
+            }];
+        }];
+    }
+    else if (record.sourceLocation == VibeFLACFileLocationExpectedPath) {
+        [self verifyConversionReplacementAtURL:record.sourceURL
+                                         ready:^(MainPlayerController *controller) {
+            [controller finishUndoConversion:record];
         }];
     }
     else {
-        // Delete Original was off, so the source never left its folder.
-        [self finishUndoConversion:record];
+        [self conversionReplacementLocationIsUnknown:record.sourceURL];
     }
 }
 
+- (void)conversionReplacementLocationIsUnknown:(NSURL *)url {
+    LogError(@"Conversion undo/redo kept the current file because the Trash did not return a location for %@",
+            url.lastPathComponent);
+    NSBeep();
+    // Keep settlement asynchronous like every filesystem path. NSUndoManager
+    // finishes moving the inverse between stacks after this invocation returns.
+    __weak MainPlayerController *weakSelf = self;
+    run_on_main_thread({
+        [weakSelf conversionUndoRedoDidSettleCommitted:NO
+                                                reason:@"replacement_location_unknown"];
+    });
+}
+
+// The one commit gate for both directions. A stale record may name an absent,
+// unreadable or invalid file; in every case keep the row and its currently
+// playable counterpart untouched.
+- (void)verifyConversionReplacementAtURL:(NSURL *)url
+                                   ready:(void (^)(MainPlayerController *controller))ready {
+    __weak MainPlayerController *weakSelf = self;
+    [self.fileConverter verifyPlayableFileAtURL:url
+                                     completion:^(BOOL playable, NSError *error) {
+        MainPlayerController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        if (!playable) {
+            LogError(@"Conversion undo/redo kept the current file because %@ could not replace it: %@",
+                    url.lastPathComponent, error.localizedDescription);
+            NSBeep();
+            [strongSelf conversionUndoRedoDidSettleCommitted:NO
+                                                      reason:@"replacement_unavailable"];
+            return;
+        }
+        ready(strongSelf);
+    }];
+}
+
 - (void)finishUndoConversion:(VibeFLACConversionRecord *)record {
+    // TRAP: a failed redo still registered this undo. A non-live output means
+    // the target state is already in place; outputURL may now name someone
+    // else's file, so neither its row nor the path may be touched.
+    if (!VibeFLACMayDisposeExpectedPath(record.outputLocation)) {
+        LogInfo(@"Undo conversion: output is already away from its expected path; nothing to commit");
+        [self conversionUndoRedoDidSettleCommitted:NO reason:@"already_at_target"];
+        return;
+    }
     // A playlist replaced since the conversion has no row to swap; the files
     // still round-trip.
     AudioTrack *flacTrack = [self.playlistController trackForURL:record.outputURL];
@@ -272,11 +344,24 @@
     }
     __weak MainPlayerController *weakSelf = self;
     [self.fileConverter trashItemAtURL:record.outputURL
-                            completion:^(NSURL *trashedURL, NSError *error) {
-        if (trashedURL) {
+                            completion:^(VibeTrashOutcome outcome,
+                                         NSURL *trashedURL,
+                                         NSError *error) {
+        if (outcome == VibeTrashOutcomeMovedKnownURL) {
             record.outputTrashURL = trashedURL;
+            record.outputLocation = VibeFLACFileLocationKnownTrashURL;
+        }
+        else if (outcome == VibeTrashOutcomeMovedUnknownURL) {
+            record.outputTrashURL = nil;
+            record.outputLocation = VibeFLACFileLocationUnknownTrashURL;
+            LogWarn(@"Undo trashed %@ without a location for redo",
+                    record.outputURL.lastPathComponent);
         }
         else {
+            record.outputTrashURL = nil;
+            record.outputLocation = VibeFLACFileLocationExpectedPath;
+        }
+        if (outcome == VibeTrashOutcomeFailed) {
             // Non-fatal: the FLAC stays beside the restored original, and
             // redo finds it in place through the nil outputTrashURL.
             LogError(@"Undo could not trash the FLAC %@: %@",
@@ -284,7 +369,7 @@
         }
         MainPlayerController *strongSelf = weakSelf;
         [strongSelf.fileConverter refreshDestinationStateForTrack:strongSelf.playlistController.currentTrack];
-        [strongSelf conversionUndoRedoDidSettle];
+        [strongSelf conversionUndoRedoDidSettleCommitted:YES reason:nil];
     }];
 }
 
@@ -307,7 +392,7 @@
             record.sourceURL.path, record.sourceTrashURL.path ?: @"-",
             record.outputURL.path, record.outputTrashURL.path ?: @"-");
     __weak MainPlayerController *weakSelf = self;
-    if (record.outputTrashURL) {
+    if (record.outputLocation == VibeFLACFileLocationKnownTrashURL) {
         [self.fileConverter restoreTrashedItemAtURL:record.outputTrashURL
                                               toURL:record.outputURL
                                          completion:^(BOOL restored, NSError *error) {
@@ -317,39 +402,70 @@
             }
             if (!restored) {
                 [strongSelf revealFailedRestoreAt:record.outputTrashURL error:error];
-                [strongSelf conversionUndoRedoDidSettle];
+                [strongSelf conversionUndoRedoDidSettleCommitted:NO reason:@"restore_failed"];
                 return;
             }
             record.outputTrashURL = nil;
-            [strongSelf finishRedoConversion:record];
+            record.outputLocation = VibeFLACFileLocationExpectedPath;
+            [strongSelf verifyConversionReplacementAtURL:record.outputURL
+                                                   ready:^(MainPlayerController *controller) {
+                [controller finishRedoConversion:record];
+            }];
+        }];
+    }
+    else if (record.outputLocation == VibeFLACFileLocationExpectedPath) {
+        [self verifyConversionReplacementAtURL:record.outputURL
+                                         ready:^(MainPlayerController *controller) {
+            [controller finishRedoConversion:record];
         }];
     }
     else {
-        [self finishRedoConversion:record];
+        [self conversionReplacementLocationIsUnknown:record.outputURL];
     }
 }
 
 - (void)finishRedoConversion:(VibeFLACConversionRecord *)record {
+    // Mirror finishUndoConversion:'s failed-inverse guard. When the source was
+    // meant to stay beside the FLAC there is no disposal to protect.
+    if (record.sourceWasTrashed &&
+            !VibeFLACMayDisposeExpectedPath(record.sourceLocation)) {
+        LogInfo(@"Redo conversion: source is already away from its expected path; nothing to commit");
+        [self conversionUndoRedoDidSettleCommitted:NO reason:@"already_at_target"];
+        return;
+    }
     AudioTrack *sourceTrack = [self.playlistController trackForURL:record.sourceURL];
     if (sourceTrack) {
         [self swapConvertedTrack:sourceTrack toURL:record.outputURL];
     }
     [self.fileConverter refreshDestinationStateForTrack:self.playlistController.currentTrack];
     if (!record.sourceWasTrashed) {
-        [self conversionUndoRedoDidSettle];
+        [self conversionUndoRedoDidSettleCommitted:YES reason:nil];
         return;
     }
     __weak MainPlayerController *weakSelf = self;
     [self.fileConverter trashItemAtURL:record.sourceURL
-                            completion:^(NSURL *trashedURL, NSError *error) {
-        if (trashedURL) {
+                            completion:^(VibeTrashOutcome outcome,
+                                         NSURL *trashedURL,
+                                         NSError *error) {
+        if (outcome == VibeTrashOutcomeMovedKnownURL) {
             record.sourceTrashURL = trashedURL;
+            record.sourceLocation = VibeFLACFileLocationKnownTrashURL;
+        }
+        else if (outcome == VibeTrashOutcomeMovedUnknownURL) {
+            record.sourceTrashURL = nil;
+            record.sourceLocation = VibeFLACFileLocationUnknownTrashURL;
+            LogWarn(@"Redo trashed %@ without a location for undo",
+                    record.sourceURL.lastPathComponent);
         }
         else {
+            record.sourceTrashURL = nil;
+            record.sourceLocation = VibeFLACFileLocationExpectedPath;
+        }
+        if (outcome == VibeTrashOutcomeFailed) {
             LogError(@"Redo could not re-trash the original %@: %@",
                     record.sourceURL.lastPathComponent, error.localizedDescription);
         }
-        [weakSelf conversionUndoRedoDidSettle];
+        [weakSelf conversionUndoRedoDidSettleCommitted:YES reason:nil];
     }];
 }
 
@@ -366,16 +482,17 @@
 
 // A no-op in Release: the handler is debug-channel plumbing and nothing else
 // can set it.
-- (void)conversionUndoRedoDidSettle {
+- (void)conversionUndoRedoDidSettleCommitted:(BOOL)committed
+                                      reason:(nullable NSString *)reason {
     self.conversionUndoRedoInFlight = NO;
     // The debug channel's settled hook, if one is armed — nothing arms it in a
     // shipping build, so this is an always-nil read there rather than a
     // conditional. One shot, cleared before it runs: a handler a timed-out
     // debug command left behind must not fire on a later menu-driven undo.
-    void (^handler)(void) = self.conversionUndoRedoSettledHandler;
+    void (^handler)(BOOL, NSString *_Nullable) = self.conversionUndoRedoSettledHandler;
     self.conversionUndoRedoSettledHandler = nil;
     if (handler) {
-        handler();
+        handler(committed, reason);
     }
 }
 

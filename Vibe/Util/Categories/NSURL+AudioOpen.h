@@ -21,6 +21,12 @@ NS_ASSUME_NONNULL_BEGIN
 // beforehand or not at all — see the implementation.
 @property (nonatomic, readonly) BOOL failsAudioOpenPreflight;
 
+// The FLAC conversion's strict positive check before a destructive handoff:
+// YES only for a readable regular file whose CoreAudio container reports at
+// least one audio packet. Do not use this to gate regular audio-open paths;
+// those retain failsAudioOpenPreflight's deliberately inconclusive failures.
+- (BOOL)validateAudioFileIsReadableAndHasContent;
+
 @end
 
 NS_ASSUME_NONNULL_END

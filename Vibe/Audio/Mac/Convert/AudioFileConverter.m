@@ -199,7 +199,10 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
         NSURL *tempURL = [self encodeSource:sourceURL progress:progress error:&error];
         if (!tempURL) {
             // encodeSource: removed its own temp on failure.
-            [self finishConversionWithURL:nil error:error tempURLToRemove:nil completion:completion];
+            [self finishConversionWithURL:nil
+                                    error:error
+                          tempURLToRemove:nil
+                               completion:completion];
             return;
         }
         // Metadata is part of conversion success. The copier revalidates the
@@ -222,11 +225,17 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
                                                      destination:destinationURL
                                                            error:&placeError];
         if (placedURL) {
-            [self finishConversionWithURL:placedURL error:nil tempURLToRemove:nil completion:completion];
+            [self finishConversionWithURL:placedURL
+                                    error:nil
+                          tempURLToRemove:nil
+                               completion:completion];
             return;
         }
         if (!window) {
-            [self finishConversionWithURL:nil error:placeError tempURLToRemove:tempURL completion:completion];
+            [self finishConversionWithURL:nil
+                                    error:placeError
+                          tempURLToRemove:tempURL
+                               completion:completion];
             return;
         }
         run_on_main_thread({
@@ -237,6 +246,7 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
                 LogInfo(@"Neither silent write worked; asking the user where to put it");
             }
             [self runSavePanelForTemp:tempURL
+                               source:sourceURL
                           destination:destinationURL
                                window:window
                            completion:^(NSURL *outputURL, NSError *panelError) {
@@ -251,8 +261,8 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
 
 // Every terminal path of a conversion that reached _converting = YES funnels
 // through here: the temp is removed unless it was placed, and _converting
-// flips back on main before the completion runs. The refusals ahead of that
-// flag must NOT route through this — the busy refusal would clear a running
+// flips back on main before the completion runs. The refusals ahead of the flag
+// must NOT route through this — a busy refusal would clear a running
 // conversion's flag. Callable from any thread.
 - (void)finishConversionWithURL:(nullable NSURL *)outputURL
                           error:(nullable NSError *)error
@@ -261,9 +271,31 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
     if (tempURL) {
         [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];
     }
-    run_on_main_thread({
-        self->_converting = NO;
-        completion(outputURL, error);
+    if (!outputURL) {
+        run_on_main_thread({
+            self->_converting = NO;
+            completion(nil, error);
+        });
+        return;
+    }
+    // Placement is another filesystem boundary after the encoded temp was
+    // validated. Keep the source and the playlist untouched unless the file at
+    // the URL handed to the controller is still readable as audio.
+    dispatch_async(_disposeQueue, ^{
+        NSError *verificationError = nil;
+        BOOL playable = [self playableFileAtURL:outputURL error:&verificationError];
+        if (!playable) {
+            // The path may now hold an external replacement, and a save-panel
+            // placement may have replaced a user file. Preserve it and make the
+            // stranded location explicit rather than guessing it is safe to delete.
+            LogError(@"The converted file failed verification and was left at %@: %@",
+                    outputURL.path, verificationError.localizedDescription);
+        }
+        run_on_main_thread({
+            self->_converting = NO;
+            completion(playable ? outputURL : nil,
+                       playable ? error : verificationError);
+        });
     });
 }
 
@@ -271,28 +303,43 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
 
 - (void)trashSourceIfEnabled:(NSURL *)sourceURL
                  convertedTo:(NSURL *)outputURL
-                  completion:(void (^)(NSURL *_Nullable trashedURL))completion {
+                  completion:(void (^)(VibeTrashOutcome outcome,
+                                       NSURL *_Nullable trashedURL,
+                                       NSError *_Nullable error))completion {
     NSAssert(NSThread.isMainThread, @"trashSourceIfEnabled must be called on the main thread");
+    VibeSourceTrashResultingURLFilter resultingURLFilter =
+            self.nextSourceTrashResultingURLFilter;
+    self.nextSourceTrashResultingURLFilter = nil;
     // The nothing-to-do paths report asynchronously too, so a caller is never
     // re-entered before this method returns.
     if (!_deleteOriginalAtAccept || !sourceURL.isFileURL) {
-        run_on_main_thread({ if (completion) completion(nil); });
+        run_on_main_thread({
+            if (completion) completion(VibeTrashOutcomeSkipped, nil, nil);
+        });
         return;
     }
-    // No rung can land the FLAC on its own source, but trashing it here would
-    // take the audio with it, so the guard stays.
+    // The placement rungs refuse this, but trashing here would take the only
+    // audio with it if a filesystem alias escaped that boundary.
     if ([sourceURL.URLByStandardizingPath.path isEqualToString:outputURL.URLByStandardizingPath.path]) {
         LogWarn(@"Not deleting %@: the conversion landed on the source itself", sourceURL.lastPathComponent);
-        run_on_main_thread({ if (completion) completion(nil); });
+        run_on_main_thread({
+            if (completion) completion(VibeTrashOutcomeSkipped, nil, nil);
+        });
         return;
     }
-    [self trashItemAtURL:sourceURL completion:^(NSURL *trashedURL, NSError *error) {
-        if (!trashedURL) {
+    [self trashItemAtURL:sourceURL
+      resultingURLFilter:resultingURLFilter
+              completion:^(VibeTrashOutcome outcome, NSURL *trashedURL, NSError *error) {
+        if (outcome == VibeTrashOutcomeFailed) {
             LogError(@"Could not delete the converted source %@: %@",
                     sourceURL.lastPathComponent, error.localizedDescription);
         }
+        else if (outcome == VibeTrashOutcomeMovedUnknownURL) {
+            LogWarn(@"Deleted converted source %@, but the Trash returned no location for undo",
+                    sourceURL.lastPathComponent);
+        }
         if (completion) {
-            completion(trashedURL);
+            completion(outcome, trashedURL, error);
         }
     }];
 }
@@ -311,7 +358,17 @@ static NSString *VibeFileStat(NSURL *url) {
 }
 
 - (void)trashItemAtURL:(NSURL *)url
-            completion:(void (^)(NSURL *_Nullable, NSError *_Nullable))completion {
+            completion:(void (^)(VibeTrashOutcome,
+                                 NSURL *_Nullable,
+                                 NSError *_Nullable))completion {
+    [self trashItemAtURL:url resultingURLFilter:nil completion:completion];
+}
+
+- (void)trashItemAtURL:(NSURL *)url
+    resultingURLFilter:(VibeSourceTrashResultingURLFilter)resultingURLFilter
+            completion:(void (^)(VibeTrashOutcome,
+                                 NSURL *_Nullable,
+                                 NSError *_Nullable))completion {
     dispatch_async(_disposeQueue, ^{
         LogInfo(@"Trash: %@ (%@)", url.path, VibeFileStat(url));
         __block NSURL *trashedURL = nil;
@@ -334,7 +391,14 @@ static NSString *VibeFileStat(NSURL *url) {
                                                         error:&error];
         }];
         if (!ok && !error) {
-            error = coordinationError; // coordination failed; the accessor never ran
+            // coordinationError means the accessor never ran. A nil error
+            // from both APIs is still a failed Trash result, not a skip.
+            error = coordinationError ?: [self errorWithCode:VibeConvertErrorTrashFailed
+                                                  description:[NSString stringWithFormat:
+                    @"The Trash did not move %@ and returned no error.", url.lastPathComponent]];
+        }
+        if (resultingURLFilter) {
+            trashedURL = resultingURLFilter(ok, trashedURL);
         }
         NSString *result = [NSString stringWithFormat:
                 @"Trash result for %@: ok=%d, resultingItemURL=%@ (%@), source now %@%@%@",
@@ -349,8 +413,8 @@ static NSString *VibeFileStat(NSURL *url) {
         else {
             LogWarn(@"%@", result);
         }
-        // A trash with no resulting URL cannot be undone; report it as failed.
-        run_on_main_thread({ completion(ok ? trashedURL : nil, ok ? nil : error); });
+        VibeTrashOutcome outcome = VibeTrashOutcomeForResult(ok, trashedURL != nil);
+        run_on_main_thread({ completion(outcome, trashedURL, ok ? nil : error); });
     });
 }
 
@@ -409,6 +473,29 @@ static NSString *VibeFileStat(NSURL *url) {
         }
         run_on_main_thread({ completion(restored, restored ? nil : error); });
     });
+}
+
+- (void)verifyPlayableFileAtURL:(NSURL *)url
+                     completion:(void (^)(BOOL, NSError *_Nullable))completion {
+    NSAssert(NSThread.isMainThread, @"verifyPlayableFileAtURL must be called on the main thread");
+    dispatch_async(_disposeQueue, ^{
+        NSError *error = nil;
+        BOOL playable = [self playableFileAtURL:url error:&error];
+        run_on_main_thread({ completion(playable, error); });
+    });
+}
+
+// A positive check. Called only off main; provider and network reads may block.
+- (BOOL)playableFileAtURL:(NSURL *)url error:(NSError **)error {
+    BOOL playable = [url validateAudioFileIsReadableAndHasContent];
+    if (!playable && error) {
+        NSString *path = url.path;
+        *error = [self errorWithCode:VibeConvertErrorReplacementUnavailable
+                         description:[NSString stringWithFormat:
+                @"%@ is missing, unreadable, or not playable.",
+                path.length > 0 ? path : @"The replacement audio file"]];
+    }
+    return playable;
 }
 
 #pragma mark - Encode

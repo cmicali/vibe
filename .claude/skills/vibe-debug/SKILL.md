@@ -231,9 +231,9 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 "$V" --debug-cmd dump_timing                 # {loads: [...]} — in-process phase timings of recent waveform decodes, newest first: readSeconds (the decode), chunkSeconds, bpmSeconds/keySeconds (each split into Append + Finish), otherSeconds, realtimeFactor. Covers every load, from playing a track as well as from file_cache
 "$V" --debug-cmd clear_timing                # {ok} — empties that store before a measurement run
 "$V" --debug-cmd file_clear_cache song.flac  # {ok, wasPresent} — evict one file's cached waveform
-"$V" --debug-cmd convert_to_flac [keep|delete]  # {ok, output, row, source, sourceDeleted, sourceRemains} — the whole Convert to FLAC path on the CURRENT track, swap and source disposal included; default: current setting. Waits up to 120s
-"$V" --debug-cmd undo                # {ok, undid, canUndo, canRedo} — Edit > Undo; replies once the file moves have settled. {"error": "nothing to undo"} on an empty stack
-"$V" --debug-cmd redo                # {ok, redid, canUndo, canRedo} — Edit > Redo, same contract, {"error": "nothing to redo"}
+"$V" --debug-cmd convert_to_flac [keep|delete] [omit-trash-url]  # {ok, output, row, source, sourceDeleted, sourceRemains} — the whole Convert to FLAC path on the CURRENT track, swap and source disposal included; default: current setting. omit-trash-url is a one-shot undo-safety fault and requires delete. Waits up to 120s
+"$V" --debug-cmd undo                # {ok, undid, committed, reason?, canUndo, canRedo} — Edit > Undo; replies once the file moves have settled. {"error": "nothing to undo"} on an empty stack
+"$V" --debug-cmd redo                # {ok, redid, committed, reason?, canUndo, canRedo} — Edit > Redo, same contract, {"error": "nothing to redo"}
 "$V" --debug-cmd clear_caches        # {ok, cleared} — empties metadata + waveform PINCaches
 "$V" --debug-cmd quit                # {ok, quitting} — ends the app through the normal terminate path. **Prefer it to pkill**: an attached debugger traps SIGTERM and only stops the process, so an Xcode-run instance survives the kill, stays in the process table and answers nothing (see Launching). It is also the only exit that runs applicationWillTerminate:, so the AppStats flush happens
 "$V" --debug-cmd scan_bpm - < file   # {ok, bpm} — fresh decode+analyze, runs IN THE CLI PROCESS (no app needed; see Test audio files). Audio rides stdin; prefer the scan-bpm.sh wrapper
@@ -283,10 +283,29 @@ Input injection posts synthesized NSEvents into the app's own event queue. See *
 "$V" --debug-cmd convert_to_flac keep   | jq -e '.sourceRemains == true'  >/dev/null
 ```
 
-`undo` and `redo` drive the window's NSUndoManager, whose only registered action is Convert to FLAC: undo restores the trashed original, returns its playlist row to it, and trashes the FLAC; redo reverses that from the Trash without re-encoding. Both reply only once the file moves have settled, so assert file state directly from the reply's ordering, and read the live stack from `dump_state`'s `ui.canUndo`/`ui.canRedo`. To exercise the menu path instead use `click_menu menu_edit_undo` / `menu_edit_redo`; validation retitles the items from the manager ("Undo Convert to FLAC") and `dump_menu` shows the live titles and enables — but the menu action has no settled signal, so prefer the verbs when a follow-up step depends on the moves having landed.
+`undo` and `redo` drive the window's NSUndoManager, whose only registered action is Convert to FLAC: undo restores the trashed original, returns its playlist row to it, and trashes the FLAC; redo reverses that from the Trash without re-encoding. Both reply only once the file moves have settled, so assert file state directly from the reply's ordering, and read the live stack from `dump_state`'s `ui.canUndo`/`ui.canRedo`. `ok:true` means the command was accepted and settled; `committed` says whether the controller crossed its replacement commit gate. A refusal reports `committed:false` with one of `restore_failed`, `replacement_location_unknown`, `replacement_unavailable`, or `already_at_target`. To exercise the menu path instead use `click_menu menu_edit_undo` / `menu_edit_redo`; validation retitles the items from the manager ("Undo Convert to FLAC") and `dump_menu` shows the live titles and enables — but the menu action has no settled signal, so prefer the verbs when a follow-up step depends on the moves having landed.
 
 ```bash
 undo_enabled() { "$V" --debug-cmd dump_menu | jq -r '.menu[]|select(.title=="Edit")|.items[]|select(.id=="menu_edit_undo")|.enabled'; }
+```
+
+The missing-Trash-URL regression is deterministic through the one-shot `omit-trash-url` fault. Run it only on a working copy: the real source is moved to the Trash, but its returned location is deliberately withheld from the controller. The refused undo must leave the converted row in place, and the inverse NSUndoManager registers for that refusal must settle as already satisfied rather than touching either path:
+
+```bash
+out=$("$V" --debug-cmd script - <<'EOF'
+convert_to_flac delete omit-trash-url
+undo
+redo
+dump_state
+EOF
+)
+printf '%s\n' "$out" | jq -s -e '
+  length == 4 and
+  .[0].sourceDeleted == true and
+  .[1].committed == false and .[1].reason == "replacement_location_unknown" and
+  .[2].committed == false and .[2].reason == "already_at_target" and
+  .[3].currentTrack.url == .[0].output
+' >/dev/null
 ```
 
 `file_cache` and `file_clear_cache` operate on the **waveform** cache for one file, keyed by size and mtime, independently of the current track. Use them to force a cold decode when testing the waveform loader or the BPM analyzer: run `file_clear_cache foo.flac`, then `file_cache foo.flac` reports the freshly detected `bpm`. The reply lands only once the entry is on disk, so a follow-up relaunch is guaranteed the cache hit. Quote paths as usual; arguments travel to the app as an array and are never re-tokenized, so filenames with whitespace are safe. `open` and `file_cache` read the path directly, so the App Sandbox may deny a file the app has not been granted — the same caveat as command-line arguments. Launching with `open -a "$APP" <file>` grants access, so prefer paths already opened this session.

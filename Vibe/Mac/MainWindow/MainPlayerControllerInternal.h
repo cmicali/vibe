@@ -103,7 +103,8 @@ NS_ASSUME_NONNULL_BEGIN
 // channel is its only setter, through +Debug.h; in a shipping build it costs
 // one always-nil block pointer, which is what keeps an `#if DEBUG` out of a
 // shipping header.
-@property (copy, nullable) void (^conversionUndoRedoSettledHandler)(void);
+@property (copy, nullable) void (^conversionUndoRedoSettledHandler)(
+        BOOL committed, NSString *_Nullable reason);
 
 // The convert swap's resume hint: the swapped-in track and the file-time
 // playhead its replay resumes at, so the Now Playing publish in the swap's

@@ -5,6 +5,7 @@
 
 #import "AudioFileConverter+Sandbox.h"
 #import "AudioFileConverterInternal.h"
+#import "NSURL+FileIdentity.h"
 #import "VibeStrings.h"
 
 #import <AppKit/AppKit.h>
@@ -97,6 +98,7 @@
 }
 
 - (void)runSavePanelForTemp:(NSURL *)tempURL
+                     source:(NSURL *)sourceURL
                 destination:(NSURL *)destinationURL
                      window:(NSWindow *)window
                  completion:(void (^)(NSURL *_Nullable, NSError *_Nullable))completion {
@@ -122,6 +124,12 @@
         // turns the move into a full copy of the encoded file, and an
         // unreachable mount blocks until it times out.
         dispatch_async(self->_queue, ^{
+            if ([chosenURL vibeRefersToSameFileAsURL:sourceURL]) {
+                NSError *error = [self errorWithCode:VibeConvertErrorDestinationMatchesSource
+                                          description:@"The converted FLAC cannot replace its source file."];
+                run_on_main_thread({ completion(nil, error); });
+                return;
+            }
             NSFileManager *fileManager = NSFileManager.defaultManager;
             NSError *moveError = nil;
             NSURL *placedURL = nil;

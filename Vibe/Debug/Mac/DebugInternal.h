@@ -46,6 +46,7 @@
 #import "AudioWaveformCache+Debug.h"
 #import "AudioWaveformView.h"
 #import "AudioFileConverter.h"
+#import "AudioFileConverter+Debug.h"
 #import "MusicalKey.h"
 #import "PlaylistController.h"
 #import "PlaylistDropZoneView.h"

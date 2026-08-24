@@ -11,7 +11,7 @@ Read the `vibe-debug` skill first if the goal is to *use* the channel. Read this
 That is also why root `CLAUDE.md`'s vocabulary rule 4 exists: a *shipping* header may not carry `#if DEBUG`, because the surface a debug build adds to a shipping class belongs here instead, as a declaration-only category (`AudioPlayer+Debug.h`, `AudioWaveformCache+Debug.h`, and the rest of the `+Debug` headers at this level). Two shapes cover what a category cannot add:
 
 - **debug-only state** becomes a debug-only *object* the shipping class holds — `VibeManualRenderPump`;
-- **a debug-only hook** ships as a plain block pointer with no conditional around it (`MainPlayerControllerInternal.h`'s `conversionUndoRedoSettledHandler`).
+- **a debug-only hook** ships as a plain block pointer with no conditional around it (`MainPlayerControllerInternal.h`'s `conversionUndoRedoSettledHandler`, and the converter's source-Trash result filter).
 
 ## The transport, and the two ends of it
 

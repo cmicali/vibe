@@ -25,6 +25,10 @@
 // common case in a real library, and each background decode retry against one
 // costs another descriptor forever.
 //
+// validateAudioFileIsReadableAndHasContent is separate and deliberately
+// stricter for FLAC conversion's destructive handoff. Regular audio-open paths
+// must retain failsAudioOpenPreflight's behavior and cost.
+//
 // TRAP: st_size, never st_blocks or NSURLFileAllocatedSizeKey. An evicted
 // iCloud or Dropbox file is dataless — true logical size, zero allocated
 // blocks — so an allocation-based test would reject every cloud-hosted track.
@@ -93,6 +97,41 @@ static SInt64 VibePreflightGetSize(void *clientData) {
     }
     close(context.descriptor);
     return status != noErr;
+}
+
+- (BOOL)validateAudioFileIsReadableAndHasContent {
+    if (!self.isFileURL) {
+        return NO;
+    }
+    VibePreflightContext context;
+    context.descriptor = open(self.fileSystemRepresentation, O_RDONLY);
+    if (context.descriptor < 0) {
+        return NO;
+    }
+    struct stat info;
+    if (fstat(context.descriptor, &info) != 0) {
+        close(context.descriptor);
+        return NO;
+    }
+    if (!S_ISREG(info.st_mode) || info.st_size <= 0) {
+        close(context.descriptor);
+        return NO;
+    }
+    context.size = info.st_size;
+    AudioFileID file = NULL;
+    OSStatus status = AudioFileOpenWithCallbacks(&context, VibePreflightRead, NULL,
+                                                 VibePreflightGetSize, NULL, 0, &file);
+    UInt64 packetCount = 0;
+    UInt32 packetCountSize = sizeof(packetCount);
+    OSStatus packetStatus = status == noErr && file
+            ? AudioFileGetProperty(file, kAudioFilePropertyAudioDataPacketCount,
+                                   &packetCountSize, &packetCount)
+            : kAudioFileUnspecifiedError;
+    if (file) {
+        AudioFileClose(file);
+    }
+    close(context.descriptor);
+    return status == noErr && packetStatus == noErr && packetCount > 0;
 }
 
 @end

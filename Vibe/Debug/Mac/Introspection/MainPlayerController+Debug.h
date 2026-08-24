@@ -59,11 +59,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSUInteger)debugUIUpdateHz;
 - (NSUInteger)debugExpectedUIUpdateHz;
 
-// Fired on the main thread when an undo or redo of a conversion settles,
-// success or failure; cleared before it runs, so a handler a timed-out debug
-// command left behind cannot fire on a later menu undo. DebugCommandTable.m's
-// undo/redo verbs are the only setter; synthesized in MainPlayerController.m.
-@property (copy, nullable) void (^conversionUndoRedoSettledHandler)(void);
+// Fired on the main thread when an undo or redo of a conversion settles. The
+// result distinguishes a committed target state from a refused inverse and can
+// identify an already-satisfied target; cleared before it runs, so a handler a
+// timed-out debug command left behind cannot fire on a later menu undo.
+// DebugCommandTable.m's undo/redo verbs are the only setter; synthesized in
+// MainPlayerController.m.
+@property (copy, nullable) void (^conversionUndoRedoSettledHandler)(
+        BOOL committed, NSString *_Nullable reason);
 
 @end
 
