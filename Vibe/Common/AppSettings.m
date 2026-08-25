@@ -27,6 +27,7 @@
 #define SETTING_PITCH_PANEL_SHOWN                   @"MainWindow.pitchPanelShown"
 #define SETTING_PLAYLIST_SHOWN                      @"MainWindow.playlistShown"
 #define SETTING_ALWAYS_ON_TOP                       @"MainWindow.alwaysOnTop"
+#define SETTING_SHOW_TRAFFIC_LIGHTS                 @"Appearance.showTrafficLights"
 #define SETTING_PITCH_RANGE                         @"AudioPlayer.pitchRange"
 #define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"
 #define SETTING_SHOW_FILE_INFO                      @"MainWindow.showFileInfo"
@@ -319,6 +320,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
             SETTING_PITCH_PANEL_SHOWN:              @(NO),
             SETTING_PLAYLIST_SHOWN:                 @(NO),
             SETTING_ALWAYS_ON_TOP:                  @(NO),
+            SETTING_SHOW_TRAFFIC_LIGHTS:            @(YES),
             SETTING_PITCH_RANGE:                    @(8),
             SETTING_SHOW_REMAINING_TIME:            @(NO),
             SETTING_SHOW_FILE_INFO:                 @(YES),
@@ -451,6 +453,14 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 
 - (void)setAlwaysOnTop:(BOOL)onTop {
     [[NSUserDefaults standardUserDefaults] setBool:onTop forKey:SETTING_ALWAYS_ON_TOP];
+}
+
+- (BOOL)showTrafficLights {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_TRAFFIC_LIGHTS];
+}
+
+- (void)setShowTrafficLights:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_TRAFFIC_LIGHTS];
 }
 
 #pragma mark Header labels

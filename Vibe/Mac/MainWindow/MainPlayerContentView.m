@@ -320,6 +320,14 @@ API_AVAILABLE(macos(26.0))
     return NSMouseInRect(p, host.bounds, host.isFlipped);
 }
 
+- (void)setTrafficLightsShown:(BOOL)shown {
+    CGFloat alpha = shown && [self isCursorOverWindow] ? 1.0 : 0.0;
+    _closeButton.alphaValue = alpha;
+    _minimizeButton.alphaValue = alpha;
+    _closeButton.hidden = !shown;
+    _minimizeButton.hidden = !shown;
+}
+
 - (void)mouseEntered:(NSEvent *)event {
     [self setControlsShown:YES animated:YES];
 }

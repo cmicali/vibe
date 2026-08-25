@@ -12,6 +12,7 @@
 #import "AudioPlayer.h"
 #import "AudioWaveformView.h"
 #import "MainMenuBuilder.h"
+#import "MainPlayerContentView.h"
 
 @implementation MainPlayerController (Settings)
 
@@ -21,6 +22,9 @@
 
     if (effects & VibeSettingsLiveEffectAlwaysOnTop) {
         [self applyAlwaysOnTop];
+    }
+    if (effects & VibeSettingsLiveEffectTrafficLights) {
+        [self.playerContentView setTrafficLightsShown:settings.showTrafficLights];
     }
     if (effects & VibeSettingsLiveEffectPitchRange) {
         [self applyPitchRange];

@@ -65,7 +65,7 @@ Seven panes, in sidebar order. Each is listed by what it holds and, where a row 
 
 A **Window** group first, under the same `settings.general.window_section` heading the General pane uses:
 
-- the **appearance** choice, and the **window tint** (`windowTint`, identifiers `mono`/`artwork`/`custom` on `representedObject`, default `artwork`). Its row is titled just **Window**, the group naming what it tints. It governs the **header wash alone** — the dock icon and the `album_art` waveform theme read the same art color and are untouched (`MainWindow/APPEARANCE.md`).
+- the **appearance** choice; **Background tint** (`windowTint`, identifiers `mono`/`artwork`/`custom` on `representedObject`, displayed as None/Artwork color/Custom, default `artwork`), which governs the **header wash alone** — the dock icon and the `album_art` waveform theme read the same art color and are untouched (`MainWindow/APPEARANCE.md`); then **Show traffic lights** (`showTrafficLights`, default on), which requests its live effect so the main window's custom close and minimize buttons hide or return immediately.
 - its **one custom well per appearance**, in two rows built always and hidden unless the tint is `custom`, seeded from their displayed fallbacks when Custom is chosen. Same shape as the waveform theme's wells below, with one well instead of a pair.
 
 Then the display rows: **waveform style** and **waveform theme** each request their named effect; **Show file info**, the **time-display mode**, **Show BPM**, **Show key**, notation (`keyNotation`) and `keyColorsEnabled` share the `TrackDisplay` effect. Popup identifiers live on `representedObject`; localized names are display-only.

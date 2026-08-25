@@ -55,6 +55,7 @@
     backdrop.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [contentView addSubview:backdrop];
     MainPlayerContentView *content = [[MainPlayerContentView alloc] initWithTarget:self];
+    [content setTrafficLightsShown:AppSettings.sharedInstance.showTrafficLights];
     self.playerContentView = content;
     [contentView addSubview:content];
     // The window already carries the restored, autosaved frame. Setting the
