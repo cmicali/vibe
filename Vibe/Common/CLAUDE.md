@@ -58,7 +58,7 @@ Not a guard per property. Almost everything here configures something only macOS
 
 One setting is left in it: `uiUpdateHzCap`, read on every live-resize frame. It is a macOS setting, which is why the cache is inside the `#if`; main thread only. The display flags the cache used to carry moved into `AppTheme`, whose fields are in-memory and need no cache.
 
-**TRAP: `NSUserDefaultsDidChangeNotification` does not fire for a write from another process**, and the debug channel's CLI-side prefs verbs (`set_analysis`, `set_appearance`) are exactly that — the CLI client writing while the app runs, as is a plain `defaults write`. Invalidating on that notification left the app reporting the old value for good. So the cache's lifetime is a run-loop turn instead: a `CFRunLoopObserver` drops it before the loop sleeps, and the setters drop it immediately (`invalidateHotCache`). A value is therefore never more than one turn stale, and no writer has to remember anything.
+**TRAP: `NSUserDefaultsDidChangeNotification` does not fire for a write from another process**, and the debug channel's CLI-side prefs verbs (`set_analysis`) are exactly that — the CLI client writing while the app runs, as is a plain `defaults write`. Invalidating on that notification left the app reporting the old value for good. So the cache's lifetime is a run-loop turn instead: a `CFRunLoopObserver` drops it before the loop sleeps, and the setters drop it immediately (`invalidateHotCache`). A value is therefore never more than one turn stale, and no writer has to remember anything.
 
 The analysis flags are deliberately **not** cached — the waveform loader is handed their values once per decode through its analysis provider, which is not a hot path.
 

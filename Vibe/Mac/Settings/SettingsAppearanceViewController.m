@@ -31,14 +31,6 @@ static const CGFloat kAppearancePopUpWidth = 220;
 static const CGFloat kThemeListHeight = 150;
 static NSString *const kThemeCellIdentifier = @"themeCell";
 
-// Popup tags for the appearance choices; the persisted value is the
-// SETTINGS_VALUE_WINDOW_APPEARANCE_* string.
-typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
-    VibeAppearanceTagSystem = 0,
-    VibeAppearanceTagLight,
-    VibeAppearanceTagDark,
-};
-
 // The font panel's target slot, carried as the Select buttons' tags. None
 // while the panel is not editing a slot; changeFont: no-ops then, which is
 // what keeps a stray panel from restyling anything.
@@ -116,6 +108,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSPopUpButton *_keyNotationPopUp;
     NSSwitch *_keyColorsSwitch;
     NSSwitch *_waveformGradientSwitch;
+    // Every Dark/Light well pair, for the fixed-theme collapse to one well.
+    NSMutableArray<NSStackView *> *_darkLightPairs;
     NSColorWell *_titleDarkWell, *_titleLightWell;
     NSColorWell *_artistDarkWell, *_artistLightWell;
     NSColorWell *_infoDarkWell, *_infoLightWell;
@@ -152,14 +146,6 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 }
 
 - (void)buildListControls {
-    _appearancePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(appearanceChanged:)];
-    [_appearancePopUp addItemWithTitle:STR_MENU_APPEARANCE_SYSTEM];
-    _appearancePopUp.lastItem.tag = VibeAppearanceTagSystem;
-    [_appearancePopUp addItemWithTitle:STR_MENU_APPEARANCE_LIGHT];
-    _appearancePopUp.lastItem.tag = VibeAppearanceTagLight;
-    [_appearancePopUp addItemWithTitle:STR_MENU_APPEARANCE_DARK];
-    _appearancePopUp.lastItem.tag = VibeAppearanceTagDark;
-
     _trafficLightsSwitch = [self switchWithAction:@selector(toggleTrafficLights:)];
 
     _themeTable = [[NSTableView alloc] initWithFrame:NSZeroRect];
@@ -201,7 +187,6 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 
     _listSections = @[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_APPEARANCE_LABEL control:_appearancePopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS control:_trafficLightsSwitch],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEMES_SECTION rows:@[
@@ -245,8 +230,13 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 }
 
 - (NSStackView *)darkLightPairWithDark:(NSColorWell *)dark light:(NSColorWell *)light {
-    return [self wellPair:dark caption:STR_SETTINGS_THEME_DARK
-                     well:light caption:STR_SETTINGS_THEME_LIGHT];
+    NSStackView *pair = [self wellPair:dark caption:STR_SETTINGS_THEME_DARK
+                                  well:light caption:STR_SETTINGS_THEME_LIGHT];
+    if (!_darkLightPairs) {
+        _darkLightPairs = [NSMutableArray array];
+    }
+    [_darkLightPairs addObject:pair];
+    return pair;
 }
 
 // A font row's trailing cluster: the current choice, then Select…, which
@@ -272,6 +262,15 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
                                           target:self action:@selector(duplicateActiveTheme:)];
     _builtInRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BUILT_IN_CAPTION
                                         control:_duplicateButton];
+
+    _appearancePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
+                                           action:@selector(themeAppearanceChanged:)];
+    [_appearancePopUp addItemWithTitle:STR_MENU_APPEARANCE_SYSTEM];
+    _appearancePopUp.lastItem.representedObject = SETTINGS_VALUE_APPEARANCE_SYSTEM;
+    [_appearancePopUp addItemWithTitle:STR_MENU_APPEARANCE_LIGHT];
+    _appearancePopUp.lastItem.representedObject = SETTINGS_VALUE_APPEARANCE_LIGHT;
+    [_appearancePopUp addItemWithTitle:STR_MENU_APPEARANCE_DARK];
+    _appearancePopUp.lastItem.representedObject = SETTINGS_VALUE_APPEARANCE_DARK;
 
     _backgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(backgroundStyleChanged:)];
     [_backgroundPopUp addItemWithTitle:STR_SETTINGS_THEME_BACKGROUND_GLASS];
@@ -398,6 +397,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSArray<NSView *> *sections = @[
         [SettingsSectionView sectionWithRows:@[_builtInRow, _nameRow]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APPEARANCE control:_appearancePopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_LABEL control:_backgroundPopUp],
             _backgroundColorsRow,
             [SettingsRowView rowWithTitle:STR_SETTINGS_BACKGROUND_TINT_LABEL control:_windowTintPopUp],
@@ -551,12 +551,24 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 
 - (void)resolveLayoutStateFromSettings {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    // A fixed theme pins one appearance, so only the pinned side's colors can
+    // ever draw: every Dark/Light pair collapses to that side's single well,
+    // and the per-side rows keep only the pinned one.
+    BOOL fixedTheme = ![theme.appearance isEqualToString:SETTINGS_VALUE_APPEARANCE_SYSTEM];
+    BOOL pinnedDark = [theme.appearance isEqualToString:SETTINGS_VALUE_APPEARANCE_DARK];
+    for (NSStackView *pair in _darkLightPairs) {
+        NSArray<NSView *> *views = pair.arrangedSubviews; // well, caption, well, caption
+        views[0].hidden = fixedTheme && !pinnedDark;
+        views[1].hidden = fixedTheme;
+        views[2].hidden = fixedTheme && pinnedDark;
+        views[3].hidden = fixedTheme;
+    }
     BOOL customTheme = [theme.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
-    _customDarkRow.hidden = !customTheme;
-    _customLightRow.hidden = !customTheme;
+    _customDarkRow.hidden = !customTheme || (fixedTheme && !pinnedDark);
+    _customLightRow.hidden = !customTheme || (fixedTheme && pinnedDark);
     BOOL customTint = [theme.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
-    _windowTintDarkRow.hidden = !customTint;
-    _windowTintLightRow.hidden = !customTint;
+    _windowTintDarkRow.hidden = !customTint || (fixedTheme && !pinnedDark);
+    _windowTintLightRow.hidden = !customTint || (fixedTheme && pinnedDark);
     _backgroundColorsRow.hidden = ![theme.windowBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
     [self applyEditorVisibility];
@@ -576,16 +588,6 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     AppTheme *theme = settings.currentTheme;
 
     // The common card.
-    NSString *style = settings.windowAppearanceStyle;
-    if ([style isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT]) {
-        [_appearancePopUp selectItemWithTag:VibeAppearanceTagLight];
-    }
-    else if ([style isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK]) {
-        [_appearancePopUp selectItemWithTag:VibeAppearanceTagDark];
-    }
-    else {
-        [_appearancePopUp selectItemWithTag:VibeAppearanceTagSystem];
-    }
     _trafficLightsSwitch.state = settings.showTrafficLights
             ? NSControlStateValueOn : NSControlStateValueOff;
 
@@ -609,6 +611,8 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     _nameRow.hidden = builtIn;
     _builtInRow.hidden = !builtIn;
 
+    [_appearancePopUp selectItemAtIndex:
+            [_appearancePopUp indexOfItemWithRepresentedObject:theme.appearance]];
     [_backgroundPopUp selectItemAtIndex:
             [_backgroundPopUp indexOfItemWithRepresentedObject:theme.windowBackgroundStyle]];
     _backgroundDarkWell.color = [theme windowBackgroundColorForDark:YES]
@@ -890,19 +894,12 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrafficLights];
 }
 
-- (void)appearanceChanged:(id)sender {
-    switch (_appearancePopUp.selectedTag) {
-        case VibeAppearanceTagLight:
-            AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
-            break;
-        case VibeAppearanceTagDark:
-            AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK;
-            break;
-        default:
-            AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
-            break;
-    }
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
+- (void)themeAppearanceChanged:(id)sender {
+    AppSettings.sharedInstance.currentTheme.appearance =
+            _appearancePopUp.selectedItem.representedObject;
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowAppearance];
+    [self resolveLayoutStateFromSettings];
+    [self refreshFromSettings];
 }
 
 #pragma mark - Editor: window

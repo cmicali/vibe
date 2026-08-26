@@ -49,9 +49,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class NSAppearance;
 
-#define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT     @""
-#define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT       @"light"
-#define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK        @"dark"
 
 // The window header's color wash. Stable identifiers, never display names:
 // mono leaves the glass unwashed, artwork — the default — washes it with the
@@ -151,13 +148,6 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // settings.
 - (NSString *)audioOutputDeviceUID;
 - (void)setAudioOutputDeviceUID:(NSString *)deviceUID;
-
-- (NSString *)windowAppearanceStyle;
-- (void)setWindowAppearanceStyle:(NSString *)name;
-
-// nil is the system default: a nil window appearance tracks the OS
-// light/dark setting rather than pinning one.
-- (nullable NSAppearance *)windowAppearance;
 
 // YES, the default, shows the custom close and minimize traffic lights in the
 // main window. A writer requests VibeSettingsLiveEffectTrafficLights so the

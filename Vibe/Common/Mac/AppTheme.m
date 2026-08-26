@@ -21,6 +21,7 @@ NSString *const kVibeThemeRecordIdentifierKey = @"id";
 // The record field keys ARE the accessor names, which is what makes a record
 // self-describing in a theme JSON. Never renamed: they are persisted.
 static NSString *const kFieldWaveformStyle = @"waveformStyle";
+static NSString *const kFieldAppearance = @"appearance";
 static NSString *const kFieldWaveformTheme = @"waveformTheme";
 static NSString *const kFieldWaveformGradient = @"waveformGradient";
 static NSString *const kFieldWindowTint = @"windowTint";
@@ -115,6 +116,7 @@ static NSDictionary<NSString *, id> *FieldDefaults(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         defaults = @{
+            kFieldAppearance:            SETTINGS_VALUE_APPEARANCE_DARK,
             kFieldWaveformStyle:         SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
             kFieldWaveformTheme:         SETTINGS_VALUE_WAVEFORM_THEME_MONO,
             kFieldWaveformGradient:      @(YES),
@@ -137,6 +139,14 @@ static NSDictionary<NSString *, id> *FieldDefaults(void) {
         };
     });
     return defaults;
+}
+
+static NSString *VibeNormalizedAppearance(NSString *_Nullable identifier) {
+    if ([identifier isEqualToString:SETTINGS_VALUE_APPEARANCE_SYSTEM] ||
+        [identifier isEqualToString:SETTINGS_VALUE_APPEARANCE_LIGHT]) {
+        return identifier;
+    }
+    return SETTINGS_VALUE_APPEARANCE_DARK;
 }
 
 static NSString *VibeNormalizedWindowBackgroundStyle(NSString *_Nullable identifier) {
@@ -191,6 +201,9 @@ static id _Nullable SanitizedFieldValue(NSString *key, id _Nullable raw) {
     }
     if (![raw isKindOfClass:NSString.class]) {
         return nil;
+    }
+    if ([key isEqualToString:kFieldAppearance]) {
+        return VibeNormalizedAppearance(raw);
     }
     if ([key isEqualToString:kFieldWaveformTheme]) {
         return VibeNormalizedWaveformTheme(raw);
@@ -276,6 +289,7 @@ static NSArray<NSString *> *KnownFieldKeys(void) {
 + (NSDictionary<NSString *, id> *)builtInRecordForIdentifier:(NSString *)identifier {
     if ([identifier isEqualToString:kVibeThemeIdentifierIndustrial]) {
         return @{
+            kFieldAppearance:    SETTINGS_VALUE_APPEARANCE_LIGHT,
             kFieldWaveformStyle: @"detailed",
             kFieldWaveformTheme: SETTINGS_VALUE_WAVEFORM_THEME_ORANGE,
             kFieldInfoFontFace:  @"Menlo-Regular",
@@ -406,6 +420,18 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (NSString *)waveformStyle { return [self stringForKey:kFieldWaveformStyle]; }
 - (void)setWaveformStyle:(NSString *)v { [self storeSanitized:v forKey:kFieldWaveformStyle]; }
+
+- (NSString *)appearance { return [self stringForKey:kFieldAppearance]; }
+- (void)setAppearance:(NSString *)v { [self storeSanitized:v forKey:kFieldAppearance]; }
+
+- (NSAppearance *)resolvedWindowAppearance {
+    NSString *v = self.appearance;
+    if ([v isEqualToString:SETTINGS_VALUE_APPEARANCE_SYSTEM]) {
+        return nil;
+    }
+    return [NSAppearance appearanceNamed:[v isEqualToString:SETTINGS_VALUE_APPEARANCE_LIGHT]
+            ? NSAppearanceNameAqua : NSAppearanceNameDarkAqua];
+}
 
 - (NSString *)waveformTheme { return [self stringForKey:kFieldWaveformTheme]; }
 - (void)setWaveformTheme:(NSString *)v { [self storeSanitized:v forKey:kFieldWaveformTheme]; }

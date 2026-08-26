@@ -317,7 +317,6 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     [defaults addEntriesFromDictionary:@{
             SETTING_AUDIO_PLAYER_DEVICE_NAME:       @"",
             SETTING_AUDIO_PLAYER_DEVICE_UID:        @"",
-            SETTING_WINDOW_APPEARANCE_STYLE:        SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK,
             SETTING_PITCH_PANEL_SHOWN:              @(NO),
             SETTING_PLAYLIST_SHOWN:                 @(NO),
             SETTING_ALWAYS_ON_TOP:                  @(NO),
@@ -369,6 +368,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
         @"showKey":                    SETTING_SHOW_KEY,
         @"keyColorsEnabled":           SETTING_KEY_COLORS,
         @"keyNotation":                SETTING_KEY_NOTATION,
+        @"appearance":                 SETTING_WINDOW_APPEARANCE_STYLE,
     };
     NSMutableDictionary *legacyValues = [NSMutableDictionary dictionary];
     for (NSString *field in legacyKeys) {
@@ -376,6 +376,12 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
         if (value) {
             legacyValues[field] = value;
         }
+    }
+    // The legacy appearance spelled follow-the-OS as the empty string; the
+    // theme's identifier for it is explicit. light carries over as itself and
+    // dark drops out as the field's default.
+    if ([legacyValues[@"appearance"] isEqualToString:@""]) {
+        legacyValues[@"appearance"] = SETTINGS_VALUE_APPEARANCE_SYSTEM;
     }
     NSDictionary *record = [AppTheme migratedRecordFromLegacyValues:legacyValues];
     if (record) {
@@ -659,29 +665,6 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 }
 
 #pragma mark Window
-
-- (NSString *)windowAppearanceStyle {
-    return [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WINDOW_APPEARANCE_STYLE];
-}
-
-- (void)setWindowAppearanceStyle:(NSString *)name {
-    [[NSUserDefaults standardUserDefaults] setObject:name forKey:SETTING_WINDOW_APPEARANCE_STYLE];
-}
-
-- (NSAppearance *)windowAppearance {
-    return [self appearanceForSettingValue:self.windowAppearanceStyle];
-}
-
-- (NSAppearance *)appearanceForSettingValue:(NSString *)value {
-    if ([value isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT]) {
-        return [NSAppearance appearanceNamed:NSAppearanceNameAqua];
-    }
-    else if ([value isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK]) {
-        return [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
-    }
-    // System default: a nil window appearance tracks the OS light/dark setting.
-    return nil;
-}
 
 - (BOOL)isPitchPanelShown {
     return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_PITCH_PANEL_SHOWN];

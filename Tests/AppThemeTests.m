@@ -2,7 +2,7 @@
 // AppTheme's record contract: the same sanitization gates a JSON import, a
 // stored record and a UI edit, records stay sparse against the defaults, and
 // the built-ins are exactly what they claim — vibe the empty record,
-// industrial its three overrides.
+// industrial its four overrides.
 //
 
 #import <XCTest/XCTest.h>
@@ -27,6 +27,7 @@
     XCTAssertEqual(theme.windowCornerRadius, 20);
     XCTAssertTrue(theme.showFileInfo);
     XCTAssertTrue(theme.waveformGradient);
+    XCTAssertEqualObjects(theme.appearance, @"dark");
     XCTAssertFalse(theme.showRemainingTime);
     XCTAssertTrue(theme.showBPM);
     XCTAssertTrue(theme.showKey);
@@ -245,9 +246,10 @@
     XCTAssertEqualObjects([AppTheme builtInRecordForIdentifier:@"vibe"], @{});
 }
 
-- (void)testIndustrialBuiltInIsExactlyItsThreeOverrides {
+- (void)testIndustrialBuiltInIsExactlyItsFourOverrides {
     NSDictionary *record = [AppTheme builtInRecordForIdentifier:@"industrial"];
     XCTAssertEqualObjects(record, (@{
+        @"appearance": @"light",
         @"waveformStyle": @"detailed",
         @"waveformTheme": @"orange",
         @"infoFontFace": @"Menlo-Regular",
@@ -279,6 +281,16 @@
                                        existingNames:existing], @"Industrial 2");
     XCTAssertEqualObjects([AppTheme dedupedThemeName:@"Fresh" fallback:@"Custom"
                                        existingNames:existing], @"Fresh");
+}
+
+- (void)testAppearanceSnapsToTheFactoryDark {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"appearance": @"solarized"}];
+    XCTAssertEqualObjects(theme.appearance, @"dark");
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
+    theme.appearance = @"light";
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"appearance": @"light"});
+    theme.appearance = @"system";
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"appearance": @"system"});
 }
 
 #pragma mark Migration

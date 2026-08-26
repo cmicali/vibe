@@ -26,6 +26,14 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierIndustrial;
 
+// The theme's appearance: system follows the OS light/dark setting, while
+// light and dark pin the main window — a fixed, single-look theme whose
+// color pairs matter only on the pinned side. dark is the factory default
+// (the pre-theme app registered a dark-pinned window).
+#define SETTINGS_VALUE_APPEARANCE_SYSTEM                    @"system"
+#define SETTINGS_VALUE_APPEARANCE_LIGHT                     @"light"
+#define SETTINGS_VALUE_APPEARANCE_DARK                      @"dark"
+
 // The background styles' stable identifiers, shared by the window and the
 // playlist: glass, the default, is the translucent look as shipped; solid
 // covers it with the surface's color pair, whose alpha is the cover's
@@ -111,6 +119,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // a file load would refuse.
 
 @property (nonatomic, copy) NSString *waveformStyle;        // renderer styleIdentifier
+@property (nonatomic, copy) NSString *appearance;           // system/light/dark
 @property (nonatomic, copy) NSString *waveformTheme;        // mono/orange/album_art/custom
 @property (nonatomic) BOOL waveformGradient;                // NO draws flat bars, no vertical ramp
 @property (nonatomic, copy) NSString *windowTint;           // mono/artwork/custom
@@ -177,6 +186,10 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // tertiaryLabelColor — spelled once, so the header, the playlist and the
 // corner readouts cannot disagree about a slot's fallback. Same capture
 // semantics as dynamicColorWithDark: above.
+// The NSAppearance the main window pins to: nil under system (track the OS),
+// aqua or darkAqua for a fixed theme.
+- (nullable NSAppearance *)resolvedWindowAppearance;
+
 - (VibeColor *)resolvedTitleColor;
 - (VibeColor *)resolvedArtistColor;
 - (VibeColor *)resolvedInfoColor;
