@@ -16,7 +16,11 @@
 
 static const CGFloat kSettingsSidebarWidth = 200;
 
-@interface SettingsWindowController () <NSMenuItemValidation, NSToolbarDelegate>
+@interface SettingsWindowController () <NSMenuItemValidation, NSToolbarDelegate> {
+    // The pane host; SettingsTabViewController is defined further down, and
+    // everything reached through this ivar is NSTabViewController API.
+    NSTabViewController *_tabs;
+}
 @end
 
 // The same swallow as the tab controller's: AppKit resizes the window the
@@ -287,8 +291,20 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
         // selected pane's fitting size on the first layout pass.
         self.windowFrameAutosaveName = @"SettingsWindow";
         [sidebar.tableView selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
+        _tabs = tabs;
     }
     return self;
+}
+
+- (void)showThemeEditor {
+    for (NSTabViewItem *item in _tabs.tabViewItems) {
+        if ([item.identifier isEqualToString:@"appearance"]) {
+            // The tab controller's own selection path, so the sidebar, the
+            // title chain and refreshFromSettings all follow.
+            _tabs.selectedTabViewItemIndex = [_tabs.tabViewItems indexOfObject:item];
+            break;
+        }
+    }
 }
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar {

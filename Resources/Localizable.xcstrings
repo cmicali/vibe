@@ -18787,6 +18787,30 @@
       },
       "extractionState": "manual"
     },
+    "menu.view.theme": {
+      "comment": "View menu: submenu selecting the appearance theme; checkmarks the active one.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Theme"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.view.theme.edit": {
+      "comment": "Theme submenu item: opens Settings on the theme editor. Ends with a real ellipsis character (…), not three periods.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit Themes…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "menu.view.waveform": {
       "comment": "View menu: submenu choosing the waveform drawing style.",
       "localizations": {
@@ -18971,7 +18995,7 @@
           }
         }
       },
-      "extractionState": "manual"
+      "extractionState": "stale"
     },
     "playlist.grant.button": {
       "comment": "Confirm button of the folder-picker panel that grants access to a playlist file's folder.",

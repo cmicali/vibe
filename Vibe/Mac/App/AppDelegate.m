@@ -320,6 +320,11 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [self.settingsWindowController showWindow:sender];
 }
 
+- (IBAction)showThemeSettings:(id)sender {
+    [self showSettingsWindow:sender];
+    [self.settingsWindowController showThemeEditor];
+}
+
 - (IBAction)showSupportPage:(id)sender {
     [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:kVibeSupportURL]];
 }

@@ -46,7 +46,7 @@ typedef NS_ENUM(NSInteger, VibeMenuValidationDomain) {
     // authority for the enablement and the retitling.
     VibeMenuValidationDomainConvert,
     // menuNeedsUpdate: mints these and owns their state, title and target.
-    VibeMenuValidationDomainWaveformStyle,
+    VibeMenuValidationDomainTheme,
 };
 
 // The three width presets. The identifier is derived from the preset rather
@@ -79,10 +79,12 @@ static inline VibeWindowSizePreset VibeWindowSizePresetForMenuIdentifier(NSStrin
     return VibeWindowSizePresetDefault;
 }
 
-// The dynamic style items carry the style's own identifier as a suffix, so the
-// family is matched by prefix rather than enumerated.
-static inline NSString *VibeWaveformStyleMenuIdentifier(NSString *style) {
-    return [@"waveform_style_" stringByAppendingString:style];
+// The dynamic theme items carry the theme's own identifier as a suffix, so
+// the family is matched by prefix rather than enumerated. The tail's
+// menu_edit_themes is deliberately absent: it targets the app delegate, like
+// Settings and Quit.
+static inline NSString *VibeThemeMenuIdentifier(NSString *themeIdentifier) {
+    return [@"view_theme_" stringByAppendingString:themeIdentifier];
 }
 
 static inline VibeMenuValidationDomain VibeMenuValidationDomainForIdentifier(NSString *_Nullable identifier) {
@@ -92,8 +94,8 @@ static inline VibeMenuValidationDomain VibeMenuValidationDomainForIdentifier(NSS
     if ([identifier hasPrefix:@"view_size_"]) {
         return VibeMenuValidationDomainWindowSize;
     }
-    if ([identifier hasPrefix:@"waveform_style_"]) {
-        return VibeMenuValidationDomainWaveformStyle;
+    if ([identifier hasPrefix:@"view_theme_"]) {
+        return VibeMenuValidationDomainTheme;
     }
     if ([identifier isEqualToString:@"menu_show_playlist"]
             || [identifier isEqualToString:@"menu_show_pitch"]

@@ -336,10 +336,10 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddItem(appearanceMenu, STR_MENU_APPEARANCE_SYSTEM, @selector(setAppearance:), player, @"", 0, @"view_appearance_system_default");
     AddItem(appearanceMenu, STR_MENU_APPEARANCE_LIGHT, @selector(setAppearance:), player, @"", 0, @"view_appearance_light");
     AddItem(appearanceMenu, STR_MENU_APPEARANCE_DARK, @selector(setAppearance:), player, @"", 0, @"view_appearance_dark");
-    NSMenu *waveformMenu = Submenu(viewMenu, STR_MENU_VIEW_WAVEFORM).submenu;
-    waveformMenu.identifier = @"waveform_style";
-    waveformMenu.autoenablesItems = NO;
-    waveformMenu.delegate = player; // fills in the renderer styles
+    NSMenu *themeMenu = Submenu(viewMenu, STR_MENU_VIEW_THEME).submenu;
+    themeMenu.identifier = @"view_theme";
+    themeMenu.autoenablesItems = NO;
+    themeMenu.delegate = player; // fills in the themes and the Edit tail
 
     AddSeparator(viewMenu);
     AddSymbolItem(viewMenu, STR_MENU_VIEW_ALWAYS_ON_TOP, @"pin", @selector(toggleAlwaysOnTop:), player, @"", 0, @"menu_always_on_top");

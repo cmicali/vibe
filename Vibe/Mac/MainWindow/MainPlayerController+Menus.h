@@ -15,9 +15,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface MainPlayerController (Menus) <NSMenuItemValidation>
 
-// The action of the items menuNeedsUpdate: builds for the waveform-style
-// submenu.
-- (IBAction)setWaveformStyle:(id)sender;
+// The action of the items menuNeedsUpdate: builds for the View > Theme
+// submenu: applies the picked theme and requests the composed effect.
+- (IBAction)selectTheme:(id)sender;
 
 // The waveform-style registry, re-exposed for the Settings pane's popup:
 // stable identifiers in, localized names for display only.
