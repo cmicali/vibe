@@ -326,7 +326,10 @@
 }
 
 - (void)applyStoredAppearance {
-    self.window.appearance = AppSettings.sharedInstance.windowAppearance;
+    // A single-mode theme with a solid background demands the side its
+    // background reads as; the stored setting rules otherwise.
+    self.window.appearance = AppSettings.sharedInstance.currentTheme.requiredWindowAppearance
+            ?: AppSettings.sharedInstance.windowAppearance;
     [self.playlistController reloadCurrentTrack];
 }
 

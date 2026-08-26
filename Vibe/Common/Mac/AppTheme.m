@@ -496,6 +496,23 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
                   forKey:ColorFieldKey(base, self.isSingleMode ? YES : isDark)];
 }
 
+- (NSAppearance *)requiredWindowAppearance {
+    if (!self.isSingleMode ||
+        ![self.windowBackgroundStyle isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]) {
+        return nil;
+    }
+    VibeColor *color = [self windowBackgroundColorForDark:YES];
+    NSColor *srgb = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+    if (!srgb) {
+        return nil;
+    }
+    CGFloat r = 0, g = 0, b = 0, a = 0;
+    [srgb getRed:&r green:&g blue:&b alpha:&a];
+    BOOL light = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.5;
+    return [NSAppearance appearanceNamed:light ? NSAppearanceNameAqua
+                                               : NSAppearanceNameDarkAqua];
+}
+
 - (VibeColor *)waveformPlayedColorForDark:(BOOL)isDark { return [self colorForBase:kColorWaveformPlayed dark:isDark]; }
 - (void)setWaveformPlayedColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorWaveformPlayed dark:isDark]; }
 

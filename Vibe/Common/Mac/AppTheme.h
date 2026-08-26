@@ -121,6 +121,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 
 @property (nonatomic, copy) NSString *waveformStyle;        // renderer styleIdentifier
 @property (nonatomic, copy) NSString *mode;                 // single/dual color sets
+@property (readonly, nonatomic) BOOL isSingleMode;
 @property (nonatomic, copy) NSString *waveformTheme;        // mono/orange/album_art/custom
 @property (nonatomic) BOOL waveformGradient;                // NO draws flat bars, no vertical ramp
 @property (nonatomic, copy) NSString *windowTint;           // mono/artwork/custom
@@ -187,6 +188,14 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // tertiaryLabelColor — spelled once, so the header, the playlist and the
 // corner readouts cannot disagree about a slot's fallback. Same capture
 // semantics as dynamicColorWithDark: above.
+// The appearance a single-mode theme demands, or nil when the appearance
+// setting should rule. A single-mode theme with a solid background pins the
+// window to the side its background color reads as — a white background gets
+// light chrome, light materials and dark default labels in every mode, which
+// is what makes the theme's one look actually one look. Dual themes, and
+// single themes without a solid background color, never pin.
+- (nullable NSAppearance *)requiredWindowAppearance;
+
 - (VibeColor *)resolvedTitleColor;
 - (VibeColor *)resolvedArtistColor;
 - (VibeColor *)resolvedInfoColor;

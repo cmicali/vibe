@@ -33,10 +33,12 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // The playlist's themed colors and font: cell attributes rebuild, rows
     // redraw, and the wash over the frost re-resolves.
     VibeSettingsLiveEffectPlaylistAppearance = 1UL << 16,
-    // Everything applying a whole theme moves at once. Deliberately not the
-    // common settings (WindowAppearance, TrafficLights), which live outside
-    // the theme.
-    VibeSettingsLiveEffectThemeApply       = VibeSettingsLiveEffectWaveformStyle
+    // Everything applying a whole theme moves at once. WindowAppearance is
+    // included because a single-mode theme's solid background can demand a
+    // pinned appearance (AppTheme.requiredWindowAppearance) even though the
+    // appearance SETTING stays a common one; TrafficLights stays outside.
+    VibeSettingsLiveEffectThemeApply       = VibeSettingsLiveEffectWindowAppearance
+                                           | VibeSettingsLiveEffectWaveformStyle
                                            | VibeSettingsLiveEffectWaveformTheme
                                            | VibeSettingsLiveEffectWindowTint
                                            | VibeSettingsLiveEffectWindowChrome

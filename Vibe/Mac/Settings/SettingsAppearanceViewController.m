@@ -927,8 +927,10 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     BOOL solid = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
     if (solid) {
         // Choosing Solid seeds any unset color from the wells' displayed
-        // fallbacks, so the window immediately matches them.
-        for (int darkPass = 0; darkPass <= 1; darkPass++) {
+        // fallbacks, so the window immediately matches them. Single mode has
+        // one slot, seeded once from the dark default — without the guard the
+        // light pass would land the light default in it.
+        for (int darkPass = theme.isSingleMode ? 1 : 0; darkPass <= 1; darkPass++) {
             BOOL isDark = darkPass == 1;
             if (![theme windowBackgroundColorForDark:isDark]) {
                 [theme setWindowBackgroundColor:
@@ -938,14 +940,18 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
         }
     }
     theme.windowBackgroundStyle = identifier;
-    [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowAppearance
+            | VibeSettingsLiveEffectWindowChrome];
     [self resolveLayoutStateFromSettings];
 }
 
 - (void)backgroundColorChanged:(NSColorWell *)sender {
     [AppSettings.sharedInstance.currentTheme setWindowBackgroundColor:sender.color
             forDark:(sender == _backgroundDarkWell)];
-    [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
+    // WindowAppearance too: a single-mode theme's background color decides
+    // which side the window pins to.
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowAppearance
+            | VibeSettingsLiveEffectWindowChrome];
 }
 
 // The custom wash's fallbacks, shared by the wells' display and the seed on
@@ -962,7 +968,7 @@ static NSColor *DefaultWindowTintColor(BOOL isDark) {
     BOOL custom = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     if (custom) {
-        for (int darkPass = 0; darkPass <= 1; darkPass++) {
+        for (int darkPass = theme.isSingleMode ? 1 : 0; darkPass <= 1; darkPass++) {
             BOOL isDark = darkPass == 1;
             if (![theme windowTintColorForDark:isDark]) {
                 [theme setWindowTintColor:DefaultWindowTintColor(isDark) forDark:isDark];
@@ -1086,7 +1092,7 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     if (custom) {
         // Choosing Custom seeds any unset color from the wells' displayed
         // fallbacks, so the waveform immediately matches what the wells show.
-        for (int darkPass = 0; darkPass <= 1; darkPass++) {
+        for (int darkPass = theme.isSingleMode ? 1 : 0; darkPass <= 1; darkPass++) {
             BOOL isDark = darkPass == 1;
             if (![theme waveformPlayedColorForDark:isDark]) {
                 [theme setWaveformPlayedColor:DefaultCustomPlayedColor(isDark) forDark:isDark];

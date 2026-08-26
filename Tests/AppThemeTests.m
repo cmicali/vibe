@@ -310,6 +310,30 @@
     XCTAssertEqualObjects(VibeHexStringFromColor([theme titleColorForDark:NO]), @"#EEEEEE");
 }
 
+- (void)testSingleModeSolidBackgroundDemandsItsSide {
+    // The pin exists only for single mode + a solid background color; its
+    // side is the color's luminance, so a white look gets light chrome and
+    // dark default labels in every mode.
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
+        @"mode": @"single",
+        @"windowBackgroundStyle": @"solid",
+        @"windowBackgroundColorDark": @"#FFFFFF",
+    }];
+    XCTAssertEqualObjects(theme.requiredWindowAppearance.name, NSAppearanceNameAqua);
+    [theme setWindowBackgroundColor:VibeColorFromHexString(@"#111111") forDark:NO];
+    XCTAssertEqualObjects(theme.requiredWindowAppearance.name, NSAppearanceNameDarkAqua);
+    theme.mode = @"dual";
+    XCTAssertNil(theme.requiredWindowAppearance);
+    theme.mode = @"single";
+    theme.windowBackgroundStyle = @"glass";
+    XCTAssertNil(theme.requiredWindowAppearance);
+    // No background color set: nothing to derive from, the setting rules.
+    AppTheme *bare = [[AppTheme alloc] initWithRecord:@{
+        @"mode": @"single", @"windowBackgroundStyle": @"solid",
+    }];
+    XCTAssertNil(bare.requiredWindowAppearance);
+}
+
 - (void)testModeSnapsToDual {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"mode": @"tri"}];
     XCTAssertEqualObjects(theme.mode, @"dual");
